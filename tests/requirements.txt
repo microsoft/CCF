@@ -1,0 +1,4 @@
+paramiko
+msgpack
+web3[dev]
+loguru

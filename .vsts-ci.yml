@@ -1,0 +1,41 @@
+trigger:
+  branches:
+    include:
+      - "*"
+
+jobs:
+- job: ACC_1804_build
+  pool: Ubuntu-1804-SGX-Azure
+  steps:
+    - template: .vsts-ci-templates/build_and_test.yml
+
+- job: ACC_1804_build_pbft
+  pool: Ubuntu-1804-SGX-Azure
+  steps:
+    - template: .vsts-ci-templates/build_and_test_with_pbft.yml
+
+- job: static_checks
+  pool: Ubuntu-1804-SGX-Azure
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
+
+    - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+      displayName: 'Component Detection'
+
+    - script: find . -regex ".*\.sh$" | xargs shellcheck -s bash -e SC2044,SC2002
+      displayName: 'Shell Check'
+
+    - script: python3.7 notice-check.py
+      displayName: 'Check copyright notices'
+
+    - script: ./check-format.sh
+      displayName: 'Check C++ code format'
+
+    - script: |
+        python3.7 -m venv env
+        source env/bin/activate
+        pip install black
+        black --check sphinx/ tests/ notice-check.py
+      displayName: 'Check Python code format'

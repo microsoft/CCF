@@ -1,0 +1,48 @@
+{
+  "hosts": [
+    "localhost",
+    "localhost"
+  ],
+  "package": "libloggingenc",
+  "connections": [
+    {
+      "transactions": [
+        {
+          "method": "LOG_record",
+          "params": {
+            "id": 42,
+            "msg": "Hello world"
+          },
+          "expected_result": "OK"
+        },
+        {
+          "method": "LOG_get",
+          "params": {
+            "id": 42
+          },
+          "expected_result": "Hello world"
+        }
+      ]
+    },
+    {
+      "on_follower": true,
+      "transactions": [
+        {
+          "method": "LOG_record",
+          "params": {
+            "id": 42,
+            "msg": "Hello world"
+          },
+          "expected_error": -32001
+        },
+        {
+          "method": "LOG_get",
+          "params": {
+            "id": 42
+          },
+          "expected_result": "Hello world"
+        }
+      ]
+    }
+  ]
+}

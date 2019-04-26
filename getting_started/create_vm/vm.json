@@ -1,0 +1,23 @@
+{
+  "properties": {
+    "vmProfiles": [
+      {
+        "name": "ccf-dev",
+        "osType": "Linux",
+        "vmSize": "Standard_DC4s",
+        "ports": [22, 25000],
+        "hasDNSName": true,
+        "isVanilla": true
+      }
+    ],
+    "linuxProfile": {
+      "adminUsername": "ccf",
+      "osImage": {
+        "publisher": "Canonical",
+        "offer": "UbuntuServer",
+        "sku": "18.04-LTS",
+        "version": "latest"
+      }
+    }
+  }
+}

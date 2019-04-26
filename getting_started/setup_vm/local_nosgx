@@ -1,0 +1,6 @@
+[local]
+localhost ansible_connection=local
+
+[local:vars]
+oe_playbook=scripts/ansible/oe-vanilla-prelibsgx-setup.yml
+oe_build_opts=' -DUSE_LIBSGX=OFF'
