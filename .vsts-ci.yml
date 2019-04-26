@@ -9,11 +9,6 @@ jobs:
   steps:
     - template: .vsts-ci-templates/build_and_test.yml
 
-- job: ACC_1804_build_pbft
-  pool: Ubuntu-1804-SGX-Azure
-  steps:
-    - template: .vsts-ci-templates/build_and_test_with_pbft.yml
-
 - job: static_checks
   pool: Ubuntu-1804-SGX-Azure
   steps:
