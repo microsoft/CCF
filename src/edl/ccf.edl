@@ -1,0 +1,22 @@
+enclave {
+    trusted {
+
+        public bool enclave_create_node(
+            [user_check] void * config,
+            [out, count=node_cert_size] uint8_t * node_cert,
+            size_t node_cert_size,
+            [out] size_t* node_cert_len,
+            [out, count=quote_size] uint8_t * quote,
+            size_t quote_size,
+            [out] size_t* quote_len,
+            bool recover
+        );
+
+        public bool enclave_run();
+
+        public bool enclave_tick(
+            size_t now,
+            size_t elapsed
+        );
+    };
+};
