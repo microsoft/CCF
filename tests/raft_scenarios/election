@@ -1,0 +1,7 @@
+nodes,3
+connect,0,1
+connect,1,2
+connect,0,2
+periodic_all,110
+dispatch_all
+state_all

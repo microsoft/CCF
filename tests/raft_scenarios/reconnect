@@ -1,0 +1,17 @@
+nodes,3
+connect,0,1
+connect,1,2
+connect,0,2
+periodic_all,110
+dispatch_all
+state_all
+replicate,0,1,helloworld
+periodic_all,10
+dispatch_all
+periodic_all,1
+state_all
+disconnect,0,1
+replicate,0,2,salutonmondo
+dispatch_all
+reconnect,0,1
+dispatch_all
