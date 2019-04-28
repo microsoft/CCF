@@ -20,6 +20,7 @@ namespace ccf
     // allows checking term and commit indices
     static constexpr auto GET_COMMIT = "getCommit";
     static constexpr auto GET_TX_HIST = "getTxHist";
+    static constexpr auto GET_TX_RATES = "getTxRates";
     static constexpr auto MK_SIGN = "mkSign";
     static constexpr auto GET_LEADER_INFO = "getLeaderInfo";
   };

@@ -21,6 +21,7 @@
 #define HIST_MAX (1 << 17)
 #define HIST_MIN 1
 #define HIST_BUCKET_GRANULARITY 5
+#define TX_RATES 1000
 
 namespace ccf
 {
@@ -75,6 +76,10 @@ namespace ccf
     kv::TxHistory* history;
     size_t sig_max_tx = 1000;
     size_t tx_count = 0;
+    size_t tick_count = 0;
+    double tx_time_passed[TX_RATES] = {};
+    int tx_rates[TX_RATES] = {};
+    std::chrono::milliseconds rate_time_elapsed = std::chrono::milliseconds(0);
     using Hist =
       histogram::Histogram<int, HIST_MIN, HIST_MAX, HIST_BUCKET_GRANULARITY>;
     histogram::Global<Hist> global =
@@ -237,6 +242,20 @@ namespace ccf
         return jsonrpc::success(GetTxHist::Out{result});
       };
 
+      auto get_tx_rates = [this](Store::Tx& tx, const nlohmann::json& params) {
+        nlohmann::json result;
+        LOG_INFO << "Rates that are not zero: " << tick_count << std::endl;
+        for (int i = 0; i < TX_RATES; ++i)
+        {
+          if (tx_rates[i] > 0)
+          {
+            result[std::to_string(i)]["rate"] = tx_rates[i];
+            result[std::to_string(i)]["duration"] = tx_time_passed[i];
+          }
+        }
+        return jsonrpc::success(GetTxRates::Out{result});
+      };
+
       auto make_signature =
         [this](Store::Tx& tx, const nlohmann::json& params) {
           update_history();
@@ -276,6 +295,7 @@ namespace ccf
 
       install(GeneralProcs::GET_COMMIT, get_commit, Read);
       install(GeneralProcs::GET_TX_HIST, get_tx_hist, Read);
+      install(GeneralProcs::GET_TX_RATES, get_tx_rates, Read);
       install(GeneralProcs::MK_SIGN, make_signature, Write);
       install(GeneralProcs::GET_LEADER_INFO, get_leader_info, Read);
     }
@@ -663,15 +683,7 @@ namespace ccf
       std::chrono::system_clock::time_point now,
       std::chrono::milliseconds elapsed) override
     {
-      // calculate how many tx/sec we have processed in this tick
-      auto duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() /
-        1000.0;
-      auto tx_rate = tx_count / duration;
-      // reset tx_counter for next tick interval
-      tx_count = 0;
-      histogram.record(tx_rate);
-
+      track_tx_rates(elapsed);
       // TODO(#refactoring): move this to NodeState::tick
       if ((raft != nullptr) && raft->is_leader())
       {
@@ -680,10 +692,39 @@ namespace ccf
           ms_to_sig -= elapsed;
           return;
         }
+
         ms_to_sig = sig_max_ms;
         if (history && tables.commit_gap() > 0)
           history->emit_signature();
       }
+    }
+
+    inline void track_tx_rates(const std::chrono::milliseconds& elapsed)
+    {
+      // calculate how many tx/sec we have processed in this tick
+      auto duration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() /
+        1000.0;
+      auto tx_rate = tx_count / duration;
+      histogram.record(tx_rate);
+      // keep time since beginning
+      rate_time_elapsed += elapsed;
+      if (tx_rate > 0)
+      {
+        auto rate_duration =
+          std::chrono::duration_cast<std::chrono::milliseconds>(
+            rate_time_elapsed)
+            .count() /
+          1000.0;
+        if (tick_count < TX_RATES)
+        {
+          tx_rates[tick_count] = tx_rate;
+          tx_time_passed[tick_count] = rate_duration;
+        }
+        tick_count++;
+      }
+      // reset tx_counter for next tick interval
+      tx_count = 0;
     }
   };
 }

@@ -78,4 +78,12 @@ namespace ccf
       nlohmann::json tx_hist;
     };
   };
+
+  struct GetTxRates
+  {
+    struct Out
+    {
+      nlohmann::json tx_rates;
+    };
+  };
 }
