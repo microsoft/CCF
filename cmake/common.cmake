@@ -537,3 +537,90 @@ set(CCF_NETWORK_TEST_ARGS
 # Lua generic app
 add_enclave_lib(luagenericenc ${CCF_DIR}/src/apps/luageneric/oe_sign.conf ${CCF_DIR}/src/apps/sample_key.pem SRCS ${CCF_DIR}/src/apps/luageneric/luageneric.cpp)
 
+# Samples
+
+# Common options
+set(TEST_ITERATIONS 200000)
+set(TEST_ENCLAVE_LOGGING_LEVEL "info")
+
+set(COMMON_TEST_ARGS
+  -l ${TEST_ENCLAVE_LOGGING_LEVEL}
+  ${TEST_EXPECT_QUOTE}
+  -a ${CCF_DIR}/tests/ra_ca.pem)
+
+option(WRITE_TX_TIMES "Write csv files containing time of every sent request and received response" ON)
+## Helper for building clients inheriting from perf_client
+function(add_client_exe name)
+
+  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS
+    ""
+    ""
+    "SRCS;INCLUDE_DIRS;LINK_LIBS"
+  )
+
+  add_executable(${name}
+    ${PARSED_ARGS_SRCS}
+  )
+
+  target_link_libraries(${name} PRIVATE
+    ${CMAKE_THREAD_LIBS_INIT}
+  )
+
+  target_include_directories(${name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/samples/perf_client
+    ${PARSED_ARGS_INCLUDE_DIRS}
+  )
+
+  use_client_mbedtls(${name})
+  enable_clang_tidy(${name})
+
+endfunction()
+
+## Helper for building end-to-end perf tests using the python infrastucture
+function(add_perf_test)
+
+  cmake_parse_arguments(PARSE_ARGV 0 PARSED_ARGS
+    ""
+    "NAME;PYTHON_SCRIPT;CLIENT_BIN;ITERATIONS;VERIFICATION_FILE"
+    "ADDITIONAL_ARGS"
+  )
+
+  ## Use default value if undefined
+  if(NOT PARSED_ARGS_ITERATIONS)
+    set(PARSED_ARGS_ITERATIONS ${TEST_ITERATIONS})
+  endif()
+
+  if(PARSED_ARGS_VERIFICATION_FILE)
+    set(VERIFICATION_ARG "--verify ${PARSED_ARGS_VERIFICATION_FILE}")
+  else()
+    unset(VERIFICATION_ARG)
+  endif()
+
+  if(WRITE_TX_TIMES)
+    set(TX_TIMES_SUFFIX
+      --write-tx-times
+    )
+  else()
+    unset(TX_TIMES_SUFFIX)
+  endif()
+
+  add_test(
+    NAME ${PARSED_ARGS_NAME}
+    COMMAND python3 ${PARSED_ARGS_PYTHON_SCRIPT}
+      -b .
+      -c ${PARSED_ARGS_CLIENT_BIN}
+      -i ${PARSED_ARGS_ITERATIONS}
+      ${COMMON_TEST_ARGS}
+      ${PARSED_ARGS_ADDITIONAL_ARGS}
+      ${TX_TIMES_SUFFIX}
+      ${VERIFICATION_ARG}
+  )
+
+  ## Make python test client framework importable
+  set_property(
+    TEST ${PARSED_ARGS_NAME}
+    PROPERTY
+      ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+  )
+
+endfunction()
