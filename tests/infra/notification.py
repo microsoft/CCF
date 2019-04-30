@@ -22,7 +22,7 @@ class NotificationServer(socketserver.BaseRequestHandler):
         data = self.request.recv(1024).strip()
         if data:
             if callable(self.checker):
-                if self.checker(data) is False:
+                if not self.checker(data):
                     LOG.error("Notification is not in expect format: {}".format(data))
                     self.error_queue.put(data)
             self.queue.put(data)
