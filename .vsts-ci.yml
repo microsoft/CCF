@@ -6,9 +6,6 @@ trigger:
 jobs:
 - job: ACC_1804_build
   pool: Ubuntu-1804-SGX-Azure
-  variables:
-      subscription: 77aa5ac9-5c0f-487f-8b69-84df89c177c3
-
   steps:
     - template: .vsts-ci-templates/build_and_test.yml
     - template: .vsts-ci-templates/push_perf_data.yml
