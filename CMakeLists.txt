@@ -309,6 +309,11 @@ if(BUILD_TESTS)
       ${RECOVERY_ARGS}
   )
 
+  option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
+  if(BUILD_SMALLBANK)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
+  endif()
+
   if (EXTENSIVE_TESTS)
     set_tests_properties(recovery_tests PROPERTIES TIMEOUT 2000)
   endif()
