@@ -340,7 +340,7 @@ class Checker:
             if self.notification_queue:
                 for i in range(timeout * 10):
                     for q in list(self.notification_queue.queue):
-                        if json.loads(q)["commit_index"] >= rpc_result.commit:
+                        if json.loads(q)["commit"] >= rpc_result.commit:
                             return
                     time.sleep(0.5)
                 raise TimeoutError("Timed out waiting for notification")
