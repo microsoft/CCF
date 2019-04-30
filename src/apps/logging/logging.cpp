@@ -29,8 +29,8 @@ namespace ccfapp
     Table& public_records;
 
   public:
-    Logger(Store& tables) :
-      UserRpcFrontend(tables),
+    Logger(NetworkTables& nwt, AbstractNotifier& notifier) :
+      UserRpcFrontend(*nwt.tables),
       records(tables.create<Table>(ccf::Tables::APP)),
       public_records(tables.create<Table>(
         ccf::Tables::APP_PUBLIC, kv::SecurityDomain::PUBLIC))
@@ -83,14 +83,26 @@ namespace ccfapp
 
       install(Procs::LOG_RECORD_PUBLIC, record_public, Write);
       install(Procs::LOG_GET_PUBLIC, get_public, Read);
+
+      nwt.signatures.set_global_hook([this, &notifier](
+                                           kv::Version version,
+                                           const Signatures::State& s,
+                                           const Signatures::Write& w) {
+        if (w.size() > 0)
+        {
+          nlohmann::json notify_j;
+          notify_j["commit"] = version;
+          notifier.notify(jsonrpc::pack(notify_j, jsonrpc::Pack::Text));
+        }
+      });
     }
   };
 
   // SNIPPET_START: rpc_handler
   std::shared_ptr<enclave::RpcHandler> get_rpc_handler(
-    NetworkTables& network, AbstractNotifier& notifier)
+    NetworkTables& nwt, AbstractNotifier& notifier)
   {
-    return make_shared<Logger>(*network.tables);
+    return make_shared<Logger>(nwt, notifier);
   }
   // SNIPPET_END: rpc_handler
 }
