@@ -1184,18 +1184,6 @@ namespace ccf
           follower_finish_recovery();
         }
       });
-
-      network.signatures.set_global_hook([this](
-                                           kv::Version version,
-                                           const Signatures::State& s,
-                                           const Signatures::Write& w) {
-        if (w.size() > 0)
-        {
-          nlohmann::json notify_j;
-          notify_j["commit_index"] = version;
-          notifier.notify(jsonrpc::pack(notify_j, jsonrpc::Pack::Text));
-        }
-      });
     }
 
     void setup_store()
