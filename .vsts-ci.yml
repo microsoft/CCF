@@ -8,6 +8,7 @@ jobs:
   pool: Ubuntu-1804-SGX-Azure
   steps:
     - template: .vsts-ci-templates/build_and_test.yml
+    - template: .vsts-ci-templates/push_perf_data.yml
 
 - job: static_checks
   pool: Ubuntu-1804-SGX-Azure

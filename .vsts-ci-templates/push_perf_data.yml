@@ -1,0 +1,20 @@
+variables:
+  subscription: 77aa5ac9-5c0f-487f-8b69-84df89c177c3
+
+steps:
+- script: |
+    gzip -vk *_sent.csv *_recv.csv
+  displayName: Compress tx time csvs
+  workingDirectory: build
+
+- task: AzureCLI@1
+  displayName: Push Performance Data
+  inputs:
+    azureConnectionType: connectedServiceNameARM
+    azureSubscription: CCPersistence
+    scriptLocation: inlineScript
+    inlineScript: |
+      az storage blob upload -f perf_summary.csv -c perf -n $AGENT_NAME/${BUILD_SOURCEBRANCHNAME}_${BUILD_BUILDNUMBER}.csv --account-name ccfperf --subscription $(subscription)
+      az storage blob upload-batch -d tx-times/$AGENT_NAME/${BUILD_SOURCEBRANCHNAME}_${BUILD_BUILDNUMBER} -s. --pattern "*_sent.csv.gz" --account-name ccfperf --subscription $(subscription)
+      az storage blob upload-batch -d tx-times/$AGENT_NAME/${BUILD_SOURCEBRANCHNAME}_${BUILD_BUILDNUMBER} -s. --pattern "*_recv.csv.gz" --account-name ccfperf --subscription $(subscription)
+    workingDirectory: build
