@@ -548,7 +548,7 @@ set(COMMON_TEST_ARGS
   ${TEST_EXPECT_QUOTE}
   -a ${CCF_DIR}/tests/ra_ca.pem)
 
-option(WRITE_TX_TIMES "Write csv files containing time of every sent request and received response" OFF)
+option(WRITE_TX_TIMES "Write csv files containing time of every sent request and received response" ON)
 ## Helper for building clients inheriting from perf_client
 function(add_client_exe name)
 
