@@ -1,6 +1,3 @@
-variables:
-  subscription: 77aa5ac9-5c0f-487f-8b69-84df89c177c3
-
 steps:
 - script: |
     gzip -vk *_sent.csv *_recv.csv
