@@ -567,7 +567,7 @@ function(add_client_exe name)
   )
 
   target_include_directories(${name} PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/samples/perf_client
+    ${CCF_DIR}/samples/perf_client
     ${PARSED_ARGS_INCLUDE_DIRS}
   )
 
