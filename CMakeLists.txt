@@ -49,6 +49,8 @@ if (RPC_FORWARD_TO_LEADER)
   set(TEST_FORWARD_TO_LEADER "--leader-forwarding")
 endif()
 
+option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
+
 # MemberClient executable
 add_executable(memberclient src/clients/memberclient.cpp)
 use_client_mbedtls(memberclient)
@@ -309,7 +311,6 @@ if(BUILD_TESTS)
       ${RECOVERY_ARGS}
   )
 
-  option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
   if(BUILD_SMALLBANK)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
   endif()
