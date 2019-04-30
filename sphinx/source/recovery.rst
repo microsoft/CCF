@@ -26,11 +26,11 @@ To initiate the first phase of the recovery protocol, one of several nodes must 
     --tls-host=tls_ip --tls-pubhost=tls_public_ip --tls-port=tls_port --ledger-file=ledger_file
     --node-cert-file=/path/to/node_certificate --quote-file=/path/to/quote
 
-Each node will then immediately restore the public entries of its ledger (``--ledger-file``). Because deserialising the public entries present in the ledger may take some time, members are allowed to query the progress of the public recovery by running the ``getSignedIndex`` RPC which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the ``getSignedIndex`` RPC returns ``{"state": "awaitingRecoveryTx"}``.
+Each node will then immediately restore the public entries of its ledger (``--ledger-file``). Because deserialising the public entries present in the ledger may take some time, members are allowed to query the progress of the public recovery by running the ``getSignedIndex`` RPC which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the ``getSignedIndex`` RPC returns ``{"state": "awaitingRecovery"}``.
 
 Members are then allowed to send the new network configuration containing the properties of each node in the new network via the ``setRecoveryNodes`` RPC. The target node becomes the leader of the new network and applies the new network configuration. The new identity (``networkcert.pem`` public certificate) of the network is returned by the RPC command.
 
-.. note:: It is recommended to submit the ``setRecoveryNodes`` RPC on the node that returns the highest ``"signed_index"`` to the ``getSignedIndex`` RPC. This way, the number of transactions recovered is maximised. Also note that some of most recent transactions executed before the network crashed may not be recovered as no signature certify their execution (see :ref:`Universal verifiability` for more information).
+.. note:: It is recommended to submit the ``setRecoveryNodes`` RPC on the node that returns the highest ``"signed_index"`` to the ``getSignedIndex`` RPC. This way, the number of transactions recovered is maximised. Also note that some of most recent transactions executed before the network crashed may not be recovered as no signature certify their execution.
 
 Similarly to the normal join protocol (see :ref:`Adding nodes to the network`), the initial set of nodes are then allowed to join the public network.
 
@@ -46,7 +46,7 @@ Similarly to the normal join protocol (see :ref:`Adding nodes to the network`), 
         Members->>+Leader: getSignedIndex
         Leader-->>Members: {"signed_index": 50}
         Members->>Leader: getSignedIndex
-        Leader-->>Members: {"state": "awaitingRecoveryTx"}
+        Leader-->>Members: {"state": "awaitingRecovery"}
 
         Note over Members: Choose the longest recovered ledger.
 

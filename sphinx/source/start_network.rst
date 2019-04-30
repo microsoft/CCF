@@ -68,24 +68,24 @@ Once the initial nodes are running and the initial state of the network is ready
 
 .. code-block:: bash
 
-    $ client --host=<node0_ip> --port=<tls_port0> startnetwork --server-cert=<node0_cert> --req=startNetwork.json
+    $ client --host=<node0_ip> --port=<node0_tlsport> startnetwork --server-cert=<node0_cert> --req=startNetwork.json
 
 When executing the ``startNetwork.json`` RPC request, the target node deserialises the genesis transaction and immediately becomes the Raft leader of the new single-node network. Business transactions can then be issued by users and will commit immediately.
 
 Adding nodes to the network
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Once a network has been started on one node, join network RPC files can be generated for all others nodes defined in the initial state of the network (``nodes.json``):
+Once a network has been started on one node, assuming that this node remains leader of the Raft network, join network RPC files can be generated for all others nodes defined in the initial state of the network (``nodes.json``):
 
 .. code-block:: bash
 
-    $ genesisgenerator joinrpc --network-cert=networkcert.pem --tx0=tx0 --join-json=joinNetwork.json
+    $ genesisgenerator joinrpc --network-cert=networkcert.pem --host=<node0_ip> --port=<node0_tlsport> --join-json=joinNetwork.json
 
 Once done, each additional node (here, node 1) can join the existing network by running the following command:
 
 .. code-block:: bash
 
-    $ client --host=<node1_ip> --port=<tls1_port> joinnetwork --server-cert=<node1_cert> --req=joinNetwork.json
+    $ client --host=<node1_ip> --port=<node1_tlsport> joinnetwork --server-cert=<node1_cert> --req=joinNetwork.json
 
 When executing the ``joinNetwork.json`` RPC, the target node initiates an enclave-to-enclave TLS connection to the network leader to retrieve the network secrets required to decrypt the serialised replicated transactions. Once the join protocol completes, the new node becomes a follower of the Raft network and starts replicating transactions executed by the leader.
 
@@ -107,9 +107,9 @@ When executing the ``joinNetwork.json`` RPC, the target node initiates an enclav
         Note over Leader: Part of Private Network
 
         Members->>+Follower: join network
-        Follower->>+Leader: join network
+        Follower->>+Leader: join network (over TLS)
         Follower-->>Members: join network response
-        Leader->>+Follower: Network Secrets
+        Leader->>+Follower: Network Secrets (over TLS)
 
         Note over Follower: Part of Private Network
 
