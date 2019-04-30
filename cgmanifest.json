@@ -49,15 +49,6 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/cryptocopycats/awesome-cryptokitties.git",
-          "commitHash": "0623b9bbcaafbcafcc2d3920bd12c241587c9401"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
           "repositoryUrl": "https://github.com/rpavlik/jenkins-ctest-plugin.git",
           "commitHash": "22265f5786dd26e47c46329f1fc76fc08de777c5"
         }
