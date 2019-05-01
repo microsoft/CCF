@@ -10,7 +10,6 @@
 #include "node/clientsignatures.h"
 #include "node/consensus.h"
 #include "node/nodes.h"
-#include "node/signatures.h"
 #include "nodeinterface.h"
 #include "rpcexception.h"
 #include "serialization.h"
@@ -65,7 +64,6 @@ namespace ccf
     };
 
     Nodes* nodes;
-    Signatures* signatures;
     ClientSignatures* client_signatures;
     Certs* certs;
     std::optional<Handler> default_handler;
@@ -187,7 +185,6 @@ namespace ccf
       bool can_forward_) :
       tables(tables_),
       nodes(tables.get<Nodes>(Tables::NODES)),
-      signatures(tables.get<Signatures>(Tables::SIGNATURES)),
       client_signatures(client_sigs_),
       certs(certs_),
       raft(nullptr),
