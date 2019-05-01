@@ -1,7 +1,7 @@
 - hosts: all
   vars:
     workspace: "/tmp/"
-    oe_ver: "0.5.1"
+    oe_ver: "0.5.2"
     oe_src: "oe-{{ oe_ver }}.tar.gz"
     oe_prefix: "/opt/openenclave"
     everest_ver: "mbedtls-snapshot-6"
