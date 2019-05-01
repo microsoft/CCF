@@ -45,6 +45,14 @@
       mode: a+r
     with_list: "{{ headers }}"
 
+# OpenEnclave turns on the Clang speculative load hardening pass by default.
+# This is good practice for arbitrary enclaved code, as it applies a general
+# mitigation that does not depend on source code annotation. However, being
+# a general mitigation, it also carries about a 30% performance penalty when
+# measured on various CCF benchmarks. To recover this performance, CCF
+# disables the general mitigation and relies on audited code, targeting the
+# specific vulnerable loads.
+
   - name: Disable Compiler-level Spectre mitigations
     replace:
       path: "{{ workspace }}/openenclave-{{ oe_ver }}/cmake/compiler_settings.cmake"
