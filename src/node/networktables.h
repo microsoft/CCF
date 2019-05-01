@@ -42,7 +42,7 @@ namespace ccf
     CodeIDs& code_id;
 
     // TODO(#important,#TR): SERVICE table should be added to record the initial
-    // start of the service and its successive recoveries (sections IV-B, IV-G).
+    // state of the service and its successive recoveries (sections IV-B, IV-G).
     NetworkTables() :
       tables(std::make_shared<Store>()),
       members(
