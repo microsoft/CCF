@@ -1590,6 +1590,12 @@ namespace kv
 
         pending_txs.insert({version, {pending_tx, globally_committable}});
 
+        if (pending_txs.size() > 10)
+        {
+          throw std::logic_error(
+            "Too many pending txs: " + std::to_string(pending_txs.size()));
+        }
+
         auto h = get_history();
 
         for (Version offset = 1; true; ++offset)

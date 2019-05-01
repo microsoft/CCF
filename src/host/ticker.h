@@ -12,12 +12,12 @@ namespace asynchost
   class TickerImpl
   {
   private:
-    host::Enclave& enclave;
+    std::unique_ptr<ringbuffer::AbstractWriter> to_enclave;
     std::chrono::time_point<std::chrono::steady_clock> last;
 
   public:
-    TickerImpl(host::Enclave& enclave) :
-      enclave(enclave),
+    TickerImpl(ringbuffer::AbstractWriterFactory& writer_factory) :
+      to_enclave(writer_factory.create_writer_to_inside()),
       last(std::chrono::steady_clock::now())
     {}
 
@@ -27,7 +27,9 @@ namespace asynchost
       auto elapsed =
         std::chrono::duration_cast<std::chrono::milliseconds>(next - last);
       last = next;
-      enclave.tick(elapsed);
+
+      RINGBUFFER_WRITE_MESSAGE(
+        AdminMessage::tick, to_enclave, (size_t)elapsed.count());
     }
   };
 

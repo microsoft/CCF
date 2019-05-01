@@ -20,9 +20,6 @@ namespace enclave
     virtual std::vector<uint8_t> process_forwarded(
       const uint8_t* data, size_t size) = 0;
 
-    virtual void tick(
-      std::chrono::system_clock::time_point now,
-      std::chrono::milliseconds elapsed)
-    {}
+    virtual void tick(std::chrono::milliseconds elapsed_ms_count) {}
   };
 }
