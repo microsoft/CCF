@@ -211,8 +211,8 @@ namespace ccf
       crypto::Sha256Hash h{node_cert};
       size_t quote_len = args.quote_max_size;
 
-      // TODO(#important): "alpha" arguments should also be included in the
-      // quote.
+      // TODO(#important,#TR): The "alpha" parameters, including the unique
+      // service identifier, should also be included in the quote.
       oe_result_t res = oe_get_report(
         OE_REPORT_FLAGS_REMOTE_ATTESTATION,
         h.h,
@@ -262,11 +262,10 @@ namespace ccf
     //
     auto start_network(Store::Tx& tx, const StartNetwork::In& args)
     {
-      // TODO(#important): start-up protocol should be updated in line with the
-      // paper. For example, the network certificate should be signed by the
-      // node private key.
-      // TODO(#important): service state (booting -> opening -> open -> closed)
-      // should be implemented.
+      // TODO(#important,#TR): Service start-up protocol should be updated in
+      // line with the paper (section IV-B) to provide more flexibility and
+      // record in the ledger the state of the service (booting -> opening ->
+      // open -> closed).
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::started);
 
@@ -410,8 +409,9 @@ namespace ccf
       join_client->send(join_req);
     }
 
-    // TODO(#important): once start-up protocol is updated, the recovery
-    // protocol could be refactored to be in line with start-up protocol.
+    // TODO(#important,#TR): Once start-up protocol is updated, the recovery
+    // protocol could be refactored to be in line with start-up protocol
+    // (sections IV-B, IV-G).
     void init_public_ledger_recovery()
     {
       // Create temporary network secrets but do not seal yet
@@ -1070,8 +1070,9 @@ namespace ccf
           active_nodes;
 #endif
 
-        // TODO(#important): Only TRUSTED nodes should be sent append
-        // entries, count in election votes and established n2n channels with
+        // TODO(#important,#TR): Only TRUSTED nodes should be sent append
+        // entries, counted in election votes and allowed to establish
+        // node-to-node channels (section III-F).
         for (auto& [node_id, ni] : w)
         {
           switch (ni.value.status)
