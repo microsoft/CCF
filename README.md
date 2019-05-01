@@ -58,11 +58,11 @@ to embed one of several language runtimes on top of its key-value store. Clients
 
 ## Getting Started on Azure Confidential Computing
 
-Under getting_started/:
- * create_vm/ contains scripts to create an ACC VM (make_vm.sh).
-   This script expects a valid Azure subscription name to be set, eg: export SUBSCRIPTION=sub_name
- * setup_vm/ contains ansible playbooks that need to be run on the VM once created, for it to be able to build CCF.
-   Running ./setup.sh will apply those playbooks to the VM.
+Under `getting_started/`:
+ * `create_vm/` contains scripts to create an ACC VM (`make_vm.sh`).
+   This script expects a valid Azure subscription name to be set, eg: `export SUBSCRIPTION=sub_name`
+ * `setup_vm/` contains ansible playbooks that need to be run on the VM once created, for it to be able to build CCF.
+   Running `./setup.sh` will apply those playbooks to the VM.
 
 ## Build and Test
 
