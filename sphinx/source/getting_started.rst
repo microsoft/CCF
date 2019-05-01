@@ -168,6 +168,7 @@ The full list of build switches can be obtained by running:
 * **OE_PREFIX**: Path. OpenEnclave install prefix. Defaults to ``/opt/openenclave``.
 * **SAN**: Boolean. Whether to build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
 * **VERBOSE_LOGGING**: Boolean. Level of logging detail. Default to OFF.
+* **CURVE_CHOICE**: One of secp384r1, curve25519, secp256k1_mbedtls, secp256k1_bitcoin. Elliptic curve to use for CCF public keys. Default to secp384r1.
 
 Tests
 -----

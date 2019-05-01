@@ -541,12 +541,6 @@ add_enclave_lib(luagenericenc ${CCF_DIR}/src/apps/luageneric/oe_sign.conf ${CCF_
 
 # Common options
 set(TEST_ITERATIONS 200000)
-set(TEST_ENCLAVE_LOGGING_LEVEL "info")
-
-set(COMMON_TEST_ARGS
-  -l ${TEST_ENCLAVE_LOGGING_LEVEL}
-  ${TEST_EXPECT_QUOTE}
-  -a ${CCF_DIR}/tests/ra_ca.pem)
 
 option(WRITE_TX_TIMES "Write csv files containing time of every sent request and received response" ON)
 ## Helper for building clients inheriting from perf_client
@@ -610,7 +604,7 @@ function(add_perf_test)
       -b .
       -c ${PARSED_ARGS_CLIENT_BIN}
       -i ${PARSED_ARGS_ITERATIONS}
-      ${COMMON_TEST_ARGS}
+      ${CCF_NETWORK_TEST_ARGS}
       ${PARSED_ARGS_ADDITIONAL_ARGS}
       ${TX_TIMES_SUFFIX}
       ${VERIFICATION_ARG}
