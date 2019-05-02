@@ -16,7 +16,7 @@ Glossary
     `Trusted Execution Environment <https://en.wikipedia.org/wiki/Trusted_execution_environment>`_ is a secure area of a main processor. It guarantees code and data loaded inside to be protected with respect to confidentiality and integrity.
 
   TLS
-    `Transport Layer Security <https://en.wikipedia.org/wiki/Transport_Layer_Security>`_ is a cryptographic protocol designed to provide communications security over a computer network.
+    `Transport Layer Security <https://en.wikipedia.org/wiki/Transport_Layer_Security>`_ is an IETF cryptographic protocol standard designed to secure communications between a client and a server over a computer network.
 
   JSON-RPC
     `JSON-RPC <https://en.wikipedia.org/wiki/JSON-RPC>`_ is a remote procedure call protocol encoded in JSON.
