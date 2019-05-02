@@ -267,18 +267,7 @@ int main(int argc, char** argv)
   client.setup_parser(cli_app);
   CLI11_PARSE(cli_app, argc, argv);
 
-  try
-  {
-    client.run();
-  }
-  catch (const char* e)
-  {
-    cout << "Error: " << e << endl;
-  }
-  catch (exception& e)
-  {
-    cout << "Exception: " << e.what() << endl;
-  }
+  client.run();
 
   return 0;
 }
