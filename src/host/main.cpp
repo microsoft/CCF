@@ -229,7 +229,7 @@ int main(int argc, char** argv)
   oversized::FragmentReconstructor fr(bp.get_dispatcher());
 
   // provide regular ticks to the enclave
-  asynchost::Ticker ticker(tick_period_ms, enclave);
+  asynchost::Ticker ticker(tick_period_ms, writer_factory);
 
   // handle outbound messages from the enclave
   asynchost::HandleRingbuffer handle_ringbuffer(bp, circuit.read_from_inside());

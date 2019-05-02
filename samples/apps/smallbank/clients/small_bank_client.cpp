@@ -39,6 +39,8 @@ private:
     // Create new connection to read balances
     auto conn = create_connection();
 
+    nlohmann::json accs = nlohmann::json::array();
+
     for (auto i = 0ul; i < total_accounts; i++)
     {
       json j;
@@ -46,8 +48,11 @@ private:
       const auto response =
         json::from_msgpack(conn->call("SmallBank_balance", j));
 
-      cout << "name:" << i << ", " << response.dump() << endl;
+      check_response(response);
+      accs.push_back({{"account", i}, {"balance", response["result"]}});
     }
+
+    std::cout << accs.dump(4) << std::endl;
   }
 
   void send_creation_transactions(
@@ -267,18 +272,7 @@ int main(int argc, char** argv)
   client.setup_parser(cli_app);
   CLI11_PARSE(cli_app, argc, argv);
 
-  try
-  {
-    client.run();
-  }
-  catch (const char* e)
-  {
-    cout << "Error: " << e << endl;
-  }
-  catch (exception& e)
-  {
-    cout << "Exception: " << e.what() << endl;
-  }
+  client.run();
 
   return 0;
 }
