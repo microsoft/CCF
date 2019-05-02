@@ -15,7 +15,7 @@
 
   - name: Download OpenEnclave source
     get_url:
-      url: https://github.com/achamayou/openenclave/archive/v{{ oe_ver }}.tar.gz
+      url: https://github.com/Microsoft/openenclave/tarball/489404f2bdfdd3e07e0f150937151ae78392e8ed
       dest: "{{ workspace }}/{{ oe_src }}"
       force: yes
     become: true
@@ -31,11 +31,17 @@
       path: "{{ workspace }}/openenclave-{{ oe_ver }}"
       state: absent
 
+  - name: Create directory for OpenEnclave source
+    file:
+      path: "{{ workspace }}/openenclave-{{ oe_ver }}"
+      state: directory
+
   - name: Expand OpenEnclave
     unarchive:
       src: "{{ workspace }}/{{ oe_src }}"
-      dest: "{{ workspace }}"
+      dest: "{{ workspace }}/openenclave-{{ oe_ver }}"
       copy: no
+      extra_opts: [--strip-components=1]
       creates: "{{ workspace }}/openenclave-{{ oe_ver }}/CMakeLists.txt"
 
   - name: Modify libc headers
