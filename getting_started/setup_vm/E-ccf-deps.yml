@@ -14,7 +14,7 @@
       - python3.7-venv
       - llvm-7
       - expect
-    everest_ver: "mbedtls-snapshot-6"
+    everest_ver: "mbedtls-snapshot-7"
     everest_src: "{{ everest_ver }}.tar.gz"
 
   tasks:

@@ -4,7 +4,7 @@
     oe_ver: "0.5.2"
     oe_src: "oe-{{ oe_ver }}.tar.gz"
     oe_prefix: "/opt/openenclave"
-    everest_ver: "mbedtls-snapshot-6"
+    everest_ver: "mbedtls-snapshot-7"
     everest_src: "{{ everest_ver }}.tar.gz"
     headers:
       - endian.h
