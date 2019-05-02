@@ -51,16 +51,16 @@ to embed one of several language runtimes on top of its key-value store. Clients
 
 ## Learn more and get started
 
- * Get a more detailed breakdown of CCF by reading the CCF Technical Report
- * Explore the CCF open-source GitHub repo, which also contains application examples and sample scripts for provisioning and setting up confidential computing VMs using Azure
+ * Read the [CCF Technical Report](CCF-TECHNICAL-REPORT.pdf) for a more detailed description.
+ * Explore the CCF open-source GitHub repo, which also contains application examples and sample scripts for provisioning and setting up confidential computing VMs using Azure.
  * Learn more about [Azure Confidential Computing](https://azure.microsoft.com/solutions/confidential-compute/) offerings like Azure DC-series (which support Intel SGX TEE)
-   and [Open Enclave](https://github.com/Microsoft/openenclave) that CCF can run on
+   and [Open Enclave](https://github.com/Microsoft/openenclave) that CCF can run on.
 
 ## Getting Started on Azure Confidential Computing
 
 Under `getting_started/`:
  * `create_vm/` contains scripts to create an ACC VM (`make_vm.sh`).
-   This script expects a valid Azure subscription name to be set, eg: `export SUBSCRIPTION=sub_name`
+   This script expects a valid Azure subscription name to be set, eg: `export SUBSCRIPTION=sub_name`.
  * `setup_vm/` contains ansible playbooks that need to be run on the VM once created, for it to be able to build CCF.
    Running `./setup.sh` will apply those playbooks to the VM.
 
