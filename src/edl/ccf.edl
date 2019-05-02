@@ -13,10 +13,5 @@ enclave {
         );
 
         public bool enclave_run();
-
-        public bool enclave_tick(
-            size_t now,
-            size_t elapsed
-        );
     };
 };

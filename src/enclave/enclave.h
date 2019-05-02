@@ -112,6 +112,25 @@ namespace enclave
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
+          bp, AdminMessage::tick, [this](const uint8_t* data, size_t size) {
+            auto [ms_count] =
+              ringbuffer::read_message<AdminMessage::tick>(data, size);
+
+            if (ms_count > 0)
+            {
+              std::chrono::milliseconds elapsed_ms(ms_count);
+              node.tick(elapsed_ms);
+              // When recovering, no signature should be emitted while the
+              // ledger is being read
+              if (!node.is_reading_public_ledger())
+              {
+                for (auto& r : *rpc_map)
+                  r.second->tick(elapsed_ms);
+              }
+            }
+          });
+
+        DISPATCHER_SET_MESSAGE_HANDLER(
           bp, ccf::node_inbound, [this](const uint8_t* data, size_t size) {
             auto [body] =
               ringbuffer::read_message<ccf::node_inbound>(data, size);
@@ -173,27 +192,6 @@ namespace enclave
         return false;
       }
 #endif
-    }
-
-    bool tick(
-      std::chrono::system_clock::time_point now,
-      std::chrono::milliseconds elapsed)
-    {
-      using namespace std::chrono_literals;
-
-      if (elapsed > 0ms)
-      {
-        node.tick(elapsed);
-        // When recovering, no signature should be emitted while the ledger is
-        // being read
-        if (!node.is_reading_public_ledger())
-        {
-          for (auto& r : *rpc_map)
-            r.second->tick(now, elapsed);
-        }
-      }
-
-      return true;
     }
   };
 }

@@ -656,14 +656,10 @@ namespace ccf
       return client_sig_view->get(caller_id);
     }
 
-    void tick(
-      std::chrono::system_clock::time_point now,
-      std::chrono::milliseconds elapsed) override
+    void tick(std::chrono::milliseconds elapsed) override
     {
       // calculate how many tx/sec we have processed in this tick
-      auto duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() /
-        1000.0;
+      auto duration = elapsed.count() / 1000.0;
       auto tx_rate = tx_count / duration;
       // reset tx_counter for next tick interval
       tx_count = 0;
