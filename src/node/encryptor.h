@@ -113,6 +113,8 @@ namespace ccf
       std::vector<uint8_t>& cipher,
       kv::Version version) override
     {
+      // TODO(#important,#TR): The key used for encrypting the ledger should be
+      // different for each transaction (section V-A).
       crypto::GcmHeader<crypto::GCM_SIZE_IV> gcm_hdr;
       cipher.resize(plain.size());
 

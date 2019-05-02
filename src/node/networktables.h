@@ -41,7 +41,8 @@ namespace ccf
     Secrets& secrets_table;
     CodeIDs& code_id;
 
-    // TODO(#important): SERVICE table should be added.
+    // TODO(#important,#TR): SERVICE table should be added to record the initial
+    // state of the service and its successive recoveries (sections IV-B, IV-G).
     NetworkTables() :
       tables(std::make_shared<Store>()),
       members(
