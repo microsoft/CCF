@@ -9,14 +9,14 @@ and performant applications that focus on multi-party compute and data. While no
 CCF can enable high-scale, confidential blockchain networks that meet key enterprise requirements
 — providing a means to accelerate production enterprise adoption of blockchain technology.
 
-Leveraging the power of trusted execution environments (TEEs), decentralized systems concepts, and cryptography,
+Leveraging the power of trusted execution environments (:term:`TEE`), decentralized systems concepts, and cryptography,
 CCF enables enterprise-ready computation or blockchain networks that deliver:
 
  * **Throughput and latency approaching database speeds.** Through its use of TEEs, the framework creates a network of remotely attestable enclaves.
    This gives a web of trust across the distributed system, allowing a user that verifies a single cryptographic quote from a CCF node to
    effectively verify the entire network. This simplifies consensus and thus improves transaction speed and latency — all without compromising security or assuming trust.
 
- * **Richer, more flexible confidentiality models.** Beyond safeguarding data access with encryption-in-use via TEEs, we use industry standards (TLS and remote attestation)
+ * **Richer, more flexible confidentiality models.** Beyond safeguarding data access with encryption-in-use via TEEs, we use industry standards (:term:`TLS` and remote attestation)
    to ensure secure node communication. Transactions can be processed in the clear or revealed only to authorized parties, without requiring complicated confidentiality schemes. 
 
  * **Network and service policy management through non-centralized governance.** The framework provides a network and service configuration to express and manage consortium
@@ -47,7 +47,7 @@ A trusted network of enclaves running on physical nodes is established without r
         ce(CCF Enclave) -- KV Store Transactions --- ue(Application)
         end
 
-Microsoft has taken this approach in developing CCF: using TEE technology, the enclave of each node in the network (where cryptographically protected data is executed)
+Microsoft has taken this approach in developing CCF: using :term:`TEE` technology, the enclave of each node in the network (where cryptographically protected data is executed)
 can decide whether it can trust the enclaves of other nodes based on mutual attestation exchange and mutual authentication, regardless of whether the parties involved
 trust each other or not. This enables a network of verifiable, remotely attestable enclaves on which to run a distributed ledger and execute confidential and secure
 transactions in highly performant and highly available fashion.
@@ -56,16 +56,10 @@ transactions in highly performant and highly available fashion.
 A flexible confidentiality layer for multi-party computation
 ------------------------------------------------------------
 
-CCF currently runs on Intel SGX-enabled [#sgx]_ platforms. Because CCF uses the OpenEnclave SDK [#oe]_
-as the foundation for running in an enclave, as OpenEnclave supports new TEE technologies, CCF will be able to run on new platforms. Networks can be run on-premises,
-in one or many cloud-hosted data centers, including Microsoft Azure [#azure]_, or in any hybrid configuration.
+CCF currently runs on Intel :term:`SGX`-enabled platforms. Because CCF uses the :term:`OpenEnclave` SDK
+as the foundation for running in an enclave, as :term:`OpenEnclave` supports new TEE technologies, CCF will be able to run on new platforms. Networks can be run on-premises,
+in one or many cloud-hosted data centers, including :term:`Microsoft Azure`, or in any hybrid configuration.
 
 Ledger providers can use CCF to enable higher throughput and higher confidentiality guarantees for distributed ledger applications.
 CCF developers can write application logic (also known as smart contracts) and enforce application-level access control in several languages by conﬁguring CCF
-to embed one of several language runtimes on top of its key-value store. Clients then communicate with a running CCF service using JSON-RPC interfaces over TLS.
-
-.. rubric:: Footnotes
-
-.. [#oe] `OpenEnclave SDK <https://openenclave.io/sdk>`_.
-.. [#azure] `Microsoft Azure <https://azure.microsoft.com>`_.
-.. [#sgx] `Intel SGX <https://software.intel.com/en-us/sgx>`_.
+to embed one of several language runtimes on top of its key-value store. Clients then communicate with a running CCF service using :term:`JSON-RPC` interfaces over :term:`TLS`.

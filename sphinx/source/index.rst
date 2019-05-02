@@ -14,6 +14,7 @@ Welcome to CCF's documentation
    example
    demo
    api
+   glossary
 
 Index
 =====
