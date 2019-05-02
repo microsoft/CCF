@@ -23,4 +23,4 @@ help:
 
 
 livehtml:
-	sphinx-autobuild -b html "$(SOURCEDIR)" "$(BUILDDIR)/html"
+	sphinx-autobuild -b html "$(SOURCEDIR)" "$(BUILDDIR)/html" -H 0.0.0.0

@@ -11,9 +11,11 @@ Welcome to CCF's documentation
    recovery
    ledger
    kv/index.rst
+   cryptography
    example
    demo
    api
+   glossary
 
 Index
 =====
