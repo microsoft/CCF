@@ -136,13 +136,14 @@ nlohmann::json make_rpc(
   }
   catch (const exception& ex)
   {
-    cerr << "Got response of unexpected format or error: " << string(s.begin(), s.end()) << ":"
-         << ex.what() << endl;
+    cerr << "Got response of unexpected format or error: "
+         << string(s.begin(), s.end()) << ":" << ex.what() << endl;
     throw ex;
   }
   catch (...)
   {
-    cerr << "Got response of unexpected format or error: " << string(s.begin(), s.end()) << endl;
+    cerr << "Got response of unexpected format or error: "
+         << string(s.begin(), s.end()) << endl;
     throw;
   }
   return nlohmann::json();
@@ -154,11 +155,16 @@ int main(int argc, char** argv)
 
   app.require_subcommand(1, 1);
 
-  std::string host, port, ca_file;
+  std::string nodes_file = "nodes.json";
+  size_t host_node = 0;
+  app.add_option("--nodes", nodes_file, "Nodes file", true);
+  app.add_option(
+    "--host-node-index", host_node, "Index of host in nodes file", true);
 
-  app.add_option("--host", host, "Remote host")->required(true);
-  app.add_option("--port", port, "Remote port")->required(true);
-  app.add_option("--ca", ca_file, "CA")->required(true);
+  std::string host, port, ca_file;
+  auto host_opt = app.add_option("--host", host, "Remote host");
+  auto port_opt = app.add_option("--port", port, "Remote port");
+  auto ca_file_opt = app.add_option("--ca", ca_file, "Network CA");
 
   auto start_network = app.add_subcommand("startnetwork", "Start network");
 
@@ -180,22 +186,22 @@ int main(int argc, char** argv)
 
   std::string req_mem = "memberrpc.json";
   member_rpc->add_option("--req", req_mem, "RPC file", true);
-  member_rpc->add_option("--cert", cert_file, "Client certificate", true);
-  member_rpc->add_option("--pk", pk_file, "Private key", true);
+  member_rpc->add_option("--cert", cert_file, "Member's certificate", true);
+  member_rpc->add_option("--pk", pk_file, "Member's private key", true);
 
   auto user_rpc = app.add_subcommand("userrpc", "User RPC");
 
   std::string req_user = "userrpc.json";
   user_rpc->add_option("--req", req_user, "RPC file", true);
-  user_rpc->add_option("--cert", cert_file, "Client certificate", true);
-  user_rpc->add_option("--pk", pk_file, "Private key", true);
+  user_rpc->add_option("--cert", cert_file, "User's certificate", true);
+  user_rpc->add_option("--pk", pk_file, "User's private key", true);
 
   auto mgmt_rpc = app.add_subcommand("mgmtrpc", "Management RPC");
 
   std::string req_mgmt = "mgmt.json";
   mgmt_rpc->add_option("--req", req_mgmt, "RPC file", true);
-  mgmt_rpc->add_option("--cert", cert_file, "Client certificate", true);
-  mgmt_rpc->add_option("--pk", pk_file, "Private key", true);
+  mgmt_rpc->add_option("--cert", cert_file, "Manager's certificate", true);
+  mgmt_rpc->add_option("--pk", pk_file, "Manager's private key", true);
 
   CLI11_PARSE(app, argc, argv);
 
@@ -212,10 +218,11 @@ int main(int argc, char** argv)
     }
     if (*join_network)
     {
-      cout << "Joining network:" << endl
-           << make_rpc(
-                host, port, Pack::MsgPack, "management", ca_file, "", "", req_jn)
-           << endl;
+      cout
+        << "Joining network:" << endl
+        << make_rpc(
+             host, port, Pack::MsgPack, "management", ca_file, "", "", req_jn)
+        << endl;
     }
     if (*member_rpc)
     {
