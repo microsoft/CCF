@@ -1519,7 +1519,7 @@ namespace kv
           success = DeserialiseSuccess::PASS_SIGNATURE;
         }
 
-        history->append(data);
+        h->append(data);
       }
 
       return success;
