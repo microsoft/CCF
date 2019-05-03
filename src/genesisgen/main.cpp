@@ -23,7 +23,7 @@ using namespace std;
 using namespace tls;
 using namespace ccf;
 
-tls::Cert genCert(const string& name)
+tls::Cert gen_cert(const string& name)
 {
   KeyPair k;
   auto cert = k.self_sign("CN=" + name);
@@ -37,7 +37,7 @@ tls::Cert genCert(const string& name)
   return {name, nullptr, cert, privk, nullb, tls::auth_required};
 }
 
-vector<vector<uint8_t>> slurpCerts(const string path)
+vector<vector<uint8_t>> slurp_certs(const string& path)
 {
   vector<vector<uint8_t>> certs;
 
@@ -201,15 +201,15 @@ int main(int argc, char** argv)
 
   if (*cert)
   {
-    genCert(name);
+    gen_cert(name);
     return 0;
   }
   else if (*tx_cmd)
   {
-    auto user_certs = slurpCerts(user_certs_file);
-    auto member_certs = slurpCerts(member_certs_file);
+    auto user_certs = slurp_certs(user_certs_file);
+    auto member_certs = slurp_certs(member_certs_file);
     vector<NodeInfo> nodes = files::slurp_json(nodes_json_file);
-    auto attestation_cas = slurpCerts(attestation_cas_files);
+    auto attestation_cas = slurp_certs(attestation_cas_files);
 
     auto member_status =
       accepted ? MemberStatus::ACCEPTED : MemberStatus::ACTIVE;
