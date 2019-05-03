@@ -1357,11 +1357,11 @@ namespace kv
         compacted = v;
         if (compacted > last_replicated)
           last_replicated = compacted;
-      }
 
-      auto h = get_history();
-      if (h)
-        h->compact(v);
+        auto h = get_history();
+        if (h)
+          h->compact(v);
+      }
 
       for (auto& map : maps)
         map.second->post_compact();
