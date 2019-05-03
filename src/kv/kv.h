@@ -1042,20 +1042,16 @@ namespace kv
         }
       }
 
-      if (ok)
+      if (ok && has_writes)
       {
         // Get the version number to be used for this commit.
-        if (has_writes)
-          version = f();
+        version = f();
 
         for (auto it = views.begin(); it != views.end(); ++it)
           it->second.view->commit(version);
 
         for (auto it = views.begin(); it != views.end(); ++it)
-        {
-          if (it->second.view->has_writes())
-            it->second.view->post_commit();
-        }
+          it->second.view->post_commit();
       }
 
       for (auto it = views.begin(); it != views.end(); ++it)
@@ -1357,11 +1353,11 @@ namespace kv
         compacted = v;
         if (compacted > last_replicated)
           last_replicated = compacted;
-      }
 
-      auto h = get_history();
-      if (h)
-        h->compact(v);
+        auto h = get_history();
+        if (h)
+          h->compact(v);
+      }
 
       for (auto& map : maps)
         map.second->post_compact();
@@ -1519,7 +1515,7 @@ namespace kv
           success = DeserialiseSuccess::PASS_SIGNATURE;
         }
 
-        history->append(data);
+        h->append(data);
       }
 
       return success;
