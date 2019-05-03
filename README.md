@@ -1,3 +1,5 @@
+[![Build Status](https://msr-gryffindor.visualstudio.com/COCO/_apis/build/status/CCF%20Github%20CI?branchName=master)](https://msr-gryffindor.visualstudio.com/COCO/_build/latest?definitionId=82&branchName=master)
+
 # The Confidential Consortium Framework
 
 The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly available,
