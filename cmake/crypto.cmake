@@ -47,7 +47,6 @@ target_include_directories(merkle_tree.enclave SYSTEM PRIVATE ${OE_LIBC_INCLUDE_
 target_link_libraries(merkle_tree.enclave PRIVATE evercrypt.enclave)
 set_property(TARGET merkle_tree.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
 set(MERKLE_TREE_INC ${MERKLE_TREE_PREFIX} ${EVERCRYPT_INC})
-enable_clang_tidy(merkle_tree.enclave)
 
 add_library(merkle_tree.host ${MERKLE_TREE_SRC})
 target_compile_options(merkle_tree.host PRIVATE -Wno-everything)
@@ -55,7 +54,6 @@ target_include_directories(merkle_tree.host PRIVATE ${EVERCRYPT_INC})
 target_link_libraries(merkle_tree.host PRIVATE evercrypt.host)
 set_property(TARGET merkle_tree.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 set(MERKLE_TREE_INC ${MERKLE_TREE_PREFIX} ${EVERCRYPT_INC})
-enable_clang_tidy(merkle_tree.host)
 
 
 # CCFCrypto, again two versions.
