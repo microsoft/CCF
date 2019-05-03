@@ -173,35 +173,36 @@ int main(int argc, char** argv)
 
   auto join_network = app.add_subcommand("joinnetwork", "Join network");
 
-  join_network->add_option(
-    "--server-cert", ca_file, "Server certificate", true);
-
   std::string req_jn = "joinNetwork.json";
   join_network->add_option("--req", req_jn, "RPC file", true);
-
-  std::string cert_file = "";
-  std::string pk_file = "";
 
   auto member_rpc = app.add_subcommand("memberrpc", "Member RPC");
 
   std::string req_mem = "memberrpc.json";
+  std::string member_cert_file = "member1_cert.pem";
+  std::string member_pk_file = "member1_privk.pem";
   member_rpc->add_option("--req", req_mem, "RPC file", true);
-  member_rpc->add_option("--cert", cert_file, "Member's certificate", true);
-  member_rpc->add_option("--pk", pk_file, "Member's private key", true);
+  member_rpc->add_option(
+    "--cert", member_cert_file, "Member's certificate", true);
+  member_rpc->add_option("--pk", member_pk_file, "Member's private key", true);
 
   auto user_rpc = app.add_subcommand("userrpc", "User RPC");
 
   std::string req_user = "userrpc.json";
+  std::string user_cert_file = "user1_cert.pem";
+  std::string user_pk_file = "user1_privk.pem";
   user_rpc->add_option("--req", req_user, "RPC file", true);
-  user_rpc->add_option("--cert", cert_file, "User's certificate", true);
-  user_rpc->add_option("--pk", pk_file, "User's private key", true);
+  user_rpc->add_option("--cert", user_cert_file, "User's certificate", true);
+  user_rpc->add_option("--pk", user_pk_file, "User's private key", true);
 
   auto mgmt_rpc = app.add_subcommand("mgmtrpc", "Management RPC");
 
   std::string req_mgmt = "mgmt.json";
+  std::string mgmt_cert_file;
+  std::string mgmt_pk_file;
   mgmt_rpc->add_option("--req", req_mgmt, "RPC file", true);
-  mgmt_rpc->add_option("--cert", cert_file, "Manager's certificate", true);
-  mgmt_rpc->add_option("--pk", pk_file, "Manager's private key", true);
+  mgmt_rpc->add_option("--cert", mgmt_cert_file, "Manager's certificate", true);
+  mgmt_rpc->add_option("--pk", mgmt_pk_file, "Manager's private key", true);
 
   CLI11_PARSE(app, argc, argv);
 
@@ -265,8 +266,8 @@ int main(int argc, char** argv)
                 Pack::MsgPack,
                 "members",
                 ca,
-                cert_file,
-                pk_file,
+                member_cert_file,
+                member_pk_file,
                 req_mem)
            << endl;
     }
@@ -280,8 +281,8 @@ int main(int argc, char** argv)
                 Pack::MsgPack,
                 "users",
                 ca,
-                cert_file,
-                pk_file,
+                user_cert_file,
+                user_pk_file,
                 req_user)
            << endl;
     }
@@ -295,8 +296,8 @@ int main(int argc, char** argv)
                 Pack::MsgPack,
                 "management",
                 ca,
-                cert_file,
-                pk_file,
+                mgmt_cert_file,
+                mgmt_pk_file,
                 req_mgmt)
            << endl;
     }
