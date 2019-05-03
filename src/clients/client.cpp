@@ -17,7 +17,7 @@
 using namespace std;
 using namespace jsonrpc;
 
-vector<uint8_t> slurpCert(const string& path)
+vector<uint8_t> slup_cert(const string& path)
 {
   vector<uint8_t> cert;
 
@@ -45,7 +45,7 @@ void dump(CBuffer b, const string& file)
   }
 }
 
-std::vector<uint8_t> makeRpcRaw(
+std::vector<uint8_t> make_rpc_raw(
   const string& host,
   const string& port,
   Pack pack,
@@ -108,7 +108,7 @@ std::vector<uint8_t> makeRpcRaw(
   return res;
 }
 
-nlohmann::json makeRpc(
+nlohmann::json make_rpc(
   const string& host,
   const string& port,
   Pack pack,
@@ -119,7 +119,7 @@ nlohmann::json makeRpc(
   const string& req_file,
   tls::Auth auth = tls::auth_required)
 {
-  auto s = makeRpcRaw(
+  auto s = make_rpc_raw(
     host,
     port,
     pack,
@@ -204,7 +204,7 @@ int main(int argc, char** argv)
     if (*start_network)
     {
       cout << "Starting network:" << endl;
-      Response<ccf::StartNetwork::Out> r = makeRpc(
+      Response<ccf::StartNetwork::Out> r = make_rpc(
         host, port, Pack::MsgPack, "management", ca_file, "", "", req_sn);
 
       dump(r.result.network_cert, "networkcert.pem");
@@ -213,14 +213,14 @@ int main(int argc, char** argv)
     if (*join_network)
     {
       cout << "Joining network:" << endl
-           << makeRpc(
+           << make_rpc(
                 host, port, Pack::MsgPack, "management", ca_file, "", "", req_jn)
            << endl;
     }
     if (*member_rpc)
     {
       cout << "Doing member RPC:" << endl
-           << makeRpc(
+           << make_rpc(
                 host,
                 port,
                 Pack::MsgPack,
@@ -234,7 +234,7 @@ int main(int argc, char** argv)
     if (*user_rpc)
     {
       cout << "Doing user RPC:" << endl
-           << makeRpc(
+           << make_rpc(
                 host,
                 port,
                 Pack::MsgPack,
@@ -248,7 +248,7 @@ int main(int argc, char** argv)
     if (*mgmt_rpc)
     {
       cout << "Doing management RPC:" << endl
-           << makeRpc(
+           << make_rpc(
                 host,
                 port,
                 Pack::MsgPack,
