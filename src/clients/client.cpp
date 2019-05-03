@@ -160,7 +160,8 @@ int main(int argc, char** argv)
   app.add_option(
     "--host-node-index", node_index, "Index of host in nodes file", true);
 
-  std::string host, port, ca_file;
+  std::string host, port;
+  string ca_file = "networkcert.pem";
   auto host_opt =
     app.add_option("--host", host, "Remote host")->excludes(nodes_opt);
   app.add_option("--port", port, "Remote port")->needs(host_opt);
@@ -233,6 +234,9 @@ int main(int argc, char** argv)
       host = j_node["pubhost"];
       port = j_node["tlsport"];
       ca = j_node["cert"].get<decltype(ca)>();
+
+      std::cout << "Nodes loaded cert:" << std::endl;
+      std::cout << string((char const*)ca.data(), ca.size()) << std::endl;
     }
     else
     {
