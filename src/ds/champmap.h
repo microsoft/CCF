@@ -14,16 +14,24 @@ namespace champ
   // Hash-Array Mapped Tries' by Michael J. Steindorfer and Jurgen J. Vinju
   // (https://arxiv.org/pdf/1608.01036.pdf).
 
+  static constexpr size_t index_mask_bits = 5;
+  static constexpr size_t index_mask = (1 << index_mask_bits) - 1;
+
   using Hash = uint32_t;
+  static constexpr size_t hash_bits = sizeof(Hash) * 8;
+
   using SmallIndex = uint8_t;
+  static constexpr size_t small_index_bits = sizeof(SmallIndex) * 8;
+  static_assert(small_index_bits > index_mask_bits);
 
-  // 5 bits are masked off at each node to give an index. After 6 masks, only 2
-  // bits of the hash are left to determine the bin in a `Collisions` node.
-  constexpr SmallIndex collision_depth = 6;
+  static constexpr size_t collision_node_bits = hash_bits % index_mask_bits;
+  static_assert(collision_node_bits > 0);
+  static constexpr SmallIndex collision_depth = hash_bits / index_mask_bits;
+  static constexpr size_t collision_bins = 1 << collision_node_bits;
 
-  constexpr SmallIndex mask(Hash hash, SmallIndex depth)
+  static constexpr SmallIndex mask(Hash hash, SmallIndex depth)
   {
-    return (hash >> ((Hash)depth * 5)) & 0b11111;
+    return (hash >> ((Hash)depth * index_mask_bits)) & index_mask;
   }
 
   class Bitmap
@@ -62,7 +70,7 @@ namespace champ
   };
 
   template <class V>
-  std::optional<V> not_found()
+  static std::optional<V> not_found()
   {
     return std::nullopt;
   }
@@ -93,7 +101,7 @@ namespace champ
   template <class K, class V, class H>
   struct Collisions
   {
-    std::array<std::vector<std::shared_ptr<Entry<K, V>>>, 4> bins;
+    std::array<std::vector<std::shared_ptr<Entry<K, V>>>, collision_bins> bins;
 
     std::optional<V> get(Hash hash, const K& k) const
     {
