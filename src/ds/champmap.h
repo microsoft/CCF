@@ -14,39 +14,63 @@ namespace champ
   // Hash-Array Mapped Tries' by Michael J. Steindorfer and Jurgen J. Vinju
   // (https://arxiv.org/pdf/1608.01036.pdf).
 
-  using u32 = uint32_t;
+  static constexpr size_t index_mask_bits = 5;
+  static constexpr size_t index_mask = (1 << index_mask_bits) - 1;
 
-  // 5 bits are masked off at each node to give an index. After 6 masks, only 2
-  // bits of the hash are left to determine the bin in a `Collisions` node.
-  constexpr u32 collision_depth = 6;
+  using Hash = uint32_t;
+  static constexpr size_t hash_bits = sizeof(Hash) * 8;
 
-  constexpr u32 pop(u32 bm)
+  using SmallIndex = uint8_t;
+  static constexpr size_t small_index_bits = sizeof(SmallIndex) * 8;
+  static_assert(small_index_bits > index_mask_bits);
+
+  static constexpr size_t collision_node_bits = hash_bits % index_mask_bits;
+  static_assert(collision_node_bits > 0);
+  static constexpr SmallIndex collision_depth = hash_bits / index_mask_bits;
+  static constexpr size_t collision_bins = 1 << collision_node_bits;
+
+  static constexpr SmallIndex mask(Hash hash, SmallIndex depth)
   {
-    return __builtin_popcount(bm);
+    return (hash >> ((Hash)depth * index_mask_bits)) & index_mask;
   }
 
-  constexpr u32 set_bit(u32 bm, u32 idx)
+  class Bitmap
   {
-    return bm | (1 << idx);
-  }
+    uint32_t _bits;
 
-  constexpr u32 clear_bit(u32 bm, u32 idx)
-  {
-    return bm & ~(1 << idx);
-  }
+  public:
+    constexpr Bitmap() : _bits(0) {}
 
-  constexpr bool check_bit(u32 bm, u32 idx)
-  {
-    return (bm & (1 << idx)) != 0;
-  }
+    constexpr Bitmap(uint32_t bits) : _bits(bits) {}
 
-  constexpr u32 mask(u32 hash, u32 depth)
-  {
-    return (hash >> (depth * 5)) & 0b11111;
-  }
+    constexpr Bitmap operator&(const Bitmap& other) const
+    {
+      return Bitmap(_bits & other._bits);
+    }
+
+    constexpr SmallIndex pop() const
+    {
+      return __builtin_popcount(_bits);
+    }
+
+    constexpr Bitmap set(SmallIndex idx) const
+    {
+      return Bitmap(_bits | ((uint32_t)1 << idx));
+    }
+
+    constexpr Bitmap clear(SmallIndex idx) const
+    {
+      return Bitmap(_bits & ~((uint32_t)1 << idx));
+    }
+
+    constexpr bool check(SmallIndex idx) const
+    {
+      return (_bits & ((uint32_t)1 << idx)) != 0;
+    }
+  };
 
   template <class V>
-  std::optional<V> not_found()
+  static std::optional<V> not_found()
   {
     return std::nullopt;
   }
@@ -77,9 +101,9 @@ namespace champ
   template <class K, class V, class H>
   struct Collisions
   {
-    std::array<std::vector<std::shared_ptr<Entry<K, V>>>, 4> bins;
+    std::array<std::vector<std::shared_ptr<Entry<K, V>>>, collision_bins> bins;
 
-    std::optional<V> get(u32 hash, const K& k) const
+    std::optional<V> get(Hash hash, const K& k) const
     {
       const auto idx = mask(hash, collision_depth);
       const auto& bin = bins[idx];
@@ -91,7 +115,7 @@ namespace champ
       return not_found<V>();
     }
 
-    bool put_mut(u32 hash, const K& k, const V& v)
+    bool put_mut(Hash hash, const K& k, const V& v)
     {
       const auto idx = mask(hash, collision_depth);
       auto& bin = bins[idx];
@@ -114,9 +138,7 @@ namespace champ
       for (const auto& bin : bins)
       {
         for (const auto& entry : bin)
-        {
           f(entry->key, entry->value);
-        }
       }
     }
   };
@@ -125,54 +147,63 @@ namespace champ
   struct SubNodes
   {
     std::vector<Node<K, V, H>> nodes;
-    u32 node_map = 0;
-    u32 data_map = 0;
+    Bitmap node_map;
+    Bitmap data_map;
 
-    u32 compressed_idx(u32 idx) const
+    SubNodes() {}
+
+    SubNodes(std::vector<Node<K, V, H>> ns) : nodes(ns) {}
+
+    SubNodes(std::vector<Node<K, V, H>> ns, Bitmap nm, Bitmap dm) :
+      nodes(ns),
+      node_map(nm),
+      data_map(dm)
+    {}
+
+    SmallIndex compressed_idx(SmallIndex idx) const
     {
-      if (!check_bit(node_map | data_map, idx))
-        return -1;
-      u32 msk = ~(0xffff'ffff << idx);
-      if (check_bit(data_map, idx))
-        return pop(data_map & msk);
-      return pop(data_map) + pop(node_map & msk);
+      if (!node_map.check(idx) && !data_map.check(idx))
+        return (SmallIndex)-1;
+
+      const auto mask = Bitmap(~((uint32_t)-1 << idx));
+      if (data_map.check(idx))
+        return (data_map & mask).pop();
+
+      return data_map.pop() + (node_map & mask).pop();
     }
 
-    std::optional<V> get(u32 depth, u32 hash, const K& k) const
+    std::optional<V> get(SmallIndex depth, Hash hash, const K& k) const
     {
-      auto idx = mask(hash, depth);
-      auto c_idx = compressed_idx(idx);
+      const auto idx = mask(hash, depth);
+      const auto c_idx = compressed_idx(idx);
 
-      if (c_idx == u32(-1))
+      if (c_idx == (SmallIndex)-1)
         return not_found<V>();
 
-      if (check_bit(data_map, idx))
-      {
+      if (data_map.check(idx))
         return node_as<Entry<K, V>>(c_idx)->get(k);
-      }
 
-      if (depth < (collision_depth - 1))
-      {
-        return node_as<SubNodes<K, V, H>>(c_idx)->get(depth + 1, hash, k);
-      }
-      return node_as<Collisions<K, V, H>>(c_idx)->get(hash, k);
+      if (depth == (collision_depth - 1))
+        return node_as<Collisions<K, V, H>>(c_idx)->get(hash, k);
+
+      return node_as<SubNodes<K, V, H>>(c_idx)->get(depth + 1, hash, k);
     }
 
-    bool put_mut(u32 depth, u32 hash, const K& k, const V& v)
+    bool put_mut(SmallIndex depth, Hash hash, const K& k, const V& v)
     {
-      auto idx = mask(hash, depth);
+      const auto idx = mask(hash, depth);
       auto c_idx = compressed_idx(idx);
 
-      if (c_idx == u32(-1))
+      if (c_idx == (SmallIndex)-1)
       {
-        data_map = set_bit(data_map, idx);
+        data_map = data_map.set(idx);
         c_idx = compressed_idx(idx);
         nodes.insert(
           nodes.begin() + c_idx, std::make_shared<Entry<K, V>>(k, v));
         return true;
       }
 
-      if (check_bit(node_map, idx))
+      if (node_map.check(idx))
       {
         bool insert;
         if (depth < (collision_depth - 1))
@@ -201,12 +232,13 @@ namespace champ
       {
         const auto hash0 = H()(entry0->key);
         const auto idx0 = mask(hash0, depth + 1);
-        auto sub_node = SubNodes<K, V, H>{{entry0}, 0, set_bit(0, idx0)};
+        auto sub_node =
+          SubNodes<K, V, H>({entry0}, Bitmap(0), Bitmap(0).set(idx0));
         sub_node.put_mut(depth + 1, hash, k, v);
 
         nodes.erase(nodes.begin() + c_idx);
-        data_map = clear_bit(data_map, idx);
-        node_map = set_bit(node_map, idx);
+        data_map = data_map.clear(idx);
+        node_map = node_map.set(idx);
         c_idx = compressed_idx(idx);
         nodes.insert(
           nodes.begin() + c_idx,
@@ -222,8 +254,8 @@ namespace champ
         sub_node.bins[idx1].push_back(std::make_shared<Entry<K, V>>(k, v));
 
         nodes.erase(nodes.begin() + c_idx);
-        data_map = clear_bit(data_map, idx);
-        node_map = set_bit(node_map, idx);
+        data_map = data_map.clear(idx);
+        node_map = node_map.set(idx);
         c_idx = compressed_idx(idx);
         nodes.insert(
           nodes.begin() + c_idx,
@@ -233,7 +265,7 @@ namespace champ
     }
 
     std::pair<std::shared_ptr<SubNodes<K, V, H>>, bool> put(
-      u32 depth, u32 hash, const K& k, const V& v) const
+      SmallIndex depth, Hash hash, const K& k, const V& v) const
     {
       auto node = *this;
       auto r = node.put_mut(depth, hash, k, v);
@@ -242,30 +274,26 @@ namespace champ
     }
 
     template <class F>
-    void foreach(u32 depth, F f) const
+    void foreach(SmallIndex depth, F f) const
     {
-      const size_t entries = pop(data_map);
-      for (size_t i = 0; i < entries; ++i)
+      const auto entries = data_map.pop();
+      for (SmallIndex i = 0; i < entries; ++i)
       {
         const auto& entry = node_as<Entry<K, V>>(i);
         f(entry->key, entry->value);
       }
       for (size_t i = entries; i < nodes.size(); ++i)
       {
-        if (depth < (collision_depth - 1))
-        {
-          node_as<SubNodes<K, V, H>>(i)->foreach(depth + 1, f);
-        }
-        else
-        {
+        if (depth == (collision_depth - 1))
           node_as<Collisions<K, V, H>>(i)->foreach(f);
-        }
+        else
+          node_as<SubNodes<K, V, H>>(i)->foreach(depth + 1, f);
       }
     }
 
   private:
     template <class A>
-    const std::shared_ptr<A>& node_as(u32 c_idx) const
+    const std::shared_ptr<A>& node_as(SmallIndex c_idx) const
     {
       return reinterpret_cast<const std::shared_ptr<A>&>(nodes[c_idx]);
     }
@@ -276,7 +304,7 @@ namespace champ
   {
   private:
     std::shared_ptr<SubNodes<K, V, H>> root;
-    size_t _size;
+    size_t _size = 0;
 
     Map(std::shared_ptr<SubNodes<K, V, H>> root_, size_t size_) :
       root(root_),
@@ -284,7 +312,7 @@ namespace champ
     {}
 
   public:
-    Map() : root(std::make_shared<SubNodes<K, V, H>>()), _size(0) {}
+    Map() : root(std::make_shared<SubNodes<K, V, H>>()) {}
 
     size_t size() const
     {
@@ -307,6 +335,7 @@ namespace champ
       auto size_ = _size;
       if (r.second)
         size_++;
+
       return Map(std::move(r.first), size_);
     }
 
