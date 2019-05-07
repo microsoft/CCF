@@ -31,19 +31,19 @@ public:
       bool const print_status =
         record_id == initial_record_id || record_id == final_record_id;
 
+      stringstream ss;
+      timespec ts;
+      timespec_get(&ts, TIME_UTC);
+      ss << "[LEVEL] ";
+      // ISO 8601, plus 6 digits of us, aka
+      // YYYY-mm-ddTHH:MM:SS.uuuuuu
+      ss << put_time(std::localtime(&ts.tv_sec), "%FT%T.") << setfill('0')
+         << setw(6) << (ts.tv_nsec / 1000);
+      ss << " Sample log message, for the purpose of testing";
+      const auto record_msg = ss.str();
+
       // First transaction - record a log message
       {
-        stringstream ss;
-        timespec ts;
-        timespec_get(&ts, TIME_UTC);
-        ss << "[LEVEL] ";
-        // ISO 8601, plus 6 digits of us, aka
-        // YYYY-mm-ddTHH:MM:SS.uuuuuu
-        ss << put_time(std::localtime(&ts.tv_sec), "%FT%T.") << setfill('0')
-           << setw(6) << (ts.tv_nsec / 1000);
-        ss << " Sample log message, for the purpose of testing";
-        const auto record_msg = ss.str();
-
         json params;
         params["id"] = record_id;
         params["msg"] = record_msg;
