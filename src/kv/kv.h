@@ -1351,8 +1351,6 @@ namespace kv
       {
         std::lock_guard<SpinLock> vguard(version_lock);
         compacted = v;
-        if (compacted > last_replicated)
-          last_replicated = compacted;
 
         auto h = get_history();
         if (h)
