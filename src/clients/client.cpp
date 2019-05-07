@@ -50,12 +50,13 @@ std::vector<uint8_t> make_rpc_raw(
   const string& port,
   Pack pack,
   const string& sni,
-  const vector<uint8_t>& ca,
+  const string& ca_file,
   const string& req_file,
   const string& client_cert_file = "",
   const string& client_pk_file = "",
   tls::Auth auth = tls::auth_required)
 {
+  auto ca = files::slurp(ca_file);
   auto req = files::slurp(req_file);
 
   auto tls_ca = std::make_shared<tls::CA>(ca);
@@ -112,7 +113,7 @@ nlohmann::json make_rpc(
   const string& port,
   Pack pack,
   const string& sni,
-  const vector<uint8_t>& ca,
+  const string& ca_file,
   const string& client_cert_file,
   const string& client_pk_file,
   const string& req_file,
@@ -123,7 +124,7 @@ nlohmann::json make_rpc(
     port,
     pack,
     sni,
-    ca,
+    ca_file,
     req_file,
     client_cert_file,
     client_pk_file,
@@ -209,8 +210,6 @@ int main(int argc, char** argv)
 
   try
   {
-    std::vector<uint8_t> ca;
-
     // If host connection has not been set explicitly by options then load from
     // nodes file
     if (!*host_opt)
@@ -233,21 +232,13 @@ int main(int argc, char** argv)
 
       host = j_node["pubhost"];
       port = j_node["tlsport"];
-      ca = j_node["cert"].get<decltype(ca)>();
-
-      std::cout << "Nodes loaded cert:" << std::endl;
-      std::cout << string((char const*)ca.data(), ca.size()) << std::endl;
-    }
-    else
-    {
-      ca = files::slurp(ca_file);
     }
 
     if (*start_network)
     {
       cout << "Starting network:" << endl;
-      Response<ccf::StartNetwork::Out> r =
-        make_rpc(host, port, Pack::MsgPack, "management", ca, "", "", req_sn);
+      Response<ccf::StartNetwork::Out> r = make_rpc(
+        host, port, Pack::MsgPack, "management", ca_file, "", "", req_sn);
 
       dump(r.result.network_cert, "networkcert.pem");
       dump(r.result.tx0_sig, "tx0.sig");
@@ -255,10 +246,11 @@ int main(int argc, char** argv)
 
     if (*join_network)
     {
-      cout << "Joining network:" << endl
-           << make_rpc(
-                host, port, Pack::MsgPack, "management", ca, "", "", req_jn)
-           << endl;
+      cout
+        << "Joining network:" << endl
+        << make_rpc(
+             host, port, Pack::MsgPack, "management", ca_file, "", "", req_jn)
+        << endl;
     }
 
     if (*member_rpc)
@@ -269,7 +261,7 @@ int main(int argc, char** argv)
                 port,
                 Pack::MsgPack,
                 "members",
-                ca,
+                ca_file,
                 member_cert_file,
                 member_pk_file,
                 req_mem)
@@ -284,7 +276,7 @@ int main(int argc, char** argv)
                 port,
                 Pack::MsgPack,
                 "users",
-                ca,
+                ca_file,
                 user_cert_file,
                 user_pk_file,
                 req_user)
@@ -299,7 +291,7 @@ int main(int argc, char** argv)
                 port,
                 Pack::MsgPack,
                 "management",
-                ca,
+                ca_file,
                 mgmt_cert_file,
                 mgmt_pk_file,
                 req_mgmt)
