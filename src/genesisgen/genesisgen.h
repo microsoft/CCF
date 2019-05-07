@@ -3,7 +3,6 @@
 #pragma once
 #include "kv/replicator.h"
 #include "luainterp/luautil.h"
-#include "node/attestationca.h"
 #include "node/entities.h"
 #include "node/members.h"
 #include "node/networktables.h"
@@ -149,15 +148,6 @@ public:
     auto tx_nodes = tx.get_view(nodes);
     tx_nodes->put(node_id, ni);
     return node_id;
-  }
-
-  auto add_attestation_ca(const std::vector<uint8_t>& ca)
-  {
-    auto tx_cas = tx.get_view(attestation_cas);
-    // true as a dummy value for now as each key needs a value
-    tx_cas->put(ca, true);
-
-    return true;
   }
 
   void set_whitelist(ccf::WlIds id, ccf::Whitelist wl)
