@@ -74,11 +74,6 @@ endif()
 option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
 option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 
-option(CLANG_TIDY "Enable clang-tidy" OFF)
-if(CLANG_TIDY)
-  set(DO_CLANG_TIDY "clang-tidy" "-checks=*,-clang-analyzer-alpha.*")
-endif()
-
 option(PBFT "Enable PBFT" OFF)
 if (PBFT)
   add_definitions(-DPBFT)
@@ -102,9 +97,14 @@ enable_language(ASM)
 
 include_directories(
   ${CCF_DIR}/src
+)
+
+include_directories(
+  SYSTEM
   ${CCF_DIR}/3rdparty
   ${MSGPACK_INCLUDE_DIR}
 )
+
 
 set(OE_PREFIX "/opt/openenclave" CACHE PATH "Path to Open Enclave install")
 message(STATUS "Open Enclave prefix set to ${OE_PREFIX}")
@@ -232,12 +232,6 @@ set(ENCLAVE_LIBS
 set(ENCLAVE_FILES
   ${CCF_DIR}/src/enclave/main.cpp
 )
-
-function(enable_clang_tidy name)
-  if(CLANG_TIDY)
-    set_target_properties(${name} PROPERTIES CXX_CLANG_TIDY "${DO_CLANG_TIDY}")
-  endif()
-endfunction()
 
 function(enable_quote_code name)
   if (NOT OE_NO_SGX AND NOT DISABLE_QUOTE_VERIFICATION)
@@ -379,7 +373,6 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   endif()
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
   sign_app_library(${name} ${app_oe_conf_path} ${enclave_sign_key_path})
-  enable_clang_tidy(${name})
   enable_quote_code(${name})
 
   ## Build a virtual enclave, loaded as a shared library without OE
@@ -426,7 +419,6 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   endif()
   use_client_mbedtls(${virt_name})
   set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
-
 endfunction()
 
 ## Unit test wrapper
@@ -485,7 +477,6 @@ target_link_libraries(cchost PRIVATE
   ccfcrypto.host
   merkle_tree.host
 )
-enable_clang_tidy(cchost)
 enable_quote_code(cchost)
 
 # Virtual Host Executable
@@ -511,7 +502,6 @@ target_link_libraries(cchost.virtual PRIVATE
   ccfcrypto.host
   merkle_tree.host
 )
-enable_clang_tidy(cchost.virtual)
 enable_quote_code(cchost.virtual)
 
 # Client executable
@@ -568,7 +558,6 @@ function(add_client_exe name)
   )
 
   use_client_mbedtls(${name})
-  enable_clang_tidy(${name})
 
 endfunction()
 
