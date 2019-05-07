@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../../crypto/hash.h"
-#include "../../enclave/oe_shim.h"
-#include "../entities.h"
+#include "crypto/hash.h"
+#include "enclave/oe_shim.h"
 #include "frontend.h"
+#include "node/entities.h"
 
 namespace ccf
 {

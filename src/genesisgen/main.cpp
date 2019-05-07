@@ -145,10 +145,6 @@ int main(int argc, char** argv)
     ->add_option("--nodes", nodes_json_file, "Nodes table as a JSON file", true)
     ->check(CLI::ExistingFile);
 
-  string attestation_cas_files = "ra_ca*.pem";
-  tx_cmd->add_option(
-    "--attestation-cas", attestation_cas_files, "Attestation CAs", true);
-
   string tx0_file = "tx0";
   tx_cmd->add_option(
     "--tx0",
@@ -209,7 +205,6 @@ int main(int argc, char** argv)
     auto user_certs = slurp_certs(user_certs_file);
     auto member_certs = slurp_certs(member_certs_file);
     vector<NodeInfo> nodes = files::slurp_json(nodes_json_file);
-    auto attestation_cas = slurp_certs(attestation_cas_files, true);
 
     auto member_status =
       accepted ? MemberStatus::ACCEPTED : MemberStatus::ACTIVE;
@@ -223,9 +218,6 @@ int main(int argc, char** argv)
 
     for (auto& node : nodes)
       g.add_node(node);
-
-    for (auto& ca : attestation_cas)
-      g.add_attestation_ca(ca);
 
     // set access whitelists
     // TODO(#feature): this should be parsed from a config file
