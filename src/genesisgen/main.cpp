@@ -23,7 +23,7 @@ using namespace std;
 using namespace tls;
 using namespace ccf;
 
-tls::Cert genCert(const string& name)
+tls::Cert gen_cert(const string& name)
 {
   KeyPair k;
   auto cert = k.self_sign("CN=" + name);
@@ -37,7 +37,7 @@ tls::Cert genCert(const string& name)
   return {name, nullptr, cert, privk, nullb, tls::auth_required};
 }
 
-vector<vector<uint8_t>> slurpCerts(const string path)
+vector<vector<uint8_t>> slurp_certs(const string& path, bool optional = false)
 {
   vector<vector<uint8_t>> certs;
 
@@ -47,8 +47,15 @@ vector<vector<uint8_t>> slurpCerts(const string path)
 
   if (h == INVALID_HANDLE_VALUE)
   {
-    cerr << "Failed to search for cert pattern." << endl;
-    exit(-1);
+    if (optional)
+    {
+      return {};
+    }
+    else
+    {
+      cerr << "Failed to search for cert pattern." << endl;
+      exit(-1);
+    }
   }
 #else
   glob_t g;
@@ -56,8 +63,15 @@ vector<vector<uint8_t>> slurpCerts(const string path)
 
   if (glob(path.c_str(), GLOB_ERR, NULL, &g) || g.gl_pathc < 1)
   {
-    cerr << "Failed to search for cert pattern." << endl;
-    exit(-1);
+    if (optional)
+    {
+      return {};
+    }
+    else
+    {
+      cerr << "Failed to search for cert pattern." << endl;
+      exit(-1);
+    }
   }
 #endif
 
@@ -144,10 +158,7 @@ int main(int argc, char** argv)
 
   string start_json = "startNetwork.json";
   tx_cmd->add_option(
-    "--start-json",
-    start_json,
-    "Start network RPC as a JSON file",
-    true);
+    "--start-json", start_json, "Start network RPC as a JSON file", true);
 
   string gov_script = "gov.lua";
   tx_cmd
@@ -177,39 +188,28 @@ int main(int argc, char** argv)
     true);
 
   string join_host;
-  join_rpc->add_option(
-    "--host",
-    join_host,
-    "Target host",
-    false);
+  join_rpc->add_option("--host", join_host, "Target host", false);
 
   string join_port;
-  join_rpc->add_option(
-    "--port",
-    join_port,
-    "Target port",
-    false);
+  join_rpc->add_option("--port", join_port, "Target port", false);
 
   string join_json = "joinNetwork.json";
   join_rpc->add_option(
-    "--join-json",
-    join_json,
-    "Join network RPC as a JSON file",
-    true);
+    "--join-json", join_json, "Join network RPC as a JSON file", true);
 
   CLI11_PARSE(app, argc, argv);
 
   if (*cert)
   {
-    genCert(name);
+    gen_cert(name);
     return 0;
   }
   else if (*tx_cmd)
   {
-    auto user_certs = slurpCerts(user_certs_file);
-    auto member_certs = slurpCerts(member_certs_file);
+    auto user_certs = slurp_certs(user_certs_file);
+    auto member_certs = slurp_certs(member_certs_file);
     vector<NodeInfo> nodes = files::slurp_json(nodes_json_file);
-    auto attestation_cas = slurpCerts(attestation_cas_files);
+    auto attestation_cas = slurp_certs(attestation_cas_files, true);
 
     auto member_status =
       accepted ? MemberStatus::ACCEPTED : MemberStatus::ACTIVE;
