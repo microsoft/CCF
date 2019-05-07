@@ -35,7 +35,9 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default="info",
         choices=("trace", "debug", "info", "fail", "fatal"),
     )
-    parser.add_argument("-g", "--gov-script", help="Path to governance script")
+    parser.add_argument(
+        "-g", "--gov-script", help="Path to governance script", required=True
+    )
     parser.add_argument("-s", "--app-script", help="Path to app script")
     parser.add_argument(
         "-q",
