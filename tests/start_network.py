@@ -25,6 +25,7 @@ def run(args):
         try:
             while True:
                 time.sleep(60)
+
         except KeyboardInterrupt:
             LOG.info("Terminating")
 
