@@ -1612,6 +1612,10 @@ namespace kv
             last_replicated + offset, std::move(data_), committable_);
           pending_txs.erase(search);
         }
+
+        if (batch.size() == 0)
+          return CommitSuccess::NO_REPLICATE;
+
         previous_last_replicated = last_replicated;
         next_last_replicated = last_replicated + batch.size();
       }
