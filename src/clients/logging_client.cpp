@@ -15,7 +15,13 @@ class LoggingClient
 {
   unique_ptr<RpcTlsClient> rpc_client;
 
-  static std::string make_message(const std::string& body)
+public:
+  LoggingClient(
+    const string& host, const string& port, const shared_ptr<tls::Cert>& cert) :
+    rpc_client(make_unique<RpcTlsClient>(host, port, "users", nullptr, cert))
+  {}
+
+  static std::string make_timestamped_message(const std::string& body)
   {
     stringstream ss;
     timespec ts;
@@ -29,7 +35,8 @@ class LoggingClient
     return ss.str();
   }
 
-  void record_log_message(size_t id, const std::string& msg, bool print_status)
+  void record_log_message(
+    size_t id, const std::string& msg, bool print_status = true)
   {
     json params;
     params["id"] = id;
@@ -52,7 +59,7 @@ class LoggingClient
     }
   }
 
-  void get_log_message(size_t id)
+  void get_log_message(size_t id, bool print_status = true)
   {
     json params;
     params["id"] = id;
@@ -66,37 +73,10 @@ class LoggingClient
       throw std::runtime_error("LOG_get returned error: " + error_it->dump());
     }
 
-    cout << "Sent: " << params.dump() << endl;
-    cout << "Received: " << response.dump() << endl;
-  }
-
-public:
-  LoggingClient(
-    const string& host, const string& port, const shared_ptr<tls::Cert>& cert) :
-    rpc_client(make_unique<RpcTlsClient>(host, port, "users", nullptr, cert))
-  {}
-
-  void run(
-    size_t num_transactions, size_t initial_record_id, const std::string& body)
-  {
-    const size_t final_record_id = initial_record_id + num_transactions - 1;
-    for (auto record_id = initial_record_id; record_id <= final_record_id;
-         ++record_id)
+    if (print_status)
     {
-      // Only print response and retrieve log for first and last messages
-      bool const print_status =
-        record_id == initial_record_id || record_id == final_record_id;
-
-      const auto record_msg = make_message(body);
-
-      // First transaction - record a log message
-      record_log_message(record_id, record_msg, print_status);
-
-      if (print_status)
-      {
-        // Second transaction - get a log message
-        get_log_message(record_id);
-      }
+      cout << "Sent: " << params.dump() << endl;
+      cout << "Received: " << response.dump() << endl;
     }
   }
 };
@@ -110,8 +90,12 @@ int main(int argc, char** argv)
   std::string msg_body = "Sample log message, for the purposes of testing";
   string cert_file, key_file, ca_file;
 
+  CLI::App* multi_command = nullptr;
+
   {
     CLI::App cli_app{"Logging Client"};
+    cli_app.require_subcommand(0, 1);
+
     cli_app.add_option("--host", host);
     cli_app.add_option("--port", port);
     cli_app.add_option("--cert", cert_file)
@@ -124,11 +108,14 @@ int main(int argc, char** argv)
       ->required(true)
       ->check(CLI::ExistingFile);
 
-    cli_app.add_option(
+    multi_command =
+      cli_app.add_subcommand("multiple", "Send multiple log messages");
+
+    multi_command->add_option(
       "--msg-count", num_messages, "Number of log messages to record", true);
-    cli_app.add_option(
+    multi_command->add_option(
       "--msg-id", msg_id, "ID to be used for first log message", true);
-    cli_app.add_option(
+    multi_command->add_option(
       "--msg-body", msg_body, "Body of log sent with each message");
 
     CLI11_PARSE(cli_app, argc, argv);
@@ -145,7 +132,34 @@ int main(int argc, char** argv)
 
   try
   {
-    client.run(num_messages, msg_id, msg_body);
+    if (*multi_command)
+    {
+      const size_t final_msg_id = msg_id + num_messages - 1;
+      for (auto id = msg_id; id <= final_msg_id; ++id)
+      {
+        // Only print response and retrieve log for first and last messages
+        bool const print_status = id == msg_id || id == final_msg_id;
+
+        const auto record_msg = client.make_timestamped_message(msg_body);
+
+        client.record_log_message(id, record_msg, print_status);
+
+        if (print_status)
+        {
+          client.get_log_message(id);
+        }
+      }
+    }
+    else
+    {
+      const auto record_msg = client.make_timestamped_message(msg_body);
+
+      // First transaction - record a log message
+      client.record_log_message(msg_id, record_msg);
+
+      // Second transaction - get a log message
+      client.get_log_message(msg_id);
+    }
   }
   catch (const char* e)
   {
