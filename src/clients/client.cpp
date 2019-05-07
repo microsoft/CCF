@@ -161,11 +161,11 @@ int main(int argc, char** argv)
     "--host-node-index", node_index, "Index of host in nodes file", true);
 
   std::string host, port;
-  string ca_file = "networkcert.pem";
+  std::string ca_file = "networkcert.pem";
   auto host_opt =
     app.add_option("--host", host, "Remote host")->excludes(nodes_opt);
   app.add_option("--port", port, "Remote port")->needs(host_opt);
-  app.add_option("--ca", ca_file, "Network CA")->needs(host_opt);
+  app.add_option("--ca", ca_file, "Network CA", true);
 
   auto start_network = app.add_subcommand("startnetwork", "Start network");
 
