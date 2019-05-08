@@ -497,6 +497,7 @@ class Node:
             "management",
             cert=None,
             key=None,
+            cafile="{}.pem".format(self.node_id),
             description="node {} (mgmt)".format(self.node_id),
             **kwargs,
         )
