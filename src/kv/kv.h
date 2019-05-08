@@ -1619,7 +1619,6 @@ namespace kv
         if (batch.size() == 0)
           return CommitSuccess::OK;
 
-
         previous_rollback_count = rollback_count;
         previous_last_replicated = last_replicated;
         next_last_replicated = last_replicated + batch.size();
@@ -1628,8 +1627,9 @@ namespace kv
       if (r->replicate(batch))
       {
         std::lock_guard<SpinLock> vguard(version_lock);
-        if (last_replicated == previous_last_replicated &&
-            previous_rollback_count == rollback_count)
+        if (
+          last_replicated == previous_last_replicated &&
+          previous_rollback_count == rollback_count)
           last_replicated = next_last_replicated;
         return CommitSuccess::OK;
       }
