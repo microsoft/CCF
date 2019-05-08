@@ -144,7 +144,7 @@ class FramedTLSClient:
         if self.cafile:
             self.context = ssl.create_default_context(cafile=self.cafile)
 
-            # Auto detect curve to use based on server CA
+            # Auto detect EC curve to use based on server CA
             ca_bytes = open(self.cafile, "rb").read()
             ca_curve = (
                 x509.load_pem_x509_certificate(ca_bytes, default_backend())
