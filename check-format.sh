@@ -5,7 +5,7 @@
 set -u
 
 unformatted_files=""
-for f in $(find src -name "*.h" -o -name "*.hpp" -o -name "*.cpp" -name "*.c"); do
+for f in $(find src -name "*.h" -or -name "*.hpp" -or -name "*.cpp" -or -name "*.c"); do
   # Workaround for https://bugs.llvm.org/show_bug.cgi?id=39216
   d=$(cat "$f" | clang-format-7 -style=file --assume-filename "$f".cpp | diff "$f" -)
   if [ "$d" != "" ]; then
