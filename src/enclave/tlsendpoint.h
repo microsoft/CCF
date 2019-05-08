@@ -72,7 +72,10 @@ namespace enclave
       do_handshake();
 
       if (status != ready)
+      {
+        LOG_INFO << "HANDSHAKE is not ready: " << status << std::endl;
         return {};
+      }
 
       // Send pending writes.
       flush();
@@ -82,6 +85,7 @@ namespace enclave
 
       if (read_buffer.size() > 0)
       {
+        LOG_INFO << "read_buffer is of size: " << read_buffer.size() << std::endl;
         offset = std::min(up_to, read_buffer.size());
         ::memcpy(data.data(), read_buffer.data(), offset);
 
@@ -118,6 +122,7 @@ namespace enclave
         case MBEDTLS_ERR_SSL_WANT_READ:
         case MBEDTLS_ERR_SSL_WANT_WRITE:
         {
+          LOG_INFO << "r is: " << r << std::endl;
           data.resize(offset);
 
           if (!exact)
@@ -128,7 +133,9 @@ namespace enclave
         }
 
         default:
-        {}
+        {
+          LOG_FAIL << "ctx->read failed: " << r << std::endl;
+        }
       }
 
       if (r < 0)
@@ -163,7 +170,9 @@ namespace enclave
 
     void recv_buffered(const uint8_t* data, size_t size)
     {
+      LOG_INFO << "recv_buffered append size: " << size << std::endl;
       pending_read.insert(pending_read.end(), data, data + size);
+
       do_handshake();
     }
 
@@ -445,6 +454,8 @@ namespace enclave
         // writes a chunk larger than the size requested by the enclave.
         size_t rd = std::min(len, pending_read.size());
         ::memcpy(buf, pending_read.data(), rd);
+
+        LOG_INFO << "handle_recv: actually read " << rd << "(asked for: " << len << ")" << std::endl;
 
         if (rd >= pending_read.size())
         {
