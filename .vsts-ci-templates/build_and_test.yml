@@ -6,7 +6,7 @@ steps:
 - task: CMake@1
   displayName: CMake
   inputs:
-    cmakeArgs: '-GNinja ..'
+    cmakeArgs: '-GNinja -DCURVE_CHOICE=secp256k1_bitcoin ..'
 
 - script: ninja
   displayName: Ninja
