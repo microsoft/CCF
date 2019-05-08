@@ -17,7 +17,6 @@ namespace ccf
   using NodeId = ObjectId;
   using UserId = ObjectId;
   using CallerId = ObjectId;
-  using CaId = ObjectId;
   using Cert = std::vector<uint8_t>;
   using CodeVersion = ObjectId;
 
