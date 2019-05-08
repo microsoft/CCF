@@ -7,7 +7,8 @@
 #include <ctime>
 #include <picobench/picobench.hpp>
 
-extern "C" {
+extern "C"
+{
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
 
@@ -77,18 +78,18 @@ static void hash_only(picobench::state& s)
   s.stop_timer();
 }
 
-template<size_t S>
+template <size_t S>
 static void hash_mbedtls_sha256(picobench::state& s)
 {
   ::srand(42);
 
   std::vector<std::vector<uint8_t>> txs;
-  for (size_t i=0; i<s.iterations(); i++)
+  for (size_t i = 0; i < s.iterations(); i++)
   {
     std::vector<uint8_t> tx;
-    for (size_t j=0; j<S; j++)
+    for (size_t j = 0; j < S; j++)
     {
-        tx.push_back(::rand() % 256);
+      tx.push_back(::rand() % 256);
     }
     txs.push_back(tx);
   }
@@ -153,8 +154,7 @@ static void append(picobench::state& s)
   store.set_replicator(replicator);
 
   std::shared_ptr<kv::TxHistory> history =
-    std::make_shared<ccf::MerkleTxHistory>(
-      store, 0, kp, signatures, nodes);
+    std::make_shared<ccf::MerkleTxHistory>(store, 0, kp, signatures, nodes);
   store.set_history(history);
 
   std::vector<std::vector<uint8_t>> txs;
@@ -195,8 +195,7 @@ static void append_compact(picobench::state& s)
   store.set_replicator(replicator);
 
   std::shared_ptr<kv::TxHistory> history =
-    std::make_shared<ccf::MerkleTxHistory>(
-      store, 0, kp, signatures, nodes);
+    std::make_shared<ccf::MerkleTxHistory>(store, 0, kp, signatures, nodes);
   store.set_history(history);
 
   std::vector<std::vector<uint8_t>> txs;

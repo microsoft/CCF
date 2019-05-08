@@ -160,7 +160,8 @@ namespace ccf
           const auto next_k = k + 1;
           REQUIRE(next_tx->put(next_k, s1));
           REQUIRE(
-            li.invoke<nullptr_t>(get_globally_committed, next_tx, next_k) == nullptr);
+            li.invoke<nullptr_t>(get_globally_committed, next_tx, next_k) ==
+            nullptr);
         }
 
         REQUIRE(next_txs.commit() == kv::CommitSuccess::OK);

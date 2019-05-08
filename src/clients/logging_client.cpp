@@ -87,9 +87,15 @@ int main(int argc, char** argv)
     CLI::App cli_app{"Logging Client"};
     cli_app.add_option("--host", host);
     cli_app.add_option("--port", port);
-    cli_app.add_option("--cert", cert_file)->required(true)->check(CLI::ExistingFile);
-    cli_app.add_option("--privk", key_file)->required(true)->check(CLI::ExistingFile);
-    cli_app.add_option("--ca", ca_file)->required(true)->check(CLI::ExistingFile);
+    cli_app.add_option("--cert", cert_file)
+      ->required(true)
+      ->check(CLI::ExistingFile);
+    cli_app.add_option("--privk", key_file)
+      ->required(true)
+      ->check(CLI::ExistingFile);
+    cli_app.add_option("--ca", ca_file)
+      ->required(true)
+      ->check(CLI::ExistingFile);
     CLI11_PARSE(cli_app, argc, argv);
   }
 
