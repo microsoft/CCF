@@ -67,13 +67,13 @@ namespace enclave
 
     std::vector<uint8_t> read(size_t up_to, bool exact = false)
     {
+      LOG_DEBUG << "requesting " << up_to << " bytes" << std::endl;
       // This will return en empty vector if the connection isn't
       // ready, but it will not block on the handshake.
       do_handshake();
 
       if (status != ready)
       {
-        LOG_INFO << "HANDSHAKE is not ready: " << status << std::endl;
         return {};
       }
 
@@ -85,8 +85,8 @@ namespace enclave
 
       if (read_buffer.size() > 0)
       {
-        LOG_INFO << "read_buffer is of size: " << read_buffer.size()
-                 << std::endl;
+        LOG_DEBUG << "read_buffer is of size: " << read_buffer.size()
+                  << std::endl;
         offset = std::min(up_to, read_buffer.size());
         ::memcpy(data.data(), read_buffer.data(), offset);
 
@@ -100,6 +100,7 @@ namespace enclave
       }
 
       auto r = ctx->read(data.data() + offset, up_to - offset);
+      LOG_DEBUG << "ctx->read returned: " << r << std::endl;
 
       switch (r)
       {
@@ -107,8 +108,6 @@ namespace enclave
         case MBEDTLS_ERR_NET_CONN_RESET:
         case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
         {
-          LOG_DEBUG << "TLS " << session_id << " on read: " << strerror(r)
-                    << std::endl;
           stop(closed);
 
           if (!exact)
@@ -123,7 +122,6 @@ namespace enclave
         case MBEDTLS_ERR_SSL_WANT_READ:
         case MBEDTLS_ERR_SSL_WANT_WRITE:
         {
-          LOG_INFO << "r is: " << r << std::endl;
           data.resize(offset);
 
           if (!exact)
@@ -134,9 +132,7 @@ namespace enclave
         }
 
         default:
-        {
-          LOG_FAIL << "ctx->read failed: " << r << std::endl;
-        }
+        {}
       }
 
       if (r < 0)
@@ -154,6 +150,8 @@ namespace enclave
       // MBEDTLS_ERR_SSL_WANT_READ. Probably hit a size limit - try again
       if (exact && (total < up_to))
       {
+        LOG_INFO << "Asked for exactly " << up_to << ", received " << total
+                 << ", retrying" << std::endl;
         read_buffer = move(data);
         return read(up_to, exact);
       }
@@ -457,9 +455,6 @@ namespace enclave
         // writes a chunk larger than the size requested by the enclave.
         size_t rd = std::min(len, pending_read.size());
         ::memcpy(buf, pending_read.data(), rd);
-
-        LOG_INFO << "handle_recv: actually read " << rd << "(asked for: " << len
-                 << ")" << std::endl;
 
         if (rd >= pending_read.size())
         {
