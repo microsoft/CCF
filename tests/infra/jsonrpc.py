@@ -156,7 +156,10 @@ class FramedTLSClient:
 
     def _read(self):
         size, = struct.unpack("<I", self.conn.read(4))
-        return self.conn.read(size)
+        data = bytes()
+        while len(data) < size:
+            data += self.conn.read(size - len(data))
+        return data
 
     def read(self):
         for _ in range(1000):
