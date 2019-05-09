@@ -103,6 +103,9 @@ if(BUILD_TESTS)
   target_link_libraries(raft_test PRIVATE
     ${CRYPTO_LIBRARY})
 
+  add_unit_test(enclave_endpoint
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/test/tlsframedendpoint.cpp)
+
   add_unit_test(ledger_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp)
 
