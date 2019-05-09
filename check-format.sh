@@ -9,7 +9,7 @@ if [ "$#" -eq 0 ]; then
   exit 1
 fi
 
-echo "Formatting files in $@"
+echo "Formatting files in" "$@"
 
 unformatted_files=""
 for f in $(find "$@" -name "*.h" -or -name "*.hpp" -or -name "*.cpp" -or -name "*.c"); do
