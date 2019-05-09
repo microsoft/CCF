@@ -4,8 +4,15 @@
 
 set -u
 
+if [ "$#" -eq 0 ]; then
+  echo "No args given - specify dir(s) to be formatted"
+  exit 1
+fi
+
+echo "Formatting files in" "$@"
+
 unformatted_files=""
-for f in $(find src -name "*.h" -or -name "*.hpp" -or -name "*.cpp" -or -name "*.c"); do
+for f in $(find "$@" -name "*.h" -or -name "*.hpp" -or -name "*.cpp" -or -name "*.c"); do
   # Workaround for https://bugs.llvm.org/show_bug.cgi?id=39216
   d=$(cat "$f" | clang-format-7 -style=file --assume-filename "${f%.*}".cpp | diff "$f" -)
   if [ "$d" != "" ]; then
@@ -19,4 +26,6 @@ done
 if [ "$unformatted_files" != "" ]; then
   echo "$unformatted_files"
   exit 1
+else
+  echo "All files formatted correctly"
 fi
