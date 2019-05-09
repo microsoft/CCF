@@ -85,9 +85,9 @@ namespace ccfapp
       install(Procs::LOG_GET_PUBLIC, get_public, Read);
 
       nwt.signatures.set_global_hook([this, &notifier](
-                                           kv::Version version,
-                                           const Signatures::State& s,
-                                           const Signatures::Write& w) {
+                                       kv::Version version,
+                                       const Signatures::State& s,
+                                       const Signatures::Write& w) {
         if (w.size() > 0)
         {
           nlohmann::json notify_j;
