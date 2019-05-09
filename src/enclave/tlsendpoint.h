@@ -171,7 +171,6 @@ namespace enclave
 
     void recv_buffered(const uint8_t* data, size_t size)
     {
-      LOG_INFO << "recv_buffered append size: " << size << std::endl;
       pending_read.insert(pending_read.end(), data, data + size);
 
       do_handshake();
