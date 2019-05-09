@@ -188,7 +188,7 @@ public:
     const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
       entries) override
   {
-    for (auto& [version, data, committable]: entries)
+    for (auto& [version, data, committable] : entries)
     {
       count++;
       if (committable)
@@ -208,15 +208,19 @@ public:
   }
 };
 
-TEST_CASE("Batches containing but not ending on a committable transaction should not halt replication")
+TEST_CASE(
+  "Batches containing but not ending on a committable transaction should not "
+  "halt replication")
 {
   Store store;
   std::shared_ptr<CompactingReplicator> replicator =
     std::make_shared<CompactingReplicator>(&store);
   store.set_replicator(replicator);
 
-  auto& table = store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
-  auto& other_table = store.create<size_t, size_t>("other_table", kv::SecurityDomain::PUBLIC);
+  auto& table =
+    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
+  auto& other_table =
+    store.create<size_t, size_t>("other_table", kv::SecurityDomain::PUBLIC);
 
   INFO("Write first tx");
   {
@@ -237,13 +241,15 @@ TEST_CASE("Batches containing but not ending on a committable transaction should
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     REQUIRE(replicator->count == 1);
 
-
-    store.commit(rv, [rv, &other_table]() {
-      Store::Tx txr(rv);
-      auto txrv = txr.get_view(other_table);
-      txrv->put(0, 1);
-      return txr.commit_reserved();
-      }, true);
+    store.commit(
+      rv,
+      [rv, &other_table]() {
+        Store::Tx txr(rv);
+        auto txrv = txr.get_view(other_table);
+        txrv->put(0, 1);
+        return txr.commit_reserved();
+      },
+      true);
     REQUIRE(replicator->count == 3);
   }
 
@@ -265,13 +271,18 @@ public:
   kv::Version rollback_at;
   kv::Version rollback_to;
 
-  RollbackReplicator(Store* store_, kv::Version rollback_at_, kv::Version rollback_to_) : store(store_), rollback_at(rollback_at_), rollback_to(rollback_to_) {}
+  RollbackReplicator(
+    Store* store_, kv::Version rollback_at_, kv::Version rollback_to_) :
+    store(store_),
+    rollback_at(rollback_at_),
+    rollback_to(rollback_to_)
+  {}
 
   bool replicate(
     const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
       entries) override
   {
-    for (auto& [version, data, committable]: entries)
+    for (auto& [version, data, committable] : entries)
     {
       count++;
       if (version == rollback_at)
@@ -291,14 +302,16 @@ public:
   }
 };
 
-TEST_CASE("Check that empty rollback during replicate does not cause replication halts")
+TEST_CASE(
+  "Check that empty rollback during replicate does not cause replication halts")
 {
   Store store;
   std::shared_ptr<RollbackReplicator> replicator =
     std::make_shared<RollbackReplicator>(&store, 2, 2);
   store.set_replicator(replicator);
 
-  auto& table = store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
+  auto& table =
+    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
 
   INFO("Write first tx");
   {
@@ -328,14 +341,16 @@ TEST_CASE("Check that empty rollback during replicate does not cause replication
   }
 }
 
-TEST_CASE("Check that rollback during replicate does not cause replication halts")
+TEST_CASE(
+  "Check that rollback during replicate does not cause replication halts")
 {
   Store store;
   std::shared_ptr<RollbackReplicator> replicator =
     std::make_shared<RollbackReplicator>(&store, 2, 1);
   store.set_replicator(replicator);
 
-  auto& table = store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
+  auto& table =
+    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
 
   INFO("Write first tx");
   {
