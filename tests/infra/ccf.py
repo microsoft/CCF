@@ -152,10 +152,11 @@ class Network:
                 with node.management_client() as c:
                     for _ in range(15):
                         id = c.request(method="getCommit", params={})
-                        res = c.response(id).result
-                        if res[b"commit"] >= 2 and res[b"term"] == 2:
-                            LOG.info("Node {} has joined (client)".format(node_id))
-                            break
+                        rep = c.response(id)
+                        if rep.error is None:
+                            if rep.result["commit"] >= 2 and rep.result["term"] == 2:
+                                LOG.info("Node {} has joined (client)".format(node_id))
+                                break
                         time.sleep(1)
                     else:
                         raise ValueError(
@@ -496,6 +497,7 @@ class Node:
             "management",
             cert=None,
             key=None,
+            cafile="{}.pem".format(self.node_id),
             description="node {} (mgmt)".format(self.node_id),
             **kwargs,
         )
