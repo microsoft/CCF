@@ -7,7 +7,8 @@
 #include <picobench/picobench.hpp>
 #include <random>
 
-extern "C" {
+extern "C"
+{
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
 
