@@ -85,7 +85,8 @@ namespace enclave
 
       if (read_buffer.size() > 0)
       {
-        LOG_INFO << "read_buffer is of size: " << read_buffer.size() << std::endl;
+        LOG_INFO << "read_buffer is of size: " << read_buffer.size()
+                 << std::endl;
         offset = std::min(up_to, read_buffer.size());
         ::memcpy(data.data(), read_buffer.data(), offset);
 
@@ -149,10 +150,12 @@ namespace enclave
       auto total = r + offset;
       data.resize(total);
 
+      // We read _some_ data but not enough, and didn't get
+      // MBEDTLS_ERR_SSL_WANT_READ. Probably hit a size limit - try again
       if (exact && (total < up_to))
       {
         read_buffer = move(data);
-        return {};
+        return read(up_to, exact);
       }
 
       return data;
@@ -455,7 +458,8 @@ namespace enclave
         size_t rd = std::min(len, pending_read.size());
         ::memcpy(buf, pending_read.data(), rd);
 
-        LOG_INFO << "handle_recv: actually read " << rd << "(asked for: " << len << ")" << std::endl;
+        LOG_INFO << "handle_recv: actually read " << rd << "(asked for: " << len
+                 << ")" << std::endl;
 
         if (rd >= pending_read.size())
         {
