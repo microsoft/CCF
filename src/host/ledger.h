@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <errno.h>
 #include <string>
 #include <sys/types.h>
 #include <unistd.h>
@@ -40,10 +41,16 @@ namespace asynchost
         file = fopen(filename.c_str(), "w+b");
 
       if (!file)
-        throw std::logic_error("Unable to open or create log file");
+        throw std::logic_error("Unable to open or create ledger file");
 
       fseeko(file, 0, SEEK_END);
-      size_t len = ftello(file);
+      auto len = ftello(file);
+      if (len == 1)
+      {
+        std::stringstream ss;
+        ss << "Failed to tell file size: " << strerror(errno);
+        throw std::logic_error(ss.str());
+      }
       fseeko(file, 0, SEEK_SET);
       size_t pos = 0;
       uint32_t size = 0;
@@ -56,7 +63,7 @@ namespace asynchost
         len -= frame_header_size;
 
         if (len < size)
-          throw std::logic_error("Malformed log file");
+          throw std::logic_error("Malformed ledger file");
 
         fseeko(file, size, SEEK_CUR);
         len -= size;
@@ -68,7 +75,7 @@ namespace asynchost
       total_len = pos;
 
       if (len != 0)
-        throw std::logic_error("Malformed log file");
+        throw std::logic_error("Malformed ledger file");
     }
 
     Ledger(const Ledger& that) = delete;
@@ -165,14 +172,19 @@ namespace asynchost
                 << std::endl;
 
       // positions[last_idx - 1] is the position of the specified
-      // final index. Truncate the log at position[last_idx].
+      // final index. Truncate the ledger at position[last_idx].
       if (last_idx >= positions.size())
         return;
 
       total_len = positions.at(last_idx);
       positions.resize(last_idx);
 
-      fflush(file);
+      if (fflush(file) != 0)
+      {
+        std::stringstream ss;
+        ss << "Failed to flush file: " << strerror(errno);
+        throw std::logic_error(ss.str());
+      }
 
       if (ftruncate(fileno(file), total_len))
         throw std::logic_error("Failed to truncate file");
@@ -196,7 +208,7 @@ namespace asynchost
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, raft::log_get, [&](const uint8_t* data, size_t size) {
-          // The enclave has asked for a log entry.
+          // The enclave has asked for a ledger entry.
           auto [idx] = ringbuffer::read_message<raft::log_get>(data, size);
 
           auto& entry = read_entry(idx);
