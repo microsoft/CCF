@@ -176,6 +176,210 @@ TEST_CASE("Check signing works across rollback")
   }
 }
 
+class CompactingReplicator : public kv::Replicator
+{
+public:
+  Store* store;
+  size_t count = 0;
+
+  CompactingReplicator(Store* store_) : store(store_) {}
+
+  bool replicate(
+    const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
+      entries) override
+  {
+    for (auto& [version, data, committable] : entries)
+    {
+      count++;
+      if (committable)
+        store->compact(version);
+    }
+    return true;
+  }
+
+  kv::Term get_term() override
+  {
+    return 2;
+  }
+
+  kv::Version get_commit_idx() override
+  {
+    return 0;
+  }
+};
+
+TEST_CASE(
+  "Batches containing but not ending on a committable transaction should not "
+  "halt replication")
+{
+  Store store;
+  std::shared_ptr<CompactingReplicator> replicator =
+    std::make_shared<CompactingReplicator>(&store);
+  store.set_replicator(replicator);
+
+  auto& table =
+    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
+  auto& other_table =
+    store.create<size_t, size_t>("other_table", kv::SecurityDomain::PUBLIC);
+
+  INFO("Write first tx");
+  {
+    Store::Tx tx;
+    auto txv = tx.get_view(table);
+    txv->put(0, 1);
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(replicator->count == 1);
+  }
+
+  INFO("Batch of two, starting with a commitable");
+  {
+    auto rv = store.next_version();
+
+    Store::Tx tx;
+    auto txv = tx.get_view(table);
+    txv->put(0, 2);
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(replicator->count == 1);
+
+    store.commit(
+      rv,
+      [rv, &other_table]() {
+        Store::Tx txr(rv);
+        auto txrv = txr.get_view(other_table);
+        txrv->put(0, 1);
+        return txr.commit_reserved();
+      },
+      true);
+    REQUIRE(replicator->count == 3);
+  }
+
+  INFO("Single tx");
+  {
+    Store::Tx tx;
+    auto txv = tx.get_view(table);
+    txv->put(0, 3);
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(replicator->count == 4);
+  }
+}
+
+class RollbackReplicator : public kv::Replicator
+{
+public:
+  Store* store;
+  size_t count = 0;
+  kv::Version rollback_at;
+  kv::Version rollback_to;
+
+  RollbackReplicator(
+    Store* store_, kv::Version rollback_at_, kv::Version rollback_to_) :
+    store(store_),
+    rollback_at(rollback_at_),
+    rollback_to(rollback_to_)
+  {}
+
+  bool replicate(
+    const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
+      entries) override
+  {
+    for (auto& [version, data, committable] : entries)
+    {
+      count++;
+      if (version == rollback_at)
+        store->rollback(rollback_to);
+    }
+    return true;
+  }
+
+  kv::Term get_term() override
+  {
+    return 2;
+  }
+
+  kv::Version get_commit_idx() override
+  {
+    return 0;
+  }
+};
+
+TEST_CASE(
+  "Check that empty rollback during replicate does not cause replication halts")
+{
+  Store store;
+  std::shared_ptr<RollbackReplicator> replicator =
+    std::make_shared<RollbackReplicator>(&store, 2, 2);
+  store.set_replicator(replicator);
+
+  auto& table =
+    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
+
+  INFO("Write first tx");
+  {
+    Store::Tx tx;
+    auto txv = tx.get_view(table);
+    txv->put(0, 1);
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(replicator->count == 1);
+  }
+
+  INFO("Write second tx, causing a rollback");
+  {
+    Store::Tx tx;
+    auto txv = tx.get_view(table);
+    txv->put(0, 2);
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(replicator->count == 2);
+  }
+
+  INFO("Single tx");
+  {
+    Store::Tx tx;
+    auto txv = tx.get_view(table);
+    txv->put(0, 3);
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(replicator->count == 3);
+  }
+}
+
+TEST_CASE(
+  "Check that rollback during replicate does not cause replication halts")
+{
+  Store store;
+  std::shared_ptr<RollbackReplicator> replicator =
+    std::make_shared<RollbackReplicator>(&store, 2, 1);
+  store.set_replicator(replicator);
+
+  auto& table =
+    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
+
+  INFO("Write first tx");
+  {
+    Store::Tx tx;
+    auto txv = tx.get_view(table);
+    txv->put(0, 1);
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(replicator->count == 1);
+  }
+
+  INFO("Write second tx, causing a rollback");
+  {
+    Store::Tx tx;
+    auto txv = tx.get_view(table);
+    txv->put(0, 2);
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(replicator->count == 2);
+  }
+
+  INFO("Single tx");
+  {
+    Store::Tx tx;
+    auto txv = tx.get_view(table);
+    txv->put(0, 3);
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    REQUIRE(replicator->count == 3);
+  }
+}
+
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
 {

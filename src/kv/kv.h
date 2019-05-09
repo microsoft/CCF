@@ -1181,6 +1181,7 @@ namespace kv
     std::unordered_map<Version, std::pair<PendingTx, bool>> pending_txs;
     Version last_replicated = 0;
     Version last_committable = 0;
+    Version rollback_count = 0;
 
     template <typename SP, typename DP>
     inline std::map<kv::SecurityDomain, std::vector<AbstractMap<SP, DP>*>>
@@ -1351,8 +1352,6 @@ namespace kv
       {
         std::lock_guard<SpinLock> vguard(version_lock);
         compacted = v;
-        if (compacted > last_replicated)
-          last_replicated = compacted;
 
         auto h = get_history();
         if (h)
@@ -1389,6 +1388,7 @@ namespace kv
       version = v;
       last_replicated = v;
       last_committable = v;
+      rollback_count++;
       pending_txs.clear();
       auto h = get_history();
       if (h)
@@ -1578,6 +1578,7 @@ namespace kv
       std::vector<std::tuple<Version, std::vector<uint8_t>, bool>> batch;
       Version previous_last_replicated = 0;
       Version next_last_replicated = 0;
+      Version previous_rollback_count = 0;
 
       {
         std::lock_guard<SpinLock> vguard(version_lock);
@@ -1614,6 +1615,11 @@ namespace kv
             last_replicated + offset, std::move(data_), committable_);
           pending_txs.erase(search);
         }
+
+        if (batch.size() == 0)
+          return CommitSuccess::OK;
+
+        previous_rollback_count = rollback_count;
         previous_last_replicated = last_replicated;
         next_last_replicated = last_replicated + batch.size();
       }
@@ -1621,7 +1627,9 @@ namespace kv
       if (r->replicate(batch))
       {
         std::lock_guard<SpinLock> vguard(version_lock);
-        if (last_replicated == previous_last_replicated)
+        if (
+          last_replicated == previous_last_replicated &&
+          previous_rollback_count == rollback_count)
           last_replicated = next_last_replicated;
         return CommitSuccess::OK;
       }
