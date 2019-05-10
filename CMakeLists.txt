@@ -217,13 +217,12 @@ if(BUILD_TESTS)
   target_link_libraries(tls_bench PRIVATE
     ${CMAKE_THREAD_LIBS_INIT}
     secp256k1.host)
-  #add_picobench(merkle_bench src/node/test/merkle_bench.cpp)
-  #target_link_libraries(merkle_bench PRIVATE
-  #  ${OE_ENCLAVE_CORE}
-  #  ccfcrypto.host
-  #  merkle_tree.host)
-  #target_include_directories(merkle_bench PRIVATE
-  #  ${MERKLE_TREE_INC})
+  add_picobench(merkle_bench src/node/test/merkle_bench.cpp)
+  target_link_libraries(merkle_bench PRIVATE
+    ccfcrypto.host
+    merkle_tree.host)
+  target_include_directories(merkle_bench PRIVATE
+    ${MERKLE_TREE_INC})
   add_picobench(history_bench src/node/test/history_bench.cpp)
   target_link_libraries(history_bench PRIVATE
     ccfcrypto.host
