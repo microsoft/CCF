@@ -663,15 +663,19 @@ TEST_CASE("Exceed append entries limit")
   REQUIRE(r0.channels->sent_msg_count() == 0);
   REQUIRE(r1.channels->sent_msg_count() == 0);
 
-  // msg of 10,000 bytes, so 2nd and 4th msg will exceed append entries limit
-  // size which means that 2nd and 4th messages will trigger
-  // send_append_entries()
-  std::vector<uint8_t> data(10000, 1);
+  // entries of (append_entries_size_limit / 2) size, so 2nd and 4th entry will
+  // exceed append entries limit size which means that 2nd and 4th entries will
+  // trigger send_append_entries()
+  std::vector<uint8_t> data((r0.append_entries_size_limit / 2), 1);
+  // I want to get 500 messages sent over 1mill entries
+  auto individual_entries = 1000000;
+  auto sent_append_entries = 500;
+  auto num_big_messages = 4;
 
   // send_append_entries() triggered or not
   bool msg_response = false;
 
-  for (size_t i = 1; i < 5; ++i)
+  for (size_t i = 1; i <= num_big_messages; ++i)
   {
     REQUIRE(r0.replicate({{i, data, true}}));
     REQUIRE(
@@ -683,6 +687,15 @@ TEST_CASE("Exceed append entries limit")
           REQUIRE(msg.prev_idx == ((i <= 2) ? 0 : 2));
         }));
     msg_response = !msg_response;
+  }
+
+  int data_size = (sent_append_entries * r0.append_entries_size_limit) /
+    (individual_entries - num_big_messages);
+  std::vector<uint8_t> smaller_data(data_size, 1);
+  for (size_t i = 5; i <= individual_entries; ++i)
+  {
+    REQUIRE(r0.replicate({{i, smaller_data, true}}));
+    dispatch_all(nodes, r0.channels->sent_append_entries);
   }
 
   INFO("Node 2 joins the ensemble");
@@ -700,14 +713,14 @@ TEST_CASE("Exceed append entries limit")
   REQUIRE(
     1 ==
     dispatch_all_and_check(
-      nodes, r0.channels->sent_append_entries, [](const auto& msg) {
-        REQUIRE(msg.idx == 4);
+      nodes, r0.channels->sent_append_entries, [&individual_entries](const auto& msg) {
+        REQUIRE(msg.idx == individual_entries);
         REQUIRE(msg.term == 1);
-        REQUIRE(msg.prev_idx == 4);
+        REQUIRE(msg.prev_idx == individual_entries);
       }));
 
   REQUIRE(r2.ledger->ledger.size() == 0);
-  REQUIRE(r0.ledger->ledger.size() == 4);
+  REQUIRE(r0.ledger->ledger.size() == individual_entries);
 
   INFO("Node 2 asks for Node 0 to send all the data up to now");
   REQUIRE(r2.channels->sent_append_entries_response.size() == 1);
@@ -715,7 +728,9 @@ TEST_CASE("Exceed append entries limit")
   r2.channels->sent_append_entries_response.pop_front();
   r0.recv_message(reinterpret_cast<uint8_t*>(&aer), sizeof(aer));
 
-  REQUIRE(r0.channels->sent_append_entries.size() == 2);
-  REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_append_entries));
-  REQUIRE(r2.ledger->ledger.size() == 4);
+  REQUIRE(r0.channels->sent_append_entries.size() == sent_append_entries);
+  REQUIRE(
+    sent_append_entries ==
+    dispatch_all(nodes, r0.channels->sent_append_entries));
+  REQUIRE(r2.ledger->ledger.size() == individual_entries);
 }

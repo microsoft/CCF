@@ -98,10 +98,9 @@ namespace raft
     std::list<Configuration> configurations;
     std::unordered_map<NodeId, NodeState> nodes;
 
-    static constexpr size_t append_entries_size_limit = 20000;
     size_t entry_size_not_limited = 0;
-    size_t tx_count = 0;
-    Index tx_threshold = 1;
+    size_t entry_count = 0;
+    Index entries_batch_size = 1;
     std::vector<Index> append_entries_limits;
 
     // Indices that are eligible for global commit, from a Node's perspective
@@ -116,14 +115,14 @@ namespace raft
     // should be replicated
     std::optional<Index> recovery_max_index;
 
-  public:
-    std::unique_ptr<LedgerProxy> ledger;
-    std::shared_ptr<ChannelProxy> channels;
-
-  private:
     // Randomness
     std::uniform_int_distribution<int> distrib;
     std::default_random_engine rand;
+
+  public:
+    static constexpr size_t append_entries_size_limit = 20000;
+    std::unique_ptr<LedgerProxy> ledger;
+    std::shared_ptr<ChannelProxy> channels;
 
   public:
     Raft(
@@ -319,11 +318,11 @@ namespace raft
         term_history.update(index, current_term);
 
         entry_size_not_limited += data.size();
-        tx_count++;
+        entry_count++;
         if (entry_size_not_limited >= append_entries_size_limit)
         {
-          set_tx_threshold();
-          tx_count = 0;
+          update_batch_size();
+          entry_count = 0;
           entry_size_not_limited = 0;
           for (const auto& it : nodes)
           {
@@ -387,7 +386,7 @@ namespace raft
           using namespace std::chrono_literals;
           timeout_elapsed = 0ms;
 
-          set_tx_threshold();
+          update_batch_size();
           // Send newly available entries to all nodes.
           for (const auto& it : nodes)
           {
@@ -406,12 +405,13 @@ namespace raft
     }
 
   private:
-    inline void set_tx_threshold()
+    inline void update_batch_size()
     {
-      auto avg_size = (tx_count == 0) ? append_entries_size_limit :
-                                        entry_size_not_limited / tx_count;
-      tx_threshold = (avg_size == 0) ? append_entries_size_limit / 2 :
-                                       append_entries_size_limit / avg_size;
+      auto avg_size = (entry_count == 0) ? append_entries_size_limit :
+                                           entry_size_not_limited / entry_count;
+      entries_batch_size = (avg_size == 0) ?
+        append_entries_size_limit / 2 :
+        append_entries_size_limit / avg_size;
     }
 
     Term get_term_internal(Index idx)
@@ -424,10 +424,11 @@ namespace raft
 
     void send_append_entries(NodeId to, Index start_idx)
     {
-      Index end_idx =
-        (last_idx == 0) ? 0 : std::min(start_idx + tx_threshold, last_idx);
+      Index end_idx = (last_idx == 0) ?
+        0 :
+        std::min(start_idx + entries_batch_size, last_idx);
 
-      for (Index i = end_idx; i < last_idx; i += tx_threshold)
+      for (Index i = end_idx; i < last_idx; i += entries_batch_size)
       {
         send_append_entries_range(to, start_idx, i);
         start_idx = std::min(i + 1, last_idx);
