@@ -663,19 +663,19 @@ TEST_CASE("Exceed append entries limit")
   REQUIRE(r0.channels->sent_msg_count() == 0);
   REQUIRE(r1.channels->sent_msg_count() == 0);
 
-  // entries of (append_entries_size_limit / 2) size, so 2nd and 4th entry will
-  // exceed append entries limit size which means that 2nd and 4th entries will
-  // trigger send_append_entries()
+  // large entries of size (append_entries_size_limit / 2), so 2nd and 4th entry
+  // will exceed append entries limit size which means that 2nd and 4th entries
+  // will trigger send_append_entries()
   std::vector<uint8_t> data((r0.append_entries_size_limit / 2), 1);
-  // I want to get 500 messages sent over 1mill entries
+  // I want to get ~500 messages sent over 1mill entries
   auto individual_entries = 1000000;
-  auto sent_append_entries = 500;
-  auto num_big_messages = 4;
+  auto num_small_entries_sent = 500;
+  auto num_big_entries = 4;
 
   // send_append_entries() triggered or not
   bool msg_response = false;
 
-  for (size_t i = 1; i <= num_big_messages; ++i)
+  for (size_t i = 1; i <= num_big_entries; ++i)
   {
     REQUIRE(r0.replicate({{i, data, true}}));
     REQUIRE(
@@ -689,10 +689,10 @@ TEST_CASE("Exceed append entries limit")
     msg_response = !msg_response;
   }
 
-  int data_size = (sent_append_entries * r0.append_entries_size_limit) /
-    (individual_entries - num_big_messages);
+  int data_size = (num_small_entries_sent * r0.append_entries_size_limit) /
+    (individual_entries - num_big_entries);
   std::vector<uint8_t> smaller_data(data_size, 1);
-  for (size_t i = 5; i <= individual_entries; ++i)
+  for (size_t i = num_big_entries + 1; i <= individual_entries; ++i)
   {
     REQUIRE(r0.replicate({{i, smaller_data, true}}));
     dispatch_all(nodes, r0.channels->sent_append_entries);
@@ -713,7 +713,9 @@ TEST_CASE("Exceed append entries limit")
   REQUIRE(
     1 ==
     dispatch_all_and_check(
-      nodes, r0.channels->sent_append_entries, [&individual_entries](const auto& msg) {
+      nodes,
+      r0.channels->sent_append_entries,
+      [&individual_entries](const auto& msg) {
         REQUIRE(msg.idx == individual_entries);
         REQUIRE(msg.term == 1);
         REQUIRE(msg.prev_idx == individual_entries);
@@ -728,9 +730,13 @@ TEST_CASE("Exceed append entries limit")
   r2.channels->sent_append_entries_response.pop_front();
   r0.recv_message(reinterpret_cast<uint8_t*>(&aer), sizeof(aer));
 
-  REQUIRE(r0.channels->sent_append_entries.size() == sent_append_entries);
   REQUIRE(
-    sent_append_entries ==
-    dispatch_all(nodes, r0.channels->sent_append_entries));
+    (r0.channels->sent_append_entries.size() > num_small_entries_sent &&
+     r0.channels->sent_append_entries.size() <=
+       num_small_entries_sent + num_big_entries));
+  auto sent_entries = dispatch_all(nodes, r0.channels->sent_append_entries);
+  REQUIRE(
+    (sent_entries > num_small_entries_sent &&
+     sent_entries <= num_small_entries_sent + num_big_entries));
   REQUIRE(r2.ledger->ledger.size() == individual_entries);
 }

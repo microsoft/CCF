@@ -101,7 +101,8 @@ namespace raft
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
     Index entries_batch_size = 1;
-    std::vector<Index> append_entries_limits;
+    static constexpr int batch_window_size = 100;
+    int batch_window_sum = 0;
 
     // Indices that are eligible for global commit, from a Node's perspective
     std::deque<Index> committable_indices;
@@ -407,11 +408,18 @@ namespace raft
   private:
     inline void update_batch_size()
     {
-      auto avg_size = (entry_count == 0) ? append_entries_size_limit :
-                                           entry_size_not_limited / entry_count;
-      entries_batch_size = (avg_size == 0) ?
+      auto avg_entry_size = (entry_count == 0) ?
+        append_entries_size_limit :
+        entry_size_not_limited / entry_count;
+
+      auto batch_size = (avg_entry_size == 0) ?
         append_entries_size_limit / 2 :
-        append_entries_size_limit / avg_size;
+        append_entries_size_limit / avg_entry_size;
+
+      auto batch_avg = batch_window_sum / batch_window_size;
+      // balance out total batch size across batch window
+      batch_window_sum += (batch_size - batch_avg);
+      entries_batch_size = std::max((batch_window_sum / batch_window_size), 1);
     }
 
     Term get_term_internal(Index idx)
