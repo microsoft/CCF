@@ -67,7 +67,7 @@ namespace enclave
 
     std::vector<uint8_t> read(size_t up_to, bool exact = false)
     {
-      LOG_DEBUG << "requesting " << up_to << " bytes" << std::endl;
+      LOG_DEBUG << "Requesting " << up_to << " bytes" << std::endl;
       // This will return en empty vector if the connection isn't
       // ready, but it will not block on the handshake.
       do_handshake();
@@ -108,6 +108,9 @@ namespace enclave
         case MBEDTLS_ERR_NET_CONN_RESET:
         case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
         {
+          LOG_DEBUG << "TLS " << session_id << " on read: " << strerror(r)
+                    << std::endl;
+
           stop(closed);
 
           if (!exact)
@@ -172,7 +175,6 @@ namespace enclave
     void recv_buffered(const uint8_t* data, size_t size)
     {
       pending_read.insert(pending_read.end(), data, data + size);
-
       do_handshake();
     }
 
