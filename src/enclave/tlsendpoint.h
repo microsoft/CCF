@@ -67,12 +67,15 @@ namespace enclave
 
     std::vector<uint8_t> read(size_t up_to, bool exact = false)
     {
+      LOG_DEBUG << "Requesting " << up_to << " bytes" << std::endl;
       // This will return en empty vector if the connection isn't
       // ready, but it will not block on the handshake.
       do_handshake();
 
       if (status != ready)
+      {
         return {};
+      }
 
       // Send pending writes.
       flush();
@@ -82,6 +85,8 @@ namespace enclave
 
       if (read_buffer.size() > 0)
       {
+        LOG_DEBUG << "read_buffer is of size: " << read_buffer.size()
+                  << std::endl;
         offset = std::min(up_to, read_buffer.size());
         ::memcpy(data.data(), read_buffer.data(), offset);
 
@@ -95,6 +100,7 @@ namespace enclave
       }
 
       auto r = ctx->read(data.data() + offset, up_to - offset);
+      LOG_DEBUG << "ctx->read returned: " << r << std::endl;
 
       switch (r)
       {
@@ -104,6 +110,7 @@ namespace enclave
         {
           LOG_DEBUG << "TLS " << session_id << " on read: " << strerror(r)
                     << std::endl;
+
           stop(closed);
 
           if (!exact)
@@ -142,10 +149,14 @@ namespace enclave
       auto total = r + offset;
       data.resize(total);
 
+      // We read _some_ data but not enough, and didn't get
+      // MBEDTLS_ERR_SSL_WANT_READ. Probably hit a size limit - try again
       if (exact && (total < up_to))
       {
+        LOG_INFO << "Asked for exactly " << up_to << ", received " << total
+                 << ", retrying" << std::endl;
         read_buffer = move(data);
-        return {};
+        return read(up_to, exact);
       }
 
       return data;
