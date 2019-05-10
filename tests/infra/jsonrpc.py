@@ -11,6 +11,9 @@ import logging
 import time
 import os
 from enum import IntEnum
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import asymmetric
 
 from loguru import logger as LOG
 
@@ -140,6 +143,16 @@ class FramedTLSClient:
     def connect(self):
         if self.cafile:
             self.context = ssl.create_default_context(cafile=self.cafile)
+
+            # Auto detect EC curve to use based on server CA
+            ca_bytes = open(self.cafile, "rb").read()
+            ca_curve = (
+                x509.load_pem_x509_certificate(ca_bytes, default_backend())
+                .public_key()
+                .curve
+            )
+            if isinstance(ca_curve, asymmetric.ec.SECP256K1):
+                self.context.set_ecdh_curve("secp256k1")
         else:
             self.context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         if self.cert and self.key:

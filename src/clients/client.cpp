@@ -17,7 +17,7 @@
 using namespace std;
 using namespace jsonrpc;
 
-vector<uint8_t> slurpCert(const string& path)
+vector<uint8_t> slup_cert(const string& path)
 {
   vector<uint8_t> cert;
 
@@ -45,7 +45,7 @@ void dump(CBuffer b, const string& file)
   }
 }
 
-std::vector<uint8_t> makeRpcRaw(
+std::vector<uint8_t> make_rpc_raw(
   const string& host,
   const string& port,
   Pack pack,
@@ -108,7 +108,7 @@ std::vector<uint8_t> makeRpcRaw(
   return res;
 }
 
-nlohmann::json makeRpc(
+nlohmann::json make_rpc(
   const string& host,
   const string& port,
   Pack pack,
@@ -119,7 +119,7 @@ nlohmann::json makeRpc(
   const string& req_file,
   tls::Auth auth = tls::auth_required)
 {
-  auto s = makeRpcRaw(
+  auto s = make_rpc_raw(
     host,
     port,
     pack,
@@ -136,13 +136,14 @@ nlohmann::json makeRpc(
   }
   catch (const exception& ex)
   {
-    cerr << "Got response of unexpected format or error: " << string(s.begin(), s.end()) << ":"
-         << ex.what() << endl;
+    cerr << "Got response of unexpected format or error: "
+         << string(s.begin(), s.end()) << ":" << ex.what() << endl;
     throw ex;
   }
   catch (...)
   {
-    cerr << "Got response of unexpected format or error: " << string(s.begin(), s.end()) << endl;
+    cerr << "Got response of unexpected format or error: "
+         << string(s.begin(), s.end()) << endl;
     throw;
   }
   return nlohmann::json();
@@ -154,11 +155,18 @@ int main(int argc, char** argv)
 
   app.require_subcommand(1, 1);
 
-  std::string host, port, ca_file;
+  std::string nodes_file = "nodes.json";
+  size_t node_index = 0;
+  auto nodes_opt = app.add_option("--nodes", nodes_file, "Nodes file", true);
+  app.add_option(
+    "--host-node-index", node_index, "Index of host in nodes file", true);
 
-  app.add_option("--host", host, "Remote host")->required(true);
-  app.add_option("--port", port, "Remote port")->required(true);
-  app.add_option("--ca", ca_file, "CA")->required(true);
+  std::string host, port;
+  std::string ca_file = "networkcert.pem";
+  auto host_opt =
+    app.add_option("--host", host, "Remote host")->excludes(nodes_opt);
+  app.add_option("--port", port, "Remote port")->needs(host_opt);
+  app.add_option("--ca", ca_file, "Network CA", true);
 
   auto start_network = app.add_subcommand("startnetwork", "Start network");
 
@@ -167,95 +175,125 @@ int main(int argc, char** argv)
 
   auto join_network = app.add_subcommand("joinnetwork", "Join network");
 
-  join_network->add_option(
-    "--server-cert", ca_file, "Server certificate", true);
-
   std::string req_jn = "joinNetwork.json";
   join_network->add_option("--req", req_jn, "RPC file", true);
-
-  std::string cert_file = "";
-  std::string pk_file = "";
 
   auto member_rpc = app.add_subcommand("memberrpc", "Member RPC");
 
   std::string req_mem = "memberrpc.json";
+  std::string member_cert_file = "member1_cert.pem";
+  std::string member_pk_file = "member1_privk.pem";
   member_rpc->add_option("--req", req_mem, "RPC file", true);
-  member_rpc->add_option("--cert", cert_file, "Client certificate", true);
-  member_rpc->add_option("--pk", pk_file, "Private key", true);
+  member_rpc->add_option(
+    "--cert", member_cert_file, "Member's certificate", true);
+  member_rpc->add_option("--pk", member_pk_file, "Member's private key", true);
 
   auto user_rpc = app.add_subcommand("userrpc", "User RPC");
 
   std::string req_user = "userrpc.json";
+  std::string user_cert_file = "user1_cert.pem";
+  std::string user_pk_file = "user1_privk.pem";
   user_rpc->add_option("--req", req_user, "RPC file", true);
-  user_rpc->add_option("--cert", cert_file, "Client certificate", true);
-  user_rpc->add_option("--pk", pk_file, "Private key", true);
+  user_rpc->add_option("--cert", user_cert_file, "User's certificate", true);
+  user_rpc->add_option("--pk", user_pk_file, "User's private key", true);
 
   auto mgmt_rpc = app.add_subcommand("mgmtrpc", "Management RPC");
 
   std::string req_mgmt = "mgmt.json";
+  std::string mgmt_cert_file;
+  std::string mgmt_pk_file;
   mgmt_rpc->add_option("--req", req_mgmt, "RPC file", true);
-  mgmt_rpc->add_option("--cert", cert_file, "Client certificate", true);
-  mgmt_rpc->add_option("--pk", pk_file, "Private key", true);
+  mgmt_rpc->add_option("--cert", mgmt_cert_file, "Manager's certificate", true);
+  mgmt_rpc->add_option("--pk", mgmt_pk_file, "Manager's private key", true);
 
   CLI11_PARSE(app, argc, argv);
 
   try
   {
+    // If host connection has not been set explicitly by options then load from
+    // nodes file
+    if (!*host_opt)
+    {
+      const auto j_nodes = files::slurp_json(nodes_file);
+
+      if (!j_nodes.is_array())
+      {
+        throw logic_error("Expected " + nodes_file + " to contain array");
+      }
+
+      if (node_index >= j_nodes.size())
+      {
+        throw logic_error(
+          "Expected node data at index " + to_string(node_index) + ", but " +
+          nodes_file + " defines only " + to_string(j_nodes.size()) + " files");
+      }
+
+      const auto& j_node = j_nodes[node_index];
+
+      host = j_node["pubhost"];
+      port = j_node["tlsport"];
+    }
+
     if (*start_network)
     {
       cout << "Starting network:" << endl;
-      Response<ccf::StartNetwork::Out> r = makeRpc(
+      Response<ccf::StartNetwork::Out> r = make_rpc(
         host, port, Pack::MsgPack, "management", ca_file, "", "", req_sn);
 
       dump(r.result.network_cert, "networkcert.pem");
       dump(r.result.tx0_sig, "tx0.sig");
     }
+
     if (*join_network)
     {
-      cout << "Joining network:" << endl
-           << makeRpc(
-                host, port, Pack::MsgPack, "management", ca_file, "", "", req_jn)
-           << endl;
+      cout
+        << "Joining network:" << endl
+        << make_rpc(
+             host, port, Pack::MsgPack, "management", ca_file, "", "", req_jn)
+        << endl;
     }
+
     if (*member_rpc)
     {
       cout << "Doing member RPC:" << endl
-           << makeRpc(
+           << make_rpc(
                 host,
                 port,
                 Pack::MsgPack,
                 "members",
                 ca_file,
-                cert_file,
-                pk_file,
+                member_cert_file,
+                member_pk_file,
                 req_mem)
            << endl;
     }
+
     if (*user_rpc)
     {
       cout << "Doing user RPC:" << endl
-           << makeRpc(
+           << make_rpc(
                 host,
                 port,
                 Pack::MsgPack,
                 "users",
                 ca_file,
-                cert_file,
-                pk_file,
+                user_cert_file,
+                user_pk_file,
                 req_user)
            << endl;
     }
+
     if (*mgmt_rpc)
     {
       cout << "Doing management RPC:" << endl
-           << makeRpc(
+           << make_rpc(
                 host,
                 port,
                 Pack::MsgPack,
                 "management",
                 ca_file,
-                cert_file,
-                pk_file,
+                mgmt_cert_file,
+                mgmt_pk_file,
                 req_mgmt)
            << endl;
     }

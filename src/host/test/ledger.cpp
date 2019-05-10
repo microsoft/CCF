@@ -49,11 +49,13 @@ TEST_CASE("Entry sizes")
   REQUIRE(l.entry_size(3) == 0);
 
   REQUIRE(l.framed_entries_size(1, 1) == (e1.size() + sizeof(uint32_t)));
-  REQUIRE(l.framed_entries_size(1, 2) == (e1.size() + sizeof(uint32_t) + e2.size() + sizeof(uint32_t)));
+  REQUIRE(
+    l.framed_entries_size(1, 2) ==
+    (e1.size() + sizeof(uint32_t) + e2.size() + sizeof(uint32_t)));
 
-/*
-  auto e = l.read_framed_entries(1, 1);
-  for (auto c : e)
-    std::cout << std::hex << (int)c;
-  std::cout << std::endl;*/
+  /*
+    auto e = l.read_framed_entries(1, 1);
+    for (auto c : e)
+      std::cout << std::hex << (int)c;
+    std::cout << std::endl;*/
 }
