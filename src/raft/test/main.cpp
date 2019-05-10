@@ -603,3 +603,119 @@ TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     REQUIRE(r1.ledger->skip_count == 2);
   }
 }
+
+TEST_CASE("Exceed append entries limit")
+{
+  auto kv_store0 = std::make_shared<Store>(0);
+  auto kv_store1 = std::make_shared<Store>(1);
+  auto kv_store2 = std::make_shared<Store>(2);
+
+  raft::NodeId node_id0(0);
+  raft::NodeId node_id1(1);
+  raft::NodeId node_id2(2);
+
+  ms request_timeout(10);
+
+  TRaft r0(
+    std::make_unique<Adaptor>(kv_store0),
+    std::make_unique<raft::LedgerStubProxy>(node_id0),
+    std::make_shared<raft::ChannelStubProxy>(),
+    node_id0,
+    request_timeout,
+    ms(20));
+  TRaft r1(
+    std::make_unique<Adaptor>(kv_store1),
+    std::make_unique<raft::LedgerStubProxy>(node_id1),
+    std::make_shared<raft::ChannelStubProxy>(),
+    node_id1,
+    request_timeout,
+    ms(100));
+  TRaft r2(
+    std::make_unique<Adaptor>(kv_store2),
+    std::make_unique<raft::LedgerStubProxy>(node_id2),
+    std::make_shared<raft::ChannelStubProxy>(),
+    node_id2,
+    request_timeout,
+    ms(50));
+
+  std::unordered_set<raft::NodeId> config0 = {node_id0, node_id1};
+  r0.add_configuration(0, config0);
+  r1.add_configuration(0, config0);
+
+  map<raft::NodeId, TRaft*> nodes;
+  nodes[node_id0] = &r0;
+  nodes[node_id1] = &r1;
+
+  r0.periodic(std::chrono::milliseconds(200));
+
+  REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_request_vote));
+  REQUIRE(1 == dispatch_all(nodes, r1.channels->sent_request_vote_response));
+  REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_append_entries));
+
+  REQUIRE(
+    1 ==
+    dispatch_all_and_check(
+      nodes, r1.channels->sent_append_entries_response, [](const auto& msg) {
+        REQUIRE(msg.last_log_idx == 0);
+        REQUIRE(msg.success);
+      }));
+
+  REQUIRE(r0.channels->sent_msg_count() == 0);
+  REQUIRE(r1.channels->sent_msg_count() == 0);
+
+  // msg of 10,000 bytes, so 2nd and 4th msg will exceed append entries limit
+  // size which means that 2nd and 4th messages will trigger
+  // send_append_entries()
+  std::vector<uint8_t> data(10000, 1);
+
+  // send_append_entries() triggered or not
+  bool msg_response = false;
+
+  for (size_t i = 1; i < 5; ++i)
+  {
+    REQUIRE(r0.replicate({{i, data, true}}));
+    REQUIRE(
+      msg_response ==
+      dispatch_all_and_check(
+        nodes, r0.channels->sent_append_entries, [&i](const auto& msg) {
+          REQUIRE(msg.idx == i);
+          REQUIRE(msg.term == 1);
+          REQUIRE(msg.prev_idx == ((i <= 2) ? 0 : 2));
+        }));
+    msg_response = !msg_response;
+  }
+
+  INFO("Node 2 joins the ensemble");
+
+  std::unordered_set<raft::NodeId> config1 = {node_id0, node_id1, node_id2};
+  r0.add_configuration(1, config1);
+  r1.add_configuration(1, config1);
+  r2.add_configuration(1, config1);
+
+  nodes[node_id2] = &r2;
+
+  INFO("Node 0 sends Node 2 what it's missed by joining late");
+  REQUIRE(r2.channels->sent_msg_count() == 0);
+
+  REQUIRE(
+    1 ==
+    dispatch_all_and_check(
+      nodes, r0.channels->sent_append_entries, [](const auto& msg) {
+        REQUIRE(msg.idx == 4);
+        REQUIRE(msg.term == 1);
+        REQUIRE(msg.prev_idx == 4);
+      }));
+
+  REQUIRE(r2.ledger->ledger.size() == 0);
+  REQUIRE(r0.ledger->ledger.size() == 4);
+
+  INFO("Node 2 asks for Node 0 to send all the data up to now");
+  REQUIRE(r2.channels->sent_append_entries_response.size() == 1);
+  auto aer = r2.channels->sent_append_entries_response.front().second;
+  r2.channels->sent_append_entries_response.pop_front();
+  r0.recv_message(reinterpret_cast<uint8_t*>(&aer), sizeof(aer));
+
+  REQUIRE(r0.channels->sent_append_entries.size() == 2);
+  REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_append_entries));
+  REQUIRE(r2.ledger->ledger.size() == 4);
+}

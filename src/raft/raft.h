@@ -100,6 +100,8 @@ namespace raft
 
     static constexpr size_t append_entries_size_limit = 20000;
     size_t entry_size_not_limited = 0;
+    size_t tx_count = 0;
+    Index tx_threshold = 1;
     std::vector<Index> append_entries_limits;
 
     // Indices that are eligible for global commit, from a Node's perspective
@@ -317,11 +319,12 @@ namespace raft
         term_history.update(index, current_term);
 
         entry_size_not_limited += data.size();
+        tx_count++;
         if (entry_size_not_limited >= append_entries_size_limit)
         {
-          append_entries_limits.push_back(index);
+          set_tx_threshold();
+          tx_count = 0;
           entry_size_not_limited = 0;
-
           for (const auto& it : nodes)
           {
             LOG_DEBUG << "Sending updates to follower " << it.first
@@ -384,6 +387,7 @@ namespace raft
           using namespace std::chrono_literals;
           timeout_elapsed = 0ms;
 
+          set_tx_threshold();
           // Send newly available entries to all nodes.
           for (const auto& it : nodes)
           {
@@ -402,6 +406,14 @@ namespace raft
     }
 
   private:
+    inline void set_tx_threshold()
+    {
+      auto avg_size = (tx_count == 0) ? append_entries_size_limit :
+                                        entry_size_not_limited / tx_count;
+      tx_threshold = (avg_size == 0) ? append_entries_size_limit / 2 :
+                                       append_entries_size_limit / avg_size;
+    }
+
     Term get_term_internal(Index idx)
     {
       if (idx > last_idx)
@@ -412,18 +424,16 @@ namespace raft
 
     void send_append_entries(NodeId to, Index start_idx)
     {
-      Index end_idx = 0;
-      auto limit_begin = upper_bound(
-        append_entries_limits.begin(), append_entries_limits.end(), start_idx);
+      Index end_idx =
+        (last_idx == 0) ? 0 : std::min(start_idx + tx_threshold, last_idx);
 
-      for (auto it = limit_begin; it < append_entries_limits.end(); ++it)
+      for (Index i = end_idx; i < last_idx; i += tx_threshold)
       {
-        end_idx = *it;
-        send_append_entries_range(to, start_idx, end_idx);
-        start_idx = std::min(end_idx + 1, last_idx);
+        send_append_entries_range(to, start_idx, i);
+        start_idx = std::min(i + 1, last_idx);
       }
 
-      if (last_idx == 0 || end_idx < last_idx)
+      if (last_idx == 0 || end_idx <= last_idx)
       {
         send_append_entries_range(to, start_idx, last_idx);
       }
