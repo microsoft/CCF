@@ -233,6 +233,17 @@ if(BUILD_TESTS)
   add_picobench(kv_bench src/kv/test/kv_bench.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmkey.cpp)
 
+  # Merkle Tree memory test
+  add_executable(merkle_mem src/node/test/merkle_mem.cpp)
+  target_link_libraries(merkle_mem PRIVATE
+    ccfcrypto.host
+    merkle_tree.host
+    ${CMAKE_THREAD_LIBS_INIT})
+    use_client_mbedtls(merkle_mem)
+  target_include_directories(merkle_mem PRIVATE
+    ${MERKLE_TREE_INC}
+    src)
+
   # Raft driver and scenario test
   add_executable(raft_driver
     ${CMAKE_CURRENT_SOURCE_DIR}/src/raft/test/driver.cpp)
