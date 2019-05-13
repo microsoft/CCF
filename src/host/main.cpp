@@ -262,18 +262,15 @@ int main(int argc, char** argv)
 
   LOG_INFO << "Created new node." << std::endl;
 
-#ifdef GET_QUOTE
-  auto enclave_ok = enclave.verify_quote(quote, node_cert);
-  if (!enclave_ok)
-    LOG_FATAL << "Verification of local node quote failed" << std::endl;
-#endif
-
   // Write the node cert and quote to disk. Actors can use the node cert
   // as a CA on their end of the TLS connection.
   files::dump(node_cert, node_cert_file);
 
 #ifdef GET_QUOTE
   files::dump(quote, quote_file);
+
+  if (!enclave.verify_quote(quote, node_cert))
+    LOG_FATAL << "Verification of local node quote failed" << std::endl;
 #endif
 
   // ledger
