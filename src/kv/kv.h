@@ -1678,6 +1678,7 @@ namespace kv
       compacted = 0;
       last_replicated = 0;
       last_committable = 0;
+      rollback_count = 0;
       pending_txs.clear();
     }
 
