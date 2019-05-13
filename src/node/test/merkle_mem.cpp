@@ -19,6 +19,8 @@ static constexpr size_t appends = 1000000;
 static constexpr size_t max_tree_size = 1000;
 static constexpr size_t flushes_without_retract = 10;
 
+static constexpr size_t max_expected_rss = 4096;
+
 static size_t get_maxrss()
 {
   rusage r;
@@ -64,7 +66,7 @@ static int append_flush_and_retract()
   }
   LOG_INFO << "MAX RSS: " << get_maxrss() << "Kb" << std::endl;
 
-  return get_maxrss() < 4096 ? 0 : 1;
+  return get_maxrss() < max_expected_rss ? 0 : 1;
 }
 
 // We need an explicit main to initialize kremlib and EverCrypt
