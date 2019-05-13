@@ -25,43 +25,18 @@ inline void clobber_memory()
   asm volatile("" : : : "memory");
 }
 
-static void append(picobench::state& s)
-{
-  ccf::MerkleTreeHistory t;
-  vector<crypto::Sha256Hash> hashes;
-
-  for (size_t i = 0; i < s.iterations(); ++i)
-  {
-    crypto::Sha256Hash h;
-    vector<uint8_t> hv(crypto::Sha256Hash::SIZE, 0u);
-    generate(hv.begin(), hv.end(), rand);
-    h.mbedtls_sha256({hv}, h.h);
-    hashes.emplace_back(h);
-  }
-
-  size_t index = 0;
-  s.start_timer();
-  for (auto _ : s)
-  {
-    (void)_;
-    t.append(hashes[index++]);
-    // do_not_optimize();
-    clobber_memory();
-  }
-  s.stop_timer();
-}
-
 static void append_retract(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
   vector<crypto::Sha256Hash> hashes;
+  std::random_device r;
 
   for (size_t i = 0; i < s.iterations(); ++i)
   {
     crypto::Sha256Hash h;
-    vector<uint8_t> hv(crypto::Sha256Hash::SIZE, 0u);
-    generate(hv.begin(), hv.end(), rand);
-    h.mbedtls_sha256({hv}, h.h);
+    for (size_t j = 0; j < crypto::Sha256Hash::SIZE; j++)
+      h.h[j] = r();
+
     hashes.emplace_back(h);
   }
 
@@ -71,8 +46,11 @@ static void append_retract(picobench::state& s)
   {
     (void)_;
     t.append(hashes[index++]);
+
     if (index > 0 && index % 1000 == 0)
+    {
       t.retract(index - 1000);
+    }
 
     // do_not_optimize();
     clobber_memory();
@@ -84,13 +62,14 @@ static void append_flush(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
   vector<crypto::Sha256Hash> hashes;
+  std::random_device r;
 
   for (size_t i = 0; i < s.iterations(); ++i)
   {
     crypto::Sha256Hash h;
-    vector<uint8_t> hv(crypto::Sha256Hash::SIZE, 0u);
-    generate(hv.begin(), hv.end(), rand);
-    h.mbedtls_sha256({hv}, h.h);
+    for (size_t j = 0; j < crypto::Sha256Hash::SIZE; j++)
+      h.h[j] = r();
+
     hashes.emplace_back(h);
   }
 
@@ -111,8 +90,6 @@ static void append_flush(picobench::state& s)
 
 const std::vector<int> sizes = {10000, 100000};
 
-PICOBENCH_SUITE("append");
-PICOBENCH(append).iterations(sizes).samples(10).baseline();
 PICOBENCH_SUITE("append_retract");
 PICOBENCH(append_retract).iterations(sizes).samples(10).baseline();
 PICOBENCH_SUITE("append_flush");
