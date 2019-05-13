@@ -36,10 +36,9 @@ static void append_retract(picobench::state& s)
     crypto::Sha256Hash h;
     for (size_t j = 0; j < crypto::Sha256Hash::SIZE; j++)
       h.h[j] = r();
-    
+
     hashes.emplace_back(h);
   }
-
 
   size_t index = 0;
   s.start_timer();
@@ -70,7 +69,7 @@ static void append_flush(picobench::state& s)
     crypto::Sha256Hash h;
     for (size_t j = 0; j < crypto::Sha256Hash::SIZE; j++)
       h.h[j] = r();
-    
+
     hashes.emplace_back(h);
   }
 
