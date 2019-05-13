@@ -61,8 +61,9 @@ int main(int argc, char** argv)
   std::string quote_file("quote.bin");
   app.add_option("-q,--quote-file", quote_file, "SGX quote file", true);
 
-  std::string quote_cert("nodecert.pem");
-  app.add_option("-c,--quote-cert", quote_cert, "SGX quote certificate", true);
+  std::string quoted_data("nodecert.pem");
+  app.add_option(
+    "-c,--quoted-data", quoted_data, "SGX quoted certificate", true);
 
   size_t sig_max_tx = 1000;
   app.add_option(
@@ -201,7 +202,7 @@ int main(int argc, char** argv)
   if (start == "verify")
   {
     auto q = files::slurp(quote_file);
-    auto d = files::slurp(quote_cert);
+    auto d = files::slurp(quoted_data);
 
     auto passed = enclave.verify_quote(q, d);
     if (!passed)
