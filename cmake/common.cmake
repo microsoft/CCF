@@ -502,7 +502,6 @@ target_link_libraries(cchost.virtual PRIVATE
   ccfcrypto.host
   merkle_tree.host
 )
-enable_quote_code(cchost.virtual)
 
 # Client executable
 add_executable(client ${CCF_DIR}/src/clients/client.cpp)

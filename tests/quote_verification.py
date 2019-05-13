@@ -57,7 +57,7 @@ def create_node(lib_path, node_id, quote_path, cert_path):
         proc.wait()
 
 
-def verify_quote(lib_path, quote_path, cert_path, should_fail=False):
+def verify_quote(lib_path, quote_path, quoted_path, should_fail=False):
     # As per OE 0.4.0, oe_verify_report() on the host leaks memory.
     # Turn ASAN leak check off for now until OE fixes it.
     asan_env_disable_leak = {"ASAN_OPTIONS": "detect_leaks=0"}
@@ -66,7 +66,7 @@ def verify_quote(lib_path, quote_path, cert_path, should_fail=False):
         "--enclave-file={}".format(lib_path),
         "--start=verify",
         "--quote-file={}".format(quote_path),
-        "--quote-cert={}".format(cert_path),
+        "--quoted-data={}".format(quoted_path),
     ]
     print(">> {} &".format(" ".join(cmd)))
     proc = Popen(
