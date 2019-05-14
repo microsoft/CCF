@@ -210,8 +210,7 @@ namespace ccf
       RpcFrontend(
         *network.tables,
         &network.member_client_signatures,
-        &network.member_certs,
-        false),
+        &network.member_certs),
       network(network),
       node(node),
       tsr(network)

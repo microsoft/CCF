@@ -19,7 +19,6 @@
 #include "kv/replicator.h"
 #include "networkstate.h"
 #include "nodetonode.h"
-#include "notifier.h"
 #include "rpc/consts.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
@@ -126,7 +125,6 @@ namespace ccf
     enclave::RPCSessions& rpcsessions;
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
-    Notifier& notifier;
 
     //
     // join protocol
@@ -160,15 +158,13 @@ namespace ccf
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
-      enclave::RPCSessions& rpcsessions,
-      Notifier& notifier) :
+      enclave::RPCSessions& rpcsessions) :
       sm(State::uninitialized),
       self(INVALID_ID),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
-      rpcsessions(rpcsessions),
-      notifier(notifier)
+      rpcsessions(rpcsessions)
     {
       ::EverCrypt_AutoConfig2_init();
     }

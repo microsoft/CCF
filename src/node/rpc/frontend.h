@@ -5,6 +5,7 @@
 #include "ds/buffer.h"
 #include "ds/histogram.h"
 #include "enclave/rpchandler.h"
+#include "forwarder.h"
 #include "jsonrpc.h"
 #include "node/certs.h"
 #include "node/clientsignatures.h"
@@ -70,6 +71,7 @@ namespace ccf
     std::unordered_map<std::string, Handler> handlers;
     Consensus* raft;
     std::shared_ptr<NodeToNode> n2n_channels;
+    std::shared_ptr<Forwarder> cmd_forwarder;
     kv::TxHistory* history;
     size_t sig_max_tx = 1000;
     size_t tx_count = 0;
@@ -80,7 +82,6 @@ namespace ccf
     Hist histogram = Hist(global);
     std::chrono::milliseconds sig_max_ms = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
-    bool can_forward;
 
     bool request_storing_disabled = false;
 
@@ -158,7 +159,7 @@ namespace ccf
       return jsonrpc::error_response(
         id, jsonrpc::ErrorCodes::TX_NOT_LEADER, "Not leader, leader unknown.");
 #else
-      if (!is_forwarded && can_forward)
+      if (!is_forwarded && cmd_forwarder)
       {
         // If the RPC has not already been forwarded and the frontend is
         // allowed to forward, redirect it to the current leader
@@ -174,22 +175,15 @@ namespace ccf
     }
 
   public:
-    RpcFrontend(Store& tables_, bool can_forward_) :
-      RpcFrontend(tables_, nullptr, nullptr, can_forward_)
-    {}
+    RpcFrontend(Store& tables_) : RpcFrontend(tables_, nullptr, nullptr) {}
 
-    RpcFrontend(
-      Store& tables_,
-      ClientSignatures* client_sigs_,
-      Certs* certs_,
-      bool can_forward_) :
+    RpcFrontend(Store& tables_, ClientSignatures* client_sigs_, Certs* certs_) :
       tables(tables_),
       nodes(tables.get<Nodes>(Tables::NODES)),
       client_signatures(client_sigs_),
       certs(certs_),
       raft(nullptr),
-      history(nullptr),
-      can_forward(can_forward_)
+      history(nullptr)
     {
       auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
         kv::Version commit;
@@ -292,6 +286,11 @@ namespace ccf
     void set_n2n_channels(std::shared_ptr<NodeToNode> n2n_channels_)
     {
       n2n_channels = n2n_channels_;
+    }
+
+    void set_cmd_forwarder(std::shared_ptr<Forwarder> cmd_forwarder_)
+    {
+      cmd_forwarder = cmd_forwarder_;
     }
 
     /** Install HandleFunction for method name

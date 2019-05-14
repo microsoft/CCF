@@ -11,6 +11,7 @@
 #include "node/nodestate.h"
 #include "node/nodetypes.h"
 #include "node/notifier.h"
+#include "node/rpc/forwarder.h"
 #include "node/rpc/managementfrontend.h"
 #include "node/rpc/memberfrontend.h"
 #include "node/rpc/nodefrontend.h"
@@ -28,6 +29,7 @@ namespace enclave
     ccf::NetworkState network;
     ccf::NodeState node;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
+    std::shared_ptr<ccf::Forwarder> cmd_forwarder;
     ccf::Notifier notifier;
     std::shared_ptr<RpcMap> rpc_map;
     bool recover = false;
@@ -38,8 +40,9 @@ namespace enclave
       writer_factory(circuit, config->writer_config),
       rpcsessions(writer_factory),
       n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
-      node(writer_factory, network, rpcsessions, notifier),
-      notifier(writer_factory)
+      node(writer_factory, network, rpcsessions),
+      notifier(writer_factory),
+      cmd_forwarder(std::make_shared<ccf::Forwarder>(rpcsessions, n2n_channels))
     {
       rpc_map = std::make_shared<RpcMap>();
       rpc_map->emplace(
@@ -63,6 +66,12 @@ namespace enclave
           config->signature_intervals.sig_max_tx,
           config->signature_intervals.sig_max_ms);
         frontend->set_n2n_channels(n2n_channels);
+
+        // TODO: Can set this in cmd_forwarder.initialize() instead?
+        if (r.first == ccf::Actors::USERS)
+        {
+          frontend->set_cmd_forwarder(cmd_forwarder);
+        }
       }
 
       logger::config::msg() = AdminMessage::log_msg;
@@ -70,6 +79,7 @@ namespace enclave
 
       node.initialize(config->raft_config, n2n_channels);
       rpcsessions.initialize(rpc_map);
+      cmd_forwarder->initialize(rpc_map);
     }
 
     bool create_node(
@@ -132,50 +142,17 @@ namespace enclave
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp, ccf::node_inbound, [this](const uint8_t* data, size_t size) {
-            auto [body] =
+            const auto [body] =
               ringbuffer::read_message<ccf::node_inbound>(data, size);
 
-            const auto& body_ = body;
-            auto p = body_.data();
-            auto psize = body_.size();
+            auto p = body.data();
+            auto psize = body.size();
 
             if (
               serialized::peek<ccf::NodeMsgType>(p, psize) ==
               ccf::NodeMsgType::frontend_msg)
             {
-              serialized::skip(p, psize, sizeof(ccf::NodeMsgType));
-
-              switch (serialized::peek<ccf::FrontendMsg>(p, psize))
-              {
-                case ccf::FrontendMsg::forwarded_cmd:
-                {
-                  LOG_DEBUG << "Forwarded RPC: " << ccf::Actors::USERS
-                            << std::endl;
-                  rpc_map->at(std::string(ccf::Actors::USERS))
-                    ->process_forwarded(p, psize);
-                  break;
-                }
-
-                case ccf::FrontendMsg::forwarded_reply:
-                {
-                  LOG_DEBUG << "Forwarded RPC reply" << std::endl;
-
-                  auto rep = n2n_channels->recv_forwarded_response(p, psize);
-
-                  LOG_FAIL << "Sending forwarded response to session"
-                           << rep.first << std::endl;
-
-                  // TODO: Find sessions in rpcsessions and reply to client
-                  rpcsessions.reply_forwarded(rep.first, rep.second);
-                  break;
-                }
-
-                default:
-                {
-                  LOG_FAIL << "Unknown frontend msg type" << std::endl;
-                  break;
-                }
-              }
+              cmd_forwarder->recv_message(p, psize);
             }
             else
             {
