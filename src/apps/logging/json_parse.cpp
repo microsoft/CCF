@@ -1,100 +1,11 @@
+#include "ds/json.h"
+#include "ds/json_schema.h"
+
 #include <array>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <vector>
 
-template <typename T>
-struct RequiredJsonFields : std::false_type
-{};
-
-template <typename T>
-struct OptionalJsonFields : std::false_type
-{};
-
-template <typename T>
-struct JsonField
-{
-  char const* name;
-};
-
-template <typename T>
-void read_required_fields(const nlohmann::json& j, T& t);
-
-template <typename T>
-void read_optional_fields(const nlohmann::json& j, T& t);
-
-template <typename T, typename = std::enable_if_t<RequiredJsonFields<T>::value>>
-inline void from_json(const nlohmann::json& j, T& t)
-{
-  read_required_fields(j, t);
-
-  if constexpr (OptionalJsonFields<T>::value)
-  {
-    read_optional_fields(j, t);
-  }
-}
-
-template <typename T>
-nlohmann::json schema_properties_element();
-
-template <>
-inline nlohmann::json schema_properties_element<JsonField<size_t>>()
-{
-  nlohmann::json element;
-  element["type"] = "number";
-  return element;
-}
-
-template <>
-inline nlohmann::json schema_properties_element<JsonField<std::string>>()
-{
-  nlohmann::json element;
-  element["type"] = "string";
-  return element;
-}
-
-template <typename T, typename = std::enable_if_t<RequiredJsonFields<T>::value>>
-inline nlohmann::json build_schema(const std::string& title)
-{
-  nlohmann::json schema;
-  schema["$id"] =
-    "http://https://github.com/Microsoft/CCF/schemas/" + title + ".schema.json";
-  schema["$schema"] = "http://json-schema.org/draft-07/schema#";
-  schema["title"] = title;
-  schema["title"] = title;
-  schema["type"] = "object";
-
-  nlohmann::json required = nlohmann::json::array();
-  nlohmann::json properties;
-
-  // For all required fields, add the name of the field to required and the
-  // schema for the field to properties
-  std::apply(
-    [&required, &properties](const auto&... field) {
-      ((required.push_back(field.name),
-        properties[field.name] =
-          schema_properties_element<std::decay_t<decltype(field)>>()),
-       ...);
-    },
-    RequiredJsonFields<T>::required_fields);
-
-  // Add all optional fields to properties
-  if constexpr (OptionalJsonFields<T>::value)
-  {
-    std::apply(
-      [&properties](const auto&... field) {
-        ((properties[field.name] =
-            schema_properties_element<std::decay_t<decltype(field)>>()),
-         ...);
-      },
-      OptionalJsonFields<T>::optional_fields);
-  }
-
-  schema["required"] = required;
-  schema["properties"] = properties;
-
-  return schema;
-}
 
 #define __FOR_N( \
   _1, \

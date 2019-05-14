@@ -10,6 +10,37 @@ void assign_j(T& o, const nlohmann::json& j)
   o = std::move(t);
 }
 
+template <typename T>
+struct RequiredJsonFields : std::false_type
+{};
+
+template <typename T>
+struct OptionalJsonFields : std::false_type
+{};
+
+template <typename T>
+struct JsonField
+{
+  char const* name;
+};
+
+template <typename T>
+void read_required_fields(const nlohmann::json& j, T& t);
+
+template <typename T>
+void read_optional_fields(const nlohmann::json& j, T& t);
+
+template <typename T, typename = std::enable_if_t<RequiredJsonFields<T>::value>>
+inline void from_json(const nlohmann::json& j, T& t)
+{
+  read_required_fields(j, t);
+
+  if constexpr (OptionalJsonFields<T>::value)
+  {
+    read_optional_fields(j, t);
+  }
+}
+
 #define __JSON_N( \
   _1, \
   _2, \
