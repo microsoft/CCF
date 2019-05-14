@@ -134,7 +134,7 @@ namespace ccf
       auto size_ = plain_.size();
       auto caller_id = serialized::read<CallerId>(data_, size_);
       // TODO: Make size_t more precise
-      auto session_id = serialized::read<size_t>(data_, size);
+      auto session_id = serialized::read<size_t>(data_, size_);
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
 
       return {{session_id, msg.from_node, caller_id}, rpc};
@@ -165,6 +165,11 @@ namespace ccf
       ChannelHeader msg = {ChannelMsg::encrypted_msg, self};
       n2n_channel.encrypt(hdr, asCb(msg), plain, cipher);
 
+      LOG_FAIL << "node2node: send forwarded response of size: "
+               << sizeof(NodeMsgType) + sizeof(msg) + sizeof(hdr) +
+          cipher.size()
+               << std::endl;
+
       to_host->write(
         node_outbound,
         fwd_ctx.forwarder_id,
@@ -176,7 +181,33 @@ namespace ccf
       return true;
     }
 
-    void recv_forwarded_response(const uint8_t* data, size_t size) {}
+    std::pair<size_t, std::vector<uint8_t>> recv_forwarded_response(
+      const uint8_t* data, size_t size)
+    {
+      LOG_FAIL << "node2node: recv forwarded response of size: " << size
+               << std::endl;
+
+      const auto& msg = serialized::overlay<ccf::Header>(data, size);
+      LOG_FAIL << "Msg type: " << msg.msg << std::endl;
+      LOG_FAIL << "With node, " << msg.from_node << std::endl;
+
+      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
+      std::vector<uint8_t> plain(size);
+
+      auto& n2n_channel = channels->get(msg.from_node);
+      if (!n2n_channel.decrypt(hdr, asCb(msg), {data, size}, plain))
+        throw std::logic_error(
+          "Invalid encrypted node2node forwarded response");
+
+      const auto& plain_ = plain;
+      auto data_ = plain_.data();
+      auto size_ = plain_.size();
+      // TODO: Make size_t more precise
+      auto session_id = serialized::read<size_t>(data_, size_);
+      std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
+
+      return {session_id, rpc};
+    }
 
     void process_key_exchange(const uint8_t* data, size_t size)
     {

@@ -153,7 +153,14 @@ namespace enclave
               serialized::peek<ccf::NodeMsgType>(p, psize) ==
               ccf::NodeMsgType::forwarded_rep)
             {
-              LOG_FAIL << "FORWARDED REPLY OF SIZE: " << psize << std::endl;
+              // TODO: Deserialise message, decrypt
+              serialized::skip(p, psize, sizeof(ccf::NodeMsgType));
+              auto rep = n2n_channels->recv_forwarded_response(p, psize);
+
+              LOG_FAIL << "Sending forwarded response to session" << rep.first << std::endl;
+
+              // TODO: Find sessions in rpcsessions and reply to client
+              rpcsessions.reply_forwarded(rep.first, rep.second);
             }
             else
             {
