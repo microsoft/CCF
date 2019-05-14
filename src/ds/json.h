@@ -124,7 +124,8 @@ inline void from_json(const nlohmann::json& j, T& t)
 #define TO_JSON_FOR_JSON_NEXT(TYPE, FIELD) j[#FIELD] = c.FIELD;
 #define TO_JSON_FOR_JSON_FINAL(TYPE, FIELD) TO_JSON_FOR_JSON_NEXT(TYPE, FIELD)
 
-#define FROM_JSON_FOR_JSON_NEXT(TYPE, FIELD) assign_j(c.FIELD, j[#FIELD]);
+#define FROM_JSON_FOR_JSON_NEXT(TYPE, FIELD) \
+  c.FIELD = j[#FIELD].get<decltype(TYPE::FIELD)>();
 #define FROM_JSON_FOR_JSON_FINAL(TYPE, FIELD) \
   FROM_JSON_FOR_JSON_NEXT(TYPE, FIELD)
 
