@@ -357,7 +357,9 @@ namespace ccf
      * @param input Serialised JSON RPC
      */
     std::vector<uint8_t> process(
-      CBuffer caller, const std::vector<uint8_t>& input) override
+      enclave::RpcContext& rpc_ctx,
+      CBuffer caller,
+      const std::vector<uint8_t>& input) override
     {
       Store::Tx tx;
 
@@ -391,14 +393,14 @@ namespace ccf
         rep.find(jsonrpc::ERR) != rep.end() &&
         rep[jsonrpc::ERR][jsonrpc::CODE] == jsonrpc::RPC_FORWARDED)
       {
-        // TODO(#important): If the RPC has been redirected, wait for the
+        // TODO(#important): If the RPC has been forwarded, wait for the
         // reply from the leader before replying to the client
         auto leader_id = raft->leader();
         LOG_DEBUG << "RPC forwarded to leader " << leader_id << std::endl;
 
         if (
           leader_id != NoNode &&
-          !n2n_channels->forward(leader_id, caller_id.value(), input))
+          !n2n_channels->forward(rpc_ctx, leader_id, caller_id.value(), input))
         {
           return jsonrpc::pack(
             jsonrpc::error_response(
@@ -406,6 +408,11 @@ namespace ccf
               jsonrpc::ErrorCodes::RPC_NOT_FORWARDED,
               "RPC could not be forwarded to leader."),
             pack.value());
+        }
+        else
+        {
+          // Indicate that the RPC has been forwarded to leader
+          rpc_ctx.is_forwarded = true;
         }
       }
 
@@ -430,7 +437,7 @@ namespace ccf
       // already been verified
       CBuffer caller;
 
-      std::pair<CallerId, std::vector<uint8_t>> fwd;
+      std::pair<FwdContext, std::vector<uint8_t>> fwd;
       try
       {
         fwd = n2n_channels->recv_forwarded(data, size);
@@ -445,13 +452,13 @@ namespace ccf
           jsonrpc::Pack::Text);
       }
 
-      if (fwd.first == INVALID_ID)
+      if (fwd.first.caller_id == INVALID_ID)
       {
         return jsonrpc::pack(
           jsonrpc::error_response(
             0,
             jsonrpc::ErrorCodes::INVALID_CALLER_ID,
-            "No corresponding caller entry exists."),
+            "No corresponding caller entry exists (forwarded)."),
           jsonrpc::Pack::Text);
       }
 
@@ -459,7 +466,9 @@ namespace ccf
       if (!pack.has_value())
         return jsonrpc::pack(
           jsonrpc::error_response(
-            0, jsonrpc::ErrorCodes::INVALID_REQUEST, "Empty request."),
+            0,
+            jsonrpc::ErrorCodes::INVALID_REQUEST,
+            "Empty request (forwarded)."),
           jsonrpc::Pack::Text);
 
       auto rpc = unpack_json(fwd.second, pack.value());
@@ -469,7 +478,15 @@ namespace ccf
       // TODO(#important): For now, the return value of this function is
       // ignored. The JSON RPC result of the transaction execution
       // should be returned to the node that forwarded the RPC.
-      auto rep = process_json(tx, caller, fwd.first, rpc.second, true);
+      auto rep =
+        process_json(tx, caller, fwd.first.caller_id, rpc.second, true);
+
+      // TODO: Also send a forwarded response if an error occurred in
+      // process_forwarded()
+      LOG_FAIL << "Sending forwarded response" << std::endl;
+      n2n_channels->send_forwarded_response(
+        fwd.first, jsonrpc::pack(rep, pack.value()));
+
       return jsonrpc::pack(rep, pack.value());
     }
 

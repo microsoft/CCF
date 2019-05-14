@@ -141,13 +141,19 @@ namespace enclave
 
             if (
               serialized::peek<ccf::NodeMsgType>(p, psize) ==
-              ccf::NodeMsgType::forwarded_msg)
+              ccf::NodeMsgType::forwarded_cmd)
             {
               serialized::skip(p, psize, sizeof(ccf::NodeMsgType));
               LOG_DEBUG << "RPC forwarded: " << ccf::Actors::USERS << std::endl;
 
               rpc_map->at(std::string(ccf::Actors::USERS))
                 ->process_forwarded(p, psize);
+            }
+            else if (
+              serialized::peek<ccf::NodeMsgType>(p, psize) ==
+              ccf::NodeMsgType::forwarded_rep)
+            {
+              LOG_FAIL << "FORWARDED REPLY OF SIZE: " << psize << std::endl;
             }
             else
             {

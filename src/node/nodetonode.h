@@ -4,12 +4,20 @@
 
 #include "channels.h"
 #include "ds/serialized.h"
+#include "enclave/rpchandler.h"
 #include "nodetypes.h"
 
 #include <algorithm>
 
 namespace ccf
 {
+  struct FwdContext
+  {
+    size_t session_id;
+    NodeId forwarder_id;
+    CallerId caller_id;
+  };
+
   class NodeToNode
   {
   private:
@@ -73,13 +81,16 @@ namespace ccf
       auto& n2n_channel = channels->get(t.from_node);
 
       if (!n2n_channel.verify(hdr, asCb(t)))
-        throw std::logic_error("Invalid node2node message");
+        throw std::logic_error("Invalid authenticated node2node message");
 
       return t;
     }
 
     bool forward(
-      NodeId to, CallerId caller_id, const std::vector<uint8_t>& data)
+      enclave::RpcContext& rpc_ctx,
+      NodeId to,
+      CallerId caller_id,
+      const std::vector<uint8_t>& data)
     {
       auto& n2n_channel = channels->get(to);
       if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
@@ -88,11 +99,13 @@ namespace ccf
         return false;
       }
 
-      std::vector<uint8_t> plain(sizeof(caller_id) + data.size());
+      std::vector<uint8_t> plain(
+        sizeof(caller_id) + sizeof(rpc_ctx.session_id) + data.size());
       std::vector<uint8_t> cipher(plain.size());
       auto data_ = plain.data();
       auto size_ = plain.size();
       serialized::write(data_, size_, caller_id);
+      serialized::write(data_, size_, rpc_ctx.session_id);
       serialized::write(data_, size_, data.data(), data.size());
 
       GcmHdr hdr;
@@ -100,12 +113,12 @@ namespace ccf
       n2n_channel.encrypt(hdr, asCb(msg), plain, cipher);
 
       to_host->write(
-        node_outbound, to, NodeMsgType::forwarded_msg, msg, hdr, cipher);
+        node_outbound, to, NodeMsgType::forwarded_cmd, msg, hdr, cipher);
 
       return true;
     }
 
-    std::pair<CallerId, std::vector<uint8_t>> recv_forwarded(
+    std::pair<FwdContext, std::vector<uint8_t>> recv_forwarded(
       const uint8_t* data, size_t size)
     {
       const auto& msg = serialized::overlay<ccf::Header>(data, size);
@@ -114,16 +127,56 @@ namespace ccf
 
       auto& n2n_channel = channels->get(msg.from_node);
       if (!n2n_channel.decrypt(hdr, asCb(msg), {data, size}, plain))
-        throw std::logic_error("Invalid node2node message");
+        throw std::logic_error("Invalid encrypted node2node message");
 
       const auto& plain_ = plain;
       auto data_ = plain_.data();
       auto size_ = plain_.size();
       auto caller_id = serialized::read<CallerId>(data_, size_);
+      // TODO: Make size_t more precise
+      auto session_id = serialized::read<size_t>(data_, size);
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
 
-      return {caller_id, rpc};
+      return {{session_id, msg.from_node, caller_id}, rpc};
     }
+
+    bool send_forwarded_response(
+      const FwdContext& fwd_ctx, const std::vector<uint8_t>& data)
+    {
+      auto& n2n_channel = channels->get(fwd_ctx.forwarder_id);
+      if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
+      {
+        LOG_FAIL << "Cannot send forwarded response if node2node channel is "
+                    "not established"
+                 << std::endl;
+        return false;
+      }
+
+      // TODO: Use fwd_ctx.caller_id for something?
+      std::vector<uint8_t> plain(sizeof(fwd_ctx.session_id) + data.size());
+      std::vector<uint8_t> cipher(plain.size());
+      auto data_ = plain.data();
+      auto size_ = plain.size();
+      serialized::write(data_, size_, fwd_ctx.session_id);
+      serialized::write(data_, size_, data.data(), data.size());
+
+      GcmHdr hdr;
+      // TODO: Do we need ChannelHeader at all here?
+      ChannelHeader msg = {ChannelMsg::encrypted_msg, self};
+      n2n_channel.encrypt(hdr, asCb(msg), plain, cipher);
+
+      to_host->write(
+        node_outbound,
+        fwd_ctx.forwarder_id,
+        NodeMsgType::forwarded_rep,
+        msg,
+        hdr,
+        cipher);
+
+      return true;
+    }
+
+    void recv_forwarded_response(const uint8_t* data, size_t size) {}
 
     void process_key_exchange(const uint8_t* data, size_t size)
     {

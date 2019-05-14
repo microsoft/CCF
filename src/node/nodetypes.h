@@ -19,7 +19,8 @@ namespace ccf
   {
     channel_msg = 0,
     consensus_msg,
-    forwarded_msg
+    forwarded_cmd,
+    forwarded_rep,
   };
 
   // Types of channel messages

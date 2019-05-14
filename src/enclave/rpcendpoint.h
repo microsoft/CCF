@@ -14,6 +14,7 @@ namespace enclave
   private:
     std::shared_ptr<RpcMap> rpc_map;
     std::shared_ptr<RpcHandler> handler;
+    size_t session_id;
     CBuffer caller;
 
   public:
@@ -23,7 +24,8 @@ namespace enclave
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       FramedTLSEndpoint(session_id, writer_factory, move(ctx)),
-      rpc_map(rpc_map_)
+      rpc_map(rpc_map_),
+      session_id(session_id)
     {}
 
     bool handle_data(const std::vector<uint8_t>& data)
@@ -42,7 +44,13 @@ namespace enclave
         caller = peer_cert();
       }
 
-      send(handler->process(caller, data));
+      RpcContext rpc_ctx(session_id);
+      auto rep = handler->process(rpc_ctx, caller, data);
+      if (rpc_ctx.is_forwarded)
+        return true;
+      else
+        send(rep);
+
       return true;
     }
   };
