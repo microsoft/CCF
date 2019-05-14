@@ -45,9 +45,8 @@ steps:
   workingDirectory: build
 
 - task: PublishCodeCoverageResults@1
-  displayName: Publish Code Coverage
   inputs:
-    codeCoverageTool: 'JaCoCo'
+    codeCoverageTool: Cobertura
     summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/build/coverage/index.html'
     reportDirectory: '$(System.DefaultWorkingDirectory)/**/build/coverage'
   condition: succeededOrFailed()
