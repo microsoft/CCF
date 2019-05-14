@@ -45,8 +45,9 @@ steps:
   workingDirectory: build
 
 - task: PublishCodeCoverageResults@1
-    inputs: 
-      codeCoverageTool: JaCoCo
-      summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/build/coverage/index.html'
-      reportDirectory: '$(System.DefaultWorkingDirectory)/**/build/coverage'
-      failIfCoverageEmpty: false
+  displayName: Publish Code Coverage
+  inputs: 
+    codeCoverageTool: JaCoCo
+    summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/build/coverage/index.html'
+    reportDirectory: '$(System.DefaultWorkingDirectory)/**/build/coverage'
+    failIfCoverageEmpty: false
