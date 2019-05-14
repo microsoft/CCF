@@ -4,14 +4,19 @@
 <coverage line-rate="1.0" branch-rate="1.0" version="1.0" timestamp="0000001">
 	<sources>
 		<source>../src</source>
+        <source>--source</source>
 	</sources>
-    <classes>
-        <class name="main" filename="../src/ds/hash.h" line-rate="1.0" branch-rate="1.0" complexity="1.0">
-            <methods>
-            </methods>
-            <lines>
-                <line number="1" hits="3" branch="false"/>
-            </lines>
-        </class>
-    </classes>
+    <packages>
+		<package name="package_name" line-rate="1.0" branch-rate="1.0" complexity="1.0">
+            <classes>
+                <class name="main" filename="../src/ds/hash.h" line-rate="1.0" branch-rate="1.0" complexity="1.0">
+                    <methods>
+                    </methods>
+                    <lines>
+                        <line number="1" hits="3" branch="false"/>
+                    </lines>
+                </class>
+            </classes>
+        </package>
+    </packages>
 </coverage>
