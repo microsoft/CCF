@@ -50,4 +50,4 @@ steps:
     codeCoverageTool: 'JaCoCo'
     summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/build/coverage/index.html'
     reportDirectory: '$(System.DefaultWorkingDirectory)/**/build/coverage'
-    failIfCoverageEmpty: false
+  condition: succeededOrFailed()
