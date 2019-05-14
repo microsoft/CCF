@@ -11,27 +11,6 @@ using namespace ccf;
 
 namespace ccfapp
 {
-  struct JsonValidator
-  {};
-
-  struct RecordParams
-  {
-    size_t id;
-    string msg;
-  };
-
-  inline void to_json(nlohmann::json& j, const RecordParams& rp)
-  {
-    j["id"] = rp.id;
-    j["msg"] = rp.msg;
-  }
-
-  inline void from_json(const nlohman::json& j, RecordParams& rp)
-  {
-    rp.id = j["id"];
-    rp.msg= j["msg"];
-  }
-
   struct Procs
   {
     static constexpr auto LOG_RECORD = "LOG_record";

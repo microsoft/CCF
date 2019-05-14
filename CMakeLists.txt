@@ -328,4 +328,10 @@ if(BUILD_TESTS)
   if (EXTENSIVE_TESTS)
     set_tests_properties(recovery_tests PROPERTIES TIMEOUT 2000)
   endif()
+
+
+
+  
+  add_executable(json_parse
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/json_parse.cpp)
 endif()
