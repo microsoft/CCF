@@ -502,7 +502,6 @@ target_link_libraries(cchost.virtual PRIVATE
   ccfcrypto.host
   merkle_tree.host
 )
-enable_quote_code(cchost.virtual)
 
 # Client executable
 add_executable(client ${CCF_DIR}/src/clients/client.cpp)
@@ -522,7 +521,6 @@ set_property(TARGET lua.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 set(CCF_NETWORK_TEST_ARGS
   ${TEST_EXPECT_QUOTE}
   -l ${TEST_HOST_LOGGING_LEVEL}
-  -a ${CCF_DIR}/tests/ra_ca.pem
   -g ${CCF_DIR}/src/runtime_config/gov.lua
 )
 

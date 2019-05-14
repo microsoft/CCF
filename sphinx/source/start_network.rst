@@ -68,7 +68,7 @@ Once the initial nodes are running and the initial state of the network is ready
 
 .. code-block:: bash
 
-    $ client --host=<node0_ip> --port=<node0_tlsport> startnetwork --server-cert=<node0_cert> --req=startNetwork.json
+    $ client --host=<node0_ip> --port=<node0_tlsport> startnetwork --ca=<node0_cert> --req=startNetwork.json
 
 When executing the ``startNetwork.json`` RPC request, the target node deserialises the genesis transaction and immediately becomes the Raft leader of the new single-node network. Business transactions can then be issued by users and will commit immediately.
 
@@ -85,7 +85,7 @@ Once done, each additional node (here, node 1) can join the existing network by 
 
 .. code-block:: bash
 
-    $ client --host=<node1_ip> --port=<node1_tlsport> joinnetwork --server-cert=<node1_cert> --req=joinNetwork.json
+    $ client --host=<node1_ip> --port=<node1_tlsport> joinnetwork --ca=<node1_cert> --req=joinNetwork.json
 
 When executing the ``joinNetwork.json`` RPC, the target node initiates an enclave-to-enclave TLS connection to the network leader to retrieve the network secrets required to decrypt the serialised replicated transactions. Once the join protocol completes, the new node becomes a follower of the Raft network and starts replicating transactions executed by the leader.
 

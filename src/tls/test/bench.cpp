@@ -2,21 +2,22 @@
 // Licensed under the Apache 2.0 License.
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 #include "../keypair.h"
+
 #include <picobench/picobench.hpp>
 
 using namespace std;
 
 static constexpr size_t SHA256_BYTES = 256 / 8;
-static const string contents_ = 
-                       "Lorem ipsum dolor sit amet, consectetur adipiscing "
-                       "elit, sed do eiusmod tempor incididunt ut labore et"
-                       " dolore magna aliqua. Ut enim ad minim veniam, quis"
-                       " nostrud exercitation ullamco laboris nisi ut "
-                       "aliquip ex ea commodo consequat. Duis aute irure "
-                       "dolor in reprehenderit in voluptate velit esse "
-                       "cillum dolore eu fugiat nulla pariatur. Excepteur "
-                       "sint occaecat cupidatat non proident, sunt in culpa "
-                       "qui officia deserunt mollit anim id est laborum.";
+static const string contents_ =
+  "Lorem ipsum dolor sit amet, consectetur adipiscing "
+  "elit, sed do eiusmod tempor incididunt ut labore et"
+  " dolore magna aliqua. Ut enim ad minim veniam, quis"
+  " nostrud exercitation ullamco laboris nisi ut "
+  "aliquip ex ea commodo consequat. Duis aute irure "
+  "dolor in reprehenderit in voluptate velit esse "
+  "cillum dolore eu fugiat nulla pariatur. Excepteur "
+  "sint occaecat cupidatat non proident, sunt in culpa "
+  "qui officia deserunt mollit anim id est laborum.";
 
 template <class A>
 inline void do_not_optimize(A const& value)
@@ -34,9 +35,9 @@ static void benchmark_sign(picobench::state& s)
 {
   tls::KeyPair kp;
   vector<uint8_t> contents(contents_.size() * C);
-  for(decltype(C) i = 0; i < C; i++)
+  for (decltype(C) i = 0; i < C; i++)
   {
-      copy(contents_.begin(), contents_.end(), back_inserter(contents));
+    copy(contents_.begin(), contents_.end(), back_inserter(contents));
   }
 
   s.start_timer();
@@ -55,9 +56,9 @@ static void benchmark_verify(picobench::state& s)
 {
   tls::KeyPair kp;
   vector<uint8_t> contents(contents_.size() * C);
-  for(decltype(C) i = 0; i < C; i++)
+  for (decltype(C) i = 0; i < C; i++)
   {
-      copy(contents_.begin(), contents_.end(), back_inserter(contents));
+    copy(contents_.begin(), contents_.end(), back_inserter(contents));
   }
   auto signature = kp.sign(contents);
   auto public_key = kp.public_key();
@@ -79,9 +80,9 @@ static void benchmark_hash(picobench::state& s)
 {
   tls::KeyPair kp;
   vector<uint8_t> contents(contents_.size() * C);
-  for(decltype(C) i = 0; i < C; i++)
+  for (decltype(C) i = 0; i < C; i++)
   {
-      copy(contents_.begin(), contents_.end(), back_inserter(contents));
+    copy(contents_.begin(), contents_.end(), back_inserter(contents));
   }
 
   s.start_timer();

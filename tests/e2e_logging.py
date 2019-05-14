@@ -93,6 +93,14 @@ def run(args):
 
                         check(c.rpc("LOG_get", {"id": 0}), result=follower_msg)
 
+                LOG.debug("Write/Read large messages on leader")
+                with primary.user_client(format="json") as c:
+                    long_msg = "X" * 16384
+                    check_commit(
+                        c.rpc("LOG_record", {"id": 44, "msg": long_msg}), result="OK"
+                    )
+                    check(c.rpc("LOG_get", {"id": 44}), result=long_msg)
+
 
 if __name__ == "__main__":
 

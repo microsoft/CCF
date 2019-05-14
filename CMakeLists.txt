@@ -217,13 +217,12 @@ if(BUILD_TESTS)
   target_link_libraries(tls_bench PRIVATE
     ${CMAKE_THREAD_LIBS_INIT}
     secp256k1.host)
-  #add_picobench(merkle_bench src/node/test/merkle_bench.cpp)
-  #target_link_libraries(merkle_bench PRIVATE
-  #  ${OE_ENCLAVE_CORE}
-  #  ccfcrypto.host
-  #  merkle_tree.host)
-  #target_include_directories(merkle_bench PRIVATE
-  #  ${MERKLE_TREE_INC})
+  add_picobench(merkle_bench src/node/test/merkle_bench.cpp)
+  target_link_libraries(merkle_bench PRIVATE
+    ccfcrypto.host
+    merkle_tree.host)
+  target_include_directories(merkle_bench PRIVATE
+    ${MERKLE_TREE_INC})
   add_picobench(history_bench src/node/test/history_bench.cpp)
   target_link_libraries(history_bench PRIVATE
     ccfcrypto.host
@@ -233,6 +232,17 @@ if(BUILD_TESTS)
     ${MERKLE_TREE_INC})
   add_picobench(kv_bench src/kv/test/kv_bench.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmkey.cpp)
+
+  # Merkle Tree memory test
+  add_executable(merkle_mem src/node/test/merkle_mem.cpp)
+  target_link_libraries(merkle_mem PRIVATE
+    ccfcrypto.host
+    merkle_tree.host
+    ${CMAKE_THREAD_LIBS_INIT})
+    use_client_mbedtls(merkle_mem)
+  target_include_directories(merkle_mem PRIVATE
+    ${MERKLE_TREE_INC}
+    src)
 
   # Raft driver and scenario test
   add_executable(raft_driver

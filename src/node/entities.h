@@ -17,7 +17,6 @@ namespace ccf
   using NodeId = ObjectId;
   using UserId = ObjectId;
   using CallerId = ObjectId;
-  using CaId = ObjectId;
   using Cert = std::vector<uint8_t>;
   using CodeVersion = ObjectId;
 
@@ -42,7 +41,6 @@ namespace ccf
     static constexpr auto NODE_CERTS = "nodecerts";
     static constexpr auto NODES = "nodes";
     static constexpr auto VALUES = "values";
-    static constexpr auto ATTESTATION_CAS = "attestationcas";
     static constexpr auto SEQ_NOS = "seqnos";
     static constexpr auto APP = "app";
     static constexpr auto APP_AUX = "app_aux";

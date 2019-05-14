@@ -38,6 +38,7 @@ namespace enclave
           const uint8_t* data = len.data();
           size_t size = len.size();
           msg_size = serialized::read<uint32_t>(data, size);
+          LOG_DEBUG << "msg size is: " << msg_size << std::endl;
         }
 
         // Arbitrary limit on RPC size to stop a client from requesting
