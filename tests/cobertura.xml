@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<!--DOCTYPE coverage SYSTEM "http://cobertura.sourceforge.net/xml/coverage-03.dtd"-->
+
+<coverage line-rate="1.0" branch-rate="1.0" version="1.0" timestamp="0000001">
+	<sources>
+		<source></source>
+	</sources>
+	<packages>
+		<package name="" line-rate="1.0" branch-rate="1.0" complexity="1.0">
+			<classes>
+				<class name="main" filename="main.cpp" line-rate="1.0" branch-rate="1.0" complexity="1.0">
+					<methods>
+					</methods>
+					<lines>
+					</lines>
+				</class>
+			</classes>
+		</package>
+    </packages>
+</coverage>
