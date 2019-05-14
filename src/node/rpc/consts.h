@@ -22,6 +22,7 @@ namespace ccf
     static constexpr auto GET_TX_HIST = "getTxHist";
     static constexpr auto MK_SIGN = "mkSign";
     static constexpr auto GET_LEADER_INFO = "getLeaderInfo";
+    static constexpr auto GET_API = "getApi";
   };
 
   struct ManagementProcs

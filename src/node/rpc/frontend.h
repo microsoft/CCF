@@ -271,10 +271,24 @@ namespace ccf
             jsonrpc::ErrorCodes::TX_LEADER_UNKNOWN, "Leader unknown.");
         };
 
+      auto get_api = [this](Store::Tx& tx, const nlohmann::json& params) {
+        auto methods = nlohmann::json::array();
+
+        for (const auto& handler : handlers)
+        {
+          methods.push_back(handler.first);
+        }
+
+        std::sort(methods.begin(), methods.end());
+
+        return jsonrpc::success(methods);
+      };
+
       install(GeneralProcs::GET_COMMIT, get_commit, Read);
       install(GeneralProcs::GET_TX_HIST, get_tx_hist, Read);
       install(GeneralProcs::MK_SIGN, make_signature, Write);
       install(GeneralProcs::GET_LEADER_INFO, get_leader_info, Read);
+      install(GeneralProcs::GET_API, get_api, Read);
     }
 
     void disable_request_storing()
