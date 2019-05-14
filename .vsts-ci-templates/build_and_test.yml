@@ -16,7 +16,7 @@ steps:
     python3.7 -m venv env
     source env/bin/activate
     pip install -U -r ../tests/requirements.txt
-    ctest -VV --timeout 240 --no-compress-output -T Test
+    ctest -VV --timeout 240 --no-compress-output -T Test -R ds_test
   displayName: CTest
   workingDirectory: build
 

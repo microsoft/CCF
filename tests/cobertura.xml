@@ -5,16 +5,13 @@
 	<sources>
 		<source>../src</source>
 	</sources>
-	<packages>
-		<package name="" line-rate="1.0" branch-rate="1.0" complexity="1.0">
-			<classes>
-				<class name="main" filename="main.cpp" line-rate="1.0" branch-rate="1.0" complexity="1.0">
-					<methods>
-					</methods>
-					<lines>
-					</lines>
-				</class>
-			</classes>
-		</package>
-    </packages>
+    <classes>
+        <class name="main" filename="../src/ds/hash.h" line-rate="1.0" branch-rate="1.0" complexity="1.0">
+            <methods>
+            </methods>
+            <lines>
+                <line number="1" hits="3" branch="false"/>
+            </lines>
+        </class>
+    </classes>
 </coverage>
