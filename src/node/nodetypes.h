@@ -19,8 +19,7 @@ namespace ccf
   {
     channel_msg = 0,
     consensus_msg,
-    forwarded_cmd,
-    forwarded_rep,
+    frontend_msg
   };
 
   // Types of channel messages
@@ -29,6 +28,13 @@ namespace ccf
     key_exchange = 0,
     key_exchange_response,
     encrypted_msg
+  };
+
+  // Types of frontend messages
+  enum FrontendMsg : Node2NodeMsg
+  {
+    forwarded_cmd = 0,
+    forwarded_reply
   };
 
 #pragma pack(push, 1)
@@ -43,6 +49,13 @@ namespace ccf
   struct ChannelHeader
   {
     ChannelMsg msg;
+    NodeId from_node;
+  };
+
+  // Frontend-specific header for forwarding
+  struct FrontendHeader
+  {
+    FrontendMsg msg;
     NodeId from_node;
   };
 #pragma pack(pop)

@@ -843,14 +843,14 @@ namespace ccf
 #endif
     }
 
-    bool node_msg(const std::vector<uint8_t>& data)
+    void node_msg(const std::vector<uint8_t>& data)
     {
       // Only process messages once part of network
       if (
         !sm.check(State::partOfNetwork) &&
         !sm.check(State::partOfPublicNetwork))
       {
-        return false;
+        return;
       }
 
       auto p = data.data();
@@ -875,7 +875,6 @@ namespace ccf
         default:
         {}
       }
-      return true;
     }
 
     bool pbft_msg(const uint8_t* data, size_t size)

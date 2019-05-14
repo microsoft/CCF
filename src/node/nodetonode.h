@@ -109,11 +109,12 @@ namespace ccf
       serialized::write(data_, size_, data.data(), data.size());
 
       GcmHdr hdr;
-      ChannelHeader msg = {ChannelMsg::encrypted_msg, self};
+      FrontendHeader msg = {FrontendMsg::forwarded_cmd, self};
       n2n_channel.encrypt(hdr, asCb(msg), plain, cipher);
 
+      LOG_FAIL << "Sending forwarded cmd" << std::endl;
       to_host->write(
-        node_outbound, to, NodeMsgType::forwarded_cmd, msg, hdr, cipher);
+        node_outbound, to, NodeMsgType::frontend_msg, msg, hdr, cipher);
 
       return true;
     }
@@ -161,8 +162,7 @@ namespace ccf
       serialized::write(data_, size_, data.data(), data.size());
 
       GcmHdr hdr;
-      // TODO: Do we need ChannelHeader at all here?
-      ChannelHeader msg = {ChannelMsg::encrypted_msg, self};
+      FrontendHeader msg = {FrontendMsg::forwarded_reply, self};
       n2n_channel.encrypt(hdr, asCb(msg), plain, cipher);
 
       LOG_FAIL << "node2node: send forwarded response of size: "
@@ -173,7 +173,7 @@ namespace ccf
       to_host->write(
         node_outbound,
         fwd_ctx.forwarder_id,
-        NodeMsgType::forwarded_rep,
+        NodeMsgType::frontend_msg,
         msg,
         hdr,
         cipher);

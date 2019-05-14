@@ -141,26 +141,41 @@ namespace enclave
 
             if (
               serialized::peek<ccf::NodeMsgType>(p, psize) ==
-              ccf::NodeMsgType::forwarded_cmd)
+              ccf::NodeMsgType::frontend_msg)
             {
               serialized::skip(p, psize, sizeof(ccf::NodeMsgType));
-              LOG_DEBUG << "RPC forwarded: " << ccf::Actors::USERS << std::endl;
 
-              rpc_map->at(std::string(ccf::Actors::USERS))
-                ->process_forwarded(p, psize);
-            }
-            else if (
-              serialized::peek<ccf::NodeMsgType>(p, psize) ==
-              ccf::NodeMsgType::forwarded_rep)
-            {
-              // TODO: Deserialise message, decrypt
-              serialized::skip(p, psize, sizeof(ccf::NodeMsgType));
-              auto rep = n2n_channels->recv_forwarded_response(p, psize);
+              switch (serialized::peek<ccf::FrontendMsg>(p, psize))
+              {
+                case ccf::FrontendMsg::forwarded_cmd:
+                {
+                  LOG_DEBUG << "Forwarded RPC: " << ccf::Actors::USERS
+                            << std::endl;
+                  rpc_map->at(std::string(ccf::Actors::USERS))
+                    ->process_forwarded(p, psize);
+                  break;
+                }
 
-              LOG_FAIL << "Sending forwarded response to session" << rep.first << std::endl;
+                case ccf::FrontendMsg::forwarded_reply:
+                {
+                  LOG_DEBUG << "Forwarded RPC reply" << std::endl;
 
-              // TODO: Find sessions in rpcsessions and reply to client
-              rpcsessions.reply_forwarded(rep.first, rep.second);
+                  auto rep = n2n_channels->recv_forwarded_response(p, psize);
+
+                  LOG_FAIL << "Sending forwarded response to session"
+                           << rep.first << std::endl;
+
+                  // TODO: Find sessions in rpcsessions and reply to client
+                  rpcsessions.reply_forwarded(rep.first, rep.second);
+                  break;
+                }
+
+                default:
+                {
+                  LOG_FAIL << "Unknown frontend msg type" << std::endl;
+                  break;
+                }
+              }
             }
             else
             {
