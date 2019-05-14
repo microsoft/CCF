@@ -3,7 +3,7 @@
 
 <coverage line-rate="1.0" branch-rate="1.0" version="1.0" timestamp="0000001">
 	<sources>
-		<source></source>
+		<source>../src</source>
 	</sources>
 	<packages>
 		<package name="" line-rate="1.0" branch-rate="1.0" complexity="1.0">
