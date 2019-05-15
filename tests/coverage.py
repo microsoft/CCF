@@ -40,11 +40,7 @@ with open("coverage.json", "r") as file:
     package = et.SubElement(
         packages,
         "package",
-        attrib={
-            "name": "ccf",
-            "line-rate": line_rate,
-            "branch-rate": branch_rate,
-        },
+        attrib={"name": "ccf", "line-rate": line_rate, "branch-rate": branch_rate},
     )
     classes = et.SubElement(package, "classes")
 
