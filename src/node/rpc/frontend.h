@@ -70,7 +70,6 @@ namespace ccf
     std::optional<Handler> default_handler;
     std::unordered_map<std::string, Handler> handlers;
     Consensus* raft;
-    std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<Forwarder> cmd_forwarder;
     kv::TxHistory* history;
     size_t sig_max_tx = 1000;
@@ -283,11 +282,6 @@ namespace ccf
       ms_to_sig = sig_max_ms;
     }
 
-    void set_n2n_channels(std::shared_ptr<NodeToNode> n2n_channels_)
-    {
-      n2n_channels = n2n_channels_;
-    }
-
     void set_cmd_forwarder(std::shared_ptr<Forwarder> cmd_forwarder_)
     {
       cmd_forwarder = cmd_forwarder_;
@@ -398,7 +392,7 @@ namespace ccf
 
         if (
           leader_id != NoNode &&
-          !cmd_forwarder->forward(
+          !cmd_forwarder->forward_command(
             rpc_ctx, local_id, leader_id, caller_id.value(), input))
         {
           return jsonrpc::pack(
@@ -440,7 +434,7 @@ namespace ccf
       std::pair<FwdContext, std::vector<uint8_t>> fwd;
       try
       {
-        fwd = n2n_channels->recv_forwarded(data, size);
+        fwd = cmd_forwarder->recv_forwarded_command(data, size);
       }
       catch (const std::exception& e)
       {

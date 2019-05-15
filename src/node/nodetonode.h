@@ -11,13 +11,6 @@
 
 namespace ccf
 {
-  struct FwdContext
-  {
-    size_t session_id;
-    NodeId forwarder_id;
-    CallerId caller_id;
-  };
-
   class NodeToNode
   {
   private:
@@ -86,15 +79,13 @@ namespace ccf
       return t;
     }
 
+    template <class T>
     bool send_encrypted(
-      NodeId to, const std::vector<uint8_t>& data, FrontendHeader& msg)
+      NodeId to, const std::vector<uint8_t>& data, const T& msg)
     {
-      LOG_FAIL << "node2node send encrypted to " << to << std::endl;
-
       auto& n2n_channel = channels->get(to);
       if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
       {
-        LOG_FAIL << "status is not ready" << std::endl;
         established_channel(to);
         return false;
       }
@@ -109,94 +100,18 @@ namespace ccf
       return true;
     }
 
-    std::pair<FwdContext, std::vector<uint8_t>> recv_forwarded(
-      const uint8_t* data, size_t size)
+    template <class T>
+    std::optional<std::vector<uint8_t>> recv_encrypted(
+      const T& msg, const uint8_t* data, size_t size)
     {
-      const auto& msg = serialized::overlay<ccf::Header>(data, size);
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
       std::vector<uint8_t> plain(size);
 
       auto& n2n_channel = channels->get(msg.from_node);
       if (!n2n_channel.decrypt(hdr, asCb(msg), {data, size}, plain))
-        throw std::logic_error("Invalid encrypted node2node message");
+        return {};
 
-      const auto& plain_ = plain;
-      auto data_ = plain_.data();
-      auto size_ = plain_.size();
-      auto caller_id = serialized::read<CallerId>(data_, size_);
-      // TODO: Make size_t more precise
-      auto session_id = serialized::read<size_t>(data_, size_);
-      std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
-
-      return {{session_id, msg.from_node, caller_id}, rpc};
-    }
-
-    bool send_forwarded_response(
-      const FwdContext& fwd_ctx, const std::vector<uint8_t>& data)
-    {
-      auto& n2n_channel = channels->get(fwd_ctx.forwarder_id);
-      if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
-      {
-        LOG_FAIL << "Cannot send forwarded response if node2node channel is "
-                    "not established"
-                 << std::endl;
-        return false;
-      }
-
-      // TODO: Use fwd_ctx.caller_id for something?
-      std::vector<uint8_t> plain(sizeof(fwd_ctx.session_id) + data.size());
-      std::vector<uint8_t> cipher(plain.size());
-      auto data_ = plain.data();
-      auto size_ = plain.size();
-      serialized::write(data_, size_, fwd_ctx.session_id);
-      serialized::write(data_, size_, data.data(), data.size());
-
-      GcmHdr hdr;
-      FrontendHeader msg = {FrontendMsg::forwarded_reply, self};
-      n2n_channel.encrypt(hdr, asCb(msg), plain, cipher);
-
-      LOG_FAIL << "node2node: send forwarded response of size: "
-               << sizeof(NodeMsgType) + sizeof(msg) + sizeof(hdr) +
-          cipher.size()
-               << std::endl;
-
-      to_host->write(
-        node_outbound,
-        fwd_ctx.forwarder_id,
-        NodeMsgType::frontend_msg,
-        msg,
-        hdr,
-        cipher);
-
-      return true;
-    }
-
-    std::pair<size_t, std::vector<uint8_t>> recv_forwarded_response(
-      const uint8_t* data, size_t size)
-    {
-      LOG_FAIL << "node2node: recv forwarded response of size: " << size
-               << std::endl;
-
-      const auto& msg = serialized::overlay<ccf::Header>(data, size);
-      LOG_FAIL << "Msg type: " << msg.msg << std::endl;
-      LOG_FAIL << "With node, " << msg.from_node << std::endl;
-
-      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
-      std::vector<uint8_t> plain(size);
-
-      auto& n2n_channel = channels->get(msg.from_node);
-      if (!n2n_channel.decrypt(hdr, asCb(msg), {data, size}, plain))
-        throw std::logic_error(
-          "Invalid encrypted node2node forwarded response");
-
-      const auto& plain_ = plain;
-      auto data_ = plain_.data();
-      auto size_ = plain_.size();
-      // TODO: Make size_t more precise
-      auto session_id = serialized::read<size_t>(data_, size_);
-      std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
-
-      return {session_id, rpc};
+      return plain;
     }
 
     void process_key_exchange(const uint8_t* data, size_t size)

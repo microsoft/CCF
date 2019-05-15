@@ -65,7 +65,6 @@ namespace enclave
         frontend->set_sig_intervals(
           config->signature_intervals.sig_max_tx,
           config->signature_intervals.sig_max_ms);
-        frontend->set_n2n_channels(n2n_channels);
 
         // TODO: Can set this in cmd_forwarder.initialize() instead?
         if (r.first == ccf::Actors::USERS)
