@@ -135,6 +135,8 @@ add_custom_command(
     COMMENT "Generating code from EDL, and renaming to .cpp"
 )
 
+configure_file(${CCF_DIR}/tests/tests.sh ${CMAKE_CURRENT_BINARY_DIR}/tests.sh COPYONLY)
+
 if(NOT VIRTUAL_ONLY)
   # If OE was built with LINK_SGX=1, then we also need to link SGX
   execute_process(COMMAND "ldd" ${OESIGN}
