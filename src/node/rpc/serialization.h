@@ -6,12 +6,12 @@
 
 namespace ccf
 {
-  ADD_JSON_TRANSLATORS(StartNetwork::In, tx0, id)
-  ADD_JSON_TRANSLATORS(StartNetwork::Out, network_cert, tx0_sig)
-  ADD_JSON_TRANSLATORS(JoinNetwork::In, network_cert, hostname, service)
-  ADD_JSON_TRANSLATORS(NetworkSecrets::Secret, cert, priv_key, master)
-  ADD_JSON_TRANSLATORS(JoinNetworkNodeToNode::In, raw_fresh_key)
-  ADD_JSON_TRANSLATORS(JoinNetworkNodeToNode::Out, id, network_secrets, version)
-  ADD_JSON_TRANSLATORS(GetCommit::Out, term, commit)
-  ADD_JSON_TRANSLATORS(GetTxHist::Out, tx_hist)
+  DECLARE_REQUIRED_JSON_FIELDS(StartNetwork::In, tx0, id)
+  DECLARE_REQUIRED_JSON_FIELDS(StartNetwork::Out, network_cert, tx0_sig)
+  DECLARE_REQUIRED_JSON_FIELDS(JoinNetwork::In, network_cert, hostname, service)
+  DECLARE_REQUIRED_JSON_FIELDS(NetworkSecrets::Secret, cert, priv_key, master)
+  DECLARE_REQUIRED_JSON_FIELDS(JoinNetworkNodeToNode::In, raw_fresh_key)
+  DECLARE_REQUIRED_JSON_FIELDS(JoinNetworkNodeToNode::Out, id, network_secrets, version)
+  DECLARE_REQUIRED_JSON_FIELDS(GetCommit::Out, term, commit)
+  DECLARE_REQUIRED_JSON_FIELDS(GetTxHist::Out, tx_hist)
 }

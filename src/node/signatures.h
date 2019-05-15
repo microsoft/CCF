@@ -41,7 +41,7 @@ namespace ccf
       commit(commit_)
     {}
   };
-  ADD_JSON_TRANSLATORS_WITH_BASE(
+  DECLARE_REQUIRED_JSON_FIELDS_WITH_BASE(
     Signature, RawSignature, node, index, term, commit)
   using Signatures = Store::Map<ObjectId, Signature>;
 }

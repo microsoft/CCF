@@ -215,7 +215,6 @@ namespace jsonrpc
       message(std::string(get_error_prefix(error_code)) + msg)
     {}
   };
-  ADD_JSON_TRANSLATORS(Error, code, message)
 
   template <typename T>
   void to_json(nlohmann::json& j, const Error& e)
@@ -230,6 +229,9 @@ namespace jsonrpc
     e.code = j[CODE];
     e.message = j[MESSAGE];
   }
+
+  NAMESPACE_CONTAINS_JSON_TYPES;
+  DECLARE_REQUIRED_JSON_FIELDS(jsonrpc::Error, code, message);
 
   template <typename T>
   struct ErrorEx : public Error

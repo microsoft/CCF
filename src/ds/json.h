@@ -19,45 +19,56 @@ struct JsonField
   char const* name;
 };
 
-/** General templates.
- * These can be specialised manually, or through the
- * DECLARE_REQUIRED_JSON_FIELDS and DECLARE_OPTIONAL_JSON_FIELDS macros. These
- * enable implementations of to_json and from_json.
+/** Template specialisation must happen in the correct namespace, so
+NAMESPACE_CONTAINS_JSON_TYPES must be stated within a namespace to use
+DECLARE_JSON_REQUIRED_FIELDS.
+*/
+#define NAMESPACE_CONTAINS_JSON_TYPES \
+  template <typename T> \
+  struct RequiredJsonFields : std::false_type \
+  {}; \
+\
+  template <typename T> \
+  struct OptionalJsonFields : std::false_type \
+  {}; \
+\
+  template <typename T, bool Required> \
+  void write_fields(nlohmann::json& j, const T& t); \
+\
+  template <typename T, bool Required> \
+  void read_fields(const nlohmann::json& j, T& t); \
+\
+  template < \
+    typename T, \
+    typename = std::enable_if_t<RequiredJsonFields<T>::value>> \
+  inline void to_json(nlohmann::json& j, const T& t) \
+  { \
+    write_fields<T, true>(j, t); \
+    if constexpr (OptionalJsonFields<T>::value) \
+    { \
+      write_fields<T, false>(j, t); \
+    } \
+  } \
+\
+  template < \
+    typename T, \
+    typename = std::enable_if_t<RequiredJsonFields<T>::value>> \
+  inline void from_json(const nlohmann::json& j, T& t) \
+  { \
+    read_fields<T, true>(j, t); \
+    if constexpr (OptionalJsonFields<T>::value) \
+    { \
+      read_fields<T, false>(j, t); \
+    } \
+  }
+
+/** Global namespace and ccf namespace are initialised here
  */
-template <typename T>
-struct RequiredJsonFields : std::false_type
-{};
+NAMESPACE_CONTAINS_JSON_TYPES;
 
-template <typename T>
-struct OptionalJsonFields : std::false_type
-{};
-
-template <typename T, bool Required>
-void write_fields(nlohmann::json& j, const T& t);
-
-template <typename T, bool Required>
-void read_fields(const nlohmann::json& j, T& t);
-
-template <typename T, typename = std::enable_if_t<RequiredJsonFields<T>::value>>
-inline void to_json(nlohmann::json& j, const T& t)
+namespace ccf
 {
-  write_fields<T, true>(j, t);
-
-  if constexpr (OptionalJsonFields<T>::value)
-  {
-    write_fields<T, false>(j, t);
-  }
-}
-
-template <typename T, typename = std::enable_if_t<RequiredJsonFields<T>::value>>
-inline void from_json(const nlohmann::json& j, T& t)
-{
-  read_fields<T, true>(j, t);
-
-  if constexpr (OptionalJsonFields<T>::value)
-  {
-    read_fields<T, false>(j, t);
-  }
+  NAMESPACE_CONTAINS_JSON_TYPES;
 }
 
 #define __FOR_JSON_N( \
@@ -226,12 +237,12 @@ inline void from_json(const nlohmann::json& j, T& t)
       std::make_tuple(_FOR_JSON_N(FIELDS)(JSON_FIELD, TYPE, FIELDS)); \
   }; \
   template <> \
-  void write_fields<TYPE, true>(nlohmann::json & j, const TYPE& t) \
+  inline void write_fields<TYPE, true>(nlohmann::json & j, const TYPE& t) \
   { \
     _FOR_JSON_N(FIELDS)(WRITE_REQUIRED, TYPE, FIELDS) \
   } \
   template <> \
-  void read_fields<TYPE, true>(const nlohmann::json& j, TYPE& t) \
+  inline void read_fields<TYPE, true>(const nlohmann::json& j, TYPE& t) \
   { \
     _FOR_JSON_N(FIELDS)(READ_REQUIRED, TYPE, FIELDS) \
   }
@@ -263,13 +274,13 @@ inline void from_json(const nlohmann::json& j, T& t)
       std::make_tuple(_FOR_JSON_N(FIELDS)(JSON_FIELD, TYPE, FIELDS))); \
   }; \
   template <> \
-  void write_fields<TYPE, true>(nlohmann::json & j, const TYPE& t) \
+  inline void write_fields<TYPE, true>(nlohmann::json & j, const TYPE& t) \
   { \
     write_fields<BASE, true>(j, t); \
     _FOR_JSON_N(FIELDS)(WRITE_REQUIRED, TYPE, FIELDS) \
   } \
   template <> \
-  void read_fields<TYPE, true>(const nlohmann::json& j, TYPE& t) \
+  inline void read_fields<TYPE, true>(const nlohmann::json& j, TYPE& t) \
   { \
     read_fields<BASE, true>(j, t); \
     _FOR_JSON_N(FIELDS)(READ_REQUIRED, TYPE, FIELDS) \
@@ -297,7 +308,7 @@ inline void from_json(const nlohmann::json& j, T& t)
       std::make_tuple(_FOR_JSON_N(FIELDS)(JSON_FIELD, TYPE, FIELDS)); \
   }; \
   template <> \
-  void write_fields<TYPE, false>(nlohmann::json & j, const TYPE& t) \
+  inline void write_fields<TYPE, false>(nlohmann::json & j, const TYPE& t) \
   { \
     const TYPE t_default{}; \
     { \
@@ -305,7 +316,7 @@ inline void from_json(const nlohmann::json& j, T& t)
     } \
   } \
   template <> \
-  void read_fields<TYPE, false>(const nlohmann::json& j, TYPE& t) \
+  inline void read_fields<TYPE, false>(const nlohmann::json& j, TYPE& t) \
   { \
     { \
       _FOR_JSON_N(FIELDS)(READ_OPTIONAL, TYPE, FIELDS) \
@@ -324,7 +335,7 @@ inline void from_json(const nlohmann::json& j, T& t)
       std::make_tuple(_FOR_JSON_N(FIELDS)(JSON_FIELD, TYPE, FIELDS))); \
   }; \
   template <> \
-  void write_fields<TYPE, false>(nlohmann::json & j, const TYPE& t) \
+  inline void write_fields<TYPE, false>(nlohmann::json & j, const TYPE& t) \
   { \
     const TYPE t_default{}; \
     write_fields<BASE, false>(j, t); \
@@ -333,65 +344,10 @@ inline void from_json(const nlohmann::json& j, T& t)
     } \
   } \
   template <> \
-  void read_fields<TYPE, false>(const nlohmann::json& j, TYPE& t) \
+  inline void read_fields<TYPE, false>(const nlohmann::json& j, TYPE& t) \
   { \
     read_fields<BASE, false>(j, t); \
     { \
       _FOR_JSON_N(FIELDS)(READ_OPTIONAL, TYPE, FIELDS) \
     } \
-  }
-
-/** Defines from and to json functions for nlohmann::json.
- * Every class that is to be read from Lua needs to have these.
- * Only the given class members are considered. Example:
- *
- * struct X
- * {
- *  int a,b;
- * };
- * ADD_JSON_TRANSLATORS(X, a, b)
- *
- */
-#define ADD_JSON_TRANSLATORS(TYPE, FIELDS...) \
-  template <> \
-  void write_required_fields<TYPE>(nlohmann::json & j, const TYPE& t) \
-  { \
-    _FOR_JSON_N(FIELDS)(WRITE_REQUIRED, TYPE, FIELDS) \
-  } \
-  template <> \
-  void read_required_fields<TYPE>(const nlohmann::json& j, TYPE& t) \
-  { \
-    _FOR_JSON_N(FIELDS)(READ_REQUIRED, TYPE, FIELDS) \
-  }
-
-/** Defines from and to json functions for nlohmann::json with respect to a base
- * class. Example:
- *
- * struct X
- * {
- *  int a,b;
- * };
- * ADD_JSON_TRANSLATORS(X, a, b)
- *
- * struct Y
- * {
- *  string c;
- * };
- * ADD_JSON_TRANSLATORS_WITH_BASE(Y, X, c)
- *
- * This is equivalent to:
- * ADD_JSON_TRANSLATORS(Y, a, b, c)
- */
-#define ADD_JSON_TRANSLATORS_WITH_BASE(TYPE, BASE, FIELDS...) \
-  template <> \
-  void write_required_fields<TYPE>(nlohmann::json & j, const TYPE& t) \
-  { \
-    write_required_fields<BASE>(j, t); \
-    _FOR_JSON_N(FIELDS)(WRITE_REQUIRED, TYPE, FIELDS) \
-  } \
-  template <> \
-  void read_required_fields<TYPE>(const nlohmann::json& j, TYPE& t) \
-  { \
-    read_required_fields<BASE>(j, t); \
-    _FOR_JSON_N(FIELDS)(READ_REQUIRED, TYPE, FIELDS) \
   }
