@@ -603,6 +603,19 @@ namespace ccf
       }
     }
 
+    void node_quotes(Store::Tx& tx, nlohmann::json& j)
+    {
+      auto nodes_view = tx.get_view(network.nodes);
+
+      nlohmann::json quotes;
+      nodes_view->foreach([&quotes](const NodeId& nid, const NodeInfo& ni) {
+        if (ni.status == ccf::NodeStatus::TRUSTED)
+          quotes[std::to_string(nid)] = ni.quote;
+      });
+
+      j["quotes"] = quotes;
+    };
+
     //
     // funcs in state "awaitingRecoveryTx"
     //

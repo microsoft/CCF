@@ -93,10 +93,18 @@ namespace ccf
         }
       };
 
+      auto get_quotes = [&node](RequestArgs& args) {
+        nlohmann::json response;
+        node.node_quotes(args.tx, response);
+
+        return jsonrpc::success(response);
+      };
+
       install(ManagementProcs::START_NETWORK, start, Write);
       install(ManagementProcs::JOIN_NETWORK, join, Read);
       install(ManagementProcs::GET_SIGNED_INDEX, get_signed_index, Read);
       install(ManagementProcs::SET_RECOVERY_NODES, set_recovery_nodes, Write);
+      install(ManagementProcs::GET_QUOTES, get_quotes, Read);
     }
   };
 }
