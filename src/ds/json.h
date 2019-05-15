@@ -9,6 +9,16 @@ void assign_j(T& o, const nlohmann::json& j)
   o = std::move(j.get<T>());
 }
 
+/** Represents a field within a JSON object. Tuples of these can be used in
+ * schema generation.
+ */
+template <typename T>
+struct JsonField
+{
+  using Target = T;
+  char const* name;
+};
+
 /** General templates.
  * These can be specialised manually, or through the
  * DECLARE_REQUIRED_JSON_FIELDS and DECLARE_OPTIONAL_JSON_FIELDS macros. These
@@ -27,16 +37,6 @@ void write_fields(nlohmann::json& j, const T& t);
 
 template <typename T, bool Required>
 void read_fields(const nlohmann::json& j, T& t);
-
-/** Represents a field within a JSON object. Tuples of these can be used in
- * schema generation.
- */
-template <typename T>
-struct JsonField
-{
-  using Target = T;
-  char const* name;
-};
 
 template <typename T, typename = std::enable_if_t<RequiredJsonFields<T>::value>>
 inline void to_json(nlohmann::json& j, const T& t)
