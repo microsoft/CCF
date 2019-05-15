@@ -5,6 +5,20 @@
 
 namespace ccf
 {
+  struct GetSchema
+  {
+    struct In
+    {
+      std::string method = {};
+    };
+
+    struct Out
+    {
+      nlohmann::json params_schema = {};
+      nlohmann::json result_schema = {};
+    };
+  };
+
   struct GetCommit
   {
     struct Out

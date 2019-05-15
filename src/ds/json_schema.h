@@ -6,7 +6,11 @@
 namespace ccf
 {
   template <typename T>
-  nlohmann::json schema_properties_element();
+  nlohmann::json schema_properties_element()
+  {
+    // Without a tighter specialization, elements are unconstrained
+    return {};
+  }
 
   template <>
   inline nlohmann::json schema_properties_element<JsonField<size_t>>()

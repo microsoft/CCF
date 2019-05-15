@@ -4,6 +4,7 @@
 #include "consts.h"
 #include "ds/buffer.h"
 #include "ds/histogram.h"
+#include "ds/json_schema.h"
 #include "enclave/rpchandler.h"
 #include "jsonrpc.h"
 #include "node/certs.h"
@@ -284,11 +285,43 @@ namespace ccf
         return jsonrpc::success(methods);
       };
 
+      auto get_schema = [this](Store::Tx& tx, const nlohmann::json& params) {
+        const auto in = params.get<GetSchema::In>();
+
+        if (handlers.find(in.method) == handlers.end())
+        {
+          return jsonrpc::error(
+            jsonrpc::ErrorCodes::INVALID_PARAMS,
+            "No method named " + in.method);
+        }
+
+        // TODO: Register map of schemas in advance, rather than matching here
+        GetSchema::Out out;
+        const std::string in_suffix("/params");
+        const std::string out_suffix("/result");
+        if (in.method == GeneralProcs::GET_SCHEMA)
+        {
+          out.params_schema =
+            build_schema<GetSchema::In>(GeneralProcs::GET_SCHEMA + in_suffix);
+          out.result_schema =
+            build_schema<GetSchema::Out>(GeneralProcs::GET_SCHEMA + out_suffix);
+        }
+        else
+        {
+          return jsonrpc::error(
+            jsonrpc::ErrorCodes::INVALID_PARAMS,
+            "No schema available for " + in.method);
+        }
+
+        return jsonrpc::success(out);
+      };
+
       install(GeneralProcs::GET_COMMIT, get_commit, Read);
       install(GeneralProcs::GET_TX_HIST, get_tx_hist, Read);
       install(GeneralProcs::MK_SIGN, make_signature, Write);
       install(GeneralProcs::GET_LEADER_INFO, get_leader_info, Read);
       install(GeneralProcs::LIST_METHODS, list_methods, Read);
+      install(GeneralProcs::GET_SCHEMA, get_schema, Read);
     }
 
     void disable_request_storing()
