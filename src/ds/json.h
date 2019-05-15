@@ -20,6 +20,7 @@ struct OptionalJsonFields : std::false_type
 template <typename T>
 struct JsonField
 {
+  using Target = T;
   char const* name;
 };
 
@@ -296,18 +297,3 @@ inline void from_json(const nlohmann::json& j, T& t)
     to_json(j, static_cast<const B&>(c)); \
     _FOR_JSON_N(attr)(TO_JSON, C, attr) \
   }
-
-// template <typename K, typename V>
-// void to_json(nlohmann::json& j, const std::pair<K, V>& p)
-// {
-//   j = nlohmann::json::array({p.first, p.second});
-// }
-
-// template <typename K, typename V>
-// void from_json(const nlohmann::json& j, std::pair<K, V>& p)
-// {
-//   assert(j.is_array() && j.size() == 2);
-
-//   p.first = j.at(0);
-//   p.second = j.at(1);
-// }
