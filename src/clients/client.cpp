@@ -161,8 +161,11 @@ int main(int argc, char** argv)
   app.add_option(
     "--host-node-index", node_index, "Index of host in nodes file", true);
 
-  bool print_raw = false;
-  app.add_flag("--print-raw", print_raw, "Do not pretty-print json responses");
+  bool pretty_print = false;
+  app.add_flag(
+    "--pretty-print",
+    pretty_print,
+    "Pretty print JSON responses with human-readable indentation");
 
   std::string host, port;
   std::string ca_file = "networkcert.pem";
@@ -298,13 +301,13 @@ int main(int argc, char** argv)
         req_mgmt);
     }
 
-    if (print_raw)
+    if (pretty_print)
     {
-      std::cout << response << std::endl;
+      std::cout << response.dump(2) << std::endl;
     }
     else
     {
-      std::cout << response.dump(2) << std::endl;
+      std::cout << response << std::endl;
     }
   }
   catch (const exception& ex)
