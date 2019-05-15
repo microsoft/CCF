@@ -34,35 +34,36 @@ namespace ccf
       CallerId caller_id,
       const std::vector<uint8_t>& data)
     {
-      // TODO:
-      // 1. Create serialised plaintext
-      // 2. Send frontendheader and plaintext and to to
-      // n2n_channels->send_encrypted()
-
-      // auto& n2n_channel = channels->get(to);
-      // if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
-      // {
-      //   established_channel(to);
-      //   return false;
-      // }
-
       std::vector<uint8_t> plain(
         sizeof(caller_id) + sizeof(rpc_ctx.session_id) + data.size());
-      // std::vector<uint8_t> cipher(plain.size());
       auto data_ = plain.data();
       auto size_ = plain.size();
       serialized::write(data_, size_, caller_id);
       serialized::write(data_, size_, rpc_ctx.session_id);
       serialized::write(data_, size_, data.data(), data.size());
 
-      // GcmHdr hdr;
       FrontendHeader msg = {FrontendMsg::forwarded_cmd, from};
-      // n2n_channel.encrypt(hdr, asCb(msg), plain, cipher);
 
       LOG_FAIL << "Sending forwarded cmd" << std::endl;
       return n2n_channels->send_encrypted(to, plain, msg);
-      // to_host->write(
-      //   node_outbound, to, NodeMsgType::frontend_msg, msg, hdr, cipher);
+    }
+
+    // TODO: Move definition of FwdContext to forwarder.h and maybe enhance it?
+    bool send_forwarded_response(
+      const FwdContext& fwd_ctx, NodeId from, const std::vector<uint8_t>& data)
+    {
+
+      // TODO: Use fwd_ctx.caller_id for something?
+      std::vector<uint8_t> plain(sizeof(fwd_ctx.session_id) + data.size());
+      auto data_ = plain.data();
+      auto size_ = plain.size();
+      serialized::write(data_, size_, fwd_ctx.session_id);
+      serialized::write(data_, size_, data.data(), data.size());
+
+      FrontendHeader msg = {FrontendMsg::forwarded_reply, from};
+
+      LOG_FAIL << "node2node: send forwarded response" << std::endl;
+      return n2n_channels->send_encrypted(fwd_ctx.forwarder_id, plain, msg);
     }
 
     void recv_message(const uint8_t* data, size_t size)

@@ -388,13 +388,13 @@ namespace ccf
       auto rep = process_json(tx, caller, caller_id.value(), rpc.second, false);
 
       // If necessary, redirect the RPC to the leader
+      // TODO: Can we do something better here? i.e. return code
       if (
         rep.find(jsonrpc::ERR) != rep.end() &&
         rep[jsonrpc::ERR][jsonrpc::CODE] == jsonrpc::RPC_FORWARDED)
       {
         auto leader_id = raft->leader();
         auto local_id = raft->id();
-        LOG_DEBUG << "RPC forwarded to leader " << leader_id << std::endl;
 
         if (
           leader_id != NoNode &&
@@ -411,6 +411,7 @@ namespace ccf
         else
         {
           // Indicate that the RPC has been forwarded to leader
+          LOG_DEBUG << "RPC forwarded to leader " << leader_id << std::endl;
           rpc_ctx.is_forwarded = true;
         }
       }
@@ -483,8 +484,14 @@ namespace ccf
       // TODO: Also send a forwarded response if an error occurred in
       // process_forwarded()
       LOG_FAIL << "Sending forwarded response" << std::endl;
-      n2n_channels->send_forwarded_response(
-        fwd.first, jsonrpc::pack(rep, pack.value()));
+
+      auto local_id = raft->id();
+
+      if (!cmd_forwarder->send_forwarded_response(
+        fwd.first, local_id, jsonrpc::pack(rep, pack.value())))
+      {
+        LOG_FAIL << "Could not send forwarded response" << std::endl;
+      }
 
       return jsonrpc::pack(rep, pack.value());
     }
