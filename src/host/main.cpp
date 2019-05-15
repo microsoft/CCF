@@ -262,17 +262,6 @@ int main(int argc, char** argv)
 
   LOG_INFO << "Created new node." << std::endl;
 
-  // Write the node cert and quote to disk. Actors can use the node cert
-  // as a CA on their end of the TLS connection.
-  files::dump(node_cert, node_cert_file);
-
-#ifdef GET_QUOTE
-  files::dump(quote, quote_file);
-
-  if (!enclave.verify_quote(quote, node_cert))
-    LOG_FATAL << "Verification of local node quote failed" << std::endl;
-#endif
-
   // ledger
   asynchost::Ledger ledger(ledger_file, writer_factory);
   ledger.register_message_handlers(bp.get_dispatcher());
@@ -288,6 +277,17 @@ int main(int argc, char** argv)
   asynchost::RPCConnections rpc(writer_factory);
   rpc.register_message_handlers(bp.get_dispatcher());
   rpc.listen(0, tls_hostname, tls_port);
+
+  // Write the node cert and quote to disk. Actors can use the node cert
+  // as a CA on their end of the TLS connection.
+  files::dump(node_cert, node_cert_file);
+
+#ifdef GET_QUOTE
+  files::dump(quote, quote_file);
+
+  if (!enclave.verify_quote(quote, node_cert))
+    LOG_FATAL << "Verification of local node quote failed" << std::endl;
+#endif
 
   // Start a thread which will ECall and process messages inside the enclave
   auto enclave_thread = std::thread([&]() {
