@@ -216,20 +216,6 @@ namespace jsonrpc
     {}
   };
 
-  template <typename T>
-  void to_json(nlohmann::json& j, const Error& e)
-  {
-    j[CODE] = e.code;
-    j[MESSAGE] = e.message;
-  }
-
-  template <typename T>
-  void from_json(const nlohmann::json& j, Error& e)
-  {
-    e.code = j[CODE];
-    e.message = j[MESSAGE];
-  }
-
   NAMESPACE_CONTAINS_JSON_TYPES;
   DECLARE_REQUIRED_JSON_FIELDS(jsonrpc::Error, code, message);
 
