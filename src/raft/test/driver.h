@@ -3,7 +3,6 @@
 #pragma once
 
 #include "../../ds/logger.h"
-#include "../host.h"
 #include "../raft.h"
 
 #include <chrono>

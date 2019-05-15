@@ -15,7 +15,8 @@ namespace asynchost
       const std::string& host,
       const std::string& service,
       void* ud,
-      uv_getaddrinfo_cb cb)
+      uv_getaddrinfo_cb cb,
+      bool async)
     {
       struct addrinfo hints;
       hints.ai_family = PF_INET;
@@ -28,18 +29,39 @@ namespace asynchost
 
       int rc;
 
-      if (
-        (rc = uv_getaddrinfo(
-           uv_default_loop(),
-           resolver,
-           cb,
-           host.c_str(),
-           service.c_str(),
-           &hints)) < 0)
+      if (async)
       {
-        LOG_FAIL << "uv_getaddrinfo failed: " << uv_strerror(rc) << std::endl;
-        delete resolver;
-        return false;
+        if (
+          (rc = uv_getaddrinfo(
+             uv_default_loop(),
+             resolver,
+             cb,
+             host.c_str(),
+             service.c_str(),
+             &hints)) < 0)
+        {
+          LOG_FAIL << "uv_getaddrinfo failed: " << uv_strerror(rc) << std::endl;
+          delete resolver;
+          return false;
+        }
+      }
+      else
+      {
+        if (
+          (rc = uv_getaddrinfo(
+             uv_default_loop(),
+             resolver,
+             nullptr,
+             host.c_str(),
+             service.c_str(),
+             &hints)) < 0)
+        {
+          LOG_FAIL << "uv_getaddrinfo failed: " << uv_strerror(rc) << std::endl;
+          delete resolver;
+          return false;
+        }
+
+        cb(resolver, rc, &hints);
       }
 
       return true;

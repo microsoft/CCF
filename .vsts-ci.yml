@@ -20,7 +20,7 @@ jobs:
     - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
       displayName: 'Component Detection'
 
-    - script: find . -regex ".*\.sh$" | xargs shellcheck -s bash -e SC2044,SC2002
+    - script: find . -regex ".*\.sh$" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091
       displayName: 'Shell Check'
 
     - script: python3.7 notice-check.py

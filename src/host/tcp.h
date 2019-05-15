@@ -138,7 +138,7 @@ namespace asynchost
     bool listen(const std::string& host, const std::string& service)
     {
       assert_status(FRESH, LISTENING_RESOLVING);
-      return resolve(host, service);
+      return resolve(host, service, false);
     }
 
     bool write(size_t len, const uint8_t* data)
@@ -282,7 +282,8 @@ namespace asynchost
       status = to;
     }
 
-    bool resolve(const std::string& host, const std::string& service)
+    bool resolve(
+      const std::string& host, const std::string& service, bool async = true)
     {
       this->host = host;
       this->service = service;
@@ -294,7 +295,7 @@ namespace asynchost
         addr_current = nullptr;
       }
 
-      if (!DNS::resolve(host, service, this, on_resolved))
+      if (!DNS::resolve(host, service, this, on_resolved, async))
       {
         status = RESOLVING_FAILED;
         return false;
