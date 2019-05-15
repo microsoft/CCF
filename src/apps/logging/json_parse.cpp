@@ -29,6 +29,14 @@ struct Bar
 DECLARE_REQUIRED_JSON_FIELDS(Bar, a);
 DECLARE_OPTIONAL_JSON_FIELDS(Bar, b, c);
 
+struct Baz : public Bar
+{
+  size_t d = {};
+  size_t e = {};
+};
+DECLARE_REQUIRED_JSON_FIELDS_WITH_BASE(Baz, Bar, d);
+DECLARE_OPTIONAL_JSON_FIELDS_WITH_BASE(Baz, Bar, e);
+
 std::ostream& operator<<(std::ostream& stream, const Bar& bar)
 {
   stream << "a: " << bar.a << std::endl;
@@ -102,6 +110,13 @@ int main(int argc, char** argv)
 
     nlohmann::json j2 = bar;
     std::cout << j2.dump(2) << std::endl;
+
+    {
+      j["d"] = 56;
+      const Baz baz = j;
+      nlohmann::json j3 = baz;
+      std::cout << j3.dump(2) << std::endl;
+    }
   }
 
   {
@@ -112,6 +127,11 @@ int main(int argc, char** argv)
   {
     const auto bar_schema = build_schema<Bar>("Bar");
     std::cout << bar_schema.dump(2) << std::endl;
+  }
+
+  {
+    const auto baz_schema = build_schema<Baz>("Baz");
+    std::cout << baz_schema.dump(2) << std::endl;
   }
 
   return 0;
