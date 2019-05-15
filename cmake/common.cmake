@@ -155,6 +155,9 @@ if(NOT VIRTUAL_ONLY)
       set(TEST_EXPECT_QUOTE "-q")
     endif()
   endif()
+else()
+  set(TEST_ENCLAVE_TYPE
+    -e virtual)
 endif()
 
 # Test-only option to enable extensive tests
@@ -526,6 +529,7 @@ set_property(TARGET lua.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 # Common test args for Python scripts starting up CCF networks
 set(CCF_NETWORK_TEST_ARGS
   ${TEST_EXPECT_QUOTE}
+  ${TEST_ENCLAVE_TYPE}
   -l ${TEST_HOST_LOGGING_LEVEL}
   -g ${CCF_DIR}/src/runtime_config/gov.lua
 )
@@ -563,17 +567,6 @@ function(add_client_exe name)
 
   use_client_mbedtls(${name})
 
-endfunction()
-
-function(add_virtual_only name)
-  if(VIRTUAL_ONLY)
-    set_property(
-      TEST ${name}
-      APPEND
-      PROPERTY
-        ENVIRONMENT "TEST_ENCLAVE=virtual"
-    )
-  endif()
 endfunction()
 
 ## Helper for building end-to-end perf tests using the python infrastucture
@@ -623,7 +616,4 @@ function(add_perf_test)
     PROPERTY
       ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
-
-  add_virtual_only(${PARSED_ARGS_NAME})
-
 endfunction()

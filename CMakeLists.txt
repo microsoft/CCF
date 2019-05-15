@@ -255,7 +255,6 @@ if(BUILD_TESTS)
   add_test(
     NAME member_client_test
     COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/memberclient.py -b . -p libloggingenc ${CCF_NETWORK_TEST_ARGS})
-  add_virtual_only(member_client_test)
 
   ## Logging client end to end test
   add_test(
@@ -263,7 +262,6 @@ if(BUILD_TESTS)
     COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
       -b .
       ${CCF_NETWORK_TEST_ARGS})
-  add_virtual_only(logging_client_test)
 
   ## Lua Logging client end to end test
   add_test(
@@ -272,7 +270,6 @@ if(BUILD_TESTS)
       -b .
       --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
       ${CCF_NETWORK_TEST_ARGS})
-  add_virtual_only(lua_logging_client_test)
 
   if(QUOTES_ENABLED)
     ## Tests generation and verification of quotes
@@ -290,7 +287,6 @@ if(BUILD_TESTS)
       ${TEST_FORWARD_TO_LEADER}
       ${CCF_NETWORK_TEST_ARGS}
   )
-  add_virtual_only(end_to_end_logging)
 
   add_test(
     NAME end_to_end_scenario
@@ -300,7 +296,6 @@ if(BUILD_TESTS)
       ${CCF_NETWORK_TEST_ARGS}
       --scenario ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
   )
-  add_virtual_only(end_to_end_scenario)
 
   add_test(
     NAME election_tests
@@ -311,7 +306,6 @@ if(BUILD_TESTS)
       ${TEST_FORWARD_TO_LEADER}
       ${CCF_NETWORK_TEST_ARGS}
   )
-  add_virtual_only(election_tests)
 
   add_test(
     NAME recovery_tests
@@ -321,7 +315,6 @@ if(BUILD_TESTS)
       ${CCF_NETWORK_TEST_ARGS}
       ${RECOVERY_ARGS}
   )
-  add_virtual_only(recovery_tests)
 
   if(BUILD_SMALLBANK)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
