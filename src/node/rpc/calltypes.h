@@ -14,8 +14,8 @@ namespace ccf
 
     struct Out
     {
-      nlohmann::json params_schema = {};
-      nlohmann::json result_schema = {};
+      nlohmann::json params_schema = nlohmann::json::object();
+      nlohmann::json result_schema = nlohmann::json::object();
     };
   };
 

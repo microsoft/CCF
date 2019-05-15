@@ -69,6 +69,8 @@ namespace ccf
     Certs* certs;
     std::optional<Handler> default_handler;
     std::unordered_map<std::string, Handler> handlers;
+    std::unordered_map<std::string, std::pair<nlohmann::json, nlohmann::json>>
+      schemas;
     Consensus* raft;
     std::shared_ptr<NodeToNode> n2n_channels;
     kv::TxHistory* history;
@@ -172,6 +174,35 @@ namespace ccf
         jsonrpc::ErrorCodes::RPC_NOT_FORWARDED,
         "RPC could not be forwarded to leader.");
 #endif
+    }
+
+    template <typename In, typename Out>
+    void register_schema(const std::string& name)
+    {
+      if (schemas.find(name) != schemas.end())
+      {
+        throw std::logic_error("Already registered schema for " + name);
+      }
+
+      auto params_schema = nlohmann::json::object();
+      if constexpr (!std::is_same_v<In, void>)
+      {
+        params_schema = build_schema<In>(name + "/params");
+      }
+
+      auto result_schema = nlohmann::json::object();
+      if constexpr (!std::is_same_v<Out, void>)
+      {
+        result_schema = build_schema<Out>(name + "/result");
+      }
+
+      schemas[name] = std::make_pair(params_schema, result_schema);
+    }
+
+    template <typename T>
+    void register_schema(const std::string& name)
+    {
+      register_schema<typename T::In, typename T::Out>(name);
     }
 
   public:
@@ -295,26 +326,22 @@ namespace ccf
             "No method named " + in.method);
         }
 
-        // TODO: Register map of schemas in advance, rather than matching here
-        GetSchema::Out out;
-        const std::string in_suffix("/params");
-        const std::string out_suffix("/result");
-        if (in.method == GeneralProcs::GET_SCHEMA)
-        {
-          out.params_schema =
-            build_schema<GetSchema::In>(GeneralProcs::GET_SCHEMA + in_suffix);
-          out.result_schema =
-            build_schema<GetSchema::Out>(GeneralProcs::GET_SCHEMA + out_suffix);
-        }
-        else
+        const auto it = schemas.find(in.method);
+        if (it == schemas.end())
         {
           return jsonrpc::error(
             jsonrpc::ErrorCodes::INVALID_PARAMS,
             "No schema available for " + in.method);
         }
 
+        const GetSchema::Out out{it->second.first, it->second.second};
+
         return jsonrpc::success(out);
       };
+
+      register_schema<GetSchema>(GeneralProcs::GET_SCHEMA);
+      register_schema<void, GetCommit::Out>(GeneralProcs::GET_COMMIT);
+      register_schema<void, GetTxHist::Out>(GeneralProcs::GET_TX_HIST);
 
       install(GeneralProcs::GET_COMMIT, get_commit, Read);
       install(GeneralProcs::GET_TX_HIST, get_tx_hist, Read);
