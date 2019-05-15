@@ -565,6 +565,17 @@ function(add_client_exe name)
 
 endfunction()
 
+function(add_virtual_only name)
+  if(VIRTUAL_ONLY)
+    set_property(
+      TEST ${name}
+      APPEND
+      PROPERTY
+        ENVIRONMENT "TEST_ENCLAVE=virtual"
+    )
+  endif()
+endfunction()
+
 ## Helper for building end-to-end perf tests using the python infrastucture
 function(add_perf_test)
 
@@ -608,8 +619,11 @@ function(add_perf_test)
   ## Make python test client framework importable
   set_property(
     TEST ${PARSED_ARGS_NAME}
+    APPEND
     PROPERTY
       ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
+
+  add_virtual_only(${PARSED_ARGS_NAME})
 
 endfunction()
