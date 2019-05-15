@@ -8,6 +8,6 @@ if [ ! -f "env/bin/activate" ]
 fi
 
 source env/bin/activate
-pip install -q -r ../tests/requirements.txt
+pip install -q -U -r ../tests/requirements.txt
 
 ctest "$@"
