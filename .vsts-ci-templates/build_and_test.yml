@@ -13,10 +13,7 @@ steps:
   workingDirectory: build
 
 - script: |
-    python3.7 -m venv env
-    source env/bin/activate
-    pip install -U -r ../tests/requirements.txt
-    ctest -VV --timeout 240 --no-compress-output -T Test
+    ./tests.sh -VV --timeout 240 --no-compress-output -T Test
   displayName: CTest
   workingDirectory: build
 

@@ -39,6 +39,8 @@ class TxRates:
         next_commit = result["result"]["commit"]
         if self.commit == next_commit:
             self.same_commit_count += 1
+        else:
+            self.same_commit_count = 0
 
         self.commit = next_commit
 
@@ -75,7 +77,7 @@ class TxRates:
         histogram = result["result"]["tx_hist"]["histogram"]
         LOG.info("Filtering histogram results...")
         for key in histogram:
-            if histogram[key] > 10:
+            if histogram[key] > 0:
                 self.data[key] = histogram[key]
         self.data["low"] = result["result"]["tx_hist"]["low"]
         self.data["high"] = result["result"]["tx_hist"]["high"]

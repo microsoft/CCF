@@ -13,10 +13,7 @@ steps:
   workingDirectory: build
 
 - script: |
-    python3.7 -m venv env
-    source env/bin/activate
-    pip install -U -r ../tests/requirements.txt
-    ctest -VV --timeout 240 --no-compress-output -T Test
+    ./tests.sh -VV --timeout 240 --no-compress-output -T Test
   displayName: CTest
   workingDirectory: build
 
@@ -26,8 +23,7 @@ steps:
   condition: succeededOrFailed()
 
 - script: |
-    source env/bin/activate
-    TEST_ENCLAVE=virtual ctest -VV -R client_test --timeout 240 --no-compress-output -T Test
+    TEST_ENCLAVE=virtual ./tests.sh -VV -R client_test --timeout 240 --no-compress-output -T Test
   displayName: CTest
   workingDirectory: build
 
