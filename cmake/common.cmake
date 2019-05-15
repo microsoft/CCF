@@ -85,6 +85,10 @@ if(DEBUG_CONFIG)
   add_definitions(-DDEBUG_CONFIG)
 endif()
 
+option(METRICS "Enable gathering of transaction rate metrics" OFF)
+if(METRICS)
+  add_definitions(-DMETRICS)
+endif()
 
 option(USE_NLJSON_KV_SERIALISER "Use nlohmann JSON as the KV serialiser" OFF)
 if (USE_NLJSON_KV_SERIALISER)

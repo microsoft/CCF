@@ -3,9 +3,9 @@
 #pragma once
 #include "consts.h"
 #include "ds/buffer.h"
-#include "ds/histogram.h"
 #include "enclave/rpchandler.h"
 #include "jsonrpc.h"
+#include "metrics.h"
 #include "node/certs.h"
 #include "node/clientsignatures.h"
 #include "node/consensus.h"
@@ -16,11 +16,6 @@
 
 #include <utility>
 #include <vector>
-
-#define HIST_MAX (1 << 17)
-#define HIST_MIN 1
-#define HIST_BUCKET_GRANULARITY 5
-#define TX_RATES 1000
 
 namespace ccf
 {
@@ -74,20 +69,14 @@ namespace ccf
     kv::TxHistory* history;
     size_t sig_max_tx = 1000;
     size_t tx_count = 0;
-    size_t tick_count = 0;
-    double tx_time_passed[TX_RATES] = {};
-    int tx_rates[TX_RATES] = {};
-    std::chrono::milliseconds rate_time_elapsed = std::chrono::milliseconds(0);
-    using Hist =
-      histogram::Histogram<int, HIST_MIN, HIST_MAX, HIST_BUCKET_GRANULARITY>;
-    histogram::Global<Hist> global =
-      histogram::Global<Hist>("histogram", __FILE__, __LINE__);
-    Hist histogram = Hist(global);
     std::chrono::milliseconds sig_max_ms = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
     bool can_forward;
-
     bool request_storing_disabled = false;
+
+#ifdef METRICS
+    metrics::Metrics metrics;
+#endif
 
     void update_raft()
     {
@@ -223,20 +212,13 @@ namespace ccf
           "Failed to get commit info from Raft");
       };
 
-      auto get_tx_hist = [this](Store::Tx& tx, const nlohmann::json& params) {
-        nlohmann::json result;
-        nlohmann::json hist;
-        result["low"] = histogram.get_low();
-        result["high"] = histogram.get_high();
-        result["overflow"] = histogram.get_overflow();
-        result["underflow"] = histogram.get_underflow();
-        auto range_counts = histogram.get_range_count();
-        for (auto const& [range, count] : range_counts)
-        {
-          hist[range] = count;
-        }
-        result["histogram"] = hist;
-        return jsonrpc::success(GetTxHist::Out{result});
+      auto get_metrics = [this](Store::Tx& tx, const nlohmann::json& params) {
+#ifdef METRICS
+        auto result = metrics.get_metrics();
+#else
+        auto result = nlohmann::json::object();
+#endif
+        return jsonrpc::success(GetMetrics::Out{result});
       };
 
       auto get_tx_rates = [this](Store::Tx& tx, const nlohmann::json& params) {
@@ -291,8 +273,7 @@ namespace ccf
         };
 
       install(GeneralProcs::GET_COMMIT, get_commit, Read);
-      install(GeneralProcs::GET_TX_HIST, get_tx_hist, Read);
-      install(GeneralProcs::GET_TX_RATES, get_tx_rates, Read);
+      install(GeneralProcs::GET_METRICS, get_metrics, Read);
       install(GeneralProcs::MK_SIGN, make_signature, Write);
       install(GeneralProcs::GET_LEADER_INFO, get_leader_info, Read);
     }
@@ -678,13 +659,11 @@ namespace ccf
 
     void tick(std::chrono::milliseconds elapsed) override
     {
-      // calculate how many tx/sec we have processed in this tick
-      auto duration = elapsed.count() / 1000.0;
-      auto tx_rate = tx_count / duration;
+#ifdef METRICS
+      metrics.track_tx_rates(elapsed, tx_count);
+#endif
       // reset tx_counter for next tick interval
       tx_count = 0;
-      histogram.record(tx_rate);
-
       // TODO(#refactoring): move this to NodeState::tick
       if ((raft != nullptr) && raft->is_leader())
       {
@@ -698,34 +677,6 @@ namespace ccf
         if (history && tables.commit_gap() > 0)
           history->emit_signature();
       }
-    }
-
-    inline void track_tx_rates(const std::chrono::milliseconds& elapsed)
-    {
-      // calculate how many tx/sec we have processed in this tick
-      auto duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() /
-        1000.0;
-      auto tx_rate = tx_count / duration;
-      histogram.record(tx_rate);
-      // keep time since beginning
-      rate_time_elapsed += elapsed;
-      if (tx_rate > 0)
-      {
-        auto rate_duration =
-          std::chrono::duration_cast<std::chrono::milliseconds>(
-            rate_time_elapsed)
-            .count() /
-          1000.0;
-        if (tick_count < TX_RATES)
-        {
-          tx_rates[tick_count] = tx_rate;
-          tx_time_passed[tick_count] = rate_duration;
-        }
-        tick_count++;
-      }
-      // reset tx_counter for next tick interval
-      tx_count = 0;
     }
   };
 }
