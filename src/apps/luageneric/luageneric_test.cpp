@@ -114,19 +114,22 @@ template <typename F, typename K, typename V>
 void check_store_load(F frontend, K k, V v)
 {
   const Cert u0 = {0};
+  enclave::RpcContext rpc_ctx(0);
+
   // store
   const auto pc0 = make_pc("store", {{"k", k}, {"v", v}});
-  check_success(frontend->process(u0, pc0), true);
+  check_success(frontend->process(rpc_ctx, u0, pc0), true);
 
   // load and check that we get the right result
   const auto pc1 = make_pc("load", {{"k", k}});
-  check_success(frontend->process(u0, pc1), v);
+  check_success(frontend->process(rpc_ctx, u0, pc1), v);
 }
 
 TEST_CASE("simple lua apps")
 {
   GenesisGenerator network;
   StubNotifier notifier;
+  enclave::RpcContext rpc_ctx(0);
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, notifier, 1, 3);
   const Cert u0 = {0};
@@ -149,7 +152,7 @@ TEST_CASE("simple lua apps")
     // call "echo" function with "hello"
     const string verb = "hello";
     const auto pc = make_pc("echo", {{"verb", verb}});
-    check_success(frontend->process(u0, pc), verb);
+    check_success(frontend->process(rpc_ctx, u0, pc), verb);
   }
 
   SUBCASE("store/load different types in generic table")
@@ -191,7 +194,7 @@ TEST_CASE("simple lua apps")
 
     // (3) attempt to read non-existing key (set of integers)
     const auto pc = make_pc("load", {{"k", set{5, 6, 7}}});
-    check_error(frontend->process(u0, pc), ErrorCodes::INVALID_PARAMS);
+    check_error(frontend->process(rpc_ctx, u0, pc), ErrorCodes::INVALID_PARAMS);
   }
 
   SUBCASE("access gov tables")
@@ -223,12 +226,12 @@ TEST_CASE("simple lua apps")
     map<string, MemberInfo> expected = {{"0", {MemberStatus::ACTIVE}},
                                         {"1", {MemberStatus::ACTIVE}},
                                         {"2", {MemberStatus::ACTIVE}}};
-    check_success(frontend->process(u0, pc), expected);
+    check_success(frontend->process(rpc_ctx, u0, pc), expected);
 
     // (2) try to write to members table
     const auto pc1 = make_pc(
       "put_member", {{"k", 99}, {"v", MemberInfo{MemberStatus::ACTIVE}}});
-    check_error(frontend->process(u0, pc1), ErrorCodes::SCRIPT_ERROR);
+    check_error(frontend->process(rpc_ctx, u0, pc1), ErrorCodes::SCRIPT_ERROR);
   }
 }
 
@@ -236,6 +239,7 @@ TEST_CASE("simple bank")
 {
   GenesisGenerator network;
   StubNotifier notifier;
+  enclave::RpcContext rpc_ctx(0);
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, notifier, 1, 3);
   const Cert u0 = {0};
@@ -293,34 +297,34 @@ TEST_CASE("simple bank")
 
   {
     const auto pc = make_pc("SB_create", {{"dst", 1}, {"amt", 123}});
-    check_success<string>(frontend->process(u0, pc), "OK");
+    check_success<string>(frontend->process(rpc_ctx, u0, pc), "OK");
 
     const auto pc1 = make_pc("SB_read", {{"account", 1}});
-    check_success(frontend->process(u0, pc1), 123);
+    check_success(frontend->process(rpc_ctx, u0, pc1), 123);
   }
 
   {
     const auto pc = make_pc("SB_create", {{"dst", 2}, {"amt", 999}});
-    check_success<string>(frontend->process(u0, pc), "OK");
+    check_success<string>(frontend->process(rpc_ctx, u0, pc), "OK");
 
     const auto pc1 = make_pc("SB_read", {{"account", 2}});
-    check_success(frontend->process(u0, pc1), 999);
+    check_success(frontend->process(rpc_ctx, u0, pc1), 999);
   }
 
   {
     const auto pc = make_pc("SB_read", {{"account", 3}});
-    check_error(frontend->process(u0, pc), ErrorCodes::INVALID_PARAMS);
+    check_error(frontend->process(rpc_ctx, u0, pc), ErrorCodes::INVALID_PARAMS);
   }
 
   {
     const auto pc =
       make_pc("SB_transfer", {{"src", 1}, {"dst", 2}, {"amt", 5}});
-    check_success<string>(frontend->process(u0, pc), "OK");
+    check_success<string>(frontend->process(rpc_ctx, u0, pc), "OK");
 
     const auto pc1 = make_pc("SB_read", {{"account", 1}});
-    check_success(frontend->process(u0, pc1), 123 - 5);
+    check_success(frontend->process(rpc_ctx, u0, pc1), 123 - 5);
 
     const auto pc2 = make_pc("SB_read", {{"account", 2}});
-    check_success(frontend->process(u0, pc2), 999 + 5);
+    check_success(frontend->process(rpc_ctx, u0, pc2), 999 + 5);
   }
 }

@@ -32,6 +32,7 @@ auto ca_mem = kp.self_sign("CN=name_member");
 tls::Verifier verifier_mem(ca_mem);
 auto cert_mem = verifier_mem.raw();
 auto member_caller = verifier_mem.raw_cert_data();
+enclave::RpcContext rpc_ctx(0);
 
 string get_script_path(string name)
 {
@@ -258,7 +259,7 @@ TEST_CASE("Add new members until there are 7, then reject")
     const Cert read_next_member_id = mpack(create_json_req(
       read_params<int>(ValueIds::NEXT_MEMBER_ID, Tables::VALUES), "read"));
     check_error(
-      munpack(frontend.process(new_member.cert, read_next_member_id)),
+      munpack(frontend.process(rpc_ctx, new_member.cert, read_next_member_id)),
       ErrorCodes::INVALID_CALLER_ID);
 
     Script proposal(R"xxx(
@@ -300,8 +301,8 @@ TEST_CASE("Add new members until there are 7, then reject")
       CHECK(r.result);
       // check that member with the new new_member cert can make rpc's now
       CHECK(
-        Response<int>(
-          munpack(frontend.process(new_member.cert, read_next_member_id)))
+        Response<int>(munpack(frontend.process(
+                        rpc_ctx, new_member.cert, read_next_member_id)))
           .result == new_member.id + 1);
     }
     else
@@ -310,7 +311,8 @@ TEST_CASE("Add new members until there are 7, then reject")
       CHECK(!r.result);
       // check that member with the new new_member cert can make rpc's now
       check_error(
-        munpack(frontend.process(new_member.cert, read_next_member_id)),
+        munpack(
+          frontend.process(rpc_ctx, new_member.cert, read_next_member_id)),
         ErrorCodes::INVALID_CALLER_ID);
     }
   }
@@ -325,35 +327,37 @@ TEST_CASE("Add new members until there are 7, then reject")
       const auto read_nonce = mpack(create_json_req(
         read_params(new_member->id, Tables::MEMBER_ACKS), "read"));
       const Response<MemberAck> ack0 =
-        munpack(frontend.process(new_member->cert, read_nonce));
+        munpack(frontend.process(rpc_ctx, new_member->cert, read_nonce));
       // (2) ask for a fresher nonce
       const auto freshen_nonce = mpack(create_json_req({}, "updateAckNonce"));
-      check_success(munpack(frontend.process(new_member->cert, freshen_nonce)));
+      check_success(
+        munpack(frontend.process(rpc_ctx, new_member->cert, freshen_nonce)));
       // (3) read ack entry again and check that the nonce has changed
       const Response<MemberAck> ack1 =
-        munpack(frontend.process(new_member->cert, read_nonce));
+        munpack(frontend.process(rpc_ctx, new_member->cert, read_nonce));
       CHECK(ack0.result.next_nonce != ack1.result.next_nonce);
       // (4) sign old nonce and send it
       const auto bad_sig = RawSignature{
         new_member->kp.sign_hash(crypto::Sha256Hash{ack0.result.next_nonce})};
       const auto send_bad_sig = mpack(create_json_req(bad_sig, "ack"));
       check_error(
-        munpack(frontend.process(new_member->cert, send_bad_sig)),
+        munpack(frontend.process(rpc_ctx, new_member->cert, send_bad_sig)),
         jsonrpc::INVALID_PARAMS);
       // (5) sign new nonce and send it
       const auto good_sig = RawSignature{
         new_member->kp.sign_hash(crypto::Sha256Hash{ack1.result.next_nonce})};
       const auto send_good_sig = mpack(create_json_req(good_sig, "ack"));
-      check_success(munpack(frontend.process(new_member->cert, send_good_sig)));
+      check_success(
+        munpack(frontend.process(rpc_ctx, new_member->cert, send_good_sig)));
       // (6) read ack entry again and check that the signature matches
       const Response<MemberAck> ack2 =
-        munpack(frontend.process(new_member->cert, read_nonce));
+        munpack(frontend.process(rpc_ctx, new_member->cert, read_nonce));
       CHECK(ack2.result.sig == good_sig.sig);
       // (7) read own member status
       const auto read_status = mpack(
         create_json_req(read_params(new_member->id, Tables::MEMBERS), "read"));
       const Response<MemberInfo> mi =
-        munpack(frontend.process(new_member->cert, read_status));
+        munpack(frontend.process(rpc_ctx, new_member->cert, read_status));
       CHECK(mi.result.status == MemberStatus::ACTIVE);
     }
   }
