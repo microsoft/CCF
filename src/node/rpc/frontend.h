@@ -271,7 +271,7 @@ namespace ccf
             jsonrpc::ErrorCodes::TX_LEADER_UNKNOWN, "Leader unknown.");
         };
 
-      auto get_api = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto list_methods = [this](Store::Tx& tx, const nlohmann::json& params) {
         auto methods = nlohmann::json::array();
 
         for (const auto& handler : handlers)
@@ -288,7 +288,7 @@ namespace ccf
       install(GeneralProcs::GET_TX_HIST, get_tx_hist, Read);
       install(GeneralProcs::MK_SIGN, make_signature, Write);
       install(GeneralProcs::GET_LEADER_INFO, get_leader_info, Read);
-      install(GeneralProcs::GET_API, get_api, Read);
+      install(GeneralProcs::LIST_METHODS, list_methods, Read);
     }
 
     void disable_request_storing()
