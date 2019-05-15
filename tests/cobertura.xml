@@ -1,19 +1,15 @@
 <?xml version="1.0"?>
-<!--DOCTYPE coverage SYSTEM "http://cobertura.sourceforge.net/xml/coverage-03.dtd"-->
-
+<!DOCTYPE coverage SYSTEM "http://cobertura.sourceforge.net/xml/coverage-04.dtd">
 <coverage line-rate="1.0" branch-rate="1.0" version="1.0" timestamp="0000001">
 	<sources>
 		<source>../src</source>
-        <source>--source</source>
 	</sources>
     <packages>
-		<package name="package_name" line-rate="1.0" branch-rate="1.0" complexity="1.0">
+		<package name="package_name" line-rate="1" branch-rate="1">
             <classes>
-                <class name="main" filename="../src/ds/hash.h" line-rate="1.0" branch-rate="1.0" complexity="1.0">
-                    <methods>
-                    </methods>
+                <class name="main" filename="../src/ds/hash.h" line-rate="1" branch-rate="1" complexity="1">
                     <lines>
-                        <line number="1" hits="3" branch="false"/>
+                        <line number="1" hits="3" branch="false" />
                     </lines>
                 </class>
             </classes>
