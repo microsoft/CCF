@@ -6,8 +6,7 @@
 template <typename T>
 void assign_j(T& o, const nlohmann::json& j)
 {
-  T t = j;
-  o = std::move(t);
+  o = std::move(j.get<T>());
 }
 
 template <typename T>
@@ -23,6 +22,23 @@ struct JsonField
 {
   char const* name;
 };
+
+template <typename T>
+void write_required_fields(nlohmann::json& j, const T& t);
+
+template <typename T>
+void write_optional_fields(nlohmann::json& j, const T& t);
+
+template <typename T, typename = std::enable_if_t<RequiredJsonFields<T>::value>>
+inline void to_json(nlohmann::json& j, const T& t)
+{
+  write_required_fields(j, t);
+
+  if constexpr (OptionalJsonFields<T>::value)
+  {
+    write_optional_fields(j, t);
+  }
+}
 
 template <typename T>
 void read_required_fields(const nlohmann::json& j, T& t);
@@ -89,6 +105,63 @@ inline void from_json(const nlohmann::json& j, T& t)
     2, \
     1)
 
+#define _FOR_JSON_1(FUNC, TYPE, FIELD) FUNC##_FOR_JSON_FINAL(TYPE, FIELD)
+#define _FOR_JSON_2(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_1(FUNC, TYPE, PREV)
+#define _FOR_JSON_3(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_2(FUNC, TYPE, PREV)
+#define _FOR_JSON_4(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_3(FUNC, TYPE, PREV)
+#define _FOR_JSON_5(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_4(FUNC, TYPE, PREV)
+#define _FOR_JSON_6(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_5(FUNC, TYPE, PREV)
+#define _FOR_JSON_7(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_6(FUNC, TYPE, PREV)
+#define _FOR_JSON_8(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_7(FUNC, TYPE, PREV)
+#define _FOR_JSON_9(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_8(FUNC, TYPE, PREV)
+#define _FOR_JSON_10(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_9(FUNC, TYPE, PREV)
+#define _FOR_JSON_11(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_10(FUNC, TYPE, PREV)
+#define _FOR_JSON_12(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_11(FUNC, TYPE, PREV)
+#define _FOR_JSON_13(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_12(FUNC, TYPE, PREV)
+#define _FOR_JSON_14(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_13(FUNC, TYPE, PREV)
+#define _FOR_JSON_15(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_14(FUNC, TYPE, PREV)
+#define _FOR_JSON_16(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_15(FUNC, TYPE, PREV)
+#define _FOR_JSON_17(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_16(FUNC, TYPE, PREV)
+#define _FOR_JSON_18(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_17(FUNC, TYPE, PREV)
+#define _FOR_JSON_19(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_18(FUNC, TYPE, PREV)
+#define _FOR_JSON_20(FUNC, TYPE, FIELD, PREV...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_19(FUNC, TYPE, PREV)
+
+#define WRITE_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD) \
+  { \
+    j[#FIELD] = t.FIELD; \
+  }
+#define WRITE_REQUIRED_FOR_JSON_FINAL(TYPE, FIELD) \
+  WRITE_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD)
+
+#define WRITE_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD) \
+  { \
+    if (t.FIELD != t_default.FIELD) \
+    { \
+      j[#FIELD] = t.FIELD; \
+    } \
+  }
+#define WRITE_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
+  WRITE_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD)
+
 #define READ_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD) \
   { \
     const auto it = j.find(#FIELD); \
@@ -132,74 +205,46 @@ inline void from_json(const nlohmann::json& j, T& t)
 #define _FOR_JSON_NEXT(FUNC, TYPE, FIELD) FUNC##_FOR_JSON_NEXT(TYPE, FIELD)
 #define _FOR_JSON_FINAL(FUNC, TYPE, FIELD) FUNC##_FOR_JSON_FINAL(TYPE, FIELD)
 
-#define _FOR_JSON_1(FUNC, TYPE, FIELD) FUNC##_FOR_JSON_FINAL(TYPE, FIELD)
-#define _FOR_JSON_2(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_1(FUNC, TYPE, PREV)
-#define _FOR_JSON_3(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_2(FUNC, TYPE, PREV)
-#define _FOR_JSON_4(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_3(FUNC, TYPE, PREV)
-#define _FOR_JSON_5(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_4(FUNC, TYPE, PREV)
-#define _FOR_JSON_6(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_5(FUNC, TYPE, PREV)
-#define _FOR_JSON_7(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_6(FUNC, TYPE, PREV)
-#define _FOR_JSON_8(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_7(FUNC, TYPE, PREV)
-#define _FOR_JSON_9(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_8(FUNC, TYPE, PREV)
-#define _FOR_JSON_10(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_9(FUNC, TYPE, PREV)
-#define _FOR_JSON_11(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_10(FUNC, TYPE, PREV)
-#define _FOR_JSON_12(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_11(FUNC, TYPE, PREV)
-#define _FOR_JSON_13(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_12(FUNC, TYPE, PREV)
-#define _FOR_JSON_14(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_13(FUNC, TYPE, PREV)
-#define _FOR_JSON_15(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_14(FUNC, TYPE, PREV)
-#define _FOR_JSON_16(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_15(FUNC, TYPE, PREV)
-#define _FOR_JSON_17(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_16(FUNC, TYPE, PREV)
-#define _FOR_JSON_18(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_17(FUNC, TYPE, PREV)
-#define _FOR_JSON_19(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_18(FUNC, TYPE, PREV)
-#define _FOR_JSON_20(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_19(FUNC, TYPE, PREV)
-
 #define DECLARE_REQUIRED_JSON_FIELDS(TYPE, FIELDS...) \
-  template <> \
-  void read_required_fields<TYPE>(const nlohmann::json& j, TYPE& t) \
-  { \
-    _FOR_JSON_N(FIELDS)(READ_REQUIRED, TYPE, FIELDS) \
-  } \
   template <> \
   struct RequiredJsonFields<TYPE> : std::true_type \
   { \
     static constexpr auto required_fields = \
       std::make_tuple(_FOR_JSON_N(FIELDS)(JSON_FIELD, TYPE, FIELDS)); \
-  };
+  }; \
+  template <> \
+  void write_required_fields<TYPE>(nlohmann::json & j, const TYPE& t) \
+  { \
+    _FOR_JSON_N(FIELDS)(WRITE_REQUIRED, TYPE, FIELDS) \
+  } \
+  template <> \
+  void read_required_fields<TYPE>(const nlohmann::json& j, TYPE& t) \
+  { \
+    _FOR_JSON_N(FIELDS)(READ_REQUIRED, TYPE, FIELDS) \
+  }
 
 #define DECLARE_OPTIONAL_JSON_FIELDS(TYPE, FIELDS...) \
+  template <> \
+  struct OptionalJsonFields<TYPE> : std::true_type \
+  { \
+    static constexpr auto optional_fields = \
+      std::make_tuple(_FOR_JSON_N(FIELDS)(JSON_FIELD, TYPE, FIELDS)); \
+  }; \
+  template <> \
+  void write_optional_fields<TYPE>(nlohmann::json & j, const TYPE& t) \
+  { \
+    const TYPE t_default{}; \
+    { \
+      _FOR_JSON_N(FIELDS)(WRITE_OPTIONAL, TYPE, FIELDS) \
+    } \
+  } \
   template <> \
   void read_optional_fields<TYPE>(const nlohmann::json& j, TYPE& t) \
   { \
     { \
       _FOR_JSON_N(FIELDS)(READ_OPTIONAL, TYPE, FIELDS) \
     } \
-  } \
-\
-  template <> \
-  struct OptionalJsonFields<TYPE> : std::true_type \
-  { \
-    static constexpr auto optional_fields = \
-      std::make_tuple(_FOR_JSON_N(FIELDS)(JSON_FIELD, TYPE, FIELDS)); \
-  };
+  }
 
 /** Defines from and to json functions for nlohmann::json.
  * Every class that is to be read from Lua needs to have these.
@@ -252,17 +297,17 @@ inline void from_json(const nlohmann::json& j, T& t)
     _FOR_JSON_N(attr)(TO_JSON, C, attr) \
   }
 
-template <typename K, typename V>
-void to_json(nlohmann::json& j, const std::pair<K, V>& p)
-{
-  j = nlohmann::json::array({p.first, p.second});
-}
+// template <typename K, typename V>
+// void to_json(nlohmann::json& j, const std::pair<K, V>& p)
+// {
+//   j = nlohmann::json::array({p.first, p.second});
+// }
 
-template <typename K, typename V>
-void from_json(const nlohmann::json& j, std::pair<K, V>& p)
-{
-  assert(j.is_array() && j.size() == 2);
+// template <typename K, typename V>
+// void from_json(const nlohmann::json& j, std::pair<K, V>& p)
+// {
+//   assert(j.is_array() && j.size() == 2);
 
-  p.first = j.at(0);
-  p.second = j.at(1);
-}
+//   p.first = j.at(0);
+//   p.second = j.at(1);
+// }

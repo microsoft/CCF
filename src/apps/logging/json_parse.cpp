@@ -47,6 +47,9 @@ int main(int argc, char** argv)
 
     std::cout << j.dump(2) << std::endl;
     std::cout << foo << std::endl;
+
+    nlohmann::json j2 = foo;
+    std::cout << j2.dump(2) << std::endl;
   }
 
   {
@@ -58,6 +61,9 @@ int main(int argc, char** argv)
 
     std::cout << j.dump(2) << std::endl;
     std::cout << foo << std::endl;
+
+    nlohmann::json j2 = foo;
+    std::cout << j2.dump(2) << std::endl;
   }
 
   {
@@ -67,6 +73,9 @@ int main(int argc, char** argv)
 
     std::cout << j.dump(2) << std::endl;
     std::cout << bar << std::endl;
+
+    nlohmann::json j2 = bar;
+    std::cout << j2.dump(2) << std::endl;
   }
 
   {
@@ -77,6 +86,9 @@ int main(int argc, char** argv)
 
     std::cout << j.dump(2) << std::endl;
     std::cout << bar << std::endl;
+
+    nlohmann::json j2 = bar;
+    std::cout << j2.dump(2) << std::endl;
   }
 
   {
@@ -87,6 +99,9 @@ int main(int argc, char** argv)
 
     std::cout << j.dump(2) << std::endl;
     std::cout << bar << std::endl;
+
+    nlohmann::json j2 = bar;
+    std::cout << j2.dump(2) << std::endl;
   }
 
   {
