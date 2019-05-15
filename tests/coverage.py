@@ -43,10 +43,6 @@ with open("coverage.json", "r") as file:
         attrib={
             "name": "ccf",
             "line-rate": line_rate,
-            "lines-covered": lines_covered,
-            "lines-valid": lines_valid,
-            "branches-covered": branch_covered,
-            "branches-valid": branch_valid,
             "branch-rate": branch_rate,
         },
     )
@@ -56,11 +52,7 @@ with open("coverage.json", "r") as file:
     for file in files:
         filename = file["filename"]
         line_rate = str(file["summary"]["lines"]["percent"] / 100.0)
-        lines_covered = str(file["summary"]["lines"]["covered"])
-        lines_valid = str(file["summary"]["lines"]["count"])
         branch_rate = str(file["summary"]["functions"]["percent"] / 100.0)
-        branch_covered = str(file["summary"]["functions"]["covered"])
-        branch_valid = str(file["summary"]["functions"]["count"])
         class_element = et.SubElement(
             classes,
             "class",
@@ -68,11 +60,7 @@ with open("coverage.json", "r") as file:
             attrib={
                 "filename": filename,
                 "line-rate": line_rate,
-                "lines-covered": lines_covered,
-                "lines-valid": lines_valid,
                 "branch-rate": branch_rate,
-                "branches-covered": branch_covered,
-                "branches-valid": branch_valid,
             },
         )
         et.SubElement(
