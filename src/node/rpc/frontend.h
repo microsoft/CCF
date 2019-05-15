@@ -10,7 +10,6 @@
 #include "node/clientsignatures.h"
 #include "node/consensus.h"
 #include "node/nodes.h"
-#include "node/signatures.h"
 #include "nodeinterface.h"
 #include "rpcexception.h"
 #include "serialization.h"
@@ -66,7 +65,6 @@ namespace ccf
     };
 
     Nodes* nodes;
-    Signatures* signatures;
     ClientSignatures* client_signatures;
     Certs* certs;
     std::optional<Handler> default_handler;
@@ -192,7 +190,6 @@ namespace ccf
       bool can_forward_) :
       tables(tables_),
       nodes(tables.get<Nodes>(Tables::NODES)),
-      signatures(tables.get<Signatures>(Tables::SIGNATURES)),
       client_signatures(client_sigs_),
       certs(certs_),
       raft(nullptr),
@@ -679,11 +676,15 @@ namespace ccf
       return client_sig_view->get(caller_id);
     }
 
-    void tick(
-      std::chrono::system_clock::time_point now,
-      std::chrono::milliseconds elapsed) override
+    void tick(std::chrono::milliseconds elapsed) override
     {
-      track_tx_rates(elapsed);
+      // calculate how many tx/sec we have processed in this tick
+      auto duration = elapsed.count() / 1000.0;
+      auto tx_rate = tx_count / duration;
+      // reset tx_counter for next tick interval
+      tx_count = 0;
+      histogram.record(tx_rate);
+
       // TODO(#refactoring): move this to NodeState::tick
       if ((raft != nullptr) && raft->is_leader())
       {

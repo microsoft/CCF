@@ -61,8 +61,9 @@ int main(int argc, char** argv)
   std::string quote_file("quote.bin");
   app.add_option("-q,--quote-file", quote_file, "SGX quote file", true);
 
-  std::string quote_cert("nodecert.pem");
-  app.add_option("-c,--quote-cert", quote_cert, "SGX quote certificate", true);
+  std::string quoted_data("nodecert.pem");
+  app.add_option(
+    "-c,--quoted-data", quoted_data, "SGX quoted certificate", true);
 
   size_t sig_max_tx = 1000;
   app.add_option(
@@ -201,7 +202,7 @@ int main(int argc, char** argv)
   if (start == "verify")
   {
     auto q = files::slurp(quote_file);
-    auto d = files::slurp(quote_cert);
+    auto d = files::slurp(quoted_data);
 
     auto passed = enclave.verify_quote(q, d);
     if (!passed)
@@ -229,7 +230,7 @@ int main(int argc, char** argv)
   oversized::FragmentReconstructor fr(bp.get_dispatcher());
 
   // provide regular ticks to the enclave
-  asynchost::Ticker ticker(tick_period_ms, enclave);
+  asynchost::Ticker ticker(tick_period_ms, writer_factory);
 
   // handle outbound messages from the enclave
   asynchost::HandleRingbuffer handle_ringbuffer(bp, circuit.read_from_inside());
@@ -261,20 +262,6 @@ int main(int argc, char** argv)
 
   LOG_INFO << "Created new node." << std::endl;
 
-#ifdef GET_QUOTE
-  auto enclave_ok = enclave.verify_quote(quote, node_cert);
-  if (!enclave_ok)
-    LOG_FATAL << "Verification of local node quote failed" << std::endl;
-#endif
-
-  // Write the node cert and quote to disk. Actors can use the node cert
-  // as a CA on their end of the TLS connection.
-  files::dump(node_cert, node_cert_file);
-
-#ifdef GET_QUOTE
-  files::dump(quote, quote_file);
-#endif
-
   // ledger
   asynchost::Ledger ledger(ledger_file, writer_factory);
   ledger.register_message_handlers(bp.get_dispatcher());
@@ -290,6 +277,17 @@ int main(int argc, char** argv)
   asynchost::RPCConnections rpc(writer_factory);
   rpc.register_message_handlers(bp.get_dispatcher());
   rpc.listen(0, tls_hostname, tls_port);
+
+  // Write the node cert and quote to disk. Actors can use the node cert
+  // as a CA on their end of the TLS connection.
+  files::dump(node_cert, node_cert_file);
+
+#ifdef GET_QUOTE
+  files::dump(quote, quote_file);
+
+  if (!enclave.verify_quote(quote, node_cert))
+    LOG_FATAL << "Verification of local node quote failed" << std::endl;
+#endif
 
   // Start a thread which will ECall and process messages inside the enclave
   auto enclave_thread = std::thread([&]() {

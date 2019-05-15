@@ -4,8 +4,8 @@
 #include "../../ds/logger.h"
 #include "../../enclave/appinterface.h"
 #include "../../node/encryptor.h"
-#include "../kvserialiser.h"
 #include "../kv.h"
+#include "../kvserialiser.h"
 #include "../node/history.h"
 #include "../replicator.h"
 
@@ -560,11 +560,13 @@ TEST_CASE("map swap between stores")
 {
   Store s1;
   auto& d1 = s1.create<size_t, size_t>("data", kv::SecurityDomain::PRIVATE);
-  auto& pd1 = s1.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
+  auto& pd1 =
+    s1.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
 
   Store s2;
   auto& d2 = s2.create<size_t, size_t>("data", kv::SecurityDomain::PRIVATE);
-  auto& pd2 = s2.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
+  auto& pd2 =
+    s2.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
 
   {
     Store::Tx tx;
@@ -632,7 +634,9 @@ TEST_CASE("invalid map swaps")
     s2.create<size_t, size_t>("one");
     s2.create<size_t, size_t>("two");
 
-    REQUIRE_THROWS_WITH(s2.swap_private_maps(s1), "Private map list mismatch during swap, missing at least two");
+    REQUIRE_THROWS_WITH(
+      s2.swap_private_maps(s1),
+      "Private map list mismatch during swap, missing at least two");
   }
 
   {
@@ -643,20 +647,25 @@ TEST_CASE("invalid map swaps")
     Store s2;
     s2.create<size_t, size_t>("one");
 
-    REQUIRE_THROWS_WITH(s2.swap_private_maps(s1), "Private map list mismatch during swap, two not found");
+    REQUIRE_THROWS_WITH(
+      s2.swap_private_maps(s1),
+      "Private map list mismatch during swap, two not found");
   }
 }
 
 TEST_CASE("private recovery map swap")
 {
   Store s1;
-  auto& priv1 = s1.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE);
-  auto& pub1 = s1.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
+  auto& priv1 =
+    s1.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE);
+  auto& pub1 =
+    s1.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
 
   Store s2;
-  auto& priv2 = s2.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE);
-  auto& pub2 = s2.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
-
+  auto& priv2 =
+    s2.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE);
+  auto& pub2 =
+    s2.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
 
   INFO("Populate s1 with public entries");
   // We compact twice, deliberately. A public KV during recovery

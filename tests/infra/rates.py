@@ -105,13 +105,7 @@ class TxRates:
 
         for key in histogram:
             if histogram[key] > 0:
-                range_1, range_2 = key.split("..")
-                hist_data[int(range_1)] = (range_2, histogram[key])
-
-        ordered_data = collections.OrderedDict(sorted(hist_data.items(), key=lambda x: x[0]))
-        self.data["histogram"] = {}
-        for key, value_tuple in ordered_data.items():
-            self.data["histogram"][str(key) + ".." + value_tuple[0]] = value_tuple[1]
+                self.data[key] = histogram[key]
         self.data["low"] = result["result"]["tx_hist"]["low"]
         self.data["high"] = result["result"]["tx_hist"]["high"]
         self.data["underflow"] = result["result"]["tx_hist"]["underflow"]

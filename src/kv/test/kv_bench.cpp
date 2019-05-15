@@ -89,7 +89,8 @@ static void deserialise(picobench::state& s)
   s.start_timer();
   auto rc = kv_store2.deserialise(serial.first);
   if (rc != kv::DeserialiseSuccess::PASS)
-    throw std::logic_error("Transaction deserialisation failed: " + std::to_string(rc));
+    throw std::logic_error(
+      "Transaction deserialisation failed: " + std::to_string(rc));
   s.stop_timer();
 }
 

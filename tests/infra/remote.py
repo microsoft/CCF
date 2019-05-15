@@ -378,9 +378,11 @@ class CCFRemote(object):
         self.raft_port = raft_port
         self.tls_port = tls_port
         self.pem = "{}.pem".format(node_id)
-        self.quote = expect_quote
+        self.quote = None
         self.node_status = node_status
-        if expect_quote:
+        # Only expect a quote if the enclave is not virtual and quotes have
+        # not been explictly disabled
+        if enclave_type != "virtual" and expect_quote:
             self.quote = "quote{}.bin".format(node_id)
         self.BIN = infra.path.build_bin_path(self.BIN, enclave_type)
         self.ledger_file = ledger_file
@@ -427,8 +429,9 @@ class CCFRemote(object):
             cmd += ["--notify-server-host={}".format(notify_server_host)]
             cmd += ["--notify-server-port={}".format(notify_server_port[0])]
 
-        if expect_quote:
+        if self.quote is not None:
             cmd.append("--quote-file={}".format(self.quote))
+
         self.remote = remote_class(
             node_id,
             host,

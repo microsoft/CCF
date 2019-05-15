@@ -52,7 +52,10 @@ enum AdminMessage : ringbuffer::Message
   DEFINE_RINGBUFFER_MSG_TYPE(stop),
 
   /// Send notification data. Enclave -> Host
-  DEFINE_RINGBUFFER_MSG_TYPE(notification)
+  DEFINE_RINGBUFFER_MSG_TYPE(notification),
+
+  /// Periodically update based on current time. Host -> Enclave
+  DEFINE_RINGBUFFER_MSG_TYPE(tick)
 };
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::log_msg, std::string);
@@ -62,3 +65,4 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::stop);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   AdminMessage::notification, std::vector<uint8_t>);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::tick, size_t);

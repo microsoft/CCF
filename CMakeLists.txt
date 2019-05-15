@@ -49,6 +49,8 @@ if (RPC_FORWARD_TO_LEADER)
   set(TEST_FORWARD_TO_LEADER "--leader-forwarding")
 endif()
 
+option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
+
 # MemberClient executable
 add_executable(memberclient src/clients/memberclient.cpp)
 use_client_mbedtls(memberclient)
@@ -80,7 +82,7 @@ if(BUILD_TESTS)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp)
-  use_oe_mbedtls(kv_test)
+  use_client_mbedtls(kv_test)
   target_link_libraries(kv_test PRIVATE
     ${CMAKE_THREAD_LIBS_INIT}
     secp256k1.host)
@@ -96,8 +98,6 @@ if(BUILD_TESTS)
 
   add_unit_test(raft_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/raft/test/main.cpp)
-  target_include_directories(raft_test PRIVATE
-    ${OE_INCLUDE_DIR})
   target_link_libraries(raft_test PRIVATE
     ${CRYPTO_LIBRARY})
 
@@ -121,7 +121,6 @@ if(BUILD_TESTS)
    add_unit_test(history_test
      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp)
    target_include_directories(history_test PRIVATE
-     ${OE_INCLUDE_DIR}
      ${MERKLE_TREE_INC})
    target_link_libraries(history_test PRIVATE
      ${CRYPTO_LIBRARY}
@@ -131,7 +130,7 @@ if(BUILD_TESTS)
   add_unit_test(encryptor_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmkey.cpp)
-  use_oe_mbedtls(encryptor_test)
+  use_client_mbedtls(encryptor_test)
   target_link_libraries(encryptor_test PRIVATE
     secp256k1.host)
 
@@ -143,11 +142,11 @@ if(BUILD_TESTS)
 
   add_unit_test(keyexchange_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/keyexchange.cpp)
-  use_oe_mbedtls(keyexchange_test)
+  use_client_mbedtls(keyexchange_test)
 
   add_unit_test(channels_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp)
-  use_oe_mbedtls(channels_test)
+  use_client_mbedtls(channels_test)
   target_link_libraries(channels_test PRIVATE secp256k1.host)
 
   add_unit_test(frontend_test
@@ -174,7 +173,6 @@ if(BUILD_TESTS)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/luainterp/test/lua_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/luainterp/test/luakv.cpp)
   target_include_directories(lua_test PRIVATE
-    ${OE_INCLUDE_DIR}
     ${LUA_DIR})
   target_link_libraries(lua_test PRIVATE
     lua.host)
@@ -183,7 +181,6 @@ if(BUILD_TESTS)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/luageneric_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/luageneric.cpp)
   target_include_directories(luageneric_test PRIVATE
-    ${OE_INCLUDE_DIR}
     ${LUA_DIR})
   target_link_libraries(luageneric_test PRIVATE
     lua.host
@@ -215,13 +212,12 @@ if(BUILD_TESTS)
   target_link_libraries(tls_bench PRIVATE
     ${CMAKE_THREAD_LIBS_INIT}
     secp256k1.host)
-  #add_picobench(merkle_bench src/node/test/merkle_bench.cpp)
-  #target_link_libraries(merkle_bench PRIVATE
-  #  ${OE_ENCLAVE_CORE}
-  #  ccfcrypto.host
-  #  merkle_tree.host)
-  #target_include_directories(merkle_bench PRIVATE
-  #  ${MERKLE_TREE_INC})
+  add_picobench(merkle_bench src/node/test/merkle_bench.cpp)
+  target_link_libraries(merkle_bench PRIVATE
+    ccfcrypto.host
+    merkle_tree.host)
+  target_include_directories(merkle_bench PRIVATE
+    ${MERKLE_TREE_INC})
   add_picobench(history_bench src/node/test/history_bench.cpp)
   target_link_libraries(history_bench PRIVATE
     ccfcrypto.host
@@ -232,10 +228,21 @@ if(BUILD_TESTS)
   add_picobench(kv_bench src/kv/test/kv_bench.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmkey.cpp)
 
+  # Merkle Tree memory test
+  add_executable(merkle_mem src/node/test/merkle_mem.cpp)
+  target_link_libraries(merkle_mem PRIVATE
+    ccfcrypto.host
+    merkle_tree.host
+    ${CMAKE_THREAD_LIBS_INIT})
+    use_client_mbedtls(merkle_mem)
+  target_include_directories(merkle_mem PRIVATE
+    ${MERKLE_TREE_INC}
+    src)
+
   # Raft driver and scenario test
   add_executable(raft_driver
     ${CMAKE_CURRENT_SOURCE_DIR}/src/raft/test/driver.cpp)
-  use_oe_mbedtls(raft_driver)
+  use_client_mbedtls(raft_driver)
   target_include_directories(raft_driver PRIVATE
     src/raft)
   add_test(
@@ -308,6 +315,10 @@ if(BUILD_TESTS)
       ${CCF_NETWORK_TEST_ARGS}
       ${RECOVERY_ARGS}
   )
+
+  if(BUILD_SMALLBANK)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
+  endif()
 
   if (EXTENSIVE_TESTS)
     set_tests_properties(recovery_tests PROPERTIES TIMEOUT 2000)

@@ -54,15 +54,4 @@ extern "C"
     else
       return false;
   }
-
-  bool enclave_tick(size_t now, size_t elapsed)
-  {
-    std::chrono::milliseconds elapsed_{elapsed};
-    std::chrono::system_clock::time_point now_{
-      std::chrono::system_clock::duration{now}};
-    if (e != nullptr)
-      return e->tick(now_, elapsed_);
-    else
-      return false;
-  }
 }

@@ -109,16 +109,6 @@ extern "C"
     return *_retval ? OE_OK : OE_FAILURE;
   }
 
-  inline oe_result_t enclave_tick(
-    oe_enclave_t* enclave, bool* _retval, size_t now, size_t elapsed)
-  {
-    static tick_func_t tick_func =
-      get_enclave_exported_function<tick_func_t>("enclave_tick");
-
-    *_retval = tick_func(now, elapsed);
-    return *_retval ? OE_OK : OE_FAILURE;
-  }
-
   inline oe_result_t oe_create_ccf_enclave(
     const char* path,
     oe_enclave_type_t type,

@@ -18,13 +18,6 @@ Note that even if a transaction only affects a private ``Store::Map``, unencrypt
 
 .. _`GCM`: https://en.wikipedia.org/wiki/Galois/Counter_Mode
 
-Universal verifiability
------------------------
-
-.. warning:: TODO: Write this section
-
-
-
 Ledger replication
 ------------------
 

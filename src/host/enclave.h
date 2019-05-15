@@ -127,29 +127,6 @@ namespace host
     }
 
     /**
-     * Rather than making an expensive OCall every time the enclave wants to
-     * access the current time, so instead the current time should be regularly
-     * passed in (see ticker.h) and stored. This triggers Raft heartbeat
-     * messages, amongst other things.
-     *
-     * @param elapsed Milliseconds since the last call.
-     */
-    void tick(std::chrono::milliseconds elapsed)
-    {
-      auto now = std::chrono::system_clock::now();
-
-      bool ret;
-      auto err =
-        enclave_tick(e, &ret, now.time_since_epoch().count(), elapsed.count());
-
-      if (err != OE_OK)
-      {
-        LOG_FATAL << "Failed to call in enclave_tick: " << oe_result_str(err)
-                  << std::endl;
-      }
-    }
-
-    /**
      * Checks that a quote is valid, the signing authority is trusted, and the
      * quote is over some expected data.
      *

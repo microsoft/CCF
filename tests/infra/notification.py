@@ -14,20 +14,29 @@ from loguru import logger as LOG
 class NotificationServer(socketserver.BaseRequestHandler):
     def __init__(self, request, client_address, server):
         self.queue = server.queue
+        self.error_queue = server.error_queue
+        self.checker = server.checker
         socketserver.BaseRequestHandler.__init__(self, request, client_address, server)
 
     def handle(self):
         data = self.request.recv(1024).strip()
         if data:
+            if callable(self.checker):
+                if not self.checker(data):
+                    LOG.error("Notification is not in expect format: {}".format(data))
+                    self.error_queue.put(data)
             self.queue.put(data)
-            LOG.trace("queue:{}".format(list(self.queue.queue)))
         else:
             LOG.info("Notification client disconnected")
 
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    def __init__(self, server_address, RequestHandlerClass, bind_and_activate=True):
+    def __init__(
+        self, server_address, RequestHandlerClass, bind_and_activate=True, checker=None
+    ):
         self.queue = queue.Queue()
+        self.error_queue = queue.Queue()
+        self.checker = checker
         socketserver.TCPServer.__init__(
             self,
             server_address,
@@ -38,9 +47,12 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     def get_queue(self):
         return self.queue
 
+    def check_errors(self):
+        return self.error_queue.empty()
+
 
 @contextmanager
-def notification_server(server_info):
+def notification_server(server_info, checker=None):
 
     host = None
     port = []
@@ -53,7 +65,9 @@ def notification_server(server_info):
         raise ValueError("Notification server host:port configuration is invalid")
 
     ThreadedTCPServer.allow_reuse_address = True
-    with ThreadedTCPServer((host, int(port[0])), NotificationServer, True) as server:
+    with ThreadedTCPServer(
+        (host, int(port[0])), NotificationServer, True, checker
+    ) as server:
 
         server_thread = threading.Thread(target=server.serve_forever)
         server_thread.daemon = True
@@ -63,5 +77,8 @@ def notification_server(server_info):
         try:
             yield server
         finally:
+            assert (
+                server.check_errors() is True
+            ), "Notification server caught malformed notifications"
             server.shutdown()
             server.server_close()

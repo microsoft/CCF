@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../../crypto/hash.h"
-#include "../../enclave/oe_shim.h"
-#include "../entities.h"
+#include "crypto/hash.h"
+#include "enclave/oe_shim.h"
 #include "frontend.h"
+#include "node/entities.h"
 
 namespace ccf
 {
@@ -95,9 +95,9 @@ namespace ccf
         LOG_INFO << "Skipped joining node quote verification." << std::endl;
 #endif
 
-        // For now, automatically mark the node as trusted in the nodes table
-        // TODO(#important): This should go through a full round of
-        // governance first depending on the state of the service
+        // TODO(#important,#TR): In addition to verifying the quote, we should
+        // go through a round of governance before marking the node as TRUSTED
+        // (section IV-D).
         joining_nodeinfo.status = NodeStatus::TRUSTED;
         nodes_view->put(joining_node_id, joining_nodeinfo);
 

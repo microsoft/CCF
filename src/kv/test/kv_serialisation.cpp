@@ -3,8 +3,8 @@
 #include "../../ds/logger.h"
 #include "../../enclave/appinterface.h"
 #include "../../node/encryptor.h"
-#include "../kvserialiser.h"
 #include "../kv.h"
+#include "../kvserialiser.h"
 #include "../replicator.h"
 
 #include <doctest/doctest.h>

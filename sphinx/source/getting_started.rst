@@ -12,19 +12,17 @@ tested on Ubuntu 18.04.
 Hardware
 --------
 
-Although it is possible to build and run OpenEnclave on hardware without SGX [#sgx]_ extensions,
+Although it is possible to build and run OpenEnclave on hardware without :term:`SGX` extensions,
 and run CCF applications in simulation or virtual mode, running with full security guarantees
-requires SGX [#sgx]_ hardware with FLC [#flc]_.
+requires :term:`SGX` hardware with :term:`FLC`.
 
-Azure Confidential Computing
-----------------------------
+Azure Confidential Compute
+--------------------------
 
-`Azure Confidential Computing`_ offers CCF-compatible VMs, which can be deployed either through
-a `Marketplace App`_, or through the `OpenEnclave Engine`_.
+:term:`Azure Confidential Compute` offers CCF-compatible VMs, which can be deployed either through
+a `Marketplace App`_, or through the :term:`OpenEnclave Engine`.
 
-.. _`Azure Confidential Computing`: https://azure.microsoft.com/en-us/solutions/confidential-compute/
 .. _`Marketplace App`: https://aka.ms/ccvm
-.. _`OpenEnclave Engine`: https://github.com/Microsoft/oe-engine
 
 QuickStart
 ``````````
@@ -168,6 +166,7 @@ The full list of build switches can be obtained by running:
 * **OE_PREFIX**: Path. OpenEnclave install prefix. Defaults to ``/opt/openenclave``.
 * **SAN**: Boolean. Whether to build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
 * **VERBOSE_LOGGING**: Boolean. Level of logging detail. Default to OFF.
+* **CURVE_CHOICE**: One of secp384r1, curve25519, secp256k1_mbedtls, secp256k1_bitcoin. Elliptic curve to use for CCF public keys. Default to secp384r1.
 
 Tests
 -----
@@ -197,8 +196,3 @@ On a machine without SGX, you can run the tests with:
     TEST_ENCLAVE=simulate ctest -VV
 
 The build steps remain identical.
-
-.. rubric:: Footnotes
-
-.. [#sgx] `Intel Software Guard Extensions <https://software.intel.com/en-us/sgx>`_.
-.. [#flc] `Flexible Launch Control <https://github.com/intel/linux-sgx/blob/master/psw/ae/ref_le/ref_le.md#flexible-launch-control>`_.

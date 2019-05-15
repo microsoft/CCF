@@ -124,15 +124,11 @@ class Network:
             )
         LOG.info("All remotes started")
 
-        if args.remote_attestation_ca:
-            infra.proc.ccall(
-                "cp", args.remote_attestation_ca, args.build_dir
-            ).check_returncode()
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
         if args.gov_script:
             infra.proc.ccall("cp", args.gov_script, args.build_dir).check_returncode()
-        LOG.info("Attestation root and lua scripts copied")
+        LOG.info("Lua scripts copied")
 
         self.nodes_json()
         self.add_members([1, 2, 3])
@@ -146,7 +142,6 @@ class Network:
 
         for node in self.nodes[1:]:
             node.join_network()
-        LOG.info("All nodes joined Network")
 
         node_id = 1
 
@@ -157,10 +152,11 @@ class Network:
                 with node.management_client() as c:
                     for _ in range(15):
                         id = c.request(method="getCommit", params={})
-                        res = c.response(id).result
-                        if res[b"commit"] >= 2 and res[b"term"] == 2:
-                            LOG.info("Node {} has joined (client)".format(node_id))
-                            break
+                        rep = c.response(id)
+                        if rep.error is None:
+                            if rep.result["commit"] >= 2 and rep.result["term"] == 2:
+                                LOG.info("Node {} has joined (client)".format(node_id))
+                                break
                         time.sleep(1)
                     else:
                         raise ValueError(
@@ -202,15 +198,11 @@ class Network:
             )
         LOG.info("All remotes started")
 
-        if args.remote_attestation_ca:
-            infra.proc.ccall(
-                "cp", args.remote_attestation_ca, args.build_dir
-            ).check_returncode()
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
         if args.gov_script:
             infra.proc.ccall("cp", args.gov_script, args.build_dir).check_returncode()
-        LOG.info("Attestation root and lua scripts copied")
+        LOG.info("Lua scripts copied")
 
         primary = self.nodes[0]
         return primary, self.nodes[1:]
@@ -340,7 +332,7 @@ class Checker:
             if self.notification_queue:
                 for i in range(timeout * 10):
                     for q in list(self.notification_queue.queue):
-                        if json.loads(q)["commit_index"] >= rpc_result.commit:
+                        if json.loads(q)["commit"] >= rpc_result.commit:
                             return
                     time.sleep(0.5)
                 raise TimeoutError("Timed out waiting for notification")
@@ -505,6 +497,7 @@ class Node:
             "management",
             cert=None,
             key=None,
+            cafile="{}.pem".format(self.node_id),
             description="node {} (mgmt)".format(self.node_id),
             **kwargs,
         )
