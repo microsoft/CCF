@@ -5,6 +5,7 @@ import json
 import xml.dom.minidom as minidom
 import time
 
+
 def pretty_print(tree_root):
     tree_string = et.tostring(tree_root, "utf-8")
     final_string = tree_string
@@ -36,15 +37,17 @@ with open("coverage.json", "r") as file:
         },
     )
     packages = et.SubElement(coverage, "packages")
-    package = et.SubElement(packages, "package"
-    attrib={
+    package = et.SubElement(
+        packages,
+        "package",
+        attrib={
             "name": "ccf",
             "line-rate": line_rate,
             "lines-covered": lines_covered,
             "lines-valid": lines_valid,
             "branches-covered": branch_covered,
             "branches-valid": branch_valid,
-            "branch-rate": branch_rate
+            "branch-rate": branch_rate,
         },
     )
     classes = et.SubElement(package, "classes")
@@ -72,12 +75,11 @@ with open("coverage.json", "r") as file:
                 "branches-valid": branch_valid,
             },
         )
-        et.SubElement(class_element, "line",
-        attrib={
-            "branch": "false",
-            "hits": "1",
-            "number": "1"
-        })
+        et.SubElement(
+            class_element,
+            "line",
+            attrib={"branch": "false", "hits": "1", "number": "1"},
+        )
 
     tree = pretty_print(coverage)
     with open("coverage.xml", "w") as xml_file:
