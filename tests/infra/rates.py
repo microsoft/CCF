@@ -74,12 +74,12 @@ class TxRates:
 
         result = rv.stdout.decode().split("\n")[1]
         result = json.loads(result)
-        histogram = result["result"]["tx_hist"]["histogram"]
+        histogram = result["result"]["histogram"]
         LOG.info("Filtering histogram results...")
         for key in histogram:
             if histogram[key] > 0:
                 self.data[key] = histogram[key]
-        self.data["low"] = result["result"]["tx_hist"]["low"]
-        self.data["high"] = result["result"]["tx_hist"]["high"]
-        self.data["underflow"] = result["result"]["tx_hist"]["underflow"]
-        self.data["overflow"] = result["result"]["tx_hist"]["overflow"]
+        self.data["low"] = result["result"]["low"]
+        self.data["high"] = result["result"]["high"]
+        self.data["underflow"] = result["result"]["underflow"]
+        self.data["overflow"] = result["result"]["overflow"]

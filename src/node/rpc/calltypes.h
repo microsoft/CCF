@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "ds/json.h"
+#include <nlohmann/json.hpp>
 
 namespace ccf
 {
@@ -18,7 +18,11 @@ namespace ccf
   {
     struct Out
     {
-      nlohmann::json tx_hist;
+      int low = {};
+      int high = {};
+      size_t overflow = {};
+      size_t underflow = {};
+      nlohmann::json histogram = {};
     };
   };
 }

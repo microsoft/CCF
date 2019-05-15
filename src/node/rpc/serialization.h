@@ -3,6 +3,7 @@
 #pragma once
 #include "ds/json.h"
 #include "node/calltypes.h"
+#include "node/rpc/calltypes.h"
 
 namespace ccf
 {
@@ -11,7 +12,10 @@ namespace ccf
   DECLARE_REQUIRED_JSON_FIELDS(JoinNetwork::In, network_cert, hostname, service)
   DECLARE_REQUIRED_JSON_FIELDS(NetworkSecrets::Secret, cert, priv_key, master)
   DECLARE_REQUIRED_JSON_FIELDS(JoinNetworkNodeToNode::In, raw_fresh_key)
-  DECLARE_REQUIRED_JSON_FIELDS(JoinNetworkNodeToNode::Out, id, network_secrets, version)
+  DECLARE_REQUIRED_JSON_FIELDS(
+    JoinNetworkNodeToNode::Out, id, network_secrets, version)
+
   DECLARE_REQUIRED_JSON_FIELDS(GetCommit::Out, term, commit)
-  DECLARE_REQUIRED_JSON_FIELDS(GetTxHist::Out, tx_hist)
+  DECLARE_REQUIRED_JSON_FIELDS(
+    GetTxHist::Out, low, high, overflow, underflow, histogram)
 }

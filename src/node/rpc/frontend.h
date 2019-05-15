@@ -219,19 +219,19 @@ namespace ccf
       };
 
       auto get_tx_hist = [this](Store::Tx& tx, const nlohmann::json& params) {
-        nlohmann::json result;
+        GetTxHist::Out result;
         nlohmann::json hist;
-        result["low"] = histogram.get_low();
-        result["high"] = histogram.get_high();
-        result["overflow"] = histogram.get_overflow();
-        result["underflow"] = histogram.get_underflow();
+        result.low = histogram.get_low();
+        result.high = histogram.get_high();
+        result.overflow = histogram.get_overflow();
+        result.underflow = histogram.get_underflow();
         auto range_counts = histogram.get_range_count();
         for (auto const& [range, count] : range_counts)
         {
           hist[range] = count;
         }
-        result["histogram"] = hist;
-        return jsonrpc::success(GetTxHist::Out{result});
+        result.histogram = hist;
+        return jsonrpc::success(result);
       };
 
       auto make_signature =
