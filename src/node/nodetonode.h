@@ -86,33 +86,23 @@ namespace ccf
       return t;
     }
 
-    bool forward(
-      enclave::RpcContext& rpc_ctx,
-      NodeId to,
-      CallerId caller_id,
-      const std::vector<uint8_t>& data)
+    bool send_encrypted(
+      NodeId to, const std::vector<uint8_t>& data, FrontendHeader& msg)
     {
+      LOG_FAIL << "node2node send encrypted to " << to << std::endl;
+
       auto& n2n_channel = channels->get(to);
       if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
       {
+        LOG_FAIL << "status is not ready" << std::endl;
         established_channel(to);
         return false;
       }
 
-      std::vector<uint8_t> plain(
-        sizeof(caller_id) + sizeof(rpc_ctx.session_id) + data.size());
-      std::vector<uint8_t> cipher(plain.size());
-      auto data_ = plain.data();
-      auto size_ = plain.size();
-      serialized::write(data_, size_, caller_id);
-      serialized::write(data_, size_, rpc_ctx.session_id);
-      serialized::write(data_, size_, data.data(), data.size());
-
       GcmHdr hdr;
-      FrontendHeader msg = {FrontendMsg::forwarded_cmd, self};
-      n2n_channel.encrypt(hdr, asCb(msg), plain, cipher);
+      std::vector<uint8_t> cipher(data.size());
+      n2n_channel.encrypt(hdr, asCb(msg), data, cipher);
 
-      LOG_FAIL << "Sending forwarded cmd" << std::endl;
       to_host->write(
         node_outbound, to, NodeMsgType::frontend_msg, msg, hdr, cipher);
 

@@ -392,14 +392,14 @@ namespace ccf
         rep.find(jsonrpc::ERR) != rep.end() &&
         rep[jsonrpc::ERR][jsonrpc::CODE] == jsonrpc::RPC_FORWARDED)
       {
-        // TODO(#important): If the RPC has been forwarded, wait for the
-        // reply from the leader before replying to the client
         auto leader_id = raft->leader();
+        auto local_id = raft->id();
         LOG_DEBUG << "RPC forwarded to leader " << leader_id << std::endl;
 
         if (
           leader_id != NoNode &&
-          !n2n_channels->forward(rpc_ctx, leader_id, caller_id.value(), input))
+          !cmd_forwarder->forward(
+            rpc_ctx, local_id, leader_id, caller_id.value(), input))
         {
           return jsonrpc::pack(
             jsonrpc::error_response(

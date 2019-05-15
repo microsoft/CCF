@@ -27,11 +27,51 @@ namespace ccf
       rpc_map = rpc_map_;
     }
 
+    bool forward(
+      enclave::RpcContext& rpc_ctx,
+      NodeId from,
+      NodeId to,
+      CallerId caller_id,
+      const std::vector<uint8_t>& data)
+    {
+      // TODO:
+      // 1. Create serialised plaintext
+      // 2. Send frontendheader and plaintext and to to
+      // n2n_channels->send_encrypted()
+
+      // auto& n2n_channel = channels->get(to);
+      // if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
+      // {
+      //   established_channel(to);
+      //   return false;
+      // }
+
+      std::vector<uint8_t> plain(
+        sizeof(caller_id) + sizeof(rpc_ctx.session_id) + data.size());
+      // std::vector<uint8_t> cipher(plain.size());
+      auto data_ = plain.data();
+      auto size_ = plain.size();
+      serialized::write(data_, size_, caller_id);
+      serialized::write(data_, size_, rpc_ctx.session_id);
+      serialized::write(data_, size_, data.data(), data.size());
+
+      // GcmHdr hdr;
+      FrontendHeader msg = {FrontendMsg::forwarded_cmd, from};
+      // n2n_channel.encrypt(hdr, asCb(msg), plain, cipher);
+
+      LOG_FAIL << "Sending forwarded cmd" << std::endl;
+      return n2n_channels->send_encrypted(to, plain, msg);
+      // to_host->write(
+      //   node_outbound, to, NodeMsgType::frontend_msg, msg, hdr, cipher);
+    }
+
     void recv_message(const uint8_t* data, size_t size)
     {
       serialized::skip(data, size, sizeof(ccf::NodeMsgType));
 
-      switch (serialized::peek<ccf::FrontendMsg>(data, size))
+      auto frontend_msg = serialized::peek<ccf::FrontendMsg>(data, size);
+
+      switch (frontend_msg)
       {
         case ccf::FrontendMsg::forwarded_cmd:
         {
@@ -53,14 +93,14 @@ namespace ccf
           LOG_FAIL << "Sending forwarded response to session" << rep.first
                    << std::endl;
 
-          // TODO: Find sessions in rpcsessions and reply to client
           rpcsessions.reply_forwarded(rep.first, rep.second);
           break;
         }
 
         default:
         {
-          LOG_FAIL << "Unknown frontend msg type" << std::endl;
+          LOG_FAIL << "Unknown frontend msg type: " << frontend_msg
+                   << std::endl;
           break;
         }
       }
