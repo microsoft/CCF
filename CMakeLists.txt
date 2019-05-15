@@ -82,7 +82,7 @@ if(BUILD_TESTS)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp)
-  use_oe_mbedtls(kv_test)
+  use_client_mbedtls(kv_test)
   target_link_libraries(kv_test PRIVATE
     ${CMAKE_THREAD_LIBS_INIT}
     secp256k1.host)
@@ -98,8 +98,6 @@ if(BUILD_TESTS)
 
   add_unit_test(raft_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/raft/test/main.cpp)
-  target_include_directories(raft_test PRIVATE
-    ${OE_INCLUDE_DIR})
   target_link_libraries(raft_test PRIVATE
     ${CRYPTO_LIBRARY})
 
@@ -123,7 +121,6 @@ if(BUILD_TESTS)
    add_unit_test(history_test
      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp)
    target_include_directories(history_test PRIVATE
-     ${OE_INCLUDE_DIR}
      ${MERKLE_TREE_INC})
    target_link_libraries(history_test PRIVATE
      ${CRYPTO_LIBRARY}
@@ -133,7 +130,7 @@ if(BUILD_TESTS)
   add_unit_test(encryptor_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmkey.cpp)
-  use_oe_mbedtls(encryptor_test)
+  use_client_mbedtls(encryptor_test)
   target_link_libraries(encryptor_test PRIVATE
     secp256k1.host)
 
@@ -145,11 +142,11 @@ if(BUILD_TESTS)
 
   add_unit_test(keyexchange_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/keyexchange.cpp)
-  use_oe_mbedtls(keyexchange_test)
+  use_client_mbedtls(keyexchange_test)
 
   add_unit_test(channels_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp)
-  use_oe_mbedtls(channels_test)
+  use_client_mbedtls(channels_test)
   target_link_libraries(channels_test PRIVATE secp256k1.host)
 
   add_unit_test(frontend_test
@@ -176,7 +173,6 @@ if(BUILD_TESTS)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/luainterp/test/lua_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/luainterp/test/luakv.cpp)
   target_include_directories(lua_test PRIVATE
-    ${OE_INCLUDE_DIR}
     ${LUA_DIR})
   target_link_libraries(lua_test PRIVATE
     lua.host)
@@ -185,7 +181,6 @@ if(BUILD_TESTS)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/luageneric_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/luageneric.cpp)
   target_include_directories(luageneric_test PRIVATE
-    ${OE_INCLUDE_DIR}
     ${LUA_DIR})
   target_link_libraries(luageneric_test PRIVATE
     lua.host
@@ -247,7 +242,7 @@ if(BUILD_TESTS)
   # Raft driver and scenario test
   add_executable(raft_driver
     ${CMAKE_CURRENT_SOURCE_DIR}/src/raft/test/driver.cpp)
-  use_oe_mbedtls(raft_driver)
+  use_client_mbedtls(raft_driver)
   target_include_directories(raft_driver PRIVATE
     src/raft)
   add_test(

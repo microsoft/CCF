@@ -20,8 +20,6 @@ find_package(Threads REQUIRED)
 if(MSVC)
   add_compile_options(/W3 /std:c++latest)
 else()
-  #add_compile_options(-mcx16 -march=native -Wall -Werror -g -gsplit-dwarf)
-
   # GCC requires libatomic as well as libpthread.
   if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(${CMAKE_THREAD_LIBS_INIT} "$CMAKE_THREAD_LIBS_INIT} atomic")
@@ -106,6 +104,7 @@ include_directories(
 )
 
 
+option(VIRTUAL_ONLY "Build only virtual enclaves" OFF)
 set(OE_PREFIX "/opt/openenclave" CACHE PATH "Path to Open Enclave install")
 message(STATUS "Open Enclave prefix set to ${OE_PREFIX}")
 
@@ -126,6 +125,7 @@ set(OE_LIBCXX_INCLUDE_DIR "${OE_INCLUDE_DIR}/openenclave/3rdparty/libcxx")
 set(OESIGN "${OE_BIN_DIR}/oesign")
 set(OEGEN "${OE_BIN_DIR}/oeedger8r")
 
+
 add_custom_command(
     COMMAND ${OEGEN} ${CCF_DIR}/src/edl/ccf.edl --trusted --trusted-dir ${CMAKE_CURRENT_BINARY_DIR} --untrusted --untrusted-dir ${CMAKE_CURRENT_BINARY_DIR}
     COMMAND mv ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.c ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp
@@ -135,24 +135,29 @@ add_custom_command(
     COMMENT "Generating code from EDL, and renaming to .cpp"
 )
 
-# If OE was built with LINK_SGX=1, then we also need to link SGX
-execute_process(COMMAND "ldd" ${OESIGN}
-                COMMAND "grep" "-c" "sgx"
-                OUTPUT_QUIET
-               RESULT_VARIABLE OE_NO_SGX)
+if(NOT VIRTUAL_ONLY)
+  # If OE was built with LINK_SGX=1, then we also need to link SGX
+  execute_process(COMMAND "ldd" ${OESIGN}
+                  COMMAND "grep" "-c" "sgx"
+                  OUTPUT_QUIET
+                RESULT_VARIABLE OE_NO_SGX)
 
-if(NOT OE_NO_SGX)
-  message(STATUS "Linking SGX")
-  set(SGX_LIBS
-    sgx_enclave_common
-    sgx_dcap_ql
-    sgx_urts
-  )
+  if(NOT OE_NO_SGX)
+    message(STATUS "Linking SGX")
+    set(SGX_LIBS
+      sgx_enclave_common
+      sgx_dcap_ql
+      sgx_urts
+    )
 
-  if (NOT DISABLE_QUOTE_VERIFICATION)
-    set(QUOTES_ENABLED ON)
-    set(TEST_EXPECT_QUOTE "-q")
+    if (NOT DISABLE_QUOTE_VERIFICATION)
+      set(QUOTES_ENABLED ON)
+      set(TEST_EXPECT_QUOTE "-q")
+    endif()
   endif()
+else()
+  set(TEST_ENCLAVE_TYPE
+    -e virtual)
 endif()
 
 # Test-only option to enable extensive tests
@@ -234,7 +239,7 @@ set(ENCLAVE_FILES
 )
 
 function(enable_quote_code name)
-  if (NOT OE_NO_SGX AND NOT DISABLE_QUOTE_VERIFICATION)
+  if (QUOTES_ENABLED)
     target_compile_definitions(${name} PRIVATE -DGET_QUOTE)
   endif()
 endfunction()
@@ -325,55 +330,57 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
     "SRCS;INCLUDE_DIRS;LINK_LIBS"
   )
 
-  add_library(${name} SHARED
-    ${ENCLAVE_FILES}
-    ${PARSED_ARGS_SRCS}
-    ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp
-  )
+  if(NOT VIRTUAL_ONLY)
+    add_library(${name} SHARED
+      ${ENCLAVE_FILES}
+      ${PARSED_ARGS_SRCS}
+      ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp
+    )
 
-  target_compile_definitions(${name} PRIVATE
-    INSIDE_ENCLAVE
-    _LIBCPP_HAS_THREAD_API_PTHREAD
-  )
-  # Not setting -nostdinc in order to pick up compiler specific xmmintrin.h.
-  target_compile_options(${name} PRIVATE
-    -nostdinc++
-    -U__linux__
-  )
-  target_include_directories(${name} SYSTEM PRIVATE
-    ${OE_INCLUDE_DIR}
-    ${OE_LIBCXX_INCLUDE_DIR}
-    ${OE_LIBC_INCLUDE_DIR}
-    ${OE_TP_INCLUDE_DIR}
-    ${PARSED_ARGS_INCLUDE_DIRS}
-    ${MERKLE_TREE_INC}
-    ${CMAKE_CURRENT_BINARY_DIR}
-  )
-  if (PBFT)
+    target_compile_definitions(${name} PRIVATE
+      INSIDE_ENCLAVE
+      _LIBCPP_HAS_THREAD_API_PTHREAD
+    )
+    # Not setting -nostdinc in order to pick up compiler specific xmmintrin.h.
+    target_compile_options(${name} PRIVATE
+      -nostdinc++
+      -U__linux__
+    )
     target_include_directories(${name} SYSTEM PRIVATE
-      ${CCF_DIR}/pbft/src/pbft/
+      ${OE_INCLUDE_DIR}
+      ${OE_LIBCXX_INCLUDE_DIR}
+      ${OE_LIBC_INCLUDE_DIR}
+      ${OE_TP_INCLUDE_DIR}
+      ${PARSED_ARGS_INCLUDE_DIRS}
+      ${MERKLE_TREE_INC}
+      ${CMAKE_CURRENT_BINARY_DIR}
     )
-  endif()
-  target_link_libraries(${name} PRIVATE
-    -nostdlib -nodefaultlibs -nostartfiles
-    -Wl,--no-undefined
-    -Wl,-Bstatic,-Bsymbolic,--export-dynamic,-pie
-    ${ENCLAVE_LIBS}
-    -lgcc
-    ${PARSED_ARGS_LINK_LIBS}
-    ccfcrypto.enclave
-    merkle_tree.enclave
-    secp256k1.enclave
-  )
-  if (PBFT)
+    if (PBFT)
+      target_include_directories(${name} SYSTEM PRIVATE
+        ${CCF_DIR}/pbft/src/pbft/
+      )
+    endif()
     target_link_libraries(${name} PRIVATE
-      -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
-      libbyz.enclave
+      -nostdlib -nodefaultlibs -nostartfiles
+      -Wl,--no-undefined
+      -Wl,-Bstatic,-Bsymbolic,--export-dynamic,-pie
+      ${ENCLAVE_LIBS}
+      -lgcc
+      ${PARSED_ARGS_LINK_LIBS}
+      ccfcrypto.enclave
+      merkle_tree.enclave
+      secp256k1.enclave
     )
+    if (PBFT)
+      target_link_libraries(${name} PRIVATE
+        -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
+        libbyz.enclave
+      )
+    endif()
+    set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+    sign_app_library(${name} ${app_oe_conf_path} ${enclave_sign_key_path})
+    enable_quote_code(${name})
   endif()
-  set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
-  sign_app_library(${name} ${app_oe_conf_path} ${enclave_sign_key_path})
-  enable_quote_code(${name})
 
   ## Build a virtual enclave, loaded as a shared library without OE
   set(virt_name ${name}.virtual)
@@ -456,28 +463,30 @@ target_link_libraries(genesisgenerator PRIVATE
   secp256k1.host
 )
 
-# Host Executable
-add_executable(cchost
-  ${CCF_DIR}/src/host/main.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.cpp)
-use_client_mbedtls(cchost)
-target_include_directories(cchost PRIVATE
-  ${OE_INCLUDE_DIR}
-  ${CMAKE_CURRENT_BINARY_DIR}
-)
-add_san(cchost)
+if(NOT VIRTUAL_ONLY)
+  # Host Executable
+  add_executable(cchost
+    ${CCF_DIR}/src/host/main.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.cpp)
+  use_client_mbedtls(cchost)
+  target_include_directories(cchost PRIVATE
+    ${OE_INCLUDE_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}
+  )
+  add_san(cchost)
 
-target_link_libraries(cchost PRIVATE
-  uv
-  ${OE_HOST_LIBRARY}
-  ${SGX_LIBS}
-  ${CRYPTO_LIBRARY}
-  ${CMAKE_DL_LIBS}
-  ${CMAKE_THREAD_LIBS_INIT}
-  ccfcrypto.host
-  merkle_tree.host
-)
-enable_quote_code(cchost)
+  target_link_libraries(cchost PRIVATE
+    uv
+    ${OE_HOST_LIBRARY}
+    ${SGX_LIBS}
+    ${CRYPTO_LIBRARY}
+    ${CMAKE_DL_LIBS}
+    ${CMAKE_THREAD_LIBS_INIT}
+    ccfcrypto.host
+    merkle_tree.host
+  )
+  enable_quote_code(cchost)
+endif()
 
 # Virtual Host Executable
 add_executable(cchost.virtual
@@ -520,6 +529,7 @@ set_property(TARGET lua.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 # Common test args for Python scripts starting up CCF networks
 set(CCF_NETWORK_TEST_ARGS
   ${TEST_EXPECT_QUOTE}
+  ${TEST_ENCLAVE_TYPE}
   -l ${TEST_HOST_LOGGING_LEVEL}
   -g ${CCF_DIR}/src/runtime_config/gov.lua
 )
@@ -602,8 +612,8 @@ function(add_perf_test)
   ## Make python test client framework importable
   set_property(
     TEST ${PARSED_ARGS_NAME}
+    APPEND
     PROPERTY
       ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
   )
-
 endfunction()
