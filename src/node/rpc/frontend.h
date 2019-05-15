@@ -482,7 +482,7 @@ namespace ccf
       auto local_id = raft->id();
 
       if (!cmd_forwarder->send_forwarded_response(
-        fwd.first, local_id, jsonrpc::pack(rep, pack.value())))
+            fwd.first, local_id, jsonrpc::pack(rep, pack.value())))
       {
         LOG_FAIL << "Could not send forwarded response" << std::endl;
       }

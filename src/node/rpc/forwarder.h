@@ -137,7 +137,7 @@ namespace ccf
           {
             rep = recv_forwarded_response(data, size);
           }
-          catch(const std::exception& e)
+          catch (const std::exception& e)
           {
             LOG_FAIL << "Invalid forwarded response" << std::endl;
             break;
