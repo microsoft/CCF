@@ -236,7 +236,7 @@ set(ENCLAVE_FILES
 )
 
 function(enable_quote_code name)
-  if (OE AND NOT OE_NO_SGX AND NOT DISABLE_QUOTE_VERIFICATION)
+  if (QUOTES_ENABLED)
     target_compile_definitions(${name} PRIVATE -DGET_QUOTE)
   endif()
 endfunction()
