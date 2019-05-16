@@ -21,3 +21,4 @@ mv cov_* coverage/
 
 python3.7 ../tests/coverage/cobertura_generator.py
 python3.7 ../tests/coverage/style_html.py
+python3.7 ../tests/coverage/add_perf_summary.py
