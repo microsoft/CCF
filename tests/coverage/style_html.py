@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import glob
-import shutil
+import os
 
 """
 copies the css into the html files
@@ -18,11 +18,12 @@ with open(index_html, "a") as index_file:
     )
 
     for cov_dir in glob.glob("coverage/cov_*", recursive=False):
+        directory = os.path.basename(cov_dir)
         index_file.write(
             "<tr class='light-row'><td><pre><a href='"
-            + cov_dir
+            + directory
             + "/index.html'>"
-            + cov_dir
+            + directory
             + "</a></pre></td></tr>"
         )
     index_file.write("</table>")
