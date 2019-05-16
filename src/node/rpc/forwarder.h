@@ -68,7 +68,6 @@ namespace ccf
 
       FrontendHeader msg = {FrontendMsg::forwarded_cmd, from};
 
-      LOG_FAIL << "Sending forwarded command to " << to << std::endl;
       return n2n_channels->send_encrypted(to, plain, msg);
     }
 
@@ -115,8 +114,6 @@ namespace ccf
 
       FrontendHeader msg = {FrontendMsg::forwarded_response, fwd_ctx.leader_id};
 
-      LOG_FAIL << "Sending forwarded response to " << fwd_ctx.forwarder_id
-               << std::endl;
       return n2n_channels->send_encrypted(fwd_ctx.forwarder_id, plain, msg);
     }
 
@@ -175,7 +172,8 @@ namespace ccf
 
             if (!send_forwarded_response(fwd->first, rep))
             {
-              LOG_FAIL << "Could not send forwarded response" << std::endl;
+              LOG_FAIL << "Could not send forwarded response to "
+                       << fwd->first.forwarder_id << std::endl;
             }
           }
           break;
@@ -183,13 +181,12 @@ namespace ccf
 
         case ccf::FrontendMsg::forwarded_response:
         {
-          LOG_DEBUG << "Forwarded RPC reply" << std::endl;
           auto rep = recv_forwarded_response(data, size);
           if (!rep.has_value())
             return;
 
-          LOG_FAIL << "Sending forwarded response to session: " << rep->first
-                   << std::endl;
+          LOG_DEBUG << "Sending forwarded response to RPC endpoint "
+                    << rep->first << std::endl;
 
           try
           {
