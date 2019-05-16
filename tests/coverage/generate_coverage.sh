@@ -17,5 +17,7 @@ done
 llvm-cov-7 show -instr-profile coverage.profdata -output-dir=coverage -format=html ds_test "${objects[@]}" -Xdemangler c++filt -Xdemangler -n -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)"
 llvm-cov-7 export -instr-profile coverage.profdata -format=text ds_test "${objects[@]}" -Xdemangler c++filt -Xdemangler -n -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)" -summary-only > coverage.json
 
+mv cov_* coverage/
+
 python3.7 ../tests/coverage/cobertura_generator.py
 python3.7 ../tests/coverage/style_html.py
