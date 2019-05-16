@@ -33,7 +33,7 @@
             "id": 42,
             "msg": "Hello world"
           },
-          "expected_error": -32001
+          "expected_result": "OK"
         },
         {
           "method": "LOG_get",
