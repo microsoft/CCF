@@ -616,16 +616,19 @@ namespace ccf
 
 #ifdef GET_QUOTE
           oe_report_t parsed_quote = {0};
-          auto res = oe_parse_report(ni.quote.data(), ni.quote.size(), &parsed_quote);
+          auto res =
+            oe_parse_report(ni.quote.data(), ni.quote.size(), &parsed_quote);
           if (res != OE_OK)
           {
-            LOG_FAIL << "Failed to parse quote: " << oe_result_str(res) << std::endl;
+            LOG_FAIL << "Failed to parse quote: " << oe_result_str(res)
+                     << std::endl;
           }
           else
           {
             std::stringstream ss;
             for (auto c : parsed_quote.identity.unique_id)
-              ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(c);
+              ss << std::hex << std::setw(2) << std::setfill('0')
+                 << static_cast<int>(c);
             quote["mrenclave"] = ss.str();
           }
 #endif
