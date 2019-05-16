@@ -44,8 +44,8 @@ namespace enclave
         caller = peer_cert();
       }
 
-      RpcContext rpc_ctx(session_id);
-      auto rep = handler->process(rpc_ctx, caller, data);
+      RpcContext rpc_ctx(session_id, caller);
+      auto rep = handler->process(rpc_ctx, data);
       if (rpc_ctx.is_forwarded)
         return true;
       else

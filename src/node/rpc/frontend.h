@@ -346,13 +346,11 @@ namespace ccf
      * If a RPC that requires writing to the kv store is processed on a
      * follower, the serialised RPC is forwarded to the current network leader.
      *
-     * @param caller Caller certificate
+     * @param rpc_ctx Context for this RPC
      * @param input Serialised JSON RPC
      */
     std::vector<uint8_t> process(
-      enclave::RpcContext& rpc_ctx,
-      CBuffer caller,
-      const std::vector<uint8_t>& input) override
+      enclave::RpcContext& rpc_ctx, const std::vector<uint8_t>& input) override
     {
       Store::Tx tx;
 
@@ -364,7 +362,7 @@ namespace ccf
           jsonrpc::Pack::Text);
 
       // Retrieve id of caller
-      auto caller_id = valid_caller(tx, caller);
+      auto caller_id = valid_caller(tx, rpc_ctx.caller);
       if (!caller_id.has_value())
       {
         return jsonrpc::pack(
@@ -379,7 +377,8 @@ namespace ccf
       if (!rpc.first)
         return jsonrpc::pack(rpc.second, pack.value());
 
-      auto rep = process_json(tx, caller, caller_id.value(), rpc.second, false);
+      auto rep =
+        process_json(tx, rpc_ctx.caller, caller_id.value(), rpc.second, false);
 
       // If necessary, redirect the RPC to the leader
       // TODO: Can we do something better here? i.e. return code
@@ -429,6 +428,7 @@ namespace ccf
 
       // If the RPC was forwarded by another node, assume that the caller has
       // already been verified
+      // TODO: caller should be used
       CBuffer caller;
 
       std::pair<FwdContext, std::vector<uint8_t>> fwd;
@@ -469,18 +469,12 @@ namespace ccf
       if (!rpc.first)
         return jsonrpc::pack(rpc.second, pack.value());
 
-      // TODO(#important): For now, the return value of this function is
-      // ignored. The JSON RPC result of the transaction execution
-      // should be returned to the node that forwarded the RPC.
       auto rep =
         process_json(tx, caller, fwd.first.caller_id, rpc.second, true);
 
-      // TODO: Also send a forwarded response if an error occurred in
-      // process_forwarded()
       LOG_FAIL << "Sending forwarded response" << std::endl;
 
       auto local_id = raft->id();
-
       if (!cmd_forwarder->send_forwarded_response(
             fwd.first, local_id, jsonrpc::pack(rep, pack.value())))
       {

@@ -135,6 +135,10 @@ auto ca_inv = kp_other.self_sign("CN=name");
 tls::Verifier verifier_inv(ca_inv);
 auto invalid_caller = verifier_inv.raw_cert_data();
 
+enclave::RpcContext rpc_ctx(enclave::InvalidSessionId, user_caller);
+enclave::RpcContext invalid_rpc_ctx(enclave::InvalidSessionId, invalid_caller);
+enclave::RpcContext member_rpc_ctx(enclave::InvalidSessionId, member_caller);
+
 void prepare_callers()
 {
   Store::Tx txs;
@@ -319,7 +323,6 @@ TEST_CASE("process")
 {
   prepare_callers();
   TestUserFrontend frontend(*network.tables);
-  enclave::RpcContext rpc_ctx(0);
   auto simple_call = create_simple_json();
 
   SUBCASE("without signature")
@@ -327,7 +330,7 @@ TEST_CASE("process")
     std::vector<uint8_t> serialized_call =
       jsonrpc::pack(simple_call, jsonrpc::Pack::MsgPack);
     std::vector<uint8_t> serialized_response =
-      frontend.process(rpc_ctx, user_caller, serialized_call);
+      frontend.process(rpc_ctx, serialized_call);
     nlohmann::json response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
@@ -339,7 +342,7 @@ TEST_CASE("process")
     std::vector<uint8_t> serialized_call =
       jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
     std::vector<uint8_t> serialized_response =
-      frontend.process(rpc_ctx, user_caller, serialized_call);
+      frontend.process(rpc_ctx, serialized_call);
     nlohmann::json response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
@@ -352,7 +355,7 @@ TEST_CASE("process")
     std::vector<uint8_t> serialized_call =
       jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
     std::vector<uint8_t> serialized_response =
-      frontend.process(rpc_ctx, invalid_caller, serialized_call);
+      frontend.process(invalid_rpc_ctx, serialized_call);
     nlohmann::json response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(
@@ -366,8 +369,6 @@ TEST_CASE("process")
 
 TEST_CASE("User caller")
 {
-  enclave::RpcContext rpc_ctx(0);
-
   prepare_callers();
   auto simple_call = create_simple_json();
   std::vector<uint8_t> serialized_call =
@@ -377,7 +378,7 @@ TEST_CASE("User caller")
   SUBCASE("valid caller")
   {
     std::vector<uint8_t> serialized_response =
-      frontend.process(rpc_ctx, user_caller, serialized_call);
+      frontend.process(rpc_ctx, serialized_call);
     nlohmann::json response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
@@ -385,7 +386,7 @@ TEST_CASE("User caller")
   SUBCASE("invalid caller")
   {
     std::vector<uint8_t> serialized_response =
-      frontend.process(rpc_ctx, member_caller, serialized_call);
+      frontend.process(member_rpc_ctx, serialized_call);
     nlohmann::json response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(
@@ -396,7 +397,6 @@ TEST_CASE("User caller")
 
 TEST_CASE("Member caller")
 {
-  enclave::RpcContext rpc_ctx(0);
   prepare_callers();
   auto simple_call = create_simple_json();
   std::vector<uint8_t> serialized_call =
@@ -406,7 +406,7 @@ TEST_CASE("Member caller")
   SUBCASE("valid caller")
   {
     std::vector<uint8_t> serialized_response =
-      frontend.process(rpc_ctx, member_caller, serialized_call);
+      frontend.process(member_rpc_ctx, serialized_call);
     nlohmann::json response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
@@ -414,7 +414,7 @@ TEST_CASE("Member caller")
   SUBCASE("invalid caller")
   {
     std::vector<uint8_t> serialized_response =
-      frontend.process(rpc_ctx, user_caller, serialized_call);
+      frontend.process(rpc_ctx, serialized_call);
     nlohmann::json response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(
@@ -425,7 +425,6 @@ TEST_CASE("Member caller")
 
 TEST_CASE("No certs table")
 {
-  enclave::RpcContext rpc_ctx(0);
   prepare_callers();
 
   auto simple_call = create_simple_json();
@@ -434,7 +433,7 @@ TEST_CASE("No certs table")
   TestNoCertsFrontend frontend(*network.tables);
 
   std::vector<uint8_t> serialized_response =
-    frontend.process(rpc_ctx, user_caller, serialized_call);
+    frontend.process(rpc_ctx, serialized_call);
   nlohmann::json response =
     jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
   CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
