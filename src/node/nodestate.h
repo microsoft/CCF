@@ -610,7 +610,27 @@ namespace ccf
       nlohmann::json quotes;
       nodes_view->foreach([&quotes](const NodeId& nid, const NodeInfo& ni) {
         if (ni.status == ccf::NodeStatus::TRUSTED)
-          quotes[std::to_string(nid)] = ni.quote;
+        {
+          nlohmann::json quote;
+          quote["raw"] = std::string(ni.quote.begin(), ni.quote.end());
+
+#ifdef GET_QUOTE
+          oe_report_t parsed_quote = {0};
+          auto res = oe_parse_report(ni.quote.data(), ni.quote.size(), &parsed_quote);
+          if (res != OE_OK)
+          {
+            LOG_FAIL << "Failed to parse quote: " << oe_result_str(res) << std::endl;
+          }
+          else
+          {
+            std::stringstream ss;
+            for (auto c : parsed_quote.identity.unique_id)
+              ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(c);
+            quote["mrenclave"] = ss.str();
+          }
+#endif
+          quotes[std::to_string(nid)] = quote;
+        }
       });
 
       j["quotes"] = quotes;
