@@ -36,4 +36,5 @@ with open(style_file) as style:
         with open(filename, "a") as html:
             html.write('<style type="text/css">')
             html.write(css)
+            html.write("body { background-color: seashell; }")
             html.write("</style>")
