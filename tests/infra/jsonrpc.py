@@ -112,7 +112,9 @@ class Response:
             else:
                 return sl
 
-        parsed_s = {decode(attr, is_key=True): decode(value) for attr, value in parsed.items()}
+        parsed_s = {
+            decode(attr, is_key=True): decode(value) for attr, value in parsed.items()
+        }
         unexpected = parsed_s.keys() - self._attrs
         if unexpected:
             raise ValueError("Unexpected keys in response: {}".format(unexpected))
