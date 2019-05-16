@@ -13,5 +13,5 @@ namespace ccf
   ADD_JSON_TRANSLATORS(JoinNetworkNodeToNode::In, raw_fresh_key)
   ADD_JSON_TRANSLATORS(JoinNetworkNodeToNode::Out, id, network_secrets, version)
   ADD_JSON_TRANSLATORS(GetCommit::Out, term, commit)
-  ADD_JSON_TRANSLATORS(GetTxHist::Out, tx_hist)
+  ADD_JSON_TRANSLATORS(GetMetrics::Out, metrics)
 }
