@@ -136,41 +136,38 @@ namespace ccf
       return caller_id;
     }
 
-    nlohmann::json redirect_json(jsonrpc::SeqNo id, bool is_forwarded = false)
+    nlohmann::json forward_or_redirect_json(
+      jsonrpc::SeqNo id, bool is_forwarded = false)
     {
-#ifndef RPC_FORWARD_TO_LEADER
-      if ((nodes != nullptr) && (raft != nullptr))
+      if (cmd_forwarder && !is_forwarded)
       {
-        NodeId leader_id = raft->leader();
-        Store::Tx tx;
-        auto nodes_view = tx.get_view(*nodes);
-        auto info = nodes_view->get(leader_id);
-
-        if (info)
-        {
-          return jsonrpc::error_response(
-            id,
-            jsonrpc::ErrorCodes::TX_NOT_LEADER,
-            info->pubhost + ":" + info->tlsport);
-        }
-      }
-
-      return jsonrpc::error_response(
-        id, jsonrpc::ErrorCodes::TX_NOT_LEADER, "Not leader, leader unknown.");
-#else
-      if (!is_forwarded && cmd_forwarder)
-      {
-        // If the RPC has not already been forwarded and the frontend is
-        // allowed to forward, redirect it to the current leader
         return jsonrpc::error_response(
           id, jsonrpc::RPC_FORWARDED, "RPC forwarded to leader");
       }
+      else
+      {
+        // If this frontend is not allowed to forward or the command has already
+        // been forwarded, redirect to the current leader
+        if ((nodes != nullptr) && (raft != nullptr))
+        {
+          NodeId leader_id = raft->leader();
+          Store::Tx tx;
+          auto nodes_view = tx.get_view(*nodes);
+          auto info = nodes_view->get(leader_id);
 
-      return jsonrpc::error_response(
-        id,
-        jsonrpc::ErrorCodes::RPC_NOT_FORWARDED,
-        "RPC could not be forwarded to leader.");
-#endif
+          if (info)
+          {
+            return jsonrpc::error_response(
+              id,
+              jsonrpc::ErrorCodes::TX_NOT_LEADER,
+              info->pubhost + ":" + info->tlsport);
+          }
+        }
+        return jsonrpc::error_response(
+          id,
+          jsonrpc::ErrorCodes::TX_NOT_LEADER,
+          "Not leader, leader unknown.");
+      }
     }
 
   public:
@@ -525,13 +522,13 @@ namespace ccf
             break;
 
           case Write:
-            return redirect_json(id, is_forwarded);
+            return forward_or_redirect_json(id, is_forwarded);
             break;
 
           case MayWrite:
             bool readonly = rpc.value(jsonrpc::READONLY, true);
             if (!readonly)
-              return redirect_json(id, is_forwarded);
+              return forward_or_redirect_json(id, is_forwarded);
             break;
         }
       }

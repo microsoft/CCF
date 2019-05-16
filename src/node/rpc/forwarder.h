@@ -197,7 +197,7 @@ namespace ccf
           }
           catch (const std::logic_error& err)
           {
-            LOG_FAIL << e.what() << std::endl;;
+            LOG_FAIL << err.what() << std::endl;
             return;
           }
 

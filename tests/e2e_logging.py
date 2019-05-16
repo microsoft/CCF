@@ -66,19 +66,11 @@ def run(args):
 
                 LOG.debug("Write/Read on follower")
                 with follower.user_client(format="json") as c:
-
-                    if args.leader_forwarding:
-                        check_commit(
-                            c.rpc("LOG_record", {"id": 100, "msg": follower_msg}),
-                            result="OK",
-                        )
-                        check(c.rpc("LOG_get", {"id": 100}), result=follower_msg)
-                    else:
-                        check(
-                            c.rpc("LOG_record", {"id": 0, "msg": follower_msg}),
-                            error=lambda e: e["code"]
-                            == infra.jsonrpc.ErrorCode.TX_NOT_LEADER,
-                        )
+                    check_commit(
+                        c.rpc("LOG_record", {"id": 100, "msg": follower_msg}),
+                        result="OK",
+                    )
+                    check(c.rpc("LOG_get", {"id": 100}), result=follower_msg)
 
                     check(c.rpc("LOG_get", {"id": 42}), result=msg)
 

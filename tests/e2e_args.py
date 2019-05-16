@@ -80,11 +80,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--pdb", help="Break to debugger on exception", action="store_true"
     )
     parser.add_argument(
-        "--leader-forwarding",
-        help="Expect followers to forward write RPC to leader",
-        action="store_true",
-    )
-    parser.add_argument(
         "--notify-server", help="Server host to notify progress to (host:port)"
     )
     add(parser)
