@@ -44,12 +44,21 @@ namespace enclave
         caller = peer_cert();
       }
 
+      // Create a new RPC context for each command since some may require
+      // forwarding to the leader.
       RpcContext rpc_ctx(session_id, caller);
       auto rep = handler->process(rpc_ctx, data);
+
       if (rpc_ctx.is_forwarded)
+      {
+        // If the RPC has been forwarded, hold the connection.
         return true;
+      }
       else
+      {
+        // Otherwise, reply to the client synchronously.
         send(rep);
+      }
 
       return true;
     }

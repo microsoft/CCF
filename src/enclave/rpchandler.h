@@ -15,10 +15,10 @@ namespace enclave
   struct RpcContext
   {
     const size_t session_id;
-    CBuffer caller;
+    const CBuffer caller;
     bool is_forwarded = false;
 
-    RpcContext(const size_t session_id_, CBuffer caller_) :
+    RpcContext(size_t session_id_, CBuffer caller_) :
       session_id(session_id_),
       caller(caller_)
     {}
@@ -31,9 +31,6 @@ namespace enclave
 
     virtual std::vector<uint8_t> process(
       RpcContext& rpc_ctx, const std::vector<uint8_t>& input) = 0;
-
-    virtual std::vector<uint8_t> process_forwarded(
-      const uint8_t* data, size_t size) = 0;
 
     virtual void tick(std::chrono::milliseconds elapsed_ms_count) {}
   };

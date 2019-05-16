@@ -101,7 +101,7 @@ namespace ccf
     }
 
     template <class T>
-    std::optional<std::vector<uint8_t>> recv_encrypted(
+    std::vector<uint8_t> recv_encrypted(
       const T& msg, const uint8_t* data, size_t size)
     {
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
@@ -109,7 +109,7 @@ namespace ccf
 
       auto& n2n_channel = channels->get(msg.from_node);
       if (!n2n_channel.decrypt(hdr, asCb(msg), {data, size}, plain))
-        return {};
+        throw std::logic_error("Invalid encrypted node2node message");
 
       return plain;
     }

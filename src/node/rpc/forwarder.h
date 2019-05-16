@@ -9,9 +9,26 @@ namespace ccf
 {
   struct FwdContext
   {
-    size_t session_id;
-    NodeId forwarder_id;
-    CallerId caller_id;
+    const size_t session_id;
+    const NodeId forwarder_id;
+    const CallerId caller_id;
+
+    NodeId leader_id;
+
+    FwdContext(size_t session_id_, NodeId forwarder_id_, CallerId caller_id_) :
+      session_id(session_id_),
+      forwarder_id(forwarder_id_),
+      caller_id(caller_id_)
+    {}
+  };
+
+  class ForwardedRpcHandler
+  {
+  public:
+    virtual ~ForwardedRpcHandler() {}
+
+    virtual std::vector<uint8_t> process_forwarded(
+      FwdContext& fwd_ctx, const std::vector<uint8_t>& input) = 0;
   };
 
   class Forwarder
@@ -55,28 +72,40 @@ namespace ccf
       return n2n_channels->send_encrypted(to, plain, msg);
     }
 
-    std::pair<FwdContext, std::vector<uint8_t>> recv_forwarded_command(
-      const uint8_t* data, size_t size)
+    std::optional<std::pair<FwdContext, std::vector<uint8_t>>>
+    recv_forwarded_command(const uint8_t* data, size_t size)
     {
       const auto& msg = serialized::overlay<FrontendHeader>(data, size);
       if (msg.msg != forwarded_cmd)
-        throw std::logic_error("Invalid forwarded command");
+      {
+        LOG_FAIL << "Invalid forwarded message" << std::endl;
+        return {};
+      }
 
-      const auto plain = n2n_channels->recv_encrypted(msg, data, size);
-      if (!plain.has_value())
-        throw std::logic_error("Forwarded command decryption failed");
+      std::vector<uint8_t> plain;
+      try
+      {
+        plain = n2n_channels->recv_encrypted(msg, data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL << "Invalid forwarded command: " << err.what() << std::endl;
+        return {};
+      }
 
-      auto data_ = plain->data();
-      auto size_ = plain->size();
+      const auto& plain_ = plain;
+      auto data_ = plain_.data();
+      auto size_ = plain_.size();
       auto caller_id = serialized::read<CallerId>(data_, size_);
       auto session_id = serialized::read<size_t>(data_, size_);
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
 
-      return {{session_id, msg.from_node, caller_id}, rpc};
+      return std::make_pair(
+        FwdContext(session_id, msg.from_node, caller_id), rpc);
     }
 
     bool send_forwarded_response(
-      const FwdContext& fwd_ctx, NodeId from, const std::vector<uint8_t>& data)
+      const FwdContext& fwd_ctx, const std::vector<uint8_t>& data)
     {
       std::vector<uint8_t> plain(sizeof(fwd_ctx.session_id) + data.size());
       auto data_ = plain.data();
@@ -84,28 +113,36 @@ namespace ccf
       serialized::write(data_, size_, fwd_ctx.session_id);
       serialized::write(data_, size_, data.data(), data.size());
 
-      FrontendHeader msg = {FrontendMsg::forwarded_reply, from};
+      FrontendHeader msg = {FrontendMsg::forwarded_reply, fwd_ctx.leader_id};
 
       LOG_FAIL << "Sending forwarded response to " << fwd_ctx.forwarder_id
                << std::endl;
       return n2n_channels->send_encrypted(fwd_ctx.forwarder_id, plain, msg);
     }
 
-    std::pair<size_t, std::vector<uint8_t>> recv_forwarded_response(
-      const uint8_t* data, size_t size)
+    std::optional<std::pair<size_t, std::vector<uint8_t>>>
+    recv_forwarded_response(const uint8_t* data, size_t size)
     {
       const auto& msg = serialized::overlay<FrontendHeader>(data, size);
 
-      const auto plain = n2n_channels->recv_encrypted(msg, data, size);
-      if (!plain.has_value())
-        throw std::logic_error("Forwarded response decryption failed");
+      std::vector<uint8_t> plain;
+      try
+      {
+        plain = n2n_channels->recv_encrypted(msg, data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL << "Invalid forwarded response: " << err.what() << std::endl;
+        return {};
+      }
 
-      auto data_ = plain->data();
-      auto size_ = plain->size();
+      const auto& plain_ = plain;
+      auto data_ = plain_.data();
+      auto size_ = plain_.size();
       auto session_id = serialized::read<size_t>(data_, size_);
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
 
-      return {session_id, rpc};
+      return std::make_pair(session_id, rpc);
     }
 
     void recv_message(const uint8_t* data, size_t size)
@@ -122,8 +159,20 @@ namespace ccf
           if (rpc_map)
           {
             LOG_DEBUG << "Forwarded RPC: " << ccf::Actors::USERS << std::endl;
-            rpc_map->at(std::string(ccf::Actors::USERS))
-              ->process_forwarded(data, size);
+
+            auto fwd = recv_forwarded_command(data, size);
+            if (!fwd.has_value())
+              return;
+
+            auto fwd_handler = dynamic_cast<ccf::ForwardedRpcHandler*>(
+              rpc_map->at(std::string(ccf::Actors::USERS)).get());
+
+            auto rep = fwd_handler->process_forwarded(fwd->first, fwd->second);
+
+            if (!send_forwarded_response(fwd->first, rep))
+            {
+              LOG_FAIL << "Could not send forwarded response" << std::endl;
+            }
           }
           break;
         }
@@ -131,22 +180,15 @@ namespace ccf
         case ccf::FrontendMsg::forwarded_reply:
         {
           LOG_DEBUG << "Forwarded RPC reply" << std::endl;
-          std::pair<size_t, std::vector<uint8_t>> rep;
+          auto rep = recv_forwarded_response(data, size);
 
-          try
-          {
-            rep = recv_forwarded_response(data, size);
-          }
-          catch (const std::exception& e)
-          {
-            LOG_FAIL << "Invalid forwarded response" << std::endl;
-            break;
-          }
+          if (!rep.has_value())
+            return;
 
-          LOG_FAIL << "Sending forwarded response to session: " << rep.first
+          LOG_FAIL << "Sending forwarded response to session: " << rep->first
                    << std::endl;
 
-          rpcsessions.reply_forwarded(rep.first, rep.second);
+          rpcsessions.reply_forwarded(rep->first, rep->second);
           break;
         }
 

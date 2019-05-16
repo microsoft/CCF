@@ -24,7 +24,7 @@
 
 namespace ccf
 {
-  class RpcFrontend : public enclave::RpcHandler
+  class RpcFrontend : public enclave::RpcHandler, public ForwardedRpcHandler
   {
   public:
     enum ReadWrite
@@ -416,37 +416,24 @@ namespace ccf
      *
      * This function assumes that the forwarded message contains the caller id.
      *
-     * @param data Pointer to forwarded serialised JSON RPC
-     * @param size Size of forwarded serialised JSON RPC
+     * @param fwd_ctx Context for this forwarded RPC
+     * @param input Serialised JSON RPC
      *
      * @return Serialised reply to send back to forwarder node
      */
     std::vector<uint8_t> process_forwarded(
-      const uint8_t* data, size_t size) override
+      FwdContext& fwd_ctx, const std::vector<uint8_t>& input) override
     {
       Store::Tx tx;
 
-      // If the RPC was forwarded by another node, assume that the caller has
-      // already been verified
-      // TODO: caller should be used
+      // TODO: caller should be used?
       CBuffer caller;
 
-      std::pair<FwdContext, std::vector<uint8_t>> fwd;
-      try
-      {
-        fwd = cmd_forwarder->recv_forwarded_command(data, size);
-      }
-      catch (const std::exception& e)
-      {
-        return jsonrpc::pack(
-          jsonrpc::error_response(
-            0,
-            jsonrpc::ErrorCodes::INTERNAL_ERROR,
-            "Forwarded RPC is malformed."),
-          jsonrpc::Pack::Text);
-      }
+      fwd_ctx.leader_id = raft->id();
 
-      if (fwd.first.caller_id == INVALID_ID)
+      // If the RPC was forwarded, assume that the caller has already been
+      // verified
+      if (fwd_ctx.caller_id == INVALID_ID)
       {
         return jsonrpc::pack(
           jsonrpc::error_response(
@@ -456,7 +443,7 @@ namespace ccf
           jsonrpc::Pack::Text);
       }
 
-      auto pack = detect_pack(fwd.second);
+      auto pack = detect_pack(input);
       if (!pack.has_value())
         return jsonrpc::pack(
           jsonrpc::error_response(
@@ -465,21 +452,11 @@ namespace ccf
             "Empty request (forwarded)."),
           jsonrpc::Pack::Text);
 
-      auto rpc = unpack_json(fwd.second, pack.value());
+      auto rpc = unpack_json(input, pack.value());
       if (!rpc.first)
         return jsonrpc::pack(rpc.second, pack.value());
 
-      auto rep =
-        process_json(tx, caller, fwd.first.caller_id, rpc.second, true);
-
-      LOG_FAIL << "Sending forwarded response" << std::endl;
-
-      auto local_id = raft->id();
-      if (!cmd_forwarder->send_forwarded_response(
-            fwd.first, local_id, jsonrpc::pack(rep, pack.value())))
-      {
-        LOG_FAIL << "Could not send forwarded response" << std::endl;
-      }
+      auto rep = process_json(tx, caller, fwd_ctx.caller_id, rpc.second, true);
 
       return jsonrpc::pack(rep, pack.value());
     }
