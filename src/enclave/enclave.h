@@ -66,7 +66,7 @@ namespace enclave
           config->signature_intervals.sig_max_tx,
           config->signature_intervals.sig_max_ms);
 
-        // TODO: Can set this in cmd_forwarder.initialize() instead?
+        // TODO: All frontends should be able to forward to/be forwarded to.
         if (r.first == ccf::Actors::USERS)
         {
           frontend->set_cmd_forwarder(cmd_forwarder);

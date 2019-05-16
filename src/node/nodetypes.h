@@ -34,7 +34,7 @@ namespace ccf
   enum FrontendMsg : Node2NodeMsg
   {
     forwarded_cmd = 0,
-    forwarded_reply
+    forwarded_response
   };
 
 #pragma pack(push, 1)

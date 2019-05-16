@@ -76,7 +76,7 @@ namespace ccf
     recv_forwarded_command(const uint8_t* data, size_t size)
     {
       const auto& msg = serialized::overlay<FrontendHeader>(data, size);
-      if (msg.msg != forwarded_cmd)
+      if (msg.msg != FrontendMsg::forwarded_cmd)
       {
         LOG_FAIL << "Invalid forwarded message" << std::endl;
         return {};
@@ -101,7 +101,7 @@ namespace ccf
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
 
       return std::make_pair(
-        FwdContext(session_id, msg.from_node, caller_id), rpc);
+        FwdContext(session_id, msg.from_node, caller_id), std::move(rpc));
     }
 
     bool send_forwarded_response(
@@ -113,7 +113,7 @@ namespace ccf
       serialized::write(data_, size_, fwd_ctx.session_id);
       serialized::write(data_, size_, data.data(), data.size());
 
-      FrontendHeader msg = {FrontendMsg::forwarded_reply, fwd_ctx.leader_id};
+      FrontendHeader msg = {FrontendMsg::forwarded_response, fwd_ctx.leader_id};
 
       LOG_FAIL << "Sending forwarded response to " << fwd_ctx.forwarder_id
                << std::endl;
@@ -124,6 +124,11 @@ namespace ccf
     recv_forwarded_response(const uint8_t* data, size_t size)
     {
       const auto& msg = serialized::overlay<FrontendHeader>(data, size);
+      if (msg.msg != FrontendMsg::forwarded_response)
+      {
+        LOG_FAIL << "Invalid forwarded response message" << std::endl;
+        return {};
+      }
 
       std::vector<uint8_t> plain;
       try
@@ -155,7 +160,6 @@ namespace ccf
       {
         case ccf::FrontendMsg::forwarded_cmd:
         {
-          // TODO: All frontends should be able to forward/be forwarded to.
           if (rpc_map)
           {
             LOG_DEBUG << "Forwarded RPC: " << ccf::Actors::USERS << std::endl;
@@ -177,18 +181,26 @@ namespace ccf
           break;
         }
 
-        case ccf::FrontendMsg::forwarded_reply:
+        case ccf::FrontendMsg::forwarded_response:
         {
           LOG_DEBUG << "Forwarded RPC reply" << std::endl;
           auto rep = recv_forwarded_response(data, size);
-
           if (!rep.has_value())
             return;
 
           LOG_FAIL << "Sending forwarded response to session: " << rep->first
                    << std::endl;
 
-          rpcsessions.reply_forwarded(rep->first, rep->second);
+          try
+          {
+            rpcsessions.reply_forwarded(rep->first, rep->second);
+          }
+          catch (const std::logic_error& err)
+          {
+            LOG_FAIL << e.what() << std::endl;;
+            return;
+          }
+
           break;
         }
 

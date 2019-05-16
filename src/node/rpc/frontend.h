@@ -341,7 +341,7 @@ namespace ccf
         return jsonrpc::Pack::MsgPack;
     }
 
-    /** Process a serialised input with the associated caller certificate
+    /** Process a serialised command with the associated caller certificate
      *
      * If a RPC that requires writing to the kv store is processed on a
      * follower, the serialised RPC is forwarded to the current network leader.
@@ -406,6 +406,7 @@ namespace ccf
           // Indicate that the RPC has been forwarded to leader
           LOG_DEBUG << "RPC forwarded to leader " << leader_id << std::endl;
           rpc_ctx.is_forwarded = true;
+          return {};
         }
       }
 
@@ -426,9 +427,11 @@ namespace ccf
     {
       Store::Tx tx;
 
-      // TODO: caller should be used?
+      // For forwarded command, caller is empty and caller_id should be used
+      // instead.
       CBuffer caller;
 
+      update_raft();
       fwd_ctx.leader_id = raft->id();
 
       // If the RPC was forwarded, assume that the caller has already been
