@@ -11,6 +11,7 @@ llvm-profdata-7 merge -sparse -f prof_files -o coverage.profdata
 objects=()
 for f in *_test; do
     objects+=( -object "$f")
+    llvm-cov-7 show -instr-profile "$f".profdata -output-dir=cov_"$f" -format=html "$f" -Xdemangler c++filt -Xdemangler -n -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)"
 done
 
 llvm-cov-7 show -instr-profile coverage.profdata -output-dir=coverage -format=html ds_test "${objects[@]}" -Xdemangler c++filt -Xdemangler -n -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)"
