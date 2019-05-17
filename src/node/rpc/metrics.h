@@ -1,14 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ds/histogram.h"
+#include "ds/logger.h"
 
-#include <fstream>
 #include <nlohmann/json.hpp>
 
 #define HIST_MAX (1 << 17)
 #define HIST_MIN 1
 #define HIST_BUCKET_GRANULARITY 5
-#define TX_RATES 1000
+#define TX_RATES 4000
 
 namespace metrics
 {
@@ -64,12 +64,11 @@ namespace metrics
 
     nlohmann::json get_metrics()
     {
+      LOG_INFO << "ticks: " << tick_count << std::endl;
       nlohmann::json result;
       result["histogram"] = get_histogram_results();
       result["tx_rates"] = get_tx_rates();
 
-      std::ofstream file("metrics.json");
-      file << result;
       return result;
     }
 
@@ -84,9 +83,14 @@ namespace metrics
       rate_time_elapsed += elapsed;
       if (tx_rate > 0)
       {
-        auto rate_duration = rate_time_elapsed.count() / 1000.0;
+        if (tick_count < TX_RATES)
+        {
+          auto rate_duration = rate_time_elapsed.count() / 1000.0;
+          tx_rates[tick_count] = tx_rate;
+          tx_time_passed[tick_count] = rate_duration;
+        }
+        tick_count++;
       }
-      tick_count++;
     }
   };
 }
