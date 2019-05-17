@@ -630,10 +630,7 @@ namespace ccf
           {
             quote["parsed"]["mrenclave"] = fmt::format(
               "{0:x}",
-              fmt::join(
-                std::begin(parsed_quote.identity.unique_id),
-                std::end(parsed_quote.identity.unique_id),
-                ""));
+              fmt::join(parsed_quote.identity.unique_id, ""));
           }
 #endif
           quotes[std::to_string(nid)] = quote;
