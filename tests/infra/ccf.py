@@ -292,6 +292,22 @@ class Network:
 
         return (self.nodes[leader_id], term)
 
+    def wait_for_node_commit_sync(self):
+        """
+        Wait for commit level to get in sync on all nodes. This is expected to
+        happen once CFTR has been established, in the absence of new transactions.
+        """
+        for _ in range(3):
+            commits = []
+            for node in self.nodes:
+                with node.management_client() as c:
+                    id = c.request("getCommit", {})
+                    commits.append(c.response(id).commit)
+            if [commits[0]] * len(commits) == commits:
+                break
+            time.sleep(1)
+        assert [commits[0]] * len(commits) == commits, "All nodes at the same commit"
+
 
 class Checker:
     def __init__(self, management_client=None, notification_queue=None):

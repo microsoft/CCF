@@ -20,7 +20,6 @@ from loguru import logger as LOG
 # Maximum number of retries of getCommit/getSignedIndex before test failure
 MAX_GET_STATUS_RETRY = 3
 
-
 class Txs:
     def __init__(self, nb_msgs, offset=0):
         self.pub = {}
@@ -29,24 +28,6 @@ class Txs:
         for i in range(offset * nb_msgs, nb_msgs + offset * nb_msgs):
             self.pub[i] = "Public msg #{}".format(i)
             self.priv[i] = "Private msg #{}".format(i)
-
-
-def wait_for_node_commit_sync(nodes):
-    """
-    Wait for commit level to get in sync on all nodes. This is expected to
-    happen once CFTR has been established, in the absence of new transactions.
-    """
-    for _ in range(MAX_GET_STATUS_RETRY):
-        commits = []
-        for node in nodes:
-            with node.management_client() as c:
-                id = c.request("getCommit", {})
-                commits.append(c.response(id).commit)
-        if [commits[0]] * len(commits) == commits:
-            break
-        time.sleep(1)
-    assert [commits[0]] * len(commits) == commits, "All nodes at the same commit"
-
 
 def check_nodes_have_msgs(nodes, txs):
     """
@@ -130,7 +111,7 @@ def run(args):
 
             rs = log_msgs(primary, txs)
             check_responses(rs, b"OK", check, check_commit)
-            wait_for_node_commit_sync(network.nodes)
+            network.wait_for_node_commit_sync()
             check_nodes_have_msgs(followers, txs)
 
             ledger = primary.remote.get_ledger()
@@ -160,7 +141,7 @@ def run(args):
                     node.join_network()
 
                 LOG.success("Public CFTR started")
-                wait_for_node_commit_sync(network.nodes)
+                network.wait_for_node_commit_sync()
                 wait_for_state(primary, b"partOfPublicNetwork")
 
                 LOG.debug(
@@ -239,7 +220,7 @@ def run(args):
 
                 rs = log_msgs(primary, new_txs)
                 check_responses(rs, b"OK", check, check_commit)
-                wait_for_node_commit_sync(network.nodes)
+                network.wait_for_node_commit_sync()
                 check_nodes_have_msgs(followers, new_txs)
 
                 ledger = primary.remote.get_ledger()
