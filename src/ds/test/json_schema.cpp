@@ -16,7 +16,7 @@ struct Bar
 DECLARE_REQUIRED_JSON_FIELDS(Bar, a);
 DECLARE_OPTIONAL_JSON_FIELDS(Bar, b, c);
 
-TEST_CASE("basic macro schema generation")
+TEST_CASE("basic macro parser generation")
 {
   const Bar default_bar = {};
   nlohmann::json j;
@@ -46,7 +46,7 @@ struct Baz : public Bar
 DECLARE_REQUIRED_JSON_FIELDS_WITH_BASE(Baz, Bar, d);
 DECLARE_OPTIONAL_JSON_FIELDS_WITH_BASE(Baz, Bar, e);
 
-TEST_CASE("macro schema generation with base classes")
+TEST_CASE("macro parser generation with base classes")
 {
   const Baz default_baz = {};
   nlohmann::json j;
@@ -77,15 +77,29 @@ TEST_CASE("macro schema generation with base classes")
   REQUIRE(baz_1.e == j["e"]);
 }
 
-struct Foo
+namespace ccf
 {
-  size_t n_0 = 42;
-  size_t n_1 = 43;
-  std::string s_0 = "Default value";
-  std::string s_1 = "Other default value";
-  std::optional<size_t> opt = std::nullopt;
-  std::vector<std::string> vec_s = {};
-  size_t ignored;
-};
-DECLARE_REQUIRED_JSON_FIELDS(Foo, n_0, s_0);
-DECLARE_OPTIONAL_JSON_FIELDS(Foo, n_1, s_1, opt, vec_s);
+  struct Foo
+  {
+    size_t n_0 = 42;
+    size_t n_1 = 43;
+    std::string s_0 = "Default value";
+    std::string s_1 = "Other default value";
+    std::optional<size_t> opt = std::nullopt;
+    std::vector<std::string> vec_s = {};
+    size_t ignored;
+  };
+  DECLARE_REQUIRED_JSON_FIELDS(Foo, n_0, s_0);
+  DECLARE_OPTIONAL_JSON_FIELDS(Foo, n_1, s_1, opt, vec_s);
+}
+
+TEST_CASE("schema generation")
+{
+  const auto schema = ccf::build_schema<ccf::Foo>("Foo");
+
+  const auto required_it = schema.find("required");
+  REQUIRE(required_it != schema.end());
+
+  REQUIRE(required_it->is_array());
+  REQUIRE(required_it->size() == 2);
+}
