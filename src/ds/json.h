@@ -19,6 +19,14 @@ struct JsonField
   char const* name;
 };
 
+template <typename T>
+struct IsStdOptional : std::false_type
+{};
+
+template <typename T>
+struct IsStdOptional<std::optional<T>> : std::true_type
+{};
+
 /** Template specialisation must happen in the correct namespace, so
 NAMESPACE_CONTAINS_JSON_TYPES must be stated within a namespace to use
 DECLARE_JSON_REQUIRED_FIELDS.
@@ -71,7 +79,8 @@ namespace ccf
   NAMESPACE_CONTAINS_JSON_TYPES;
 }
 
-#define __FOR_JSON_N( \
+#define __FOR_JSON_NN( \
+  _0, \
   _1, \
   _2, \
   _3, \
@@ -95,9 +104,9 @@ namespace ccf
   N, \
   ...) \
   _FOR_JSON_##N
-#define _FOR_JSON_N(args...) \
-  __FOR_JSON_N( \
-    args, \
+#define _FOR_JSON_WITH_0(...) \
+  __FOR_JSON_NN( \
+    __VA_ARGS__, \
     20, \
     19, \
     18, \
@@ -117,47 +126,50 @@ namespace ccf
     4, \
     3, \
     2, \
-    1)
+    1, \
+    0)
+#define _FOR_JSON_NN(...) _FOR_JSON_WITH_0(DUMMY, ##__VA_ARGS__)
 
+#define _FOR_JSON_0(FUNC, TYPE)
 #define _FOR_JSON_1(FUNC, TYPE, FIELD) FUNC##_FOR_JSON_FINAL(TYPE, FIELD)
-#define _FOR_JSON_2(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_1(FUNC, TYPE, PREV)
-#define _FOR_JSON_3(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_2(FUNC, TYPE, PREV)
-#define _FOR_JSON_4(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_3(FUNC, TYPE, PREV)
-#define _FOR_JSON_5(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_4(FUNC, TYPE, PREV)
-#define _FOR_JSON_6(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_5(FUNC, TYPE, PREV)
-#define _FOR_JSON_7(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_6(FUNC, TYPE, PREV)
-#define _FOR_JSON_8(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_7(FUNC, TYPE, PREV)
-#define _FOR_JSON_9(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_8(FUNC, TYPE, PREV)
-#define _FOR_JSON_10(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_9(FUNC, TYPE, PREV)
-#define _FOR_JSON_11(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_10(FUNC, TYPE, PREV)
-#define _FOR_JSON_12(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_11(FUNC, TYPE, PREV)
-#define _FOR_JSON_13(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_12(FUNC, TYPE, PREV)
-#define _FOR_JSON_14(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_13(FUNC, TYPE, PREV)
-#define _FOR_JSON_15(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_14(FUNC, TYPE, PREV)
-#define _FOR_JSON_16(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_15(FUNC, TYPE, PREV)
-#define _FOR_JSON_17(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_16(FUNC, TYPE, PREV)
-#define _FOR_JSON_18(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_17(FUNC, TYPE, PREV)
-#define _FOR_JSON_19(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_18(FUNC, TYPE, PREV)
-#define _FOR_JSON_20(FUNC, TYPE, FIELD, PREV...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_19(FUNC, TYPE, PREV)
+#define _FOR_JSON_2(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_3(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_2(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_4(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_3(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_5(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_4(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_6(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_5(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_7(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_6(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_8(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_7(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_9(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_8(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_10(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_9(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_11(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_10(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_12(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_11(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_13(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_12(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_14(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_13(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_15(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_14(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_16(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_15(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_17(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_16(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_18(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_17(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_19(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_18(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_20(FUNC, TYPE, FIELD, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_19(FUNC, TYPE, ##__VA_ARGS__)
 
 #define WRITE_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD) \
   { \
@@ -170,7 +182,14 @@ namespace ccf
   { \
     if (t.FIELD != t_default.FIELD) \
     { \
-      j[#FIELD] = t.FIELD; \
+      if constexpr (IsStdOptional<decltype(TYPE::FIELD)>::value) \
+      { \
+        j[#FIELD] = t.FIELD.get(); \
+      } \
+      else \
+      { \
+        j[#FIELD] = t.FIELD; \
+      } \
     } \
   }
 #define WRITE_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
@@ -194,7 +213,14 @@ namespace ccf
     const auto it = j.find(#FIELD); \
     if (it != j.end()) \
     { \
-      t.FIELD = it->get<decltype(TYPE::FIELD)>(); \
+      if constexpr (IsStdOptional<decltype(TYPE::FIELD)>::value) \
+      { \
+        t.FIELD = it->get<typename decltype(TYPE::FIELD)::value_type>(); \
+      } \
+      else \
+      { \
+        t.FIELD = it->get<decltype(TYPE::FIELD)>(); \
+      } \
     } \
   }
 #define READ_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
@@ -229,22 +255,22 @@ namespace ccf
  * };
  * DECLARE_REQUIRED_JSON_FIELDS(X, a, b)
  */
-#define DECLARE_REQUIRED_JSON_FIELDS(TYPE, FIELDS...) \
+#define DECLARE_REQUIRED_JSON_FIELDS(TYPE, ...) \
   template <> \
   struct RequiredJsonFields<TYPE> : std::true_type \
   { \
-    static constexpr auto required_fields = \
-      std::make_tuple(_FOR_JSON_N(FIELDS)(JSON_FIELD, TYPE, FIELDS)); \
+    static constexpr auto required_fields = std::make_tuple( \
+      _FOR_JSON_NN(__VA_ARGS__)(JSON_FIELD, TYPE, ##__VA_ARGS__)); \
   }; \
   template <> \
   inline void write_fields<TYPE, true>(nlohmann::json & j, const TYPE& t) \
   { \
-    _FOR_JSON_N(FIELDS)(WRITE_REQUIRED, TYPE, FIELDS) \
+    _FOR_JSON_NN(__VA_ARGS__)(WRITE_REQUIRED, TYPE, ##__VA_ARGS__) \
   } \
   template <> \
   inline void read_fields<TYPE, true>(const nlohmann::json& j, TYPE& t) \
   { \
-    _FOR_JSON_N(FIELDS)(READ_REQUIRED, TYPE, FIELDS) \
+    _FOR_JSON_NN(__VA_ARGS__)(READ_REQUIRED, TYPE, ##__VA_ARGS__) \
   }
 
 /** Defines from and to json functions for nlohmann::json with respect to a base
@@ -265,25 +291,26 @@ namespace ccf
  * This is equivalent to:
  * DECLARE_REQUIRED_JSON_FIELDS(Y, a, b, c)
  */
-#define DECLARE_REQUIRED_JSON_FIELDS_WITH_BASE(TYPE, BASE, FIELDS...) \
+#define DECLARE_REQUIRED_JSON_FIELDS_WITH_BASE(TYPE, BASE, ...) \
   template <> \
   struct RequiredJsonFields<TYPE> : std::true_type \
   { \
     static constexpr auto required_fields = std::tuple_cat( \
       RequiredJsonFields<BASE>::required_fields, \
-      std::make_tuple(_FOR_JSON_N(FIELDS)(JSON_FIELD, TYPE, FIELDS))); \
+      std::make_tuple( \
+        _FOR_JSON_NN(__VA_ARGS__)(JSON_FIELD, TYPE, ##__VA_ARGS__))); \
   }; \
   template <> \
   inline void write_fields<TYPE, true>(nlohmann::json & j, const TYPE& t) \
   { \
     write_fields<BASE, true>(j, t); \
-    _FOR_JSON_N(FIELDS)(WRITE_REQUIRED, TYPE, FIELDS) \
+    _FOR_JSON_NN(__VA_ARGS__)(WRITE_REQUIRED, TYPE, ##__VA_ARGS__) \
   } \
   template <> \
   inline void read_fields<TYPE, true>(const nlohmann::json& j, TYPE& t) \
   { \
     read_fields<BASE, true>(j, t); \
-    _FOR_JSON_N(FIELDS)(READ_REQUIRED, TYPE, FIELDS) \
+    _FOR_JSON_NN(__VA_ARGS__)(READ_REQUIRED, TYPE, ##__VA_ARGS__) \
   }
 
 /** Extends existing from and to json functions for nlohmann::json.
@@ -300,39 +327,40 @@ namespace ccf
  * DECLARE_REQUIRED_JSON_FIELDS(X, a, b)
  * DECLARE_OPTIONAL_JSON_FIELDS(X, a, b, c, d)
  */
-#define DECLARE_OPTIONAL_JSON_FIELDS(TYPE, FIELDS...) \
+#define DECLARE_OPTIONAL_JSON_FIELDS(TYPE, ...) \
   template <> \
   struct OptionalJsonFields<TYPE> : std::true_type \
   { \
-    static constexpr auto optional_fields = \
-      std::make_tuple(_FOR_JSON_N(FIELDS)(JSON_FIELD, TYPE, FIELDS)); \
+    static constexpr auto optional_fields = std::make_tuple( \
+      _FOR_JSON_NN(__VA_ARGS__)(JSON_FIELD, TYPE, ##__VA_ARGS__)); \
   }; \
   template <> \
   inline void write_fields<TYPE, false>(nlohmann::json & j, const TYPE& t) \
   { \
     const TYPE t_default{}; \
     { \
-      _FOR_JSON_N(FIELDS)(WRITE_OPTIONAL, TYPE, FIELDS) \
+      _FOR_JSON_NN(__VA_ARGS__)(WRITE_OPTIONAL, TYPE, ##__VA_ARGS__) \
     } \
   } \
   template <> \
   inline void read_fields<TYPE, false>(const nlohmann::json& j, TYPE& t) \
   { \
     { \
-      _FOR_JSON_N(FIELDS)(READ_OPTIONAL, TYPE, FIELDS) \
+      _FOR_JSON_NN(__VA_ARGS__)(READ_OPTIONAL, TYPE, ##__VA_ARGS__) \
     } \
   }
 
 /** Extends existing from and to json functions for nlohmann::json with respect
  * to a base class.
  */
-#define DECLARE_OPTIONAL_JSON_FIELDS_WITH_BASE(TYPE, BASE, FIELDS...) \
+#define DECLARE_OPTIONAL_JSON_FIELDS_WITH_BASE(TYPE, BASE, ...) \
   template <> \
   struct OptionalJsonFields<TYPE> : std::true_type \
   { \
     static constexpr auto optional_fields = std::tuple_cat( \
       OptionalJsonFields<BASE>::optional_fields, \
-      std::make_tuple(_FOR_JSON_N(FIELDS)(JSON_FIELD, TYPE, FIELDS))); \
+      std::make_tuple( \
+        _FOR_JSON_NN(__VA_ARGS__)(JSON_FIELD, TYPE, ##__VA_ARGS__))); \
   }; \
   template <> \
   inline void write_fields<TYPE, false>(nlohmann::json & j, const TYPE& t) \
@@ -340,7 +368,7 @@ namespace ccf
     const TYPE t_default{}; \
     write_fields<BASE, false>(j, t); \
     { \
-      _FOR_JSON_N(FIELDS)(WRITE_OPTIONAL, TYPE, FIELDS) \
+      _FOR_JSON_NN(__VA_ARGS__)(WRITE_OPTIONAL, TYPE, ##__VA_ARGS__) \
     } \
   } \
   template <> \
@@ -348,6 +376,6 @@ namespace ccf
   { \
     read_fields<BASE, false>(j, t); \
     { \
-      _FOR_JSON_N(FIELDS)(READ_OPTIONAL, TYPE, FIELDS) \
+      _FOR_JSON_NN(__VA_ARGS__)(READ_OPTIONAL, TYPE, ##__VA_ARGS__) \
     } \
   }
