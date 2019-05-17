@@ -20,31 +20,29 @@ from loguru import logger as LOG
 def run(args):
     hosts = ["localhost", "localhost"]
 
-    with infra.notification.notification_server(args.notify_server) as notifications:
+    with infra.ccf.network(
+        hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        primary, (follower,) = network.start_and_join(args)
 
-        with infra.ccf.network(
-            hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
-        ) as network:
-            primary, (follower,) = network.start_and_join(args)
+        with primary.management_client() as mc:
+            check_commit = infra.ccf.Checker(mc)
+            check = infra.ccf.Checker()
+            r = mc.rpc("getQuotes", {})
+            mrenclave = r.result["quotes"]["0"]["parsed"]["mrenclave"].decode()
 
-            with primary.management_client() as mc:
-                check_commit = infra.ccf.Checker(mc)
-                check = infra.ccf.Checker()
-                r = mc.rpc("getQuotes", {})
-                mrenclave = r.result["quotes"]["0"]["parsed"]["mrenclave"].decode()
-
-                oed = subprocess.run(
-                    [args.oesign, "dump", "-e", f"{args.package}.so.signed"],
-                    capture_output=True,
-                    check=True,
-                )
-                lines = [
-                    line
-                    for line in oed.stdout.decode().split(os.linesep)
-                    if line.startswith("mrenclave=")
-                ]
-                expected_mrenclave = lines[0].strip().split("=")[1]
-                assert mrenclave == expected_mrenclave, (mrenclave, expected_mrenclave)
+            oed = subprocess.run(
+                [args.oesign, "dump", "-e", f"{args.package}.so.signed"],
+                capture_output=True,
+                check=True,
+            )
+            lines = [
+                line
+                for line in oed.stdout.decode().split(os.linesep)
+                if line.startswith("mrenclave=")
+            ]
+            expected_mrenclave = lines[0].strip().split("=")[1]
+            assert mrenclave == expected_mrenclave, (mrenclave, expected_mrenclave)
 
 
 if __name__ == "__main__":
