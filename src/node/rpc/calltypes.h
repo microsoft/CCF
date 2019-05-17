@@ -5,20 +5,6 @@
 
 namespace ccf
 {
-  struct GetSchema
-  {
-    struct In
-    {
-      std::string method = {};
-    };
-
-    struct Out
-    {
-      nlohmann::json params_schema = nlohmann::json::object();
-      nlohmann::json result_schema = nlohmann::json::object();
-    };
-  };
-
   struct GetCommit
   {
     struct In
@@ -42,6 +28,38 @@ namespace ccf
       size_t overflow = {};
       size_t underflow = {};
       nlohmann::json histogram = {};
+    };
+  };
+
+  struct GetLeaderInfo
+  {
+    struct Out
+    {
+      NodeId leader_id;
+      std::string leader_host;
+      std::string leader_port;
+    };
+  };
+
+  struct ListMethods
+  {
+    struct Out
+    {
+      std::vector<std::string> methods;
+    };
+  };
+
+  struct GetSchema
+  {
+    struct In
+    {
+      std::string method = {};
+    };
+
+    struct Out
+    {
+      nlohmann::json params_schema = nlohmann::json::object();
+      nlohmann::json result_schema = nlohmann::json::object();
     };
   };
 }

@@ -22,6 +22,11 @@ namespace ccf
   DECLARE_REQUIRED_JSON_FIELDS(
     GetTxHist::Out, low, high, overflow, underflow, histogram)
 
+  DECLARE_REQUIRED_JSON_FIELDS(
+    GetLeaderInfo::Out, leader_id, leader_host, leader_port)
+
+  DECLARE_REQUIRED_JSON_FIELDS(ListMethods::Out, methods)
+
   DECLARE_REQUIRED_JSON_FIELDS(GetSchema::In, method)
   DECLARE_REQUIRED_JSON_FIELDS(GetSchema::Out, params_schema, result_schema)
 }

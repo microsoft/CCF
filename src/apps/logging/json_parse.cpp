@@ -189,5 +189,10 @@ int main(int argc, char** argv)
     std::cout << baz_schema.dump(2) << std::endl;
   }
 
+  {
+    const auto buzz_schema = build_schema<Buzz>("Buzz");
+    std::cout << buzz_schema.dump(2) << std::endl;
+  }
+
   return 0;
 }

@@ -6,7 +6,25 @@
 namespace ccf
 {
   template <typename T>
-  nlohmann::json schema_properties_element();
+  struct IsStdOptional : std::false_type
+  {};
+
+  template <typename T>
+  struct IsStdOptional<std::optional<T>> : std::true_type
+  {};
+
+  template <typename T>
+  nlohmann::json schema_properties_element()
+  {
+    if constexpr (IsStdOptional<T>::value)
+    {
+      return schema_properties_element<typename T::value_type>();
+    }
+    else
+    {
+      return nullptr;
+    }
+  }
 
   template <>
   inline nlohmann::json schema_properties_element<nlohmann::json>()

@@ -176,6 +176,7 @@ namespace ccf
 #endif
     }
 
+  protected:
     template <typename In, typename Out>
     void register_schema(const std::string& name)
     {
@@ -223,6 +224,7 @@ namespace ccf
       history(nullptr),
       can_forward(can_forward_)
     {
+      register_schema<GetCommit>(GeneralProcs::GET_COMMIT);
       auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetCommit::In>();
 
@@ -241,6 +243,7 @@ namespace ccf
           "Failed to get commit info from Raft");
       };
 
+      register_schema<void, GetTxHist::Out>(GeneralProcs::GET_TX_HIST);
       auto get_tx_hist = [this](Store::Tx& tx, const nlohmann::json& params) {
         GetTxHist::Out result;
         nlohmann::json hist;
@@ -257,6 +260,7 @@ namespace ccf
         return jsonrpc::success(result);
       };
 
+      register_schema<void, void>(GeneralProcs::MK_SIGN);
       auto make_signature =
         [this](Store::Tx& tx, const nlohmann::json& params) {
           update_history();
@@ -271,22 +275,23 @@ namespace ccf
             jsonrpc::ErrorCodes::INTERNAL_ERROR, "Failed to trigger signature");
         };
 
+      register_schema<void, GetLeaderInfo::Out>(GeneralProcs::GET_LEADER_INFO);
       auto get_leader_info =
         [this](Store::Tx& tx, const nlohmann::json& params) {
           if ((nodes != nullptr) && (raft != nullptr))
           {
             NodeId leader_id = raft->leader();
-            nlohmann::json result;
 
             auto nodes_view = tx.get_view(*nodes);
             auto info = nodes_view->get(leader_id);
 
             if (info)
             {
-              result["leader_id"] = leader_id;
-              result["leader_host"] = info->pubhost;
-              result["leader_port"] = info->tlsport;
-              return jsonrpc::success(result);
+              GetLeaderInfo::Out out;
+              out.leader_id = leader_id;
+              out.leader_host = info->pubhost;
+              out.leader_port = info->tlsport;
+              return jsonrpc::success(out);
             }
           }
 
@@ -294,19 +299,21 @@ namespace ccf
             jsonrpc::ErrorCodes::TX_LEADER_UNKNOWN, "Leader unknown.");
         };
 
+      register_schema<void, ListMethods::Out>(GeneralProcs::LIST_METHODS);
       auto list_methods = [this](Store::Tx& tx, const nlohmann::json& params) {
-        auto methods = nlohmann::json::array();
+        ListMethods::Out out;
 
         for (const auto& handler : handlers)
         {
-          methods.push_back(handler.first);
+          out.methods.push_back(handler.first);
         }
 
-        std::sort(methods.begin(), methods.end());
+        std::sort(out.methods.begin(), out.methods.end());
 
-        return jsonrpc::success(methods);
+        return jsonrpc::success(out);
       };
 
+      register_schema<GetSchema>(GeneralProcs::GET_SCHEMA);
       auto get_schema = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetSchema::In>();
 
@@ -329,10 +336,6 @@ namespace ccf
 
         return jsonrpc::success(out);
       };
-
-      register_schema<void, GetCommit::Out>(GeneralProcs::GET_COMMIT);
-      register_schema<void, GetTxHist::Out>(GeneralProcs::GET_TX_HIST);
-      register_schema<GetSchema>(GeneralProcs::GET_SCHEMA);
 
       install(GeneralProcs::GET_COMMIT, get_commit, Read);
       install(GeneralProcs::GET_TX_HIST, get_tx_hist, Read);
