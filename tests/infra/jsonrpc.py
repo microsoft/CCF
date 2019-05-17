@@ -102,17 +102,19 @@ class Response:
         return d
 
     def _from_parsed(self, parsed):
-        def decode(sl):
-            if hasattr(sl, "decode"):
+        def decode(sl, is_key=False):
+            if is_key and hasattr(sl, "decode"):
                 return sl.decode()
-            elif hasattr(sl, "items"):
-                return {decode(k): decode(v) for k, v in sl.items()}
+            if hasattr(sl, "items"):
+                return {decode(k, is_key=True): decode(v) for k, v in sl.items()}
             elif isinstance(sl, list):
                 return [decode(e) for e in sl]
             else:
                 return sl
 
-        parsed_s = {decode(attr): decode(value) for attr, value in parsed.items()}
+        parsed_s = {
+            decode(attr, is_key=True): decode(value) for attr, value in parsed.items()
+        }
         unexpected = parsed_s.keys() - self._attrs
         if unexpected:
             raise ValueError("Unexpected keys in response: {}".format(unexpected))

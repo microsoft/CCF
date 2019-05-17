@@ -72,7 +72,7 @@ def run(args):
                         "id": current_term,
                         "msg": "This log is committed in term {}".format(current_term),
                     },
-                    "OK",
+                    b"OK",
                 )
                 commit_index = res.commit
 
@@ -101,7 +101,7 @@ def run(args):
                         {"id": current_term, "msg": "This should not be committed"},
                     )
                     res = c.response(id)
-                    if res.result == "OK":
+                    if res.result == b"OK":
                         assert False, "It should not be possible to commit any entries!"
                     else:
                         if args.leader_forwarding:

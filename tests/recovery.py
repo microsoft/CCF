@@ -31,23 +31,6 @@ class Txs:
             self.priv[i] = "Private msg #{}".format(i)
 
 
-def wait_for_node_commit_sync(nodes):
-    """
-    Wait for commit level to get in sync on all nodes. This is expected to
-    happen once CFTR has been established, in the absence of new transactions.
-    """
-    for _ in range(MAX_GET_STATUS_RETRY):
-        commits = []
-        for node in nodes:
-            with node.management_client() as c:
-                id = c.request("getCommit", {})
-                commits.append(c.response(id).commit)
-        if [commits[0]] * len(commits) == commits:
-            break
-        time.sleep(1)
-    assert [commits[0]] * len(commits) == commits, "All nodes at the same commit"
-
-
 def check_nodes_have_msgs(nodes, txs):
     """
     Read and check values for messages at an offset. This effectively
@@ -56,9 +39,9 @@ def check_nodes_have_msgs(nodes, txs):
     for node in nodes:
         with node.user_client() as c:
             for n, msg in txs.priv.items():
-                c.do("LOG_get", {"id": n}, msg)
+                c.do("LOG_get", {"id": n}, msg.encode())
             for n, msg in txs.pub.items():
-                c.do("LOG_get_pub", {"id": n}, msg)
+                c.do("LOG_get_pub", {"id": n}, msg.encode())
 
 
 def log_msgs(primary, txs):
@@ -110,7 +93,7 @@ def set_recovery_nodes(primary, followers):
         id = c.request("setRecoveryNodes", recovery_rpc)
         r = c.response(id).result
         with open("networkcert.pem", "w") as nc:
-            nc.write(r)
+            nc.write(r.decode())
 
 
 def run(args):
@@ -129,8 +112,8 @@ def run(args):
             check = infra.ccf.Checker()
 
             rs = log_msgs(primary, txs)
-            check_responses(rs, "OK", check, check_commit)
-            wait_for_node_commit_sync(network.nodes)
+            check_responses(rs, b"OK", check, check_commit)
+            network.wait_for_node_commit_sync()
             check_nodes_have_msgs(followers, txs)
 
             ledger = primary.remote.get_ledger()
@@ -152,7 +135,7 @@ def run(args):
                 check_commit = infra.ccf.Checker(mc)
                 check = infra.ccf.Checker()
 
-                wait_for_state(primary, "awaitingRecovery")
+                wait_for_state(primary, b"awaitingRecovery")
                 set_recovery_nodes(primary, followers)
 
                 network.generate_join_rpc(primary)
@@ -160,8 +143,8 @@ def run(args):
                     node.join_network()
 
                 LOG.success("Public CFTR started")
-                wait_for_node_commit_sync(network.nodes)
-                wait_for_state(primary, "partOfPublicNetwork")
+                network.wait_for_node_commit_sync()
+                wait_for_state(primary, b"partOfPublicNetwork")
 
                 LOG.debug(
                     "2/3 members verify that the new nodes have joined the network"
@@ -208,7 +191,7 @@ def run(args):
                 )
 
                 for node in network.nodes:
-                    wait_for_state(node, "partOfNetwork")
+                    wait_for_state(node, b"partOfNetwork")
                 LOG.success("All nodes part of network")
 
                 for _ in range(MAX_GET_STATUS_RETRY):
@@ -216,7 +199,7 @@ def run(args):
                         with primary.management_client() as c:
                             id = c.request("getSignedIndex", {})
                             r = c.response(id).result
-                            if r.get("state") == "partOfNetwork":
+                            if r.get("state") == b"partOfNetwork":
                                 break
                     except ConnectionRefusedError:
                         pass
@@ -238,8 +221,8 @@ def run(args):
                 new_txs = Txs(args.msgs_per_recovery, recovery_idx + 1)
 
                 rs = log_msgs(primary, new_txs)
-                check_responses(rs, "OK", check, check_commit)
-                wait_for_node_commit_sync(network.nodes)
+                check_responses(rs, b"OK", check, check_commit)
+                network.wait_for_node_commit_sync()
                 check_nodes_have_msgs(followers, new_txs)
 
                 ledger = primary.remote.get_ledger()

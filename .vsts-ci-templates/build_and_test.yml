@@ -33,3 +33,15 @@ steps:
     ls *_test | xargs -n1 -I '{}' sh -c 'printf "\n*** Binary: {} ***\n "; llvm-cov-7 report -object {} -instr-profile {}.profdata -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)"'
   displayName: Coverage
   workingDirectory: build
+
+- script: |
+    ../tests/coverage/generate_coverage.sh
+  displayName: CoverageGeneration
+  workingDirectory: build
+
+- task: PublishCodeCoverageResults@1
+  inputs:
+    codeCoverageTool: Cobertura
+    summaryFileLocation: '$(System.DefaultWorkingDirectory)/build/coverage.xml'
+    reportDirectory: '$(System.DefaultWorkingDirectory)/build/coverage'
+  condition: succeededOrFailed()
