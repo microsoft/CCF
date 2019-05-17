@@ -15,9 +15,13 @@ namespace ccf
   DECLARE_REQUIRED_JSON_FIELDS(
     JoinNetworkNodeToNode::Out, id, network_secrets, version)
 
-  DECLARE_REQUIRED_JSON_FIELDS(GetSchema::In, method)
-  DECLARE_REQUIRED_JSON_FIELDS(GetSchema::Out, params_schema, result_schema)
+  DECLARE_REQUIRED_JSON_FIELDS(GetCommit::In)
+  DECLARE_OPTIONAL_JSON_FIELDS(GetCommit::In, commit)
   DECLARE_REQUIRED_JSON_FIELDS(GetCommit::Out, term, commit)
+
   DECLARE_REQUIRED_JSON_FIELDS(
     GetTxHist::Out, low, high, overflow, underflow, histogram)
+
+  DECLARE_REQUIRED_JSON_FIELDS(GetSchema::In, method)
+  DECLARE_REQUIRED_JSON_FIELDS(GetSchema::Out, params_schema, result_schema)
 }

@@ -224,18 +224,9 @@ namespace ccf
       can_forward(can_forward_)
     {
       auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
-        kv::Version commit;
+        const auto in = params.get<GetCommit::In>();
 
-        if (
-          params.is_array() && (params.size() > 0) &&
-          params[0].is_number_unsigned())
-        {
-          commit = params[0];
-        }
-        else
-        {
-          commit = tables.commit_version();
-        }
+        kv::Version commit = in.commit.value_or(tables.commit_version());
 
         update_raft();
 
@@ -339,9 +330,9 @@ namespace ccf
         return jsonrpc::success(out);
       };
 
-      register_schema<GetSchema>(GeneralProcs::GET_SCHEMA);
       register_schema<void, GetCommit::Out>(GeneralProcs::GET_COMMIT);
       register_schema<void, GetTxHist::Out>(GeneralProcs::GET_TX_HIST);
+      register_schema<GetSchema>(GeneralProcs::GET_SCHEMA);
 
       install(GeneralProcs::GET_COMMIT, get_commit, Read);
       install(GeneralProcs::GET_TX_HIST, get_tx_hist, Read);

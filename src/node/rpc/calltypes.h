@@ -21,6 +21,11 @@ namespace ccf
 
   struct GetCommit
   {
+    struct In
+    {
+      std::optional<int64_t> commit = std::nullopt;
+    };
+
     struct Out
     {
       uint64_t term;
