@@ -30,6 +30,8 @@
 #include <atomic>
 #include <chrono>
 #include <nlohmann/json.hpp>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <stdexcept>
 #include <unordered_set>
 #include <vector>
@@ -626,11 +628,12 @@ namespace ccf
           }
           else
           {
-            std::stringstream ss;
-            for (auto c : parsed_quote.identity.unique_id)
-              ss << std::hex << std::setw(2) << std::setfill('0')
-                 << static_cast<int>(c);
-            quote["parsed"]["mrenclave"] = ss.str();
+            quote["parsed"]["mrenclave"] = fmt::format(
+              "{0:x}",
+              fmt::join(
+                std::begin(parsed_quote.identity.unique_id),
+                std::end(parsed_quote.identity.unique_id),
+                ""));
           }
 #endif
           quotes[std::to_string(nid)] = quote;
