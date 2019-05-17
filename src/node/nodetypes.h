@@ -19,7 +19,7 @@ namespace ccf
   {
     channel_msg = 0,
     consensus_msg,
-    frontend_msg
+    forwarded_msg
   };
 
   // Types of channel messages
@@ -31,7 +31,7 @@ namespace ccf
   };
 
   // Types of frontend messages
-  enum FrontendMsg : Node2NodeMsg
+  enum ForwardedMsg : Node2NodeMsg
   {
     forwarded_cmd = 0,
     forwarded_response
@@ -53,9 +53,9 @@ namespace ccf
   };
 
   // Frontend-specific header for forwarding
-  struct FrontendHeader
+  struct ForwardedHeader
   {
-    FrontendMsg msg;
+    ForwardedMsg msg;
     NodeId from_node;
   };
 #pragma pack(pop)

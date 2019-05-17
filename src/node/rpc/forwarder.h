@@ -66,7 +66,7 @@ namespace ccf
       serialized::write(data_, size_, rpc_ctx.session_id);
       serialized::write(data_, size_, data.data(), data.size());
 
-      FrontendHeader msg = {FrontendMsg::forwarded_cmd, from};
+      ForwardedHeader msg = {ForwardedMsg::forwarded_cmd, from};
 
       return n2n_channels->send_encrypted(to, plain, msg);
     }
@@ -74,8 +74,8 @@ namespace ccf
     std::optional<std::pair<FwdContext, std::vector<uint8_t>>>
     recv_forwarded_command(const uint8_t* data, size_t size)
     {
-      const auto& msg = serialized::overlay<FrontendHeader>(data, size);
-      if (msg.msg != FrontendMsg::forwarded_cmd)
+      const auto& msg = serialized::overlay<ForwardedHeader>(data, size);
+      if (msg.msg != ForwardedMsg::forwarded_cmd)
       {
         LOG_FAIL << "Invalid forwarded message" << std::endl;
         return {};
@@ -112,7 +112,8 @@ namespace ccf
       serialized::write(data_, size_, fwd_ctx.session_id);
       serialized::write(data_, size_, data.data(), data.size());
 
-      FrontendHeader msg = {FrontendMsg::forwarded_response, fwd_ctx.leader_id};
+      ForwardedHeader msg = {ForwardedMsg::forwarded_response,
+                             fwd_ctx.leader_id};
 
       return n2n_channels->send_encrypted(fwd_ctx.forwarder_id, plain, msg);
     }
@@ -120,8 +121,8 @@ namespace ccf
     std::optional<std::pair<size_t, std::vector<uint8_t>>>
     recv_forwarded_response(const uint8_t* data, size_t size)
     {
-      const auto& msg = serialized::overlay<FrontendHeader>(data, size);
-      if (msg.msg != FrontendMsg::forwarded_response)
+      const auto& msg = serialized::overlay<ForwardedHeader>(data, size);
+      if (msg.msg != ForwardedMsg::forwarded_response)
       {
         LOG_FAIL << "Invalid forwarded response message" << std::endl;
         return {};
@@ -151,11 +152,11 @@ namespace ccf
     {
       serialized::skip(data, size, sizeof(ccf::NodeMsgType));
 
-      auto frontend_msg = serialized::peek<ccf::FrontendMsg>(data, size);
+      auto forwarded_msg = serialized::peek<ccf::ForwardedMsg>(data, size);
 
-      switch (frontend_msg)
+      switch (forwarded_msg)
       {
-        case ccf::FrontendMsg::forwarded_cmd:
+        case ccf::ForwardedMsg::forwarded_cmd:
         {
           if (rpc_map)
           {
@@ -182,7 +183,7 @@ namespace ccf
           break;
         }
 
-        case ccf::FrontendMsg::forwarded_response:
+        case ccf::ForwardedMsg::forwarded_response:
         {
           auto rep = recv_forwarded_response(data, size);
           if (!rep.has_value())
@@ -206,7 +207,7 @@ namespace ccf
 
         default:
         {
-          LOG_FAIL << "Unknown frontend msg type: " << frontend_msg
+          LOG_FAIL << "Unknown frontend msg type: " << forwarded_msg
                    << std::endl;
           break;
         }

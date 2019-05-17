@@ -149,7 +149,7 @@ namespace enclave
 
             if (
               serialized::peek<ccf::NodeMsgType>(p, psize) ==
-              ccf::NodeMsgType::frontend_msg)
+              ccf::NodeMsgType::forwarded_msg)
             {
               cmd_forwarder->recv_message(p, psize);
             }
