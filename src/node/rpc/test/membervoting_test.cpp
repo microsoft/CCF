@@ -148,8 +148,10 @@ TEST_CASE("Member query/read")
     do
     {
       Store::Tx tx;
-      const Response<int> r = frontend.process_json(
+      auto rep = frontend.process_json(
         tx, mcert, mid, create_json_req(query_params(query, compile), "query"));
+      CHECK(rep.has_value());
+      const Response<int> r = rep.value();
       CHECK(r.result == value);
       compile = !compile;
     } while (!compile);
@@ -164,8 +166,10 @@ TEST_CASE("Member query/read")
 
     Store::Tx tx1;
     check_error(
-      frontend.process_json(
-        tx1, {}, 0, create_json_req(query_params(query, true), "query")),
+      frontend
+        .process_json(
+          tx1, {}, 0, create_json_req(query_params(query, true), "query"))
+        .value(),
       ErrorCodes::SCRIPT_ERROR);
   }
 
@@ -180,7 +184,7 @@ TEST_CASE("Member query/read")
     auto read_call_j =
       create_json_req(read_params<int>(key, Tables::VALUES), "read");
     auto response = frontend.process_json(tx1, mcert, mid, read_call_j);
-    Response<int> r = response;
+    Response<int> r = response.value();
     CHECK(r.result == value);
   }
 
@@ -196,7 +200,7 @@ TEST_CASE("Member query/read")
     auto read_call_j =
       create_json_req(read_params<int>(wrong_key, Tables::VALUES), "read");
     check_error(
-      frontend.process_json(tx1, mcert, mid, read_call_j),
+      frontend.process_json(tx1, mcert, mid, read_call_j).value(),
       ErrorCodes::INVALID_PARAMS);
   }
 
@@ -210,7 +214,8 @@ TEST_CASE("Member query/read")
     auto read_call_j =
       create_json_req(read_params<int>(key, Tables::VALUES), "read");
     check_error(
-      frontend.process_json(tx1, {}, 0, read_call_j), ErrorCodes::SCRIPT_ERROR);
+      frontend.process_json(tx1, {}, 0, read_call_j).value(),
+      ErrorCodes::SCRIPT_ERROR);
   }
 }
 
@@ -273,7 +278,7 @@ TEST_CASE("Add new members until there are 7, then reject")
     {
       Store::Tx tx;
       Response<Proposal::Out> r =
-        frontend.process_json(tx, member_caller, 0, proposej);
+        frontend.process_json(tx, member_caller, 0, proposej).value();
       // the proposal should be accepted, but not succeed immediately
       CHECK(r.result.id == proposal_id);
       CHECK(r.result.completed == false);
@@ -294,7 +299,7 @@ TEST_CASE("Add new members until there are 7, then reject")
 
     // vote from second member
     Store::Tx tx;
-    Response<bool> r = frontend.process_json(tx, voter, 1, votej);
+    Response<bool> r = frontend.process_json(tx, voter, 1, votej).value();
     if (new_member.id < max_members)
     {
       // vote should succeed
@@ -387,7 +392,7 @@ TEST_CASE("Accept node")
     auto read_values_j =
       create_json_req(read_params<int>(node_id, Tables::NODES), "read");
     Response<NodeInfo> r =
-      frontend.process_json(tx, mcert0, mid0, read_values_j);
+      frontend.process_json(tx, mcert0, mid0, read_values_j).value();
     CHECK(r.result.status == NodeStatus::PENDING);
   }
   // m0 proposes adding new node
@@ -401,7 +406,7 @@ TEST_CASE("Accept node")
 
     Store::Tx tx;
     Response<Proposal::Out> r =
-      frontend.process_json(tx, mcert0, mid0, proposej);
+      frontend.process_json(tx, mcert0, mid0, proposej).value();
     CHECK(!r.result.completed);
     CHECK(r.result.id == 0);
   }
@@ -414,7 +419,7 @@ TEST_CASE("Accept node")
 
     json votej = create_json_req(Vote{0, vote_ballot}, "vote");
     Store::Tx tx;
-    check_success(frontend.process_json(tx, mcert1, mid1, votej));
+    check_success(frontend.process_json(tx, mcert1, mid1, votej).value());
   }
   // check node exists with status pending
   {
@@ -422,7 +427,7 @@ TEST_CASE("Accept node")
     auto read_values_j =
       create_json_req(read_params<int>(node_id, Tables::NODES), "read");
     Response<NodeInfo> r =
-      frontend.process_json(tx, mcert0, mid0, read_values_j);
+      frontend.process_json(tx, mcert0, mid0, read_values_j).value();
     CHECK(r.result.status == NodeStatus::TRUSTED);
   }
 }
@@ -450,8 +455,10 @@ bool test_raw_writes(
     const uint8_t proposer_id = 0;
     json proposej = create_json_req(proposal, "propose");
     Store::Tx tx;
-    Response<Proposal::Out> r = frontend.process_json(
-      tx, vector<uint8_t>{proposer_id}, proposer_id, proposej);
+    Response<Proposal::Out> r =
+      frontend
+        .process_json(tx, vector<uint8_t>{proposer_id}, proposer_id, proposej)
+        .value();
     CHECK(r.result.completed == (n_members == 1));
     CHECK(r.result.id == proposal_id);
     if (r.result.completed)
@@ -464,7 +471,8 @@ bool test_raw_writes(
     json votej = create_json_req(Vote{proposal_id, vote}, "vote");
     Store::Tx tx;
     check_success(
-      frontend.process_json(tx, vector<uint8_t>{uint8_t(i)}, i, votej), false);
+      frontend.process_json(tx, vector<uint8_t>{uint8_t(i)}, i, votej).value(),
+      false);
   }
   // pro votes (proposer also votes)
   bool completed = false;
@@ -476,14 +484,15 @@ bool test_raw_writes(
     if (!completed)
     {
       completed =
-        Response<bool>(frontend.process_json(tx, vector<uint8_t>{i}, i, votej))
+        Response<bool>(
+          frontend.process_json(tx, vector<uint8_t>{i}, i, votej).value())
           .result;
     }
     else
     {
       // proposal does not exist anymore, because it completed -> invalid params
       check_error(
-        frontend.process_json(tx, vector<uint8_t>{i}, i, votej),
+        frontend.process_json(tx, vector<uint8_t>{i}, i, votej).value(),
         ErrorCodes::INVALID_PARAMS);
     }
   }
@@ -604,7 +613,7 @@ TEST_CASE("Remove proposal")
 
     Store::Tx tx;
     Response<Proposal::Out> r =
-      frontend.process_json(tx, member_caller, 0, proposej);
+      frontend.process_json(tx, member_caller, 0, proposej).value();
     CHECK(r.result.id == proposal_id);
     CHECK(!r.result.completed);
   }
@@ -622,7 +631,7 @@ TEST_CASE("Remove proposal")
     param["id"] = wrong_proposal_id;
     json removalj = create_json_req(param, "removal");
     check_error(
-      frontend.process_json(tx, member_caller, 0, removalj),
+      frontend.process_json(tx, member_caller, 0, removalj).value(),
       ErrorCodes::INVALID_PARAMS);
   }
   SUBCASE("Attempt remove proposal that you didn't propose")
@@ -632,7 +641,7 @@ TEST_CASE("Remove proposal")
     param["id"] = proposal_id;
     json removalj = create_json_req(param, "removal");
     check_error(
-      frontend.process_json(tx, caller.cert, 1, removalj),
+      frontend.process_json(tx, caller.cert, 1, removalj).value(),
       ErrorCodes::INVALID_REQUEST);
   }
   SUBCASE("Successfully remove proposal")
@@ -641,7 +650,8 @@ TEST_CASE("Remove proposal")
     json param;
     param["id"] = proposal_id;
     json removalj = create_json_req(param, "removal");
-    check_success(frontend.process_json(tx, member_caller, 0, removalj));
+    check_success(
+      frontend.process_json(tx, member_caller, 0, removalj).value());
     // check that the proposal doesn't exist anymore
     {
       Store::Tx tx;
@@ -663,7 +673,8 @@ TEST_CASE("Complete proposal after initial rejection")
       "return Calls:call('raw_puts', Puts:put('values', 999, 999))"s;
     const auto proposej = create_json_req(Proposal::In{proposal}, "propose");
     Store::Tx tx;
-    Response<Proposal::Out> r = frontend.process_json(tx, m0, 0, proposej);
+    Response<Proposal::Out> r =
+      frontend.process_json(tx, m0, 0, proposej).value();
     CHECK(r.result.completed == false);
   }
   // vote that rejects initially
@@ -674,14 +685,14 @@ TEST_CASE("Complete proposal after initial rejection")
     )xxx");
     const auto votej = create_json_req(Vote{0, vote}, "vote");
     Store::Tx tx;
-    check_success(frontend.process_json(tx, m1, 1, votej), false);
+    check_success(frontend.process_json(tx, m1, 1, votej).value(), false);
   }
   // try to complete
   {
     const auto completej = create_json_req(ProposalAction{0}, "complete");
     Store::Tx tx;
     check_error(
-      frontend.process_json(tx, m1, 1, completej), ErrorCodes::DENIED);
+      frontend.process_json(tx, m1, 1, completej).value(), ErrorCodes::DENIED);
   }
   // put value that makes vote agree
   {
@@ -693,7 +704,7 @@ TEST_CASE("Complete proposal after initial rejection")
   {
     const auto completej = create_json_req(ProposalAction{0}, "complete");
     Store::Tx tx;
-    check_success(frontend.process_json(tx, m1, 1, completej));
+    check_success(frontend.process_json(tx, m1, 1, completej).value());
   }
 }
 
@@ -716,7 +727,8 @@ TEST_CASE("Add user via proposed call")
   json proposej = create_json_req(Proposal::In{proposal, user_cert}, "propose");
 
   Store::Tx tx;
-  Response<Proposal::Out> r = frontend.process_json(tx, Cert{0}, 0, proposej);
+  Response<Proposal::Out> r =
+    frontend.process_json(tx, Cert{0}, 0, proposej).value();
   CHECK(r.result.completed);
   CHECK(r.result.id == 0);
 

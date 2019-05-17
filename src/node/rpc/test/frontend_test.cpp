@@ -279,7 +279,7 @@ TEST_CASE("MinimalHandleFuction")
   Store::Tx txs;
 
   nlohmann::json response =
-    frontend.process_json(txs, user_caller, caller_id, echo_call);
+    frontend.process_json(txs, user_caller, caller_id, echo_call).value();
   CHECK(response[jsonrpc::RESULT] == echo_call[jsonrpc::PARAMS]);
 }
 
@@ -296,14 +296,14 @@ TEST_CASE("process_json")
   SUBCASE("with out")
   {
     nlohmann::json response =
-      frontend.process_json(txs, user_caller, caller_id, simple_call);
+      frontend.process_json(txs, user_caller, caller_id, simple_call).value();
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
   }
   SUBCASE("with signature")
   {
     auto signed_call = create_signed_json();
     nlohmann::json response =
-      frontend.process_json(txs, user_caller, caller_id, signed_call);
+      frontend.process_json(txs, user_caller, caller_id, signed_call).value();
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
   }
 #ifndef DISABLE_CLIENT_SIGNATURE_VERIFICATION
@@ -311,7 +311,8 @@ TEST_CASE("process_json")
   {
     auto signed_call = create_signed_json();
     nlohmann::json response =
-      frontend.process_json(txs, invalid_caller, inval_caller_id, signed_call);
+      frontend.process_json(txs, invalid_caller, inval_caller_id, signed_call)
+        .value();
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
       static_cast<int16_t>(jsonrpc::ErrorCodes::INVALID_CLIENT_SIGNATURE));
