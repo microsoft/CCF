@@ -14,10 +14,8 @@ namespace ccf
   static constexpr auto TABLE = "table";
   static constexpr auto OBJECTS = "objects";
 
-  // available methods
   struct GeneralProcs
   {
-    // allows checking term and commit indices
     static constexpr auto GET_COMMIT = "getCommit";
     static constexpr auto GET_TX_HIST = "getTxHist";
     static constexpr auto MK_SIGN = "mkSign";
@@ -30,6 +28,7 @@ namespace ccf
     static constexpr auto JOIN_NETWORK = "joinNetwork";
     static constexpr auto GET_SIGNED_INDEX = "getSignedIndex";
     static constexpr auto SET_RECOVERY_NODES = "setRecoveryNodes";
+    static constexpr auto GET_QUOTES = "getQuotes";
   };
 
   struct MemberProcs

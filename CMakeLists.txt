@@ -316,6 +316,15 @@ if(BUILD_TESTS)
       ${RECOVERY_ARGS}
   )
 
+  add_test(
+    NAME governance_tests
+    COMMAND
+      ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/governance.py
+      -b .
+      ${CCF_NETWORK_TEST_ARGS}
+      --oesign ${OESIGN}
+  )
+
   if(BUILD_SMALLBANK)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
   endif()
