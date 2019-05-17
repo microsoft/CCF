@@ -78,32 +78,15 @@ def run(args):
 
                 LOG.debug("Write/Read large messages on leader")
                 with primary.user_client(format="json") as c:
-                    long_msg = "X" * 16384
-                    check_commit(
-                        c.rpc("LOG_record", {"id": 44, "msg": long_msg}), result="OK"
-                    )
-                    check(c.rpc("LOG_get", {"id": 44}), result=long_msg)
-
-                with primary.user_client(format="json") as c:
-                    long_msg = "X" * 16384 * 2
-                    check_commit(
-                        c.rpc("LOG_record", {"id": 45, "msg": long_msg}), result="OK"
-                    )
-                    check(c.rpc("LOG_get", {"id": 45}), result=long_msg)
-
-                with primary.user_client(format="json") as c:
-                    long_msg = "X" * 16384 * 4
-                    check_commit(
-                        c.rpc("LOG_record", {"id": 46, "msg": long_msg}), result="OK"
-                    )
-                    check(c.rpc("LOG_get", {"id": 46}), result=long_msg)
-
-                with primary.user_client(format="json") as c:
-                    long_msg = "X" * 16384 * 8
-                    check_commit(
-                        c.rpc("LOG_record", {"id": 47, "msg": long_msg}), result="OK"
-                    )
-                    check(c.rpc("LOG_get", {"id": 47}), result=long_msg)
+                    id = 44
+                    for p in range(14, 20):
+                        long_msg = "X" * (2 ** p)
+                        check_commit(
+                            c.rpc("LOG_record", {"id": id, "msg": long_msg}),
+                            result="OK",
+                        )
+                        check(c.rpc("LOG_get", {"id": id}), result=long_msg)
+                    id += 1
 
 
 if __name__ == "__main__":
