@@ -5,33 +5,20 @@
 
 namespace ccf
 {
-  template <typename T>
-  struct IsStdOptional : std::false_type
-  {};
-
-  template <typename T>
-  struct IsStdOptional<std::optional<T>> : std::true_type
-  {};
-
-  template <typename T>
-  nlohmann::json schema_properties_element()
+  namespace
   {
-    if constexpr (IsStdOptional<T>::value)
-    {
-      return schema_properties_element<typename T::value_type>();
-    }
-    else
-    {
-      return nullptr;
-    }
-  }
+    template <typename T, template <typename...> class U>
+    struct is_specialization : std::false_type
+    {};
 
-  template <>
-  inline nlohmann::json schema_properties_element<nlohmann::json>()
-  {
-    // Any field that contains more json is completely unconstrained
-    return nlohmann::json::object();
-  }
+    template <template <typename...> class T, typename... Args>
+    struct is_specialization<T<Args...>, T> : std::true_type
+    {};
+
+    template <typename T>
+    struct dependent_false : public std::false_type
+    {};
+  };
 
   template <typename T>
   inline nlohmann::json schema_properties_element_numeric()
@@ -43,30 +30,42 @@ namespace ccf
     return element;
   }
 
-  template <>
-  inline nlohmann::json schema_properties_element<size_t>()
+  template <typename T>
+  nlohmann::json schema_properties_element()
   {
-    return schema_properties_element_numeric<size_t>();
-  }
-
-  template <>
-  inline nlohmann::json schema_properties_element<int>()
-  {
-    return schema_properties_element_numeric<int>();
-  }
-
-  template <>
-  inline nlohmann::json schema_properties_element<long>()
-  {
-    return schema_properties_element_numeric<long>();
-  }
-
-  template <>
-  inline nlohmann::json schema_properties_element<std::string>()
-  {
-    nlohmann::json element;
-    element["type"] = "string";
-    return element;
+    if constexpr (is_specialization<T, std::optional>::value)
+    {
+      return schema_properties_element<typename T::value_type>();
+    }
+    else if constexpr (is_specialization<T, std::vector>::value)
+    {
+      nlohmann::json element;
+      element["type"] = "array";
+      element["items"] = schema_properties_element<typename T::value_type>();
+      return element;
+    }
+    else if constexpr (std::is_same<T, std::string>::value)
+    {
+      nlohmann::json element;
+      element["type"] = "string";
+      return element;
+    }
+    else if constexpr (std::is_same<T, nlohmann::json>::value)
+    {
+      // Any field that contains more json is completely unconstrained
+      return nlohmann::json::object();
+    }
+    else if constexpr (std::is_integral<T>::value)
+    {
+      return schema_properties_element_numeric<T>();
+    }
+    else
+    {
+      static_assert(
+        dependent_false<T>::value,
+        "Unsupported type - can't create schema element");
+      return nullptr;
+    }
   }
 
   template <
