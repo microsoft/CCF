@@ -49,7 +49,7 @@ def run(args):
                 check_commit = infra.ccf.Checker(mc)
                 check = infra.ccf.Checker()
                 r = mc.rpc("getQuotes", {})
-                mrenclave = r.result["quotes"]["0"]["mrenclave"].decode()
+                mrenclave = r.result["quotes"]["0"]["parsed"]["mrenclave"].decode()
 
                 oed = subprocess.run(
                     [args.oesign, "dump", "-e", f"{args.package}.so.signed"],

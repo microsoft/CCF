@@ -620,8 +620,9 @@ namespace ccf
             oe_parse_report(ni.quote.data(), ni.quote.size(), &parsed_quote);
           if (res != OE_OK)
           {
-            LOG_FAIL << "Failed to parse quote: " << oe_result_str(res)
-                     << std::endl;
+            std::stringstream ss;
+            ss << "Failed to parse quote: " << oe_result_str(res);
+            quote["error"] = ss.str();
           }
           else
           {
@@ -629,7 +630,7 @@ namespace ccf
             for (auto c : parsed_quote.identity.unique_id)
               ss << std::hex << std::setw(2) << std::setfill('0')
                  << static_cast<int>(c);
-            quote["mrenclave"] = ss.str();
+            quote["parsed"]["mrenclave"] = ss.str();
           }
 #endif
           quotes[std::to_string(nid)] = quote;

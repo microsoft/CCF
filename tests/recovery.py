@@ -18,7 +18,7 @@ import functools
 from loguru import logger as LOG
 
 # Maximum number of retries of getCommit/getSignedIndex before test failure
-MAX_GET_STATUS_RETRY = 5
+MAX_GET_STATUS_RETRY = 3
 
 
 class Txs:
@@ -110,7 +110,7 @@ def set_recovery_nodes(primary, followers):
         id = c.request("setRecoveryNodes", recovery_rpc)
         r = c.response(id).result
         with open("networkcert.pem", "w") as nc:
-            nc.write(r)
+            nc.write(r.decode())
 
 
 def run(args):
@@ -152,7 +152,7 @@ def run(args):
                 check_commit = infra.ccf.Checker(mc)
                 check = infra.ccf.Checker()
 
-                wait_for_state(primary, "awaitingRecovery")
+                wait_for_state(primary, b"awaitingRecovery")
                 set_recovery_nodes(primary, followers)
 
                 network.generate_join_rpc(primary)
@@ -161,7 +161,7 @@ def run(args):
 
                 LOG.success("Public CFTR started")
                 wait_for_node_commit_sync(network.nodes)
-                wait_for_state(primary, "partOfPublicNetwork")
+                wait_for_state(primary, b"partOfPublicNetwork")
 
                 LOG.debug(
                     "2/3 members verify that the new nodes have joined the network"
@@ -208,7 +208,7 @@ def run(args):
                 )
 
                 for node in network.nodes:
-                    wait_for_state(node, "partOfNetwork")
+                    wait_for_state(node, b"partOfNetwork")
                 LOG.success("All nodes part of network")
 
                 for _ in range(MAX_GET_STATUS_RETRY):
@@ -216,7 +216,7 @@ def run(args):
                         with primary.management_client() as c:
                             id = c.request("getSignedIndex", {})
                             r = c.response(id).result
-                            if r.get("state") == "partOfNetwork":
+                            if r.get("state") == b"partOfNetwork":
                                 break
                     except ConnectionRefusedError:
                         pass
