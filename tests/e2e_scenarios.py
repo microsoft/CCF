@@ -77,7 +77,7 @@ def run(args):
                         )
 
                     elif tx.get("expected_result") is not None:
-                        check(r, result=tx.get("expected_result"))
+                        check(r, result=tx.get("expected_result").encode())
 
                     else:
                         check(r, result=lambda res: res is not None)

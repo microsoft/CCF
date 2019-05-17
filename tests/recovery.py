@@ -18,7 +18,7 @@ import functools
 from loguru import logger as LOG
 
 # Maximum number of retries of getCommit/getSignedIndex before test failure
-MAX_GET_STATUS_RETRY = 3
+MAX_GET_STATUS_RETRY = 5
 
 
 class Txs:
@@ -56,9 +56,9 @@ def check_nodes_have_msgs(nodes, txs):
     for node in nodes:
         with node.user_client() as c:
             for n, msg in txs.priv.items():
-                c.do("LOG_get", {"id": n}, msg)
+                c.do("LOG_get", {"id": n}, msg.encode())
             for n, msg in txs.pub.items():
-                c.do("LOG_get_pub", {"id": n}, msg)
+                c.do("LOG_get_pub", {"id": n}, msg.encode())
 
 
 def log_msgs(primary, txs):
@@ -129,7 +129,7 @@ def run(args):
             check = infra.ccf.Checker()
 
             rs = log_msgs(primary, txs)
-            check_responses(rs, "OK", check, check_commit)
+            check_responses(rs, b"OK", check, check_commit)
             wait_for_node_commit_sync(network.nodes)
             check_nodes_have_msgs(followers, txs)
 
@@ -238,7 +238,7 @@ def run(args):
                 new_txs = Txs(args.msgs_per_recovery, recovery_idx + 1)
 
                 rs = log_msgs(primary, new_txs)
-                check_responses(rs, "OK", check, check_commit)
+                check_responses(rs, b"OK", check, check_commit)
                 wait_for_node_commit_sync(network.nodes)
                 check_nodes_have_msgs(followers, new_txs)
 

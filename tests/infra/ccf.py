@@ -283,8 +283,6 @@ class Network:
                 if res.error is None:
                     leader_id = res.result["leader_id"]
                     term = res.term
-                    LOG.error(leader_id)
-                    LOG.error(term)
                     break
                 else:
                     assert (
