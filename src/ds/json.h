@@ -19,13 +19,26 @@ struct JsonField
   char const* name;
 };
 
-template <typename T>
-struct IsStdOptional : std::false_type
-{};
+namespace std
+{
+  template <typename T>
+  inline void to_json(nlohmann::json& j, const std::optional<T>& t)
+  {
+    if (t.has_value())
+    {
+      j = t.value();
+    }
+  }
 
-template <typename T>
-struct IsStdOptional<std::optional<T>> : std::true_type
-{};
+  template <typename T>
+  inline void from_json(const nlohmann::json& j, std::optional<T>& t)
+  {
+    if (!j.is_null())
+    {
+      t = j.get<T>();
+    }
+  }
+}
 
 /** Template specialisation must happen in the correct namespace, so
 NAMESPACE_CONTAINS_JSON_TYPES must be stated within a namespace to use
@@ -51,6 +64,7 @@ DECLARE_JSON_REQUIRED_FIELDS.
     typename = std::enable_if_t<RequiredJsonFields<T>::value>> \
   inline void to_json(nlohmann::json& j, const T& t) \
   { \
+    j = nlohmann::json::object(); \
     write_fields<T, true>(j, t); \
     if constexpr (OptionalJsonFields<T>::value) \
     { \
@@ -63,6 +77,10 @@ DECLARE_JSON_REQUIRED_FIELDS.
     typename = std::enable_if_t<RequiredJsonFields<T>::value>> \
   inline void from_json(const nlohmann::json& j, T& t) \
   { \
+    if (!j.is_object()) \
+    { \
+      throw std::invalid_argument("Expected object, found: " + j.dump()); \
+    } \
     read_fields<T, true>(j, t); \
     if constexpr (OptionalJsonFields<T>::value) \
     { \
@@ -182,14 +200,7 @@ namespace ccf
   { \
     if (t.FIELD != t_default.FIELD) \
     { \
-      if constexpr (IsStdOptional<decltype(TYPE::FIELD)>::value) \
-      { \
-        j[#FIELD] = t.FIELD.get(); \
-      } \
-      else \
-      { \
-        j[#FIELD] = t.FIELD; \
-      } \
+      j[#FIELD] = t.FIELD; \
     } \
   }
 #define WRITE_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
@@ -213,14 +224,7 @@ namespace ccf
     const auto it = j.find(#FIELD); \
     if (it != j.end()) \
     { \
-      if constexpr (IsStdOptional<decltype(TYPE::FIELD)>::value) \
-      { \
-        t.FIELD = it->get<typename decltype(TYPE::FIELD)::value_type>(); \
-      } \
-      else \
-      { \
-        t.FIELD = it->get<decltype(TYPE::FIELD)>(); \
-      } \
+      t.FIELD = it->get<decltype(TYPE::FIELD)>(); \
     } \
   }
 #define READ_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
