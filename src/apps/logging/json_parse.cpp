@@ -46,6 +46,32 @@ namespace ccf
     stream << "c: " << bar.c << std::endl;
     return stream;
   }
+
+  struct Buzz
+  {
+    std::optional<size_t> a = std::nullopt;
+    std::optional<size_t> b = 2;
+  };
+  DECLARE_REQUIRED_JSON_FIELDS(Buzz);
+  DECLARE_OPTIONAL_JSON_FIELDS(Buzz, a, b);
+
+  std::ostream& operator<<(std::ostream& stream, const Buzz& buzz)
+  {
+    stream << "a: ";
+    if (buzz.a.has_value())
+      stream << buzz.a.value();
+    else
+      stream << "EMPTY";
+    stream << std::endl;
+
+    stream << "b: ";
+    if (buzz.b.has_value())
+      stream << buzz.b.value();
+    else
+      stream << "EMPTY";
+    stream << std::endl;
+    return stream;
+  }
 }
 
 using namespace ccf;
@@ -122,6 +148,30 @@ int main(int argc, char** argv)
       nlohmann::json j3 = baz;
       std::cout << j3.dump(2) << std::endl;
     }
+  }
+
+  {
+    nlohmann::json j = nlohmann::json::object();
+    std::cout << j.dump(2) << std::endl;
+    std::cout << j.get<Buzz>() << std::endl;
+
+    j["a"] = 5;
+    std::cout << j.dump(2) << std::endl;
+    std::cout << j.get<Buzz>() << std::endl;
+
+    j["b"] = 3;
+    std::cout << j.dump(2) << std::endl;
+    std::cout << j.get<Buzz>() << std::endl;
+
+    Buzz buzz;
+    std::cout << buzz << std::endl;
+    nlohmann::json j2 = buzz;
+    std::cout << j2 << std::endl;
+
+    buzz.a = 42;
+    std::cout << buzz << std::endl;
+    nlohmann::json j3 = buzz;
+    std::cout << j3 << std::endl;
   }
 
   {
