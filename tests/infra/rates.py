@@ -17,7 +17,7 @@ class TxRates:
         self.same_commit_count = 0
         self.histogram_data = {}
         self.tx_rates_data = []
-        self.save_metrics = {}
+        self.all_metrics = {}
         self.commit = 0
 
     def process_next(self):
@@ -38,34 +38,41 @@ class TxRates:
         return True
 
     def print_results(self):
+        print()
+        print("----------- tx rates -----------")
+        print()
         print("----- mean ----: " + str(mean(self.tx_rates_data)))
         print("----- harmonic mean ----: " + str(harmonic_mean(self.tx_rates_data)))
         print("---- standard deviation ----: " + str(pstdev(self.tx_rates_data)))
         print("----- median ----: " + str(median(self.tx_rates_data)))
         print("---- max ----: " + str(max(self.tx_rates_data)))
         print("---- min ----: " + str(min(self.tx_rates_data)))
-        print(json.dumps(self.data, indent=4))
+        print()
+        print("----------- tx rates histogram -----------")
+        print()
+        print(json.dumps(self.histogram_data, indent=4))
 
     def save_results(self):
-        with open("tx_rates.json", "w") as file:
-            file.write(self.save_metrics)
+        with open("tx_rates.json", "w") as mfile:
+            json.dump(self.all_metrics, mfile)
 
     def _get_metrics(self):
         with self.primary.user_client(format="json") as client:
             rv = client.rpc("getMetrics", {})
             result = rv.to_dict()
             result = result["result"]["metrics"]
-            self.save_metrics = result
+            self.all_metrics = result
 
+            all_rates = []
+            all_durations = []
             if "tx_rates" in result:
                 rates = result["tx_rates"]
                 if rates is None:
                     LOG.info("No tx rate metrics found...")
                 else:
                     for key in rates:
-                        if rates[key]["rate"] > 1000:
-                            all_rates.append(rates[key]["rate"])
-                            all_durations.append(float(rates[key]["duration"]))
+                        all_rates.append(rates[key]["rate"])
+                        all_durations.append(float(rates[key]["duration"]))
                     self.tx_rates_data = all_rates
 
             else:

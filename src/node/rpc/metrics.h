@@ -64,7 +64,6 @@ namespace metrics
 
     nlohmann::json get_metrics()
     {
-      LOG_INFO << "ticks: " << tick_count << std::endl;
       nlohmann::json result;
       result["histogram"] = get_histogram_results();
       result["tx_rates"] = get_tx_rates();
