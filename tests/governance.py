@@ -17,6 +17,7 @@ import e2e_args
 
 from loguru import logger as LOG
 
+
 def run(args):
     hosts = ["localhost", "localhost"]
 

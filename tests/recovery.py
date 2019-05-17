@@ -20,6 +20,7 @@ from loguru import logger as LOG
 # Maximum number of retries of getCommit/getSignedIndex before test failure
 MAX_GET_STATUS_RETRY = 3
 
+
 class Txs:
     def __init__(self, nb_msgs, offset=0):
         self.pub = {}
@@ -28,6 +29,7 @@ class Txs:
         for i in range(offset * nb_msgs, nb_msgs + offset * nb_msgs):
             self.pub[i] = "Public msg #{}".format(i)
             self.priv[i] = "Private msg #{}".format(i)
+
 
 def check_nodes_have_msgs(nodes, txs):
     """
