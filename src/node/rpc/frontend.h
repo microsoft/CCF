@@ -136,13 +136,12 @@ namespace ccf
       return caller_id;
     }
 
-    nlohmann::json forward_or_redirect_json(
+    std::optional<nlohmann::json> forward_or_redirect_json(
       jsonrpc::SeqNo id, bool is_forwarded = false)
     {
       if (cmd_forwarder && !is_forwarded)
       {
-        return jsonrpc::error_response(
-          id, jsonrpc::RPC_FORWARDED, "RPC forwarded to leader");
+        return {};
       }
       else
       {
@@ -377,11 +376,8 @@ namespace ccf
       auto rep =
         process_json(tx, rpc_ctx.caller, caller_id.value(), rpc.second, false);
 
-      // If necessary, redirect the RPC to the leader
-      // TODO: Can we do something better here? i.e. return code
-      if (
-        rep.find(jsonrpc::ERR) != rep.end() &&
-        rep[jsonrpc::ERR][jsonrpc::CODE] == jsonrpc::RPC_FORWARDED)
+      // If necessary, forward the RPC to the current leader
+      if (!rep.has_value())
       {
         auto leader_id = raft->leader();
         auto local_id = raft->id();
@@ -393,7 +389,7 @@ namespace ccf
         {
           return jsonrpc::pack(
             jsonrpc::error_response(
-              rep[jsonrpc::ID],
+              rep->at(jsonrpc::ID),
               jsonrpc::ErrorCodes::RPC_NOT_FORWARDED,
               "RPC could not be forwarded to leader."),
             pack.value());
@@ -407,12 +403,13 @@ namespace ccf
         }
       }
 
-      return jsonrpc::pack(rep, pack.value());
+      return jsonrpc::pack(rep.value(), pack.value());
     }
 
     /** Process a serialised input that has been forwarded from another node
      *
-     * This function assumes that the forwarded message contains the caller id.
+     * This function assumes that fwd_ctx contains the caller_id as read by the
+     * forwarding follower.
      *
      * @param fwd_ctx Context for this forwarded RPC
      * @param input Serialised JSON RPC
@@ -449,7 +446,7 @@ namespace ccf
           jsonrpc::error_response(
             0,
             jsonrpc::ErrorCodes::INVALID_REQUEST,
-            "Empty request (forwarded)."),
+            "Empty forwarded request."),
           jsonrpc::Pack::Text);
 
       auto rpc = unpack_json(input, pack.value());
@@ -457,11 +454,17 @@ namespace ccf
         return jsonrpc::pack(rpc.second, pack.value());
 
       auto rep = process_json(tx, caller, fwd_ctx.caller_id, rpc.second, true);
+      if (!rep.has_value())
+      {
+        // This should never be called when process_json is called with
+        // is_forwarded = True
+        throw std::logic_error("Forwarded RPC cannot be forwarded");
+      }
 
-      return jsonrpc::pack(rep, pack.value());
+      return jsonrpc::pack(rep.value(), pack.value());
     }
 
-    nlohmann::json process_json(
+    std::optional<nlohmann::json> process_json(
       Store::Tx& tx,
       const CBuffer& caller,
       CallerId caller_id,

@@ -175,6 +175,9 @@ namespace ccf
               LOG_FAIL << "Could not send forwarded response to "
                        << fwd->first.forwarder_id << std::endl;
             }
+
+            LOG_DEBUG << "Sending forwarded response to "
+                      << fwd->first.forwarder_id << std::endl;
           }
           break;
         }
