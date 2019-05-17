@@ -78,6 +78,9 @@ if(BUILD_TESTS)
   add_unit_test(map_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
+  add_unit_test(json_schema
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp)
+
   add_unit_test(kv_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
@@ -323,10 +326,4 @@ if(BUILD_TESTS)
   if (EXTENSIVE_TESTS)
     set_tests_properties(recovery_tests PROPERTIES TIMEOUT 2000)
   endif()
-
-
-
-  
-  add_executable(json_parse
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/json_parse.cpp)
 endif()
