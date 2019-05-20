@@ -9,8 +9,7 @@ namespace ccf
   class ManagementRpcFrontend : public RpcFrontend
   {
   public:
-    ManagementRpcFrontend(Store& tables, NodeState& node) :
-      RpcFrontend(tables, false)
+    ManagementRpcFrontend(Store& tables, NodeState& node) : RpcFrontend(tables)
     {
       auto start = [&node](RequestArgs& args) {
         auto result = node.start_network(args.tx, args.params);

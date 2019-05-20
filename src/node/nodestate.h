@@ -19,7 +19,6 @@
 #include "kv/replicator.h"
 #include "networkstate.h"
 #include "nodetonode.h"
-#include "notifier.h"
 #include "rpc/consts.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
@@ -126,7 +125,6 @@ namespace ccf
     enclave::RPCSessions& rpcsessions;
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
-    Notifier& notifier;
 
     //
     // join protocol
@@ -160,15 +158,13 @@ namespace ccf
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
-      enclave::RPCSessions& rpcsessions,
-      Notifier& notifier) :
+      enclave::RPCSessions& rpcsessions) :
       sm(State::uninitialized),
       self(INVALID_ID),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
-      rpcsessions(rpcsessions),
-      notifier(notifier)
+      rpcsessions(rpcsessions)
     {
       ::EverCrypt_AutoConfig2_init();
     }
@@ -880,14 +876,14 @@ namespace ccf
 #endif
     }
 
-    bool node_msg(const std::vector<uint8_t>& data)
+    void node_msg(const std::vector<uint8_t>& data)
     {
       // Only process messages once part of network
       if (
         !sm.check(State::partOfNetwork) &&
         !sm.check(State::partOfPublicNetwork))
       {
-        return false;
+        return;
       }
 
       auto p = data.data();
@@ -912,7 +908,6 @@ namespace ccf
         default:
         {}
       }
-      return true;
     }
 
     bool pbft_msg(const uint8_t* data, size_t size)

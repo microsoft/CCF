@@ -12,7 +12,7 @@ namespace ccf
   public:
     NodesCallRpcFrontend(
       Store& tables, AbstractNodeState& node, NetworkState& network) :
-      RpcFrontend(tables, nullptr, tables.get<Certs>(Tables::NODE_CERTS), false)
+      RpcFrontend(tables, nullptr, tables.get<Certs>(Tables::NODE_CERTS))
     {
       auto accept = [&node, &network](RequestArgs& args) {
         if (!node.is_leader())
