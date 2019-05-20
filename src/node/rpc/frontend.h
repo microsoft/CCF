@@ -73,10 +73,7 @@ namespace ccf
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
     bool can_forward;
     bool request_storing_disabled = false;
-
-#ifdef METRICS
     metrics::Metrics metrics;
-#endif
 
     void update_raft()
     {
@@ -213,11 +210,7 @@ namespace ccf
       };
 
       auto get_metrics = [this](Store::Tx& tx, const nlohmann::json& params) {
-#ifdef METRICS
         auto result = metrics.get_metrics();
-#else
-        auto result = nlohmann::json::object();
-#endif
         return jsonrpc::success(GetMetrics::Out{result});
       };
 
@@ -645,9 +638,7 @@ namespace ccf
 
     void tick(std::chrono::milliseconds elapsed) override
     {
-#ifdef METRICS
       metrics.track_tx_rates(elapsed, tx_count);
-#endif
       // reset tx_counter for next tick interval
       tx_count = 0;
       // TODO(#refactoring): move this to NodeState::tick

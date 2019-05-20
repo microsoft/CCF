@@ -8,7 +8,7 @@
 #define HIST_MAX (1 << 17)
 #define HIST_MIN 1
 #define HIST_BUCKET_GRANULARITY 5
-#define TX_RATES 4000
+#define TX_RATE_BUCKETS_LEN 4000
 
 namespace metrics
 {
@@ -16,8 +16,8 @@ namespace metrics
   {
   private:
     size_t tick_count = 0;
-    double tx_time_passed[TX_RATES] = {};
-    int tx_rates[TX_RATES] = {};
+    double tx_time_passed[TX_RATE_BUCKETS_LEN] = {};
+    size_t tx_rates[TX_RATE_BUCKETS_LEN] = {};
     std::chrono::milliseconds rate_time_elapsed = std::chrono::milliseconds(0);
     using Hist =
       histogram::Histogram<int, HIST_MIN, HIST_MAX, HIST_BUCKET_GRANULARITY>;
@@ -48,7 +48,7 @@ namespace metrics
     nlohmann::json get_tx_rates()
     {
       nlohmann::json result;
-      for (int i = 0; i < TX_RATES; ++i)
+      for (size_t i = 0; i < TX_RATE_BUCKETS_LEN; ++i)
       {
         if (tx_rates[i] > 0)
         {
@@ -60,8 +60,6 @@ namespace metrics
     }
 
   public:
-    ~Metrics() {}
-
     nlohmann::json get_metrics()
     {
       nlohmann::json result;
@@ -82,7 +80,7 @@ namespace metrics
       rate_time_elapsed += elapsed;
       if (tx_rate > 0)
       {
-        if (tick_count < TX_RATES)
+        if (tick_count < TX_RATE_BUCKETS_LEN)
         {
           auto rate_duration = rate_time_elapsed.count() / 1000.0;
           tx_rates[tick_count] = tx_rate;

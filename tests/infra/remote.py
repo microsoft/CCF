@@ -97,6 +97,7 @@ class SSHRemote(CmdMixin):
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.root = os.path.join("/tmp", tmpdir_name(name))
+        self.name = name
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
@@ -166,7 +167,9 @@ class SSHRemote(CmdMixin):
             for filename in ("err", "out"):
                 try:
                     filepath = os.path.join(self.root, filename)
-                    local_filepath = "{}_{}".format(self.hostname, filename)
+                    local_filepath = "{}_{}_{}".format(
+                        self.hostname, filename, self.name
+                    )
                     session.get(filepath, local_filepath)
                     LOG.info("Downloaded {}".format(local_filepath))
                 except Exception:
@@ -191,7 +194,10 @@ class SSHRemote(CmdMixin):
         """
         LOG.info("[{}] closing".format(self.hostname))
         self.get_logs()
-        log_errors("{}_out".format(self.hostname), "{}_err".format(self.hostname))
+        log_errors(
+            "{}_out_{}".format(self.hostname, self.name),
+            "{}_err_{}".format(self.hostname, self.name),
+        )
         self.client.close()
 
     def restart(self):
@@ -336,7 +342,7 @@ class LocalRemote(CmdMixin):
         for _ in range(timeout):
             with open(os.path.join(self.root, "out"), "rb") as out:
                 for out_line in out:
-                    if out_line.strip().decode() == line.strip():
+                    if line.strip() in out_line.strip().decode():
                         return
             time.sleep(1)
         raise ValueError(

@@ -20,6 +20,26 @@ class TxRates:
         self.all_metrics = {}
         self.commit = 0
 
+    def __str__(self):
+        out_list = ["----------- tx rates -----------"]
+        out_list.append("----- mean ----: " + str(mean(self.tx_rates_data)))
+        out_list.append(
+            "----- harmonic mean ----: " + str(harmonic_mean(self.tx_rates_data))
+        )
+        out_list.append(
+            "---- standard deviation ----: " + str(pstdev(self.tx_rates_data))
+        )
+        out_list.append("----- median ----: " + str(median(self.tx_rates_data)))
+        out_list.append("---- max ----: " + str(max(self.tx_rates_data)))
+        out_list.append("---- min ----: " + str(min(self.tx_rates_data)))
+        out_list.append("----------- tx rates histogram -----------")
+        out_list.append(json.dumps(self.histogram_data, indent=4))
+        return "\n".join(out_list)
+
+    def save_results(self, output_file):
+        with open(output_file, "w") as mfile:
+            json.dump(self.all_metrics, mfile)
+
     def process_next(self):
         with self.primary.user_client(format="json") as client:
             rv = client.rpc("getCommit", {})
@@ -37,25 +57,6 @@ class TxRates:
             return False
         return True
 
-    def print_results(self):
-        print()
-        print("----------- tx rates -----------")
-        print()
-        print("----- mean ----: " + str(mean(self.tx_rates_data)))
-        print("----- harmonic mean ----: " + str(harmonic_mean(self.tx_rates_data)))
-        print("---- standard deviation ----: " + str(pstdev(self.tx_rates_data)))
-        print("----- median ----: " + str(median(self.tx_rates_data)))
-        print("---- max ----: " + str(max(self.tx_rates_data)))
-        print("---- min ----: " + str(min(self.tx_rates_data)))
-        print()
-        print("----------- tx rates histogram -----------")
-        print()
-        print(json.dumps(self.histogram_data, indent=4))
-
-    def save_results(self):
-        with open("tx_rates.json", "w") as mfile:
-            json.dump(self.all_metrics, mfile)
-
     def _get_metrics(self):
         with self.primary.user_client(format="json") as client:
             rv = client.rpc("getMetrics", {})
@@ -65,23 +66,19 @@ class TxRates:
 
             all_rates = []
             all_durations = []
-            if "tx_rates" in result:
-                rates = result["tx_rates"]
-                if rates is None:
-                    LOG.info("No tx rate metrics found...")
-                else:
-                    for key in rates:
-                        all_rates.append(rates[key]["rate"])
-                        all_durations.append(float(rates[key]["duration"]))
-                    self.tx_rates_data = all_rates
-
-            else:
+            rates = result.get("tx_rates")
+            if rates is None:
                 LOG.info("No tx rate metrics found...")
+            else:
+                for key in rates:
+                    all_rates.append(rates[key]["rate"])
+                    all_durations.append(float(rates[key]["duration"]))
+                self.tx_rates_data = all_rates
 
-            if "histogram" not in result:
+            histogram = result.get("histogram")
+            if histogram is None:
                 LOG.info("No histogram metrics found...")
             else:
-                histogram = result["histogram"]
                 histogram_buckets = histogram["buckets"]
 
                 LOG.info("Filtering histogram results...")
@@ -92,13 +89,10 @@ class TxRates:
                         range_1, range_2 = key.split("..")
                         hist_data[int(range_1)] = (range_2, histogram_buckets[key])
 
-                ordered_data = collections.OrderedDict(
-                    sorted(hist_data.items(), key=lambda x: x[0])
-                )
                 self.histogram_data["histogram"] = {}
                 buckets = []
                 rates = []
-                for key, value_tuple in ordered_data.items():
+                for key, value_tuple in sorted(hist_data.items(), key=lambda x: x[0]):
                     self.histogram_data["histogram"][
                         str(key) + ".." + value_tuple[0]
                     ] = value_tuple[1]

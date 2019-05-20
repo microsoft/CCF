@@ -327,15 +327,6 @@ if(BUILD_TESTS)
 
   if(BUILD_SMALLBANK)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
-    add_test(
-      NAME remote_client_test
-      COMMAND
-        ${PYTHON} ${CMAKE_SOURCE_DIR}/samples/apps/smallbank/tests/small_bank_client.py
-        -b .
-        ${CCF_NETWORK_TEST_ARGS}
-         "-c" "./small_bank_client" "-i" ${TEST_ITERATIONS}
-        -cn localhost
-    )
   endif()
 
   if (EXTENSIVE_TESTS)
