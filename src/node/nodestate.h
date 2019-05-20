@@ -414,8 +414,6 @@ namespace ccf
       network.secrets = std::make_unique<NetworkSecrets>(
         "CN=The CA", std::make_unique<Seal>(writer_factory), false);
       accept_member_connections();
-      auto r = std::make_shared<kv::NullReplicator>();
-      network.tables->set_replicator(r);
       setup_store();
     }
 

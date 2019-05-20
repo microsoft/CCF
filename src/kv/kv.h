@@ -1427,8 +1427,8 @@ namespace kv
       auto cv = current_version();
       if (cv != (v - 1))
       {
-        LOG_DEBUG << "Tried to deserialise " << v << " but current_version is "
-                  << cv << std::endl;
+        LOG_FAIL << "Tried to deserialise " << v << " but current_version is "
+                 << cv << std::endl;
         return DeserialiseSuccess::FAILED;
       }
 
@@ -1447,22 +1447,24 @@ namespace kv
         auto search = maps.find(map_name);
         if (search == maps.end())
         {
-          LOG_DEBUG << "No such map: " << map_name << std::endl;
+          LOG_FAIL << "No such map: " << map_name << " at version " << v
+                   << std::endl;
           return DeserialiseSuccess::FAILED;
         }
 
         auto view_search = views.find(map_name);
         if (view_search != views.end())
         {
-          LOG_DEBUG << "Multiple writes on " << map_name << std::endl;
+          LOG_FAIL << "Multiple writes on " << map_name << " at version " << v
+                   << std::endl;
           return DeserialiseSuccess::FAILED;
         }
 
         auto view = search->second->create_view(v);
         if (!view->deserialise(d, v))
         {
-          LOG_DEBUG << "Could not deserialise Tx for map " << map_name
-                    << std::endl;
+          LOG_FAIL << "Could not deserialise Tx for map " << map_name
+                   << " at version " << v << std::endl;
           return DeserialiseSuccess::FAILED;
         }
 
@@ -1472,14 +1474,15 @@ namespace kv
 
       if (!d.end())
       {
-        LOG_DEBUG << "Unexpected content in Tx" << std::endl;
+        LOG_FAIL << "Unexpected content in Tx at version " << v << std::endl;
         return DeserialiseSuccess::FAILED;
       }
 
       auto c = Tx::commit(views, [v]() { return v; });
       if (!c.has_value())
       {
-        LOG_DEBUG << "Failed to commit deserialised Tx" << std::endl;
+        LOG_FAIL << "Failed to commit deserialised Tx at version " << v
+                 << std::endl;
         return DeserialiseSuccess::FAILED;
       }
 

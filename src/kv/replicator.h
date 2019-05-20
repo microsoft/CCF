@@ -44,26 +44,25 @@ namespace kv
     {
       return 0;
     }
-  };
 
-  class NullReplicator : public Replicator
-  {
-  public:
-    bool replicate(
-      const std::vector<std::tuple<Version, std::vector<uint8_t>, bool>>&
-        entries) override
+    NodeId leader() override
+    {
+      return 1;
+    }
+
+    NodeId id() override
+    {
+      return 0;
+    }
+
+    kv::Term get_term(kv::Version version) override
+    {
+      return 2;
+    }
+
+    bool is_leader() override
     {
       return true;
-    }
-
-    kv::Term get_term() override
-    {
-      return 0;
-    }
-
-    kv::Version get_commit_idx() override
-    {
-      return 0;
     }
   };
 
@@ -97,6 +96,26 @@ namespace kv
     kv::Version get_commit_idx() override
     {
       return 0;
+    }
+
+    NodeId leader() override
+    {
+      return 1;
+    }
+
+    NodeId id() override
+    {
+      return 0;
+    }
+
+    kv::Term get_term(kv::Version version) override
+    {
+      return 2;
+    }
+
+    bool is_leader() override
+    {
+      return true;
     }
   };
 
@@ -151,6 +170,44 @@ namespace kv
     kv::Version get_commit_idx() override
     {
       return 0;
+    }
+
+    NodeId leader() override
+    {
+      return 1;
+    }
+
+    NodeId id() override
+    {
+      return 0;
+    }
+
+    kv::Term get_term(kv::Version version) override
+    {
+      return 2;
+    }
+
+    bool is_leader() override
+    {
+      return true;
+    }
+  };
+
+  class FollowerStubReplicator : public StubReplicator
+  {
+  public:
+    bool is_leader() override
+    {
+      return false;
+    }
+  };
+
+  class LeaderStubReplicator : public StubReplicator
+  {
+  public:
+    bool is_leader() override
+    {
+      return true;
     }
   };
 }

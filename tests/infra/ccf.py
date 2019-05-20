@@ -300,6 +300,7 @@ class Network:
         for _ in range(3):
             commits = []
             for node in self.nodes:
+                LOG.info("Talking to node {}".format(node.node_id))
                 with node.management_client() as c:
                     id = c.request("getCommit", {})
                     commits.append(c.response(id).commit)

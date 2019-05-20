@@ -65,8 +65,8 @@ namespace ccf
     Certs* certs;
     std::optional<Handler> default_handler;
     std::unordered_map<std::string, Handler> handlers;
-    Consensus* raft;
-    std::shared_ptr<Forwarder> cmd_forwarder;
+    kv::Replicator* raft;
+    std::shared_ptr<AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
     size_t sig_max_tx = 1000;
     size_t tx_count = 0;
@@ -77,10 +77,9 @@ namespace ccf
 
     void update_raft()
     {
-      if (raft == nullptr)
+      if (raft != tables.get_replicator().get())
       {
-        auto replicator = tables.get_replicator();
-        raft = dynamic_cast<Consensus*>(replicator.get());
+        raft = tables.get_replicator().get();
       }
     }
 
@@ -258,7 +257,7 @@ namespace ccf
       ms_to_sig = sig_max_ms;
     }
 
-    void set_cmd_forwarder(std::shared_ptr<Forwarder> cmd_forwarder_)
+    void set_cmd_forwarder(std::shared_ptr<AbstractForwarder> cmd_forwarder_)
     {
       cmd_forwarder = cmd_forwarder_;
     }
@@ -359,28 +358,28 @@ namespace ccf
       // If necessary, forward the RPC to the current leader
       if (!rep.has_value())
       {
-        auto leader_id = raft->leader();
-        auto local_id = raft->id();
+        if (raft != nullptr)
+        {
+          auto leader_id = raft->leader();
+          auto local_id = raft->id();
 
-        if (
-          leader_id != NoNode &&
-          !cmd_forwarder->forward_command(
-            rpc_ctx, local_id, leader_id, caller_id.value(), input))
-        {
-          return jsonrpc::pack(
-            jsonrpc::error_response(
-              rep->at(jsonrpc::ID),
-              jsonrpc::ErrorCodes::RPC_NOT_FORWARDED,
-              "RPC could not be forwarded to leader."),
-            pack.value());
+          if (
+            leader_id != NoNode &&
+            cmd_forwarder->forward_command(
+              rpc_ctx, local_id, leader_id, caller_id.value(), input))
+          {
+            // Indicate that the RPC has been forwarded to leader
+            LOG_DEBUG << "RPC forwarded to leader " << leader_id << std::endl;
+            rpc_ctx.is_forwarded = true;
+            return {};
+          }
         }
-        else
-        {
-          // Indicate that the RPC has been forwarded to leader
-          LOG_DEBUG << "RPC forwarded to leader " << leader_id << std::endl;
-          rpc_ctx.is_forwarded = true;
-          return {};
-        }
+        return jsonrpc::pack(
+          jsonrpc::error_response(
+            0,
+            jsonrpc::ErrorCodes::RPC_NOT_FORWARDED,
+            "RPC could not be forwarded to leader."),
+          pack.value());
       }
 
       return jsonrpc::pack(rep.value(), pack.value());
@@ -633,6 +632,7 @@ namespace ccf
       // reset tx_counter for next tick interval
       tx_count = 0;
       // TODO(#refactoring): move this to NodeState::tick
+      update_raft();
       if ((raft != nullptr) && raft->is_leader())
       {
         if (elapsed < ms_to_sig)
