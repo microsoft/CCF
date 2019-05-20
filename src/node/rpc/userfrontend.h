@@ -12,8 +12,7 @@ namespace ccf
       RpcFrontend(
         tables_,
         tables_.get<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES),
-        tables_.get<Certs>(Tables::USER_CERTS),
-        true)
+        tables_.get<Certs>(Tables::USER_CERTS))
     {}
   };
 }

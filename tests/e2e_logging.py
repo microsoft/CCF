@@ -49,32 +49,13 @@ def run(args):
 
                 LOG.debug("Write/Read on follower")
                 with follower.user_client(format="json") as c:
-                    # In the case of leader forwarding, record the follower's current commit index
-                    if args.leader_forwarding:
-                        id = c.request("getCommit", {})
-                        commit_before = c.response(id).commit
-
-                    check(
-                        c.rpc("LOG_record", {"id": 0, "msg": follower_msg}),
-                        error=lambda e: e["code"]
-                        == (
-                            infra.jsonrpc.ErrorCode.RPC_FORWARDED
-                            if args.leader_forwarding
-                            else infra.jsonrpc.ErrorCode.TX_NOT_LEADER
-                        ),
+                    check_commit(
+                        c.rpc("LOG_record", {"id": 100, "msg": follower_msg}),
+                        result="OK",
                     )
+                    check(c.rpc("LOG_get", {"id": 100}), result=follower_msg)
+
                     check(c.rpc("LOG_get", {"id": 42}), result=msg)
-
-                    if args.leader_forwarding:
-                        # In the case of leader forwarding, wait until the forwarded transaction
-                        # has been replicated before reading record
-                        for _ in range(network.replication_delay):
-                            id = c.request("getCommit", {})
-                            if c.response(id).commit >= commit_before + 2:
-                                break
-                            time.sleep(1)
-
-                        check(c.rpc("LOG_get", {"id": 0}), result=follower_msg)
 
                 LOG.debug("Write/Read large messages on leader")
                 with primary.user_client(format="json") as c:

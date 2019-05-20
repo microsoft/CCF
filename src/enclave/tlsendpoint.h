@@ -153,8 +153,8 @@ namespace enclave
       // MBEDTLS_ERR_SSL_WANT_READ. Probably hit a size limit - try again
       if (exact && (total < up_to))
       {
-        LOG_INFO << "Asked for exactly " << up_to << ", received " << total
-                 << ", retrying" << std::endl;
+        LOG_DEBUG << "Asked for exactly " << up_to << ", received " << total
+                  << ", retrying" << std::endl;
         read_buffer = move(data);
         return read(up_to, exact);
       }

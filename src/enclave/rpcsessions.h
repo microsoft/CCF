@@ -78,6 +78,20 @@ namespace enclave
       sessions.insert(std::make_pair(id, std::move(session)));
     }
 
+    void reply_forwarded(size_t id, const std::vector<uint8_t>& data)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+
+      auto search = sessions.find(id);
+      if (search == sessions.end())
+      {
+        throw std::logic_error(
+          "reply forwarded for unknown session: " + std::to_string(id));
+      }
+
+      search->second->send(data);
+    }
+
     void remove_session(size_t id)
     {
       std::lock_guard<SpinLock> guard(lock);

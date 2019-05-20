@@ -93,28 +93,13 @@ def run(args):
                 nodes_to_stop
             )
         )
-        for _ in range(max_election_duration):
-            for node in network.get_running_nodes():
-                with node.user_client() as c:
-                    id = c.request(
-                        "LOG_record",
-                        {"id": current_term, "msg": "This should not be committed"},
-                    )
-                    res = c.response(id)
-                    if res.result == b"OK":
-                        assert False, "It should not be possible to commit any entries!"
-                    else:
-                        if args.leader_forwarding:
-                            assert (
-                                res.error["code"]
-                                == infra.jsonrpc.ErrorCode.RPC_FORWARDED.value
-                            ), "RPC error code is not RPC_FORWARDED"
-                        else:
-                            assert (
-                                res.error["code"]
-                                == infra.jsonrpc.ErrorCode.TX_NOT_LEADER.value
-                            ), "RPC error code is not TX_NOT_LEADER"
-            time.sleep(1)
+        try:
+            leader, current_term = network.find_leader()
+            assert False, "Leader should not be found"
+        except AssertionError:
+            LOG.info(
+                "As expected, leader could not be found after election timeout. Test ended successfully."
+            )
 
 
 if __name__ == "__main__":
