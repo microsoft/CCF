@@ -194,48 +194,9 @@ namespace enclave
       if (status != ready)
         return;
 
-      if (pending_write.size() > 0)
-      {
-        auto r = write_some(pending_write);
+      pending_write.insert(pending_write.end(), data.begin(), data.end());
 
-        if (r > 0)
-        {
-          pending_write.erase(pending_write.begin(), pending_write.begin() + r);
-        }
-        else if (r < 0)
-        {
-          LOG_DEBUG << "TLS " << session_id << " on send: " << strerror(r)
-                    << std::endl;
-          stop(error);
-          return;
-        }
-
-        if (pending_write.size() > 0)
-        {
-          pending_write.insert(pending_write.end(), data.begin(), data.end());
-          return;
-        }
-      }
-
-      if (data.size() == 0)
-        return;
-
-      auto r = write_some(data);
-
-      if (r == (int)data.size())
-      {
-        // No need to store any pending write.
-      }
-      else if (r >= 0)
-      {
-        pending_write.insert(pending_write.end(), data.begin() + r, data.end());
-      }
-      else
-      {
-        LOG_DEBUG << "TLS " << session_id << " on send: " << strerror(r)
-                  << std::endl;
-        stop(error);
-      }
+      flush();
     }
 
     void send_buffered(const std::vector<uint8_t>& data)
@@ -250,7 +211,7 @@ namespace enclave
       if (status != ready)
         return;
 
-      if (pending_write.size() > 0)
+      while (pending_write.size() > 0)
       {
         auto r = write_some(pending_write);
 
@@ -258,7 +219,11 @@ namespace enclave
         {
           pending_write.erase(pending_write.begin(), pending_write.begin() + r);
         }
-        else if (r < 0)
+        else if (r == 0)
+        {
+          break;
+        }
+        else
         {
           LOG_DEBUG << "TLS " << session_id << " on flush: " << strerror(r)
                     << std::endl;

@@ -17,23 +17,6 @@ import e2e_args
 from loguru import logger as LOG
 
 
-def wait_for_node_commit_sync(nodes):
-    """
-    Wait for commit level to get in sync on all nodes. This is expected to
-    happen once CFTR has been established, in the absence of new transactions.
-    """
-    for _ in range(3):
-        commits = []
-        for node in nodes:
-            with node.management_client() as c:
-                id = c.request("getCommit", {})
-                commits.append(c.response(id).commit)
-        if [commits[0]] * len(commits) == commits:
-            break
-        time.sleep(1)
-    assert [commits[0]] * len(commits) == commits, "All nodes at the same commit"
-
-
 def run(args):
     hosts = ["localhost", "localhost"]
 
@@ -76,11 +59,15 @@ def run(args):
 
                 LOG.debug("Write/Read large messages on leader")
                 with primary.user_client(format="json") as c:
-                    long_msg = "X" * 16384
-                    check_commit(
-                        c.rpc("LOG_record", {"id": 44, "msg": long_msg}), result="OK"
-                    )
-                    check(c.rpc("LOG_get", {"id": 44}), result=long_msg)
+                    id = 44
+                    for p in range(14, 20):
+                        long_msg = "X" * (2 ** p)
+                        check_commit(
+                            c.rpc("LOG_record", {"id": id, "msg": long_msg}),
+                            result="OK",
+                        )
+                        check(c.rpc("LOG_get", {"id": id}), result=long_msg)
+                    id += 1
 
 
 if __name__ == "__main__":
