@@ -590,7 +590,7 @@ namespace ccf
       const nlohmann::json& full_rpc,
       bool is_forwarded)
     {
-      SignedRequest signed_request;
+      SignedReq signed_request;
       return verify_client_signature(
         tx, caller, caller_id, full_rpc, is_forwarded, signed_request);
     }
@@ -601,7 +601,7 @@ namespace ccf
       const CallerId& caller_id,
       const nlohmann::json& full_rpc,
       bool is_forwarded,
-      SignedRequest& signed_request)
+      SignedReq& signed_request)
     {
       if (!client_signatures)
         return false;
