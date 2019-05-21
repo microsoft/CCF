@@ -1,0 +1,23 @@
+# validate this file:
+#   curl --data-binary @.codecov.yml https://codecov.io/validate
+
+codecov:
+  comment: on
+
+coverage:
+  range: "70...100"
+  round: nearest
+  precision: 2
+  status:
+    project:
+      default: false
+      ccf:
+        target: 70%
+
+comment:
+  layout: "diff, flags, files"
+  behavior: default
+  require_changes: false
+  require_base: no
+  require_head: yes
+
