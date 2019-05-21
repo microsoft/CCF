@@ -96,7 +96,8 @@ public:
     auto empty_function = [this](RequestArgs& args) {
       return jsonrpc::success();
     };
-    // Note that this a Write function
+    // Note that this a Write function so that a follower executing this command
+    // will forward it to the leader
     install("empty_function", empty_function, Write);
   }
 };
@@ -499,12 +500,10 @@ TEST_CASE("Forwarding")
   TestForwardingFrontEnd frontend_follower(*network.tables);
   TestForwardingFrontEnd frontend_leader(*network2.tables);
 
-  // Set forwarder and replicator for follower frontend
   auto follower_forwarder = std::make_shared<StubForwarder>();
   auto follower_replicator = std::make_shared<kv::FollowerStubReplicator>();
   network.tables->set_replicator(follower_replicator);
 
-  // Set replicator for leader frontend
   auto leader_replicator = std::make_shared<kv::LeaderStubReplicator>();
   network2.tables->set_replicator(leader_replicator);
 
