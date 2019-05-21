@@ -12,6 +12,7 @@ namespace kv
 {
   using Version = int64_t;
   using Term = uint64_t;
+  using NodeId = uint64_t;
   static const Version NoVersion = std::numeric_limits<Version>::min();
 
   enum CommitSuccess
@@ -51,7 +52,13 @@ namespace kv
         entries) = 0;
     virtual Term get_term() = 0; // TODO(#api): this ought to have a more
                                  // abstract name than Term
+
+    virtual Term get_term(Version version) = 0;
     virtual Version get_commit_idx() = 0;
+
+    virtual NodeId leader() = 0;
+    virtual NodeId id() = 0;
+    virtual bool is_leader() = 0;
   };
 
   class TxHistory

@@ -47,6 +47,26 @@ public:
   {
     return 0;
   }
+
+  kv::NodeId leader() override
+  {
+    return 1;
+  }
+
+  kv::NodeId id() override
+  {
+    return 0;
+  }
+
+  kv::Term get_term(kv::Version version) override
+  {
+    return 2;
+  }
+
+  bool is_leader() override
+  {
+    return true;
+  }
 };
 
 TEST_CASE("Check signature verification")
@@ -206,6 +226,26 @@ public:
   {
     return 0;
   }
+
+  kv::NodeId leader() override
+  {
+    return 1;
+  }
+
+  kv::NodeId id() override
+  {
+    return 0;
+  }
+
+  kv::Term get_term(kv::Version version) override
+  {
+    return 2;
+  }
+
+  bool is_leader() override
+  {
+    return true;
+  }
 };
 
 TEST_CASE(
@@ -299,6 +339,26 @@ public:
   kv::Version get_commit_idx() override
   {
     return 0;
+  }
+
+  kv::NodeId leader() override
+  {
+    return 1;
+  }
+
+  kv::NodeId id() override
+  {
+    return 0;
+  }
+
+  kv::Term get_term(kv::Version version) override
+  {
+    return 2;
+  }
+
+  bool is_leader() override
+  {
+    return true;
   }
 };
 
