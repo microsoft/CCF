@@ -100,7 +100,7 @@ namespace ccf
         std::ref(proposals),
         std::ref(gov_scripts),
         std::ref(app_scripts),
-        std::ref(code_id)),
+        std::ref(code_id),
         std::ref(voting_history));
     }
   };
