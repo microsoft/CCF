@@ -54,6 +54,7 @@ namespace ccf
     static constexpr auto APP_SCRIPTS = "appscripts";
     static constexpr auto SECRETS = "secrets";
     static constexpr auto CODEID = "codeid";
+    static constexpr auto VOTING_HISTORY = "voting_history";
   };
 
   using StoreSerialiser = kv::KvStoreSerialiser;

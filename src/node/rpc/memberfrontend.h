@@ -301,6 +301,11 @@ namespace ccf
         // record vote
         proposal->votes[args.caller_id] = vote.ballot;
         proposals->put(vote.id, *proposal);
+
+        auto voting_history = args.tx.get_view(this->network.voting_history);
+        // record signed vote request
+        voting_history->put(args.caller_id, {args.signed_request});
+
         return jsonrpc::success(complete_proposal(args.tx, vote.id));
       };
       install(MemberProcs::VOTE, vote, Write);

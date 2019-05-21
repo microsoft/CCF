@@ -178,6 +178,11 @@ namespace jsonrpc
   {
     T result;
     SeqNo id;
+
+    T* operator->()
+    {
+      return &result;
+    }
   };
 
   template <typename T>
