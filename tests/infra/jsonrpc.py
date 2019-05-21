@@ -220,13 +220,15 @@ class RPCLogger:
 
     def log_response(self, response):
         LOG.debug(
-            "#{} {}".format(
-                response.id,
-                {
-                    k: v
-                    for k, v in (response.__dict__ or {}).items()
-                    if not k.startswith("_")
-                },
+            truncate(
+                "#{} {}".format(
+                    response.id,
+                    {
+                        k: v
+                        for k, v in (response.__dict__ or {}).items()
+                        if not k.startswith("_")
+                    },
+                )
             )
         )
 

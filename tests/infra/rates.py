@@ -2,6 +2,8 @@
 # Licensed under the Apache 2.0 License.
 import json
 import infra.proc
+import collections
+from statistics import mean, harmonic_mean, median, pstdev
 
 from loguru import logger as LOG
 
@@ -13,73 +15,91 @@ class TxRates:
         self.get_histogram = False
         self.primary = primary
         self.same_commit_count = 0
-        self.data = {}
+        self.histogram_data = {}
+        self.tx_rates_data = []
+        self.all_metrics = {}
         self.commit = 0
 
-        with open("getTxHist.json", "w") as gtxrf:
-            gtxrf.write('{"id":1,"jsonrpc":"2.0","method":"getTxHist","params":{}}\n')
-        with open("getCommit.json", "w") as gcf:
-            gcf.write('{"id":1,"jsonrpc":"2.0","method":"getCommit","params":{}}\n')
+    def __str__(self):
+        out_list = ["----------- tx rates -----------"]
+        out_list.append("----- mean ----: " + str(mean(self.tx_rates_data)))
+        out_list.append(
+            "----- harmonic mean ----: " + str(harmonic_mean(self.tx_rates_data))
+        )
+        out_list.append(
+            "---- standard deviation ----: " + str(pstdev(self.tx_rates_data))
+        )
+        out_list.append("----- median ----: " + str(median(self.tx_rates_data)))
+        out_list.append("---- max ----: " + str(max(self.tx_rates_data)))
+        out_list.append("---- min ----: " + str(min(self.tx_rates_data)))
+        out_list.append("----------- tx rates histogram -----------")
+        out_list.append(json.dumps(self.histogram_data, indent=4))
+        return "\n".join(out_list)
+
+    def save_results(self, output_file):
+        with open(output_file, "w") as mfile:
+            json.dump(self.all_metrics, mfile)
 
     def process_next(self):
-        rv = infra.proc.ccall(
-            "./client",
-            "--host={}".format(self.primary.host),
-            "--port={}".format(self.primary.tls_port),
-            "--ca=networkcert.pem",
-            "userrpc",
-            "--cert=user1_cert.pem",
-            "--pk=user1_privk.pem",
-            "--req=getCommit.json",
-            log_output=False,
-        )
-        print(rv.stdout.decode())
-        result = rv.stdout.decode().split("\n")[1]
-        result = json.loads(result)
-        next_commit = result["result"]["commit"]
-        if self.commit == next_commit:
-            self.same_commit_count += 1
-        else:
-            self.same_commit_count = 0
+        with self.primary.user_client(format="json") as client:
+            rv = client.rpc("getCommit", {})
+            result = rv.to_dict()
+            next_commit = result["result"]["commit"]
+            if self.commit == next_commit:
+                self.same_commit_count += 1
+            else:
+                self.same_commit_count = 0
 
-        self.commit = next_commit
+            self.commit = next_commit
 
         if self.same_commit_count > COMMIT_COUNT_CUTTOF:
-            self._get_hist()
+            self._get_metrics()
             return False
         return True
 
-    def print_results(self):
-        for key in sorted(self.data.keys()):
-            print(key + " : " + str(self.data[key]))
+    def _get_metrics(self):
+        with self.primary.user_client(format="json") as client:
+            rv = client.rpc("getMetrics", {})
+            result = rv.to_dict()
+            result = result["result"]["metrics"]
+            self.all_metrics = result
 
-    def save_results(self):
-        with open("tx_rates.txt", "w") as file:
-            for key in sorted(self.data.keys()):
-                file.write(key + " : " + str(self.data[key]))
-                file.write("\n")
+            all_rates = []
+            all_durations = []
+            rates = result.get("tx_rates")
+            if rates is None:
+                LOG.info("No tx rate metrics found...")
+            else:
+                for key in rates:
+                    all_rates.append(rates[key]["rate"])
+                    all_durations.append(float(rates[key]["duration"]))
+                self.tx_rates_data = all_rates
 
-    def _get_hist(self):
-        rv = infra.proc.ccall(
-            "./client",
-            "--host={}".format(self.primary.host),
-            "--port={}".format(self.primary.tls_port),
-            "--ca=networkcert.pem",
-            "userrpc",
-            "--cert=user1_cert.pem",
-            "--pk=user1_privk.pem",
-            "--req=getTxHist.json",
-            log_output=False,
-        )
+            histogram = result.get("histogram")
+            if histogram is None:
+                LOG.info("No histogram metrics found...")
+            else:
+                histogram_buckets = histogram["buckets"]
 
-        result = rv.stdout.decode().split("\n")[1]
-        result = json.loads(result)
-        histogram = result["result"]["tx_hist"]["histogram"]
-        LOG.info("Filtering histogram results...")
-        for key in histogram:
-            if histogram[key] > 0:
-                self.data[key] = histogram[key]
-        self.data["low"] = result["result"]["tx_hist"]["low"]
-        self.data["high"] = result["result"]["tx_hist"]["high"]
-        self.data["underflow"] = result["result"]["tx_hist"]["underflow"]
-        self.data["overflow"] = result["result"]["tx_hist"]["overflow"]
+                LOG.info("Filtering histogram results...")
+                hist_data = {}
+
+                for key in histogram_buckets:
+                    if histogram_buckets[key] > 0:
+                        range_1, range_2 = key.split("..")
+                        hist_data[int(range_1)] = (range_2, histogram_buckets[key])
+
+                self.histogram_data["histogram"] = {}
+                buckets = []
+                rates = []
+                for key, value_tuple in sorted(hist_data.items(), key=lambda x: x[0]):
+                    self.histogram_data["histogram"][
+                        str(key) + ".." + value_tuple[0]
+                    ] = value_tuple[1]
+                    buckets.append(str(key) + ".." + value_tuple[0])
+                    rates.append(value_tuple[1])
+
+                self.histogram_data["low"] = histogram["low"]
+                self.histogram_data["high"] = histogram["high"]
+                self.histogram_data["underflow"] = histogram["underflow"]
+                self.histogram_data["overflow"] = histogram["overflow"]

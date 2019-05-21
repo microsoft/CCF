@@ -71,11 +71,11 @@ namespace ccf
     };
   };
 
-  struct GetTxHist
+  struct GetMetrics
   {
     struct Out
     {
-      nlohmann::json tx_hist;
+      nlohmann::json metrics;
     };
   };
 }

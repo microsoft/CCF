@@ -84,12 +84,10 @@ def run_client(args, primary, command_args):
         "--config={}".format(args.config),
     ]
     command += command_args
-    if args.network_only:
-        LOG.info("Client can be run with {}".format(" ".join(command)))
-        while True:
-            time.sleep(60)
-    else:
-        infra.proc.ccall(*command).check_returncode()
+
+    LOG.info("Client can be run with {}".format(" ".join(command)))
+    while True:
+        time.sleep(60)
 
 
 def run(build_directory, get_command, args):
@@ -109,13 +107,12 @@ def run(build_directory, get_command, args):
 
         command_args = get_command_args(args, get_command)
 
-        client_hosts = args.client_nodes
-
-        if args.network_only or client_hosts is None:
+        if args.network_only:
             run_client(args, primary, command_args)
         else:
             nodes = filter_nodes(primary, followers, args.send_tx_to)
             clients = []
+            client_hosts = args.client_nodes or ["localhost"]
             for client_id, client_host in enumerate(client_hosts):
                 node = nodes[client_id % len(nodes)]
                 remote = configure_remote_client(
@@ -132,13 +129,13 @@ def run(build_directory, get_command, args):
                     continue_processing = tx_rates.process_next()
                     time.sleep(1)
                     if not continue_processing:
-                        time.sleep(15)
                         for remote in clients:
+                            remote.wait()
                             remote.stop()
                         break
 
-                tx_rates.print_results()
-                tx_rates.save_results()
+                LOG.info(f"Rates: {tx_rates}")
+                tx_rates.save_results(args.metrics_file)
 
             except KeyboardInterrupt:
                 for remote in clients:

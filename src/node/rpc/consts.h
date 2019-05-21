@@ -17,7 +17,7 @@ namespace ccf
   struct GeneralProcs
   {
     static constexpr auto GET_COMMIT = "getCommit";
-    static constexpr auto GET_TX_HIST = "getTxHist";
+    static constexpr auto GET_METRICS = "getMetrics";
     static constexpr auto MK_SIGN = "mkSign";
     static constexpr auto GET_LEADER_INFO = "getLeaderInfo";
   };
