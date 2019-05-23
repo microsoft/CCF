@@ -407,18 +407,6 @@ namespace ccf
       update_raft();
       fwd_ctx.leader_id = raft->id();
 
-      // If the RPC was forwarded, assume that the caller has already been
-      // verified
-      if (fwd_ctx.caller_id == INVALID_ID)
-      {
-        return jsonrpc::pack(
-          jsonrpc::error_response(
-            0,
-            jsonrpc::ErrorCodes::INVALID_CALLER_ID,
-            "No corresponding caller entry exists (forwarded)."),
-          jsonrpc::Pack::Text);
-      }
-
       auto pack = detect_pack(input);
       if (!pack.has_value())
         return jsonrpc::pack(
@@ -427,6 +415,18 @@ namespace ccf
             jsonrpc::ErrorCodes::INVALID_REQUEST,
             "Empty forwarded request."),
           jsonrpc::Pack::Text);
+
+      // If the RPC was forwarded, assume that the caller has already been
+      // verified
+      if (certs && fwd_ctx.caller_id == INVALID_ID)
+      {
+        return jsonrpc::pack(
+          jsonrpc::error_response(
+            0,
+            jsonrpc::ErrorCodes::INVALID_CALLER_ID,
+            "No corresponding caller entry exists (forwarded)."),
+          pack.value());
+      }
 
       auto rpc = unpack_json(input, pack.value());
       if (!rpc.first)
