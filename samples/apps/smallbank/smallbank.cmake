@@ -22,6 +22,7 @@ if(BUILD_TESTS)
     VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank.json
     ADDITIONAL_ARGS
       --max-writes-ahead 1000
+      --metrics-file small_bank_metrics.json
   )
 
   add_perf_test(
@@ -33,6 +34,7 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS
       --label Small_Bank_Client_Sigs
       --max-writes-ahead 1000 --sign
+      --metrics-file small_bank_sigs_metrics.json
   )
 
   add_perf_test(
@@ -43,5 +45,6 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS
       --label Small_Bank_WarmupCooldown
       --max-writes-ahead 1 --warmup 1000 --cooldown 1000
+      --metrics-file small_bank_wc_metrics.json
   )
 endif()

@@ -29,8 +29,7 @@ class ErrorCode(IntEnum):
     INVALID_CALLER_ID = -32606
     CODE_ID_NOT_FOUND = -32607
     CODE_ID_RETIRED = -32608
-    RPC_FORWARDED = -32609
-    RPC_NOT_FORWARDED = -32610
+    RPC_NOT_FORWARDED = -32609
     SERVER_ERROR_START = -32000
     TX_NOT_LEADER = -32001
     TX_REPLICATED = -32002
@@ -221,13 +220,15 @@ class RPCLogger:
 
     def log_response(self, response):
         LOG.debug(
-            "#{} {}".format(
-                response.id,
-                {
-                    k: v
-                    for k, v in (response.__dict__ or {}).items()
-                    if not k.startswith("_")
-                },
+            truncate(
+                "#{} {}".format(
+                    response.id,
+                    {
+                        k: v
+                        for k, v in (response.__dict__ or {}).items()
+                        if not k.startswith("_")
+                    },
+                )
             )
         )
 

@@ -31,6 +31,11 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         default="all",
         help="Send client requests only to primary, only to followers, or to all nodes",
     )
+    parser.add_argument(
+        "--metrics-file",
+        default="metrics.json",
+        help="Path to json file where the transaction rate metrics will be saved to",
+    )
     parser.add_argument("-t", "--threads", help="Number of client threads", default=1)
     parser.add_argument(
         "-f",

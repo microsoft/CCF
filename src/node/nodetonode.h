@@ -4,6 +4,7 @@
 
 #include "channels.h"
 #include "ds/serialized.h"
+#include "enclave/rpchandler.h"
 #include "nodetypes.h"
 
 #include <algorithm>
@@ -73,13 +74,14 @@ namespace ccf
       auto& n2n_channel = channels->get(t.from_node);
 
       if (!n2n_channel.verify(hdr, asCb(t)))
-        throw std::logic_error("Invalid node2node message");
+        throw std::logic_error("Invalid authenticated node2node message");
 
       return t;
     }
 
-    bool forward(
-      NodeId to, CallerId caller_id, const std::vector<uint8_t>& data)
+    template <class T>
+    bool send_encrypted(
+      NodeId to, const std::vector<uint8_t>& data, const T& msg)
     {
       auto& n2n_channel = channels->get(to);
       if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
@@ -88,16 +90,9 @@ namespace ccf
         return false;
       }
 
-      std::vector<uint8_t> plain(sizeof(caller_id) + data.size());
-      std::vector<uint8_t> cipher(plain.size());
-      auto data_ = plain.data();
-      auto size_ = plain.size();
-      serialized::write(data_, size_, caller_id);
-      serialized::write(data_, size_, data.data(), data.size());
-
       GcmHdr hdr;
-      ChannelHeader msg = {ChannelMsg::encrypted_msg, self};
-      n2n_channel.encrypt(hdr, asCb(msg), plain, cipher);
+      std::vector<uint8_t> cipher(data.size());
+      n2n_channel.encrypt(hdr, asCb(msg), data, cipher);
 
       to_host->write(
         node_outbound, to, NodeMsgType::forwarded_msg, msg, hdr, cipher);
@@ -105,24 +100,18 @@ namespace ccf
       return true;
     }
 
-    std::pair<CallerId, std::vector<uint8_t>> recv_forwarded(
-      const uint8_t* data, size_t size)
+    template <class T>
+    std::vector<uint8_t> recv_encrypted(
+      const T& msg, const uint8_t* data, size_t size)
     {
-      const auto& msg = serialized::overlay<ccf::Header>(data, size);
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
       std::vector<uint8_t> plain(size);
 
       auto& n2n_channel = channels->get(msg.from_node);
       if (!n2n_channel.decrypt(hdr, asCb(msg), {data, size}, plain))
-        throw std::logic_error("Invalid node2node message");
+        throw std::logic_error("Invalid encrypted node2node message");
 
-      const auto& plain_ = plain;
-      auto data_ = plain_.data();
-      auto size_ = plain_.size();
-      auto caller_id = serialized::read<CallerId>(data_, size_);
-      std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
-
-      return {caller_id, rpc};
+      return plain;
     }
 
     void process_key_exchange(const uint8_t* data, size_t size)

@@ -112,7 +112,7 @@ namespace ccf
       const GcmHdr& header, CBuffer aad, CBuffer cipher, Buffer plain)
     {
       if (status != ESTABLISHED)
-        throw std::logic_error("Channel is not established for encrypting");
+        throw std::logic_error("Channel is not established for decrypting");
 
       return key->decrypt(header.getIv(), header.tag, cipher, aad, plain.p);
     }

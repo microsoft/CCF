@@ -85,7 +85,6 @@ if(DEBUG_CONFIG)
   add_definitions(-DDEBUG_CONFIG)
 endif()
 
-
 option(USE_NLJSON_KV_SERIALISER "Use nlohmann JSON as the KV serialiser" OFF)
 if (USE_NLJSON_KV_SERIALISER)
   add_definitions(-DUSE_NLJSON_KV_SERIALISER)
