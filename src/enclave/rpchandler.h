@@ -20,7 +20,9 @@ namespace enclave
     const ccf::ActorsType actor;
 
     RpcContext(
-      size_t session_id_, CBuffer caller_, ccf::ActorsType actor_) :
+      size_t session_id_,
+      CBuffer caller_,
+      ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
       session_id(session_id_),
       caller(caller_),
       actor(actor_)

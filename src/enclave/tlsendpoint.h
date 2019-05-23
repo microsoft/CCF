@@ -5,9 +5,9 @@
 #include "ds/logger.h"
 #include "ds/messaging.h"
 #include "ds/ringbuffer.h"
+#include "endpoint.h"
 #include "tls/context.h"
 #include "tls/msg_types.h"
-#include "endpoint.h"
 
 namespace enclave
 {

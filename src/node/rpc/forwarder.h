@@ -20,7 +20,7 @@ namespace ccf
       size_t session_id_,
       NodeId forwarder_id_,
       CallerId caller_id_,
-      ccf::ActorsType actor_) :
+      ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
       session_id(session_id_),
       forwarder_id(forwarder_id_),
       caller_id(caller_id_),
