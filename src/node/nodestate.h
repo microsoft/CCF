@@ -623,7 +623,7 @@ namespace ccf
           else
           {
             quote["parsed"]["mrenclave"] = fmt::format(
-              "{0:x}",
+              "{:02x}",
               fmt::join(parsed_quote.identity.unique_id, ""));
           }
 #endif
