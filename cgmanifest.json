@@ -62,6 +62,15 @@
           "commitHash": "8792f42f8dbd5edc0f0cf975ccc8ea5c846667f4"
         }
       }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/fmtlib/fmt",
+          "commitHash": "9e554999ce02cf86fcdfe74fe740c4fe3f5a56d5"
+        }
+      }
     }
   ],
   "Version": 1
