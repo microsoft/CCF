@@ -25,6 +25,6 @@ for e2e in *.virtual.so; do
     if [ -f "$e2e".profraw  ]; then
         llvm-profdata-7 merge -sparse "$e2e".profraw -o "$e2e".profdata
         llvm-cov-7 show -instr-profile "$e2e".profdata -object cchost.virtual -object "$e2e" -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)" > "$e2e".txt
-        bash <(curl -s https://codecov.io/bash) -t "${CODECOV_TOKEN}" -f "$e2e".txt -F "$e2e"
+        bash <(curl -s https://codecov.io/bash) -t "${CODECOV_TOKEN}" -f "$e2e".txt -F end_to_end
     fi
 done
