@@ -282,6 +282,17 @@ if(BUILD_TESTS)
       ${CCF_NETWORK_TEST_ARGS}
   )
 
+  if(END_TO_END_COVERAGE)
+    add_test(
+      NAME end_to_end_logging_coverage
+      COMMAND
+        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+        -b .
+        ${TEST_FORWARD_TO_LEADER}
+        ${CCF_NETWORK_TEST_COV_ARGS}
+    )
+  endif()
+
   add_test(
     NAME end_to_end_scenario
     COMMAND

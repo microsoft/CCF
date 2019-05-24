@@ -453,7 +453,8 @@ class CCFRemote(object):
         if self.quote is not None:
             cmd.append("--quote-file={}".format(self.quote))
 
-        env = {}
+        self.profraw = f"{os.path.basename(lib_path)}.profraw"
+        env = {'LLVM_PROFILE_FILE': self.profraw}
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(log_level)
         if oe_log_level:
             env["OE_LOG_LEVEL"] = oe_log_level
@@ -508,6 +509,10 @@ class CCFRemote(object):
             self.remote.stop()
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.node_id))
+        try:
+            self.remote.get(self.profraw)
+        except Exception:
+            LOG.info(f"Could not retrieve {self.profraw}")
 
     def wait_for_stdout_line(self, line, timeout=5):
         return self.remote.wait_for_stdout_line(line, timeout)

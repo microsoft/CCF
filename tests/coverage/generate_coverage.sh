@@ -4,7 +4,7 @@
 
 set -e
 
-for f in *profraw; do
+for f in *_test.profraw; do
     echo "$f" >> prof_files
 done
 
@@ -24,7 +24,15 @@ llvm-cov-7 export -instr-profile coverage.profdata -format=text "${objects[@]}" 
 
 # Generate and upload combined coverage report for Codecov
 llvm-cov-7 show -instr-profile coverage.profdata "${objects[@]}" -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)" > codecov.txt
-bash <(curl -s https://codecov.io/bash) -t "${CODECOV_TOKEN}" -f codecov.txt
+bash <(curl -s https://codecov.io/bash) -t "${CODECOV_TOKEN}" -f codecov.txt -F unit
+
+for e2e in *.virtual.so; do
+    if [ -f "$e2e".profraw  ]; do
+        llvm-profdata-7 merge -sparse "$e2e".profraw -o "$e2e".profdata
+        llvm-cov-7 show -instr-profile "$e2e".profdata -object ccfhost.virtual -object "$e2e" -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)" > "$e2e".txt
+        bash <(curl -s https://codecov.io/bash) -t "${CODECOV_TOKEN}" -f "$e2e".txt -F "$e2e"
+    fi
+done
 
 # Generate html for Azure Devops
 mv cov_* coverage/
