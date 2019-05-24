@@ -15,29 +15,9 @@ namespace ccf
       RpcFrontend(tables, nullptr, tables.get<Certs>(Tables::NODE_CERTS))
     {
       auto accept = [&node, &network](RequestArgs& args) {
-        if (!node.is_leader())
-        {
-          return jsonrpc::error(
-            jsonrpc::ErrorCodes::INTERNAL_ERROR,
-            "Could not accept new node to the network (not the leader).");
-        }
-
-        // Retrieve joining node's cert, quote and NodeId
-        auto [nodes_view, node_certs_view] =
-          args.tx.get_view(network.nodes, network.node_certs);
-
-        auto opt_node_id =
-          node_certs_view->get({args.caller.p, args.caller.p + args.caller.n});
-
-        if (!opt_node_id.has_value())
-        {
-          return jsonrpc::error(
-            jsonrpc::ErrorCodes::NODE_NOT_FOUND,
-            "Joining node is not known by network");
-        }
-
-        NodeId joining_node_id = opt_node_id.value();
-        auto joining_nodeinfo = nodes_view->get(joining_node_id).value();
+        // Retrieve joining node's cert and quote
+        auto nodes_view = args.tx.get_view(network.nodes);
+        auto joining_nodeinfo = nodes_view->get(args.caller_id).value();
 
 #ifdef GET_QUOTE
         // Parse quote and verify quote data
@@ -99,21 +79,19 @@ namespace ccf
         // go through a round of governance before marking the node as TRUSTED
         // (section IV-D).
         joining_nodeinfo.status = NodeStatus::TRUSTED;
-        nodes_view->put(joining_node_id, joining_nodeinfo);
+        nodes_view->put(args.caller_id, joining_nodeinfo);
 
-        LOG_INFO << "Accepting a new node to the network as node #"
-                 << joining_node_id << std::endl;
+        LOG_INFO << "Accepting a new node to the network as node "
+                 << args.caller_id << std::endl;
 
         // Set joiner's fresh key for encrypting past network secrets
-        node.set_joiner_key(joining_node_id, args.params["raw_fresh_key"]);
+        node.set_joiner_key(args.caller_id, args.params["raw_fresh_key"]);
 
         // Send network secrets and NodeID
-        return jsonrpc::success(
-
-          nlohmann::json(JoinNetworkNodeToNode::Out{
-            joining_node_id,
-            network.secrets->get_current(),
-            network.secrets->get_current_version()}));
+        return jsonrpc::success(nlohmann::json(
+          JoinNetworkNodeToNode::Out{args.caller_id,
+                                     network.secrets->get_current(),
+                                     network.secrets->get_current_version()}));
       };
 
       install(NodeProcs::JOIN, accept, Write);
