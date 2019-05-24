@@ -76,7 +76,7 @@ class CmdMixin(object):
 
 
 class SSHRemote(CmdMixin):
-    def __init__(self, name, hostname, files, cmd):
+    def __init__(self, name, hostname, files, cmd, env=None):
         """
         Runs a command on a remote host, through an SSH connection. A temporary
         directory is created, and some files can be shipped over. The command is
@@ -98,6 +98,7 @@ class SSHRemote(CmdMixin):
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.root = os.path.join("/tmp", tmpdir_name(name))
         self.name = name
+        self.env = env or {}
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
@@ -213,9 +214,9 @@ class SSHRemote(CmdMixin):
         self._setup_files()
 
     def _cmd(self):
-        return "cd {} && stdbuf -o0 ./{} 1>out 2>err 0</dev/null".format(
-            self.root, " ".join(self.cmd)
-        )
+        env = " ".join(f"{key}={value}" for key, value in self.env.items())
+        cmd = " ".join(self.cmd)
+        return f"cd {self.root} && {env} ./{cmd} 1>out 2>err 0</dev/null"
 
     def _dbg(self):
         return "cd {} && {} --args ./{}".format(self.root, DBG, " ".join(self.cmd))
@@ -254,7 +255,7 @@ def ssh_remote(name, hostname, files, cmd):
 
 
 class LocalRemote(CmdMixin):
-    def __init__(self, name, hostname, files, cmd):
+    def __init__(self, name, hostname, files, cmd, env=None):
         """
         Local Equivalent to the SSHRemote
         """
@@ -265,6 +266,7 @@ class LocalRemote(CmdMixin):
         self.proc = None
         self.stdout = None
         self.stderr = None
+        self.env = env
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
@@ -301,11 +303,15 @@ class LocalRemote(CmdMixin):
         Start cmd. stdout and err are captured to file locally.
         """
         cmd = self._cmd()
-        LOG.info("[{}] {}".format(self.hostname, cmd))
+        LOG.info(f"[{self.hostname}] {cmd} (env: {self.env})")
         self.stdout = open(os.path.join(self.root, "out"), "wb")
         self.stderr = open(os.path.join(self.root, "err"), "wb")
         self.proc = subprocess.Popen(
-            self.cmd, cwd=self.root, stdout=self.stdout, stderr=self.stderr
+            self.cmd,
+            cwd=self.root,
+            stdout=self.stdout,
+            stderr=self.stderr,
+            env=self.env,
         )
 
     def stop(self):
@@ -348,6 +354,15 @@ class LocalRemote(CmdMixin):
         raise ValueError(
             "{} not found in stdout after {} seconds".format(line, timeout)
         )
+
+
+CCF_TO_OE_LOG_LEVEL = {
+    "trace": "VERBOSE",
+    "debug": "INFO",
+    "info": "WARNING",
+    "fail": "ERROR",
+    "fatal": "FATAL",
+}
 
 
 class CCFRemote(object):
@@ -438,6 +453,11 @@ class CCFRemote(object):
         if self.quote is not None:
             cmd.append("--quote-file={}".format(self.quote))
 
+        env = {}
+        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(log_level)
+        if oe_log_level:
+            env["OE_LOG_LEVEL"] = oe_log_level
+
         self.remote = remote_class(
             node_id,
             host,
@@ -446,6 +466,7 @@ class CCFRemote(object):
             + ([self.ledger_file] if self.ledger_file else [])
             + ([sealed_secrets] if sealed_secrets else []),
             cmd,
+            env,
         )
 
     def setup(self):

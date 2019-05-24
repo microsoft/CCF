@@ -47,6 +47,12 @@ def run(args):
                     check(c.rpc("LOG_get", {"id": 42}), result=msg)
                     check(c.rpc("LOG_get", {"id": 43}), result=msg2)
 
+                LOG.debug("Write on all follower frontends")
+                with follower.management_client(format="json") as c:
+                    check_commit(c.do("mkSign", params={}), result="OK")
+                with follower.member_client(format="json") as c:
+                    check_commit(c.do("mkSign", params={}), result="OK")
+
                 LOG.debug("Write/Read on follower")
                 with follower.user_client(format="json") as c:
                     check_commit(
@@ -54,7 +60,6 @@ def run(args):
                         result="OK",
                     )
                     check(c.rpc("LOG_get", {"id": 100}), result=follower_msg)
-
                     check(c.rpc("LOG_get", {"id": 42}), result=msg)
 
                 LOG.debug("Write/Read large messages on leader")

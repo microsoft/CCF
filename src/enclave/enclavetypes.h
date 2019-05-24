@@ -4,9 +4,8 @@
 #pragma once
 
 // TODO: Remove this dependency
-#include "node/rpc/jsonrpc.h"
-
 #include "ds/buffer.h"
+#include "node/rpc/jsonrpc.h"
 
 #include <vector>
 
@@ -18,13 +17,19 @@ namespace enclave
   {
     const size_t session_id;
     const CBuffer caller;
+    const ccf::ActorsType actor;
+
     bool is_forwarded = false;
     uint64_t seq_no;
     std::optional<jsonrpc::Pack> pack = std::nullopt;
 
-    RpcContext(size_t session_id_, CBuffer caller_) :
+    RpcContext(
+      size_t session_id_,
+      CBuffer caller_,
+      ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
       session_id(session_id_),
-      caller(caller_)
+      caller(caller_),
+      actor(actor_)
     {}
   };
 
