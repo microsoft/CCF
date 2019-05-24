@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclave/rpcsessions.h"
+#include "enclave/enclavetypes.h"
+#include "enclave/rpcsessions.h" // TODO: Remove this once master is merged
 #include "node/nodetonode.h"
 
 namespace ccf
@@ -47,15 +48,15 @@ namespace ccf
   class Forwarder : public AbstractForwarder
   {
   private:
-    enclave::RPCSessions& rpcsessions;
+    enclave::AbstractRPCResponder& rpcresponder;
     std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<enclave::RpcMap> rpc_map;
 
   public:
     Forwarder(
-      enclave::RPCSessions& rpcsessions,
+      enclave::AbstractRPCResponder& rpcresponder,
       std::shared_ptr<NodeToNode> n2n_channels) :
-      rpcsessions(rpcsessions),
+      rpcresponder(rpcresponder),
       n2n_channels(n2n_channels)
     {}
 
@@ -207,7 +208,7 @@ namespace ccf
 
           try
           {
-            rpcsessions.reply_forwarded(rep->first, rep->second);
+            rpcresponder.reply_async(rep->first, rep->second);
           }
           catch (const std::logic_error& err)
           {

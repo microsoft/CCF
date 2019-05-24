@@ -247,14 +247,14 @@ TEST_CASE("get_signed_req")
 
   SUBCASE("request with no signature")
   {
-    frontend.process_json(txs, user_caller, caller_id, simple_call);
+    frontend.process_json(rpc_ctx, txs, user_caller, caller_id, simple_call);
     auto signed_resp = frontend.get_signed_req(caller_id);
     CHECK(!signed_resp.has_value());
   }
   SUBCASE("request with signature")
   {
     auto signed_call = create_signed_json();
-    frontend.process_json(txs, user_caller, caller_id, signed_call);
+    frontend.process_json(rpc_ctx, txs, user_caller, caller_id, signed_call);
     auto signed_resp = frontend.get_signed_req(caller_id);
     CHECK(signed_resp.has_value());
     auto value = signed_resp.value();
@@ -266,7 +266,7 @@ TEST_CASE("get_signed_req")
   {
     TestReqNotStoredFrontend frontend_nostore(*network.tables);
     auto signed_call = create_signed_json();
-    frontend_nostore.process_json(txs, nos_caller, nos_caller_id, signed_call);
+    frontend_nostore.process_json(rpc_ctx, txs, nos_caller, nos_caller_id, signed_call);
     auto signed_resp = frontend_nostore.get_signed_req(nos_caller_id);
     CHECK(signed_resp.has_value());
     auto value = signed_resp.value();
@@ -277,7 +277,7 @@ TEST_CASE("get_signed_req")
   SUBCASE("signature not verified")
   {
     auto signed_call = create_signed_json();
-    frontend.process_json(txs, user_caller, caller_id, signed_call);
+    frontend.process_json(rpc_ctx, txs, user_caller, caller_id, signed_call);
     auto signed_resp = frontend.get_signed_req(inval_caller_id);
     CHECK(!signed_resp.has_value());
   }
@@ -296,7 +296,7 @@ TEST_CASE("MinimalHandleFuction")
   Store::Tx txs;
 
   nlohmann::json response =
-    frontend.process_json(txs, user_caller, caller_id, echo_call).value();
+    frontend.process_json(rpc_ctx, txs, user_caller, caller_id, echo_call).value();
   CHECK(response[jsonrpc::RESULT] == echo_call[jsonrpc::PARAMS]);
 }
 
@@ -313,14 +313,14 @@ TEST_CASE("process_json")
   SUBCASE("with out")
   {
     nlohmann::json response =
-      frontend.process_json(txs, user_caller, caller_id, simple_call).value();
+      frontend.process_json(rpc_ctx, txs, user_caller, caller_id, simple_call).value();
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
   }
   SUBCASE("with signature")
   {
     auto signed_call = create_signed_json();
     nlohmann::json response =
-      frontend.process_json(txs, user_caller, caller_id, signed_call).value();
+      frontend.process_json(rpc_ctx, txs, user_caller, caller_id, signed_call).value();
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
   }
 #ifndef DISABLE_CLIENT_SIGNATURE_VERIFICATION
@@ -328,7 +328,7 @@ TEST_CASE("process_json")
   {
     auto signed_call = create_signed_json();
     nlohmann::json response =
-      frontend.process_json(txs, invalid_caller, inval_caller_id, signed_call)
+      frontend.process_json(rpc_ctx, txs, invalid_caller, inval_caller_id, signed_call)
         .value();
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==

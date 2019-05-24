@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/buffer.h"
+#include "enclavetypes.h"
 
 #include <chrono>
 #include <limits>
@@ -10,20 +11,6 @@
 
 namespace enclave
 {
-  static constexpr size_t InvalidSessionId = std::numeric_limits<size_t>::max();
-
-  struct RpcContext
-  {
-    const size_t session_id;
-    const CBuffer caller;
-    bool is_forwarded = false;
-
-    RpcContext(size_t session_id_, CBuffer caller_) :
-      session_id(session_id_),
-      caller(caller_)
-    {}
-  };
-
   class RpcHandler
   {
   public:

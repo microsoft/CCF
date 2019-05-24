@@ -193,6 +193,12 @@ int main(int argc, char** argv)
   join_rpc->add_option(
     "--join-json", join_json, "Join network RPC as a JSON file", true);
 
+  bool join_sync;
+  join_rpc->add_flag(
+    "--sync",
+    join_sync,
+    "Join network RPC completes when node has joined network");
+
   CLI11_PARSE(app, argc, argv);
 
   if (*cert)
@@ -242,7 +248,7 @@ int main(int argc, char** argv)
     GenesisGenerator g;
 
     // For now, the node to contact to join the network is the first one
-    g.create_join_rpc(join_host, join_port, join_json, network_cert);
+    g.create_join_rpc(join_host, join_port, join_json, network_cert, join_sync);
   }
 
   cout << "Done." << endl;

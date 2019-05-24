@@ -315,7 +315,7 @@ namespace ccf
          tx0Sig});
     }
 
-    void join_network(const JoinNetwork::In& args)
+    void join_network(enclave::RpcContext& rpc_ctx, const JoinNetwork::In& args)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -324,13 +324,25 @@ namespace ccf
 
       // Peer certificate needs to be signed by network certificate
       auto tls_ca = std::make_shared<tls::CA>(args.network_cert);
-      auto join_client_cert = std::make_shared<tls::Cert>(
+      auto join_client_cert = std::make_unique<tls::Cert>(
         Actors::NODES, tls_ca, node_cert, node_kp.private_key(), nullb);
 
+      LOG_FAIL << "About to create join client with session id: "
+               << rpc_ctx.session_id << std::endl;
+
       // Create and connect to endpoint
-      auto join_client = rpcsessions.create_client(join_client_cert);
+      auto join_client =
+        rpcsessions.create_client(rpc_ctx, std::move(join_client_cert));
+
+      // If the join network command is synchronous, only reply to the client
+      // when the leader has responded
+      if (args.is_sync)
+        rpc_ctx.is_forwarded = true;
+
       join_client->connect(
-        args.hostname, args.service, [this](const std::vector<uint8_t>& data) {
+        args.hostname,
+        args.service,
+        [this, rpc_ctx](const std::vector<uint8_t>& data) {
           auto j = jsonrpc::unpack(data, jsonrpc::Pack::MsgPack);
 
           // Check that the response is valid.
@@ -340,9 +352,14 @@ namespace ccf
           }
           catch (const std::exception& e)
           {
-            LOG_FAIL << "An error occurred while joining the network: "
-                     << j.dump() << std::endl;
-            return false;
+            return std::make_pair(
+              rpc_ctx.is_forwarded,
+              jsonrpc::pack(
+                jsonrpc::error_response(
+                  rpc_ctx.seq_no,
+                  jsonrpc::ErrorCodes::INTERNAL_ERROR,
+                  "An error occured while joining the network"),
+                rpc_ctx.pack.value()));
           }
 
           // Set network secrets, node id and become part of network.
@@ -386,7 +403,17 @@ namespace ccf
           LOG_INFO << "Node has now joined the network as node " << self << ": "
                    << (public_only ? "public only" : "all domains")
                    << std::endl;
-          return true;
+
+          jsonrpc::Response<JoinNetwork::Out> join_rpc_resp;
+          join_rpc_resp.id = rpc_ctx.seq_no;
+          join_rpc_resp.result.network_cert = std::string(std::string(
+            network.secrets->get_current().cert.data(),
+            network.secrets->get_current().cert.data() +
+              network.secrets->get_current().cert.size()));
+
+          return std::make_pair(
+            rpc_ctx.is_forwarded,
+            jsonrpc::pack(join_rpc_resp, rpc_ctx.pack.value()));
         });
 
       // Generate fresh key to encrypt/decrypt historical network secrets sent
@@ -394,7 +421,7 @@ namespace ccf
       raw_fresh_key = tls::Entropy().random(crypto::GCM_SIZE_KEY);
 
       // Send RPC request to remote node to join the network.
-      jsonrpc::ProcedureCall<ccf::JoinNetworkNodeToNode::In> join_rpc;
+      jsonrpc::ProcedureCall<JoinNetworkNodeToNode::In> join_rpc;
       join_rpc.id = 1;
       join_rpc.method = ccf::NodeProcs::JOIN;
       join_rpc.params.raw_fresh_key = raw_fresh_key;

@@ -35,6 +35,7 @@ namespace ccf
 
     struct RequestArgs
     {
+      enclave::RpcContext& rpc_ctx;
       Store::Tx& tx;
       CBuffer caller;
       CallerId caller_id;
@@ -127,7 +128,7 @@ namespace ccf
     }
 
     std::optional<nlohmann::json> forward_or_redirect_json(
-      jsonrpc::SeqNo id, bool is_forwarded = false)
+      jsonrpc::SeqNo seq_no, bool is_forwarded = false)
     {
       if (cmd_forwarder && !is_forwarded)
       {
@@ -147,13 +148,13 @@ namespace ccf
           if (info)
           {
             return jsonrpc::error_response(
-              id,
+              seq_no,
               jsonrpc::ErrorCodes::TX_NOT_LEADER,
               info->pubhost + ":" + info->tlsport);
           }
         }
         return jsonrpc::error_response(
-          id,
+          seq_no,
           jsonrpc::ErrorCodes::TX_NOT_LEADER,
           "Not leader, leader unknown.");
       }
@@ -329,8 +330,8 @@ namespace ccf
     {
       Store::Tx tx;
 
-      auto pack = detect_pack(input);
-      if (!pack.has_value())
+      rpc_ctx.pack = detect_pack(input);
+      if (!rpc_ctx.pack.has_value())
         return jsonrpc::pack(
           jsonrpc::error_response(
             0, jsonrpc::ErrorCodes::INVALID_REQUEST, "Empty request."),
@@ -345,15 +346,15 @@ namespace ccf
             0,
             jsonrpc::ErrorCodes::INVALID_CALLER_ID,
             "No corresponding caller entry exists."),
-          pack.value());
+          rpc_ctx.pack.value());
       }
 
-      auto rpc = unpack_json(input, pack.value());
+      auto rpc = unpack_json(input, rpc_ctx.pack.value());
       if (!rpc.first)
-        return jsonrpc::pack(rpc.second, pack.value());
+        return jsonrpc::pack(rpc.second, rpc_ctx.pack.value());
 
-      auto rep =
-        process_json(tx, rpc_ctx.caller, caller_id.value(), rpc.second, false);
+      auto rep = process_json(
+        rpc_ctx, tx, rpc_ctx.caller, caller_id.value(), rpc.second, false);
 
       // If necessary, forward the RPC to the current leader
       if (!rep.has_value())
@@ -379,10 +380,10 @@ namespace ccf
             0,
             jsonrpc::ErrorCodes::RPC_NOT_FORWARDED,
             "RPC could not be forwarded to leader."),
-          pack.value());
+          rpc_ctx.pack.value());
       }
 
-      return jsonrpc::pack(rep.value(), pack.value());
+      return jsonrpc::pack(rep.value(), rpc_ctx.pack.value());
     }
 
     /** Process a serialised input that has been forwarded from another node
@@ -419,6 +420,7 @@ namespace ccf
           jsonrpc::Pack::Text);
       }
 
+      // TODO: Unify FwdContext and RpcContext
       auto pack = detect_pack(input);
       if (!pack.has_value())
         return jsonrpc::pack(
@@ -432,7 +434,10 @@ namespace ccf
       if (!rpc.first)
         return jsonrpc::pack(rpc.second, pack.value());
 
-      auto rep = process_json(tx, caller, fwd_ctx.caller_id, rpc.second, true);
+      // TODO: Replace this with unified FwdContext/RpcContext
+      enclave::RpcContext rpc_ctx(0, nullb);
+      auto rep =
+        process_json(rpc_ctx, tx, caller, fwd_ctx.caller_id, rpc.second, true);
       if (!rep.has_value())
       {
         // This should never be called when process_json is called with
@@ -444,6 +449,7 @@ namespace ccf
     }
 
     std::optional<nlohmann::json> process_json(
+      enclave::RpcContext& rpc_ctx,
       Store::Tx& tx,
       const CBuffer& caller,
       CallerId caller_id,
@@ -474,12 +480,14 @@ namespace ccf
           "Wrong JSON-RPC version.");
 
       std::string method = rpc[jsonrpc::METHOD];
-      jsonrpc::SeqNo id = rpc[jsonrpc::ID];
+      rpc_ctx.seq_no = rpc[jsonrpc::ID];
 
       const nlohmann::json params = rpc[jsonrpc::PARAMS];
       if (!params.is_array() && !params.is_object() && !params.is_null())
         return jsonrpc::error_response(
-          id, jsonrpc::ErrorCodes::INVALID_REQUEST, "Invalid params.");
+          rpc_ctx.seq_no,
+          jsonrpc::ErrorCodes::INVALID_REQUEST,
+          "Invalid params.");
 
       Handler* handler = nullptr;
       auto search = handlers.find(method);
@@ -489,7 +497,7 @@ namespace ccf
         handler = &*default_handler;
       else
         return jsonrpc::error_response(
-          id, jsonrpc::ErrorCodes::METHOD_NOT_FOUND, method);
+          rpc_ctx.seq_no, jsonrpc::ErrorCodes::METHOD_NOT_FOUND, method);
 
       update_raft();
       update_history();
@@ -504,19 +512,19 @@ namespace ccf
             break;
 
           case Write:
-            return forward_or_redirect_json(id, is_forwarded);
+            return forward_or_redirect_json(rpc_ctx.seq_no, is_forwarded);
             break;
 
           case MayWrite:
             bool readonly = rpc.value(jsonrpc::READONLY, true);
             if (!readonly)
-              return forward_or_redirect_json(id, is_forwarded);
+              return forward_or_redirect_json(rpc_ctx.seq_no, is_forwarded);
             break;
         }
       }
 
       auto func = handler->func;
-      auto args = RequestArgs{tx, caller, caller_id, method, params};
+      auto args = RequestArgs{rpc_ctx, tx, caller, caller_id, method, params};
 
       tx_count++;
 
@@ -527,14 +535,14 @@ namespace ccf
           auto tx_result = func(args);
 
           if (!tx_result.first)
-            return jsonrpc::error_response(id, tx_result.second);
+            return jsonrpc::error_response(rpc_ctx.seq_no, tx_result.second);
 
           switch (tx.commit())
           {
             case kv::CommitSuccess::OK:
             {
               nlohmann::json result =
-                jsonrpc::result_response(id, tx_result.second);
+                jsonrpc::result_response(rpc_ctx.seq_no, tx_result.second);
 
               auto cv = tx.commit_version();
               if (cv == 0)
@@ -561,7 +569,7 @@ namespace ccf
 
             case kv::CommitSuccess::NO_REPLICATE:
               return jsonrpc::error_response(
-                id,
+                rpc_ctx.seq_no,
                 jsonrpc::ErrorCodes::TX_FAILED_TO_REPLICATE,
                 "Transaction failed to replicate.");
               break;
@@ -569,12 +577,12 @@ namespace ccf
         }
         catch (const RpcException& e)
         {
-          return jsonrpc::error_response(id, e.error_id, e.msg);
+          return jsonrpc::error_response(rpc_ctx.seq_no, e.error_id, e.msg);
         }
         catch (const std::exception& e)
         {
           return jsonrpc::error_response(
-            id, jsonrpc::ErrorCodes::INTERNAL_ERROR, e.what());
+            rpc_ctx.seq_no, jsonrpc::ErrorCodes::INTERNAL_ERROR, e.what());
         }
       }
     }

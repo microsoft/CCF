@@ -95,7 +95,8 @@ public:
     const std::string join_host,
     const std::string join_port,
     const std::string& join_network_file,
-    const std::vector<uint8_t>& network_cert)
+    const std::vector<uint8_t>& network_cert,
+    bool is_sync = true)
   {
     jsonrpc::ProcedureCall<ccf::JoinNetwork::In> rpc;
     rpc.id = 1;
@@ -103,6 +104,7 @@ public:
     rpc.params.hostname = join_host;
     rpc.params.service = join_port;
     rpc.params.network_cert = network_cert;
+    rpc.params.is_sync = is_sync;
 
     std::ofstream ojoinnet(join_network_file, std::ios::trunc);
     ojoinnet << nlohmann::json(rpc);

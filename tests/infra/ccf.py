@@ -244,6 +244,7 @@ class Network:
             node.host,
             "--port",
             str(node.tls_port),
+            "--sync"
         ]
         infra.proc.ccall(*gen).check_returncode()
         LOG.info("Created join network RPC")

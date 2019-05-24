@@ -22,7 +22,8 @@ namespace ccf
       };
 
       auto join = [&node](RequestArgs& args) {
-        node.join_network(args.params);
+        node.join_network(args.rpc_ctx, args.params);
+
         return jsonrpc::success();
       };
 
