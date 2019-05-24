@@ -5,6 +5,8 @@
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
+#include "kv/replicator.h"
+#include "node/entities.h"
 #include "node/networkstate.h"
 #include "node/rpc/jsonrpc.h"
 #include "node/rpc/memberfrontend.h"
@@ -86,9 +88,24 @@ public:
   }
 };
 
+class TestForwardingFrontEnd : public ccf::RpcFrontend
+{
+public:
+  TestForwardingFrontEnd(Store& tables) : RpcFrontend(tables)
+  {
+    auto empty_function = [this](RequestArgs& args) {
+      return jsonrpc::success();
+    };
+    // Note that this a Write function so that a follower executing this command
+    // will forward it to the leader
+    install("empty_function", empty_function, Write);
+  }
+};
+
 // used throughout
 tls::KeyPair kp;
 ccf::NetworkState network;
+ccf::NetworkState network2;
 ccf::StubNodeState node;
 
 std::vector<uint8_t> sign_json(nlohmann::json j)
@@ -147,7 +164,7 @@ void prepare_callers()
   ccf::Certs* member_certs = &network.member_certs;
   auto user_certs_view = txs.get_view(*user_certs);
   user_certs_view->put(user_caller, 0);
-  user_certs_view->put(invalid_caller, 0);
+  user_certs_view->put(invalid_caller, 1);
   user_certs_view->put(nos_caller, 2);
   auto member_certs_view = txs.get_view(*member_certs);
   member_certs_view->put(member_caller, 0);
@@ -450,4 +467,114 @@ int main(int argc, char** argv)
   if (context.shouldExit())
     return res;
   return res;
+}
+
+class StubForwarder : public AbstractForwarder
+{
+public:
+  std::vector<std::vector<uint8_t>> forwarded_cmds;
+
+  StubForwarder() {}
+
+  bool forward_command(
+    enclave::RpcContext& rpc_ctx,
+    NodeId from,
+    NodeId to,
+    CallerId caller_id,
+    const std::vector<uint8_t>& data) override
+  {
+    forwarded_cmds.push_back(data);
+    return true;
+  }
+
+  void clear()
+  {
+    forwarded_cmds.clear();
+  }
+};
+
+TEST_CASE("Forwarding")
+{
+  prepare_callers();
+
+  TestForwardingFrontEnd frontend_follower(*network.tables);
+  TestForwardingFrontEnd frontend_leader(*network2.tables);
+
+  auto follower_forwarder = std::make_shared<StubForwarder>();
+  auto follower_replicator = std::make_shared<kv::FollowerStubReplicator>();
+  network.tables->set_replicator(follower_replicator);
+
+  auto leader_replicator = std::make_shared<kv::LeaderStubReplicator>();
+  network2.tables->set_replicator(leader_replicator);
+
+  auto write_req = create_simple_json();
+  std::vector<uint8_t> serialized_call =
+    jsonrpc::pack(write_req, jsonrpc::Pack::MsgPack);
+
+  INFO("Frontend without forwarder does not forward");
+  {
+    enclave::RpcContext rpc_ctx_forwarded(
+      enclave::InvalidSessionId, user_caller);
+    REQUIRE(rpc_ctx_forwarded.is_forwarded == false);
+    REQUIRE(follower_forwarder->forwarded_cmds.empty());
+    auto serialized_response =
+      frontend_follower.process(rpc_ctx_forwarded, serialized_call);
+    REQUIRE(rpc_ctx_forwarded.is_forwarded == false);
+    REQUIRE(follower_forwarder->forwarded_cmds.size() == 0);
+
+    auto response =
+      jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
+    CHECK(
+      response[jsonrpc::ERR][jsonrpc::CODE] ==
+      static_cast<int16_t>(jsonrpc::ErrorCodes::TX_NOT_LEADER));
+  }
+
+  frontend_follower.set_cmd_forwarder(follower_forwarder);
+
+  INFO("Write command on follower is forwarded to leader");
+  {
+    enclave::RpcContext rpc_ctx_forwarded(
+      enclave::InvalidSessionId, user_caller);
+    REQUIRE(rpc_ctx_forwarded.is_forwarded == false);
+    REQUIRE(follower_forwarder->forwarded_cmds.empty());
+    frontend_follower.process(rpc_ctx_forwarded, serialized_call);
+    REQUIRE(rpc_ctx_forwarded.is_forwarded == true);
+    REQUIRE(follower_forwarder->forwarded_cmds.size() == 1);
+
+    auto forwarded_cmd = follower_forwarder->forwarded_cmds.back();
+    follower_forwarder->forwarded_cmds.pop_back();
+    FwdContext fwd_ctx(0, 0, 0);
+    auto serialized_response =
+      frontend_leader.process_forwarded(fwd_ctx, forwarded_cmd);
+
+    auto response =
+      jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
+    CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
+  }
+
+  INFO("Forwarding write command to a follower return TX_NOT_LEADER");
+  {
+    enclave::RpcContext rpc_ctx_forwarded(
+      enclave::InvalidSessionId, user_caller);
+    REQUIRE(rpc_ctx_forwarded.is_forwarded == false);
+    REQUIRE(follower_forwarder->forwarded_cmds.empty());
+    frontend_follower.process(rpc_ctx_forwarded, serialized_call);
+    REQUIRE(rpc_ctx_forwarded.is_forwarded == true);
+    REQUIRE(follower_forwarder->forwarded_cmds.size() == 1);
+
+    auto forwarded_cmd = follower_forwarder->forwarded_cmds.back();
+    follower_forwarder->forwarded_cmds.pop_back();
+    FwdContext fwd_ctx(0, 0, 0);
+
+    // Processing forwarded response by a follower frontend (here, the same
+    // frontend that the command was originally issued to)
+    auto serialized_response =
+      frontend_follower.process_forwarded(fwd_ctx, forwarded_cmd);
+    auto response =
+      jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
+
+    CHECK(
+      response[jsonrpc::ERR][jsonrpc::CODE] ==
+      static_cast<int16_t>(jsonrpc::ErrorCodes::TX_NOT_LEADER));
+  }
 }

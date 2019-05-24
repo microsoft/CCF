@@ -35,6 +35,26 @@ public:
   {
     return 0;
   }
+
+  NodeId leader() override
+  {
+    return 1;
+  }
+
+  NodeId id() override
+  {
+    return 0;
+  }
+
+  kv::Term get_term(kv::Version version) override
+  {
+    return 2;
+  }
+
+  bool is_leader() override
+  {
+    return true;
+  }
 };
 
 template <class A>

@@ -35,7 +35,7 @@ steps:
   workingDirectory: build
 
 - script: |
-    ../tests/coverage/generate_coverage.sh
+    CODECOV_TOKEN=$(codecov) ../tests/coverage/generate_coverage.sh
   displayName: CoverageGeneration
   workingDirectory: build
 

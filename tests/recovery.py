@@ -232,7 +232,7 @@ def run(args):
 if __name__ == "__main__":
 
     def add(parser):
-        parser.description = """       
+        parser.description = """
 This test executes multiple recoveries (as specified by the "--recovery" arg),
 with a fixed number of messages applied between each network crash (as
 specified by the "--msgs-per-recovery" arg). After the network is recovered
