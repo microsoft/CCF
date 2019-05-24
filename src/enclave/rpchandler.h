@@ -17,10 +17,15 @@ namespace enclave
     const size_t session_id;
     const CBuffer caller;
     bool is_forwarded = false;
+    const ccf::ActorsType actor;
 
-    RpcContext(size_t session_id_, CBuffer caller_) :
+    RpcContext(
+      size_t session_id_,
+      CBuffer caller_,
+      ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
       session_id(session_id_),
-      caller(caller_)
+      caller(caller_),
+      actor(actor_)
     {}
   };
 

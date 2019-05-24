@@ -16,6 +16,7 @@
 #include "node/rpc/memberfrontend.h"
 #include "node/rpc/nodefrontend.h"
 #include "rpcclient.h"
+#include "rpcmap.h"
 #include "rpcsessions.h"
 
 namespace enclave
@@ -42,35 +43,36 @@ namespace enclave
       n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
       node(writer_factory, network, rpcsessions),
       notifier(writer_factory),
-      cmd_forwarder(std::make_shared<ccf::Forwarder>(rpcsessions, n2n_channels))
+      cmd_forwarder(
+        std::make_shared<ccf::Forwarder>(rpcsessions, n2n_channels)),
+      rpc_map(std::make_shared<RpcMap>())
     {
-      rpc_map = std::make_shared<RpcMap>();
-      rpc_map->emplace(
-        std::string(ccf::Actors::MEMBERS),
+      REGISTER_FRONTEND(
+        rpc_map,
+        members,
         std::make_unique<ccf::MemberCallRpcFrontend>(network, node));
-      rpc_map->emplace(
-        std::string(ccf::Actors::MANAGEMENT),
+
+      REGISTER_FRONTEND(
+        rpc_map,
+        management,
         std::make_unique<ccf::ManagementRpcFrontend>(*network.tables, node));
-      rpc_map->emplace(
-        std::string(ccf::Actors::USERS),
-        ccfapp::get_rpc_handler(network, notifier));
-      rpc_map->emplace(
-        std::string(ccf::Actors::NODES),
+
+      REGISTER_FRONTEND(
+        rpc_map, users, ccfapp::get_rpc_handler(network, notifier));
+
+      REGISTER_FRONTEND(
+        rpc_map,
+        nodes,
         std::make_unique<ccf::NodesCallRpcFrontend>(
           *network.tables, node, network));
 
-      for (auto& r : *rpc_map)
+      for (auto& r : rpc_map->get_map())
       {
         auto frontend = dynamic_cast<ccf::RpcFrontend*>(r.second.get());
         frontend->set_sig_intervals(
           config->signature_intervals.sig_max_tx,
           config->signature_intervals.sig_max_ms);
-
-        // TODO: All frontends should be able to forward to/be forwarded to.
-        if (r.first == ccf::Actors::USERS)
-        {
-          frontend->set_cmd_forwarder(cmd_forwarder);
-        }
+        frontend->set_cmd_forwarder(cmd_forwarder);
       }
 
       logger::config::msg() = AdminMessage::log_msg;
@@ -133,7 +135,7 @@ namespace enclave
               // ledger is being read
               if (!node.is_reading_public_ledger())
               {
-                for (auto& r : *rpc_map)
+                for (auto& r : rpc_map->get_map())
                   r.second->tick(elapsed_ms);
               }
             }

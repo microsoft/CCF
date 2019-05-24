@@ -12,13 +12,19 @@ namespace ccf
     const size_t session_id;
     const NodeId forwarder_id;
     const CallerId caller_id;
+    const ccf::ActorsType actor;
 
     NodeId leader_id;
 
-    FwdContext(size_t session_id_, NodeId forwarder_id_, CallerId caller_id_) :
+    FwdContext(
+      size_t session_id_,
+      NodeId forwarder_id_,
+      CallerId caller_id_,
+      ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
       session_id(session_id_),
       forwarder_id(forwarder_id_),
-      caller_id(caller_id_)
+      caller_id(caller_id_),
+      actor(actor_)
     {}
   };
 
@@ -72,11 +78,13 @@ namespace ccf
       const std::vector<uint8_t>& data)
     {
       std::vector<uint8_t> plain(
-        sizeof(caller_id) + sizeof(rpc_ctx.session_id) + data.size());
+        sizeof(caller_id) + sizeof(rpc_ctx.session_id) + sizeof(rpc_ctx.actor) +
+        data.size());
       auto data_ = plain.data();
       auto size_ = plain.size();
       serialized::write(data_, size_, caller_id);
       serialized::write(data_, size_, rpc_ctx.session_id);
+      serialized::write(data_, size_, rpc_ctx.actor);
       serialized::write(data_, size_, data.data(), data.size());
 
       ForwardedHeader msg = {ForwardedMsg::forwarded_cmd, from};
@@ -110,10 +118,12 @@ namespace ccf
       auto size_ = plain_.size();
       auto caller_id = serialized::read<CallerId>(data_, size_);
       auto session_id = serialized::read<size_t>(data_, size_);
+      auto actor = serialized::read<ccf::ActorsType>(data_, size_);
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
 
       return std::make_pair(
-        FwdContext(session_id, msg.from_node, caller_id), std::move(rpc));
+        FwdContext(session_id, msg.from_node, caller_id, actor),
+        std::move(rpc));
     }
 
     bool send_forwarded_response(
@@ -173,14 +183,20 @@ namespace ccf
         {
           if (rpc_map)
           {
-            LOG_DEBUG << "Forwarded RPC: " << ccf::Actors::USERS << std::endl;
-
             auto fwd = recv_forwarded_command(data, size);
             if (!fwd.has_value())
               return;
 
-            auto fwd_handler = dynamic_cast<ccf::ForwardedRpcHandler*>(
-              rpc_map->at(std::string(ccf::Actors::USERS)).get());
+            auto handler = rpc_map->find(fwd->first.actor);
+            if (!handler.has_value())
+              return;
+
+            auto fwd_handler =
+              dynamic_cast<ccf::ForwardedRpcHandler*>(handler.value().get());
+            if (!fwd_handler)
+              return;
+
+            LOG_DEBUG << "Forwarded RPC: " << fwd->first.actor << std::endl;
 
             auto rep = fwd_handler->process_forwarded(fwd->first, fwd->second);
 
