@@ -510,7 +510,7 @@ class CCFRemote(object):
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.node_id))
         try:
-            self.remote.get(self.profraw)
+            self.remote.get(self.profraw, tiemout=0)
         except Exception:
             LOG.info(f"Could not retrieve {self.profraw}")
 
