@@ -454,6 +454,7 @@ class CCFRemote(object):
             cmd.append("--quote-file={}".format(self.quote))
 
         env = {}
+        self.profraw = None
         if enclave_type == "virtual":
             self.profraw = f"{os.path.basename(lib_path)}.profraw"
             env["LLVM_PROFILE_FILE"] = self.profraw
