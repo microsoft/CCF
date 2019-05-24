@@ -456,7 +456,7 @@ class CCFRemote(object):
         env = {}
         self.profraw = None
         if enclave_type == "virtual":
-            self.profraw = f"{os.path.basename(lib_path)}.profraw"
+            self.profraw = f"{node_id}_{os.path.basename(lib_path)}.profraw"
             env["LLVM_PROFILE_FILE"] = self.profraw
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(log_level)
