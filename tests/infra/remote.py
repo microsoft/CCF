@@ -454,7 +454,7 @@ class CCFRemote(object):
             cmd.append("--quote-file={}".format(self.quote))
 
         self.profraw = f"{os.path.basename(lib_path)}.profraw"
-        env = {'LLVM_PROFILE_FILE': self.profraw}
+        env = {"LLVM_PROFILE_FILE": self.profraw}
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(log_level)
         if oe_log_level:
             env["OE_LOG_LEVEL"] = oe_log_level
