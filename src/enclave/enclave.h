@@ -11,10 +11,12 @@
 #include "node/nodestate.h"
 #include "node/nodetypes.h"
 #include "node/notifier.h"
+#include "node/rpc/forwarder.h"
 #include "node/rpc/managementfrontend.h"
 #include "node/rpc/memberfrontend.h"
 #include "node/rpc/nodefrontend.h"
 #include "rpcclient.h"
+#include "rpcmap.h"
 #include "rpcsessions.h"
 
 namespace enclave
@@ -28,6 +30,7 @@ namespace enclave
     ccf::NetworkState network;
     ccf::NodeState node;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
+    std::shared_ptr<ccf::Forwarder> cmd_forwarder;
     ccf::Notifier notifier;
     std::shared_ptr<RpcMap> rpc_map;
     bool recover = false;
@@ -38,31 +41,38 @@ namespace enclave
       writer_factory(circuit, config->writer_config),
       rpcsessions(writer_factory),
       n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
-      node(writer_factory, network, rpcsessions, notifier),
-      notifier(writer_factory)
+      node(writer_factory, network, rpcsessions),
+      notifier(writer_factory),
+      cmd_forwarder(
+        std::make_shared<ccf::Forwarder>(rpcsessions, n2n_channels)),
+      rpc_map(std::make_shared<RpcMap>())
     {
-      rpc_map = std::make_shared<RpcMap>();
-      rpc_map->emplace(
-        std::string(ccf::Actors::MEMBERS),
+      REGISTER_FRONTEND(
+        rpc_map,
+        members,
         std::make_unique<ccf::MemberCallRpcFrontend>(network, node));
-      rpc_map->emplace(
-        std::string(ccf::Actors::MANAGEMENT),
+
+      REGISTER_FRONTEND(
+        rpc_map,
+        management,
         std::make_unique<ccf::ManagementRpcFrontend>(*network.tables, node));
-      rpc_map->emplace(
-        std::string(ccf::Actors::USERS),
-        ccfapp::get_rpc_handler(network, notifier));
-      rpc_map->emplace(
-        std::string(ccf::Actors::NODES),
+
+      REGISTER_FRONTEND(
+        rpc_map, users, ccfapp::get_rpc_handler(network, notifier));
+
+      REGISTER_FRONTEND(
+        rpc_map,
+        nodes,
         std::make_unique<ccf::NodesCallRpcFrontend>(
           *network.tables, node, network));
 
-      for (auto& r : *rpc_map)
+      for (auto& r : rpc_map->get_map())
       {
         auto frontend = dynamic_cast<ccf::RpcFrontend*>(r.second.get());
         frontend->set_sig_intervals(
           config->signature_intervals.sig_max_tx,
           config->signature_intervals.sig_max_ms);
-        frontend->set_n2n_channels(n2n_channels);
+        frontend->set_cmd_forwarder(cmd_forwarder);
       }
 
       logger::config::msg() = AdminMessage::log_msg;
@@ -70,6 +80,7 @@ namespace enclave
 
       node.initialize(config->raft_config, n2n_channels);
       rpcsessions.initialize(rpc_map);
+      cmd_forwarder->initialize(rpc_map);
     }
 
     bool create_node(
@@ -124,7 +135,7 @@ namespace enclave
               // ledger is being read
               if (!node.is_reading_public_ledger())
               {
-                for (auto& r : *rpc_map)
+                for (auto& r : rpc_map->get_map())
                   r.second->tick(elapsed_ms);
               }
             }
@@ -132,22 +143,17 @@ namespace enclave
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp, ccf::node_inbound, [this](const uint8_t* data, size_t size) {
-            auto [body] =
+            const auto [body] =
               ringbuffer::read_message<ccf::node_inbound>(data, size);
 
-            const auto& body_ = body;
-            auto p = body_.data();
-            auto psize = body_.size();
+            auto p = body.data();
+            auto psize = body.size();
 
             if (
               serialized::peek<ccf::NodeMsgType>(p, psize) ==
               ccf::NodeMsgType::forwarded_msg)
             {
-              serialized::skip(p, psize, sizeof(ccf::NodeMsgType));
-              LOG_DEBUG << "RPC forwarded: " << ccf::Actors::USERS << std::endl;
-
-              rpc_map->at(std::string(ccf::Actors::USERS))
-                ->process_forwarded(p, psize);
+              cmd_forwarder->recv_message(p, psize);
             }
             else
             {

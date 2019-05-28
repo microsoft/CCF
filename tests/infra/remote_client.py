@@ -80,3 +80,9 @@ class CCFRemoteClient(object):
             self.remote.stop()
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.name))
+
+    def wait(self):
+        try:
+            self.remote.wait_for_stdout_line(line="Global commit", timeout=5)
+        except Exception:
+            LOG.exception("Failed to wait on client {}".format(self.name))

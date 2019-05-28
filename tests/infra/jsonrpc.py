@@ -29,8 +29,7 @@ class ErrorCode(IntEnum):
     INVALID_CALLER_ID = -32606
     CODE_ID_NOT_FOUND = -32607
     CODE_ID_RETIRED = -32608
-    RPC_FORWARDED = -32609
-    RPC_NOT_FORWARDED = -32610
+    RPC_NOT_FORWARDED = -32609
     SERVER_ERROR_START = -32000
     TX_NOT_LEADER = -32001
     TX_REPLICATED = -32002
@@ -102,17 +101,19 @@ class Response:
         return d
 
     def _from_parsed(self, parsed):
-        def decode(sl):
-            if hasattr(sl, "decode"):
+        def decode(sl, is_key=False):
+            if is_key and hasattr(sl, "decode"):
                 return sl.decode()
-            elif hasattr(sl, "items"):
-                return {decode(k): decode(v) for k, v in sl.items()}
+            if hasattr(sl, "items"):
+                return {decode(k, is_key=True): decode(v) for k, v in sl.items()}
             elif isinstance(sl, list):
                 return [decode(e) for e in sl]
             else:
                 return sl
 
-        parsed_s = {decode(attr): decode(value) for attr, value in parsed.items()}
+        parsed_s = {
+            decode(attr, is_key=True): decode(value) for attr, value in parsed.items()
+        }
         unexpected = parsed_s.keys() - self._attrs
         if unexpected:
             raise ValueError("Unexpected keys in response: {}".format(unexpected))
@@ -219,13 +220,15 @@ class RPCLogger:
 
     def log_response(self, response):
         LOG.debug(
-            "#{} {}".format(
-                response.id,
-                {
-                    k: v
-                    for k, v in (response.__dict__ or {}).items()
-                    if not k.startswith("_")
-                },
+            truncate(
+                "#{} {}".format(
+                    response.id,
+                    {
+                        k: v
+                        for k, v in (response.__dict__ or {}).items()
+                        if not k.startswith("_")
+                    },
+                )
             )
         )
 

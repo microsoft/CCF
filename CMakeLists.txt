@@ -43,12 +43,6 @@ if(RECORD_TRACE)
   add_definitions(-DNO_COMMITTED_TX_HISTORY)
 endif()
 
-option(RPC_FORWARD_TO_LEADER "Followers verify signatures and forward RPC to leader" OFF)
-if (RPC_FORWARD_TO_LEADER)
-  add_definitions(-DRPC_FORWARD_TO_LEADER)
-  set(TEST_FORWARD_TO_LEADER "--leader-forwarding")
-endif()
-
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
 # MemberClient executable
@@ -317,6 +311,15 @@ if(BUILD_TESTS)
       -b .
       ${CCF_NETWORK_TEST_ARGS}
       ${RECOVERY_ARGS}
+  )
+
+  add_test(
+    NAME governance_tests
+    COMMAND
+      ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/governance.py
+      -b .
+      ${CCF_NETWORK_TEST_ARGS}
+      --oesign ${OESIGN}
   )
 
   if(BUILD_SMALLBANK)

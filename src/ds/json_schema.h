@@ -31,53 +31,13 @@ namespace ccf
   }
 
   template <typename T>
-  nlohmann::json schema_properties_element()
-  {
-    if constexpr (is_specialization<T, std::optional>::value)
-    {
-      return schema_properties_element<typename T::value_type>();
-    }
-    else if constexpr (is_specialization<T, std::vector>::value)
-    {
-      nlohmann::json element;
-      element["type"] = "array";
-      element["items"] = schema_properties_element<typename T::value_type>();
-      return element;
-    }
-    else if constexpr (std::is_same<T, std::string>::value)
-    {
-      nlohmann::json element;
-      element["type"] = "string";
-      return element;
-    }
-    else if constexpr (std::is_same<T, nlohmann::json>::value)
-    {
-      // Any field that contains more json is completely unconstrained
-      return nlohmann::json::object();
-    }
-    else if constexpr (std::is_integral<T>::value)
-    {
-      return schema_properties_element_numeric<T>();
-    }
-    else
-    {
-      static_assert(
-        dependent_false<T>::value,
-        "Unsupported type - can't create schema element");
-      return nullptr;
-    }
-  }
+  nlohmann::json schema_properties_element();
 
   template <
     typename T,
     typename = std::enable_if_t<RequiredJsonFields<T>::value>>
-  inline nlohmann::json build_schema(const std::string& title)
+  inline void fill_schema(nlohmann::json& schema)
   {
-    nlohmann::json schema;
-    schema["$id"] =
-      "http://https://github.com/Microsoft/CCF/schemas/" + title + ".json";
-    schema["$schema"] = "http://json-schema.org/draft-07/schema#";
-    schema["title"] = title;
     schema["type"] = "object";
 
     nlohmann::json required = nlohmann::json::array();
@@ -108,6 +68,64 @@ namespace ccf
 
     schema["required"] = required;
     schema["properties"] = properties;
+  }
+
+  template <typename T>
+  inline nlohmann::json schema_properties_element()
+  {
+    if constexpr (is_specialization<T, std::optional>::value)
+    {
+      return schema_properties_element<typename T::value_type>();
+    }
+    else if constexpr (is_specialization<T, std::vector>::value)
+    {
+      nlohmann::json element;
+      element["type"] = "array";
+      element["items"] = schema_properties_element<typename T::value_type>();
+      return element;
+    }
+    else if constexpr (std::is_same<T, std::string>::value)
+    {
+      nlohmann::json element;
+      element["type"] = "string";
+      return element;
+    }
+    else if constexpr (std::is_same<T, nlohmann::json>::value)
+    {
+      // Any field that contains more json is completely unconstrained
+      return nlohmann::json::object();
+    }
+    else if constexpr (std::is_integral<T>::value)
+    {
+      return schema_properties_element_numeric<T>();
+    }
+    else if constexpr (RequiredJsonFields<T>::value)
+    {
+      auto schema = nlohmann::json::object();
+      fill_schema<T>(schema);
+      return schema;
+    }
+    else
+    {
+      static_assert(
+        dependent_false<T>::value,
+        "Unsupported type - can't create schema element");
+      return nullptr;
+    }
+  }
+
+  template <
+    typename T,
+    typename = std::enable_if_t<RequiredJsonFields<T>::value>>
+  inline nlohmann::json build_schema(const std::string& title)
+  {
+    nlohmann::json schema;
+    schema["$id"] =
+      "http://https://github.com/Microsoft/CCF/schemas/" + title + ".json";
+    schema["$schema"] = "http://json-schema.org/draft-07/schema#";
+    schema["title"] = title;
+
+    fill_schema<T>(schema);
 
     return schema;
   }

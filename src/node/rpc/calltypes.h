@@ -19,15 +19,21 @@ namespace ccf
     };
   };
 
-  struct GetTxHist
+  struct GetMetrics
   {
-    struct Out
+    struct HistogramResults
     {
       int low = {};
       int high = {};
       size_t overflow = {};
       size_t underflow = {};
-      nlohmann::json histogram = {};
+      nlohmann::json buckets = {};
+    };
+
+    struct Out
+    {
+      HistogramResults histogram;
+      nlohmann::json tx_rates;
     };
   };
 

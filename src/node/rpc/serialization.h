@@ -20,7 +20,8 @@ namespace ccf
   DECLARE_REQUIRED_JSON_FIELDS(GetCommit::Out, term, commit)
 
   DECLARE_REQUIRED_JSON_FIELDS(
-    GetTxHist::Out, low, high, overflow, underflow, histogram)
+    GetMetrics::HistogramResults, low, high, overflow, underflow, buckets)
+  DECLARE_REQUIRED_JSON_FIELDS(GetMetrics::Out, histogram, tx_rates)
 
   DECLARE_REQUIRED_JSON_FIELDS(
     GetLeaderInfo::Out, leader_id, leader_host, leader_port)

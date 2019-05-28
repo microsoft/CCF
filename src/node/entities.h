@@ -5,6 +5,7 @@
 #include "kv/kvserialiser.h"
 
 #include <limits>
+#include <map>
 #include <stdint.h>
 #include <vector>
 
@@ -30,6 +31,16 @@ namespace ccf
     static constexpr auto USERS = "users";
     static constexpr auto NODES = "nodes";
     static constexpr auto MANAGEMENT = "management";
+  };
+
+  enum ActorsType
+  {
+    members = 0,
+    users,
+    nodes,
+    management,
+    // not to be used
+    unknown
   };
 
   struct Tables

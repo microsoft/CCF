@@ -158,17 +158,17 @@ namespace raft
       rand((int)(uintptr_t)this)
     {}
 
-    NodeId leader()
+    NodeId leader() override
     {
       return leader_id;
     }
 
-    NodeId id()
+    NodeId id() override
     {
       return local_id;
     }
 
-    bool is_leader()
+    bool is_leader() override
     {
       return state == Leader;
     }
@@ -273,7 +273,7 @@ namespace raft
       return current_term;
     }
 
-    Term get_term(Index idx)
+    Term get_term(Index idx) override
     {
       std::lock_guard<SpinLock> guard(lock);
       return get_term_internal(idx);

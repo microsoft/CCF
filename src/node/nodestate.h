@@ -19,7 +19,6 @@
 #include "kv/replicator.h"
 #include "networkstate.h"
 #include "nodetonode.h"
-#include "notifier.h"
 #include "rpc/consts.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
@@ -30,6 +29,8 @@
 #include <atomic>
 #include <chrono>
 #include <nlohmann/json.hpp>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <stdexcept>
 #include <unordered_set>
 #include <vector>
@@ -126,7 +127,6 @@ namespace ccf
     enclave::RPCSessions& rpcsessions;
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
-    Notifier& notifier;
 
     //
     // join protocol
@@ -160,15 +160,13 @@ namespace ccf
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
-      enclave::RPCSessions& rpcsessions,
-      Notifier& notifier) :
+      enclave::RPCSessions& rpcsessions) :
       sm(State::uninitialized),
       self(INVALID_ID),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
-      rpcsessions(rpcsessions),
-      notifier(notifier)
+      rpcsessions(rpcsessions)
     {
       ::EverCrypt_AutoConfig2_init();
     }
@@ -418,8 +416,6 @@ namespace ccf
       network.secrets = std::make_unique<NetworkSecrets>(
         "CN=The CA", std::make_unique<Seal>(writer_factory), false);
       accept_member_connections();
-      auto r = std::make_shared<kv::NullReplicator>();
-      network.tables->set_replicator(r);
       setup_store();
     }
 
@@ -602,6 +598,40 @@ namespace ccf
           "ledger");
       }
     }
+
+    void node_quotes(Store::Tx& tx, nlohmann::json& j)
+    {
+      auto nodes_view = tx.get_view(network.nodes);
+
+      nlohmann::json quotes;
+      nodes_view->foreach([&quotes](const NodeId& nid, const NodeInfo& ni) {
+        if (ni.status == ccf::NodeStatus::TRUSTED)
+        {
+          nlohmann::json quote;
+          quote["raw"] = std::string(ni.quote.begin(), ni.quote.end());
+
+#ifdef GET_QUOTE
+          oe_report_t parsed_quote = {0};
+          auto res =
+            oe_parse_report(ni.quote.data(), ni.quote.size(), &parsed_quote);
+          if (res != OE_OK)
+          {
+            std::stringstream ss;
+            ss << "Failed to parse quote: " << oe_result_str(res);
+            quote["error"] = ss.str();
+          }
+          else
+          {
+            quote["parsed"]["mrenclave"] = fmt::format(
+              "{:02x}", fmt::join(parsed_quote.identity.unique_id, ""));
+          }
+#endif
+          quotes[std::to_string(nid)] = quote;
+        }
+      });
+
+      j["quotes"] = quotes;
+    };
 
     //
     // funcs in state "awaitingRecoveryTx"
@@ -843,14 +873,14 @@ namespace ccf
 #endif
     }
 
-    bool node_msg(const std::vector<uint8_t>& data)
+    void node_msg(const std::vector<uint8_t>& data)
     {
       // Only process messages once part of network
       if (
         !sm.check(State::partOfNetwork) &&
         !sm.check(State::partOfPublicNetwork))
       {
-        return false;
+        return;
       }
 
       auto p = data.data();
@@ -875,7 +905,6 @@ namespace ccf
         default:
         {}
       }
-      return true;
     }
 
     bool pbft_msg(const uint8_t* data, size_t size)
