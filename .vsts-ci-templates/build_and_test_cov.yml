@@ -6,7 +6,7 @@ steps:
 - task: CMake@1
   displayName: CMake
   inputs:
-    cmakeArgs: '-GNinja -DVIRTUAL_ONLY=ON ..'
+    cmakeArgs: '-GNinja -DVIRTUAL_ONLY=ON -DBUILD_SMALLBANK=OFF ..'
 
 - script: ninja
   displayName: Ninja
