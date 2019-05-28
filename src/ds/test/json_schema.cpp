@@ -225,7 +225,7 @@ TEST_CASE("nested")
     }
     catch (json_parse_error& jpe)
     {
-      REQUIRE(jpe.pointer() == "#/v/xs/a");
+      REQUIRE(jpe.pointer() == "#/v/xs/3/a");
     }
 
     invalid_json["v"]["xs"][3].erase("a");
@@ -235,7 +235,7 @@ TEST_CASE("nested")
     }
     catch (json_parse_error& jpe)
     {
-      REQUIRE(jpe.pointer() == "#/v/xs");
+      REQUIRE(jpe.pointer() == "#/v/xs/3");
     }
 
     invalid_json["v"]["xs"].erase(3);
