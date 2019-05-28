@@ -1,3 +1,4 @@
+#define __Vec_Intrin_H
 #ifndef __Vec_Intrin_H
 #define __Vec_Intrin_H
 

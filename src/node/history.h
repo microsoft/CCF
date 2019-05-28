@@ -15,6 +15,8 @@
 #include <deque>
 #include <string.h>
 
+extern "C"
+{
 #if defined(INSIDE_ENCLAVE) && !defined(__linux__)
 // Tricks Kremlin into including the right endian.h for the enclave.
 // MUSL doesn't provide any macros that it could be identified by,
@@ -27,6 +29,7 @@
 #  include <evercrypt/MerkleTree.h>
 
 #endif
+}
 
 namespace ccf
 {
