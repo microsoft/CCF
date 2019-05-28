@@ -2,17 +2,12 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-set -e
+set -ex
 
-for f in *profraw; do
-    echo "$f" >> prof_files
-done
-
-# Generate html coverage report for individual unit test
 objects=()
 for f in *_test; do
     objects+=( -object "$f")
-    llvm-cov-7 show -instr-profile "$f".profdata -output-dir=cov_"$f" -format=html "$f" -Xdemangler c++filt -Xdemangler -n -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)"
+    echo "$f".profraw >> prof_files
 done
 
 # Merge coverage report for all unit tests
@@ -24,12 +19,12 @@ llvm-cov-7 export -instr-profile coverage.profdata -format=text "${objects[@]}" 
 
 # Generate and upload combined coverage report for Codecov
 llvm-cov-7 show -instr-profile coverage.profdata "${objects[@]}" -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)" > codecov.txt
-bash <(curl -s https://codecov.io/bash) -t "${CODECOV_TOKEN}" -f codecov.txt
+bash <(curl -s https://codecov.io/bash) -t "${CODECOV_TOKEN}" -f codecov.txt -F unit
 
-# Generate html for Azure Devops
-mv cov_* coverage/
-python3.7 ../tests/coverage/cobertura_generator.py
-python3.7 ../tests/coverage/style_html.py
-
-# Add coverage results to perf summary file
-python3.7 ../tests/coverage/add_perf_summary.py
+for e2e in *.virtual.so; do
+    if [ -f 0_"$e2e".profraw  ]; then
+        llvm-profdata-7 merge -sparse ./*_"$e2e".profraw -o "$e2e".profdata
+        llvm-cov-7 show -instr-profile "$e2e".profdata -object cchost.virtual -object "$e2e" -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)" > "$e2e".txt
+        bash <(curl -s https://codecov.io/bash) -t "${CODECOV_TOKEN}" -f "$e2e".txt -F "$(echo $"e2e" | cut -d. -f1)"
+    fi
+done
