@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include <nlohmann/json.hpp>
+#include <sstream>
 
 template <typename T>
 void assign_j(T& o, const nlohmann::json& j)
@@ -39,6 +40,26 @@ namespace std
     }
   }
 }
+
+class json_parse_error : public std::invalid_argument
+{
+public:
+  std::vector<char const*> pointer_elements = {};
+
+  using std::invalid_argument::invalid_argument;
+
+  std::string pointer() const
+  {
+    std::stringstream ss;
+    ss << "#";
+    for (auto it = pointer_elements.crbegin(); it != pointer_elements.crend();
+         ++it)
+    {
+      ss << "/" << *it;
+    }
+    return ss.str();
+  }
+};
 
 /** Template specialisation must happen in the correct namespace, so
 NAMESPACE_CONTAINS_JSON_TYPES must be stated within a namespace to use
@@ -79,7 +100,7 @@ DECLARE_JSON_REQUIRED_FIELDS.
   { \
     if (!j.is_object()) \
     { \
-      throw std::invalid_argument("Expected object, found: " + j.dump()); \
+      throw json_parse_error("Expected object, found: " + j.dump()); \
     } \
     read_fields<T, true>(j, t); \
     if constexpr (OptionalJsonFields<T>::value) \
@@ -211,10 +232,18 @@ namespace ccf
     const auto it = j.find(#FIELD); \
     if (it == j.end()) \
     { \
-      throw std::invalid_argument( \
+      throw json_parse_error( \
         "Missing required field '" #FIELD "' in object: " + j.dump()); \
     } \
-    t.FIELD = it->get<decltype(TYPE::FIELD)>(); \
+    try \
+    { \
+      t.FIELD = it->get<decltype(TYPE::FIELD)>(); \
+    } \
+    catch (json_parse_error & jpe) \
+    { \
+      jpe.pointer_elements.push_back(#FIELD); \
+      throw; \
+    } \
   }
 #define READ_REQUIRED_FOR_JSON_FINAL(TYPE, FIELD) \
   READ_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD)

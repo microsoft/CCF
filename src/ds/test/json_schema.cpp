@@ -145,7 +145,46 @@ namespace ccf
   {
     Nest2 v;
   };
-  DECLARE_REQUIRED_JSON_FIELDS(Nest3, v);
+
+  template <>
+  struct RequiredJsonFields<Nest3> : std::true_type
+  {
+    static constexpr auto required_fields =
+      std::make_tuple(JsonField<decltype(Nest3::v)>{"v"});
+  };
+
+  template <>
+  inline void write_fields<Nest3, true>(nlohmann::json& j, const Nest3& t)
+  {
+    {
+      j["v"] = t.v;
+    }
+  }
+
+  template <>
+  inline void read_fields<Nest3, true>(const nlohmann::json& j, Nest3& t)
+  {
+    {
+      const auto it = j.find("v");
+      if (it == j.end())
+      {
+        throw json_parse_error(
+          "Missing required field '"
+          "v"
+          "' in object: " +
+          j.dump());
+      }
+      try
+      {
+        t.v = it->get<decltype(Nest3::v)>();
+      }
+      catch (json_parse_error& jpe)
+      {
+        jpe.pointer_elements.push_back("v");
+        throw;
+      }
+    }
+  }
 
   bool operator==(const Nest3& l, const Nest3& r)
   {
@@ -179,7 +218,37 @@ TEST_CASE("nested")
 
   {
     auto invalid_json = j;
-    invalid_json["v"]["xs"][3] = nullptr;
-    const auto x = invalid_json.get<Nest3>();
+    invalid_json["v"]["xs"][3]["a"].erase("n");
+    try
+    {
+      invalid_json.get<Nest3>();
+    }
+    catch (json_parse_error& jpe)
+    {
+      REQUIRE(jpe.pointer() == "#/v/xs/a");
+    }
+
+    invalid_json["v"]["xs"][3].erase("a");
+    try
+    {
+      invalid_json.get<Nest3>();
+    }
+    catch (json_parse_error& jpe)
+    {
+      REQUIRE(jpe.pointer() == "#/v/xs");
+    }
+
+    invalid_json["v"]["xs"].erase(3);
+    REQUIRE_NOTHROW(invalid_json.get<Nest3>());
+
+    invalid_json["v"].erase("xs");
+    try
+    {
+      invalid_json.get<Nest3>();
+    }
+    catch (json_parse_error& jpe)
+    {
+      REQUIRE(jpe.pointer() == "#/v");
+    }
   }
 }
