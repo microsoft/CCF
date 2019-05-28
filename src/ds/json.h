@@ -20,6 +20,26 @@ struct JsonField
   char const* name;
 };
 
+class json_parse_error : public std::invalid_argument
+{
+public:
+  std::vector<std::string> pointer_elements = {};
+
+  using std::invalid_argument::invalid_argument;
+
+  std::string pointer() const
+  {
+    std::stringstream ss;
+    ss << "#";
+    for (auto it = pointer_elements.crbegin(); it != pointer_elements.crend();
+         ++it)
+    {
+      ss << "/" << *it;
+    }
+    return ss.str();
+  }
+};
+
 namespace std
 {
   template <typename T>
@@ -39,27 +59,39 @@ namespace std
       t = j.get<T>();
     }
   }
-}
 
-class json_parse_error : public std::invalid_argument
-{
-public:
-  std::vector<char const*> pointer_elements = {};
-
-  using std::invalid_argument::invalid_argument;
-
-  std::string pointer() const
+  template <typename T>
+  inline void to_json(nlohmann::json& j, const std::vector<T>& t)
   {
-    std::stringstream ss;
-    ss << "#";
-    for (auto it = pointer_elements.crbegin(); it != pointer_elements.crend();
-         ++it)
+    j = nlohmann::json::array();
+    for (const auto& e : t)
     {
-      ss << "/" << *it;
+      j.push_back(e);
     }
-    return ss.str();
   }
-};
+
+  template <typename T>
+  inline void from_json(const nlohmann::json& j, std::vector<T>& t)
+  {
+    if (!j.is_array())
+    {
+      throw json_parse_error("Expected array, found: " + j.dump());
+    }
+
+    for (auto i = 0u; i < j.size(); ++i)
+    {
+      try
+      {
+        t.push_back(j.at(i).template get<T>());
+      }
+      catch (json_parse_error& jpe)
+      {
+        jpe.pointer_elements.push_back(std::to_string(i));
+        throw;
+      }
+    }
+  }
+}
 
 /** Template specialisation must happen in the correct namespace, so
 NAMESPACE_CONTAINS_JSON_TYPES must be stated within a namespace to use
