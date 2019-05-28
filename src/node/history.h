@@ -20,11 +20,11 @@
 // MUSL doesn't provide any macros that it could be identified by,
 // so we use our own. This avoids macro redefinition warnings.
 #  define __linux__
-#  include <merkle_tree/MerkleTree.h>
+#  include <evercrypt/MerkleTree.h>
 
 #  undef __linux__
 #else
-#  include <merkle_tree/MerkleTree.h>
+#  include <evercrypt/MerkleTree.h>
 
 #endif
 

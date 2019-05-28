@@ -1,11 +1,7 @@
 /* Copyright (c) INRIA and Microsoft Corporation. All rights reserved.
    Licensed under the Apache 2.0 License. */
 
-/* Note: including some forward-references because Prims.strcat is meant to go
- * away in favor of FStar.String.strcat (will it ever happen?). */
-
 #include "Prims.h"
-#include "FStar_String.h"
 #include "FStar_Int32.h"
 
 Prims_string Prims_string_of_int(krml_checked_int_t i) {
@@ -13,7 +9,16 @@ Prims_string Prims_string_of_int(krml_checked_int_t i) {
 }
 
 Prims_string Prims_strcat(Prims_string s0, Prims_string s1) {
-  return FStar_String_strcat(s0, s1);
+  size_t len = strlen(s0) + strlen(s1) + 1;
+  char *dest = KRML_HOST_CALLOC(len, 1);
+#ifdef _MSC_VER
+  strcat_s(dest, len, s0);
+  strcat_s(dest, len, s1);
+#else
+  strcat(dest, s0);
+  strcat(dest, s1);
+#endif
+  return (Prims_string)dest;
 }
 
 bool __eq__Prims_string(Prims_string s1, Prims_string s2) {
