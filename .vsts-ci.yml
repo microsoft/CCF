@@ -10,7 +10,6 @@ jobs:
     - template: .vsts-ci-templates/build_and_test.yml
     - template: .vsts-ci-templates/push_perf_data.yml
 
-jobs:
 - job: ACC_1804_virtual_build
   pool: Ubuntu-1804-SGX-Azure
   steps:
