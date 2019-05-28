@@ -145,46 +145,7 @@ namespace ccf
   {
     Nest2 v;
   };
-
-  template <>
-  struct RequiredJsonFields<Nest3> : std::true_type
-  {
-    static constexpr auto required_fields =
-      std::make_tuple(JsonField<decltype(Nest3::v)>{"v"});
-  };
-
-  template <>
-  inline void write_fields<Nest3, true>(nlohmann::json& j, const Nest3& t)
-  {
-    {
-      j["v"] = t.v;
-    }
-  }
-
-  template <>
-  inline void read_fields<Nest3, true>(const nlohmann::json& j, Nest3& t)
-  {
-    {
-      const auto it = j.find("v");
-      if (it == j.end())
-      {
-        throw json_parse_error(
-          "Missing required field '"
-          "v"
-          "' in object: " +
-          j.dump());
-      }
-      try
-      {
-        t.v = it->get<decltype(Nest3::v)>();
-      }
-      catch (json_parse_error& jpe)
-      {
-        jpe.pointer_elements.push_back("v");
-        throw;
-      }
-    }
-  }
+  DECLARE_REQUIRED_JSON_FIELDS(Nest3, v);
 
   bool operator==(const Nest3& l, const Nest3& r)
   {
