@@ -273,6 +273,15 @@ if(BUILD_TESTS)
       NAME quote_verification_test
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/quote_verification.py . ./libloggingenc.so.signed
     )
+
+    add_test(
+      NAME governance_tests
+      COMMAND
+        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/governance.py
+        -b .
+        ${CCF_NETWORK_TEST_ARGS}
+        --oesign ${OESIGN}
+    )
   endif()
 
   add_test(
@@ -310,15 +319,6 @@ if(BUILD_TESTS)
       -b .
       ${CCF_NETWORK_TEST_ARGS}
       ${RECOVERY_ARGS}
-  )
-
-  add_test(
-    NAME governance_tests
-    COMMAND
-      ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/governance.py
-      -b .
-      ${CCF_NETWORK_TEST_ARGS}
-      --oesign ${OESIGN}
   )
 
   if(BUILD_SMALLBANK)
