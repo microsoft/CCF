@@ -103,3 +103,83 @@ TEST_CASE("schema generation")
   REQUIRE(required_it->is_array());
   REQUIRE(required_it->size() == 2);
 }
+
+namespace ccf
+{
+  struct Nest0
+  {
+    size_t n = {};
+  };
+  DECLARE_REQUIRED_JSON_FIELDS(Nest0, n);
+
+  bool operator==(const Nest0& l, const Nest0& r)
+  {
+    return l.n == r.n;
+  }
+
+  struct Nest1
+  {
+    Nest0 a = {};
+    Nest0 b = {};
+  };
+  DECLARE_REQUIRED_JSON_FIELDS(Nest1, a, b);
+
+  bool operator==(const Nest1& l, const Nest1& r)
+  {
+    return l.a == r.a && l.b == r.b;
+  }
+
+  struct Nest2
+  {
+    Nest1 x;
+    std::vector<Nest1> xs;
+  };
+  DECLARE_REQUIRED_JSON_FIELDS(Nest2, x, xs);
+
+  bool operator==(const Nest2& l, const Nest2& r)
+  {
+    return l.x == r.x && l.xs == r.xs;
+  }
+
+  struct Nest3
+  {
+    Nest2 v;
+  };
+  DECLARE_REQUIRED_JSON_FIELDS(Nest3, v);
+
+  bool operator==(const Nest3& l, const Nest3& r)
+  {
+    return l.v == r.v;
+  }
+}
+
+TEST_CASE("nested")
+{
+  using namespace ccf;
+  const Nest0 n0_1{10};
+  const Nest0 n0_2{20};
+  const Nest0 n0_3{30};
+  const Nest0 n0_4{40};
+
+  const Nest1 n1_1{n0_1, n0_2};
+  const Nest1 n1_2{n0_1, n0_3};
+  const Nest1 n1_3{n0_1, n0_4};
+  const Nest1 n1_4{n0_2, n0_3};
+  const Nest1 n1_5{n0_3, n0_4};
+  const Nest1 n1_6{n0_4, n0_4};
+
+  const Nest2 n2_1{n1_1, {n1_6, n1_5, n1_4, n1_3, n1_2}};
+
+  Nest3 n3{n2_1};
+
+  nlohmann::json j = n3;
+  const auto r0 = j.get<Nest3>();
+
+  REQUIRE(n3 == r0);
+
+  {
+    auto invalid_json = j;
+    invalid_json["v"]["xs"][3] = nullptr;
+    const auto x = invalid_json.get<Nest3>();
+  }
+}
