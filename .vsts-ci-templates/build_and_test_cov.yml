@@ -17,7 +17,7 @@ steps:
   displayName: CTest
   workingDirectory: build
 
-- script: 'xsltproc --stringparam suiteName "$(Agent.MachineName)" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
+- script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) Virtual Coverage" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
   displayName: XSLT
   workingDirectory: build
   condition: succeededOrFailed()
