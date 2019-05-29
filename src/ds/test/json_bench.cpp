@@ -101,7 +101,7 @@ void randomise(bool& b)
   };
 
 template <typename T>
-static void convert(picobench::state& s)
+static void conv(picobench::state& s)
 {
   std::vector<T> entries(s.iterations());
   for (auto& e : entries)
@@ -198,9 +198,9 @@ namespace macros
 const std::vector<int> sizes = {2'000, 4'000};
 
 PICOBENCH_SUITE("simple");
-PICOBENCH(convert<manual::Simple>).iterations(sizes).samples(10);
-PICOBENCH(convert<macros::Simple>).iterations(sizes).samples(10);
+PICOBENCH(conv<manual::Simple>).iterations(sizes).samples(10);
+PICOBENCH(conv<macros::Simple>).iterations(sizes).samples(10);
 
 PICOBENCH_SUITE("complex");
-PICOBENCH(convert<manual::Complex>).iterations(sizes).samples(10);
-PICOBENCH(convert<macros::Complex>).iterations(sizes).samples(10);
+PICOBENCH(conv<manual::Complex>).iterations(sizes).samples(10);
+PICOBENCH(conv<macros::Complex>).iterations(sizes).samples(10);
