@@ -22,11 +22,15 @@ import cryptography.x509
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.backends import default_backend
 
+
 def verify_sig(raw_cert, sig, req):
-    cert = cryptography.x509.load_der_x509_certificate(raw_cert, backend=default_backend())
+    cert = cryptography.x509.load_der_x509_certificate(
+        raw_cert, backend=default_backend()
+    )
     pub_key = cert.public_key()
     hash_alg = ec.ECDSA(cert.signature_hash_algorithm)
     pub_key.verify(sig, req, hash_alg)
+
 
 def run(args):
     hosts = ["localhost", "localhost"]
@@ -118,7 +122,7 @@ def run(args):
         j_result = json.loads(result.stdout)
         assert j_result["result"]
 
-        ledger_filename = network.find_leader()[0].remote.get_ledger_full_path() 
+        ledger_filename = network.find_leader()[0].remote.get_ledger_full_path()
 
     l = ledger.Ledger(ledger_filename)
 
@@ -144,6 +148,7 @@ def run(args):
                 ++verified_votes
 
     assert verified_votes == 0
+
 
 if __name__ == "__main__":
 

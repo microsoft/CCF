@@ -516,6 +516,7 @@ class CCFRemote(object):
     def get_ledger_full_path(self):
         return self.remote.root + "/" + self.ledger_file_name
 
+
 @contextmanager
 def ccf_remote(
     lib_path, node_id, host, pubhost, raft_port, tls_port, args, remote_class

@@ -9,8 +9,10 @@ GCM_SIZE_IV = 12
 LEDGER_TRANSACTION_SIZE = 4
 LEDGER_DOMAIN_SIZE = 8
 
+
 def to_uint_32(buffer):
     return struct.unpack("@I", buffer)[0]
+
 
 def to_uint_64(buffer):
     return struct.unpack("@Q", buffer)[0]
@@ -18,8 +20,8 @@ def to_uint_64(buffer):
 
 class GcmHeader:
 
-    _gcm_tag = ['\0'] * GCM_SIZE_TAG
-    _gcm_iv = ['\0'] * GCM_SIZE_IV
+    _gcm_tag = ["\0"] * GCM_SIZE_TAG
+    _gcm_iv = ["\0"] * GCM_SIZE_IV
 
     def __init__(self, buffer):
         if len(buffer) < GcmHeader.size():
@@ -29,6 +31,7 @@ class GcmHeader:
 
     def size():
         return GCM_SIZE_TAG + GCM_SIZE_IV
+
 
 class LedgerDomain:
 
@@ -76,15 +79,16 @@ class LedgerDomain:
                     k = self._read_next()
                     records[k] = None
 
-
     def get_tables(self):
         return self._tables
-        
+
+
 def _byte_read_safe(file, num_of_bytes):
     ret = file.read(num_of_bytes)
     if len(ret) != num_of_bytes:
         raise ValueError("Failed to read precise number of bytes: %u" % num_of_bytes)
-    return ret;
+    return ret
+
 
 class Transaction:
 
@@ -97,7 +101,7 @@ class Transaction:
     gcm_header = None
 
     def __init__(self, filename):
-        self._file = open(filename, mode = "rb")
+        self._file = open(filename, mode="rb")
         self._file.seek(0, 2)
         self._file_size = self._file.tell()
         self._file.seek(0, 0)
@@ -129,7 +133,6 @@ class Transaction:
     def _complete_read(self):
         self._file.seek(self._next_offset, 0)
         self._public_domain = None
-        
 
     def __iter__(self):
         return self
@@ -144,6 +147,7 @@ class Transaction:
         except:
             raise StopIteration()
 
+
 class Ledger:
 
     _filename = None
@@ -151,12 +155,5 @@ class Ledger:
     def __init__(self, filename):
         self._filename = filename
 
-    # def transactions(self):
-        # while self.has_bytes()
-
-        # for transaction in ???:
-            # yield transaction
-
     def __iter__(self):
         return Transaction(self._filename)
-
