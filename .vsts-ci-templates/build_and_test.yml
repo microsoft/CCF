@@ -1,3 +1,7 @@
+parameters:
+  cmake_args: ''
+  suite_name_suffix: ''
+
 steps:
 - checkout: self
   clean: true
@@ -6,7 +10,7 @@ steps:
 - task: CMake@1
   displayName: CMake
   inputs:
-    cmakeArgs: '-GNinja ..'
+    cmakeArgs: '-GNinja .. ${{ parameters.cmake_args }}'
 
 - script: ninja
   displayName: Ninja
@@ -17,7 +21,7 @@ steps:
   displayName: CTest
   workingDirectory: build
 
-- script: 'xsltproc --stringparam suiteName "$(Agent.MachineName)" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
+- script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) ${{ parameters.suite_name_suffix }}" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
   displayName: XSLT
   workingDirectory: build
   condition: succeededOrFailed()
