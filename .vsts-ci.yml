@@ -10,6 +10,15 @@ jobs:
     - template: .vsts-ci-templates/build_and_test.yml
     - template: .vsts-ci-templates/push_perf_data.yml
 
+- job: ACC_1804_virtual_build
+  pool: Ubuntu-1804-SGX-Azure
+  steps:
+    - template: .vsts-ci-templates/build_and_test.yml
+      parameters:
+        cmake_args: '-DVIRTUAL_ONLY=ON -DBUILD_SMALLBANK=OFF'
+        suite_name_suffix: ' Virtual Coverage'
+    - template: .vsts-ci-templates/coverage.yml
+
 - job: static_checks
   pool: Ubuntu-1804-SGX-Azure
   steps:

@@ -22,9 +22,7 @@ llvm-cov-7 show -instr-profile coverage.profdata "${objects[@]}" -ignore-filenam
 bash <(curl -s https://codecov.io/bash) -t "${CODECOV_TOKEN}" -f codecov.txt -F unit
 
 for e2e in *.virtual.so; do
-    if [ -f 0_"$e2e".profraw  ]; then
-        llvm-profdata-7 merge -sparse ./*_"$e2e".profraw -o "$e2e".profdata
-        llvm-cov-7 show -instr-profile "$e2e".profdata -object cchost.virtual -object "$e2e" -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)" > "$e2e".txt
-        bash <(curl -s https://codecov.io/bash) -t "${CODECOV_TOKEN}" -f "$e2e".txt -F "$(echo $"e2e" | cut -d. -f1)"
-    fi
+    llvm-profdata-7 merge -sparse ./*_"$e2e".profraw -o "$e2e".profdata
+    llvm-cov-7 show -instr-profile "$e2e".profdata -object cchost.virtual -object "$e2e" -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)" > "$e2e".txt
+    bash <(curl -s https://codecov.io/bash) -t "${CODECOV_TOKEN}" -f "$e2e".txt -F "$(echo $"e2e" | cut -d. -f1)"
 done
