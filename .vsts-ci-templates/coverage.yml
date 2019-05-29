@@ -1,0 +1,11 @@
+steps:
+- script: |
+    ls *_test | xargs -n1 -I '{}' llvm-profdata-7 merge {}.profraw -o {}.profdata
+    ls *_test | xargs -n1 -I '{}' sh -c 'printf "\n*** Binary: {} ***\n "; llvm-cov-7 report -object {} -instr-profile {}.profdata -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)"'
+  displayName: Coverage
+  workingDirectory: build
+
+- script: |
+    CODECOV_TOKEN=$(codecov) ../tests/coverage/generate_coverage.sh
+  displayName: CoverageGeneration
+  workingDirectory: build
