@@ -202,6 +202,7 @@ if(BUILD_TESTS)
   ## Picobench benchmarks
   add_picobench(map_bench src/ds/test/map_bench.cpp)
   add_picobench(logger_bench src/ds/test/logger_bench.cpp)
+  add_picobench(json_bench src/ds/test/json_bench.cpp)
   add_picobench(ringbuffer_bench src/ds/test/ringbuffer_bench.cpp)
   target_link_libraries(ringbuffer_bench PRIVATE
     ${CMAKE_THREAD_LIBS_INIT})
