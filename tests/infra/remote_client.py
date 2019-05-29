@@ -75,9 +75,22 @@ class CCFRemoteClient(object):
     def debug_node_cmd(self):
         return self.remote._dbg()
 
-    def stop(self):
+    def stop(self, retrieve_csvs=False):
         try:
             self.remote.stop()
+            if retrieve_csvs:
+                remote_files = self.remote.list_files()
+                remote_csvs = [f for f in remote_files if f.endswith(".csv")]
+                for csv in remote_csvs:
+                    if csv == "perf_summary.csv":
+                        remote_perf = "{}_perf_summary.csv".format(self.name)
+                        self.remote.get(csv, 1, remote_perf)
+                        with open("perf_summary.csv", "a") as l:
+                            with open(remote_perf, "r") as r:
+                                for line in r.readlines():
+                                    l.write(line)
+                    else:
+                        self.remote.get(csv, 1)
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.name))
 
