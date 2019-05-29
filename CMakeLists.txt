@@ -45,6 +45,8 @@ endif()
 
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
+option(END_TO_END_COVERAGE "Run additional tests in virtual enclaves to generate coverage for end to end tests" OFF)
+
 # MemberClient executable
 add_executable(memberclient src/clients/memberclient.cpp)
 use_client_mbedtls(memberclient)
@@ -276,6 +278,15 @@ if(BUILD_TESTS)
       NAME quote_verification_test
       COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/quote_verification.py . ./libloggingenc.so.signed
     )
+
+    add_test(
+      NAME governance_tests
+      COMMAND
+        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/governance.py
+        -b .
+        ${CCF_NETWORK_TEST_ARGS}
+        --oesign ${OESIGN}
+    )
   endif()
 
   add_test(
@@ -315,16 +326,7 @@ if(BUILD_TESTS)
       ${RECOVERY_ARGS}
   )
 
-  add_test(
-    NAME governance_tests
-    COMMAND
-      ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/governance.py
-      -b .
-      ${CCF_NETWORK_TEST_ARGS}
-      --oesign ${OESIGN}
-  )
-
-  if(BUILD_SMALLBANK)
+  if (BUILD_SMALLBANK)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
   endif()
 
