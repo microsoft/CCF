@@ -24,10 +24,17 @@ else()
   if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(${CMAKE_THREAD_LIBS_INIT} "$CMAKE_THREAD_LIBS_INIT} atomic")
     separate_arguments(COVERAGE_FLAGS UNIX_COMMAND "--coverage -fprofile-arcs -ftest-coverage")
+    separate_arguments(COVERAGE_LINK UNIX_COMMAND "gcov")
   else()
     separate_arguments(COVERAGE_FLAGS UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
+    separate_arguments(COVERAGE_LINK UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
   endif()
 endif()
+
+function(enable_coverage name)
+  target_compile_options(${name} PRIVATE ${COVERAGE_FLAGS})
+  target_link_libraries(${name} PRIVATE ${COVERAGE_LINK})
+endfunction()
 
 set(CURVE_CHOICE "secp384r1" CACHE STRING "One of secp384r1, curve25519, secp256k1_mbedtls, secp256k1_bitcoin")
 if (${CURVE_CHOICE} STREQUAL "secp384r1")
@@ -395,7 +402,8 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
     INSIDE_ENCLAVE
     VIRTUAL_ENCLAVE
   )
-  target_compile_options(${virt_name} PRIVATE -stdlib=libc++)
+  target_compile_options(${virt_name} PRIVATE
+    -stdlib=libc++)
   target_include_directories(${virt_name} SYSTEM PRIVATE
     ${PARSED_ARGS_INCLUDE_DIRS}
     ${CCFCRYPTO_INC}
@@ -419,6 +427,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
     ${CMAKE_THREAD_LIBS_INIT}
     secp256k1.host
   )
+  enable_coverage(${virt_name})
   if (PBFT)
     target_link_libraries(${virt_name} PRIVATE
       -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
@@ -436,14 +445,8 @@ function(add_unit_test name)
   target_include_directories(${name} PRIVATE
     src
     ${CCFCRYPTO_INC})
-  target_compile_options(${name} PRIVATE
-    -fdiagnostics-color=always
-    ${COVERAGE_FLAGS})
-    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-      target_link_libraries(${name} PRIVATE gcov)
-    else()
-      target_link_libraries(${name} PRIVATE -fprofile-instr-generate -fcoverage-mapping)
-    endif()
+  target_compile_options(${name} PRIVATE -fdiagnostics-color=always)
+  enable_coverage(${name})
   target_link_libraries(${name} PRIVATE ccfcrypto.host)
 
   use_client_mbedtls(${name})
@@ -500,7 +503,7 @@ target_include_directories(cchost.virtual PRIVATE
   ${CMAKE_CURRENT_BINARY_DIR}
 )
 add_san(cchost.virtual)
-
+enable_coverage(cchost.virtual)
 target_link_libraries(cchost.virtual PRIVATE
   uv
   ${CRYPTO_LIBRARY}
@@ -512,6 +515,11 @@ target_link_libraries(cchost.virtual PRIVATE
   ccfcrypto.host
   merkle_tree.host
 )
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+target_link_libraries(cchost.virtual PRIVATE gcov)
+else()
+target_link_libraries(cchost.virtual PRIVATE -fprofile-instr-generate -fcoverage-mapping)
+endif()
 
 # Client executable
 add_executable(client ${CCF_DIR}/src/clients/client.cpp)
@@ -531,6 +539,13 @@ set_property(TARGET lua.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 set(CCF_NETWORK_TEST_ARGS
   ${TEST_EXPECT_QUOTE}
   ${TEST_ENCLAVE_TYPE}
+  -l ${TEST_HOST_LOGGING_LEVEL}
+  -g ${CCF_DIR}/src/runtime_config/gov.lua
+)
+
+set(CCF_NETWORK_TEST_COV_ARGS
+  ${TEST_EXPECT_QUOTE}
+  -e virtual
   -l ${TEST_HOST_LOGGING_LEVEL}
   -g ${CCF_DIR}/src/runtime_config/gov.lua
 )
