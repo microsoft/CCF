@@ -16,11 +16,41 @@ inline void clobber_memory()
   asm volatile("" : : : "memory");
 }
 
+void randomise(std::string& s)
+{
+  s.resize(rand() % 20);
+  for (auto& c : s)
+  {
+    c = 'a' + rand() % 26;
+  }
+}
+
+void randomise(size_t& n)
+{
+  n = rand();
+}
+
+void randomise(int& n)
+{
+  n = rand();
+}
+
+void randomise(bool& b)
+{
+  b = rand() % 2;
+}
+
 struct Simple
 {
   size_t x;
   int y;
 };
+
+void randomise(Simple& s)
+{
+  randomise(s.x);
+  randomise(s.y);
+}
 
 void to_json(nlohmann::json& j, const Simple& s)
 {
@@ -34,12 +64,27 @@ void from_json(const nlohmann::json& j, Simple& s)
   s.y = j["y"];
 }
 
+namespace macros
+{
+  NAMESPACE_CONTAINS_JSON_TYPES;
+
+  struct Simple : public Simple
+  {};
+  DECLARE_REQUIRED_JSON_FIELDS(Simple, x, y);
+}
+
 struct Complex
 {
   struct Foo
   {
     size_t n;
     std::string s;
+
+    void randomise()
+    {
+      randomise(n);
+      randomise(s);
+    }
   };
 
   struct Bar
@@ -47,40 +92,108 @@ struct Complex
     size_t a;
     size_t b;
     std::vector<Foo> foos;
+
+    void randomise()
+    {
+      randomise(a);
+      randomise(b);
+
+      foos.resize(rand() % 20);
+      for (auto& e : foos)
+      {
+        e.randomise();
+      }
+    }
   };
 
   bool b;
   int i;
   std::string s;
   std::map<size_t, Bar> m;
+
+  void randomise()
+  {
+    randomise(b);
+    randomise(i);
+    randomise(s);
+
+    const size_t n = rand() % 20;
+    for (auto i = 0; i < n; ++i)
+    {
+      size_t nn;
+      Complex::Bar bar;
+      randomise(nn);
+      bar.randomise();
+      m[n] = bar;
+    }
+  }
 };
 
-static void roundtrip_simple(picobench::state& s)
+void to_json(nlohmann::json& j, const Complex::Foo& f)
 {
-  Simple a;
+  j["n"] = f.n;
+  j["s"] = f.s;
+}
+
+void to_json(nlohmann::json& j, const Complex::Bar& b)
+{
+  j["a"] = b.a;
+  j["b"] = b.b;
+  j["foos"] = b.foos;
+}
+
+void to_json(nlohmann::json& j, const Complex& c)
+{
+  j["b"] = c.b;
+  j["i"] = c.i;
+  j["s"] = c.s;
+  j["m"] = c.m;
+}
+
+void from_json(const nlohmann::json& j, Complex::Foo& f)
+{
+  f.n = j["n"];
+  f.s = j["s"];
+}
+
+void from_json(const nlohmann::json& j, Complex::Bar& b)
+{
+  b.a = j["a"];
+  b.b = j["b"];
+  b.foos = j["foos"].get<decltype(b.foos)>();
+}
+
+void from_json(const nlohmann::json& j, Complex& c)
+{
+  c.b = j["b"];
+  c.i = j["i"];
+  c.s = j["s"];
+  c.m = j["m"].get<decltype(c.m)>();
+}
+
+template <typename T>
+static void roundtrip(picobench::state& s)
+{
+  std::vector<T> entries(s.iterations());
+  for (auto& e : entries)
+  {
+    e.randomise();
+  }
+
   picobench::scope scope(s);
   for (size_t i = 0; i < s.iterations(); ++i)
   {
-    nlohmann::json j = a;
-    const auto b = j.get<Simple>();
+    nlohmann::json j = entries[i];
+    const auto b = j.get<T>();
     do_not_optimize(b);
     clobber_memory();
   }
 }
 
-// static void roundtrip_complex(picobench::state& s)
-// {
-//   logger::config::level() = logger::FAIL;
-//   picobench::scope scope(s);
+const std::vector<int> sizes = {4'000};
 
-//   for (size_t i = 0; i < s.iterations(); ++i)
-//   {
-//     LOG_DEBUG << "test" << std::endl;
-//   }
-// }
-
-const std::vector<int> sizes = {100'000, 200'000, 400'000};
-
-PICOBENCH_SUITE("json");
-PICOBENCH(roundtrip_simple).iterations(sizes).samples(10);
-// PICOBENCH(roundtrip_complex).iterations(sizes).samples(10);
+PICOBENCH_SUITE("simple");
+PICOBENCH(roundtrip<Simple>).iterations(sizes).samples(10);
+PICOBENCH(roundtrip<macros::Simple>).iterations(sizes).samples(10);
+PICOBENCH_SUITE("complex");
+PICOBENCH(roundtrip<Complex>).iterations(sizes).samples(10);
