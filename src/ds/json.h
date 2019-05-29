@@ -95,7 +95,7 @@ namespace std
 
 /** Template specialisation must happen in the correct namespace, so
 NAMESPACE_CONTAINS_JSON_TYPES must be stated within a namespace to use
-DECLARE_JSON_REQUIRED_FIELDS.
+DECLARE_REQUIRED_JSON_FIELDS.
 */
 #define NAMESPACE_CONTAINS_JSON_TYPES \
   template <typename T> \
