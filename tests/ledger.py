@@ -1,9 +1,13 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
 import io
 import msgpack
 import struct
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
+LEDGER_TRANSACTION_SIZE = 4
+LEDGER_DOMAIN_SIZE = 8
 
 def to_uint_32(buffer):
     return struct.unpack("@I", buffer)[0]
@@ -33,7 +37,7 @@ class LedgerDomain:
     _buffer_size = 0
     _version = 0
     _read_version = 0
-    _tables = dict()
+    _tables = {}
 
     def __init__(self, buffer):
         self._buffer = buffer
@@ -53,7 +57,7 @@ class LedgerDomain:
         while self._buffer_size > self._unpacker.tell():
             map_start_indicator = self._read_next()
             map_name = self._read_next_string()
-            records = dict()
+            records = {}
             self._tables[map_name] = records
             read_version = self._read_next()
 
@@ -103,17 +107,17 @@ class Transaction:
 
     def read_header(self):
         # read the size of the transaction
-        buffer = _byte_read_safe(self._file, 4)
+        buffer = _byte_read_safe(self._file, LEDGER_TRANSACTION_SIZE)
         self._total_size = to_uint_32(buffer)
         self._next_offset += self._total_size
-        self._next_offset += 4
+        self._next_offset += LEDGER_TRANSACTION_SIZE
 
         # read the AES GCM header
         buffer = _byte_read_safe(self._file, GcmHeader.size())
         self.gcm_header = GcmHeader(buffer)
 
         # read the size of the public domain
-        buffer = _byte_read_safe(self._file, 8)
+        buffer = _byte_read_safe(self._file, LEDGER_DOMAIN_SIZE)
         self._public_domain_size = to_uint_64(buffer)
 
     def get_public_domain(self):
