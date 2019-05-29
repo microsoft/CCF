@@ -335,7 +335,6 @@ namespace ccf
 
       // If the join network command is synchronous, only reply to the client
       // when the leader has responded
-      // TODO: Really weird!
       if (args.is_sync)
         rpc_ctx.is_suspended = true;
 
@@ -406,10 +405,7 @@ namespace ccf
 
           jsonrpc::Response<JoinNetwork::Out> join_rpc_resp;
           join_rpc_resp.id = rpc_ctx.json.seq_no;
-          join_rpc_resp.result.network_cert = std::string(std::string(
-            network.secrets->get_current().cert.data(),
-            network.secrets->get_current().cert.data() +
-              network.secrets->get_current().cert.size()));
+          join_rpc_resp.result.id = self;
 
           return std::make_pair(
             rpc_ctx.is_suspended,

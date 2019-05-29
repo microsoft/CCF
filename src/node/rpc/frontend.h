@@ -290,12 +290,18 @@ namespace ccf
      * @param method Method name
      * @param f Method implementation
      * @param rw Flag if method will Read, Write, MayWrite
+     * @param is_forwardable Allow method to be forwarded to leader
      */
     void install(
-      const std::string& method, MinimalHandleFunction f, ReadWrite rw)
+      const std::string& method,
+      MinimalHandleFunction f,
+      ReadWrite rw,
+      bool is_forwardable = true)
     {
       handlers[method] = {
-        [f](RequestArgs& args) { return f(args.tx, args.params); }, rw};
+        [f](RequestArgs& args) { return f(args.tx, args.params); },
+        rw,
+        is_forwardable};
     }
 
     /** Set a default HandleFunction
@@ -392,10 +398,10 @@ namespace ccf
 
     /** Process a serialised input that has been forwarded from another node
      *
-     * This function assumes that fwd_ctx contains the caller_id as read by the
+     * This function assumes that ctx contains the caller_id as read by the
      * forwarding follower.
      *
-     * @param fwd_ctx Context for this forwarded RPC
+     * @param ctx Context for this forwarded RPC
      * @param input Serialised JSON RPC
      *
      * @return Serialised reply to send back to forwarder node

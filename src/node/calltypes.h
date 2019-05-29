@@ -34,7 +34,7 @@ namespace ccf
 
     struct Out
     {
-      std::string network_cert;
+      NodeId id;
     };
   };
 

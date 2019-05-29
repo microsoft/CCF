@@ -82,6 +82,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--notify-server", help="Server host to notify progress to (host:port)"
     )
+    parser.add_argument(
+        "--asynchronous-join",
+        help="If set, join protocol is asynchronous",
+        action="store_true",
+    )
     add(parser)
 
     if accept_unknown:

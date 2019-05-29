@@ -138,36 +138,41 @@ class Network:
         primary = self.nodes[0]
         primary.start_network()
 
-        self.generate_join_rpc(primary)
+        self.generate_join_rpc(primary, args.asynchronous_join)
 
         for node in self.nodes[1:]:
             node.join_network()
 
-        node_id = 1
-
-        # If there are more than one node in the network, wait until they
-        # have joined the network
-        for node in self.nodes[1:]:
-            if args.wait_with_client:
-                with node.management_client() as c:
-                    for _ in range(15):
-                        id = c.request(method="getCommit", params={})
-                        rep = c.response(id)
-                        if rep.error is None:
-                            if rep.result["commit"] >= 2 and rep.result["term"] == 2:
-                                LOG.info("Node {} has joined (client)".format(node_id))
-                                break
-                        time.sleep(1)
-                    else:
-                        raise ValueError(
-                            "Timed out waiting for initial commit on node {}, state was {}".format(
-                                node_id, res
+        if args.asynchronous_join:
+            # If there are more than one node in the network, wait until they
+            # have joined the network
+            node_id = 1
+            for node in self.nodes[1:]:
+                if args.wait_with_client:
+                    with node.management_client() as c:
+                        for _ in range(15):
+                            id = c.request(method="getCommit", params={})
+                            rep = c.response(id)
+                            if rep.error is None:
+                                if (
+                                    rep.result["commit"] >= 2
+                                    and rep.result["term"] == 2
+                                ):
+                                    LOG.info(
+                                        "Node {} has joined (client)".format(node_id)
+                                    )
+                                    break
+                            time.sleep(1)
+                        else:
+                            raise ValueError(
+                                "Timed out waiting for initial commit on node {}, state was {}".format(
+                                    node_id, res
+                                )
                             )
-                        )
-            else:
-                node.wait_until_ready(15)
-                LOG.info("Node {} has joined (native client)".format(node_id))
-            node_id += 1
+                else:
+                    node.wait_until_ready(15)
+                    LOG.info("Node {} has joined (native client)".format(node_id))
+                node_id += 1
         LOG.info("All nodes joined Network")
 
         return primary, self.nodes[1:]
@@ -236,7 +241,7 @@ class Network:
         infra.proc.ccall(*gen).check_returncode()
         LOG.info("Created Genesis TX")
 
-    def generate_join_rpc(self, node):
+    def generate_join_rpc(self, node, asynchronous=False):
         gen = [
             "./genesisgenerator",
             "joinrpc",
@@ -244,8 +249,9 @@ class Network:
             node.host,
             "--port",
             str(node.tls_port),
-            "--sync"
         ]
+        if not asynchronous:
+            gen.append("--sync")
         infra.proc.ccall(*gen).check_returncode()
         LOG.info("Created join network RPC")
 

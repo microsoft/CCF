@@ -3,34 +3,11 @@
 #pragma once
 
 #include "enclave/enclavetypes.h"
-#include "enclave/rpcsessions.h" // TODO: Remove this once master is merged
+#include "enclave/rpcmap.h"
 #include "node/nodetonode.h"
 
 namespace ccf
 {
-  // struct FwdContext
-  // {
-  //   const size_t session_id;
-  //   const NodeId forwarder_id;
-  //   const CallerId caller_id;
-  //   const ccf::ActorsType actor;
-
-  //   // TODO: To add
-
-  //   NodeId leader_id;
-
-  //   FwdContext(
-  //     size_t session_id_,
-  //     NodeId forwarder_id_,
-  //     CallerId caller_id_,
-  //     ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
-  //     session_id(session_id_),
-  //     forwarder_id(forwarder_id_),
-  //     caller_id(caller_id_),
-  //     actor(actor_)
-  //   {}
-  // };
-
   class ForwardedRpcHandler
   {
   public:

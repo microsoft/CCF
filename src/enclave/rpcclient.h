@@ -17,8 +17,8 @@ namespace enclave
     HandleDataCallback handle_data_cb;
     AbstractRPCResponder& rpcresponder;
 
-    // Initiating RPC context in case the client requires sending the peer's
-    // response directly back to the client
+    // Initiating RPC context in case the result of the callback should be sent
+    // to a client
     RPCContext rpc_ctx;
 
   public:
@@ -49,8 +49,8 @@ namespace enclave
       if (res.first)
       {
         // Send reply to the initiating session
-        LOG_FAIL << "Join network: returning reply to session "
-                 << rpc_ctx.session_id << std::endl;
+        LOG_DEBUG << "RPCClient: responding to session " << rpc_ctx.session_id
+                  << std::endl;
         rpcresponder.reply_async(rpc_ctx.session_id, res.second);
       }
 
