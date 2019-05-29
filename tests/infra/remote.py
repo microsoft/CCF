@@ -286,7 +286,7 @@ class LocalRemote(CmdMixin):
             self.cmd[0] = "./{}".format(self.cmd[0])
         assert self._rc("chmod +x {}".format(os.path.join(self.root, executable))) == 0
 
-    def get(self, filename, timeout=60):
+    def get(self, filename, timeout=60, targetname=None):
         path = os.path.join(self.root, filename)
         for _ in range(timeout):
             if os.path.exists(path):
@@ -294,7 +294,9 @@ class LocalRemote(CmdMixin):
             time.sleep(1)
         else:
             raise ValueError(path)
-        assert self._rc("cp {} {}".format(path, filename)) == 0
+        if targetname is None:
+            targetname = filename
+        assert self._rc("cp {} {}".format(path, targetname)) == 0
 
     def list_files(self):
         return os.listdir(self.root)
