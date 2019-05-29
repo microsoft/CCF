@@ -10,6 +10,7 @@ import getpass
 from contextlib import contextmanager
 import infra.path
 import json
+import uuid
 
 from loguru import logger as LOG
 
@@ -285,7 +286,7 @@ class LocalRemote(CmdMixin):
             self.cmd[0] = "./{}".format(self.cmd[0])
         assert self._rc("chmod +x {}".format(os.path.join(self.root, executable))) == 0
 
-    def get(self, filename, timeout=60):
+    def get(self, filename, timeout=60, targetname=None):
         path = os.path.join(self.root, filename)
         for _ in range(timeout):
             if os.path.exists(path):
@@ -293,7 +294,9 @@ class LocalRemote(CmdMixin):
             time.sleep(1)
         else:
             raise ValueError(path)
-        assert self._rc("cp {} {}".format(path, filename)) == 0
+        if targetname is None:
+            targetname = filename
+        assert self._rc("cp {} {}".format(path, targetname)) == 0
 
     def list_files(self):
         return os.listdir(self.root)
@@ -454,6 +457,13 @@ class CCFRemote(object):
             cmd.append("--quote-file={}".format(self.quote))
 
         env = {}
+        self.profraw = None
+        if enclave_type == "virtual":
+            self.profraw = (
+                f"{uuid.uuid4()}-{node_id}_{os.path.basename(lib_path)}.profraw"
+            )
+            env["LLVM_PROFILE_FILE"] = self.profraw
+
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(log_level)
         if oe_log_level:
             env["OE_LOG_LEVEL"] = oe_log_level
@@ -508,6 +518,11 @@ class CCFRemote(object):
             self.remote.stop()
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.node_id))
+        if self.profraw:
+            try:
+                self.remote.get(self.profraw)
+            except Exception:
+                LOG.info(f"Could not retrieve {self.profraw}")
 
     def wait_for_stdout_line(self, line, timeout=5):
         return self.remote.wait_for_stdout_line(line, timeout)
