@@ -123,7 +123,7 @@ TEST_CASE("Member query/read")
   MemberCallRpcFrontend frontend(network, node);
   const auto mid = network.add_member(mcert, MemberStatus::ACCEPTED);
   network.finalize_raw();
-  enclave::RpcContext rpc_ctx(enclave::InvalidSessionId, nullb);
+  enclave::RPCContext rpc_ctx(0, nullb);
 
   // put value to read
   constexpr auto key = 123;
@@ -270,7 +270,7 @@ TEST_CASE("Add new members until there are 7, then reject")
     new_member.cert = {_cert->raw.p, _cert->raw.p + _cert->raw.len};
 
     // check new_member id does not work before member is added
-    enclave::RpcContext rpc_ctx(enclave::InvalidSessionId, new_member.cert);
+    enclave::RPCContext rpc_ctx(0, new_member.cert);
     const Cert read_next_member_id = mpack(create_json_req(
       read_params<int>(ValueIds::NEXT_MEMBER_ID, Tables::VALUES), "read"));
     check_error(
@@ -337,7 +337,7 @@ TEST_CASE("Add new members until there are 7, then reject")
          new_members.cend() - (initial_members + n_new_members - max_members);
          new_member++)
     {
-      enclave::RpcContext rpc_ctx(enclave::InvalidSessionId, new_member->cert);
+      enclave::RPCContext rpc_ctx(0, new_member->cert);
 
       // (1) read ack entry
       const auto read_nonce = mpack(create_json_req(
@@ -385,7 +385,7 @@ TEST_CASE("Accept node")
   const Cert mcert0 = {0}, mcert1 = {1};
   const auto mid0 = network.add_member(mcert0, MemberStatus::ACTIVE);
   const auto mid1 = network.add_member(mcert1, MemberStatus::ACTIVE);
-  enclave::RpcContext rpc_ctx(enclave::InvalidSessionId, nullb);
+  enclave::RPCContext rpc_ctx(0, nullb);
 
   // node to be tested
   // new node certificate
@@ -453,7 +453,7 @@ bool test_raw_writes(
   const int pro_votes = 1,
   bool explicit_proposer_vote = false)
 {
-  enclave::RpcContext rpc_ctx(enclave::InvalidSessionId, nullb);
+  enclave::RPCContext rpc_ctx(0, nullb);
   auto frontend = init_frontend(network, node, n_members);
   // check values before
   {
@@ -605,7 +605,7 @@ TEST_CASE("Remove proposal")
 
   GenesisGenerator network;
   StubNodeState node;
-  enclave::RpcContext rpc_ctx(enclave::InvalidSessionId, nullb);
+  enclave::RPCContext rpc_ctx(0, nullb);
   network.add_member(member_caller, MemberStatus::ACTIVE);
   network.add_member(caller.cert, MemberStatus::ACTIVE);
   set_whitelists(network);
@@ -685,7 +685,7 @@ TEST_CASE("Complete proposal after initial rejection")
   GenesisGenerator network;
   StubNodeState node;
   auto frontend = init_frontend(network, node, 3);
-  enclave::RpcContext rpc_ctx(enclave::InvalidSessionId, nullb);
+  enclave::RPCContext rpc_ctx(0, nullb);
   const Cert m0 = {0}, m1 = {1};
   // propose
   {
@@ -734,7 +734,7 @@ TEST_CASE("Add user via proposed call")
 {
   GenesisGenerator network;
   StubNodeState node;
-  enclave::RpcContext rpc_ctx(enclave::InvalidSessionId, nullb);
+  enclave::RPCContext rpc_ctx(0, nullb);
   network.add_member(Cert{0}, MemberStatus::ACTIVE);
   set_whitelists(network);
   network.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));

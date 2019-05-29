@@ -8,26 +8,28 @@
 
 namespace ccf
 {
-  struct FwdContext
-  {
-    const size_t session_id;
-    const NodeId forwarder_id;
-    const CallerId caller_id;
-    const ccf::ActorsType actor;
+  // struct FwdContext
+  // {
+  //   const size_t session_id;
+  //   const NodeId forwarder_id;
+  //   const CallerId caller_id;
+  //   const ccf::ActorsType actor;
 
-    NodeId leader_id;
+  //   // TODO: To add
 
-    FwdContext(
-      size_t session_id_,
-      NodeId forwarder_id_,
-      CallerId caller_id_,
-      ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
-      session_id(session_id_),
-      forwarder_id(forwarder_id_),
-      caller_id(caller_id_),
-      actor(actor_)
-    {}
-  };
+  //   NodeId leader_id;
+
+  //   FwdContext(
+  //     size_t session_id_,
+  //     NodeId forwarder_id_,
+  //     CallerId caller_id_,
+  //     ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
+  //     session_id(session_id_),
+  //     forwarder_id(forwarder_id_),
+  //     caller_id(caller_id_),
+  //     actor(actor_)
+  //   {}
+  // };
 
   class ForwardedRpcHandler
   {
@@ -35,7 +37,7 @@ namespace ccf
     virtual ~ForwardedRpcHandler() {}
 
     virtual std::vector<uint8_t> process_forwarded(
-      FwdContext& fwd_ctx, const std::vector<uint8_t>& input) = 0;
+      enclave::RPCContext& fwd_ctx, const std::vector<uint8_t>& input) = 0;
   };
 
   class AbstractForwarder
@@ -44,7 +46,7 @@ namespace ccf
     virtual ~AbstractForwarder() {}
 
     virtual bool forward_command(
-      enclave::RpcContext& rpc_ctx,
+      enclave::RPCContext& rpc_ctx,
       NodeId from,
       NodeId to,
       CallerId caller_id,
@@ -72,7 +74,7 @@ namespace ccf
     }
 
     bool forward_command(
-      enclave::RpcContext& rpc_ctx,
+      enclave::RPCContext& rpc_ctx,
       NodeId from,
       NodeId to,
       CallerId caller_id,
@@ -93,7 +95,7 @@ namespace ccf
       return n2n_channels->send_encrypted(to, plain, msg);
     }
 
-    std::optional<std::pair<FwdContext, std::vector<uint8_t>>>
+    std::optional<std::pair<enclave::RPCContext, std::vector<uint8_t>>>
     recv_forwarded_command(const uint8_t* data, size_t size)
     {
       const auto& msg = serialized::overlay<ForwardedHeader>(data, size);
@@ -123,23 +125,23 @@ namespace ccf
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
 
       return std::make_pair(
-        FwdContext(session_id, msg.from_node, caller_id, actor),
+        enclave::RPCContext(session_id, msg.from_node, caller_id, actor),
         std::move(rpc));
     }
 
     bool send_forwarded_response(
-      const FwdContext& fwd_ctx, const std::vector<uint8_t>& data)
+      const enclave::RPCContext& ctx, const std::vector<uint8_t>& data)
     {
-      std::vector<uint8_t> plain(sizeof(fwd_ctx.session_id) + data.size());
+      std::vector<uint8_t> plain(sizeof(ctx.fwd->session_id) + data.size());
       auto data_ = plain.data();
       auto size_ = plain.size();
-      serialized::write(data_, size_, fwd_ctx.session_id);
+      serialized::write(data_, size_, ctx.fwd->session_id);
       serialized::write(data_, size_, data.data(), data.size());
 
       ForwardedHeader msg = {ForwardedMsg::forwarded_response,
-                             fwd_ctx.leader_id};
+                             ctx.fwd->leader_id};
 
-      return n2n_channels->send_encrypted(fwd_ctx.forwarder_id, plain, msg);
+      return n2n_channels->send_encrypted(ctx.fwd->from, plain, msg);
     }
 
     std::optional<std::pair<size_t, std::vector<uint8_t>>>
@@ -197,18 +199,18 @@ namespace ccf
             if (!fwd_handler)
               return;
 
-            LOG_DEBUG << "Forwarded RPC: " << fwd->first.actor << std::endl;
+            LOG_FAIL << "Forwarded RPC: " << fwd->first.actor << std::endl;
 
             auto rep = fwd_handler->process_forwarded(fwd->first, fwd->second);
 
             if (!send_forwarded_response(fwd->first, rep))
             {
               LOG_FAIL << "Could not send forwarded response to "
-                       << fwd->first.forwarder_id << std::endl;
+                       << fwd->first.fwd->from << std::endl;
             }
 
             LOG_DEBUG << "Sending forwarded response to "
-                      << fwd->first.forwarder_id << std::endl;
+                      << fwd->first.fwd->from << std::endl;
           }
           break;
         }

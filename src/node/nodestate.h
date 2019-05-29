@@ -317,7 +317,8 @@ namespace ccf
          tx0Sig});
     }
 
-    void join_network(enclave::RpcContext& rpc_ctx, const JoinNetwork::In& args)
+    void join_network(
+      enclave::RPCContext& rpc_ctx, const JoinNetwork::In& args)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -329,17 +330,15 @@ namespace ccf
       auto join_client_cert = std::make_unique<tls::Cert>(
         Actors::NODES, tls_ca, node_cert, node_kp.private_key(), nullb);
 
-      LOG_FAIL << "About to create join client with session id: "
-               << rpc_ctx.session_id << std::endl;
-
       // Create and connect to endpoint
       auto join_client =
         rpcsessions.create_client(rpc_ctx, std::move(join_client_cert));
 
       // If the join network command is synchronous, only reply to the client
       // when the leader has responded
+      // TODO: Really weird!
       if (args.is_sync)
-        rpc_ctx.is_forwarded = true;
+        rpc_ctx.is_suspended = true;
 
       join_client->connect(
         args.hostname,
@@ -355,10 +354,10 @@ namespace ccf
           catch (const std::exception& e)
           {
             return std::make_pair(
-              rpc_ctx.is_forwarded,
+              rpc_ctx.is_suspended,
               jsonrpc::pack(
                 jsonrpc::error_response(
-                  rpc_ctx.seq_no,
+                  rpc_ctx.json.seq_no,
                   jsonrpc::ErrorCodes::INTERNAL_ERROR,
                   "An error occured while joining the network"),
                 rpc_ctx.pack.value()));
@@ -407,14 +406,14 @@ namespace ccf
                    << std::endl;
 
           jsonrpc::Response<JoinNetwork::Out> join_rpc_resp;
-          join_rpc_resp.id = rpc_ctx.seq_no;
+          join_rpc_resp.id = rpc_ctx.json.seq_no;
           join_rpc_resp.result.network_cert = std::string(std::string(
             network.secrets->get_current().cert.data(),
             network.secrets->get_current().cert.data() +
               network.secrets->get_current().cert.size()));
 
           return std::make_pair(
-            rpc_ctx.is_forwarded,
+            rpc_ctx.is_suspended,
             jsonrpc::pack(join_rpc_resp, rpc_ctx.pack.value()));
         });
 

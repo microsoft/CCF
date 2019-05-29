@@ -101,7 +101,7 @@ namespace enclave
     }
 
     std::shared_ptr<RPCClient> create_client(
-      RpcContext& rpc_ctx, std::shared_ptr<tls::Cert> cert)
+      RPCContext& rpc_ctx, std::shared_ptr<tls::Cert> cert)
     {
       std::lock_guard<SpinLock> guard(lock);
       auto ctx = std::make_unique<tls::Client>(cert);

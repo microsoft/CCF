@@ -19,7 +19,7 @@ namespace enclave
 
     // Initiating RPC context in case the client requires sending the peer's
     // response directly back to the client
-    RpcContext rpc_ctx;
+    RPCContext rpc_ctx;
 
   public:
     RPCClient(
@@ -27,7 +27,7 @@ namespace enclave
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx,
       AbstractRPCResponder& rpcresponder_,
-      RpcContext& rpc_ctx_) :
+      RPCContext& rpc_ctx_) :
       FramedTLSEndpoint(session_id, writer_factory, move(ctx)),
       rpcresponder(rpcresponder_),
       rpc_ctx(rpc_ctx_)

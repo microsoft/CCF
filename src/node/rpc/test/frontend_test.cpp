@@ -152,9 +152,9 @@ auto ca_inv = kp_other.self_sign("CN=name");
 tls::Verifier verifier_inv(ca_inv);
 auto invalid_caller = verifier_inv.raw_cert_data();
 
-enclave::RpcContext rpc_ctx(enclave::InvalidSessionId, user_caller);
-enclave::RpcContext invalid_rpc_ctx(enclave::InvalidSessionId, invalid_caller);
-enclave::RpcContext member_rpc_ctx(enclave::InvalidSessionId, member_caller);
+enclave::RPCContext rpc_ctx(0, user_caller);
+enclave::RPCContext invalid_rpc_ctx(0, invalid_caller);
+enclave::RPCContext member_rpc_ctx(0, member_caller);
 
 void prepare_callers()
 {
@@ -266,7 +266,8 @@ TEST_CASE("get_signed_req")
   {
     TestReqNotStoredFrontend frontend_nostore(*network.tables);
     auto signed_call = create_signed_json();
-    frontend_nostore.process_json(rpc_ctx, txs, nos_caller, nos_caller_id, signed_call);
+    frontend_nostore.process_json(
+      rpc_ctx, txs, nos_caller, nos_caller_id, signed_call);
     auto signed_resp = frontend_nostore.get_signed_req(nos_caller_id);
     CHECK(signed_resp.has_value());
     auto value = signed_resp.value();
@@ -296,7 +297,8 @@ TEST_CASE("MinimalHandleFuction")
   Store::Tx txs;
 
   nlohmann::json response =
-    frontend.process_json(rpc_ctx, txs, user_caller, caller_id, echo_call).value();
+    frontend.process_json(rpc_ctx, txs, user_caller, caller_id, echo_call)
+      .value();
   CHECK(response[jsonrpc::RESULT] == echo_call[jsonrpc::PARAMS]);
 }
 
@@ -313,14 +315,16 @@ TEST_CASE("process_json")
   SUBCASE("with out")
   {
     nlohmann::json response =
-      frontend.process_json(rpc_ctx, txs, user_caller, caller_id, simple_call).value();
+      frontend.process_json(rpc_ctx, txs, user_caller, caller_id, simple_call)
+        .value();
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
   }
   SUBCASE("with signature")
   {
     auto signed_call = create_signed_json();
     nlohmann::json response =
-      frontend.process_json(rpc_ctx, txs, user_caller, caller_id, signed_call).value();
+      frontend.process_json(rpc_ctx, txs, user_caller, caller_id, signed_call)
+        .value();
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
   }
 #ifndef DISABLE_CLIENT_SIGNATURE_VERIFICATION
@@ -328,7 +332,9 @@ TEST_CASE("process_json")
   {
     auto signed_call = create_signed_json();
     nlohmann::json response =
-      frontend.process_json(rpc_ctx, txs, invalid_caller, inval_caller_id, signed_call)
+      frontend
+        .process_json(
+          rpc_ctx, txs, invalid_caller, inval_caller_id, signed_call)
         .value();
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
@@ -477,7 +483,7 @@ public:
   StubForwarder() {}
 
   bool forward_command(
-    enclave::RpcContext& rpc_ctx,
+    enclave::RPCContext& ctx,
     NodeId from,
     NodeId to,
     CallerId caller_id,
@@ -513,13 +519,12 @@ TEST_CASE("Forwarding")
 
   INFO("Frontend without forwarder does not forward");
   {
-    enclave::RpcContext rpc_ctx_forwarded(
-      enclave::InvalidSessionId, user_caller);
-    REQUIRE(rpc_ctx_forwarded.is_forwarded == false);
+    enclave::RPCContext ctx(0, nullb);
+    REQUIRE(ctx.is_suspended == false);
     REQUIRE(follower_forwarder->forwarded_cmds.empty());
     auto serialized_response =
-      frontend_follower.process(rpc_ctx_forwarded, serialized_call);
-    REQUIRE(rpc_ctx_forwarded.is_forwarded == false);
+      frontend_follower.process(ctx, serialized_call);
+    REQUIRE(ctx.is_suspended == false);
     REQUIRE(follower_forwarder->forwarded_cmds.size() == 0);
 
     auto response =
@@ -533,17 +538,16 @@ TEST_CASE("Forwarding")
 
   INFO("Write command on follower is forwarded to leader");
   {
-    enclave::RpcContext rpc_ctx_forwarded(
-      enclave::InvalidSessionId, user_caller);
-    REQUIRE(rpc_ctx_forwarded.is_forwarded == false);
+    enclave::RPCContext ctx(0, nullb);
+    REQUIRE(ctx.is_suspended == false);
     REQUIRE(follower_forwarder->forwarded_cmds.empty());
-    frontend_follower.process(rpc_ctx_forwarded, serialized_call);
-    REQUIRE(rpc_ctx_forwarded.is_forwarded == true);
+    frontend_follower.process(ctx, serialized_call);
+    REQUIRE(ctx.is_suspended == true);
     REQUIRE(follower_forwarder->forwarded_cmds.size() == 1);
 
     auto forwarded_cmd = follower_forwarder->forwarded_cmds.back();
     follower_forwarder->forwarded_cmds.pop_back();
-    FwdContext fwd_ctx(0, 0, 0);
+    enclave::RPCContext fwd_ctx(0, 0, 0);
     auto serialized_response =
       frontend_leader.process_forwarded(fwd_ctx, forwarded_cmd);
 
@@ -554,17 +558,16 @@ TEST_CASE("Forwarding")
 
   INFO("Forwarding write command to a follower return TX_NOT_LEADER");
   {
-    enclave::RpcContext rpc_ctx_forwarded(
-      enclave::InvalidSessionId, user_caller);
-    REQUIRE(rpc_ctx_forwarded.is_forwarded == false);
+    enclave::RPCContext ctx(0, nullb);
+    REQUIRE(ctx.is_suspended == false);
     REQUIRE(follower_forwarder->forwarded_cmds.empty());
-    frontend_follower.process(rpc_ctx_forwarded, serialized_call);
-    REQUIRE(rpc_ctx_forwarded.is_forwarded == true);
+    frontend_follower.process(ctx, serialized_call);
+    REQUIRE(ctx.is_suspended == true);
     REQUIRE(follower_forwarder->forwarded_cmds.size() == 1);
 
     auto forwarded_cmd = follower_forwarder->forwarded_cmds.back();
     follower_forwarder->forwarded_cmds.pop_back();
-    FwdContext fwd_ctx(0, 0, 0);
+    enclave::RPCContext fwd_ctx(0, 0, 0);
 
     // Processing forwarded response by a follower frontend (here, the same
     // frontend that the command was originally issued to)
