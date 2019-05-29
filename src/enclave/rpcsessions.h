@@ -4,6 +4,7 @@
 
 #include "ds/logger.h"
 #include "ds/serialized.h"
+#include "enclavetypes.h"
 #include "rpcclient.h"
 #include "rpcendpoint.h"
 #include "rpchandler.h"
@@ -12,7 +13,6 @@
 #include "tls/context.h"
 #include "tls/server.h"
 #include "tlsframedendpoint.h"
-#include "enclavetypes.h"
 
 #include <limits>
 #include <unordered_map>

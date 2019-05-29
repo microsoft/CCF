@@ -37,7 +37,6 @@ namespace ccf
     {
       enclave::RPCContext& rpc_ctx;
       Store::Tx& tx;
-      CBuffer caller;
       CallerId caller_id;
       const std::string& method;
       const nlohmann::json& params;
@@ -59,6 +58,7 @@ namespace ccf
     {
       HandleFunction func;
       ReadWrite rw;
+      bool is_forwardable;
     };
 
     Nodes* nodes;
@@ -128,9 +128,9 @@ namespace ccf
     }
 
     std::optional<nlohmann::json> forward_or_redirect_json(
-      enclave::RPCContext& ctx)
+      enclave::RPCContext& ctx, bool is_forwardable)
     {
-      if (cmd_forwarder && !ctx.fwd.has_value())
+      if (cmd_forwarder && is_forwardable && !ctx.fwd.has_value())
       {
         return {};
       }
@@ -271,10 +271,15 @@ namespace ccf
      * @param method Method name
      * @param f Method implementation
      * @param rw Flag if method will Read, Write, MayWrite
+     * @param is_forwardable Allow method to be forwarded to leader
      */
-    void install(const std::string& method, HandleFunction f, ReadWrite rw)
+    void install(
+      const std::string& method,
+      HandleFunction f,
+      ReadWrite rw,
+      bool is_forwardable = true)
     {
-      handlers[method] = {f, rw};
+      handlers[method] = {f, rw, is_forwardable};
     }
 
     /** Install MinimalHandleFunction for method name
@@ -353,8 +358,7 @@ namespace ccf
       if (!rpc.first)
         return jsonrpc::pack(rpc.second, ctx.pack.value());
 
-      auto rep =
-        process_json(ctx, tx, ctx.caller, caller_id.value(), rpc.second);
+      auto rep = process_json(ctx, tx, caller_id.value(), rpc.second);
 
       // If necessary, forward the RPC to the current leader
       if (!rep.has_value())
@@ -399,6 +403,10 @@ namespace ccf
     std::vector<uint8_t> process_forwarded(
       enclave::RPCContext& ctx, const std::vector<uint8_t>& input) override
     {
+      if (!ctx.fwd.has_value())
+        throw std::logic_error(
+          "Processing forwarded command with unitialised forwarded context");
+
       Store::Tx tx;
 
       // For forwarded command, caller is empty and caller_id should be used
@@ -433,11 +441,11 @@ namespace ccf
       if (!rpc.first)
         return jsonrpc::pack(rpc.second, pack.value());
 
-      auto rep = process_json(ctx, tx, caller, ctx.fwd->caller_id, rpc.second);
+      auto rep = process_json(ctx, tx, ctx.fwd->caller_id, rpc.second);
       if (!rep.has_value())
       {
-        // This should never be called when process_json is called with
-        // is_forwarded = True
+        // This should never be called when process_json is called with a
+        // forwarded RPC context
         throw std::logic_error("Forwarded RPC cannot be forwarded");
       }
 
@@ -447,7 +455,6 @@ namespace ccf
     std::optional<nlohmann::json> process_json(
       enclave::RPCContext& ctx,
       Store::Tx& tx,
-      const CBuffer& caller,
       CallerId caller_id,
       const nlohmann::json& full_rpc)
     {
@@ -457,7 +464,7 @@ namespace ccf
         // TODO(#important): Signature should only be verified for a Write
         // RPC
         if (!verify_client_signature(
-              tx, caller, caller_id, full_rpc, ctx.fwd.has_value()))
+              tx, ctx.caller, caller_id, full_rpc, ctx.fwd.has_value()))
         {
           return jsonrpc::error_response(
             full_rpc[jsonrpc::REQ][jsonrpc::ID],
@@ -507,19 +514,19 @@ namespace ccf
             break;
 
           case Write:
-            return forward_or_redirect_json(ctx);
+            return forward_or_redirect_json(ctx, handler->is_forwardable);
             break;
 
           case MayWrite:
             bool readonly = rpc.value(jsonrpc::READONLY, true);
             if (!readonly)
-              return forward_or_redirect_json(ctx);
+              return forward_or_redirect_json(ctx, handler->is_forwardable);
             break;
         }
       }
 
       auto func = handler->func;
-      auto args = RequestArgs{ctx, tx, caller, caller_id, method, params};
+      auto args = RequestArgs{ctx, tx, caller_id, method, params};
 
       tx_count++;
 

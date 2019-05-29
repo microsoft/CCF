@@ -18,7 +18,7 @@ namespace enclave
     // In parameters (initialised when context is created)
     //
 
-    // Session ID with client
+    // Client session ID
     const size_t session_id = InvalidSessionId;
     // Actor type to route to appropriate frontend
     const ccf::ActorsType actor;
@@ -41,14 +41,16 @@ namespace enclave
     struct json json;
 
     //
-    // Only true if the command has been forwarded
+    // Only set in the case of a forwarded RPC
     //
     struct forwarded
     {
+      // Initialised when forwarded context is created
       const size_t session_id;
       const ccf::NodeId from;
       const ccf::CallerId caller_id;
 
+      // Changed during lifetime of forwarded context
       ccf::NodeId leader_id;
 
       forwarded(
@@ -57,8 +59,6 @@ namespace enclave
         from(from_),
         caller_id(caller_id_)
       {}
-
-      forwarded() = default;
     };
     std::optional<struct forwarded> fwd = std::nullopt;
 

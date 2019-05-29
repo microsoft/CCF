@@ -317,8 +317,7 @@ namespace ccf
          tx0Sig});
     }
 
-    void join_network(
-      enclave::RPCContext& rpc_ctx, const JoinNetwork::In& args)
+    void join_network(enclave::RPCContext& rpc_ctx, const JoinNetwork::In& args)
     {
       std::lock_guard<SpinLock> guard(lock);
 

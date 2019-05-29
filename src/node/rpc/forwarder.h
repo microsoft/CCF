@@ -186,11 +186,11 @@ namespace ccf
         {
           if (rpc_map)
           {
-            auto fwd = recv_forwarded_command(data, size);
-            if (!fwd.has_value())
+            auto r = recv_forwarded_command(data, size);
+            if (!r.has_value())
               return;
 
-            auto handler = rpc_map->find(fwd->first.actor);
+            auto handler = rpc_map->find(r->first.actor);
             if (!handler.has_value())
               return;
 
@@ -199,18 +199,18 @@ namespace ccf
             if (!fwd_handler)
               return;
 
-            LOG_FAIL << "Forwarded RPC: " << fwd->first.actor << std::endl;
+            LOG_DEBUG << "Forwarded RPC: " << r->first.actor << std::endl;
 
-            auto rep = fwd_handler->process_forwarded(fwd->first, fwd->second);
+            auto rep = fwd_handler->process_forwarded(r->first, r->second);
 
-            if (!send_forwarded_response(fwd->first, rep))
+            if (!send_forwarded_response(r->first, rep))
             {
               LOG_FAIL << "Could not send forwarded response to "
-                       << fwd->first.fwd->from << std::endl;
+                       << r->first.fwd->from << std::endl;
             }
 
-            LOG_DEBUG << "Sending forwarded response to "
-                      << fwd->first.fwd->from << std::endl;
+            LOG_DEBUG << "Sending forwarded response to " << r->first.fwd->from
+                      << std::endl;
           }
           break;
         }
