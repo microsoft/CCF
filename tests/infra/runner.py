@@ -129,9 +129,9 @@ def run(build_directory, get_command, args):
                     continue_processing = tx_rates.process_next()
                     time.sleep(1)
                     if not continue_processing:
-                        for remote in clients:
+                        for i, remote in enumerate(clients):
                             remote.wait()
-                            remote.stop()
+                            remote.stop(i == 0)
                         break
 
                 LOG.info(f"Rates: {tx_rates}")
