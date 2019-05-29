@@ -44,8 +44,7 @@ namespace ccf
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,
       Tables::APP_SCRIPTS,
-      Tables::VOTING_HISTORY
-     }},
+      Tables::VOTING_HISTORY}},
 
     {USER_APP_CAN_WRITE, {Tables::APP_PUBLIC, Tables::APP}}};
 }
