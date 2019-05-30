@@ -109,7 +109,7 @@ class Transaction:
     def __del__(self):
         self._file.close()
 
-    def read_header(self):
+    def _read_header(self):
         # read the size of the transaction
         buffer = _byte_read_safe(self._file, LEDGER_TRANSACTION_SIZE)
         self._total_size = to_uint_32(buffer)
@@ -142,7 +142,7 @@ class Transaction:
             raise StopIteration()
         try:
             self._complete_read()
-            self.read_header()
+            self._read_header()
             return self
         except:
             raise StopIteration()

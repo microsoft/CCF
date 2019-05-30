@@ -67,6 +67,24 @@ def run(args):
         j_result = json.loads(result.stdout)
         assert not j_result["result"]
 
+        # this request should fail, as it is not signed
+        result = infra.proc.ccall(
+            "./memberclient",
+            "vote",
+            "--accept",
+            "--cert=member2_cert.pem",
+            "--privk=member2_privk.pem",
+            "--host={}".format(primary.host),
+            "--port={}".format(primary.tls_port),
+            "--id=0",
+            "--ca=networkcert.pem",
+        )
+        j_result = json.loads(result.stdout)
+        assert (
+            j_result["error"]["code"]
+            == infra.jsonrpc.ErrorCode.RPC_NOT_SIGNED.value
+        )
+
         result = infra.proc.ccall(
             "./memberclient",
             "vote",
