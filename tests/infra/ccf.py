@@ -168,7 +168,7 @@ class Network:
                 node.wait_until_ready(15)
                 LOG.info("Node {} has joined (native client)".format(node_id))
             node_id += 1
-        LOG.info("All nodes joined Network")
+        LOG.success("All nodes joined Network")
 
         return primary, self.nodes[1:]
 

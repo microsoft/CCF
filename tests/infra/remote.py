@@ -47,7 +47,7 @@ def log_errors(out_path, err_path):
         errors = 0
         with open(out_path, "r") as lines:
             for line in lines:
-                if line.startswith("[!]") or line.startswith("[!!]"):
+                if line.startswith("[fail]") or line.startswith("[fatal]"):
                     LOG.error("{}: {}".format(out_path, line.rstrip()))
                     errors += 1
         if errors:
