@@ -8,8 +8,7 @@ jobs:
   pool: Ubuntu-1804-SGX-Azure
   steps:
     - template: .vsts-ci-templates/build_and_test.yml
-      parameters:
-        cmake_args: '-DBUILD_SMALLBANK=OFF'
+    - template: .vsts-ci-templates/push_perf_data.yml
 
 - job: ACC_1804_virtual_build
   pool: Ubuntu-1804-SGX-Azure
@@ -19,16 +18,6 @@ jobs:
         cmake_args: '-DVIRTUAL_ONLY=ON -DBUILD_SMALLBANK=OFF'
         suite_name_suffix: ' Virtual Coverage'
     - template: .vsts-ci-templates/coverage.yml
-
-- job: ACC_1804_perf_build
-  pool: Ubuntu-1804-SGX-Azure
-  steps:
-    - template: .vsts-ci-templates/build_and_test.yml
-      parameters:
-        cmake_args: '-DBUILD_SMALLBANK=ON -DCURVE_CHOICE=secp256k1_bitcoin'
-        suite_name_suffix: ' Performance'
-        ctest_filter: '-R small_bank'
-    - template: .vsts-ci-templates/push_perf_data.yml
 
 - job: static_checks
   pool: Ubuntu-1804-SGX-Azure

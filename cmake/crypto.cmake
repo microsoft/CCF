@@ -7,7 +7,7 @@ message(STATUS "Using EverCrypt at ${EVERCRYPT_PREFIX}")
 
 set(EVERCRYPT_INC
   ${EVERCRYPT_PREFIX}
-  ${EVERCRYPT_PREFIX}/kremlin/include
+  ${EVERCRYPT_PREFIX}/kremlin
 )
 
 file(GLOB_RECURSE EVERCRYPT_SRC "${EVERCRYPT_PREFIX}/*.[cS]")
@@ -23,8 +23,7 @@ list(REMOVE_ITEM EVERCRYPT_SRC ${EVERCRYPT_SRC_EXCEPT})
 if(NOT VIRTUAL_ONLY)
   add_library(evercrypt.enclave STATIC ${EVERCRYPT_SRC})
   target_compile_options(evercrypt.enclave PRIVATE -nostdinc -U__linux__ -Wno-everything)
-  # TODO(#important|#pbft): Find out why kremlin needs this only when PBFT is on (KRML_HOST_PRINTF)
-  target_compile_definitions(evercrypt.enclave PRIVATE INSIDE_ENCLAVE KRML_HOST_PRINTF=oe_printf)
+  target_compile_definitions(evercrypt.enclave PRIVATE INSIDE_ENCLAVE KRML_HOST_PRINTF=oe_printf KRML_HOST_EXIT=oe_abort)
   target_include_directories(evercrypt.enclave SYSTEM PRIVATE ${OE_LIBC_INCLUDE_DIR})
   set_property(TARGET evercrypt.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
   target_include_directories(evercrypt.enclave PRIVATE ${EVERCRYPT_INC})
@@ -34,31 +33,6 @@ add_library(evercrypt.host STATIC ${EVERCRYPT_SRC})
 target_compile_options(evercrypt.host PRIVATE -Wno-everything)
 set_property(TARGET evercrypt.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(evercrypt.host PRIVATE ${EVERCRYPT_INC})
-
-
-# Merkle Tree Library
-
-set(MERKLE_TREE_PREFIX ${CCF_DIR}/3rdparty/merkle_tree)
-file(GLOB MERKLE_TREE_SRC "${MERKLE_TREE_PREFIX}/*.[c]")
-
-if(NOT VIRTUAL_ONLY)
-  add_library(merkle_tree.enclave ${MERKLE_TREE_SRC})
-  target_compile_options(merkle_tree.enclave PRIVATE -nostdinc -U__linux__ -Wno-everything)
-  target_compile_definitions(merkle_tree.enclave PRIVATE INSIDE_ENCLAVE)
-  target_include_directories(merkle_tree.enclave PRIVATE ${EVERCRYPT_INC})
-  target_include_directories(merkle_tree.enclave SYSTEM PRIVATE ${OE_LIBC_INCLUDE_DIR})
-  target_link_libraries(merkle_tree.enclave PRIVATE evercrypt.enclave)
-  set_property(TARGET merkle_tree.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
-  set(MERKLE_TREE_INC ${MERKLE_TREE_PREFIX} ${EVERCRYPT_INC})
-endif()
-
-add_library(merkle_tree.host ${MERKLE_TREE_SRC})
-target_compile_options(merkle_tree.host PRIVATE -Wno-everything)
-target_include_directories(merkle_tree.host PRIVATE ${EVERCRYPT_INC})
-target_link_libraries(merkle_tree.host PRIVATE evercrypt.host)
-set_property(TARGET merkle_tree.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-set(MERKLE_TREE_INC ${MERKLE_TREE_PREFIX} ${EVERCRYPT_INC})
-
 
 # CCFCrypto, again two versions.
 

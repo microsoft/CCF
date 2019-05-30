@@ -11,9 +11,9 @@ sha256_update:
   push %rbx
   movdqu 0(%rdi), %xmm1
   movdqu 16(%rdi), %xmm2
-  mov $579005069656919567, %rax
+  mov $289644378169868803, %rax
   pinsrq $0, %rax, %xmm7
-  mov $283686952306183, %rax
+  mov $868365760874482187, %rax
   pinsrq $1, %rax, %xmm7
   pshufd $27, %xmm1, %xmm0
   pshufd $177, %xmm1, %xmm1
