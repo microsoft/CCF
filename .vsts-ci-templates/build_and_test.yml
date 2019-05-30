@@ -1,7 +1,6 @@
 parameters:
   cmake_args: ''
   suite_name_suffix: ''
-  ctest_filter: ''
 
 steps:
 - checkout: self
@@ -18,7 +17,7 @@ steps:
   workingDirectory: build
 
 - script: |
-    ./tests.sh -VV --timeout 240 --no-compress-output -T Test ${{ parameters.ctest_filter }}
+    ./tests.sh -VV --timeout 240 --no-compress-output -T Test
   displayName: CTest
   workingDirectory: build
 
