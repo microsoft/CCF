@@ -1,18 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import sys
-import os
-import io
-
 import e2e_args
-import getpass
-import time
-import logging
-import multiprocessing
-from random import seed
 import infra.ccf
 import infra.proc
-import infra.jsonrpc
 import infra.remote
 import json
 import ledger
@@ -41,23 +31,6 @@ def run(args):
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         primary, others = network.start_and_join(args)
-
-        # create a lua query file to change a member state to accepted
-        with open("query.lua", "w") as qfile:
-            qfile.write(
-                """local tables, param = ...
-               local member_id = param
-               local STATE_ACCEPTED = 0
-               local member_info = {status = STATE_ACCEPTED}
-               local p = Puts:new()
-               p:put("members", member_id, member_info)
-               return Calls:call("raw_puts", p)"""
-            )
-
-        # create json file to be passed as the argument to the query.lua file
-        # it is passing a member id
-        with open("param.json", "w") as pfile:
-            pfile.write("""{"p": 0}""")
 
         # propose to add a new member
         # proposal number 0
@@ -109,19 +82,6 @@ def run(args):
         j_result = json.loads(result.stdout)
         assert j_result["result"]
 
-        # member 4 ack
-        result = infra.proc.ccall(
-            "./memberclient",
-            "ack",
-            "--cert=member4_cert.pem",
-            "--privk=member4_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--ca=networkcert.pem",
-        )
-        j_result = json.loads(result.stdout)
-        assert j_result["result"]
-
         ledger_filename = network.find_leader()[0].remote.get_ledger_full_path()
 
     l = ledger.Ledger(ledger_filename)
@@ -145,9 +105,9 @@ def run(args):
                 sig = signed_request[0][0]
                 req = signed_request[0][1]
                 verify_sig(cert, sig, req)
-                ++verified_votes
+                verified_votes += 1
 
-    assert verified_votes == 0
+    assert verified_votes == 2
 
 
 if __name__ == "__main__":
