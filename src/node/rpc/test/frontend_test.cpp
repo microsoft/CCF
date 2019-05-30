@@ -526,10 +526,10 @@ TEST_CASE("Forwarding")
   INFO("Frontend without forwarder does not forward");
   {
     enclave::RPCContext ctx(0, nullb);
-    REQUIRE(ctx.is_suspended == false);
+    REQUIRE(ctx.is_pending == false);
     REQUIRE(follower_forwarder->forwarded_cmds.empty());
     auto serialized_response = frontend_follower.process(ctx, serialized_call);
-    REQUIRE(ctx.is_suspended == false);
+    REQUIRE(ctx.is_pending == false);
     REQUIRE(follower_forwarder->forwarded_cmds.size() == 0);
 
     auto response =
@@ -544,10 +544,10 @@ TEST_CASE("Forwarding")
   INFO("Write command on follower is forwarded to leader");
   {
     enclave::RPCContext ctx(0, nullb);
-    REQUIRE(ctx.is_suspended == false);
+    REQUIRE(ctx.is_pending == false);
     REQUIRE(follower_forwarder->forwarded_cmds.empty());
     frontend_follower.process(ctx, serialized_call);
-    REQUIRE(ctx.is_suspended == true);
+    REQUIRE(ctx.is_pending == true);
     REQUIRE(follower_forwarder->forwarded_cmds.size() == 1);
 
     auto forwarded_cmd = follower_forwarder->forwarded_cmds.back();
@@ -564,10 +564,10 @@ TEST_CASE("Forwarding")
   INFO("Forwarding write command to a follower return TX_NOT_LEADER");
   {
     enclave::RPCContext ctx(0, nullb);
-    REQUIRE(ctx.is_suspended == false);
+    REQUIRE(ctx.is_pending == false);
     REQUIRE(follower_forwarder->forwarded_cmds.empty());
     frontend_follower.process(ctx, serialized_call);
-    REQUIRE(ctx.is_suspended == true);
+    REQUIRE(ctx.is_pending == true);
     REQUIRE(follower_forwarder->forwarded_cmds.size() == 1);
 
     auto forwarded_cmd = follower_forwarder->forwarded_cmds.back();
@@ -596,10 +596,10 @@ TEST_CASE("Forwarding")
     frontend_follower_no_forwarding.set_cmd_forwarder(follower2_forwarder);
 
     enclave::RPCContext ctx(0, nullb);
-    REQUIRE(ctx.is_suspended == false);
+    REQUIRE(ctx.is_pending == false);
     REQUIRE(follower2_forwarder->forwarded_cmds.empty());
     frontend_follower_no_forwarding.process(ctx, serialized_call);
-    REQUIRE(ctx.is_suspended == false);
+    REQUIRE(ctx.is_pending == false);
     REQUIRE(follower2_forwarder->forwarded_cmds.size() == 0);
   }
 }

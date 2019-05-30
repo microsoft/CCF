@@ -326,7 +326,7 @@ namespace ccf
           return jsonrpc::error(
             jsonrpc::ErrorCodes::INVALID_PARAMS, "No ACK record exists (1)");
 
-        tls::Verifier v((std::vector<uint8_t>(args.rpc_ctx.caller)));
+        tls::Verifier v((std::vector<uint8_t>(args.rpc_ctx.caller_cert)));
         const RawSignature rs = args.params;
         if (!v.verify_hash(crypto::Sha256Hash{last_ma->next_nonce}, rs.sig))
           return jsonrpc::error(jerr::INVALID_PARAMS, "Signature is not valid");

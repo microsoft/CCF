@@ -48,10 +48,9 @@ namespace enclave
       auto res = handle_data_cb(data);
       if (res.first)
       {
-        // Send reply to the initiating session
-        LOG_DEBUG << "RPCClient: responding to session " << rpc_ctx.session_id
-                  << std::endl;
-        rpcresponder.reply_async(rpc_ctx.session_id, res.second);
+        LOG_DEBUG << "RPCClient: responding to session "
+                  << rpc_ctx.client_session_id << std::endl;
+        rpcresponder.reply_async(rpc_ctx.client_session_id, res.second);
       }
 
       close();

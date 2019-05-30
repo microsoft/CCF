@@ -58,12 +58,12 @@ namespace ccf
       const std::vector<uint8_t>& data)
     {
       std::vector<uint8_t> plain(
-        sizeof(caller_id) + sizeof(rpc_ctx.session_id) + sizeof(rpc_ctx.actor) +
-        data.size());
+        sizeof(caller_id) + sizeof(rpc_ctx.client_session_id) +
+        sizeof(rpc_ctx.actor) + data.size());
       auto data_ = plain.data();
       auto size_ = plain.size();
       serialized::write(data_, size_, caller_id);
-      serialized::write(data_, size_, rpc_ctx.session_id);
+      serialized::write(data_, size_, rpc_ctx.client_session_id);
       serialized::write(data_, size_, rpc_ctx.actor);
       serialized::write(data_, size_, data.data(), data.size());
 
@@ -97,22 +97,23 @@ namespace ccf
       auto data_ = plain_.data();
       auto size_ = plain_.size();
       auto caller_id = serialized::read<CallerId>(data_, size_);
-      auto session_id = serialized::read<size_t>(data_, size_);
+      auto client_session_id = serialized::read<size_t>(data_, size_);
       auto actor = serialized::read<ccf::ActorsType>(data_, size_);
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
 
       return std::make_pair(
-        enclave::RPCContext(session_id, msg.from_node, caller_id, actor),
+        enclave::RPCContext(client_session_id, msg.from_node, caller_id, actor),
         std::move(rpc));
     }
 
     bool send_forwarded_response(
       const enclave::RPCContext& ctx, const std::vector<uint8_t>& data)
     {
-      std::vector<uint8_t> plain(sizeof(ctx.fwd->session_id) + data.size());
+      std::vector<uint8_t> plain(
+        sizeof(ctx.fwd->client_session_id) + data.size());
       auto data_ = plain.data();
       auto size_ = plain.size();
-      serialized::write(data_, size_, ctx.fwd->session_id);
+      serialized::write(data_, size_, ctx.fwd->client_session_id);
       serialized::write(data_, size_, data.data(), data.size());
 
       ForwardedHeader msg = {ForwardedMsg::forwarded_response,
@@ -145,10 +146,10 @@ namespace ccf
       const auto& plain_ = plain;
       auto data_ = plain_.data();
       auto size_ = plain_.size();
-      auto session_id = serialized::read<size_t>(data_, size_);
+      auto client_session_id = serialized::read<size_t>(data_, size_);
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
 
-      return std::make_pair(session_id, rpc);
+      return std::make_pair(client_session_id, rpc);
     }
 
     void recv_message(const uint8_t* data, size_t size)

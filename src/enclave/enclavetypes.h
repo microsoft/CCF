@@ -18,27 +18,24 @@ namespace enclave
     // In parameters (initialised when context is created)
     //
 
-    // Client session ID
-    const size_t session_id = InvalidSessionId;
+    const size_t client_session_id = InvalidSessionId;
+    CBuffer caller_cert;
     // Actor type to route to appropriate frontend
     const ccf::ActorsType actor;
-    // Caller certificate
-    CBuffer caller;
 
     //
     // Out parameters (changed during lifetime of context)
     //
 
     // If true, the RPC does not reply to the client synchronously
-    bool is_suspended = false;
-    // Packing method used to serialise the RPC object
+    bool is_pending = false;
     std::optional<jsonrpc::Pack> pack = std::nullopt;
-    // JSON-RPC specific
-    struct json
+    // Request payload specific attributes
+    struct request
     {
       uint64_t seq_no;
     };
-    struct json json;
+    struct request req;
 
     //
     // Only set in the case of a forwarded RPC
@@ -46,16 +43,16 @@ namespace enclave
     struct forwarded
     {
       // Initialised when forwarded context is created
-      const size_t session_id;
+      const size_t client_session_id;
       const ccf::NodeId from;
       const ccf::CallerId caller_id;
 
       // Changed during lifetime of forwarded context
-      ccf::NodeId leader_id;
+      ccf::NodeId leader_id = ccf::INVALID_ID;
 
       forwarded(
-        size_t session_id_, ccf::NodeId from_, ccf::CallerId caller_id_) :
-        session_id(session_id_),
+        size_t client_session_id_, ccf::NodeId from_, ccf::CallerId caller_id_) :
+        client_session_id(client_session_id_),
         from(from_),
         caller_id(caller_id_)
       {}
@@ -64,11 +61,11 @@ namespace enclave
 
     // Constructor used for non-forwarded RPC
     RPCContext(
-      size_t session_id_,
-      CBuffer caller_,
+      size_t client_session_id_,
+      CBuffer caller_cert_,
       ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
-      session_id(session_id_),
-      caller(caller_),
+      client_session_id(client_session_id_),
+      caller_cert(caller_cert_),
       actor(actor_)
     {}
 

@@ -29,7 +29,6 @@ namespace ccf
       std::vector<uint8_t> network_cert;
       std::string hostname;
       std::string service;
-      bool is_sync;
     };
 
     struct Out

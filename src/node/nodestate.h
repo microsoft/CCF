@@ -333,10 +333,8 @@ namespace ccf
       auto join_client =
         rpcsessions.create_client(rpc_ctx, std::move(join_client_cert));
 
-      // If the join network command is synchronous, only reply to the client
-      // when the leader has responded
-      if (args.is_sync)
-        rpc_ctx.is_suspended = true;
+      // Only reply to the client when the leader has responded
+      rpc_ctx.is_pending = true;
 
       join_client->connect(
         args.hostname,
@@ -352,10 +350,10 @@ namespace ccf
           catch (const std::exception& e)
           {
             return std::make_pair(
-              rpc_ctx.is_suspended,
+              rpc_ctx.is_pending,
               jsonrpc::pack(
                 jsonrpc::error_response(
-                  rpc_ctx.json.seq_no,
+                  rpc_ctx.req.seq_no,
                   jsonrpc::ErrorCodes::INTERNAL_ERROR,
                   "An error occured while joining the network"),
                 rpc_ctx.pack.value()));
@@ -404,11 +402,11 @@ namespace ccf
                    << std::endl;
 
           jsonrpc::Response<JoinNetwork::Out> join_rpc_resp;
-          join_rpc_resp.id = rpc_ctx.json.seq_no;
+          join_rpc_resp.id = rpc_ctx.req.seq_no;
           join_rpc_resp.result.id = self;
 
           return std::make_pair(
-            rpc_ctx.is_suspended,
+            rpc_ctx.is_pending,
             jsonrpc::pack(join_rpc_resp, rpc_ctx.pack.value()));
         });
 

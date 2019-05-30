@@ -53,7 +53,7 @@ namespace enclave
       RPCContext rpc_ctx(session_id, caller, actor);
       auto rep = handler->process(rpc_ctx, data);
 
-      if (rpc_ctx.is_suspended)
+      if (rpc_ctx.is_pending)
       {
         // If the RPC has been forwarded, hold the connection.
         return true;

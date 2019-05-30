@@ -148,13 +148,13 @@ namespace ccf
           if (info)
           {
             return jsonrpc::error_response(
-              ctx.json.seq_no,
+              ctx.req.seq_no,
               jsonrpc::ErrorCodes::TX_NOT_LEADER,
               info->pubhost + ":" + info->tlsport);
           }
         }
         return jsonrpc::error_response(
-          ctx.json.seq_no,
+          ctx.req.seq_no,
           jsonrpc::ErrorCodes::TX_NOT_LEADER,
           "Not leader, leader unknown.");
       }
@@ -349,7 +349,7 @@ namespace ccf
           jsonrpc::Pack::Text);
 
       // Retrieve id of caller
-      auto caller_id = valid_caller(tx, ctx.caller);
+      auto caller_id = valid_caller(tx, ctx.caller_cert);
       if (!caller_id.has_value())
       {
         return jsonrpc::pack(
@@ -381,7 +381,7 @@ namespace ccf
           {
             // Indicate that the RPC has been forwarded to leader
             LOG_DEBUG << "RPC forwarded to leader " << leader_id << std::endl;
-            ctx.is_suspended = true;
+            ctx.is_pending = true;
             return {};
           }
         }
@@ -470,7 +470,7 @@ namespace ccf
         // TODO(#important): Signature should only be verified for a Write
         // RPC
         if (!verify_client_signature(
-              tx, ctx.caller, caller_id, full_rpc, ctx.fwd.has_value()))
+              tx, ctx.caller_cert, caller_id, full_rpc, ctx.fwd.has_value()))
         {
           return jsonrpc::error_response(
             full_rpc[jsonrpc::REQ][jsonrpc::ID],
@@ -488,12 +488,12 @@ namespace ccf
           "Wrong JSON-RPC version.");
 
       std::string method = rpc[jsonrpc::METHOD];
-      ctx.json.seq_no = rpc[jsonrpc::ID];
+      ctx.req.seq_no = rpc[jsonrpc::ID];
 
       const nlohmann::json params = rpc[jsonrpc::PARAMS];
       if (!params.is_array() && !params.is_object() && !params.is_null())
         return jsonrpc::error_response(
-          ctx.json.seq_no,
+          ctx.req.seq_no,
           jsonrpc::ErrorCodes::INVALID_REQUEST,
           "Invalid params.");
 
@@ -505,7 +505,7 @@ namespace ccf
         handler = &*default_handler;
       else
         return jsonrpc::error_response(
-          ctx.json.seq_no, jsonrpc::ErrorCodes::METHOD_NOT_FOUND, method);
+          ctx.req.seq_no, jsonrpc::ErrorCodes::METHOD_NOT_FOUND, method);
 
       update_raft();
       update_history();
@@ -543,14 +543,14 @@ namespace ccf
           auto tx_result = func(args);
 
           if (!tx_result.first)
-            return jsonrpc::error_response(ctx.json.seq_no, tx_result.second);
+            return jsonrpc::error_response(ctx.req.seq_no, tx_result.second);
 
           switch (tx.commit())
           {
             case kv::CommitSuccess::OK:
             {
               nlohmann::json result =
-                jsonrpc::result_response(ctx.json.seq_no, tx_result.second);
+                jsonrpc::result_response(ctx.req.seq_no, tx_result.second);
 
               auto cv = tx.commit_version();
               if (cv == 0)
@@ -577,7 +577,7 @@ namespace ccf
 
             case kv::CommitSuccess::NO_REPLICATE:
               return jsonrpc::error_response(
-                ctx.json.seq_no,
+                ctx.req.seq_no,
                 jsonrpc::ErrorCodes::TX_FAILED_TO_REPLICATE,
                 "Transaction failed to replicate.");
               break;
@@ -585,12 +585,12 @@ namespace ccf
         }
         catch (const RpcException& e)
         {
-          return jsonrpc::error_response(ctx.json.seq_no, e.error_id, e.msg);
+          return jsonrpc::error_response(ctx.req.seq_no, e.error_id, e.msg);
         }
         catch (const std::exception& e)
         {
           return jsonrpc::error_response(
-            ctx.json.seq_no, jsonrpc::ErrorCodes::INTERNAL_ERROR, e.what());
+            ctx.req.seq_no, jsonrpc::ErrorCodes::INTERNAL_ERROR, e.what());
         }
       }
     }
