@@ -459,25 +459,3 @@ FStar_UInt128_uint128 FStar_UInt128_mul_wide(uint64_t x, uint64_t y) {
   return FStar_UInt128_mul_wide_impl(x, y);
 #endif
 }
-
-uint128_t FStar_Int_Cast_Full_uint64_to_uint128(uint64_t x) {
-#if HAS_OPTIMIZED
-  return _mm_set_epi64x(0, x);
-#else
-  return
-    (
-      (FStar_UInt128_uint128){
-        .low = x,
-        .high = 0
-      }
-    );
-#endif
-}
-
-uint64_t FStar_Int_Cast_Full_uint128_to_uint64(uint128_t x) {
-#if HAS_OPTIMIZED
-  return x.m128i_u64[0];
-#else
-  return x.low;
-#endif
-}

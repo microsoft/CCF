@@ -360,7 +360,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       ${OE_LIBC_INCLUDE_DIR}
       ${OE_TP_INCLUDE_DIR}
       ${PARSED_ARGS_INCLUDE_DIRS}
-      ${MERKLE_TREE_INC}
+      ${EVERCRYPT_INC}
       ${CMAKE_CURRENT_BINARY_DIR}
     )
     if (PBFT)
@@ -376,7 +376,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       -lgcc
       ${PARSED_ARGS_LINK_LIBS}
       ccfcrypto.enclave
-      merkle_tree.enclave
+      evercrypt.enclave
       secp256k1.enclave
     )
     if (PBFT)
@@ -407,7 +407,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   target_include_directories(${virt_name} SYSTEM PRIVATE
     ${PARSED_ARGS_INCLUDE_DIRS}
     ${CCFCRYPTO_INC}
-    ${MERKLE_TREE_INC}
+    ${EVERCRYPT_INC}
     ${OE_INCLUDE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}
   )
@@ -422,7 +422,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
     -lc++
     -lc++abi
     ccfcrypto.host
-    merkle_tree.host
+    evercrypt.host
     lua.host
     ${CMAKE_THREAD_LIBS_INIT}
     secp256k1.host
@@ -454,6 +454,7 @@ function(add_unit_test name)
 
   add_test(
     NAME ${name}
+
     COMMAND ${CCF_DIR}/tests/unit_test_wrapper.sh ${name})
 endfunction()
 
@@ -487,7 +488,7 @@ if(NOT VIRTUAL_ONLY)
     ${CMAKE_DL_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
     ccfcrypto.host
-    merkle_tree.host
+    evercrypt.host
   )
   enable_quote_code(cchost)
 endif()
@@ -513,7 +514,7 @@ target_link_libraries(cchost.virtual PRIVATE
   -lc++abi
   -stdlib=libc++
   ccfcrypto.host
-  merkle_tree.host
+  evercrypt.host
 )
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 target_link_libraries(cchost.virtual PRIVATE gcov)

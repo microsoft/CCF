@@ -115,10 +115,10 @@ if(BUILD_TESTS)
    add_unit_test(history_test
      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp)
    target_include_directories(history_test PRIVATE
-     ${MERKLE_TREE_INC})
+     ${EVERCRYPT_INC})
    target_link_libraries(history_test PRIVATE
      ${CRYPTO_LIBRARY}
-     merkle_tree.host
+     evercrypt.host
      secp256k1.host)
 
   add_unit_test(encryptor_test
@@ -147,7 +147,7 @@ if(BUILD_TESTS)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp)
   target_link_libraries(frontend_test PRIVATE
     ${CMAKE_THREAD_LIBS_INIT}
-    merkle_tree.host
+    evercrypt.host
     lua.host
     secp256k1.host)
 
@@ -155,7 +155,7 @@ if(BUILD_TESTS)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/membervoting_test.cpp)
   target_link_libraries(membervoting_test PRIVATE
     ${CMAKE_THREAD_LIBS_INIT}
-    merkle_tree.host
+    evercrypt.host
     lua.host
     secp256k1.host)
 
@@ -209,16 +209,16 @@ if(BUILD_TESTS)
   add_picobench(merkle_bench src/node/test/merkle_bench.cpp)
   target_link_libraries(merkle_bench PRIVATE
     ccfcrypto.host
-    merkle_tree.host)
+    evercrypt.host)
   target_include_directories(merkle_bench PRIVATE
-    ${MERKLE_TREE_INC})
+    ${EVERCRYPT_INC})
   add_picobench(history_bench src/node/test/history_bench.cpp)
   target_link_libraries(history_bench PRIVATE
     ccfcrypto.host
-    merkle_tree.host
+    evercrypt.host
     secp256k1.host)
   target_include_directories(history_bench PRIVATE
-    ${MERKLE_TREE_INC})
+    ${EVERCRYPT_INC})
   add_picobench(kv_bench src/kv/test/kv_bench.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmkey.cpp)
 
@@ -226,11 +226,11 @@ if(BUILD_TESTS)
   add_executable(merkle_mem src/node/test/merkle_mem.cpp)
   target_link_libraries(merkle_mem PRIVATE
     ccfcrypto.host
-    merkle_tree.host
+    evercrypt.host
     ${CMAKE_THREAD_LIBS_INIT})
     use_client_mbedtls(merkle_mem)
   target_include_directories(merkle_mem PRIVATE
-    ${MERKLE_TREE_INC}
+    ${EVERCRYPT_INC}
     src)
 
   # Raft driver and scenario test
@@ -319,11 +319,23 @@ if(BUILD_TESTS)
       ${RECOVERY_ARGS}
   )
 
-  if (BUILD_SMALLBANK)
+  if(BUILD_SMALLBANK)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
   endif()
 
   if (EXTENSIVE_TESTS)
     set_tests_properties(recovery_tests PROPERTIES TIMEOUT 2000)
   endif()
+
+  if(END_TO_END_COVERAGE)
+    add_test(
+      NAME end_to_end_logging_coverage
+      COMMAND
+        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+        -b .
+        ${TEST_FORWARD_TO_LEADER}
+        ${CCF_NETWORK_TEST_COV_ARGS}
+    )
+  endif()
+
 endif()
