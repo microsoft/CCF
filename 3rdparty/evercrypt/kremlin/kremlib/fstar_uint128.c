@@ -120,14 +120,6 @@ uint128_t FStar_UInt128_gte_mask(uint128_t x, uint128_t y) {
   return ((uint128_t)mask) << 64 | mask;
 }
 
-uint128_t FStar_Int_Cast_Full_uint64_to_uint128(uint64_t x) {
-  return x;
-}
-
-uint64_t FStar_Int_Cast_Full_uint128_to_uint64(uint128_t x) {
-  return x;
-}
-
 #elif !defined(_MSC_VER) && defined(KRML_VERIFIED_UINT128)
 
 /* Verified uint128 implementation. */
@@ -160,17 +152,6 @@ void store128_be_(uint8_t *b, uint128_t *n) {
   store64_be(b + 8, LOW64_OF(n));
 }
 
-void
-FStar_Int_Cast_Full_uint64_to_uint128_(uint64_t x, uint128_t *dst) {
-  /* C89 */
-  LOW64_OF(dst) = x;
-  HIGH64_OF(dst) = 0;
-}
-
-uint64_t FStar_Int_Cast_Full_uint128_to_uint64_(uint128_t *x) {
-  return LOW64_OF(x);
-}
-
 #    ifndef KRML_NOSTRUCT_PASSING
 
 uint128_t load128_le(uint8_t *b) {
@@ -193,16 +174,6 @@ void store128_be(uint8_t *b, uint128_t n) {
   store128_be_(b, &n);
 }
 
-uint128_t FStar_Int_Cast_Full_uint64_to_uint128(uint64_t x) {
-  uint128_t dst;
-  FStar_Int_Cast_Full_uint64_to_uint128_(x, &dst);
-  return dst;
-}
-
-uint64_t FStar_Int_Cast_Full_uint128_to_uint64(uint128_t x) {
-  return FStar_Int_Cast_Full_uint128_to_uint64_(&x);
-}
-
 #    else /* !defined(KRML_STRUCT_PASSING) */
 
 #      define print128 print128_
@@ -210,10 +181,6 @@ uint64_t FStar_Int_Cast_Full_uint128_to_uint64(uint128_t x) {
 #      define store128_le store128_le_
 #      define load128_be load128_be_
 #      define store128_be store128_be_
-#      define FStar_Int_Cast_Full_uint128_to_uint64                            \
-        FStar_Int_Cast_Full_uint128_to_uint64_
-#      define FStar_Int_Cast_Full_uint64_to_uint128                            \
-        FStar_Int_Cast_Full_uint64_to_uint128_
 
 #    endif /* KRML_STRUCT_PASSING */
 
