@@ -51,7 +51,9 @@ namespace enclave
       ccf::NodeId leader_id = ccf::INVALID_ID;
 
       forwarded(
-        size_t client_session_id_, ccf::NodeId from_, ccf::CallerId caller_id_) :
+        size_t client_session_id_,
+        ccf::NodeId from_,
+        ccf::CallerId caller_id_) :
         client_session_id(client_session_id_),
         from(from_),
         caller_id(caller_id_)
