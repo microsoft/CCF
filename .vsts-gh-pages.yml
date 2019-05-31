@@ -24,7 +24,6 @@ jobs:
 
     - script: |
         git init
-        touch .nojekyll
         git config --local user.name "Azure Pipelines"
         git config --local user.email "azuredevops@microsoft.com"
         git add .
