@@ -80,10 +80,7 @@ def run(args):
             "--ca=networkcert.pem",
         )
         j_result = json.loads(result.stdout)
-        assert (
-            j_result["error"]["code"]
-            == infra.jsonrpc.ErrorCode.RPC_NOT_SIGNED.value
-        )
+        assert j_result["error"]["code"] == infra.jsonrpc.ErrorCode.RPC_NOT_SIGNED.value
 
         result = infra.proc.ccall(
             "./memberclient",
@@ -125,7 +122,7 @@ def run(args):
                 verify_sig(cert, sig, req)
                 verified_votes += 1
 
-    assert verified_votes == 2
+    assert verified_votes >= 2
 
 
 if __name__ == "__main__":
