@@ -32,7 +32,7 @@ jobs:
 
     - task: DownloadSecureFile@1
       inputs:
-        secureFile: deploy_key
+        secureFile: ccf
       displayName: 'Get the deploy key'
 
     - script: |
