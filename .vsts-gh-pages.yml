@@ -23,6 +23,7 @@ jobs:
       workingDirectory: sphinx
 
     - script: |
+        git init
         git config --local user.name "Azure Pipelines"
         git config --local user.email "azuredevops@microsoft.com"
         git add .
@@ -34,6 +35,8 @@ jobs:
       inputs:
         secureFile: ccf
       displayName: 'Get the deploy key'
+      workingDirectory: sphinx/build/html
+
 
     - script: |
         mkdir ~/.ssh && mv $DOWNLOADSECUREFILE_SECUREFILEPATH ~/.ssh/id_rsa
@@ -45,3 +48,4 @@ jobs:
       condition: |
         and(not(eq(variables['Build.Reason'], 'PullRequest')),
             eq(variables['Build.SourceBranch'], 'refs/heads/doc_test'))
+      workingDirectory: sphinx/build/html
