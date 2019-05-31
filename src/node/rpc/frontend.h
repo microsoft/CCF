@@ -472,7 +472,12 @@ namespace ccf
         // TODO(#important): Signature should only be verified for a Write
         // RPC
         if (!verify_client_signature(
-              tx, ctx.caller_cert, caller_id, full_rpc, ctx.fwd.has_value(), signed_request))
+              tx,
+              ctx.caller_cert,
+              caller_id,
+              full_rpc,
+              ctx.fwd.has_value(),
+              signed_request))
         {
           return jsonrpc::error_response(
             full_rpc[jsonrpc::REQ][jsonrpc::ID],
