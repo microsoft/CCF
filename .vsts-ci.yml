@@ -10,7 +10,6 @@ jobs:
     - template: .vsts-ci-templates/build_and_test.yml
       parameters:
         cmake_args: '-DBUILD_SMALLBANK=OFF'
-    - template: .vsts-ci-templates/push_perf_data.yml
 
 - job: ACC_1804_virtual_build
   pool: Ubuntu-1804-SGX-Azure
