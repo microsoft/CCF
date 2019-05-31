@@ -291,6 +291,9 @@ namespace ccf
         if (!check_member_active(args.tx, args.caller_id))
           return jsonrpc::error(jerr::INSUFFICIENT_RIGHTS);
 
+        if (args.signed_request.sig.empty())
+          return jsonrpc::error(jerr::RPC_NOT_SIGNED);
+
         Vote vote = args.params;
         auto proposals = args.tx.get_view(this->network.proposals);
         auto proposal = proposals->get(vote.id);
@@ -301,6 +304,10 @@ namespace ccf
         // record vote
         proposal->votes[args.caller_id] = vote.ballot;
         proposals->put(vote.id, *proposal);
+
+        auto voting_history = args.tx.get_view(this->network.voting_history);
+        voting_history->put(args.caller_id, {args.signed_request});
+
         return jsonrpc::success(complete_proposal(args.tx, vote.id));
       };
       install(MemberProcs::VOTE, vote, Write);

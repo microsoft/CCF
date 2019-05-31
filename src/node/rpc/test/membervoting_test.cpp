@@ -30,7 +30,6 @@ using namespace nlohmann;
 tls::KeyPair kp;
 auto ca_mem = kp.self_sign("CN=name_member");
 tls::Verifier verifier_mem(ca_mem);
-auto cert_mem = verifier_mem.raw();
 auto member_caller = verifier_mem.raw_cert_data();
 
 string get_script_path(string name)
@@ -71,6 +70,12 @@ void set_whitelists(GenesisGenerator& network)
     network.set_whitelist(wl.first, wl.second);
 }
 
+std::vector<uint8_t> sign_json(nlohmann::json j, tls::KeyPair& kp_)
+{
+  auto contents = nlohmann::json::to_msgpack(j);
+  return kp_.sign(contents);
+}
+
 json create_json_req(const json& params, const string& method_name)
 {
   json j;
@@ -79,6 +84,17 @@ json create_json_req(const json& params, const string& method_name)
   j[METHOD] = method_name;
   j[PARAMS] = params;
   return j;
+}
+
+json create_json_req_signed(
+  const json& params, const string& method_name, tls::KeyPair& kp_)
+{
+  auto j = create_json_req(params, method_name);
+  nlohmann::json sj;
+  sj["req"] = j;
+  auto sig = sign_json(j, kp_);
+  sj["sig"] = sig;
+  return sj;
 }
 
 template <typename T>
@@ -99,6 +115,15 @@ auto read_params(const T& key, const string& table_name)
   params["key"] = key;
   params["table"] = table_name;
   return params;
+}
+
+std::vector<uint8_t> get_cert_data(uint64_t member_id, tls::KeyPair& kp_mem)
+{
+  std::vector<uint8_t> ca_mem =
+    kp_mem.self_sign("CN=new member" + to_string(member_id));
+  tls::Verifier v_mem(ca_mem);
+  std::vector<uint8_t> cert_data = v_mem.raw_cert_data();
+  return cert_data;
 }
 
 auto init_frontend(
@@ -241,9 +266,9 @@ TEST_CASE("Add new members until there are 7, then reject")
   // the proposer
   network.add_member(vector<uint8_t>(member_caller), MemberStatus::ACTIVE);
   // the voter
-  vector<uint8_t> voter = {1};
+  vector<uint8_t> voter = get_cert_data(1, kp);
   network.add_member(voter, MemberStatus::ACTIVE);
-  network.add_member({2}, MemberStatus::ACTIVE);
+  network.add_member(get_cert_data(2, kp), MemberStatus::ACTIVE);
 
   set_whitelists(network);
   network.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
@@ -299,11 +324,13 @@ TEST_CASE("Add new members until there are 7, then reject")
         end
         )xxx");
 
-    json votej = create_json_req(Vote{proposal_id, vote_ballot}, "vote");
+    json votej =
+      create_json_req_signed(Vote{proposal_id, vote_ballot}, "vote", kp);
 
     // vote from second member
     Store::Tx tx;
-    Response<bool> r = frontend.process_json(rpc_ctx, tx, 1, votej).value();
+    enclave::RPCContext mem_rpc_ctx(0, member_caller);
+    Response<bool> r = frontend.process_json(mem_rpc_ctx, tx, 1, votej).value();
     if (new_member.id < max_members)
     {
       // vote should succeed
@@ -374,15 +401,15 @@ TEST_CASE("Accept node")
 {
   GenesisGenerator network;
   StubNodeState node;
+  tls::KeyPair kp;
 
-  const Cert mcert0 = {0}, mcert1 = {1};
+  const Cert mcert0 = get_cert_data(0, kp), mcert1 = get_cert_data(1, kp);
   const auto mid0 = network.add_member(mcert0, MemberStatus::ACTIVE);
   const auto mid1 = network.add_member(mcert1, MemberStatus::ACTIVE);
-  enclave::RPCContext rpc_ctx(0, nullb);
+  enclave::RPCContext rpc_ctx(0, mcert1);
 
   // node to be tested
   // new node certificate
-  tls::KeyPair kp;
   auto new_ca = kp.self_sign("CN=new node");
   NodeInfo ni = {"", "", "", "", new_ca, {}};
   network.add_node(ni);
@@ -422,7 +449,7 @@ TEST_CASE("Accept node")
         return #calls == 1 and calls[1].func == "accept_node"
        )xxx");
 
-    json votej = create_json_req(Vote{0, vote_ballot}, "vote");
+    json votej = create_json_req_signed(Vote{0, vote_ballot}, "vote", kp);
     Store::Tx tx;
     check_success(frontend.process_json(rpc_ctx, tx, mid1, votej).value());
   }
@@ -471,29 +498,34 @@ bool test_raw_writes(
   // con votes
   for (int i = n_members - 1; i >= pro_votes; i--)
   {
+    auto mem_cert = get_cert_data(i, kp);
+    enclave::RPCContext mem_rpc_ctx(0, mem_cert);
     const Script vote("return false");
-    json votej = create_json_req(Vote{proposal_id, vote}, "vote");
+    json votej = create_json_req_signed(Vote{proposal_id, vote}, "vote", kp);
     Store::Tx tx;
-    check_success(frontend.process_json(rpc_ctx, tx, i, votej).value(), false);
+    check_success(
+      frontend.process_json(mem_rpc_ctx, tx, i, votej).value(), false);
   }
   // pro votes (proposer also votes)
   bool completed = false;
   for (uint8_t i = explicit_proposer_vote ? 0 : 1; i < pro_votes; i++)
   {
     const Script vote("return true");
-    json votej = create_json_req(Vote{proposal_id, vote}, "vote");
+    json votej = create_json_req_signed(Vote{proposal_id, vote}, "vote", kp);
     Store::Tx tx;
+    auto mem_cert = get_cert_data(i, kp);
+    enclave::RPCContext mem_rpc_ctx(0, mem_cert);
     if (!completed)
     {
       completed =
-        Response<bool>(frontend.process_json(rpc_ctx, tx, i, votej).value())
+        Response<bool>(frontend.process_json(mem_rpc_ctx, tx, i, votej).value())
           .result;
     }
     else
     {
       // proposal does not exist anymore, because it completed -> invalid params
       check_error(
-        frontend.process_json(rpc_ctx, tx, i, votej).value(),
+        frontend.process_json(mem_rpc_ctx, tx, i, votej).value(),
         ErrorCodes::INVALID_PARAMS);
     }
   }
@@ -667,8 +699,8 @@ TEST_CASE("Complete proposal after initial rejection")
   GenesisGenerator network;
   StubNodeState node;
   auto frontend = init_frontend(network, node, 3);
-  enclave::RPCContext rpc_ctx(0, nullb);
-  const Cert m0 = {0}, m1 = {1};
+  const Cert m0 = {0}, m1 = get_cert_data(1, kp);
+  enclave::RPCContext rpc_ctx(0, m1);
   // propose
   {
     const auto proposal =
@@ -685,7 +717,7 @@ TEST_CASE("Complete proposal after initial rejection")
     local tables = ...
     return tables["values"]:get(123) == 123
     )xxx");
-    const auto votej = create_json_req(Vote{0, vote}, "vote");
+    const auto votej = create_json_req_signed(Vote{0, vote}, "vote", kp);
     Store::Tx tx;
     check_success(frontend.process_json(rpc_ctx, tx, 1, votej).value(), false);
   }

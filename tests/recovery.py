@@ -188,6 +188,7 @@ def run(args):
                     "--port={}".format(primary.tls_port),
                     "--id={}".format(proposal_id),
                     "--ca=networkcert.pem",
+                    "--sign",
                 )
 
                 for node in network.nodes:

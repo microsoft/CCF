@@ -40,6 +40,7 @@ namespace ccf
       CallerId caller_id;
       const std::string& method;
       const nlohmann::json& params;
+      const SignedReq& signed_request;
     };
 
   private:
@@ -465,12 +466,18 @@ namespace ccf
       const nlohmann::json& full_rpc)
     {
       auto rpc_ = &full_rpc;
+      SignedReq signed_request;
       if (full_rpc.find(jsonrpc::SIG) != full_rpc.end())
       {
         // TODO(#important): Signature should only be verified for a Write
         // RPC
         if (!verify_client_signature(
-              tx, ctx.caller_cert, caller_id, full_rpc, ctx.fwd.has_value()))
+              tx,
+              ctx.caller_cert,
+              caller_id,
+              full_rpc,
+              ctx.fwd.has_value(),
+              signed_request))
         {
           return jsonrpc::error_response(
             full_rpc[jsonrpc::REQ][jsonrpc::ID],
@@ -532,7 +539,8 @@ namespace ccf
       }
 
       auto func = handler->func;
-      auto args = RequestArgs{ctx, tx, caller_id, method, params};
+      auto args =
+        RequestArgs{ctx, tx, caller_id, method, params, signed_request};
 
       tx_count++;
 
@@ -602,10 +610,23 @@ namespace ccf
       const nlohmann::json& full_rpc,
       bool is_forwarded)
     {
+      SignedReq signed_request;
+      return verify_client_signature(
+        tx, caller, caller_id, full_rpc, is_forwarded, signed_request);
+    }
+
+    bool verify_client_signature(
+      Store::Tx& tx,
+      const CBuffer& caller,
+      const CallerId& caller_id,
+      const nlohmann::json& full_rpc,
+      bool is_forwarded,
+      SignedReq& signed_request)
+    {
       if (!client_signatures)
         return false;
 
-      SignedReq signed_request(full_rpc);
+      signed_request = full_rpc;
 
 #ifndef DISABLE_CLIENT_SIGNATURE_VERIFICATION
       // If the RPC is forwarded, assume that the signature has already been

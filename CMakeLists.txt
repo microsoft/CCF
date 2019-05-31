@@ -257,6 +257,11 @@ if(BUILD_TESTS)
       -b .
       ${CCF_NETWORK_TEST_ARGS})
 
+  ## Storing signed votes test
+  add_test(
+    NAME voting_history_test
+    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/votinghistory.py -b . -p libloggingenc ${CCF_NETWORK_TEST_ARGS})
+
   ## Lua Logging client end to end test
   add_test(
     NAME lua_logging_client_test
