@@ -1,0 +1,54 @@
+trigger:
+  branches:
+    include:
+      - "master"
+
+jobs:
+- job: build_and_publish_docs
+  pool: Ubuntu-1804-SGX-Azure
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
+
+    - script: doxygen 
+      displayName: Doxgen
+
+    - script: |
+        python3.7 -m venv env
+        source env/bin/activate
+        pip install -U -r requirements.txt
+        make html
+      displayName: Sphinx
+      workingDirectory: sphinx
+
+    - script: |
+        git init
+        git config --local user.name "Azure Pipelines"
+        git config --local user.email "azuredevops@microsoft.com"
+        git add .
+        git commit -m "[ci skip] commit generated documentation"
+      displayName: 'Commit pages'
+      workingDirectory: sphinx/build/html
+
+    - task: DownloadSecureFile@1
+      inputs:
+        secureFile: ccf
+      displayName: 'Get the deploy key'
+
+    - script: |
+        mv $DOWNLOADSECUREFILE_SECUREFILEPATH deploy_key
+        chmod 600 deploy_key
+        ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+        git remote add origin git@github.com:microsoft/CCF.git
+        GIT_SSH_COMMAND="ssh -i deploy_key" git push origin HEAD:gh-pages
+      displayName: 'Publish GitHub Pages'
+      condition: |
+        and(not(eq(variables['Build.Reason'], 'PullRequest')),
+            eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+      workingDirectory: sphinx/build/html
+
+    - script: rm deploy_key || true
+      displayName: 'Make sure key is removed'
+      workingDirectory: sphinx/build/html
+      condition: succeededOrFailed()
