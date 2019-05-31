@@ -320,7 +320,8 @@ TEST_CASE("Add new members until there are 7, then reject")
         end
         )xxx");
 
-    json votej = create_json_req_signed(Vote{proposal_id, vote_ballot}, "vote", kp);
+    json votej =
+      create_json_req_signed(Vote{proposal_id, vote_ballot}, "vote", kp);
 
     // vote from second member
     Store::Tx tx;
@@ -496,9 +497,7 @@ bool test_raw_writes(
     const Script vote("return false");
     json votej = create_json_req_signed(Vote{proposal_id, vote}, "vote", kp);
     Store::Tx tx;
-    check_success(
-      frontend.process_json(tx, mem_cert, i, votej).value(),
-      false);
+    check_success(frontend.process_json(tx, mem_cert, i, votej).value(), false);
   }
   // pro votes (proposer also votes)
   bool completed = false;
