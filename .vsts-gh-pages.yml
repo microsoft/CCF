@@ -42,9 +42,13 @@ jobs:
         ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
         git remote add origin git@github.com:microsoft/CCF.git
         GIT_SSH_COMMAND="ssh -i deploy_key" git push origin HEAD:gh-pages
-        rm deploy_key
       displayName: 'Publish GitHub Pages'
       condition: |
         and(not(eq(variables['Build.Reason'], 'PullRequest')),
             eq(variables['Build.SourceBranch'], 'refs/heads/master'))
       workingDirectory: sphinx/build/html
+
+    - script: rm deploy_key || true
+      displayName: 'Make sure key is removed'
+      workingDirectory: sphinx/build/html
+      condition: succeededOrFailed()
