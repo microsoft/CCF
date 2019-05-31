@@ -324,10 +324,9 @@ namespace ccf
         const auto last_ma = mas->get(args.caller_id);
         if (!last_ma)
           return jsonrpc::error(
-
             jsonrpc::ErrorCodes::INVALID_PARAMS, "No ACK record exists (1)");
 
-        tls::Verifier v((std::vector<uint8_t>(args.caller)));
+        tls::Verifier v((std::vector<uint8_t>(args.rpc_ctx.caller_cert)));
         const RawSignature rs = args.params;
         if (!v.verify_hash(crypto::Sha256Hash{last_ma->next_nonce}, rs.sig))
           return jsonrpc::error(jerr::INVALID_PARAMS, "Signature is not valid");
@@ -343,7 +342,9 @@ namespace ccf
         members->put(args.caller_id, *member);
         return jsonrpc::success(true);
       };
-      install(MemberProcs::ACK, ack, Write);
+      // ACK method cannot be forwarded and should be run on leader as it makes
+      // explicit use of caller certificate
+      install(MemberProcs::ACK, ack, Write, false);
 
       //! A member asks for a fresher nonce
       auto update_ack_nonce = [this](RequestArgs& args) {
