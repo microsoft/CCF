@@ -41,7 +41,7 @@ jobs:
         chmod 600 deploy_key
         ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
         git remote add origin git@github.com:microsoft/CCF.git
-        GIT_SSH_COMMAND="ssh -i deploy_key" git push origin HEAD:gh-pages
+        GIT_SSH_COMMAND="ssh -i deploy_key" git push -f origin HEAD:gh-pages
       displayName: 'Publish GitHub Pages'
       condition: |
         and(not(eq(variables['Build.Reason'], 'PullRequest')),
