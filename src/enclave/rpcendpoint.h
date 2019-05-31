@@ -50,10 +50,10 @@ namespace enclave
 
       // Create a new RPC context for each command since some may require
       // forwarding to the leader.
-      RpcContext rpc_ctx(session_id, caller, actor);
+      RPCContext rpc_ctx(session_id, caller, actor);
       auto rep = handler->process(rpc_ctx, data);
 
-      if (rpc_ctx.is_forwarded)
+      if (rpc_ctx.is_pending)
       {
         // If the RPC has been forwarded, hold the connection.
         return true;

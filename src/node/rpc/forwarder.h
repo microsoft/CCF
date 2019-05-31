@@ -2,39 +2,19 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclave/rpcsessions.h"
+#include "enclave/enclavetypes.h"
+#include "enclave/rpcmap.h"
 #include "node/nodetonode.h"
 
 namespace ccf
 {
-  struct FwdContext
-  {
-    const size_t session_id;
-    const NodeId forwarder_id;
-    const CallerId caller_id;
-    const ccf::ActorsType actor;
-
-    NodeId leader_id;
-
-    FwdContext(
-      size_t session_id_,
-      NodeId forwarder_id_,
-      CallerId caller_id_,
-      ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
-      session_id(session_id_),
-      forwarder_id(forwarder_id_),
-      caller_id(caller_id_),
-      actor(actor_)
-    {}
-  };
-
   class ForwardedRpcHandler
   {
   public:
     virtual ~ForwardedRpcHandler() {}
 
     virtual std::vector<uint8_t> process_forwarded(
-      FwdContext& fwd_ctx, const std::vector<uint8_t>& input) = 0;
+      enclave::RPCContext& fwd_ctx, const std::vector<uint8_t>& input) = 0;
   };
 
   class AbstractForwarder
@@ -43,7 +23,7 @@ namespace ccf
     virtual ~AbstractForwarder() {}
 
     virtual bool forward_command(
-      enclave::RpcContext& rpc_ctx,
+      enclave::RPCContext& rpc_ctx,
       NodeId from,
       NodeId to,
       CallerId caller_id,
@@ -53,15 +33,15 @@ namespace ccf
   class Forwarder : public AbstractForwarder
   {
   private:
-    enclave::RPCSessions& rpcsessions;
+    enclave::AbstractRPCResponder& rpcresponder;
     std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<enclave::RpcMap> rpc_map;
 
   public:
     Forwarder(
-      enclave::RPCSessions& rpcsessions,
+      enclave::AbstractRPCResponder& rpcresponder,
       std::shared_ptr<NodeToNode> n2n_channels) :
-      rpcsessions(rpcsessions),
+      rpcresponder(rpcresponder),
       n2n_channels(n2n_channels)
     {}
 
@@ -71,19 +51,19 @@ namespace ccf
     }
 
     bool forward_command(
-      enclave::RpcContext& rpc_ctx,
+      enclave::RPCContext& rpc_ctx,
       NodeId from,
       NodeId to,
       CallerId caller_id,
       const std::vector<uint8_t>& data)
     {
       std::vector<uint8_t> plain(
-        sizeof(caller_id) + sizeof(rpc_ctx.session_id) + sizeof(rpc_ctx.actor) +
-        data.size());
+        sizeof(caller_id) + sizeof(rpc_ctx.client_session_id) +
+        sizeof(rpc_ctx.actor) + data.size());
       auto data_ = plain.data();
       auto size_ = plain.size();
       serialized::write(data_, size_, caller_id);
-      serialized::write(data_, size_, rpc_ctx.session_id);
+      serialized::write(data_, size_, rpc_ctx.client_session_id);
       serialized::write(data_, size_, rpc_ctx.actor);
       serialized::write(data_, size_, data.data(), data.size());
 
@@ -92,7 +72,7 @@ namespace ccf
       return n2n_channels->send_encrypted(to, plain, msg);
     }
 
-    std::optional<std::pair<FwdContext, std::vector<uint8_t>>>
+    std::optional<std::pair<enclave::RPCContext, std::vector<uint8_t>>>
     recv_forwarded_command(const uint8_t* data, size_t size)
     {
       const auto& msg = serialized::overlay<ForwardedHeader>(data, size);
@@ -117,28 +97,29 @@ namespace ccf
       auto data_ = plain_.data();
       auto size_ = plain_.size();
       auto caller_id = serialized::read<CallerId>(data_, size_);
-      auto session_id = serialized::read<size_t>(data_, size_);
+      auto client_session_id = serialized::read<size_t>(data_, size_);
       auto actor = serialized::read<ccf::ActorsType>(data_, size_);
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
 
       return std::make_pair(
-        FwdContext(session_id, msg.from_node, caller_id, actor),
+        enclave::RPCContext(client_session_id, msg.from_node, caller_id, actor),
         std::move(rpc));
     }
 
     bool send_forwarded_response(
-      const FwdContext& fwd_ctx, const std::vector<uint8_t>& data)
+      const enclave::RPCContext& ctx, const std::vector<uint8_t>& data)
     {
-      std::vector<uint8_t> plain(sizeof(fwd_ctx.session_id) + data.size());
+      std::vector<uint8_t> plain(
+        sizeof(ctx.fwd->client_session_id) + data.size());
       auto data_ = plain.data();
       auto size_ = plain.size();
-      serialized::write(data_, size_, fwd_ctx.session_id);
+      serialized::write(data_, size_, ctx.fwd->client_session_id);
       serialized::write(data_, size_, data.data(), data.size());
 
       ForwardedHeader msg = {ForwardedMsg::forwarded_response,
-                             fwd_ctx.leader_id};
+                             ctx.fwd->leader_id};
 
-      return n2n_channels->send_encrypted(fwd_ctx.forwarder_id, plain, msg);
+      return n2n_channels->send_encrypted(ctx.fwd->from, plain, msg);
     }
 
     std::optional<std::pair<size_t, std::vector<uint8_t>>>
@@ -165,10 +146,10 @@ namespace ccf
       const auto& plain_ = plain;
       auto data_ = plain_.data();
       auto size_ = plain_.size();
-      auto session_id = serialized::read<size_t>(data_, size_);
+      auto client_session_id = serialized::read<size_t>(data_, size_);
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
 
-      return std::make_pair(session_id, rpc);
+      return std::make_pair(client_session_id, rpc);
     }
 
     void recv_message(const uint8_t* data, size_t size)
@@ -183,11 +164,11 @@ namespace ccf
         {
           if (rpc_map)
           {
-            auto fwd = recv_forwarded_command(data, size);
-            if (!fwd.has_value())
+            auto r = recv_forwarded_command(data, size);
+            if (!r.has_value())
               return;
 
-            auto handler = rpc_map->find(fwd->first.actor);
+            auto handler = rpc_map->find(r->first.actor);
             if (!handler.has_value())
               return;
 
@@ -196,18 +177,18 @@ namespace ccf
             if (!fwd_handler)
               return;
 
-            LOG_DEBUG << "Forwarded RPC: " << fwd->first.actor << std::endl;
+            LOG_DEBUG << "Forwarded RPC: " << r->first.actor << std::endl;
 
-            auto rep = fwd_handler->process_forwarded(fwd->first, fwd->second);
+            auto rep = fwd_handler->process_forwarded(r->first, r->second);
 
-            if (!send_forwarded_response(fwd->first, rep))
+            if (!send_forwarded_response(r->first, rep))
             {
               LOG_FAIL << "Could not send forwarded response to "
-                       << fwd->first.forwarder_id << std::endl;
+                       << r->first.fwd->from << std::endl;
             }
 
-            LOG_DEBUG << "Sending forwarded response to "
-                      << fwd->first.forwarder_id << std::endl;
+            LOG_DEBUG << "Sending forwarded response to " << r->first.fwd->from
+                      << std::endl;
           }
           break;
         }
@@ -223,7 +204,7 @@ namespace ccf
 
           try
           {
-            rpcsessions.reply_forwarded(rep->first, rep->second);
+            rpcresponder.reply_async(rep->first, rep->second);
           }
           catch (const std::logic_error& err)
           {

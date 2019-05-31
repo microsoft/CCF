@@ -33,7 +33,7 @@ namespace ccf
     static constexpr auto MANAGEMENT = "management";
   };
 
-  enum ActorsType
+  enum ActorsType : uint64_t
   {
     members = 0,
     users,
