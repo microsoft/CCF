@@ -9,17 +9,9 @@ Prims_nat FStar_String_strlen(Prims_string s) {
   return strlen(s);
 }
 
+/* Backwards-compatibility; remove me. */
 Prims_string FStar_String_strcat(Prims_string s0, Prims_string s1) {
-  size_t len = strlen(s0) + strlen(s1) + 1;
-  char *dest = KRML_HOST_CALLOC(len, 1);
-#ifdef _MSC_VER
-  strcat_s(dest, len, s0);
-  strcat_s(dest, len, s1);
-#else
-  strcat(dest, s0);
-  strcat(dest, s1);
-#endif
-  return (Prims_string)dest;
+  return Prims_strcat(s0, s1);
 }
 
 

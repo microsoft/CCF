@@ -8,7 +8,7 @@
 
 #include "FStar_Bytes.h"
 #include "Prims.h"
-#include "FStar_Int_Cast_Full.h"
+#include "FStar_UInt128.h"
 
 typedef uint8_t FStar_Bytes_byte;
 
@@ -190,10 +190,10 @@ void FStar_Bytes_uint128_of_bytes(FStar_Bytes_bytes bs, uint128_t *dst) {
 #else
 uint128_t
 FStar_Bytes_uint128_of_bytes(FStar_Bytes_bytes bs) {
-  uint128_t res = FStar_Int_Cast_Full_uint64_to_uint128(UINT64_C(0));
+  uint128_t res = FStar_UInt128_uint64_to_uint128(UINT64_C(0));
   for (uint32_t i = 0; i < bs.length; i++) {
     res = FStar_UInt128_shift_left(res, UINT32_C(8));
-    res = FStar_UInt128_logxor(res, FStar_Int_Cast_Full_uint64_to_uint128(bs.data[i] & 0xFF));
+    res = FStar_UInt128_logxor(res, FStar_UInt128_uint64_to_uint128(bs.data[i] & 0xFF));
   }
   return res;
 }
