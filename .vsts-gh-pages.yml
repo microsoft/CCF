@@ -1,7 +1,7 @@
 trigger:
   branches:
     include:
-      - "doc_test"
+      - "master"
 
 jobs:
 - job: build_and_publish_docs
@@ -41,10 +41,10 @@ jobs:
         chmod 600 deploy_key
         ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
         git remote add origin git@github.com:microsoft/CCF.git
-        GIT_SSH_COMMAND="ssh -i deploy_key" git push origin HEAD:test_pages
+        GIT_SSH_COMMAND="ssh -i deploy_key" git push origin HEAD:gh-pages
         rm deploy_key
       displayName: 'Publish GitHub Pages'
       condition: |
         and(not(eq(variables['Build.Reason'], 'PullRequest')),
-            eq(variables['Build.SourceBranch'], 'refs/heads/doc_test'))
+            eq(variables['Build.SourceBranch'], 'refs/heads/master'))
       workingDirectory: sphinx/build/html
