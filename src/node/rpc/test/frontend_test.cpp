@@ -102,6 +102,19 @@ public:
   }
 };
 
+class TestNoForwardingFrontEnd : public ccf::RpcFrontend
+{
+public:
+  TestNoForwardingFrontEnd(Store& tables) : RpcFrontend(tables)
+  {
+    auto empty_function = [this](RequestArgs& args) {
+      return jsonrpc::success();
+    };
+    // Note that this a Write function that cannot be forwarded
+    install("empty_function", empty_function, Write, false);
+  }
+};
+
 // used throughout
 tls::KeyPair kp;
 ccf::NetworkState network;
@@ -152,9 +165,9 @@ auto ca_inv = kp_other.self_sign("CN=name");
 tls::Verifier verifier_inv(ca_inv);
 auto invalid_caller = verifier_inv.raw_cert_data();
 
-enclave::RpcContext rpc_ctx(enclave::InvalidSessionId, user_caller);
-enclave::RpcContext invalid_rpc_ctx(enclave::InvalidSessionId, invalid_caller);
-enclave::RpcContext member_rpc_ctx(enclave::InvalidSessionId, member_caller);
+enclave::RPCContext rpc_ctx(0, user_caller);
+enclave::RPCContext invalid_rpc_ctx(0, invalid_caller);
+enclave::RPCContext member_rpc_ctx(0, member_caller);
 
 void prepare_callers()
 {
@@ -247,14 +260,14 @@ TEST_CASE("get_signed_req")
 
   SUBCASE("request with no signature")
   {
-    frontend.process_json(txs, user_caller, caller_id, simple_call);
+    frontend.process_json(rpc_ctx, txs, caller_id, simple_call);
     auto signed_resp = frontend.get_signed_req(caller_id);
     CHECK(!signed_resp.has_value());
   }
   SUBCASE("request with signature")
   {
     auto signed_call = create_signed_json();
-    frontend.process_json(txs, user_caller, caller_id, signed_call);
+    frontend.process_json(rpc_ctx, txs, caller_id, signed_call);
     auto signed_resp = frontend.get_signed_req(caller_id);
     CHECK(signed_resp.has_value());
     auto value = signed_resp.value();
@@ -266,7 +279,7 @@ TEST_CASE("get_signed_req")
   {
     TestReqNotStoredFrontend frontend_nostore(*network.tables);
     auto signed_call = create_signed_json();
-    frontend_nostore.process_json(txs, nos_caller, nos_caller_id, signed_call);
+    frontend_nostore.process_json(rpc_ctx, txs, nos_caller_id, signed_call);
     auto signed_resp = frontend_nostore.get_signed_req(nos_caller_id);
     CHECK(signed_resp.has_value());
     auto value = signed_resp.value();
@@ -277,7 +290,7 @@ TEST_CASE("get_signed_req")
   SUBCASE("signature not verified")
   {
     auto signed_call = create_signed_json();
-    frontend.process_json(txs, user_caller, caller_id, signed_call);
+    frontend.process_json(rpc_ctx, txs, caller_id, signed_call);
     auto signed_resp = frontend.get_signed_req(inval_caller_id);
     CHECK(!signed_resp.has_value());
   }
@@ -295,8 +308,8 @@ TEST_CASE("MinimalHandleFuction")
   CallerId caller_id(0);
   Store::Tx txs;
 
-  nlohmann::json response =
-    frontend.process_json(txs, user_caller, caller_id, echo_call).value();
+  auto response =
+    frontend.process_json(rpc_ctx, txs, caller_id, echo_call).value();
   CHECK(response[jsonrpc::RESULT] == echo_call[jsonrpc::PARAMS]);
 }
 
@@ -312,23 +325,23 @@ TEST_CASE("process_json")
 
   SUBCASE("with out")
   {
-    nlohmann::json response =
-      frontend.process_json(txs, user_caller, caller_id, simple_call).value();
+    auto response =
+      frontend.process_json(rpc_ctx, txs, caller_id, simple_call).value();
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
   }
   SUBCASE("with signature")
   {
     auto signed_call = create_signed_json();
-    nlohmann::json response =
-      frontend.process_json(txs, user_caller, caller_id, signed_call).value();
+    auto response =
+      frontend.process_json(rpc_ctx, txs, caller_id, signed_call).value();
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
   }
 #ifndef DISABLE_CLIENT_SIGNATURE_VERIFICATION
   SUBCASE("signature not verified")
   {
     auto signed_call = create_signed_json();
-    nlohmann::json response =
-      frontend.process_json(txs, invalid_caller, inval_caller_id, signed_call)
+    auto response =
+      frontend.process_json(invalid_rpc_ctx, txs, inval_caller_id, signed_call)
         .value();
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
@@ -349,7 +362,7 @@ TEST_CASE("process")
       jsonrpc::pack(simple_call, jsonrpc::Pack::MsgPack);
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx, serialized_call);
-    nlohmann::json response =
+    auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
   }
@@ -361,7 +374,7 @@ TEST_CASE("process")
       jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx, serialized_call);
-    nlohmann::json response =
+    auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
   }
@@ -374,7 +387,7 @@ TEST_CASE("process")
       jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
     std::vector<uint8_t> serialized_response =
       frontend.process(invalid_rpc_ctx, serialized_call);
-    nlohmann::json response =
+    auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
@@ -397,7 +410,7 @@ TEST_CASE("User caller")
   {
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx, serialized_call);
-    nlohmann::json response =
+    auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
   }
@@ -405,7 +418,7 @@ TEST_CASE("User caller")
   {
     std::vector<uint8_t> serialized_response =
       frontend.process(member_rpc_ctx, serialized_call);
-    nlohmann::json response =
+    auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
@@ -425,7 +438,7 @@ TEST_CASE("Member caller")
   {
     std::vector<uint8_t> serialized_response =
       frontend.process(member_rpc_ctx, serialized_call);
-    nlohmann::json response =
+    auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
   }
@@ -433,7 +446,7 @@ TEST_CASE("Member caller")
   {
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx, serialized_call);
-    nlohmann::json response =
+    auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
@@ -452,8 +465,7 @@ TEST_CASE("No certs table")
 
   std::vector<uint8_t> serialized_response =
     frontend.process(rpc_ctx, serialized_call);
-  nlohmann::json response =
-    jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
+  auto response = jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
   CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
 }
 
@@ -477,7 +489,7 @@ public:
   StubForwarder() {}
 
   bool forward_command(
-    enclave::RpcContext& rpc_ctx,
+    enclave::RPCContext& ctx,
     NodeId from,
     NodeId to,
     CallerId caller_id,
@@ -513,13 +525,11 @@ TEST_CASE("Forwarding")
 
   INFO("Frontend without forwarder does not forward");
   {
-    enclave::RpcContext rpc_ctx_forwarded(
-      enclave::InvalidSessionId, user_caller);
-    REQUIRE(rpc_ctx_forwarded.is_forwarded == false);
+    enclave::RPCContext ctx(0, nullb);
+    REQUIRE(ctx.is_pending == false);
     REQUIRE(follower_forwarder->forwarded_cmds.empty());
-    auto serialized_response =
-      frontend_follower.process(rpc_ctx_forwarded, serialized_call);
-    REQUIRE(rpc_ctx_forwarded.is_forwarded == false);
+    auto serialized_response = frontend_follower.process(ctx, serialized_call);
+    REQUIRE(ctx.is_pending == false);
     REQUIRE(follower_forwarder->forwarded_cmds.size() == 0);
 
     auto response =
@@ -533,17 +543,16 @@ TEST_CASE("Forwarding")
 
   INFO("Write command on follower is forwarded to leader");
   {
-    enclave::RpcContext rpc_ctx_forwarded(
-      enclave::InvalidSessionId, user_caller);
-    REQUIRE(rpc_ctx_forwarded.is_forwarded == false);
+    enclave::RPCContext ctx(0, nullb);
+    REQUIRE(ctx.is_pending == false);
     REQUIRE(follower_forwarder->forwarded_cmds.empty());
-    frontend_follower.process(rpc_ctx_forwarded, serialized_call);
-    REQUIRE(rpc_ctx_forwarded.is_forwarded == true);
+    frontend_follower.process(ctx, serialized_call);
+    REQUIRE(ctx.is_pending == true);
     REQUIRE(follower_forwarder->forwarded_cmds.size() == 1);
 
     auto forwarded_cmd = follower_forwarder->forwarded_cmds.back();
     follower_forwarder->forwarded_cmds.pop_back();
-    FwdContext fwd_ctx(0, 0, 0);
+    enclave::RPCContext fwd_ctx(0, 0, 0);
     auto serialized_response =
       frontend_leader.process_forwarded(fwd_ctx, forwarded_cmd);
 
@@ -554,17 +563,16 @@ TEST_CASE("Forwarding")
 
   INFO("Forwarding write command to a follower return TX_NOT_LEADER");
   {
-    enclave::RpcContext rpc_ctx_forwarded(
-      enclave::InvalidSessionId, user_caller);
-    REQUIRE(rpc_ctx_forwarded.is_forwarded == false);
+    enclave::RPCContext ctx(0, nullb);
+    REQUIRE(ctx.is_pending == false);
     REQUIRE(follower_forwarder->forwarded_cmds.empty());
-    frontend_follower.process(rpc_ctx_forwarded, serialized_call);
-    REQUIRE(rpc_ctx_forwarded.is_forwarded == true);
+    frontend_follower.process(ctx, serialized_call);
+    REQUIRE(ctx.is_pending == true);
     REQUIRE(follower_forwarder->forwarded_cmds.size() == 1);
 
     auto forwarded_cmd = follower_forwarder->forwarded_cmds.back();
     follower_forwarder->forwarded_cmds.pop_back();
-    FwdContext fwd_ctx(0, 0, 0);
+    enclave::RPCContext fwd_ctx(0, 0, 0);
 
     // Processing forwarded response by a follower frontend (here, the same
     // frontend that the command was originally issued to)
@@ -576,5 +584,22 @@ TEST_CASE("Forwarding")
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
       static_cast<int16_t>(jsonrpc::ErrorCodes::TX_NOT_LEADER));
+  }
+
+  INFO("Write command should not be forwarded if marked as non-forwardable");
+  {
+    TestNoForwardingFrontEnd frontend_follower_no_forwarding(*network.tables);
+
+    auto follower2_forwarder = std::make_shared<StubForwarder>();
+    auto follower2_replicator = std::make_shared<kv::FollowerStubReplicator>();
+    network.tables->set_replicator(follower_replicator);
+    frontend_follower_no_forwarding.set_cmd_forwarder(follower2_forwarder);
+
+    enclave::RPCContext ctx(0, nullb);
+    REQUIRE(ctx.is_pending == false);
+    REQUIRE(follower2_forwarder->forwarded_cmds.empty());
+    frontend_follower_no_forwarding.process(ctx, serialized_call);
+    REQUIRE(ctx.is_pending == false);
+    REQUIRE(follower2_forwarder->forwarded_cmds.size() == 0);
   }
 }
