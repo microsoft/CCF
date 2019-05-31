@@ -549,6 +549,9 @@ class CCFRemote(object):
         self.remote.get(self.ledger_file_name)
         return self.ledger_file_name
 
+    def get_ledger_full_path(self):
+        return self.remote.root + "/" + self.ledger_file_name
+
 
 @contextmanager
 def ccf_remote(

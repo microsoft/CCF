@@ -12,6 +12,7 @@
 #include "secrets.h"
 #include "signatures.h"
 #include "values.h"
+#include "votinghistory.h"
 #include "whitelists.h"
 
 #include <memory>
@@ -38,6 +39,7 @@ namespace ccf
     Scripts& app_scripts;
     Secrets& secrets_table;
     CodeIDs& code_id;
+    VotingHistoryTable& voting_history;
 
     // TODO(#important,#TR): SERVICE table should be added to record the initial
     // state of the service and its successive recoveries (sections IV-B, IV-G).
@@ -72,7 +74,9 @@ namespace ccf
       secrets_table(
         tables->create<Secrets>(Tables::SECRETS, kv::SecurityDomain::PUBLIC)),
       code_id(
-        tables->create<CodeIDs>(Tables::CODEID, kv::SecurityDomain::PUBLIC))
+        tables->create<CodeIDs>(Tables::CODEID, kv::SecurityDomain::PUBLIC)),
+      voting_history(tables->create<VotingHistoryTable>(
+        Tables::VOTING_HISTORY, kv::SecurityDomain::PUBLIC))
     {}
 
     /** Returns a tuple of all tables that are possibly accessible from scripts
@@ -96,7 +100,8 @@ namespace ccf
         std::ref(proposals),
         std::ref(gov_scripts),
         std::ref(app_scripts),
-        std::ref(code_id));
+        std::ref(code_id),
+        std::ref(voting_history));
     }
   };
 }

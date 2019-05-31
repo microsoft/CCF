@@ -544,13 +544,6 @@ set(CCF_NETWORK_TEST_ARGS
   -g ${CCF_DIR}/src/runtime_config/gov.lua
 )
 
-set(CCF_NETWORK_TEST_COV_ARGS
-  ${TEST_EXPECT_QUOTE}
-  -e virtual
-  -l ${TEST_HOST_LOGGING_LEVEL}
-  -g ${CCF_DIR}/src/runtime_config/gov.lua
-)
-
 # Lua generic app
 add_enclave_lib(luagenericenc ${CCF_DIR}/src/apps/luageneric/oe_sign.conf ${CCF_DIR}/src/apps/sample_key.pem SRCS ${CCF_DIR}/src/apps/luageneric/luageneric.cpp)
 

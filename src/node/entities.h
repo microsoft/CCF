@@ -33,7 +33,7 @@ namespace ccf
     static constexpr auto MANAGEMENT = "management";
   };
 
-  enum ActorsType
+  enum ActorsType : uint64_t
   {
     members = 0,
     users,
@@ -65,6 +65,7 @@ namespace ccf
     static constexpr auto APP_SCRIPTS = "appscripts";
     static constexpr auto SECRETS = "secrets";
     static constexpr auto CODEID = "codeid";
+    static constexpr auto VOTING_HISTORY = "votinghistory";
   };
 
   using StoreSerialiser = kv::KvStoreSerialiser;

@@ -291,6 +291,9 @@ namespace ccf
         if (!check_member_active(args.tx, args.caller_id))
           return jsonrpc::error(jerr::INSUFFICIENT_RIGHTS);
 
+        if (args.signed_request.sig.empty())
+          return jsonrpc::error(jerr::RPC_NOT_SIGNED);
+
         Vote vote = args.params;
         auto proposals = args.tx.get_view(this->network.proposals);
         auto proposal = proposals->get(vote.id);
@@ -301,6 +304,10 @@ namespace ccf
         // record vote
         proposal->votes[args.caller_id] = vote.ballot;
         proposals->put(vote.id, *proposal);
+
+        auto voting_history = args.tx.get_view(this->network.voting_history);
+        voting_history->put(args.caller_id, {args.signed_request});
+
         return jsonrpc::success(complete_proposal(args.tx, vote.id));
       };
       install(MemberProcs::VOTE, vote, Write);
@@ -324,10 +331,9 @@ namespace ccf
         const auto last_ma = mas->get(args.caller_id);
         if (!last_ma)
           return jsonrpc::error(
-
             jsonrpc::ErrorCodes::INVALID_PARAMS, "No ACK record exists (1)");
 
-        tls::Verifier v((std::vector<uint8_t>(args.caller)));
+        tls::Verifier v((std::vector<uint8_t>(args.rpc_ctx.caller_cert)));
         const RawSignature rs = args.params;
         if (!v.verify_hash(crypto::Sha256Hash{last_ma->next_nonce}, rs.sig))
           return jsonrpc::error(jerr::INVALID_PARAMS, "Signature is not valid");
@@ -343,7 +349,9 @@ namespace ccf
         members->put(args.caller_id, *member);
         return jsonrpc::success(true);
       };
-      install(MemberProcs::ACK, ack, Write);
+      // ACK method cannot be forwarded and should be run on leader as it makes
+      // explicit use of caller certificate
+      install(MemberProcs::ACK, ack, Write, false);
 
       //! A member asks for a fresher nonce
       auto update_ack_nonce = [this](RequestArgs& args) {

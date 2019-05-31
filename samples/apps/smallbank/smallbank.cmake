@@ -26,7 +26,7 @@ if(BUILD_TESTS)
   )
 
   add_perf_test(
-    NAME small_bank_client_sigs_test
+    NAME small_bank_sigs_client_test
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
     CLIENT_BIN ./small_bank_client
     VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_short.json
