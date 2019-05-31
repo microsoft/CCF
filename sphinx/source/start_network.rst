@@ -106,7 +106,7 @@ When executing the ``joinNetwork.json`` RPC, the target node initiates an enclav
 
         Note over Leader: Part of Private Network
 
-        Members->>+Follower: join network [is_sync = true]
+        Members->>+Follower: join network
         Follower->>+Leader: join network (over TLS)
         Leader->>+Follower: Network Secrets (over TLS)
 
