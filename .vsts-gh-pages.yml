@@ -35,8 +35,6 @@ jobs:
       inputs:
         secureFile: ccf
       displayName: 'Get the deploy key'
-      workingDirectory: sphinx/build/html
-
 
     - script: |
         mkdir ~/.ssh && mv $DOWNLOADSECUREFILE_SECUREFILEPATH ~/.ssh/id_rsa
