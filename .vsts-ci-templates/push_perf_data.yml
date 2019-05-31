@@ -1,10 +1,4 @@
 steps:
-- script: |
-    gzip -vk *_sent.csv *_recv.csv
-    gzip -vk *_metrics.json
-  displayName: Compress tx time metrics
-  workingDirectory: build
-
 - task: AzureCLI@1
   displayName: Push Performance Data
   inputs:
@@ -13,7 +7,4 @@ steps:
     scriptLocation: inlineScript
     inlineScript: |
       az storage blob upload -f perf_summary.csv -c perf -n $AGENT_NAME/${BUILD_SOURCEBRANCHNAME}_${BUILD_BUILDNUMBER}.csv --account-name ccfperf --subscription $(subscription)
-      az storage blob upload-batch -d tx-times/$AGENT_NAME/${BUILD_SOURCEBRANCHNAME}_${BUILD_BUILDNUMBER} -s. --pattern "*_sent.csv.gz" --account-name ccfperf --subscription $(subscription)
-      az storage blob upload-batch -d tx-times/$AGENT_NAME/${BUILD_SOURCEBRANCHNAME}_${BUILD_BUILDNUMBER} -s. --pattern "*_recv.csv.gz" --account-name ccfperf --subscription $(subscription)
-      az storage blob upload-batch -d metrics/$AGENT_NAME/${BUILD_SOURCEBRANCHNAME}_${BUILD_BUILDNUMBER} -s. --pattern "*_metrics.json.gz" --account-name ccfperf --subscription $(subscription)
     workingDirectory: build

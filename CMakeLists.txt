@@ -45,8 +45,6 @@ endif()
 
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
-option(END_TO_END_COVERAGE "Run additional tests in virtual enclaves to generate coverage for end to end tests" OFF)
-
 # MemberClient executable
 add_executable(memberclient src/clients/memberclient.cpp)
 use_client_mbedtls(memberclient)
@@ -321,23 +319,11 @@ if(BUILD_TESTS)
       ${RECOVERY_ARGS}
   )
 
-  if(BUILD_SMALLBANK)
+  if (BUILD_SMALLBANK)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
   endif()
 
   if (EXTENSIVE_TESTS)
     set_tests_properties(recovery_tests PROPERTIES TIMEOUT 2000)
   endif()
-
-  if(END_TO_END_COVERAGE)
-    add_test(
-      NAME end_to_end_logging_coverage
-      COMMAND
-        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-        -b .
-        ${TEST_FORWARD_TO_LEADER}
-        ${CCF_NETWORK_TEST_COV_ARGS}
-    )
-  endif()
-
 endif()
