@@ -37,11 +37,12 @@ jobs:
       displayName: 'Get the deploy key'
 
     - script: |
-        mkdir ~/.ssh && mv $DOWNLOADSECUREFILE_SECUREFILEPATH ~/.ssh/id_rsa
-        chmod 700 ~/.ssh && chmod 600 ~/.ssh/id_rsa
+        mv $DOWNLOADSECUREFILE_SECUREFILEPATH deploy_key
+        chmod 600 deploy_key
         ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
         git remote set-url --push origin git@github.com:microsoft/CCF.git
-        git push origin HEAD:test_pages
+        GIT_SSH_COMMAND="ssh -i deploy_key" git push origin HEAD:test_pages
+        rm deploy_key
       displayName: 'Publish GitHub Pages'
       condition: |
         and(not(eq(variables['Build.Reason'], 'PullRequest')),
