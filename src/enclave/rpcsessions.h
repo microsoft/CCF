@@ -2,15 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../ds/logger.h"
-#include "../ds/serialized.h"
-#include "../tls/cert.h"
-#include "../tls/client.h"
-#include "../tls/context.h"
-#include "../tls/server.h"
+#include "ds/logger.h"
+#include "ds/serialized.h"
+#include "enclavetypes.h"
 #include "rpcclient.h"
 #include "rpcendpoint.h"
 #include "rpchandler.h"
+#include "tls/cert.h"
+#include "tls/client.h"
+#include "tls/context.h"
+#include "tls/server.h"
 #include "tlsframedendpoint.h"
 
 #include <limits>
@@ -18,7 +19,7 @@
 
 namespace enclave
 {
-  class RPCSessions
+  class RPCSessions : public AbstractRPCResponder
   {
   private:
     std::shared_ptr<RpcMap> rpc_map;
@@ -78,7 +79,7 @@ namespace enclave
       sessions.insert(std::make_pair(id, std::move(session)));
     }
 
-    void reply_forwarded(size_t id, const std::vector<uint8_t>& data)
+    void reply_async(size_t id, const std::vector<uint8_t>& data) override
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -86,7 +87,7 @@ namespace enclave
       if (search == sessions.end())
       {
         throw std::logic_error(
-          "reply forwarded for unknown session: " + std::to_string(id));
+          "reply async for unknown session: " + std::to_string(id));
       }
 
       search->second->send(data);
@@ -99,7 +100,8 @@ namespace enclave
       sessions.erase(id);
     }
 
-    std::shared_ptr<RPCClient> create_client(std::shared_ptr<tls::Cert> cert)
+    std::shared_ptr<RPCClient> create_client(
+      RPCContext& rpc_ctx, std::shared_ptr<tls::Cert> cert)
     {
       std::lock_guard<SpinLock> guard(lock);
       auto ctx = std::make_unique<tls::Client>(cert);
@@ -108,8 +110,8 @@ namespace enclave
       LOG_DEBUG << "Creating a new client session inside the enclave: " << id
                 << std::endl;
 
-      auto session =
-        std::make_shared<RPCClient>(id, writer_factory, std::move(ctx));
+      auto session = std::make_shared<RPCClient>(
+        id, writer_factory, std::move(ctx), *this, rpc_ctx);
       sessions.insert(std::make_pair(id, session));
       return session;
     }

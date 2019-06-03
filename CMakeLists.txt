@@ -45,8 +45,6 @@ endif()
 
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
-option(END_TO_END_COVERAGE "Run additional tests in virtual enclaves to generate coverage for end to end tests" OFF)
-
 # MemberClient executable
 add_executable(memberclient src/clients/memberclient.cpp)
 use_client_mbedtls(memberclient)
@@ -258,6 +256,11 @@ if(BUILD_TESTS)
     COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
       -b .
       ${CCF_NETWORK_TEST_ARGS})
+
+  ## Storing signed votes test
+  add_test(
+    NAME voting_history_test
+    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/votinghistory.py -b . -p libloggingenc ${CCF_NETWORK_TEST_ARGS})
 
   ## Lua Logging client end to end test
   add_test(

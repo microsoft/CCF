@@ -43,7 +43,8 @@ namespace ccf
       Tables::MEMBER_ACKS,
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,
-      Tables::APP_SCRIPTS}},
+      Tables::APP_SCRIPTS,
+      Tables::VOTING_HISTORY}},
 
     {USER_APP_CAN_WRITE, {Tables::APP_PUBLIC, Tables::APP}}};
 }
