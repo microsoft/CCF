@@ -293,13 +293,6 @@ def run(args):
 
 if __name__ == "__main__":
 
-    def add(parser):
-        parser.add_argument(
-            "-p",
-            "--package",
-            help="The enclave package to load (e.g., libsimplebank)",
-            required=True,
-        )
-
-    args = e2e_args.cli_args(add)
+    args = e2e_args.cli_args()
+    args.package = "libloggingenc"
     run(args)

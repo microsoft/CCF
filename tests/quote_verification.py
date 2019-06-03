@@ -9,6 +9,8 @@ from contextlib import contextmanager
 from random import randrange as rr
 from glob import glob
 
+import e2e_args
+
 
 def rm(path):
     print(">> rm {}".format(path))
@@ -123,6 +125,9 @@ def run(build_directory, lib_path):
 
 
 if __name__ == "__main__":
-    build_directory = sys.argv[1]
-    lib_path = sys.argv[2]
+
+    args = e2e_args.cli_args()
+
+    # build_directory = sys.argv[1]
+    # lib_path = sys.argv[2]
     run(build_directory, lib_path)

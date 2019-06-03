@@ -97,6 +97,12 @@ if (USE_NLJSON_KV_SERIALISER)
   add_definitions(-DUSE_NLJSON_KV_SERIALISER)
 endif()
 
+if (DEFINED ENV{BUILD_BUILDNUMBER})
+  set(PYTHON python3)
+else()
+  set(PYTHON unbuffer python3)
+endif()
+
 enable_language(ASM)
 
 include_directories(
@@ -579,6 +585,28 @@ function(add_client_exe name)
 
 endfunction()
 
+## Helper for building end-to-end function tests using the python infrastructure
+function(add_e2e_test)
+
+  cmake_parse_arguments(PARSE_ARGV 0 PARSED_ARGS
+  ""
+  "NAME;PYTHON_SCRIPT;"
+  "ADDITIONAL_ARGS"
+  )
+
+  add_test(
+    NAME ${PARSED_ARGS_NAME}
+    COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
+      -b .
+      --label ${PARSED_ARGS_NAME}
+      ${CCF_NETWORK_TEST_ARGS}
+      ${PARSED_ARGS_ADDITIONAL_ARGS}
+  )
+
+
+
+endfunction()
+
 ## Helper for building end-to-end perf tests using the python infrastucture
 function(add_perf_test)
 
@@ -609,8 +637,9 @@ function(add_perf_test)
 
   add_test(
     NAME ${PARSED_ARGS_NAME}
-    COMMAND python3 ${PARSED_ARGS_PYTHON_SCRIPT}
+    COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
       -b .
+      --label ${PARSED_ARGS_NAME}
       -c ${PARSED_ARGS_CLIENT_BIN}
       -i ${PARSED_ARGS_ITERATIONS}
       ${CCF_NETWORK_TEST_ARGS}

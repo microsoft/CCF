@@ -14,17 +14,7 @@ import uuid
 
 from loguru import logger as LOG
 
-USER = getpass.getuser()
 DBG = os.getenv("DBG", "cgdb")
-
-
-def tmpdir_name(node_name):
-    elements = [USER]
-    job_name = os.getenv("JOB_NAME", None)
-    if job_name:
-        elements.append(job_name.replace("/", "_"))
-    elements.append(node_name)
-    return "_".join(elements)
 
 
 @contextmanager
@@ -77,14 +67,14 @@ class CmdMixin(object):
 
 
 class SSHRemote(CmdMixin):
-    def __init__(self, name, hostname, files, cmd, env=None):
+    def __init__(self, name, hostname, files, cmd, workspace, label, env=None):
         """
         Runs a command on a remote host, through an SSH connection. A temporary
         directory is created, and some files can be shipped over. The command is
         run out of that directory.
 
         Note that the name matters, since the temporary directory that will be first
-        deleted, then created and populated is /tmp/`tmpdir_name(name)`. There is deliberately no
+        deleted, then created and populated is workspace/label_name. There is deliberately no
         cleanup on shutdown, to make debugging/inspection possible.
 
         setup() connects, creates the directory and ships over the files
@@ -97,7 +87,7 @@ class SSHRemote(CmdMixin):
         self.cmd = cmd
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.root = os.path.join("/tmp", tmpdir_name(name))
+        self.root = os.path.join(workspace, label + "_" + name)
         self.name = name
         self.env = env or {}
 
@@ -256,14 +246,14 @@ def ssh_remote(name, hostname, files, cmd):
 
 
 class LocalRemote(CmdMixin):
-    def __init__(self, name, hostname, files, cmd, env=None):
+    def __init__(self, name, hostname, files, cmd, workspace, label, env=None):
         """
         Local Equivalent to the SSHRemote
         """
         self.hostname = hostname
         self.files = files
         self.cmd = cmd
-        self.root = os.path.join("/tmp", tmpdir_name(name))
+        self.root = os.path.join(workspace, label + "_" + name)
         self.proc = None
         self.stdout = None
         self.stderr = None
@@ -275,7 +265,7 @@ class LocalRemote(CmdMixin):
 
     def _setup_files(self):
         assert self._rc("rm -rf {}".format(self.root)) == 0
-        assert self._rc("mkdir {}".format(self.root)) == 0
+        assert self._rc("mkdir -p {}".format(self.root)) == 0
         for path in self.files:
             tgt_path = os.path.join(self.root, os.path.basename(path))
             assert self._rc("cp {} {}".format(path, tgt_path)) == 0
@@ -382,6 +372,8 @@ class CCFRemote(object):
         tls_port,
         remote_class,
         enclave_type,
+        workspace,
+        label,
         log_level,
         expect_quote,
         sig_max_tx,
@@ -476,6 +468,8 @@ class CCFRemote(object):
             + ([self.ledger_file] if self.ledger_file else [])
             + ([sealed_secrets] if sealed_secrets else []),
             cmd,
+            workspace,
+            label,
             env,
         )
 

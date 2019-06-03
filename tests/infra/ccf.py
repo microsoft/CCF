@@ -120,7 +120,11 @@ class Network:
                 arg: dict_args[arg] for arg in Network.node_args_to_forward
             }
             node.start(
-                lib_name=args.package, node_status=node_status[i], **forwarded_args
+                lib_name=args.package,
+                node_status=node_status[i],
+                workspace=args.workspace,
+                label=args.label,
+                **forwarded_args,
             )
         LOG.info("All remotes started")
 
@@ -169,6 +173,8 @@ class Network:
                 node_status=node_status[i],
                 ledger_file=ledger_file,
                 sealed_secrets=sealed_secrets,
+                workspace=args.workspace,
+                label=args.label,
                 **forwarded_args,
             )
         LOG.info("All remotes started")
@@ -359,7 +365,7 @@ class Node:
         else:
             self.raft_port = probably_free_function(self.host)
 
-    def start(self, lib_name, enclave_type="debug", **kwargs):
+    def start(self, lib_name, enclave_type, workspace, label, **kwargs):
         """
         Creates a CCFRemote instance, sets it up (connects, creates the directory and ships over the files), and
         (optionally) starts the node by executing the appropriate command.
@@ -380,6 +386,8 @@ class Node:
                 self.tls_port,
                 self.remote_impl,
                 enclave_type,
+                workspace,
+                label,
                 **kwargs,
             )
             self.remote.setup()
@@ -445,27 +453,6 @@ class Node:
 
     def get_sealed_secrets(self):
         return self.remote.get_sealed_secrets()
-
-    def wait_until_ready(self, timeout=5):
-        with open("getCommit.json", "w") as gcf:
-            gcf.write('{"id":1,"jsonrpc":"2.0","method":"getCommit","params":{}}\n')
-        for _ in range(timeout):
-            time.sleep(1)
-            rv = infra.proc.ccall(
-                "./client",
-                "--host={}".format(self.host),
-                "--port={}".format(self.tls_port),
-                "--ca=networkcert.pem",
-                "userrpc",
-                "--cert=user1_cert.pem",
-                "--pk=user1_privk.pem",
-                "--req=getCommit.json",
-                log_output=False,
-            )
-            # Make sure that the commit is greater than 2
-            if re.search(r'"commit":([2-9]|\d{2,})', rv.stdout.decode()):
-                return
-        raise ValueError("Timed out waiting for node {}".format(self.node_id))
 
     def user_client(self, format="msgpack", user_id=1, **kwargs):
         return infra.jsonrpc.client(

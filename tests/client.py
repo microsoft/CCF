@@ -54,7 +54,9 @@ def cli_args(add=lambda x: None, accept_unknown=False):
     )
 
     # Some common client binary args are exposed here for ease
-    parser.add_argument("--label", help="Test label name in perf summary output file")
+    parser.add_argument(
+        "--perf-label", help="Test label name in perf summary output file"
+    )
     parser.add_argument(
         "-i", "--iterations", help="Number of transactions", required=True, type=int
     )
