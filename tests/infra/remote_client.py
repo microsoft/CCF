@@ -62,7 +62,7 @@ class CCFRemoteClient(object):
 
     def setup(self):
         self.remote.setup()
-        LOG.success("Remote client {} setup".format(self.name))
+        LOG.success(f"Remote client {self.name} setup")
 
     def start(self):
         self.remote.start()

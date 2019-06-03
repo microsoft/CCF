@@ -128,6 +128,8 @@ def run(build_directory, get_command, args):
                     if not tx_rates.process_next():
                         for i, remote_client in enumerate(clients):
                             remote_client.wait()
+                            # TODO: For now, only retrieve perf csv for the first client
+                            # as all files have the same name on all clients
                             remote_client.stop(i == 0)
                         break
                     time.sleep(1)

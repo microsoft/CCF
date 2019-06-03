@@ -138,8 +138,7 @@ class SSHRemote(CmdMixin):
         with sftp_session(self.hostname) as session:
             for seconds in range(timeout):
                 try:
-                    if targetname is None:
-                        targetname = filename
+                    targetname = targetname or filename
                     session.get(os.path.join(self.root, filename), targetname)
                     LOG.debug(
                         "[{}] found {} after {}s".format(
@@ -297,8 +296,7 @@ class LocalRemote(CmdMixin):
             time.sleep(1)
         else:
             raise ValueError(path)
-        if targetname is None:
-            targetname = filename
+        targetname = targetname or filename
         assert self._rc("cp {} {}".format(path, targetname)) == 0
 
     def list_files(self):
