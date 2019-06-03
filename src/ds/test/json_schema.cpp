@@ -261,6 +261,16 @@ TEST_CASE("nested")
       REQUIRE(jpe.pointer() == "#/v/xs/3");
     }
 
+    invalid_json["v"]["xs"] = "Broken";
+    try
+    {
+      invalid_json.get<Nest3>();
+    }
+    catch (json_parse_error& jpe)
+    {
+      REQUIRE(jpe.pointer() == "#/v/xs");
+    }
+
     invalid_json["v"].erase("xs");
     try
     {
