@@ -1,7 +1,5 @@
 trigger:
-  branches:
-    include:
-      - "master"
+  - master
 
 jobs:
 - job: build_and_publish_docs

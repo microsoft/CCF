@@ -1,17 +1,19 @@
 trigger:
+  batch: true
   branches:
     include:
       - "*"
 
 jobs:
-- job: ACC_1804_build
+- job: ACC_1804_SGX_build
   pool: Ubuntu-1804-SGX-Azure
   steps:
     - template: .vsts-ci-templates/build_and_test.yml
       parameters:
         cmake_args: '-DBUILD_SMALLBANK=OFF'
+        suite_name_suffix: ' SGX'
 
-- job: ACC_1804_virtual_build
+- job: ACC_1804_virtual_coverage_build
   pool: Ubuntu-1804-SGX-Azure
   steps:
     - template: .vsts-ci-templates/build_and_test.yml
@@ -20,13 +22,21 @@ jobs:
         suite_name_suffix: ' Virtual Coverage'
     - template: .vsts-ci-templates/coverage.yml
 
-- job: ACC_1804_perf_build
+- job: ACC_1804_virtual_SAN_build
+  pool: Ubuntu-1804-SGX-Azure
+  steps:
+    - template: .vsts-ci-templates/build_and_test.yml
+      parameters:
+        cmake_args: '-DVIRTUAL_ONLY=ON -DSAN=ON -DBUILD_SMALLBANK=OFF'
+        suite_name_suffix: ' Virtual SAN'
+
+- job: ACC_1804_SGX_perf_build
   pool: Ubuntu-1804-SGX-Azure
   steps:
     - template: .vsts-ci-templates/build_and_test.yml
       parameters:
         cmake_args: '-DBUILD_SMALLBANK=ON -DCURVE_CHOICE=secp256k1_bitcoin'
-        suite_name_suffix: ' Performance'
+        suite_name_suffix: ' SGX Performance'
         ctest_filter: '-R small_bank'
     - template: .vsts-ci-templates/push_perf_data.yml
 

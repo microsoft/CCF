@@ -177,7 +177,7 @@ class FramedTLSClient:
         return data
 
     def read(self):
-        for _ in range(1000):
+        for _ in range(5000):
             r, _, _ = select.select([self.conn], [], [], 0)
             if r:
                 return self._read()

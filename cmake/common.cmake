@@ -32,8 +32,10 @@ else()
 endif()
 
 function(enable_coverage name)
-  target_compile_options(${name} PRIVATE ${COVERAGE_FLAGS})
-  target_link_libraries(${name} PRIVATE ${COVERAGE_LINK})
+  if (NOT SAN)
+    target_compile_options(${name} PRIVATE ${COVERAGE_FLAGS})
+    target_link_libraries(${name} PRIVATE ${COVERAGE_LINK})
+  endif()
 endfunction()
 
 set(CURVE_CHOICE "secp384r1" CACHE STRING "One of secp384r1, curve25519, secp256k1_mbedtls, secp256k1_bitcoin")
