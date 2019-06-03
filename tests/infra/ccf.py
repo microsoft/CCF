@@ -143,7 +143,7 @@ class Network:
         for node in self.nodes[1:]:
             node.join_network()
 
-        LOG.info("All nodes joined Network")
+        LOG.success("All nodes joined Network")
 
         return primary, self.nodes[1:]
 

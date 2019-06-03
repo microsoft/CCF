@@ -43,11 +43,12 @@ def sftp_session(hostname):
 
 
 def log_errors(out_path, err_path):
+    error_filter = ["[fail]", "[fatal]"]
     try:
         errors = 0
         with open(out_path, "r") as lines:
             for line in lines:
-                if line.startswith("[fail]") or line.startswith("[fatal]"):
+                if any(x in line for x in error_filter):
                     LOG.error("{}: {}".format(out_path, line.rstrip()))
                     errors += 1
         if errors:
