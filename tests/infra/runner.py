@@ -112,7 +112,6 @@ def run(build_directory, get_command, args):
             nodes = filter_nodes(primary, followers, args.send_tx_to)
             clients = []
             client_hosts = args.client_nodes or ["localhost"]
-            LOG.error(client_hosts)
             for client_id, client_host in enumerate(client_hosts):
                 node = nodes[client_id % len(nodes)]
                 remote_client = configure_remote_client(
