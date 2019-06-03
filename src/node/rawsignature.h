@@ -11,5 +11,5 @@ namespace ccf
   {
     std::vector<uint8_t> sig;
   };
-  DECLARE_REQUIRED_JSON_FIELDS(RawSignature, sig)
+  ADD_JSON_TRANSLATORS(RawSignature, sig)
 }

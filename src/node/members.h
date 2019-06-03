@@ -59,6 +59,6 @@ namespace ccf
 
     MSGPACK_DEFINE(next_nonce);
   };
-  DECLARE_REQUIRED_JSON_FIELDS_WITH_BASE(MemberAck, RawSignature, next_nonce)
+  ADD_JSON_TRANSLATORS_WITH_BASE(MemberAck, RawSignature, next_nonce)
   using MemberAcks = Store::Map<MemberId, MemberAck>;
 }

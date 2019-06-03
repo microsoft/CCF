@@ -215,8 +215,7 @@ namespace jsonrpc
     {}
   };
 
-  NAMESPACE_CONTAINS_JSON_TYPES;
-  DECLARE_REQUIRED_JSON_FIELDS(jsonrpc::Error, code, message);
+  ADD_JSON_TRANSLATORS(jsonrpc::Error, code, message);
 
   template <typename T>
   struct ErrorEx : public Error

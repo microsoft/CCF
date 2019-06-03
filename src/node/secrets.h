@@ -20,7 +20,7 @@ namespace ccf
     MSGPACK_DEFINE(node_id, serial_ns);
   };
 
-  DECLARE_REQUIRED_JSON_FIELDS(SerialisedNetworkSecrets, node_id, serial_ns)
+  ADD_JSON_TRANSLATORS(SerialisedNetworkSecrets, node_id, serial_ns)
 
   struct PastNetworkSecrets
   {
@@ -29,7 +29,7 @@ namespace ccf
     MSGPACK_DEFINE(secrets);
   };
 
-  DECLARE_REQUIRED_JSON_FIELDS(PastNetworkSecrets, secrets)
+  ADD_JSON_TRANSLATORS(PastNetworkSecrets, secrets)
 
   // This map is used to communicate past network secrets from the leader to the
   // followers (e.g. during recovery)

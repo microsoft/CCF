@@ -28,7 +28,7 @@ namespace ccf
 
     MSGPACK_DEFINE(status, digest);
   };
-  DECLARE_REQUIRED_JSON_FIELDS(CodeInfo, status, digest)
+  ADD_JSON_TRANSLATORS(CodeInfo, status, digest)
 
   using CodeIDs = Store::Map<CodeVersion, CodeInfo>;
 }
