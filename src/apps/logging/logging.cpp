@@ -14,8 +14,9 @@ namespace ccfapp
   struct Procs
   {
     static constexpr auto LOG_RECORD = "LOG_record";
-    static constexpr auto LOG_RECORD_PUBLIC = "LOG_record_pub";
     static constexpr auto LOG_GET = "LOG_get";
+
+    static constexpr auto LOG_RECORD_PUBLIC = "LOG_record_pub";
     static constexpr auto LOG_GET_PUBLIC = "LOG_get_pub";
   };
 

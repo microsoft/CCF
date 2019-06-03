@@ -20,7 +20,7 @@ struct JsonField
   char const* name;
 };
 
-class json_parse_error : public std::invalid_argument
+class JsonParseError : public std::invalid_argument
 {
 public:
   std::vector<std::string> pointer_elements = {};
@@ -75,7 +75,7 @@ namespace std
   {
     if (!j.is_array())
     {
-      throw json_parse_error("Expected array, found: " + j.dump());
+      throw JsonParseError("Expected array, found: " + j.dump());
     }
 
     for (auto i = 0u; i < j.size(); ++i)
@@ -84,7 +84,7 @@ namespace std
       {
         t.push_back(j.at(i).template get<T>());
       }
-      catch (json_parse_error& jpe)
+      catch (JsonParseError& jpe)
       {
         jpe.pointer_elements.push_back(std::to_string(i));
         throw;
@@ -132,7 +132,7 @@ DECLARE_REQUIRED_JSON_FIELDS.
   { \
     if (!j.is_object()) \
     { \
-      throw json_parse_error("Expected object, found: " + j.dump()); \
+      throw JsonParseError("Expected object, found: " + j.dump()); \
     } \
     read_fields<T, true>(j, t); \
     if constexpr (OptionalJsonFields<T>::value) \
@@ -264,14 +264,14 @@ namespace ccf
     const auto it = j.find(#FIELD); \
     if (it == j.end()) \
     { \
-      throw json_parse_error( \
+      throw JsonParseError( \
         "Missing required field '" #FIELD "' in object: " + j.dump()); \
     } \
     try \
     { \
       t.FIELD = it->get<decltype(TYPE::FIELD)>(); \
     } \
-    catch (json_parse_error & jpe) \
+    catch (JsonParseError & jpe) \
     { \
       jpe.pointer_elements.push_back(#FIELD); \
       throw; \

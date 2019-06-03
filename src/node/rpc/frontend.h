@@ -545,7 +545,7 @@ namespace ccf
       std::string method = rpc[jsonrpc::METHOD];
       jsonrpc::SeqNo id = rpc[jsonrpc::ID];
 
-      const nlohmann::json params = rpc[jsonrpc::PARAMS];
+      const nlohmann::json& params = rpc[jsonrpc::PARAMS];
       if (!params.is_array() && !params.is_object() && !params.is_null())
         return jsonrpc::error_response(
           id, jsonrpc::ErrorCodes::INVALID_REQUEST, "Invalid params.");
@@ -639,6 +639,14 @@ namespace ccf
         catch (const RpcException& e)
         {
           return jsonrpc::error_response(id, e.error_id, e.msg);
+        }
+        catch (const JsonParseError& e)
+        {
+          std::stringstream ss;
+          ss << "At " << e.pointer() << ":\n";
+          ss << e.what();
+          return jsonrpc::error_response(
+            id, jsonrpc::ErrorCodes::PARSE_ERROR, ss.str());
         }
         catch (const std::exception& e)
         {

@@ -236,7 +236,7 @@ TEST_CASE("nested")
     {
       invalid_json.get<Nest3>();
     }
-    catch (json_parse_error& jpe)
+    catch (JsonParseError& jpe)
     {
       REQUIRE(jpe.pointer() == "#/v/xs/3/a");
     }
@@ -246,7 +246,7 @@ TEST_CASE("nested")
     {
       invalid_json.get<Nest3>();
     }
-    catch (json_parse_error& jpe)
+    catch (JsonParseError& jpe)
     {
       REQUIRE(jpe.pointer() == "#/v/xs/3");
     }
@@ -256,7 +256,7 @@ TEST_CASE("nested")
     {
       invalid_json.get<Nest3>();
     }
-    catch (json_parse_error& jpe)
+    catch (JsonParseError& jpe)
     {
       REQUIRE(jpe.pointer() == "#/v/xs/3");
     }
@@ -266,7 +266,7 @@ TEST_CASE("nested")
     {
       invalid_json.get<Nest3>();
     }
-    catch (json_parse_error& jpe)
+    catch (JsonParseError& jpe)
     {
       REQUIRE(jpe.pointer() == "#/v/xs");
     }
@@ -276,7 +276,7 @@ TEST_CASE("nested")
     {
       invalid_json.get<Nest3>();
     }
-    catch (json_parse_error& jpe)
+    catch (JsonParseError& jpe)
     {
       REQUIRE(jpe.pointer() == "#/v");
     }
