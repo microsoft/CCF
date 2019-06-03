@@ -5,6 +5,10 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #include <nlohmann/json.hpp>
+#include <valijson/adapters/nlohmann_json_adapter.hpp>
+#include <valijson/schema.hpp>
+#include <valijson/schema_parser.hpp>
+#include <valijson/validator.hpp>
 #include <vector>
 
 struct Bar
@@ -83,13 +87,15 @@ namespace ccf
   {
     size_t n_0 = 42;
     size_t n_1 = 43;
+    int i_0 = -1;
+    int64_t i64_0 = -2;
     std::string s_0 = "Default value";
     std::string s_1 = "Other default value";
     std::optional<size_t> opt = std::nullopt;
     std::vector<std::string> vec_s = {};
     size_t ignored;
   };
-  DECLARE_REQUIRED_JSON_FIELDS(Foo, n_0, s_0);
+  DECLARE_REQUIRED_JSON_FIELDS(Foo, n_0, i_0, i64_0, s_0);
   DECLARE_OPTIONAL_JSON_FIELDS(Foo, n_1, s_1, opt, vec_s);
 }
 
@@ -97,11 +103,57 @@ TEST_CASE("schema generation")
 {
   const auto schema = ccf::build_schema<ccf::Foo>("Foo");
 
+  const auto properties_it = schema.find("properties");
+  REQUIRE(properties_it != schema.end());
+
   const auto required_it = schema.find("required");
   REQUIRE(required_it != schema.end());
 
   REQUIRE(required_it->is_array());
-  REQUIRE(required_it->size() == 2);
+  REQUIRE(required_it->size() == 4);
+
+  // Check limits are actually achievable
+  {
+    auto j_max = nlohmann::json::object();
+    auto j_min = nlohmann::json::object();
+    for (const std::string& required : *required_it)
+    {
+      const auto property_it = properties_it->find(required);
+      REQUIRE(property_it != properties_it->end());
+
+      const auto type = property_it->at("type");
+      if (type == "number")
+      {
+        j_min[required] = property_it->at("minimum");
+        j_max[required] = property_it->at("maximum");
+      }
+      else if (type == "string")
+      {
+        j_min[required] = "Hello world";
+        j_max[required] = "Hello world";
+      }
+      else
+      {
+        throw std::logic_error("Unsupported type");
+      }
+    }
+
+    const auto foo_min = j_min.get<ccf::Foo>();
+    const auto foo_max = j_max.get<ccf::Foo>();
+
+    using size_limits = std::numeric_limits<size_t>;
+    using int_limits = std::numeric_limits<int>;
+    using int64_limits = std::numeric_limits<int64_t>;
+
+    REQUIRE(foo_min.n_0 == size_limits::min());
+    REQUIRE(foo_max.n_0 == int64_limits::max()); // NB: non-intuitive
+
+    REQUIRE(foo_min.i_0 == int_limits::min());
+    REQUIRE(foo_max.i_0 == int_limits::max());
+
+    REQUIRE(foo_min.i64_0 == int64_limits::min());
+    REQUIRE(foo_max.i64_0 == int64_limits::max());
+  }
 }
 
 namespace ccf
@@ -218,5 +270,39 @@ TEST_CASE("nested")
     {
       REQUIRE(jpe.pointer() == "#/v");
     }
+  }
+}
+
+TEST_CASE("valijson")
+{
+  const auto schema_doc = ccf::build_schema<ccf::Foo>("Foo");
+
+  valijson::Schema schema;
+  valijson::SchemaParser parser;
+  valijson::adapters::NlohmannJsonAdapter schema_adapter(schema_doc);
+  parser.populateSchema(schema_adapter, schema);
+
+  auto doc = nlohmann::json::object();
+  doc["n_0"] = 42;
+  doc["i_0"] = -42;
+  doc["i64_0"] = -0xffff;
+  doc["s_0"] = "Hello world";
+
+  valijson::Validator validator;
+  valijson::ValidationResults results;
+  valijson::adapters::NlohmannJsonAdapter doc_adapter(doc);
+
+  const auto succeeded = validator.validate(schema, doc_adapter, &results);
+
+  for (const auto& e : results)
+  {
+    std::string context;
+    for (const auto& c : e.context)
+    {
+      context += c;
+    }
+
+    std::cerr << "  context: " << context << std::endl
+              << "  desc:    " << e.description << std::endl;
   }
 }
