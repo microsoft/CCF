@@ -43,11 +43,12 @@ def sftp_session(hostname):
 
 
 def log_errors(out_path, err_path):
+    error_filter = ["[fail]", "[fatal]"]
     try:
         errors = 0
         with open(out_path, "r") as lines:
             for line in lines:
-                if line.startswith("[!]") or line.startswith("[!!]"):
+                if any(x in line for x in error_filter):
                     LOG.error("{}: {}".format(out_path, line.rstrip()))
                     errors += 1
         if errors:
@@ -124,12 +125,13 @@ class SSHRemote(CmdMixin):
             executable = executable[2:]
         assert self._rc("chmod +x {}".format(os.path.join(self.root, executable))) == 0
 
-    def get(self, filename, timeout=60):
+    def get(self, filename, timeout=60, targetname=None):
         """
         Get file called `filename` under the root of the remote. If the
         file is missing, wait for timeout, and raise an exception.
 
-        If the file is present, it is copied to the CWD on the caller's host.
+        If the file is present, it is copied to the CWD on the caller's
+        host, as `targetname` if it is set.
 
         This call spins up a separate client because we don't want to interrupt
         the main cmd that may be running.
@@ -137,7 +139,8 @@ class SSHRemote(CmdMixin):
         with sftp_session(self.hostname) as session:
             for seconds in range(timeout):
                 try:
-                    session.get(os.path.join(self.root, filename), filename)
+                    targetname = targetname or filename
+                    session.get(os.path.join(self.root, filename), targetname)
                     LOG.debug(
                         "[{}] found {} after {}s".format(
                             self.hostname, filename, seconds
@@ -294,8 +297,7 @@ class LocalRemote(CmdMixin):
             time.sleep(1)
         else:
             raise ValueError(path)
-        if targetname is None:
-            targetname = filename
+        targetname = targetname or filename
         assert self._rc("cp {} {}".format(path, targetname)) == 0
 
     def list_files(self):
