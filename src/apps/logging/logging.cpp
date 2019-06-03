@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "enclave/appinterface.h"
+#include "logging_schema.h"
 #include "node/entities.h"
 #include "node/rpc/nodeinterface.h"
 #include "node/rpc/userfrontend.h"
@@ -37,20 +38,24 @@ namespace ccfapp
         ccf::Tables::APP_PUBLIC, kv::SecurityDomain::PUBLIC))
     {
       // SNIPPET_START: record
+      register_schema<LoggingRecord::In, void>(Procs::LOG_RECORD);
       auto record = [this](Store::Tx& tx, const nlohmann::json& params) {
+        const auto in = params.get<LoggingRecord::In>();
         auto view = tx.get_view(records);
-        view->put(params["id"], params["msg"]);
+        view->put(in.id, in.msg);
         return jsonrpc::success();
       };
       // SNIPPET_END: record
 
       // SNIPPET_START: get
+      register_schema<LoggingGet>(Procs::LOG_GET);
       auto get = [this](Store::Tx& tx, const nlohmann::json& params) {
+        const auto in = params.get<LoggingGet::In>();
         auto view = tx.get_view(records);
-        auto r = view->get(params["id"]);
+        auto r = view->get(in.id);
 
         if (r.has_value())
-          return jsonrpc::success(r.value());
+          return jsonrpc::success(LoggingGet::Out{r.value()});
 
         return jsonrpc::error(
           jsonrpc::ErrorCodes::INVALID_PARAMS, "No such record");
