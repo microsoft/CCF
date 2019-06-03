@@ -1,9 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#define PICOBENCH_IMPLEMENT_WITH_MAIN
 #include "../json.h"
+#include "../json_schema.h"
 
+#define PICOBENCH_IMPLEMENT_WITH_MAIN
 #include <picobench/picobench.hpp>
+#include <valijson/adapters/nlohmann_json_adapter.hpp>
+#include <valijson/schema.hpp>
+#include <valijson/schema_parser.hpp>
+#include <valijson/validator.hpp>
 
 template <class A>
 inline void do_not_optimize(A const& value)
@@ -40,8 +45,8 @@ void randomise(bool& b)
   b = rand() % 2;
 }
 
-#define DECLARE_SIMPLE_STRUCT \
-  struct Simple \
+#define DECLARE_SIMPLE_STRUCT(PREFIX) \
+  struct Simple_##PREFIX \
   { \
     size_t x; \
     int y; \
@@ -52,8 +57,8 @@ void randomise(bool& b)
     } \
   };
 
-#define DECLARE_COMPLEX_STRUCT \
-  struct Complex \
+#define DECLARE_COMPLEX_STRUCT(PREFIX) \
+  struct Complex_##PREFIX \
   { \
     struct Foo \
     { \
@@ -84,32 +89,114 @@ void randomise(bool& b)
     bool b; \
     int i; \
     std::string s; \
-    std::map<size_t, Bar> m; \
+    std::vector<Bar> bars; \
     void randomise() \
     { \
       ::randomise(b); \
       ::randomise(i); \
       ::randomise(s); \
-      const size_t n = rand() % 20; \
-      for (auto i = 0; i < n; ++i) \
+      bars.resize(rand() % 20); \
+      for (auto& e : bars) \
       { \
-        size_t nn; \
-        ::randomise(nn); \
-        m[nn].randomise(); \
+        e.randomise(); \
       } \
     } \
   };
 
+namespace ccf
+{
+  DECLARE_SIMPLE_STRUCT(manual)
+
+  void to_json(nlohmann::json& j, const Simple_manual& s)
+  {
+    j["x"] = s.x;
+    j["y"] = s.y;
+  }
+
+  void from_json(const nlohmann::json& j, Simple_manual& s)
+  {
+    s.x = j["x"];
+    s.y = j["y"];
+  }
+
+  DECLARE_COMPLEX_STRUCT(manual)
+
+  void to_json(nlohmann::json& j, const Complex_manual::Foo& f)
+  {
+    j["n"] = f.n;
+    j["s"] = f.s;
+  }
+
+  void to_json(nlohmann::json& j, const Complex_manual::Bar& b)
+  {
+    j["a"] = b.a;
+    j["b"] = b.b;
+    j["foos"] = b.foos;
+  }
+
+  void to_json(nlohmann::json& j, const Complex_manual& c)
+  {
+    j["b"] = c.b;
+    j["i"] = c.i;
+    j["s"] = c.s;
+    j["bars"] = c.bars;
+  }
+
+  void from_json(const nlohmann::json& j, Complex_manual::Foo& f)
+  {
+    f.n = j["n"];
+    f.s = j["s"];
+  }
+
+  void from_json(const nlohmann::json& j, Complex_manual::Bar& b)
+  {
+    b.a = j["a"];
+    b.b = j["b"];
+    b.foos = j["foos"].get<decltype(b.foos)>();
+  }
+
+  void from_json(const nlohmann::json& j, Complex_manual& c)
+  {
+    c.b = j["b"];
+    c.i = j["i"];
+    c.s = j["s"];
+    c.bars = j["bars"].get<decltype(c.bars)>();
+  }
+
+  DECLARE_SIMPLE_STRUCT(macros)
+  DECLARE_REQUIRED_JSON_FIELDS(Simple_macros, x, y);
+
+  DECLARE_COMPLEX_STRUCT(macros)
+  DECLARE_REQUIRED_JSON_FIELDS(Complex_macros::Foo, n, s);
+  DECLARE_REQUIRED_JSON_FIELDS(Complex_macros::Bar, a, b, foos);
+  DECLARE_REQUIRED_JSON_FIELDS(Complex_macros, b, i, s, bars);
+}
+
+using namespace ccf;
+
+template <typename T, typename R = T>
+std::vector<R> build_entries(picobench::state& s)
+{
+  std::vector<R> entries(s.iterations());
+
+  for (auto& e : entries)
+  {
+    T t;
+    t.randomise();
+    e = t;
+  }
+
+  return entries;
+}
+
 template <typename T>
 static void conv(picobench::state& s)
 {
-  std::vector<T> entries(s.iterations());
-  for (auto& e : entries)
-  {
-    e.randomise();
-  }
+  std::vector<T> entries = build_entries<T>(s);
 
+  clobber_memory();
   picobench::scope scope(s);
+
   for (size_t i = 0; i < s.iterations(); ++i)
   {
     nlohmann::json j = entries[i];
@@ -119,88 +206,59 @@ static void conv(picobench::state& s)
   }
 }
 
-namespace manual
+void macro_parse(picobench::state& s)
 {
-  DECLARE_SIMPLE_STRUCT
+  std::vector<nlohmann::json> entries =
+    build_entries<Complex_macros, nlohmann::json>(s);
 
-  void to_json(nlohmann::json& j, const Simple& s)
+  clobber_memory();
+  picobench::scope scope(s);
+
+  for (size_t i = 0; i < s.iterations(); ++i)
   {
-    j["x"] = s.x;
-    j["y"] = s.y;
-  }
-
-  void from_json(const nlohmann::json& j, Simple& s)
-  {
-    s.x = j["x"];
-    s.y = j["y"];
-  }
-
-  DECLARE_COMPLEX_STRUCT
-
-  void to_json(nlohmann::json& j, const Complex::Foo& f)
-  {
-    j["n"] = f.n;
-    j["s"] = f.s;
-  }
-
-  void to_json(nlohmann::json& j, const Complex::Bar& b)
-  {
-    j["a"] = b.a;
-    j["b"] = b.b;
-    j["foos"] = b.foos;
-  }
-
-  void to_json(nlohmann::json& j, const Complex& c)
-  {
-    j["b"] = c.b;
-    j["i"] = c.i;
-    j["s"] = c.s;
-    j["m"] = c.m;
-  }
-
-  void from_json(const nlohmann::json& j, Complex::Foo& f)
-  {
-    f.n = j["n"];
-    f.s = j["s"];
-  }
-
-  void from_json(const nlohmann::json& j, Complex::Bar& b)
-  {
-    b.a = j["a"];
-    b.b = j["b"];
-    b.foos = j["foos"].get<decltype(b.foos)>();
-  }
-
-  void from_json(const nlohmann::json& j, Complex& c)
-  {
-    c.b = j["b"];
-    c.i = j["i"];
-    c.s = j["s"];
-    c.m = j["m"].get<decltype(c.m)>();
+    const auto b = entries[i].get<Complex_macros>();
+    do_not_optimize(b);
+    clobber_memory();
   }
 }
 
-namespace macros
+void valijson_validate(picobench::state& s)
 {
-  NAMESPACE_CONTAINS_JSON_TYPES
+  std::vector<nlohmann::json> entries =
+    build_entries<Complex_macros, nlohmann::json>(s);
 
-  DECLARE_SIMPLE_STRUCT
+  const auto schema_doc = ccf::build_schema<Complex_macros>("Complex");
 
-  DECLARE_REQUIRED_JSON_FIELDS(Simple, x, y);
+  valijson::Schema schema;
+  valijson::SchemaParser parser;
+  valijson::adapters::NlohmannJsonAdapter schema_adapter(schema_doc);
+  parser.populateSchema(schema_adapter, schema);
 
-  DECLARE_COMPLEX_STRUCT
+  valijson::Validator validator;
+  valijson::ValidationResults results;
 
-  DECLARE_REQUIRED_JSON_FIELDS(Complex::Foo, n, s);
-  DECLARE_REQUIRED_JSON_FIELDS(Complex::Bar, a, b, foos);
-  DECLARE_REQUIRED_JSON_FIELDS(Complex, b, i, s, m);
+  clobber_memory();
+  picobench::scope scope(s);
+
+  for (size_t i = 0; i < s.iterations(); ++i)
+  {
+    valijson::adapters::NlohmannJsonAdapter doc_adapter(entries[i]);
+    const auto succeeded = validator.validate(schema, doc_adapter, &results);
+    do_not_optimize(succeeded);
+    clobber_memory();
+  }
 }
 
 const std::vector<int> sizes = {2'000, 4'000};
 
 PICOBENCH_SUITE("simple");
-PICOBENCH(conv<manual::Simple>).iterations(sizes).samples(10);
-PICOBENCH(conv<macros::Simple>).iterations(sizes).samples(10);
+PICOBENCH(conv<Simple_manual>).iterations(sizes).samples(10);
+PICOBENCH(conv<Simple_macros>).iterations(sizes).samples(10);
 
 PICOBENCH_SUITE("complex");
-PICOBENCH(conv<manual::Complex>).iterations(sizes).samples(10);
-PICOBENCH(conv<macros::Complex>).iterations(sizes).samples(10);
+PICOBENCH(conv<Complex_manual>).iterations(sizes).samples(10);
+PICOBENCH(conv<Complex_macros>).iterations(sizes).samples(10);
+
+PICOBENCH_SUITE("validation");
+PICOBENCH(macro_parse).iterations(sizes).samples(10);
+PICOBENCH(valijson_validate).iterations(sizes).samples(10);

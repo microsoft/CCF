@@ -100,6 +100,12 @@ namespace ccf
       element["type"] = "string";
       return element;
     }
+    else if constexpr (std::is_same<T, bool>::value)
+    {
+      nlohmann::json element;
+      element["type"] = "boolean";
+      return element;
+    }
     else if constexpr (std::is_same<T, nlohmann::json>::value)
     {
       // Any field that contains more json is completely unconstrained
