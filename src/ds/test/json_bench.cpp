@@ -206,28 +206,30 @@ static void conv(picobench::state& s)
   }
 }
 
-void macro_parse(picobench::state& s)
+template <typename T>
+void valmacro(picobench::state& s)
 {
   std::vector<nlohmann::json> entries =
-    build_entries<Complex_macros, nlohmann::json>(s);
+    build_entries<T, nlohmann::json>(s);
 
   clobber_memory();
   picobench::scope scope(s);
 
   for (size_t i = 0; i < s.iterations(); ++i)
   {
-    const auto b = entries[i].get<Complex_macros>();
+    const auto b = entries[i].get<T>();
     do_not_optimize(b);
     clobber_memory();
   }
 }
 
-void valijson_validate(picobench::state& s)
+template <typename T>
+void valjson(picobench::state& s)
 {
   std::vector<nlohmann::json> entries =
-    build_entries<Complex_macros, nlohmann::json>(s);
+    build_entries<T, nlohmann::json>(s);
 
-  const auto schema_doc = ccf::build_schema<Complex_macros>("Complex");
+  const auto schema_doc = ccf::build_schema<T>("Schema");
 
   valijson::Schema schema;
   valijson::SchemaParser parser;
@@ -249,7 +251,7 @@ void valijson_validate(picobench::state& s)
   }
 }
 
-const std::vector<int> sizes = {2'000, 4'000};
+const std::vector<int> sizes = {200, 2'000};
 
 PICOBENCH_SUITE("simple");
 PICOBENCH(conv<Simple_manual>).iterations(sizes).samples(10);
@@ -259,6 +261,10 @@ PICOBENCH_SUITE("complex");
 PICOBENCH(conv<Complex_manual>).iterations(sizes).samples(10);
 PICOBENCH(conv<Complex_macros>).iterations(sizes).samples(10);
 
-PICOBENCH_SUITE("validation");
-PICOBENCH(macro_parse).iterations(sizes).samples(10);
-PICOBENCH(valijson_validate).iterations(sizes).samples(10);
+PICOBENCH_SUITE("validation simple");
+PICOBENCH(valmacro<Simple_macros>).iterations(sizes).samples(10);
+PICOBENCH(valjson<Simple_macros>).iterations(sizes).samples(10);
+
+PICOBENCH_SUITE("validation complex");
+PICOBENCH(valmacro<Complex_macros>).iterations(sizes).samples(10);
+PICOBENCH(valjson<Complex_macros>).iterations(sizes).samples(10);
