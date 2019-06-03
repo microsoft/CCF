@@ -124,12 +124,13 @@ class SSHRemote(CmdMixin):
             executable = executable[2:]
         assert self._rc("chmod +x {}".format(os.path.join(self.root, executable))) == 0
 
-    def get(self, filename, timeout=60):
+    def get(self, filename, timeout=60, targetname=None):
         """
         Get file called `filename` under the root of the remote. If the
         file is missing, wait for timeout, and raise an exception.
 
-        If the file is present, it is copied to the CWD on the caller's host.
+        If the file is present, it is copied to the CWD on the caller's
+        host, as `targetname` if it is set.
 
         This call spins up a separate client because we don't want to interrupt
         the main cmd that may be running.
@@ -137,7 +138,9 @@ class SSHRemote(CmdMixin):
         with sftp_session(self.hostname) as session:
             for seconds in range(timeout):
                 try:
-                    session.get(os.path.join(self.root, filename), filename)
+                    if targetname is None:
+                        targetname = filename
+                    session.get(os.path.join(self.root, filename), targetname)
                     LOG.debug(
                         "[{}] found {} after {}s".format(
                             self.hostname, filename, seconds
