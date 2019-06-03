@@ -38,18 +38,18 @@ namespace ccf
         // Verify enclave measurement
         auto codeid_view = args.tx.get_view(network.code_id);
         CodeStatus code_id_status = CodeStatus::UNKNOWN;
-
-        codeid_view->foreach([&parsed_quote, &code_id_status](
-                               const CodeVersion& cv, const CodeInfo& ci) {
-          if (
-            memcmp(
-              ci.digest.data(),
-              parsed_quote.identity.unique_id,
-              CODE_DIGEST_BYTES) == 0)
-          {
-            code_id_status = ci.status;
-          }
-        });
+        std::array<
+          uint8_t,
+          sizeof(parsed_quote.identity.unique_id) /
+            sizeof(*parsed_quote.identity.unique_id)>
+          id_vec;
+        std::copy(
+          std::begin(parsed_quote.identity.unique_id),
+          std::end(parsed_quote.identity.unique_id),
+          id_vec.begin());
+        auto status = codeid_view->get(id_vec);
+        if (status)
+          code_id_status = *status;
 
         if (code_id_status != CodeStatus::ACCEPTED)
         {

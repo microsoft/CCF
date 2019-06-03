@@ -21,14 +21,5 @@ MSGPACK_ADD_ENUM(ccf::CodeStatus);
 
 namespace ccf
 {
-  struct CodeInfo
-  {
-    CodeStatus status;
-    CodeDigest digest;
-
-    MSGPACK_DEFINE(status, digest);
-  };
-  ADD_JSON_TRANSLATORS(CodeInfo, status, digest)
-
-  using CodeIDs = Store::Map<CodeVersion, CodeInfo>;
+  using CodeIDs = Store::Map<CodeDigest, CodeStatus>;
 }
