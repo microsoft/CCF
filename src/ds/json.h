@@ -291,6 +291,15 @@ namespace ccf
 #define READ_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
   READ_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD)
 
+#define WRITE_BASIC_FOR_JSON_NEXT(TYPE, FIELD) j[#FIELD] = t.FIELD;
+#define WRITE_BASIC_FOR_JSON_FINAL(TYPE, FIELD) \
+  WRITE_BASIC_FOR_JSON_NEXT(TYPE, FIELD)
+
+#define READ_BASIC_FOR_JSON_NEXT(TYPE, FIELD) \
+  t.FIELD = j[#FIELD].get<decltype(TYPE::FIELD)>();
+#define READ_BASIC_FOR_JSON_FINAL(TYPE, FIELD) \
+  READ_BASIC_FOR_JSON_NEXT(TYPE, FIELD)
+
 #define JSON_FIELD_FOR_JSON_NEXT(TYPE, FIELD) \
   JsonField<decltype(TYPE::FIELD)>{#FIELD},
 #define JSON_FIELD_FOR_JSON_FINAL(TYPE, FIELD) \
@@ -310,8 +319,8 @@ namespace ccf
 #define _FOR_JSON_NEXT(FUNC, TYPE, FIELD) FUNC##_FOR_JSON_NEXT(TYPE, FIELD)
 #define _FOR_JSON_FINAL(FUNC, TYPE, FIELD) FUNC##_FOR_JSON_FINAL(TYPE, FIELD)
 
-/** Defines from and to json functions for nlohmann::json.
- * Every class that is to be read from Lua needs to have these.
+/** Defines from and to json functions for nlohmann::json with error messages on
+ * missing elements. Can then use OPTIONAL variant to add non-required fields.
  * Only the given class members are considered. Example:
  *
  * struct X
@@ -443,4 +452,54 @@ namespace ccf
     { \
       _FOR_JSON_NN(__VA_ARGS__)(READ_OPTIONAL, TYPE, ##__VA_ARGS__) \
     } \
+  }
+
+/** Defines simple from and to json functions for nlohmann::json.
+ * Every class that is to be read from Lua needs to have these.
+ * Only the given class members are considered. Example:
+ *
+ * struct X
+ * {
+ *  int a,b;
+ * };
+ * ADD_JSON_TRANSLATORS(X, a, b)
+ */
+#define ADD_JSON_TRANSLATORS(TYPE, ...) \
+  inline void from_json(const nlohmann::json& j, TYPE& t) \
+  { \
+    _FOR_JSON_NN(__VA_ARGS__)(READ_BASIC, TYPE, ##__VA_ARGS__) \
+  } \
+  inline void to_json(nlohmann::json& j, const TYPE& t) \
+  { \
+    _FOR_JSON_NN(__VA_ARGS__)(WRITE_BASIC, TYPE, ##__VA_ARGS__) \
+  }
+
+/** Defines simple from and to json functions for nlohmann::json with respect to
+ * a base class. Example:
+ *
+ * struct X
+ * {
+ *  int a,b;
+ * };
+ * ADD_JSON_TRANSLATORS(X, a, b)
+ *
+ * struct Y
+ * {
+ *  string c;
+ * };
+ * ADD_JSON_TRANSLATORS_WITH_BASE(Y, X, c)
+ *
+ * This is equivalent to:
+ * ADD_JSON_TRANSLATORS(Y, a, b, c)
+ */
+#define ADD_JSON_TRANSLATORS_WITH_BASE(TYPE, B, ...) \
+  inline void from_json(const nlohmann::json& j, TYPE& t) \
+  { \
+    from_json(j, static_cast<B&>(t)); \
+    _FOR_JSON_NN(__VA_ARGS__)(READ_BASIC, TYPE, ##__VA_ARGS__) \
+  } \
+  inline void to_json(nlohmann::json& j, const TYPE& t) \
+  { \
+    to_json(j, static_cast<const B&>(t)); \
+    _FOR_JSON_NN(__VA_ARGS__)(WRITE_BASIC, TYPE, ##__VA_ARGS__) \
   }
