@@ -6,6 +6,11 @@
 #include "node/rpc/nodeinterface.h"
 #include "node/rpc/userfrontend.h"
 
+#include <valijson/adapters/nlohmann_json_adapter.hpp>
+#include <valijson/schema.hpp>
+#include <valijson/schema_parser.hpp>
+#include <valijson/validator.hpp>
+
 using namespace std;
 using namespace nlohmann;
 using namespace ccf;
@@ -30,12 +35,54 @@ namespace ccfapp
     Table& records;
     Table& public_records;
 
+    const nlohmann::json record_public_params_schema;
+
+    const nlohmann::json get_public_params_schema;
+    const nlohmann::json get_public_result_schema;
+
+    std::optional<std::string> validate(
+      const nlohmann::json& params, const nlohmann::json& j_schema)
+    {
+      valijson::Schema schema;
+      valijson::SchemaParser parser;
+      valijson::adapters::NlohmannJsonAdapter schema_adapter(j_schema);
+      parser.populateSchema(schema_adapter, schema);
+
+      valijson::Validator validator;
+      valijson::ValidationResults results;
+      valijson::adapters::NlohmannJsonAdapter params_adapter(params);
+
+      if (!validator.validate(schema, params_adapter, &results))
+      {
+        std::stringstream ss;
+
+        ss << "Error during validation:" << std::endl;
+        for (const auto& e : results)
+        {
+          std::string context;
+          for (const auto& c : e.context)
+          {
+            context += c;
+          }
+
+          ss << "\t[" << context << "]: " << e.description << std::endl;
+        }
+
+        return ss.str();
+      }
+
+      return std::nullopt;
+    }
+
   public:
     Logger(NetworkTables& nwt, AbstractNotifier& notifier) :
       UserRpcFrontend(*nwt.tables),
       records(tables.create<Table>(ccf::Tables::APP)),
       public_records(tables.create<Table>(
-        ccf::Tables::APP_PUBLIC, kv::SecurityDomain::PUBLIC))
+        ccf::Tables::APP_PUBLIC, kv::SecurityDomain::PUBLIC)),
+      record_public_params_schema(nlohmann::json::parse(j_record_public)),
+      get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
+      get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
       // SNIPPET_START: record
       register_schema<LoggingRecord::In, void>(Procs::LOG_RECORD);
@@ -63,7 +110,20 @@ namespace ccfapp
       // SNIPPET_END: get
 
       // SNIPPET_START: record_public
+      register_manual_schema(
+        Procs::LOG_RECORD_PUBLIC,
+        record_public_params_schema,
+        nlohmann::json::object());
       auto record_public = [this](Store::Tx& tx, const nlohmann::json& params) {
+        const auto validation_error =
+          validate(params, record_public_params_schema);
+
+        if (validation_error.has_value())
+        {
+          return jsonrpc::error(
+            jsonrpc::ErrorCodes::PARSE_ERROR, *validation_error);
+        }
+
         auto view = tx.get_view(public_records);
         view->put(params["id"], params["msg"]);
         return jsonrpc::success();
@@ -71,7 +131,20 @@ namespace ccfapp
       // SNIPPET_END: record_public
 
       // SNIPPET_START: get_public
+      register_manual_schema(
+        Procs::LOG_GET_PUBLIC,
+        get_public_params_schema,
+        get_public_result_schema);
       auto get_public = [this](Store::Tx& tx, const nlohmann::json& params) {
+        const auto validation_error =
+          validate(params, get_public_params_schema);
+
+        if (validation_error.has_value())
+        {
+          return jsonrpc::error(
+            jsonrpc::ErrorCodes::PARSE_ERROR, *validation_error);
+        }
+
         auto view = tx.get_view(public_records);
         auto r = view->get(params["id"]);
 

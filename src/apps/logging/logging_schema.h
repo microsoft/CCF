@@ -5,6 +5,8 @@
 
 namespace ccf
 {
+  // Private record/get
+  // Explicit target structs, macro-generated parsers + schema
   struct LoggingRecord
   {
     struct In
@@ -31,4 +33,61 @@ namespace ccf
 
   DECLARE_REQUIRED_JSON_FIELDS(LoggingGet::In, id);
   DECLARE_REQUIRED_JSON_FIELDS(LoggingGet::Out, msg);
+
+  // Public record/get
+  // Manual schemas, verified then parsed in handler
+  static const std::string j_record_public = R"!!!(
+  {
+    "$id": "http://https://github.com/Microsoft/CCF/schemas/LOG_record_pub/params.json",
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+      "id": {
+        "type": "number"
+      },
+      "msg": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "msg"
+    ],
+    "title": "LOG_record_pub/params",
+    "type": "object"
+  }
+  )!!!";
+
+  static const std::string j_get_public_in = R"!!!(
+  {
+    "$id": "http://https://github.com/Microsoft/CCF/schemas/LOG_get_pub/params.json",
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+      "id": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "title": "LOG_get_pub/params",
+    "type": "object"
+  }
+  )!!!";
+
+  static const std::string j_get_public_out = R"!!!(
+  {
+    "$id": "http://https://github.com/Microsoft/CCF/schemas/LOG_get_pub/result.json",
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+      "msg": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "msg"
+    ],
+    "title": "LOG_get_pub/result",
+    "type": "object"
+  }
+  )!!!";
 }

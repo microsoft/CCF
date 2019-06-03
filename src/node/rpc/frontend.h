@@ -164,6 +164,14 @@ namespace ccf
     }
 
   protected:
+    void register_manual_schema(
+      const std::string& name,
+      const nlohmann::json& params_schema,
+      const nlohmann::json& result_schema)
+    {
+      schemas[name] = std::make_pair(params_schema, result_schema);
+    }
+
     template <typename In, typename Out>
     void register_schema(const std::string& name)
     {
@@ -643,7 +651,7 @@ namespace ccf
         catch (const JsonParseError& e)
         {
           std::stringstream ss;
-          ss << "At " << e.pointer() << ":\n";
+          ss << "At " << e.pointer() << ":\n\t";
           ss << e.what();
           return jsonrpc::error_response(
             id, jsonrpc::ErrorCodes::PARSE_ERROR, ss.str());
