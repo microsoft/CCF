@@ -209,8 +209,7 @@ static void conv(picobench::state& s)
 template <typename T>
 void valmacro(picobench::state& s)
 {
-  std::vector<nlohmann::json> entries =
-    build_entries<T, nlohmann::json>(s);
+  std::vector<nlohmann::json> entries = build_entries<T, nlohmann::json>(s);
 
   clobber_memory();
   picobench::scope scope(s);
@@ -226,8 +225,7 @@ void valmacro(picobench::state& s)
 template <typename T>
 void valjson(picobench::state& s)
 {
-  std::vector<nlohmann::json> entries =
-    build_entries<T, nlohmann::json>(s);
+  std::vector<nlohmann::json> entries = build_entries<T, nlohmann::json>(s);
 
   const auto schema_doc = ccf::build_schema<T>("Schema");
 
