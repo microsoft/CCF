@@ -137,7 +137,7 @@ namespace ccf
   {
     nlohmann::json schema;
     schema["$id"] =
-      "http://https://github.com/Microsoft/CCF/schemas/" + title + ".json";
+      "https://github.com/Microsoft/CCF/schemas/" + title + ".json";
     schema["$schema"] = "http://json-schema.org/draft-07/schema#";
     schema["title"] = title;
 
