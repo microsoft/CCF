@@ -142,15 +142,15 @@ TEST_CASE("schema generation")
     const auto foo_max = j_max.get<ccf::Foo>();
 
     using size_limits = std::numeric_limits<size_t>;
-    using int_limits = std::numeric_limits<int>;
-    using int64_limits = std::numeric_limits<int64_t>;
 
     REQUIRE(foo_min.n_0 == size_limits::min());
-    REQUIRE(foo_max.n_0 == int64_limits::max()); // NB: non-intuitive
+    REQUIRE(foo_max.n_0 == size_limits::max());
 
+    using int_limits = std::numeric_limits<int>;
     REQUIRE(foo_min.i_0 == int_limits::min());
     REQUIRE(foo_max.i_0 == int_limits::max());
 
+    using int64_limits = std::numeric_limits<int64_t>;
     REQUIRE(foo_min.i64_0 == int64_limits::min());
     REQUIRE(foo_max.i64_0 == int64_limits::max());
   }
@@ -280,39 +280,5 @@ TEST_CASE("nested")
     {
       REQUIRE(jpe.pointer() == "#/v");
     }
-  }
-}
-
-TEST_CASE("valijson")
-{
-  const auto schema_doc = ccf::build_schema<ccf::Foo>("Foo");
-
-  valijson::Schema schema;
-  valijson::SchemaParser parser;
-  valijson::adapters::NlohmannJsonAdapter schema_adapter(schema_doc);
-  parser.populateSchema(schema_adapter, schema);
-
-  auto doc = nlohmann::json::object();
-  doc["n_0"] = 42;
-  doc["i_0"] = -42;
-  doc["i64_0"] = -0xffff;
-  doc["s_0"] = "Hello world";
-
-  valijson::Validator validator;
-  valijson::ValidationResults results;
-  valijson::adapters::NlohmannJsonAdapter doc_adapter(doc);
-
-  const auto succeeded = validator.validate(schema, doc_adapter, &results);
-
-  for (const auto& e : results)
-  {
-    std::string context;
-    for (const auto& c : e.context)
-    {
-      context += c;
-    }
-
-    std::cerr << "  context: " << context << std::endl
-              << "  desc:    " << e.description << std::endl;
   }
 }

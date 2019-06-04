@@ -26,17 +26,8 @@ namespace ccf
     nlohmann::json element;
     element["type"] = "number";
     element["minimum"] = std::numeric_limits<T>::min();
+    element["maximum"] = std::numeric_limits<T>::max();
 
-    // Although nlohmann distinguishes unsigned from signed integers, valijson
-    // does not. So the maximum value it accepts in a schema is INT64_MAX
-    if constexpr (std::is_same_v<T, size_t>)
-    {
-      element["maximum"] = std::numeric_limits<int64_t>::max();
-    }
-    else
-    {
-      element["maximum"] = std::numeric_limits<T>::max();
-    }
     return element;
   }
 
