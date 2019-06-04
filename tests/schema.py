@@ -18,6 +18,7 @@ from loguru import logger as LOG
 
 def run(args):
     hosts = ["localhost", "localhost"]
+    os.makedirs(args.schema_dir, exist_ok=True)
 
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes
@@ -41,10 +42,8 @@ def run(args):
                         element = schema_response.result[element_name]
                         if element is not None and len(element) != 0:
                             formatted_schema = json.dumps(element, indent=2)
-                            target_dir = os.path.join(args.schema_dir, method)
-                            os.makedirs(target_dir, exist_ok=True)
                             target_file = os.path.join(
-                                target_dir, "{}.json".format(schema_type)
+                                args.schema_dir, "{}_{}.json".format(method, schema_type)
                             )
                             LOG.debug("Writing schema to {}".format(target_file))
                             with open(target_file, "w") as f:

@@ -185,13 +185,13 @@ namespace ccf
       auto params_schema = nlohmann::json::object();
       if constexpr (!std::is_same_v<In, void>)
       {
-        params_schema = build_schema<In>(name + "/params");
+        params_schema = build_schema<In>(name + "_params");
       }
 
       auto result_schema = nlohmann::json::object();
       if constexpr (!std::is_same_v<Out, void>)
       {
-        result_schema = build_schema<Out>(name + "/result");
+        result_schema = build_schema<Out>(name + "_result");
       }
 
       schemas[name] = std::make_pair(params_schema, result_schema);
