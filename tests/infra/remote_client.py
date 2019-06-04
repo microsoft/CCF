@@ -33,7 +33,7 @@ class CCFRemoteClient(object):
         remote_class,
     ):
         """
-        Run a ccf client on a remote host.
+        Creates a ccf client on a remote host.
         """
         self.host = host
         self.name = name
@@ -65,6 +65,7 @@ class CCFRemoteClient(object):
 
     def setup(self):
         self.remote.setup()
+        LOG.success(f"Remote client {self.name} setup")
 
     def start(self):
         self.remote.start()
