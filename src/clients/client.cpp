@@ -245,10 +245,9 @@ int main(int argc, char** argv)
     if (*start_network)
     {
       cout << "Starting network:" << endl;
-      auto r = make_rpc(
+      response = make_rpc(
         host, port, Pack::MsgPack, "management", ca_file, "", "", req_sn);
-      Response<ccf::StartNetwork::Out> start_network_out = r;
-      cout << r << std::endl;
+      Response<ccf::StartNetwork::Out> start_network_out = response;
 
       dump(start_network_out.result.network_cert, "networkcert.pem");
       dump(start_network_out.result.tx0_sig, "tx0.sig");
