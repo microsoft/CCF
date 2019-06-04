@@ -220,8 +220,7 @@ namespace jsonrpc
       message(std::string(get_error_prefix(error_code)) + msg)
     {}
   };
-
-  ADD_JSON_TRANSLATORS(jsonrpc::Error, code, message);
+  ADD_JSON_TRANSLATORS(Error, code, message);
 
   template <typename T>
   struct ErrorEx : public Error

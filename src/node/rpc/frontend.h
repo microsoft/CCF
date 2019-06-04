@@ -166,22 +166,22 @@ namespace ccf
     }
 
   protected:
-    void register_manual_schema(
+    void register_schema(
       const std::string& name,
       const nlohmann::json& params_schema,
       const nlohmann::json& result_schema)
-    {
-      schemas[name] = std::make_pair(params_schema, result_schema);
-    }
-
-    template <typename In, typename Out>
-    void register_schema(const std::string& name)
     {
       if (schemas.find(name) != schemas.end())
       {
         throw std::logic_error("Already registered schema for " + name);
       }
 
+      schemas[name] = std::make_pair(params_schema, result_schema);
+    }
+
+    template <typename In, typename Out>
+    void register_auto_schema(const std::string& name)
+    {
       auto params_schema = nlohmann::json::object();
       if constexpr (!std::is_same_v<In, void>)
       {
@@ -194,13 +194,13 @@ namespace ccf
         result_schema = build_schema<Out>(name + "_result");
       }
 
-      schemas[name] = std::make_pair(params_schema, result_schema);
+      register_schema(name, params_schema, result_schema);
     }
 
     template <typename T>
-    void register_schema(const std::string& name)
+    void register_auto_schema(const std::string& name)
     {
-      register_schema<typename T::In, typename T::Out>(name);
+      register_auto_schema<typename T::In, typename T::Out>(name);
     }
 
   public:
@@ -214,7 +214,7 @@ namespace ccf
       raft(nullptr),
       history(nullptr)
     {
-      register_schema<GetCommit>(GeneralProcs::GET_COMMIT);
+      register_auto_schema<GetCommit>(GeneralProcs::GET_COMMIT);
       auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetCommit::In>();
 
@@ -233,13 +233,13 @@ namespace ccf
           "Failed to get commit info from Raft");
       };
 
-      register_schema<void, GetMetrics::Out>(GeneralProcs::GET_METRICS);
+      register_auto_schema<void, GetMetrics::Out>(GeneralProcs::GET_METRICS);
       auto get_metrics = [this](Store::Tx& tx, const nlohmann::json& params) {
         auto result = metrics.get_metrics();
         return jsonrpc::success(result);
       };
 
-      register_schema<void, void>(GeneralProcs::MK_SIGN);
+      register_auto_schema<void, void>(GeneralProcs::MK_SIGN);
       auto make_signature =
         [this](Store::Tx& tx, const nlohmann::json& params) {
           update_history();
@@ -254,7 +254,8 @@ namespace ccf
             jsonrpc::ErrorCodes::INTERNAL_ERROR, "Failed to trigger signature");
         };
 
-      register_schema<void, GetLeaderInfo::Out>(GeneralProcs::GET_LEADER_INFO);
+      register_auto_schema<void, GetLeaderInfo::Out>(
+        GeneralProcs::GET_LEADER_INFO);
       auto get_leader_info =
         [this](Store::Tx& tx, const nlohmann::json& params) {
           if ((nodes != nullptr) && (raft != nullptr))
@@ -278,7 +279,7 @@ namespace ccf
             jsonrpc::ErrorCodes::TX_LEADER_UNKNOWN, "Leader unknown.");
         };
 
-      register_schema<void, ListMethods::Out>(GeneralProcs::LIST_METHODS);
+      register_auto_schema<void, ListMethods::Out>(GeneralProcs::LIST_METHODS);
       auto list_methods = [this](Store::Tx& tx, const nlohmann::json& params) {
         ListMethods::Out out;
 
@@ -292,7 +293,7 @@ namespace ccf
         return jsonrpc::success(out);
       };
 
-      register_schema<GetSchema>(GeneralProcs::GET_SCHEMA);
+      register_auto_schema<GetSchema>(GeneralProcs::GET_SCHEMA);
       auto get_schema = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetSchema::In>();
 

@@ -86,7 +86,7 @@ namespace ccfapp
     {
       // SNIPPET_START: record
       // SNIPPET_START: macro_validation_record
-      register_schema<LoggingRecord::In, void>(Procs::LOG_RECORD);
+      register_auto_schema<LoggingRecord::In, void>(Procs::LOG_RECORD);
       auto record = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<LoggingRecord::In>();
         // SNIPPET_END: macro_validation_record
@@ -97,7 +97,7 @@ namespace ccfapp
       // SNIPPET_END: record
 
       // SNIPPET_START: get
-      register_schema<LoggingGet>(Procs::LOG_GET);
+      register_auto_schema<LoggingGet>(Procs::LOG_GET);
       auto get = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<LoggingGet::In>();
         auto view = tx.get_view(records);
@@ -113,7 +113,7 @@ namespace ccfapp
 
       // SNIPPET_START: record_public
       // SNIPPET_START: valijson_record_public
-      register_manual_schema(
+      register_schema(
         Procs::LOG_RECORD_PUBLIC,
         record_public_params_schema,
         nlohmann::json::object());
@@ -135,7 +135,7 @@ namespace ccfapp
       // SNIPPET_END: record_public
 
       // SNIPPET_START: get_public
-      register_manual_schema(
+      register_schema(
         Procs::LOG_GET_PUBLIC,
         get_public_params_schema,
         get_public_result_schema);
