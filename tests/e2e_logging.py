@@ -81,7 +81,8 @@ if __name__ == "__main__":
     args.package = "libloggingenc"
     notify_server_host = "localhost"
     args.notify_server = (
-        notify_server_host   + ":"
+        notify_server_host
+        + ":"
         + str(infra.net.probably_free_local_port(notify_server_host))
     )
     run(args)
