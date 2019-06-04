@@ -60,7 +60,7 @@ class CCFRemoteClient(object):
         ] + command_args
 
         self.remote = remote_class(
-            name, host, [self.BIN] + self.DEPS, cmd, workspace, label
+            name, host, [self.BIN] + self.DEPS, [], cmd, workspace, label
         )
 
     def setup(self):
