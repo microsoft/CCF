@@ -32,12 +32,6 @@ set(ENV{BETTER_EXCEPTIONS} 1)
 
 option(BUILD_TESTS "Build tests" ON)
 
-if (DEFINED ENV{BUILD_BUILDNUMBER})
-  set(PYTHON python3)
-else()
-  set(PYTHON unbuffer python3)
-endif()
-
 option(NO_COMMITTED_TX_HISTORY "Do not keep tree of hashes of committed transactions" ON)
 if(RECORD_TRACE)
   add_definitions(-DNO_COMMITTED_TX_HISTORY)
