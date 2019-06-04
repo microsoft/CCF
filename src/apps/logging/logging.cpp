@@ -6,6 +6,8 @@
 #include "node/rpc/nodeinterface.h"
 #include "node/rpc/userfrontend.h"
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <valijson/adapters/nlohmann_json_adapter.hpp>
 #include <valijson/schema.hpp>
 #include <valijson/schema_parser.hpp>
@@ -14,6 +16,42 @@
 using namespace std;
 using namespace nlohmann;
 using namespace ccf;
+
+namespace fmt
+{
+  template <>
+  struct formatter<valijson::ValidationResults::Error>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const valijson::ValidationResults::Error& e, FormatContext& ctx)
+    {
+      return format_to(
+        ctx.begin(), "[{}] {}", fmt::join(e.context, ""), e.description);
+    }
+  };
+
+  template <>
+  struct formatter<valijson::ValidationResults>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const valijson::ValidationResults& vr, FormatContext& ctx)
+    {
+      return format_to(ctx.begin(), "{}", fmt::join(vr, "\n\t"));
+    }
+  };
+}
 
 namespace ccfapp
 {
@@ -54,21 +92,7 @@ namespace ccfapp
 
       if (!validator.validate(schema, params_adapter, &results))
       {
-        std::stringstream ss;
-
-        ss << "Error during validation:" << std::endl;
-        for (const auto& e : results)
-        {
-          std::string context;
-          for (const auto& c : e.context)
-          {
-            context += c;
-          }
-
-          ss << "\t[" << context << "]: " << e.description << std::endl;
-        }
-
-        return ss.str();
+        return fmt::format("Error during validation:\n\t{}", results);
       }
 
       return std::nullopt;

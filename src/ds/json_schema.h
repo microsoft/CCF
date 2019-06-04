@@ -127,8 +127,6 @@ namespace ccf
   inline nlohmann::json build_schema(const std::string& title)
   {
     nlohmann::json schema;
-    schema["$id"] =
-      "https://github.com/Microsoft/CCF/schemas/" + title + ".json";
     schema["$schema"] = "http://json-schema.org/draft-07/schema#";
     schema["title"] = title;
 

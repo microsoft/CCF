@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <sstream>
 
@@ -29,14 +31,9 @@ public:
 
   std::string pointer() const
   {
-    std::stringstream ss;
-    ss << "#";
-    for (auto it = pointer_elements.crbegin(); it != pointer_elements.crend();
-         ++it)
-    {
-      ss << "/" << *it;
-    }
-    return ss.str();
+    return fmt::format(
+      "#{}",
+      fmt::join(pointer_elements.crbegin(), pointer_elements.crend(), "/"));
   }
 };
 

@@ -40,7 +40,6 @@ namespace ccf
   // Manual schemas, verified then parsed in handler
   static const std::string j_record_public = R"!!!(
   {
-    "$id": "http://https://github.com/Microsoft/CCF/schemas/LOG_record_pub/params.json",
     "$schema": "http://json-schema.org/draft-07/schema#",
     "properties": {
       "id": {
@@ -61,7 +60,6 @@ namespace ccf
 
   static const std::string j_get_public_in = R"!!!(
   {
-    "$id": "http://https://github.com/Microsoft/CCF/schemas/LOG_get_pub/params.json",
     "$schema": "http://json-schema.org/draft-07/schema#",
     "properties": {
       "id": {
@@ -78,7 +76,6 @@ namespace ccf
 
   static const std::string j_get_public_out = R"!!!(
   {
-    "$id": "http://https://github.com/Microsoft/CCF/schemas/LOG_get_pub/result.json",
     "$schema": "http://json-schema.org/draft-07/schema#",
     "properties": {
       "msg": {

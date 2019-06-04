@@ -17,6 +17,8 @@
 #include "rpcexception.h"
 #include "serialization.h"
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <utility>
 #include <vector>
 
@@ -675,11 +677,9 @@ namespace ccf
         }
         catch (const JsonParseError& e)
         {
-          std::stringstream ss;
-          ss << "At " << e.pointer() << ":\n\t";
-          ss << e.what();
+          const auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
           return jsonrpc::error_response(
-            ctx.req.seq_no, jsonrpc::ErrorCodes::PARSE_ERROR, ss.str());
+            ctx.req.seq_no, jsonrpc::ErrorCodes::PARSE_ERROR, err);
         }
         catch (const std::exception& e)
         {
