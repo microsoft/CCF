@@ -172,11 +172,11 @@ class SSHRemote(CmdMixin):
                         "Failed to download {} from {}".format(filepath, self.hostname)
                     )
 
-    def start(self):
+    def start(self, wait_for_node_termination=None):
         """
         Start cmd on the remote host. stdout and err are captured to file locally.
 
-        We create a pty on thre remote host under which to run the command, so as to
+        We create a pty on the remote host under which to run the command, so as to
         get a SIGHUP on disconnection.
         """
         cmd = self._cmd()
@@ -293,7 +293,7 @@ class LocalRemote(CmdMixin):
     def list_files(self):
         return os.listdir(self.root)
 
-    def start(self):
+    def start(self, wait_for_node_termination=False):
         """
         Start cmd. stdout and err are captured to file locally.
         """
@@ -308,6 +308,10 @@ class LocalRemote(CmdMixin):
             stderr=self.stderr,
             env=self.env,
         )
+        if wait_for_node_termination:
+            self.proc.wait()
+            if self.proc.returncode is not 0:
+                raise RuntimeError("Remote node did not terminate gracefully")
 
     def stop(self):
         """
@@ -374,16 +378,19 @@ class CCFRemote(object):
         tls_port,
         remote_class,
         enclave_type,
+        verify_quote,
         workspace,
         label,
-        log_level,
-        expect_quote,
-        sig_max_tx,
-        sig_max_ms,
-        node_status,
-        election_timeout,
-        memory_reserve_startup,
-        notify_server,
+        other_quote=None,
+        other_quoted_data=None,
+        log_level="info",
+        expect_quote=True,
+        sig_max_tx="1000",
+        sig_max_ms="1000",
+        node_status="pending",
+        election_timeout="1000",
+        memory_reserve_startup=0,
+        notify_server=None,
         ledger_file=None,
         sealed_secrets=None,
     ):
@@ -398,6 +405,7 @@ class CCFRemote(object):
         self.pem = "{}.pem".format(node_id)
         self.quote = None
         self.node_status = node_status
+        self.verify_quote = verify_quote
         # Only expect a quote if the enclave is not virtual and quotes have
         # not been explictly disabled
         if enclave_type != "virtual" and expect_quote:
@@ -410,45 +418,60 @@ class CCFRemote(object):
             else "{}.ledger".format(node_id)
         )
 
-        cmd = [
-            self.BIN,
-            "--enclave-file={}".format(lib_path),
-            "--raft-election-timeout-ms={}".format(election_timeout),
-            "--raft-host={}".format(host),
-            "--raft-port={}".format(raft_port),
-            "--tls-host={}".format(host),
-            "--tls-pubhost={}".format(pubhost),
-            "--tls-port={}".format(tls_port),
-            "--ledger-file={}".format(self.ledger_file_name),
-            "--node-cert-file={}".format(self.pem),
-            "--enclave-type={}".format(enclave_type),
-            "--log-level={}".format(log_level),
-        ]
+        cmd = [self.BIN, "--enclave-file={}".format(lib_path)]
 
-        if sig_max_tx is not None:
-            cmd += ["--sig-max-tx={}".format(sig_max_tx)]
+        # If the remote needs to verify the quote, only a subset of arguments are required
+        if self.verify_quote:
+            cmd += ["--start=verify"]
 
-        if sig_max_ms is not None:
-            cmd += ["--sig-max-ms={}".format(sig_max_ms)]
-
-        if memory_reserve_startup is not None:
-            cmd += ["--memory-reserve-startup={}".format(memory_reserve_startup)]
-
-        if notify_server is not None:
-            notify_server_host, *notify_server_port = notify_server.split(":")
-
-            if not notify_server_host or not (
-                notify_server_port and notify_server_port[0]
-            ):
+            if other_quote is None or other_quoted_data is None:
                 raise ValueError(
-                    "Notification server host:port configuration is invalid"
+                    "Quote and quoted data should be specified when starting remote in verify mode"
                 )
+            cmd += [
+                "--quote-file={}".format(other_quote),
+                "--quoted-data={}".format(other_quoted_data),
+            ]
+        else:
+            cmd = [
+                self.BIN,
+                "--enclave-file={}".format(lib_path),
+                "--raft-election-timeout-ms={}".format(election_timeout),
+                "--raft-host={}".format(host),
+                "--raft-port={}".format(raft_port),
+                "--tls-host={}".format(host),
+                "--tls-pubhost={}".format(pubhost),
+                "--tls-port={}".format(tls_port),
+                "--ledger-file={}".format(self.ledger_file_name),
+                "--node-cert-file={}".format(self.pem),
+                "--enclave-type={}".format(enclave_type),
+                "--log-level={}".format(log_level),
+            ]
 
-            cmd += ["--notify-server-host={}".format(notify_server_host)]
-            cmd += ["--notify-server-port={}".format(notify_server_port[0])]
+            if sig_max_tx:
+                cmd += ["--sig-max-tx={}".format(sig_max_tx)]
 
-        if self.quote is not None:
-            cmd.append("--quote-file={}".format(self.quote))
+            if sig_max_ms:
+                cmd += ["--sig-max-ms={}".format(sig_max_ms)]
+
+            if memory_reserve_startup:
+                cmd += ["--memory-reserve-startup={}".format(memory_reserve_startup)]
+
+            if notify_server:
+                notify_server_host, *notify_server_port = notify_server.split(":")
+
+                if not notify_server_host or not (
+                    notify_server_port and notify_server_port[0]
+                ):
+                    raise ValueError(
+                        "Notification server host:port configuration is invalid"
+                    )
+
+                cmd += ["--notify-server-host={}".format(notify_server_host)]
+                cmd += ["--notify-server-port={}".format(notify_server_port[0])]
+
+            if self.quote:
+                cmd.append("--quote-file={}".format(self.quote))
 
         env = {}
         self.profraw = None
@@ -479,12 +502,11 @@ class CCFRemote(object):
         self.remote.setup()
 
     def start(self):
-        self.remote.start()
-        return self.info()
+        wait_for_node_termination = self.verify_quote
+        self.remote.start(wait_for_node_termination)
 
     def restart(self):
         self.remote.restart()
-        return self.info()
 
     def info(self):
         self.remote.get(self.pem)
@@ -545,8 +567,16 @@ class CCFRemote(object):
         self.remote.get(self.ledger_file_name)
         return self.ledger_file_name
 
-    def get_ledger_full_path(self):
-        return self.remote.root + "/" + self.ledger_file_name
+    def get_ledger_path(self):
+        return os.path.join(self.remote.root, self.ledger_file_name)
+
+    def get_quote(self):
+        self.remote.get(self.quote)
+        return os.path.join(self.remote.root, self.quote)
+
+    def get_cert(self):
+        self.remote.get(self.pem)
+        return os.path.join(self.remote.root, self.pem)
 
 
 @contextmanager

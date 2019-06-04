@@ -266,7 +266,7 @@ if(BUILD_TESTS)
   if(QUOTES_ENABLED)
     add_e2e_test(
       NAME quote_verification_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/quote_verification.py ./libloggingenc.so.signed
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/quote_verification.py
     )
 
     add_e2e_test(
