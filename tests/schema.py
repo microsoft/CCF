@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import os
+import sys
 import getpass
 import json
 import time
@@ -19,6 +20,8 @@ from loguru import logger as LOG
 def run(args):
     hosts = ["localhost", "localhost"]
     os.makedirs(args.schema_dir, exist_ok=True)
+
+    changed_files = []
 
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes
@@ -43,11 +46,30 @@ def run(args):
                         if element is not None and len(element) != 0:
                             formatted_schema = json.dumps(element, indent=2)
                             target_file = os.path.join(
-                                args.schema_dir, "{}_{}.json".format(method, schema_type)
+                                args.schema_dir,
+                                "{}_{}.json".format(method, schema_type),
                             )
-                            LOG.debug("Writing schema to {}".format(target_file))
-                            with open(target_file, "w") as f:
-                                f.write(formatted_schema)
+                            with open(target_file, "a+") as f:
+                                f.seek(0)
+                                previous = f.read()
+                                if previous != formatted_schema:
+                                    LOG.debug(
+                                        "Writing schema to {}".format(target_file)
+                                    )
+                                    f.seek(0)
+                                    f.write(formatted_schema)
+                                    f.truncate()
+                                    changed_files.append(target_file)
+                                else:
+                                    LOG.debug(
+                                        "Schema matches in {}".format(target_file)
+                                    )
+    
+    if len(changed_files) > 0:
+        LOG.error("Made changes to the following schema files:")
+        for f in changed_files:
+            LOG.error(" " + f)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
