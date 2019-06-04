@@ -48,6 +48,7 @@ namespace jsonrpc
   XX(INSUFFICIENT_RIGHTS, -32007) \
   XX(DENIED, -32008) \
   XX(TX_LEADER_UNKNOWN, -32009) \
+  XX(RPC_NOT_SIGNED, -32010) \
   XX(SERVER_ERROR_END, -32099)
 
   enum ErrorCodes : int16_t
@@ -178,6 +179,11 @@ namespace jsonrpc
   {
     T result;
     SeqNo id;
+
+    T* operator->()
+    {
+      return &result;
+    }
   };
 
   template <typename T>

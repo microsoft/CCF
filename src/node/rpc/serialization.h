@@ -10,6 +10,7 @@ namespace ccf
   DECLARE_REQUIRED_JSON_FIELDS(StartNetwork::In, tx0, id)
   DECLARE_REQUIRED_JSON_FIELDS(StartNetwork::Out, network_cert, tx0_sig)
   DECLARE_REQUIRED_JSON_FIELDS(JoinNetwork::In, network_cert, hostname, service)
+  DECLARE_REQUIRED_JSON_FIELDS(JoinNetwork::Out, id)
   DECLARE_REQUIRED_JSON_FIELDS(NetworkSecrets::Secret, cert, priv_key, master)
   DECLARE_REQUIRED_JSON_FIELDS(JoinNetworkNodeToNode::In, raw_fresh_key)
   DECLARE_REQUIRED_JSON_FIELDS(

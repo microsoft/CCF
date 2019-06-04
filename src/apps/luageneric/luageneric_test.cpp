@@ -114,7 +114,7 @@ template <typename F, typename K, typename V>
 void check_store_load(F frontend, K k, V v)
 {
   const Cert u0 = {0};
-  enclave::RpcContext rpc_ctx(0, u0);
+  enclave::RPCContext rpc_ctx(0, u0);
 
   // store
   const auto pc0 = make_pc("store", {{"k", k}, {"v", v}});
@@ -132,7 +132,7 @@ TEST_CASE("simple lua apps")
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, notifier, 1, 3);
   const Cert u0 = {0};
-  enclave::RpcContext rpc_ctx(0, u0);
+  enclave::RPCContext rpc_ctx(0, u0);
 
   SUBCASE("echo")
   {
@@ -242,7 +242,7 @@ TEST_CASE("simple bank")
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, notifier, 1, 3);
   const Cert u0 = {0};
-  enclave::RpcContext rpc_ctx(0, u0);
+  enclave::RPCContext rpc_ctx(0, u0);
 
   constexpr auto app = R"xxx(
   tables, gov_tables, caller_id, method, params = ...

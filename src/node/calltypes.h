@@ -16,7 +16,6 @@ namespace ccf
 
     struct Out
     {
-      // signed by node
       std::string network_cert;
       // signed by network
       std::vector<uint8_t> tx0_sig;
@@ -30,6 +29,11 @@ namespace ccf
       std::vector<uint8_t> network_cert;
       std::string hostname;
       std::string service;
+    };
+
+    struct Out
+    {
+      NodeId id;
     };
   };
 

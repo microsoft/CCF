@@ -4,6 +4,7 @@ Debug*/
 Release*/
 CMakeFiles/
 .vscode/
+.vs/
 libuv/
 raft_tests.md
 tests/raft_scenarios

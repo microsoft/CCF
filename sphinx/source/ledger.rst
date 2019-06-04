@@ -66,3 +66,25 @@ The following diagram describes how deltas committed by the leader are written t
             end
 
         end
+
+Reading the ledger and verifying entries
+----------------------------------------
+
+The ledger is stored as a series of a 4 byte transaction length field followed by a transaction (as described on the :ref:`protocol` section).
+
+A python implementation for parsing the ledger can be found on ledger.py.
+
+The ``Ledger`` class is constructed using the path of the ledger. It then exposes an iterator for transaction data structures, where each transaction is composed of the following:
+ * The GCM header (gcm_header)
+ * The serialised public domain, containing operations made only on public tables (get_public_domain)
+
+.. note:: Parsing the encrypted private data (which begins immediately after the public data on the ledger, and is optional) is not supported by the ``Ledger`` class at the moment. This will be added at a later stage.
+..
+
+An example of how to read and verify entries on the ledger can be found on ``votinghistory.py``, which verifies the voting history.
+Since every vote request is signed by the requesting member, verified by the leader and then stored on the ledger, the test performs the following (this sequence of operations is performed sequentially per transaction):
+ 1. Read and store the member certificates
+ 2. Read an entry from the ``votinghistory`` table (each entry on the ``votinghistory`` table contains the member id of the voting member, along with the signed request)
+ 3. Create a public key using the certificate of the voting member (which was stored on step 1)
+ 4. Verify the signature using the public key and the raw request
+ 5. Repeat steps 2 - 4 until all voting history entries have been read

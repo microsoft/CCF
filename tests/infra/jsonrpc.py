@@ -40,6 +40,7 @@ class ErrorCode(IntEnum):
     INSUFFICIENT_RIGHTS = -32007
     DENIED = -32008
     TX_LEADER_UNKNOWN = -32009
+    RPC_NOT_SIGNED = -32010
     SERVER_ERROR_END = -32099
 
 
@@ -176,7 +177,7 @@ class FramedTLSClient:
         return data
 
     def read(self):
-        for _ in range(1000):
+        for _ in range(5000):
             r, _, _ = select.select([self.conn], [], [], 0)
             if r:
                 return self._read()
