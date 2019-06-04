@@ -678,7 +678,7 @@ namespace ccf
           ss << "At " << e.pointer() << ":\n\t";
           ss << e.what();
           return jsonrpc::error_response(
-            id, jsonrpc::ErrorCodes::PARSE_ERROR, ss.str());
+            ctx.req.seq_no, jsonrpc::ErrorCodes::PARSE_ERROR, ss.str());
         }
         catch (const std::exception& e)
         {

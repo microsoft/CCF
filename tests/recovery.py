@@ -39,9 +39,9 @@ def check_nodes_have_msgs(nodes, txs):
     for node in nodes:
         with node.user_client() as c:
             for n, msg in txs.priv.items():
-                c.do("LOG_get", {"id": n}, msg.encode())
+                c.do("LOG_get", {"id": n}, {"msg": msg.encode()})
             for n, msg in txs.pub.items():
-                c.do("LOG_get_pub", {"id": n}, msg.encode())
+                c.do("LOG_get_pub", {"id": n}, {"msg": msg.encode()})
 
 
 def log_msgs(primary, txs):

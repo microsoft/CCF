@@ -149,7 +149,11 @@ namespace ccfapp
         auto r = view->get(params["id"]);
 
         if (r.has_value())
-          return jsonrpc::success(r.value());
+        {
+          auto result = nlohmann::json::object();
+          result["msg"] = r.value();
+          return jsonrpc::success(result);
+        }
 
         return jsonrpc::error(
           jsonrpc::ErrorCodes::INVALID_PARAMS, "No such record");
