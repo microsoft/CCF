@@ -21,7 +21,7 @@ def verify_quote(args, host, quote_path, quoted_path, should_fail=False):
         verifying_node_id, host, args.build_dir, False, False, False, True
     ) as verifying_node:
 
-        failed = None
+        failed = False
         try:
             verifying_node.start(
                 args.package,
@@ -31,11 +31,9 @@ def verify_quote(args, host, quote_path, quoted_path, should_fail=False):
                 quote_path,
                 quoted_path,
             )
-            if should_fail:
-                failed = True
+            failed = should_fail
         except Exception:
-            if not should_fail:
-                failed = True
+            failed = not should_fail
         finally:
             if failed:
                 raise RuntimeError("Quote verification did not behave as expected")

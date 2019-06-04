@@ -187,6 +187,9 @@ class SSHRemote(CmdMixin):
         cmd = self._cmd()
         LOG.info("[{}] {}".format(self.hostname, cmd))
         self.client.exec_command(cmd, get_pty=True)
+        if wait_for_node_termination:
+            if self.client.recv_exit_status() is not 0:
+                raise RuntimeError("SSHRemote did not terminate gracefully")
 
     def stop(self):
         """
@@ -325,7 +328,7 @@ class LocalRemote(CmdMixin):
         if wait_for_node_termination:
             self.proc.wait()
             if self.proc.returncode is not 0:
-                raise RuntimeError("Remote node did not terminate gracefully")
+                raise RuntimeError("LocalRemote did not terminate gracefully")
 
     def stop(self):
         """
