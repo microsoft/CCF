@@ -17,6 +17,12 @@ set(Boost_ADDITIONAL_VERSIONS "1.67" "1.67.0")
 find_package(Boost 1.60.0 REQUIRED)
 find_package(Threads REQUIRED)
 
+if (DEFINED ENV{BUILD_BUILDNUMBER})
+  set(PYTHON python3)
+else()
+  set(PYTHON unbuffer python3)
+endif()
+
 if(MSVC)
   add_compile_options(/W3 /std:c++latest)
 else()
@@ -611,7 +617,7 @@ function(add_perf_test)
 
   add_test(
     NAME ${PARSED_ARGS_NAME}
-    COMMAND python3 ${PARSED_ARGS_PYTHON_SCRIPT}
+    COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
       -b .
       -c ${PARSED_ARGS_CLIENT_BIN}
       -i ${PARSED_ARGS_ITERATIONS}
