@@ -1,0 +1,14 @@
+{
+  "$id": "https://github.com/Microsoft/CCF/schemas/getSchema_params.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "method": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "method"
+  ],
+  "title": "getSchema_params",
+  "type": "object"
+}

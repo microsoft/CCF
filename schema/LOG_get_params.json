@@ -1,0 +1,16 @@
+{
+  "$id": "https://github.com/Microsoft/CCF/schemas/LOG_get_params.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "id": {
+      "maximum": 18446744073709551615,
+      "minimum": 0,
+      "type": "number"
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "title": "LOG_get_params",
+  "type": "object"
+}
