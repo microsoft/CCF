@@ -105,12 +105,6 @@ if (USE_NLJSON_KV_SERIALISER)
   add_definitions(-DUSE_NLJSON_KV_SERIALISER)
 endif()
 
-if (DEFINED ENV{BUILD_BUILDNUMBER})
-  set(PYTHON python3)
-else()
-  set(PYTHON unbuffer python3)
-endif()
-
 enable_language(ASM)
 
 include_directories(
@@ -595,7 +589,6 @@ endfunction()
 
 ## Helper for building end-to-end function tests using the python infrastructure
 function(add_e2e_test)
-
   cmake_parse_arguments(PARSE_ARGV 0 PARSED_ARGS
   ""
   "NAME;PYTHON_SCRIPT;"
@@ -610,9 +603,6 @@ function(add_e2e_test)
       ${CCF_NETWORK_TEST_ARGS}
       ${PARSED_ARGS_ADDITIONAL_ARGS}
   )
-
-
-
 endfunction()
 
 ## Helper for building end-to-end perf tests using the python infrastucture
