@@ -85,9 +85,11 @@ namespace ccfapp
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
       // SNIPPET_START: record
+      // SNIPPET_START: macro_validation_record
       register_schema<LoggingRecord::In, void>(Procs::LOG_RECORD);
       auto record = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<LoggingRecord::In>();
+        // SNIPPET_END: macro_validation_record
         auto view = tx.get_view(records);
         view->put(in.id, in.msg);
         return jsonrpc::success();
@@ -110,6 +112,7 @@ namespace ccfapp
       // SNIPPET_END: get
 
       // SNIPPET_START: record_public
+      // SNIPPET_START: valijson_record_public
       register_manual_schema(
         Procs::LOG_RECORD_PUBLIC,
         record_public_params_schema,
@@ -123,6 +126,7 @@ namespace ccfapp
           return jsonrpc::error(
             jsonrpc::ErrorCodes::PARSE_ERROR, *validation_error);
         }
+        // SNIPPET_END: valijson_record_public
 
         auto view = tx.get_view(public_records);
         view->put(params["id"], params["msg"]);

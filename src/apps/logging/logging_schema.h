@@ -7,6 +7,7 @@ namespace ccf
 {
   // Private record/get
   // Explicit target structs, macro-generated parsers + schema
+  // SNIPPET_START: macro_validation_macros
   struct LoggingRecord
   {
     struct In
@@ -33,6 +34,7 @@ namespace ccf
 
   DECLARE_REQUIRED_JSON_FIELDS(LoggingGet::In, id);
   DECLARE_REQUIRED_JSON_FIELDS(LoggingGet::Out, msg);
+  // SNIPPET_END: macro_validation_macros
 
   // Public record/get
   // Manual schemas, verified then parsed in handler
