@@ -34,7 +34,7 @@ def build_bin_path(bin_name, enclave_type=""):
 
 
 def get_default_workspace():
-    return os.path.join(os.getcwd(), "ccf_workspace")
+    return os.path.join(os.getcwd(), "workspace")
 
 
 def cert_bytes(cert_file_name):

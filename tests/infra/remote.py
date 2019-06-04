@@ -68,7 +68,9 @@ class CmdMixin(object):
 
 
 class SSHRemote(CmdMixin):
-    def __init__(self, name, hostname, files, cmd, workspace, label, env=None):
+    def __init__(
+        self, name, hostname, exe_files, data_files, cmd, workspace, label, env=None
+    ):
         """
         Runs a command on a remote host, through an SSH connection. A temporary
         directory is created, and some files can be shipped over. The command is
@@ -84,7 +86,10 @@ class SSHRemote(CmdMixin):
         restart() reconnects and reruns the specified command
         """
         self.hostname = hostname
-        self.files = files
+        # For SSHRemote, both executable files (host and enclave) and data
+        # files (ledger, secrets) are copied to the remote
+        self.files = exe_files
+        self.files += data_files
         self.cmd = cmd
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -249,12 +254,15 @@ def ssh_remote(name, hostname, files, cmd):
 
 
 class LocalRemote(CmdMixin):
-    def __init__(self, name, hostname, files, cmd, workspace, label, env=None):
+    def __init__(
+        self, name, hostname, exe_files, data_files, cmd, workspace, label, env=None
+    ):
         """
         Local Equivalent to the SSHRemote
         """
         self.hostname = hostname
-        self.files = files
+        self.exe_files = exe_files
+        self.data_files = data_files
         self.cmd = cmd
         self.root = os.path.join(workspace, label + "_" + name)
         self.proc = None
@@ -269,9 +277,15 @@ class LocalRemote(CmdMixin):
     def _setup_files(self):
         assert self._rc("rm -rf {}".format(self.root)) == 0
         assert self._rc("mkdir -p {}".format(self.root)) == 0
-        for path in self.files:
-            tgt_path = os.path.join(self.root, os.path.basename(path))
-            assert self._rc("cp {} {}".format(path, tgt_path)) == 0
+        for path in self.exe_files:
+            dst_path = os.path.join(self.root, os.path.basename(path))
+            src_path = os.path.join(os.getcwd(), path)
+            assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
+        for path in self.data_files:
+            dst_path = os.path.join(self.root, os.path.basename(path))
+            src_path = os.path.join(os.getcwd(), path)
+            assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
+
         executable = self.cmd[0]
         if executable.startswith("./"):
             executable = executable[2:]
@@ -488,9 +502,8 @@ class CCFRemote(object):
         self.remote = remote_class(
             node_id,
             host,
-            [self.BIN, lib_path]
-            + self.DEPS
-            + ([self.ledger_file] if self.ledger_file else [])
+            [self.BIN, lib_path] + self.DEPS,
+            ([self.ledger_file] if self.ledger_file else [])
             + ([sealed_secrets] if sealed_secrets else []),
             cmd,
             workspace,
