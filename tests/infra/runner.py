@@ -56,7 +56,7 @@ def configure_remote_client(args, client_id, client_host, node, command_args):
     else:
         remote_impl = infra.remote.SSHRemote
     try:
-        remote = infra.remote_client.CCFRemoteClient(
+        remote_client = infra.remote_client.CCFRemoteClient(
             "client_" + str(client_id),
             client_host,
             args.client,
@@ -67,9 +67,8 @@ def configure_remote_client(args, client_id, client_host, node, command_args):
             command_args,
             remote_impl,
         )
-        remote.setup()
-        LOG.info("Remote client {} started".format(client_id))
-        return remote
+        remote_client.setup()
+        return remote_client
     except Exception:
         LOG.exception("Failed to start client {}".format(client_host))
         raise
@@ -115,28 +114,29 @@ def run(build_directory, get_command, args):
             client_hosts = args.client_nodes or ["localhost"]
             for client_id, client_host in enumerate(client_hosts):
                 node = nodes[client_id % len(nodes)]
-                remote = configure_remote_client(
+                remote_client = configure_remote_client(
                     args, client_id, client_host, node, command_args
                 )
-                clients.append(remote)
+                clients.append(remote_client)
 
-            for remote in clients:
-                remote.start()
+            for remote_client in clients:
+                remote_client.start()
 
             try:
                 tx_rates = infra.rates.TxRates(primary)
                 while True:
-                    continue_processing = tx_rates.process_next()
-                    time.sleep(1)
-                    if not continue_processing:
-                        for i, remote in enumerate(clients):
-                            remote.wait()
-                            remote.stop(i == 0)
+                    if not tx_rates.process_next():
+                        for i, remote_client in enumerate(clients):
+                            remote_client.wait()
+                            # TODO: For now, only retrieve perf csv for the first client
+                            # as all files have the same name on all clients
+                            remote_client.stop(i == 0)
                         break
+                    time.sleep(1)
 
                 LOG.info(f"Rates: {tx_rates}")
                 tx_rates.save_results(args.metrics_file)
 
             except KeyboardInterrupt:
-                for remote in clients:
-                    remote.stop()
+                for remote_client in clients:
+                    remote_client.stop()
