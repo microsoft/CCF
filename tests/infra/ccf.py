@@ -119,9 +119,19 @@ class Network:
             forwarded_args = {
                 arg: dict_args[arg] for arg in Network.node_args_to_forward
             }
-            node.start(
-                lib_name=args.package, node_status=node_status[i], **forwarded_args
-            )
+            try:
+                node.start(
+                    lib_name=args.package,
+                    node_status=node_status[i],
+                    workspace=args.workspace,
+                    label=args.label,
+                    other_quote=None,
+                    other_quoted_data=None,
+                    **forwarded_args,
+                )
+            except Exception:
+                LOG.exception("Failed to start node {}".format(i))
+                raise
         LOG.info("All remotes started")
 
         if args.app_script:
@@ -164,13 +174,19 @@ class Network:
             forwarded_args = {
                 arg: dict_args[arg] for arg in Network.node_args_to_forward
             }
-            node.start(
-                lib_name=args.package,
-                node_status=node_status[i],
-                ledger_file=ledger_file,
-                sealed_secrets=sealed_secrets,
-                **forwarded_args,
-            )
+            try:
+                node.start(
+                    lib_name=args.package,
+                    node_status=node_status[i],
+                    ledger_file=ledger_file,
+                    sealed_secrets=sealed_secrets,
+                    workspace=args.workspace,
+                    label=args.label,
+                    **forwarded_args,
+                )
+            except Exception:
+                LOG.exception("Failed to start recovery node {}".format(i))
+                raise
         LOG.info("All remotes started")
 
         if args.app_script:
@@ -329,12 +345,59 @@ class Checker:
                 raise TimeoutError("Timed out waiting for notification")
 
 
+@contextmanager
+def node(
+    node_id,
+    host,
+    build_directory,
+    debug=False,
+    perf=False,
+    recovery=False,
+    verify_quote=False,
+    pdb=False,
+):
+    """
+    Context manager for Node class.
+    :param node_id: unique ID of node
+    :param build_directory: the build directory
+    :param host: node's hostname
+    :param debug: default: False. If set, node will not start (user is prompted to start them manually)
+    :param perf: default: False. If set, node will run under perf record
+    :param recovery: default: False. If set, node will start in recovery
+    :param verify_quote: default: False. If set, node will only verify a quote and shutdown immediately.
+    :return: a Node instance that can be used to build a CCF network
+    """
+    with infra.path.working_dir(build_directory):
+        node = Node(
+            node_id=node_id,
+            host=host,
+            debug=debug,
+            perf=perf,
+            recovery=recovery,
+            verify_quote=verify_quote,
+        )
+        try:
+            yield node
+        except Exception:
+            if pdb:
+                import pdb
+
+                pdb.set_trace()
+            else:
+                raise
+        finally:
+            node.stop()
+
+
 class Node:
-    def __init__(self, node_id, host, debug=False, perf=False, recovery=False):
+    def __init__(
+        self, node_id, host, debug=False, perf=False, recovery=False, verify_quote=False
+    ):
         self.node_id = node_id
         self.debug = debug
         self.perf = perf
         self.recovery = recovery
+        self.verify_quote = verify_quote
         self.remote = None
         self.node_json = None
         self.stopped = True
@@ -361,7 +424,16 @@ class Node:
         else:
             self.raft_port = probably_free_function(self.host)
 
-    def start(self, lib_name, enclave_type="debug", **kwargs):
+    def start(
+        self,
+        lib_name,
+        enclave_type,
+        workspace,
+        label,
+        other_quote=None,
+        other_quoted_data=None,
+        **kwargs,
+    ):
         """
         Creates a CCFRemote instance, sets it up (connects, creates the directory and ships over the files), and
         (optionally) starts the node by executing the appropriate command.
@@ -369,46 +441,53 @@ class Node:
         Raises exception if failed to prepare or start the node
         :param lib_name: the enclave package to load
         :param enclave_type: default: debug. Choices: 'simulate', 'debug', 'virtual'
+        :param workspace: directory where node is started
+        :param label: label for this node (to differentiate nodes from different test runs)
+        :param other_quote: when starting a node in verify mode, path to other node's quote
+        :param other_quoted_data: when starting a node in verify node, path to other node's quoted_data
         :return: void
         """
-        try:
-            lib_path = infra.path.build_lib_path(lib_name, enclave_type)
-            self.remote = infra.remote.CCFRemote(
-                lib_path,
-                str(self.node_id),
-                self.host,
-                self.pubhost,
-                self.raft_port,
-                self.tls_port,
-                self.remote_impl,
-                enclave_type,
-                **kwargs,
+        lib_path = infra.path.build_lib_path(lib_name, enclave_type)
+        self.remote = infra.remote.CCFRemote(
+            lib_path,
+            str(self.node_id),
+            self.host,
+            self.pubhost,
+            self.raft_port,
+            self.tls_port,
+            self.remote_impl,
+            enclave_type,
+            self.verify_quote,
+            workspace,
+            label,
+            other_quote,
+            other_quoted_data,
+            **kwargs,
+        )
+        self.remote.setup()
+        LOG.info("Remote {} started".format(self.node_id))
+        self.stopped = False
+        if self.recovery:
+            self.remote.set_recovery()
+        if self.debug:
+            print("")
+            phost = "localhost" if self.host.startswith("127.") else self.host
+            print(
+                "================= Please run the below command on "
+                + phost
+                + " and press enter to continue ================="
             )
-            self.remote.setup()
-            LOG.info("Remote {} started".format(self.node_id))
-            self.stopped = False
-            if self.recovery:
-                self.remote.set_recovery()
-            if self.debug:
-                print("")
-                phost = "localhost" if self.host.startswith("127.") else self.host
-                print(
-                    "================= Please run the below command on "
-                    + phost
-                    + " and press enter to continue ================="
-                )
-                print("")
-                print(self.remote.debug_node_cmd())
-                print("")
-                input("Press Enter to continue...")
+            print("")
+            print(self.remote.debug_node_cmd())
+            print("")
+            input("Press Enter to continue...")
+            self.node_json = self.remote.info()
+        else:
+            if self.perf:
+                self.remote.set_perf()
+            self.remote.start()
+            if not self.verify_quote:
                 self.node_json = self.remote.info()
-            else:
-                if self.perf:
-                    self.remote.set_perf()
-                self.node_json = self.remote.start()
-        except Exception:
-            LOG.exception("Failed to start node {}".format(self.host))
-            raise
 
     def stop(self):
         if self.remote:
@@ -447,27 +526,6 @@ class Node:
 
     def get_sealed_secrets(self):
         return self.remote.get_sealed_secrets()
-
-    def wait_until_ready(self, timeout=5):
-        with open("getCommit.json", "w") as gcf:
-            gcf.write('{"id":1,"jsonrpc":"2.0","method":"getCommit","params":{}}\n')
-        for _ in range(timeout):
-            time.sleep(1)
-            rv = infra.proc.ccall(
-                "./client",
-                "--host={}".format(self.host),
-                "--port={}".format(self.tls_port),
-                "--ca=networkcert.pem",
-                "userrpc",
-                "--cert=user1_cert.pem",
-                "--pk=user1_privk.pem",
-                "--req=getCommit.json",
-                log_output=False,
-            )
-            # Make sure that the commit is greater than 2
-            if re.search(r'"commit":([2-9]|\d{2,})', rv.stdout.decode()):
-                return
-        raise ValueError("Timed out waiting for node {}".format(self.node_id))
 
     def user_client(self, format="msgpack", user_id=1, **kwargs):
         return infra.jsonrpc.client(
