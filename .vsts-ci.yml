@@ -52,7 +52,8 @@ jobs:
     - template: .vsts-ci-templates/coverage.yml
 
 - job: ACC_1804_virtual_SAN_build
-  pool: Ubuntu-1804-SGX-Azure
+  pool: 'Hosted Ubuntu 1604'
+  container: ccfciteam/ccf-ci-18.04:latest
   dependsOn: static_checks
   steps:
     - template: .vsts-ci-templates/build_and_test.yml
