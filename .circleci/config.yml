@@ -1,6 +1,8 @@
 version: 2
 jobs:
   build:
+    resource_class: large
+
     docker:
       - image: ccfciteam/ccf-ci-18.04:latest
 
