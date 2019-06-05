@@ -32,7 +32,7 @@ public:
   std::string pointer() const
   {
     return fmt::format(
-      "#{}",
+      "#/{}",
       fmt::join(pointer_elements.crbegin(), pointer_elements.crend(), "/"));
   }
 };
