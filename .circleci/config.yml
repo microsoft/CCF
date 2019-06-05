@@ -47,3 +47,13 @@ jobs:
           name: Run tests
           working_directory: build
           command: ./tests.sh -VV --timeout 240 --no-compress-output -T Test
+
+      - run:
+          name: Extract test results
+          working_directory: build
+          command: |
+            mkdir -p test-results/junit
+            xsltproc --stringparam suiteName "Virtual Build" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > test-results/junit/results.xml
+
+      - store_test_results:
+          path: test-results
