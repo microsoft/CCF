@@ -1,0 +1,47 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: ccfciteam/ccf-ci-18.04:latest
+
+    steps:
+      - checkout
+
+      - run:
+          name: Shell Check
+          command: find . -regex ".*\.sh$" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091
+
+      - run:
+          name: Check copyright notices
+          command: python3.7 notice-check.py
+
+      - run:
+          name: Check C++ code format
+          command: ./check-format.sh src
+
+      - run:
+          name: Check Python code format
+          command: |
+            python3.7 -m venv env
+            source env/bin/activate
+            pip install black
+            black --check sphinx/ tests/ notice-check.py
+
+      - run:
+          name: Make build directory
+          command: mkdir build
+
+      - run:
+          name: CMake
+          command: 'cmake -GNinja -DVIRTUAL_ONLY=ON ..'
+          working_directory: build
+
+      - run:
+          name: Ninja
+          command: ninja
+          working_directory: build
+
+      - run:
+          name: Run tests
+          working_directory: build
+          command: ./tests.sh -VV --timeout 240 --no-compress-output -T Test
