@@ -138,6 +138,7 @@
     become: true
     async: 600
     poll: 5
+    when: skip_dependencies is undefined
 
   - name: Install ninja
     apt:
