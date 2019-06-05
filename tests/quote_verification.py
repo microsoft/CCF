@@ -32,7 +32,7 @@ def verify_quote(args, host, quote_path, quoted_path, should_fail=False):
                 quoted_path,
             )
             failed = should_fail
-        except Exception:
+        except RuntimeError:
             failed = not should_fail
         finally:
             if failed:

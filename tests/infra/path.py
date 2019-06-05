@@ -33,7 +33,7 @@ def build_bin_path(bin_name, enclave_type=""):
         return bin_name
 
 
-def get_default_workspace():
+def default_workspace():
     return os.path.join(os.getcwd(), "workspace")
 
 

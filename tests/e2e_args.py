@@ -85,8 +85,8 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument(
         "--workspace",
-        help="Directory to setup nodes",
-        default=infra.path.get_default_workspace(),
+        help="Temporary directory where nodes store their logs, ledgers, quotes, etc.",
+        default=infra.path.default_workspace(),
     )
     parser.add_argument("--label", help="Unique identifier for the test", required=True)
     add(parser)

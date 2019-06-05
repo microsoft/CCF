@@ -97,7 +97,7 @@ def run(args):
         j_result = json.loads(result.stdout)
         assert j_result["result"]
 
-        ledger_filename = network.find_leader()[0].remote.get_ledger_path()
+        ledger_filename = network.find_leader()[0].remote.ledger_path()
 
     l = ledger.Ledger(ledger_filename)
 

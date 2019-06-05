@@ -293,6 +293,13 @@ def run(args):
 
 if __name__ == "__main__":
 
-    args = e2e_args.cli_args()
-    args.package = "libloggingenc"
+    def add(parser):
+        parser.add_argument(
+            "-p",
+            "--package",
+            help="The enclave package to load (e.g., libloggingenc)",
+            default="libloggingenc"
+        )
+
+    args = e2e_args.cli_args(add)
     run(args)
