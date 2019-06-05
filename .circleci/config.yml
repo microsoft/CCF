@@ -56,4 +56,4 @@ jobs:
             xsltproc --stringparam suiteName "Virtual Build" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > test-results/junit/results.xml
 
       - store_test_results:
-          path: test-results
+          path: build/test-results
