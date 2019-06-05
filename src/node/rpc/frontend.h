@@ -3,6 +3,8 @@
 #pragma once
 #include "consts.h"
 #include "ds/buffer.h"
+#include "ds/histogram.h"
+#include "ds/json_schema.h"
 #include "enclave/rpchandler.h"
 #include "forwarder.h"
 #include "jsonrpc.h"
@@ -15,6 +17,8 @@
 #include "rpcexception.h"
 #include "serialization.h"
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <utility>
 #include <vector>
 
@@ -67,6 +71,8 @@ namespace ccf
     Certs* certs;
     std::optional<Handler> default_handler;
     std::unordered_map<std::string, Handler> handlers;
+    std::unordered_map<std::string, std::pair<nlohmann::json, nlohmann::json>>
+      schemas;
     kv::Replicator* raft;
     std::shared_ptr<AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
@@ -161,6 +167,44 @@ namespace ccf
       }
     }
 
+  protected:
+    void register_schema(
+      const std::string& name,
+      const nlohmann::json& params_schema,
+      const nlohmann::json& result_schema)
+    {
+      if (schemas.find(name) != schemas.end())
+      {
+        throw std::logic_error("Already registered schema for " + name);
+      }
+
+      schemas[name] = std::make_pair(params_schema, result_schema);
+    }
+
+    template <typename In, typename Out>
+    void register_auto_schema(const std::string& name)
+    {
+      auto params_schema = nlohmann::json::object();
+      if constexpr (!std::is_same_v<In, void>)
+      {
+        params_schema = build_schema<In>(name + "_params");
+      }
+
+      auto result_schema = nlohmann::json::object();
+      if constexpr (!std::is_same_v<Out, void>)
+      {
+        result_schema = build_schema<Out>(name + "_result");
+      }
+
+      register_schema(name, params_schema, result_schema);
+    }
+
+    template <typename T>
+    void register_auto_schema(const std::string& name)
+    {
+      register_auto_schema<typename T::In, typename T::Out>(name);
+    }
+
   public:
     RpcFrontend(Store& tables_) : RpcFrontend(tables_, nullptr, nullptr) {}
 
@@ -172,19 +216,11 @@ namespace ccf
       raft(nullptr),
       history(nullptr)
     {
+      register_auto_schema<GetCommit>(GeneralProcs::GET_COMMIT);
       auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
-        kv::Version commit;
+        const auto in = params.get<GetCommit::In>();
 
-        if (
-          params.is_array() && (params.size() > 0) &&
-          params[0].is_number_unsigned())
-        {
-          commit = params[0];
-        }
-        else
-        {
-          commit = tables.commit_version();
-        }
+        kv::Version commit = in.commit.value_or(tables.commit_version());
 
         update_raft();
 
@@ -199,11 +235,13 @@ namespace ccf
           "Failed to get commit info from Raft");
       };
 
+      register_auto_schema<void, GetMetrics::Out>(GeneralProcs::GET_METRICS);
       auto get_metrics = [this](Store::Tx& tx, const nlohmann::json& params) {
         auto result = metrics.get_metrics();
-        return jsonrpc::success(GetMetrics::Out{result});
+        return jsonrpc::success(result);
       };
 
+      register_auto_schema<void, void>(GeneralProcs::MK_SIGN);
       auto make_signature =
         [this](Store::Tx& tx, const nlohmann::json& params) {
           update_history();
@@ -218,22 +256,24 @@ namespace ccf
             jsonrpc::ErrorCodes::INTERNAL_ERROR, "Failed to trigger signature");
         };
 
+      register_auto_schema<void, GetLeaderInfo::Out>(
+        GeneralProcs::GET_LEADER_INFO);
       auto get_leader_info =
         [this](Store::Tx& tx, const nlohmann::json& params) {
           if ((nodes != nullptr) && (raft != nullptr))
           {
             NodeId leader_id = raft->leader();
-            nlohmann::json result;
 
             auto nodes_view = tx.get_view(*nodes);
             auto info = nodes_view->get(leader_id);
 
             if (info)
             {
-              result["leader_id"] = leader_id;
-              result["leader_host"] = info->pubhost;
-              result["leader_port"] = info->tlsport;
-              return jsonrpc::success(result);
+              GetLeaderInfo::Out out;
+              out.leader_id = leader_id;
+              out.leader_host = info->pubhost;
+              out.leader_port = info->tlsport;
+              return jsonrpc::success(out);
             }
           }
 
@@ -241,10 +281,50 @@ namespace ccf
             jsonrpc::ErrorCodes::TX_LEADER_UNKNOWN, "Leader unknown.");
         };
 
+      register_auto_schema<void, ListMethods::Out>(GeneralProcs::LIST_METHODS);
+      auto list_methods = [this](Store::Tx& tx, const nlohmann::json& params) {
+        ListMethods::Out out;
+
+        for (const auto& handler : handlers)
+        {
+          out.methods.push_back(handler.first);
+        }
+
+        std::sort(out.methods.begin(), out.methods.end());
+
+        return jsonrpc::success(out);
+      };
+
+      register_auto_schema<GetSchema>(GeneralProcs::GET_SCHEMA);
+      auto get_schema = [this](Store::Tx& tx, const nlohmann::json& params) {
+        const auto in = params.get<GetSchema::In>();
+
+        if (handlers.find(in.method) == handlers.end())
+        {
+          return jsonrpc::error(
+            jsonrpc::ErrorCodes::INVALID_PARAMS,
+            "No method named " + in.method);
+        }
+
+        const auto it = schemas.find(in.method);
+        if (it == schemas.end())
+        {
+          return jsonrpc::error(
+            jsonrpc::ErrorCodes::INVALID_PARAMS,
+            "No schema available for " + in.method);
+        }
+
+        const GetSchema::Out out{it->second.first, it->second.second};
+
+        return jsonrpc::success(out);
+      };
+
       install(GeneralProcs::GET_COMMIT, get_commit, Read);
       install(GeneralProcs::GET_METRICS, get_metrics, Read);
       install(GeneralProcs::MK_SIGN, make_signature, Write);
       install(GeneralProcs::GET_LEADER_INFO, get_leader_info, Read);
+      install(GeneralProcs::LIST_METHODS, list_methods, Read);
+      install(GeneralProcs::GET_SCHEMA, get_schema, Read);
     }
 
     void disable_request_storing()
@@ -497,7 +577,7 @@ namespace ccf
       std::string method = rpc[jsonrpc::METHOD];
       ctx.req.seq_no = rpc[jsonrpc::ID];
 
-      const nlohmann::json params = rpc[jsonrpc::PARAMS];
+      const nlohmann::json& params = rpc[jsonrpc::PARAMS];
       if (!params.is_array() && !params.is_object() && !params.is_null())
         return jsonrpc::error_response(
           ctx.req.seq_no,
@@ -594,6 +674,12 @@ namespace ccf
         catch (const RpcException& e)
         {
           return jsonrpc::error_response(ctx.req.seq_no, e.error_id, e.msg);
+        }
+        catch (const JsonParseError& e)
+        {
+          const auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
+          return jsonrpc::error_response(
+            ctx.req.seq_no, jsonrpc::ErrorCodes::PARSE_ERROR, err);
         }
         catch (const std::exception& e)
         {

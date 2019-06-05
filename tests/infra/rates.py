@@ -61,7 +61,7 @@ class TxRates:
         with self.primary.user_client(format="json") as client:
             rv = client.rpc("getMetrics", {})
             result = rv.to_dict()
-            result = result["result"]["metrics"]
+            result = result["result"]
             self.all_metrics = result
 
             all_rates = []

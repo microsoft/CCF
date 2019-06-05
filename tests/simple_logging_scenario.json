@@ -20,7 +20,9 @@
           "params": {
             "id": 42
           },
-          "expected_result": "Hello world"
+          "expected_result": {
+            "msg": "Hello world"
+          }
         }
       ]
     },
@@ -40,7 +42,9 @@
           "params": {
             "id": 42
           },
-          "expected_result": "Hello world"
+          "expected_result": {
+            "msg": "Hello world"
+          }
         }
       ]
     }

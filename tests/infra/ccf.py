@@ -309,7 +309,9 @@ class Checker:
 
             if self.management_client:
                 for i in range(timeout * 10):
-                    r = self.management_client.rpc("getCommit", [rpc_result.commit])
+                    r = self.management_client.rpc(
+                        "getCommit", {"commit": rpc_result.commit}
+                    )
                     if (
                         r.global_commit >= rpc_result.commit
                         and r.result["term"] == rpc_result.term
