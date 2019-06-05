@@ -111,7 +111,7 @@ public:
       return jsonrpc::success();
     };
     // Note that this a Write function that cannot be forwarded
-    install("empty_function", empty_function, Write, false);
+    install("empty_function", empty_function, Write, nullptr, nullptr, false);
   }
 };
 
