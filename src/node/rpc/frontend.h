@@ -167,32 +167,6 @@ namespace ccf
       }
     }
 
-  protected:
-    void register_schema(
-      const std::string& name,
-      const nlohmann::json& params_schema,
-      const nlohmann::json& result_schema)
-    {
-      if (schemas.find(name) != schemas.end())
-      {
-        throw std::logic_error("Already registered schema for " + name);
-      }
-
-      schemas[name] = std::make_pair(params_schema, result_schema);
-    }
-
-    template <typename In, typename Out>
-    void register_auto_schema(const std::string& name)
-    {
-      register_schema(name, params_schema, result_schema);
-    }
-
-    template <typename T>
-    void register_auto_schema(const std::string& name)
-    {
-      register_auto_schema<typename T::In, typename T::Out>(name);
-    }
-
   public:
     RpcFrontend(Store& tables_) : RpcFrontend(tables_, nullptr, nullptr) {}
 
@@ -292,7 +266,7 @@ namespace ccf
         {
           return jsonrpc::error(
             jsonrpc::ErrorCodes::INVALID_PARAMS,
-            fmt::format("Method {} not recognised", in.method);
+            fmt::format("Method {} not recognised", in.method));
         }
 
         const GetSchema::Out out{it->second.params_schema,
@@ -332,7 +306,7 @@ namespace ccf
       cmd_forwarder = cmd_forwarder_;
     }
 
-    /** Install HandleFunction for method name, with defined schema
+    /** Install HandleFunction for method name
      *
      * If an implementation is already installed for that method, it will be
      * replaced.
@@ -346,37 +320,13 @@ namespace ccf
      */
     void install(
       const std::string& method,
-      const nlohmann::json& params_schema,
-      const nlohmann::json& result_schema,
       HandleFunction f,
       ReadWrite rw,
+      const nlohmann::json& params_schema = nlohmann::json::object(),
+      const nlohmann::json& result_schema = nlohmann::json::object(),
       bool is_forwardable = true)
     {
       handlers[method] = {f, rw, is_forwardable, params_schema, result_schema};
-    }
-
-    /** Install HandleFunction for method name
-     *
-     * If an implementation is already installed for that method, it will be
-     * replaced.
-     *
-     * @param method Method name
-     * @param f Method implementation
-     * @param rw Flag if method will Read, Write, MayWrite
-     * @param is_forwardable Allow method to be forwarded to leader
-     */
-    void install(
-      const std::string& method,
-      HandleFunction f,
-      ReadWrite rw,
-      bool is_forwardable = true)
-    {
-      install(
-        f,
-        nlohmann::json::object(),
-        nlohmann::json::object(),
-        rw,
-        is_forwardable);
     }
 
     /** Install MinimalHandleFunction for method name
@@ -386,20 +336,14 @@ namespace ccf
      *
      * @param method Method name
      * @param f Method implementation
-     * @param rw Flag if method will Read, Write, MayWrite
-     * @param is_forwardable Allow method to be forwarded to leader
      */
-    void install(
-      const std::string& method,
-      MinimalHandleFunction f,
-      ReadWrite rw,
-      bool is_forwardable = true)
+    template <typename... Ts>
+    void install(const std::string& method, MinimalHandleFunction f, Ts&&... ts)
     {
       install(
         method,
         [f](RequestArgs& args) { return f(args.tx, args.params); },
-        rw,
-        is_forwardable);
+        std::forward<Ts>(ts)...);
     }
 
     template <typename In, typename Out, typename... Ts>
@@ -408,24 +352,23 @@ namespace ccf
       auto params_schema = nlohmann::json::object();
       if constexpr (!std::is_same_v<In, void>)
       {
-        params_schema = build_schema<In>(name + "_params");
+        params_schema = build_schema<In>(method + "_params");
       }
 
       auto result_schema = nlohmann::json::object();
       if constexpr (!std::is_same_v<Out, void>)
       {
-        result_schema = build_schema<Out>(name + "_result");
+        result_schema = build_schema<Out>(method + "_result");
       }
 
-      install_with_schema(
-        method, params_schema, result_schema, std::forward<Ts>(ts)...);
+      install(method, std::forward<Ts>(ts)..., params_schema, result_schema);
     }
 
     template <typename T, typename... Ts>
     void install_with_auto_schema(const std::string& method, Ts&&... ts)
     {
       install_with_auto_schema<typename T::In, typename T::Out>(
-        name, std::forward<Ts>(ts)...);
+        method, std::forward<Ts>(ts)...);
     }
 
     /** Set a default HandleFunction

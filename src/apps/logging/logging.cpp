@@ -183,18 +183,17 @@ namespace ccfapp
         Procs::LOG_RECORD, record, Write);
       install_with_auto_schema<LoggingGet>(Procs::LOG_GET, get, Read);
 
-      install_with_schema(
+      install(
         Procs::LOG_RECORD_PUBLIC,
-        record_public_params_schema,
-        nlohmann::json::object(),
         record_public,
-        Write);
-      install_with_schema(
+        Write,
+        record_public_params_schema);
+      install(
         Procs::LOG_GET_PUBLIC,
-        get_public_params_schema,
-        get_public_result_schema,
         get_public,
-        Read);
+        Read,
+        get_public_params_schema,
+        get_public_result_schema);
 
       nwt.signatures.set_global_hook([this, &notifier](
                                        kv::Version version,
