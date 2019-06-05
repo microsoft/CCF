@@ -312,10 +312,10 @@ namespace ccf
      * replaced.
      *
      * @param method Method name
-     * @param params_schema JSON schema for params object in requests
-     * @param result_schema JSON schema for result object in responses
      * @param f Method implementation
      * @param rw Flag if method will Read, Write, MayWrite
+     * @param params_schema JSON schema for params object in requests
+     * @param result_schema JSON schema for result object in responses
      * @param is_forwardable Allow method to be forwarded to leader
      */
     void install(
