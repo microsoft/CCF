@@ -64,6 +64,8 @@ namespace ccf
       HandleFunction func;
       ReadWrite rw;
       bool is_forwardable;
+      nlohmann::json params_schema;
+      nlohmann::json result_schema;
     };
 
     Nodes* nodes;
@@ -71,8 +73,6 @@ namespace ccf
     Certs* certs;
     std::optional<Handler> default_handler;
     std::unordered_map<std::string, Handler> handlers;
-    std::unordered_map<std::string, std::pair<nlohmann::json, nlohmann::json>>
-      schemas;
     kv::Replicator* raft;
     std::shared_ptr<AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
@@ -184,18 +184,6 @@ namespace ccf
     template <typename In, typename Out>
     void register_auto_schema(const std::string& name)
     {
-      auto params_schema = nlohmann::json::object();
-      if constexpr (!std::is_same_v<In, void>)
-      {
-        params_schema = build_schema<In>(name + "_params");
-      }
-
-      auto result_schema = nlohmann::json::object();
-      if constexpr (!std::is_same_v<Out, void>)
-      {
-        result_schema = build_schema<Out>(name + "_result");
-      }
-
       register_schema(name, params_schema, result_schema);
     }
 
@@ -216,7 +204,6 @@ namespace ccf
       raft(nullptr),
       history(nullptr)
     {
-      register_auto_schema<GetCommit>(GeneralProcs::GET_COMMIT);
       auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetCommit::In>();
 
@@ -235,13 +222,11 @@ namespace ccf
           "Failed to get commit info from Raft");
       };
 
-      register_auto_schema<void, GetMetrics::Out>(GeneralProcs::GET_METRICS);
       auto get_metrics = [this](Store::Tx& tx, const nlohmann::json& params) {
         auto result = metrics.get_metrics();
         return jsonrpc::success(result);
       };
 
-      register_auto_schema<void, void>(GeneralProcs::MK_SIGN);
       auto make_signature =
         [this](Store::Tx& tx, const nlohmann::json& params) {
           update_history();
@@ -256,8 +241,6 @@ namespace ccf
             jsonrpc::ErrorCodes::INTERNAL_ERROR, "Failed to trigger signature");
         };
 
-      register_auto_schema<void, GetLeaderInfo::Out>(
-        GeneralProcs::GET_LEADER_INFO);
       auto get_leader_info =
         [this](Store::Tx& tx, const nlohmann::json& params) {
           if ((nodes != nullptr) && (raft != nullptr))
@@ -281,7 +264,6 @@ namespace ccf
             jsonrpc::ErrorCodes::TX_LEADER_UNKNOWN, "Leader unknown.");
         };
 
-      register_auto_schema<void, ListMethods::Out>(GeneralProcs::LIST_METHODS);
       auto list_methods = [this](Store::Tx& tx, const nlohmann::json& params) {
         ListMethods::Out out;
 
@@ -295,7 +277,6 @@ namespace ccf
         return jsonrpc::success(out);
       };
 
-      register_auto_schema<GetSchema>(GeneralProcs::GET_SCHEMA);
       auto get_schema = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetSchema::In>();
 
@@ -306,25 +287,32 @@ namespace ccf
             "No method named " + in.method);
         }
 
-        const auto it = schemas.find(in.method);
-        if (it == schemas.end())
+        const auto it = handlers.find(in.method);
+        if (it == handlers.end())
         {
           return jsonrpc::error(
             jsonrpc::ErrorCodes::INVALID_PARAMS,
-            "No schema available for " + in.method);
+            fmt::format("Method {} not recognised", in.method);
         }
 
-        const GetSchema::Out out{it->second.first, it->second.second};
+        const GetSchema::Out out{it->second.params_schema,
+                                 it->second.result_schema};
 
         return jsonrpc::success(out);
       };
 
-      install(GeneralProcs::GET_COMMIT, get_commit, Read);
-      install(GeneralProcs::GET_METRICS, get_metrics, Read);
-      install(GeneralProcs::MK_SIGN, make_signature, Write);
-      install(GeneralProcs::GET_LEADER_INFO, get_leader_info, Read);
-      install(GeneralProcs::LIST_METHODS, list_methods, Read);
-      install(GeneralProcs::GET_SCHEMA, get_schema, Read);
+      install_with_auto_schema<GetCommit>(
+        GeneralProcs::GET_COMMIT, get_commit, Read);
+      install_with_auto_schema<void, GetMetrics::Out>(
+        GeneralProcs::GET_METRICS, get_metrics, Read);
+      install_with_auto_schema<void, void>(
+        GeneralProcs::MK_SIGN, make_signature, Write);
+      install_with_auto_schema<void, GetLeaderInfo::Out>(
+        GeneralProcs::GET_LEADER_INFO, get_leader_info, Read);
+      install_with_auto_schema<void, ListMethods::Out>(
+        GeneralProcs::LIST_METHODS, list_methods, Read);
+      install_with_auto_schema<GetSchema>(
+        GeneralProcs::GET_SCHEMA, get_schema, Read);
     }
 
     void disable_request_storing()
@@ -344,6 +332,29 @@ namespace ccf
       cmd_forwarder = cmd_forwarder_;
     }
 
+    /** Install HandleFunction for method name, with defined schema
+     *
+     * If an implementation is already installed for that method, it will be
+     * replaced.
+     *
+     * @param method Method name
+     * @param params_schema JSON schema for params object in requests
+     * @param result_schema JSON schema for result object in responses
+     * @param f Method implementation
+     * @param rw Flag if method will Read, Write, MayWrite
+     * @param is_forwardable Allow method to be forwarded to leader
+     */
+    void install(
+      const std::string& method,
+      const nlohmann::json& params_schema,
+      const nlohmann::json& result_schema,
+      HandleFunction f,
+      ReadWrite rw,
+      bool is_forwardable = true)
+    {
+      handlers[method] = {f, rw, is_forwardable, params_schema, result_schema};
+    }
+
     /** Install HandleFunction for method name
      *
      * If an implementation is already installed for that method, it will be
@@ -360,7 +371,12 @@ namespace ccf
       ReadWrite rw,
       bool is_forwardable = true)
     {
-      handlers[method] = {f, rw, is_forwardable};
+      install(
+        f,
+        nlohmann::json::object(),
+        nlohmann::json::object(),
+        rw,
+        is_forwardable);
     }
 
     /** Install MinimalHandleFunction for method name
@@ -379,10 +395,37 @@ namespace ccf
       ReadWrite rw,
       bool is_forwardable = true)
     {
-      handlers[method] = {
+      install(
+        method,
         [f](RequestArgs& args) { return f(args.tx, args.params); },
         rw,
-        is_forwardable};
+        is_forwardable);
+    }
+
+    template <typename In, typename Out, typename... Ts>
+    void install_with_auto_schema(const std::string& method, Ts&&... ts)
+    {
+      auto params_schema = nlohmann::json::object();
+      if constexpr (!std::is_same_v<In, void>)
+      {
+        params_schema = build_schema<In>(name + "_params");
+      }
+
+      auto result_schema = nlohmann::json::object();
+      if constexpr (!std::is_same_v<Out, void>)
+      {
+        result_schema = build_schema<Out>(name + "_result");
+      }
+
+      install_with_schema(
+        method, params_schema, result_schema, std::forward<Ts>(ts)...);
+    }
+
+    template <typename T, typename... Ts>
+    void install_with_auto_schema(const std::string& method, Ts&&... ts)
+    {
+      install_with_auto_schema<typename T::In, typename T::Out>(
+        name, std::forward<Ts>(ts)...);
     }
 
     /** Set a default HandleFunction
