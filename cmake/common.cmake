@@ -319,7 +319,7 @@ include(${CCF_DIR}/cmake/secp256k1.cmake)
 ## Build PBFT if used as consensus
 if (PBFT)
   message(STATUS "Using PBFT as consensus")
-  include(${CCF_DIR}/pbft/cmake/pbft.cmake)
+  include(${CCF_DIR}/ePBFT/cmake/pbft.cmake)
 
   target_include_directories(libbyz.host PRIVATE
     ${CCF_DIR}/src/ds
@@ -373,7 +373,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
     )
     if (PBFT)
       target_include_directories(${name} SYSTEM PRIVATE
-        ${CCF_DIR}/pbft/src/pbft/
+        ${CCF_DIR}/ePBFT/src/pbft/
       )
     endif()
     target_link_libraries(${name} PRIVATE
@@ -421,7 +421,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   )
   if (PBFT)
     target_include_directories(${virt_name} SYSTEM PRIVATE
-      ${CCF_DIR}/pbft/src/pbft/
+      ${CCF_DIR}/ePBFT/src/pbft/
     )
   endif()
   target_link_libraries(${virt_name} PRIVATE
