@@ -38,9 +38,9 @@ def run(args):
 
         for connection in scenario["connections"]:
             with (
-                primary.user_client()
+                primary.user_client(format="json")
                 if not connection.get("on_follower")
-                else random.choice(followers).user_client()
+                else random.choice(followers).user_client(format="json")
             ) as client:
                 txs = connection.get("transactions", [])
 
@@ -60,7 +60,7 @@ def run(args):
                         )
 
                     elif tx.get("expected_result") is not None:
-                        check(r, result=tx.get("expected_result").encode())
+                        check(r, result=tx.get("expected_result"))
 
                     else:
                         check(r, result=lambda res: res is not None)

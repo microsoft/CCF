@@ -66,6 +66,9 @@ if(BUILD_TESTS)
   add_unit_test(map_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
+  add_unit_test(json_schema
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp)
+
   add_unit_test(kv_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
@@ -193,6 +196,7 @@ if(BUILD_TESTS)
   ## Picobench benchmarks
   add_picobench(map_bench src/ds/test/map_bench.cpp)
   add_picobench(logger_bench src/ds/test/logger_bench.cpp)
+  add_picobench(json_bench src/ds/test/json_bench.cpp)
   add_picobench(ringbuffer_bench src/ds/test/ringbuffer_bench.cpp)
   target_link_libraries(ringbuffer_bench PRIVATE
     ${CMAKE_THREAD_LIBS_INIT})

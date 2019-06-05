@@ -2,7 +2,7 @@ Logging (C++)
 -------------
 
 Overview
-```````````
+````````
 
 A C++ transaction engine exposes itself to CCF by implementing:
 
@@ -65,6 +65,37 @@ A handle can either be installed as:
 - ``Read``: this handler can be executed on any node of the network.
 - ``MayWrite``: the execution of this handler on a specific node depends on the value of the ``"readonly"`` paramater in the JSON-RPC command.
 
+API Schema
+..........
+
+These handlers also demonstrate two different ways of defining schema for RPCs, and validating incoming requests against them. The record/get methods operating on public tables have manually defined schema and use [#valijson]_ for validation, returning an error if the input is not compliant with the schema:
+
+.. literalinclude:: ../../src/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: valijson_record_public
+    :end-before: SNIPPET_END: valijson_record_public
+    :dedent: 6
+
+This provides robust, extensible validation using the full JSON schema spec.
+
+The methods operating on private tables use an alternative approach, with a macro-generated schema and parser converting compliant requests into a PoD C++ object:
+
+.. literalinclude:: ../../src/apps/logging/logging_schema.h
+    :language: cpp
+    :start-after: SNIPPET_START: macro_validation_macros
+    :end-before: SNIPPET_END: macro_validation_macros
+    :dedent: 2
+    
+.. literalinclude:: ../../src/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: macro_validation_record
+    :end-before: SNIPPET_END: macro_validation_record
+    :dedent: 6
+
+This produces validation error messages with a lower performance overhead, and ensures the schema and parsing logic stay in sync, but is only suitable for simple schema with required and optional fields of supported types.
+
+Both approaches register their RPC's params and result schema, allowing them to be retrieved at runtime with calls to the getSchema RPC.
+
 Build
 `````
 
@@ -88,3 +119,7 @@ This produces the enclave library ``libloggingenc.so.signed`` which can be loade
 .. code-block:: bash
 
     ./cchost --enclave-file libloggingenc.so.signed [args]
+
+.. rubric:: Footnotes
+
+.. [#valijson] `Valijson is a header-only JSON Schema Validation library for C++11 <https://github.com/tristanpenman/valijson>`_.

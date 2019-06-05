@@ -44,8 +44,8 @@ def run(args):
                     check_notification(
                         c.rpc("LOG_record", {"id": 43, "msg": msg2}), result="OK"
                     )
-                    check(c.rpc("LOG_get", {"id": 42}), result=msg)
-                    check(c.rpc("LOG_get", {"id": 43}), result=msg2)
+                    check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
+                    check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2})
 
                 LOG.debug("Write on all follower frontends")
                 with follower.management_client(format="json") as c:
@@ -59,8 +59,8 @@ def run(args):
                         c.rpc("LOG_record", {"id": 100, "msg": follower_msg}),
                         result="OK",
                     )
-                    check(c.rpc("LOG_get", {"id": 100}), result=follower_msg)
-                    check(c.rpc("LOG_get", {"id": 42}), result=msg)
+                    check(c.rpc("LOG_get", {"id": 100}), result={"msg": follower_msg})
+                    check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
 
                 LOG.debug("Write/Read large messages on leader")
                 with primary.user_client(format="json") as c:
@@ -71,7 +71,7 @@ def run(args):
                             c.rpc("LOG_record", {"id": id, "msg": long_msg}),
                             result="OK",
                         )
-                        check(c.rpc("LOG_get", {"id": id}), result=long_msg)
+                        check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg})
                     id += 1
 
 
