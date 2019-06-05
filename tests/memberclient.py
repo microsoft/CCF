@@ -298,7 +298,7 @@ if __name__ == "__main__":
             "-p",
             "--package",
             help="The enclave package to load (e.g., libloggingenc)",
-            default="libloggingenc"
+            default="libloggingenc",
         )
 
     args = e2e_args.cli_args(add)

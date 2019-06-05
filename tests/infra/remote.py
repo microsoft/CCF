@@ -205,7 +205,6 @@ class SSHRemote(CmdMixin):
         if wait_for_termination:
             self._wait_for_termination(stdout)
 
-
     def stop(self):
         """
         Disconnect the client, and therefore shut down the command as well.
@@ -332,7 +331,7 @@ class LocalRemote(CmdMixin):
             raise TimeoutError("Timed out waiting for LocalRemote to terminate")
 
         if self.proc.returncode is not 0:
-                raise RuntimeError("LocalRemote did not terminate gracefully")
+            raise RuntimeError("LocalRemote did not terminate gracefully")
 
     def start(self, wait_for_termination=False, timeout=10):
         """
@@ -452,9 +451,7 @@ class CCFRemote(object):
         self.BIN = infra.path.build_bin_path(self.BIN, enclave_type)
         self.ledger_file = ledger_file
         self.ledger_file_name = (
-            os.path.basename(ledger_file)
-            if ledger_file
-            else f"{node_id}"
+            os.path.basename(ledger_file) if ledger_file else f"{node_id}"
         )
 
         cmd = [self.BIN, f"--enclave-file={lib_path}"]
@@ -472,10 +469,7 @@ class CCFRemote(object):
                     "Quoted data should be specified when starting remote in verify mode"
                 )
 
-            cmd += [
-                f"--quote-file={other_quote}",
-                f"--quoted-data={other_quoted_data}",
-            ]
+            cmd += [f"--quote-file={other_quote}", f"--quoted-data={other_quoted_data}"]
         else:
             cmd = [
                 self.BIN,
