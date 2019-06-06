@@ -97,7 +97,6 @@ class CCFRemoteClient(object):
                         self.remote.get(csv, 1)
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.name))
-            raise
 
     def wait(self):
         try:
