@@ -40,25 +40,6 @@ jobs:
         cmake_args: '-DBUILD_SMALLBANK=OFF'
         suite_name_suffix: ' SGX'
 
-- job: ACC_1804_virtual_coverage_build
-  pool: Ubuntu-1804-SGX-Azure
-  dependsOn: static_checks
-  steps:
-    - template: .vsts-ci-templates/build_and_test.yml
-      parameters:
-        cmake_args: '-DVIRTUAL_ONLY=ON -DBUILD_SMALLBANK=OFF'
-        suite_name_suffix: ' Virtual Coverage'
-    - template: .vsts-ci-templates/coverage.yml
-
-- job: ACC_1804_virtual_SAN_build
-  pool: Ubuntu-1804-SGX-Azure
-  dependsOn: static_checks
-  steps:
-    - template: .vsts-ci-templates/build_and_test.yml
-      parameters:
-        cmake_args: '-DVIRTUAL_ONLY=ON -DSAN=ON -DBUILD_SMALLBANK=OFF'
-        suite_name_suffix: ' Virtual SAN'
-
 - job: ACC_1804_SGX_perf_build
   pool: Ubuntu-1804-SGX-Azure
   dependsOn: static_checks
