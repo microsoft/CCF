@@ -97,9 +97,5 @@ workflows:
   ci:
     jobs:
       - static_checks
-      - build_coverage:
-          requires:
-            - static_checks
-      - build_san:
-          requires:
-            - static_checks
+      - build_coverage
+      - build_san
