@@ -72,7 +72,7 @@ executors:
       - image: ccfciteam/ccf-ci-18.04:latest
 
 jobs:
-  build:
+  build_coverage:
     executor: large_1804
     steps:
       - build_and_tests
@@ -83,3 +83,9 @@ jobs:
       - build_and_tests:
           cmake_flags: "-DSAN=ON"
           suite_name: "SAN"
+
+workflows:
+  workflow:
+    jobs:
+      - build_coverage
+      - build_san
