@@ -1,15 +1,7 @@
 version: 2.1
 
 commands:
-  build_and_tests:
-    parameters:
-      cmake_flags:
-        type: string
-        default: ""
-      suite_name:
-        type: string
-        default: "coverage"
-
+  static_checks:
     steps:
       - checkout
       - run:
@@ -28,6 +20,18 @@ commands:
             source env/bin/activate
             pip install black
             black --check sphinx/ tests/ notice-check.py
+
+  build_and_tests:
+    parameters:
+      cmake_flags:
+        type: string
+        default: ""
+      suite_name:
+        type: string
+        default: "coverage"
+
+    steps:
+      - checkout
       - run:
           name: Make build directory
           command: mkdir build
@@ -66,12 +70,20 @@ commands:
           working_directory: build
 
 executors:
+  small_1804:
+    resource_class: small
+    docker:
+      - image: ccfciteam/ccf-ci-18.04:latest
   large_1804:
     resource_class: large
     docker:
       - image: ccfciteam/ccf-ci-18.04:latest
 
 jobs:
+  pre_build_checks:
+    executor: small_1804
+    steps:
+      - static_checks
   build_coverage:
     executor: large_1804
     steps:
@@ -87,5 +99,9 @@ jobs:
 workflows:
   workflow:
     jobs:
-      - build_coverage
-      - build_san
+      - pre_build_checks
+      - build_coverage:
+        requires:
+          - pre_build_checks
+      - build_san:
+          - pre_build_checks
