@@ -60,6 +60,7 @@ executors:
 
 jobs:
   static_checks:
+    executor: small_1804
     steps:
       - checkout
       - run:
