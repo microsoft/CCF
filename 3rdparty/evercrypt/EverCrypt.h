@@ -102,7 +102,7 @@ EverCrypt_aes256_compute(EverCrypt_aes256_key_s *k1, uint8_t *plain, uint8_t *ci
 
 extern void EverCrypt_aes256_free(EverCrypt_aes256_key_s *pk);
 
-extern void
+void
 EverCrypt_aes128_gcm_encrypt(
   uint8_t *key,
   uint8_t *iv,
@@ -114,7 +114,7 @@ EverCrypt_aes128_gcm_encrypt(
   uint8_t *tag
 );
 
-extern uint32_t
+uint32_t
 EverCrypt_aes128_gcm_decrypt(
   uint8_t *key,
   uint8_t *iv,
@@ -126,7 +126,7 @@ EverCrypt_aes128_gcm_decrypt(
   uint8_t *tag
 );
 
-extern void
+void
 EverCrypt_aes256_gcm_encrypt(
   uint8_t *key,
   uint8_t *iv,
@@ -138,7 +138,7 @@ EverCrypt_aes256_gcm_encrypt(
   uint8_t *tag
 );
 
-extern uint32_t
+uint32_t
 EverCrypt_aes256_gcm_decrypt(
   uint8_t *key,
   uint8_t *iv,
@@ -267,12 +267,12 @@ extern EverCrypt__dh_state
 
 extern void EverCrypt_dh_free_group(EverCrypt__dh_state *st);
 
-extern uint32_t EverCrypt_dh_keygen(EverCrypt__dh_state *st, uint8_t *public);
+extern uint32_t EverCrypt_dh_keygen(EverCrypt__dh_state *st, uint8_t *pub);
 
 extern uint32_t
 EverCrypt_dh_compute(
   EverCrypt__dh_state *st,
-  uint8_t *public,
+  uint8_t *pub,
   uint32_t public_len,
   uint8_t *out1
 );
@@ -459,6 +459,10 @@ typedef void *EverCrypt_Hash_e_alg;
 
 typedef uint8_t EverCrypt_Hash_state_s_tags;
 
+
+#ifndef EVERCRYPT_HASH_STATE_S_S
+#define EVERCRYPT_HASH_STATE_S_S 1
+
 typedef struct EverCrypt_Hash_state_s_s
 {
   EverCrypt_Hash_state_s_tags tag;
@@ -473,6 +477,7 @@ typedef struct EverCrypt_Hash_state_s_s
   ;
 }
 EverCrypt_Hash_state_s;
+#endif
 
 extern bool
 EverCrypt_Hash_uu___is_MD5_s(
@@ -587,6 +592,9 @@ EverCrypt_Hash_hash(
   uint32_t len1
 );
 
+#ifndef EVERCRYPT_HASH_INCREMENTAL_STATE_S
+#define EVERCRYPT_HASH_INCREMENTAL_STATE_S 1
+
 typedef struct EverCrypt_Hash_Incremental_state_s
 {
   EverCrypt_Hash_state_s *hash_state;
@@ -594,6 +602,7 @@ typedef struct EverCrypt_Hash_Incremental_state_s
   uint64_t total_len;
 }
 EverCrypt_Hash_Incremental_state;
+#endif
 
 extern bool
 EverCrypt_Hash_Incremental_uu___is_State(
