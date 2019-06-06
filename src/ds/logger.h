@@ -11,7 +11,6 @@
 #include <sstream>
 #include <string>
 
-
 #ifndef INSIDE_ENCLAVE
 #  include <cxxabi.h>
 #  include <execinfo.h>

@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #include "libbyz/Cycle_counter.h"
 #include "libbyz/ITimer.h"
+#include "libbyz/Message.h"
 #include "libbyz/Statistics.h"
 #include "libbyz/Time.h"
 #include "libbyz/network.h"
-#include "libbyz/Message.h"
 #include "libbyz/types.h"
 #include "node/nodetonode.h"
 #include "raft/rafttypes.h"
@@ -191,7 +191,7 @@ public:
     return true;
   }
 
-  int Send(Message *msg, IPrincipal& principal) override
+  int Send(Message* msg, IPrincipal& principal) override
   {
     raft::NodeId to = principal.pid();
     raft::RaftHeader hdr = {raft::RaftMsgType::pbft_message, id};
@@ -202,13 +202,16 @@ public:
     auto space = serialized_msg.size();
     serialized::write<raft::RaftHeader>(data_, space, hdr);
     serialized::write(
-      data_, space, reinterpret_cast<const uint8_t*>(msg->contents()), msg->size());
+      data_,
+      space,
+      reinterpret_cast<const uint8_t*>(msg->contents()),
+      msg->size());
 
     n2n_channels->send_authenticated(to, serialized_msg);
     return msg->size();
   }
 
-  virtual Message *GetNextMessage() override
+  virtual Message* GetNextMessage() override
   {
     assert("Should not be called");
     return nullptr;
