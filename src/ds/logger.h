@@ -11,12 +11,6 @@
 #include <sstream>
 #include <string>
 
-#ifndef INSIDE_ENCLAVE
-#  include <cxxabi.h>
-#  include <execinfo.h>
-
-#endif
-
 namespace logger
 {
   enum Level
@@ -28,12 +22,6 @@ namespace logger
     FATAL, // fatal errors that lead to a termination of the program/enclave
     MAX_LOG_LEVEL
   };
-
-  static inline void print_stacktrace(
-    FILE* out = stdout, unsigned int max_frames = 63)
-  {
-    // TODO: Add stacktrace trace logging
-  }
 
   class config
   {

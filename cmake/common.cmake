@@ -374,13 +374,6 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
     if (PBFT)
       target_include_directories(${name} SYSTEM PRIVATE
         ${CCF_DIR}/ePBFT/src/pbft/
-        ${CCF_DIR}/src/ds/
-      )
-    endif()
-    if (PBFT)
-    target_link_libraries(${name} PRIVATE
-        -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
-        libbyz.enclave
       )
     endif()
     target_link_libraries(${name} PRIVATE
@@ -394,6 +387,12 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       evercrypt.enclave
       secp256k1.enclave
     )
+    if (PBFT)
+      target_link_libraries(${name} PRIVATE
+        -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
+        libbyz.enclave
+      )
+    endif()
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
     sign_app_library(${name} ${app_oe_conf_path} ${enclave_sign_key_path})
     enable_quote_code(${name})
@@ -423,7 +422,6 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   if (PBFT)
     target_include_directories(${virt_name} SYSTEM PRIVATE
       ${CCF_DIR}/ePBFT/src/pbft/
-      ${CCF_DIR}/src/ds/
     )
   endif()
   target_link_libraries(${virt_name} PRIVATE

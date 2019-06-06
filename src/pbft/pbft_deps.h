@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #include "libbyz/Cycle_counter.h"
 #include "libbyz/ITimer.h"
-#include "libbyz/Message.h"
 #include "libbyz/Statistics.h"
 #include "libbyz/Time.h"
 #include "libbyz/network.h"
@@ -84,11 +83,6 @@ void ITimer::stop()
 void ITimer::restop()
 {
   state = stopped;
-}
-
-ITimer::State ITimer::get_state() const
-{
-  return state;
 }
 
 void ITimer::handle_timeouts(std::chrono::milliseconds elapsed)
@@ -191,30 +185,28 @@ public:
     return true;
   }
 
-  int Send(Message* msg, IPrincipal& principal) override
+  int Send(void* buf, uint32_t size, IPrincipal& principal) override
   {
     raft::NodeId to = principal.pid();
     raft::RaftHeader hdr = {raft::RaftMsgType::pbft_message, id};
 
     // TODO: Encrypt msg here
-    std::vector<uint8_t> serialized_msg(sizeof(raft::RaftHeader) + msg->size());
-    auto data_ = serialized_msg.data();
-    auto space = serialized_msg.size();
+    std::vector<uint8_t> msg(sizeof(raft::RaftHeader) + size);
+    auto data_ = msg.data();
+    auto space = msg.size();
     serialized::write<raft::RaftHeader>(data_, space, hdr);
     serialized::write(
-      data_,
-      space,
-      reinterpret_cast<const uint8_t*>(msg->contents()),
-      msg->size());
+      data_, space, reinterpret_cast<const uint8_t*>(buf), size);
 
-    n2n_channels->send_authenticated(to, serialized_msg);
-    return msg->size();
+    n2n_channels->send_authenticated(to, msg);
+    return size;
   }
 
-  virtual Message* GetNextMessage() override
+  virtual void GetNextMessage(
+    void* buf, size_t msize, size_t size, uint32_t message_rep_size) override
   {
     assert("Should not be called");
-    return nullptr;
+    return;
   }
 
   virtual bool has_messages(long to) override

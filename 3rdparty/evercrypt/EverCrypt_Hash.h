@@ -45,8 +45,6 @@ typedef void *EverCrypt_Hash_e_alg;
 
 typedef uint8_t EverCrypt_Hash_state_s_tags;
 
-#ifndef EVERCRYPT_HASH_STATE_S_S
-#define EVERCRYPT_HASH_STATE_S_S 1
 typedef struct EverCrypt_Hash_state_s_s
 {
   EverCrypt_Hash_state_s_tags tag;
@@ -61,7 +59,6 @@ typedef struct EverCrypt_Hash_state_s_s
   ;
 }
 EverCrypt_Hash_state_s;
-#endif
 
 bool
 EverCrypt_Hash_uu___is_MD5_s(
@@ -338,8 +335,6 @@ EverCrypt_Hash_hash(
   uint32_t len1
 );
 
-#ifndef EVERCRYPT_HASH_INCREMENTAL_STATE_S
-#define EVERCRYPT_HASH_INCREMENTAL_STATE_S 1
 typedef struct EverCrypt_Hash_Incremental_state_s
 {
   EverCrypt_Hash_state_s *hash_state;
@@ -347,7 +342,6 @@ typedef struct EverCrypt_Hash_Incremental_state_s
   uint64_t total_len;
 }
 EverCrypt_Hash_Incremental_state;
-#endif
 
 bool
 EverCrypt_Hash_Incremental_uu___is_State(
