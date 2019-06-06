@@ -103,3 +103,4 @@ class CCFRemoteClient(object):
             self.remote.wait_for_stdout_line(line="Global commit", timeout=5)
         except Exception:
             LOG.exception("Failed to wait on client {}".format(self.name))
+            raise
