@@ -56,5 +56,5 @@ The ``e2e`` test script takes several additional parameters, documented by passi
 
 .. rubric:: Footnotes
 
-.. [#log_location] The log location should be visible in the Python output. By default, node ``N`` will log to files ``out`` and ``err`` in ``/tmp/{USER}_{N}``
+.. [#log_location] The log location should be visible in the Python output. By default, node ``N`` will log to files ``out`` and ``err`` in ``CCF/build/workspace/end_to_end_scenario_{N}``
 

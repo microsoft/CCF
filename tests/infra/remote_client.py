@@ -11,7 +11,6 @@ from glob import glob
 
 from loguru import logger as LOG
 
-USER = getpass.getuser()
 DBG = os.getenv("DBG", "cgdb")
 
 
@@ -26,6 +25,8 @@ class CCFRemoteClient(object):
         bin_path,
         node_host,
         node_port,
+        workspace,
+        label,
         iterations,
         config,
         command_args,
@@ -58,7 +59,9 @@ class CCFRemoteClient(object):
             "--config={}".format(os.path.basename(config)),
         ] + command_args
 
-        self.remote = remote_class(name, host, [self.BIN] + self.DEPS, cmd)
+        self.remote = remote_class(
+            name, host, [self.BIN] + self.DEPS, [], cmd, workspace, label
+        )
 
     def setup(self):
         self.remote.setup()

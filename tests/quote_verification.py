@@ -4,125 +4,66 @@ import os
 import sys
 import time
 import socket
+import infra.ccf
 from subprocess import check_call, Popen
 from contextlib import contextmanager
 from random import randrange as rr
 from glob import glob
 
-
-def rm(path):
-    print(">> rm {}".format(path))
-    try:
-        os.remove(path)
-    except OSError:
-        pass
+import e2e_args
+from loguru import logger as LOG
 
 
-@contextmanager
-def wd(path):
-    cwd = os.getcwd()
-    print(">> cd {}".format(path))
-    os.chdir(path)
-    try:
-        yield
-    except Exception:
-        raise
-    finally:
-        os.chdir(cwd)
+def verify_quote(args, host, quote_path, quoted_path, should_fail=False):
+
+    verifying_node_id = 0
+    with infra.ccf.node(
+        verifying_node_id, host, args.build_dir, False, False, False, True
+    ) as verifying_node:
+
+        failed = False
+        try:
+            verifying_node.start(
+                args.package,
+                args.enclave_type,
+                args.workspace,
+                args.label,
+                quote_path,
+                quoted_path,
+            )
+            failed = should_fail
+        except RuntimeError:
+            failed = not should_fail
+        finally:
+            if failed:
+                raise RuntimeError("Quote verification did not behave as expected")
 
 
-@contextmanager
-def create_node(lib_path, node_id, quote_path, cert_path):
-    cmd = [
-        "./cchost",
-        "--enclave-file={}".format(lib_path),
-        "--quote-file={}".format(quote_path),
-        "--node-cert-file={}".format(cert_path),
-        "--raft-port=0",
-        "--tls-port=0",
-    ]
-    print(">> {} &".format(" ".join(cmd)))
-    proc = Popen(
-        cmd,
-        stdout=open("n{}.out".format(node_id), "wb"),
-        stderr=open("n{}.err".format(node_id), "wb"),
-    )
-    try:
-        yield proc
-    except Exception:
-        raise
-    finally:
-        print(">> kill {}".format(" ".join(cmd)))
-        proc.terminate()
-        proc.wait()
+def run(args):
 
+    host = "localhost"
+    node_id_1 = 1
+    node_id_2 = 2
 
-def verify_quote(lib_path, quote_path, quoted_path, should_fail=False):
-    # As per OE 0.4.0, oe_verify_report() on the host leaks memory.
-    # Turn ASAN leak check off for now until OE fixes it.
-    asan_env_disable_leak = {"ASAN_OPTIONS": "detect_leaks=0"}
-    cmd = [
-        "./cchost",
-        "--enclave-file={}".format(lib_path),
-        "--start=verify",
-        "--quote-file={}".format(quote_path),
-        "--quoted-data={}".format(quoted_path),
-    ]
-    print(">> {} &".format(" ".join(cmd)))
-    proc = Popen(
-        cmd,
-        stdout=open("verifier.out", "wb"),
-        stderr=open("verifier.err", "wb"),
-        env=asan_env_disable_leak,
-    )
-    try:
-        proc.wait()
-        failed = proc.returncode is not 0
-    except Exception as e:
-        print("ERROR")
-        print(e)
-        failed = True
-    finally:
-        if should_fail is not failed:
-            raise RuntimeError("Quote verification did not behave as expected!")
+    with infra.ccf.node(node_id_1, host, args.build_dir) as node1:
+        node1.start(args.package, args.enclave_type, args.workspace, args.label)
 
+        with infra.ccf.node(node_id_2, host, args.build_dir) as node2:
+            node2.start(args.package, args.enclave_type, args.workspace, args.label)
 
-def wait_for_file(path, max_waits=10):
-    for _ in range(max_waits):
-        if os.path.exists(path):
-            break
-        time.sleep(1)
-    else:
-        raise ValueError(path)
+            node1_quote_path = node1.remote.get_quote()
+            node1_cert_path = node1.remote.get_cert()
+            node2_quote_path = node2.remote.get_quote()
+            node2_cert_path = node2.remote.get_cert()
 
-
-def run(build_directory, lib_path):
-    with wd(build_directory):
-        q0 = "q0.bin"
-        p0 = "p0.pem"
-        q1 = "q1.bin"
-        p1 = "p1.pem"
-        rm(q0)
-        rm(p0)
-        rm(q1)
-        rm(p1)
-        with create_node(lib_path, 0, q0, p0) as n0, create_node(
-            lib_path, 1, q1, p1
-        ) as n1:
-            # Wait for quote files to be written, then kill these nodes
-            wait_for_file(p0)
-            wait_for_file(q0)
-            wait_for_file(p1)
-            wait_for_file(q1)
-
-        verify_quote(lib_path, q0, p0)
-        verify_quote(lib_path, q1, p1)
-        verify_quote(lib_path, q0, p1, True)
-        verify_quote(lib_path, q1, p0, True)
-        print("Passed")
+            verify_quote(args, host, node1_quote_path, node1_cert_path)
+            verify_quote(args, host, node2_quote_path, node2_cert_path)
+            verify_quote(args, host, node1_quote_path, node2_cert_path, True)
+            verify_quote(args, host, node2_quote_path, node1_cert_path, True)
 
 
 if __name__ == "__main__":
-    build_directory = sys.argv[1]
-    lib_path = sys.argv[2]
-    run(build_directory, lib_path)
+
+    args = e2e_args.cli_args()
+    args.package = "libloggingenc"
+    run(args)

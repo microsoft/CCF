@@ -110,7 +110,6 @@ namespace ccfapp
     {
       // SNIPPET_START: record
       // SNIPPET_START: macro_validation_record
-      register_auto_schema<LoggingRecord::In, void>(Procs::LOG_RECORD);
       auto record = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<LoggingRecord::In>();
         // SNIPPET_END: macro_validation_record
@@ -121,7 +120,6 @@ namespace ccfapp
       // SNIPPET_END: record
 
       // SNIPPET_START: get
-      register_auto_schema<LoggingGet>(Procs::LOG_GET);
       auto get = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<LoggingGet::In>();
         auto view = tx.get_view(records);
@@ -137,10 +135,6 @@ namespace ccfapp
 
       // SNIPPET_START: record_public
       // SNIPPET_START: valijson_record_public
-      register_schema(
-        Procs::LOG_RECORD_PUBLIC,
-        record_public_params_schema,
-        nlohmann::json::object());
       auto record_public = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto validation_error =
           validate(params, record_public_params_schema);
@@ -159,10 +153,6 @@ namespace ccfapp
       // SNIPPET_END: record_public
 
       // SNIPPET_START: get_public
-      register_schema(
-        Procs::LOG_GET_PUBLIC,
-        get_public_params_schema,
-        get_public_result_schema);
       auto get_public = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto validation_error =
           validate(params, get_public_params_schema);
@@ -189,11 +179,21 @@ namespace ccfapp
       // SNIPPET_END: get_public
 
       // SNIPPET: install_record
-      install(Procs::LOG_RECORD, record, Write);
-      install(Procs::LOG_GET, get, Read);
+      install_with_auto_schema<LoggingRecord::In, void>(
+        Procs::LOG_RECORD, record, Write);
+      install_with_auto_schema<LoggingGet>(Procs::LOG_GET, get, Read);
 
-      install(Procs::LOG_RECORD_PUBLIC, record_public, Write);
-      install(Procs::LOG_GET_PUBLIC, get_public, Read);
+      install(
+        Procs::LOG_RECORD_PUBLIC,
+        record_public,
+        Write,
+        record_public_params_schema);
+      install(
+        Procs::LOG_GET_PUBLIC,
+        get_public,
+        Read,
+        get_public_params_schema,
+        get_public_result_schema);
 
       nwt.signatures.set_global_hook([this, &notifier](
                                        kv::Version version,

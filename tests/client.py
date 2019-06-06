@@ -53,8 +53,6 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         "--config", help="Path to config for client binary", default=default_config_path
     )
 
-    # Some common client binary args are exposed here for ease
-    parser.add_argument("--label", help="Test label name in perf summary output file")
     parser.add_argument(
         "-i", "--iterations", help="Number of transactions", required=True, type=int
     )
@@ -76,7 +74,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "-p",
             "--package",
-            help="The enclave package to load (e.g., libsimplebank)",
+            help="The enclave package to load (e.g., libloggingenc)",
             required=True,
         )
 
