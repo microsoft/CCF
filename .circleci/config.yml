@@ -6,6 +6,9 @@ commands:
       cmake_flags:
         type: string
         default: ""
+      suite_name:
+        type: string
+        default: "coverage"
 
     steps:
       - checkout
@@ -30,7 +33,7 @@ commands:
           command: mkdir build
       - run:
           name: CMake
-          command: cmake -GNinja -DVIRTUAL_ONLY=ON << parameters.cmake_flags >> ..
+          command: cmake -GNinja -DVIRTUAL_ONLY=ON -DBUILD_SMALLBANK=OFF << parameters.cmake_flags >> ..
           working_directory: build
       - run:
           name: Ninja
@@ -45,9 +48,10 @@ commands:
           working_directory: build
           command: |
             mkdir -p test-results/junit
-            xsltproc --stringparam suiteName "Virtual Build" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > test-results/junit/results.xml
+            xsltproc --stringparam suiteName "<< parameters.suite_name >>" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > test-results/junit/results.xml
       - store_test_results:
           path: build/test-results
+
   gather_and_push_coverage:
     steps:
       - run:
@@ -73,3 +77,9 @@ jobs:
     steps:
       - build_and_tests
       - gather_and_push_coverage
+  build_san:
+    executor: large_1804
+    steps:
+      - build_and_tests:
+        cmake_flags: "-DSAN=ON"
+        suite_name: "SAN"
