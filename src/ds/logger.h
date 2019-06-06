@@ -11,9 +11,11 @@
 #include <sstream>
 #include <string>
 
+
 #ifndef INSIDE_ENCLAVE
-#include <execinfo.h>
-#include <cxxabi.h>
+#  include <cxxabi.h>
+#  include <execinfo.h>
+
 #endif
 
 namespace logger
