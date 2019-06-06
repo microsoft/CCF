@@ -8,6 +8,7 @@ message(STATUS "Using EverCrypt at ${EVERCRYPT_PREFIX}")
 set(EVERCRYPT_INC
   ${EVERCRYPT_PREFIX}
   ${EVERCRYPT_PREFIX}/kremlin
+  ${EVERCRYPT_PREFIX}/kremlin/include
 )
 
 file(GLOB_RECURSE EVERCRYPT_SRC "${EVERCRYPT_PREFIX}/*.[cS]")
