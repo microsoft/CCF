@@ -1,26 +1,77 @@
-version: 2
-jobs:
-  build:
-    resource_class: large
+version: 2.1
 
+commands:
+  build_and_tests:
+    parameters:
+      cmake_flags:
+        type: string
+        default: ""
+      suite_name:
+        type: string
+        default: "coverage"
+    steps:
+      - checkout
+      - run:
+          name: Make build directory
+          command: mkdir build
+      - run:
+          name: CMake
+          command: cmake -GNinja -DVIRTUAL_ONLY=ON -DBUILD_SMALLBANK=OFF << parameters.cmake_flags >> ..
+          working_directory: build
+      - run:
+          name: Ninja
+          command: ninja -j4
+          working_directory: build
+      - run:
+          name: Run tests
+          working_directory: build
+          command: ./tests.sh -VV --timeout 240 --no-compress-output -T Test
+      - run:
+          name: Extract test results
+          working_directory: build
+          command: |
+            mkdir -p test-results/junit
+            xsltproc --stringparam suiteName "<< parameters.suite_name >>" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > test-results/junit/results.xml
+      - store_test_results:
+          path: build/test-results
+
+  gather_and_push_coverage:
+    steps:
+      - run:
+          name: Gather coverage data
+          working_directory: build
+          command: |
+            ls *_test | xargs -n1 -I '{}' llvm-profdata-7 merge {}.profraw -o {}.profdata
+            ls *_test | xargs -n1 -I '{}' sh -c 'printf "\n*** Binary: {} ***\n "; llvm-cov-7 report -object {} -instr-profile {}.profdata -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)"'
+      - run:
+          name: Push coverage
+          command: ../tests/coverage/generate_coverage.sh
+          working_directory: build
+
+executors:
+  small_1804:
+    resource_class: small
+    docker:
+      - image: ccfciteam/ccf-ci-18.04:latest
+  large_1804:
+    resource_class: large
     docker:
       - image: ccfciteam/ccf-ci-18.04:latest
 
+jobs:
+  static_checks:
+    executor: small_1804
     steps:
       - checkout
-
       - run:
           name: Shell Check
           command: find . -regex ".*\.sh$" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091
-
       - run:
           name: Check copyright notices
           command: python3.7 notice-check.py
-
       - run:
           name: Check C++ code format
           command: ./check-format.sh src
-
       - run:
           name: Check Python code format
           command: |
@@ -29,31 +80,22 @@ jobs:
             pip install black
             black --check sphinx/ tests/ notice-check.py
 
-      - run:
-          name: Make build directory
-          command: mkdir build
+  build_coverage:
+    executor: large_1804
+    steps:
+      - build_and_tests
+      - gather_and_push_coverage
 
-      - run:
-          name: CMake
-          command: 'cmake -GNinja -DVIRTUAL_ONLY=ON ..'
-          working_directory: build
+  build_san:
+    executor: large_1804
+    steps:
+      - build_and_tests:
+          cmake_flags: "-DSAN=ON"
+          suite_name: "SAN"
 
-      - run:
-          name: Ninja
-          command: ninja -j4
-          working_directory: build
-
-      - run:
-          name: Run tests
-          working_directory: build
-          command: ./tests.sh -VV --timeout 240 --no-compress-output -T Test
-
-      - run:
-          name: Extract test results
-          working_directory: build
-          command: |
-            mkdir -p test-results/junit
-            xsltproc --stringparam suiteName "Virtual Build" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > test-results/junit/results.xml
-
-      - store_test_results:
-          path: build/test-results
+workflows:
+  ci:
+    jobs:
+      - static_checks
+      - build_coverage
+      - build_san
