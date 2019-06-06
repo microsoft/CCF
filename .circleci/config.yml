@@ -4,6 +4,7 @@ commands:
   build_and_tests:
     parameters:
       cmake_flags:
+        type: string
         default: ""
 
     steps:
