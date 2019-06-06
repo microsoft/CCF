@@ -4,6 +4,7 @@
 #include "ds/files.h"
 #include "node/entities.h"
 #include "node/members.h"
+#include "node/nodes.h"
 #include "node/proposals.h"
 #include "node/rpc/jsonrpc.h"
 #include "node/script.h"
@@ -120,6 +121,13 @@ void submit_accept_node(RpcTlsClient& tls_connection, NodeId node_id)
   const auto response =
     json::from_msgpack(tls_connection.call("propose", params));
   cout << response.dump() << endl;
+}
+
+NodeId submit_add_node(RpcTlsClient& tls_connection, NodeInfo& node_info)
+{
+  const auto response =
+    json::from_msgpack(tls_connection.call("add_node", node_info));
+  return response["result"];
 }
 
 void submit_accept_recovery(
@@ -267,6 +275,21 @@ int main(int argc, char** argv)
   auto ack =
     app.add_subcommand("ack", "Acknowledge self added into the network");
 
+  NodeInfo node_info;
+  std::string new_node_cert_file;
+  auto add_node = app.add_subcommand("add_node", "Make a node trusted");
+  add_node->add_option("--new_node_host", node_info.host, "The node id")
+    ->required(true);
+  add_node->add_option("--new_node_pub_host", node_info.pubhost, "The node id")
+    ->required(true);
+  add_node
+    ->add_option("--new_node_raft_port", node_info.raftport, "The node id")
+    ->required(true);
+  add_node->add_option("--new_node_tls_port", node_info.tlsport, "The node id")
+    ->required(true);
+  add_node->add_option("--new_node_cert", new_node_cert_file, "The node id")
+    ->required(true);
+
   NodeId node_id;
   auto accept_node = app.add_subcommand("accept_node", "Make a node trusted");
   accept_node->add_option("--id", node_id, "The node id")->required(true);
@@ -324,6 +347,17 @@ int main(int argc, char** argv)
     if (*add_user)
     {
       add_new(*tls_connection, user_cert_file, add_user_proposal);
+    }
+
+    if (*add_node)
+    {
+      const auto new_node_raw_cert = slurp(new_node_cert_file);
+      node_info.cert = new_node_raw_cert;
+      auto new_node_id = submit_add_node(*tls_connection, node_info);
+      // nodes are untrusted until they are accepted, so a member should
+      // stage a vote to accept the new node (the current member will do just
+      // fine).
+      submit_accept_node(*tls_connection, new_node_id);
     }
 
     if (*accept_node)
