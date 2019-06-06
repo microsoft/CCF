@@ -7,7 +7,7 @@ executors:
       - image: ccfciteam/ccf-ci-18.04:latest
 
 jobs:
-  build_coverage:
+  build:
     executor: large_1804
     steps:
       - checkout
