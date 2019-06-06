@@ -101,7 +101,8 @@ workflows:
     jobs:
       - pre_build_checks
       - build_coverage:
-        requires:
-          - pre_build_checks
+          requires:
+            - pre_build_checks
       - build_san:
-          - pre_build_checks
+          requires:
+            - pre_build_checks
