@@ -237,21 +237,36 @@ class SSHRemote(CmdMixin):
     def _dbg(self):
         return "cd {} && {} --args ./{}".format(self.root, DBG, " ".join(self.cmd))
 
-    def wait_for_stdout_line(self, line, timeout):
+    def _connect_new(self):
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         client.connect(self.hostname)
+        return client
+
+    def wait_for_stdout_line(self, line, timeout):
+        client = self._connect_new()
         try:
             for _ in range(timeout):
-                _, stdout, _ = self.client.exec_command(
-                    "grep -F '{}' {}/out".format(line, self.root)
-                )
+                _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.root}/out")
                 if stdout.channel.recv_exit_status() == 0:
                     return
                 time.sleep(1)
             raise ValueError(
                 "{} not found in stdout after {} seconds".format(line, timeout)
             )
+        finally:
+            client.close()
+
+    def print_result(self, lines):
+        client = self._connect_new()
+        LOG.error("print_result remote")
+        try:
+            _, stdout, _ = client.exec_command(f"tail -{lines} {self.root}/out")
+            if stdout.channel.recv_exit_status() == 0:
+                LOG.success(f"Result for {self.name}:")
+                for line in stdout.read().splitlines():
+                    LOG.debug(line.decode())
+                return
         finally:
             client.close()
 
@@ -286,6 +301,7 @@ class LocalRemote(CmdMixin):
         self.stdout = None
         self.stderr = None
         self.env = env
+        self.name = name
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
@@ -391,6 +407,14 @@ class LocalRemote(CmdMixin):
         raise ValueError(
             "{} not found in stdout after {} seconds".format(line, timeout)
         )
+
+    def print_result(self, line):
+        with open(os.path.join(self.root, "out"), "rb") as out:
+            lines = out.read().splitlines()
+            result = lines[-line:]
+            LOG.success(f"Result for {self.name}:")
+            for line in result:
+                LOG.debug(line.decode())
 
 
 CCF_TO_OE_LOG_LEVEL = {
@@ -581,6 +605,9 @@ class CCFRemote(object):
 
     def wait_for_stdout_line(self, line, timeout=5):
         return self.remote.wait_for_stdout_line(line, timeout)
+
+    def print_result(self, lines):
+        self.remote.print_result(lines)
 
     def set_recovery(self):
         self.remote.set_recovery()

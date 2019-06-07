@@ -17,6 +17,7 @@ DBG = os.getenv("DBG", "cgdb")
 class CCFRemoteClient(object):
     BIN = "cchost"
     DEPS = []
+    LINES_RESULT_FROM_END = 6
 
     def __init__(
         self,
@@ -60,7 +61,7 @@ class CCFRemoteClient(object):
         ] + command_args
 
         self.remote = remote_class(
-            name, host, [self.BIN] + self.DEPS, [], cmd, workspace, label
+            name, host, [self.BIN], self.DEPS, cmd, workspace, label
         )
 
     def setup(self):
@@ -104,3 +105,6 @@ class CCFRemoteClient(object):
         except Exception:
             LOG.exception("Failed to wait on client {}".format(self.name))
             raise
+
+    def print_result(self):
+        self.remote.print_result(self.LINES_RESULT_FROM_END)
