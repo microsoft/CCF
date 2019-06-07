@@ -635,7 +635,7 @@ function(add_perf_test)
 
   add_test(
     NAME ${PARSED_ARGS_NAME}
-    COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
+    COMMAND python3 ${PARSED_ARGS_PYTHON_SCRIPT}
       -b .
       --label ${PARSED_ARGS_NAME}
       -c ${PARSED_ARGS_CLIENT_BIN}
