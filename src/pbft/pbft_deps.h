@@ -202,7 +202,10 @@ public:
     auto space = serialized_msg.size();
     serialized::write<raft::RaftHeader>(data_, space, hdr);
     serialized::write(
-      data_, space, reinterpret_cast<const uint8_t*>(msg->contents()), msg->size());
+      data_,
+      space,
+      reinterpret_cast<const uint8_t*>(msg->contents()),
+      msg->size());
 
     n2n_channels->send_authenticated(to, serialized_msg);
     return msg->size();
