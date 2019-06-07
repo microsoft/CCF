@@ -13,6 +13,7 @@
 #include <inttypes.h>
 #include <stdbool.h>
 #include <kremlin/internal/types.h>
+#include "EverCrypt_Vale.h"
 
 #define Spec_Hash_Definitions_SHA2_224 0
 #define Spec_Hash_Definitions_SHA2_256 1
