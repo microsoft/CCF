@@ -20,6 +20,24 @@ namespace ccf
     {};
   };
 
+  struct JsonSchema
+  {
+    static constexpr auto hyperschema =
+      "http://json-schema.org/draft-07/schema#";
+
+    nlohmann::json schema;
+  };
+
+  inline void to_json(nlohmann::json& j, const JsonSchema& s)
+  {
+    j = s.schema;
+  }
+
+  inline void from_json(const nlohmann::json& j, JsonSchema& s)
+  {
+    s.schema = j;
+  }
+
   template <typename T>
   inline nlohmann::json schema_properties_element_numeric()
   {
@@ -106,6 +124,12 @@ namespace ccf
     {
       return schema_properties_element_numeric<T>();
     }
+    else if constexpr (std::is_same<T, JsonSchema>::value)
+    {
+      nlohmann::json element;
+      element["$ref"] = JsonSchema::hyperschema;
+      return element;
+    }
     else if constexpr (RequiredJsonFields<T>::value)
     {
       auto schema = nlohmann::json::object();
@@ -127,7 +151,7 @@ namespace ccf
   inline nlohmann::json build_schema(const std::string& title)
   {
     nlohmann::json schema;
-    schema["$schema"] = "http://json-schema.org/draft-07/schema#";
+    schema["$schema"] = JsonSchema::hyperschema;
     schema["title"] = title;
 
     fill_schema<T>(schema);

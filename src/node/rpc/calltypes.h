@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "ds/json_schema.h"
+
 #include <nlohmann/json.hpp>
 
 namespace ccf
@@ -64,8 +66,8 @@ namespace ccf
 
     struct Out
     {
-      nlohmann::json params_schema = nlohmann::json::object();
-      nlohmann::json result_schema = nlohmann::json::object();
+      JsonSchema params_schema = {};
+      JsonSchema result_schema = {};
     };
   };
 }
