@@ -55,7 +55,6 @@ if(BUILD_TESTS)
     NAME small_bank_sigs_forwarding
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
     CLIENT_BIN ./small_bank_client
-    VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank.json
     ADDITIONAL_ARGS
       --label Small_Bank_ClientSigs_Forwarding
       --max-writes-ahead 1000
