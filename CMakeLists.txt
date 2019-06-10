@@ -322,6 +322,16 @@ if(BUILD_TESTS)
       ${RECOVERY_ARGS}
   )
 
+  add_test(
+    NAME schema_tests
+    COMMAND
+      ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/schema.py
+      -b .
+      ${CCF_NETWORK_TEST_ARGS}
+      -p libloggingenc
+      --schema-dir ${CMAKE_SOURCE_DIR}/schema
+  )
+
   if (BUILD_SMALLBANK)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
   endif()
