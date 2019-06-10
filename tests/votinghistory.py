@@ -97,7 +97,7 @@ def run(args):
         j_result = json.loads(result.stdout)
         assert j_result["result"]
 
-        ledger_filename = network.find_leader()[0].remote.get_ledger_full_path()
+        ledger_filename = network.find_leader()[0].remote.ledger_path()
 
     l = ledger.Ledger(ledger_filename)
 
@@ -127,13 +127,6 @@ def run(args):
 
 if __name__ == "__main__":
 
-    def add(parser):
-        parser.add_argument(
-            "-p",
-            "--package",
-            help="The enclave package to load (e.g., libsimplebank)",
-            required=True,
-        )
-
-    args = e2e_args.cli_args(add)
+    args = e2e_args.cli_args()
+    args.package = "libloggingenc"
     run(args)

@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #include "enclave/appinterface.h"
 #include "node/entities.h"
-#include "node/rpc/userfrontend.h"
 #include "node/rpc/nodeinterface.h"
+#include "node/rpc/userfrontend.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -330,7 +330,8 @@ namespace ccfapp
     }
   };
 
-  std::shared_ptr<enclave::RpcHandler> get_rpc_handler(NetworkTables& nwt, AbstractNotifier& notifier)
+  std::shared_ptr<enclave::RpcHandler> get_rpc_handler(
+    NetworkTables& nwt, AbstractNotifier& notifier)
   {
     return make_shared<SmallBank>(*nwt.tables);
   }

@@ -158,6 +158,10 @@ namespace timing
       if (!j.is_object())
         return false;
 
+      const auto error_it = j.find("error");
+      if (error_it != j.end())
+        throw runtime_error("getCommit failed with error: " + error_it->dump());
+
       const auto local_commit_it = j.find("commit");
       if (local_commit_it == j.end())
         return false;
@@ -285,8 +289,8 @@ namespace timing
             if (receive.commit->global >= highest_local_commit.value())
             {
               std::cout << "global commit match: " << receive.commit->global
-                        << " for highest local commit: " << highest_local_commit.value()
-                        << std::endl;
+                        << " for highest local commit: "
+                        << highest_local_commit.value() << std::endl;
               auto was =
                 duration_cast<milliseconds>(end_time_delta).count() / 1000.0;
               auto is =

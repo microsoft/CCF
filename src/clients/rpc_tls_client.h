@@ -94,7 +94,7 @@ public:
    */
   std::vector<uint8_t> call(const std::string& method)
   {
-    return call(method, nlohmann::json::array());
+    return call(method, nlohmann::json::object());
   }
 
   std::vector<uint8_t> read_rpc()
