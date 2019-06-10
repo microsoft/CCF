@@ -10,6 +10,6 @@
   "required": [
     "id"
   ],
-  "title": "LOG_get_params",
+  "title": "LOG_get/params",
   "type": "object"
 }

@@ -8,6 +8,6 @@
   "required": [
     "method"
   ],
-  "title": "getSchema_params",
+  "title": "getSchema/params",
   "type": "object"
 }

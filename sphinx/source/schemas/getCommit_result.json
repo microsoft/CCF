@@ -16,6 +16,6 @@
     "term",
     "commit"
   ],
-  "title": "getCommit_result",
+  "title": "getCommit/result",
   "type": "object"
 }

@@ -11,6 +11,6 @@
   "required": [
     "methods"
   ],
-  "title": "listMethods_result",
+  "title": "listMethods/result",
   "type": "object"
 }

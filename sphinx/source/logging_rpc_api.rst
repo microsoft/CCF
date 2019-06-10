@@ -21,4 +21,4 @@ LOG_get_pub
 LOG_record_pub
 --------------
 
-.. jsonschema:: schemas/LOG_record_params.json
+.. jsonschema:: schemas/LOG_record_pub_params.json

@@ -18,6 +18,6 @@
     "leader_host",
     "leader_port"
   ],
-  "title": "getLeaderInfo_result",
+  "title": "getLeaderInfo/result",
   "type": "object"
 }
