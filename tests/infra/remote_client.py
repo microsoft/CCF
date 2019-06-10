@@ -43,14 +43,15 @@ class CCFRemoteClient(object):
         # strip out the config from the path
 
         self.DEPS = glob("*.pem") + [config]
+        client_command_args = list(command_args)
 
-        if "--verify" in command_args:
+        if "--verify" in client_command_args:
             # append verify file to the files to be copied
             # and fix the path in the argument list
-            v_index = command_args.index("--verify")
-            verify_path = command_args[v_index + 1]
+            v_index = client_command_args.index("--verify")
+            verify_path = client_command_args[v_index + 1]
             self.DEPS += [verify_path]
-            command_args[v_index + 1] = os.path.basename(verify_path)
+            client_command_args[v_index + 1] = os.path.basename(verify_path)
 
         cmd = [
             self.BIN,
@@ -58,7 +59,7 @@ class CCFRemoteClient(object):
             "--port={}".format(node_port),
             "--transactions={}".format(iterations),
             "--config={}".format(os.path.basename(config)),
-        ] + command_args
+        ] + client_command_args
 
         self.remote = remote_class(
             name, host, [self.BIN], self.DEPS, cmd, workspace, label
