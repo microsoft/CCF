@@ -309,12 +309,10 @@ if(BUILD_TESTS)
     )
   endif()
 
-  add_test(
+  add_e2e_test(
     NAME schema_tests
-    COMMAND
-      ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/schema.py
-      -b .
-      ${CCF_NETWORK_TEST_ARGS}
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+    ADDITIONAL_ARGS
       -p libloggingenc
       --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
   )
