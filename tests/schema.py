@@ -56,9 +56,9 @@ def run(args):
                                     LOG.debug(
                                         "Writing schema to {}".format(target_file)
                                     )
+                                    f.truncate(0)
                                     f.seek(0)
                                     f.write(formatted_schema)
-                                    f.truncate()
                                     changed_files.append(target_file)
                                 else:
                                     LOG.debug(
