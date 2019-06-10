@@ -329,7 +329,7 @@ if(BUILD_TESTS)
       -b .
       ${CCF_NETWORK_TEST_ARGS}
       -p libloggingenc
-      --schema-dir ${CMAKE_SOURCE_DIR}/src/runtime_config/schemas
+      --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
   )
 
   if (BUILD_SMALLBANK)
