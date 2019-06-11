@@ -129,7 +129,7 @@ NodeId submit_add_node(RpcTlsClient& tls_connection, NodeInfo& node_info)
 {
   const auto response =
     json::from_msgpack(tls_connection.call("add_node", node_info));
-  cout << response.dump() << endl;
+
   auto result = response.find("result");
   if (result != response.end())
     return result->get<NodeId>();
