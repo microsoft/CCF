@@ -595,7 +595,7 @@ function(add_e2e_test)
   "ADDITIONAL_ARGS"
   )
 
-if (BUILD_END_TO_END_TESTS)
+  if (BUILD_END_TO_END_TESTS)
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
