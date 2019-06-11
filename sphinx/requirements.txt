@@ -5,3 +5,4 @@ pygments-style-solarized
 bottle
 sphinx-autobuild
 sphinxcontrib-mermaid
+sphinx-jsonschema

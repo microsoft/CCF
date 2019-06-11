@@ -14,6 +14,7 @@ Welcome to CCF's documentation
    cryptography
    example
    demo
+   rpc_api
    api
    glossary
 

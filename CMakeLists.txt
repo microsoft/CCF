@@ -309,6 +309,14 @@ if(BUILD_TESTS)
     )
   endif()
 
+  add_e2e_test(
+    NAME schema_tests
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+    ADDITIONAL_ARGS
+      -p libloggingenc
+      --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
+  )
+
   if (BUILD_SMALLBANK)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
   endif()
