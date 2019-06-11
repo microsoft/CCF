@@ -33,7 +33,7 @@ def number_of_local_nodes():
 
 def get_command_args(args, get_command):
     command_args = []
-    if args.label is not None:
+    if args.label:
         command_args.append("--label={}".format(args.label))
     if args.sign:
         command_args.append("--sign")
@@ -62,6 +62,8 @@ def configure_remote_client(args, client_id, client_host, node, command_args):
             args.client,
             node.host,
             node.tls_port,
+            args.workspace,
+            args.label,
             args.iterations,
             args.config,
             command_args,
@@ -128,6 +130,7 @@ def run(build_directory, get_command, args):
                     if not tx_rates.process_next():
                         for i, remote_client in enumerate(clients):
                             remote_client.wait()
+                            remote_client.print_result()
                             # TODO: For now, only retrieve perf csv for the first client
                             # as all files have the same name on all clients
                             remote_client.stop(i == 0)

@@ -67,8 +67,8 @@ namespace ccf
       bool completed;
     };
   };
-  ADD_JSON_TRANSLATORS(Proposal::In, script, parameter)
-  ADD_JSON_TRANSLATORS(Proposal::Out, id, completed)
+  DECLARE_REQUIRED_JSON_FIELDS(Proposal::In, script, parameter)
+  DECLARE_REQUIRED_JSON_FIELDS(Proposal::Out, id, completed)
 
   struct OpenProposal : public Proposal::In
   {
@@ -83,7 +83,8 @@ namespace ccf
 
     MSGPACK_DEFINE(proposer, votes);
   };
-  ADD_JSON_TRANSLATORS_WITH_BASE(OpenProposal, Proposal::In, proposer, votes)
+  DECLARE_REQUIRED_JSON_FIELDS_WITH_BASE(
+    OpenProposal, Proposal::In, proposer, votes)
   using Proposals = Store::Map<ObjectId, OpenProposal>;
 
   struct ProposalAction
@@ -91,13 +92,13 @@ namespace ccf
     //! the id of the proposal subject to the action
     ObjectId id;
   };
-  ADD_JSON_TRANSLATORS(ProposalAction, id)
+  DECLARE_REQUIRED_JSON_FIELDS(ProposalAction, id)
 
   struct Vote : public ProposalAction
   {
     Script ballot;
   };
-  ADD_JSON_TRANSLATORS_WITH_BASE(Vote, ProposalAction, ballot)
+  DECLARE_REQUIRED_JSON_FIELDS_WITH_BASE(Vote, ProposalAction, ballot)
 
   //! A call proposed by a proposal script
   struct ProposedCall
@@ -107,7 +108,7 @@ namespace ccf
     //! the corresponding arguments
     nlohmann::json args;
   };
-  ADD_JSON_TRANSLATORS(ProposedCall, func, args)
+  DECLARE_REQUIRED_JSON_FIELDS(ProposedCall, func, args)
 
   /** A list of calls proposed (and returned) by a proposal script
    * Every proposal script must return a compatible data structure.

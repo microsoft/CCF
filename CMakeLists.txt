@@ -39,6 +39,8 @@ endif()
 
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
+option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
+
 # MemberClient executable
 add_executable(memberclient src/clients/memberclient.cpp)
 use_client_mbedtls(memberclient)
@@ -65,6 +67,9 @@ if(BUILD_TESTS)
   ## Unit tests
   add_unit_test(map_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
+
+  add_unit_test(json_schema
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp)
 
   add_unit_test(kv_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
@@ -193,6 +198,7 @@ if(BUILD_TESTS)
   ## Picobench benchmarks
   add_picobench(map_bench src/ds/test/map_bench.cpp)
   add_picobench(logger_bench src/ds/test/logger_bench.cpp)
+  add_picobench(json_bench src/ds/test/json_bench.cpp)
   add_picobench(ringbuffer_bench src/ds/test/ringbuffer_bench.cpp)
   target_link_libraries(ringbuffer_bench PRIVATE
     ${CMAKE_THREAD_LIBS_INIT})
@@ -240,9 +246,10 @@ if(BUILD_TESTS)
          ${CMAKE_SOURCE_DIR}/tests/raft_scenarios ${CMAKE_SOURCE_DIR})
 
   ## Member client end to end tests
-  add_test(
+  add_e2e_test(
     NAME member_client_test
-    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/memberclient.py -b . -p libloggingenc ${CCF_NETWORK_TEST_ARGS})
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
+  )
 
   ## Add node test
   add_test(
@@ -250,77 +257,69 @@ if(BUILD_TESTS)
     COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/addnode.py -b . -p libloggingenc ${CCF_NETWORK_TEST_ARGS})
 
   ## Logging client end to end test
-  add_test(
+  add_e2e_test(
     NAME logging_client_test
-    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
-      -b .
-      ${CCF_NETWORK_TEST_ARGS})
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
+  )
 
   ## Storing signed votes test
-  add_test(
+  add_e2e_test(
     NAME voting_history_test
-    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/votinghistory.py -b . -p libloggingenc ${CCF_NETWORK_TEST_ARGS})
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
 
   ## Lua Logging client end to end test
-  add_test(
+  add_e2e_test(
     NAME lua_logging_client_test
-    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
-      -b .
-      --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
-      ${CCF_NETWORK_TEST_ARGS})
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
+    ADDITIONAL_ARGS
+      --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua)
 
   if(QUOTES_ENABLED)
-    ## Tests generation and verification of quotes
-    add_test(
+    add_e2e_test(
       NAME quote_verification_test
-      COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/quote_verification.py . ./libloggingenc.so.signed
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/quote_verification.py
     )
 
-    add_test(
+    add_e2e_test(
       NAME governance_tests
-      COMMAND
-        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/governance.py
-        -b .
-        ${CCF_NETWORK_TEST_ARGS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+      ADDITIONAL_ARGS
         --oesign ${OESIGN}
     )
   endif()
 
-  add_test(
+  add_e2e_test(
     NAME end_to_end_logging
-    COMMAND
-      ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-      -b .
-      ${TEST_FORWARD_TO_LEADER}
-      ${CCF_NETWORK_TEST_ARGS}
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
   )
 
-  add_test(
+  add_e2e_test(
     NAME end_to_end_scenario
-    COMMAND
-      ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
-      -b .
-      ${CCF_NETWORK_TEST_ARGS}
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
+    ADDITIONAL_ARGS
       --scenario ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
   )
 
-  add_test(
+  add_e2e_test(
     NAME election_tests
-    COMMAND
-      ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/election.py
-      -b .
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+    ADDITIONAL_ARGS
       --election-timeout 2000
-      ${TEST_FORWARD_TO_LEADER}
-      ${CCF_NETWORK_TEST_ARGS}
   )
 
-  add_test(
+  add_e2e_test(
     NAME recovery_tests
-    COMMAND
-      ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/recovery.py
-      -b .
-      ${CCF_NETWORK_TEST_ARGS}
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+    ADDITIONAL_ARGS
       ${RECOVERY_ARGS}
+  )
+
+  add_e2e_test(
+    NAME schema_tests
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+    ADDITIONAL_ARGS
+      -p libloggingenc
+      --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
   )
 
   if (BUILD_SMALLBANK)

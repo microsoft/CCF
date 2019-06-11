@@ -65,21 +65,4 @@ namespace ccf
       std::vector<uint8_t> quote;
     };
   };
-
-  struct GetCommit
-  {
-    struct Out
-    {
-      uint64_t term;
-      int64_t commit;
-    };
-  };
-
-  struct GetMetrics
-  {
-    struct Out
-    {
-      nlohmann::json metrics;
-    };
-  };
 }

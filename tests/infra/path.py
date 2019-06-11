@@ -33,6 +33,10 @@ def build_bin_path(bin_name, enclave_type=""):
         return bin_name
 
 
+def default_workspace():
+    return os.path.join(os.getcwd(), "workspace")
+
+
 def cert_bytes(cert_file_name):
     """
     Parses a pem certificate file into raw bytes and appends null character.

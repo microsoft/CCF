@@ -7,7 +7,7 @@ from statistics import mean, harmonic_mean, median, pstdev
 
 from loguru import logger as LOG
 
-COMMIT_COUNT_CUTTOF = 20
+COMMIT_COUNT_CUTTOF = 10
 
 
 class TxRates:
@@ -61,7 +61,7 @@ class TxRates:
         with self.primary.user_client(format="json") as client:
             rv = client.rpc("getMetrics", {})
             result = rv.to_dict()
-            result = result["result"]["metrics"]
+            result = result["result"]
             self.all_metrics = result
 
             all_rates = []

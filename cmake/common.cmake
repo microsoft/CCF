@@ -319,7 +319,7 @@ include(${CCF_DIR}/cmake/secp256k1.cmake)
 ## Build PBFT if used as consensus
 if (PBFT)
   message(STATUS "Using PBFT as consensus")
-  include(${CCF_DIR}/pbft/cmake/pbft.cmake)
+  include(${CCF_DIR}/ePBFT/cmake/pbft.cmake)
 
   target_include_directories(libbyz.host PRIVATE
     ${CCF_DIR}/src/ds
@@ -373,7 +373,13 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
     )
     if (PBFT)
       target_include_directories(${name} SYSTEM PRIVATE
-        ${CCF_DIR}/pbft/src/pbft/
+        ${CCF_DIR}/ePBFT/src/pbft/
+      )
+    endif()
+    if (PBFT)
+      target_link_libraries(${name} PRIVATE
+        -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
+        libbyz.enclave
       )
     endif()
     target_link_libraries(${name} PRIVATE
@@ -387,12 +393,6 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       evercrypt.enclave
       secp256k1.enclave
     )
-    if (PBFT)
-      target_link_libraries(${name} PRIVATE
-        -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
-        libbyz.enclave
-      )
-    endif()
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
     sign_app_library(${name} ${app_oe_conf_path} ${enclave_sign_key_path})
     enable_quote_code(${name})
@@ -421,7 +421,13 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   )
   if (PBFT)
     target_include_directories(${virt_name} SYSTEM PRIVATE
-      ${CCF_DIR}/pbft/src/pbft/
+      ${CCF_DIR}/ePBFT/src/pbft/
+    )
+  endif()
+  if (PBFT)
+    target_link_libraries(${virt_name} PRIVATE
+      -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
+      libbyz.host
     )
   endif()
   target_link_libraries(${virt_name} PRIVATE
@@ -436,12 +442,6 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
     secp256k1.host
   )
   enable_coverage(${virt_name})
-  if (PBFT)
-    target_link_libraries(${virt_name} PRIVATE
-      -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
-      libbyz.host
-    )
-  endif()
   use_client_mbedtls(${virt_name})
   set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 endfunction()
@@ -587,6 +587,26 @@ function(add_client_exe name)
 
 endfunction()
 
+## Helper for building end-to-end function tests using the python infrastructure
+function(add_e2e_test)
+  cmake_parse_arguments(PARSE_ARGV 0 PARSED_ARGS
+  ""
+  "NAME;PYTHON_SCRIPT;"
+  "ADDITIONAL_ARGS"
+  )
+
+  if (BUILD_END_TO_END_TESTS)
+    add_test(
+      NAME ${PARSED_ARGS_NAME}
+      COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
+        -b .
+        --label ${PARSED_ARGS_NAME}
+        ${CCF_NETWORK_TEST_ARGS}
+        ${PARSED_ARGS_ADDITIONAL_ARGS}
+    )
+  endif()
+endfunction()
+
 ## Helper for building end-to-end perf tests using the python infrastucture
 function(add_perf_test)
 
@@ -617,8 +637,9 @@ function(add_perf_test)
 
   add_test(
     NAME ${PARSED_ARGS_NAME}
-    COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
+    COMMAND python3 ${PARSED_ARGS_PYTHON_SCRIPT}
       -b .
+      --label ${PARSED_ARGS_NAME}
       -c ${PARSED_ARGS_CLIENT_BIN}
       -i ${PARSED_ARGS_ITERATIONS}
       ${CCF_NETWORK_TEST_ARGS}

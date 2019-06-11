@@ -11,13 +11,13 @@ from glob import glob
 
 from loguru import logger as LOG
 
-USER = getpass.getuser()
 DBG = os.getenv("DBG", "cgdb")
 
 
 class CCFRemoteClient(object):
     BIN = "cchost"
     DEPS = []
+    LINES_RESULT_FROM_END = 6
 
     def __init__(
         self,
@@ -26,6 +26,8 @@ class CCFRemoteClient(object):
         bin_path,
         node_host,
         node_port,
+        workspace,
+        label,
         iterations,
         config,
         command_args,
@@ -58,7 +60,9 @@ class CCFRemoteClient(object):
             "--config={}".format(os.path.basename(config)),
         ] + command_args
 
-        self.remote = remote_class(name, host, [self.BIN] + self.DEPS, cmd)
+        self.remote = remote_class(
+            name, host, [self.BIN], self.DEPS, cmd, workspace, label
+        )
 
     def setup(self):
         self.remote.setup()
@@ -100,3 +104,7 @@ class CCFRemoteClient(object):
             self.remote.wait_for_stdout_line(line="Global commit", timeout=5)
         except Exception:
             LOG.exception("Failed to wait on client {}".format(self.name))
+            raise
+
+    def print_result(self):
+        self.remote.print_result(self.LINES_RESULT_FROM_END)
