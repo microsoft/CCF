@@ -65,26 +65,8 @@ namespace ccf
       auto set_recovery_nodes = [&node](RequestArgs& args) {
         if (node.is_awaiting_recovery())
         {
-          std::vector<NodeInfo> nodes;
-          for (const auto node :
-               args.params.value("nodes", std::vector<nlohmann::json>()))
-          {
-            NodeInfo ni;
-            try
-            {
-              from_json(node, ni);
-            }
-            catch (const std::exception& e)
-            {
-              std::stringstream ss;
-              ss << "Failed to deserialise node definition: " << node << " : "
-                 << e.what();
-              return jsonrpc::error(
-                jsonrpc::ErrorCodes::INVALID_REQUEST, ss.str());
-            }
-            nodes.push_back(ni);
-          }
-          auto network_cert = node.replace_nodes(args.tx, nodes);
+          auto in = args.params.get<SetRecoveryNodes::In>();
+          auto network_cert = node.replace_nodes(args.tx, in.nodes);
           return jsonrpc::success(network_cert);
         }
         else

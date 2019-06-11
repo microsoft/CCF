@@ -3,6 +3,7 @@
 #pragma once
 #include "entities.h"
 #include "networksecrets.h"
+#include "nodes.h"
 
 namespace ccf
 {
@@ -59,7 +60,11 @@ namespace ccf
 
   struct SetRecoveryNodes
   {
-    using In = void;
+    struct In
+    {
+      std::vector<NodeInfo> nodes;
+    };
+
     using Out = void;
   };
 

@@ -654,7 +654,7 @@ namespace ccf
     // funcs in state "awaitingRecoveryTx"
     //
     std::string replace_nodes(
-      Store::Tx& tx, const std::vector<ccf::NodeInfo> new_nodes)
+      Store::Tx& tx, const std::vector<ccf::NodeInfo>& new_nodes)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::awaitingRecoveryTx);
