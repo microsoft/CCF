@@ -133,7 +133,7 @@ def run(build_directory, get_command, args):
                             remote_client.print_result()
                             # TODO: For now, only retrieve perf csv for the first client
                             # as all files have the same name on all clients
-                            remote_client.stop(i == 0)
+                            remote_client.stop()
                         break
                     time.sleep(1)
 
