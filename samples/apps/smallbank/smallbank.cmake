@@ -61,6 +61,7 @@ if(BUILD_TESTS)
       --metrics-file small_bank_fwd_metrics.json
       -n localhost -n localhost -n localhost
       -cn localhost -cn localhost
-      --sigs --send-tx-to followers
+      --send-tx-to followers
+      # --sigs
   )
 endif()
