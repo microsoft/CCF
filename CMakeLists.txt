@@ -39,6 +39,8 @@ endif()
 
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
+option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
+
 # MemberClient executable
 add_executable(memberclient src/clients/memberclient.cpp)
 use_client_mbedtls(memberclient)
@@ -293,21 +295,19 @@ if(BUILD_TESTS)
       --scenario ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
   )
 
-  if (NOT PBFT)
-    add_e2e_test(
-      NAME election_tests
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-      ADDITIONAL_ARGS
-        --election-timeout 2000
-    )
+  add_e2e_test(
+    NAME election_tests
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+    ADDITIONAL_ARGS
+      --election-timeout 2000
+  )
 
-    add_e2e_test(
-      NAME recovery_tests
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-      ADDITIONAL_ARGS
-        ${RECOVERY_ARGS}
-    )
-  endif()
+  add_e2e_test(
+    NAME recovery_tests
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+    ADDITIONAL_ARGS
+      ${RECOVERY_ARGS}
+  )
 
   add_e2e_test(
     NAME schema_tests
