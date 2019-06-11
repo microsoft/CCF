@@ -10,6 +10,7 @@ import time
 
 from loguru import logger as LOG
 
+
 def create_and_add_node(network, args, node_id, member_host, member_port, should_succeed=True):
     dict_args = vars(args)
     forwarded_args = {
@@ -17,16 +18,21 @@ def create_and_add_node(network, args, node_id, member_host, member_port, should
     }
     node_status = args.node_status or "pending"
     new_node = network.create_node(node_id, "localhost")
-    new_node.start(lib_name="libloggingenc", node_status=node_status, **forwarded_args)
+    new_node.start(lib_name="libloggingenc",
+                   node_status=node_status, **forwarded_args)
     new_node_info = new_node.remote.info()
-    new_cert_path = "{}/{}".format(new_node.remote.remote.root, getattr(new_node.remote, "pem"))
+    new_cert_path = "{}/{}".format(new_node.remote.remote.root,
+                                   getattr(new_node.remote, "pem"))
 
     if should_succeed:
-        new_quote_path = "{}/{}".format(new_node.remote.remote.root, getattr(new_node.remote, "quote"))
+        new_quote_path = "{}/{}".format(new_node.remote.remote.root,
+                                        getattr(new_node.remote, "quote"))
     else:
         invalid_node = network.create_node(node_id + 1, "localhost")
-        invalid_node.start(lib_name="libluagenericenc", node_status=node_status, **forwarded_args)
-        new_quote_path = "{}/{}".format(invalid_node.remote.remote.root, getattr(invalid_node.remote, "quote"))
+        invalid_node.start(lib_name="libluagenericenc",
+                           node_status=node_status, **forwarded_args)
+        new_quote_path = "{}/{}".format(invalid_node.remote.remote.root,
+                                        getattr(invalid_node.remote, "quote"))
         invalid_node.stop()
 
     result = infra.proc.ccall(
@@ -45,17 +51,18 @@ def create_and_add_node(network, args, node_id, member_host, member_port, should
         "--new_node_quote={}".format(new_quote_path),
         "--sign",
     )
-    
+
     j_result = json.loads(result.stdout)
     if should_succeed:
-        # When successfully adding a new node, a proposal to accept 
-        # the new node is automatically generated. The id of that 
+        # When successfully adding a new node, a proposal to accept
+        # the new node is automatically generated. The id of that
         # proposal is the result value
         assert j_result["result"]
     else:
         assert j_result["error"]["code"]
 
     return new_node_info
+
 
 def run(args):
     hosts = ["localhost", "localhost"]
@@ -75,10 +82,12 @@ def run(args):
         )
 
         # add a valid node
-        new_node_info = create_and_add_node(network, args, 2, primary.host, primary.tls_port)
+        new_node_info = create_and_add_node(
+            network, args, 2, primary.host, primary.tls_port)
         # add an invalid node
-        new_node_info = create_and_add_node(network, args, 3, primary.host, primary.tls_port, False)
-        
+        new_node_info = create_and_add_node(
+            network, args, 3, primary.host, primary.tls_port, False)
+
 
 if __name__ == "__main__":
     def add(parser):
