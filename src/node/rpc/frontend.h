@@ -34,6 +34,12 @@ namespace ccf
       MayWrite
     };
 
+    enum class Forwardable
+    {
+      CanForward,
+      DoNotForward
+    };
+
   protected:
     Store& tables;
 
@@ -63,9 +69,9 @@ namespace ccf
     {
       HandleFunction func;
       ReadWrite rw;
-      bool is_forwardable;
       nlohmann::json params_schema;
       nlohmann::json result_schema;
+      Forwardable forwardable;
     };
 
     Nodes* nodes;
@@ -135,9 +141,11 @@ namespace ccf
     }
 
     std::optional<nlohmann::json> forward_or_redirect_json(
-      enclave::RPCContext& ctx, bool is_forwardable)
+      enclave::RPCContext& ctx, Forwardable forwardable)
     {
-      if (cmd_forwarder && is_forwardable && !ctx.fwd.has_value())
+      if (
+        cmd_forwarder && forwardable == Forwardable::CanForward &&
+        !ctx.fwd.has_value())
       {
         return {};
       }
@@ -316,7 +324,7 @@ namespace ccf
      * @param rw Flag if method will Read, Write, MayWrite
      * @param params_schema JSON schema for params object in requests
      * @param result_schema JSON schema for result object in responses
-     * @param is_forwardable Allow method to be forwarded to leader
+     * @param forwardable Allow method to be forwarded to leader
      */
     void install(
       const std::string& method,
@@ -324,9 +332,24 @@ namespace ccf
       ReadWrite rw,
       const nlohmann::json& params_schema = nlohmann::json::object(),
       const nlohmann::json& result_schema = nlohmann::json::object(),
-      bool is_forwardable = true)
+      Forwardable forwardable = Forwardable::CanForward)
     {
-      handlers[method] = {f, rw, is_forwardable, params_schema, result_schema};
+      handlers[method] = {f, rw, params_schema, result_schema, forwardable};
+    }
+
+    void install(
+      const std::string& method,
+      HandleFunction f,
+      ReadWrite rw,
+      Forwardable forwardable)
+    {
+      install(
+        method,
+        f,
+        rw,
+        nlohmann::json::object(),
+        nlohmann::json::object(),
+        forwardable);
     }
 
     /** Install MinimalHandleFunction for method name
@@ -593,13 +616,13 @@ namespace ccf
             break;
 
           case Write:
-            return forward_or_redirect_json(ctx, handler->is_forwardable);
+            return forward_or_redirect_json(ctx, handler->forwardable);
             break;
 
           case MayWrite:
             bool readonly = rpc.value(jsonrpc::READONLY, true);
             if (!readonly)
-              return forward_or_redirect_json(ctx, handler->is_forwardable);
+              return forward_or_redirect_json(ctx, handler->forwardable);
             break;
         }
       }

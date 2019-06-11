@@ -351,7 +351,7 @@ namespace ccf
       };
       // ACK method cannot be forwarded and should be run on leader as it makes
       // explicit use of caller certificate
-      install(MemberProcs::ACK, ack, Write, false);
+      install(MemberProcs::ACK, ack, Write, Forwardable::DoNotForward);
 
       //! A member asks for a fresher nonce
       auto update_ack_nonce = [this](RequestArgs& args) {
