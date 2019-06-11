@@ -21,7 +21,7 @@ def create_and_add_node(
     node_status = args.node_status or "pending"
     new_node = network.create_node(node_id, "localhost")
     new_node.start(
-        lib_name="libloggingenc",
+        lib_name=args.package,
         node_status=node_status,
         workspace=args.workspace,
         label=args.label,
@@ -39,7 +39,7 @@ def create_and_add_node(
     else:
         invalid_node = network.create_node(node_id + 1, "localhost")
         invalid_node.start(
-            lib_name="libluagenericenc",
+            lib_name=args.package,
             node_status=node_status,
             workspace=args.workspace,
             label=args.label,
@@ -68,15 +68,11 @@ def create_and_add_node(
     )
 
     j_result = json.loads(result.stdout)
-    if should_succeed:
-        # When successfully adding a new node, a proposal to accept
-        # the new node is automatically generated. The id of that
-        # proposal is the result value
-        assert j_result["result"]
-    else:
-        assert j_result["error"]["code"]
+    if not should_succeed:
+        assert j_result["error"]["code"] == infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND
+        return None
 
-    return new_node_info
+    return j_result["result"]
 
 
 def run(args):
@@ -97,12 +93,13 @@ def run(args):
         )
 
         # add a valid node
-        new_node_info = create_and_add_node(
-            network, args, 2, primary.host, primary.tls_port
+        assert (
+            create_and_add_node(network, args, 2, primary.host, primary.tls_port) == 2
         )
         # add an invalid node
-        new_node_info = create_and_add_node(
-            network, args, 3, primary.host, primary.tls_port, False
+        assert (
+            create_and_add_node(network, args, 3, primary.host, primary.tls_port, False)
+            == None
         )
 
 

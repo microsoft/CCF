@@ -130,13 +130,11 @@ NodeId submit_add_node(RpcTlsClient& tls_connection, NodeInfo& node_info)
   const auto response =
     json::from_msgpack(tls_connection.call("add_node", node_info));
 
+  cout << response.dump() << endl;
+
   auto result = response.find("result");
   if (result != response.end())
     return result->get<NodeId>();
-
-  // Only print the response in case of an error, since a successful
-  // flow will trigger submit_accept_node
-  cout << response.dump() << endl;
 
   return INVALID_NODE_ID;
 }
@@ -373,14 +371,7 @@ int main(int argc, char** argv)
       node_info.cert = new_node_raw_cert;
       const auto new_node_raw_quote = slurp(new_node_quote_file);
       node_info.quote = new_node_raw_quote;
-      auto new_node_id = submit_add_node(*tls_connection, node_info);
-      if (new_node_id != INVALID_NODE_ID)
-      {
-        // nodes are untrusted until they are accepted, so a member should
-        // stage a vote to accept the new node (the current member will do just
-        // fine).
-        submit_accept_node(*tls_connection, new_node_id);
-      }
+      submit_add_node(*tls_connection, node_info);
     }
 
     if (*accept_node)
