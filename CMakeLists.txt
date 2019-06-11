@@ -252,9 +252,10 @@ if(BUILD_TESTS)
   )
 
   ## Add node test
-  add_test(
+  add_e2e_test(
     NAME add_node_test
-    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/addnode.py -b . -p libloggingenc ${CCF_NETWORK_TEST_ARGS})
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/addnode.py
+  )
 
   ## Logging client end to end test
   add_e2e_test(

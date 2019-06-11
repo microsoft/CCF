@@ -20,7 +20,13 @@ def create_and_add_node(
     }
     node_status = args.node_status or "pending"
     new_node = network.create_node(node_id, "localhost")
-    new_node.start(lib_name="libloggingenc", node_status=node_status, **forwarded_args)
+    new_node.start(
+        lib_name="libloggingenc",
+        node_status=node_status,
+        workspace=args.workspace,
+        label=args.label,
+        **forwarded_args
+    )
     new_node_info = new_node.remote.info()
     new_cert_path = "{}/{}".format(
         new_node.remote.remote.root, getattr(new_node.remote, "pem")
@@ -33,7 +39,11 @@ def create_and_add_node(
     else:
         invalid_node = network.create_node(node_id + 1, "localhost")
         invalid_node.start(
-            lib_name="libluagenericenc", node_status=node_status, **forwarded_args
+            lib_name="libluagenericenc",
+            node_status=node_status,
+            workspace=args.workspace,
+            label=args.label,
+            **forwarded_args
         )
         new_quote_path = "{}/{}".format(
             invalid_node.remote.remote.root, getattr(invalid_node.remote, "quote")
@@ -103,11 +113,9 @@ if __name__ == "__main__":
             "-p",
             "--package",
             help="The enclave package to load (e.g., libsimplebank)",
-            required=True,
+            default="libloggingenc",
         )
 
     args = e2e_args.cli_args(add)
-    args.package = (
-        args.app_script and "libluagenericenc" or "libloggingenc" or "libunsignedenc"
-    )
+    args.package = args.app_script and "libluagenericenc" or "libloggingenc"
     run(args)
