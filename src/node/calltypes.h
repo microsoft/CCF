@@ -40,7 +40,21 @@ namespace ccf
   struct GetSignedIndex
   {
     using In = void;
-    using Out = void;
+
+    enum class State
+    {
+      ReadingPublicLedger,
+      AwaitingRecovery,
+      ReadingPrivateLedger,
+      PartOfNetwork,
+      PartOfPublicNetwork,
+    };
+
+    struct Out
+    {
+      State state;
+      kv::Version signed_index;
+    };
   };
 
   struct SetRecoveryNodes
