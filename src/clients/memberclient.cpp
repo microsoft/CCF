@@ -13,6 +13,7 @@
 #include "tls/keypair.h"
 
 #include <CLI11/CLI11.hpp>
+#include <limits>
 
 using namespace ccf;
 using namespace files;
@@ -21,6 +22,7 @@ using namespace std;
 using namespace nlohmann;
 
 constexpr auto members_sni = "members";
+constexpr NodeId INVALID_NODE_ID = std::numeric_limits<NodeId>::max();
 
 static const string add_member_proposal(R"xxx(
       tables, member_cert = ...
@@ -127,7 +129,12 @@ NodeId submit_add_node(RpcTlsClient& tls_connection, NodeInfo& node_info)
 {
   const auto response =
     json::from_msgpack(tls_connection.call("add_node", node_info));
-  return response["result"];
+  cout << response.dump() << endl;
+  auto result = response.find("result");
+  if (result != response.end())
+    return result->get<NodeId>();
+
+  return INVALID_NODE_ID;
 }
 
 void submit_accept_recovery(
@@ -277,17 +284,24 @@ int main(int argc, char** argv)
 
   NodeInfo node_info;
   std::string new_node_cert_file;
+  std::string new_node_quote_file;
   auto add_node = app.add_subcommand("add_node", "Make a node trusted");
   add_node->add_option("--new_node_host", node_info.host, "The node id")
     ->required(true);
   add_node->add_option("--new_node_pub_host", node_info.pubhost, "The node id")
     ->required(true);
   add_node
-    ->add_option("--new_node_raft_port", node_info.raftport, "The node id")
+    ->add_option(
+      "--new_node_raft_port", node_info.raftport, "The node raft port")
     ->required(true);
-  add_node->add_option("--new_node_tls_port", node_info.tlsport, "The node id")
+  add_node
+    ->add_option("--new_node_tls_port", node_info.tlsport, "The node tls port")
     ->required(true);
-  add_node->add_option("--new_node_cert", new_node_cert_file, "The node id")
+  add_node
+    ->add_option("--new_node_cert", new_node_cert_file, "The node certificate")
+    ->required(true);
+  add_node
+    ->add_option("--new_node_quote", new_node_quote_file, "The node quote")
     ->required(true);
 
   NodeId node_id;
@@ -353,11 +367,16 @@ int main(int argc, char** argv)
     {
       const auto new_node_raw_cert = slurp(new_node_cert_file);
       node_info.cert = new_node_raw_cert;
+      const auto new_node_raw_quote = slurp(new_node_quote_file);
+      node_info.quote = new_node_raw_quote;
       auto new_node_id = submit_add_node(*tls_connection, node_info);
-      // nodes are untrusted until they are accepted, so a member should
-      // stage a vote to accept the new node (the current member will do just
-      // fine).
-      submit_accept_node(*tls_connection, new_node_id);
+      if (new_node_id != INVALID_NODE_ID)
+      {
+        // nodes are untrusted until they are accepted, so a member should
+        // stage a vote to accept the new node (the current member will do just
+        // fine).
+        submit_accept_node(*tls_connection, new_node_id);
+      }
     }
 
     if (*accept_node)

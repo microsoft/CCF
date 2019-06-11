@@ -1,9 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "crypto/hash.h"
-#include "enclave/oe_shim.h"
+#include "../../crypto/hash.h"
+#include "../../enclave/oe_shim.h"
+#include "../entities.h"
+#include "../quoteverification.h"
 #include "frontend.h"
-#include "node/entities.h"
 
 namespace ccf
 {
@@ -20,57 +21,11 @@ namespace ccf
         auto joining_nodeinfo = nodes_view->get(args.caller_id).value();
 
 #ifdef GET_QUOTE
-        // Parse quote and verify quote data
-        oe_report_t parsed_quote = {0};
-        oe_result_t result = oe_verify_report(
-          joining_nodeinfo.quote.data(),
-          joining_nodeinfo.quote.size(),
-          &parsed_quote);
+        QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
+          args.tx, network, joining_nodeinfo.quote, joining_nodeinfo.cert);
 
-        if (result != OE_OK)
-        {
-          LOG_FAIL << "Quote could not be verified " << oe_result_str(result)
-                   << std::endl;
-          return jsonrpc::error(
-            jsonrpc::ErrorCodes::INTERNAL_ERROR, "Quote could not be verified");
-        }
-
-        // Verify enclave measurement
-        auto codeid_view = args.tx.get_view(network.code_id);
-        CodeStatus code_id_status = CodeStatus::UNKNOWN;
-
-        codeid_view->foreach([&parsed_quote, &code_id_status](
-                               const CodeVersion& cv, const CodeInfo& ci) {
-          if (
-            memcmp(
-              ci.digest.data(),
-              parsed_quote.identity.unique_id,
-              CODE_DIGEST_BYTES) == 0)
-          {
-            code_id_status = ci.status;
-          }
-        });
-
-        if (code_id_status != CodeStatus::ACCEPTED)
-        {
-          return jsonrpc::error(
-            (code_id_status == CodeStatus::RETIRED ?
-               jsonrpc::ErrorCodes::CODE_ID_RETIRED :
-               jsonrpc::ErrorCodes::CODE_ID_NOT_FOUND),
-            "Quote does not contain known enclave measurement");
-        }
-
-        // Verify quote data
-        crypto::Sha256Hash hash{joining_nodeinfo.cert};
-        if (
-          parsed_quote.report_data_size != crypto::Sha256Hash::SIZE &&
-          memcmp(hash.h, parsed_quote.report_data, crypto::Sha256Hash::SIZE) !=
-            0)
-        {
-          return jsonrpc::error(
-            jsonrpc::ErrorCodes::INTERNAL_ERROR,
-            "Quote does not contain joining node certificate hash");
-        }
+        if (verify_result != QuoteVerificationResult::VERIFIED)
+          return QuoteVerifier::quote_verification_error_to_json(verify_result);
 #else
         LOG_INFO << "Skipped joining node quote verification." << std::endl;
 #endif

@@ -325,7 +325,7 @@ namespace asynchost
       if (rc < 0)
       {
         status = RESOLVING_FAILED;
-        LOG_FAIL << "TCP resolve failed: " << uv_strerror(rc) << std::endl;
+        LOG_TRACE << "TCP resolve failed: " << uv_strerror(rc) << std::endl;
         behaviour->on_resolve_failed();
       }
       else

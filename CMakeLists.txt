@@ -244,6 +244,11 @@ if(BUILD_TESTS)
     NAME member_client_test
     COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/memberclient.py -b . -p libloggingenc ${CCF_NETWORK_TEST_ARGS})
 
+  ## Add node test
+  add_test(
+    NAME add_node_test
+    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/addnode.py -b . -p libloggingenc ${CCF_NETWORK_TEST_ARGS})
+
   ## Logging client end to end test
   add_test(
     NAME logging_client_test
