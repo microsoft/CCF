@@ -30,26 +30,26 @@ namespace ccf
       };
 
       auto get_signed_index = [&node](RequestArgs& args) {
-        nlohmann::json result;
+        GetSignedIndex::Out result;
         if (node.is_reading_public_ledger())
         {
-          result["state"] = "readingPublicLedger";
+          result.state = GetSignedIndex::State::ReadingPublicLedger;
         }
         else if (node.is_awaiting_recovery())
         {
-          result["state"] = "awaitingRecovery";
+          result.state = GetSignedIndex::State::AwaitingRecovery;
         }
         else if (node.is_reading_private_ledger())
         {
-          result["state"] = "readingPrivateLedger";
+          result.state = GetSignedIndex::State::ReadingPrivateLedger;
         }
         else if (node.is_part_of_network())
         {
-          result["state"] = "partOfNetwork";
+          result.state = GetSignedIndex::State::PartOfNetwork;
         }
         else if (node.is_part_of_public_network())
         {
-          result["state"] = "partOfPublicNetwork";
+          result.state = GetSignedIndex::State::PartOfPublicNetwork;
         }
         else
         {
@@ -58,7 +58,7 @@ namespace ccf
             "Network is not in recovery mode");
         }
 
-        result["signed_index"] = node.last_signed_index(args.tx);
+        result.signed_index = node.last_signed_index(args.tx);
         return jsonrpc::success(result);
       };
 
