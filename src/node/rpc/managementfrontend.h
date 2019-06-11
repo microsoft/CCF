@@ -96,10 +96,10 @@ namespace ccf
       };
 
       auto get_quotes = [&node](RequestArgs& args) {
-        nlohmann::json response;
-        node.node_quotes(args.tx, response);
+        GetQuotes::Out result;
+        node.node_quotes(args.tx, result);
 
-        return jsonrpc::success(response);
+        return jsonrpc::success(result);
       };
 
       install_with_auto_schema<StartNetwork>(

@@ -66,7 +66,19 @@ namespace ccf
   struct GetQuotes
   {
     using In = void;
-    using Out = void;
+
+    struct Quote
+    {
+      std::string raw = {};
+
+      std::string error = {};
+      std::string mrenclave = {};
+    };
+
+    struct Out
+    {
+      std::vector<std::pair<NodeId, Quote>> quotes;
+    };
   };
 
   struct JoinNetworkNodeToNode

@@ -22,6 +22,10 @@ namespace ccf
      {GetSignedIndex::State::PartOfPublicNetwork, "partOfPublicNetwork"}})
   DECLARE_REQUIRED_JSON_FIELDS(GetSignedIndex::Out, state, signed_index)
 
+  DECLARE_REQUIRED_JSON_FIELDS(GetQuotes::Quote, raw)
+  DECLARE_OPTIONAL_JSON_FIELDS(GetQuotes::Quote, error, mrenclave)
+  DECLARE_REQUIRED_JSON_FIELDS(GetQuotes::Out, quotes)
+
   DECLARE_REQUIRED_JSON_FIELDS(NetworkSecrets::Secret, cert, priv_key, master)
 
   DECLARE_REQUIRED_JSON_FIELDS(JoinNetworkNodeToNode::In, raw_fresh_key)
