@@ -62,6 +62,6 @@ if(BUILD_TESTS)
       -n localhost -n localhost -n localhost
       -cn localhost -cn localhost
       --send-tx-to followers
-      # --sigs
+      # --sign
   )
 endif()

@@ -91,8 +91,6 @@ class CCFRemoteClient(object):
                 remote_file_dst = f"{self.name}_{csv}"
                 self.remote.get(csv, 1, remote_file_dst)
                 if csv == "perf_summary.csv":
-                    # Append the perf_summary of each remote client to the
-                    # local common perf_summary file
                     with open("perf_summary.csv", "a") as l:
                         with open(remote_file_dst, "r") as r:
                             for line in r.readlines():

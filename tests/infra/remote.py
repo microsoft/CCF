@@ -108,7 +108,7 @@ class SSHRemote(CmdMixin):
 
     def _setup_files(self):
         assert self._rc("rm -rf {}".format(self.root)) == 0
-        assert self._rc("mkdir {}".format(self.root)) == 0
+        assert self._rc("mkdir -p {}".format(self.root)) == 0
         session = self.client.open_sftp()
         for path in self.files:
             tgt_path = os.path.join(self.root, os.path.basename(path))
@@ -259,7 +259,6 @@ class SSHRemote(CmdMixin):
 
     def print_result(self, lines):
         client = self._connect_new()
-        LOG.error("print_result remote")
         try:
             _, stdout, _ = client.exec_command(f"tail -{lines} {self.root}/out")
             if stdout.channel.recv_exit_status() == 0:
