@@ -103,6 +103,16 @@ namespace ccf
       element["items"] = schema_properties_element<typename T::value_type>();
       return element;
     }
+    else if constexpr (is_specialization<T, std::pair>::value)
+    {
+      auto element = nlohmann::json::object();
+      element["type"] = "array";
+      auto items = nlohmann::json::array();
+      items.push_back(schema_properties_element<typename T::first_type>());
+      items.push_back(schema_properties_element<typename T::second_type>());
+      element["items"] = items;
+      return element;
+    }
     else if constexpr (std::is_same<T, std::string>::value)
     {
       nlohmann::json element;
