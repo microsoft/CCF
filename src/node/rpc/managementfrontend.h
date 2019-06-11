@@ -12,7 +12,8 @@ namespace ccf
     ManagementRpcFrontend(Store& tables, NodeState& node) : RpcFrontend(tables)
     {
       auto start = [&node](RequestArgs& args) {
-        auto result = node.start_network(args.tx, args.params);
+        const auto in = args.params.get<StartNetwork::In>();
+        auto result = node.start_network(args.tx, in);
         if (result.second)
           return jsonrpc::success(result.first);
 
@@ -22,7 +23,8 @@ namespace ccf
       };
 
       auto join = [&node](RequestArgs& args) {
-        node.join_network(args.rpc_ctx, args.params);
+        const auto in = args.params.get<JoinNetwork::In>();
+        node.join_network(args.rpc_ctx, in);
 
         return jsonrpc::success();
       };
@@ -100,11 +102,16 @@ namespace ccf
         return jsonrpc::success(response);
       };
 
-      install(ManagementProcs::START_NETWORK, start, Write);
-      install(ManagementProcs::JOIN_NETWORK, join, Read);
-      install(ManagementProcs::GET_SIGNED_INDEX, get_signed_index, Read);
-      install(ManagementProcs::SET_RECOVERY_NODES, set_recovery_nodes, Write);
-      install(ManagementProcs::GET_QUOTES, get_quotes, Read);
+      install_with_auto_schema<StartNetwork>(
+        ManagementProcs::START_NETWORK, start, Write);
+      install_with_auto_schema<JoinNetwork>(
+        ManagementProcs::JOIN_NETWORK, join, Read);
+      install_with_auto_schema<GetSignedIndex>(
+        ManagementProcs::GET_SIGNED_INDEX, get_signed_index, Read);
+      install_with_auto_schema<SetRecoveryNodes>(
+        ManagementProcs::SET_RECOVERY_NODES, set_recovery_nodes, Write);
+      install_with_auto_schema<GetQuotes>(
+        ManagementProcs::GET_QUOTES, get_quotes, Read);
     }
   };
 }

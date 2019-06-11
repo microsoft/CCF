@@ -37,6 +37,24 @@ namespace ccf
     };
   };
 
+  struct GetSignedIndex
+  {
+    using In = void;
+    using Out = void;
+  };
+
+  struct SetRecoveryNodes
+  {
+    using In = void;
+    using Out = void;
+  };
+
+  struct GetQuotes
+  {
+    using In = void;
+    using Out = void;
+  };
+
   struct JoinNetworkNodeToNode
   {
     struct In
