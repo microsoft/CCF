@@ -134,6 +134,10 @@ NodeId submit_add_node(RpcTlsClient& tls_connection, NodeInfo& node_info)
   if (result != response.end())
     return result->get<NodeId>();
 
+  // Only print the response in case of an error, since a successful
+  // flow will trigger submit_accept_node
+  cout << response.dump() << endl;
+
   return INVALID_NODE_ID;
 }
 
