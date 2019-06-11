@@ -595,14 +595,16 @@ function(add_e2e_test)
   "ADDITIONAL_ARGS"
   )
 
-  add_test(
-    NAME ${PARSED_ARGS_NAME}
-    COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
-      -b .
-      --label ${PARSED_ARGS_NAME}
-      ${CCF_NETWORK_TEST_ARGS}
-      ${PARSED_ARGS_ADDITIONAL_ARGS}
-  )
+  if (BUILD_END_TO_END_TESTS)
+    add_test(
+      NAME ${PARSED_ARGS_NAME}
+      COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
+        -b .
+        --label ${PARSED_ARGS_NAME}
+        ${CCF_NETWORK_TEST_ARGS}
+        ${PARSED_ARGS_ADDITIONAL_ARGS}
+    )
+  endif()
 endfunction()
 
 ## Helper for building end-to-end perf tests using the python infrastucture
