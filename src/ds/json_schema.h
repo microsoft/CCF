@@ -136,6 +136,10 @@ namespace ccf
       fill_schema<T>(schema);
       return schema;
     }
+    else if constexpr (std::is_enum<T>::value)
+    {
+      return fill_schema_enum<T>();
+    }
     else
     {
       static_assert(
