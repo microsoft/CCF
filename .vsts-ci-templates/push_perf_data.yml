@@ -1,4 +1,10 @@
 steps:
+- script: |
+  gzip -vk *_sent.csv *_recv.csv
+  gzip -vk *_metrics.json
+displayName: Compress tx time metrics
+workingDirectory: build
+
 - task: AzureCLI@1
   displayName: Push Performance Data
   inputs:
