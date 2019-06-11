@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "nodes": {
+      "items": {
+        "properties": {
+          "cert": {
+            "items": {
+              "maximum": 255,
+              "minimum": 0,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "host": {
+            "type": "string"
+          },
+          "pubhost": {
+            "type": "string"
+          },
+          "quote": {
+            "items": {
+              "maximum": 255,
+              "minimum": 0,
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "raftport": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "TRUSTED",
+              "RETIRED"
+            ]
+          },
+          "tlsport": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "host",
+          "pubhost",
+          "raftport",
+          "tlsport",
+          "cert",
+          "quote",
+          "status"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "nodes"
+  ],
+  "title": "setRecoveryNodes/params",
+  "type": "object"
+}
