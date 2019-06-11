@@ -22,7 +22,7 @@ namespace ccf
      {GetSignedIndex::State::PartOfPublicNetwork, "partOfPublicNetwork"}})
   DECLARE_REQUIRED_JSON_FIELDS(GetSignedIndex::Out, state, signed_index)
 
-  DECLARE_REQUIRED_JSON_FIELDS(GetQuotes::Quote, raw)
+  DECLARE_REQUIRED_JSON_FIELDS(GetQuotes::Quote, node_id, raw)
   DECLARE_OPTIONAL_JSON_FIELDS(GetQuotes::Quote, error, mrenclave)
   DECLARE_REQUIRED_JSON_FIELDS(GetQuotes::Out, quotes)
 

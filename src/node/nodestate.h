@@ -626,6 +626,7 @@ namespace ccf
         if (ni.status == ccf::NodeStatus::TRUSTED)
         {
           GetQuotes::Quote quote;
+          quote.node_id = nid;
           quote.raw = std::string(ni.quote.begin(), ni.quote.end());
 
 #ifdef GET_QUOTE
@@ -644,7 +645,7 @@ namespace ccf
               "{:02x}", fmt::join(parsed_quote.identity.unique_id, ""));
           }
 #endif
-          result.quotes.push_back(std::make_pair(nid, quote));
+          result.quotes.push_back(quote);
         }
       });
     };

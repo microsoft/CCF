@@ -69,6 +69,7 @@ namespace ccf
 
     struct Quote
     {
+      NodeId node_id = {};
       std::string raw = {};
 
       std::string error = {};
@@ -77,7 +78,7 @@ namespace ccf
 
     struct Out
     {
-      std::vector<std::pair<NodeId, Quote>> quotes;
+      std::vector<Quote> quotes;
     };
   };
 
