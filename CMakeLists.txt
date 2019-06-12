@@ -295,19 +295,21 @@ if(BUILD_TESTS)
       --scenario ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
   )
 
-  add_e2e_test(
-    NAME election_tests
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-    ADDITIONAL_ARGS
-      --election-timeout 2000
-  )
+  if (NOT PBFT)
+    add_e2e_test(
+      NAME election_tests
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+      ADDITIONAL_ARGS
+        --election-timeout 2000
+    )
 
-  add_e2e_test(
-    NAME recovery_tests
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-    ADDITIONAL_ARGS
-      ${RECOVERY_ARGS}
-  )
+    add_e2e_test(
+      NAME recovery_tests
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+      ADDITIONAL_ARGS
+        ${RECOVERY_ARGS}
+    )
+  endif()
 
   add_e2e_test(
     NAME schema_tests
