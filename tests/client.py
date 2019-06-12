@@ -56,7 +56,9 @@ def cli_args(add=lambda x: None, accept_unknown=False):
     parser.add_argument(
         "-i", "--iterations", help="Number of transactions", required=True, type=int
     )
-    parser.add_argument("--sign", action="store_true")
+    parser.add_argument(
+        "--sign", help="Sign all client transactions", action="store_true"
+    )
 
     return e2e_args.cli_args(add=add, parser=parser, accept_unknown=accept_unknown)
 
