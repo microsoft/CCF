@@ -8,8 +8,8 @@ To start up a network, operators should start up each node separately by running
 
 .. code-block:: bash
 
-    $ cchost --enclave-file=/path/to/application --raft-host=raft_ip --raft-port=raft_port
-    --tls-host=tls_ip --tls-pubhost=tls_public_ip --tls-port=tls_port --ledger-file=ledger_file
+    $ cchost --enclave-file=/path/to/application --raft-host=<raft_ip> --raft-port=<raft_port>
+    --tls-host=<tls_ip> --tls-pubhost=<tls_public_ip> --tls-port=<tls_port> --ledger-file=/path/to/ledger
     --node-cert-file=/path/to/node_certificate --quote-file=/path/to/quote
 
     <Some log messages confirming that the enclave has been created>
