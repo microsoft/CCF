@@ -317,7 +317,6 @@ TEST_CASE("enum")
   REQUIRE(j["se"] == "two");
 
   const auto schema = build_schema<EnumStruct>("EnumStruct");
-  REQUIRE(schema["properties"]["se"]["type"] == "string");
 
   const nlohmann::json expected{"one", "two", "three"};
   REQUIRE(schema["properties"]["se"]["enum"] == expected);
