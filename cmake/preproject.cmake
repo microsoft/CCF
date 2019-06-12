@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-cmake_minimum_required(VERSION 3.11)
 
 # Note: this needs to be done before project(), otherwise CMAKE_*_COMPILER is already set by CMake
 # If the user has not expressed any choice, we attempt to default to Clang >= 7

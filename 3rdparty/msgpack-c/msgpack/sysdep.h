@@ -42,13 +42,22 @@
 #endif
 
 #ifdef _WIN32
-#   define _msgpack_atomic_counter_header <windows.h>
-#   if !defined(WIN32_LEAN_AND_MEAN)
-#       define WIN32_LEAN_AND_MEAN
-#   endif /* WIN32_LEAN_AND_MEAN */
+#   if defined(_KERNEL_MODE)
+#       define _msgpack_atomic_counter_header <ntddk.h>
+#   else
+#       define _msgpack_atomic_counter_header <windows.h>
+#       if !defined(WIN32_LEAN_AND_MEAN)
+#           define WIN32_LEAN_AND_MEAN
+#       endif /* WIN32_LEAN_AND_MEAN */
+#   endif
     typedef long _msgpack_atomic_counter_t;
-#   define _msgpack_sync_decr_and_fetch(ptr) InterlockedDecrement(ptr)
-#   define _msgpack_sync_incr_and_fetch(ptr) InterlockedIncrement(ptr)
+#if defined(_AMD64_) || defined(_M_X64) || defined(_M_ARM64)
+#    define _msgpack_sync_decr_and_fetch(ptr) _InterlockedDecrement(ptr)
+#    define _msgpack_sync_incr_and_fetch(ptr) _InterlockedIncrement(ptr)
+#else
+#    define _msgpack_sync_decr_and_fetch(ptr) InterlockedDecrement(ptr)
+#    define _msgpack_sync_incr_and_fetch(ptr) InterlockedIncrement(ptr)
+#endif
 #elif defined(__GNUC__) && ((__GNUC__*10 + __GNUC_MINOR__) < 41)
 
 #   if defined(__cplusplus)
@@ -91,7 +100,7 @@
 #if MSGPACK_ENDIAN_LITTLE_BYTE
 
 #   if defined(unix) || defined(__unix) || defined(__APPLE__) || defined(__OpenBSD__)
-#       define _msgpack_be16(x) ntohs(x)
+#       define _msgpack_be16(x) ntohs((uint16_t)x)
 #   else
 #       if defined(ntohs)
 #           define _msgpack_be16(x) ntohs(x)
@@ -105,7 +114,7 @@
 #   endif
 
 #   if defined(unix) || defined(__unix) || defined(__APPLE__) || defined(__OpenBSD__)
-#       define _msgpack_be32(x) ntohl(x)
+#       define _msgpack_be32(x) ntohl((uint32_t)x)
 #   else
 #       if defined(ntohl)
 #           define _msgpack_be32(x) ntohl(x)
@@ -150,16 +159,16 @@
 
 #define _msgpack_load16(cast, from, to) do {       \
         memcpy((cast*)(to), (from), sizeof(cast)); \
-        *(to) = _msgpack_be16(*(to));              \
+        *(to) = (cast)_msgpack_be16(*(to));      \
     } while (0);
 
 #define _msgpack_load32(cast, from, to) do {       \
         memcpy((cast*)(to), (from), sizeof(cast)); \
-        *(to) = _msgpack_be32(*(to));              \
+        *(to) = (cast)_msgpack_be32(*(to));        \
     } while (0);
 #define _msgpack_load64(cast, from, to) do {       \
         memcpy((cast*)(to), (from), sizeof(cast)); \
-        *(to) = _msgpack_be64(*(to));              \
+        *(to) = (cast)_msgpack_be64(*(to));        \
     } while (0);
 
 #define _msgpack_store16(to, num) \
@@ -180,11 +189,13 @@
 
 
 #if !defined(__cplusplus) && defined(_MSC_VER)
-#  if !defined(FALSE)
-#    define FALSE (0)
-#  endif
-#  if !defined(TRUE)
-#    define TRUE (!FALSE)
+#  if !defined(_KERNEL_MODE)
+#    if !defined(FALSE)
+#      define FALSE (0)
+#    endif
+#    if !defined(TRUE)
+#      define TRUE (!FALSE)
+#    endif
 #  endif
 #  if _MSC_VER >= 1800
 #    include <stdbool.h>

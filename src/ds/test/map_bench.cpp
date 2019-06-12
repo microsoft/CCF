@@ -65,6 +65,23 @@ static void benchmark_get(picobench::state& s)
   s.stop_timer();
 }
 
+template <class M>
+static void benchmark_foreach(picobench::state& s)
+{
+  size_t size = s.iterations();
+  auto map = gen_map<M>(size);
+  V v{};
+  s.start_timer();
+  for (auto _ : s)
+  {
+    (void)_;
+    map.foreach(
+      [&v, s, map](const auto& key, const auto& value) { v += value; });
+    clobber_memory();
+  }
+  s.stop_timer();
+}
+
 const std::vector<int> sizes = {32, 32 << 2, 32 << 4, 32 << 6, 32 << 8};
 
 PICOBENCH_SUITE("put");
@@ -78,3 +95,11 @@ auto bench_rb_map_get = benchmark_get<RBMap<K, V>>;
 PICOBENCH(bench_rb_map_get).iterations(sizes).samples(10).baseline();
 auto bench_champ_map_get = benchmark_get<champ::Map<K, V>>;
 PICOBENCH(bench_champ_map_get).iterations(sizes).samples(10);
+
+const std::vector<int> for_sizes = {32 << 4, 32 << 5, 32 << 6};
+
+PICOBENCH_SUITE("foreach");
+auto bench_rb_map_foreach = benchmark_foreach<RBMap<K, V>>;
+PICOBENCH(bench_rb_map_foreach).iterations(for_sizes).samples(10).baseline();
+auto bench_champ_map_foreach = benchmark_foreach<champ::Map<K, V>>;
+PICOBENCH(bench_champ_map_foreach).iterations(for_sizes).samples(10);

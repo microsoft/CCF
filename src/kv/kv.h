@@ -433,7 +433,7 @@ namespace kv
        * @param F functor, taking a key and a value, return value is ignored
        */
       template <class F>
-      void foreach(F f)
+      void foreach(F&& f)
       {
         if (commit_version != NoVersion)
           return;
