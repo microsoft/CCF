@@ -7,7 +7,7 @@ from statistics import mean, harmonic_mean, median, pstdev
 
 from loguru import logger as LOG
 
-COMMIT_COUNT_CUTTOF = 10
+COMMIT_COUNT_CUTOFF = 10
 
 
 class TxRates:
@@ -52,7 +52,7 @@ class TxRates:
 
             self.commit = next_commit
 
-        if self.same_commit_count > COMMIT_COUNT_CUTTOF:
+        if self.same_commit_count > COMMIT_COUNT_CUTOFF:
             self._get_metrics()
             return False
         return True

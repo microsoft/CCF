@@ -82,10 +82,7 @@ Run the tests.
 
 ```bash
 cd build
-python3.7 -m venv env
-source env/bin/activate
-pip install -r ../tests/requirements.txt
-ctest
+./tests.sh
 ```
 
 ## Third-party components
