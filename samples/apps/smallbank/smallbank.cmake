@@ -63,6 +63,5 @@ if(BUILD_TESTS)
       -cn localhost
       --send-tx-to followers
       --sign
-      --fast-start
   )
 endif()
