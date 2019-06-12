@@ -160,13 +160,15 @@ The full list of build switches can be obtained by running:
 
     cmake -L ..
 
-* **BUILD_TESTS**: Boolean. Whether to build the tests. Default to ON.
-* **CLIENT_MBEDTLS_PREFIX**: Path. Prefix to mbedtls install to be used by test clients. Defaults to ``/usr/local``.
-* **NO_STRICT_TLS_CIPHERSUITES**: Boolean. Whether to relax the list of accepted TLS ciphersuites. Defaults to OFF.
-* **OE_PREFIX**: Path. OpenEnclave install prefix. Defaults to ``/opt/openenclave``.
-* **SAN**: Boolean. Whether to build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
-* **VERBOSE_LOGGING**: Boolean. Level of logging detail. Default to OFF.
-* **CURVE_CHOICE**: One of secp384r1, curve25519, secp256k1_mbedtls, secp256k1_bitcoin. Elliptic curve to use for CCF public keys. Default to secp384r1.
+* **BUILD_TESTS**: Boolean. Build all tests for CCF. Default to ON.
+* **BUILD_SMALLBANK**: Boolean. Build SmallBank performance benchmark. Default to OFF.
+* **CLIENT_MBEDTLS_PREFIX**: Path. Prefix to mbedtls install to be used by test clients. Default to ``/usr/local``.
+* **CURVE_CHOICE**: String, one of secp384r1, curve25519, secp256k1_mbedtls, secp256k1_bitcoin. Elliptic curve to use for CCF asymmetric keys. Default to secp384r1.
+* **NO_STRICT_TLS_CIPHERSUITES**: Boolean. Relax the list of accepted TLS ciphersuites. Default to OFF.
+* **OE_PREFIX**: Path. OpenEnclave install prefix. Default to ``/opt/openenclave``.
+* **SAN**: Boolean. Build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
+* **VIRTUAL_ONLY**: Boolean. Only build "virtual" enclaves. Default to OFF.
+* **VERBOSE_LOGGING**: Boolean. Enable all logging levels. Default to OFF.
 
 Tests
 -----

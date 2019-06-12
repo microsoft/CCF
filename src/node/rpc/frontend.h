@@ -733,7 +733,6 @@ namespace ccf
 
       signed_request = full_rpc;
 
-#ifndef DISABLE_CLIENT_SIGNATURE_VERIFICATION
       // If the RPC is forwarded, assume that the signature has already been
       // verified by the follower
       if (!is_forwarded)
@@ -749,7 +748,6 @@ namespace ccf
               signed_request.req, signed_request.sig))
           return false;
       }
-#endif
 
       // TODO(#important): Request should only be stored on the leader
       if (request_storing_disabled)
