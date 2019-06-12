@@ -310,18 +310,20 @@ namespace ccf
 
         return jsonrpc::success(complete_proposal(args.tx, vote.id));
       };
-      install(MemberProcs::VOTE, vote, Write);
+      install_with_auto_schema<Vote, bool>(MemberProcs::VOTE, vote, Write);
 
       auto complete = [this](RequestArgs& args) {
         if (!check_member_active(args.tx, args.caller_id))
           return jsonrpc::error(jerr::INSUFFICIENT_RIGHTS);
 
-        const auto proposal_id = ProposalAction(args.params).id;
+        const auto proposal_action = args.params.get<ProposalAction>();
+        const auto proposal_id = proposal_action.id;
         if (!complete_proposal(args.tx, proposal_id))
           return jsonrpc::error(jerr::DENIED);
         return jsonrpc::success(true);
       };
-      install(MemberProcs::COMPLETE, complete, Write);
+      install_with_auto_schema<ProposalAction, bool>(
+        MemberProcs::COMPLETE, complete, Write);
 
       //! A member acknowledges state
       auto ack = [this](RequestArgs& args) {
@@ -334,7 +336,7 @@ namespace ccf
             jsonrpc::ErrorCodes::INVALID_PARAMS, "No ACK record exists (1)");
 
         tls::Verifier v((std::vector<uint8_t>(args.rpc_ctx.caller_cert)));
-        const RawSignature rs = args.params;
+        const auto rs = args.params.get<RawSignature>();
         if (!v.verify_hash(crypto::Sha256Hash{last_ma->next_nonce}, rs.sig))
           return jsonrpc::error(jerr::INVALID_PARAMS, "Signature is not valid");
 
@@ -351,7 +353,8 @@ namespace ccf
       };
       // ACK method cannot be forwarded and should be run on leader as it makes
       // explicit use of caller certificate
-      install(MemberProcs::ACK, ack, Write, Forwardable::DoNotForward);
+      install_with_auto_schema<RawSignature, bool>(
+        MemberProcs::ACK, ack, Write, Forwardable::DoNotForward);
 
       //! A member asks for a fresher nonce
       auto update_ack_nonce = [this](RequestArgs& args) {
@@ -364,7 +367,8 @@ namespace ccf
         mas->put(args.caller_id, *ma);
         return jsonrpc::success(true);
       };
-      install(MemberProcs::UPDATE_ACK_NONCE, update_ack_nonce, Write);
+      install_with_auto_schema<void, bool>(
+        MemberProcs::UPDATE_ACK_NONCE, update_ack_nonce, Write);
     }
   };
 } // namespace ccf

@@ -32,20 +32,6 @@ namespace ccf
     MSGPACK_DEFINE(bytecode, text);
   };
 
-  inline void from_json(const nlohmann::json& j, Script& s)
-  {
-    const auto bytecode = j.find("bytecode");
-    if (bytecode != j.end())
-      s.bytecode = std::make_optional<std::vector<uint8_t>>(*bytecode);
-    else
-      s.text = std::make_optional<std::string>(j["text"]);
-  }
-
-  inline void to_json(nlohmann::json& j, const Script& s)
-  {
-    if (s.bytecode)
-      j["bytecode"] = *s.bytecode;
-    else if (s.text)
-      j["text"] = *s.text;
-  }
+  DECLARE_REQUIRED_JSON_FIELDS(Script)
+  DECLARE_OPTIONAL_JSON_FIELDS(Script, bytecode, text)
 }
