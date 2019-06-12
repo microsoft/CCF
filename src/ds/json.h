@@ -110,7 +110,7 @@ DECLARE_REQUIRED_JSON_FIELDS.
   void read_fields(const nlohmann::json& j, T& t); \
 \
   template <typename T> \
-  nlohmann::json fill_schema_enum(); \
+  void fill_enum_schema(nlohmann::json& schema); \
 \
   template < \
     typename T, \
@@ -507,7 +507,7 @@ namespace ccf
 #define DECLARE_JSON_ENUM(TYPE, ...) \
   NLOHMANN_JSON_SERIALIZE_ENUM(TYPE, __VA_ARGS__) \
   template <> \
-  inline nlohmann::json fill_schema_enum<TYPE>() \
+  inline void fill_enum_schema<TYPE>(nlohmann::json & schema) \
   { \
     static const std::pair<TYPE, nlohmann::json> m[] = __VA_ARGS__; \
     auto enums = nlohmann::json::array(); \
@@ -515,7 +515,5 @@ namespace ccf
     { \
       enums.push_back(p.second); \
     } \
-    nlohmann::json element; \
-    element["enum"] = enums; \
-    return element; \
+    schema["enum"] = enums; \
   }
