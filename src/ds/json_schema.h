@@ -52,7 +52,7 @@ namespace ccf
   template <typename T>
   nlohmann::json schema_element()
   {
-    nlohmann::json element;
+    auto element = nlohmann::json::object();
     fill_schema<T>(element);
     return element;
   }
