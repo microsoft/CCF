@@ -41,9 +41,8 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument("-s", "--app-script", help="Path to app script")
     parser.add_argument(
-        "-q",
-        "--expect-quote",
-        help="Expect a quote when starting node.",
+        "--ignore-quote",
+        help="Ignore node quote (e.g. virtual enclave)",
         action="store_true",
     )
     parser.add_argument(
