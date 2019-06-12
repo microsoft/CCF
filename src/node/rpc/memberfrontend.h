@@ -223,8 +223,7 @@ namespace ccf
               {MemberStatus::ACTIVE, MemberStatus::ACCEPTED}))
           return jsonrpc::error(jerr::INSUFFICIENT_RIGHTS);
 
-        const std::string table_name = args.params["table"];
-        const auto key = args.params["key"];
+        const auto in = args.params.get<KVRead::In>();
 
         const ccf::Script read_script(R"xxx(
         local tables, table_name, key = ...
@@ -234,42 +233,46 @@ namespace ccf
         const auto value = tsr.run<nlohmann::json>(
           args.tx,
           {read_script, {}, WlIds::MEMBER_CAN_READ, {}},
-          table_name,
-          key);
+          in.table,
+          in.key);
         if (value.empty())
           return jsonrpc::error(jerr::INVALID_PARAMS, "key does not exist");
         return jsonrpc::success(value);
       };
-      install(MemberProcs::READ, read, Read);
+      install_with_auto_schema<KVRead>(MemberProcs::READ, read, Read);
 
       auto query = [this](RequestArgs& args) {
         if (!check_member_accepted(args.tx, args.caller_id))
           return jsonrpc::error(jerr::INSUFFICIENT_RIGHTS);
 
+        const auto script = args.params.get<ccf::Script>();
         return jsonrpc::success(tsr.run<nlohmann::json>(
-          args.tx, {args.params, {}, WlIds::MEMBER_CAN_READ, {}}));
+          args.tx, {script, {}, WlIds::MEMBER_CAN_READ, {}}));
       };
-      install(MemberProcs::QUERY, query, Read);
+      install_with_auto_schema<Script, nlohmann::json>(
+        MemberProcs::QUERY, query, Read);
 
       auto propose = [this](RequestArgs& args) {
         if (!check_member_active(args.tx, args.caller_id))
           return jsonrpc::error(jerr::INSUFFICIENT_RIGHTS);
 
+        const auto in = args.params.get<Proposal::In>();
         const auto proposal_id = get_next_id(
           args.tx.get_view(this->network.values), ValueIds::NEXT_PROPOSAL_ID);
         args.tx.get_view(this->network.proposals)
-          ->put(proposal_id, {args.caller_id, args.params});
+          ->put(proposal_id, {args.caller_id, in});
         const bool completed = complete_proposal(args.tx, proposal_id);
         return jsonrpc::success<Proposal::Out>({proposal_id, completed});
       };
-      install(MemberProcs::PROPOSE, propose, Write);
+      install_with_auto_schema<Proposal>(MemberProcs::PROPOSE, propose, Write);
 
       auto removal = [this](RequestArgs& args) {
         if (!check_member_status(
               args.tx, args.caller_id, {MemberStatus::ACTIVE}))
           return jsonrpc::error(jerr::INSUFFICIENT_RIGHTS);
 
-        const auto proposal_id = ProposalAction(args.params).id;
+        const auto proposal_action = args.params.get<ProposalAction>();
+        const auto proposal_id = proposal_action.id;
         auto proposals = args.tx.get_view(this->network.proposals);
         const auto proposal = proposals->get(proposal_id);
 
@@ -285,7 +288,8 @@ namespace ccf
         proposals->remove(proposal_id);
         return jsonrpc::success(true);
       };
-      install(MemberProcs::REMOVAL, removal, Write);
+      install_with_auto_schema<ProposalAction, bool>(
+        MemberProcs::REMOVAL, removal, Write);
 
       auto vote = [this](RequestArgs& args) {
         if (!check_member_active(args.tx, args.caller_id))
@@ -294,7 +298,7 @@ namespace ccf
         if (args.signed_request.sig.empty())
           return jsonrpc::error(jerr::RPC_NOT_SIGNED);
 
-        Vote vote = args.params;
+        const auto vote = args.params.get<Vote>();
         auto proposals = args.tx.get_view(this->network.proposals);
         auto proposal = proposals->get(vote.id);
         if (!proposal)
