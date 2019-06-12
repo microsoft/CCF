@@ -209,6 +209,7 @@ namespace client
     bool write_tx_times = false;
     bool randomise = false;
     bool check_responses = false;
+    bool fast_start = false;
     ///@}
 
     // Everything else has empty stubs and can optionally be overridden. This
@@ -561,6 +562,11 @@ namespace client
         "--check-responses",
         check_responses,
         "Check every JSON response for errors. Potentially slow");
+      app.add_flag(
+        "--fast-start",
+        fast_start,
+        "Do not wait for stable global commit before starting timer. Should be "
+        "used when running performance tests from multiple clients");
     }
 
     void init_connection()
@@ -660,9 +666,12 @@ namespace client
       // these are never signed
       timing.emplace(create_connection(true));
 
-      // To get stable numbers, we wait for global commit before starting, and
-      // only time from after this
-      timing->wait_for_global_commit({highest_local_commit}, false);
+      if (!fast_start)
+      {
+        // To get stable numbers, we wait for global commit before starting, and
+        // only time from after this
+        timing->wait_for_global_commit({highest_local_commit}, false);
+      }
       timing->reset_start_time();
     }
 

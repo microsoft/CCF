@@ -59,9 +59,10 @@ if(BUILD_TESTS)
       --label Small_Bank_ClientSigs_Forwarding
       --max-writes-ahead 1000
       --metrics-file small_bank_fwd_metrics.json
-      -n localhost -n localhost -n localhost
-      -cn localhost -cn localhost
+      -n localhost -n localhost
+      -cn localhost
       --send-tx-to followers
-      # --sign
+      --sign
+      --fast-start
   )
 endif()
