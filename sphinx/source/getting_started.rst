@@ -180,6 +180,12 @@ Tests can be started through the tests.sh wrapper for ctest:
     cd build
     ./tests.sh -VV
 
+
+Although CCF's unit tests can be run through ctest directly, the end-to-end tests that
+start a network require some Python infrastructure. `tests.sh` will set up a virtual
+environment with these dependencies and activate it before running ctest. Further runs
+will re-use that virtual environment.
+
 Sanitizers
 ``````````
 
