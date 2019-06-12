@@ -284,26 +284,11 @@ int main(int argc, char** argv)
   auto ack =
     app.add_subcommand("ack", "Acknowledge self added into the network");
 
-  NodeInfo node_info;
-  std::string new_node_cert_file;
-  std::string new_node_quote_file;
+  std::string nodes_file;
   auto add_node = app.add_subcommand("add_node", "Make a node trusted");
-  add_node->add_option("--new_node_host", node_info.host, "The node id")
-    ->required(true);
-  add_node->add_option("--new_node_pub_host", node_info.pubhost, "The node id")
-    ->required(true);
   add_node
     ->add_option(
-      "--new_node_raft_port", node_info.raftport, "The node raft port")
-    ->required(true);
-  add_node
-    ->add_option("--new_node_tls_port", node_info.tlsport, "The node tls port")
-    ->required(true);
-  add_node
-    ->add_option("--new_node_cert", new_node_cert_file, "The node certificate")
-    ->required(true);
-  add_node
-    ->add_option("--new_node_quote", new_node_quote_file, "The node quote")
+      "--nodes_to_add", nodes_file, "The file containing the nodes to be added")
     ->required(true);
 
   NodeId node_id;
@@ -367,11 +352,18 @@ int main(int argc, char** argv)
 
     if (*add_node)
     {
-      const auto new_node_raw_cert = slurp(new_node_cert_file);
-      node_info.cert = new_node_raw_cert;
-      const auto new_node_raw_quote = slurp(new_node_quote_file);
-      node_info.quote = new_node_raw_quote;
-      submit_add_node(*tls_connection, node_info);
+      const auto j_nodes = files::slurp_json(nodes_file);
+
+      if (!j_nodes.is_array())
+      {
+        throw logic_error("Expected " + nodes_file + " to contain array");
+      }
+
+      for (auto node : j_nodes)
+      {
+        NodeInfo node_info = node;
+        submit_add_node(*tls_connection, node_info);
+      }
     }
 
     if (*accept_node)

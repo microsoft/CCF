@@ -12,43 +12,25 @@ from loguru import logger as LOG
 
 
 def create_and_add_node(
-    network, args, node_id, member_host, member_port, should_succeed=True
+    network, lib_name, args, node_id, member_host, member_port, should_succeed=True
 ):
-    dict_args = vars(args)
     forwarded_args = {
-        arg: dict_args[arg] for arg in infra.ccf.Network.node_args_to_forward
+        arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
     }
     node_status = args.node_status or "pending"
     new_node = network.create_node(node_id, "localhost")
     new_node.start(
-        lib_name=args.package,
+        lib_name=lib_name,
         node_status=node_status,
         workspace=args.workspace,
         label=args.label,
         **forwarded_args
     )
     new_node_info = new_node.remote.info()
-    new_cert_path = "{}/{}".format(
-        new_node.remote.remote.root, getattr(new_node.remote, "pem")
-    )
 
-    if should_succeed:
-        new_quote_path = "{}/{}".format(
-            new_node.remote.remote.root, getattr(new_node.remote, "quote")
-        )
-    else:
-        invalid_node = network.create_node(node_id + 1, "localhost")
-        invalid_node.start(
-            lib_name=args.package,
-            node_status=node_status,
-            workspace=args.workspace,
-            label=args.label,
-            **forwarded_args
-        )
-        new_quote_path = "{}/{}".format(
-            invalid_node.remote.remote.root, getattr(invalid_node.remote, "quote")
-        )
-        invalid_node.stop()
+    new_node_json_path = "{}/node_{}.json".format(new_node.remote.remote.root, node_id)
+    with open(new_node_json_path, "w") as node_file:
+        json.dump([new_node_info], node_file, indent=4)
 
     result = infra.proc.ccall(
         "./memberclient",
@@ -58,21 +40,15 @@ def create_and_add_node(
         "--ca=networkcert.pem",
         "--cert=member1_cert.pem",
         "--privk=member1_privk.pem",
-        "--new_node_host={}".format(new_node_info["host"]),
-        "--new_node_pub_host={}".format(new_node_info["host"]),
-        "--new_node_raft_port={}".format(new_node_info["raftport"]),
-        "--new_node_tls_port={}".format(new_node_info["tlsport"]),
-        "--new_node_cert={}".format(new_cert_path),
-        "--new_node_quote={}".format(new_quote_path),
+        "--nodes_to_add={}".format(new_node_json_path),
         "--sign",
     )
 
     j_result = json.loads(result.stdout)
     if not should_succeed:
-        assert j_result["error"]["code"] == infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND
-        return None
+        return (False, j_result["error"]["code"])
 
-    return j_result["result"]
+    return (True, j_result["result"])
 
 
 def run(args):
@@ -83,24 +59,14 @@ def run(args):
     ) as network:
         primary, others = network.start_and_join(args)
 
-        infra.proc.ccall(
-            "./logging_client",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--ca=networkcert.pem",
-            "--cert=user1_cert.pem",
-            "--privk=user1_privk.pem",
-        )
-
         # add a valid node
-        assert (
-            create_and_add_node(network, args, 2, primary.host, primary.tls_port) == 2
-        )
+        assert create_and_add_node(
+            network, "libloggingenc", args, 2, primary.host, primary.tls_port
+        ) == (True, 2)
         # add an invalid node
-        assert (
-            create_and_add_node(network, args, 3, primary.host, primary.tls_port, False)
-            == None
-        )
+        assert create_and_add_node(
+            network, "libluagenericenc", args, 3, primary.host, primary.tls_port, False
+        ) == (False, infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND)
 
 
 if __name__ == "__main__":
