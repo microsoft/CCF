@@ -445,7 +445,7 @@ class CCFRemote(object):
         other_quote=None,
         other_quoted_data=None,
         log_level="info",
-        expect_quote=True,
+        ignore_quote=False,
         sig_max_tx=1000,
         sig_max_ms=1000,
         node_status="pending",
@@ -468,8 +468,8 @@ class CCFRemote(object):
         self.node_status = node_status
         self.verify_quote = verify_quote
         # Only expect a quote if the enclave is not virtual and quotes have
-        # not been explictly disabled
-        if enclave_type != "virtual" and expect_quote:
+        # not been explictly ignored
+        if enclave_type != "virtual" and not ignore_quote:
             self.quote = f"quote{node_id}.bin"
         self.BIN = infra.path.build_bin_path(self.BIN, enclave_type)
         self.ledger_file = ledger_file
