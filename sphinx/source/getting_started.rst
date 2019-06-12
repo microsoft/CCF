@@ -173,12 +173,18 @@ The full list of build switches can be obtained by running:
 Tests
 -----
 
-Tests can be run through ctest:
+Tests can be started through the tests.sh wrapper for ctest:
 
 .. code-block:: bash
 
     cd build
-    ctest -VV
+    ./tests.sh -VV
+
+
+Although CCF's unit tests can be run through ctest directly, the end-to-end tests that
+start a network require some Python infrastructure. `tests.sh` will set up a virtual
+environment with these dependencies and activate it before running ctest. Further runs
+will re-use that virtual environment.
 
 Sanitizers
 ``````````
@@ -189,12 +195,12 @@ To build and run the tests with the Address and Undefined behaviour sanitizers, 
 
     cmake -GNinja .. -DSAN=ON
     ninja
-    ctest -VV
+    ./tests.sh -VV
 
 On a machine without SGX, you can run the tests with:
 
 .. code-block:: bash
 
-    TEST_ENCLAVE=simulate ctest -VV
+    TEST_ENCLAVE=simulate ./tests.sh -VV
 
 The build steps remain identical.

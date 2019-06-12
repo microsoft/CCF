@@ -38,12 +38,6 @@ commands:
   gather_and_push_coverage:
     steps:
       - run:
-          name: Gather coverage data
-          working_directory: build
-          command: |
-            ls *_test | xargs -n1 -I '{}' llvm-profdata-7 merge {}.profraw -o {}.profdata
-            ls *_test | xargs -n1 -I '{}' sh -c 'printf "\n*** Binary: {} ***\n "; llvm-cov-7 report -object {} -instr-profile {}.profdata -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)"'
-      - run:
           name: Push coverage
           command: ../tests/coverage/generate_coverage.sh
           working_directory: build

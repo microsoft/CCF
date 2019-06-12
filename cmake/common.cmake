@@ -629,7 +629,6 @@ function(add_perf_test)
     NAME ${PARSED_ARGS_NAME}
     COMMAND python3 ${PARSED_ARGS_PYTHON_SCRIPT}
       -b .
-      --label ${PARSED_ARGS_NAME}
       -c ${PARSED_ARGS_CLIENT_BIN}
       -i ${PARSED_ARGS_ITERATIONS}
       ${CCF_NETWORK_TEST_ARGS}
