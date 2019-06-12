@@ -213,14 +213,12 @@ TEST_CASE("Verify signature on Member Frontend")
       txs, member_caller, caller_id, signed_call, false));
   }
 
-#ifndef DISABLE_CLIENT_SIGNATURE_VERIFICATION
   SUBCASE("signature not verified")
   {
     auto signed_call = create_signed_json();
     CHECK(!frontend.verify_client_signature(
       txs, invalid_caller, inval_caller_id, signed_call, false));
   }
-#endif
 }
 
 TEST_CASE("Verify signature")
@@ -238,14 +236,12 @@ TEST_CASE("Verify signature")
       txs, user_caller, caller_id, signed_call, false));
   }
 
-#ifndef DISABLE_CLIENT_SIGNATURE_VERIFICATION
   SUBCASE("signature not verified")
   {
     auto signed_call = create_signed_json();
     CHECK(!frontend.verify_client_signature(
       txs, invalid_caller, inval_caller_id, signed_call, false));
   }
-#endif
 }
 
 TEST_CASE("get_signed_req")
@@ -286,7 +282,6 @@ TEST_CASE("get_signed_req")
     CHECK(value.req.empty());
     CHECK(value.sig == signed_call[jsonrpc::SIG]);
   }
-#ifndef DISABLE_CLIENT_SIGNATURE_VERIFICATION
   SUBCASE("signature not verified")
   {
     auto signed_call = create_signed_json();
@@ -294,7 +289,6 @@ TEST_CASE("get_signed_req")
     auto signed_resp = frontend.get_signed_req(inval_caller_id);
     CHECK(!signed_resp.has_value());
   }
-#endif
 }
 
 TEST_CASE("MinimalHandleFuction")
@@ -336,7 +330,6 @@ TEST_CASE("process_json")
       frontend.process_json(rpc_ctx, txs, caller_id, signed_call).value();
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
   }
-#ifndef DISABLE_CLIENT_SIGNATURE_VERIFICATION
   SUBCASE("signature not verified")
   {
     auto signed_call = create_signed_json();
@@ -347,7 +340,6 @@ TEST_CASE("process_json")
       response[jsonrpc::ERR][jsonrpc::CODE] ==
       static_cast<int16_t>(jsonrpc::ErrorCodes::INVALID_CLIENT_SIGNATURE));
   }
-#endif
 }
 
 TEST_CASE("process")
@@ -378,7 +370,6 @@ TEST_CASE("process")
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
   }
-#ifndef DISABLE_CLIENT_SIGNATURE_VERIFICATION
   SUBCASE("signature not verified")
   {
     auto signed_call = create_signed_json();
@@ -393,7 +384,6 @@ TEST_CASE("process")
       response[jsonrpc::ERR][jsonrpc::CODE] ==
       static_cast<int16_t>(jsonrpc::ErrorCodes::INVALID_CLIENT_SIGNATURE));
   }
-#endif
 }
 
 // callers

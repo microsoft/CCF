@@ -1237,22 +1237,12 @@ namespace ccf
 
     void setup_store()
     {
-      history =
-#ifndef DISABLE_PRIMARY_SIGNATURES
-        std::make_shared<MerkleTxHistory>(
-          *network.tables.get(),
-          self,
-          node_kp,
-          network.signatures,
-          network.nodes);
-#else
-        std::make_shared<NullTxHistory>(
-          *network.tables.get(),
-          self,
-          node_kp,
-          network.signatures,
-          network.nodes);
-#endif
+      history = std::make_shared<MerkleTxHistory>(
+        *network.tables.get(),
+        self,
+        node_kp,
+        network.signatures,
+        network.nodes);
 
       encryptor =
 #ifdef USE_NULL_ENCRYPTOR

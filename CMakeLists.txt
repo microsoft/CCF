@@ -1,42 +1,18 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-
 cmake_minimum_required(VERSION 3.11)
 
 set(CCF_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-
 include(${CCF_DIR}/cmake/preproject.cmake)
 
 project(ccf C CXX)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
-#find_program(CCACHE_FOUND ccache)
-#if(CCACHE_FOUND)
-#    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
-#    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
-#endif(CCACHE_FOUND)
-
-option(DISABLE_PRIMARY_SIGNATURES "Don't have the primary sign batches of state updates." OFF)
-if (DISABLE_PRIMARY_SIGNATURES)
-  add_definitions(-DDISABLE_PRIMARY_SIGNATURES)
-endif()
-
-option(DISABLE_CLIENT_SIGNATURE_VERIFICATION "Accept all client signatures without checking." OFF)
-if (DISABLE_CLIENT_SIGNATURE_VERIFICATION)
-  add_definitions(-DDISABLE_CLIENT_SIGNATURE_VERIFICATION)
-endif()
-
 set(TEST_HOST_LOGGING_LEVEL "info")
 set(ENV{BETTER_EXCEPTIONS} 1)
 
 option(BUILD_TESTS "Build tests" ON)
-
-option(NO_COMMITTED_TX_HISTORY "Do not keep tree of hashes of committed transactions" ON)
-if(RECORD_TRACE)
-  add_definitions(-DNO_COMMITTED_TX_HISTORY)
-endif()
-
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)

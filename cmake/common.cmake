@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-cmake_minimum_required(VERSION 3.11)
 
 set(MSGPACK_INCLUDE_DIR ${CCF_DIR}/3rdparty/msgpack-c)
 
@@ -17,6 +16,7 @@ set(Boost_ADDITIONAL_VERSIONS "1.67" "1.67.0")
 find_package(Boost 1.60.0 REQUIRED)
 find_package(Threads REQUIRED)
 
+# Azure Pipelines does not support color codes
 if (DEFINED ENV{BUILD_BUILDNUMBER})
   set(PYTHON python3)
 else()
@@ -116,7 +116,6 @@ include_directories(
   ${CCF_DIR}/3rdparty
   ${MSGPACK_INCLUDE_DIR}
 )
-
 
 option(VIRTUAL_ONLY "Build only virtual enclaves" OFF)
 set(OE_PREFIX "/opt/openenclave" CACHE PATH "Path to Open Enclave install")
@@ -560,7 +559,6 @@ add_enclave_lib(luagenericenc ${CCF_DIR}/src/apps/luageneric/oe_sign.conf ${CCF_
 # Common options
 set(TEST_ITERATIONS 200000)
 
-option(WRITE_TX_TIMES "Write csv files containing time of every sent request and received response" ON)
 ## Helper for building clients inheriting from perf_client
 function(add_client_exe name)
 
@@ -627,14 +625,6 @@ function(add_perf_test)
     unset(VERIFICATION_ARG)
   endif()
 
-  if(WRITE_TX_TIMES)
-    set(TX_TIMES_SUFFIX
-      --write-tx-times
-    )
-  else()
-    unset(TX_TIMES_SUFFIX)
-  endif()
-
   add_test(
     NAME ${PARSED_ARGS_NAME}
     COMMAND python3 ${PARSED_ARGS_PYTHON_SCRIPT}
@@ -644,7 +634,7 @@ function(add_perf_test)
       -i ${PARSED_ARGS_ITERATIONS}
       ${CCF_NETWORK_TEST_ARGS}
       ${PARSED_ARGS_ADDITIONAL_ARGS}
-      ${TX_TIMES_SUFFIX}
+      --write-tx-times
       ${VERIFICATION_ARG}
   )
 
