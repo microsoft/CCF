@@ -116,6 +116,8 @@ namespace ccf
         },
         true);
     }
+
+    void add_request(size_t id, const std::vector<uint8_t>& request) override {}
   };
 
   class MerkleTreeHistory
@@ -188,6 +190,8 @@ namespace ccf
     Nodes& nodes;
 
     std::shared_ptr<kv::Replicator> replicator;
+
+    std::map<RequestID, std::vector<uint8_t>> requests;
 
   public:
     HashedTxHistory(
@@ -283,6 +287,11 @@ namespace ccf
           return sig.commit_reserved();
         },
         true);
+    }
+
+    void add_request(kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override
+    {
+        requests[id] = request;
     }
   };
 

@@ -451,9 +451,17 @@ namespace ccf
       }
 
       auto rpc = unpack_json(input, ctx.pack.value());
+
       if (!rpc.first)
         return jsonrpc::pack(rpc.second, ctx.pack.value());
-
+      else
+      {
+        size_t jsonrpc_id = rpc.second[jsonrpc::ID];
+        size_t reqid = caller_id.value() + ctx.client_session_id + jsonrpc_id; //TODO: not a good hash!
+        history->add_request(reqid, input);
+        // TODO: attach request id to Tx as user data
+      }
+      
       auto rep = process_json(ctx, tx, caller_id.value(), rpc.second);
 
       // If necessary, forward the RPC to the current leader
