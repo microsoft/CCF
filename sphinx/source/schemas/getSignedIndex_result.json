@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "signed_index": {
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
+      "type": "number"
+    },
+    "state": {
+      "enum": [
+        "readingPublicLedger",
+        "awaitingRecovery",
+        "readingPrivateLedger",
+        "partOfNetwork",
+        "partOfPublicNetwork"
+      ]
+    }
+  },
+  "required": [
+    "state",
+    "signed_index"
+  ],
+  "title": "getSignedIndex/result",
+  "type": "object"
+}

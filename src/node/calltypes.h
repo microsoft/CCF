@@ -3,6 +3,7 @@
 #pragma once
 #include "entities.h"
 #include "networksecrets.h"
+#include "nodes.h"
 
 namespace ccf
 {
@@ -34,6 +35,55 @@ namespace ccf
     struct Out
     {
       NodeId id;
+    };
+  };
+
+  struct GetSignedIndex
+  {
+    using In = void;
+
+    enum class State
+    {
+      ReadingPublicLedger,
+      AwaitingRecovery,
+      ReadingPrivateLedger,
+      PartOfNetwork,
+      PartOfPublicNetwork,
+    };
+
+    struct Out
+    {
+      State state;
+      kv::Version signed_index;
+    };
+  };
+
+  struct SetRecoveryNodes
+  {
+    struct In
+    {
+      std::vector<NodeInfo> nodes;
+    };
+
+    using Out = void;
+  };
+
+  struct GetQuotes
+  {
+    using In = void;
+
+    struct Quote
+    {
+      NodeId node_id = {};
+      std::string raw = {};
+
+      std::string error = {};
+      std::string mrenclave = {};
+    };
+
+    struct Out
+    {
+      std::vector<Quote> quotes;
     };
   };
 

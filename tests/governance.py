@@ -30,7 +30,11 @@ def run(args):
             check_commit = infra.ccf.Checker(mc)
             check = infra.ccf.Checker()
             r = mc.rpc("getQuotes", {})
-            mrenclave = r.result["quotes"]["0"]["parsed"]["mrenclave"].decode()
+            quotes = r.result["quotes"]
+            assert len(quotes) == len(hosts)
+            leader_quote = quotes[0]
+            assert leader_quote["node_id"] == 0
+            mrenclave = leader_quote["mrenclave"].decode()
 
             oed = subprocess.run(
                 [args.oesign, "dump", "-e", f"{args.package}.so.signed"],
