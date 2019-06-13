@@ -170,6 +170,8 @@ if(NOT VIRTUAL_ONLY)
     else()
       set(TEST_IGNORE_QUOTE "--ignore-quote")
     endif()
+  else()
+    set(TEST_IGNORE_QUOTE "--ignore-quote")
   endif()
 else()
   set(TEST_ENCLAVE_TYPE
