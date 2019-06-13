@@ -31,7 +31,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
     CLIENT_BIN ./small_bank_client
     VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_short.json
-    ITERATIONS 2000
+    ITERATIONS 50000
     ADDITIONAL_ARGS
       --label Small_Bank_Client_Sigs
       --max-writes-ahead 1000 --sign
@@ -55,6 +55,7 @@ if(BUILD_TESTS)
     NAME small_bank_sigs_forwarding
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
     CLIENT_BIN ./small_bank_client
+    ITERATIONS 50000
     ADDITIONAL_ARGS
       --label Small_Bank_ClientSigs_Forwarding
       --max-writes-ahead 1000
