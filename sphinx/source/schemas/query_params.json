@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "bytecode": {
+      "items": {
+        "maximum": 255,
+        "minimum": 0,
+        "type": "number"
+      },
+      "type": "array"
+    },
+    "text": {
+      "type": "string"
+    }
+  },
+  "required": [],
+  "title": "query/params",
+  "type": "object"
+}

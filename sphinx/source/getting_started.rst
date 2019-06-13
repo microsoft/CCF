@@ -160,23 +160,31 @@ The full list of build switches can be obtained by running:
 
     cmake -L ..
 
-* **BUILD_TESTS**: Boolean. Whether to build the tests. Default to ON.
-* **CLIENT_MBEDTLS_PREFIX**: Path. Prefix to mbedtls install to be used by test clients. Defaults to ``/usr/local``.
-* **NO_STRICT_TLS_CIPHERSUITES**: Boolean. Whether to relax the list of accepted TLS ciphersuites. Defaults to OFF.
-* **OE_PREFIX**: Path. OpenEnclave install prefix. Defaults to ``/opt/openenclave``.
-* **SAN**: Boolean. Whether to build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
-* **VERBOSE_LOGGING**: Boolean. Level of logging detail. Default to OFF.
-* **CURVE_CHOICE**: One of secp384r1, curve25519, secp256k1_mbedtls, secp256k1_bitcoin. Elliptic curve to use for CCF public keys. Default to secp384r1.
+* **BUILD_TESTS**: Boolean. Build all tests for CCF. Default to ON.
+* **BUILD_SMALLBANK**: Boolean. Build SmallBank performance benchmark. Default to OFF.
+* **CLIENT_MBEDTLS_PREFIX**: Path. Prefix to mbedtls install to be used by test clients. Default to ``/usr/local``.
+* **CURVE_CHOICE**: String, one of secp384r1, curve25519, secp256k1_mbedtls, secp256k1_bitcoin. Elliptic curve to use for CCF asymmetric keys. Default to secp384r1.
+* **NO_STRICT_TLS_CIPHERSUITES**: Boolean. Relax the list of accepted TLS ciphersuites. Default to OFF.
+* **OE_PREFIX**: Path. OpenEnclave install prefix. Default to ``/opt/openenclave``.
+* **SAN**: Boolean. Build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
+* **VIRTUAL_ONLY**: Boolean. Only build "virtual" enclaves. Default to OFF.
+* **VERBOSE_LOGGING**: Boolean. Enable all logging levels. Default to OFF.
 
 Tests
 -----
 
-Tests can be run through ctest:
+Tests can be started through the tests.sh wrapper for ctest:
 
 .. code-block:: bash
 
     cd build
-    ctest -VV
+    ./tests.sh -VV
+
+
+Although CCF's unit tests can be run through ctest directly, the end-to-end tests that
+start a network require some Python infrastructure. `tests.sh` will set up a virtual
+environment with these dependencies and activate it before running ctest. Further runs
+will re-use that virtual environment.
 
 Sanitizers
 ``````````
@@ -187,12 +195,12 @@ To build and run the tests with the Address and Undefined behaviour sanitizers, 
 
     cmake -GNinja .. -DSAN=ON
     ninja
-    ctest -VV
+    ./tests.sh -VV
 
 On a machine without SGX, you can run the tests with:
 
 .. code-block:: bash
 
-    TEST_ENCLAVE=simulate ctest -VV
+    TEST_ENCLAVE=simulate ./tests.sh -VV
 
 The build steps remain identical.

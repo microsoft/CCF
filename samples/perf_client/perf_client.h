@@ -659,10 +659,6 @@ namespace client
       // timing gets its own new connection for any requests it wants to send -
       // these are never signed
       timing.emplace(create_connection(true));
-
-      // To get stable numbers, we wait for global commit before starting, and
-      // only time from after this
-      timing->wait_for_global_commit({highest_local_commit}, false);
       timing->reset_start_time();
     }
 

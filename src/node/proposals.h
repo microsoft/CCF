@@ -114,4 +114,16 @@ namespace ccf
    * Every proposal script must return a compatible data structure.
    */
   using ProposedCalls = std::vector<ProposedCall>;
+
+  struct KVRead
+  {
+    struct In
+    {
+      std::string table = {};
+      nlohmann::json key = {};
+    };
+
+    using Out = nlohmann::json;
+  };
+  DECLARE_REQUIRED_JSON_FIELDS(KVRead::In, table, key);
 }

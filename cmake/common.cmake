@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-cmake_minimum_required(VERSION 3.11)
 
 set(MSGPACK_INCLUDE_DIR ${CCF_DIR}/3rdparty/msgpack-c)
 
@@ -17,6 +16,7 @@ set(Boost_ADDITIONAL_VERSIONS "1.67" "1.67.0")
 find_package(Boost 1.60.0 REQUIRED)
 find_package(Threads REQUIRED)
 
+# Azure Pipelines does not support color codes
 if (DEFINED ENV{BUILD_BUILDNUMBER})
   set(PYTHON python3)
 else()
@@ -86,6 +86,7 @@ endif()
 
 option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
 option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
+option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 
 option(PBFT "Enable PBFT" OFF)
 if (PBFT)
@@ -116,7 +117,6 @@ include_directories(
   ${CCF_DIR}/3rdparty
   ${MSGPACK_INCLUDE_DIR}
 )
-
 
 option(VIRTUAL_ONLY "Build only virtual enclaves" OFF)
 set(OE_PREFIX "/opt/openenclave" CACHE PATH "Path to Open Enclave install")
@@ -156,7 +156,7 @@ if(NOT VIRTUAL_ONLY)
   execute_process(COMMAND "ldd" ${OESIGN}
                   COMMAND "grep" "-c" "sgx"
                   OUTPUT_QUIET
-                RESULT_VARIABLE OE_NO_SGX)
+                  RESULT_VARIABLE OE_NO_SGX)
 
   if(NOT OE_NO_SGX)
     message(STATUS "Linking SGX")
@@ -168,8 +168,11 @@ if(NOT VIRTUAL_ONLY)
 
     if (NOT DISABLE_QUOTE_VERIFICATION)
       set(QUOTES_ENABLED ON)
-      set(TEST_EXPECT_QUOTE "-q")
+    else()
+      set(TEST_IGNORE_QUOTE "--ignore-quote")
     endif()
+  else()
+    set(TEST_IGNORE_QUOTE "--ignore-quote")
   endif()
 else()
   set(TEST_ENCLAVE_TYPE
@@ -546,7 +549,7 @@ set_property(TARGET lua.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Common test args for Python scripts starting up CCF networks
 set(CCF_NETWORK_TEST_ARGS
-  ${TEST_EXPECT_QUOTE}
+  ${TEST_IGNORE_QUOTE}
   ${TEST_ENCLAVE_TYPE}
   -l ${TEST_HOST_LOGGING_LEVEL}
   -g ${CCF_DIR}/src/runtime_config/gov.lua
@@ -560,7 +563,6 @@ add_enclave_lib(luagenericenc ${CCF_DIR}/src/apps/luageneric/oe_sign.conf ${CCF_
 # Common options
 set(TEST_ITERATIONS 200000)
 
-option(WRITE_TX_TIMES "Write csv files containing time of every sent request and received response" ON)
 ## Helper for building clients inheriting from perf_client
 function(add_client_exe name)
 
@@ -590,9 +592,9 @@ endfunction()
 ## Helper for building end-to-end function tests using the python infrastructure
 function(add_e2e_test)
   cmake_parse_arguments(PARSE_ARGV 0 PARSED_ARGS
-  ""
-  "NAME;PYTHON_SCRIPT;"
-  "ADDITIONAL_ARGS"
+    ""
+    "NAME;PYTHON_SCRIPT;"
+    "ADDITIONAL_ARGS"
   )
 
   if (BUILD_END_TO_END_TESTS)
@@ -603,6 +605,14 @@ function(add_e2e_test)
         --label ${PARSED_ARGS_NAME}
         ${CCF_NETWORK_TEST_ARGS}
         ${PARSED_ARGS_ADDITIONAL_ARGS}
+    )
+
+    ## Make python test client framework importable
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY
+        ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
     )
   endif()
 endfunction()
@@ -627,24 +637,15 @@ function(add_perf_test)
     unset(VERIFICATION_ARG)
   endif()
 
-  if(WRITE_TX_TIMES)
-    set(TX_TIMES_SUFFIX
-      --write-tx-times
-    )
-  else()
-    unset(TX_TIMES_SUFFIX)
-  endif()
-
   add_test(
     NAME ${PARSED_ARGS_NAME}
-    COMMAND python3 ${PARSED_ARGS_PYTHON_SCRIPT}
+    COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
       -b .
-      --label ${PARSED_ARGS_NAME}
       -c ${PARSED_ARGS_CLIENT_BIN}
       -i ${PARSED_ARGS_ITERATIONS}
       ${CCF_NETWORK_TEST_ARGS}
       ${PARSED_ARGS_ADDITIONAL_ARGS}
-      ${TX_TIMES_SUFFIX}
+      --write-tx-times
       ${VERIFICATION_ARG}
   )
 
