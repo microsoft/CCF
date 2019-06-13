@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "id": {
+      "maximum": 18446744073709551615,
+      "minimum": 0,
+      "type": "number"
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "title": "complete/params",
+  "type": "object"
+}

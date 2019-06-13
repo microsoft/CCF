@@ -618,16 +618,16 @@ namespace ccf
       }
     }
 
-    void node_quotes(Store::Tx& tx, nlohmann::json& j)
+    void node_quotes(Store::Tx& tx, GetQuotes::Out& result)
     {
       auto nodes_view = tx.get_view(network.nodes);
 
-      nlohmann::json quotes;
-      nodes_view->foreach([&quotes](const NodeId& nid, const NodeInfo& ni) {
+      nodes_view->foreach([&result](const NodeId& nid, const NodeInfo& ni) {
         if (ni.status == ccf::NodeStatus::TRUSTED)
         {
-          nlohmann::json quote;
-          quote["raw"] = std::string(ni.quote.begin(), ni.quote.end());
+          GetQuotes::Quote quote;
+          quote.node_id = nid;
+          quote.raw = std::string(ni.quote.begin(), ni.quote.end());
 
 #ifdef GET_QUOTE
           oe_report_t parsed_quote = {0};
@@ -637,26 +637,24 @@ namespace ccf
           {
             std::stringstream ss;
             ss << "Failed to parse quote: " << oe_result_str(res);
-            quote["error"] = ss.str();
+            quote.error = ss.str();
           }
           else
           {
-            quote["parsed"]["mrenclave"] = fmt::format(
+            quote.mrenclave = fmt::format(
               "{:02x}", fmt::join(parsed_quote.identity.unique_id, ""));
           }
 #endif
-          quotes[std::to_string(nid)] = quote;
+          result.quotes.push_back(quote);
         }
       });
-
-      j["quotes"] = quotes;
     };
 
     //
     // funcs in state "awaitingRecoveryTx"
     //
     std::string replace_nodes(
-      Store::Tx& tx, const std::vector<ccf::NodeInfo> new_nodes)
+      Store::Tx& tx, const std::vector<ccf::NodeInfo>& new_nodes)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::awaitingRecoveryTx);
