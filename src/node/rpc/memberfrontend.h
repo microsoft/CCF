@@ -381,7 +381,7 @@ namespace ccf
         new_node.status = NodeStatus::PENDING;
         args.tx.get_view(this->network.nodes)->put(node_id, new_node);
 
-        return jsonrpc::success(node_id);
+        return jsonrpc::success(nlohmann::json(JoinNetwork::Out{node_id}));
       };
       install(MemberProcs::ADD_NODE, add_node, Write);
     }

@@ -11,46 +11,6 @@ import time
 from loguru import logger as LOG
 
 
-def create_and_add_node(
-    network, lib_name, args, node_id, member_host, member_port, should_succeed=True
-):
-    forwarded_args = {
-        arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
-    }
-    node_status = args.node_status or "pending"
-    new_node = network.create_node(node_id, "localhost")
-    new_node.start(
-        lib_name=lib_name,
-        node_status=node_status,
-        workspace=args.workspace,
-        label=args.label,
-        **forwarded_args
-    )
-    new_node_info = new_node.remote.info()
-
-    new_node_json_path = "{}/node_{}.json".format(new_node.remote.remote.root, node_id)
-    with open(new_node_json_path, "w") as node_file:
-        json.dump([new_node_info], node_file, indent=4)
-
-    result = infra.proc.ccall(
-        "./memberclient",
-        "add_node",
-        "--host={}".format(member_host),
-        "--port={}".format(member_port),
-        "--ca=networkcert.pem",
-        "--cert=member1_cert.pem",
-        "--privk=member1_privk.pem",
-        "--nodes_to_add={}".format(new_node_json_path),
-        "--sign",
-    )
-
-    j_result = json.loads(result.stdout)
-    if not should_succeed:
-        return (False, j_result["error"]["code"])
-
-    return (True, j_result["result"])
-
-
 def run(args):
     hosts = ["localhost", "localhost"]
 
@@ -60,13 +20,22 @@ def run(args):
         primary, others = network.start_and_join(args)
 
         # add a valid node
-        assert create_and_add_node(
-            network, "libloggingenc", args, 2, primary.host, primary.tls_port
-        ) == (True, 2)
-        # add an invalid node
-        assert create_and_add_node(
-            network, "libluagenericenc", args, 3, primary.host, primary.tls_port, False
-        ) == (False, infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND)
+        res = network.create_and_add_node("libloggingenc", args, 2)
+        assert(res[0] == True)
+        new_node = res[1]
+
+        with open("networkcert.pem", mode="rb") as file:
+            net_cert = file.read()
+        print(net_cert)
+        # input()
+        with new_node.management_client() as c:
+            c.rpc("joinNetwork", {"hostname":primary.host, "service":str(primary.tls_port), "network_cert":net_cert})
+            # new_node.join_network()
+            # network.wait_for_node_commit_sync()
+        # # add an invalid node
+        # assert network.create_and_add_node(
+            # "libluagenericenc", args, 3, False
+        # ) == (False, infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND)
 
 
 if __name__ == "__main__":

@@ -227,12 +227,6 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
   )
 
-  ## Add node test
-  add_e2e_test(
-    NAME add_node_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/addnode.py
-  )
-
   ## Logging client end to end test
   add_e2e_test(
     NAME logging_client_test
@@ -262,6 +256,12 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
       ADDITIONAL_ARGS
         --oesign ${OESIGN}
+    )
+
+    ## Add node test
+    add_e2e_test(
+      NAME add_node_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/addnode.py
     )
   endif()
 
