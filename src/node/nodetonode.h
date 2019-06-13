@@ -50,7 +50,8 @@ namespace ccf
     }
 
     template <class T>
-    void send_authenticated(NodeId to, const T& data)
+    void send_authenticated(
+      const NodeMsgType& msg_type, NodeId to, const T& data)
     {
       auto& n2n_channel = channels->get(to);
       if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
@@ -62,7 +63,7 @@ namespace ccf
       // The secure channel between self and to has already been established
       GcmHdr hdr;
       n2n_channel.tag(hdr, asCb(data));
-      to_host->write(node_outbound, to, NodeMsgType::consensus_msg, data, hdr);
+      to_host->write(node_outbound, to, msg_type, data, hdr);
     }
 
     template <class T>
