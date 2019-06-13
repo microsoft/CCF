@@ -15,8 +15,6 @@ set(ENV{BETTER_EXCEPTIONS} 1)
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
-option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
-
 # MemberClient executable
 add_executable(memberclient src/clients/memberclient.cpp)
 use_client_mbedtls(memberclient)
