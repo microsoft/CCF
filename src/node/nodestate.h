@@ -905,14 +905,6 @@ namespace ccf
           break;
 
         case consensus_msg_pbft:
-          if ((!sm.check(State::partOfNetwork) &&
-               !sm.check(State::partOfPublicNetwork)))
-          {
-            LOG_INFO
-              << "Currently not part of the network, dropping message to PBFT"
-              << std::endl;
-            break;
-          }
           pbft->recv_message(p, psize);
           break;
         case consensus_msg_raft:
