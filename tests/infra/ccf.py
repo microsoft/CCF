@@ -70,7 +70,7 @@ class Network:
     node_args_to_forward = [
         "enclave_type",
         "log_level",
-        "expect_quote",
+        "ignore_quote",
         "sig_max_tx",
         "sig_max_ms",
         "election_timeout",
