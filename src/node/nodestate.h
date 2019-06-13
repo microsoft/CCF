@@ -905,7 +905,9 @@ namespace ccf
           break;
 
         case consensus_msg_pbft:
+#ifdef PBFT
           pbft->recv_message(p, psize);
+#endif
           break;
         case consensus_msg_raft:
           raft->recv_message(p, psize);
