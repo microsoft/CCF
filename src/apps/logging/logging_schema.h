@@ -38,7 +38,7 @@ namespace ccf
 
   // Public record/get
   // Manual schemas, verified then parsed in handler
-  static const std::string j_record_public = R"!!!(
+  static const std::string j_record_public_in = R"!!!(
   {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "properties": {
@@ -55,6 +55,14 @@ namespace ccf
     ],
     "title": "LOG_record_pub/params",
     "type": "object"
+  }
+  )!!!";
+
+  static const std::string j_record_public_out = R"!!!(
+  {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "LOG_record_pub/result",
+    "type": "bool"
   }
   )!!!";
 
