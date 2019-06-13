@@ -7,7 +7,7 @@
 #include "libbyz/Time.h"
 #include "libbyz/types.h"
 #include "node/nodetonode.h"
-#include "pbft/pbfttypes.h"
+#include "pbfttypes.h"
 
 #include <signal.h>
 

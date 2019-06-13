@@ -51,7 +51,7 @@ namespace ccf
 
     template <class T>
     void send_authenticated(
-      NodeId to, const T& data, const NodeMsgType& msg_type)
+      const NodeMsgType& msg_type, NodeId to, const T& data)
     {
       auto& n2n_channel = channels->get(to);
       if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)

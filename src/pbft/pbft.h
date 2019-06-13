@@ -49,7 +49,7 @@ namespace pbft
         msg->size());
 
       n2n_channels->send_authenticated(
-        to, serialized_msg, ccf::NodeMsgType::consensus_msg_pbft);
+        ccf::NodeMsgType::consensus_msg_pbft, to, serialized_msg);
       return msg->size();
     }
 
