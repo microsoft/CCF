@@ -22,8 +22,8 @@ def run(args):
     os.makedirs(args.schema_dir, exist_ok=True)
 
     changed_files = []
-    methods_with_schema = []
-    methods_without_schema = []
+    methods_with_schema = set()
+    methods_without_schema = set()
 
     def fetch_schema(client):
         list_response = client.rpc("listMethods", {})
@@ -58,9 +58,9 @@ def run(args):
                                 LOG.debug("Schema matches in {}".format(target_file))
 
             if schema_found:
-                methods_with_schema.append(method)
+                methods_with_schema.add(method)
             else:
-                methods_without_schema.append(method)
+                methods_without_schema.add(method)
 
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes

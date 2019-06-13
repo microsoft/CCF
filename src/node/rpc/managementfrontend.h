@@ -12,7 +12,8 @@ namespace ccf
     ManagementRpcFrontend(Store& tables, NodeState& node) : RpcFrontend(tables)
     {
       auto start = [&node](RequestArgs& args) {
-        auto result = node.start_network(args.tx, args.params);
+        const auto in = args.params.get<StartNetwork::In>();
+        auto result = node.start_network(args.tx, in);
         if (result.second)
           return jsonrpc::success(result.first);
 
@@ -22,32 +23,33 @@ namespace ccf
       };
 
       auto join = [&node](RequestArgs& args) {
-        node.join_network(args.rpc_ctx, args.params);
+        const auto in = args.params.get<JoinNetwork::In>();
+        node.join_network(args.rpc_ctx, in);
 
         return jsonrpc::success();
       };
 
       auto get_signed_index = [&node](RequestArgs& args) {
-        nlohmann::json result;
+        GetSignedIndex::Out result;
         if (node.is_reading_public_ledger())
         {
-          result["state"] = "readingPublicLedger";
+          result.state = GetSignedIndex::State::ReadingPublicLedger;
         }
         else if (node.is_awaiting_recovery())
         {
-          result["state"] = "awaitingRecovery";
+          result.state = GetSignedIndex::State::AwaitingRecovery;
         }
         else if (node.is_reading_private_ledger())
         {
-          result["state"] = "readingPrivateLedger";
+          result.state = GetSignedIndex::State::ReadingPrivateLedger;
         }
         else if (node.is_part_of_network())
         {
-          result["state"] = "partOfNetwork";
+          result.state = GetSignedIndex::State::PartOfNetwork;
         }
         else if (node.is_part_of_public_network())
         {
-          result["state"] = "partOfPublicNetwork";
+          result.state = GetSignedIndex::State::PartOfPublicNetwork;
         }
         else
         {
@@ -56,33 +58,15 @@ namespace ccf
             "Network is not in recovery mode");
         }
 
-        result["signed_index"] = node.last_signed_index(args.tx);
+        result.signed_index = node.last_signed_index(args.tx);
         return jsonrpc::success(result);
       };
 
       auto set_recovery_nodes = [&node](RequestArgs& args) {
         if (node.is_awaiting_recovery())
         {
-          std::vector<NodeInfo> nodes;
-          for (const auto node :
-               args.params.value("nodes", std::vector<nlohmann::json>()))
-          {
-            NodeInfo ni;
-            try
-            {
-              from_json(node, ni);
-            }
-            catch (const std::exception& e)
-            {
-              std::stringstream ss;
-              ss << "Failed to deserialise node definition: " << node << " : "
-                 << e.what();
-              return jsonrpc::error(
-                jsonrpc::ErrorCodes::INVALID_REQUEST, ss.str());
-            }
-            nodes.push_back(ni);
-          }
-          auto network_cert = node.replace_nodes(args.tx, nodes);
+          auto in = args.params.get<SetRecoveryNodes::In>();
+          auto network_cert = node.replace_nodes(args.tx, in.nodes);
           return jsonrpc::success(network_cert);
         }
         else
@@ -94,17 +78,22 @@ namespace ccf
       };
 
       auto get_quotes = [&node](RequestArgs& args) {
-        nlohmann::json response;
-        node.node_quotes(args.tx, response);
+        GetQuotes::Out result;
+        node.node_quotes(args.tx, result);
 
-        return jsonrpc::success(response);
+        return jsonrpc::success(result);
       };
 
-      install(ManagementProcs::START_NETWORK, start, Write);
-      install(ManagementProcs::JOIN_NETWORK, join, Read);
-      install(ManagementProcs::GET_SIGNED_INDEX, get_signed_index, Read);
-      install(ManagementProcs::SET_RECOVERY_NODES, set_recovery_nodes, Write);
-      install(ManagementProcs::GET_QUOTES, get_quotes, Read);
+      install_with_auto_schema<StartNetwork>(
+        ManagementProcs::START_NETWORK, start, Write);
+      install_with_auto_schema<JoinNetwork>(
+        ManagementProcs::JOIN_NETWORK, join, Read);
+      install_with_auto_schema<GetSignedIndex>(
+        ManagementProcs::GET_SIGNED_INDEX, get_signed_index, Read);
+      install_with_auto_schema<SetRecoveryNodes>(
+        ManagementProcs::SET_RECOVERY_NODES, set_recovery_nodes, Write);
+      install_with_auto_schema<GetQuotes>(
+        ManagementProcs::GET_QUOTES, get_quotes, Read);
     }
   };
 }

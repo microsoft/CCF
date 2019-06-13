@@ -282,3 +282,42 @@ TEST_CASE("nested")
     }
   }
 }
+
+namespace ccf
+{
+  struct EnumStruct
+  {
+    enum class SampleEnum
+    {
+      One,
+      Two,
+      Three
+    };
+
+    SampleEnum se;
+  };
+
+  DECLARE_JSON_ENUM(
+    EnumStruct::SampleEnum,
+    {{EnumStruct::SampleEnum::One, "one"},
+     {EnumStruct::SampleEnum::Two, "two"},
+     {EnumStruct::SampleEnum::Three, "three"}})
+  DECLARE_REQUIRED_JSON_FIELDS(EnumStruct, se);
+}
+
+TEST_CASE("enum")
+{
+  using namespace ccf;
+
+  EnumStruct es;
+  es.se = EnumStruct::SampleEnum::Two;
+
+  nlohmann::json j = es;
+
+  REQUIRE(j["se"] == "two");
+
+  const auto schema = build_schema<EnumStruct>("EnumStruct");
+
+  const nlohmann::json expected{"one", "two", "three"};
+  REQUIRE(schema["properties"]["se"]["enum"] == expected);
+}
