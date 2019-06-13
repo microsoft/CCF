@@ -184,10 +184,10 @@ int main(int argc, char** argv)
     true);
 
   string join_host;
-  join_rpc->add_option("--host", join_host, "Target host", false);
+  join_rpc->add_option("--host", join_host, "Target host")->required();
 
   string join_port;
-  join_rpc->add_option("--port", join_port, "Target port", false);
+  join_rpc->add_option("--port", join_port, "Target port")->required();
 
   string join_json = "joinNetwork.json";
   join_rpc->add_option(

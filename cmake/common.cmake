@@ -155,7 +155,7 @@ if(NOT VIRTUAL_ONLY)
   execute_process(COMMAND "ldd" ${OESIGN}
                   COMMAND "grep" "-c" "sgx"
                   OUTPUT_QUIET
-                RESULT_VARIABLE OE_NO_SGX)
+                  RESULT_VARIABLE OE_NO_SGX)
 
   if(NOT OE_NO_SGX)
     message(STATUS "Linking SGX")
@@ -167,8 +167,11 @@ if(NOT VIRTUAL_ONLY)
 
     if (NOT DISABLE_QUOTE_VERIFICATION)
       set(QUOTES_ENABLED ON)
-      set(TEST_EXPECT_QUOTE "-q")
+    else()
+      set(TEST_IGNORE_QUOTE "--ignore-quote")
     endif()
+  else()
+    set(TEST_IGNORE_QUOTE "--ignore-quote")
   endif()
 else()
   set(TEST_ENCLAVE_TYPE
@@ -545,7 +548,7 @@ set_property(TARGET lua.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Common test args for Python scripts starting up CCF networks
 set(CCF_NETWORK_TEST_ARGS
-  ${TEST_EXPECT_QUOTE}
+  ${TEST_IGNORE_QUOTE}
   ${TEST_ENCLAVE_TYPE}
   -l ${TEST_HOST_LOGGING_LEVEL}
   -g ${CCF_DIR}/src/runtime_config/gov.lua
@@ -629,7 +632,6 @@ function(add_perf_test)
     NAME ${PARSED_ARGS_NAME}
     COMMAND python3 ${PARSED_ARGS_PYTHON_SCRIPT}
       -b .
-      --label ${PARSED_ARGS_NAME}
       -c ${PARSED_ARGS_CLIENT_BIN}
       -i ${PARSED_ARGS_ITERATIONS}
       ${CCF_NETWORK_TEST_ARGS}

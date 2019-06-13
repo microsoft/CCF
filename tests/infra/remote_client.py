@@ -43,14 +43,15 @@ class CCFRemoteClient(object):
         # strip out the config from the path
 
         self.DEPS = glob("*.pem") + [config]
+        client_command_args = list(command_args)
 
-        if "--verify" in command_args:
+        if "--verify" in client_command_args:
             # append verify file to the files to be copied
             # and fix the path in the argument list
-            v_index = command_args.index("--verify")
-            verify_path = command_args[v_index + 1]
+            v_index = client_command_args.index("--verify")
+            verify_path = client_command_args[v_index + 1]
             self.DEPS += [verify_path]
-            command_args[v_index + 1] = os.path.basename(verify_path)
+            client_command_args[v_index + 1] = os.path.basename(verify_path)
 
         cmd = [
             self.BIN,
@@ -58,7 +59,7 @@ class CCFRemoteClient(object):
             "--port={}".format(node_port),
             "--transactions={}".format(iterations),
             "--config={}".format(os.path.basename(config)),
-        ] + command_args
+        ] + client_command_args
 
         self.remote = remote_class(
             name, host, [self.BIN], self.DEPS, cmd, workspace, label
@@ -80,22 +81,21 @@ class CCFRemoteClient(object):
     def debug_node_cmd(self):
         return self.remote._dbg()
 
-    def stop(self, retrieve_csvs=False):
+    def stop(self):
         try:
             self.remote.stop()
-            if retrieve_csvs:
-                remote_files = self.remote.list_files()
-                remote_csvs = [f for f in remote_files if f.endswith(".csv")]
-                for csv in remote_csvs:
-                    if csv == "perf_summary.csv":
-                        remote_perf = "{}_perf_summary.csv".format(self.name)
-                        self.remote.get(csv, 1, remote_perf)
-                        with open("perf_summary.csv", "a") as l:
-                            with open(remote_perf, "r") as r:
-                                for line in r.readlines():
-                                    l.write(line)
-                    else:
-                        self.remote.get(csv, 1)
+            remote_files = self.remote.list_files()
+            remote_csvs = [f for f in remote_files if f.endswith(".csv")]
+
+            for csv in remote_csvs:
+                remote_file_dst = f"{self.name}_{csv}"
+                self.remote.get(csv, 1, remote_file_dst)
+                if csv == "perf_summary.csv":
+                    with open("perf_summary.csv", "a") as l:
+                        with open(remote_file_dst, "r") as r:
+                            for line in r.readlines():
+                                l.write(line)
+
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.name))
 

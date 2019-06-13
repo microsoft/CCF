@@ -108,7 +108,7 @@ class SSHRemote(CmdMixin):
 
     def _setup_files(self):
         assert self._rc("rm -rf {}".format(self.root)) == 0
-        assert self._rc("mkdir {}".format(self.root)) == 0
+        assert self._rc("mkdir -p {}".format(self.root)) == 0
         session = self.client.open_sftp()
         for path in self.files:
             tgt_path = os.path.join(self.root, os.path.basename(path))
@@ -259,7 +259,6 @@ class SSHRemote(CmdMixin):
 
     def print_result(self, lines):
         client = self._connect_new()
-        LOG.error("print_result remote")
         try:
             _, stdout, _ = client.exec_command(f"tail -{lines} {self.root}/out")
             if stdout.channel.recv_exit_status() == 0:
@@ -446,7 +445,7 @@ class CCFRemote(object):
         other_quote=None,
         other_quoted_data=None,
         log_level="info",
-        expect_quote=True,
+        ignore_quote=False,
         sig_max_tx=1000,
         sig_max_ms=1000,
         node_status="pending",
@@ -469,8 +468,8 @@ class CCFRemote(object):
         self.node_status = node_status
         self.verify_quote = verify_quote
         # Only expect a quote if the enclave is not virtual and quotes have
-        # not been explictly disabled
-        if enclave_type != "virtual" and expect_quote:
+        # not been explictly ignored
+        if enclave_type != "virtual" and not ignore_quote:
             self.quote = f"quote{node_id}.bin"
         self.BIN = infra.path.build_bin_path(self.BIN, enclave_type)
         self.ledger_file = ledger_file
