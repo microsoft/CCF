@@ -257,11 +257,6 @@ namespace jsonrpc
     return std::make_pair(true, j);
   }
 
-  inline std::pair<bool, nlohmann::json> success()
-  {
-    return success(OK);
-  }
-
   inline nlohmann::json result_response(SeqNo id, const nlohmann::json& result)
   {
     nlohmann::json j;
