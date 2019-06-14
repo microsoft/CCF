@@ -11,10 +11,24 @@ from contextlib import contextmanager
 import infra.path
 import json
 import uuid
+import ctypes
+import signal
 
 from loguru import logger as LOG
 
 DBG = os.getenv("DBG", "cgdb")
+
+_libc = ctypes.CDLL("libc.so.6")
+
+
+def _term_on_pdeathsig():
+    # usr/include/linux/prctl.h: #define PR_SET_PDEATHSIG 1
+    _libc.prctl(1, signal.SIGTERM)
+
+
+def popen(*args, **kwargs):
+    kwargs["preexec_fn"] = _term_on_pdeathsig
+    return subprocess.Popen(*args, **kwargs)
 
 
 @contextmanager
@@ -356,7 +370,7 @@ class LocalRemote(CmdMixin):
         LOG.info(f"[{self.hostname}] {cmd} (env: {self.env})")
         self.stdout = open(os.path.join(self.root, "out"), "wb")
         self.stderr = open(os.path.join(self.root, "err"), "wb")
-        self.proc = subprocess.Popen(
+        self.proc = popen(
             self.cmd,
             cwd=self.root,
             stdout=self.stdout,

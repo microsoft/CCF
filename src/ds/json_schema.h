@@ -39,23 +39,28 @@ namespace ccf
   }
 
   template <typename T>
-  inline nlohmann::json schema_properties_element_numeric()
+  inline void fill_number_schema(nlohmann::json& schema)
   {
-    nlohmann::json element;
-    element["type"] = "number";
-    element["minimum"] = std::numeric_limits<T>::min();
-    element["maximum"] = std::numeric_limits<T>::max();
-
-    return element;
+    schema["type"] = "number";
+    schema["minimum"] = std::numeric_limits<T>::min();
+    schema["maximum"] = std::numeric_limits<T>::max();
   }
 
   template <typename T>
-  nlohmann::json schema_properties_element();
+  void fill_schema(nlohmann::json& schema);
+
+  template <typename T>
+  nlohmann::json schema_element()
+  {
+    auto element = nlohmann::json::object();
+    fill_schema<T>(element);
+    return element;
+  }
 
   template <
     typename T,
     typename = std::enable_if_t<RequiredJsonFields<T>::value>>
-  inline void fill_schema(nlohmann::json& schema)
+  inline void fill_object_schema(nlohmann::json& schema)
   {
     schema["type"] = "object";
 
@@ -67,8 +72,8 @@ namespace ccf
     std::apply(
       [&required, &properties](const auto&... field) {
         ((required.push_back(field.name),
-          properties[field.name] = schema_properties_element<
-            typename std::decay_t<decltype(field)>::Target>()),
+          properties[field.name] =
+            schema_element<typename std::decay_t<decltype(field)>::Target>()),
          ...);
       },
       RequiredJsonFields<T>::required_fields);
@@ -78,8 +83,8 @@ namespace ccf
     {
       std::apply(
         [&properties](const auto&... field) {
-          ((properties[field.name] = schema_properties_element<
-              typename std::decay_t<decltype(field)>::Target>()),
+          ((properties[field.name] =
+              schema_element<typename std::decay_t<decltype(field)>::Target>()),
            ...);
         },
         OptionalJsonFields<T>::optional_fields);
@@ -90,64 +95,62 @@ namespace ccf
   }
 
   template <typename T>
-  inline nlohmann::json schema_properties_element()
+  inline void fill_schema(nlohmann::json& schema)
   {
     if constexpr (is_specialization<T, std::optional>::value)
     {
-      return schema_properties_element<typename T::value_type>();
+      fill_schema<typename T::value_type>(schema);
     }
     else if constexpr (is_specialization<T, std::vector>::value)
     {
-      nlohmann::json element;
-      element["type"] = "array";
-      element["items"] = schema_properties_element<typename T::value_type>();
-      return element;
+      schema["type"] = "array";
+      schema["items"] = schema_element<typename T::value_type>();
+    }
+    else if constexpr (is_specialization<T, std::pair>::value)
+    {
+      schema["type"] = "array";
+      auto items = nlohmann::json::array();
+      items.push_back(schema_element<typename T::first_type>());
+      items.push_back(schema_element<typename T::second_type>());
+      schema["items"] = items;
     }
     else if constexpr (std::is_same<T, std::string>::value)
     {
-      nlohmann::json element;
-      element["type"] = "string";
-      return element;
+      schema["type"] = "string";
     }
     else if constexpr (std::is_same<T, bool>::value)
     {
-      nlohmann::json element;
-      element["type"] = "boolean";
-      return element;
+      schema["type"] = "boolean";
     }
     else if constexpr (std::is_same<T, nlohmann::json>::value)
     {
-      // Any field that contains more json is completely unconstrained
-      return nlohmann::json::object();
+      // Any field that contains more json is completely unconstrained, so we do
+      // not add a type or any other fields
     }
     else if constexpr (std::is_integral<T>::value)
     {
-      return schema_properties_element_numeric<T>();
+      fill_number_schema<T>(schema);
     }
     else if constexpr (std::is_same<T, JsonSchema>::value)
     {
-      nlohmann::json element;
-      element["$ref"] = JsonSchema::hyperschema;
-      return element;
+      schema["$ref"] = JsonSchema::hyperschema;
     }
     else if constexpr (RequiredJsonFields<T>::value)
     {
-      auto schema = nlohmann::json::object();
-      fill_schema<T>(schema);
-      return schema;
+      fill_object_schema<T>(schema);
+    }
+    else if constexpr (std::is_enum<T>::value)
+    {
+      fill_enum_schema<T>(schema);
     }
     else
     {
       static_assert(
-        dependent_false<T>::value,
-        "Unsupported type - can't create schema element");
-      return nullptr;
+        dependent_false<T>::value, "Unsupported type - can't fill schema");
     }
   }
 
-  template <
-    typename T,
-    typename = std::enable_if_t<RequiredJsonFields<T>::value>>
+  template <typename T>
   inline nlohmann::json build_schema(const std::string& title)
   {
     nlohmann::json schema;

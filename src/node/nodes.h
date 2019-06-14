@@ -17,6 +17,11 @@ namespace ccf
     TRUSTED = 1,
     RETIRED = 2
   };
+  DECLARE_JSON_ENUM(
+    NodeStatus,
+    {{NodeStatus::PENDING, "PENDING"},
+     {NodeStatus::TRUSTED, "TRUSTED"},
+     {NodeStatus::RETIRED, "RETIRED"}});
 }
 
 MSGPACK_ADD_ENUM(ccf::NodeStatus);
@@ -35,7 +40,7 @@ namespace ccf
 
     MSGPACK_DEFINE(host, pubhost, raftport, tlsport, cert, quote, status);
   };
-  ADD_JSON_TRANSLATORS(
+  DECLARE_REQUIRED_JSON_FIELDS(
     NodeInfo, host, pubhost, raftport, tlsport, cert, quote, status)
 
   using Nodes = Store::Map<NodeId, NodeInfo>;

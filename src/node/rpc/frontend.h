@@ -369,8 +369,12 @@ namespace ccf
         std::forward<Ts>(ts)...);
     }
 
-    template <typename In, typename Out, typename... Ts>
-    void install_with_auto_schema(const std::string& method, Ts&&... ts)
+    template <typename In, typename Out, typename F>
+    void install_with_auto_schema(
+      const std::string& method,
+      F&& f,
+      ReadWrite rw,
+      Forwardable forwardable = Forwardable::CanForward)
     {
       auto params_schema = nlohmann::json::object();
       if constexpr (!std::is_same_v<In, void>)
@@ -384,7 +388,13 @@ namespace ccf
         result_schema = build_schema<Out>(method + "/result");
       }
 
-      install(method, std::forward<Ts>(ts)..., params_schema, result_schema);
+      install(
+        method,
+        std::forward<F>(f),
+        rw,
+        params_schema,
+        result_schema,
+        forwardable);
     }
 
     template <typename T, typename... Ts>

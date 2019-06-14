@@ -8,5 +8,5 @@
 
 namespace ccf
 {
-  using Consensus = raft::Raft<raft::LedgerEnclave, NodeToNode>;
+  using ConsensusRaft = raft::Raft<raft::LedgerEnclave, NodeToNode>;
 }

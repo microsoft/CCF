@@ -217,7 +217,7 @@ namespace asynchost
           // corresponding ledger entries
           if (
             serialized::read<ccf::NodeMsgType>(data, size) ==
-              ccf::NodeMsgType::consensus_msg &&
+              ccf::NodeMsgType::consensus_msg_raft &&
             serialized::peek<raft::RaftMsgType>(data, size) ==
               raft::raft_append_entries)
           {
