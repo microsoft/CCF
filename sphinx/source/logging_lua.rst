@@ -34,7 +34,7 @@ The interface between Lua RPC handlers and the rest of CCF is simple. A fixed se
 
 * ``caller_id``: the caller's id.
 
-* ``msg_id``: the RPC's id.
+* ``method``: the method name.
 
 * ``params``: the RPC's parameters indexed by name. All JSON is translated to Lua tables.
 
