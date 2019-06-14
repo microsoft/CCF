@@ -21,21 +21,29 @@ def run(args):
 
         # add a valid node
         res = network.create_and_add_node("libloggingenc", args, 2)
-        assert(res[0] == True)
+        assert res[0] == True
         new_node = res[1]
 
         with open("networkcert.pem", mode="rb") as file:
-            net_cert = file.read()
-        print(net_cert)
-        # input()
-        with new_node.management_client() as c:
-            c.rpc("joinNetwork", {"hostname":primary.host, "service":str(primary.tls_port), "network_cert":net_cert})
-            # new_node.join_network()
-            # network.wait_for_node_commit_sync()
-        # # add an invalid node
-        # assert network.create_and_add_node(
-            # "libluagenericenc", args, 3, False
-        # ) == (False, infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND)
+            net_cert = list(file.read())
+
+        # add an invalid node
+        assert network.create_and_add_node("libluagenericenc", args, 3, False) == (
+            False,
+            infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND,
+        )
+
+        with new_node.management_client(format="json") as c:
+            c.rpc(
+                "joinNetwork",
+                {
+                    "hostname": primary.host,
+                    "service": str(primary.tls_port),
+                    "network_cert": net_cert,
+                },
+            )
+            new_node.join_network()
+            network.wait_for_node_commit_sync()
 
 
 if __name__ == "__main__":

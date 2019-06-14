@@ -18,10 +18,12 @@ from loguru import logger as LOG
 
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 
+
 class NodeNetworkState(Enum):
     stopped = 0
     started = 1
     joined = 2
+
 
 @contextmanager
 def network(
@@ -176,7 +178,8 @@ class Network:
 
         for i, node in enumerate(self.nodes):
             forwarded_args = {
-                arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
+                arg: getattr(args, arg)
+                for arg in infra.ccf.Network.node_args_to_forward
             }
             try:
                 node.start(
@@ -207,9 +210,7 @@ class Network:
         self.nodes.append(node)
         return node
 
-    def create_and_add_node(
-        self, lib_name, args, node_id, should_succeed=True
-    ):
+    def create_and_add_node(self, lib_name, args, node_id, should_succeed=True):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
@@ -220,7 +221,7 @@ class Network:
             node_status=node_status,
             workspace=args.workspace,
             label=args.label,
-            **forwarded_args
+            **forwarded_args,
         )
         new_node_info = new_node.remote.info()
 
@@ -329,7 +330,7 @@ class Network:
         assert [commits[0]] * len(commits) == commits, "All nodes at the same commit"
 
     def get_primary(self):
-      return self.nodes[0]
+        return self.nodes[0]
 
 
 class Checker:

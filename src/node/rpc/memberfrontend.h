@@ -380,6 +380,9 @@ namespace ccf
           args.tx.get_view(this->network.values), ValueIds::NEXT_NODE_ID);
         new_node.status = NodeStatus::PENDING;
         args.tx.get_view(this->network.nodes)->put(node_id, new_node);
+        tls::Verifier verifier(new_node.cert);
+        args.tx.get_view(this->network.node_certs)
+          ->put(verifier.raw_cert_data(), node_id);
 
         return jsonrpc::success(nlohmann::json(JoinNetwork::Out{node_id}));
       };
