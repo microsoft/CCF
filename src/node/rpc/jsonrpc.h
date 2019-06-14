@@ -22,7 +22,6 @@ namespace jsonrpc
   static constexpr auto CODE = "code";
   static constexpr auto MESSAGE = "message";
   static constexpr auto DATA = "data";
-  static constexpr auto OK = "OK";
   static constexpr auto SIG = "sig";
   static constexpr auto REQ = "req";
 
