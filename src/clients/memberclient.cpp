@@ -285,7 +285,7 @@ int main(int argc, char** argv)
     app.add_subcommand("ack", "Acknowledge self added into the network");
 
   std::string nodes_file;
-  auto add_node = app.add_subcommand("add_node", "Make a node trusted");
+  auto add_node = app.add_subcommand("add_node", "Add a node");
   add_node
     ->add_option(
       "--nodes_to_add", nodes_file, "The file containing the nodes to be added")
