@@ -3,9 +3,7 @@
 #pragma once
 
 #ifdef PBFT
-#  include "libbyz/libbyz.h"
-#  include "libbyz/receive_message_base.h"
-#  include "pbft/pbft_deps.h"
+#  include "pbft/pbft.h"
 #endif
 
 #include "calltypes.h"
@@ -122,7 +120,11 @@ namespace ccf
     raft::Config raft_config;
 
     NetworkState& network;
-    std::shared_ptr<Consensus> raft;
+    std::shared_ptr<ConsensusRaft> raft;
+#ifdef PBFT
+    using ConsensusPbft = pbft::Pbft<NodeToNode>;
+    std::shared_ptr<ConsensusPbft> pbft;
+#endif
     std::shared_ptr<NodeToNode> n2n_channels;
     enclave::RPCSessions& rpcsessions;
     std::shared_ptr<kv::TxHistory> history;
@@ -146,15 +148,6 @@ namespace ccf
     kv::Version last_recovered_commit_idx = 1;
 
     raft::Index ledger_idx = 0;
-
-    //
-    // PBFT
-    //
-#ifdef PBFT
-    IMessageReceiveBase* message_receiver_base = nullptr;
-    char* mem;
-    std::unique_ptr<INetwork> pbft_network;
-#endif
 
   public:
     NodeState(
@@ -911,41 +904,18 @@ namespace ccf
           n2n_channels->recv_message(p, psize);
           break;
 
-        case consensus_msg:
-          header = serialized::peek<Header>(p, psize);
-          if (header.msg == raft::RaftMsgType::pbft_message)
-            pbft_msg(p, psize);
-          else
-            raft->recv_message(p, psize);
+        case consensus_msg_pbft:
+#ifdef PBFT
+          pbft->recv_message(p, psize);
+#endif
+          break;
+        case consensus_msg_raft:
+          raft->recv_message(p, psize);
           break;
 
         default:
         {}
       }
-    }
-
-    bool pbft_msg(const uint8_t* data, size_t size)
-    {
-#ifdef PBFT
-      if (
-        (!sm.check(State::partOfNetwork) &&
-         !sm.check(State::partOfPublicNetwork)) ||
-        message_receiver_base == nullptr)
-      {
-        LOG_INFO
-          << "Currently not part of the network, dropping message to PBFT"
-          << std::endl;
-        return false;
-      }
-
-      // TODO(#PBFT): Check integrity of message before passing it on to pbft
-      serialized::skip(data, size, sizeof(raft::RaftHeader));
-
-      message_receiver_base->receive_message((char*)((uint64_t)data), size);
-      return true;
-#else
-      throw std::logic_error("PBFT messages are not implemented");
-#endif
     }
 
     //
@@ -1085,7 +1055,7 @@ namespace ccf
       // setup node-to-node channels, raft, pbft and store hooks
       n2n_channels->initialize(self, network.secrets->get_current().priv_key);
 
-      raft = std::make_shared<Consensus>(
+      raft = std::make_shared<ConsensusRaft>(
         std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(
           network.tables),
         std::make_unique<raft::LedgerEnclave>(writer_factory),
@@ -1111,30 +1081,18 @@ namespace ccf
         auto configure = false;
         std::unordered_set<NodeId> configuration;
 
-#ifdef PBFT
-        std::vector<std::tuple<NodeId, const std::string&, const std::string&>>
-          active_nodes;
-#endif
-
         // TODO(#important,#TR): Only TRUSTED nodes should be sent append
         // entries, counted in election votes and allowed to establish
         // node-to-node channels (section III-F).
         for (auto& [node_id, ni] : w)
         {
+#ifdef PBFT
+          pbft->add_configuration({node_id, ni.value.host, ni.value.raftport});
+#endif
           switch (ni.value.status)
           {
-#ifdef PBFT
-            case NodeStatus::TRUSTED:
-              active_nodes.push_back(
-                {node_id, ni.value.host, ni.value.raftport});
-              break;
-#endif
             case NodeStatus::PENDING:
             {
-#ifdef PBFT
-              active_nodes.push_back(
-                {node_id, ni.value.host, ni.value.raftport});
-#endif
               add_node(node_id, ni.value.host, ni.value.raftport);
               configure = true;
               break;
@@ -1145,18 +1103,9 @@ namespace ccf
               break;
             }
             default:
-            {
-#ifdef PBFT
-              active_nodes.push_back(
-                {node_id, ni.value.host, ni.value.raftport});
-#endif
-            }
+            {}
           }
         }
-
-#ifdef PBFT
-        add_pbft_nodes(active_nodes);
-#endif
 
         if (configure)
         {
@@ -1284,93 +1233,7 @@ namespace ccf
 #ifdef PBFT
     void setup_pbft()
     {
-      LOG_INFO << "Setting up pbft replica for node with id: " << self
-               << std::endl;
-      // configure replica
-      GeneralInfo general_info;
-      general_info.num_replicas = 2;
-      general_info.num_clients = 0;
-      general_info.max_faulty = 0;
-      general_info.service_name = "generic";
-      general_info.auth_timeout = 1800000;
-      general_info.view_timeout = 5000;
-      general_info.status_timeout = 100;
-      general_info.recovery_timeout = 9999250000;
-
-      // TODO(#pbft): We do not need this in the long run
-      std::string privk =
-        "0045c65ec31179652c57ae97f50de77e177a939dce74e39d7db51740663afb69";
-      std::string pubk_sig =
-        "aad14ecb5d7ca8caf5ee68d2762721a3d4fdb09b1ae4a699daf74985193b7d42";
-      std::string pubk_enc =
-        "893d4101c5b225c2bdc8633bb322c0ef9861e0c899014536e11196808ffc0d17";
-
-      // Adding myself
-      PrincipalInfo my_info;
-      my_info.id = self;
-      my_info.port = 0;
-      my_info.ip = "256.256.256.256"; // Invalid
-      my_info.pubk_sig = pubk_sig;
-      my_info.pubk_enc = pubk_enc;
-      my_info.host_name = "machineB";
-      LOG_INFO << "PBFT Setup for self with id:" << self << std::endl;
-
-      ::NodeInfo node_info = {my_info, privk, general_info};
-
-      int mem_size = 40 * 8192;
-      mem = (char*)malloc(mem_size);
-      bzero(mem, mem_size);
-
-      auto exec_command = ([](
-                             Byz_req* inb,
-                             Byz_rep* outb,
-                             _Byz_buffer* non_det,
-                             int client,
-                             bool ro,
-                             Seqno n) { return 0; });
-
-      pbft_network = std::make_unique<PbftEnclaveNetwork>(self, n2n_channels);
-
-      Byz_init_replica(
-        node_info,
-        mem,
-        mem_size,
-        exec_command,
-        0,
-        0,
-        pbft_network.get(),
-        &message_receiver_base);
-    }
-
-    void add_pbft_nodes(
-      const std::vector<
-        std::tuple<NodeId, const std::string&, const std::string&>>&
-        active_nodes)
-    {
-      // TODO(#pbft): We do not need this in the long run
-      std::string privk =
-        "0045c65ec31179652c57ae97f50de77e177a939dce74e39d7db51740663afb69";
-      std::string pubk_sig =
-        "aad14ecb5d7ca8caf5ee68d2762721a3d4fdb09b1ae4a699daf74985193b7d42";
-      std::string pubk_enc =
-        "893d4101c5b225c2bdc8633bb322c0ef9861e0c899014536e11196808ffc0d17";
-
-      for (auto [node, host_name, port] : active_nodes)
-      {
-        if (node == self)
-        {
-          continue;
-        }
-        PrincipalInfo info;
-        info.id = node;
-        info.port = short(atoi(port.c_str()));
-        info.ip = "256.256.256.256"; // Invalid
-        info.pubk_sig = pubk_sig;
-        info.pubk_enc = pubk_enc;
-        info.host_name = host_name;
-        LOG_INFO << "PBFT - adding node, id:" << info.id << std::endl;
-        Byz_add_principal(info);
-      }
+      pbft = std::make_shared<ConsensusPbft>(n2n_channels, self);
     }
 #endif
   };
