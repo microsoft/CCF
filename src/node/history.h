@@ -118,6 +118,8 @@ namespace ccf
     }
 
     void add_request(size_t id, const std::vector<uint8_t>& request) override {}
+    void add_result(kv::TxHistory::RequestID id, kv::Version version) override {}
+    void add_response(kv::TxHistory::RequestID id, const std::vector<uint8_t>& response) override {}
   };
 
   class MerkleTreeHistory
@@ -192,6 +194,8 @@ namespace ccf
     std::shared_ptr<kv::Replicator> replicator;
 
     std::map<RequestID, std::vector<uint8_t>> requests;
+    std::map<RequestID, kv::Version> results; // TODO: need a pair of Hash, Version
+    std::map<RequestID, std::vector<uint8_t>> responses;
 
   public:
     HashedTxHistory(
@@ -292,6 +296,17 @@ namespace ccf
     void add_request(kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override
     {
         requests[id] = request;
+    }
+    void add_result(kv::TxHistory::RequestID id, kv::Version version) override
+    {
+        results[id] = version;
+    }
+    void add_response(kv::TxHistory::RequestID id, const std::vector<uint8_t>& response) override
+    {
+        responses[id] = response;
+        LOG_FAIL << fmt::format("Complete {0}, {2}",
+          std::string(requests[id].begin(), requests[id].end()),
+          std::string(responses[id].begin(), responses[id].end())) << std::endl;
     }
   };
 

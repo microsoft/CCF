@@ -462,14 +462,22 @@ namespace ccf
 
       auto rpc = unpack_json(input, ctx.pack.value());
 
+      kv::TxHistory::RequestID reqid;
+
       if (!rpc.first)
         return jsonrpc::pack(rpc.second, ctx.pack.value());
       else
       {
+        update_history();
         size_t jsonrpc_id = rpc.second[jsonrpc::ID];
-        size_t reqid = caller_id.value() + ctx.client_session_id + jsonrpc_id; //TODO: not a good hash!
-        history->add_request(reqid, input);
-        // TODO: attach request id to Tx as user data
+        // TODO: reqid should contain node_id too
+        reqid = caller_id.value() + ctx.client_session_id + jsonrpc_id; //TODO: not a good id!
+        if (history)
+        {
+          history->add_request(reqid, input);
+          LOG_FAIL << fmt::format("Added request {0}", reqid) << std::endl;
+          tx.set_req_id(reqid);
+        }
       }
       
       auto rep = process_json(ctx, tx, caller_id.value(), rpc.second);
@@ -501,7 +509,13 @@ namespace ccf
           ctx.pack.value());
       }
 
-      return jsonrpc::pack(rep.value(), ctx.pack.value());
+
+      auto rv = jsonrpc::pack(rep.value(), ctx.pack.value());
+
+      if (history)
+        history->add_response(reqid, rv);
+
+      return rv;
     }
 
     /** Process a serialised input that has been forwarded from another node

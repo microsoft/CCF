@@ -73,10 +73,8 @@ namespace kv
     virtual void compact(Version v) = 0;
     virtual void emit_signature() = 0;
     virtual void add_request(RequestID id, const std::vector<uint8_t>& request) = 0;
-    /*
-    virtual void add_result(size_t id, hash, Version version) = 0; // TODO: merge with append? internal call?
-    virtual void add_response(size_t id, const std::vector<uint8_t>& request) = 0;
-     */
+    virtual void add_result(kv::TxHistory::RequestID id, kv::Version version) = 0;
+    virtual void add_response(kv::TxHistory::RequestID id, const std::vector<uint8_t>& response) = 0;
   };
 
   class AbstractTxEncryptor
