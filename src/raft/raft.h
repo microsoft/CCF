@@ -6,6 +6,7 @@
 #include "ds/serialized.h"
 #include "ds/spinlock.h"
 #include "kv/kvtypes.h"
+#include "node/nodetypes.h"
 #include "rafttypes.h"
 
 #include <algorithm>
@@ -474,7 +475,8 @@ namespace raft
 
       // The host will append log entries to this message when it is
       // sent to the destination node.
-      channels->send_authenticated(to, ae);
+      channels->send_authenticated(
+        ccf::NodeMsgType::consensus_msg_raft, to, ae);
     }
 
     void recv_append_entries(const uint8_t* data, size_t size)
@@ -657,7 +659,8 @@ namespace raft
       AppendEntriesResponse response = {
         raft_append_entries_response, local_id, current_term, last_idx, answer};
 
-      channels->send_authenticated(to, response);
+      channels->send_authenticated(
+        ccf::NodeMsgType::consensus_msg_raft, to, response);
     }
 
     void recv_append_entries_response(const uint8_t* data, size_t size)
@@ -733,7 +736,8 @@ namespace raft
                         last_idx,
                         get_term_internal(last_idx)};
 
-      channels->send_authenticated(to, rv);
+      channels->send_authenticated(
+        ccf::NodeMsgType::consensus_msg_raft, to, rv);
     }
 
     void recv_request_vote(const uint8_t* data, size_t size)
@@ -801,7 +805,8 @@ namespace raft
       RequestVoteResponse response = {
         raft_request_vote_response, local_id, current_term, answer};
 
-      channels->send_authenticated(to, response);
+      channels->send_authenticated(
+        ccf::NodeMsgType::consensus_msg_raft, to, response);
     }
 
     void recv_request_vote_response(const uint8_t* data, size_t size)

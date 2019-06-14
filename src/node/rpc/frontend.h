@@ -369,8 +369,12 @@ namespace ccf
         std::forward<Ts>(ts)...);
     }
 
-    template <typename In, typename Out, typename... Ts>
-    void install_with_auto_schema(const std::string& method, Ts&&... ts)
+    template <typename In, typename Out, typename F>
+    void install_with_auto_schema(
+      const std::string& method,
+      F&& f,
+      ReadWrite rw,
+      Forwardable forwardable = Forwardable::CanForward)
     {
       auto params_schema = nlohmann::json::object();
       if constexpr (!std::is_same_v<In, void>)
@@ -384,7 +388,13 @@ namespace ccf
         result_schema = build_schema<Out>(method + "/result");
       }
 
-      install(method, std::forward<Ts>(ts)..., params_schema, result_schema);
+      install(
+        method,
+        std::forward<F>(f),
+        rw,
+        params_schema,
+        result_schema,
+        forwardable);
     }
 
     template <typename T, typename... Ts>
@@ -558,6 +568,8 @@ namespace ccf
       SignedReq signed_request;
       if (full_rpc.find(jsonrpc::SIG) != full_rpc.end())
       {
+        const auto& req = full_rpc.at(jsonrpc::REQ);
+
         // TODO(#important): Signature should only be verified for a Write
         // RPC
         if (!verify_client_signature(
@@ -569,29 +581,34 @@ namespace ccf
               signed_request))
         {
           return jsonrpc::error_response(
-            full_rpc[jsonrpc::REQ][jsonrpc::ID],
+            req.at(jsonrpc::ID),
             jsonrpc::ErrorCodes::INVALID_CLIENT_SIGNATURE,
             "Failed to verify client signature.");
         }
-        rpc_ = &full_rpc[jsonrpc::REQ];
+        rpc_ = &req;
       }
       auto& rpc = *rpc_;
 
-      if (rpc[jsonrpc::JSON_RPC] != jsonrpc::RPC_VERSION)
-        return jsonrpc::error_response(
-          rpc[jsonrpc::ID],
-          jsonrpc::ErrorCodes::INVALID_REQUEST,
-          "Wrong JSON-RPC version.");
+      std::string method = rpc.at(jsonrpc::METHOD);
+      ctx.req.seq_no = rpc.at(jsonrpc::ID);
 
-      std::string method = rpc[jsonrpc::METHOD];
-      ctx.req.seq_no = rpc[jsonrpc::ID];
-
-      const nlohmann::json& params = rpc[jsonrpc::PARAMS];
-      if (!params.is_array() && !params.is_object() && !params.is_null())
+      if (rpc.at(jsonrpc::JSON_RPC) != jsonrpc::RPC_VERSION)
         return jsonrpc::error_response(
           ctx.req.seq_no,
           jsonrpc::ErrorCodes::INVALID_REQUEST,
-          "Invalid params.");
+          "Wrong JSON-RPC version.");
+
+      const auto params_it = rpc.find(jsonrpc::PARAMS);
+      if (
+        params_it != rpc.end() &&
+        (!params_it->is_array() && !params_it->is_object()))
+        return jsonrpc::error_response(
+          ctx.req.seq_no,
+          jsonrpc::ErrorCodes::INVALID_REQUEST,
+          "If present, parameters must be an array or object");
+
+      const auto& params =
+        params_it == rpc.end() ? nlohmann::json(nullptr) : *params_it;
 
       Handler* handler = nullptr;
       auto search = handlers.find(method);

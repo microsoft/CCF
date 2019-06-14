@@ -82,7 +82,8 @@ json create_json_req(const json& params, const string& method_name)
   j[JSON_RPC] = RPC_VERSION;
   j[ID] = 1;
   j[METHOD] = method_name;
-  j[PARAMS] = params;
+  if (!params.is_null())
+    j[PARAMS] = params;
   return j;
 }
 
@@ -290,7 +291,7 @@ TEST_CASE("Add new members until there are 7, then reject")
 
     // check new_member id does not work before member is added
     enclave::RPCContext rpc_ctx(0, new_member.cert);
-    const Cert read_next_member_id = mpack(create_json_req(
+    const auto read_next_member_id = mpack(create_json_req(
       read_params<int>(ValueIds::NEXT_MEMBER_ID, Tables::VALUES), "read"));
     check_error(
       munpack(frontend.process(rpc_ctx, read_next_member_id)),
@@ -365,7 +366,8 @@ TEST_CASE("Add new members until there are 7, then reject")
       const Response<MemberAck> ack0 =
         munpack(frontend.process(rpc_ctx, read_nonce));
       // (2) ask for a fresher nonce
-      const auto freshen_nonce = mpack(create_json_req({}, "updateAckNonce"));
+      const auto freshen_nonce =
+        mpack(create_json_req(nullptr, "updateAckNonce"));
       check_success(munpack(frontend.process(rpc_ctx, freshen_nonce)));
       // (3) read ack entry again and check that the nonce has changed
       const Response<MemberAck> ack1 =
