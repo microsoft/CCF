@@ -22,6 +22,7 @@ _libc = ctypes.CDLL("libc.so.6")
 
 
 def _term_on_pdeathsig():
+    # usr/include/linux/prctl.h: #define PR_SET_PDEATHSIG 1
     _libc.prctl(1, signal.SIGTERM)
 
 
