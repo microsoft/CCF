@@ -66,7 +66,6 @@ namespace ccf
     const T& recv(const uint8_t*& data, size_t& size)
     {
       const auto& t = serialized::overlay<T>(data, size);
-      auto& n2n_channel = channels->get(t.from_node);
       return t;
     }
 

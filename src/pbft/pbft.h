@@ -223,8 +223,7 @@ namespace pbft
           serialized::skip(data, size, sizeof(PbftHeader));
           if (message_receiver_base->pre_verify(data, size))
           {
-            message_receiver_base->receive_message(
-              (char*)((uint64_t)data), size);
+            message_receiver_base->receive_message(data, size);
           }
           break;
         default:
