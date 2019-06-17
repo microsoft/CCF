@@ -22,7 +22,6 @@ namespace jsonrpc
   static constexpr auto CODE = "code";
   static constexpr auto MESSAGE = "message";
   static constexpr auto DATA = "data";
-  static constexpr auto OK = "OK";
   static constexpr auto SIG = "sig";
   static constexpr auto REQ = "req";
 
@@ -255,11 +254,6 @@ namespace jsonrpc
   {
     nlohmann::json j(result);
     return std::make_pair(true, j);
-  }
-
-  inline std::pair<bool, nlohmann::json> success()
-  {
-    return success(OK);
   }
 
   inline nlohmann::json result_response(SeqNo id, const nlohmann::json& result)

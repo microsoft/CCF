@@ -36,7 +36,7 @@ return {
   
   function env.record(table)
     table:put(params.id, params.msg)
-    return env.jsucc("OK")
+    return env.jsucc(true)
   end
   ]],
   
