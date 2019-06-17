@@ -99,15 +99,7 @@ auto init_frontend(
   return get_rpc_handler(network, notifier);
 }
 
-void set_default_handler(GenesisGenerator& network, Script dh)
-{
-  Store::Tx tx;
-  tx.get_view(network.app_scripts)->put(UserScriptIds::DEFAULT_HANDLER, dh);
-  REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-}
-
-void add_handler(
-  GenesisGenerator& network, const std::string& method, const Script& h)
+void set_handler(NetworkTables& network, const string& method, const Script& h)
 {
   Store::Tx tx;
   tx.get_view(network.app_scripts)->put(method, h);
@@ -151,7 +143,7 @@ TEST_CASE("simple lua apps")
       tables, gov_tables, caller_id, method, params = ...
       return env.jsucc(params.verb)
     )xxx";
-    add_handler(network, "echo", {app});
+    set_handler(network, "echo", {app});
 
     // call "echo" function with "hello"
     const string verb = "hello";
@@ -166,7 +158,7 @@ TEST_CASE("simple lua apps")
       local r = tables.priv0:put(params.k, params.v)
       return env.jsucc(r)
     )xxx";
-    add_handler(network, "store", {store});
+    set_handler(network, "store", {store});
 
     constexpr auto load = R"xxx(
       tables, gov_tables, caller_id, method, params = ...
@@ -176,7 +168,7 @@ TEST_CASE("simple lua apps")
       end
       return env.jsucc(v)
     )xxx";
-    add_handler(network, "load", {load});
+    set_handler(network, "load", {load});
 
     // (1) store/load vector -> vector
     check_store_load(
@@ -207,14 +199,14 @@ TEST_CASE("simple lua apps")
       )
       return env.jsucc(members)
     )xxx";
-    add_handler(network, "get_members", {get_members});
+    set_handler(network, "get_members", {get_members});
 
     // Not allowed
     constexpr auto put_member = R"xxx(
       tables, gov_tables, caller_id, method, params = ...
       return env.jsucc(gov_tables.members:put(params.k, params.v))
     )xxx";
-    add_handler(network, "put_member", {put_member});
+    set_handler(network, "put_member", {put_member});
 
     // (1) read out members table
     const auto pc = make_pc("get_members", {});
@@ -251,7 +243,7 @@ TEST_CASE("simple bank")
     tables.priv0:put(dst, params.amt)
     return env.jsucc(true)
   )xxx";
-  add_handler(network, create_method, {create});
+  set_handler(network, create_method, {create});
 
   constexpr auto read_method = "SB_read";
   constexpr auto read = R"xxx(
@@ -264,7 +256,7 @@ TEST_CASE("simple bank")
 
     return env.jsucc(amt)
   )xxx";
-  add_handler(network, read_method, {read});
+  set_handler(network, read_method, {read});
 
   constexpr auto transfer_method = "SB_transfer";
   constexpr auto transfer = R"xxx(
@@ -291,7 +283,7 @@ TEST_CASE("simple bank")
 
     return env.jsucc(true)
   )xxx";
-  add_handler(network, transfer_method, {transfer});
+  set_handler(network, transfer_method, {transfer});
 
   {
     const auto pc = make_pc(create_method, {{"dst", 1}, {"amt", 123}});
