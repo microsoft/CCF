@@ -31,6 +31,30 @@ extern "C"
 #endif
 }
 
+namespace fmt
+{
+  template <>
+  struct formatter<kv::TxHistory::RequestID>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const kv::TxHistory::RequestID& p, FormatContext& ctx)
+    {
+      return format_to(
+        ctx.out(),
+        "<RID {0}, {1}, {2}>",
+        std::get<0>(p),
+        std::get<1>(p),
+        std::get<2>(p));
+    }
+  };
+}
+
 namespace ccf
 {
   enum HashOp
@@ -117,7 +141,7 @@ namespace ccf
         true);
     }
 
-    void add_request(size_t id, const std::vector<uint8_t>& request) override {}
+    void add_request(kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override {}
     void add_result(kv::TxHistory::RequestID id, kv::Version version) override {}
     void add_response(kv::TxHistory::RequestID id, const std::vector<uint8_t>& response) override {}
   };
@@ -295,18 +319,17 @@ namespace ccf
 
     void add_request(kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override
     {
-        requests[id] = request;
+      LOG_DEBUG << fmt::format("HISTORY: add_request {0}", id) << std::endl;
+      requests[id] = request;
     }
     void add_result(kv::TxHistory::RequestID id, kv::Version version) override
     {
-        results[id] = version;
+      results[id] = version;
     }
     void add_response(kv::TxHistory::RequestID id, const std::vector<uint8_t>& response) override
     {
-        responses[id] = response;
-        LOG_FAIL << fmt::format("Complete {0}, {2}",
-          std::string(requests[id].begin(), requests[id].end()),
-          std::string(responses[id].begin(), responses[id].end())) << std::endl;
+      LOG_DEBUG << fmt::format("HISTORY: add_response {0}", id) << std::endl;
+      responses[id] = response;
     }
   };
 

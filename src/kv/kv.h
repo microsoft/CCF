@@ -858,7 +858,7 @@ namespace kv
     Version version;
     bool read_globally_committed = false;
 
-    size_t req_id;
+    kv::TxHistory::RequestID req_id;
 
     template <class M>
     std::tuple<typename M::TxView*> get_tuple(M& m)
@@ -912,7 +912,7 @@ namespace kv
 
     Tx(const Tx& that) = delete;
 
-    void set_req_id(size_t req_id_)
+    void set_req_id(const kv::TxHistory::RequestID& req_id_)
     {
       req_id = req_id_;
     }

@@ -470,16 +470,14 @@ namespace ccf
       {
         update_history();
         size_t jsonrpc_id = rpc.second[jsonrpc::ID];
-        // TODO: reqid should contain node_id too
-        reqid = caller_id.value() + ctx.client_session_id + jsonrpc_id; //TODO: not a good id!
+        reqid = {caller_id.value(), ctx.client_session_id, jsonrpc_id};
         if (history)
         {
           history->add_request(reqid, input);
-          LOG_FAIL << fmt::format("Added request {0}", reqid) << std::endl;
           tx.set_req_id(reqid);
         }
       }
-      
+
       auto rep = process_json(ctx, tx, caller_id.value(), rpc.second);
 
       // If necessary, forward the RPC to the current leader
@@ -508,7 +506,6 @@ namespace ccf
             "RPC could not be forwarded to leader."),
           ctx.pack.value());
       }
-
 
       auto rv = jsonrpc::pack(rep.value(), ctx.pack.value());
 
