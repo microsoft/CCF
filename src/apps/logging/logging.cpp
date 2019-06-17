@@ -74,6 +74,7 @@ namespace ccfapp
     Table& public_records;
 
     const nlohmann::json record_public_params_schema;
+    const nlohmann::json record_public_result_schema;
 
     const nlohmann::json get_public_params_schema;
     const nlohmann::json get_public_result_schema;
@@ -104,7 +105,8 @@ namespace ccfapp
       records(tables.create<Table>(ccf::Tables::APP)),
       public_records(tables.create<Table>(
         ccf::Tables::APP_PUBLIC, kv::SecurityDomain::PUBLIC)),
-      record_public_params_schema(nlohmann::json::parse(j_record_public)),
+      record_public_params_schema(nlohmann::json::parse(j_record_public_in)),
+      record_public_result_schema(nlohmann::json::parse(j_record_public_out)),
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
@@ -115,7 +117,7 @@ namespace ccfapp
         // SNIPPET_END: macro_validation_record
         auto view = tx.get_view(records);
         view->put(in.id, in.msg);
-        return jsonrpc::success();
+        return jsonrpc::success(true);
       };
       // SNIPPET_END: record
 
@@ -148,7 +150,7 @@ namespace ccfapp
 
         auto view = tx.get_view(public_records);
         view->put(params["id"], params["msg"]);
-        return jsonrpc::success();
+        return jsonrpc::success(true);
       };
       // SNIPPET_END: record_public
 
@@ -179,7 +181,7 @@ namespace ccfapp
       // SNIPPET_END: get_public
 
       // SNIPPET: install_record
-      install_with_auto_schema<LoggingRecord::In, void>(
+      install_with_auto_schema<LoggingRecord::In, bool>(
         Procs::LOG_RECORD, record, Write);
       install_with_auto_schema<LoggingGet>(Procs::LOG_GET, get, Read);
 
@@ -187,7 +189,8 @@ namespace ccfapp
         Procs::LOG_RECORD_PUBLIC,
         record_public,
         Write,
-        record_public_params_schema);
+        record_public_params_schema,
+        record_public_result_schema);
       install(
         Procs::LOG_GET_PUBLIC,
         get_public,

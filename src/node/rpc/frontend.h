@@ -216,7 +216,7 @@ namespace ccf
           if (history != nullptr)
           {
             history->emit_signature();
-            return jsonrpc::success();
+            return jsonrpc::success(true);
           }
 
           return jsonrpc::error(
@@ -287,7 +287,7 @@ namespace ccf
         GeneralProcs::GET_COMMIT, get_commit, Read);
       install_with_auto_schema<void, GetMetrics::Out>(
         GeneralProcs::GET_METRICS, get_metrics, Read);
-      install_with_auto_schema<void, void>(
+      install_with_auto_schema<void, bool>(
         GeneralProcs::MK_SIGN, make_signature, Write);
       install_with_auto_schema<void, GetLeaderInfo::Out>(
         GeneralProcs::GET_LEADER_INFO, get_leader_info, Read);
