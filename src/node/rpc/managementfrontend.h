@@ -26,7 +26,13 @@ namespace ccf
         const auto in = args.params.get<JoinNetwork::In>();
         node.join_network(args.rpc_ctx, in);
 
-        return jsonrpc::success();
+        // TODO: Would be preferable to make this a jsonrpc::no_response, give
+        // the return type an enum rather than bool, make it clear that this
+        // handler is not returning a value - something else is in the future.
+        return jsonrpc::error(
+          jsonrpc::ErrorCodes::INTERNAL_ERROR,
+          "The true response should be sent from elsewhere, this should never "
+          "be seen");
       };
 
       auto get_signed_index = [&node](RequestArgs& args) {

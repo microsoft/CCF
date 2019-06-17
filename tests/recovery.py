@@ -112,7 +112,7 @@ def run(args):
             check = infra.ccf.Checker()
 
             rs = log_msgs(primary, txs)
-            check_responses(rs, b"OK", check, check_commit)
+            check_responses(rs, True, check, check_commit)
             network.wait_for_node_commit_sync()
             check_nodes_have_msgs(followers, txs)
 
@@ -222,7 +222,7 @@ def run(args):
                 new_txs = Txs(args.msgs_per_recovery, recovery_idx + 1)
 
                 rs = log_msgs(primary, new_txs)
-                check_responses(rs, b"OK", check, check_commit)
+                check_responses(rs, True, check, check_commit)
                 network.wait_for_node_commit_sync()
                 check_nodes_have_msgs(followers, new_txs)
 
