@@ -394,7 +394,7 @@ namespace ccf
 
         return jsonrpc::success(nlohmann::json(JoinNetwork::Out{node_id}));
       };
-      install_with_auto_schema<JoinNetwork>(
+      install_with_auto_schema<NodeInfo, JoinNetwork::Out>(
         MemberProcs::ADD_NODE, add_node, Write);
     }
   };
