@@ -40,9 +40,6 @@ namespace kv
     PASS_SIGNATURE = 2
   };
 
-  using PendingTx =
-    std::function<std::pair<CommitSuccess, std::vector<uint8_t>>()>;
-
   class Replicator
   {
   public:
@@ -76,6 +73,9 @@ namespace kv
     virtual void add_result(RequestID id, kv::Version version) = 0;
     virtual void add_response(RequestID id, const std::vector<uint8_t>& response) = 0;
   };
+
+  using PendingTx =
+    std::function<std::tuple<CommitSuccess, TxHistory::RequestID, std::vector<uint8_t>>()>;
 
   class AbstractTxEncryptor
   {
