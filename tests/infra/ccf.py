@@ -6,6 +6,7 @@ import time
 import logging
 from contextlib import contextmanager
 from glob import glob
+from enum import Enum
 import infra.jsonrpc
 import infra.remote
 import infra.path
@@ -16,6 +17,12 @@ import re
 from loguru import logger as LOG
 
 logging.getLogger("paramiko").setLevel(logging.WARNING)
+
+
+class NodeNetworkState(Enum):
+    stopped = 0
+    started = 1
+    joined = 2
 
 
 @contextmanager
@@ -170,9 +177,9 @@ class Network:
         LOG.info("Starting nodes on {}".format(hosts))
 
         for i, node in enumerate(self.nodes):
-            dict_args = vars(args)
             forwarded_args = {
-                arg: dict_args[arg] for arg in Network.node_args_to_forward
+                arg: getattr(args, arg)
+                for arg in infra.ccf.Network.node_args_to_forward
             }
             try:
                 node.start(
@@ -202,6 +209,29 @@ class Network:
         node = Node(node_id, host, debug, perf, recovery)
         self.nodes.append(node)
         return node
+
+    def create_and_add_node(self, lib_name, args, node_id, should_succeed=True):
+        forwarded_args = {
+            arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
+        }
+        node_status = args.node_status or "pending"
+        new_node = self.create_node(node_id, "localhost")
+        new_node.start(
+            lib_name=lib_name,
+            node_status=node_status,
+            workspace=args.workspace,
+            label=args.label,
+            **forwarded_args,
+        )
+        new_node_info = new_node.remote.info()
+
+        with self.get_primary().member_client(format="json") as member_client:
+            j_result = member_client.rpc("add_node", new_node_info)
+
+        if not should_succeed:
+            return (False, j_result.error["code"])
+
+        return (True, new_node, j_result.result["id"])
 
     def add_members(self, members):
         self.members.extend(members)
@@ -290,7 +320,7 @@ class Network:
         """
         for _ in range(3):
             commits = []
-            for node in self.nodes:
+            for node in (node for node in self.nodes if node.is_joined()):
                 with node.management_client() as c:
                     id = c.request("getCommit", {})
                     commits.append(c.response(id).commit)
@@ -298,6 +328,9 @@ class Network:
                 break
             time.sleep(1)
         assert [commits[0]] * len(commits) == commits, "All nodes at the same commit"
+
+    def get_primary(self):
+        return self.nodes[0]
 
 
 class Checker:
@@ -400,7 +433,7 @@ class Node:
         self.verify_quote = verify_quote
         self.remote = None
         self.node_json = None
-        self.stopped = True
+        self.network_state = NodeNetworkState.stopped
 
         hosts, *port = host.split(":")
         self.host, *self.pubhost = hosts.split(",")
@@ -466,7 +499,7 @@ class Node:
         )
         self.remote.setup()
         LOG.info("Remote {} started".format(self.node_id))
-        self.stopped = False
+        self.network_state = NodeNetworkState.started
         if self.recovery:
             self.remote.set_recovery()
         if self.debug:
@@ -492,10 +525,13 @@ class Node:
     def stop(self):
         if self.remote:
             self.remote.stop()
-            self.stopped = True
+            self.network_state = NodeNetworkState.stopped
 
     def is_stopped(self):
-        return self.stopped
+        return self.network_state == NodeNetworkState.stopped
+
+    def is_joined(self):
+        return self.network_state == NodeNetworkState.joined
 
     def start_network(self):
         infra.proc.ccall(
@@ -517,6 +553,7 @@ class Node:
             "--req=joinNetwork.json",
         ).check_returncode()
         LOG.info("Joining Network")
+        self.network_state = NodeNetworkState.joined
 
     def set_recovery(self):
         self.remote.set_recovery()
