@@ -62,7 +62,7 @@ The tables passed to a Lua handler in ``tables`` and ``gov_tables`` can be acces
 
 * ``start_order()``: returns the "start version" of the table. (Probably not useful for most applications.)
 
-* ``end_order()``: returns the "commit versio" of the table. (Probably not useful for most applications.)
+* ``end_order()``: returns the "commit version" of the table. (Probably not useful for most applications.)
 
 
 Running
