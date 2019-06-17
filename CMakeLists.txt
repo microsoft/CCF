@@ -1,48 +1,18 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-
 cmake_minimum_required(VERSION 3.11)
 
 set(CCF_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-
 include(${CCF_DIR}/cmake/preproject.cmake)
 
 project(ccf C CXX)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
-#find_program(CCACHE_FOUND ccache)
-#if(CCACHE_FOUND)
-#    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
-#    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
-#endif(CCACHE_FOUND)
-
-option(DISABLE_PRIMARY_SIGNATURES "Don't have the primary sign batches of state updates." OFF)
-if (DISABLE_PRIMARY_SIGNATURES)
-  add_definitions(-DDISABLE_PRIMARY_SIGNATURES)
-endif()
-
-option(DISABLE_CLIENT_SIGNATURE_VERIFICATION "Accept all client signatures without checking." OFF)
-if (DISABLE_CLIENT_SIGNATURE_VERIFICATION)
-  add_definitions(-DDISABLE_CLIENT_SIGNATURE_VERIFICATION)
-endif()
-
 set(TEST_HOST_LOGGING_LEVEL "info")
 set(ENV{BETTER_EXCEPTIONS} 1)
 
 option(BUILD_TESTS "Build tests" ON)
-
-if (DEFINED ENV{BUILD_BUILDNUMBER})
-  set(PYTHON python3)
-else()
-  set(PYTHON unbuffer python3)
-endif()
-
-option(NO_COMMITTED_TX_HISTORY "Do not keep tree of hashes of committed transactions" ON)
-if(RECORD_TRACE)
-  add_definitions(-DNO_COMMITTED_TX_HISTORY)
-endif()
-
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
 # MemberClient executable
@@ -71,6 +41,9 @@ if(BUILD_TESTS)
   ## Unit tests
   add_unit_test(map_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
+
+  add_unit_test(json_schema
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp)
 
   add_unit_test(kv_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
@@ -199,6 +172,7 @@ if(BUILD_TESTS)
   ## Picobench benchmarks
   add_picobench(map_bench src/ds/test/map_bench.cpp)
   add_picobench(logger_bench src/ds/test/logger_bench.cpp)
+  add_picobench(json_bench src/ds/test/json_bench.cpp)
   add_picobench(ringbuffer_bench src/ds/test/ringbuffer_bench.cpp)
   target_link_libraries(ringbuffer_bench PRIVATE
     ${CMAKE_THREAD_LIBS_INIT})
@@ -246,82 +220,83 @@ if(BUILD_TESTS)
          ${CMAKE_SOURCE_DIR}/tests/raft_scenarios ${CMAKE_SOURCE_DIR})
 
   ## Member client end to end tests
-  add_test(
+  add_e2e_test(
     NAME member_client_test
-    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/memberclient.py -b . -p libloggingenc ${CCF_NETWORK_TEST_ARGS})
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
+  )
 
   ## Logging client end to end test
-  add_test(
+  add_e2e_test(
     NAME logging_client_test
-    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
-      -b .
-      ${CCF_NETWORK_TEST_ARGS})
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
+  )
 
   ## Storing signed votes test
-  add_test(
+  add_e2e_test(
     NAME voting_history_test
-    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/votinghistory.py -b . -p libloggingenc ${CCF_NETWORK_TEST_ARGS})
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
 
   ## Lua Logging client end to end test
-  add_test(
+  add_e2e_test(
     NAME lua_logging_client_test
-    COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
-      -b .
-      --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
-      ${CCF_NETWORK_TEST_ARGS})
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
+    ADDITIONAL_ARGS
+      --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua)
 
   if(QUOTES_ENABLED)
-    ## Tests generation and verification of quotes
-    add_test(
+    add_e2e_test(
       NAME quote_verification_test
-      COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/quote_verification.py . ./libloggingenc.so.signed
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/quote_verification.py
     )
 
-    add_test(
+    add_e2e_test(
       NAME governance_tests
-      COMMAND
-        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/governance.py
-        -b .
-        ${CCF_NETWORK_TEST_ARGS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+      ADDITIONAL_ARGS
         --oesign ${OESIGN}
+    )
+
+    ## Add node test
+    add_e2e_test(
+      NAME add_node_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/addnode.py
     )
   endif()
 
-  add_test(
+  add_e2e_test(
     NAME end_to_end_logging
-    COMMAND
-      ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-      -b .
-      ${TEST_FORWARD_TO_LEADER}
-      ${CCF_NETWORK_TEST_ARGS}
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
   )
 
-  add_test(
+  add_e2e_test(
     NAME end_to_end_scenario
-    COMMAND
-      ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
-      -b .
-      ${CCF_NETWORK_TEST_ARGS}
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
+    ADDITIONAL_ARGS
       --scenario ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
   )
 
-  add_test(
-    NAME election_tests
-    COMMAND
-      ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/election.py
-      -b .
-      --election-timeout 2000
-      ${TEST_FORWARD_TO_LEADER}
-      ${CCF_NETWORK_TEST_ARGS}
-  )
+  if (NOT PBFT)
+    add_e2e_test(
+      NAME election_tests
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+      ADDITIONAL_ARGS
+        --election-timeout 2000
+    )
 
-  add_test(
-    NAME recovery_tests
-    COMMAND
-      ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/recovery.py
-      -b .
-      ${CCF_NETWORK_TEST_ARGS}
-      ${RECOVERY_ARGS}
+    add_e2e_test(
+      NAME recovery_tests
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+      ADDITIONAL_ARGS
+        ${RECOVERY_ARGS}
+    )
+  endif()
+
+  add_e2e_test(
+    NAME schema_tests
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+    ADDITIONAL_ARGS
+      -p libloggingenc
+      --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
   )
 
   if (BUILD_SMALLBANK)

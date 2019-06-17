@@ -22,7 +22,6 @@ namespace jsonrpc
   static constexpr auto CODE = "code";
   static constexpr auto MESSAGE = "message";
   static constexpr auto DATA = "data";
-  static constexpr auto OK = "OK";
   static constexpr auto SIG = "sig";
   static constexpr auto REQ = "req";
 
@@ -220,21 +219,7 @@ namespace jsonrpc
       message(std::string(get_error_prefix(error_code)) + msg)
     {}
   };
-  ADD_JSON_TRANSLATORS(Error, code, message)
-
-  template <typename T>
-  void to_json(nlohmann::json& j, const Error& e)
-  {
-    j[CODE] = e.code;
-    j[MESSAGE] = e.message;
-  }
-
-  template <typename T>
-  void from_json(const nlohmann::json& j, Error& e)
-  {
-    e.code = j[CODE];
-    e.message = j[MESSAGE];
-  }
+  ADD_JSON_TRANSLATORS(Error, code, message);
 
   template <typename T>
   struct ErrorEx : public Error
@@ -269,11 +254,6 @@ namespace jsonrpc
   {
     nlohmann::json j(result);
     return std::make_pair(true, j);
-  }
-
-  inline std::pair<bool, nlohmann::json> success()
-  {
-    return success(OK);
   }
 
   inline nlohmann::json result_response(SeqNo id, const nlohmann::json& result)

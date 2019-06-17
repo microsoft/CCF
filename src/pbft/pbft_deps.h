@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #include "libbyz/Cycle_counter.h"
 #include "libbyz/ITimer.h"
+#include "libbyz/Message.h"
 #include "libbyz/Statistics.h"
 #include "libbyz/Time.h"
-#include "libbyz/network.h"
 #include "libbyz/types.h"
 #include "node/nodetonode.h"
-#include "raft/rafttypes.h"
+#include "pbfttypes.h"
 
 #include <signal.h>
 
@@ -83,6 +83,11 @@ void ITimer::stop()
 void ITimer::restop()
 {
   state = stopped;
+}
+
+ITimer::State ITimer::get_state() const
+{
+  return state;
 }
 
 void ITimer::handle_timeouts(std::chrono::milliseconds elapsed)
@@ -168,53 +173,3 @@ void Statistics::end_rec_stats() {}
 void Recovery_stats::zero_stats() {}
 
 void Recovery_stats::print_stats() {}
-
-class PbftEnclaveNetwork : public INetwork
-{
-public:
-  PbftEnclaveNetwork(
-    raft::NodeId id, std::shared_ptr<ccf::NodeToNode> n2n_channels) :
-    n2n_channels(n2n_channels),
-    id(id)
-  {}
-
-  virtual ~PbftEnclaveNetwork() = default;
-
-  bool Initialize(in_port_t port) override
-  {
-    return true;
-  }
-
-  int Send(void* buf, uint32_t size, IPrincipal& principal) override
-  {
-    raft::NodeId to = principal.pid();
-    raft::RaftHeader hdr = {raft::RaftMsgType::pbft_message, id};
-
-    // TODO: Encrypt msg here
-    std::vector<uint8_t> msg(sizeof(raft::RaftHeader) + size);
-    auto data_ = msg.data();
-    auto space = msg.size();
-    serialized::write<raft::RaftHeader>(data_, space, hdr);
-    serialized::write(
-      data_, space, reinterpret_cast<const uint8_t*>(buf), size);
-
-    n2n_channels->send_authenticated(to, msg);
-    return size;
-  }
-
-  virtual void GetNextMessage(
-    void* buf, size_t msize, size_t size, uint32_t message_rep_size) override
-  {
-    assert("Should not be called");
-    return;
-  }
-
-  virtual bool has_messages(long to) override
-  {
-    return false;
-  }
-
-private:
-  std::shared_ptr<ccf::NodeToNode> n2n_channels;
-  raft::NodeId id;
-};

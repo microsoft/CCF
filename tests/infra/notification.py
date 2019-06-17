@@ -72,7 +72,7 @@ def notification_server(server_info, checker=None):
         server_thread = threading.Thread(target=server.serve_forever)
         server_thread.daemon = True
         server_thread.start()
-        LOG.info("Notification server started")
+        LOG.success("Notification server started")
 
         try:
             yield server

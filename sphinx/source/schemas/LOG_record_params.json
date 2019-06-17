@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "id": {
+      "maximum": 18446744073709551615,
+      "minimum": 0,
+      "type": "number"
+    },
+    "msg": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "msg"
+  ],
+  "title": "LOG_record/params",
+  "type": "object"
+}

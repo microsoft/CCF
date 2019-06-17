@@ -34,7 +34,7 @@ The interface between Lua RPC handlers and the rest of CCF is simple. A fixed se
 
 * ``caller_id``: the caller's id.
 
-* ``msg_id``: the RPC's id.
+* ``method``: the method name.
 
 * ``params``: the RPC's parameters indexed by name. All JSON is translated to Lua tables.
 
@@ -62,7 +62,7 @@ The tables passed to a Lua handler in ``tables`` and ``gov_tables`` can be acces
 
 * ``start_order()``: returns the "start version" of the table. (Probably not useful for most applications.)
 
-* ``end_order()``: returns the "commit versio" of the table. (Probably not useful for most applications.)
+* ``end_order()``: returns the "commit version" of the table. (Probably not useful for most applications.)
 
 
 Running

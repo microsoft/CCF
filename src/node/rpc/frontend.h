@@ -3,6 +3,8 @@
 #pragma once
 #include "consts.h"
 #include "ds/buffer.h"
+#include "ds/histogram.h"
+#include "ds/json_schema.h"
 #include "enclave/rpchandler.h"
 #include "forwarder.h"
 #include "jsonrpc.h"
@@ -15,6 +17,8 @@
 #include "rpcexception.h"
 #include "serialization.h"
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <utility>
 #include <vector>
 
@@ -28,6 +32,12 @@ namespace ccf
       Read,
       Write,
       MayWrite
+    };
+
+    enum class Forwardable
+    {
+      CanForward,
+      DoNotForward
     };
 
   protected:
@@ -59,7 +69,9 @@ namespace ccf
     {
       HandleFunction func;
       ReadWrite rw;
-      bool is_forwardable;
+      nlohmann::json params_schema;
+      nlohmann::json result_schema;
+      Forwardable forwardable;
     };
 
     Nodes* nodes;
@@ -129,9 +141,11 @@ namespace ccf
     }
 
     std::optional<nlohmann::json> forward_or_redirect_json(
-      enclave::RPCContext& ctx, bool is_forwardable)
+      enclave::RPCContext& ctx, Forwardable forwardable)
     {
-      if (cmd_forwarder && is_forwardable && !ctx.fwd.has_value())
+      if (
+        cmd_forwarder && forwardable == Forwardable::CanForward &&
+        !ctx.fwd.has_value())
       {
         return {};
       }
@@ -173,18 +187,9 @@ namespace ccf
       history(nullptr)
     {
       auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
-        kv::Version commit;
+        const auto in = params.get<GetCommit::In>();
 
-        if (
-          params.is_array() && (params.size() > 0) &&
-          params[0].is_number_unsigned())
-        {
-          commit = params[0];
-        }
-        else
-        {
-          commit = tables.commit_version();
-        }
+        kv::Version commit = in.commit.value_or(tables.commit_version());
 
         update_raft();
 
@@ -201,7 +206,7 @@ namespace ccf
 
       auto get_metrics = [this](Store::Tx& tx, const nlohmann::json& params) {
         auto result = metrics.get_metrics();
-        return jsonrpc::success(GetMetrics::Out{result});
+        return jsonrpc::success(result);
       };
 
       auto make_signature =
@@ -211,7 +216,7 @@ namespace ccf
           if (history != nullptr)
           {
             history->emit_signature();
-            return jsonrpc::success();
+            return jsonrpc::success(true);
           }
 
           return jsonrpc::error(
@@ -223,17 +228,17 @@ namespace ccf
           if ((nodes != nullptr) && (raft != nullptr))
           {
             NodeId leader_id = raft->leader();
-            nlohmann::json result;
 
             auto nodes_view = tx.get_view(*nodes);
             auto info = nodes_view->get(leader_id);
 
             if (info)
             {
-              result["leader_id"] = leader_id;
-              result["leader_host"] = info->pubhost;
-              result["leader_port"] = info->tlsport;
-              return jsonrpc::success(result);
+              GetLeaderInfo::Out out;
+              out.leader_id = leader_id;
+              out.leader_host = info->pubhost;
+              out.leader_port = info->tlsport;
+              return jsonrpc::success(out);
             }
           }
 
@@ -241,10 +246,48 @@ namespace ccf
             jsonrpc::ErrorCodes::TX_LEADER_UNKNOWN, "Leader unknown.");
         };
 
-      install(GeneralProcs::GET_COMMIT, get_commit, Read);
-      install(GeneralProcs::GET_METRICS, get_metrics, Read);
-      install(GeneralProcs::MK_SIGN, make_signature, Write);
-      install(GeneralProcs::GET_LEADER_INFO, get_leader_info, Read);
+      auto list_methods = [this](Store::Tx& tx, const nlohmann::json& params) {
+        ListMethods::Out out;
+
+        for (const auto& handler : handlers)
+        {
+          out.methods.push_back(handler.first);
+        }
+
+        std::sort(out.methods.begin(), out.methods.end());
+
+        return jsonrpc::success(out);
+      };
+
+      auto get_schema = [this](Store::Tx& tx, const nlohmann::json& params) {
+        const auto in = params.get<GetSchema::In>();
+
+        const auto it = handlers.find(in.method);
+        if (it == handlers.end())
+        {
+          return jsonrpc::error(
+            jsonrpc::ErrorCodes::INVALID_PARAMS,
+            fmt::format("Method {} not recognised", in.method));
+        }
+
+        const GetSchema::Out out{it->second.params_schema,
+                                 it->second.result_schema};
+
+        return jsonrpc::success(out);
+      };
+
+      install_with_auto_schema<GetCommit>(
+        GeneralProcs::GET_COMMIT, get_commit, Read);
+      install_with_auto_schema<void, GetMetrics::Out>(
+        GeneralProcs::GET_METRICS, get_metrics, Read);
+      install_with_auto_schema<void, bool>(
+        GeneralProcs::MK_SIGN, make_signature, Write);
+      install_with_auto_schema<void, GetLeaderInfo::Out>(
+        GeneralProcs::GET_LEADER_INFO, get_leader_info, Read);
+      install_with_auto_schema<void, ListMethods::Out>(
+        GeneralProcs::LIST_METHODS, list_methods, Read);
+      install_with_auto_schema<GetSchema>(
+        GeneralProcs::GET_SCHEMA, get_schema, Read);
     }
 
     void disable_request_storing()
@@ -272,15 +315,34 @@ namespace ccf
      * @param method Method name
      * @param f Method implementation
      * @param rw Flag if method will Read, Write, MayWrite
-     * @param is_forwardable Allow method to be forwarded to leader
+     * @param params_schema JSON schema for params object in requests
+     * @param result_schema JSON schema for result object in responses
+     * @param forwardable Allow method to be forwarded to leader
      */
     void install(
       const std::string& method,
       HandleFunction f,
       ReadWrite rw,
-      bool is_forwardable = true)
+      const nlohmann::json& params_schema = nlohmann::json::object(),
+      const nlohmann::json& result_schema = nlohmann::json::object(),
+      Forwardable forwardable = Forwardable::CanForward)
     {
-      handlers[method] = {f, rw, is_forwardable};
+      handlers[method] = {f, rw, params_schema, result_schema, forwardable};
+    }
+
+    void install(
+      const std::string& method,
+      HandleFunction f,
+      ReadWrite rw,
+      Forwardable forwardable)
+    {
+      install(
+        method,
+        f,
+        rw,
+        nlohmann::json::object(),
+        nlohmann::json::object(),
+        forwardable);
     }
 
     /** Install MinimalHandleFunction for method name
@@ -290,19 +352,49 @@ namespace ccf
      *
      * @param method Method name
      * @param f Method implementation
-     * @param rw Flag if method will Read, Write, MayWrite
-     * @param is_forwardable Allow method to be forwarded to leader
      */
-    void install(
-      const std::string& method,
-      MinimalHandleFunction f,
-      ReadWrite rw,
-      bool is_forwardable = true)
+    template <typename... Ts>
+    void install(const std::string& method, MinimalHandleFunction f, Ts&&... ts)
     {
-      handlers[method] = {
+      install(
+        method,
         [f](RequestArgs& args) { return f(args.tx, args.params); },
+        std::forward<Ts>(ts)...);
+    }
+
+    template <typename In, typename Out, typename F>
+    void install_with_auto_schema(
+      const std::string& method,
+      F&& f,
+      ReadWrite rw,
+      Forwardable forwardable = Forwardable::CanForward)
+    {
+      auto params_schema = nlohmann::json::object();
+      if constexpr (!std::is_same_v<In, void>)
+      {
+        params_schema = build_schema<In>(method + "/params");
+      }
+
+      auto result_schema = nlohmann::json::object();
+      if constexpr (!std::is_same_v<Out, void>)
+      {
+        result_schema = build_schema<Out>(method + "/result");
+      }
+
+      install(
+        method,
+        std::forward<F>(f),
         rw,
-        is_forwardable};
+        params_schema,
+        result_schema,
+        forwardable);
+    }
+
+    template <typename T, typename... Ts>
+    void install_with_auto_schema(const std::string& method, Ts&&... ts)
+    {
+      install_with_auto_schema<typename T::In, typename T::Out>(
+        method, std::forward<Ts>(ts)...);
     }
 
     /** Set a default HandleFunction
@@ -469,6 +561,8 @@ namespace ccf
       SignedReq signed_request;
       if (full_rpc.find(jsonrpc::SIG) != full_rpc.end())
       {
+        const auto& req = full_rpc.at(jsonrpc::REQ);
+
         // TODO(#important): Signature should only be verified for a Write
         // RPC
         if (!verify_client_signature(
@@ -480,29 +574,34 @@ namespace ccf
               signed_request))
         {
           return jsonrpc::error_response(
-            full_rpc[jsonrpc::REQ][jsonrpc::ID],
+            req.at(jsonrpc::ID),
             jsonrpc::ErrorCodes::INVALID_CLIENT_SIGNATURE,
             "Failed to verify client signature.");
         }
-        rpc_ = &full_rpc[jsonrpc::REQ];
+        rpc_ = &req;
       }
       auto& rpc = *rpc_;
 
-      if (rpc[jsonrpc::JSON_RPC] != jsonrpc::RPC_VERSION)
-        return jsonrpc::error_response(
-          rpc[jsonrpc::ID],
-          jsonrpc::ErrorCodes::INVALID_REQUEST,
-          "Wrong JSON-RPC version.");
+      std::string method = rpc.at(jsonrpc::METHOD);
+      ctx.req.seq_no = rpc.at(jsonrpc::ID);
 
-      std::string method = rpc[jsonrpc::METHOD];
-      ctx.req.seq_no = rpc[jsonrpc::ID];
-
-      const nlohmann::json params = rpc[jsonrpc::PARAMS];
-      if (!params.is_array() && !params.is_object() && !params.is_null())
+      if (rpc.at(jsonrpc::JSON_RPC) != jsonrpc::RPC_VERSION)
         return jsonrpc::error_response(
           ctx.req.seq_no,
           jsonrpc::ErrorCodes::INVALID_REQUEST,
-          "Invalid params.");
+          "Wrong JSON-RPC version.");
+
+      const auto params_it = rpc.find(jsonrpc::PARAMS);
+      if (
+        params_it != rpc.end() &&
+        (!params_it->is_array() && !params_it->is_object()))
+        return jsonrpc::error_response(
+          ctx.req.seq_no,
+          jsonrpc::ErrorCodes::INVALID_REQUEST,
+          "If present, parameters must be an array or object");
+
+      const auto& params =
+        params_it == rpc.end() ? nlohmann::json(nullptr) : *params_it;
 
       Handler* handler = nullptr;
       auto search = handlers.find(method);
@@ -527,13 +626,13 @@ namespace ccf
             break;
 
           case Write:
-            return forward_or_redirect_json(ctx, handler->is_forwardable);
+            return forward_or_redirect_json(ctx, handler->forwardable);
             break;
 
           case MayWrite:
             bool readonly = rpc.value(jsonrpc::READONLY, true);
             if (!readonly)
-              return forward_or_redirect_json(ctx, handler->is_forwardable);
+              return forward_or_redirect_json(ctx, handler->forwardable);
             break;
         }
       }
@@ -595,6 +694,12 @@ namespace ccf
         {
           return jsonrpc::error_response(ctx.req.seq_no, e.error_id, e.msg);
         }
+        catch (const JsonParseError& e)
+        {
+          const auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
+          return jsonrpc::error_response(
+            ctx.req.seq_no, jsonrpc::ErrorCodes::PARSE_ERROR, err);
+        }
         catch (const std::exception& e)
         {
           return jsonrpc::error_response(
@@ -628,7 +733,6 @@ namespace ccf
 
       signed_request = full_rpc;
 
-#ifndef DISABLE_CLIENT_SIGNATURE_VERIFICATION
       // If the RPC is forwarded, assume that the signature has already been
       // verified by the follower
       if (!is_forwarded)
@@ -644,7 +748,6 @@ namespace ccf
               signed_request.req, signed_request.sig))
           return false;
       }
-#endif
 
       // TODO(#important): Request should only be stored on the leader
       if (request_storing_disabled)

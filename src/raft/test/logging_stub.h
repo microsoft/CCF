@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../raft.h"
+#include "raft/raft.h"
+#include "raft/rafttypes.h"
 
 #include <map>
 #include <vector>
@@ -81,22 +82,30 @@ namespace raft
 
     ChannelStubProxy() {}
 
-    void send_authenticated(NodeId to, const RequestVote& data)
+    void send_authenticated(
+      const ccf::NodeMsgType& msg_type, NodeId to, const RequestVote& data)
     {
       sent_request_vote.push_back(std::make_pair(to, data));
     }
 
-    void send_authenticated(NodeId to, const AppendEntries& data)
+    void send_authenticated(
+      const ccf::NodeMsgType& msg_type, NodeId to, const AppendEntries& data)
     {
       sent_append_entries.push_back(std::make_pair(to, data));
     }
 
-    void send_authenticated(NodeId to, const RequestVoteResponse& data)
+    void send_authenticated(
+      const ccf::NodeMsgType& msg_type,
+      NodeId to,
+      const RequestVoteResponse& data)
     {
       sent_request_vote_response.push_back(std::make_pair(to, data));
     }
 
-    void send_authenticated(NodeId to, const AppendEntriesResponse& data)
+    void send_authenticated(
+      const ccf::NodeMsgType& msg_type,
+      NodeId to,
+      const AppendEntriesResponse& data)
     {
       sent_append_entries_response.push_back(std::make_pair(to, data));
     }

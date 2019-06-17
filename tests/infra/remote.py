@@ -11,20 +11,24 @@ from contextlib import contextmanager
 import infra.path
 import json
 import uuid
+import ctypes
+import signal
 
 from loguru import logger as LOG
 
-USER = getpass.getuser()
 DBG = os.getenv("DBG", "cgdb")
 
+_libc = ctypes.CDLL("libc.so.6")
 
-def tmpdir_name(node_name):
-    elements = [USER]
-    job_name = os.getenv("JOB_NAME", None)
-    if job_name:
-        elements.append(job_name.replace("/", "_"))
-    elements.append(node_name)
-    return "_".join(elements)
+
+def _term_on_pdeathsig():
+    # usr/include/linux/prctl.h: #define PR_SET_PDEATHSIG 1
+    _libc.prctl(1, signal.SIGTERM)
+
+
+def popen(*args, **kwargs):
+    kwargs["preexec_fn"] = _term_on_pdeathsig
+    return subprocess.Popen(*args, **kwargs)
 
 
 @contextmanager
@@ -43,11 +47,12 @@ def sftp_session(hostname):
 
 
 def log_errors(out_path, err_path):
+    error_filter = ["[fail]", "[fatal]"]
     try:
         errors = 0
         with open(out_path, "r") as lines:
             for line in lines:
-                if line.startswith("[!]") or line.startswith("[!!]"):
+                if any(x in line for x in error_filter):
                     LOG.error("{}: {}".format(out_path, line.rstrip()))
                     errors += 1
         if errors:
@@ -77,14 +82,16 @@ class CmdMixin(object):
 
 
 class SSHRemote(CmdMixin):
-    def __init__(self, name, hostname, files, cmd, env=None):
+    def __init__(
+        self, name, hostname, exe_files, data_files, cmd, workspace, label, env=None
+    ):
         """
         Runs a command on a remote host, through an SSH connection. A temporary
         directory is created, and some files can be shipped over. The command is
         run out of that directory.
 
         Note that the name matters, since the temporary directory that will be first
-        deleted, then created and populated is /tmp/`tmpdir_name(name)`. There is deliberately no
+        deleted, then created and populated is workspace/label_name. There is deliberately no
         cleanup on shutdown, to make debugging/inspection possible.
 
         setup() connects, creates the directory and ships over the files
@@ -93,11 +100,14 @@ class SSHRemote(CmdMixin):
         restart() reconnects and reruns the specified command
         """
         self.hostname = hostname
-        self.files = files
+        # For SSHRemote, both executable files (host and enclave) and data
+        # files (ledger, secrets) are copied to the remote
+        self.files = exe_files
+        self.files += data_files
         self.cmd = cmd
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.root = os.path.join("/tmp", tmpdir_name(name))
+        self.root = os.path.join(workspace, label + "_" + name)
         self.name = name
         self.env = env or {}
 
@@ -112,7 +122,7 @@ class SSHRemote(CmdMixin):
 
     def _setup_files(self):
         assert self._rc("rm -rf {}".format(self.root)) == 0
-        assert self._rc("mkdir {}".format(self.root)) == 0
+        assert self._rc("mkdir -p {}".format(self.root)) == 0
         session = self.client.open_sftp()
         for path in self.files:
             tgt_path = os.path.join(self.root, os.path.basename(path))
@@ -124,12 +134,13 @@ class SSHRemote(CmdMixin):
             executable = executable[2:]
         assert self._rc("chmod +x {}".format(os.path.join(self.root, executable))) == 0
 
-    def get(self, filename, timeout=60):
+    def get(self, filename, timeout=60, targetname=None):
         """
         Get file called `filename` under the root of the remote. If the
         file is missing, wait for timeout, and raise an exception.
 
-        If the file is present, it is copied to the CWD on the caller's host.
+        If the file is present, it is copied to the CWD on the caller's
+        host, as `targetname` if it is set.
 
         This call spins up a separate client because we don't want to interrupt
         the main cmd that may be running.
@@ -137,7 +148,8 @@ class SSHRemote(CmdMixin):
         with sftp_session(self.hostname) as session:
             for seconds in range(timeout):
                 try:
-                    session.get(os.path.join(self.root, filename), filename)
+                    targetname = targetname or filename
+                    session.get(os.path.join(self.root, filename), targetname)
                     LOG.debug(
                         "[{}] found {} after {}s".format(
                             self.hostname, filename, seconds
@@ -179,16 +191,33 @@ class SSHRemote(CmdMixin):
                         "Failed to download {} from {}".format(filepath, self.hostname)
                     )
 
-    def start(self):
+    def _wait_for_termination(self, stdout, timeout=10):
+        chan = stdout.channel
+        for _ in range(timeout):
+            if chan.exit_status_ready():
+                if chan.recv_exit_status() is not 0:
+                    raise RuntimeError("SSHRemote did not terminate gracefully")
+                else:
+                    LOG.success("Command finished")
+                    return
+            else:
+                LOG.error("Command not ready")
+            time.sleep(1)
+        raise TimeoutError("Timed out waiting for SSHRemote to terminate")
+
+    def start(self, wait_for_termination=False):
         """
         Start cmd on the remote host. stdout and err are captured to file locally.
 
-        We create a pty on thre remote host under which to run the command, so as to
+        We create a pty on the remote host under which to run the command, so as to
         get a SIGHUP on disconnection.
         """
         cmd = self._cmd()
         LOG.info("[{}] {}".format(self.hostname, cmd))
-        self.client.exec_command(cmd, get_pty=True)
+        stdin, stdout, stderr = self.client.exec_command(cmd, get_pty=True)
+
+        if wait_for_termination:
+            self._wait_for_termination(stdout)
 
     def stop(self):
         """
@@ -222,21 +251,35 @@ class SSHRemote(CmdMixin):
     def _dbg(self):
         return "cd {} && {} --args ./{}".format(self.root, DBG, " ".join(self.cmd))
 
-    def wait_for_stdout_line(self, line, timeout):
+    def _connect_new(self):
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         client.connect(self.hostname)
+        return client
+
+    def wait_for_stdout_line(self, line, timeout):
+        client = self._connect_new()
         try:
             for _ in range(timeout):
-                _, stdout, _ = self.client.exec_command(
-                    "grep -F '{}' {}/out".format(line, self.root)
-                )
+                _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.root}/out")
                 if stdout.channel.recv_exit_status() == 0:
                     return
                 time.sleep(1)
             raise ValueError(
                 "{} not found in stdout after {} seconds".format(line, timeout)
             )
+        finally:
+            client.close()
+
+    def print_result(self, lines):
+        client = self._connect_new()
+        try:
+            _, stdout, _ = client.exec_command(f"tail -{lines} {self.root}/out")
+            if stdout.channel.recv_exit_status() == 0:
+                LOG.success(f"Result for {self.name}:")
+                for line in stdout.read().splitlines():
+                    LOG.debug(line.decode())
+                return
         finally:
             client.close()
 
@@ -256,18 +299,22 @@ def ssh_remote(name, hostname, files, cmd):
 
 
 class LocalRemote(CmdMixin):
-    def __init__(self, name, hostname, files, cmd, env=None):
+    def __init__(
+        self, name, hostname, exe_files, data_files, cmd, workspace, label, env=None
+    ):
         """
         Local Equivalent to the SSHRemote
         """
         self.hostname = hostname
-        self.files = files
+        self.exe_files = exe_files
+        self.data_files = data_files
         self.cmd = cmd
-        self.root = os.path.join("/tmp", tmpdir_name(name))
+        self.root = os.path.join(workspace, label + "_" + name)
         self.proc = None
         self.stdout = None
         self.stderr = None
         self.env = env
+        self.name = name
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
@@ -275,10 +322,16 @@ class LocalRemote(CmdMixin):
 
     def _setup_files(self):
         assert self._rc("rm -rf {}".format(self.root)) == 0
-        assert self._rc("mkdir {}".format(self.root)) == 0
-        for path in self.files:
-            tgt_path = os.path.join(self.root, os.path.basename(path))
-            assert self._rc("cp {} {}".format(path, tgt_path)) == 0
+        assert self._rc("mkdir -p {}".format(self.root)) == 0
+        for path in self.exe_files:
+            dst_path = os.path.join(self.root, os.path.basename(path))
+            src_path = os.path.join(os.getcwd(), path)
+            assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
+        for path in self.data_files:
+            dst_path = os.path.join(self.root, os.path.basename(path))
+            src_path = os.path.join(os.getcwd(), path)
+            assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
+
         executable = self.cmd[0]
         if executable.startswith("./"):
             executable = executable[2:]
@@ -294,14 +347,22 @@ class LocalRemote(CmdMixin):
             time.sleep(1)
         else:
             raise ValueError(path)
-        if targetname is None:
-            targetname = filename
+        targetname = targetname or filename
         assert self._rc("cp {} {}".format(path, targetname)) == 0
 
     def list_files(self):
         return os.listdir(self.root)
 
-    def start(self):
+    def _wait_for_termination(self, timeout=10):
+        try:
+            self.proc.wait(timeout)
+        except subprocess.TimeoutExpired:
+            raise TimeoutError("Timed out waiting for LocalRemote to terminate")
+
+        if self.proc.returncode is not 0:
+            raise RuntimeError("LocalRemote did not terminate gracefully")
+
+    def start(self, wait_for_termination=False, timeout=10):
         """
         Start cmd. stdout and err are captured to file locally.
         """
@@ -309,13 +370,15 @@ class LocalRemote(CmdMixin):
         LOG.info(f"[{self.hostname}] {cmd} (env: {self.env})")
         self.stdout = open(os.path.join(self.root, "out"), "wb")
         self.stderr = open(os.path.join(self.root, "err"), "wb")
-        self.proc = subprocess.Popen(
+        self.proc = popen(
             self.cmd,
             cwd=self.root,
             stdout=self.stdout,
             stderr=self.stderr,
             env=self.env,
         )
+        if wait_for_termination:
+            self._wait_for_termination()
 
     def stop(self):
         """
@@ -358,6 +421,14 @@ class LocalRemote(CmdMixin):
             "{} not found in stdout after {} seconds".format(line, timeout)
         )
 
+    def print_result(self, line):
+        with open(os.path.join(self.root, "out"), "rb") as out:
+            lines = out.read().splitlines()
+            result = lines[-line:]
+            LOG.success(f"Result for {self.name}:")
+            for line in result:
+                LOG.debug(line.decode())
+
 
 CCF_TO_OE_LOG_LEVEL = {
     "trace": "VERBOSE",
@@ -382,14 +453,19 @@ class CCFRemote(object):
         tls_port,
         remote_class,
         enclave_type,
-        log_level,
-        expect_quote,
-        sig_max_tx,
-        sig_max_ms,
-        node_status,
-        election_timeout,
-        memory_reserve_startup,
-        notify_server,
+        verify_quote,
+        workspace,
+        label,
+        other_quote=None,
+        other_quoted_data=None,
+        log_level="info",
+        ignore_quote=False,
+        sig_max_tx=1000,
+        sig_max_ms=1000,
+        node_status="pending",
+        election_timeout=1000,
+        memory_reserve_startup=0,
+        notify_server=None,
         ledger_file=None,
         sealed_secrets=None,
     ):
@@ -404,57 +480,73 @@ class CCFRemote(object):
         self.pem = "{}.pem".format(node_id)
         self.quote = None
         self.node_status = node_status
+        self.verify_quote = verify_quote
         # Only expect a quote if the enclave is not virtual and quotes have
-        # not been explictly disabled
-        if enclave_type != "virtual" and expect_quote:
-            self.quote = "quote{}.bin".format(node_id)
+        # not been explictly ignored
+        if enclave_type != "virtual" and not ignore_quote:
+            self.quote = f"quote{node_id}.bin"
         self.BIN = infra.path.build_bin_path(self.BIN, enclave_type)
         self.ledger_file = ledger_file
         self.ledger_file_name = (
-            os.path.basename(ledger_file)
-            if ledger_file
-            else "{}.ledger".format(node_id)
+            os.path.basename(ledger_file) if ledger_file else f"{node_id}"
         )
 
-        cmd = [
-            self.BIN,
-            "--enclave-file={}".format(lib_path),
-            "--raft-election-timeout-ms={}".format(election_timeout),
-            "--raft-host={}".format(host),
-            "--raft-port={}".format(raft_port),
-            "--tls-host={}".format(host),
-            "--tls-pubhost={}".format(pubhost),
-            "--tls-port={}".format(tls_port),
-            "--ledger-file={}".format(self.ledger_file_name),
-            "--node-cert-file={}".format(self.pem),
-            "--enclave-type={}".format(enclave_type),
-            "--log-level={}".format(log_level),
-        ]
+        cmd = [self.BIN, f"--enclave-file={lib_path}"]
 
-        if sig_max_tx is not None:
-            cmd += ["--sig-max-tx={}".format(sig_max_tx)]
+        # If the remote needs to verify the quote, only a subset of arguments are required
+        if self.verify_quote:
+            cmd += ["--start=verify"]
 
-        if sig_max_ms is not None:
-            cmd += ["--sig-max-ms={}".format(sig_max_ms)]
-
-        if memory_reserve_startup is not None:
-            cmd += ["--memory-reserve-startup={}".format(memory_reserve_startup)]
-
-        if notify_server is not None:
-            notify_server_host, *notify_server_port = notify_server.split(":")
-
-            if not notify_server_host or not (
-                notify_server_port and notify_server_port[0]
-            ):
+            if not other_quote:
                 raise ValueError(
-                    "Notification server host:port configuration is invalid"
+                    "Quote should be specified when starting remote in verify mode"
+                )
+            if not other_quoted_data:
+                raise ValueError(
+                    "Quoted data should be specified when starting remote in verify mode"
                 )
 
-            cmd += ["--notify-server-host={}".format(notify_server_host)]
-            cmd += ["--notify-server-port={}".format(notify_server_port[0])]
+            cmd += [f"--quote-file={other_quote}", f"--quoted-data={other_quoted_data}"]
+        else:
+            cmd = [
+                self.BIN,
+                f"--enclave-file={lib_path}",
+                f"--raft-election-timeout-ms={election_timeout}",
+                f"--raft-host={host}",
+                f"--raft-port={raft_port}",
+                f"--tls-host={host}",
+                f"--tls-pubhost={pubhost}",
+                f"--tls-port={tls_port}",
+                f"--ledger-file={self.ledger_file_name}",
+                f"--node-cert-file={self.pem}",
+                f"--enclave-type={enclave_type}",
+                f"--log-level={log_level}",
+            ]
 
-        if self.quote is not None:
-            cmd.append("--quote-file={}".format(self.quote))
+            if sig_max_tx:
+                cmd += [f"--sig-max-tx={sig_max_tx}"]
+
+            if sig_max_ms:
+                cmd += [f"--sig-max-ms={sig_max_ms}"]
+
+            if memory_reserve_startup:
+                cmd += [f"--memory-reserve-startup={memory_reserve_startup}"]
+
+            if notify_server:
+                notify_server_host, *notify_server_port = notify_server.split(":")
+
+                if not notify_server_host or not (
+                    notify_server_port and notify_server_port[0]
+                ):
+                    raise ValueError(
+                        "Notification server host:port configuration is invalid"
+                    )
+
+                cmd += [f"--notify-server-host={notify_server_host}"]
+                cmd += [f"--notify-server-port={notify_server_port[0]}"]
+
+            if self.quote:
+                cmd.append(f"--quote-file={self.quote}")
 
         env = {}
         self.profraw = None
@@ -471,11 +563,12 @@ class CCFRemote(object):
         self.remote = remote_class(
             node_id,
             host,
-            [self.BIN, lib_path]
-            + self.DEPS
-            + ([self.ledger_file] if self.ledger_file else [])
+            [self.BIN, lib_path] + self.DEPS,
+            ([self.ledger_file] if self.ledger_file else [])
             + ([sealed_secrets] if sealed_secrets else []),
             cmd,
+            workspace,
+            label,
             env,
         )
 
@@ -483,12 +576,11 @@ class CCFRemote(object):
         self.remote.setup()
 
     def start(self):
-        self.remote.start()
-        return self.info()
+        wait_for_termination = self.verify_quote
+        self.remote.start(wait_for_termination)
 
     def restart(self):
         self.remote.restart()
-        return self.info()
 
     def info(self):
         self.remote.get(self.pem)
@@ -527,6 +619,9 @@ class CCFRemote(object):
     def wait_for_stdout_line(self, line, timeout=5):
         return self.remote.wait_for_stdout_line(line, timeout)
 
+    def print_result(self, lines):
+        self.remote.print_result(lines)
+
     def set_recovery(self):
         self.remote.set_recovery()
 
@@ -549,8 +644,16 @@ class CCFRemote(object):
         self.remote.get(self.ledger_file_name)
         return self.ledger_file_name
 
-    def get_ledger_full_path(self):
-        return self.remote.root + "/" + self.ledger_file_name
+    def ledger_path(self):
+        return os.path.join(self.remote.root, self.ledger_file_name)
+
+    def get_quote(self):
+        self.remote.get(self.quote)
+        return os.path.join(self.remote.root, self.quote)
+
+    def get_cert(self):
+        self.remote.get(self.pem)
+        return os.path.join(self.remote.root, self.pem)
 
 
 @contextmanager

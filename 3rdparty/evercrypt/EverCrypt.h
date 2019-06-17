@@ -13,6 +13,7 @@
 #include <inttypes.h>
 #include <stdbool.h>
 #include <kremlin/internal/types.h>
+#include "EverCrypt_Vale.h"
 
 #define Spec_Hash_Definitions_SHA2_224 0
 #define Spec_Hash_Definitions_SHA2_256 1
@@ -267,12 +268,12 @@ extern EverCrypt__dh_state
 
 extern void EverCrypt_dh_free_group(EverCrypt__dh_state *st);
 
-extern uint32_t EverCrypt_dh_keygen(EverCrypt__dh_state *st, uint8_t *public);
+extern uint32_t EverCrypt_dh_keygen(EverCrypt__dh_state *st, uint8_t *public_);
 
 extern uint32_t
 EverCrypt_dh_compute(
   EverCrypt__dh_state *st,
-  uint8_t *public,
+  uint8_t *public_,
   uint32_t public_len,
   uint8_t *out1
 );

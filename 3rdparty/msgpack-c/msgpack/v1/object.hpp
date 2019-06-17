@@ -352,8 +352,8 @@ struct object_pack_visitor {
         return true;
     }
     bool visit_ext(const char* v, uint32_t size) {
-        m_packer.pack_ext(size, *v);
-        m_packer.pack_ext_body(v, size);
+        m_packer.pack_ext(size - 1, static_cast<int8_t>(*v));
+        m_packer.pack_ext_body(v + 1, size - 1);
         return true;
     }
     bool start_array(uint32_t num_elements) {
@@ -467,7 +467,7 @@ struct object_stringize_visitor {
         return true;
     }
     bool visit_bin(const char* v, uint32_t size) {
-        (m_os << '"').write(v, size) << '"';
+        (m_os << '"').write(v, static_cast<std::streamsize>(size)) << '"';
         return true;
     }
     bool visit_ext(const char* /*v*/, uint32_t /*size*/) {
@@ -527,7 +527,7 @@ private:
 };
 
 struct aligned_zone_size_visitor {
-    explicit aligned_zone_size_visitor(std::size_t s)
+    explicit aligned_zone_size_visitor(std::size_t& s)
         :m_size(s) {}
     bool visit_nil() {
         return true;
@@ -596,7 +596,7 @@ struct aligned_zone_size_visitor {
         return true;
     }
 private:
-    std::size_t m_size;
+    std::size_t& m_size;
 };
 
 inline std::size_t aligned_zone_size(msgpack::object const& obj) {
@@ -938,7 +938,7 @@ struct object_equal_visitor {
     }
     bool visit_ext(const char* v, uint32_t size) {
         if (m_ptr->type != msgpack::type::EXT ||
-            m_ptr->via.ext.size != size ||
+            m_ptr->via.ext.size != size - 1 ||
             std::memcmp(m_ptr->via.ext.ptr, v, size) != 0) {
             m_result = false;
             return false;

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ds/histogram.h"
 #include "ds/logger.h"
+#include "serialization.h"
 
 #include <nlohmann/json.hpp>
 
@@ -25,14 +26,14 @@ namespace metrics
       histogram::Global<Hist>("histogram", __FILE__, __LINE__);
     Hist histogram = Hist(global);
 
-    nlohmann::json get_histogram_results()
+    ccf::GetMetrics::HistogramResults get_histogram_results()
     {
-      nlohmann::json result;
+      ccf::GetMetrics::HistogramResults result;
       nlohmann::json hist;
-      result["low"] = histogram.get_low();
-      result["high"] = histogram.get_high();
-      result["overflow"] = histogram.get_overflow();
-      result["underflow"] = histogram.get_underflow();
+      result.low = histogram.get_low();
+      result.high = histogram.get_high();
+      result.overflow = histogram.get_overflow();
+      result.underflow = histogram.get_underflow();
       auto range_counts = histogram.get_range_count();
       for (auto const& [range, count] : range_counts)
       {
@@ -41,7 +42,7 @@ namespace metrics
           hist[range] = count;
         }
       }
-      result["buckets"] = hist;
+      result.buckets = hist;
       return result;
     }
 
@@ -60,7 +61,7 @@ namespace metrics
     }
 
   public:
-    nlohmann::json get_metrics()
+    ccf::GetMetrics::Out get_metrics()
     {
       nlohmann::json result;
       result["histogram"] = get_histogram_results();

@@ -53,12 +53,12 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         "--config", help="Path to config for client binary", default=default_config_path
     )
 
-    # Some common client binary args are exposed here for ease
-    parser.add_argument("--label", help="Test label name in perf summary output file")
     parser.add_argument(
         "-i", "--iterations", help="Number of transactions", required=True, type=int
     )
-    parser.add_argument("--sign", action="store_true")
+    parser.add_argument(
+        "--sign", help="Sign all client transactions", action="store_true"
+    )
 
     return e2e_args.cli_args(add=add, parser=parser, accept_unknown=accept_unknown)
 
@@ -76,7 +76,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "-p",
             "--package",
-            help="The enclave package to load (e.g., libsimplebank)",
+            help="The enclave package to load (e.g., libloggingenc)",
             required=True,
         )
 

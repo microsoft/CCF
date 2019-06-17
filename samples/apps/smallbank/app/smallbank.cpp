@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #include "enclave/appinterface.h"
 #include "node/entities.h"
-#include "node/rpc/userfrontend.h"
 #include "node/rpc/nodeinterface.h"
+#include "node/rpc/userfrontend.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -80,7 +80,7 @@ namespace ccfapp
 
         checking_view->put(acc_id, checking_amt);
 
-        return jsonrpc::success();
+        return jsonrpc::success(true);
       };
 
       auto create_batch = [this](Store::Tx& tx, const nlohmann::json& params) {
@@ -126,7 +126,7 @@ namespace ccfapp
           checking_view->put(acc_id, checking_amt);
         }
 
-        return jsonrpc::success();
+        return jsonrpc::success(true);
       };
 
       auto balance = [this](Store::Tx& tx, const nlohmann::json& params) {
@@ -193,7 +193,7 @@ namespace ccfapp
 
           savings_view->put(account_r.value(), value + savings_r.value());
 
-          return jsonrpc::success();
+          return jsonrpc::success(true);
         };
 
       auto deposit_checking =
@@ -226,7 +226,7 @@ namespace ccfapp
 
           checking_view->put(account_r.value(), value + checking_r.value());
 
-          return jsonrpc::success();
+          return jsonrpc::success(true);
         };
 
       auto amalgamate = [this](Store::Tx& tx, const nlohmann::json& params) {
@@ -279,7 +279,7 @@ namespace ccfapp
         checking_2_view->put(
           account_2_r.value(), checking_2_r.value() + sum_account_1);
 
-        return jsonrpc::success();
+        return jsonrpc::success(true);
       };
 
       auto writeCheck = [this](Store::Tx& tx, const nlohmann::json& params) {
@@ -316,7 +316,7 @@ namespace ccfapp
         }
         checking_view->put(account_r.value(), account_value - amount);
 
-        return jsonrpc::success();
+        return jsonrpc::success(true);
       };
 
       install(Procs::SMALL_BANKING_CREATE, create, Write);
@@ -330,7 +330,8 @@ namespace ccfapp
     }
   };
 
-  std::shared_ptr<enclave::RpcHandler> get_rpc_handler(NetworkTables& nwt, AbstractNotifier& notifier)
+  std::shared_ptr<enclave::RpcHandler> get_rpc_handler(
+    NetworkTables& nwt, AbstractNotifier& notifier)
   {
     return make_shared<SmallBank>(*nwt.tables);
   }

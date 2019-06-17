@@ -48,6 +48,8 @@ extensions = [
     "breathe",
     "sphinxcontrib.mermaid",
     "sphinx.ext.autosectionlabel",
+    "sphinx.ext.githubpages",
+    "sphinx-jsonschema",
 ]
 
 # Add any paths that contain templates here, relative to this directory.

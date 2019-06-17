@@ -78,7 +78,6 @@ namespace raft
     raft_append_entries_response,
     raft_request_vote,
     raft_request_vote_response,
-    pbft_message
   };
 
 #pragma pack(push, 1)

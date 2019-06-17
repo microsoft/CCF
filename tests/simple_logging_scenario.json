@@ -13,14 +13,16 @@
             "id": 42,
             "msg": "Hello world"
           },
-          "expected_result": "OK"
+          "expected_result": true
         },
         {
           "method": "LOG_get",
           "params": {
             "id": 42
           },
-          "expected_result": "Hello world"
+          "expected_result": {
+            "msg": "Hello world"
+          }
         }
       ]
     },
@@ -33,14 +35,16 @@
             "id": 42,
             "msg": "Hello world"
           },
-          "expected_result": "OK"
+          "expected_result": true
         },
         {
           "method": "LOG_get",
           "params": {
             "id": 42
           },
-          "expected_result": "Hello world"
+          "expected_result": {
+            "msg": "Hello world"
+          }
         }
       ]
     }

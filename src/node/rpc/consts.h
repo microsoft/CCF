@@ -20,6 +20,8 @@ namespace ccf
     static constexpr auto GET_METRICS = "getMetrics";
     static constexpr auto MK_SIGN = "mkSign";
     static constexpr auto GET_LEADER_INFO = "getLeaderInfo";
+    static constexpr auto LIST_METHODS = "listMethods";
+    static constexpr auto GET_SCHEMA = "getSchema";
   };
 
   struct ManagementProcs
@@ -40,6 +42,8 @@ namespace ccf
     static constexpr auto VOTE = "vote";
     static constexpr auto PROPOSE = "propose";
     static constexpr auto REMOVAL = "removal";
+
+    static constexpr auto ADD_NODE = "add_node";
 
     static constexpr auto ACK = "ack";
     static constexpr auto UPDATE_ACK_NONCE = "updateAckNonce";

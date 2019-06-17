@@ -98,7 +98,7 @@ namespace asynchost
     bool connect(const std::string& host, const std::string& service)
     {
       assert_status(FRESH, CONNECTING_RESOLVING);
-      return resolve(host, service);
+      return resolve(host, service, false);
     }
 
     bool reconnect()
@@ -111,7 +111,7 @@ namespace asynchost
           // Try again, starting with DNS.
           LOG_DEBUG << "Reconnect from DNS" << std::endl;
           status = CONNECTING_RESOLVING;
-          return resolve(host, service);
+          return resolve(host, service, false);
         }
 
         case DISCONNECTED:
@@ -325,7 +325,7 @@ namespace asynchost
       if (rc < 0)
       {
         status = RESOLVING_FAILED;
-        LOG_FAIL << "TCP resolve failed: " << uv_strerror(rc) << std::endl;
+        LOG_TRACE << "TCP resolve failed: " << uv_strerror(rc) << std::endl;
         behaviour->on_resolve_failed();
       }
       else

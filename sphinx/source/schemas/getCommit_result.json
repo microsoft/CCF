@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "commit": {
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
+      "type": "number"
+    },
+    "term": {
+      "maximum": 18446744073709551615,
+      "minimum": 0,
+      "type": "number"
+    }
+  },
+  "required": [
+    "term",
+    "commit"
+  ],
+  "title": "getCommit/result",
+  "type": "object"
+}

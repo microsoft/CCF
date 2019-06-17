@@ -161,6 +161,12 @@ int main(int argc, char** argv)
   app.add_option(
     "--host-node-index", node_index, "Index of host in nodes file", true);
 
+  bool pretty_print = false;
+  app.add_flag(
+    "--pretty-print",
+    pretty_print,
+    "Pretty print JSON responses with human-readable indentation");
+
   std::string host, port;
   std::string ca_file = "networkcert.pem";
   auto host_opt =
@@ -234,13 +240,14 @@ int main(int argc, char** argv)
       port = j_node["tlsport"];
     }
 
+    nlohmann::json response;
+
     if (*start_network)
     {
       cout << "Starting network:" << endl;
-      auto r = make_rpc(
+      response = make_rpc(
         host, port, Pack::MsgPack, "management", ca_file, "", "", req_sn);
-      Response<ccf::StartNetwork::Out> start_network_out = r;
-      cout << r << std::endl;
+      Response<ccf::StartNetwork::Out> start_network_out = response;
 
       dump(start_network_out.result.network_cert, "networkcert.pem");
       dump(start_network_out.result.tx0_sig, "tx0.sig");
@@ -249,54 +256,59 @@ int main(int argc, char** argv)
     if (*join_network)
     {
       cout << "Joining network:" << endl;
-      auto r = make_rpc(
+      response = make_rpc(
         host, port, Pack::MsgPack, "management", ca_file, "", "", req_jn);
-      cout << r << std::endl;
     }
 
     if (*member_rpc)
     {
-      cout << "Doing member RPC:" << endl
-           << make_rpc(
-                host,
-                port,
-                Pack::MsgPack,
-                "members",
-                ca_file,
-                member_cert_file,
-                member_pk_file,
-                req_mem)
-           << endl;
+      cout << "Doing member RPC:" << endl;
+      response = make_rpc(
+        host,
+        port,
+        Pack::MsgPack,
+        "members",
+        ca_file,
+        member_cert_file,
+        member_pk_file,
+        req_mem);
     }
 
     if (*user_rpc)
     {
-      cout << "Doing user RPC:" << endl
-           << make_rpc(
-                host,
-                port,
-                Pack::MsgPack,
-                "users",
-                ca_file,
-                user_cert_file,
-                user_pk_file,
-                req_user)
-           << endl;
+      cout << "Doing user RPC:" << endl;
+      response = make_rpc(
+        host,
+        port,
+        Pack::MsgPack,
+        "users",
+        ca_file,
+        user_cert_file,
+        user_pk_file,
+        req_user);
     }
 
     if (*mgmt_rpc)
     {
-      cout << "Doing management RPC:" << endl
-           << make_rpc(
-                host,
-                port,
-                Pack::MsgPack,
-                "management",
-                ca_file,
-                mgmt_cert_file,
-                mgmt_pk_file,
-                req_mgmt)
-           << endl;
+      cout << "Doing management RPC:" << endl;
+      response = make_rpc(
+        host,
+        port,
+        Pack::MsgPack,
+        "management",
+        ca_file,
+        mgmt_cert_file,
+        mgmt_pk_file,
+        req_mgmt);
+    }
+
+    if (pretty_print)
+    {
+      std::cout << response.dump(2) << std::endl;
+    }
+    else
+    {
+      std::cout << response << std::endl;
     }
   }
   catch (const exception& ex)

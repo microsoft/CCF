@@ -133,7 +133,7 @@ namespace champ
     }
 
     template <class F>
-    void foreach(F f) const
+    void foreach(F&& f) const
     {
       for (const auto& bin : bins)
       {
@@ -274,7 +274,7 @@ namespace champ
     }
 
     template <class F>
-    void foreach(SmallIndex depth, F f) const
+    void foreach(SmallIndex depth, F&& f) const
     {
       const auto entries = data_map.pop();
       for (SmallIndex i = 0; i < entries; ++i)
@@ -285,9 +285,9 @@ namespace champ
       for (size_t i = entries; i < nodes.size(); ++i)
       {
         if (depth == (collision_depth - 1))
-          node_as<Collisions<K, V, H>>(i)->foreach(f);
+          node_as<Collisions<K, V, H>>(i)->foreach(std::forward<F>(f));
         else
-          node_as<SubNodes<K, V, H>>(i)->foreach(depth + 1, f);
+          node_as<SubNodes<K, V, H>>(i)->foreach(depth + 1, std::forward<F>(f));
       }
     }
 
@@ -340,9 +340,9 @@ namespace champ
     }
 
     template <class F>
-    void foreach(F f) const
+    void foreach(F&& f) const
     {
-      root->foreach(0, f);
+      root->foreach(0, std::forward<F>(f));
     }
   };
 }

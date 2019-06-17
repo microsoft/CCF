@@ -48,6 +48,7 @@ The C++ and Lua implementations of the Logging application are located in the [C
 
    logging_cpp
    logging_lua
+   logging_rpc_api
 
 Client
 ``````
