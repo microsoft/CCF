@@ -103,6 +103,14 @@ void set_default_handler(GenesisGenerator& network, Script dh)
   REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 }
 
+void add_handler(
+  GenesisGenerator& network, const std::string& method, const Script& h)
+{
+  Store::Tx tx;
+  tx.get_view(network.app_scripts)->put(method, h);
+  REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+}
+
 using Params = map<string, json>;
 
 auto make_pc(string method, Params params)
@@ -139,15 +147,9 @@ TEST_CASE("simple lua apps")
     constexpr auto app = R"xxx(
     tables, gov_tables, caller_id, method, params = ...
 
-    -- define handlers
-    handlers = {}
-    function handlers.echo()
-      return env.jsucc(params.verb)
-    end
-    -- call handler
-    return handlers[method]()
+    return env.jsucc(params.verb)
     )xxx";
-    set_default_handler(network, {app});
+    add_handler(network, "echo", {app});
 
     // call "echo" function with "hello"
     const string verb = "hello";
