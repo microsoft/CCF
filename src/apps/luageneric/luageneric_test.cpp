@@ -254,7 +254,7 @@ TEST_CASE("simple bank")
       end
 
       tables.priv0:put(dst, params.amt)
-      return env.jsucc("OK")
+      return env.jsucc(true)
   end
 
   function handlers.SB_read()
@@ -288,7 +288,7 @@ TEST_CASE("simple bank")
       tables.priv0:put(src, src_n - amt)
       tables.priv0:put(dst, dst_n + amt)
 
-      return env.jsucc("OK")
+      return env.jsucc(true)
   end
 
   return handlers[method]()
@@ -297,7 +297,7 @@ TEST_CASE("simple bank")
 
   {
     const auto pc = make_pc("SB_create", {{"dst", 1}, {"amt", 123}});
-    check_success<string>(frontend->process(rpc_ctx, pc), "OK");
+    check_success<bool>(frontend->process(rpc_ctx, pc), true);
 
     const auto pc1 = make_pc("SB_read", {{"account", 1}});
     check_success(frontend->process(rpc_ctx, pc1), 123);
@@ -305,7 +305,7 @@ TEST_CASE("simple bank")
 
   {
     const auto pc = make_pc("SB_create", {{"dst", 2}, {"amt", 999}});
-    check_success<string>(frontend->process(rpc_ctx, pc), "OK");
+    check_success<bool>(frontend->process(rpc_ctx, pc), true);
 
     const auto pc1 = make_pc("SB_read", {{"account", 2}});
     check_success(frontend->process(rpc_ctx, pc1), 999);
@@ -319,7 +319,7 @@ TEST_CASE("simple bank")
   {
     const auto pc =
       make_pc("SB_transfer", {{"src", 1}, {"dst", 2}, {"amt", 5}});
-    check_success<string>(frontend->process(rpc_ctx, pc), "OK");
+    check_success<bool>(frontend->process(rpc_ctx, pc), true);
 
     const auto pc1 = make_pc("SB_read", {{"account", 1}});
     check_success(frontend->process(rpc_ctx, pc1), 123 - 5);
