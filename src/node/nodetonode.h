@@ -50,6 +50,27 @@ namespace ccf
     }
 
     template <class T>
+    void send(const NodeMsgType& msg_type, NodeId to, const T& data)
+    {
+      auto& n2n_channel = channels->get(to);
+      if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
+      {
+        established_channel(to);
+        return;
+      }
+
+      to_host->write(node_outbound, to, msg_type, data);
+    }
+
+    template <class T>
+    const T& recv(const uint8_t*& data, size_t& size)
+    {
+      const auto& t = serialized::overlay<T>(data, size);
+      auto& n2n_channel = channels->get(t.from_node);
+      return t;
+    }
+
+    template <class T>
     void send_authenticated(
       const NodeMsgType& msg_type, NodeId to, const T& data)
     {
