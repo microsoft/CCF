@@ -31,7 +31,7 @@ public:
   TestUserFrontend(Store& tables) : UserRpcFrontend(tables)
   {
     auto empty_function = [this](RequestArgs& args) {
-      return jsonrpc::success();
+      return jsonrpc::success(true);
     };
     install("empty_function", empty_function, Read);
   }
@@ -43,7 +43,7 @@ public:
   TestReqNotStoredFrontend(Store& tables) : UserRpcFrontend(tables)
   {
     auto empty_function = [this](RequestArgs& args) {
-      return jsonrpc::success();
+      return jsonrpc::success(true);
     };
     install("empty_function", empty_function, Read);
     disable_request_storing();
@@ -70,7 +70,7 @@ public:
     MemberCallRpcFrontend(network, node)
   {
     auto empty_function = [this](RequestArgs& args) {
-      return jsonrpc::success();
+      return jsonrpc::success(true);
     };
     install("empty_function", empty_function, Read);
   }
@@ -82,7 +82,7 @@ public:
   TestNoCertsFrontend(Store& tables) : RpcFrontend(tables)
   {
     auto empty_function = [this](RequestArgs& args) {
-      return jsonrpc::success();
+      return jsonrpc::success(true);
     };
     install("empty_function", empty_function, Read);
   }
@@ -94,7 +94,7 @@ public:
   TestForwardingFrontEnd(Store& tables) : RpcFrontend(tables)
   {
     auto empty_function = [this](RequestArgs& args) {
-      return jsonrpc::success();
+      return jsonrpc::success(true);
     };
     // Note that this a Write function so that a follower executing this command
     // will forward it to the leader
@@ -108,7 +108,7 @@ public:
   TestNoForwardingFrontEnd(Store& tables) : RpcFrontend(tables)
   {
     auto empty_function = [this](RequestArgs& args) {
-      return jsonrpc::success();
+      return jsonrpc::success(true);
     };
     // Note that this a Write function that cannot be forwarded
     install("empty_function", empty_function, Write, Forwardable::DoNotForward);
@@ -321,14 +321,14 @@ TEST_CASE("process_json")
   {
     auto response =
       frontend.process_json(rpc_ctx, txs, caller_id, simple_call).value();
-    CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
+    CHECK(response[jsonrpc::RESULT] == true);
   }
   SUBCASE("with signature")
   {
     auto signed_call = create_signed_json();
     auto response =
       frontend.process_json(rpc_ctx, txs, caller_id, signed_call).value();
-    CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
+    CHECK(response[jsonrpc::RESULT] == true);
   }
   SUBCASE("signature not verified")
   {
@@ -356,7 +356,7 @@ TEST_CASE("process")
       frontend.process(rpc_ctx, serialized_call);
     auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
-    CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
+    CHECK(response[jsonrpc::RESULT] == true);
   }
   SUBCASE("with signature")
   {
@@ -368,7 +368,7 @@ TEST_CASE("process")
       frontend.process(rpc_ctx, serialized_call);
     auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
-    CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
+    CHECK(response[jsonrpc::RESULT] == true);
   }
   SUBCASE("signature not verified")
   {
@@ -402,7 +402,7 @@ TEST_CASE("User caller")
       frontend.process(rpc_ctx, serialized_call);
     auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
-    CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
+    CHECK(response[jsonrpc::RESULT] == true);
   }
   SUBCASE("invalid caller")
   {
@@ -430,7 +430,7 @@ TEST_CASE("Member caller")
       frontend.process(member_rpc_ctx, serialized_call);
     auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
-    CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
+    CHECK(response[jsonrpc::RESULT] == true);
   }
   SUBCASE("invalid caller")
   {
@@ -456,7 +456,7 @@ TEST_CASE("No certs table")
   std::vector<uint8_t> serialized_response =
     frontend.process(rpc_ctx, serialized_call);
   auto response = jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
-  CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
+  CHECK(response[jsonrpc::RESULT] == true);
 }
 
 // We need an explicit main to initialize kremlib and EverCrypt
@@ -548,7 +548,7 @@ TEST_CASE("Forwarding")
 
     auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
-    CHECK(response[jsonrpc::RESULT] == jsonrpc::OK);
+    CHECK(response[jsonrpc::RESULT] == true);
   }
 
   INFO("Forwarding write command to a follower return TX_NOT_LEADER");

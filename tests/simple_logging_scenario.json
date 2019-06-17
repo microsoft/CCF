@@ -13,7 +13,7 @@
             "id": 42,
             "msg": "Hello world"
           },
-          "expected_result": "OK"
+          "expected_result": true
         },
         {
           "method": "LOG_get",
@@ -35,7 +35,7 @@
             "id": 42,
             "msg": "Hello world"
           },
-          "expected_result": "OK"
+          "expected_result": true
         },
         {
           "method": "LOG_get",
