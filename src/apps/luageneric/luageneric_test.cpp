@@ -108,7 +108,7 @@ void set_handler(NetworkTables& network, const string& method, const Script& h)
 
 using Params = map<string, json>;
 
-auto make_pc(string method, Params params)
+auto make_pc(const string& method, const Params& params)
 {
   return json::to_msgpack(ProcedureCall<Params>{method, 0, params});
 }
@@ -251,7 +251,8 @@ TEST_CASE("simple bank")
     local acc = params.account
     local amt = tables.priv0:get(acc)
     if not amt then
-      return env.jerr(env.error_codes.INVALID_PARAMS, "account " .. acc .. " does not exist")
+      return env.jerr(
+        env.error_codes.INVALID_PARAMS, "account " .. acc .. " does not exist")
     end
 
     return env.jsucc(amt)
@@ -265,12 +266,14 @@ TEST_CASE("simple bank")
     local dst = params.dst
     local src_n = tables.priv0:get(src)
     if not src_n then
-      return env.jerr(env.error_codes.INVALID_PARAMS, "source account does not exist")
+      return env.jerr(
+        env.error_codes.INVALID_PARAMS, "source account does not exist")
     end
 
     local dst_n = tables.priv0:get(dst)
     if not dst_n then
-      return env.jerr(env.error_codes.INVALID_PARAMS, "destination account does not exist")
+      return env.jerr(
+        env.error_codes.INVALID_PARAMS, "destination account does not exist")
     end
 
     local amt = params.amt
