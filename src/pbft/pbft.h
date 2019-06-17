@@ -48,7 +48,7 @@ namespace pbft
         reinterpret_cast<const uint8_t*>(msg->contents()),
         msg->size());
 
-      n2n_channels->send(
+      n2n_channels->send_authenticated(
         ccf::NodeMsgType::consensus_msg_pbft, to, serialized_msg);
       return msg->size();
     }
