@@ -255,12 +255,6 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS
         --oesign ${OESIGN}
     )
-
-    ## Add node test
-    add_e2e_test(
-      NAME add_node_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/addnode.py
-    )
   endif()
 
   add_e2e_test(
@@ -275,6 +269,8 @@ if(BUILD_TESTS)
       --scenario ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
   )
 
+  # TODO: These tests make use of dynamic node configuration that is not
+  # yet supported by PBFT
   if (NOT PBFT)
     add_e2e_test(
       NAME election_tests
@@ -289,6 +285,13 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS
         ${RECOVERY_ARGS}
     )
+
+    if(QUOTES_ENABLED)
+      add_e2e_test(
+        NAME add_node_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/addnode.py
+      )
+    endif()
   endif()
 
   add_e2e_test(
