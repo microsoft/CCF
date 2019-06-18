@@ -18,11 +18,11 @@ return {
       }
     }
 
-    function env.jsucc (result)
+    function env.jsucc(result)
       return {result = result}
     end
 
-    function env.jerr (code, message)
+    function env.jerr(code, message)
       return {error = {code = code, message = message}}
     end
 
