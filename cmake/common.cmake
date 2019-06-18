@@ -389,11 +389,11 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       -nostdlib -nodefaultlibs -nostartfiles
       -Wl,--no-undefined
       -Wl,-Bstatic,-Bsymbolic,--export-dynamic,-pie
-      ${ENCLAVE_LIBS}
       -lgcc
       ${PARSED_ARGS_LINK_LIBS}
       ccfcrypto.enclave
       evercrypt.enclave
+      ${ENCLAVE_LIBS}
       secp256k1.enclave
     )
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
