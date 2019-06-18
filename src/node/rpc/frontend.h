@@ -262,13 +262,6 @@ namespace ccf
       auto get_schema = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetSchema::In>();
 
-        if (handlers.find(in.method) == handlers.end())
-        {
-          return jsonrpc::error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS,
-            "No method named " + in.method);
-        }
-
         const auto it = handlers.find(in.method);
         if (it == handlers.end())
         {
