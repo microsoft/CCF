@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "luajson.h"
 #include "luautil.h"
 #include "node/rpc/frontend.h"
 
@@ -15,6 +16,16 @@ namespace ccf
   namespace lua
   {
     /**
+     * __index metamethod for RequestArgs table.
+     * stack: 1 = RequestArgs table, 2 = desired index
+     */
+    static int index_request_args(lua_State* l)
+    {
+      auto s = lua_tostring(l, 2);
+      return luaL_error(l, "'%s' is not a lua argument", s);
+    }
+
+    /**
      * Push a RequestArgs onto the lua stack
      *
      * Leaves a single new value, but may use additional stack space during
@@ -23,7 +34,24 @@ namespace ccf
      */
     template <>
     inline void push_raw(lua_State* l, const RpcFrontend::RequestArgs& args)
-    {}
+    {
+      lua_createtable(l, 0, 3);
+
+      push_raw(l, args.caller_id);
+      lua_setfield(l, -2, "caller_id");
+
+      push_raw(l, args.method);
+      lua_setfield(l, -2, "method");
+
+      push_raw(l, args.params);
+      lua_setfield(l, -2, "params");
+
+      // Overwrite __index metamethod for this table
+      lua_createtable(l, 0, 1);
+      lua_pushcfunction(l, index_request_args);
+      lua_setfield(l, -2, "__index");
+      lua_setmetatable(l, -2);
+    }
 
     // To get RequestArgs as a return value from lua execution, implement this
     // template <>
