@@ -4,9 +4,9 @@ Logging (Lua)
 Overview
 ````````
 
-CCF comes with a generic application for running Lua scripts called *luageneric*, implemented in [CCF]/src/apps/luageneric/luageneric.cpp. At runtime, *luageneric* dispatches incoming RPCs to Lua scripts stored in the table *APP_SCRIPTS*. The initial contents of the table (i.e., at "genesis") are set by a Lua script passed to the *genesisgenerator* via the ``--app-script`` parameter. 
+CCF comes with a generic application for running Lua scripts called *luageneric*, implemented in [CCF]/src/apps/luageneric/luageneric.cpp. At runtime, *luageneric* dispatches incoming RPCs to Lua scripts stored in the table *APP_SCRIPTS*. The RPC method name is used as the key, and if a script exists at this key it is called with the RPC arguments. The initial contents of the table (i.e., at "genesis") are set by a Lua script passed to the *genesisgenerator* via the ``--app-script`` parameter. 
 
-If the key ``__default`` exists in *APP_SCRIPTS*, then *luageneric* forwards all RPCs to the corresponding script. Otherwise, it uses an RPC's method name to lookup a handler script from *APP_SCRIPTS*. The script at key ``__environment`` is also special. If set, the corresponding script is invoked before any actual handler script to initialize the Lua environment. 
+The script at key ``__environment`` is special. If set, the corresponding script is invoked before any actual handler script to initialize the Lua environment. 
 
 RPC Handler
 ```````````

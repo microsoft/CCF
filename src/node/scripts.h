@@ -21,8 +21,6 @@ namespace ccf
 
   struct UserScriptIds
   {
-    //! default script for handling rpc
-    static auto constexpr DEFAULT_HANDLER = "__default";
     //! script that sets the environment for rpc handler scripts
     static auto constexpr ENV_HANDLER = "__environment";
   };

@@ -64,22 +64,19 @@ namespace ccfapp
       tsr = std::make_unique<AppTsr>(network, app_tables);
 
       auto default_handler = [this](RequestArgs& args) {
-        const auto scripts = args.tx.get_view(this->network.app_scripts);
-        auto handler_script = scripts->get(UserScriptIds::DEFAULT_HANDLER);
-        if (!handler_script)
-        {
-          if (args.method == UserScriptIds::ENV_HANDLER)
-            return jsonrpc::error(
-              jsonrpc::ErrorCodes::METHOD_NOT_FOUND,
-              "Cannot call environment script ('" + args.method + "')");
+        if (args.method == UserScriptIds::ENV_HANDLER)
+          return jsonrpc::error(
+            jsonrpc::ErrorCodes::METHOD_NOT_FOUND,
+            "Cannot call environment script ('" + args.method + "')");
 
-          // try find specific script for method
-          handler_script = scripts->get(args.method);
-          if (!handler_script)
-            return jsonrpc::error(
-              jsonrpc::ErrorCodes::METHOD_NOT_FOUND,
-              "No handler script found for method '" + args.method + "'");
-        }
+        const auto scripts = args.tx.get_view(this->network.app_scripts);
+
+        // try find script for method
+        auto handler_script = scripts->get(args.method);
+        if (!handler_script)
+          return jsonrpc::error(
+            jsonrpc::ErrorCodes::METHOD_NOT_FOUND,
+            "No handler script found for method '" + args.method + "'");
 
         const auto result = tsr->run<nlohmann::json>(
           args.tx,

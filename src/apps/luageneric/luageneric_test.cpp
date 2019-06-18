@@ -65,30 +65,33 @@ auto init_frontend(
   set_whitelists(network);
 
   const auto env_script = R"xxx(
-  return {
-  __environment = [[
-    env = {
-      error_codes = {
-        PARSE_ERROR = -32700,
-        INVALID_REQUEST = -32600,
-        METHOD_NOT_FOUND = -32601,
-        INVALID_PARAMS = -32602,
-        INTERNAL_ERROR = -32603,
-        INVALID_CLIENT_SIGNATURE = -32605,
-        INVALID_CALLER_ID = -32606,
+    return {
+      __environment = [[
+        env = {
+          error_codes = {
+            PARSE_ERROR = -32700,
+            INVALID_REQUEST = -32600,
+            METHOD_NOT_FOUND = -32601,
+            INVALID_PARAMS = -32602,
+            INTERNAL_ERROR = -32603,
+            INVALID_CLIENT_SIGNATURE = -32605,
+            INVALID_CALLER_ID = -32606,
 
-        INSUFFICIENT_RIGHTS = -32006,
-        DENIED = -32007
-      }
+            INSUFFICIENT_RIGHTS = -32006,
+            DENIED = -32007
+          }
+        }
+
+        function env.jsucc (result)
+          return {result = result}
+        end
+
+        function env.jerr (code, message)
+          return {error = {code = code, message = message}}
+        end
+      ]]
     }
-    function env.jsucc (result)
-      return {result = result}
-    end
-
-    function env.jerr (code, message)
-      return {error = {code = code, message = message}}
-    end
-  ]]})xxx";
+  )xxx";
 
   network.set_app_scripts(
     lua::Interpreter().invoke<nlohmann::json>(env_script));
@@ -96,16 +99,16 @@ auto init_frontend(
   return get_rpc_handler(network, notifier);
 }
 
-void set_default_handler(GenesisGenerator& network, Script dh)
+void set_handler(NetworkTables& network, const string& method, const Script& h)
 {
   Store::Tx tx;
-  tx.get_view(network.app_scripts)->put(UserScriptIds::DEFAULT_HANDLER, dh);
+  tx.get_view(network.app_scripts)->put(method, h);
   REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 }
 
 using Params = map<string, json>;
 
-auto make_pc(string method, Params params)
+auto make_pc(const string& method, const Params& params)
 {
   return json::to_msgpack(ProcedureCall<Params>{method, 0, params});
 }
@@ -137,17 +140,10 @@ TEST_CASE("simple lua apps")
   SUBCASE("echo")
   {
     constexpr auto app = R"xxx(
-    tables, gov_tables, caller_id, method, params = ...
-
-    -- define handlers
-    handlers = {}
-    function handlers.echo()
+      tables, gov_tables, caller_id, method, params = ...
       return env.jsucc(params.verb)
-    end
-    -- call handler
-    return handlers[method]()
     )xxx";
-    set_default_handler(network, {app});
+    set_handler(network, "echo", {app});
 
     // call "echo" function with "hello"
     const string verb = "hello";
@@ -157,26 +153,22 @@ TEST_CASE("simple lua apps")
 
   SUBCASE("store/load different types in generic table")
   {
-    constexpr auto app = R"xxx(
-    tables, gov_tables, caller_id, method, params = ...
-
-    handlers = {}
-    function handlers.store()
+    constexpr auto store = R"xxx(
+      tables, gov_tables, caller_id, method, params = ...
       local r = tables.priv0:put(params.k, params.v)
       return env.jsucc(r)
-    end
+    )xxx";
+    set_handler(network, "store", {store});
 
-    function handlers.load()
+    constexpr auto load = R"xxx(
+      tables, gov_tables, caller_id, method, params = ...
       local v = tables.priv0:get(params.k)
       if not v then
         return env.jerr(env.error_codes.INVALID_PARAMS, "key does not exist")
       end
       return env.jsucc(v)
-    end
-
-    return handlers[method]()
     )xxx";
-    set_default_handler(network, {app});
+    set_handler(network, "load", {load});
 
     // (1) store/load vector -> vector
     check_store_load(
@@ -199,26 +191,22 @@ TEST_CASE("simple lua apps")
 
   SUBCASE("access gov tables")
   {
-    constexpr auto app = R"xxx(
-    tables, gov_tables, caller_id, method, params = ...
-
-    handlers = {}
-    -- allowed
-    function handlers.get_members()
+    constexpr auto get_members = R"xxx(
+      tables, gov_tables, caller_id, method, params = ...
       local members = {}
       gov_tables.members:foreach(
-        function(k, v) members[tostring(k)] = v end )
+        function(k, v) members[tostring(k)] = v end
+      )
       return env.jsucc(members)
-    end
-
-    -- not allowed
-    function handlers.put_member()
-      return env.jsucc(gov_tables.members:put(params.k, params.v))
-    end
-
-    return handlers[method]()
     )xxx";
-    set_default_handler(network, {app});
+    set_handler(network, "get_members", {get_members});
+
+    // Not allowed
+    constexpr auto put_member = R"xxx(
+      tables, gov_tables, caller_id, method, params = ...
+      return env.jsucc(gov_tables.members:put(params.k, params.v))
+    )xxx";
+    set_handler(network, "put_member", {put_member});
 
     // (1) read out members table
     const auto pc = make_pc("get_members", {});
@@ -244,87 +232,92 @@ TEST_CASE("simple bank")
   const Cert u0 = {0};
   enclave::RPCContext rpc_ctx(0, u0);
 
-  constexpr auto app = R"xxx(
-  tables, gov_tables, caller_id, method, params = ...
-  handlers = {}
-  function handlers.SB_create()
-      local dst = params.dst
-      if tables.priv0:get(dst) then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "account already exists")
-      end
+  constexpr auto create_method = "SB_create";
+  constexpr auto create = R"xxx(
+    tables, gov_tables, caller_id, method, params = ...
+    local dst = params.dst
+    if tables.priv0:get(dst) then
+      return env.jerr(env.error_codes.INVALID_PARAMS, "account already exists")
+    end
 
-      tables.priv0:put(dst, params.amt)
-      return env.jsucc(true)
-  end
-
-  function handlers.SB_read()
-      local acc = params.account
-      local amt = tables.priv0:get(acc)
-      if not amt then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "account " .. acc .. " does not exist")
-      end
-
-      return env.jsucc(amt)
-  end
-
-  function handlers.SB_transfer()
-      local src = params.src
-      local dst = params.dst
-      local src_n = tables.priv0:get(src)
-      if not src_n then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "source account does not exist")
-      end
-
-      local dst_n = tables.priv0:get(dst)
-      if not dst_n then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "destination account does not exist")
-      end
-
-      local amt = params.amt
-      if src_n < amt then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "insufficient funds")
-      end
-
-      tables.priv0:put(src, src_n - amt)
-      tables.priv0:put(dst, dst_n + amt)
-
-      return env.jsucc(true)
-  end
-
-  return handlers[method]()
+    tables.priv0:put(dst, params.amt)
+    return env.jsucc(true)
   )xxx";
-  set_default_handler(network, {app});
+  set_handler(network, create_method, {create});
+
+  constexpr auto read_method = "SB_read";
+  constexpr auto read = R"xxx(
+    tables, gov_tables, caller_id, method, params = ...
+    local acc = params.account
+    local amt = tables.priv0:get(acc)
+    if not amt then
+      return env.jerr(
+        env.error_codes.INVALID_PARAMS, "account " .. acc .. " does not exist")
+    end
+
+    return env.jsucc(amt)
+  )xxx";
+  set_handler(network, read_method, {read});
+
+  constexpr auto transfer_method = "SB_transfer";
+  constexpr auto transfer = R"xxx(
+    tables, gov_tables, caller_id, method, params = ...
+    local src = params.src
+    local dst = params.dst
+    local src_n = tables.priv0:get(src)
+    if not src_n then
+      return env.jerr(
+        env.error_codes.INVALID_PARAMS, "source account does not exist")
+    end
+
+    local dst_n = tables.priv0:get(dst)
+    if not dst_n then
+      return env.jerr(
+        env.error_codes.INVALID_PARAMS, "destination account does not exist")
+    end
+
+    local amt = params.amt
+    if src_n < amt then
+      return env.jerr(env.error_codes.INVALID_PARAMS, "insufficient funds")
+    end
+
+    tables.priv0:put(src, src_n - amt)
+    tables.priv0:put(dst, dst_n + amt)
+
+    return env.jsucc(true)
+  )xxx";
+  set_handler(network, transfer_method, {transfer});
 
   {
-    const auto pc = make_pc("SB_create", {{"dst", 1}, {"amt", 123}});
+    const auto pc = make_pc(create_method, {{"dst", 1}, {"amt", 123}});
     check_success<bool>(frontend->process(rpc_ctx, pc), true);
 
-    const auto pc1 = make_pc("SB_read", {{"account", 1}});
+    const auto pc1 = make_pc(read_method, {{"account", 1}});
     check_success(frontend->process(rpc_ctx, pc1), 123);
   }
 
   {
-    const auto pc = make_pc("SB_create", {{"dst", 2}, {"amt", 999}});
+    const auto pc = make_pc(create_method, {{"dst", 2}, {"amt", 999}});
     check_success<bool>(frontend->process(rpc_ctx, pc), true);
 
-    const auto pc1 = make_pc("SB_read", {{"account", 2}});
+    const auto pc1 = make_pc(read_method, {{"account", 2}});
     check_success(frontend->process(rpc_ctx, pc1), 999);
   }
 
   {
-    const auto pc = make_pc("SB_read", {{"account", 3}});
+    const auto pc = make_pc(read_method, {{"account", 3}});
     check_error(frontend->process(rpc_ctx, pc), ErrorCodes::INVALID_PARAMS);
   }
 
   {
     const auto pc =
-      make_pc("SB_transfer", {{"src", 1}, {"dst", 2}, {"amt", 5}});
+      make_pc(transfer_method, {{"src", 1}, {"dst", 2}, {"amt", 5}});
     check_success<bool>(frontend->process(rpc_ctx, pc), true);
 
-    const auto pc1 = make_pc("SB_read", {{"account", 1}});
+    const auto pc1 = make_pc(read_method, {{"account", 1}});
     check_success(frontend->process(rpc_ctx, pc1), 123 - 5);
 
-    const auto pc2 = make_pc("SB_read", {{"account", 2}});
+    const auto pc2 = make_pc(read_method, {{"account", 2}});
     check_success(frontend->process(rpc_ctx, pc2), 999 + 5);
   }
 }
