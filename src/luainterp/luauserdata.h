@@ -162,7 +162,7 @@ namespace ccf
     };
 
     template <typename T, typename X>
-    void push_raw(lua_State* l, UserDataExt<T, X> udx)
+    void push_raw(lua_State* l, const UserDataExt<T, X>& udx)
     {
       UserData<T, UserDataExt<T, X>>::push_boxed(l, udx.p);
     }
