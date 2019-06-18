@@ -61,6 +61,11 @@ static const string accept_recovery_proposal(R"xxx(
       return Calls:call("accept_recovery", sealed_secrets)
     )xxx");
 
+static const string accept_code_proposal(R"xxx(
+      tables, code_digest = ...
+      return Calls:call("new_code", code_digest)
+    )xxx");
+
 template <typename T>
 json proposal_params(const string& script, const T& parameter)
 {
@@ -120,6 +125,18 @@ void add_new(
 void submit_accept_node(RpcTlsClient& tls_connection, NodeId node_id)
 {
   auto params = proposal_params<NodeId>(accept_node_proposal, node_id);
+  const auto response =
+    json::from_msgpack(tls_connection.call("propose", params));
+  cout << response.dump() << endl;
+}
+
+void submit_accept_code(RpcTlsClient& tls_connection, std::string& code_id_path)
+{
+  const auto code_id = slurp(code_id_path);
+  CodeDigest digest;
+  // if (code_id.size() != digest.size())
+  std::copy(code_id.begin(), code_id.end(), digest.begin());
+  auto params = proposal_params<CodeDigest>(accept_code_proposal, digest);
   const auto response =
     json::from_msgpack(tls_connection.call("propose", params));
   cout << response.dump() << endl;
@@ -291,6 +308,13 @@ int main(int argc, char** argv)
       "--nodes_to_add", nodes_file, "The file containing the nodes to be added")
     ->required(true);
 
+  std::string new_code_id_path;
+  auto add_code = app.add_subcommand("add_code", "Support executing new code");
+  add_code
+    ->add_option(
+      "--new_code_id_path", new_code_id_path, "The path of the new code id")
+    ->required(true);
+
   NodeId node_id;
   auto accept_node = app.add_subcommand("accept_node", "Make a node trusted");
   accept_node->add_option("--id", node_id, "The node id")->required(true);
@@ -364,6 +388,11 @@ int main(int argc, char** argv)
         NodeInfo node_info = node;
         submit_add_node(*tls_connection, node_info);
       }
+    }
+
+    if (*add_code)
+    {
+      submit_accept_code(*tls_connection, new_code_id_path);
     }
 
     if (*accept_node)
