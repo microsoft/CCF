@@ -40,7 +40,7 @@ return {
       return env.jsucc(true)
     end
   ]],
-  
+
   LOG_get = [[
     -- SNIPPET_START: lua_params
     tables, gov_tables, args = ...
