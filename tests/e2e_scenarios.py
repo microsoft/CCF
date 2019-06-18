@@ -34,38 +34,43 @@ def run(args):
         primary, followers = network.start_and_join(args)
         # SNIPPET_END: create_network
 
-        check = infra.ccf.Checker()
+        with primary.management_client() as mc:
 
-        for connection in scenario["connections"]:
-            with (
-                primary.user_client(format="json")
-                if not connection.get("on_follower")
-                else random.choice(followers).user_client(format="json")
-            ) as client:
-                txs = connection.get("transactions", [])
+            check = infra.ccf.Checker()
+            check_commit = infra.ccf.Checker(mc)
+            with primary.user_client() as uc:
+                check_commit(uc.do("mkSign", params={}), result=True)
 
-                for include_file in connection.get("include", []):
-                    with open(os.path.join(scenario_dir, include_file)) as f:
-                        txs += json.load(f)
+            for connection in scenario["connections"]:
+                with (
+                    primary.user_client(format="json")
+                    if not connection.get("on_follower")
+                    else random.choice(followers).user_client(format="json")
+                ) as client:
+                    txs = connection.get("transactions", [])
 
-                for tx in txs:
-                    r = client.rpc(tx["method"], tx["params"])
+                    for include_file in connection.get("include", []):
+                        with open(os.path.join(scenario_dir, include_file)) as f:
+                            txs += json.load(f)
 
-                    if tx.get("expected_error") is not None:
-                        check(
-                            r,
-                            error=lambda e: e is not None
-                            and e["code"]
-                            == infra.jsonrpc.ErrorCode(tx.get("expected_error")),
-                        )
+                    for tx in txs:
+                        r = client.rpc(tx["method"], tx["params"])
 
-                    elif tx.get("expected_result") is not None:
-                        check(r, result=tx.get("expected_result"))
+                        if tx.get("expected_error") is not None:
+                            check(
+                                r,
+                                error=lambda e: e is not None
+                                and e["code"]
+                                == infra.jsonrpc.ErrorCode(tx.get("expected_error")),
+                            )
 
-                    else:
-                        check(r, result=lambda res: res is not None)
+                        elif tx.get("expected_result") is not None:
+                            check_commit(r, result=tx.get("expected_result"))
 
-            network.wait_for_node_commit_sync()
+                        else:
+                            check_commit(r, result=lambda res: res is not None)
+
+                network.wait_for_node_commit_sync()
 
     if args.network_only:
         LOG.info("Keeping network alive with the following nodes:")

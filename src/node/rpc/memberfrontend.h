@@ -1,10 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "../../luainterp/txscriptrunner.h"
+#include "../../tls/entropy.h"
+#include "../../tls/keypair.h"
+#include "../quoteverification.h"
 #include "frontend.h"
-#include "luainterp/txscriptrunner.h"
-#include "tls/entropy.h"
-#include "tls/keypair.h"
 
 #include <exception>
 #include <initializer_list>
@@ -373,6 +374,28 @@ namespace ccf
       };
       install_with_auto_schema<void, bool>(
         MemberProcs::UPDATE_ACK_NONCE, update_ack_nonce, Write);
+
+      // Add a new node
+      auto add_node = [this](RequestArgs& args) {
+        NodeInfo new_node = args.params;
+#ifdef GET_QUOTE
+        QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
+          args.tx, this->network, new_node.quote, new_node.cert);
+        if (verify_result != QuoteVerificationResult::VERIFIED)
+          return QuoteVerifier::quote_verification_error_to_json(verify_result);
+#endif
+        const auto node_id = get_next_id(
+          args.tx.get_view(this->network.values), ValueIds::NEXT_NODE_ID);
+        new_node.status = NodeStatus::PENDING;
+        args.tx.get_view(this->network.nodes)->put(node_id, new_node);
+        tls::Verifier verifier(new_node.cert);
+        args.tx.get_view(this->network.node_certs)
+          ->put(verifier.raw_cert_data(), node_id);
+
+        return jsonrpc::success(nlohmann::json(JoinNetwork::Out{node_id}));
+      };
+      install_with_auto_schema<NodeInfo, JoinNetwork::Out>(
+        MemberProcs::ADD_NODE, add_node, Write);
     }
   };
 } // namespace ccf

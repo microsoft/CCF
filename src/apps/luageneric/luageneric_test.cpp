@@ -225,7 +225,7 @@ TEST_CASE("simple lua apps")
     )xxx";
     set_handler(network, "get_members", {get_members});
 
-    // Not allowed
+    // Not allowed to call put() on read-only gov_tables
     constexpr auto put_member = R"xxx(
       tables, gov_tables, args = ...
       return env.jsucc(gov_tables.members:put(args.params.k, args.params.v))
