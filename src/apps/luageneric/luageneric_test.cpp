@@ -30,10 +30,11 @@ namespace ccf
   }
 }
 
-void check_error(const vector<uint8_t>& v, const int expected)
+nlohmann::json check_error(const vector<uint8_t>& v, const int expected)
 {
   const auto j_error = json::from_msgpack(v);
   CHECK(j_error[ERR][CODE] == expected);
+  return j_error;
 }
 
 template <typename T>
@@ -137,18 +138,6 @@ TEST_CASE("simple lua apps")
   const Cert u0 = {0};
   enclave::RPCContext rpc_ctx(0, u0);
 
-  SUBCASE("too many lua args")
-  {
-    constexpr auto too_many = R"xxx(
-      tables, gov_tables, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7 = ...
-    )xxx";
-    set_handler(network, "too_many", {too_many});
-
-    // call "too_many"
-    const auto pc = make_pc("too_many", {});
-    check_error(frontend->process(rpc_ctx, pc), ErrorCodes::SCRIPT_ERROR);
-  }
-
   SUBCASE("missing lua arg")
   {
     constexpr auto missing = R"xxx(
@@ -166,10 +155,9 @@ TEST_CASE("simple lua apps")
 
     // call "missing"
     const auto pc = make_pc("missing", {});
-    const auto response = frontend->process(rpc_ctx, pc);
-    check_error(response, ErrorCodes::SCRIPT_ERROR);
-    const auto j = json::from_msgpack(response);
-    const auto error_msg = j[ERR][MESSAGE].get<string>();
+    const auto err =
+      check_error(frontend->process(rpc_ctx, pc), ErrorCodes::SCRIPT_ERROR);
+    const auto error_msg = err[MESSAGE].get<string>();
     CHECK(error_msg.find("THIS_KEY_DOESNT_EXIST") != string::npos);
   }
 
