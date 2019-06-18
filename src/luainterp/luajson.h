@@ -94,7 +94,10 @@ namespace ccf
       switch (lua_type(l, arg))
       {
         case LUA_TNIL:
+        {
+          j = nullptr;
           break;
+        }
         case LUA_TNUMBER:
         {
           if (lua_isinteger(l, arg))
