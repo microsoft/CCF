@@ -40,7 +40,7 @@ The interface between Lua RPC handlers and the rest of CCF is simple. A fixed se
 
     * ``params``: the RPC's ``params``, converted from JSON to a Lua table. If the JSON params were an object, this will be an object-like table with named string keys. If the JSON params were an array, this will be an array-like table with consecutive numbered keys.
 
-The Lua value returned by an RPC handler is translated to JSON and returned to the client. To indicate an error, return a table with a key named ``error``. The value at this key will be used as JSON error object in the response. 
+The Lua value returned by an RPC handler is translated to JSON and returned to the client. To indicate an error, return a table with a key named ``error``. The value at this key will be used as the JSON error object in the response. 
 
 Accessing Tables
 ~~~~~~~~~~~~~~~~
