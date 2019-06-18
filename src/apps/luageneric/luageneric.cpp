@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "enclave/appinterface.h"
+#include "luainterp/luaargs.h"
 #include "luainterp/luainterp.h"
 #include "luainterp/luakv.h"
 #include "luainterp/txscriptrunner.h"
@@ -85,9 +86,7 @@ namespace ccfapp
            WlIds::USER_APP_CAN_READ_ONLY,
            scripts->get(UserScriptIds::ENV_HANDLER)},
           // vvv arguments to the script vvv
-          args.caller_id,
-          args.method,
-          args.params);
+          args);
 
         if (result.find(jsonrpc::ERR) == result.end())
         {
