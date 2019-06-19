@@ -587,8 +587,8 @@ TEST_CASE("Propose raw writes")
 
   SUBCASE("sensitive tables")
   {
-    // propose changes to sensitive tables; changes must only be accepted unanimously
-    // create new network for each case
+    // propose changes to sensitive tables; changes must only be accepted
+    // unanimously create new network for each case
     const auto sensitive_tables = {Tables::WHITELISTS, Tables::GOV_SCRIPTS};
     const auto n_members = 10;
     // let proposer vote/not vote
@@ -601,12 +601,17 @@ TEST_CASE("Propose raw writes")
           GenesisGenerator network;
           StubNodeState node;
 
-          const auto sensitive_put = "return Calls:call('raw_puts', Puts:put('"s +
-            sensitive_table + "', 9, {'aaa'}))"s;
+          const auto sensitive_put =
+            "return Calls:call('raw_puts', Puts:put('"s + sensitive_table +
+            "', 9, {'aaa'}))"s;
           CHECK(
             test_raw_writes(
-              network, node, {sensitive_put}, n_members, pro_votes, proposer_vote) ==
-            (n_members == pro_votes));
+              network,
+              node,
+              {sensitive_put},
+              n_members,
+              pro_votes,
+              proposer_vote) == (n_members == pro_votes));
         }
       }
     }
