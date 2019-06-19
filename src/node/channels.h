@@ -178,8 +178,8 @@ namespace ccf
             peer_signed_public.data() + Channel::len_public,
             peer_signed_public.size() - Channel::len_public))
       {
-        LOG_FAIL << "node2node peer signature verification failed " << peer_id
-                 << std::endl;
+        LOG_FAIL_FMT(
+          "node2node peer signature verification failed {}", peer_id);
         return false;
       }
 

@@ -149,8 +149,7 @@ namespace host
         oe_verify_report(e, quote_raw.data(), quote_raw.size(), &parsed);
       if (result != OE_OK)
       {
-        LOG_FAIL << "Quote could not be verified: " << oe_result_str(result)
-                 << std::endl;
+        LOG_FAIL_FMT("Quote could not be verified: {}", oe_result_str(result));
         return false;
       }
 
@@ -159,15 +158,17 @@ namespace host
       constexpr auto size = crypto::Sha256Hash::SIZE;
       if (parsed.report_data_size < size)
       {
-        LOG_FAIL << "Quote data length is too small. Expected: " << size
-                 << ", Actual: " << parsed.report_data_size << std::endl;
+        LOG_FAIL_FMT(
+          "Quote data length is too small. Expected: {}, Actual: {}",
+          size,
+          parsed.report_data_size);
         return false;
       }
 
       crypto::Sha256Hash hash{expected_contents};
       if (0 != memcmp(hash.h, parsed.report_data, size))
       {
-        LOG_FAIL << "Quote does not contain expected data" << std::endl;
+        LOG_FAIL_FMT("Quote does not contain expected data");
         return false;
       }
       LOG_INFO_FMT("Quote verified");

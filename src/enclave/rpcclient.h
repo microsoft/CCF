@@ -49,7 +49,7 @@ namespace enclave
       if (res.first)
       {
         LOG_DEBUG_FMT(
-          "RPCClient: responding to session {}", rpc_ctx.client_session_is);
+          "RPCClient: responding to session {}", rpc_ctx.client_session_id);
         rpcresponder.reply_async(rpc_ctx.client_session_id, res.second);
       }
 

@@ -227,7 +227,7 @@ namespace ccf
       auto sig = sig_tv->get(0);
       if (!sig.has_value())
       {
-        LOG_FAIL << "No signature found in signatures map" << std::endl;
+        LOG_FAIL_FMT("No signature found in signatures map");
         return false;
       }
       auto sig_value = sig.value();
@@ -237,8 +237,8 @@ namespace ccf
       auto ni = ni_tv->get(sig_value.node);
       if (!ni.has_value())
       {
-        LOG_FAIL << "No node info, and therefore no cert for node "
-                 << sig_value.node << std::endl;
+        LOG_FAIL_FMT(
+          "No node info, and therefore no cert for node {}", sig_value.node);
         return false;
       }
       tls::Verifier from_cert(ni.value().cert);

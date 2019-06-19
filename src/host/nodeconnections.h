@@ -158,7 +158,7 @@ namespace asynchost
         peer->set_behaviour(std::make_unique<IncomingBehaviour>(parent, id));
         parent.incoming.emplace(id, peer);
 
-        LOG_DEBUG_FMT("node accept {}", node);
+        LOG_DEBUG_FMT("node accept {}", id);
       }
     };
 
