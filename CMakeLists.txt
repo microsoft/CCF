@@ -289,6 +289,18 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS
         ${RECOVERY_ARGS}
     )
+
+    if (NOT QUOTES_ENABLED)
+      ## Code update test
+      add_e2e_test(
+        NAME code_update_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+        ADDITIONAL_ARGS
+          --oesign ${OESIGN}
+          --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+          --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+      )
+    endif()
   endif()
 
   add_e2e_test(
