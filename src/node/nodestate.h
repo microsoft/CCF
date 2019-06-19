@@ -84,7 +84,7 @@ namespace ccf
     template <typename T>
     static Result<T> Fail(const char* s)
     {
-      LOG_DEBUG << s << std::endl;
+      LOG_DEBUG_FMT("{}", s);
       return {{}, false};
     }
 
@@ -214,7 +214,7 @@ namespace ccf
 
       if (res != OE_OK)
       {
-        LOG_FAIL << "Failed to get quote: " << oe_result_str(res) << std::endl;
+        LOG_FAIL_FMT("Failed to get quote: {}", oe_result_str(res);
         return Fail<CreateNew::Out>("oe_get_report failed");
       }
       quote.resize(quote_len);
@@ -224,8 +224,7 @@ namespace ccf
       res = oe_parse_report(quote.data(), quote.size(), &parsed_quote);
       if (res != OE_OK)
       {
-        LOG_FAIL << "Failed to parse quote: " << oe_result_str(res)
-                 << std::endl;
+        LOG_FAIL_FMT("Failed to parse quote: {}", oe_result_str(res);
         return Fail<CreateNew::Out>("oe_parse_report failed");
       }
 
@@ -470,8 +469,8 @@ namespace ccf
         if (sig.has_value())
         {
           auto sig_value = sig.value();
-          LOG_DEBUG << "Read signature at " << ledger_idx << " for term "
-                    << sig_value.term << std::endl;
+          LOG_DEBUG_FMT(
+            "Read signature at {} for term {}", ledger_idx, sig_value.term);
           for (auto i = term_history.size(); i <= sig_value.term; ++i)
           {
             term_history.push_back(last_recovered_commit_idx + 1);
@@ -823,8 +822,7 @@ namespace ccf
             auto search = joiners_fresh_keys.find(nid);
             if (search == joiners_fresh_keys.end())
             {
-              LOG_FAIL << "No fresh key for joiner " + std::to_string(nid)
-                       << std::endl;
+              LOG_FAIL_FMT("No fresh key for joiner {}", nid);
               continue;
             }
 
