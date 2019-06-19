@@ -495,7 +495,7 @@ namespace raft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT("{}", err.what());
+        LOG_FAIL_FMT(err.what());
         return;
       }
       LOG_DEBUG_FMT(
