@@ -70,8 +70,7 @@ namespace host
 
         if (err != OE_OK)
         {
-          LOG_FATAL << "Could not create enclave: " << oe_result_str(err)
-                    << std::endl;
+          LOG_FATAL_FMT("Could not create enclave: {}", oe_result_str(err));
         }
       }
     }
@@ -100,8 +99,8 @@ namespace host
 
       if (err != OE_OK)
       {
-        LOG_FATAL << "Failed to call in enclave_create_node: "
-                  << oe_result_str(err) << std::endl;
+        LOG_FATAL_FMT(
+          "Failed to call in enclave_create_node: {}", oe_result_str(err));
       }
 
       node_cert.resize(node_cert_len);
@@ -119,8 +118,7 @@ namespace host
 
       if (err != OE_OK)
       {
-        LOG_FATAL << "Failed to call in enclave_run: " << oe_result_str(err)
-                  << std::endl;
+        LOG_FATAL_FMT("Failed to call in enclave_run: {}", oe_result_str(err));
       }
 
       return ret;

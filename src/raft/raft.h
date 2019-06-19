@@ -864,8 +864,8 @@ namespace raft
     {
       if (state != Candidate)
       {
-        LOG_INFO << "Recv request vote response to " << local_id
-                 << ": we aren't a candidate" << std::endl;
+        LOG_INFO_FMT(
+          "Recv request vote response to {}: we aren't a candidate", local_id);
         return;
       }
 
@@ -876,36 +876,51 @@ namespace raft
       auto node = nodes.find(r.from_node);
       if (node == nodes.end())
       {
-        LOG_INFO << "Recv request vote response to " << local_id
-                 << " from unknown node " << r.from_node << std::endl;
+        LOG_INFO_FMT(
+          "Recv request vote response to {} from {}: unknown node",
+          local_id,
+          r.from_node);
         return;
       }
 
       if (current_term < r.term)
       {
         // Become a follower in the new term.
-        LOG_INFO << "Recv request vote response to " << local_id << " from "
-                 << r.from_node << ": their term is more recent" << std::endl;
+        LOG_INFO_FMT(
+          "Recv request vote response to {} from {}: their term is more recent "
+          "({} < {})",
+          local_id,
+          r.from_node,
+          current_term,
+          r.term);
         become_follower(r.term);
         return;
       }
       else if (current_term != r.term)
       {
         // Ignore as it is stale.
-        LOG_INFO << "Recv request vote response to " << local_id << " from "
-                 << r.from_node << ": stale" << std::endl;
+        LOG_INFO_FMT(
+          "Recv request vote response to {} from {}: stale ({} != {})",
+          local_id,
+          r.from_node,
+          current_term,
+          r.term);
         return;
       }
       else if (!r.vote_granted)
       {
         // Do nothing.
-        LOG_INFO << "Recv request vote response to " << local_id << " from "
-                 << r.from_node << ": they voted no" << std::endl;
+        LOG_INFO_FMT(
+          "Recv request vote response to {} from {}: they voted no",
+          local_id,
+          r.from_node);
         return;
       }
 
-      LOG_INFO << "Recv request vote response to " << local_id << " from "
-               << r.from_node << ": they voted yes" << std::endl;
+      LOG_INFO_FMT(
+        "Recv request vote response to {} from {}: they voted yes",
+        local_id,
+        r.from_node);
       add_vote_for_me(r.from_node);
     }
 
@@ -927,8 +942,7 @@ namespace raft
       restart_election_timeout();
       add_vote_for_me(local_id);
 
-      LOG_INFO << "Becoming candidate " << local_id << ": " << current_term
-               << std::endl;
+      LOG_INFO_FMT("Becoming candidate {}: {}", local_id, current_term);
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
         send_request_vote(it->first);
@@ -949,8 +963,7 @@ namespace raft
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
 
-      LOG_INFO << "Becoming leader " << local_id << ": " << current_term
-               << std::endl;
+      LOG_INFO_FMT("Becoming leader {}: {}", local_id, current_term);
 
       // Immediately commit if there are no other nodes.
       if (nodes.size() == 0)
@@ -986,8 +999,7 @@ namespace raft
       rollback(commit_idx);
       committable_indices.clear();
 
-      LOG_INFO << "Becoming follower " << local_id << ": " << current_term
-               << std::endl;
+      LOG_INFO_FMT("Becoming follower {}: {}", local_id, current_term);
     }
 
     void add_vote_for_me(NodeId from)
@@ -1028,8 +1040,10 @@ namespace raft
           new_commit_idx = confirmed;
       }
 
-      LOG_DEBUG << "In update_commit, new_commit_idx: " << new_commit_idx
-                << " last_idx: " << last_idx << std::endl;
+      LOG_INFO_FMT(
+        "In update_commit, new_commit_idx: {}, last_idx: {}",
+        new_commit_idx,
+        last_idx);
 
       if (new_commit_idx > last_idx)
       {
@@ -1066,7 +1080,7 @@ namespace raft
           "Tried to commit " + std::to_string(idx) + "but last_idx as " +
           std::to_string(last_idx));
 
-      LOG_DEBUG << "Starting commit." << std::endl;
+      LOG_DEBUG_FMT("Starting commit");
 
       // This could happen if a follower becomes the leader when it
       // has committed fewer log entries, although it has them available.
@@ -1075,9 +1089,9 @@ namespace raft
 
       commit_idx = idx;
 
-      LOG_DEBUG << "Compacting..." << std::endl;
+      LOG_DEBUG_FMT("Compacting...");
       store->compact(idx);
-      LOG_DEBUG << "Commit on " << local_id << ": " << idx << std::endl;
+      LOG_DEBUG_FMT("Commit on {}: {}", local_id, idx);
 
       // Examine all configurations that are followed by a globally committed
       // configuration.
@@ -1150,7 +1164,7 @@ namespace raft
       for (auto node_id : to_remove)
       {
         nodes.erase(node_id);
-        LOG_INFO << "Removed node " << node_id << std::endl;
+        LOG_INFO_FMT("Removed node {}", node_id);
       }
 
       for (auto node_id : active_nodes)
@@ -1168,13 +1182,13 @@ namespace raft
           if (state == Leader)
             send_append_entries(node_id, index);
 
-          LOG_INFO << "Added node " << node_id << std::endl;
+          LOG_INFO_FMT("Added node {}", node_id);
         }
       }
 
       if (active_nodes.find(local_id) == active_nodes.end())
       {
-        LOG_INFO << "Removed self " << local_id << std::endl;
+        LOG_INFO_FMT("Removed self {}", local_id);
         // TODO(#feature): shut down this node
       }
     }

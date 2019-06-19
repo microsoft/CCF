@@ -286,7 +286,7 @@ int main(int argc, char** argv)
   files::dump(quote, quote_file);
 
   if (!enclave.verify_quote(quote, node_cert))
-    LOG_FATAL << "Verification of local node quote failed" << std::endl;
+    LOG_FATAL_FMT("Verification of local node quote failed");
 #endif
 
   // Start a thread which will ECall and process messages inside the enclave
@@ -300,7 +300,7 @@ int main(int argc, char** argv)
 #ifndef VIRTUAL_ENCLAVE
     catch (const std::exception& e)
     {
-      LOG_FAIL << "Exception in enclave::run: " << e.what() << std::endl;
+      LOG_FAIL_FMT("Exception in enclave::run: {}", e.what());
 
       // This exception should be rethrown, probably aborting the process, but
       // we sleep briefly to allow more outbound messages to be processed. If
