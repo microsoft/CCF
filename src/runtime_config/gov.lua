@@ -14,7 +14,7 @@ return {
     end 
   end)
   -- check for raw_puts to sensitive tables
-  SENSITIVE_TABLES = {"whitelists", "scripts"}
+  SENSITIVE_TABLES = {"whitelists", "govscripts"}
   for _,call in pairs(calls) do
     if call.func == "raw_puts" then
       for _,sensitive_table in pairs(SENSITIVE_TABLES) do

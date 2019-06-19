@@ -63,7 +63,11 @@ def run(args):
 
 
 if __name__ == "__main__":
-
     args = e2e_args.cli_args()
+
+    if args.enclave_type != "debug":
+        LOG.error("This test can only run in real enclaves, skipping")
+        sys.exit(0)
+
     args.package = "libloggingenc"
     run(args)
