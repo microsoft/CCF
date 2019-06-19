@@ -675,12 +675,12 @@ namespace ccf
       for (const auto& ni : new_nodes)
       {
         auto nid = get_next_id(values_view, ccf::ValueIds::NEXT_NODE_ID);
-        LOG_INFO_FMT("Adding node ", nid);
+        LOG_INFO_FMT("Adding node {}", nid);
         nodes_view->put(nid, ni);
         if (node_cert == ni.cert)
         {
           self = nid;
-          LOG_INFO_FMT("Setting self to ", self);
+          LOG_INFO_FMT("Setting self to {}", self);
         }
         tls::Verifier verifier(ni.cert);
         certs_view->put(
