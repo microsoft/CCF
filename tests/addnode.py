@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
+import sys
 import e2e_args
 import infra.ccf
 import infra.proc
@@ -57,5 +58,10 @@ if __name__ == "__main__":
         )
 
     args = e2e_args.cli_args(add)
+
+    if args.enclave_type != "debug":
+        LOG.error("This test can only run in real enclaves, skipping")
+        sys.exit(0)
+
     args.package = args.app_script and "libluagenericenc" or "libloggingenc"
     run(args)
