@@ -40,9 +40,6 @@ namespace ccf
       DoNotForward
     };
 
-  protected:
-    Store& tables;
-
     struct RequestArgs
     {
       enclave::RPCContext& rpc_ctx;
@@ -52,6 +49,9 @@ namespace ccf
       const nlohmann::json& params;
       const SignedReq& signed_request;
     };
+
+  protected:
+    Store& tables;
 
   private:
     using HandleFunction =
