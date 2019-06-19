@@ -170,6 +170,8 @@ The full list of build switches can be obtained by running:
 * **VIRTUAL_ONLY**: Boolean. Only build "virtual" enclaves. Default to OFF.
 * **VERBOSE_LOGGING**: Boolean. Enable all logging levels. Default to OFF.
 
+
+
 Tests
 -----
 
@@ -182,7 +184,8 @@ Tests can be started through the tests.sh wrapper for ctest:
 
 
 Although CCF's unit tests can be run through ctest directly, the end-to-end tests that
-start a network require some Python infrastructure. `tests.sh` will set up a virtual
+start a network require some Python infrastructure.
+`tests.sh <https://github.com/microsoft/CCF/blob/master/tests/tests.sh>`_ will set up a virtual
 environment with these dependencies and activate it before running ctest. Further runs
 will re-use that virtual environment.
 
@@ -193,14 +196,30 @@ To build and run the tests with the Address and Undefined behaviour sanitizers, 
 
 .. code-block:: bash
 
-    cmake -GNinja .. -DSAN=ON
+    cmake -GNinja -DSAN=ON ..
     ninja
     ./tests.sh -VV
 
-On a machine without SGX, you can run the tests with:
+Build and Test without SGX
+--------------------------
+
+CCF can build "virtual" enclaves, ie. binaries that are functionally equivalent,
+but do not use SGX. This can be useful when working on non-SGX hardware,
+or when using development tools that do not work in an enclave, such as
+profiling, code coverage, sanitizers etc.
 
 .. code-block:: bash
 
-    TEST_ENCLAVE=simulate ./tests.sh -VV
+    mkdir build
+    cd build
+    cmake -GNinja -DVIRTUAL_ONLY=ON ..
+    ninja
 
-The build steps remain identical.
+Tests can be run normally, see :ref:`Tests`. On a full build of CCF, it is also possible to
+run tests with virtual enclaves by setting ``TEST_ENCLAVE``:
+
+.. code-block:: bash
+
+    TEST_ENCLAVE=virtual ./tests.sh -VV
+
+Tests that require enclave attestation will be skipped.
