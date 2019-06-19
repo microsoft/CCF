@@ -45,7 +45,7 @@ transactions in highly performant and highly available fashion.
 
 ## A flexible confidentiality layer for any multi-party computation application or blockchain ledger to build upon
 
-CCF currently runs on [Intel SGX](https://software.intel.com/en-us/sgx)-enabled platforms. Because CCF uses the [OpenEnclave SDK](https://github.com/Microsoft/openenclave)
+CCF currently runs on [Intel SGX](https://software.intel.com/en-us/sgx)-enabled platforms. Because CCF uses the [OpenEnclave SDK](https://github.com/openenclave/openenclave)
 as the foundation for running in an enclave, as OpenEnclave supports new TEE technologies, CCF will be able to run on new platforms. Networks can be run on-premises,
 in one or many cloud-hosted data centers, including [Microsoft Azure](https://azure.microsoft.com/), or in any hybrid configuration.
 
@@ -59,7 +59,7 @@ to embed one of several language runtimes on top of its key-value store. Clients
  * Browse the [CCF Documentation](https://microsoft.github.io/CCF/).
  * Explore the CCF open-source GitHub repo, which also contains application examples and sample scripts for provisioning and setting up confidential computing VMs using Azure.
  * Learn more about [Azure Confidential Computing](https://azure.microsoft.com/solutions/confidential-compute/) offerings like Azure DC-series (which support Intel SGX TEE)
-   and [Open Enclave](https://github.com/Microsoft/openenclave) that CCF can run on.
+   and [Open Enclave](https://github.com/openenclave/openenclave) that CCF can run on.
 
 ## Getting Started on Azure Confidential Computing
 
