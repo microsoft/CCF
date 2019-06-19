@@ -27,8 +27,7 @@
 #include <atomic>
 #include <chrono>
 #include <nlohmann/json.hpp>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <fmt/format_header_only.h>
 #include <stdexcept>
 #include <unordered_set>
 #include <vector>
