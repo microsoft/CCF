@@ -15,7 +15,7 @@
 
   - name: Download OpenEnclave source
     get_url:
-      url: https://github.com/Microsoft/openenclave/tarball/489404f2bdfdd3e07e0f150937151ae78392e8ed
+      url: https://github.com/openenclave/openenclave/tarball/489404f2bdfdd3e07e0f150937151ae78392e8ed
       dest: "{{ workspace }}/{{ oe_src }}"
       force: yes
     become: true

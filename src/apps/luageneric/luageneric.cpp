@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "enclave/appinterface.h"
+#include "luainterp/luaargs.h"
 #include "luainterp/luainterp.h"
 #include "luainterp/luakv.h"
 #include "luainterp/txscriptrunner.h"
@@ -78,24 +79,33 @@ namespace ccfapp
             jsonrpc::ErrorCodes::METHOD_NOT_FOUND,
             "No handler script found for method '" + args.method + "'");
 
-        const auto result = tsr->run<nlohmann::json>(
+        const auto response = tsr->run<nlohmann::json>(
           args.tx,
           {*handler_script,
            {},
            WlIds::USER_APP_CAN_READ_ONLY,
            scripts->get(UserScriptIds::ENV_HANDLER)},
           // vvv arguments to the script vvv
-          args.caller_id,
-          args.method,
-          args.params);
+          args);
 
-        if (result.find(jsonrpc::ERR) == result.end())
+        const auto err_it = response.find(jsonrpc::ERR);
+        if (err_it == response.end())
         {
-          return make_pair(true, result[jsonrpc::RESULT]);
+          const auto result_it = response.find(jsonrpc::RESULT);
+          if (result_it == response.end())
+          {
+            // Response contains neither RESULT nor ERR. It may not even be an
+            // object. We assume the entire response is a successful result.
+            return make_pair(true, response);
+          }
+          else
+          {
+            return make_pair(true, *result_it);
+          }
         }
         else
         {
-          return make_pair(false, result[jsonrpc::ERR]);
+          return make_pair(false, *err_it);
         }
       };
       set_default(default_handler, MayWrite);
