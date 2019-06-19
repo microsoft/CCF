@@ -214,7 +214,7 @@ namespace ccf
 
       if (res != OE_OK)
       {
-        LOG_FAIL_FMT("Failed to get quote: {}", oe_result_str(res);
+        LOG_FAIL_FMT("Failed to get quote: {}", oe_result_str(res));
         return Fail<CreateNew::Out>("oe_get_report failed");
       }
       quote.resize(quote_len);
@@ -224,7 +224,7 @@ namespace ccf
       res = oe_parse_report(quote.data(), quote.size(), &parsed_quote);
       if (res != OE_OK)
       {
-        LOG_FAIL_FMT("Failed to parse quote: {}", oe_result_str(res);
+        LOG_FAIL_FMT("Failed to parse quote: {}", oe_result_str(res));
         return Fail<CreateNew::Out>("oe_parse_report failed");
       }
 
