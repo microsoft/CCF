@@ -172,7 +172,7 @@ namespace host
         LOG_FAIL << "Quote does not contain expected data" << std::endl;
         return false;
       }
-      LOG_INFO << "Quote verified." << std::endl;
+      LOG_INFO_FMT("Quote verified");
 #else
       throw std::logic_error("Quote verification is not implemented");
 #endif

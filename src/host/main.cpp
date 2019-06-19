@@ -211,7 +211,7 @@ int main(int argc, char** argv)
     }
     else
     {
-      LOG_INFO << "Quote verified" << std::endl;
+      LOG_INFO_FMT("Quote verified");
       return 0;
     }
   }
@@ -242,8 +242,8 @@ int main(int argc, char** argv)
   const size_t node_size = 4096;
   vector<uint8_t> node_cert(node_size);
   vector<uint8_t> quote(OE_MAX_REPORT_SIZE);
-  LOG_INFO << "Starting new node" << (start == "recover" ? " (recovery)." : ".")
-           << std::endl;
+  LOG_INFO_FMT(
+    "Starting new node{}", (start == "recover" ? " (recovery)" : ""));
   raft::Config raft_config{
     chrono::milliseconds(raft_timeout),
     chrono::milliseconds(raft_election_timeout),
@@ -260,7 +260,7 @@ int main(int argc, char** argv)
 
   enclave.create_node(config, node_cert, quote, start == "recover");
 
-  LOG_INFO << "Created new node." << std::endl;
+  LOG_INFO_FMT("Created new node");
 
   // ledger
   asynchost::Ledger ledger(ledger_file, writer_factory);

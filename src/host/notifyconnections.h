@@ -50,14 +50,13 @@ namespace asynchost
     {
       if (!host.empty())
       {
-        LOG_INFO << "Notifications client connecting to: " << host << ":"
-                 << service << std::endl;
+        LOG_INFO_FMT(
+          "Notifications client connecting to: {}:{}", host, service);
 
         notify_client->set_behaviour(std::make_unique<ClientBehaviour>(*this));
         if (!notify_client->connect(host, service))
         {
-          LOG_FATAL << "Notifications client failed initial connect"
-                    << std::endl;
+          LOG_FATAL_FMT("Notifications client failed initial connect");
         }
         is_setup = true;
       }
