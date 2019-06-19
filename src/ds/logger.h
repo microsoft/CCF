@@ -5,6 +5,7 @@
 #include "ringbuffer.h"
 
 #include <cstring>
+#include <fmt/format_header_only.h>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -89,8 +90,7 @@ namespace logger
     LogLine(Level ll, const char* file_name, int line_number) : log_level(ll)
     {
       ss << "[" << config::to_string(ll) << "]" << file_name << ":"
-         << line_number << " - "
-         << " - ";
+         << line_number << " - ";
     }
 
     template <typename T>
