@@ -79,12 +79,15 @@ namespace asynchost
             sealed_secrets_json.find(std::to_string(version)) !=
             sealed_secrets_json.end())
           {
-            LOG_FATAL << "Could not seal secrets at version " << version
-                      << " because they already exist" << std::endl;
+            LOG_FATAL_FMT(
+              "Could not seal secrets at version {} because they already exist",
+              version);
           }
 
-          LOG_DEBUG << "Writing sealed secrets for version " << version
-                    << " to " << sealed_secrets_file << std::endl;
+          LOG_DEBUG_FMT(
+            "Writing sealed secrets for version {} to {}",
+            version,
+            sealed_secrets_file);
 
           sealed_secrets_json[std::to_string(version)] = sealed_secrets_;
 
@@ -99,7 +102,7 @@ namespace asynchost
       // This flushes the enclave to host ringbuffer on each libuv loop
       // iteration.
       while (bp.read_n(max_messages, r) > 0)
-        ;
+        continue;
     }
   };
 

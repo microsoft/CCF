@@ -27,7 +27,7 @@ namespace ccf
       if (!signed_public.has_value())
         return;
 
-      LOG_DEBUG << "node2node channel with " << to << " initiated" << std::endl;
+      LOG_DEBUG_FMT("node2node channel with {} initiated", to);
 
       ChannelHeader msg = {ChannelMsg::key_exchange, self};
       to_host->write(

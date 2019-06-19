@@ -245,8 +245,7 @@ namespace tls
         ctx, &sig_, hash.data(), c4_priv, nullptr, nullptr);
       if (rc != 1)
       {
-        LOG_FAIL << "secp256k1_ecdsa_sign_recoverable failed with " << rc
-                 << std::endl;
+        LOG_FAIL_FMT("secp256k1_ecdsa_sign_recoverable failed with {}", rc);
         return {};
       }
       int rcode = 0;
@@ -254,9 +253,10 @@ namespace tls
         ctx, sig, &rcode, &sig_);
       if (rc != 1)
       {
-        LOG_FAIL << "secp256k1_ecdsa_recoverable_signature_serialize_compact "
-                    "failed with "
-                 << rc << std::endl;
+        LOG_FAIL_FMT(
+          "secp256k1_ecdsa_recoverable_signature_serialize_compact failed with "
+          "{}",
+          rc);
         return {};
       }
       written = 64;
@@ -346,8 +346,7 @@ namespace tls
         ctx, &sig_, hash.h, c4_priv, nullptr, nullptr);
       if (rc != 1)
       {
-        LOG_FAIL << "secp256k1_ecdsa_sign_recoverable failed with " << rc
-                 << std::endl;
+        LOG_FAIL_FMT("secp256k1_ecdsa_sign_recoverable failed with {}", rc);
         return {};
       }
       int rcode = 0;
@@ -355,9 +354,10 @@ namespace tls
         ctx, sig, &rcode, &sig_);
       if (rc != 1)
       {
-        LOG_FAIL << "secp256k1_ecdsa_recoverable_signature_serialize_compact "
-                    "failed with "
-                 << rc << std::endl;
+        LOG_FAIL_FMT(
+          "secp256k1_ecdsa_recoverable_signature_serialize_compact failed with "
+          "{}",
+          rc);
         return {};
       }
       written = 64;
@@ -550,7 +550,7 @@ namespace tls
         signature.size());
 
       if (rc)
-        LOG_DEBUG << "Failed to verify signature: " << rc << std::endl;
+        LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
 
       return rc;
 #endif
@@ -678,7 +678,7 @@ namespace tls
         signature.size());
 
       if (rc)
-        LOG_DEBUG << "Failed to verify signature: " << rc << std::endl;
+        LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
 
       return rc == 0;
 #endif
@@ -713,7 +713,7 @@ namespace tls
         signature.size());
 
       if (rc)
-        LOG_DEBUG << "Failed to verify signature: " << rc << std::endl;
+        LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
 
       return rc == 0;
 #endif

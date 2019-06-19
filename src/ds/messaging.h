@@ -85,8 +85,7 @@ namespace messaging
           ", cannot set handler for " + build_message_name(m, message_label));
       }
 
-      LOG_DEBUG << "Setting handler for " << message_label << " (" << m << ")"
-                << std::endl;
+      LOG_DEBUG_FMT("Setting handler for {} ({})", message_label, m);
       handlers.insert(it, {m, h});
 
       if (message_label != nullptr)

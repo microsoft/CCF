@@ -5,6 +5,7 @@
 #include "ringbuffer.h"
 
 #include <cstring>
+#include <fmt/format_header_only.h>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -89,8 +90,7 @@ namespace logger
     LogLine(Level ll, const char* file_name, int line_number) : log_level(ll)
     {
       ss << "[" << config::to_string(ll) << "]" << file_name << ":"
-         << line_number << " - "
-         << " - ";
+         << line_number << " - ";
     }
 
     template <typename T>
@@ -146,20 +146,25 @@ namespace logger
 #define LOG_TRACE \
   logger::config::ok(logger::TRACE) && \
     logger::Out() == logger::LogLine(logger::TRACE, __FILE__, __LINE__)
+#define LOG_TRACE_FMT(...) LOG_TRACE << fmt::format(__VA_ARGS__) << std::endl
 
 #define LOG_DEBUG \
   logger::config::ok(logger::DBG) && \
     logger::Out() == logger::LogLine(logger::DBG, __FILE__, __LINE__)
+#define LOG_DEBUG_FMT(...) LOG_DEBUG << fmt::format(__VA_ARGS__) << std::endl
 
 #define LOG_INFO \
   logger::config::ok(logger::INFO) && \
     logger::Out() == logger::LogLine(logger::INFO, __FILE__, __LINE__)
+#define LOG_INFO_FMT(...) LOG_INFO << fmt::format(__VA_ARGS__) << std::endl
 
 #define LOG_FAIL \
   logger::config::ok(logger::FAIL) && \
     logger::Out() == logger::LogLine(logger::FAIL, __FILE__, __LINE__)
+#define LOG_FAIL_FMT(...) LOG_FAIL << fmt::format(__VA_ARGS__) << std::endl
 
 #define LOG_FATAL \
   logger::config::ok(logger::FATAL) && \
     logger::Out() == logger::LogLine(logger::FATAL, __FILE__, __LINE__)
+#define LOG_FATAL_FMT(...) LOG_FATAL << fmt::format(__VA_ARGS__) << std::endl
 }

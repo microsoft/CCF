@@ -70,8 +70,7 @@ namespace enclave
         throw std::logic_error(
           "Duplicate conn ID received inside enclave: " + std::to_string(id));
 
-      LOG_DEBUG << "Accepting a session inside the enclave: " << id
-                << std::endl;
+      LOG_DEBUG_FMT("Accepting a session inside the enclave: {}", id);
       auto ctx = std::make_unique<tls::Server>(certs);
 
       auto session = std::make_shared<RPCEndpoint>(
@@ -96,7 +95,7 @@ namespace enclave
     void remove_session(size_t id)
     {
       std::lock_guard<SpinLock> guard(lock);
-      LOG_DEBUG << "Stopping a session inside the enclave: " << id << std::endl;
+      LOG_DEBUG_FMT("Stopping a session inside the enclave: {}", id);
       sessions.erase(id);
     }
 
@@ -107,8 +106,7 @@ namespace enclave
       auto ctx = std::make_unique<tls::Client>(cert);
       auto id = ++next_client_session_id;
 
-      LOG_DEBUG << "Creating a new client session inside the enclave: " << id
-                << std::endl;
+      LOG_DEBUG_FMT("Creating a new client session inside the enclave: {}", id);
 
       auto session = std::make_shared<RPCClient>(
         id, writer_factory, std::move(ctx), *this, rpc_ctx);

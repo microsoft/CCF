@@ -247,7 +247,7 @@ bool corrupt_serialised_tx(
       if (match_buffer.size() == value_to_corrupt.size())
       {
         i = 'X';
-        LOG_DEBUG << "Corrupting serialised public data" << std::endl;
+        LOG_DEBUG_FMT("Corrupting serialised public data");
         return true;
       }
     }

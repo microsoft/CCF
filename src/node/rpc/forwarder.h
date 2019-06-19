@@ -78,7 +78,7 @@ namespace ccf
       const auto& msg = serialized::overlay<ForwardedHeader>(data, size);
       if (msg.msg != ForwardedMsg::forwarded_cmd)
       {
-        LOG_FAIL << "Invalid forwarded message" << std::endl;
+        LOG_FAIL_FMT("Invalid forwarded message");
         return {};
       }
 
@@ -89,7 +89,7 @@ namespace ccf
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL << "Invalid forwarded command: " << err.what() << std::endl;
+        LOG_FAIL_FMT("Invalid forwarded command: {}", err.what());
         return {};
       }
 
@@ -128,7 +128,7 @@ namespace ccf
       const auto& msg = serialized::overlay<ForwardedHeader>(data, size);
       if (msg.msg != ForwardedMsg::forwarded_response)
       {
-        LOG_FAIL << "Invalid forwarded response message" << std::endl;
+        LOG_FAIL_FMT("Invalid forwarded response message");
         return {};
       }
 
@@ -139,7 +139,7 @@ namespace ccf
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL << "Invalid forwarded response: " << err.what() << std::endl;
+        LOG_FAIL_FMT("Invalid forwarded response: {}", err.what());
         return {};
       }
 
@@ -177,18 +177,18 @@ namespace ccf
             if (!fwd_handler)
               return;
 
-            LOG_DEBUG << "Forwarded RPC: " << r->first.actor << std::endl;
+            LOG_DEBUG_FMT("Forwarded RPC: {}", r->first.actor);
 
             auto rep = fwd_handler->process_forwarded(r->first, r->second);
 
             if (!send_forwarded_response(r->first, rep))
             {
-              LOG_FAIL << "Could not send forwarded response to "
-                       << r->first.fwd->from << std::endl;
+              LOG_FAIL_FMT(
+                "Could not send forwarded response to {}", r->first.fwd->from);
             }
 
-            LOG_DEBUG << "Sending forwarded response to " << r->first.fwd->from
-                      << std::endl;
+            LOG_DEBUG_FMT(
+              "Sending forwarded response to {}", r->first.fwd->from);
           }
           break;
         }
@@ -199,8 +199,8 @@ namespace ccf
           if (!rep.has_value())
             return;
 
-          LOG_DEBUG << "Sending forwarded response to RPC endpoint "
-                    << rep->first << std::endl;
+          LOG_DEBUG_FMT(
+            "Sending forwarded response to RPC endpoint {}", rep->first);
 
           try
           {
@@ -208,7 +208,7 @@ namespace ccf
           }
           catch (const std::logic_error& err)
           {
-            LOG_FAIL << err.what() << std::endl;
+            LOG_FAIL_FMT(err.what());
             return;
           }
 
@@ -217,8 +217,7 @@ namespace ccf
 
         default:
         {
-          LOG_FAIL << "Unknown frontend msg type: " << forwarded_msg
-                   << std::endl;
+          LOG_FAIL_FMT("Unknown frontend msg type: {}", forwarded_msg);
           break;
         }
       }

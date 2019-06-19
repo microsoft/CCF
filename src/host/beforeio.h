@@ -20,7 +20,7 @@ namespace asynchost
 
       if ((rc = uv_prepare_init(uv_default_loop(), &uv_handle)) < 0)
       {
-        LOG_FAIL << "uv_prepare_init failed: " << uv_strerror(rc) << std::endl;
+        LOG_FAIL_FMT("uv_prepare_init failed: {}", uv_strerror(rc));
         throw std::logic_error("uv_prepare_init failed");
       }
 
@@ -28,7 +28,7 @@ namespace asynchost
 
       if ((rc = uv_prepare_start(&uv_handle, on_prepare)) < 0)
       {
-        LOG_FAIL << "uv_prepare_start failed: " << uv_strerror(rc) << std::endl;
+        LOG_FAIL_FMT("uv_prepare_start failed: {}", uv_strerror(rc));
         throw std::logic_error("uv_prepare_start failed");
       }
     }

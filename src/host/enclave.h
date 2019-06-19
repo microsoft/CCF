@@ -70,8 +70,7 @@ namespace host
 
         if (err != OE_OK)
         {
-          LOG_FATAL << "Could not create enclave: " << oe_result_str(err)
-                    << std::endl;
+          LOG_FATAL_FMT("Could not create enclave: {}", oe_result_str(err));
         }
       }
     }
@@ -100,8 +99,8 @@ namespace host
 
       if (err != OE_OK)
       {
-        LOG_FATAL << "Failed to call in enclave_create_node: "
-                  << oe_result_str(err) << std::endl;
+        LOG_FATAL_FMT(
+          "Failed to call in enclave_create_node: {}", oe_result_str(err));
       }
 
       node_cert.resize(node_cert_len);
@@ -119,8 +118,7 @@ namespace host
 
       if (err != OE_OK)
       {
-        LOG_FATAL << "Failed to call in enclave_run: " << oe_result_str(err)
-                  << std::endl;
+        LOG_FATAL_FMT("Failed to call in enclave_run: {}", oe_result_str(err));
       }
 
       return ret;
@@ -151,8 +149,7 @@ namespace host
         oe_verify_report(e, quote_raw.data(), quote_raw.size(), &parsed);
       if (result != OE_OK)
       {
-        LOG_FAIL << "Quote could not be verified: " << oe_result_str(result)
-                 << std::endl;
+        LOG_FAIL_FMT("Quote could not be verified: {}", oe_result_str(result));
         return false;
       }
 
@@ -161,18 +158,20 @@ namespace host
       constexpr auto size = crypto::Sha256Hash::SIZE;
       if (parsed.report_data_size < size)
       {
-        LOG_FAIL << "Quote data length is too small. Expected: " << size
-                 << ", Actual: " << parsed.report_data_size << std::endl;
+        LOG_FAIL_FMT(
+          "Quote data length is too small. Expected: {}, Actual: {}",
+          size,
+          parsed.report_data_size);
         return false;
       }
 
       crypto::Sha256Hash hash{expected_contents};
       if (0 != memcmp(hash.h, parsed.report_data, size))
       {
-        LOG_FAIL << "Quote does not contain expected data" << std::endl;
+        LOG_FAIL_FMT("Quote does not contain expected data");
         return false;
       }
-      LOG_INFO << "Quote verified." << std::endl;
+      LOG_INFO_FMT("Quote verified");
 #else
       throw std::logic_error("Quote verification is not implemented");
 #endif

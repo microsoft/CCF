@@ -73,8 +73,7 @@ namespace ccf
 
       if (result != OE_OK)
       {
-        LOG_FAIL << "Quote could not be verified " << oe_result_str(result)
-                 << std::endl;
+        LOG_FAIL_FMT("Quote could not be verified: {}", oe_result_str(result));
         return false;
       }
       return true;
