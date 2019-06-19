@@ -13,7 +13,6 @@ from shutil import copyfile
 
 OPCODE_PUSH_RBP = 0x55
 OPCODE_RET = 0xC3
-RET_BYTES = bytes([OPCODE_RET])
 
 
 def patch_binary(so_path, function_name):
@@ -33,7 +32,7 @@ def patch_binary(so_path, function_name):
         if func_prologue[0] == OPCODE_PUSH_RBP:
             LOG.debug("Patching {} at 0x{:08x}".format(so_path, address))
             f.seek(address, 0)
-            f.write(RET_BYTES)
+            f.write(bytes([OPCODE_RET]))
         elif func_prologue[0] == OPCODE_RET:
             LOG.debug(
                 "Not patching {} at 0x{:08x} - ELF already patched".format(

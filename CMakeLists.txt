@@ -290,7 +290,7 @@ if(BUILD_TESTS)
         ${RECOVERY_ARGS}
     )
 
-    if (NOT QUOTES_ENABLED)
+    if (QUOTES_ENABLED)
       ## Code update test
       add_e2e_test(
         NAME code_update_test
