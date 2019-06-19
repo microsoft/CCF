@@ -534,6 +534,26 @@ bool test_raw_writes(
   return completed;
 }
 
+void write_sensitive_tables(bool proposer_vote)
+{
+  const auto n_members = 10;
+  for (int pro_votes = 0; pro_votes <= n_members; pro_votes++)
+  {
+    for (const auto& sensitive_table : {Tables::WHITELISTS, Tables::GOV_SCRIPTS})
+    {
+      GenesisGenerator network;
+      StubNodeState node;
+
+      const auto sensitive_put = "return Calls:call('raw_puts', Puts:put('"s +
+        sensitive_table + "', 9, {'aaa'}))"s;
+      CHECK(
+        test_raw_writes(
+          network, node, {sensitive_put}, n_members, pro_votes, proposer_vote) ==
+        (n_members == pro_votes));
+    }
+  }
+}
+
 TEST_CASE("Propose raw writes")
 {
   SUBCASE("insensitive tables")
@@ -584,33 +604,11 @@ TEST_CASE("Propose raw writes")
       CHECK(*mid == n_members);
     }
   }
-  const auto sensitive_put =
-    "return Calls:call('raw_puts', Puts:put('whitelists', 9, {'aaa'}))"s;
-  SUBCASE("sensitive tables (unanimity required)")
-  {
-    const auto n_members = 10;
-    for (int pro_votes = 0; pro_votes <= n_members; pro_votes++)
-    {
-      GenesisGenerator network;
-      StubNodeState node;
-      CHECK(
-        test_raw_writes(network, node, {sensitive_put}, n_members, pro_votes) ==
-        (n_members == pro_votes));
-    }
-  }
 
-  SUBCASE("sensitive tables (unanimity required) with proposer vote")
+  SUBCASE("sensitive tables")
   {
-    const auto n_members = 10;
-    for (int pro_votes = 0; pro_votes <= n_members; pro_votes++)
-    {
-      GenesisGenerator network;
-      StubNodeState node;
-      CHECK(
-        test_raw_writes(
-          network, node, {sensitive_put}, n_members, pro_votes, true) ==
-        (n_members == pro_votes));
-    }
+    write_sensitive_tables(false);
+    write_sensitive_tables(true);
   }
 }
 
