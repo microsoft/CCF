@@ -102,7 +102,7 @@ namespace asynchost
       // This flushes the enclave to host ringbuffer on each libuv loop
       // iteration.
       while (bp.read_n(max_messages, r) > 0)
-        ;
+        continue;
     }
   };
 
