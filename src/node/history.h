@@ -69,7 +69,7 @@ namespace ccf
 
   static void log_hash(const crypto::Sha256Hash& h, HashOp flag)
   {
-    LOG_DEBUG << "History [" << flag << "] " << h << std::endl;
+    LOG_DEBUG_FMT("History [{}] {}", flag, h);
   }
 
   class NullTxHistory : public kv::TxHistory

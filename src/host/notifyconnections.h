@@ -23,19 +23,19 @@ namespace asynchost
 
       void on_resolve_failed()
       {
-        LOG_DEBUG << "notify client resolve failed " << std::endl;
+        LOG_DEBUG_FMT("notify client resolve failed");
         reconnect();
       }
 
       void on_connect_failed()
       {
-        LOG_DEBUG << "notify client connect failed " << std::endl;
+        LOG_DEBUG_FMT("notify client connect failed");
         reconnect();
       }
 
       void on_disconnect()
       {
-        LOG_DEBUG << "notify client disconnect " << std::endl;
+        LOG_DEBUG_FMT("notify client disconnect");
         reconnect();
       }
 

@@ -175,8 +175,7 @@ namespace ccf
           throw std::logic_error(
             "Secrets could not be unsealed : " + std::to_string(v));
 
-        LOG_DEBUG << "Secrets successfully unsealed at version " << it.key()
-                  << std::endl;
+        LOG_DEBUG_FMT("Secrets successfully unsealed at version {}", it.key());
 
         // Deserialise network secrets
         auto new_secret = std::make_unique<Secret>();
@@ -215,8 +214,7 @@ namespace ccf
 
       current_version = new_v;
 
-      LOG_DEBUG << "Secrets used at " << old_v << " are now valid from "
-                << new_v << std::endl;
+      LOG_DEBUG_FMT("Secrets used at {} are now valid from {}", old_v, new_v);
       return true;
     }
 

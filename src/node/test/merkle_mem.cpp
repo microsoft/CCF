@@ -53,12 +53,12 @@ static int append_flush_and_retract()
       if (index % (flushes_without_retract * max_tree_size) == 0)
       {
         t.retract(index - max_tree_size);
-        LOG_DEBUG << "retract() " << index - max_tree_size << std::endl;
+        LOG_DEBUG_FMT("retract() {}", index - max_tree_size);
       }
       else
       {
         t.flush(index - max_tree_size);
-        LOG_DEBUG << "flush() " << index - max_tree_size << std::endl;
+        LOG_DEBUG_FMT("flush() {}", index - max_tree_size);
       }
     }
     if (index % (appends / 10) == 0)

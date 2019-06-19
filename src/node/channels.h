@@ -193,8 +193,7 @@ namespace ccf
       // Channel can be established
       channel.establish();
 
-      LOG_DEBUG << "node2node channel with " << peer_id << " is now established"
-                << std::endl;
+      LOG_DEBUG_FMT("node2node channel with {} is now established", peer_id);
 
       return true;
     }

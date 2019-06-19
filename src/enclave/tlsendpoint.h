@@ -441,7 +441,7 @@ namespace enclave
       void* ctx, int level, const char* file, int line, const char* str)
     {
       (void)level;
-      LOG_DEBUG << file << ":" << line << ": " << str << std::endl;
+      LOG_DEBUG_FMT("{}:{}: {}", file, line, str);
     }
 
     std::string strerror(int err)

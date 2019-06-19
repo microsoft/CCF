@@ -97,7 +97,7 @@ namespace ccf
       if (!seal_key_and_info.has_value())
         return false;
 
-      LOG_DEBUG << "Seal key successfully retrieved" << std::endl;
+      LOG_DEBUG_FMT("Seal key successfully retrieved");
 
       crypto::KeyAesGcm seal_key(CBuffer(
         seal_key_and_info->first.data(), seal_key_and_info->first.size()));
@@ -138,7 +138,7 @@ namespace ccf
       if (!raw_seal_key.has_value())
         return {};
 
-      LOG_DEBUG << "Seal key successfully retrieved from key info" << std::endl;
+      LOG_DEBUG_FMT("Seal key successfully retrieved from key info");
 
       // Decrypt serialised
       crypto::KeyAesGcm seal_key(
