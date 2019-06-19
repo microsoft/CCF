@@ -201,6 +201,6 @@ On a machine without SGX, you can run the tests with:
 
 .. code-block:: bash
 
-    TEST_ENCLAVE=simulate ./tests.sh -VV
+    TEST_ENCLAVE=virtual ./tests.sh -VV
 
-The build steps remain identical.
+The build steps remain identical. Tests that require enclave attestation will be skipped.
