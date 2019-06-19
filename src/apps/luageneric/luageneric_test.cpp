@@ -30,14 +30,15 @@ namespace ccf
   }
 }
 
-void check_error(const vector<uint8_t> v, const int expected)
+nlohmann::json check_error(const vector<uint8_t>& v, const int expected)
 {
   const auto j_error = json::from_msgpack(v);
   CHECK(j_error[ERR][CODE] == expected);
+  return j_error;
 }
 
 template <typename T>
-void check_success(const vector<uint8_t> v, const T& expected)
+void check_success(const vector<uint8_t>& v, const T& expected)
 {
   const Response<json> r = json::from_msgpack(v);
   CHECK(T(r.result) == expected);
@@ -137,11 +138,34 @@ TEST_CASE("simple lua apps")
   const Cert u0 = {0};
   enclave::RPCContext rpc_ctx(0, u0);
 
+  SUBCASE("missing lua arg")
+  {
+    constexpr auto missing = R"xxx(
+      tables, gov_tables, args = ...
+
+      -- access all expected keys
+      x = args.caller_id
+      x = args.method
+      x = args.params
+
+      -- try to access missing key
+      x = args.THIS_KEY_DOESNT_EXIST
+    )xxx";
+    set_handler(network, "missing", {missing});
+
+    // call "missing"
+    const auto pc = make_pc("missing", {});
+    const auto response =
+      check_error(frontend->process(rpc_ctx, pc), ErrorCodes::SCRIPT_ERROR);
+    const auto error_msg = response[ERR][MESSAGE].get<string>();
+    CHECK(error_msg.find("THIS_KEY_DOESNT_EXIST") != string::npos);
+  }
+
   SUBCASE("echo")
   {
     constexpr auto app = R"xxx(
-      tables, gov_tables, caller_id, method, params = ...
-      return env.jsucc(params.verb)
+      tables, gov_tables, args = ...
+      return env.jsucc(args.params.verb)
     )xxx";
     set_handler(network, "echo", {app});
 
@@ -154,15 +178,15 @@ TEST_CASE("simple lua apps")
   SUBCASE("store/load different types in generic table")
   {
     constexpr auto store = R"xxx(
-      tables, gov_tables, caller_id, method, params = ...
-      local r = tables.priv0:put(params.k, params.v)
+      tables, gov_tables, args = ...
+      local r = tables.priv0:put(args.params.k, args.params.v)
       return env.jsucc(r)
     )xxx";
     set_handler(network, "store", {store});
 
     constexpr auto load = R"xxx(
-      tables, gov_tables, caller_id, method, params = ...
-      local v = tables.priv0:get(params.k)
+      tables, gov_tables, args = ...
+      local v = tables.priv0:get(args.params.k)
       if not v then
         return env.jerr(env.error_codes.INVALID_PARAMS, "key does not exist")
       end
@@ -192,7 +216,7 @@ TEST_CASE("simple lua apps")
   SUBCASE("access gov tables")
   {
     constexpr auto get_members = R"xxx(
-      tables, gov_tables, caller_id, method, params = ...
+      tables, gov_tables, args = ...
       local members = {}
       gov_tables.members:foreach(
         function(k, v) members[tostring(k)] = v end
@@ -201,10 +225,10 @@ TEST_CASE("simple lua apps")
     )xxx";
     set_handler(network, "get_members", {get_members});
 
-    // Not allowed
+    // Not allowed to call put() on read-only gov_tables
     constexpr auto put_member = R"xxx(
-      tables, gov_tables, caller_id, method, params = ...
-      return env.jsucc(gov_tables.members:put(params.k, params.v))
+      tables, gov_tables, args = ...
+      return env.jsucc(gov_tables.members:put(args.params.k, args.params.v))
     )xxx";
     set_handler(network, "put_member", {put_member});
 
@@ -234,21 +258,21 @@ TEST_CASE("simple bank")
 
   constexpr auto create_method = "SB_create";
   constexpr auto create = R"xxx(
-    tables, gov_tables, caller_id, method, params = ...
-    local dst = params.dst
+    tables, gov_tables, args = ...
+    local dst = args.params.dst
     if tables.priv0:get(dst) then
       return env.jerr(env.error_codes.INVALID_PARAMS, "account already exists")
     end
 
-    tables.priv0:put(dst, params.amt)
+    tables.priv0:put(dst, args.params.amt)
     return env.jsucc(true)
   )xxx";
   set_handler(network, create_method, {create});
 
   constexpr auto read_method = "SB_read";
   constexpr auto read = R"xxx(
-    tables, gov_tables, caller_id, method, params = ...
-    local acc = params.account
+    tables, gov_tables, args = ...
+    local acc = args.params.account
     local amt = tables.priv0:get(acc)
     if not amt then
       return env.jerr(
@@ -261,9 +285,9 @@ TEST_CASE("simple bank")
 
   constexpr auto transfer_method = "SB_transfer";
   constexpr auto transfer = R"xxx(
-    tables, gov_tables, caller_id, method, params = ...
-    local src = params.src
-    local dst = params.dst
+    tables, gov_tables, args = ...
+    local src = args.params.src
+    local dst = args.params.dst
     local src_n = tables.priv0:get(src)
     if not src_n then
       return env.jerr(
@@ -276,7 +300,7 @@ TEST_CASE("simple bank")
         env.error_codes.INVALID_PARAMS, "destination account does not exist")
     end
 
-    local amt = params.amt
+    local amt = args.params.amt
     if src_n < amt then
       return env.jerr(env.error_codes.INVALID_PARAMS, "insufficient funds")
     end
