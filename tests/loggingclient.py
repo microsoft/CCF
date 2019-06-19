@@ -25,7 +25,7 @@ def run(args):
             "--ca=networkcert.pem",
             "--cert=user1_cert.pem",
             "--privk=user1_privk.pem",
-        )
+        ).check_returncode()
 
 
 if __name__ == "__main__":

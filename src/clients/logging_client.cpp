@@ -130,46 +130,33 @@ int main(int argc, char** argv)
 
   LoggingClient client(host, port, cert);
 
-  try
+  if (*multi_command)
   {
-    if (*multi_command)
+    const size_t final_msg_id = msg_id + num_messages - 1;
+    for (auto id = msg_id; id <= final_msg_id; ++id)
     {
-      const size_t final_msg_id = msg_id + num_messages - 1;
-      for (auto id = msg_id; id <= final_msg_id; ++id)
-      {
-        // Only print response and retrieve log for first and last messages
-        bool const print_status = id == msg_id || id == final_msg_id;
+      // Only print response and retrieve log for first and last messages
+      bool const print_status = id == msg_id || id == final_msg_id;
 
-        const auto record_msg = client.make_timestamped_message(msg_body);
-
-        client.record_log_message(id, record_msg, print_status);
-
-        if (print_status)
-        {
-          client.get_log_message(id);
-        }
-      }
-    }
-    else
-    {
       const auto record_msg = client.make_timestamped_message(msg_body);
 
-      // First transaction - record a log message
-      client.record_log_message(msg_id, record_msg);
+      client.record_log_message(id, record_msg, print_status);
 
-      // Second transaction - get a log message
-      client.get_log_message(msg_id);
+      if (print_status)
+      {
+        client.get_log_message(id);
+      }
     }
   }
-  catch (const char* e)
+  else
   {
-    cout << "Error: " << e << endl;
-    return 1;
-  }
-  catch (exception& e)
-  {
-    cout << "Exception: " << e.what() << endl;
-    return 1;
+    const auto record_msg = client.make_timestamped_message(msg_body);
+
+    // First transaction - record a log message
+    client.record_log_message(msg_id, record_msg);
+
+    // Second transaction - get a log message
+    client.get_log_message(msg_id);
   }
 
   return 0;

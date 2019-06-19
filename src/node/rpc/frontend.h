@@ -40,9 +40,6 @@ namespace ccf
       DoNotForward
     };
 
-  protected:
-    Store& tables;
-
     struct RequestArgs
     {
       enclave::RPCContext& rpc_ctx;
@@ -52,6 +49,9 @@ namespace ccf
       const nlohmann::json& params;
       const SignedReq& signed_request;
     };
+
+  protected:
+    Store& tables;
 
   private:
     using HandleFunction =
@@ -261,13 +261,6 @@ namespace ccf
 
       auto get_schema = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetSchema::In>();
-
-        if (handlers.find(in.method) == handlers.end())
-        {
-          return jsonrpc::error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS,
-            "No method named " + in.method);
-        }
 
         const auto it = handlers.find(in.method);
         if (it == handlers.end())
