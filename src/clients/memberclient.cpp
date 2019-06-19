@@ -111,6 +111,25 @@ void display(const json& proposals)
   }
 }
 
+template <size_t SZ>
+void hex_str_to_bytes(const std::string& src, std::array<uint8_t, SZ>& dst)
+{
+  if (src.length() != SZ << 1)
+  {
+    throw logic_error("Invalid code id length");
+  }
+  auto hex_str = src.c_str();
+  for (size_t i = 0; i < dst.size(); ++i)
+  {
+    char cur_char[2];
+    *reinterpret_cast<uint16_t*>(cur_char) =
+      reinterpret_cast<const uint16_t*>(hex_str)[i];
+    uint16_t char_out;
+    std::istringstream(cur_char) >> std::hex >> char_out;
+    dst[i] = static_cast<uint8_t>(char_out);
+  }
+}
+
 void add_new(
   RpcTlsClient& tls_connection, const string& cert_file, const string& proposal)
 {
@@ -130,12 +149,14 @@ void submit_accept_node(RpcTlsClient& tls_connection, NodeId node_id)
   cout << response.dump() << endl;
 }
 
-void submit_accept_code(RpcTlsClient& tls_connection, std::string& code_id_path)
+void submit_accept_code(RpcTlsClient& tls_connection, std::string& new_code_id)
 {
-  const auto code_id = slurp(code_id_path);
   CodeDigest digest;
-  // if (code_id.size() != digest.size())
-  std::copy(code_id.begin(), code_id.end(), digest.begin());
+  // we expect a string representation of the code id,
+  // so every byte is represented by 2 characters
+  // before conversion
+  hex_str_to_bytes<ccf::CODE_DIGEST_BYTES>(new_code_id, digest);
+
   auto params = proposal_params<CodeDigest>(accept_code_proposal, digest);
   const auto response =
     json::from_msgpack(tls_connection.call("propose", params));
@@ -308,11 +329,10 @@ int main(int argc, char** argv)
       "--nodes_to_add", nodes_file, "The file containing the nodes to be added")
     ->required(true);
 
-  std::string new_code_id_path;
+  std::string new_code_id;
   auto add_code = app.add_subcommand("add_code", "Support executing new code");
   add_code
-    ->add_option(
-      "--new_code_id_path", new_code_id_path, "The path of the new code id")
+    ->add_option("--new_code_id", new_code_id, "The path of the new code id")
     ->required(true);
 
   NodeId node_id;
@@ -392,7 +412,7 @@ int main(int argc, char** argv)
 
     if (*add_code)
     {
-      submit_accept_code(*tls_connection, new_code_id_path);
+      submit_accept_code(*tls_connection, new_code_id);
     }
 
     if (*accept_node)
