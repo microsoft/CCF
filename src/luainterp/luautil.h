@@ -54,11 +54,41 @@ namespace ccf
       return idx < 0 ? stack_size + 1 + idx : idx;
     }
 
+    inline void push_raw(lua_State* l, const char* s)
+    {
+      lua_pushstring(l, s);
+    }
+
+    inline void push_raw(lua_State* l, int i)
+    {
+      lua_pushinteger(l, i);
+    }
+
+    inline void push_raw(lua_State* l, uint64_t i)
+    {
+      lua_pushinteger(l, (lua_Integer)i);
+    }
+
+    inline void push_raw(lua_State* l, double d)
+    {
+      lua_pushnumber(l, d);
+    }
+
+    inline void push_raw(lua_State* l, bool b)
+    {
+      lua_pushboolean(l, b);
+    }
+
+    inline void push_raw(lua_State* l, std::nullptr_t)
+    {
+      lua_pushnil(l);
+    }
+
     /** The base push case. Specialize this to push other types onto the lua
      * stack.
      */
     template <typename T>
-    void push_raw(lua_State* l, T o)
+    void push_raw(lua_State* l, const T& o)
     {
       static_assert(
         std::is_empty<T>::value,
@@ -66,45 +96,9 @@ namespace ccf
     }
 
     template <>
-    inline void push_raw(lua_State* l, const char* s)
-    {
-      lua_pushstring(l, s);
-    }
-
-    template <>
-    inline void push_raw(lua_State* l, std::string s)
+    inline void push_raw(lua_State* l, const std::string& s)
     {
       lua_pushstring(l, s.c_str());
-    }
-
-    template <>
-    inline void push_raw(lua_State* l, int i)
-    {
-      lua_pushinteger(l, i);
-    }
-
-    template <>
-    inline void push_raw(lua_State* l, uint64_t i)
-    {
-      lua_pushinteger(l, (lua_Integer)i);
-    }
-
-    template <>
-    inline void push_raw(lua_State* l, double d)
-    {
-      lua_pushnumber(l, d);
-    }
-
-    template <>
-    inline void push_raw(lua_State* l, bool b)
-    {
-      lua_pushboolean(l, b);
-    }
-
-    template <>
-    inline void push_raw(lua_State* l, std::nullptr_t)
-    {
-      lua_pushnil(l);
     }
 
     template <typename F0, typename F1>

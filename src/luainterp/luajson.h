@@ -22,7 +22,7 @@ namespace ccf
      * (starting from 1) respectively.
      */
     template <>
-    inline void push_raw(lua_State* l, nlohmann::json j)
+    inline void push_raw(lua_State* l, const nlohmann::json& j)
     {
       switch (j.type())
       {
@@ -94,7 +94,10 @@ namespace ccf
       switch (lua_type(l, arg))
       {
         case LUA_TNIL:
+        {
+          j = nullptr;
           break;
+        }
         case LUA_TNUMBER:
         {
           if (lua_isinteger(l, arg))
