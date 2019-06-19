@@ -998,7 +998,7 @@ namespace kv
       return store->commit(
         version,
         [data = std::move(
-           data), req_id = std::move(req_id)]() -> std::pair<CommitSuccess, std::vector<uint8_t>> {
+           data), req_id = std::move(req_id)]() -> std::tuple<CommitSuccess, TxHistory::RequestID, std::vector<uint8_t>> {
           return {CommitSuccess::OK, std::move(req_id), std::move(data)};
         },
         false);
