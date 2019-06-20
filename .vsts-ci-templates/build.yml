@@ -12,25 +12,12 @@ steps:
   displayName: Ninja
   workingDirectory: build
 
-- task: CopyFiles@2
-  inputs:
-    sourceFolder: build
-    contents: |
-      CTestTestfile.cmake
-      cchost
-      cchost.virtual
-      genesisgenerator
-      raft_driver
-      *_test
-      *_bench
-      *client
-      *.so
-      json_schema
-      merkle_mem
-      tests.sh
-    targetFolder: $(Build.ArtifactStagingDirectory)
+- script: |
+    tar -cavf artifact.jar.gz cchost cchost.virtual CTestTestfile.cmake json_schema genesisgenerator merkle_mem raft_driver tests.sh *_test *_bench *client *.so
+  displayName: Compress build artifact
+  workingDirectory: build
 
 - task: PublishPipelineArtifact@0
   inputs:
     artifactName: ${{ parameters.artifact_name }}
-    targetPath: $(Build.ArtifactStagingDirectory)
+    targetPath: build/artifact.jar

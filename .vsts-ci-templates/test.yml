@@ -8,10 +8,10 @@ steps:
   inputs:
     artifactName: ${{ parameters.artifact_name }}
 
-- task: CopyFiles@2
-  inputs:
-    sourceFolder: $(Build.ArtifactStagingDirectory)
-    targetFolder: build
+- script: |
+    tar -xavf artifact.jar.gz
+  displayName: Uncompress build artifact
+  workingDirectory: build
 
 - script: |
     ./tests.sh -VV --timeout 240 --no-compress-output -T Test ${{ parameters.ctest_filter }}
