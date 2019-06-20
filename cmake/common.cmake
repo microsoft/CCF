@@ -400,7 +400,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       secp256k1.enclave
     )
     target_link_options(${name} PRIVATE
-      -fuse-ld=bfd #lld and gold error when given -shared and -pie, so use bfd here
+      -fuse-ld=bfd #lld and gold error when given -shared and -pie, must use bfd
     )
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
     sign_app_library(${name} ${app_oe_conf_path} ${enclave_sign_key_path})
