@@ -1,5 +1,6 @@
 parameters:
   cmake_args: ''
+  artifact_name: ''
 
 steps:
 - task: CMake@1
@@ -29,5 +30,5 @@ steps:
 
 - task: PublishPipelineArtifact@0
   inputs:
-    artifactName: 'build_results'
+    artifactName: ${artifact_name}
     targetPath: $(Build.ArtifactStagingDirectory)

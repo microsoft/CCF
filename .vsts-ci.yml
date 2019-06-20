@@ -41,6 +41,7 @@ jobs:
     - template: .vsts-ci-templates/build.yml
       parameters:
         cmake_args: '-DBUILD_SMALLBANK=OFF'
+        artifact_name: build_results
 
 - job: ACC_1804_SGX_e2e_tests
   pool: Ubuntu-1804-SGX-Azure
@@ -55,6 +56,7 @@ jobs:
       parameters:
         ctest_filter: '-L end_to_end'
         suite_name_suffix: ' SGX end to end tests'
+        artifact_name: build_results
 
 - job: ACC_1804_SGX_quick_tests
   pool: Ubuntu-1804-SGX-Azure
@@ -69,6 +71,7 @@ jobs:
       parameters:
         ctest_filter: '-L "unit_test|benchmark"'
         suite_name_suffix: ' SGX quick tests'
+        artifact_name: build_results
 
 - job: ACC_1804_SGX_perf_build
   pool: Ubuntu-1804-SGX-Azure
@@ -80,8 +83,10 @@ jobs:
     - template: .vsts-ci-templates/build.yml
       parameters:
         cmake_args: '-DBUILD_SMALLBANK=ON -DCURVE_CHOICE=secp256k1_bitcoin'
+        artifact_name: perf_build_results
     - template: .vsts-ci-templates/test.yml
       parameters:
         suite_name_suffix: ' SGX Performance'
-        ctest_filter: '-R small_bank'
+        ctest_filter: '-L perf'
+        artifact_name: perf_build_results
     - template: .vsts-ci-templates/push_perf_data.yml

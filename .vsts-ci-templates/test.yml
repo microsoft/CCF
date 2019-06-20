@@ -1,16 +1,16 @@
 parameters:
   suite_name_suffix: ''
   ctest_filter: ''
+  artifact_name: ''
 
 steps:
 - task: DownloadPipelineArtifact@1
   inputs:
-    artifactName: build_results
+    artifactName: ${artifact_name}
 
 - task: CopyFiles@2
   inputs:
-    contents: |
-      $(Build.ArtifactStagingDirectory)/**
+    sourceFolder: $(Build.ArtifactStagingDirectory)
     targetFolder: build
 
 - script: |
