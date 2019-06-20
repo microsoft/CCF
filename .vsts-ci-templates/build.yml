@@ -20,4 +20,4 @@ steps:
 - task: PublishPipelineArtifact@0
   inputs:
     artifactName: ${{ parameters.artifact_name }}
-    targetPath: build/artifact.jar
+    targetPath: build/artifact.jar.gz
