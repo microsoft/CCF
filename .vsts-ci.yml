@@ -50,7 +50,7 @@ jobs:
         ctest_filter: '-L end_to_end'
         suite_name_suffix: ' SGX end to end tests'
 
-- job: ACC_1804_SGX_quick
+- job: ACC_1804_SGX_quick_tests
   pool: Ubuntu-1804-SGX-Azure
   dependsOn:
     - static_checks

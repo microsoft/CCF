@@ -31,5 +31,7 @@ steps:
       build/merkle_mem
     targetFolder: $(Build.ArtifactStagingDirectory)
 
-- publish: $(Build.ArtifactStagingDirectory)
-  artifact: build_results
+- task: PublishPipelineArtifact@0
+  inputs:
+    artifactName: build_results
+    targetPath: $(Build.ArtifactStagingDirectory)
