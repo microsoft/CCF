@@ -458,9 +458,43 @@ namespace ccf
       if (!rpc.first)
         return jsonrpc::pack(rpc.second, ctx.pack.value());
 
-      
+      auto rpc_ = &rpc.second;
+      SignedReq signed_request;
+      if (rpc_->find(jsonrpc::SIG) != rpc_->end())
+      {
+        auto& req = rpc_->at(jsonrpc::REQ);
 
-      auto rep = process_json(ctx, tx, caller_id.value(), rpc.second);
+        // TODO(#important): Signature should only be verified for a Write
+        // RPC
+        if (!verify_client_signature(
+              tx,
+              ctx.caller_cert,
+              caller_id.value(),
+              *rpc_,
+              ctx.fwd.has_value(),
+              signed_request))
+        {
+          return jsonrpc::error_response(
+            req.at(jsonrpc::ID),
+            jsonrpc::ErrorCodes::INVALID_CLIENT_SIGNATURE,
+            "Failed to verify client signature.");
+        }
+        rpc_ = &req;
+      }
+      auto& unsigned_rpc = *rpc_;
+
+      kv::TxHistory::RequestID reqid;
+
+      update_history();
+      size_t jsonrpc_id = unsigned_rpc[jsonrpc::ID];
+      reqid = {caller_id.value(), ctx.client_session_id, jsonrpc_id};
+      if (history)
+      {
+        history->add_request(reqid, input);
+        tx.set_req_id(reqid);
+      }
+
+      auto rep = process_json(ctx, tx, caller_id.value(), unsigned_rpc, signed_request);
 
       // If necessary, forward the RPC to the current leader
       if (!rep.has_value())
@@ -491,8 +525,8 @@ namespace ccf
 
       auto rv = jsonrpc::pack(rep.value(), ctx.pack.value());
 
-      //if (history)
-      //  history->add_response(reqid, rv);
+      if (history)
+        history->add_response(reqid, rv);
 
       return rv;
     }
@@ -548,7 +582,9 @@ namespace ccf
       if (!rpc.first)
         return jsonrpc::pack(rpc.second, pack.value());
 
-      auto rep = process_json(ctx, tx, ctx.fwd->caller_id, rpc.second);
+      SignedReq signed_request(rpc.second);
+
+      auto rep = process_json(ctx, tx, ctx.fwd->caller_id, rpc.second, signed_request);
       if (!rep.has_value())
       {
         // This should never be called when process_json is called with a
@@ -560,51 +596,6 @@ namespace ccf
     }
 
     std::optional<nlohmann::json> process_json(
-      enclave::RPCContext& ctx,
-      Store::Tx& tx,
-      CallerId caller_id,
-      const nlohmann::json& full_rpc)
-    {
-      auto rpc_ = &full_rpc;
-      SignedReq signed_request;
-      if (full_rpc.find(jsonrpc::SIG) != full_rpc.end())
-      {
-        const auto& req = full_rpc.at(jsonrpc::REQ);
-
-        // TODO(#important): Signature should only be verified for a Write
-        // RPC
-        if (!verify_client_signature(
-              tx,
-              ctx.caller_cert,
-              caller_id,
-              full_rpc,
-              ctx.fwd.has_value(),
-              signed_request))
-        {
-          return jsonrpc::error_response(
-            req.at(jsonrpc::ID),
-            jsonrpc::ErrorCodes::INVALID_CLIENT_SIGNATURE,
-            "Failed to verify client signature.");
-        }
-        rpc_ = &req;
-      }
-      auto& rpc = *rpc_;
-
-      kv::TxHistory::RequestID reqid;
-
-      update_history();
-      size_t jsonrpc_id = rpc[jsonrpc::ID];
-      reqid = {caller_id, ctx.client_session_id, jsonrpc_id};
-      if (history)
-      {
-        history->add_request(reqid, {});
-        tx.set_req_id(reqid);
-      }
-
-      return process_unwrapped_json(ctx, tx, caller_id, rpc, signed_request);
-    }
-
-    std::optional<nlohmann::json> process_unwrapped_json(
       enclave::RPCContext& ctx,
       Store::Tx& tx,
       CallerId caller_id,
