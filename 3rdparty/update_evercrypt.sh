@@ -39,6 +39,7 @@ build_status="$(docker exec "$container_id" cat "$CONTAINER_EVEREST_DIRECTORY"/r
 
 if [ "$build_status" != "Success" ]; then
     echo "ERROR: Build status was {$build_status}"
+    exit 1
 fi
 
 # Copy Hacl* source and Kremlin from container
