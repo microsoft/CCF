@@ -35,6 +35,9 @@ jobs:
   pool: Ubuntu-1804-SGX-Azure
   dependsOn: static_checks
   steps:
+    - checkout: self
+      clean: true
+      submodules: true
     - template: .vsts-ci-templates/build.yml
       parameters:
         cmake_args: '-DBUILD_SMALLBANK=OFF'
@@ -45,6 +48,9 @@ jobs:
     - static_checks
     - ACC_1804_SGX_build
   steps:
+    - checkout: self
+      clean: true
+      submodules: true
     - template: .vsts-ci-templates/test.yml
       parameters:
         ctest_filter: '-L end_to_end'
@@ -56,6 +62,9 @@ jobs:
     - static_checks
     - ACC_1804_SGX_build
   steps:
+    - checkout: self
+      clean: true
+      submodules: true
     - template: .vsts-ci-templates/test.yml
       parameters:
         ctest_filter: '-L "unit_test|benchmark"'
@@ -65,6 +74,9 @@ jobs:
   pool: Ubuntu-1804-SGX-Azure
   dependsOn: static_checks
   steps:
+    - checkout: self
+      clean: true
+      submodules: true
     - template: .vsts-ci-templates/build.yml
       parameters:
         cmake_args: '-DBUILD_SMALLBANK=ON -DCURVE_CHOICE=secp256k1_bitcoin'

@@ -3,10 +3,6 @@ parameters:
   ctest_filter: ''
 
 steps:
-- checkout: self
-  clean: true
-  submodules: true
-
 - task: DownloadPipelineArtifact@1
   inputs:
     artifactName: build_results
