@@ -89,18 +89,17 @@ namespace logger
   public:
     LogLine(Level ll, const char* file_name, int line_number) : log_level(ll)
     {
-      constexpr auto max_file_length = 32u;
+      const auto file_line = fmt::format("{}:{}", file_name, line_number);
+      auto data = file_line.data();
 
-      // Truncate to final characters - if file_name is too long, advance it
-      const auto file_length = strlen(file_name);
-      if (file_length > max_file_length)
-        file_name += file_length - max_file_length;
+      // Truncate to final characters - if too long, advance char*
+      constexpr auto max_len = 36u;
 
-      ss << fmt::format(
-        "[{:<5}]{:>32.32}:{:>4} - ",
-        config::to_string(ll),
-        file_name,
-        line_number);
+      const auto len = file_line.size();
+      if (len > max_len)
+        data += len - max_len;
+
+      ss << fmt::format("[{:<5}] {:<36} | ", config::to_string(ll), data);
     }
 
     template <typename T>
