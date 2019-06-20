@@ -16,8 +16,6 @@ set(Boost_ADDITIONAL_VERSIONS "1.67" "1.67.0")
 find_package(Boost 1.60.0 REQUIRED)
 find_package(Threads REQUIRED)
 
-add_link_options(-fuse-ld=lld)
-
 # Azure Pipelines does not support color codes
 if (DEFINED ENV{BUILD_BUILDNUMBER})
   set(PYTHON python3)
@@ -398,9 +396,6 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       evercrypt.enclave
       ${ENCLAVE_LIBS}
       secp256k1.enclave
-    )
-    target_link_options(${name} PRIVATE
-      -fuse-ld=bfd #lld and gold error when given -shared and -pie, must use bfd
     )
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
     sign_app_library(${name} ${app_oe_conf_path} ${enclave_sign_key_path})
