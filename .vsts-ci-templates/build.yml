@@ -14,18 +14,19 @@ steps:
 
 - task: CopyFiles@2
   inputs:
+    sourceFolder: build
     contents: |
-      build/CTestTestfile.cmake
-      build/cchost
-      build/cchost.virtual
-      build/genesisgenerator
-      build/raft_driver
-      build/*_test
-      build/*_bench
-      build/*client
-      build/*.so
-      build/json_schema
-      build/merkle_mem
+      CTestTestfile.cmake
+      cchost
+      cchost.virtual
+      genesisgenerator
+      raft_driver
+      *_test
+      *_bench
+      *client
+      *.so
+      json_schema
+      merkle_mem
     targetFolder: $(Build.ArtifactStagingDirectory)
 
 - task: PublishPipelineArtifact@0
