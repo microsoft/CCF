@@ -77,7 +77,8 @@ jobs:
   build_coverage:
     executor: large_1804
     steps:
-      - build_and_tests
+      - build_and_tests:
+          cmake_flags: "-DCOVERAGE=ON"
       - gather_and_push_coverage
 
   build_san:
