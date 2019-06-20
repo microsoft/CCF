@@ -167,6 +167,7 @@ if(BUILD_TESTS)
     target_link_libraries(${name} PRIVATE
       ${CMAKE_THREAD_LIBS_INIT}
     )
+    set_property(TEST ${name} PROPERTY LABELS benchmark)
   endfunction()
 
   ## Picobench benchmarks

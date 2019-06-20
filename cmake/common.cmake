@@ -471,8 +471,14 @@ function(add_unit_test name)
 
   add_test(
     NAME ${name}
-
-    COMMAND ${CCF_DIR}/tests/unit_test_wrapper.sh ${name})
+    COMMAND ${CCF_DIR}/tests/unit_test_wrapper.sh ${name}
+  )
+  set_property(
+    TEST ${name}
+    APPEND
+    PROPERTY
+      LABELS unit_test
+  )
 endfunction()
 
 
@@ -620,6 +626,12 @@ function(add_e2e_test)
       PROPERTY
         ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
     )
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY
+        LABELS end_to_end
+    )
   endif()
 endfunction()
 
@@ -661,5 +673,11 @@ function(add_perf_test)
     APPEND
     PROPERTY
       ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+  )
+  set_property(
+    TEST ${PARSED_ARGS_NAME}
+    APPEND
+    PROPERTY
+      LABELS perf
   )
 endfunction()
