@@ -455,21 +455,10 @@ namespace ccf
 
       auto rpc = unpack_json(input, ctx.pack.value());
 
-      kv::TxHistory::RequestID reqid;
-
       if (!rpc.first)
         return jsonrpc::pack(rpc.second, ctx.pack.value());
-      else
-      {
-        update_history();
-        size_t jsonrpc_id = rpc.second[jsonrpc::ID];
-        reqid = {caller_id.value(), ctx.client_session_id, jsonrpc_id};
-        if (history)
-        {
-          history->add_request(reqid, input);
-          tx.set_req_id(reqid);
-        }
-      }
+
+      
 
       auto rep = process_json(ctx, tx, caller_id.value(), rpc.second);
 
@@ -502,8 +491,8 @@ namespace ccf
 
       auto rv = jsonrpc::pack(rep.value(), ctx.pack.value());
 
-      if (history)
-        history->add_response(reqid, rv);
+      //if (history)
+      //  history->add_response(reqid, rv);
 
       return rv;
     }
@@ -601,6 +590,27 @@ namespace ccf
       }
       auto& rpc = *rpc_;
 
+      kv::TxHistory::RequestID reqid;
+
+      update_history();
+      size_t jsonrpc_id = rpc[jsonrpc::ID];
+      reqid = {caller_id, ctx.client_session_id, jsonrpc_id};
+      if (history)
+      {
+        history->add_request(reqid, {});
+        tx.set_req_id(reqid);
+      }
+
+      return process_unwrapped_json(ctx, tx, caller_id, rpc, signed_request);
+    }
+
+    std::optional<nlohmann::json> process_unwrapped_json(
+      enclave::RPCContext& ctx,
+      Store::Tx& tx,
+      CallerId caller_id,
+      const nlohmann::json& rpc,
+      const SignedReq& signed_request)
+    {
       std::string method = rpc.at(jsonrpc::METHOD);
       ctx.req.seq_no = rpc.at(jsonrpc::ID);
 

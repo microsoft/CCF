@@ -1617,8 +1617,7 @@ namespace kv
                       << std::endl;
 
           if (h) {
-            h->append(data_);
-            h->add_result(reqid, version);
+            h->add_result(reqid, version, data_);
           }
 
           LOG_DEBUG << "Batching " << last_replicated + offset << "("

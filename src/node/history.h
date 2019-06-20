@@ -142,7 +142,7 @@ namespace ccf
     }
 
     void add_request(kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override {}
-    void add_result(kv::TxHistory::RequestID id, kv::Version version) override {}
+    void add_result(kv::TxHistory::RequestID id, kv::Version version, const std::vector<uint8_t>& data) override {}
     void add_response(kv::TxHistory::RequestID id, const std::vector<uint8_t>& response) override {}
   };
 
@@ -218,7 +218,7 @@ namespace ccf
     std::shared_ptr<kv::Replicator> replicator;
 
     std::map<RequestID, std::vector<uint8_t>> requests;
-    std::map<RequestID, kv::Version> results; // TODO: need a pair of Hash, Version
+    std::map<RequestID, std::pair<kv::Version, crypto::Sha256Hash>> results;
     std::map<RequestID, std::vector<uint8_t>> responses;
 
   public:
@@ -322,10 +322,15 @@ namespace ccf
       LOG_DEBUG << fmt::format("HISTORY: add_request {0}", id) << std::endl;
       requests[id] = request;
     }
-    void add_result(kv::TxHistory::RequestID id, kv::Version version) override
+    
+    void add_result(kv::TxHistory::RequestID id, kv::Version version, const std::vector<uint8_t>& data) override
     {
-      results[id] = version;
+      append(data);
+      auto root = get_root();
+      LOG_DEBUG << fmt::format("HISTORY: add_result {0} {1} {2}", id, version, root) << std::endl;
+      results[id] = {version, root};
     }
+
     void add_response(kv::TxHistory::RequestID id, const std::vector<uint8_t>& response) override
     {
       LOG_DEBUG << fmt::format("HISTORY: add_response {0}", id) << std::endl;

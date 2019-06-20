@@ -70,7 +70,7 @@ namespace kv
     virtual void compact(Version v) = 0;
     virtual void emit_signature() = 0;
     virtual void add_request(RequestID id, const std::vector<uint8_t>& request) = 0;
-    virtual void add_result(RequestID id, kv::Version version) = 0;
+    virtual void add_result(RequestID id, kv::Version version, const std::vector<uint8_t>& data) = 0;
     virtual void add_response(RequestID id, const std::vector<uint8_t>& response) = 0;
   };
 
