@@ -5,6 +5,7 @@
 #
 # This script should be used to update 3rdparty/evercrypt from the docker image
 # provided by evercrypt.
+#       https://hub.docker.com/r/projecteverest/hacl-star-linux/tags
 #
 # Usage: ./update_evercrypt.sh projecteverest/hacl-star-linux:<some_hash>
 #            [destination_directory]
@@ -29,7 +30,7 @@ else
     evercrypt_directory=$2
 fi
 
-# Pull image, start container and check that the build was successfull
+# Pull image, start container and check that the build was successful
 docker pull "$1"
 
 container_id="$(docker run -d "$1" | head -1)"
