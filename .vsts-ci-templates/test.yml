@@ -1,5 +1,4 @@
 parameters:
-  cmake_args: ''
   suite_name_suffix: ''
   ctest_filter: ''
 
@@ -8,14 +7,14 @@ steps:
   clean: true
   submodules: true
 
-- task: CMake@1
-  displayName: CMake
-  inputs:
-    cmakeArgs: '-GNinja .. ${{ parameters.cmake_args }}'
+- task: DownloadPipelineArtifact@1
+  artifactName: build_results
 
-- script: ninja
-  displayName: Ninja
-  workingDirectory: build
+- task: CopyFiles@2
+  inputs:
+    contents: |
+      $(Build.ArtifactStagingDirectory)/**
+    targetFolder: build
 
 - script: |
     ./tests.sh -VV --timeout 240 --no-compress-output -T Test ${{ parameters.ctest_filter }}

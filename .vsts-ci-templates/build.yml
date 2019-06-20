@@ -1,0 +1,35 @@
+parameters:
+  cmake_args: ''
+
+steps:
+- checkout: self
+  clean: true
+  submodules: true
+
+- task: CMake@1
+  displayName: CMake
+  inputs:
+    cmakeArgs: '-GNinja .. ${{ parameters.cmake_args }}'
+
+- script: ninja
+  displayName: Ninja
+  workingDirectory: build
+
+- task: CopyFiles@2
+  inputs:
+    contents: |
+      build/CTestTestfile.cmake
+      build/cchost
+      build/cchost.virtual
+      build/genesisgenerator
+      build/raft_driver
+      build/*_test
+      build/*_bench
+      build/*client
+      build/*.so
+      build/json_schema
+      build/merkle_mem
+    targetFolder: $(Build.ArtifactStagingDirectory)
+
+- publish: $(Build.ArtifactStagingDirectory)
+  artifact: build_results

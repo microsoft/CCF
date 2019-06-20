@@ -35,10 +35,31 @@ jobs:
   pool: Ubuntu-1804-SGX-Azure
   dependsOn: static_checks
   steps:
-    - template: .vsts-ci-templates/build_and_test.yml
+    - template: .vsts-ci-templates/build.yml
       parameters:
         cmake_args: '-DBUILD_SMALLBANK=OFF'
-        suite_name_suffix: ' SGX'
+
+- job: ACC_1804_SGX_e2e_tests
+  pool: Ubuntu-1804-SGX-Azure
+  dependsOn:
+    - static_checks
+    - ACC_1804_SGX_build
+  steps:
+    - template: .vsts-ci-templates/test.yml
+      parameters:
+        ctest_filter: '-L end_to_end'
+        suite_name_suffix: ' SGX end to end tests'
+
+- job: ACC_1804_SGX_quick
+  pool: Ubuntu-1804-SGX-Azure
+  dependsOn:
+    - static_checks
+    - ACC_1804_SGX_build
+  steps:
+    - template: .vsts-ci-templates/test.yml
+      parameters:
+        ctest_filter: '-L "unit_test|benchmark"'
+        suite_name_suffix: ' SGX quick tests'
 
 - job: ACC_1804_SGX_perf_build
   pool: Ubuntu-1804-SGX-Azure
