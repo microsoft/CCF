@@ -33,5 +33,5 @@ steps:
 
 - task: PublishPipelineArtifact@0
   inputs:
-    artifactName: build_results
+    artifactName: 'build_results'
     targetPath: $(Build.ArtifactStagingDirectory)
