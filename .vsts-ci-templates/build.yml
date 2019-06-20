@@ -27,6 +27,7 @@ steps:
       *.so
       json_schema
       merkle_mem
+      tests.sh
     targetFolder: $(Build.ArtifactStagingDirectory)
 
 - task: PublishPipelineArtifact@0
