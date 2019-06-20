@@ -32,5 +32,5 @@ steps:
 
 - task: PublishPipelineArtifact@0
   inputs:
-    artifactName: $(artifact_name)
+    artifactName: ${{ parameters.artifact_name }}
     targetPath: $(Build.ArtifactStagingDirectory)

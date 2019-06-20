@@ -6,7 +6,7 @@ parameters:
 steps:
 - task: DownloadPipelineArtifact@1
   inputs:
-    artifactName: $(artifact_name)
+    artifactName: ${{ parameters.artifact_name }}
 
 - task: CopyFiles@2
   inputs:
