@@ -5,139 +5,130 @@
   KreMLin version: 1bd260eb
  */
 
+#include "EverCrypt_Cipher.h"
 
-#ifndef __Vale_H
-#define __Vale_H
+/*
 
+  val chacha20 :
+    len: size_t ->
+    dst: lbuffer uint8 len ->
+    src: lbuffer uint8 len ->
+    key: lbuffer uint8 32ul ->
+    iv: lbuffer uint8 12ul ->
+    ctr: size_t
+  -> ST.Stack unit
+      (requires
+        (fun h ->
+            live h key /\ live h iv /\ live h src /\ live h dst /\
+            eq_or_disjoint src dst /\ v ctr + v len / 64 <= max_size_t))
+      (ensures
+        (fun h0 _ h1 ->
+            modifies (loc dst) h0 h1 /\
+            as_seq h1 dst ==
+            Spec.Chacha20.chacha20_encrypt_bytes (as_seq h0 key)
+              (as_seq h0 iv)
+              (v ctr)
+              (as_seq h0 src)))
+*/
+void
+EverCrypt_Cipher_chacha20(
+  uint32_t len,
+  uint8_t *dst,
+  uint8_t *src,
+  uint8_t *key,
+  uint8_t *iv,
+  uint32_t ctr
+)
+{
+  uint32_t ctx[16U] = { 0U };
+  uint32_t *uu____0 = ctx;
+  for (uint32_t i = (uint32_t)0U; i < (uint32_t)4U; i = i + (uint32_t)1U)
+  {
+    uint32_t *os = uu____0;
+    uint32_t x = Hacl_Impl_Chacha20_chacha20_constants[i];
+    os[i] = x;
+  }
+  uint32_t *uu____1 = ctx + (uint32_t)4U;
+  for (uint32_t i = (uint32_t)0U; i < (uint32_t)8U; i = i + (uint32_t)1U)
+  {
+    uint32_t *os = uu____1;
+    uint8_t *bj = key + i * (uint32_t)4U;
+    uint32_t u = load32_le(bj);
+    uint32_t r = u;
+    uint32_t x = r;
+    os[i] = x;
+  }
+  ctx[12U] = ctr;
+  uint32_t *uu____2 = ctx + (uint32_t)13U;
+  for (uint32_t i = (uint32_t)0U; i < (uint32_t)3U; i = i + (uint32_t)1U)
+  {
+    uint32_t *os = uu____2;
+    uint8_t *bj = iv + i * (uint32_t)4U;
+    uint32_t u = load32_le(bj);
+    uint32_t r = u;
+    uint32_t x = r;
+    os[i] = x;
+  }
+  uint32_t k[16U] = { 0U };
+  uint32_t rem1 = len % (uint32_t)64U;
+  uint32_t nb = len / (uint32_t)64U;
+  uint32_t rem2 = len % (uint32_t)64U;
+  for (uint32_t i0 = (uint32_t)0U; i0 < nb; i0 = i0 + (uint32_t)1U)
+  {
+    uint8_t *uu____3 = dst + i0 * (uint32_t)64U;
+    uint8_t *uu____4 = src + i0 * (uint32_t)64U;
+    uint32_t k1[16U] = { 0U };
+    Hacl_Impl_Chacha20_chacha20_core(k1, ctx, i0);
+    uint32_t bl[16U] = { 0U };
+    for (uint32_t i = (uint32_t)0U; i < (uint32_t)16U; i = i + (uint32_t)1U)
+    {
+      uint32_t *os = bl;
+      uint8_t *bj = uu____4 + i * (uint32_t)4U;
+      uint32_t u = load32_le(bj);
+      uint32_t r = u;
+      uint32_t x = r;
+      os[i] = x;
+    }
+    for (uint32_t i = (uint32_t)0U; i < (uint32_t)16U; i = i + (uint32_t)1U)
+    {
+      uint32_t *os = bl;
+      uint32_t x = bl[i] ^ k1[i];
+      os[i] = x;
+    }
+    for (uint32_t i = (uint32_t)0U; i < (uint32_t)16U; i = i + (uint32_t)1U)
+    {
+      store32_le(uu____3 + i * (uint32_t)4U, bl[i]);
+    }
+  }
+  if (rem2 > (uint32_t)0U)
+  {
+    uint8_t *uu____5 = dst + nb * (uint32_t)64U;
+    uint8_t *uu____6 = src + nb * (uint32_t)64U;
+    uint8_t plain[64U] = { 0U };
+    memcpy(plain, uu____6, rem1 * sizeof uu____6[0U]);
+    uint32_t k1[16U] = { 0U };
+    Hacl_Impl_Chacha20_chacha20_core(k1, ctx, nb);
+    uint32_t bl[16U] = { 0U };
+    for (uint32_t i = (uint32_t)0U; i < (uint32_t)16U; i = i + (uint32_t)1U)
+    {
+      uint32_t *os = bl;
+      uint8_t *bj = plain + i * (uint32_t)4U;
+      uint32_t u = load32_le(bj);
+      uint32_t r = u;
+      uint32_t x = r;
+      os[i] = x;
+    }
+    for (uint32_t i = (uint32_t)0U; i < (uint32_t)16U; i = i + (uint32_t)1U)
+    {
+      uint32_t *os = bl;
+      uint32_t x = bl[i] ^ k1[i];
+      os[i] = x;
+    }
+    for (uint32_t i = (uint32_t)0U; i < (uint32_t)16U; i = i + (uint32_t)1U)
+    {
+      store32_le(plain + i * (uint32_t)4U, bl[i]);
+    }
+    memcpy(uu____5, plain, rem1 * sizeof plain[0U]);
+  }
+}
 
-#include "evercrypt_targetconfig.h"
-#include "curve25519-inline.h"
-#include "kremlin/internal/types.h"
-#include "kremlin/internal/target.h"
-#include "kremlin/lowstar_endianness.h"
-#include <string.h>
-
-extern uint64_t add1(uint64_t *x0, uint64_t *x1, uint64_t x2);
-
-extern uint64_t fadd_(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t sha256_update(uint32_t *x0, uint8_t *x1, uint64_t x2, uint32_t *x3);
-
-extern uint64_t check_aesni();
-
-extern uint64_t check_sha();
-
-extern uint64_t check_adx_bmi2();
-
-extern uint64_t check_avx();
-
-extern uint64_t check_avx2();
-
-extern uint64_t cswap2(uint64_t *x0, uint64_t *x1, uint64_t x2);
-
-extern uint64_t fsqr(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t fsqr2(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t fmul_(uint64_t *x0, uint64_t *x1, uint64_t *x2, uint64_t *x3);
-
-extern uint64_t fmul2(uint64_t *x0, uint64_t *x1, uint64_t *x2, uint64_t *x3);
-
-extern uint64_t fmul1(uint64_t *x0, uint64_t *x1, uint64_t x2);
-
-extern uint64_t fsub_(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t aes128_key_expansion(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t aes256_key_expansion(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t
-gcm128_decrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t
-gcm256_decrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t
-gcm128_encrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t
-gcm256_encrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t aes128_keyhash_init(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t aes256_keyhash_init(uint8_t *x0, uint8_t *x1);
-
-#define __Vale_H_DEFINED
-#endif

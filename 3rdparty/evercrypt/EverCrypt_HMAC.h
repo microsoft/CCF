@@ -6,10 +6,13 @@
  */
 
 
-#ifndef __Vale_H
-#define __Vale_H
+#ifndef __EverCrypt_HMAC_H
+#define __EverCrypt_HMAC_H
 
-
+#include "Hacl_Kremlib.h"
+#include "Hacl_Hash.h"
+#include "Hacl_Spec.h"
+#include "EverCrypt_Hash.h"
 #include "evercrypt_targetconfig.h"
 #include "curve25519-inline.h"
 #include "kremlin/internal/types.h"
@@ -17,127 +20,75 @@
 #include "kremlin/lowstar_endianness.h"
 #include <string.h>
 
-extern uint64_t add1(uint64_t *x0, uint64_t *x1, uint64_t x2);
+/*
 
-extern uint64_t fadd_(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t sha256_update(uint32_t *x0, uint8_t *x1, uint64_t x2, uint32_t *x3);
-
-extern uint64_t check_aesni();
-
-extern uint64_t check_sha();
-
-extern uint64_t check_adx_bmi2();
-
-extern uint64_t check_avx();
-
-extern uint64_t check_avx2();
-
-extern uint64_t cswap2(uint64_t *x0, uint64_t *x1, uint64_t x2);
-
-extern uint64_t fsqr(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t fsqr2(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t fmul_(uint64_t *x0, uint64_t *x1, uint64_t *x2, uint64_t *x3);
-
-extern uint64_t fmul2(uint64_t *x0, uint64_t *x1, uint64_t *x2, uint64_t *x3);
-
-extern uint64_t fmul1(uint64_t *x0, uint64_t *x1, uint64_t x2);
-
-extern uint64_t fsub_(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t aes128_key_expansion(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t aes256_key_expansion(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t
-gcm128_decrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
+  val compute_sha1 :compute_st SHA1
+*/
+void
+EverCrypt_HMAC_compute_sha1(
+  uint8_t *dst,
+  uint8_t *key,
+  uint32_t key_len,
+  uint8_t *data,
+  uint32_t data_len
 );
 
-extern uint64_t
-gcm256_decrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
+/*
+
+  val compute_sha2_256 :compute_st SHA2_256
+*/
+void
+EverCrypt_HMAC_compute_sha2_256(
+  uint8_t *dst,
+  uint8_t *key,
+  uint32_t key_len,
+  uint8_t *data,
+  uint32_t data_len
 );
 
-extern uint64_t
-gcm128_encrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
+/*
+
+  val compute_sha2_384 :compute_st SHA2_384
+*/
+void
+EverCrypt_HMAC_compute_sha2_384(
+  uint8_t *dst,
+  uint8_t *key,
+  uint32_t key_len,
+  uint8_t *data,
+  uint32_t data_len
 );
 
-extern uint64_t
-gcm256_encrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
+/*
+
+  val compute_sha2_512 :compute_st SHA2_512
+*/
+void
+EverCrypt_HMAC_compute_sha2_512(
+  uint8_t *dst,
+  uint8_t *key,
+  uint32_t key_len,
+  uint8_t *data,
+  uint32_t data_len
 );
 
-extern uint64_t aes128_keyhash_init(uint8_t *x0, uint8_t *x1);
+bool EverCrypt_HMAC_is_supported_alg(Spec_Hash_Definitions_hash_alg uu___0_5835);
 
-extern uint64_t aes256_keyhash_init(uint8_t *x0, uint8_t *x1);
+typedef Spec_Hash_Definitions_hash_alg EverCrypt_HMAC_supported_alg;
 
-#define __Vale_H_DEFINED
+/*
+
+  val compute :a: supported_alg -> compute_st a
+*/
+void
+EverCrypt_HMAC_compute(
+  Spec_Hash_Definitions_hash_alg a,
+  uint8_t *mac,
+  uint8_t *key,
+  uint32_t keylen,
+  uint8_t *data,
+  uint32_t datalen
+);
+
+#define __EverCrypt_HMAC_H_DEFINED
 #endif

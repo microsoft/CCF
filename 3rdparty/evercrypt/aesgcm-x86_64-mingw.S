@@ -1,8 +1,7 @@
 .text
 .global old_aes128_key_expansion
 old_aes128_key_expansion:
-  movdqu 0(%rdi), %xmm1
-  mov %rsi, %rdx
+  movdqu 0(%rcx), %xmm1
   movdqu %xmm1, 0(%rdx)
   aeskeygenassist $1, %xmm1, %xmm2
   pshufd $255, %xmm2, %xmm2
@@ -111,8 +110,7 @@ old_aes128_key_expansion:
 
 .global aes128_key_expansion
 aes128_key_expansion:
-  movdqu 0(%rdi), %xmm1
-  mov %rsi, %rdx
+  movdqu 0(%rcx), %xmm1
   movdqu %xmm1, 0(%rdx)
   aeskeygenassist $1, %xmm1, %xmm2
   pshufd $255, %xmm2, %xmm2
@@ -226,8 +224,8 @@ aes128_keyhash_init:
   mov $283686952306183, %r8
   pinsrq $1, %r8, %xmm4
   pxor %xmm0, %xmm0
-  movdqu %xmm0, 80(%rsi)
-  mov %rdi, %r8
+  movdqu %xmm0, 80(%rdx)
+  mov %rcx, %r8
   movdqu 0(%r8), %xmm2
   pxor %xmm2, %xmm0
   movdqu 16(%r8), %xmm2
@@ -252,7 +250,7 @@ aes128_keyhash_init:
   aesenclast %xmm2, %xmm0
   pxor %xmm2, %xmm2
   pshufb %xmm4, %xmm0
-  mov %rsi, %rcx
+  mov %rdx, %rcx
   movdqu %xmm0, 32(%rcx)
   movdqu %xmm6, %xmm0
   mov %r12, %rax
@@ -925,9 +923,8 @@ aes128_keyhash_init:
 
 .global old_aes256_key_expansion
 old_aes256_key_expansion:
-  movdqu 0(%rdi), %xmm1
-  movdqu 16(%rdi), %xmm3
-  mov %rsi, %rdx
+  movdqu 0(%rcx), %xmm1
+  movdqu 16(%rcx), %xmm3
   movdqu %xmm1, 0(%rdx)
   movdqu %xmm3, 16(%rdx)
   aeskeygenassist $1, %xmm3, %xmm2
@@ -1068,9 +1065,8 @@ old_aes256_key_expansion:
 
 .global aes256_key_expansion
 aes256_key_expansion:
-  movdqu 0(%rdi), %xmm1
-  movdqu 16(%rdi), %xmm3
-  mov %rsi, %rdx
+  movdqu 0(%rcx), %xmm1
+  movdqu 16(%rcx), %xmm3
   movdqu %xmm1, 0(%rdx)
   movdqu %xmm3, 16(%rdx)
   aeskeygenassist $1, %xmm3, %xmm2
@@ -1216,8 +1212,8 @@ aes256_keyhash_init:
   mov $283686952306183, %r8
   pinsrq $1, %r8, %xmm4
   pxor %xmm0, %xmm0
-  movdqu %xmm0, 80(%rsi)
-  mov %rdi, %r8
+  movdqu %xmm0, 80(%rdx)
+  mov %rcx, %r8
   movdqu 0(%r8), %xmm2
   pxor %xmm2, %xmm0
   movdqu 16(%r8), %xmm2
@@ -1250,7 +1246,7 @@ aes256_keyhash_init:
   aesenclast %xmm2, %xmm0
   pxor %xmm2, %xmm2
   pshufb %xmm4, %xmm0
-  mov %rsi, %rcx
+  mov %rdx, %rcx
   movdqu %xmm0, 32(%rcx)
   movdqu %xmm6, %xmm0
   mov %r12, %rax
@@ -1931,11 +1927,54 @@ gctr128_bytes:
   push %rdi
   push %rbp
   push %rbx
-  movdqu 0(%r9), %xmm7
-  mov %rdi, %rax
-  mov %rdx, %rbx
-  mov %rcx, %r13
-  mov 72(%rsp), %rcx
+  pextrq $0, %xmm15, %rax
+  push %rax
+  pextrq $1, %xmm15, %rax
+  push %rax
+  pextrq $0, %xmm14, %rax
+  push %rax
+  pextrq $1, %xmm14, %rax
+  push %rax
+  pextrq $0, %xmm13, %rax
+  push %rax
+  pextrq $1, %xmm13, %rax
+  push %rax
+  pextrq $0, %xmm12, %rax
+  push %rax
+  pextrq $1, %xmm12, %rax
+  push %rax
+  pextrq $0, %xmm11, %rax
+  push %rax
+  pextrq $1, %xmm11, %rax
+  push %rax
+  pextrq $0, %xmm10, %rax
+  push %rax
+  pextrq $1, %xmm10, %rax
+  push %rax
+  pextrq $0, %xmm9, %rax
+  push %rax
+  pextrq $1, %xmm9, %rax
+  push %rax
+  pextrq $0, %xmm8, %rax
+  push %rax
+  pextrq $1, %xmm8, %rax
+  push %rax
+  pextrq $0, %xmm7, %rax
+  push %rax
+  pextrq $1, %xmm7, %rax
+  push %rax
+  pextrq $0, %xmm6, %rax
+  push %rax
+  pextrq $1, %xmm6, %rax
+  push %rax
+  mov 272(%rsp), %rax
+  movdqu 0(%rax), %xmm7
+  mov %rcx, %rax
+  mov %r8, %rbx
+  mov %rdx, %rsi
+  mov %r9, %r13
+  mov 264(%rsp), %r8
+  mov 280(%rsp), %rcx
   mov %rcx, %rbp
   imul $16, %rbp
   mov $579005069656919567, %r12
@@ -2159,6 +2198,46 @@ L5:
   jmp L7
 L6:
 L7:
+  pop %rax
+  pinsrq $1, %rax, %xmm6
+  pop %rax
+  pinsrq $0, %rax, %xmm6
+  pop %rax
+  pinsrq $1, %rax, %xmm7
+  pop %rax
+  pinsrq $0, %rax, %xmm7
+  pop %rax
+  pinsrq $1, %rax, %xmm8
+  pop %rax
+  pinsrq $0, %rax, %xmm8
+  pop %rax
+  pinsrq $1, %rax, %xmm9
+  pop %rax
+  pinsrq $0, %rax, %xmm9
+  pop %rax
+  pinsrq $1, %rax, %xmm10
+  pop %rax
+  pinsrq $0, %rax, %xmm10
+  pop %rax
+  pinsrq $1, %rax, %xmm11
+  pop %rax
+  pinsrq $0, %rax, %xmm11
+  pop %rax
+  pinsrq $1, %rax, %xmm12
+  pop %rax
+  pinsrq $0, %rax, %xmm12
+  pop %rax
+  pinsrq $1, %rax, %xmm13
+  pop %rax
+  pinsrq $0, %rax, %xmm13
+  pop %rax
+  pinsrq $1, %rax, %xmm14
+  pop %rax
+  pinsrq $0, %rax, %xmm14
+  pop %rax
+  pinsrq $1, %rax, %xmm15
+  pop %rax
+  pinsrq $0, %rax, %xmm15
   pop %rbx
   pop %rbp
   pop %rdi
@@ -2179,11 +2258,54 @@ gctr256_bytes:
   push %rdi
   push %rbp
   push %rbx
-  movdqu 0(%r9), %xmm7
-  mov %rdi, %rax
-  mov %rdx, %rbx
-  mov %rcx, %r13
-  mov 72(%rsp), %rcx
+  pextrq $0, %xmm15, %rax
+  push %rax
+  pextrq $1, %xmm15, %rax
+  push %rax
+  pextrq $0, %xmm14, %rax
+  push %rax
+  pextrq $1, %xmm14, %rax
+  push %rax
+  pextrq $0, %xmm13, %rax
+  push %rax
+  pextrq $1, %xmm13, %rax
+  push %rax
+  pextrq $0, %xmm12, %rax
+  push %rax
+  pextrq $1, %xmm12, %rax
+  push %rax
+  pextrq $0, %xmm11, %rax
+  push %rax
+  pextrq $1, %xmm11, %rax
+  push %rax
+  pextrq $0, %xmm10, %rax
+  push %rax
+  pextrq $1, %xmm10, %rax
+  push %rax
+  pextrq $0, %xmm9, %rax
+  push %rax
+  pextrq $1, %xmm9, %rax
+  push %rax
+  pextrq $0, %xmm8, %rax
+  push %rax
+  pextrq $1, %xmm8, %rax
+  push %rax
+  pextrq $0, %xmm7, %rax
+  push %rax
+  pextrq $1, %xmm7, %rax
+  push %rax
+  pextrq $0, %xmm6, %rax
+  push %rax
+  pextrq $1, %xmm6, %rax
+  push %rax
+  mov 272(%rsp), %rax
+  movdqu 0(%rax), %xmm7
+  mov %rcx, %rax
+  mov %r8, %rbx
+  mov %rdx, %rsi
+  mov %r9, %r13
+  mov 264(%rsp), %r8
+  mov 280(%rsp), %rcx
   mov %rcx, %rbp
   imul $16, %rbp
   mov $579005069656919567, %r12
@@ -2444,6 +2566,46 @@ L13:
   jmp L15
 L14:
 L15:
+  pop %rax
+  pinsrq $1, %rax, %xmm6
+  pop %rax
+  pinsrq $0, %rax, %xmm6
+  pop %rax
+  pinsrq $1, %rax, %xmm7
+  pop %rax
+  pinsrq $0, %rax, %xmm7
+  pop %rax
+  pinsrq $1, %rax, %xmm8
+  pop %rax
+  pinsrq $0, %rax, %xmm8
+  pop %rax
+  pinsrq $1, %rax, %xmm9
+  pop %rax
+  pinsrq $0, %rax, %xmm9
+  pop %rax
+  pinsrq $1, %rax, %xmm10
+  pop %rax
+  pinsrq $0, %rax, %xmm10
+  pop %rax
+  pinsrq $1, %rax, %xmm11
+  pop %rax
+  pinsrq $0, %rax, %xmm11
+  pop %rax
+  pinsrq $1, %rax, %xmm12
+  pop %rax
+  pinsrq $0, %rax, %xmm12
+  pop %rax
+  pinsrq $1, %rax, %xmm13
+  pop %rax
+  pinsrq $0, %rax, %xmm13
+  pop %rax
+  pinsrq $1, %rax, %xmm14
+  pop %rax
+  pinsrq $0, %rax, %xmm14
+  pop %rax
+  pinsrq $1, %rax, %xmm15
+  pop %rax
+  pinsrq $0, %rax, %xmm15
   pop %rbx
   pop %rbp
   pop %rdi
@@ -2456,7 +2618,7 @@ L15:
 
 .global old_gcm128_encrypt
 old_gcm128_encrypt:
-  mov %rdi, %r9
+  mov %rcx, %r9
   push %r15
   push %r14
   push %r13
@@ -2465,6 +2627,46 @@ old_gcm128_encrypt:
   push %rdi
   push %rbp
   push %rbx
+  pextrq $0, %xmm15, %rax
+  push %rax
+  pextrq $1, %xmm15, %rax
+  push %rax
+  pextrq $0, %xmm14, %rax
+  push %rax
+  pextrq $1, %xmm14, %rax
+  push %rax
+  pextrq $0, %xmm13, %rax
+  push %rax
+  pextrq $1, %xmm13, %rax
+  push %rax
+  pextrq $0, %xmm12, %rax
+  push %rax
+  pextrq $1, %xmm12, %rax
+  push %rax
+  pextrq $0, %xmm11, %rax
+  push %rax
+  pextrq $1, %xmm11, %rax
+  push %rax
+  pextrq $0, %xmm10, %rax
+  push %rax
+  pextrq $1, %xmm10, %rax
+  push %rax
+  pextrq $0, %xmm9, %rax
+  push %rax
+  pextrq $1, %xmm9, %rax
+  push %rax
+  pextrq $0, %xmm8, %rax
+  push %rax
+  pextrq $1, %xmm8, %rax
+  push %rax
+  pextrq $0, %xmm7, %rax
+  push %rax
+  pextrq $1, %xmm7, %rax
+  push %rax
+  pextrq $0, %xmm6, %rax
+  push %rax
+  pextrq $1, %xmm6, %rax
+  push %rax
   movq 0(%r9), %r14
   movq 8(%r9), %r13
   movq 16(%r9), %rax
@@ -3837,6 +4039,46 @@ L27:
   pxor %xmm2, %xmm2
   pxor %xmm0, %xmm1
   movdqu %xmm1, 0(%r15)
+  pop %rax
+  pinsrq $1, %rax, %xmm6
+  pop %rax
+  pinsrq $0, %rax, %xmm6
+  pop %rax
+  pinsrq $1, %rax, %xmm7
+  pop %rax
+  pinsrq $0, %rax, %xmm7
+  pop %rax
+  pinsrq $1, %rax, %xmm8
+  pop %rax
+  pinsrq $0, %rax, %xmm8
+  pop %rax
+  pinsrq $1, %rax, %xmm9
+  pop %rax
+  pinsrq $0, %rax, %xmm9
+  pop %rax
+  pinsrq $1, %rax, %xmm10
+  pop %rax
+  pinsrq $0, %rax, %xmm10
+  pop %rax
+  pinsrq $1, %rax, %xmm11
+  pop %rax
+  pinsrq $0, %rax, %xmm11
+  pop %rax
+  pinsrq $1, %rax, %xmm12
+  pop %rax
+  pinsrq $0, %rax, %xmm12
+  pop %rax
+  pinsrq $1, %rax, %xmm13
+  pop %rax
+  pinsrq $0, %rax, %xmm13
+  pop %rax
+  pinsrq $1, %rax, %xmm14
+  pop %rax
+  pinsrq $0, %rax, %xmm14
+  pop %rax
+  pinsrq $1, %rax, %xmm15
+  pop %rax
+  pinsrq $0, %rax, %xmm15
   pop %rbx
   pop %rbp
   pop %rdi
@@ -3857,14 +4099,54 @@ gcm128_encrypt:
   push %rdi
   push %rbp
   push %rbx
-  mov %rdi, %r14
-  mov %rsi, %r13
-  mov %rdx, %rax
-  mov %rcx, %r11
-  mov %r8, %r10
-  mov %r9, %r8
-  mov 72(%rsp), %rbx
-  mov 80(%rsp), %r15
+  pextrq $0, %xmm15, %rax
+  push %rax
+  pextrq $1, %xmm15, %rax
+  push %rax
+  pextrq $0, %xmm14, %rax
+  push %rax
+  pextrq $1, %xmm14, %rax
+  push %rax
+  pextrq $0, %xmm13, %rax
+  push %rax
+  pextrq $1, %xmm13, %rax
+  push %rax
+  pextrq $0, %xmm12, %rax
+  push %rax
+  pextrq $1, %xmm12, %rax
+  push %rax
+  pextrq $0, %xmm11, %rax
+  push %rax
+  pextrq $1, %xmm11, %rax
+  push %rax
+  pextrq $0, %xmm10, %rax
+  push %rax
+  pextrq $1, %xmm10, %rax
+  push %rax
+  pextrq $0, %xmm9, %rax
+  push %rax
+  pextrq $1, %xmm9, %rax
+  push %rax
+  pextrq $0, %xmm8, %rax
+  push %rax
+  pextrq $1, %xmm8, %rax
+  push %rax
+  pextrq $0, %xmm7, %rax
+  push %rax
+  pextrq $1, %xmm7, %rax
+  push %rax
+  pextrq $0, %xmm6, %rax
+  push %rax
+  pextrq $1, %xmm6, %rax
+  push %rax
+  mov %rcx, %r14
+  mov %rdx, %r13
+  mov %r8, %rax
+  mov %r9, %r11
+  mov 264(%rsp), %r10
+  mov 272(%rsp), %r8
+  mov 280(%rsp), %rbx
+  mov 288(%rsp), %r15
   movdqu 0(%r10), %xmm7
   mov $579005069656919567, %r12
   pinsrq $0, %r12, %xmm8
@@ -5229,6 +5511,46 @@ L49:
   pxor %xmm2, %xmm2
   pxor %xmm0, %xmm1
   movdqu %xmm1, 0(%r15)
+  pop %rax
+  pinsrq $1, %rax, %xmm6
+  pop %rax
+  pinsrq $0, %rax, %xmm6
+  pop %rax
+  pinsrq $1, %rax, %xmm7
+  pop %rax
+  pinsrq $0, %rax, %xmm7
+  pop %rax
+  pinsrq $1, %rax, %xmm8
+  pop %rax
+  pinsrq $0, %rax, %xmm8
+  pop %rax
+  pinsrq $1, %rax, %xmm9
+  pop %rax
+  pinsrq $0, %rax, %xmm9
+  pop %rax
+  pinsrq $1, %rax, %xmm10
+  pop %rax
+  pinsrq $0, %rax, %xmm10
+  pop %rax
+  pinsrq $1, %rax, %xmm11
+  pop %rax
+  pinsrq $0, %rax, %xmm11
+  pop %rax
+  pinsrq $1, %rax, %xmm12
+  pop %rax
+  pinsrq $0, %rax, %xmm12
+  pop %rax
+  pinsrq $1, %rax, %xmm13
+  pop %rax
+  pinsrq $0, %rax, %xmm13
+  pop %rax
+  pinsrq $1, %rax, %xmm14
+  pop %rax
+  pinsrq $0, %rax, %xmm14
+  pop %rax
+  pinsrq $1, %rax, %xmm15
+  pop %rax
+  pinsrq $0, %rax, %xmm15
   pop %rbx
   pop %rbp
   pop %rdi
@@ -5241,7 +5563,7 @@ L49:
 
 .global old_gcm128_decrypt
 old_gcm128_decrypt:
-  mov %rdi, %r9
+  mov %rcx, %r9
   push %r15
   push %r14
   push %r13
@@ -5250,6 +5572,46 @@ old_gcm128_decrypt:
   push %rdi
   push %rbp
   push %rbx
+  pextrq $0, %xmm15, %rax
+  push %rax
+  pextrq $1, %xmm15, %rax
+  push %rax
+  pextrq $0, %xmm14, %rax
+  push %rax
+  pextrq $1, %xmm14, %rax
+  push %rax
+  pextrq $0, %xmm13, %rax
+  push %rax
+  pextrq $1, %xmm13, %rax
+  push %rax
+  pextrq $0, %xmm12, %rax
+  push %rax
+  pextrq $1, %xmm12, %rax
+  push %rax
+  pextrq $0, %xmm11, %rax
+  push %rax
+  pextrq $1, %xmm11, %rax
+  push %rax
+  pextrq $0, %xmm10, %rax
+  push %rax
+  pextrq $1, %xmm10, %rax
+  push %rax
+  pextrq $0, %xmm9, %rax
+  push %rax
+  pextrq $1, %xmm9, %rax
+  push %rax
+  pextrq $0, %xmm8, %rax
+  push %rax
+  pextrq $1, %xmm8, %rax
+  push %rax
+  pextrq $0, %xmm7, %rax
+  push %rax
+  pextrq $1, %xmm7, %rax
+  push %rax
+  pextrq $0, %xmm6, %rax
+  push %rax
+  pextrq $1, %xmm6, %rax
+  push %rax
   movq 0(%r9), %r14
   movq 8(%r9), %r13
   movq 16(%r9), %rax
@@ -6064,6 +6426,46 @@ L71:
   adc $0, %rdx
   add %rdx, %rax
   mov %rax, %rdx
+  pop %rax
+  pinsrq $1, %rax, %xmm6
+  pop %rax
+  pinsrq $0, %rax, %xmm6
+  pop %rax
+  pinsrq $1, %rax, %xmm7
+  pop %rax
+  pinsrq $0, %rax, %xmm7
+  pop %rax
+  pinsrq $1, %rax, %xmm8
+  pop %rax
+  pinsrq $0, %rax, %xmm8
+  pop %rax
+  pinsrq $1, %rax, %xmm9
+  pop %rax
+  pinsrq $0, %rax, %xmm9
+  pop %rax
+  pinsrq $1, %rax, %xmm10
+  pop %rax
+  pinsrq $0, %rax, %xmm10
+  pop %rax
+  pinsrq $1, %rax, %xmm11
+  pop %rax
+  pinsrq $0, %rax, %xmm11
+  pop %rax
+  pinsrq $1, %rax, %xmm12
+  pop %rax
+  pinsrq $0, %rax, %xmm12
+  pop %rax
+  pinsrq $1, %rax, %xmm13
+  pop %rax
+  pinsrq $0, %rax, %xmm13
+  pop %rax
+  pinsrq $1, %rax, %xmm14
+  pop %rax
+  pinsrq $0, %rax, %xmm14
+  pop %rax
+  pinsrq $1, %rax, %xmm15
+  pop %rax
+  pinsrq $0, %rax, %xmm15
   pop %rbx
   pop %rbp
   pop %rdi
@@ -6085,14 +6487,54 @@ gcm128_decrypt:
   push %rdi
   push %rbp
   push %rbx
-  mov %rdi, %r14
-  mov %rsi, %r13
-  mov %rdx, %rax
-  mov %rcx, %r11
-  mov %r8, %r10
-  mov %r9, %r8
-  mov 72(%rsp), %rbx
-  mov 80(%rsp), %r15
+  pextrq $0, %xmm15, %rax
+  push %rax
+  pextrq $1, %xmm15, %rax
+  push %rax
+  pextrq $0, %xmm14, %rax
+  push %rax
+  pextrq $1, %xmm14, %rax
+  push %rax
+  pextrq $0, %xmm13, %rax
+  push %rax
+  pextrq $1, %xmm13, %rax
+  push %rax
+  pextrq $0, %xmm12, %rax
+  push %rax
+  pextrq $1, %xmm12, %rax
+  push %rax
+  pextrq $0, %xmm11, %rax
+  push %rax
+  pextrq $1, %xmm11, %rax
+  push %rax
+  pextrq $0, %xmm10, %rax
+  push %rax
+  pextrq $1, %xmm10, %rax
+  push %rax
+  pextrq $0, %xmm9, %rax
+  push %rax
+  pextrq $1, %xmm9, %rax
+  push %rax
+  pextrq $0, %xmm8, %rax
+  push %rax
+  pextrq $1, %xmm8, %rax
+  push %rax
+  pextrq $0, %xmm7, %rax
+  push %rax
+  pextrq $1, %xmm7, %rax
+  push %rax
+  pextrq $0, %xmm6, %rax
+  push %rax
+  pextrq $1, %xmm6, %rax
+  push %rax
+  mov %rcx, %r14
+  mov %rdx, %r13
+  mov %r8, %rax
+  mov %r9, %r11
+  mov 264(%rsp), %r10
+  mov 272(%rsp), %r8
+  mov 280(%rsp), %rbx
+  mov 288(%rsp), %r15
   movdqu 0(%r10), %xmm7
   mov $579005069656919567, %r12
   pinsrq $0, %r12, %xmm8
@@ -6898,6 +7340,46 @@ L89:
   mov $0, %rdx
   adc $0, %rdx
   add %rdx, %rax
+  pop %rdx
+  pinsrq $1, %rdx, %xmm6
+  pop %rdx
+  pinsrq $0, %rdx, %xmm6
+  pop %rdx
+  pinsrq $1, %rdx, %xmm7
+  pop %rdx
+  pinsrq $0, %rdx, %xmm7
+  pop %rdx
+  pinsrq $1, %rdx, %xmm8
+  pop %rdx
+  pinsrq $0, %rdx, %xmm8
+  pop %rdx
+  pinsrq $1, %rdx, %xmm9
+  pop %rdx
+  pinsrq $0, %rdx, %xmm9
+  pop %rdx
+  pinsrq $1, %rdx, %xmm10
+  pop %rdx
+  pinsrq $0, %rdx, %xmm10
+  pop %rdx
+  pinsrq $1, %rdx, %xmm11
+  pop %rdx
+  pinsrq $0, %rdx, %xmm11
+  pop %rdx
+  pinsrq $1, %rdx, %xmm12
+  pop %rdx
+  pinsrq $0, %rdx, %xmm12
+  pop %rdx
+  pinsrq $1, %rdx, %xmm13
+  pop %rdx
+  pinsrq $0, %rdx, %xmm13
+  pop %rdx
+  pinsrq $1, %rdx, %xmm14
+  pop %rdx
+  pinsrq $0, %rdx, %xmm14
+  pop %rdx
+  pinsrq $1, %rdx, %xmm15
+  pop %rdx
+  pinsrq $0, %rdx, %xmm15
   pop %rbx
   pop %rbp
   pop %rdi
@@ -6910,7 +7392,7 @@ L89:
 
 .global old_gcm256_encrypt
 old_gcm256_encrypt:
-  mov %rdi, %r9
+  mov %rcx, %r9
   push %r15
   push %r14
   push %r13
@@ -6919,6 +7401,46 @@ old_gcm256_encrypt:
   push %rdi
   push %rbp
   push %rbx
+  pextrq $0, %xmm15, %rax
+  push %rax
+  pextrq $1, %xmm15, %rax
+  push %rax
+  pextrq $0, %xmm14, %rax
+  push %rax
+  pextrq $1, %xmm14, %rax
+  push %rax
+  pextrq $0, %xmm13, %rax
+  push %rax
+  pextrq $1, %xmm13, %rax
+  push %rax
+  pextrq $0, %xmm12, %rax
+  push %rax
+  pextrq $1, %xmm12, %rax
+  push %rax
+  pextrq $0, %xmm11, %rax
+  push %rax
+  pextrq $1, %xmm11, %rax
+  push %rax
+  pextrq $0, %xmm10, %rax
+  push %rax
+  pextrq $1, %xmm10, %rax
+  push %rax
+  pextrq $0, %xmm9, %rax
+  push %rax
+  pextrq $1, %xmm9, %rax
+  push %rax
+  pextrq $0, %xmm8, %rax
+  push %rax
+  pextrq $1, %xmm8, %rax
+  push %rax
+  pextrq $0, %xmm7, %rax
+  push %rax
+  pextrq $1, %xmm7, %rax
+  push %rax
+  pextrq $0, %xmm6, %rax
+  push %rax
+  pextrq $1, %xmm6, %rax
+  push %rax
   movq 0(%r9), %r14
   movq 8(%r9), %r13
   movq 16(%r9), %rax
@@ -8344,6 +8866,46 @@ L107:
   pxor %xmm2, %xmm2
   pxor %xmm0, %xmm1
   movdqu %xmm1, 0(%r15)
+  pop %rax
+  pinsrq $1, %rax, %xmm6
+  pop %rax
+  pinsrq $0, %rax, %xmm6
+  pop %rax
+  pinsrq $1, %rax, %xmm7
+  pop %rax
+  pinsrq $0, %rax, %xmm7
+  pop %rax
+  pinsrq $1, %rax, %xmm8
+  pop %rax
+  pinsrq $0, %rax, %xmm8
+  pop %rax
+  pinsrq $1, %rax, %xmm9
+  pop %rax
+  pinsrq $0, %rax, %xmm9
+  pop %rax
+  pinsrq $1, %rax, %xmm10
+  pop %rax
+  pinsrq $0, %rax, %xmm10
+  pop %rax
+  pinsrq $1, %rax, %xmm11
+  pop %rax
+  pinsrq $0, %rax, %xmm11
+  pop %rax
+  pinsrq $1, %rax, %xmm12
+  pop %rax
+  pinsrq $0, %rax, %xmm12
+  pop %rax
+  pinsrq $1, %rax, %xmm13
+  pop %rax
+  pinsrq $0, %rax, %xmm13
+  pop %rax
+  pinsrq $1, %rax, %xmm14
+  pop %rax
+  pinsrq $0, %rax, %xmm14
+  pop %rax
+  pinsrq $1, %rax, %xmm15
+  pop %rax
+  pinsrq $0, %rax, %xmm15
   pop %rbx
   pop %rbp
   pop %rdi
@@ -8364,14 +8926,54 @@ gcm256_encrypt:
   push %rdi
   push %rbp
   push %rbx
-  mov %rdi, %r14
-  mov %rsi, %r13
-  mov %rdx, %rax
-  mov %rcx, %r11
-  mov %r8, %r10
-  mov %r9, %r8
-  mov 72(%rsp), %rbx
-  mov 80(%rsp), %r15
+  pextrq $0, %xmm15, %rax
+  push %rax
+  pextrq $1, %xmm15, %rax
+  push %rax
+  pextrq $0, %xmm14, %rax
+  push %rax
+  pextrq $1, %xmm14, %rax
+  push %rax
+  pextrq $0, %xmm13, %rax
+  push %rax
+  pextrq $1, %xmm13, %rax
+  push %rax
+  pextrq $0, %xmm12, %rax
+  push %rax
+  pextrq $1, %xmm12, %rax
+  push %rax
+  pextrq $0, %xmm11, %rax
+  push %rax
+  pextrq $1, %xmm11, %rax
+  push %rax
+  pextrq $0, %xmm10, %rax
+  push %rax
+  pextrq $1, %xmm10, %rax
+  push %rax
+  pextrq $0, %xmm9, %rax
+  push %rax
+  pextrq $1, %xmm9, %rax
+  push %rax
+  pextrq $0, %xmm8, %rax
+  push %rax
+  pextrq $1, %xmm8, %rax
+  push %rax
+  pextrq $0, %xmm7, %rax
+  push %rax
+  pextrq $1, %xmm7, %rax
+  push %rax
+  pextrq $0, %xmm6, %rax
+  push %rax
+  pextrq $1, %xmm6, %rax
+  push %rax
+  mov %rcx, %r14
+  mov %rdx, %r13
+  mov %r8, %rax
+  mov %r9, %r11
+  mov 264(%rsp), %r10
+  mov 272(%rsp), %r8
+  mov 280(%rsp), %rbx
+  mov 288(%rsp), %r15
   movdqu 0(%r10), %xmm7
   mov $579005069656919567, %r12
   pinsrq $0, %r12, %xmm8
@@ -9789,6 +10391,46 @@ L129:
   pxor %xmm2, %xmm2
   pxor %xmm0, %xmm1
   movdqu %xmm1, 0(%r15)
+  pop %rax
+  pinsrq $1, %rax, %xmm6
+  pop %rax
+  pinsrq $0, %rax, %xmm6
+  pop %rax
+  pinsrq $1, %rax, %xmm7
+  pop %rax
+  pinsrq $0, %rax, %xmm7
+  pop %rax
+  pinsrq $1, %rax, %xmm8
+  pop %rax
+  pinsrq $0, %rax, %xmm8
+  pop %rax
+  pinsrq $1, %rax, %xmm9
+  pop %rax
+  pinsrq $0, %rax, %xmm9
+  pop %rax
+  pinsrq $1, %rax, %xmm10
+  pop %rax
+  pinsrq $0, %rax, %xmm10
+  pop %rax
+  pinsrq $1, %rax, %xmm11
+  pop %rax
+  pinsrq $0, %rax, %xmm11
+  pop %rax
+  pinsrq $1, %rax, %xmm12
+  pop %rax
+  pinsrq $0, %rax, %xmm12
+  pop %rax
+  pinsrq $1, %rax, %xmm13
+  pop %rax
+  pinsrq $0, %rax, %xmm13
+  pop %rax
+  pinsrq $1, %rax, %xmm14
+  pop %rax
+  pinsrq $0, %rax, %xmm14
+  pop %rax
+  pinsrq $1, %rax, %xmm15
+  pop %rax
+  pinsrq $0, %rax, %xmm15
   pop %rbx
   pop %rbp
   pop %rdi
@@ -9801,7 +10443,7 @@ L129:
 
 .global old_gcm256_decrypt
 old_gcm256_decrypt:
-  mov %rdi, %r9
+  mov %rcx, %r9
   push %r15
   push %r14
   push %r13
@@ -9810,6 +10452,46 @@ old_gcm256_decrypt:
   push %rdi
   push %rbp
   push %rbx
+  pextrq $0, %xmm15, %rax
+  push %rax
+  pextrq $1, %xmm15, %rax
+  push %rax
+  pextrq $0, %xmm14, %rax
+  push %rax
+  pextrq $1, %xmm14, %rax
+  push %rax
+  pextrq $0, %xmm13, %rax
+  push %rax
+  pextrq $1, %xmm13, %rax
+  push %rax
+  pextrq $0, %xmm12, %rax
+  push %rax
+  pextrq $1, %xmm12, %rax
+  push %rax
+  pextrq $0, %xmm11, %rax
+  push %rax
+  pextrq $1, %xmm11, %rax
+  push %rax
+  pextrq $0, %xmm10, %rax
+  push %rax
+  pextrq $1, %xmm10, %rax
+  push %rax
+  pextrq $0, %xmm9, %rax
+  push %rax
+  pextrq $1, %xmm9, %rax
+  push %rax
+  pextrq $0, %xmm8, %rax
+  push %rax
+  pextrq $1, %xmm8, %rax
+  push %rax
+  pextrq $0, %xmm7, %rax
+  push %rax
+  pextrq $1, %xmm7, %rax
+  push %rax
+  pextrq $0, %xmm6, %rax
+  push %rax
+  pextrq $1, %xmm6, %rax
+  push %rax
   movq 0(%r9), %r14
   movq 8(%r9), %r13
   movq 16(%r9), %rax
@@ -10656,6 +11338,46 @@ L151:
   adc $0, %rdx
   add %rdx, %rax
   mov %rax, %rdx
+  pop %rax
+  pinsrq $1, %rax, %xmm6
+  pop %rax
+  pinsrq $0, %rax, %xmm6
+  pop %rax
+  pinsrq $1, %rax, %xmm7
+  pop %rax
+  pinsrq $0, %rax, %xmm7
+  pop %rax
+  pinsrq $1, %rax, %xmm8
+  pop %rax
+  pinsrq $0, %rax, %xmm8
+  pop %rax
+  pinsrq $1, %rax, %xmm9
+  pop %rax
+  pinsrq $0, %rax, %xmm9
+  pop %rax
+  pinsrq $1, %rax, %xmm10
+  pop %rax
+  pinsrq $0, %rax, %xmm10
+  pop %rax
+  pinsrq $1, %rax, %xmm11
+  pop %rax
+  pinsrq $0, %rax, %xmm11
+  pop %rax
+  pinsrq $1, %rax, %xmm12
+  pop %rax
+  pinsrq $0, %rax, %xmm12
+  pop %rax
+  pinsrq $1, %rax, %xmm13
+  pop %rax
+  pinsrq $0, %rax, %xmm13
+  pop %rax
+  pinsrq $1, %rax, %xmm14
+  pop %rax
+  pinsrq $0, %rax, %xmm14
+  pop %rax
+  pinsrq $1, %rax, %xmm15
+  pop %rax
+  pinsrq $0, %rax, %xmm15
   pop %rbx
   pop %rbp
   pop %rdi
@@ -10677,14 +11399,54 @@ gcm256_decrypt:
   push %rdi
   push %rbp
   push %rbx
-  mov %rdi, %r14
-  mov %rsi, %r13
-  mov %rdx, %rax
-  mov %rcx, %r11
-  mov %r8, %r10
-  mov %r9, %r8
-  mov 72(%rsp), %rbx
-  mov 80(%rsp), %r15
+  pextrq $0, %xmm15, %rax
+  push %rax
+  pextrq $1, %xmm15, %rax
+  push %rax
+  pextrq $0, %xmm14, %rax
+  push %rax
+  pextrq $1, %xmm14, %rax
+  push %rax
+  pextrq $0, %xmm13, %rax
+  push %rax
+  pextrq $1, %xmm13, %rax
+  push %rax
+  pextrq $0, %xmm12, %rax
+  push %rax
+  pextrq $1, %xmm12, %rax
+  push %rax
+  pextrq $0, %xmm11, %rax
+  push %rax
+  pextrq $1, %xmm11, %rax
+  push %rax
+  pextrq $0, %xmm10, %rax
+  push %rax
+  pextrq $1, %xmm10, %rax
+  push %rax
+  pextrq $0, %xmm9, %rax
+  push %rax
+  pextrq $1, %xmm9, %rax
+  push %rax
+  pextrq $0, %xmm8, %rax
+  push %rax
+  pextrq $1, %xmm8, %rax
+  push %rax
+  pextrq $0, %xmm7, %rax
+  push %rax
+  pextrq $1, %xmm7, %rax
+  push %rax
+  pextrq $0, %xmm6, %rax
+  push %rax
+  pextrq $1, %xmm6, %rax
+  push %rax
+  mov %rcx, %r14
+  mov %rdx, %r13
+  mov %r8, %rax
+  mov %r9, %r11
+  mov 264(%rsp), %r10
+  mov 272(%rsp), %r8
+  mov 280(%rsp), %rbx
+  mov 288(%rsp), %r15
   movdqu 0(%r10), %xmm7
   mov $579005069656919567, %r12
   pinsrq $0, %r12, %xmm8
@@ -11522,6 +12284,46 @@ L169:
   mov $0, %rdx
   adc $0, %rdx
   add %rdx, %rax
+  pop %rdx
+  pinsrq $1, %rdx, %xmm6
+  pop %rdx
+  pinsrq $0, %rdx, %xmm6
+  pop %rdx
+  pinsrq $1, %rdx, %xmm7
+  pop %rdx
+  pinsrq $0, %rdx, %xmm7
+  pop %rdx
+  pinsrq $1, %rdx, %xmm8
+  pop %rdx
+  pinsrq $0, %rdx, %xmm8
+  pop %rdx
+  pinsrq $1, %rdx, %xmm9
+  pop %rdx
+  pinsrq $0, %rdx, %xmm9
+  pop %rdx
+  pinsrq $1, %rdx, %xmm10
+  pop %rdx
+  pinsrq $0, %rdx, %xmm10
+  pop %rdx
+  pinsrq $1, %rdx, %xmm11
+  pop %rdx
+  pinsrq $0, %rdx, %xmm11
+  pop %rdx
+  pinsrq $1, %rdx, %xmm12
+  pop %rdx
+  pinsrq $0, %rdx, %xmm12
+  pop %rdx
+  pinsrq $1, %rdx, %xmm13
+  pop %rdx
+  pinsrq $0, %rdx, %xmm13
+  pop %rdx
+  pinsrq $1, %rdx, %xmm14
+  pop %rdx
+  pinsrq $0, %rdx, %xmm14
+  pop %rdx
+  pinsrq $1, %rdx, %xmm15
+  pop %rdx
+  pinsrq $0, %rdx, %xmm15
   pop %rbx
   pop %rbp
   pop %rdi
@@ -11542,7 +12344,53 @@ gcm128_encrypt_opt:
   push %rdi
   push %rbp
   push %rbx
-  mov 144(%rsp), %rbp
+  pextrq $0, %xmm15, %rax
+  push %rax
+  pextrq $1, %xmm15, %rax
+  push %rax
+  pextrq $0, %xmm14, %rax
+  push %rax
+  pextrq $1, %xmm14, %rax
+  push %rax
+  pextrq $0, %xmm13, %rax
+  push %rax
+  pextrq $1, %xmm13, %rax
+  push %rax
+  pextrq $0, %xmm12, %rax
+  push %rax
+  pextrq $1, %xmm12, %rax
+  push %rax
+  pextrq $0, %xmm11, %rax
+  push %rax
+  pextrq $1, %xmm11, %rax
+  push %rax
+  pextrq $0, %xmm10, %rax
+  push %rax
+  pextrq $1, %xmm10, %rax
+  push %rax
+  pextrq $0, %xmm9, %rax
+  push %rax
+  pextrq $1, %xmm9, %rax
+  push %rax
+  pextrq $0, %xmm8, %rax
+  push %rax
+  pextrq $1, %xmm8, %rax
+  push %rax
+  pextrq $0, %xmm7, %rax
+  push %rax
+  pextrq $1, %xmm7, %rax
+  push %rax
+  pextrq $0, %xmm6, %rax
+  push %rax
+  pextrq $1, %xmm6, %rax
+  push %rax
+  mov %rcx, %rdi
+  mov %rdx, %rsi
+  mov %r8, %rdx
+  mov %r9, %rcx
+  mov 264(%rsp), %r8
+  mov 272(%rsp), %r9
+  mov 352(%rsp), %rbp
   mov %r8, %r13
   mov %r9, %r14
   mov $579005069656919567, %r12
@@ -11683,7 +12531,7 @@ L177:
   imul $16, %r11
   cmp %r11, %rsi
   jbe L180
-  mov 72(%rsp), %r11
+  mov 280(%rsp), %r11
   movdqu 0(%r11), %xmm2
   mov %rsi, %rax
   and $15, %rax
@@ -11823,9 +12671,9 @@ L183:
 L180:
 L181:
   mov %rsi, %r15
-  mov 80(%rsp), %rdi
-  mov 88(%rsp), %rsi
-  mov 96(%rsp), %rdx
+  mov 288(%rsp), %rdi
+  mov 296(%rsp), %rsi
+  mov 304(%rsp), %rdx
   mov %r8, %rcx
   mov %r13, %r8
   mov %r14, %r9
@@ -12523,9 +13371,9 @@ L187:
 L185:
   movdqu 0(%r8), %xmm7
   mov %rcx, %r8
-  mov 104(%rsp), %rax
-  mov 112(%rsp), %rbx
-  mov 120(%rsp), %rcx
+  mov 312(%rsp), %rax
+  mov 320(%rsp), %rbx
+  mov 328(%rsp), %rcx
   movdqu %xmm8, %xmm1
   mov $579005069656919567, %r12
   pinsrq $0, %r12, %xmm8
@@ -12686,12 +13534,12 @@ L192:
 L193:
   cmp %rcx, %rdx
   jne L192
-  add 96(%rsp), %rcx
+  add 304(%rsp), %rcx
   imul $16, %rcx
-  mov 136(%rsp), %r13
+  mov 344(%rsp), %r13
   cmp %rcx, %r13
   jbe L194
-  mov 128(%rsp), %rax
+  mov 336(%rsp), %rax
   mov %rax, %rbx
   mov %r13, %rcx
   and $15, %rcx
@@ -13008,8 +13856,48 @@ L195:
   aesenclast %xmm2, %xmm0
   pxor %xmm2, %xmm2
   pxor %xmm0, %xmm1
-  mov 152(%rsp), %r15
+  mov 360(%rsp), %r15
   movdqu %xmm1, 0(%r15)
+  pop %rax
+  pinsrq $1, %rax, %xmm6
+  pop %rax
+  pinsrq $0, %rax, %xmm6
+  pop %rax
+  pinsrq $1, %rax, %xmm7
+  pop %rax
+  pinsrq $0, %rax, %xmm7
+  pop %rax
+  pinsrq $1, %rax, %xmm8
+  pop %rax
+  pinsrq $0, %rax, %xmm8
+  pop %rax
+  pinsrq $1, %rax, %xmm9
+  pop %rax
+  pinsrq $0, %rax, %xmm9
+  pop %rax
+  pinsrq $1, %rax, %xmm10
+  pop %rax
+  pinsrq $0, %rax, %xmm10
+  pop %rax
+  pinsrq $1, %rax, %xmm11
+  pop %rax
+  pinsrq $0, %rax, %xmm11
+  pop %rax
+  pinsrq $1, %rax, %xmm12
+  pop %rax
+  pinsrq $0, %rax, %xmm12
+  pop %rax
+  pinsrq $1, %rax, %xmm13
+  pop %rax
+  pinsrq $0, %rax, %xmm13
+  pop %rax
+  pinsrq $1, %rax, %xmm14
+  pop %rax
+  pinsrq $0, %rax, %xmm14
+  pop %rax
+  pinsrq $1, %rax, %xmm15
+  pop %rax
+  pinsrq $0, %rax, %xmm15
   pop %rbx
   pop %rbp
   pop %rdi
@@ -13030,7 +13918,53 @@ gcm256_encrypt_opt:
   push %rdi
   push %rbp
   push %rbx
-  mov 144(%rsp), %rbp
+  pextrq $0, %xmm15, %rax
+  push %rax
+  pextrq $1, %xmm15, %rax
+  push %rax
+  pextrq $0, %xmm14, %rax
+  push %rax
+  pextrq $1, %xmm14, %rax
+  push %rax
+  pextrq $0, %xmm13, %rax
+  push %rax
+  pextrq $1, %xmm13, %rax
+  push %rax
+  pextrq $0, %xmm12, %rax
+  push %rax
+  pextrq $1, %xmm12, %rax
+  push %rax
+  pextrq $0, %xmm11, %rax
+  push %rax
+  pextrq $1, %xmm11, %rax
+  push %rax
+  pextrq $0, %xmm10, %rax
+  push %rax
+  pextrq $1, %xmm10, %rax
+  push %rax
+  pextrq $0, %xmm9, %rax
+  push %rax
+  pextrq $1, %xmm9, %rax
+  push %rax
+  pextrq $0, %xmm8, %rax
+  push %rax
+  pextrq $1, %xmm8, %rax
+  push %rax
+  pextrq $0, %xmm7, %rax
+  push %rax
+  pextrq $1, %xmm7, %rax
+  push %rax
+  pextrq $0, %xmm6, %rax
+  push %rax
+  pextrq $1, %xmm6, %rax
+  push %rax
+  mov %rcx, %rdi
+  mov %rdx, %rsi
+  mov %r8, %rdx
+  mov %r9, %rcx
+  mov 264(%rsp), %r8
+  mov 272(%rsp), %r9
+  mov 352(%rsp), %rbp
   mov %r8, %r13
   mov %r9, %r14
   mov $579005069656919567, %r12
@@ -13171,7 +14105,7 @@ L199:
   imul $16, %r11
   cmp %r11, %rsi
   jbe L202
-  mov 72(%rsp), %r11
+  mov 280(%rsp), %r11
   movdqu 0(%r11), %xmm2
   mov %rsi, %rax
   and $15, %rax
@@ -13311,9 +14245,9 @@ L205:
 L202:
 L203:
   mov %rsi, %r15
-  mov 80(%rsp), %rdi
-  mov 88(%rsp), %rsi
-  mov 96(%rsp), %rdx
+  mov 288(%rsp), %rdi
+  mov 296(%rsp), %rsi
+  mov 304(%rsp), %rdx
   mov %r8, %rcx
   mov %r13, %r8
   mov %r14, %r9
@@ -14095,9 +15029,9 @@ L209:
 L207:
   movdqu 0(%r8), %xmm7
   mov %rcx, %r8
-  mov 104(%rsp), %rax
-  mov 112(%rsp), %rbx
-  mov 120(%rsp), %rcx
+  mov 312(%rsp), %rax
+  mov 320(%rsp), %rbx
+  mov 328(%rsp), %rcx
   movdqu %xmm8, %xmm1
   mov $579005069656919567, %r12
   pinsrq $0, %r12, %xmm8
@@ -14266,12 +15200,12 @@ L214:
 L215:
   cmp %rcx, %rdx
   jne L214
-  add 96(%rsp), %rcx
+  add 304(%rsp), %rcx
   imul $16, %rcx
-  mov 136(%rsp), %r13
+  mov 344(%rsp), %r13
   cmp %rcx, %r13
   jbe L216
-  mov 128(%rsp), %rax
+  mov 336(%rsp), %rax
   mov %rax, %rbx
   mov %r13, %rcx
   and $15, %rcx
@@ -14604,8 +15538,48 @@ L217:
   aesenclast %xmm2, %xmm0
   pxor %xmm2, %xmm2
   pxor %xmm0, %xmm1
-  mov 152(%rsp), %r15
+  mov 360(%rsp), %r15
   movdqu %xmm1, 0(%r15)
+  pop %rax
+  pinsrq $1, %rax, %xmm6
+  pop %rax
+  pinsrq $0, %rax, %xmm6
+  pop %rax
+  pinsrq $1, %rax, %xmm7
+  pop %rax
+  pinsrq $0, %rax, %xmm7
+  pop %rax
+  pinsrq $1, %rax, %xmm8
+  pop %rax
+  pinsrq $0, %rax, %xmm8
+  pop %rax
+  pinsrq $1, %rax, %xmm9
+  pop %rax
+  pinsrq $0, %rax, %xmm9
+  pop %rax
+  pinsrq $1, %rax, %xmm10
+  pop %rax
+  pinsrq $0, %rax, %xmm10
+  pop %rax
+  pinsrq $1, %rax, %xmm11
+  pop %rax
+  pinsrq $0, %rax, %xmm11
+  pop %rax
+  pinsrq $1, %rax, %xmm12
+  pop %rax
+  pinsrq $0, %rax, %xmm12
+  pop %rax
+  pinsrq $1, %rax, %xmm13
+  pop %rax
+  pinsrq $0, %rax, %xmm13
+  pop %rax
+  pinsrq $1, %rax, %xmm14
+  pop %rax
+  pinsrq $0, %rax, %xmm14
+  pop %rax
+  pinsrq $1, %rax, %xmm15
+  pop %rax
+  pinsrq $0, %rax, %xmm15
   pop %rbx
   pop %rbp
   pop %rdi
@@ -14626,7 +15600,53 @@ gcm128_decrypt_opt:
   push %rdi
   push %rbp
   push %rbx
-  mov 144(%rsp), %rbp
+  pextrq $0, %xmm15, %rax
+  push %rax
+  pextrq $1, %xmm15, %rax
+  push %rax
+  pextrq $0, %xmm14, %rax
+  push %rax
+  pextrq $1, %xmm14, %rax
+  push %rax
+  pextrq $0, %xmm13, %rax
+  push %rax
+  pextrq $1, %xmm13, %rax
+  push %rax
+  pextrq $0, %xmm12, %rax
+  push %rax
+  pextrq $1, %xmm12, %rax
+  push %rax
+  pextrq $0, %xmm11, %rax
+  push %rax
+  pextrq $1, %xmm11, %rax
+  push %rax
+  pextrq $0, %xmm10, %rax
+  push %rax
+  pextrq $1, %xmm10, %rax
+  push %rax
+  pextrq $0, %xmm9, %rax
+  push %rax
+  pextrq $1, %xmm9, %rax
+  push %rax
+  pextrq $0, %xmm8, %rax
+  push %rax
+  pextrq $1, %xmm8, %rax
+  push %rax
+  pextrq $0, %xmm7, %rax
+  push %rax
+  pextrq $1, %xmm7, %rax
+  push %rax
+  pextrq $0, %xmm6, %rax
+  push %rax
+  pextrq $1, %xmm6, %rax
+  push %rax
+  mov %rcx, %rdi
+  mov %rdx, %rsi
+  mov %r8, %rdx
+  mov %r9, %rcx
+  mov 264(%rsp), %r8
+  mov 272(%rsp), %r9
+  mov 352(%rsp), %rbp
   mov %r8, %r13
   mov %r9, %r14
   mov $579005069656919567, %r12
@@ -14767,7 +15787,7 @@ L221:
   imul $16, %r11
   cmp %r11, %rsi
   jbe L224
-  mov 72(%rsp), %r11
+  mov 280(%rsp), %r11
   movdqu 0(%r11), %xmm2
   mov %rsi, %rax
   and $15, %rax
@@ -14907,9 +15927,9 @@ L227:
 L224:
 L225:
   mov %rsi, %r15
-  mov 80(%rsp), %rdi
-  mov 88(%rsp), %rsi
-  mov 96(%rsp), %rdx
+  mov 288(%rsp), %rdi
+  mov 296(%rsp), %rsi
+  mov 304(%rsp), %rdx
   mov %r8, %rcx
   mov %r13, %r8
   mov %r14, %r9
@@ -15247,9 +16267,9 @@ L231:
 L229:
   movdqu 0(%r8), %xmm7
   mov %rcx, %r8
-  mov 104(%rsp), %rax
-  mov 112(%rsp), %rbx
-  mov 120(%rsp), %rcx
+  mov 312(%rsp), %rax
+  mov 320(%rsp), %rbx
+  mov 328(%rsp), %rcx
   movdqu %xmm8, %xmm1
   mov $579005069656919567, %r12
   pinsrq $0, %r12, %xmm8
@@ -15412,12 +16432,12 @@ L238:
 L239:
   cmp %rcx, %rdx
   jne L238
-  add 96(%rsp), %rcx
+  add 304(%rsp), %rcx
   imul $16, %rcx
-  mov 136(%rsp), %r13
+  mov 344(%rsp), %r13
   cmp %rcx, %r13
   jbe L240
-  mov 128(%rsp), %rax
+  mov 336(%rsp), %rax
   mov %rax, %rbx
   mov %r13, %rcx
   and $15, %rcx
@@ -15736,7 +16756,7 @@ L241:
   aesenclast %xmm2, %xmm0
   pxor %xmm2, %xmm2
   pxor %xmm0, %xmm1
-  mov 152(%rsp), %r15
+  mov 360(%rsp), %r15
   movdqu 0(%r15), %xmm0
   pcmpeqd %xmm1, %xmm0
   pextrq $0, %xmm0, %rdx
@@ -15749,6 +16769,46 @@ L241:
   adc $0, %rdx
   add %rdx, %rax
   mov %rax, %rcx
+  pop %rax
+  pinsrq $1, %rax, %xmm6
+  pop %rax
+  pinsrq $0, %rax, %xmm6
+  pop %rax
+  pinsrq $1, %rax, %xmm7
+  pop %rax
+  pinsrq $0, %rax, %xmm7
+  pop %rax
+  pinsrq $1, %rax, %xmm8
+  pop %rax
+  pinsrq $0, %rax, %xmm8
+  pop %rax
+  pinsrq $1, %rax, %xmm9
+  pop %rax
+  pinsrq $0, %rax, %xmm9
+  pop %rax
+  pinsrq $1, %rax, %xmm10
+  pop %rax
+  pinsrq $0, %rax, %xmm10
+  pop %rax
+  pinsrq $1, %rax, %xmm11
+  pop %rax
+  pinsrq $0, %rax, %xmm11
+  pop %rax
+  pinsrq $1, %rax, %xmm12
+  pop %rax
+  pinsrq $0, %rax, %xmm12
+  pop %rax
+  pinsrq $1, %rax, %xmm13
+  pop %rax
+  pinsrq $0, %rax, %xmm13
+  pop %rax
+  pinsrq $1, %rax, %xmm14
+  pop %rax
+  pinsrq $0, %rax, %xmm14
+  pop %rax
+  pinsrq $1, %rax, %xmm15
+  pop %rax
+  pinsrq $0, %rax, %xmm15
   pop %rbx
   pop %rbp
   pop %rdi
@@ -15770,7 +16830,53 @@ gcm256_decrypt_opt:
   push %rdi
   push %rbp
   push %rbx
-  mov 144(%rsp), %rbp
+  pextrq $0, %xmm15, %rax
+  push %rax
+  pextrq $1, %xmm15, %rax
+  push %rax
+  pextrq $0, %xmm14, %rax
+  push %rax
+  pextrq $1, %xmm14, %rax
+  push %rax
+  pextrq $0, %xmm13, %rax
+  push %rax
+  pextrq $1, %xmm13, %rax
+  push %rax
+  pextrq $0, %xmm12, %rax
+  push %rax
+  pextrq $1, %xmm12, %rax
+  push %rax
+  pextrq $0, %xmm11, %rax
+  push %rax
+  pextrq $1, %xmm11, %rax
+  push %rax
+  pextrq $0, %xmm10, %rax
+  push %rax
+  pextrq $1, %xmm10, %rax
+  push %rax
+  pextrq $0, %xmm9, %rax
+  push %rax
+  pextrq $1, %xmm9, %rax
+  push %rax
+  pextrq $0, %xmm8, %rax
+  push %rax
+  pextrq $1, %xmm8, %rax
+  push %rax
+  pextrq $0, %xmm7, %rax
+  push %rax
+  pextrq $1, %xmm7, %rax
+  push %rax
+  pextrq $0, %xmm6, %rax
+  push %rax
+  pextrq $1, %xmm6, %rax
+  push %rax
+  mov %rcx, %rdi
+  mov %rdx, %rsi
+  mov %r8, %rdx
+  mov %r9, %rcx
+  mov 264(%rsp), %r8
+  mov 272(%rsp), %r9
+  mov 352(%rsp), %rbp
   mov %r8, %r13
   mov %r9, %r14
   mov $579005069656919567, %r12
@@ -15911,7 +17017,7 @@ L245:
   imul $16, %r11
   cmp %r11, %rsi
   jbe L248
-  mov 72(%rsp), %r11
+  mov 280(%rsp), %r11
   movdqu 0(%r11), %xmm2
   mov %rsi, %rax
   and $15, %rax
@@ -16051,9 +17157,9 @@ L251:
 L248:
 L249:
   mov %rsi, %r15
-  mov 80(%rsp), %rdi
-  mov 88(%rsp), %rsi
-  mov 96(%rsp), %rdx
+  mov 288(%rsp), %rdi
+  mov 296(%rsp), %rsi
+  mov 304(%rsp), %rdx
   mov %r8, %rcx
   mov %r13, %r8
   mov %r14, %r9
@@ -16419,9 +17525,9 @@ L255:
 L253:
   movdqu 0(%r8), %xmm7
   mov %rcx, %r8
-  mov 104(%rsp), %rax
-  mov 112(%rsp), %rbx
-  mov 120(%rsp), %rcx
+  mov 312(%rsp), %rax
+  mov 320(%rsp), %rbx
+  mov 328(%rsp), %rcx
   movdqu %xmm8, %xmm1
   mov $579005069656919567, %r12
   pinsrq $0, %r12, %xmm8
@@ -16592,12 +17698,12 @@ L262:
 L263:
   cmp %rcx, %rdx
   jne L262
-  add 96(%rsp), %rcx
+  add 304(%rsp), %rcx
   imul $16, %rcx
-  mov 136(%rsp), %r13
+  mov 344(%rsp), %r13
   cmp %rcx, %r13
   jbe L264
-  mov 128(%rsp), %rax
+  mov 336(%rsp), %rax
   mov %rax, %rbx
   mov %r13, %rcx
   and $15, %rcx
@@ -16932,7 +18038,7 @@ L265:
   aesenclast %xmm2, %xmm0
   pxor %xmm2, %xmm2
   pxor %xmm0, %xmm1
-  mov 152(%rsp), %r15
+  mov 360(%rsp), %r15
   movdqu 0(%r15), %xmm0
   pcmpeqd %xmm1, %xmm0
   pextrq $0, %xmm0, %rdx
@@ -16945,6 +18051,46 @@ L265:
   adc $0, %rdx
   add %rdx, %rax
   mov %rax, %rcx
+  pop %rax
+  pinsrq $1, %rax, %xmm6
+  pop %rax
+  pinsrq $0, %rax, %xmm6
+  pop %rax
+  pinsrq $1, %rax, %xmm7
+  pop %rax
+  pinsrq $0, %rax, %xmm7
+  pop %rax
+  pinsrq $1, %rax, %xmm8
+  pop %rax
+  pinsrq $0, %rax, %xmm8
+  pop %rax
+  pinsrq $1, %rax, %xmm9
+  pop %rax
+  pinsrq $0, %rax, %xmm9
+  pop %rax
+  pinsrq $1, %rax, %xmm10
+  pop %rax
+  pinsrq $0, %rax, %xmm10
+  pop %rax
+  pinsrq $1, %rax, %xmm11
+  pop %rax
+  pinsrq $0, %rax, %xmm11
+  pop %rax
+  pinsrq $1, %rax, %xmm12
+  pop %rax
+  pinsrq $0, %rax, %xmm12
+  pop %rax
+  pinsrq $1, %rax, %xmm13
+  pop %rax
+  pinsrq $0, %rax, %xmm13
+  pop %rax
+  pinsrq $1, %rax, %xmm14
+  pop %rax
+  pinsrq $0, %rax, %xmm14
+  pop %rax
+  pinsrq $1, %rax, %xmm15
+  pop %rax
+  pinsrq $0, %rax, %xmm15
   pop %rbx
   pop %rbp
   pop %rdi

@@ -6,10 +6,15 @@
  */
 
 
-#ifndef __Vale_H
-#define __Vale_H
+#ifndef __EverCrypt_AEAD_H
+#define __EverCrypt_AEAD_H
 
-
+#include "Hacl_Chacha20Poly1305.h"
+#include "Vale.h"
+#include "EverCrypt_AutoConfig2.h"
+#include "EverCrypt_Error.h"
+#include "Hacl_Spec.h"
+#include "LowStar.h"
 #include "evercrypt_targetconfig.h"
 #include "curve25519-inline.h"
 #include "kremlin/internal/types.h"
@@ -17,127 +22,85 @@
 #include "kremlin/lowstar_endianness.h"
 #include <string.h>
 
-extern uint64_t add1(uint64_t *x0, uint64_t *x1, uint64_t x2);
+#define EverCrypt_AEAD_Hacl_CHACHA20_POLY1305 0
+#define EverCrypt_AEAD_Vale_AES128_GCM 1
+#define EverCrypt_AEAD_Vale_AES256_GCM 2
 
-extern uint64_t fadd_(uint64_t *x0, uint64_t *x1, uint64_t *x2);
+typedef uint8_t EverCrypt_AEAD_impl;
 
-extern uint64_t sha256_update(uint32_t *x0, uint8_t *x1, uint64_t x2, uint32_t *x3);
+bool EverCrypt_AEAD_uu___is_Hacl_CHACHA20_POLY1305(EverCrypt_AEAD_impl projectee);
 
-extern uint64_t check_aesni();
+bool EverCrypt_AEAD_uu___is_Vale_AES128_GCM(EverCrypt_AEAD_impl projectee);
 
-extern uint64_t check_sha();
+bool EverCrypt_AEAD_uu___is_Vale_AES256_GCM(EverCrypt_AEAD_impl projectee);
 
-extern uint64_t check_adx_bmi2();
+typedef struct EverCrypt_AEAD_state_s_s
+{
+  EverCrypt_AEAD_impl impl;
+  uint8_t *ek;
+}
+EverCrypt_AEAD_state_s;
 
-extern uint64_t check_avx();
+bool EverCrypt_AEAD_uu___is_Ek(Spec_AEAD_alg a, EverCrypt_AEAD_state_s projectee);
 
-extern uint64_t check_avx2();
+EverCrypt_AEAD_impl
+EverCrypt_AEAD___proj__Ek__item__impl(Spec_AEAD_alg a, EverCrypt_AEAD_state_s projectee);
 
-extern uint64_t cswap2(uint64_t *x0, uint64_t *x1, uint64_t x2);
+uint8_t
+*EverCrypt_AEAD___proj__Ek__item__ek(Spec_AEAD_alg a, EverCrypt_AEAD_state_s projectee);
 
-extern uint64_t fsqr(uint64_t *x0, uint64_t *x1, uint64_t *x2);
+Spec_AEAD_alg EverCrypt_AEAD_alg_of_state(EverCrypt_AEAD_state_s *s);
 
-extern uint64_t fsqr2(uint64_t *x0, uint64_t *x1, uint64_t *x2);
+/*
 
-extern uint64_t fmul_(uint64_t *x0, uint64_t *x1, uint64_t *x2, uint64_t *x3);
+  val create_in :#a: alg -> create_in_st a
+*/
+EverCrypt_Error_error_code
+EverCrypt_AEAD_create_in(Spec_AEAD_alg a, EverCrypt_AEAD_state_s **dst, uint8_t *k1);
 
-extern uint64_t fmul2(uint64_t *x0, uint64_t *x1, uint64_t *x2, uint64_t *x3);
+/*
 
-extern uint64_t fmul1(uint64_t *x0, uint64_t *x1, uint64_t x2);
-
-extern uint64_t fsub_(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t aes128_key_expansion(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t aes256_key_expansion(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t
-gcm128_decrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
+  val encrypt :#a: G.erased (supported_alg) -> encrypt_st (G.reveal a)
+*/
+EverCrypt_Error_error_code
+EverCrypt_AEAD_encrypt(
+  EverCrypt_AEAD_state_s *s,
+  uint8_t *iv,
+  uint8_t *ad,
+  uint32_t ad_len,
+  uint8_t *plain,
+  uint32_t plain_len,
+  uint8_t *cipher1,
+  uint8_t *tag
 );
 
-extern uint64_t
-gcm256_decrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
+/*
+
+  val decrypt :#a: G.erased supported_alg -> decrypt_st (G.reveal a)
+*/
+EverCrypt_Error_error_code
+EverCrypt_AEAD_decrypt(
+  EverCrypt_AEAD_state_s *s,
+  uint8_t *iv,
+  uint8_t *ad,
+  uint32_t ad_len,
+  uint8_t *cipher1,
+  uint32_t cipher_len,
+  uint8_t *tag,
+  uint8_t *dst
 );
 
-extern uint64_t
-gcm128_encrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
+/*
 
-extern uint64_t
-gcm256_encrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
+  val free :#a: G.erased supported_alg
+  -> (let a = Ghost.reveal a in
+      s: state a
+        -> ST unit
+            (requires fun h0 -> freeable h0 s /\ invariant h0 s)
+            (ensures
+              fun h0 _ h1 -> let open B in modifies (footprint h0 s) h0 h1))
+*/
+void EverCrypt_AEAD_free(EverCrypt_AEAD_state_s *s);
 
-extern uint64_t aes128_keyhash_init(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t aes256_keyhash_init(uint8_t *x0, uint8_t *x1);
-
-#define __Vale_H_DEFINED
+#define __EverCrypt_AEAD_H_DEFINED
 #endif

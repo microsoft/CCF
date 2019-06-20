@@ -12,12 +12,6 @@ set(EVERCRYPT_INC
 
 file(GLOB_RECURSE EVERCRYPT_SRC "${EVERCRYPT_PREFIX}/*.[cS]")
 
-file(GLOB EVERCRYPT_SRC_EXCEPT PRIVATE
-  # Use this with MSVC (unverified, optimized)
-  "${EVERCRYPT_PREFIX}/kremlin/kremlib/fstar_uint128_msvc.c")
-list(REMOVE_ITEM EVERCRYPT_SRC ${EVERCRYPT_SRC_EXCEPT})
-
-
 # We need two versions of EverCrypt, because it depends on libc
 
 if(NOT VIRTUAL_ONLY)

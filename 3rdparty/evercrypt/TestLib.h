@@ -6,8 +6,8 @@
  */
 
 
-#ifndef __Vale_H
-#define __Vale_H
+#ifndef __TestLib_H
+#define __TestLib_H
 
 
 #include "evercrypt_targetconfig.h"
@@ -17,127 +17,49 @@
 #include "kremlin/lowstar_endianness.h"
 #include <string.h>
 
-extern uint64_t add1(uint64_t *x0, uint64_t *x1, uint64_t x2);
+extern void TestLib_touch(int32_t uu____11);
 
-extern uint64_t fadd_(uint64_t *x0, uint64_t *x1, uint64_t *x2);
+extern void TestLib_check(bool uu____26);
 
-extern uint64_t sha256_update(uint32_t *x0, uint8_t *x1, uint64_t x2, uint32_t *x3);
+extern void TestLib_check8(int8_t uu____48, int8_t uu____49);
 
-extern uint64_t check_aesni();
+extern void TestLib_check16(int16_t uu____70, int16_t uu____71);
 
-extern uint64_t check_sha();
+extern void TestLib_check32(int32_t uu____92, int32_t uu____93);
 
-extern uint64_t check_adx_bmi2();
+extern void TestLib_check64(int64_t uu____114, int64_t uu____115);
 
-extern uint64_t check_avx();
+extern void TestLib_checku8(uint8_t uu____136, uint8_t uu____137);
 
-extern uint64_t check_avx2();
+extern void TestLib_checku16(uint16_t uu____158, uint16_t uu____159);
 
-extern uint64_t cswap2(uint64_t *x0, uint64_t *x1, uint64_t x2);
+extern void TestLib_checku32(uint32_t uu____180, uint32_t uu____181);
 
-extern uint64_t fsqr(uint64_t *x0, uint64_t *x1, uint64_t *x2);
+extern void TestLib_checku64(uint64_t uu____202, uint64_t uu____203);
 
-extern uint64_t fsqr2(uint64_t *x0, uint64_t *x1, uint64_t *x2);
+extern void
+TestLib_compare_and_print(C_String_t uu____242, uint8_t *b1, uint8_t *b2, uint32_t l);
 
-extern uint64_t fmul_(uint64_t *x0, uint64_t *x1, uint64_t *x2, uint64_t *x3);
+extern uint8_t *TestLib_unsafe_malloc(uint32_t l);
 
-extern uint64_t fmul2(uint64_t *x0, uint64_t *x1, uint64_t *x2, uint64_t *x3);
+extern void TestLib_perr(uint32_t uu____281);
 
-extern uint64_t fmul1(uint64_t *x0, uint64_t *x1, uint64_t x2);
+extern void TestLib_print_clock_diff(clock_t uu____302, clock_t uu____303);
 
-extern uint64_t fsub_(uint64_t *x0, uint64_t *x1, uint64_t *x2);
+extern uint8_t *TestLib_uint8_p_null;
 
-extern uint64_t aes128_key_expansion(uint8_t *x0, uint8_t *x1);
+extern uint32_t *TestLib_uint32_p_null;
 
-extern uint64_t aes256_key_expansion(uint8_t *x0, uint8_t *x1);
+extern uint64_t *TestLib_uint64_p_null;
 
-extern uint64_t
-gcm128_decrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
+extern TestLib_cycles TestLib_cpucycles();
+
+extern void
+TestLib_print_cycles_per_round(
+  TestLib_cycles uu____378,
+  TestLib_cycles uu____379,
+  uint32_t uu____380
 );
 
-extern uint64_t
-gcm256_decrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t
-gcm128_encrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t
-gcm256_encrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t aes128_keyhash_init(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t aes256_keyhash_init(uint8_t *x0, uint8_t *x1);
-
-#define __Vale_H_DEFINED
+#define __TestLib_H_DEFINED
 #endif

@@ -1,6 +1,6 @@
 .text
-.global old_aes128_key_expansion
-old_aes128_key_expansion:
+.global _old_aes128_key_expansion
+_old_aes128_key_expansion:
   movdqu 0(%rdi), %xmm1
   mov %rsi, %rdx
   movdqu %xmm1, 0(%rdx)
@@ -109,8 +109,8 @@ old_aes128_key_expansion:
   pxor %xmm3, %xmm3
   ret
 
-.global aes128_key_expansion
-aes128_key_expansion:
+.global _aes128_key_expansion
+_aes128_key_expansion:
   movdqu 0(%rdi), %xmm1
   mov %rsi, %rdx
   movdqu %xmm1, 0(%rdx)
@@ -219,8 +219,8 @@ aes128_key_expansion:
   pxor %xmm3, %xmm3
   ret
 
-.global aes128_keyhash_init
-aes128_keyhash_init:
+.global _aes128_keyhash_init
+_aes128_keyhash_init:
   mov $579005069656919567, %r8
   pinsrq $0, %r8, %xmm4
   mov $283686952306183, %r8
@@ -923,8 +923,8 @@ aes128_keyhash_init:
   mov %rax, %r12
   ret
 
-.global old_aes256_key_expansion
-old_aes256_key_expansion:
+.global _old_aes256_key_expansion
+_old_aes256_key_expansion:
   movdqu 0(%rdi), %xmm1
   movdqu 16(%rdi), %xmm3
   mov %rsi, %rdx
@@ -1066,8 +1066,8 @@ old_aes256_key_expansion:
   pxor %xmm4, %xmm4
   ret
 
-.global aes256_key_expansion
-aes256_key_expansion:
+.global _aes256_key_expansion
+_aes256_key_expansion:
   movdqu 0(%rdi), %xmm1
   movdqu 16(%rdi), %xmm3
   mov %rsi, %rdx
@@ -1209,8 +1209,8 @@ aes256_key_expansion:
   pxor %xmm4, %xmm4
   ret
 
-.global aes256_keyhash_init
-aes256_keyhash_init:
+.global _aes256_keyhash_init
+_aes256_keyhash_init:
   mov $579005069656919567, %r8
   pinsrq $0, %r8, %xmm4
   mov $283686952306183, %r8
@@ -1921,8 +1921,8 @@ aes256_keyhash_init:
   mov %rax, %r12
   ret
 
-.global gctr128_bytes
-gctr128_bytes:
+.global _gctr128_bytes
+_gctr128_bytes:
   push %r15
   push %r14
   push %r13
@@ -2169,8 +2169,8 @@ L7:
   pop %r15
   ret
 
-.global gctr256_bytes
-gctr256_bytes:
+.global _gctr256_bytes
+_gctr256_bytes:
   push %r15
   push %r14
   push %r13
@@ -2454,8 +2454,8 @@ L15:
   pop %r15
   ret
 
-.global old_gcm128_encrypt
-old_gcm128_encrypt:
+.global _old_gcm128_encrypt
+_old_gcm128_encrypt:
   mov %rdi, %r9
   push %r15
   push %r14
@@ -3847,8 +3847,8 @@ L27:
   pop %r15
   ret
 
-.global gcm128_encrypt
-gcm128_encrypt:
+.global _gcm128_encrypt
+_gcm128_encrypt:
   push %r15
   push %r14
   push %r13
@@ -5239,8 +5239,8 @@ L49:
   pop %r15
   ret
 
-.global old_gcm128_decrypt
-old_gcm128_decrypt:
+.global _old_gcm128_decrypt
+_old_gcm128_decrypt:
   mov %rdi, %r9
   push %r15
   push %r14
@@ -6075,8 +6075,8 @@ L71:
   mov %rdx, %rax
   ret
 
-.global gcm128_decrypt
-gcm128_decrypt:
+.global _gcm128_decrypt
+_gcm128_decrypt:
   push %r15
   push %r14
   push %r13
@@ -6908,8 +6908,8 @@ L89:
   pop %r15
   ret
 
-.global old_gcm256_encrypt
-old_gcm256_encrypt:
+.global _old_gcm256_encrypt
+_old_gcm256_encrypt:
   mov %rdi, %r9
   push %r15
   push %r14
@@ -8354,8 +8354,8 @@ L107:
   pop %r15
   ret
 
-.global gcm256_encrypt
-gcm256_encrypt:
+.global _gcm256_encrypt
+_gcm256_encrypt:
   push %r15
   push %r14
   push %r13
@@ -9799,8 +9799,8 @@ L129:
   pop %r15
   ret
 
-.global old_gcm256_decrypt
-old_gcm256_decrypt:
+.global _old_gcm256_decrypt
+_old_gcm256_decrypt:
   mov %rdi, %r9
   push %r15
   push %r14
@@ -10667,8 +10667,8 @@ L151:
   mov %rdx, %rax
   ret
 
-.global gcm256_decrypt
-gcm256_decrypt:
+.global _gcm256_decrypt
+_gcm256_decrypt:
   push %r15
   push %r14
   push %r13
@@ -11532,8 +11532,8 @@ L169:
   pop %r15
   ret
 
-.global gcm128_encrypt_opt
-gcm128_encrypt_opt:
+.global _gcm128_encrypt_opt
+_gcm128_encrypt_opt:
   push %r15
   push %r14
   push %r13
@@ -13020,8 +13020,8 @@ L195:
   pop %r15
   ret
 
-.global gcm256_encrypt_opt
-gcm256_encrypt_opt:
+.global _gcm256_encrypt_opt
+_gcm256_encrypt_opt:
   push %r15
   push %r14
   push %r13
@@ -14616,8 +14616,8 @@ L217:
   pop %r15
   ret
 
-.global gcm128_decrypt_opt
-gcm128_decrypt_opt:
+.global _gcm128_decrypt_opt
+_gcm128_decrypt_opt:
   push %r15
   push %r14
   push %r13
@@ -15760,8 +15760,8 @@ L241:
   mov %rcx, %rax
   ret
 
-.global gcm256_decrypt_opt
-gcm256_decrypt_opt:
+.global _gcm256_decrypt_opt
+_gcm256_decrypt_opt:
   push %r15
   push %r14
   push %r13

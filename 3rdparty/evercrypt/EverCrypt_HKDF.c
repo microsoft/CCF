@@ -5,139 +5,195 @@
   KreMLin version: 1bd260eb
  */
 
+#include "EverCrypt_HKDF.h"
 
-#ifndef __Vale_H
-#define __Vale_H
+static void
+EverCrypt_HKDF_hkdf_expand_loop(
+  Spec_Hash_Definitions_hash_alg a,
+  uint8_t *okm,
+  uint8_t *prk,
+  uint32_t prklen,
+  uint32_t infolen,
+  uint32_t len,
+  uint8_t *hashed,
+  uint8_t i1
+)
+{
+  uint32_t tlen;
+  switch (a)
+  {
+    case Spec_Hash_Definitions_MD5:
+      {
+        tlen = (uint32_t)16U;
+        break;
+      }
+    case Spec_Hash_Definitions_SHA1:
+      {
+        tlen = (uint32_t)20U;
+        break;
+      }
+    case Spec_Hash_Definitions_SHA2_224:
+      {
+        tlen = (uint32_t)28U;
+        break;
+      }
+    case Spec_Hash_Definitions_SHA2_256:
+      {
+        tlen = (uint32_t)32U;
+        break;
+      }
+    case Spec_Hash_Definitions_SHA2_384:
+      {
+        tlen = (uint32_t)48U;
+        break;
+      }
+    case Spec_Hash_Definitions_SHA2_512:
+      {
+        tlen = (uint32_t)64U;
+        break;
+      }
+    default:
+      {
+        KRML_HOST_EPRINTF("KreMLin incomplete match at %s:%d\n", __FILE__, __LINE__);
+        KRML_HOST_EXIT(253U);
+      }
+  }
+  uint8_t *tag = hashed;
+  uint8_t *info_counter = hashed + tlen;
+  uint8_t *counter = info_counter + infolen;
+  uint8_t i_ = i1 + (uint8_t)1U;
+  counter[0U] = i_;
+  if (i1 == (uint8_t)0U)
+  {
+    uint32_t len1 = infolen + (uint32_t)1U;
+    EverCrypt_HMAC_compute(a, tag, prk, prklen, info_counter, len1);
+  }
+  else
+  {
+    EverCrypt_HMAC_compute(a, tag, prk, prklen, hashed, tlen + infolen + (uint32_t)1U);
+  }
+  if (len <= tlen)
+  {
+    memcpy(okm, tag, len * sizeof tag[0U]);
+  }
+  else
+  {
+    memcpy(okm, tag, tlen * sizeof tag[0U]);
+    uint32_t len_ = len - tlen;
+    uint8_t *okm_ = okm + tlen;
+    EverCrypt_HKDF_hkdf_expand_loop(a, okm_, prk, prklen, infolen, len_, hashed, i_);
+  }
+}
 
+/*
 
-#include "evercrypt_targetconfig.h"
-#include "curve25519-inline.h"
-#include "kremlin/internal/types.h"
-#include "kremlin/internal/target.h"
-#include "kremlin/lowstar_endianness.h"
-#include <string.h>
+  val hkdf_extract :
+    a: EverCrypt.HMAC.supported_alg ->
+    prk: uint8_pl (hash_length a) ->
+    salt: uint8_p{B.disjoint salt prk /\ Spec.HMAC.keysized a (B.length salt)} ->
+    saltlen: uint8_l salt ->
+    ikm:
+      uint8_p{B.length ikm + block_length a < pow2 32 /\ B.disjoint ikm prk} ->
+    ikmlen: uint8_l ikm
+  -> Stack unit
+      (requires (fun h0 -> B.live h0 prk /\ B.live h0 salt /\ B.live h0 ikm))
+      (ensures
+        (fun h0 r h1 ->
+            Hacl.HMAC.key_and_data_fits a;
+            LowStar.Modifies.(modifies (loc_buffer prk) h0 h1) /\
+            B.as_seq h1 prk ==
+            Spec.HMAC.hmac a (B.as_seq h0 salt) (B.as_seq h0 ikm)))
+*/
+void
+EverCrypt_HKDF_hkdf_extract(
+  Spec_Hash_Definitions_hash_alg a,
+  uint8_t *prk,
+  uint8_t *salt,
+  uint32_t saltlen,
+  uint8_t *ikm,
+  uint32_t ikmlen
+)
+{
+  EverCrypt_HMAC_compute(a, prk, salt, saltlen, ikm, ikmlen);
+}
 
-extern uint64_t add1(uint64_t *x0, uint64_t *x1, uint64_t x2);
+/*
 
-extern uint64_t fadd_(uint64_t *x0, uint64_t *x1, uint64_t *x2);
+  val hkdf_expand :
+    a: EverCrypt.HMAC.supported_alg ->
+    okm: uint8_p ->
+    prk: uint8_p ->
+    prklen: uint8_l prk ->
+    info: uint8_p ->
+    infolen: uint8_l info ->
+    len:
+      uint8_l okm
+        { B.disjoint okm prk /\ Spec.HMAC.keysized a (v prklen) /\
+          hash_length a + v infolen + 1 + block_length a < pow2 32 /\
+          v len <= 255 * hash_length a }
+  -> Stack unit
+      (requires (fun h0 -> B.live h0 okm /\ B.live h0 prk /\ B.live h0 info))
+      (ensures
+        (fun h0 r h1 ->
+            hash_block_length_fits a;
+            LowStar.Modifies.(modifies (loc_buffer okm) h0 h1) /\
+            B.as_seq h1 okm ==
+            expand a (B.as_seq h0 prk) (B.as_seq h0 info) (v len)))
+*/
+void
+EverCrypt_HKDF_hkdf_expand(
+  Spec_Hash_Definitions_hash_alg a,
+  uint8_t *okm,
+  uint8_t *prk,
+  uint32_t prklen,
+  uint8_t *info,
+  uint32_t infolen,
+  uint32_t len
+)
+{
+  uint32_t tlen;
+  switch (a)
+  {
+    case Spec_Hash_Definitions_MD5:
+      {
+        tlen = (uint32_t)16U;
+        break;
+      }
+    case Spec_Hash_Definitions_SHA1:
+      {
+        tlen = (uint32_t)20U;
+        break;
+      }
+    case Spec_Hash_Definitions_SHA2_224:
+      {
+        tlen = (uint32_t)28U;
+        break;
+      }
+    case Spec_Hash_Definitions_SHA2_256:
+      {
+        tlen = (uint32_t)32U;
+        break;
+      }
+    case Spec_Hash_Definitions_SHA2_384:
+      {
+        tlen = (uint32_t)48U;
+        break;
+      }
+    case Spec_Hash_Definitions_SHA2_512:
+      {
+        tlen = (uint32_t)64U;
+        break;
+      }
+    default:
+      {
+        KRML_HOST_EPRINTF("KreMLin incomplete match at %s:%d\n", __FILE__, __LINE__);
+        KRML_HOST_EXIT(253U);
+      }
+  }
+  KRML_CHECK_SIZE(sizeof (uint8_t), tlen + infolen + (uint32_t)1U);
+  uint8_t text[tlen + infolen + (uint32_t)1U];
+  memset(text, 0U, (tlen + infolen + (uint32_t)1U) * sizeof text[0U]);
+  memcpy(text + tlen, info, infolen * sizeof info[0U]);
+  EverCrypt_HKDF_hkdf_expand_loop(a, okm, prk, prklen, infolen, len, text, (uint8_t)0U);
+}
 
-extern uint64_t sha256_update(uint32_t *x0, uint8_t *x1, uint64_t x2, uint32_t *x3);
-
-extern uint64_t check_aesni();
-
-extern uint64_t check_sha();
-
-extern uint64_t check_adx_bmi2();
-
-extern uint64_t check_avx();
-
-extern uint64_t check_avx2();
-
-extern uint64_t cswap2(uint64_t *x0, uint64_t *x1, uint64_t x2);
-
-extern uint64_t fsqr(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t fsqr2(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t fmul_(uint64_t *x0, uint64_t *x1, uint64_t *x2, uint64_t *x3);
-
-extern uint64_t fmul2(uint64_t *x0, uint64_t *x1, uint64_t *x2, uint64_t *x3);
-
-extern uint64_t fmul1(uint64_t *x0, uint64_t *x1, uint64_t x2);
-
-extern uint64_t fsub_(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t aes128_key_expansion(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t aes256_key_expansion(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t
-gcm128_decrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t
-gcm256_decrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t
-gcm128_encrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t
-gcm256_encrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t aes128_keyhash_init(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t aes256_keyhash_init(uint8_t *x0, uint8_t *x1);
-
-#define __Vale_H_DEFINED
-#endif

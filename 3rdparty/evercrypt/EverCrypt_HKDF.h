@@ -6,10 +6,11 @@
  */
 
 
-#ifndef __Vale_H
-#define __Vale_H
+#ifndef __EverCrypt_HKDF_H
+#define __EverCrypt_HKDF_H
 
-
+#include "EverCrypt_HMAC.h"
+#include "Hacl_Spec.h"
 #include "evercrypt_targetconfig.h"
 #include "curve25519-inline.h"
 #include "kremlin/internal/types.h"
@@ -17,127 +18,68 @@
 #include "kremlin/lowstar_endianness.h"
 #include <string.h>
 
-extern uint64_t add1(uint64_t *x0, uint64_t *x1, uint64_t x2);
+/*
 
-extern uint64_t fadd_(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t sha256_update(uint32_t *x0, uint8_t *x1, uint64_t x2, uint32_t *x3);
-
-extern uint64_t check_aesni();
-
-extern uint64_t check_sha();
-
-extern uint64_t check_adx_bmi2();
-
-extern uint64_t check_avx();
-
-extern uint64_t check_avx2();
-
-extern uint64_t cswap2(uint64_t *x0, uint64_t *x1, uint64_t x2);
-
-extern uint64_t fsqr(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t fsqr2(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t fmul_(uint64_t *x0, uint64_t *x1, uint64_t *x2, uint64_t *x3);
-
-extern uint64_t fmul2(uint64_t *x0, uint64_t *x1, uint64_t *x2, uint64_t *x3);
-
-extern uint64_t fmul1(uint64_t *x0, uint64_t *x1, uint64_t x2);
-
-extern uint64_t fsub_(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t aes128_key_expansion(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t aes256_key_expansion(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t
-gcm128_decrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
+  val hkdf_extract :
+    a: EverCrypt.HMAC.supported_alg ->
+    prk: uint8_pl (hash_length a) ->
+    salt: uint8_p{B.disjoint salt prk /\ Spec.HMAC.keysized a (B.length salt)} ->
+    saltlen: uint8_l salt ->
+    ikm:
+      uint8_p{B.length ikm + block_length a < pow2 32 /\ B.disjoint ikm prk} ->
+    ikmlen: uint8_l ikm
+  -> Stack unit
+      (requires (fun h0 -> B.live h0 prk /\ B.live h0 salt /\ B.live h0 ikm))
+      (ensures
+        (fun h0 r h1 ->
+            Hacl.HMAC.key_and_data_fits a;
+            LowStar.Modifies.(modifies (loc_buffer prk) h0 h1) /\
+            B.as_seq h1 prk ==
+            Spec.HMAC.hmac a (B.as_seq h0 salt) (B.as_seq h0 ikm)))
+*/
+void
+EverCrypt_HKDF_hkdf_extract(
+  Spec_Hash_Definitions_hash_alg a,
+  uint8_t *prk,
+  uint8_t *salt,
+  uint32_t saltlen,
+  uint8_t *ikm,
+  uint32_t ikmlen
 );
 
-extern uint64_t
-gcm256_decrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
+/*
+
+  val hkdf_expand :
+    a: EverCrypt.HMAC.supported_alg ->
+    okm: uint8_p ->
+    prk: uint8_p ->
+    prklen: uint8_l prk ->
+    info: uint8_p ->
+    infolen: uint8_l info ->
+    len:
+      uint8_l okm
+        { B.disjoint okm prk /\ Spec.HMAC.keysized a (v prklen) /\
+          hash_length a + v infolen + 1 + block_length a < pow2 32 /\
+          v len <= 255 * hash_length a }
+  -> Stack unit
+      (requires (fun h0 -> B.live h0 okm /\ B.live h0 prk /\ B.live h0 info))
+      (ensures
+        (fun h0 r h1 ->
+            hash_block_length_fits a;
+            LowStar.Modifies.(modifies (loc_buffer okm) h0 h1) /\
+            B.as_seq h1 okm ==
+            expand a (B.as_seq h0 prk) (B.as_seq h0 info) (v len)))
+*/
+void
+EverCrypt_HKDF_hkdf_expand(
+  Spec_Hash_Definitions_hash_alg a,
+  uint8_t *okm,
+  uint8_t *prk,
+  uint32_t prklen,
+  uint8_t *info,
+  uint32_t infolen,
+  uint32_t len
 );
 
-extern uint64_t
-gcm128_encrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t
-gcm256_encrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t aes128_keyhash_init(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t aes256_keyhash_init(uint8_t *x0, uint8_t *x1);
-
-#define __Vale_H_DEFINED
+#define __EverCrypt_HKDF_H_DEFINED
 #endif

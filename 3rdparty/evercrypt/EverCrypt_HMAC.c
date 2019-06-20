@@ -5,139 +5,374 @@
   KreMLin version: 1bd260eb
  */
 
+#include "EverCrypt_HMAC.h"
 
-#ifndef __Vale_H
-#define __Vale_H
+/*
 
+  val compute_sha1 :compute_st SHA1
+*/
+void
+EverCrypt_HMAC_compute_sha1(
+  uint8_t *dst,
+  uint8_t *key,
+  uint32_t key_len,
+  uint8_t *data,
+  uint32_t data_len
+)
+{
+  uint32_t l = (uint32_t)64U;
+  KRML_CHECK_SIZE(sizeof (uint8_t), l);
+  uint8_t key_block[l];
+  for (uint32_t _i = 0U; _i < l; ++_i)
+    key_block[_i] = (uint8_t)0x00U;
+  uint32_t i1;
+  if (key_len <= (uint32_t)64U)
+  {
+    i1 = key_len;
+  }
+  else
+  {
+    i1 = (uint32_t)20U;
+  }
+  uint8_t *nkey = key_block;
+  if (key_len <= (uint32_t)64U)
+  {
+    memcpy(nkey, key, key_len * sizeof key[0U]);
+  }
+  else
+  {
+    Hacl_Hash_SHA1_hash(key, key_len, nkey);
+  }
+  KRML_CHECK_SIZE(sizeof (uint8_t), l);
+  uint8_t ipad[l];
+  for (uint32_t _i = 0U; _i < l; ++_i)
+    ipad[_i] = (uint8_t)0x36U;
+  for (uint32_t i = (uint32_t)0U; i < l; i = i + (uint32_t)1U)
+  {
+    uint8_t xi = ipad[i];
+    uint8_t yi = key_block[i];
+    ipad[i] = xi ^ yi;
+  }
+  KRML_CHECK_SIZE(sizeof (uint8_t), l);
+  uint8_t opad[l];
+  for (uint32_t _i = 0U; _i < l; ++_i)
+    opad[_i] = (uint8_t)0x5cU;
+  for (uint32_t i = (uint32_t)0U; i < l; i = i + (uint32_t)1U)
+  {
+    uint8_t xi = opad[i];
+    uint8_t yi = key_block[i];
+    opad[i] = xi ^ yi;
+  }
+  uint32_t
+  s[5U] =
+    {
+      (uint32_t)0x67452301U, (uint32_t)0xefcdab89U, (uint32_t)0x98badcfeU, (uint32_t)0x10325476U,
+      (uint32_t)0xc3d2e1f0U
+    };
+  Hacl_Hash_Core_SHA1_init(s);
+  Hacl_Hash_SHA1_update_multi(s, ipad, (uint32_t)1U);
+  Hacl_Hash_SHA1_update_last(s, (uint64_t)(uint32_t)64U, data, data_len);
+  uint8_t *dst1 = ipad;
+  Hacl_Hash_Core_SHA1_finish(s, dst1);
+  uint8_t *hash1 = ipad;
+  Hacl_Hash_Core_SHA1_init(s);
+  Hacl_Hash_SHA1_update_multi(s, opad, (uint32_t)1U);
+  Hacl_Hash_SHA1_update_last(s, (uint64_t)(uint32_t)64U, hash1, (uint32_t)20U);
+  Hacl_Hash_Core_SHA1_finish(s, dst);
+}
 
-#include "evercrypt_targetconfig.h"
-#include "curve25519-inline.h"
-#include "kremlin/internal/types.h"
-#include "kremlin/internal/target.h"
-#include "kremlin/lowstar_endianness.h"
-#include <string.h>
+/*
 
-extern uint64_t add1(uint64_t *x0, uint64_t *x1, uint64_t x2);
+  val compute_sha2_256 :compute_st SHA2_256
+*/
+void
+EverCrypt_HMAC_compute_sha2_256(
+  uint8_t *dst,
+  uint8_t *key,
+  uint32_t key_len,
+  uint8_t *data,
+  uint32_t data_len
+)
+{
+  uint32_t l = (uint32_t)64U;
+  KRML_CHECK_SIZE(sizeof (uint8_t), l);
+  uint8_t key_block[l];
+  for (uint32_t _i = 0U; _i < l; ++_i)
+    key_block[_i] = (uint8_t)0x00U;
+  uint32_t i1;
+  if (key_len <= (uint32_t)64U)
+  {
+    i1 = key_len;
+  }
+  else
+  {
+    i1 = (uint32_t)32U;
+  }
+  uint8_t *nkey = key_block;
+  if (key_len <= (uint32_t)64U)
+  {
+    memcpy(nkey, key, key_len * sizeof key[0U]);
+  }
+  else
+  {
+    EverCrypt_Hash_hash_256(key, key_len, nkey);
+  }
+  KRML_CHECK_SIZE(sizeof (uint8_t), l);
+  uint8_t ipad[l];
+  for (uint32_t _i = 0U; _i < l; ++_i)
+    ipad[_i] = (uint8_t)0x36U;
+  for (uint32_t i = (uint32_t)0U; i < l; i = i + (uint32_t)1U)
+  {
+    uint8_t xi = ipad[i];
+    uint8_t yi = key_block[i];
+    ipad[i] = xi ^ yi;
+  }
+  KRML_CHECK_SIZE(sizeof (uint8_t), l);
+  uint8_t opad[l];
+  for (uint32_t _i = 0U; _i < l; ++_i)
+    opad[_i] = (uint8_t)0x5cU;
+  for (uint32_t i = (uint32_t)0U; i < l; i = i + (uint32_t)1U)
+  {
+    uint8_t xi = opad[i];
+    uint8_t yi = key_block[i];
+    opad[i] = xi ^ yi;
+  }
+  uint32_t
+  s[8U] =
+    {
+      (uint32_t)0x6a09e667U, (uint32_t)0xbb67ae85U, (uint32_t)0x3c6ef372U, (uint32_t)0xa54ff53aU,
+      (uint32_t)0x510e527fU, (uint32_t)0x9b05688cU, (uint32_t)0x1f83d9abU, (uint32_t)0x5be0cd19U
+    };
+  Hacl_Hash_Core_SHA2_init_256(s);
+  EverCrypt_Hash_update_multi_256(s, ipad, (uint32_t)1U);
+  EverCrypt_Hash_update_last_256(s, (uint64_t)(uint32_t)64U, data, data_len);
+  uint8_t *dst1 = ipad;
+  Hacl_Hash_Core_SHA2_finish_256(s, dst1);
+  uint8_t *hash1 = ipad;
+  Hacl_Hash_Core_SHA2_init_256(s);
+  EverCrypt_Hash_update_multi_256(s, opad, (uint32_t)1U);
+  EverCrypt_Hash_update_last_256(s, (uint64_t)(uint32_t)64U, hash1, (uint32_t)32U);
+  Hacl_Hash_Core_SHA2_finish_256(s, dst);
+}
 
-extern uint64_t fadd_(uint64_t *x0, uint64_t *x1, uint64_t *x2);
+/*
 
-extern uint64_t sha256_update(uint32_t *x0, uint8_t *x1, uint64_t x2, uint32_t *x3);
+  val compute_sha2_384 :compute_st SHA2_384
+*/
+void
+EverCrypt_HMAC_compute_sha2_384(
+  uint8_t *dst,
+  uint8_t *key,
+  uint32_t key_len,
+  uint8_t *data,
+  uint32_t data_len
+)
+{
+  uint32_t l = (uint32_t)128U;
+  KRML_CHECK_SIZE(sizeof (uint8_t), l);
+  uint8_t key_block[l];
+  for (uint32_t _i = 0U; _i < l; ++_i)
+    key_block[_i] = (uint8_t)0x00U;
+  uint32_t i1;
+  if (key_len <= (uint32_t)128U)
+  {
+    i1 = key_len;
+  }
+  else
+  {
+    i1 = (uint32_t)48U;
+  }
+  uint8_t *nkey = key_block;
+  if (key_len <= (uint32_t)128U)
+  {
+    memcpy(nkey, key, key_len * sizeof key[0U]);
+  }
+  else
+  {
+    Hacl_Hash_SHA2_hash_384(key, key_len, nkey);
+  }
+  KRML_CHECK_SIZE(sizeof (uint8_t), l);
+  uint8_t ipad[l];
+  for (uint32_t _i = 0U; _i < l; ++_i)
+    ipad[_i] = (uint8_t)0x36U;
+  for (uint32_t i = (uint32_t)0U; i < l; i = i + (uint32_t)1U)
+  {
+    uint8_t xi = ipad[i];
+    uint8_t yi = key_block[i];
+    ipad[i] = xi ^ yi;
+  }
+  KRML_CHECK_SIZE(sizeof (uint8_t), l);
+  uint8_t opad[l];
+  for (uint32_t _i = 0U; _i < l; ++_i)
+    opad[_i] = (uint8_t)0x5cU;
+  for (uint32_t i = (uint32_t)0U; i < l; i = i + (uint32_t)1U)
+  {
+    uint8_t xi = opad[i];
+    uint8_t yi = key_block[i];
+    opad[i] = xi ^ yi;
+  }
+  uint64_t
+  s[8U] =
+    {
+      (uint64_t)0xcbbb9d5dc1059ed8U, (uint64_t)0x629a292a367cd507U, (uint64_t)0x9159015a3070dd17U,
+      (uint64_t)0x152fecd8f70e5939U, (uint64_t)0x67332667ffc00b31U, (uint64_t)0x8eb44a8768581511U,
+      (uint64_t)0xdb0c2e0d64f98fa7U, (uint64_t)0x47b5481dbefa4fa4U
+    };
+  Hacl_Hash_Core_SHA2_init_384(s);
+  Hacl_Hash_SHA2_update_multi_384(s, ipad, (uint32_t)1U);
+  Hacl_Hash_SHA2_update_last_384(s, (uint128_t)(uint64_t)(uint32_t)128U, data, data_len);
+  uint8_t *dst1 = ipad;
+  Hacl_Hash_Core_SHA2_finish_384(s, dst1);
+  uint8_t *hash1 = ipad;
+  Hacl_Hash_Core_SHA2_init_384(s);
+  Hacl_Hash_SHA2_update_multi_384(s, opad, (uint32_t)1U);
+  Hacl_Hash_SHA2_update_last_384(s, (uint128_t)(uint64_t)(uint32_t)128U, hash1, (uint32_t)48U);
+  Hacl_Hash_Core_SHA2_finish_384(s, dst);
+}
 
-extern uint64_t check_aesni();
+/*
 
-extern uint64_t check_sha();
+  val compute_sha2_512 :compute_st SHA2_512
+*/
+void
+EverCrypt_HMAC_compute_sha2_512(
+  uint8_t *dst,
+  uint8_t *key,
+  uint32_t key_len,
+  uint8_t *data,
+  uint32_t data_len
+)
+{
+  uint32_t l = (uint32_t)128U;
+  KRML_CHECK_SIZE(sizeof (uint8_t), l);
+  uint8_t key_block[l];
+  for (uint32_t _i = 0U; _i < l; ++_i)
+    key_block[_i] = (uint8_t)0x00U;
+  uint32_t i1;
+  if (key_len <= (uint32_t)128U)
+  {
+    i1 = key_len;
+  }
+  else
+  {
+    i1 = (uint32_t)64U;
+  }
+  uint8_t *nkey = key_block;
+  if (key_len <= (uint32_t)128U)
+  {
+    memcpy(nkey, key, key_len * sizeof key[0U]);
+  }
+  else
+  {
+    Hacl_Hash_SHA2_hash_512(key, key_len, nkey);
+  }
+  KRML_CHECK_SIZE(sizeof (uint8_t), l);
+  uint8_t ipad[l];
+  for (uint32_t _i = 0U; _i < l; ++_i)
+    ipad[_i] = (uint8_t)0x36U;
+  for (uint32_t i = (uint32_t)0U; i < l; i = i + (uint32_t)1U)
+  {
+    uint8_t xi = ipad[i];
+    uint8_t yi = key_block[i];
+    ipad[i] = xi ^ yi;
+  }
+  KRML_CHECK_SIZE(sizeof (uint8_t), l);
+  uint8_t opad[l];
+  for (uint32_t _i = 0U; _i < l; ++_i)
+    opad[_i] = (uint8_t)0x5cU;
+  for (uint32_t i = (uint32_t)0U; i < l; i = i + (uint32_t)1U)
+  {
+    uint8_t xi = opad[i];
+    uint8_t yi = key_block[i];
+    opad[i] = xi ^ yi;
+  }
+  uint64_t
+  s[8U] =
+    {
+      (uint64_t)0x6a09e667f3bcc908U, (uint64_t)0xbb67ae8584caa73bU, (uint64_t)0x3c6ef372fe94f82bU,
+      (uint64_t)0xa54ff53a5f1d36f1U, (uint64_t)0x510e527fade682d1U, (uint64_t)0x9b05688c2b3e6c1fU,
+      (uint64_t)0x1f83d9abfb41bd6bU, (uint64_t)0x5be0cd19137e2179U
+    };
+  Hacl_Hash_Core_SHA2_init_512(s);
+  Hacl_Hash_SHA2_update_multi_512(s, ipad, (uint32_t)1U);
+  Hacl_Hash_SHA2_update_last_512(s, (uint128_t)(uint64_t)(uint32_t)128U, data, data_len);
+  uint8_t *dst1 = ipad;
+  Hacl_Hash_Core_SHA2_finish_512(s, dst1);
+  uint8_t *hash1 = ipad;
+  Hacl_Hash_Core_SHA2_init_512(s);
+  Hacl_Hash_SHA2_update_multi_512(s, opad, (uint32_t)1U);
+  Hacl_Hash_SHA2_update_last_512(s, (uint128_t)(uint64_t)(uint32_t)128U, hash1, (uint32_t)64U);
+  Hacl_Hash_Core_SHA2_finish_512(s, dst);
+}
 
-extern uint64_t check_adx_bmi2();
+bool EverCrypt_HMAC_is_supported_alg(Spec_Hash_Definitions_hash_alg uu___0_5835)
+{
+  switch (uu___0_5835)
+  {
+    case Spec_Hash_Definitions_SHA1:
+      {
+        return true;
+      }
+    case Spec_Hash_Definitions_SHA2_256:
+      {
+        return true;
+      }
+    case Spec_Hash_Definitions_SHA2_384:
+      {
+        return true;
+      }
+    case Spec_Hash_Definitions_SHA2_512:
+      {
+        return true;
+      }
+    default:
+      {
+        return false;
+      }
+  }
+}
 
-extern uint64_t check_avx();
+/*
 
-extern uint64_t check_avx2();
+  val compute :a: supported_alg -> compute_st a
+*/
+void
+EverCrypt_HMAC_compute(
+  Spec_Hash_Definitions_hash_alg a,
+  uint8_t *mac,
+  uint8_t *key,
+  uint32_t keylen,
+  uint8_t *data,
+  uint32_t datalen
+)
+{
+  switch (a)
+  {
+    case Spec_Hash_Definitions_SHA1:
+      {
+        EverCrypt_HMAC_compute_sha1(mac, key, keylen, data, datalen);
+        break;
+      }
+    case Spec_Hash_Definitions_SHA2_256:
+      {
+        EverCrypt_HMAC_compute_sha2_256(mac, key, keylen, data, datalen);
+        break;
+      }
+    case Spec_Hash_Definitions_SHA2_384:
+      {
+        EverCrypt_HMAC_compute_sha2_384(mac, key, keylen, data, datalen);
+        break;
+      }
+    case Spec_Hash_Definitions_SHA2_512:
+      {
+        EverCrypt_HMAC_compute_sha2_512(mac, key, keylen, data, datalen);
+        break;
+      }
+    default:
+      {
+        KRML_HOST_EPRINTF("KreMLin incomplete match at %s:%d\n", __FILE__, __LINE__);
+        KRML_HOST_EXIT(253U);
+      }
+  }
+}
 
-extern uint64_t cswap2(uint64_t *x0, uint64_t *x1, uint64_t x2);
-
-extern uint64_t fsqr(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t fsqr2(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t fmul_(uint64_t *x0, uint64_t *x1, uint64_t *x2, uint64_t *x3);
-
-extern uint64_t fmul2(uint64_t *x0, uint64_t *x1, uint64_t *x2, uint64_t *x3);
-
-extern uint64_t fmul1(uint64_t *x0, uint64_t *x1, uint64_t x2);
-
-extern uint64_t fsub_(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t aes128_key_expansion(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t aes256_key_expansion(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t
-gcm128_decrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t
-gcm256_decrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t
-gcm128_encrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t
-gcm256_encrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t aes128_keyhash_init(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t aes256_keyhash_init(uint8_t *x0, uint8_t *x1);
-
-#define __Vale_H_DEFINED
-#endif

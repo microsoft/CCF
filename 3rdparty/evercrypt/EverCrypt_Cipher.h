@@ -6,10 +6,11 @@
  */
 
 
-#ifndef __Vale_H
-#define __Vale_H
+#ifndef __EverCrypt_Cipher_H
+#define __EverCrypt_Cipher_H
 
-
+#include "Hacl_Chacha20.h"
+#include "Hacl_Kremlib.h"
 #include "evercrypt_targetconfig.h"
 #include "curve25519-inline.h"
 #include "kremlin/internal/types.h"
@@ -17,127 +18,38 @@
 #include "kremlin/lowstar_endianness.h"
 #include <string.h>
 
-extern uint64_t add1(uint64_t *x0, uint64_t *x1, uint64_t x2);
+/*
 
-extern uint64_t fadd_(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t sha256_update(uint32_t *x0, uint8_t *x1, uint64_t x2, uint32_t *x3);
-
-extern uint64_t check_aesni();
-
-extern uint64_t check_sha();
-
-extern uint64_t check_adx_bmi2();
-
-extern uint64_t check_avx();
-
-extern uint64_t check_avx2();
-
-extern uint64_t cswap2(uint64_t *x0, uint64_t *x1, uint64_t x2);
-
-extern uint64_t fsqr(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t fsqr2(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t fmul_(uint64_t *x0, uint64_t *x1, uint64_t *x2, uint64_t *x3);
-
-extern uint64_t fmul2(uint64_t *x0, uint64_t *x1, uint64_t *x2, uint64_t *x3);
-
-extern uint64_t fmul1(uint64_t *x0, uint64_t *x1, uint64_t x2);
-
-extern uint64_t fsub_(uint64_t *x0, uint64_t *x1, uint64_t *x2);
-
-extern uint64_t aes128_key_expansion(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t aes256_key_expansion(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t
-gcm128_decrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
+  val chacha20 :
+    len: size_t ->
+    dst: lbuffer uint8 len ->
+    src: lbuffer uint8 len ->
+    key: lbuffer uint8 32ul ->
+    iv: lbuffer uint8 12ul ->
+    ctr: size_t
+  -> ST.Stack unit
+      (requires
+        (fun h ->
+            live h key /\ live h iv /\ live h src /\ live h dst /\
+            eq_or_disjoint src dst /\ v ctr + v len / 64 <= max_size_t))
+      (ensures
+        (fun h0 _ h1 ->
+            modifies (loc dst) h0 h1 /\
+            as_seq h1 dst ==
+            Spec.Chacha20.chacha20_encrypt_bytes (as_seq h0 key)
+              (as_seq h0 iv)
+              (v ctr)
+              (as_seq h0 src)))
+*/
+void
+EverCrypt_Cipher_chacha20(
+  uint32_t len,
+  uint8_t *dst,
+  uint8_t *src,
+  uint8_t *key,
+  uint8_t *iv,
+  uint32_t ctr
 );
 
-extern uint64_t
-gcm256_decrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t
-gcm128_encrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t
-gcm256_encrypt_opt(
-  uint8_t *x0,
-  uint64_t x1,
-  uint64_t x2,
-  uint8_t *x3,
-  uint8_t *x4,
-  uint8_t *x5,
-  uint8_t *x6,
-  uint8_t *x7,
-  uint8_t *x8,
-  uint64_t x9,
-  uint8_t *x10,
-  uint8_t *x11,
-  uint64_t x12,
-  uint8_t *x13,
-  uint64_t x14,
-  uint8_t *x15,
-  uint8_t *x16
-);
-
-extern uint64_t aes128_keyhash_init(uint8_t *x0, uint8_t *x1);
-
-extern uint64_t aes256_keyhash_init(uint8_t *x0, uint8_t *x1);
-
-#define __Vale_H_DEFINED
+#define __EverCrypt_Cipher_H_DEFINED
 #endif

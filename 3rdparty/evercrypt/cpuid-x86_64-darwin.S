@@ -1,6 +1,6 @@
 .text
-.global check_aesni
-check_aesni:
+.global _check_aesni
+_check_aesni:
   mov %rbx, %r9
   mov $0, %rcx
   mov $1, %rax
@@ -13,8 +13,8 @@ check_aesni:
   mov %r9, %rbx
   ret
 
-.global check_sha
-check_sha:
+.global _check_sha
+_check_sha:
   mov %rbx, %r9
   mov $7, %rax
   mov $0, %rcx
@@ -24,8 +24,8 @@ check_sha:
   mov %r9, %rbx
   ret
 
-.global check_adx_bmi2
-check_adx_bmi2:
+.global _check_adx_bmi2
+_check_adx_bmi2:
   mov %rbx, %r9
   mov $7, %rax
   mov $0, %rcx
@@ -38,8 +38,8 @@ check_adx_bmi2:
   mov %r9, %rbx
   ret
 
-.global check_avx
-check_avx:
+.global _check_avx
+_check_avx:
   mov %rbx, %r9
   mov $0, %rcx
   mov $1, %rax
@@ -50,8 +50,8 @@ check_avx:
   mov %r9, %rbx
   ret
 
-.global check_avx2
-check_avx2:
+.global _check_avx2
+_check_avx2:
   mov %rbx, %r9
   mov $7, %rax
   mov $0, %rcx
