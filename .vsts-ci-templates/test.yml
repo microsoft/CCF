@@ -8,7 +8,8 @@ steps:
   submodules: true
 
 - task: DownloadPipelineArtifact@1
-  artifactName: build_results
+  inputs:
+    artifactName: build_results
 
 - task: CopyFiles@2
   inputs:
