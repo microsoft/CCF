@@ -21,6 +21,7 @@ function cleanup {
 CONTAINER_EVEREST_DIRECTORY="/home/everest"
 CONTAINER_CCF_DIST_DIRECTORY="/home/everest/hacl-star/dist/ccf"
 CONTAINER_KREMLIN_DIRECTORY="/home/everest/hacl-star/kremlin/include"
+CONTAINER_KREMLIB_DIRECTORY="/home/everest/hacl-star/kremlin/kremlib/dist/minimal"
 
 DEFAULT_EVERCRYPT_DIRECTORY="evercrypt"
 
@@ -46,6 +47,7 @@ fi
 # Copy Hacl* source and Kremlin from container
 docker cp "$container_id":$CONTAINER_CCF_DIST_DIRECTORY "$evercrypt_directory"
 docker cp "$container_id":$CONTAINER_KREMLIN_DIRECTORY "$evercrypt_directory"/kremlin
+docker cp "$container_id":$CONTAINER_KREMLIB_DIRECTORY "$evercrypt_directory"/kremlin/kremlib
 
 # Only keep Hacl* source files
 rm "$evercrypt_directory"/{*.[oda],*.asm,Makefile*,*.so}
