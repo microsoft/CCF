@@ -143,7 +143,7 @@ namespace ccf
       auto search = secrets_map.find(v);
       if (search != secrets_map.end())
       {
-        LOG_FAIL << "set_secret(): secrets already exist " << v << std::endl;
+        LOG_FAIL_FMT("set_secret(): secrets already exist {}", v);
         return false;
       }
 
@@ -175,8 +175,7 @@ namespace ccf
           throw std::logic_error(
             "Secrets could not be unsealed : " + std::to_string(v));
 
-        LOG_DEBUG << "Secrets successfully unsealed at version " << it.key()
-                  << std::endl;
+        LOG_DEBUG_FMT("Secrets successfully unsealed at version {}", it.key());
 
         // Deserialise network secrets
         auto new_secret = std::make_unique<Secret>();
@@ -199,14 +198,14 @@ namespace ccf
       auto search = secrets_map.find(new_v);
       if (search != secrets_map.end())
       {
-        LOG_FAIL << "promote_secrets(): secrets already exist" << std::endl;
+        LOG_FAIL_FMT("promote_secrets(): secrets already exist");
         return false;
       }
 
       search = secrets_map.find(old_v);
       if (search == secrets_map.end())
       {
-        LOG_FAIL << "promote_secrets(): no secrets to promote" << std::endl;
+        LOG_FAIL_FMT("promote_secrets(): no secrets to promote");
         return false;
       }
 
@@ -215,8 +214,7 @@ namespace ccf
 
       current_version = new_v;
 
-      LOG_DEBUG << "Secrets used at " << old_v << " are now valid from "
-                << new_v << std::endl;
+      LOG_DEBUG_FMT("Secrets used at {} are now valid from {}", old_v, new_v);
       return true;
     }
 
@@ -250,8 +248,7 @@ namespace ccf
       auto search = secrets_map.find(v);
       if (search == secrets_map.end())
       {
-        LOG_FAIL << "get_serialised_secret() " << v << "does not exist"
-                 << std::endl;
+        LOG_FAIL_FMT("get_serialised_secret() {} does not exist", v);
         return {};
       }
 

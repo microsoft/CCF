@@ -29,7 +29,7 @@ namespace asynchost
 
       void on_read(size_t len, uint8_t*& incoming)
       {
-        LOG_DEBUG << "node " << node << " received " << len << std::endl;
+        LOG_DEBUG_FMT("node {} received {}", node, len);
 
         pending.insert(pending.end(), incoming, incoming + len);
 
@@ -50,8 +50,7 @@ namespace asynchost
 
           if (size < msg_size)
           {
-            LOG_DEBUG << "node " << node << " have " << size << "/" << msg_size
-                      << std::endl;
+            LOG_DEBUG_FMT("node {} has {}/{}", node, size, msg_size);
             break;
           }
 
@@ -63,8 +62,8 @@ namespace asynchost
           if (node == ccf::NoNode)
             associate(header.from_node);
 
-          LOG_DEBUG << "node in: node " << node << ", size " << msg_size
-                    << ", type " << msg_type << std::endl;
+          LOG_DEBUG_FMT(
+            "node in: node {}, size {}, type {}", node, msg_size, msg_type);
 
           RINGBUFFER_WRITE_MESSAGE(
             ccf::node_inbound,
@@ -96,8 +95,7 @@ namespace asynchost
 
       void on_disconnect()
       {
-        LOG_DEBUG << "node incoming disconnect " << id << ", " << node
-                  << std::endl;
+        LOG_DEBUG_FMT("node incoming disconnect {}, {}", id, node);
 
         parent.incoming.erase(id);
 
@@ -109,8 +107,7 @@ namespace asynchost
       {
         node = n;
         parent.associated.emplace(node, parent.incoming.at(id));
-        LOG_DEBUG << "node incoming " << id << " associated with " << node
-                  << std::endl;
+        LOG_DEBUG_FMT("node incoming {} associated with {}", id, node);
       }
     };
 
@@ -123,19 +120,19 @@ namespace asynchost
 
       void on_resolve_failed()
       {
-        LOG_DEBUG << "node resolve failed " << node << std::endl;
+        LOG_DEBUG_FMT("node resolve failed {}", node);
         reconnect();
       }
 
       void on_connect_failed()
       {
-        LOG_DEBUG << "node connect failed " << node << std::endl;
+        LOG_DEBUG_FMT("node connect failed {}", node);
         reconnect();
       }
 
       void on_disconnect()
       {
-        LOG_DEBUG << "node disconnect " << node << std::endl;
+        LOG_DEBUG_FMT("node disconnect failed {}", node);
         reconnect();
       }
 
@@ -161,7 +158,7 @@ namespace asynchost
         peer->set_behaviour(std::make_unique<IncomingBehaviour>(parent, id));
         parent.incoming.emplace(id, peer);
 
-        LOG_DEBUG << "node accept " << id << std::endl;
+        LOG_DEBUG_FMT("node accept {}", id);
       }
     };
 
@@ -232,8 +229,12 @@ namespace asynchost
               size_to_send +
               ledger.framed_entries_size(ae.prev_idx + 1, ae.idx));
 
-            LOG_DEBUG << "raft send AE to " << to << " [" << frame
-                      << "]: " << ae.idx << ", " << ae.prev_idx << std::endl;
+            LOG_DEBUG_FMT(
+              "raft send AE to {} [{}]: {}, {}",
+              to,
+              frame,
+              ae.idx,
+              ae.prev_idx);
 
             // TODO(#performance): writev
             node.value()->write(sizeof(uint32_t), (uint8_t*)&frame);
@@ -249,8 +250,7 @@ namespace asynchost
             // Write as framed data to the recipient.
             uint32_t frame = (uint32_t)size_to_send;
 
-            LOG_DEBUG << "node send to " << to << " [" << frame << "]"
-                      << std::endl;
+            LOG_DEBUG_FMT("node send to {} [{}]", to, frame);
 
             node.value()->write(sizeof(uint32_t), (uint8_t*)&frame);
             node.value()->write(size_to_send, data_to_send);
@@ -264,20 +264,18 @@ namespace asynchost
     {
       if (outgoing.find(node) != outgoing.end())
       {
-        LOG_FAIL << "Cannot add node " << node << ": already in use"
-                 << std::endl;
+        LOG_FAIL_FMT("Cannot add node {}: already in use", node);
         return false;
       }
 
-      LOG_DEBUG << "Adding node " << node << " " << host << ":" << service
-                << std::endl;
+      LOG_DEBUG_FMT("Adding node {} {}:{}", node, host, service);
 
       TCP s;
       s->set_behaviour(std::make_unique<OutgoingBehaviour>(*this, node));
 
       if (!s->connect(host, service))
       {
-        LOG_DEBUG << "Node failed initial connect " << node << std::endl;
+        LOG_DEBUG_FMT("Node failed initial connect {}", node);
         return false;
       }
 
@@ -300,18 +298,17 @@ namespace asynchost
           return s->second;
       }
 
-      LOG_FAIL << "Unknown node " << node << std::endl;
+      LOG_FAIL_FMT("Unknown node {}", node);
       return {};
     }
 
     bool remove_node(ccf::NodeId node)
     {
-      LOG_DEBUG << "removing node " << node << std::endl;
+      LOG_DEBUG_FMT("removing node {}", node);
 
       if (outgoing.erase(node) < 1)
       {
-        LOG_FAIL << "Cannot remove node " << node << ": does not exist"
-                 << std::endl;
+        LOG_FAIL_FMT("Cannot remove node {}: does not exist", node);
         return false;
       }
 

@@ -21,6 +21,22 @@ static void log_accepted(picobench::state& s)
   std::cout.clear();
 }
 
+static void log_accepted_fmt(picobench::state& s)
+{
+  // Swallow the output instead of printing to stdout.
+  std::cout.setstate(std::ios_base::badbit);
+
+  logger::config::level() = logger::DBG;
+  picobench::scope scope(s);
+
+  for (size_t i = 0; i < s.iterations(); ++i)
+  {
+    LOG_DEBUG_FMT("test");
+  }
+
+  std::cout.clear();
+}
+
 static void log_rejected(picobench::state& s)
 {
   logger::config::level() = logger::FAIL;
@@ -32,8 +48,21 @@ static void log_rejected(picobench::state& s)
   }
 }
 
+static void log_rejected_fmt(picobench::state& s)
+{
+  logger::config::level() = logger::FAIL;
+  picobench::scope scope(s);
+
+  for (size_t i = 0; i < s.iterations(); ++i)
+  {
+    LOG_DEBUG_FMT("test");
+  }
+}
+
 const std::vector<int> sizes = {100000};
 
 PICOBENCH_SUITE("logger");
 PICOBENCH(log_accepted).iterations(sizes).samples(10);
+PICOBENCH(log_accepted_fmt).iterations(sizes).samples(10);
 PICOBENCH(log_rejected).iterations(sizes).samples(10);
+PICOBENCH(log_rejected_fmt).iterations(sizes).samples(10);

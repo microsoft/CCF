@@ -26,9 +26,8 @@
 
 #include <atomic>
 #include <chrono>
+#include <fmt/format_header_only.h>
 #include <nlohmann/json.hpp>
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 #include <stdexcept>
 #include <unordered_set>
 #include <vector>
@@ -85,7 +84,7 @@ namespace ccf
     template <typename T>
     static Result<T> Fail(const char* s)
     {
-      LOG_DEBUG << s << std::endl;
+      LOG_DEBUG_FMT(s);
       return {{}, false};
     }
 
@@ -215,7 +214,7 @@ namespace ccf
 
       if (res != OE_OK)
       {
-        LOG_FAIL << "Failed to get quote: " << oe_result_str(res) << std::endl;
+        LOG_FAIL_FMT("Failed to get quote: {}", oe_result_str(res));
         return Fail<CreateNew::Out>("oe_get_report failed");
       }
       quote.resize(quote_len);
@@ -225,8 +224,7 @@ namespace ccf
       res = oe_parse_report(quote.data(), quote.size(), &parsed_quote);
       if (res != OE_OK)
       {
-        LOG_FAIL << "Failed to parse quote: " << oe_result_str(res)
-                 << std::endl;
+        LOG_FAIL_FMT("Failed to parse quote: {}", oe_result_str(res));
         return Fail<CreateNew::Out>("oe_parse_report failed");
       }
 
@@ -373,7 +371,7 @@ namespace ccf
             // If the joining node was started in recovery, truncate the ledger
             // and reset the store as we will receive the entirety of the ledger
             // from the leader
-            LOG_INFO << "Truncating entire ledger" << std::endl;
+            LOG_INFO_FMT("Truncating entire ledger");
             log_truncate(0);
             network.tables->clear();
           }
@@ -390,9 +388,10 @@ namespace ccf
           else
             sm.advance(State::partOfNetwork);
 
-          LOG_INFO << "Node has now joined the network as node " << self << ": "
-                   << (public_only ? "public only" : "all domains")
-                   << std::endl;
+          LOG_INFO_FMT(
+            "Node has now joined the network as node {}: {}",
+            self,
+            (public_only ? "public only" : "all domains"));
 
           jsonrpc::Response<JoinNetwork::Out> join_rpc_resp;
           join_rpc_resp.id = rpc_ctx.req.seq_no;
@@ -438,7 +437,7 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::readingPublicLedger);
-      LOG_INFO << "Start public recovery" << std::endl;
+      LOG_INFO_FMT("Start public recovery");
       read_ledger_idx(++ledger_idx);
     }
 
@@ -447,14 +446,14 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::readingPublicLedger);
 
-      LOG_INFO << "Deserialising public ledger entry (" << ledger_entry.size()
-               << ")" << std::endl;
+      LOG_INFO_FMT(
+        "Deserialising public ledger entry ({})", ledger_entry.size());
 
       // When reading the public ledger, deserialise in the real store
       auto result = network.tables->deserialise(ledger_entry, true);
       if (result == kv::DeserialiseSuccess::FAILED)
       {
-        LOG_FAIL << "Failed to deserialise entry in public ledger" << std::endl;
+        LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
         network.tables->rollback(ledger_idx - 1);
         recover_public_ledger_end_unsafe();
         return;
@@ -470,8 +469,8 @@ namespace ccf
         if (sig.has_value())
         {
           auto sig_value = sig.value();
-          LOG_DEBUG << "Read signature at " << ledger_idx << " for term "
-                    << sig_value.term << std::endl;
+          LOG_DEBUG_FMT(
+            "Read signature at {} for term {}", ledger_idx, sig_value.term);
           for (auto i = term_history.size(); i <= sig_value.term; ++i)
           {
             term_history.push_back(last_recovered_commit_idx + 1);
@@ -497,8 +496,7 @@ namespace ccf
       auto ls_idx = last_signed_index(tx);
       network.tables->rollback(ls_idx);
       log_truncate(ls_idx);
-      LOG_INFO << "Truncating ledger to last signed index: " << ls_idx
-               << std::endl;
+      LOG_INFO_FMT("Truncating ledger to last signed index: {}", ls_idx);
 
       network.secrets->promote_secrets(0, ls_idx + 1);
       sm.advance(State::awaitingRecoveryTx);
@@ -524,15 +522,14 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::readingPrivateLedger);
 
-      LOG_INFO << "Deserialising private ledger entry (" << ledger_entry.size()
-               << ")" << std::endl;
+      LOG_INFO_FMT(
+        "Deserialising private ledger entry ({})", ledger_entry.size());
 
       // When reading the private ledger, deserialise in the recovery store
       auto result = recovery_store->deserialise(ledger_entry);
       if (result == kv::DeserialiseSuccess::FAILED)
       {
-        LOG_FAIL << "Failed to deserialise entry in private ledger"
-                 << std::endl;
+        LOG_FAIL_FMT("Failed to deserialise entry in private ledger");
         recovery_store->rollback(ledger_idx - 1);
         recover_private_ledger_end_unsafe();
         return;
@@ -544,8 +541,7 @@ namespace ccf
 
       if (recovery_store->current_version() == recovery_v)
       {
-        LOG_INFO << "Reached recovery final version at " << recovery_v
-                 << std::endl;
+        LOG_INFO_FMT("Reached recovery final version at {}", recovery_v);
         recover_private_ledger_end_unsafe();
       }
       else
@@ -563,8 +559,8 @@ namespace ccf
       auto h = dynamic_cast<MerkleTxHistory*>(recovery_history.get());
       if (h->get_root() != recovery_root)
       {
-        LOG_FATAL << "Root of public store does not match root of private store"
-                  << std::endl;
+        LOG_FATAL_FMT(
+          "Root of public store does not match root of private store");
       }
 
       network.tables->swap_private_maps(*recovery_store.get());
@@ -584,7 +580,7 @@ namespace ccf
       if (raft->is_follower())
         accept_node_connections();
 
-      LOG_INFO << "Now part of network" << std::endl;
+      LOG_INFO_FMT("Now part of network");
       sm.advance(State::partOfNetwork);
     }
 
@@ -628,9 +624,8 @@ namespace ccf
             oe_parse_report(ni.quote.data(), ni.quote.size(), &parsed_quote);
           if (res != OE_OK)
           {
-            std::stringstream ss;
-            ss << "Failed to parse quote: " << oe_result_str(res);
-            quote.error = ss.str();
+            quote.error =
+              fmt::format("Failed to parse quote: {}", oe_result_str(res));
           }
           else
           {
@@ -680,12 +675,12 @@ namespace ccf
       for (const auto& ni : new_nodes)
       {
         auto nid = get_next_id(values_view, ccf::ValueIds::NEXT_NODE_ID);
-        LOG_INFO << "Adding node " << nid << std::endl;
+        LOG_INFO_FMT("Adding node {}", nid);
         nodes_view->put(nid, ni);
         if (node_cert == ni.cert)
         {
           self = nid;
-          LOG_INFO << "Setting self to " << self << std::endl;
+          LOG_INFO_FMT("Setting self to {}", self);
         }
         tls::Verifier verifier(ni.cert);
         certs_view->put(
@@ -694,7 +689,7 @@ namespace ccf
           nid);
       }
 
-      LOG_INFO << "Replaced nodes" << std::endl;
+      LOG_INFO_FMT("Replaced nodes");
 
       kv::Version index = 0;
       kv::Term term = 0;
@@ -712,8 +707,11 @@ namespace ccf
       if (h)
         h->set_node_id(self);
       setup_raft(true);
-      LOG_DEBUG << "Restarting Raft at index: " << index << " term: " << term
-                << " commit_idx: " << global_commit << std::endl;
+      LOG_DEBUG_FMT(
+        "Restarting Raft at index: {} term: {} commit_idx {}",
+        index,
+        term,
+        global_commit);
       raft->force_become_leader(index, term, term_history, index);
 
       // Sets itself as trusted
@@ -728,7 +726,7 @@ namespace ccf
 
       accept_node_connections();
 
-      LOG_INFO << "Restarted network" << std::endl;
+      LOG_INFO_FMT("Restarted network");
 
       sm.advance(State::partOfPublicNetwork);
 
@@ -772,8 +770,7 @@ namespace ccf
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
       recovery_root = h->get_root();
 
-      LOG_DEBUG << "Recovery store successfully setup: " << recovery_v
-                << std::endl;
+      LOG_DEBUG_FMT("Recovery store successfully setup: {}", recovery_v);
     }
 
     bool finish_recovery(
@@ -782,7 +779,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
 
-      LOG_INFO << "Initiating end of recovery (leader)" << std::endl;
+      LOG_INFO_FMT("Initiating end of recovery (leader)");
 
       // Unseal past network secrets
       auto past_secrets_idx = network.secrets->restore(sealed_secrets);
@@ -814,16 +811,18 @@ namespace ccf
           auto serial = network.secrets->get_serialised_secret(ns_idx);
           if (serial.has_value())
           {
-            LOG_DEBUG << "Writing network secret " << ns_idx << " of size "
-                      << serial.value().size() << " to follower " << nid
-                      << " in secrets table." << std::endl;
+            LOG_DEBUG_FMT(
+              "Writing network secret {} of size {} to follower {} in secrets "
+              "table",
+              ns_idx,
+              serial.value().size(),
+              nid);
 
             // Encrypt network secrets with joiner's fresh key
             auto search = joiners_fresh_keys.find(nid);
             if (search == joiners_fresh_keys.end())
             {
-              LOG_FAIL << "No fresh key for joiner " + std::to_string(nid)
-                       << std::endl;
+              LOG_FAIL_FMT("No fresh key for joiner {}", nid);
               continue;
             }
 
@@ -847,8 +846,7 @@ namespace ccf
           }
           else
           {
-            LOG_FAIL << "Network secrets have not been restored: " << ns_idx
-                     << std::endl;
+            LOG_FAIL_FMT("Network secrets have not been restored: {}", ns_idx);
             return false;
           }
         }
@@ -959,7 +957,7 @@ namespace ccf
     void set_joiner_key(
       NodeId joiner_id, const std::vector<uint8_t>& raw_key) override
     {
-      LOG_DEBUG << "Setting fresh key for joiner " << joiner_id << std::endl;
+      LOG_DEBUG_FMT("Setting fresh key for joiner {}", joiner_id);
       joiners_fresh_keys.emplace(joiner_id, raw_key);
     }
 
@@ -1034,7 +1032,7 @@ namespace ccf
 
       sm.expect(State::partOfPublicNetwork);
 
-      LOG_INFO << "Initiating end of recovery (follower)" << std::endl;
+      LOG_INFO_FMT("Initiating end of recovery (follower)");
 
       // Setup new temporary store and record current version/root
       setup_private_recovery_store();

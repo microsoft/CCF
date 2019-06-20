@@ -43,7 +43,7 @@ namespace enclave
           return false;
 
         // If there is a client cert, pass it to the rpc handler.
-        LOG_DEBUG << "RPC endpoint " << session_id << ": " << host << std::endl;
+        LOG_DEBUG_FMT("RPC endpoint {}: {}", session_id, host);
         handler = search.value();
         caller = peer_cert();
       }

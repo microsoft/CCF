@@ -25,19 +25,19 @@ namespace asynchost
 
       void on_resolve_failed()
       {
-        LOG_DEBUG << "rpc resolve failed " << id << std::endl;
+        LOG_DEBUG_FMT("rpc resolve failed {}", id);
         cleanup();
       }
 
       void on_connect_failed()
       {
-        LOG_DEBUG << "rpc connect failed " << id << std::endl;
+        LOG_DEBUG_FMT("rpc connect failed {}", id);
         cleanup();
       }
 
       void on_read(size_t len, uint8_t*& data)
       {
-        LOG_DEBUG << "rpc read " << id << ": " << len << std::endl;
+        LOG_DEBUG_FMT("rpc read {}: {}", id, len);
 
         RINGBUFFER_WRITE_MESSAGE(
           tls::tls_inbound,
@@ -48,7 +48,7 @@ namespace asynchost
 
       void on_disconnect()
       {
-        LOG_DEBUG << "rpc disconnect " << id << std::endl;
+        LOG_DEBUG_FMT("rpc disconnect {}", id);
         cleanup();
       }
 
@@ -72,13 +72,13 @@ namespace asynchost
 
       void on_resolve_failed()
       {
-        LOG_DEBUG << "rpc resolve failed " << id << std::endl;
+        LOG_DEBUG_FMT("rpc resolve failed {}", id);
         cleanup();
       }
 
       void on_listen_failed()
       {
-        LOG_DEBUG << "rpc connect failed " << id << std::endl;
+        LOG_DEBUG_FMT("rpc connect failed {}", id);
         cleanup();
       }
 
@@ -90,7 +90,7 @@ namespace asynchost
 
         parent.sockets.emplace(client_id, peer);
 
-        LOG_DEBUG << "rpc accept " << client_id << std::endl;
+        LOG_DEBUG_FMT("rpc accept {}", client_id);
 
         RINGBUFFER_WRITE_MESSAGE(
           tls::tls_start, parent.to_enclave, (size_t)client_id);
@@ -119,8 +119,7 @@ namespace asynchost
 
       if (sockets.find(id) != sockets.end())
       {
-        LOG_FAIL << "Cannot listen on id " << id << ": already in use"
-                 << std::endl;
+        LOG_FAIL_FMT("Cannot listen on id {}: already in use", id);
         return false;
       }
 
@@ -142,8 +141,7 @@ namespace asynchost
 
       if (sockets.find(id) != sockets.end())
       {
-        LOG_FAIL << "Cannot connect on id " << id << ": already in use"
-                 << std::endl;
+        LOG_FAIL_FMT("Cannot connect on id {}: already in use", id);
         return false;
       }
 
@@ -163,9 +161,11 @@ namespace asynchost
 
       if (s == sockets.end())
       {
-        LOG_FAIL << "Received an outbound message for id (" << id
-                 << ") which is not a known connection. Ignoring message of "
-                 << len << " bytes" << std::endl;
+        LOG_FAIL_FMT(
+          "Received an outbound message for id {} which is not a known "
+          "connection. Ignoring message of {} bytes",
+          id,
+          len);
         return false;
       }
 
@@ -176,7 +176,7 @@ namespace asynchost
     {
       if (sockets.erase(id) < 1)
       {
-        LOG_FAIL << "Cannot close id " << id << ": does not exist" << std::endl;
+        LOG_FAIL_FMT("Cannot close id {}: does not exist", id);
         return false;
       }
 
@@ -192,8 +192,7 @@ namespace asynchost
             ringbuffer::read_message<tls::tls_outbound>(data, size);
 
           int64_t connect_id = (int64_t)id;
-          LOG_DEBUG << "rpc write from enclave " << connect_id << ": "
-                    << body.size << std::endl;
+          LOG_DEBUG_FMT("rpc write from enclave {}: {}", connect_id, body.size);
 
           write(connect_id, body.size, body.data);
         });
@@ -204,8 +203,7 @@ namespace asynchost
             ringbuffer::read_message<tls::tls_connect>(data, size);
 
           int64_t connect_id = (int64_t)id;
-          LOG_DEBUG << "rpc connect request from enclave " << connect_id
-                    << std::endl;
+          LOG_DEBUG_FMT("rpc connect request from enclave {}", connect_id);
 
           if (check_enclave_side_id(connect_id))
             connect(connect_id, host, service);
@@ -215,7 +213,7 @@ namespace asynchost
         disp, tls::tls_closed, [this](const uint8_t* data, size_t size) {
           auto [id] = ringbuffer::read_message<tls::tls_closed>(data, size);
 
-          LOG_DEBUG << "rpc closed from enclave " << id << std::endl;
+          LOG_DEBUG_FMT("rpc closed from enclave {}", id);
           close(id);
         });
 
@@ -223,7 +221,7 @@ namespace asynchost
         disp, tls::tls_error, [this](const uint8_t* data, size_t size) {
           auto [id] = ringbuffer::read_message<tls::tls_error>(data, size);
 
-          LOG_DEBUG << "rpc error from enclave " << id << std::endl;
+          LOG_DEBUG_FMT("rpc error from enclave {}", id);
           close(id);
         });
     }
@@ -253,8 +251,7 @@ namespace asynchost
 
       if (!ok)
       {
-        LOG_FAIL << "rpc id is not in dedicated range (" << id << " )"
-                 << std::endl;
+        LOG_FAIL_FMT("rpc id is not in dedicated range ({})", id);
       }
 
       return ok;

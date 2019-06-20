@@ -109,7 +109,7 @@ namespace asynchost
         case CONNECTING_FAILED:
         {
           // Try again, starting with DNS.
-          LOG_DEBUG << "Reconnect from DNS" << std::endl;
+          LOG_DEBUG_FMT("Reconnect from DNS");
           status = CONNECTING_RESOLVING;
           return resolve(host, service, false);
         }
@@ -118,7 +118,7 @@ namespace asynchost
         {
           // Close and reset the uv_handle before trying again with the same
           // addr_current that succeeded previously.
-          LOG_DEBUG << "Reconnect from resolved address" << std::endl;
+          LOG_DEBUG_FMT("Reconnect from resolved address");
           status = RECONNECTING;
           uv_close((uv_handle_t*)&uv_handle, on_reconnect);
           return true;
@@ -126,8 +126,7 @@ namespace asynchost
 
         default:
         {
-          LOG_FATAL << "Unexpected status during reconnect: " << status
-                    << std::endl;
+          LOG_FATAL_FMT("Unexpected status during reconnect: {}", status);
           abort();
         }
       }
@@ -165,8 +164,7 @@ namespace asynchost
 
         default:
         {
-          LOG_FATAL << "Unexpected status during write: " << status
-                    << std::endl;
+          LOG_FATAL_FMT("Unexpected status during write: {}", status);
           abort();
         }
       }
@@ -182,7 +180,7 @@ namespace asynchost
 
       if ((rc = uv_tcp_init(uv_default_loop(), &uv_handle)) < 0)
       {
-        LOG_FAIL << "uv_tcp_init failed: " << uv_strerror(rc) << std::endl;
+        LOG_FAIL_FMT("uv_tcp_init failed: {}", uv_strerror(rc));
         return false;
       }
 
@@ -203,7 +201,7 @@ namespace asynchost
       if ((rc = uv_write(req, (uv_stream_t*)&uv_handle, &buf, 1, on_write)) < 0)
       {
         free_write(req);
-        LOG_FAIL << "uv_write failed: " << uv_strerror(rc) << std::endl;
+        LOG_FAIL_FMT("uv_write failed: {}", uv_strerror(rc));
         assert_status(CONNECTED, DISCONNECTED);
         behaviour->on_disconnect();
         return false;
@@ -235,8 +233,7 @@ namespace asynchost
       }
 
       assert_status(LISTENING_RESOLVING, LISTENING_FAILED);
-      LOG_FAIL << "uv_tcp_bind or uv_listen failed: " << uv_strerror(rc)
-               << std::endl;
+      LOG_FAIL_FMT("uv_tcp_bind or uv_listen failed: {}", uv_strerror(rc));
       behaviour->on_listen_failed();
     }
 
@@ -251,7 +248,7 @@ namespace asynchost
           (rc = uv_tcp_connect(
              req, &uv_handle, addr_current->ai_addr, on_connect)) < 0)
         {
-          LOG_DEBUG << "uv_tcp_connect retry: " << uv_strerror(rc) << std::endl;
+          LOG_DEBUG_FMT("uv_tcp_connect retry: {}", uv_strerror(rc));
           addr_current = addr_current->ai_next;
           continue;
         }
@@ -263,8 +260,10 @@ namespace asynchost
       assert_status(CONNECTING_RESOLVING, CONNECTING_FAILED);
       delete req;
 
-      LOG_DEBUG << "unable to connect: all resolved addresses failed: " << host
-                << ":" << service << std::endl;
+      LOG_DEBUG_FMT(
+        "unable to connect: all resolved addresses failed: {}:{}",
+        host,
+        service);
 
       behaviour->on_connect_failed();
       return false;
@@ -274,8 +273,11 @@ namespace asynchost
     {
       if (status != from)
       {
-        LOG_FATAL << "Trying to transition from " << from << " to " << to
-                  << " but current is status " << status << std::endl;
+        LOG_FATAL_FMT(
+          "Trying to transition from {} to {} but current status is {}",
+          from,
+          to,
+          status);
         abort();
       }
 
@@ -325,7 +327,7 @@ namespace asynchost
       if (rc < 0)
       {
         status = RESOLVING_FAILED;
-        LOG_TRACE << "TCP resolve failed: " << uv_strerror(rc) << std::endl;
+        LOG_TRACE_FMT("TCP resolve failed: {}", uv_strerror(rc));
         behaviour->on_resolve_failed();
       }
       else
@@ -349,8 +351,7 @@ namespace asynchost
 
           default:
           {
-            LOG_FATAL << "Unexpected status during on_resolved: " << status
-                      << std::endl;
+            LOG_FATAL_FMT("Unexpected status during on_resolved: {}", status);
             abort();
           }
         }
@@ -368,7 +369,7 @@ namespace asynchost
     {
       if (rc < 0)
       {
-        LOG_DEBUG << "on_accept failed: " << uv_strerror(rc) << std::endl;
+        LOG_DEBUG_FMT("on_accept failed: {}", uv_strerror(rc));
         return;
       }
 
@@ -378,7 +379,7 @@ namespace asynchost
         (rc = uv_accept(
            (uv_stream_t*)&uv_handle, (uv_stream_t*)&peer->uv_handle)) < 0)
       {
-        LOG_DEBUG << "uv_accept failed: " << uv_strerror(rc) << std::endl;
+        LOG_DEBUG_FMT("uv_accept failed: {}", uv_strerror(rc));
         return;
       }
 
@@ -402,8 +403,7 @@ namespace asynchost
       if (rc < 0)
       {
         // Try again on the next address.
-        LOG_DEBUG << "uv_tcp_connect async retry: " << uv_strerror(rc)
-                  << std::endl;
+        LOG_DEBUG_FMT("uv_tcp_connect async retry: {}", uv_strerror(rc));
         addr_current = addr_current->ai_next;
         assert_status(CONNECTING, CONNECTING_RESOLVING);
         connect_resolved();
@@ -433,7 +433,7 @@ namespace asynchost
       if ((rc = uv_read_start((uv_stream_t*)&uv_handle, on_alloc, on_read)) < 0)
       {
         assert_status(CONNECTED, DISCONNECTED);
-        LOG_FAIL << "uv_read_start failed: " << uv_strerror(rc) << std::endl;
+        LOG_FAIL_FMT("uv_read_start failed: {}", uv_strerror(rc));
 
         if (behaviour)
           behaviour->on_disconnect();
@@ -480,7 +480,7 @@ namespace asynchost
         on_free(buf);
         uv_read_stop((uv_stream_t*)&uv_handle);
 
-        LOG_DEBUG << "TCP on_read: " << uv_strerror(sz) << std::endl;
+        LOG_DEBUG_FMT("TCP on_read: {}", uv_strerror(sz));
         behaviour->on_disconnect();
         return;
       }

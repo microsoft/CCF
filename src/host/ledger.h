@@ -152,8 +152,7 @@ namespace asynchost
       fseeko(file, total_len, SEEK_SET);
       positions.push_back(total_len);
 
-      LOG_DEBUG << "Ledger write " << positions.size() << ": " << size
-                << " bytes" << std::endl;
+      LOG_DEBUG_FMT("Ledger write {}: {} bytes", positions.size(), size);
 
       total_len += (size + frame_header_size);
 
@@ -168,8 +167,7 @@ namespace asynchost
 
     void truncate(size_t last_idx)
     {
-      LOG_DEBUG << "Ledger truncate: " << last_idx << "/" << positions.size()
-                << std::endl;
+      LOG_DEBUG_FMT("Ledger truncate: {}/{}", last_idx, positions.size());
 
       // positions[last_idx - 1] is the position of the specified
       // final index. Truncate the ledger at position[last_idx].

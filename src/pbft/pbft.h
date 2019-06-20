@@ -91,8 +91,8 @@ namespace pbft
       local_id(id),
       channels(channels_)
     {
-      LOG_INFO << "Setting up pbft replica for node with id: " << local_id
-               << std::endl;
+      LOG_INFO_FMT("Setting up PBFT replica for node with id: {}", local_id);
+
       // configure replica
       GeneralInfo general_info;
       general_info.num_replicas = 2;
@@ -121,7 +121,7 @@ namespace pbft
       my_info.pubk_enc = pubk_enc;
       my_info.host_name = "machineB";
       my_info.is_replica = true;
-      LOG_INFO << "PBFT Setup for self with id:" << local_id << std::endl;
+      LOG_INFO_FMT("PBFT setup for self with id: {}", local_id);
 
       ::NodeInfo node_info = {my_info, privk, general_info};
 
@@ -203,9 +203,9 @@ namespace pbft
       info.pubk_enc = pubk_enc;
       info.host_name = node_conf.host_name;
       info.is_replica = true;
-      LOG_INFO << "PBFT - adding node, id:" << info.id << std::endl;
+      LOG_INFO_FMT("PBFT - adding node, id: {}", info.id);
       Byz_add_principal(info);
-      LOG_INFO << "PBFT - added node, id: " << info.id << std::endl;
+      LOG_INFO_FMT("PBFT - added node, id: {}", info.id);
     }
 
     bool replicate(

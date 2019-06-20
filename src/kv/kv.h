@@ -495,8 +495,7 @@ namespace kv
 
         if ((read_version != NoVersion) && (read_version != current.version))
         {
-          LOG_DEBUG << "Read version " << read_version << " is invalid."
-                    << std::endl;
+          LOG_DEBUG_FMT("Read version {} is invalid", read_version);
           return false;
         }
 
@@ -511,7 +510,7 @@ namespace kv
             // If we depend on the key not existing, it must be absent.
             if (search.has_value())
             {
-              LOG_DEBUG << "Read depends on non-existing entry." << std::endl;
+              LOG_DEBUG_FMT("Read depends on non-existing entry");
               return false;
             }
           }
@@ -521,8 +520,7 @@ namespace kv
             // version that we expect.
             if (!search.has_value() || (it->second != search.value().version))
             {
-              LOG_DEBUG << "Read depends on invalid version of entry."
-                        << std::endl;
+              LOG_DEBUG_FMT("Read depends on invalid version of entry");
               return false;
             }
           }
@@ -978,7 +976,7 @@ namespace kv
 
       if (!success)
       {
-        LOG_FAIL << "Could not commit transaction " << version << std::endl;
+        LOG_FAIL_FMT("Could not commit transaction {}", version);
         return CommitSuccess::CONFLICT;
       }
 
@@ -1412,12 +1410,12 @@ namespace kv
                       std::optional<kv::SecurityDomain>());
       if (!d.init(data))
       {
-        LOG_FAIL << "Initialisation of deserialise object failed" << std::endl;
+        LOG_FAIL_FMT("Initialisation of deserialise object failed");
         return DeserialiseSuccess::FAILED;
       }
 
       Version v = d.template deserialise_version<Version>();
-      LOG_DEBUG << "Deserialising " << v << std::endl;
+      LOG_DEBUG_FMT("Deserialising {}", v);
 
       // Throw away any local commits that have not propagated via the
       // replicator.
@@ -1427,8 +1425,8 @@ namespace kv
       auto cv = current_version();
       if (cv != (v - 1))
       {
-        LOG_FAIL << "Tried to deserialise " << v << " but current_version is "
-                 << cv << std::endl;
+        LOG_FAIL_FMT(
+          "Tried to deserialise {} but current_version is {}", v, cv);
         return DeserialiseSuccess::FAILED;
       }
 
@@ -1447,24 +1445,22 @@ namespace kv
         auto search = maps.find(map_name);
         if (search == maps.end())
         {
-          LOG_FAIL << "No such map: " << map_name << " at version " << v
-                   << std::endl;
+          LOG_FAIL_FMT("No such map {} at version {}", map_name, v);
           return DeserialiseSuccess::FAILED;
         }
 
         auto view_search = views.find(map_name);
         if (view_search != views.end())
         {
-          LOG_FAIL << "Multiple writes on " << map_name << " at version " << v
-                   << std::endl;
+          LOG_FAIL_FMT("Multiple writes on {} at version {}", map_name, v);
           return DeserialiseSuccess::FAILED;
         }
 
         auto view = search->second->create_view(v);
         if (!view->deserialise(d, v))
         {
-          LOG_FAIL << "Could not deserialise Tx for map " << map_name
-                   << " at version " << v << std::endl;
+          LOG_FAIL_FMT(
+            "Could not deserialise Tx for map {} at version {}", map_name, v);
           return DeserialiseSuccess::FAILED;
         }
 
@@ -1474,15 +1470,14 @@ namespace kv
 
       if (!d.end())
       {
-        LOG_FAIL << "Unexpected content in Tx at version " << v << std::endl;
+        LOG_FAIL_FMT("Unexpected content in Tx at version {}", v);
         return DeserialiseSuccess::FAILED;
       }
 
       auto c = Tx::commit(views, [v]() { return v; });
       if (!c.has_value())
       {
-        LOG_FAIL << "Failed to commit deserialised Tx at version " << v
-                 << std::endl;
+        LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
         return DeserialiseSuccess::FAILED;
       }
 
@@ -1504,15 +1499,13 @@ namespace kv
           // a signature and must be verified
           if (views.size() > 1)
           {
-            LOG_FAIL << "Unexpected contents in signature transaction " << v
-                     << std::endl;
+            LOG_FAIL_FMT("Unexpected contents in signature transaction {}", v);
             return DeserialiseSuccess::FAILED;
           }
 
           if (!h->verify(term))
           {
-            LOG_FAIL << "Signature in transaction " << v << " failed to verify"
-                     << std::endl;
+            LOG_FAIL_FMT("Signature in transaction {} failed to verify", v);
             return DeserialiseSuccess::FAILED;
           }
           success = DeserialiseSuccess::PASS_SIGNATURE;
@@ -1574,9 +1567,10 @@ namespace kv
       if (!r)
         return CommitSuccess::OK;
 
-      LOG_DEBUG << "Store::commit " << version
-                << (globally_committable ? " globally_committable" : "")
-                << std::endl;
+      LOG_DEBUG_FMT(
+        "Store::commit {}{}",
+        version,
+        (globally_committable ? " globally_committable" : ""));
 
       std::vector<std::tuple<Version, std::vector<uint8_t>, bool>> batch;
       Version previous_last_replicated = 0;
@@ -1606,14 +1600,13 @@ namespace kv
           // execute in order with a read_version that's version - 1, so even
           // two contiguous signatures are fine
           if (success_ != CommitSuccess::OK)
-            LOG_DEBUG << "Failed Tx commit " << last_replicated + offset
-                      << std::endl;
+            LOG_DEBUG_FMT("Failed Tx commit {}", last_replicated + offset);
 
           if (h)
             h->append(data_);
 
-          LOG_DEBUG << "Batching " << last_replicated + offset << "("
-                    << data_.size() << ")" << std::endl;
+          LOG_DEBUG_FMT(
+            "Batching {} ({})", last_replicated + offset, data_.size());
           batch.emplace_back(
             last_replicated + offset, std::move(data_), committable_);
           pending_txs.erase(search);
@@ -1639,7 +1632,7 @@ namespace kv
       else
       {
         std::lock_guard<SpinLock> vguard(version_lock);
-        LOG_DEBUG << "Failed to replicate" << std::endl;
+        LOG_DEBUG_FMT("Failed to replicate");
         return CommitSuccess::NO_REPLICATE;
       }
     }
