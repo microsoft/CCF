@@ -65,9 +65,11 @@ jobs:
   pool: Ubuntu-1804-SGX-Azure
   dependsOn: static_checks
   steps:
-    - template: .vsts-ci-templates/build_and_test.yml
+    - template: .vsts-ci-templates/build.yml
       parameters:
         cmake_args: '-DBUILD_SMALLBANK=ON -DCURVE_CHOICE=secp256k1_bitcoin'
+    - template: .vsts-ci-templates/test.yml
+      parameters:
         suite_name_suffix: ' SGX Performance'
         ctest_filter: '-R small_bank'
     - template: .vsts-ci-templates/push_perf_data.yml
