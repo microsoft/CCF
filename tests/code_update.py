@@ -8,6 +8,7 @@ import logging
 import os
 import subprocess
 import time
+from infra.ccf import NodeNetworkState
 from loguru import logger as LOG
 from shutil import copyfile
 
@@ -114,20 +115,20 @@ def vote_to_accept(primary, proposal_id):
     assert j_result["result"]
 
     # result = infra.proc.ccall(
-        # "./memberclient",
-        # "vote",
-        # "--accept",
-        # "--cert=member3_cert.pem",
-        # "--privk=member3_privk.pem",
-        # f"--host={primary.host}",
-        # f"--port={primary.tls_port}",
-        # f"--id={proposal_id}",
-        # "--ca=networkcert.pem",
-        # "--sign",
+    # "./memberclient",
+    # "vote",
+    # "--accept",
+    # "--cert=member3_cert.pem",
+    # "--privk=member3_privk.pem",
+    # f"--host={primary.host}",
+    # f"--port={primary.tls_port}",
+    # f"--id={proposal_id}",
+    # "--ca=networkcert.pem",
+    # "--sign",
     # )
     # j_result = json.loads(result.stdout)
     # assert j_result["result"]
-    
+
 
 def add_new_code(primary, code_id):
 
@@ -168,11 +169,13 @@ def run(args):
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
 
-        # res,new_node,new_node_id = network.create_and_add_node(args.package, args, 2, True)
-        # new_node.join_network()
+        res, new_node, new_node_id = network.create_and_add_node(
+            args.package, args, 2, True
+        )
+        new_node.join_network()
 
         # try to add a node using unsupported code
-        assert network.create_and_add_node(args.patched_file_name, args, 2, False) == (
+        assert network.create_and_add_node(args.patched_file_name, args, 3, False) == (
             False,
             infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND,
         )
@@ -184,30 +187,47 @@ def run(args):
 
         new_nodes = set()
         # add nodes using the same code id that failed earlier
-        for i in range(3, 5):
+        for i in range(4, 9):
             LOG.debug(f"Adding node {i} using new code")
-            res,new_node,new_node_id = network.create_and_add_node(args.patched_file_name, args, i, True)
-            assert(res)
+            res, new_node, new_node_id = network.create_and_add_node(
+                args.patched_file_name, args, i, True
+            )
+            assert res
             new_node.join_network()
             new_nodes.add(new_node)
+
         network.wait_for_node_commit_sync()
-        
+
         for node in new_nodes:
             new_primary = node
             break
 
-        old_nodes = set(network.nodes).difference(new_nodes)#.difference({primary})
+        old_nodes = set(network.nodes).difference(new_nodes)  # .difference({primary})
         for node in old_nodes:
             old_status = node.remote.node_status
             LOG.debug(f"Stopping node {node.node_id}")
             node.stop()
 
+        time.sleep(10)
 
         network.set_primary(new_primary)
-        LOG.debug("Waiting...")
+        LOG.debug(f"Waiting, primary is {new_primary.node_id}")
         # input()
-        res,new_node,new_node_id = network.create_and_add_node(args.package, args, 9, True)
-        new_node.join_network()
+        res, new_node, new_node_id = network.create_and_add_node(
+            args.patched_file_name, args, 13, True
+        )
+        with new_node.management_client(format="json") as c:
+            c.rpc(
+                "joinNetwork",
+                {
+                    "hostname": new_primary.host,
+                    "service": str(new_primary.tls_port),
+                    "network_cert": net_cert,
+                },
+            )
+            new_node.network_state = NodeNetworkState.joined
+            # new_node.join_network()
+            network.wait_for_node_commit_sync()
 
 
 if __name__ == "__main__":
