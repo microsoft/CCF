@@ -5,35 +5,8 @@ trigger:
       - "*"
 
 jobs:
-- job: static_checks
-  pool: Ubuntu-1804-SGX-Azure
-  steps:
-    - checkout: self
-      clean: true
-      submodules: true
-
-    - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-      displayName: 'Component Detection'
-
-    - script: find . -regex ".*\.sh$" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091
-      displayName: 'Shell Check'
-
-    - script: python3.7 notice-check.py
-      displayName: 'Check copyright notices'
-
-    - script: ./check-format.sh src samples
-      displayName: 'Check C++ code format'
-
-    - script: |
-        python3.7 -m venv env
-        source env/bin/activate
-        pip install black
-        black --check sphinx/ tests/ notice-check.py
-      displayName: 'Check Python code format'
-
 - job: ACC_1804_SGX_build
   pool: Ubuntu-1804-SGX-Azure
-  dependsOn: static_checks
   steps:
     - checkout: self
       clean: true
@@ -46,7 +19,6 @@ jobs:
 - job: ACC_1804_SGX_quick_tests
   pool: Ubuntu-1804-SGX-Azure
   dependsOn:
-    - static_checks
     - ACC_1804_SGX_build
   steps:
     - checkout: self
@@ -61,7 +33,6 @@ jobs:
 - job: ACC_1804_SGX_e2e_tests_A
   pool: Ubuntu-1804-SGX-Azure
   dependsOn:
-    - static_checks
     - ACC_1804_SGX_build
   steps:
     - checkout: self
@@ -76,7 +47,6 @@ jobs:
 - job: ACC_1804_SGX_e2e_tests_B
   pool: Ubuntu-1804-SGX-Azure
   dependsOn:
-    - static_checks
     - ACC_1804_SGX_build
   steps:
     - checkout: self
@@ -90,7 +60,6 @@ jobs:
 
 - job: ACC_1804_SGX_perf_build
   pool: Ubuntu-1804-SGX-Azure
-  dependsOn: static_checks
   steps:
     - checkout: self
       clean: true
@@ -103,7 +72,6 @@ jobs:
 - job: ACC_1804_SGX_perf_build_A
   pool: Ubuntu-1804-SGX-Azure
   dependsOn:
-    - static_checks
     - ACC_1804_SGX_perf_build
   steps:
     - checkout: self
@@ -119,7 +87,6 @@ jobs:
 - job: ACC_1804_SGX_perf_build_B
   pool: Ubuntu-1804-SGX-Azure
   dependsOn:
-    - static_checks
     - ACC_1804_SGX_perf_build
   steps:
     - checkout: self
