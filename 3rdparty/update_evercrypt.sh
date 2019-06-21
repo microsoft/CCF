@@ -51,6 +51,7 @@ docker cp "$container_id":$CONTAINER_KREMLIB_DIRECTORY "$evercrypt_directory"/kr
 
 # Only keep Hacl* source files
 rm "$evercrypt_directory"/{*.[oda],*.asm,Makefile*,*.so}
+rm "$evercrypt_directory"/kremlin/kremlib/{*.[oda],Makefile*}
 
 # Finally, record build version (container hash is also git hash of hacl-star
 # repo fstar-master branch)
