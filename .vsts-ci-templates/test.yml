@@ -7,7 +7,7 @@ steps:
 - task: DownloadPipelineArtifact@1
   inputs:
     artifactName: ${{ parameters.artifact_name }}
-    targetPath: build
+    targetPath: $(Build.SourcesDirectory)/build
 
 - script: |
     tar -xavf artifact.jar.gz
