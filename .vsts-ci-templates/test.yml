@@ -10,7 +10,7 @@ steps:
     targetPath: $(Build.SourcesDirectory)/build
 
 - script: |
-    tar -xavf artifact.jar.gz
+    tar -xaf artifact.tar.gz
   displayName: Uncompress build artifact
   workingDirectory: build
 
