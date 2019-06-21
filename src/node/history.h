@@ -31,6 +31,30 @@ extern "C"
 #endif
 }
 
+namespace fmt
+{
+  template <>
+  struct formatter<kv::TxHistory::RequestID>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const kv::TxHistory::RequestID& p, FormatContext& ctx)
+    {
+      return format_to(
+        ctx.out(),
+        "<RID {0}, {1}, {2}>",
+        std::get<0>(p),
+        std::get<1>(p),
+        std::get<2>(p));
+    }
+  };
+}
+
 namespace ccf
 {
   enum HashOp
@@ -116,6 +140,10 @@ namespace ccf
         },
         true);
     }
+
+    void add_request(kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override {}
+    void add_result(kv::TxHistory::RequestID id, kv::Version version, const std::vector<uint8_t>& data) override {}
+    void add_response(kv::TxHistory::RequestID id, const std::vector<uint8_t>& response) override {}
   };
 
   class MerkleTreeHistory
@@ -188,6 +216,10 @@ namespace ccf
     Nodes& nodes;
 
     std::shared_ptr<kv::Replicator> replicator;
+
+    std::map<RequestID, std::vector<uint8_t>> requests;
+    std::map<RequestID, std::pair<kv::Version, crypto::Sha256Hash>> results;
+    std::map<RequestID, std::vector<uint8_t>> responses;
 
   public:
     HashedTxHistory(
@@ -282,6 +314,26 @@ namespace ccf
           return sig.commit_reserved();
         },
         true);
+    }
+
+    void add_request(kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override
+    {
+      LOG_DEBUG << fmt::format("HISTORY: add_request {0}", id) << std::endl;
+      requests[id] = request;
+    }
+    
+    void add_result(kv::TxHistory::RequestID id, kv::Version version, const std::vector<uint8_t>& data) override
+    {
+      append(data);
+      auto root = get_root();
+      LOG_DEBUG << fmt::format("HISTORY: add_result {0} {1} {2}", id, version, root) << std::endl;
+      results[id] = {version, root};
+    }
+
+    void add_response(kv::TxHistory::RequestID id, const std::vector<uint8_t>& response) override
+    {
+      LOG_DEBUG << fmt::format("HISTORY: add_response {0}", id) << std::endl;
+      responses[id] = response;
     }
   };
 
