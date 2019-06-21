@@ -225,6 +225,7 @@ class Network:
         )
         new_node_info = new_node.remote.info()
 
+        LOG.debug(f"Attempting to connect using port: {self.get_primary().tls_port}")
         with self.get_primary().member_client(format="json") as member_client:
             j_result = member_client.rpc("add_node", new_node_info)
 
@@ -331,6 +332,10 @@ class Network:
 
     def get_primary(self):
         return self.nodes[0]
+
+    def set_primary(self, node):
+        # TODO: remove from self.nodes before prepending
+        return self.nodes.insert(0, node)
 
 
 class Checker:
@@ -448,6 +453,12 @@ class Node:
             self.remote_impl = infra.remote.SSHRemote
 
         self.pubhost = self.pubhost[0] if self.pubhost else self.host
+
+    def __hash__(self):
+        return self.node_id
+
+    def __eq__(self, other):
+        return self.node_id == other.node_id
 
     def _set_ports(self, probably_free_function):
         if self.tls_port is None:
