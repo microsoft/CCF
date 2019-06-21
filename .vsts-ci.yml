@@ -35,18 +35,99 @@ jobs:
   pool: Ubuntu-1804-SGX-Azure
   dependsOn: static_checks
   steps:
-    - template: .vsts-ci-templates/build_and_test.yml
+    - checkout: self
+      clean: true
+      submodules: true
+    - template: .vsts-ci-templates/build.yml
       parameters:
         cmake_args: '-DBUILD_SMALLBANK=OFF'
-        suite_name_suffix: ' SGX'
+        artifact_name: build_results
+
+- job: ACC_1804_SGX_quick_tests
+  pool: Ubuntu-1804-SGX-Azure
+  dependsOn:
+    - static_checks
+    - ACC_1804_SGX_build
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
+    - template: .vsts-ci-templates/test.yml
+      parameters:
+        ctest_filter: '-LE "perf|end_to_end"'
+        suite_name_suffix: ' SGX quick tests'
+        artifact_name: build_results
+
+- job: ACC_1804_SGX_e2e_tests_A
+  pool: Ubuntu-1804-SGX-Azure
+  dependsOn:
+    - static_checks
+    - ACC_1804_SGX_build
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
+    - template: .vsts-ci-templates/test.yml
+      parameters:
+        ctest_filter: '-L end_to_end -I 0,,2'
+        suite_name_suffix: ' SGX end to end tests A'
+        artifact_name: build_results
+
+- job: ACC_1804_SGX_e2e_tests_B
+  pool: Ubuntu-1804-SGX-Azure
+  dependsOn:
+    - static_checks
+    - ACC_1804_SGX_build
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
+    - template: .vsts-ci-templates/test.yml
+      parameters:
+        ctest_filter: '-L end_to_end -I 1,,2'
+        suite_name_suffix: ' SGX end to end tests B'
+        artifact_name: build_results
 
 - job: ACC_1804_SGX_perf_build
   pool: Ubuntu-1804-SGX-Azure
   dependsOn: static_checks
   steps:
-    - template: .vsts-ci-templates/build_and_test.yml
+    - checkout: self
+      clean: true
+      submodules: true
+    - template: .vsts-ci-templates/build.yml
       parameters:
         cmake_args: '-DBUILD_SMALLBANK=ON -DCURVE_CHOICE=secp256k1_bitcoin'
-        suite_name_suffix: ' SGX Performance'
-        ctest_filter: '-R small_bank'
+        artifact_name: perf_build_results
+
+- job: ACC_1804_SGX_perf_build_A
+  pool: Ubuntu-1804-SGX-Azure
+  dependsOn:
+    - static_checks
+    - ACC_1804_SGX_perf_build
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
+    - template: .vsts-ci-templates/test.yml
+      parameters:
+        suite_name_suffix: ' SGX Performance A'
+        ctest_filter: '-L perf -I 0,,2'
+        artifact_name: perf_build_results
+    - template: .vsts-ci-templates/push_perf_data.yml
+
+- job: ACC_1804_SGX_perf_build_B
+  pool: Ubuntu-1804-SGX-Azure
+  dependsOn:
+    - static_checks
+    - ACC_1804_SGX_perf_build
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
+    - template: .vsts-ci-templates/test.yml
+      parameters:
+        suite_name_suffix: ' SGX Performance B'
+        ctest_filter: '-L perf -I 1,,2'
+        artifact_name: perf_build_results
     - template: .vsts-ci-templates/push_perf_data.yml

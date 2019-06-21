@@ -1,0 +1,27 @@
+parameters:
+  cmake_args: ''
+  artifact_name: ''
+
+steps:
+- task: CMake@1
+  displayName: CMake
+  inputs:
+    cmakeArgs: '-GNinja .. ${{ parameters.cmake_args }}'
+
+- script: ninja
+  displayName: Ninja
+  workingDirectory: build
+
+- script: ./tests.sh -N
+  displayName: Create Python venv
+  workingDirectory: build
+
+- script: |
+    tar -cavf artifact.tar.gz cchost cchost.virtual CTestTestfile.cmake json_schema genesisgenerator merkle_mem raft_driver tests.sh *_test *_bench *client *.so *.so.signed env/*
+  displayName: Compress build artifact
+  workingDirectory: build
+
+- task: PublishPipelineArtifact@0
+  inputs:
+    artifactName: ${{ parameters.artifact_name }}
+    targetPath: build/artifact.tar.gz

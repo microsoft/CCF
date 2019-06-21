@@ -1,20 +1,17 @@
 parameters:
-  cmake_args: ''
   suite_name_suffix: ''
   ctest_filter: ''
+  artifact_name: ''
 
 steps:
-- checkout: self
-  clean: true
-  submodules: true
-
-- task: CMake@1
-  displayName: CMake
+- task: DownloadPipelineArtifact@1
   inputs:
-    cmakeArgs: '-GNinja .. ${{ parameters.cmake_args }}'
+    artifactName: ${{ parameters.artifact_name }}
+    targetPath: $(Build.SourcesDirectory)/build
 
-- script: ninja
-  displayName: Ninja
+- script: |
+    tar -xaf artifact.tar.gz
+  displayName: Uncompress build artifact
   workingDirectory: build
 
 - script: |
