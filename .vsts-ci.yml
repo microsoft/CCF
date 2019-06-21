@@ -69,7 +69,7 @@ jobs:
       submodules: true
     - template: .vsts-ci-templates/test.yml
       parameters:
-        ctest_filter: '-L "unit_test|benchmark"'
+        ctest_filter: '-L "unit_test|benchmark|raft_scenario"'
         suite_name_suffix: ' SGX quick tests'
         artifact_name: build_results
 
