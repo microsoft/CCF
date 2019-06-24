@@ -111,27 +111,10 @@ void display(const json& proposals)
   }
 }
 
-uint8_t hex_char_to_byte(char c)
-{
-  if (c >= '0' && c <= '9')
-  {
-    return c - '0';
-  }
-  if (c >= 'A' && c <= 'F')
-  {
-    return c - 'A' + 0xa;
-  }
-  if (c >= 'a' && c <= 'f')
-  {
-    return c - 'a' + 0xa;
-  }
-  return -1;
-}
-
 template <size_t SZ>
 void hex_str_to_bytes(const std::string& src, std::array<uint8_t, SZ>& dst)
 {
-  if (src.length() != SZ << 1)
+  if (src.length() != SZ * 2)
   {
     throw logic_error("Invalid code id length");
   }
@@ -139,10 +122,8 @@ void hex_str_to_bytes(const std::string& src, std::array<uint8_t, SZ>& dst)
 
   for (size_t i = 0; i < SZ; ++i)
   {
-    auto tmp_char = hex_char_to_byte(hex_str[i * 2]);
-    tmp_char <<= 4;
-    tmp_char |= hex_char_to_byte(hex_str[(i * 2) + 1]);
-    dst[i] = tmp_char;
+    auto cur_byte_str = src.substr(i * 2, 2);
+    dst[i] = static_cast<uint8_t>(strtoul(cur_byte_str.c_str(), nullptr, 16));
   }
 }
 
