@@ -212,7 +212,7 @@ profiling, code coverage, sanitizers etc.
 
     mkdir build
     cd build
-    cmake -GNinja -DVIRTUAL_ONLY=ON ..
+    cmake -GNinja -DTARGET=virtual ..
     ninja
 
 Tests can be run normally, see :ref:`Tests`. On a full build of CCF, it is also possible to
