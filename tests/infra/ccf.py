@@ -225,7 +225,6 @@ class Network:
         )
         new_node_info = new_node.remote.info()
 
-        LOG.debug(f"Attempting to connect using port: {self.get_primary().tls_port}")
         with self.get_primary().member_client(format="json") as member_client:
             j_result = member_client.rpc("add_node", new_node_info)
 
@@ -554,6 +553,18 @@ class Node:
         ).check_returncode()
         LOG.info("Started Network")
 
+    def complete_join_network(self):
+        LOG.info("Joining Network")
+        self.network_state = NodeNetworkState.joined
+
+    def join_network_custom(self, host, tls_port, net_cert):
+        with self.management_client(format="json") as c:
+            c.rpc(
+                "joinNetwork",
+                {"hostname": host, "service": str(tls_port), "network_cert": net_cert},
+            )
+        self.complete_join_network()
+
     def join_network(self):
         infra.proc.ccall(
             "./client",
@@ -563,8 +574,7 @@ class Node:
             "joinnetwork",
             "--req=joinNetwork.json",
         ).check_returncode()
-        LOG.info("Joining Network")
-        self.network_state = NodeNetworkState.joined
+        self.complete_join_network()
 
     def set_recovery(self):
         self.remote.set_recovery()

@@ -12,6 +12,7 @@ from infra.ccf import NodeNetworkState
 from loguru import logger as LOG
 from shutil import copyfile
 
+OPCODE_MOV_EAX_DWORD = 0xB8
 OPCODE_PUSH_RBP = 0x55
 OPCODE_RET = 0xC3
 
@@ -30,7 +31,10 @@ def patch_binary(so_path, function_name):
         f.seek(address, 0)
         func_prologue = f.read(1)
         # make sure we know what we patch (the function prologue)
-        if func_prologue[0] == OPCODE_PUSH_RBP:
+        if (
+            func_prologue[0] == OPCODE_PUSH_RBP
+            or func_prologue[0] == OPCODE_MOV_EAX_DWORD
+        ):
             LOG.debug("Patching {} at 0x{:08x}".format(so_path, address))
             f.seek(address, 0)
             f.write(bytes([OPCODE_RET]))
@@ -43,7 +47,9 @@ def patch_binary(so_path, function_name):
         else:
             # The function begins with an instruction which is
             # neither 'push rbp' nor 'ret', something is not right
-            raise "Unexpected function prologue for {}".format(function_name)
+            raise ValueError(
+                "Unexpected function prologue for {}".format(function_name)
+            )
 
 
 def get_code_id(lib_path):
@@ -114,23 +120,10 @@ def vote_to_accept(primary, proposal_id):
     j_result = json.loads(result.stdout)
     assert j_result["result"]
 
-    # result = infra.proc.ccall(
-    # "./memberclient",
-    # "vote",
-    # "--accept",
-    # "--cert=member3_cert.pem",
-    # "--privk=member3_privk.pem",
-    # f"--host={primary.host}",
-    # f"--port={primary.tls_port}",
-    # f"--id={proposal_id}",
-    # "--ca=networkcert.pem",
-    # "--sign",
-    # )
-    # j_result = json.loads(result.stdout)
-    # assert j_result["result"]
 
-
-def add_new_code(primary, code_id):
+def add_new_code(primary):
+    new_code_id = create_new_code_version(primary)
+    LOG.debug(f"New code id: {new_code_id}")
 
     # first propose adding the new code id
     result = infra.proc.ccall(
@@ -141,7 +134,7 @@ def add_new_code(primary, code_id):
         f"--host={primary.host}",
         f"--port={primary.tls_port}",
         "--ca=networkcert.pem",
-        f"--new_code_id={code_id}",
+        f"--new_code_id={new_code_id}",
     )
 
     vote_to_accept(primary, 0)
@@ -162,9 +155,6 @@ def run(args):
     ) as network:
         primary, others = network.start_and_join(args)
 
-        new_code_id = create_new_code_version(primary)
-        LOG.debug(new_code_id)
-
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
@@ -180,7 +170,7 @@ def run(args):
             infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND,
         )
 
-        add_new_code(primary, new_code_id)
+        add_new_code(primary)
 
         with open("networkcert.pem", mode="rb") as file:
             net_cert = list(file.read())
@@ -202,32 +192,22 @@ def run(args):
             new_primary = node
             break
 
-        old_nodes = set(network.nodes).difference(new_nodes)  # .difference({primary})
+        old_nodes = set(network.nodes).difference(new_nodes)
         for node in old_nodes:
             old_status = node.remote.node_status
             LOG.debug(f"Stopping node {node.node_id}")
             node.stop()
 
+        # wait for a new leader to be elected
         time.sleep(10)
 
         network.set_primary(new_primary)
         LOG.debug(f"Waiting, primary is {new_primary.node_id}")
-        # input()
         res, new_node, new_node_id = network.create_and_add_node(
             args.patched_file_name, args, 13, True
         )
-        with new_node.management_client(format="json") as c:
-            c.rpc(
-                "joinNetwork",
-                {
-                    "hostname": new_primary.host,
-                    "service": str(new_primary.tls_port),
-                    "network_cert": net_cert,
-                },
-            )
-            new_node.network_state = NodeNetworkState.joined
-            # new_node.join_network()
-            network.wait_for_node_commit_sync()
+        new_node.join_network_custom(new_primary.host, new_primary.tls_port, net_cert)
+        network.wait_for_node_commit_sync()
 
 
 if __name__ == "__main__":
