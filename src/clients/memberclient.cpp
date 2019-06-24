@@ -118,7 +118,6 @@ void hex_str_to_bytes(const std::string& src, std::array<uint8_t, SZ>& dst)
   {
     throw logic_error("Invalid code id length");
   }
-  auto hex_str = src.c_str();
 
   for (size_t i = 0; i < SZ; ++i)
   {
