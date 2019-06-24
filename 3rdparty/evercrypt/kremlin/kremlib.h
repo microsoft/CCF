@@ -23,5 +23,6 @@
 #include "kremlin/internal/types.h"
 
 #include "kremlin/lowstar_endianness.h"
+#include "kremlin/fstar_int.h"
 
 #endif     /* __KREMLIB_H */
