@@ -294,7 +294,6 @@ if(BUILD_TESTS)
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/addnode.py
       )
 
-    if (QUOTES_ENABLED)
       ## Code update test
       add_e2e_test(
         NAME code_update_test
