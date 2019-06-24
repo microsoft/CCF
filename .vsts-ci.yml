@@ -2,7 +2,28 @@ trigger:
   batch: true
   branches:
     include:
-      - "*"
+      - "ci/*"
+
+pr:
+  autoCancel: true
+  branches:
+    include:
+      - master
+    paths:
+      include:
+        - '*'
+      exclude:
+        - 'README.md'
+        - 'CCF-TECHNICAL-REPORT.pdf'
+        - 'Dockerfile'
+        - 'Doxyfile'
+        - 'THIRD_PARTY_NOTICES.txt'
+        - 'getting_started/'
+        - 'sphinx/'
+        - '.circleci/'
+        - '.github/'
+        - '.vsts-gh-pages.yml'
+        - 'LICENSE'
 
 jobs:
 - job: ACC_1804_SGX_build
