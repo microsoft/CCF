@@ -6055,21 +6055,13 @@ L71:
   movdqu 0(%r15), %xmm0
   pcmpeqd %xmm1, %xmm0
   pextrq $0, %xmm0, %rdx
-  cmp $18446744073709551615, %rdx
-  jne L78
+  sub $18446744073709551615, %rdx
   mov $0, %rax
-  jmp L79
-L78:
-  mov $1, %rax
-L79:
+  adc $0, %rax
   pextrq $1, %xmm0, %rdx
-  cmp $18446744073709551615, %rdx
-  jne L80
+  sub $18446744073709551615, %rdx
   mov $0, %rdx
-  jmp L81
-L80:
-  mov $1, %rdx
-L81:
+  adc $0, %rdx
   add %rdx, %rax
   mov %rax, %rdx
   pop %rbx
@@ -6137,16 +6129,16 @@ gcm128_decrypt:
   pinsrd $0, %r12d, %xmm7
   pxor %xmm1, %xmm1
   cmp $0, %r11
-  jbe L82
+  jbe L78
   mov %r11, %rcx
   shr $4, %rcx
   mov %rax, %r9
   cmp $0, %rcx
-  je L84
+  je L80
   mov $0, %rdx
-  jmp L87
+  jmp L83
 .balign 16
-L86:
+L82:
   movdqu 0(%r9), %xmm2
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
@@ -6259,21 +6251,21 @@ L86:
   add $1, %rdx
   add $16, %r9
 .balign 16
-L87:
+L83:
   cmp %rcx, %rdx
-  jne L86
-  jmp L85
-L84:
-L85:
+  jne L82
+  jmp L81
+L80:
+L81:
   mov %r11, %rax
   and $15, %rax
   cmp $0, %rax
-  jne L88
-  jmp L89
-L88:
+  jne L84
+  jmp L85
+L84:
   movdqu 0(%r9), %xmm2
   cmp $8, %rax
-  jae L90
+  jae L86
   mov $0, %rcx
   pinsrq $1, %rcx, %xmm2
   mov %rax, %rcx
@@ -6284,8 +6276,8 @@ L88:
   pextrq $0, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $0, %rcx, %xmm2
-  jmp L91
-L90:
+  jmp L87
+L86:
   mov %rax, %rcx
   sub $8, %rcx
   shl $3, %rcx
@@ -6295,7 +6287,7 @@ L90:
   pextrq $1, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $1, %rcx, %xmm2
-L91:
+L87:
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
   pshufb %xmm8, %xmm1
@@ -6404,14 +6396,14 @@ L91:
   pxor %xmm5, %xmm1
   pxor %xmm6, %xmm1
   pshufb %xmm8, %xmm1
-L89:
-  jmp L83
-L82:
-L83:
+L85:
+  jmp L79
+L78:
+L79:
   mov %r14, %rax
   mov %r13, %rcx
   cmp $0, %rcx
-  jbe L92
+  jbe L88
   mov %rcx, %rsi
   and $15, %rsi
   shr $4, %rcx
@@ -6421,9 +6413,9 @@ L83:
   pxor %xmm10, %xmm10
   mov $1, %r12
   pinsrd $0, %r12d, %xmm10
-  jmp L95
+  jmp L91
 .balign 16
-L94:
+L90:
   movdqu 0(%r9), %xmm0
   movdqu %xmm0, %xmm2
   pxor %xmm2, %xmm1
@@ -6567,13 +6559,13 @@ L94:
   add $16, %r10
   paddd %xmm10, %xmm7
 .balign 16
-L95:
+L91:
   cmp %rcx, %rdx
-  jne L94
+  jne L90
   cmp $0, %rsi
-  jne L96
-  jmp L97
-L96:
+  jne L92
+  jmp L93
+L92:
   movdqu %xmm1, %xmm3
   movdqu 0(%r9), %xmm2
   movdqu %xmm2, %xmm1
@@ -6612,7 +6604,7 @@ L96:
   movdqu %xmm3, %xmm1
   movdqu 0(%r9), %xmm2
   cmp $8, %rax
-  jae L98
+  jae L94
   mov $0, %rcx
   pinsrq $1, %rcx, %xmm2
   mov %rax, %rcx
@@ -6623,8 +6615,8 @@ L96:
   pextrq $0, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $0, %rcx, %xmm2
-  jmp L99
-L98:
+  jmp L95
+L94:
   mov %rax, %rcx
   sub $8, %rcx
   shl $3, %rcx
@@ -6634,7 +6626,7 @@ L98:
   pextrq $1, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $1, %rcx, %xmm2
-L99:
+L95:
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
   pshufb %xmm8, %xmm1
@@ -6743,10 +6735,10 @@ L99:
   pxor %xmm5, %xmm1
   pxor %xmm6, %xmm1
   pshufb %xmm8, %xmm1
-L97:
-  jmp L93
-L92:
 L93:
+  jmp L89
+L88:
+L89:
   pxor %xmm2, %xmm2
   mov %r11, %rax
   imul $8, %rax
@@ -6898,21 +6890,13 @@ L93:
   movdqu 0(%r15), %xmm0
   pcmpeqd %xmm1, %xmm0
   pextrq $0, %xmm0, %rdx
-  cmp $18446744073709551615, %rdx
-  jne L100
+  sub $18446744073709551615, %rdx
   mov $0, %rax
-  jmp L101
-L100:
-  mov $1, %rax
-L101:
+  adc $0, %rax
   pextrq $1, %xmm0, %rdx
-  cmp $18446744073709551615, %rdx
-  jne L102
+  sub $18446744073709551615, %rdx
   mov $0, %rdx
-  jmp L103
-L102:
-  mov $1, %rdx
-L103:
+  adc $0, %rdx
   add %rdx, %rax
   pop %rbx
   pop %rbp
@@ -6987,16 +6971,16 @@ old_gcm256_encrypt:
   pinsrd $0, %r12d, %xmm7
   pxor %xmm1, %xmm1
   cmp $0, %r11
-  jbe L104
+  jbe L96
   mov %r11, %rcx
   shr $4, %rcx
   mov %rax, %r9
   cmp $0, %rcx
-  je L106
+  je L98
   mov $0, %rdx
-  jmp L109
+  jmp L101
 .balign 16
-L108:
+L100:
   movdqu 0(%r9), %xmm2
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
@@ -7109,21 +7093,21 @@ L108:
   add $1, %rdx
   add $16, %r9
 .balign 16
-L109:
+L101:
   cmp %rcx, %rdx
-  jne L108
-  jmp L107
-L106:
-L107:
+  jne L100
+  jmp L99
+L98:
+L99:
   mov %r11, %rax
   and $15, %rax
   cmp $0, %rax
-  jne L110
-  jmp L111
-L110:
+  jne L102
+  jmp L103
+L102:
   movdqu 0(%r9), %xmm2
   cmp $8, %rax
-  jae L112
+  jae L104
   mov $0, %rcx
   pinsrq $1, %rcx, %xmm2
   mov %rax, %rcx
@@ -7134,8 +7118,8 @@ L110:
   pextrq $0, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $0, %rcx, %xmm2
-  jmp L113
-L112:
+  jmp L105
+L104:
   mov %rax, %rcx
   sub $8, %rcx
   shl $3, %rcx
@@ -7145,7 +7129,7 @@ L112:
   pextrq $1, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $1, %rcx, %xmm2
-L113:
+L105:
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
   pshufb %xmm8, %xmm1
@@ -7254,14 +7238,14 @@ L113:
   pxor %xmm5, %xmm1
   pxor %xmm6, %xmm1
   pshufb %xmm8, %xmm1
-L111:
-  jmp L105
-L104:
-L105:
+L103:
+  jmp L97
+L96:
+L97:
   mov %r14, %rax
   mov %r13, %rcx
   cmp $0, %rcx
-  jbe L114
+  jbe L106
   mov %rcx, %rsi
   and $15, %rsi
   shr $4, %rcx
@@ -7269,7 +7253,7 @@ L105:
   shr $2, %rdx
   and $3, %rcx
   cmp $0, %rdx
-  jbe L116
+  jbe L108
   mov %rax, %r9
   mov %rbx, %r10
   pshufb %xmm8, %xmm7
@@ -7301,9 +7285,9 @@ L105:
   pinsrd $0, %eax, %xmm15
   mov $4, %rax
   pinsrd $2, %eax, %xmm15
-  jmp L119
+  jmp L111
 .balign 16
-L118:
+L110:
   pinsrq $0, %rdi, %xmm2
   pinsrq $0, %rdi, %xmm12
   pinsrq $0, %rdi, %xmm13
@@ -7845,26 +7829,26 @@ L118:
   add $64, %r9
   add $64, %r10
 .balign 16
-L119:
+L111:
   cmp $0, %rdx
-  ja L118
+  ja L110
   movdqu %xmm9, %xmm7
   pinsrq $0, %rdi, %xmm7
   pshufb %xmm8, %xmm7
   mov %r9, %rax
   mov %r10, %rbx
-  jmp L117
-L116:
-L117:
+  jmp L109
+L108:
+L109:
   mov $0, %rdx
   mov %rax, %r9
   mov %rbx, %r10
   pxor %xmm10, %xmm10
   mov $1, %r12
   pinsrd $0, %r12d, %xmm10
-  jmp L121
+  jmp L113
 .balign 16
-L120:
+L112:
   movdqu %xmm7, %xmm0
   pshufb %xmm8, %xmm0
   movdqu 0(%r8), %xmm2
@@ -8014,13 +7998,13 @@ L120:
   add $16, %r10
   paddd %xmm10, %xmm7
 .balign 16
-L121:
+L113:
   cmp %rcx, %rdx
-  jne L120
+  jne L112
   cmp $0, %rsi
-  jne L122
-  jmp L123
-L122:
+  jne L114
+  jmp L115
+L114:
   movdqu %xmm1, %xmm3
   movdqu 0(%r9), %xmm2
   movdqu %xmm2, %xmm1
@@ -8068,7 +8052,7 @@ L122:
   movdqu %xmm3, %xmm1
   movdqu 0(%r9), %xmm2
   cmp $8, %rax
-  jae L124
+  jae L116
   mov $0, %rcx
   pinsrq $1, %rcx, %xmm2
   mov %rax, %rcx
@@ -8079,8 +8063,8 @@ L122:
   pextrq $0, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $0, %rcx, %xmm2
-  jmp L125
-L124:
+  jmp L117
+L116:
   mov %rax, %rcx
   sub $8, %rcx
   shl $3, %rcx
@@ -8090,7 +8074,7 @@ L124:
   pextrq $1, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $1, %rcx, %xmm2
-L125:
+L117:
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
   pshufb %xmm8, %xmm1
@@ -8199,10 +8183,10 @@ L125:
   pxor %xmm5, %xmm1
   pxor %xmm6, %xmm1
   pshufb %xmm8, %xmm1
-L123:
-  jmp L115
-L114:
 L115:
+  jmp L107
+L106:
+L107:
   pxor %xmm2, %xmm2
   mov %r11, %rax
   imul $8, %rax
@@ -8432,16 +8416,16 @@ gcm256_encrypt:
   pinsrd $0, %r12d, %xmm7
   pxor %xmm1, %xmm1
   cmp $0, %r11
-  jbe L126
+  jbe L118
   mov %r11, %rcx
   shr $4, %rcx
   mov %rax, %r9
   cmp $0, %rcx
-  je L128
+  je L120
   mov $0, %rdx
-  jmp L131
+  jmp L123
 .balign 16
-L130:
+L122:
   movdqu 0(%r9), %xmm2
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
@@ -8554,21 +8538,21 @@ L130:
   add $1, %rdx
   add $16, %r9
 .balign 16
-L131:
+L123:
   cmp %rcx, %rdx
-  jne L130
-  jmp L129
-L128:
-L129:
+  jne L122
+  jmp L121
+L120:
+L121:
   mov %r11, %rax
   and $15, %rax
   cmp $0, %rax
-  jne L132
-  jmp L133
-L132:
+  jne L124
+  jmp L125
+L124:
   movdqu 0(%r9), %xmm2
   cmp $8, %rax
-  jae L134
+  jae L126
   mov $0, %rcx
   pinsrq $1, %rcx, %xmm2
   mov %rax, %rcx
@@ -8579,8 +8563,8 @@ L132:
   pextrq $0, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $0, %rcx, %xmm2
-  jmp L135
-L134:
+  jmp L127
+L126:
   mov %rax, %rcx
   sub $8, %rcx
   shl $3, %rcx
@@ -8590,7 +8574,7 @@ L134:
   pextrq $1, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $1, %rcx, %xmm2
-L135:
+L127:
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
   pshufb %xmm8, %xmm1
@@ -8699,14 +8683,14 @@ L135:
   pxor %xmm5, %xmm1
   pxor %xmm6, %xmm1
   pshufb %xmm8, %xmm1
-L133:
-  jmp L127
-L126:
-L127:
+L125:
+  jmp L119
+L118:
+L119:
   mov %r14, %rax
   mov %r13, %rcx
   cmp $0, %rcx
-  jbe L136
+  jbe L128
   mov %rcx, %rsi
   and $15, %rsi
   shr $4, %rcx
@@ -8714,7 +8698,7 @@ L127:
   shr $2, %rdx
   and $3, %rcx
   cmp $0, %rdx
-  jbe L138
+  jbe L130
   mov %rax, %r9
   mov %rbx, %r10
   pshufb %xmm8, %xmm7
@@ -8746,9 +8730,9 @@ L127:
   pinsrd $0, %eax, %xmm15
   mov $4, %rax
   pinsrd $2, %eax, %xmm15
-  jmp L141
+  jmp L133
 .balign 16
-L140:
+L132:
   pinsrq $0, %rdi, %xmm2
   pinsrq $0, %rdi, %xmm12
   pinsrq $0, %rdi, %xmm13
@@ -9290,26 +9274,26 @@ L140:
   add $64, %r9
   add $64, %r10
 .balign 16
-L141:
+L133:
   cmp $0, %rdx
-  ja L140
+  ja L132
   movdqu %xmm9, %xmm7
   pinsrq $0, %rdi, %xmm7
   pshufb %xmm8, %xmm7
   mov %r9, %rax
   mov %r10, %rbx
-  jmp L139
-L138:
-L139:
+  jmp L131
+L130:
+L131:
   mov $0, %rdx
   mov %rax, %r9
   mov %rbx, %r10
   pxor %xmm10, %xmm10
   mov $1, %r12
   pinsrd $0, %r12d, %xmm10
-  jmp L143
+  jmp L135
 .balign 16
-L142:
+L134:
   movdqu %xmm7, %xmm0
   pshufb %xmm8, %xmm0
   movdqu 0(%r8), %xmm2
@@ -9459,13 +9443,13 @@ L142:
   add $16, %r10
   paddd %xmm10, %xmm7
 .balign 16
-L143:
+L135:
   cmp %rcx, %rdx
-  jne L142
+  jne L134
   cmp $0, %rsi
-  jne L144
-  jmp L145
-L144:
+  jne L136
+  jmp L137
+L136:
   movdqu %xmm1, %xmm3
   movdqu 0(%r9), %xmm2
   movdqu %xmm2, %xmm1
@@ -9513,7 +9497,7 @@ L144:
   movdqu %xmm3, %xmm1
   movdqu 0(%r9), %xmm2
   cmp $8, %rax
-  jae L146
+  jae L138
   mov $0, %rcx
   pinsrq $1, %rcx, %xmm2
   mov %rax, %rcx
@@ -9524,8 +9508,8 @@ L144:
   pextrq $0, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $0, %rcx, %xmm2
-  jmp L147
-L146:
+  jmp L139
+L138:
   mov %rax, %rcx
   sub $8, %rcx
   shl $3, %rcx
@@ -9535,7 +9519,7 @@ L146:
   pextrq $1, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $1, %rcx, %xmm2
-L147:
+L139:
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
   pshufb %xmm8, %xmm1
@@ -9644,10 +9628,10 @@ L147:
   pxor %xmm5, %xmm1
   pxor %xmm6, %xmm1
   pshufb %xmm8, %xmm1
-L145:
-  jmp L137
-L136:
 L137:
+  jmp L129
+L128:
+L129:
   pxor %xmm2, %xmm2
   mov %r11, %rax
   imul $8, %rax
@@ -9878,16 +9862,16 @@ old_gcm256_decrypt:
   pinsrd $0, %r12d, %xmm7
   pxor %xmm1, %xmm1
   cmp $0, %r11
-  jbe L148
+  jbe L140
   mov %r11, %rcx
   shr $4, %rcx
   mov %rax, %r9
   cmp $0, %rcx
-  je L150
+  je L142
   mov $0, %rdx
-  jmp L153
+  jmp L145
 .balign 16
-L152:
+L144:
   movdqu 0(%r9), %xmm2
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
@@ -10000,18 +9984,373 @@ L152:
   add $1, %rdx
   add $16, %r9
 .balign 16
-L153:
+L145:
   cmp %rcx, %rdx
-  jne L152
-  jmp L151
-L150:
-L151:
+  jne L144
+  jmp L143
+L142:
+L143:
   mov %r11, %rax
   and $15, %rax
   cmp $0, %rax
+  jne L146
+  jmp L147
+L146:
+  movdqu 0(%r9), %xmm2
+  cmp $8, %rax
+  jae L148
+  mov $0, %rcx
+  pinsrq $1, %rcx, %xmm2
+  mov %rax, %rcx
+  shl $3, %rcx
+  mov $1, %rdx
+  shl %cl, %rdx
+  sub $1, %rdx
+  pextrq $0, %xmm2, %rcx
+  and %rdx, %rcx
+  pinsrq $0, %rcx, %xmm2
+  jmp L149
+L148:
+  mov %rax, %rcx
+  sub $8, %rcx
+  shl $3, %rcx
+  mov $1, %rdx
+  shl %cl, %rdx
+  sub $1, %rdx
+  pextrq $1, %xmm2, %rcx
+  and %rdx, %rcx
+  pinsrq $1, %rcx, %xmm2
+L149:
+  pxor %xmm2, %xmm1
+  movdqu %xmm11, %xmm2
+  pshufb %xmm8, %xmm1
+  movdqu %xmm1, %xmm5
+  pclmulqdq $16, %xmm2, %xmm1
+  movdqu %xmm1, %xmm3
+  movdqu %xmm5, %xmm1
+  pclmulqdq $1, %xmm2, %xmm1
+  movdqu %xmm1, %xmm4
+  movdqu %xmm5, %xmm1
+  pclmulqdq $0, %xmm2, %xmm1
+  pclmulqdq $17, %xmm2, %xmm5
+  movdqu %xmm5, %xmm2
+  movdqu %xmm1, %xmm5
+  movdqu %xmm3, %xmm1
+  mov $0, %r12
+  pinsrd $0, %r12d, %xmm1
+  pshufd $14, %xmm1, %xmm1
+  pxor %xmm1, %xmm2
+  movdqu %xmm4, %xmm1
+  mov $0, %r12
+  pinsrd $0, %r12d, %xmm1
+  pshufd $14, %xmm1, %xmm1
+  pxor %xmm1, %xmm2
+  movdqu %xmm3, %xmm1
+  mov $0, %r12
+  pinsrd $3, %r12d, %xmm1
+  pshufd $79, %xmm1, %xmm1
+  mov $0, %r12
+  pinsrd $3, %r12d, %xmm4
+  pshufd $79, %xmm4, %xmm4
+  pxor %xmm4, %xmm1
+  pxor %xmm5, %xmm1
+  movdqu %xmm1, %xmm3
+  psrld $31, %xmm3
+  movdqu %xmm2, %xmm4
+  psrld $31, %xmm4
+  pslld $1, %xmm1
+  pslld $1, %xmm2
+  vpslldq $4, %xmm3, %xmm5
+  vpslldq $4, %xmm4, %xmm4
+  mov $0, %r12
+  pinsrd $0, %r12d, %xmm3
+  pshufd $3, %xmm3, %xmm3
+  pxor %xmm4, %xmm3
+  pxor %xmm5, %xmm1
+  pxor %xmm3, %xmm2
+  movdqu %xmm2, %xmm6
+  pxor %xmm2, %xmm2
+  mov $3774873600, %r12
+  pinsrd $3, %r12d, %xmm2
+  movdqu %xmm1, %xmm5
+  pclmulqdq $16, %xmm2, %xmm1
+  movdqu %xmm1, %xmm3
+  movdqu %xmm5, %xmm1
+  pclmulqdq $1, %xmm2, %xmm1
+  movdqu %xmm1, %xmm4
+  movdqu %xmm5, %xmm1
+  pclmulqdq $0, %xmm2, %xmm1
+  pclmulqdq $17, %xmm2, %xmm5
+  movdqu %xmm5, %xmm2
+  movdqu %xmm1, %xmm5
+  movdqu %xmm3, %xmm1
+  mov $0, %r12
+  pinsrd $0, %r12d, %xmm1
+  pshufd $14, %xmm1, %xmm1
+  pxor %xmm1, %xmm2
+  movdqu %xmm4, %xmm1
+  mov $0, %r12
+  pinsrd $0, %r12d, %xmm1
+  pshufd $14, %xmm1, %xmm1
+  pxor %xmm1, %xmm2
+  movdqu %xmm3, %xmm1
+  mov $0, %r12
+  pinsrd $3, %r12d, %xmm1
+  pshufd $79, %xmm1, %xmm1
+  mov $0, %r12
+  pinsrd $3, %r12d, %xmm4
+  pshufd $79, %xmm4, %xmm4
+  pxor %xmm4, %xmm1
+  pxor %xmm5, %xmm1
+  movdqu %xmm1, %xmm3
+  psrld $31, %xmm3
+  movdqu %xmm2, %xmm4
+  psrld $31, %xmm4
+  pslld $1, %xmm1
+  pslld $1, %xmm2
+  vpslldq $4, %xmm3, %xmm5
+  vpslldq $4, %xmm4, %xmm4
+  mov $0, %r12
+  pinsrd $0, %r12d, %xmm3
+  pshufd $3, %xmm3, %xmm3
+  pxor %xmm4, %xmm3
+  pxor %xmm5, %xmm1
+  pxor %xmm3, %xmm2
+  movdqu %xmm2, %xmm5
+  pxor %xmm2, %xmm2
+  mov $3774873600, %r12
+  pinsrd $3, %r12d, %xmm2
+  pclmulqdq $17, %xmm2, %xmm1
+  movdqu %xmm1, %xmm2
+  psrld $31, %xmm2
+  pslld $1, %xmm1
+  vpslldq $4, %xmm2, %xmm2
+  pxor %xmm2, %xmm1
+  pxor %xmm5, %xmm1
+  pxor %xmm6, %xmm1
+  pshufb %xmm8, %xmm1
+L147:
+  jmp L141
+L140:
+L141:
+  mov %r14, %rax
+  mov %r13, %rcx
+  cmp $0, %rcx
+  jbe L150
+  mov %rcx, %rsi
+  and $15, %rsi
+  shr $4, %rcx
+  mov $0, %rdx
+  mov %rax, %r9
+  mov %rbx, %r10
+  pxor %xmm10, %xmm10
+  mov $1, %r12
+  pinsrd $0, %r12d, %xmm10
+  jmp L153
+.balign 16
+L152:
+  movdqu 0(%r9), %xmm0
+  movdqu %xmm0, %xmm2
+  pxor %xmm2, %xmm1
+  movdqu %xmm11, %xmm2
+  pshufb %xmm8, %xmm1
+  movdqu %xmm1, %xmm5
+  pclmulqdq $16, %xmm2, %xmm1
+  movdqu %xmm1, %xmm3
+  movdqu %xmm5, %xmm1
+  pclmulqdq $1, %xmm2, %xmm1
+  movdqu %xmm1, %xmm4
+  movdqu %xmm5, %xmm1
+  pclmulqdq $0, %xmm2, %xmm1
+  pclmulqdq $17, %xmm2, %xmm5
+  movdqu %xmm5, %xmm2
+  movdqu %xmm1, %xmm5
+  movdqu %xmm3, %xmm1
+  mov $0, %r12
+  pinsrd $0, %r12d, %xmm1
+  pshufd $14, %xmm1, %xmm1
+  pxor %xmm1, %xmm2
+  movdqu %xmm4, %xmm1
+  mov $0, %r12
+  pinsrd $0, %r12d, %xmm1
+  pshufd $14, %xmm1, %xmm1
+  pxor %xmm1, %xmm2
+  movdqu %xmm3, %xmm1
+  mov $0, %r12
+  pinsrd $3, %r12d, %xmm1
+  pshufd $79, %xmm1, %xmm1
+  mov $0, %r12
+  pinsrd $3, %r12d, %xmm4
+  pshufd $79, %xmm4, %xmm4
+  pxor %xmm4, %xmm1
+  pxor %xmm5, %xmm1
+  movdqu %xmm1, %xmm3
+  psrld $31, %xmm3
+  movdqu %xmm2, %xmm4
+  psrld $31, %xmm4
+  pslld $1, %xmm1
+  pslld $1, %xmm2
+  vpslldq $4, %xmm3, %xmm5
+  vpslldq $4, %xmm4, %xmm4
+  mov $0, %r12
+  pinsrd $0, %r12d, %xmm3
+  pshufd $3, %xmm3, %xmm3
+  pxor %xmm4, %xmm3
+  pxor %xmm5, %xmm1
+  pxor %xmm3, %xmm2
+  movdqu %xmm2, %xmm6
+  pxor %xmm2, %xmm2
+  mov $3774873600, %r12
+  pinsrd $3, %r12d, %xmm2
+  movdqu %xmm1, %xmm5
+  pclmulqdq $16, %xmm2, %xmm1
+  movdqu %xmm1, %xmm3
+  movdqu %xmm5, %xmm1
+  pclmulqdq $1, %xmm2, %xmm1
+  movdqu %xmm1, %xmm4
+  movdqu %xmm5, %xmm1
+  pclmulqdq $0, %xmm2, %xmm1
+  pclmulqdq $17, %xmm2, %xmm5
+  movdqu %xmm5, %xmm2
+  movdqu %xmm1, %xmm5
+  movdqu %xmm3, %xmm1
+  mov $0, %r12
+  pinsrd $0, %r12d, %xmm1
+  pshufd $14, %xmm1, %xmm1
+  pxor %xmm1, %xmm2
+  movdqu %xmm4, %xmm1
+  mov $0, %r12
+  pinsrd $0, %r12d, %xmm1
+  pshufd $14, %xmm1, %xmm1
+  pxor %xmm1, %xmm2
+  movdqu %xmm3, %xmm1
+  mov $0, %r12
+  pinsrd $3, %r12d, %xmm1
+  pshufd $79, %xmm1, %xmm1
+  mov $0, %r12
+  pinsrd $3, %r12d, %xmm4
+  pshufd $79, %xmm4, %xmm4
+  pxor %xmm4, %xmm1
+  pxor %xmm5, %xmm1
+  movdqu %xmm1, %xmm3
+  psrld $31, %xmm3
+  movdqu %xmm2, %xmm4
+  psrld $31, %xmm4
+  pslld $1, %xmm1
+  pslld $1, %xmm2
+  vpslldq $4, %xmm3, %xmm5
+  vpslldq $4, %xmm4, %xmm4
+  mov $0, %r12
+  pinsrd $0, %r12d, %xmm3
+  pshufd $3, %xmm3, %xmm3
+  pxor %xmm4, %xmm3
+  pxor %xmm5, %xmm1
+  pxor %xmm3, %xmm2
+  movdqu %xmm2, %xmm5
+  pxor %xmm2, %xmm2
+  mov $3774873600, %r12
+  pinsrd $3, %r12d, %xmm2
+  pclmulqdq $17, %xmm2, %xmm1
+  movdqu %xmm1, %xmm2
+  psrld $31, %xmm2
+  pslld $1, %xmm1
+  vpslldq $4, %xmm2, %xmm2
+  pxor %xmm2, %xmm1
+  pxor %xmm5, %xmm1
+  pxor %xmm6, %xmm1
+  pshufb %xmm8, %xmm1
+  movdqu %xmm0, %xmm3
+  movdqu %xmm7, %xmm0
+  pshufb %xmm8, %xmm0
+  movdqu 0(%r8), %xmm2
+  pxor %xmm2, %xmm0
+  movdqu 16(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 32(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 48(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 64(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 80(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 96(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 112(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 128(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 144(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 160(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 176(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 192(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 208(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 224(%r8), %xmm2
+  aesenclast %xmm2, %xmm0
+  pxor %xmm2, %xmm2
+  pxor %xmm0, %xmm3
+  movdqu %xmm3, 0(%r10)
+  add $1, %rdx
+  add $16, %r9
+  add $16, %r10
+  paddd %xmm10, %xmm7
+.balign 16
+L153:
+  cmp %rcx, %rdx
+  jne L152
+  cmp $0, %rsi
   jne L154
   jmp L155
 L154:
+  movdqu %xmm1, %xmm3
+  movdqu 0(%r9), %xmm2
+  movdqu %xmm2, %xmm1
+  movdqu %xmm7, %xmm0
+  mov $579005069656919567, %r12
+  pinsrq $0, %r12, %xmm2
+  mov $283686952306183, %r12
+  pinsrq $1, %r12, %xmm2
+  pshufb %xmm2, %xmm0
+  movdqu 0(%r8), %xmm2
+  pxor %xmm2, %xmm0
+  movdqu 16(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 32(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 48(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 64(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 80(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 96(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 112(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 128(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 144(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 160(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 176(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 192(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 208(%r8), %xmm2
+  aesenc %xmm2, %xmm0
+  movdqu 224(%r8), %xmm2
+  aesenclast %xmm2, %xmm0
+  pxor %xmm2, %xmm2
+  pxor %xmm0, %xmm1
+  movdqu %xmm1, 0(%r10)
+  mov %rsi, %rax
+  movdqu %xmm3, %xmm1
   movdqu 0(%r9), %xmm2
   cmp $8, %rax
   jae L156
@@ -10146,364 +10485,9 @@ L157:
   pxor %xmm6, %xmm1
   pshufb %xmm8, %xmm1
 L155:
-  jmp L149
-L148:
-L149:
-  mov %r14, %rax
-  mov %r13, %rcx
-  cmp $0, %rcx
-  jbe L158
-  mov %rcx, %rsi
-  and $15, %rsi
-  shr $4, %rcx
-  mov $0, %rdx
-  mov %rax, %r9
-  mov %rbx, %r10
-  pxor %xmm10, %xmm10
-  mov $1, %r12
-  pinsrd $0, %r12d, %xmm10
-  jmp L161
-.balign 16
-L160:
-  movdqu 0(%r9), %xmm0
-  movdqu %xmm0, %xmm2
-  pxor %xmm2, %xmm1
-  movdqu %xmm11, %xmm2
-  pshufb %xmm8, %xmm1
-  movdqu %xmm1, %xmm5
-  pclmulqdq $16, %xmm2, %xmm1
-  movdqu %xmm1, %xmm3
-  movdqu %xmm5, %xmm1
-  pclmulqdq $1, %xmm2, %xmm1
-  movdqu %xmm1, %xmm4
-  movdqu %xmm5, %xmm1
-  pclmulqdq $0, %xmm2, %xmm1
-  pclmulqdq $17, %xmm2, %xmm5
-  movdqu %xmm5, %xmm2
-  movdqu %xmm1, %xmm5
-  movdqu %xmm3, %xmm1
-  mov $0, %r12
-  pinsrd $0, %r12d, %xmm1
-  pshufd $14, %xmm1, %xmm1
-  pxor %xmm1, %xmm2
-  movdqu %xmm4, %xmm1
-  mov $0, %r12
-  pinsrd $0, %r12d, %xmm1
-  pshufd $14, %xmm1, %xmm1
-  pxor %xmm1, %xmm2
-  movdqu %xmm3, %xmm1
-  mov $0, %r12
-  pinsrd $3, %r12d, %xmm1
-  pshufd $79, %xmm1, %xmm1
-  mov $0, %r12
-  pinsrd $3, %r12d, %xmm4
-  pshufd $79, %xmm4, %xmm4
-  pxor %xmm4, %xmm1
-  pxor %xmm5, %xmm1
-  movdqu %xmm1, %xmm3
-  psrld $31, %xmm3
-  movdqu %xmm2, %xmm4
-  psrld $31, %xmm4
-  pslld $1, %xmm1
-  pslld $1, %xmm2
-  vpslldq $4, %xmm3, %xmm5
-  vpslldq $4, %xmm4, %xmm4
-  mov $0, %r12
-  pinsrd $0, %r12d, %xmm3
-  pshufd $3, %xmm3, %xmm3
-  pxor %xmm4, %xmm3
-  pxor %xmm5, %xmm1
-  pxor %xmm3, %xmm2
-  movdqu %xmm2, %xmm6
-  pxor %xmm2, %xmm2
-  mov $3774873600, %r12
-  pinsrd $3, %r12d, %xmm2
-  movdqu %xmm1, %xmm5
-  pclmulqdq $16, %xmm2, %xmm1
-  movdqu %xmm1, %xmm3
-  movdqu %xmm5, %xmm1
-  pclmulqdq $1, %xmm2, %xmm1
-  movdqu %xmm1, %xmm4
-  movdqu %xmm5, %xmm1
-  pclmulqdq $0, %xmm2, %xmm1
-  pclmulqdq $17, %xmm2, %xmm5
-  movdqu %xmm5, %xmm2
-  movdqu %xmm1, %xmm5
-  movdqu %xmm3, %xmm1
-  mov $0, %r12
-  pinsrd $0, %r12d, %xmm1
-  pshufd $14, %xmm1, %xmm1
-  pxor %xmm1, %xmm2
-  movdqu %xmm4, %xmm1
-  mov $0, %r12
-  pinsrd $0, %r12d, %xmm1
-  pshufd $14, %xmm1, %xmm1
-  pxor %xmm1, %xmm2
-  movdqu %xmm3, %xmm1
-  mov $0, %r12
-  pinsrd $3, %r12d, %xmm1
-  pshufd $79, %xmm1, %xmm1
-  mov $0, %r12
-  pinsrd $3, %r12d, %xmm4
-  pshufd $79, %xmm4, %xmm4
-  pxor %xmm4, %xmm1
-  pxor %xmm5, %xmm1
-  movdqu %xmm1, %xmm3
-  psrld $31, %xmm3
-  movdqu %xmm2, %xmm4
-  psrld $31, %xmm4
-  pslld $1, %xmm1
-  pslld $1, %xmm2
-  vpslldq $4, %xmm3, %xmm5
-  vpslldq $4, %xmm4, %xmm4
-  mov $0, %r12
-  pinsrd $0, %r12d, %xmm3
-  pshufd $3, %xmm3, %xmm3
-  pxor %xmm4, %xmm3
-  pxor %xmm5, %xmm1
-  pxor %xmm3, %xmm2
-  movdqu %xmm2, %xmm5
-  pxor %xmm2, %xmm2
-  mov $3774873600, %r12
-  pinsrd $3, %r12d, %xmm2
-  pclmulqdq $17, %xmm2, %xmm1
-  movdqu %xmm1, %xmm2
-  psrld $31, %xmm2
-  pslld $1, %xmm1
-  vpslldq $4, %xmm2, %xmm2
-  pxor %xmm2, %xmm1
-  pxor %xmm5, %xmm1
-  pxor %xmm6, %xmm1
-  pshufb %xmm8, %xmm1
-  movdqu %xmm0, %xmm3
-  movdqu %xmm7, %xmm0
-  pshufb %xmm8, %xmm0
-  movdqu 0(%r8), %xmm2
-  pxor %xmm2, %xmm0
-  movdqu 16(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 32(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 48(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 64(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 80(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 96(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 112(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 128(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 144(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 160(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 176(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 192(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 208(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 224(%r8), %xmm2
-  aesenclast %xmm2, %xmm0
-  pxor %xmm2, %xmm2
-  pxor %xmm0, %xmm3
-  movdqu %xmm3, 0(%r10)
-  add $1, %rdx
-  add $16, %r9
-  add $16, %r10
-  paddd %xmm10, %xmm7
-.balign 16
-L161:
-  cmp %rcx, %rdx
-  jne L160
-  cmp $0, %rsi
-  jne L162
-  jmp L163
-L162:
-  movdqu %xmm1, %xmm3
-  movdqu 0(%r9), %xmm2
-  movdqu %xmm2, %xmm1
-  movdqu %xmm7, %xmm0
-  mov $579005069656919567, %r12
-  pinsrq $0, %r12, %xmm2
-  mov $283686952306183, %r12
-  pinsrq $1, %r12, %xmm2
-  pshufb %xmm2, %xmm0
-  movdqu 0(%r8), %xmm2
-  pxor %xmm2, %xmm0
-  movdqu 16(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 32(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 48(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 64(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 80(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 96(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 112(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 128(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 144(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 160(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 176(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 192(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 208(%r8), %xmm2
-  aesenc %xmm2, %xmm0
-  movdqu 224(%r8), %xmm2
-  aesenclast %xmm2, %xmm0
-  pxor %xmm2, %xmm2
-  pxor %xmm0, %xmm1
-  movdqu %xmm1, 0(%r10)
-  mov %rsi, %rax
-  movdqu %xmm3, %xmm1
-  movdqu 0(%r9), %xmm2
-  cmp $8, %rax
-  jae L164
-  mov $0, %rcx
-  pinsrq $1, %rcx, %xmm2
-  mov %rax, %rcx
-  shl $3, %rcx
-  mov $1, %rdx
-  shl %cl, %rdx
-  sub $1, %rdx
-  pextrq $0, %xmm2, %rcx
-  and %rdx, %rcx
-  pinsrq $0, %rcx, %xmm2
-  jmp L165
-L164:
-  mov %rax, %rcx
-  sub $8, %rcx
-  shl $3, %rcx
-  mov $1, %rdx
-  shl %cl, %rdx
-  sub $1, %rdx
-  pextrq $1, %xmm2, %rcx
-  and %rdx, %rcx
-  pinsrq $1, %rcx, %xmm2
-L165:
-  pxor %xmm2, %xmm1
-  movdqu %xmm11, %xmm2
-  pshufb %xmm8, %xmm1
-  movdqu %xmm1, %xmm5
-  pclmulqdq $16, %xmm2, %xmm1
-  movdqu %xmm1, %xmm3
-  movdqu %xmm5, %xmm1
-  pclmulqdq $1, %xmm2, %xmm1
-  movdqu %xmm1, %xmm4
-  movdqu %xmm5, %xmm1
-  pclmulqdq $0, %xmm2, %xmm1
-  pclmulqdq $17, %xmm2, %xmm5
-  movdqu %xmm5, %xmm2
-  movdqu %xmm1, %xmm5
-  movdqu %xmm3, %xmm1
-  mov $0, %r12
-  pinsrd $0, %r12d, %xmm1
-  pshufd $14, %xmm1, %xmm1
-  pxor %xmm1, %xmm2
-  movdqu %xmm4, %xmm1
-  mov $0, %r12
-  pinsrd $0, %r12d, %xmm1
-  pshufd $14, %xmm1, %xmm1
-  pxor %xmm1, %xmm2
-  movdqu %xmm3, %xmm1
-  mov $0, %r12
-  pinsrd $3, %r12d, %xmm1
-  pshufd $79, %xmm1, %xmm1
-  mov $0, %r12
-  pinsrd $3, %r12d, %xmm4
-  pshufd $79, %xmm4, %xmm4
-  pxor %xmm4, %xmm1
-  pxor %xmm5, %xmm1
-  movdqu %xmm1, %xmm3
-  psrld $31, %xmm3
-  movdqu %xmm2, %xmm4
-  psrld $31, %xmm4
-  pslld $1, %xmm1
-  pslld $1, %xmm2
-  vpslldq $4, %xmm3, %xmm5
-  vpslldq $4, %xmm4, %xmm4
-  mov $0, %r12
-  pinsrd $0, %r12d, %xmm3
-  pshufd $3, %xmm3, %xmm3
-  pxor %xmm4, %xmm3
-  pxor %xmm5, %xmm1
-  pxor %xmm3, %xmm2
-  movdqu %xmm2, %xmm6
-  pxor %xmm2, %xmm2
-  mov $3774873600, %r12
-  pinsrd $3, %r12d, %xmm2
-  movdqu %xmm1, %xmm5
-  pclmulqdq $16, %xmm2, %xmm1
-  movdqu %xmm1, %xmm3
-  movdqu %xmm5, %xmm1
-  pclmulqdq $1, %xmm2, %xmm1
-  movdqu %xmm1, %xmm4
-  movdqu %xmm5, %xmm1
-  pclmulqdq $0, %xmm2, %xmm1
-  pclmulqdq $17, %xmm2, %xmm5
-  movdqu %xmm5, %xmm2
-  movdqu %xmm1, %xmm5
-  movdqu %xmm3, %xmm1
-  mov $0, %r12
-  pinsrd $0, %r12d, %xmm1
-  pshufd $14, %xmm1, %xmm1
-  pxor %xmm1, %xmm2
-  movdqu %xmm4, %xmm1
-  mov $0, %r12
-  pinsrd $0, %r12d, %xmm1
-  pshufd $14, %xmm1, %xmm1
-  pxor %xmm1, %xmm2
-  movdqu %xmm3, %xmm1
-  mov $0, %r12
-  pinsrd $3, %r12d, %xmm1
-  pshufd $79, %xmm1, %xmm1
-  mov $0, %r12
-  pinsrd $3, %r12d, %xmm4
-  pshufd $79, %xmm4, %xmm4
-  pxor %xmm4, %xmm1
-  pxor %xmm5, %xmm1
-  movdqu %xmm1, %xmm3
-  psrld $31, %xmm3
-  movdqu %xmm2, %xmm4
-  psrld $31, %xmm4
-  pslld $1, %xmm1
-  pslld $1, %xmm2
-  vpslldq $4, %xmm3, %xmm5
-  vpslldq $4, %xmm4, %xmm4
-  mov $0, %r12
-  pinsrd $0, %r12d, %xmm3
-  pshufd $3, %xmm3, %xmm3
-  pxor %xmm4, %xmm3
-  pxor %xmm5, %xmm1
-  pxor %xmm3, %xmm2
-  movdqu %xmm2, %xmm5
-  pxor %xmm2, %xmm2
-  mov $3774873600, %r12
-  pinsrd $3, %r12d, %xmm2
-  pclmulqdq $17, %xmm2, %xmm1
-  movdqu %xmm1, %xmm2
-  psrld $31, %xmm2
-  pslld $1, %xmm1
-  vpslldq $4, %xmm2, %xmm2
-  pxor %xmm2, %xmm1
-  pxor %xmm5, %xmm1
-  pxor %xmm6, %xmm1
-  pshufb %xmm8, %xmm1
-L163:
-  jmp L159
-L158:
-L159:
+  jmp L151
+L150:
+L151:
   pxor %xmm2, %xmm2
   mov %r11, %rax
   imul $8, %rax
@@ -10663,21 +10647,13 @@ L159:
   movdqu 0(%r15), %xmm0
   pcmpeqd %xmm1, %xmm0
   pextrq $0, %xmm0, %rdx
-  cmp $18446744073709551615, %rdx
-  jne L166
+  sub $18446744073709551615, %rdx
   mov $0, %rax
-  jmp L167
-L166:
-  mov $1, %rax
-L167:
+  adc $0, %rax
   pextrq $1, %xmm0, %rdx
-  cmp $18446744073709551615, %rdx
-  jne L168
+  sub $18446744073709551615, %rdx
   mov $0, %rdx
-  jmp L169
-L168:
-  mov $1, %rdx
-L169:
+  adc $0, %rdx
   add %rdx, %rax
   mov %rax, %rdx
   pop %rbx
@@ -10753,16 +10729,16 @@ gcm256_decrypt:
   pinsrd $0, %r12d, %xmm7
   pxor %xmm1, %xmm1
   cmp $0, %r11
-  jbe L170
+  jbe L158
   mov %r11, %rcx
   shr $4, %rcx
   mov %rax, %r9
   cmp $0, %rcx
-  je L172
+  je L160
   mov $0, %rdx
-  jmp L175
+  jmp L163
 .balign 16
-L174:
+L162:
   movdqu 0(%r9), %xmm2
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
@@ -10875,21 +10851,21 @@ L174:
   add $1, %rdx
   add $16, %r9
 .balign 16
-L175:
+L163:
   cmp %rcx, %rdx
-  jne L174
-  jmp L173
-L172:
-L173:
+  jne L162
+  jmp L161
+L160:
+L161:
   mov %r11, %rax
   and $15, %rax
   cmp $0, %rax
-  jne L176
-  jmp L177
-L176:
+  jne L164
+  jmp L165
+L164:
   movdqu 0(%r9), %xmm2
   cmp $8, %rax
-  jae L178
+  jae L166
   mov $0, %rcx
   pinsrq $1, %rcx, %xmm2
   mov %rax, %rcx
@@ -10900,8 +10876,8 @@ L176:
   pextrq $0, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $0, %rcx, %xmm2
-  jmp L179
-L178:
+  jmp L167
+L166:
   mov %rax, %rcx
   sub $8, %rcx
   shl $3, %rcx
@@ -10911,7 +10887,7 @@ L178:
   pextrq $1, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $1, %rcx, %xmm2
-L179:
+L167:
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
   pshufb %xmm8, %xmm1
@@ -11020,14 +10996,14 @@ L179:
   pxor %xmm5, %xmm1
   pxor %xmm6, %xmm1
   pshufb %xmm8, %xmm1
-L177:
-  jmp L171
-L170:
-L171:
+L165:
+  jmp L159
+L158:
+L159:
   mov %r14, %rax
   mov %r13, %rcx
   cmp $0, %rcx
-  jbe L180
+  jbe L168
   mov %rcx, %rsi
   and $15, %rsi
   shr $4, %rcx
@@ -11037,9 +11013,9 @@ L171:
   pxor %xmm10, %xmm10
   mov $1, %r12
   pinsrd $0, %r12d, %xmm10
-  jmp L183
+  jmp L171
 .balign 16
-L182:
+L170:
   movdqu 0(%r9), %xmm0
   movdqu %xmm0, %xmm2
   pxor %xmm2, %xmm1
@@ -11191,13 +11167,13 @@ L182:
   add $16, %r10
   paddd %xmm10, %xmm7
 .balign 16
-L183:
+L171:
   cmp %rcx, %rdx
-  jne L182
+  jne L170
   cmp $0, %rsi
-  jne L184
-  jmp L185
-L184:
+  jne L172
+  jmp L173
+L172:
   movdqu %xmm1, %xmm3
   movdqu 0(%r9), %xmm2
   movdqu %xmm2, %xmm1
@@ -11244,7 +11220,7 @@ L184:
   movdqu %xmm3, %xmm1
   movdqu 0(%r9), %xmm2
   cmp $8, %rax
-  jae L186
+  jae L174
   mov $0, %rcx
   pinsrq $1, %rcx, %xmm2
   mov %rax, %rcx
@@ -11255,8 +11231,8 @@ L184:
   pextrq $0, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $0, %rcx, %xmm2
-  jmp L187
-L186:
+  jmp L175
+L174:
   mov %rax, %rcx
   sub $8, %rcx
   shl $3, %rcx
@@ -11266,7 +11242,7 @@ L186:
   pextrq $1, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $1, %rcx, %xmm2
-L187:
+L175:
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
   pshufb %xmm8, %xmm1
@@ -11375,10 +11351,10 @@ L187:
   pxor %xmm5, %xmm1
   pxor %xmm6, %xmm1
   pshufb %xmm8, %xmm1
-L185:
-  jmp L181
-L180:
-L181:
+L173:
+  jmp L169
+L168:
+L169:
   pxor %xmm2, %xmm2
   mov %r11, %rax
   imul $8, %rax
@@ -11538,21 +11514,13 @@ L181:
   movdqu 0(%r15), %xmm0
   pcmpeqd %xmm1, %xmm0
   pextrq $0, %xmm0, %rdx
-  cmp $18446744073709551615, %rdx
-  jne L188
+  sub $18446744073709551615, %rdx
   mov $0, %rax
-  jmp L189
-L188:
-  mov $1, %rax
-L189:
+  adc $0, %rax
   pextrq $1, %xmm0, %rdx
-  cmp $18446744073709551615, %rdx
-  jne L190
+  sub $18446744073709551615, %rdx
   mov $0, %rdx
-  jmp L191
-L190:
-  mov $1, %rdx
-L191:
+  adc $0, %rdx
   add %rdx, %rax
   pop %rbx
   pop %rbp
@@ -11588,12 +11556,12 @@ gcm128_encrypt_opt:
   pxor %xmm1, %xmm1
   mov %r11, %rcx
   cmp $0, %rcx
-  je L192
+  je L176
   mov $0, %rdx
   mov %rax, %r9
-  jmp L195
+  jmp L179
 .balign 16
-L194:
+L178:
   movdqu 0(%r9), %xmm2
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
@@ -11706,21 +11674,21 @@ L194:
   add $1, %rdx
   add $16, %r9
 .balign 16
-L195:
+L179:
   cmp %rcx, %rdx
-  jne L194
-  jmp L193
-L192:
-L193:
+  jne L178
+  jmp L177
+L176:
+L177:
   imul $16, %r11
   cmp %r11, %rsi
-  jbe L196
+  jbe L180
   mov 72(%rsp), %r11
   movdqu 0(%r11), %xmm2
   mov %rsi, %rax
   and $15, %rax
   cmp $8, %rax
-  jae L198
+  jae L182
   mov $0, %rcx
   pinsrq $1, %rcx, %xmm2
   mov %rax, %rcx
@@ -11731,8 +11699,8 @@ L193:
   pextrq $0, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $0, %rcx, %xmm2
-  jmp L199
-L198:
+  jmp L183
+L182:
   mov %rax, %rcx
   sub $8, %rcx
   shl $3, %rcx
@@ -11742,7 +11710,7 @@ L198:
   pextrq $1, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $1, %rcx, %xmm2
-L199:
+L183:
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
   pshufb %xmm8, %xmm1
@@ -11851,9 +11819,9 @@ L199:
   pxor %xmm5, %xmm1
   pxor %xmm6, %xmm1
   pshufb %xmm8, %xmm1
-  jmp L197
-L196:
-L197:
+  jmp L181
+L180:
+L181:
   mov %rsi, %r15
   mov 80(%rsp), %rdi
   mov 88(%rsp), %rsi
@@ -11863,7 +11831,7 @@ L197:
   mov %r14, %r9
   movdqu %xmm1, %xmm8
   cmp $0, %rdx
-  jne L200
+  jne L184
   lea 32(%r9), %r9
   movdqu 0(%r8), %xmm1
   mov $579005069656919567, %r12
@@ -11875,8 +11843,8 @@ L197:
   pinsrd $0, %ebx, %xmm1
   vpshufb %xmm0, %xmm1, %xmm1
   movdqu %xmm1, 0(%r8)
-  jmp L201
-L200:
+  jmp L185
+L184:
   mov $579005069656919567, %r12
   pinsrq $0, %r12, %xmm0
   mov $283686952306183, %r12
@@ -12121,12 +12089,12 @@ L200:
   vpxor %xmm15, %xmm1, %xmm9
   movdqu %xmm4, 16(%rbp)
   mov $14, %rbx
-  jmp L203
+  jmp L187
 .balign 16
-L202:
+L186:
   add $6, %rbx
   cmp $256, %rbx
-  jb L204
+  jb L188
   mov $579005069656919567, %r11
   pinsrq $0, %r11, %xmm0
   mov $283686952306183, %r11
@@ -12154,13 +12122,13 @@ L202:
   vpshufb %xmm0, %xmm14, %xmm14
   vpshufb %xmm0, %xmm1, %xmm1
   sub $256, %rbx
-  jmp L205
-L204:
+  jmp L189
+L188:
   movdqu -32(%r9), %xmm3
   vpaddd %xmm14, %xmm2, %xmm1
   vpxor %xmm15, %xmm10, %xmm10
   vpxor %xmm15, %xmm11, %xmm11
-L205:
+L189:
   movdqu %xmm1, 0(%r8)
   vpclmulqdq $16, %xmm3, %xmm7, %xmm5
   vpxor %xmm15, %xmm12, %xmm12
@@ -12350,7 +12318,7 @@ L205:
   sub $6, %rdx
   add $96, %r14
   cmp $0, %rdx
-  jbe L206
+  jbe L190
   movdqu %xmm9, -96(%rsi)
   vpxor %xmm15, %xmm1, %xmm9
   movdqu %xmm10, -80(%rsi)
@@ -12364,15 +12332,15 @@ L205:
   movdqu %xmm14, -16(%rsi)
   movdqu %xmm3, %xmm14
   movdqu 32(%rbp), %xmm7
-  jmp L207
-L206:
+  jmp L191
+L190:
   vpxor 16(%rbp), %xmm8, %xmm8
   vpxor %xmm4, %xmm8, %xmm8
-L207:
+L191:
 .balign 16
-L203:
+L187:
   cmp $0, %rdx
-  ja L202
+  ja L186
   movdqu %xmm1, 0(%r8)
   movdqu 32(%rbp), %xmm7
   pxor %xmm4, %xmm4
@@ -12552,7 +12520,7 @@ L203:
   pinsrq $1, %r12, %xmm0
   vpshufb %xmm0, %xmm8, %xmm8
   sub $128, %rcx
-L201:
+L185:
   movdqu 0(%r8), %xmm7
   mov %rcx, %r8
   mov 104(%rsp), %rax
@@ -12571,9 +12539,9 @@ L201:
   pxor %xmm10, %xmm10
   mov $1, %r12
   pinsrd $0, %r12d, %xmm10
-  jmp L209
+  jmp L193
 .balign 16
-L208:
+L192:
   movdqu %xmm7, %xmm0
   pshufb %xmm8, %xmm0
   movdqu 0(%r8), %xmm2
@@ -12715,14 +12683,14 @@ L208:
   add $16, %r10
   paddd %xmm10, %xmm7
 .balign 16
-L209:
+L193:
   cmp %rcx, %rdx
-  jne L208
+  jne L192
   add 96(%rsp), %rcx
   imul $16, %rcx
   mov 136(%rsp), %r13
   cmp %rcx, %r13
-  jbe L210
+  jbe L194
   mov 128(%rsp), %rax
   mov %rax, %rbx
   mov %r13, %rcx
@@ -12757,7 +12725,7 @@ L209:
   movdqu %xmm2, 0(%rbx)
   mov %rcx, %rax
   cmp $8, %rax
-  jae L212
+  jae L196
   mov $0, %rcx
   pinsrq $1, %rcx, %xmm2
   mov %rax, %rcx
@@ -12768,8 +12736,8 @@ L209:
   pextrq $0, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $0, %rcx, %xmm2
-  jmp L213
-L212:
+  jmp L197
+L196:
   mov %rax, %rcx
   sub $8, %rcx
   shl $3, %rcx
@@ -12779,7 +12747,7 @@ L212:
   pextrq $1, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $1, %rcx, %xmm2
-L213:
+L197:
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
   pshufb %xmm8, %xmm1
@@ -12888,9 +12856,9 @@ L213:
   pxor %xmm5, %xmm1
   pxor %xmm6, %xmm1
   pshufb %xmm8, %xmm1
-  jmp L211
-L210:
-L211:
+  jmp L195
+L194:
+L195:
   mov %r15, %r11
   pxor %xmm2, %xmm2
   mov %r11, %rax
@@ -13076,12 +13044,12 @@ gcm256_encrypt_opt:
   pxor %xmm1, %xmm1
   mov %r11, %rcx
   cmp $0, %rcx
-  je L214
+  je L198
   mov $0, %rdx
   mov %rax, %r9
-  jmp L217
+  jmp L201
 .balign 16
-L216:
+L200:
   movdqu 0(%r9), %xmm2
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
@@ -13194,21 +13162,21 @@ L216:
   add $1, %rdx
   add $16, %r9
 .balign 16
-L217:
+L201:
   cmp %rcx, %rdx
-  jne L216
-  jmp L215
-L214:
-L215:
+  jne L200
+  jmp L199
+L198:
+L199:
   imul $16, %r11
   cmp %r11, %rsi
-  jbe L218
+  jbe L202
   mov 72(%rsp), %r11
   movdqu 0(%r11), %xmm2
   mov %rsi, %rax
   and $15, %rax
   cmp $8, %rax
-  jae L220
+  jae L204
   mov $0, %rcx
   pinsrq $1, %rcx, %xmm2
   mov %rax, %rcx
@@ -13219,8 +13187,8 @@ L215:
   pextrq $0, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $0, %rcx, %xmm2
-  jmp L221
-L220:
+  jmp L205
+L204:
   mov %rax, %rcx
   sub $8, %rcx
   shl $3, %rcx
@@ -13230,7 +13198,7 @@ L220:
   pextrq $1, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $1, %rcx, %xmm2
-L221:
+L205:
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
   pshufb %xmm8, %xmm1
@@ -13339,9 +13307,9 @@ L221:
   pxor %xmm5, %xmm1
   pxor %xmm6, %xmm1
   pshufb %xmm8, %xmm1
-  jmp L219
-L218:
-L219:
+  jmp L203
+L202:
+L203:
   mov %rsi, %r15
   mov 80(%rsp), %rdi
   mov 88(%rsp), %rsi
@@ -13351,7 +13319,7 @@ L219:
   mov %r14, %r9
   movdqu %xmm1, %xmm8
   cmp $0, %rdx
-  jne L222
+  jne L206
   lea 32(%r9), %r9
   movdqu 0(%r8), %xmm1
   mov $579005069656919567, %r12
@@ -13363,8 +13331,8 @@ L219:
   pinsrd $0, %ebx, %xmm1
   vpshufb %xmm0, %xmm1, %xmm1
   movdqu %xmm1, 0(%r8)
-  jmp L223
-L222:
+  jmp L207
+L206:
   mov $579005069656919567, %r12
   pinsrq $0, %r12, %xmm0
   mov $283686952306183, %r12
@@ -13665,12 +13633,12 @@ L222:
   vpxor %xmm15, %xmm1, %xmm9
   movdqu %xmm4, 16(%rbp)
   mov $14, %rbx
-  jmp L225
+  jmp L209
 .balign 16
-L224:
+L208:
   add $6, %rbx
   cmp $256, %rbx
-  jb L226
+  jb L210
   mov $579005069656919567, %r11
   pinsrq $0, %r11, %xmm0
   mov $283686952306183, %r11
@@ -13698,13 +13666,13 @@ L224:
   vpshufb %xmm0, %xmm14, %xmm14
   vpshufb %xmm0, %xmm1, %xmm1
   sub $256, %rbx
-  jmp L227
-L226:
+  jmp L211
+L210:
   movdqu -32(%r9), %xmm3
   vpaddd %xmm14, %xmm2, %xmm1
   vpxor %xmm15, %xmm10, %xmm10
   vpxor %xmm15, %xmm11, %xmm11
-L227:
+L211:
   movdqu %xmm1, 0(%r8)
   vpclmulqdq $16, %xmm3, %xmm7, %xmm5
   vpxor %xmm15, %xmm12, %xmm12
@@ -13922,7 +13890,7 @@ L227:
   sub $6, %rdx
   add $96, %r14
   cmp $0, %rdx
-  jbe L228
+  jbe L212
   movdqu %xmm9, -96(%rsi)
   vpxor %xmm15, %xmm1, %xmm9
   movdqu %xmm10, -80(%rsi)
@@ -13936,15 +13904,15 @@ L227:
   movdqu %xmm14, -16(%rsi)
   movdqu %xmm3, %xmm14
   movdqu 32(%rbp), %xmm7
-  jmp L229
-L228:
+  jmp L213
+L212:
   vpxor 16(%rbp), %xmm8, %xmm8
   vpxor %xmm4, %xmm8, %xmm8
-L229:
+L213:
 .balign 16
-L225:
+L209:
   cmp $0, %rdx
-  ja L224
+  ja L208
   movdqu %xmm1, 0(%r8)
   movdqu 32(%rbp), %xmm7
   pxor %xmm4, %xmm4
@@ -14124,7 +14092,7 @@ L225:
   pinsrq $1, %r12, %xmm0
   vpshufb %xmm0, %xmm8, %xmm8
   sub $128, %rcx
-L223:
+L207:
   movdqu 0(%r8), %xmm7
   mov %rcx, %r8
   mov 104(%rsp), %rax
@@ -14143,9 +14111,9 @@ L223:
   pxor %xmm10, %xmm10
   mov $1, %r12
   pinsrd $0, %r12d, %xmm10
-  jmp L231
+  jmp L215
 .balign 16
-L230:
+L214:
   movdqu %xmm7, %xmm0
   pshufb %xmm8, %xmm0
   movdqu 0(%r8), %xmm2
@@ -14295,14 +14263,14 @@ L230:
   add $16, %r10
   paddd %xmm10, %xmm7
 .balign 16
-L231:
+L215:
   cmp %rcx, %rdx
-  jne L230
+  jne L214
   add 96(%rsp), %rcx
   imul $16, %rcx
   mov 136(%rsp), %r13
   cmp %rcx, %r13
-  jbe L232
+  jbe L216
   mov 128(%rsp), %rax
   mov %rax, %rbx
   mov %r13, %rcx
@@ -14345,7 +14313,7 @@ L231:
   movdqu %xmm2, 0(%rbx)
   mov %rcx, %rax
   cmp $8, %rax
-  jae L234
+  jae L218
   mov $0, %rcx
   pinsrq $1, %rcx, %xmm2
   mov %rax, %rcx
@@ -14356,8 +14324,8 @@ L231:
   pextrq $0, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $0, %rcx, %xmm2
-  jmp L235
-L234:
+  jmp L219
+L218:
   mov %rax, %rcx
   sub $8, %rcx
   shl $3, %rcx
@@ -14367,7 +14335,7 @@ L234:
   pextrq $1, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $1, %rcx, %xmm2
-L235:
+L219:
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
   pshufb %xmm8, %xmm1
@@ -14476,9 +14444,9 @@ L235:
   pxor %xmm5, %xmm1
   pxor %xmm6, %xmm1
   pshufb %xmm8, %xmm1
-  jmp L233
-L232:
-L233:
+  jmp L217
+L216:
+L217:
   mov %r15, %r11
   pxor %xmm2, %xmm2
   mov %r11, %rax
@@ -14672,12 +14640,12 @@ gcm128_decrypt_opt:
   pxor %xmm1, %xmm1
   mov %r11, %rcx
   cmp $0, %rcx
-  je L236
+  je L220
   mov $0, %rdx
   mov %rax, %r9
-  jmp L239
+  jmp L223
 .balign 16
-L238:
+L222:
   movdqu 0(%r9), %xmm2
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
@@ -14790,21 +14758,21 @@ L238:
   add $1, %rdx
   add $16, %r9
 .balign 16
-L239:
+L223:
   cmp %rcx, %rdx
-  jne L238
-  jmp L237
-L236:
-L237:
+  jne L222
+  jmp L221
+L220:
+L221:
   imul $16, %r11
   cmp %r11, %rsi
-  jbe L240
+  jbe L224
   mov 72(%rsp), %r11
   movdqu 0(%r11), %xmm2
   mov %rsi, %rax
   and $15, %rax
   cmp $8, %rax
-  jae L242
+  jae L226
   mov $0, %rcx
   pinsrq $1, %rcx, %xmm2
   mov %rax, %rcx
@@ -14815,8 +14783,8 @@ L237:
   pextrq $0, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $0, %rcx, %xmm2
-  jmp L243
-L242:
+  jmp L227
+L226:
   mov %rax, %rcx
   sub $8, %rcx
   shl $3, %rcx
@@ -14826,7 +14794,7 @@ L242:
   pextrq $1, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $1, %rcx, %xmm2
-L243:
+L227:
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
   pshufb %xmm8, %xmm1
@@ -14935,9 +14903,9 @@ L243:
   pxor %xmm5, %xmm1
   pxor %xmm6, %xmm1
   pshufb %xmm8, %xmm1
-  jmp L241
-L240:
-L241:
+  jmp L225
+L224:
+L225:
   mov %rsi, %r15
   mov 80(%rsp), %rdi
   mov 88(%rsp), %rsi
@@ -14947,7 +14915,7 @@ L241:
   mov %r14, %r9
   movdqu %xmm1, %xmm8
   cmp $0, %rdx
-  jne L244
+  jne L228
   lea 32(%r9), %r9
   movdqu 0(%r8), %xmm1
   mov $579005069656919567, %r12
@@ -14959,8 +14927,8 @@ L241:
   pinsrd $0, %ebx, %xmm1
   vpshufb %xmm0, %xmm1, %xmm1
   movdqu %xmm1, 0(%r8)
-  jmp L245
-L244:
+  jmp L229
+L228:
   mov $579005069656919567, %r12
   pinsrq $0, %r12, %xmm0
   mov $283686952306183, %r12
@@ -15006,12 +14974,12 @@ L244:
   vpxor %xmm15, %xmm1, %xmm9
   movdqu %xmm4, 16(%rbp)
   mov $2, %rbx
-  jmp L247
+  jmp L231
 .balign 16
-L246:
+L230:
   add $6, %rbx
   cmp $256, %rbx
-  jb L248
+  jb L232
   mov $579005069656919567, %r11
   pinsrq $0, %r11, %xmm0
   mov $283686952306183, %r11
@@ -15039,13 +15007,13 @@ L246:
   vpshufb %xmm0, %xmm14, %xmm14
   vpshufb %xmm0, %xmm1, %xmm1
   sub $256, %rbx
-  jmp L249
-L248:
+  jmp L233
+L232:
   movdqu -32(%r9), %xmm3
   vpaddd %xmm14, %xmm2, %xmm1
   vpxor %xmm15, %xmm10, %xmm10
   vpxor %xmm15, %xmm11, %xmm11
-L249:
+L233:
   movdqu %xmm1, 0(%r8)
   vpclmulqdq $16, %xmm3, %xmm7, %xmm5
   vpxor %xmm15, %xmm12, %xmm12
@@ -15234,13 +15202,13 @@ L249:
   vpaddd %xmm2, %xmm7, %xmm3
   sub $6, %rdx
   cmp $6, %rdx
-  jbe L250
+  jbe L234
   add $96, %r14
-  jmp L251
-L250:
-L251:
+  jmp L235
+L234:
+L235:
   cmp $0, %rdx
-  jbe L252
+  jbe L236
   movdqu %xmm9, -96(%rsi)
   vpxor %xmm15, %xmm1, %xmm9
   movdqu %xmm10, -80(%rsi)
@@ -15254,15 +15222,15 @@ L251:
   movdqu %xmm14, -16(%rsi)
   movdqu %xmm3, %xmm14
   movdqu 32(%rbp), %xmm7
-  jmp L253
-L252:
+  jmp L237
+L236:
   vpxor 16(%rbp), %xmm8, %xmm8
   vpxor %xmm4, %xmm8, %xmm8
-L253:
+L237:
 .balign 16
-L247:
+L231:
   cmp $0, %rdx
-  ja L246
+  ja L230
   movdqu %xmm1, 0(%r8)
   movdqu %xmm9, -96(%rsi)
   movdqu %xmm10, -80(%rsi)
@@ -15276,7 +15244,7 @@ L247:
   pinsrq $1, %r12, %xmm0
   vpshufb %xmm0, %xmm8, %xmm8
   sub $128, %rcx
-L245:
+L229:
   movdqu 0(%r8), %xmm7
   mov %rcx, %r8
   mov 104(%rsp), %rax
@@ -15295,9 +15263,9 @@ L245:
   pxor %xmm10, %xmm10
   mov $1, %r12
   pinsrd $0, %r12d, %xmm10
-  jmp L255
+  jmp L239
 .balign 16
-L254:
+L238:
   movdqu 0(%r9), %xmm0
   movdqu %xmm0, %xmm2
   pxor %xmm2, %xmm1
@@ -15441,14 +15409,14 @@ L254:
   add $16, %r10
   paddd %xmm10, %xmm7
 .balign 16
-L255:
+L239:
   cmp %rcx, %rdx
-  jne L254
+  jne L238
   add 96(%rsp), %rcx
   imul $16, %rcx
   mov 136(%rsp), %r13
   cmp %rcx, %r13
-  jbe L256
+  jbe L240
   mov 128(%rsp), %rax
   mov %rax, %rbx
   mov %r13, %rcx
@@ -15457,7 +15425,7 @@ L255:
   movdqu %xmm2, %xmm0
   mov %rcx, %rax
   cmp $8, %rax
-  jae L258
+  jae L242
   mov $0, %rcx
   pinsrq $1, %rcx, %xmm2
   mov %rax, %rcx
@@ -15468,8 +15436,8 @@ L255:
   pextrq $0, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $0, %rcx, %xmm2
-  jmp L259
-L258:
+  jmp L243
+L242:
   mov %rax, %rcx
   sub $8, %rcx
   shl $3, %rcx
@@ -15479,7 +15447,7 @@ L258:
   pextrq $1, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $1, %rcx, %xmm2
-L259:
+L243:
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
   pshufb %xmm8, %xmm1
@@ -15616,9 +15584,9 @@ L259:
   pxor %xmm2, %xmm2
   pxor %xmm0, %xmm6
   movdqu %xmm6, 0(%rbx)
-  jmp L257
-L256:
-L257:
+  jmp L241
+L240:
+L241:
   mov %r15, %r11
   pxor %xmm2, %xmm2
   mov %r11, %rax
@@ -15772,21 +15740,13 @@ L257:
   movdqu 0(%r15), %xmm0
   pcmpeqd %xmm1, %xmm0
   pextrq $0, %xmm0, %rdx
-  cmp $18446744073709551615, %rdx
-  jne L260
+  sub $18446744073709551615, %rdx
   mov $0, %rax
-  jmp L261
-L260:
-  mov $1, %rax
-L261:
+  adc $0, %rax
   pextrq $1, %xmm0, %rdx
-  cmp $18446744073709551615, %rdx
-  jne L262
+  sub $18446744073709551615, %rdx
   mov $0, %rdx
-  jmp L263
-L262:
-  mov $1, %rdx
-L263:
+  adc $0, %rdx
   add %rdx, %rax
   mov %rax, %rcx
   pop %rbx
@@ -15824,12 +15784,12 @@ gcm256_decrypt_opt:
   pxor %xmm1, %xmm1
   mov %r11, %rcx
   cmp $0, %rcx
-  je L264
+  je L244
   mov $0, %rdx
   mov %rax, %r9
-  jmp L267
+  jmp L247
 .balign 16
-L266:
+L246:
   movdqu 0(%r9), %xmm2
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
@@ -15942,21 +15902,21 @@ L266:
   add $1, %rdx
   add $16, %r9
 .balign 16
-L267:
+L247:
   cmp %rcx, %rdx
-  jne L266
-  jmp L265
-L264:
-L265:
+  jne L246
+  jmp L245
+L244:
+L245:
   imul $16, %r11
   cmp %r11, %rsi
-  jbe L268
+  jbe L248
   mov 72(%rsp), %r11
   movdqu 0(%r11), %xmm2
   mov %rsi, %rax
   and $15, %rax
   cmp $8, %rax
-  jae L270
+  jae L250
   mov $0, %rcx
   pinsrq $1, %rcx, %xmm2
   mov %rax, %rcx
@@ -15967,8 +15927,8 @@ L265:
   pextrq $0, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $0, %rcx, %xmm2
-  jmp L271
-L270:
+  jmp L251
+L250:
   mov %rax, %rcx
   sub $8, %rcx
   shl $3, %rcx
@@ -15978,7 +15938,7 @@ L270:
   pextrq $1, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $1, %rcx, %xmm2
-L271:
+L251:
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
   pshufb %xmm8, %xmm1
@@ -16087,9 +16047,9 @@ L271:
   pxor %xmm5, %xmm1
   pxor %xmm6, %xmm1
   pshufb %xmm8, %xmm1
-  jmp L269
-L268:
-L269:
+  jmp L249
+L248:
+L249:
   mov %rsi, %r15
   mov 80(%rsp), %rdi
   mov 88(%rsp), %rsi
@@ -16099,7 +16059,7 @@ L269:
   mov %r14, %r9
   movdqu %xmm1, %xmm8
   cmp $0, %rdx
-  jne L272
+  jne L252
   lea 32(%r9), %r9
   movdqu 0(%r8), %xmm1
   mov $579005069656919567, %r12
@@ -16111,8 +16071,8 @@ L269:
   pinsrd $0, %ebx, %xmm1
   vpshufb %xmm0, %xmm1, %xmm1
   movdqu %xmm1, 0(%r8)
-  jmp L273
-L272:
+  jmp L253
+L252:
   mov $579005069656919567, %r12
   pinsrq $0, %r12, %xmm0
   mov $283686952306183, %r12
@@ -16158,12 +16118,12 @@ L272:
   vpxor %xmm15, %xmm1, %xmm9
   movdqu %xmm4, 16(%rbp)
   mov $2, %rbx
-  jmp L275
+  jmp L255
 .balign 16
-L274:
+L254:
   add $6, %rbx
   cmp $256, %rbx
-  jb L276
+  jb L256
   mov $579005069656919567, %r11
   pinsrq $0, %r11, %xmm0
   mov $283686952306183, %r11
@@ -16191,13 +16151,13 @@ L274:
   vpshufb %xmm0, %xmm14, %xmm14
   vpshufb %xmm0, %xmm1, %xmm1
   sub $256, %rbx
-  jmp L277
-L276:
+  jmp L257
+L256:
   movdqu -32(%r9), %xmm3
   vpaddd %xmm14, %xmm2, %xmm1
   vpxor %xmm15, %xmm10, %xmm10
   vpxor %xmm15, %xmm11, %xmm11
-L277:
+L257:
   movdqu %xmm1, 0(%r8)
   vpclmulqdq $16, %xmm3, %xmm7, %xmm5
   vpxor %xmm15, %xmm12, %xmm12
@@ -16414,13 +16374,13 @@ L277:
   vpaddd %xmm2, %xmm7, %xmm3
   sub $6, %rdx
   cmp $6, %rdx
-  jbe L278
+  jbe L258
   add $96, %r14
-  jmp L279
-L278:
-L279:
+  jmp L259
+L258:
+L259:
   cmp $0, %rdx
-  jbe L280
+  jbe L260
   movdqu %xmm9, -96(%rsi)
   vpxor %xmm15, %xmm1, %xmm9
   movdqu %xmm10, -80(%rsi)
@@ -16434,15 +16394,15 @@ L279:
   movdqu %xmm14, -16(%rsi)
   movdqu %xmm3, %xmm14
   movdqu 32(%rbp), %xmm7
-  jmp L281
-L280:
+  jmp L261
+L260:
   vpxor 16(%rbp), %xmm8, %xmm8
   vpxor %xmm4, %xmm8, %xmm8
-L281:
+L261:
 .balign 16
-L275:
+L255:
   cmp $0, %rdx
-  ja L274
+  ja L254
   movdqu %xmm1, 0(%r8)
   movdqu %xmm9, -96(%rsi)
   movdqu %xmm10, -80(%rsi)
@@ -16456,7 +16416,7 @@ L275:
   pinsrq $1, %r12, %xmm0
   vpshufb %xmm0, %xmm8, %xmm8
   sub $128, %rcx
-L273:
+L253:
   movdqu 0(%r8), %xmm7
   mov %rcx, %r8
   mov 104(%rsp), %rax
@@ -16475,9 +16435,9 @@ L273:
   pxor %xmm10, %xmm10
   mov $1, %r12
   pinsrd $0, %r12d, %xmm10
-  jmp L283
+  jmp L263
 .balign 16
-L282:
+L262:
   movdqu 0(%r9), %xmm0
   movdqu %xmm0, %xmm2
   pxor %xmm2, %xmm1
@@ -16629,14 +16589,14 @@ L282:
   add $16, %r10
   paddd %xmm10, %xmm7
 .balign 16
-L283:
+L263:
   cmp %rcx, %rdx
-  jne L282
+  jne L262
   add 96(%rsp), %rcx
   imul $16, %rcx
   mov 136(%rsp), %r13
   cmp %rcx, %r13
-  jbe L284
+  jbe L264
   mov 128(%rsp), %rax
   mov %rax, %rbx
   mov %r13, %rcx
@@ -16645,7 +16605,7 @@ L283:
   movdqu %xmm2, %xmm0
   mov %rcx, %rax
   cmp $8, %rax
-  jae L286
+  jae L266
   mov $0, %rcx
   pinsrq $1, %rcx, %xmm2
   mov %rax, %rcx
@@ -16656,8 +16616,8 @@ L283:
   pextrq $0, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $0, %rcx, %xmm2
-  jmp L287
-L286:
+  jmp L267
+L266:
   mov %rax, %rcx
   sub $8, %rcx
   shl $3, %rcx
@@ -16667,7 +16627,7 @@ L286:
   pextrq $1, %xmm2, %rcx
   and %rdx, %rcx
   pinsrq $1, %rcx, %xmm2
-L287:
+L267:
   pxor %xmm2, %xmm1
   movdqu %xmm11, %xmm2
   pshufb %xmm8, %xmm1
@@ -16812,9 +16772,9 @@ L287:
   pxor %xmm2, %xmm2
   pxor %xmm0, %xmm6
   movdqu %xmm6, 0(%rbx)
-  jmp L285
-L284:
-L285:
+  jmp L265
+L264:
+L265:
   mov %r15, %r11
   pxor %xmm2, %xmm2
   mov %r11, %rax
@@ -16976,21 +16936,13 @@ L285:
   movdqu 0(%r15), %xmm0
   pcmpeqd %xmm1, %xmm0
   pextrq $0, %xmm0, %rdx
-  cmp $18446744073709551615, %rdx
-  jne L288
+  sub $18446744073709551615, %rdx
   mov $0, %rax
-  jmp L289
-L288:
-  mov $1, %rax
-L289:
+  adc $0, %rax
   pextrq $1, %xmm0, %rdx
-  cmp $18446744073709551615, %rdx
-  jne L290
+  sub $18446744073709551615, %rdx
   mov $0, %rdx
-  jmp L291
-L290:
-  mov $1, %rdx
-L291:
+  adc $0, %rdx
   add %rdx, %rax
   mov %rax, %rcx
   pop %rbx
