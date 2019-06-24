@@ -23,7 +23,7 @@ namespace asynchost
 
       if ((rc = uv_timer_init(uv_default_loop(), &uv_handle)) < 0)
       {
-        LOG_FAIL << "uv_timer_init failed: " << uv_strerror(rc) << std::endl;
+        LOG_FAIL_FMT("uv_timer_init failed: {}", uv_strerror(rc));
         throw std::logic_error("uv_timer_init failed");
       }
 
@@ -31,7 +31,7 @@ namespace asynchost
 
       if ((rc = uv_timer_start(&uv_handle, on_timer, 0, repeat_ms)) < 0)
       {
-        LOG_FAIL << "uv_timer_start failed: " << uv_strerror(rc) << std::endl;
+        LOG_FAIL_FMT("uv_timer_start failed: {}", uv_strerror(rc));
         throw std::logic_error("uv_timer_start failed");
       }
     }

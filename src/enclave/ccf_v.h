@@ -28,8 +28,7 @@ T get_enclave_exported_function(const char* func_name)
   void* sym = dlsym(virtual_enclave_handle, func_name);
   if (sym == nullptr)
   {
-    LOG_FATAL << "Failed to find symbol: " << func_name << std::endl
-              << "  " << dlerror() << std::endl;
+    LOG_FATAL_FMT("Failed to find symbol: {}\n  {}", func_name, dlerror());
   }
   return (T)sym;
 }
@@ -62,14 +61,14 @@ extern "C"
   {
     if (virtual_enclave_handle)
     {
-      LOG_FATAL << "Current implementation is limited to a single virtual "
-                   "enclave per process"
-                << std::endl;
+      LOG_FATAL_FMT(
+        "Current implementation is limited to a single virtual "
+        "enclave per process");
     }
     virtual_enclave_handle = dlopen(path, RTLD_LAZY);
     if (virtual_enclave_handle == nullptr)
     {
-      LOG_FATAL << "Could not load virtual enclave: " << dlerror() << std::endl;
+      LOG_FATAL_FMT("Could not load virtual enclave: {}", dlerror());
     }
   }
 

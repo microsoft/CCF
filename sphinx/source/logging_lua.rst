@@ -4,9 +4,9 @@ Logging (Lua)
 Overview
 ````````
 
-CCF comes with a generic application for running Lua scripts called *luageneric*, implemented in [CCF]/src/apps/luageneric/luageneric.cpp. At runtime, *luageneric* dispatches incoming RPCs to Lua scripts stored in the table *APP_SCRIPTS*. The initial contents of the table (i.e., at "genesis") are set by a Lua script passed to the *genesisgenerator* via the ``--app-script`` parameter. 
+CCF comes with a generic application for running Lua scripts called *luageneric*, implemented in [CCF]/src/apps/luageneric/luageneric.cpp. At runtime, *luageneric* dispatches incoming RPCs to Lua scripts stored in the table *APP_SCRIPTS*. The RPC method name is used as the key, and if a script exists at this key it is called with the RPC arguments. The initial contents of the table (i.e., at "genesis") are set by a Lua script passed to the *genesisgenerator* via the ``--app-script`` parameter. 
 
-If the key ``__default`` exists in *APP_SCRIPTS*, then *luageneric* forwards all RPCs to the corresponding script. Otherwise, it uses an RPC's method name to lookup a handler script from *APP_SCRIPTS*. The script at key ``__environment`` is also special. If set, the corresponding script is invoked before any actual handler script to initialize the Lua environment. 
+The script at key ``__environment`` is special. If set, the corresponding script is invoked before any actual handler script to initialize the Lua environment. 
 
 RPC Handler
 ```````````
@@ -32,13 +32,15 @@ The interface between Lua RPC handlers and the rest of CCF is simple. A fixed se
 
 * ``gov_tables``: the set of governance tables the application can read. For example, ``gov_tables.membercerts`` holds the certificates of CCF members.
 
-* ``caller_id``: the caller's id.
+* ``args``: a table containing the arguments parsed from this RPC. Attempting to access any missing keys will result in an error rather than ``nil``. The valid keys are:
 
-* ``method``: the method name.
+    * ``caller_id``: the caller's id.
 
-* ``params``: the RPC's parameters indexed by name. All JSON is translated to Lua tables.
+    * ``method``: the method name.
 
-The Lua table returned by an RPC handler is translated to JSON and returned to the client.
+    * ``params``: the RPC's ``params``, converted from JSON to a Lua table. If the JSON params were an object, this will be an object-like table with named string keys. If the JSON params were an array, this will be an array-like table with consecutive numbered keys.
+
+The Lua value returned by an RPC handler is translated to JSON and returned to the client. To indicate an error, return a table with a key named ``error``. The value at this key will be used as the JSON error object in the response. 
 
 Accessing Tables
 ~~~~~~~~~~~~~~~~

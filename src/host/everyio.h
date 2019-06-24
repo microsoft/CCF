@@ -22,7 +22,7 @@ namespace asynchost
 
       if ((rc = uv_idle_init(uv_default_loop(), &uv_handle)) < 0)
       {
-        LOG_FAIL << "uv_idle_init failed: " << uv_strerror(rc) << std::endl;
+        LOG_FAIL_FMT("uv_idle_init failed: {}", uv_strerror(rc));
         throw std::logic_error("uv_idle_init failed");
       }
 
@@ -30,7 +30,7 @@ namespace asynchost
 
       if ((rc = uv_idle_start(&uv_handle, on_every)) < 0)
       {
-        LOG_FAIL << "uv_idle_start failed: " << uv_strerror(rc) << std::endl;
+        LOG_FAIL_FMT("uv_idle_start failed: {}", uv_strerror(rc));
         throw std::logic_error("uv_idle_start failed");
       }
     }

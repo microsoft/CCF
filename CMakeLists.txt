@@ -167,6 +167,7 @@ if(BUILD_TESTS)
     target_link_libraries(${name} PRIVATE
       ${CMAKE_THREAD_LIBS_INIT}
     )
+    set_property(TEST ${name} PROPERTY LABELS benchmark)
   endfunction()
 
   ## Picobench benchmarks
@@ -218,6 +219,7 @@ if(BUILD_TESTS)
      COMMAND
        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py ./raft_driver
          ${CMAKE_SOURCE_DIR}/tests/raft_scenarios ${CMAKE_SOURCE_DIR})
+  set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
   ## Member client end to end tests
   add_e2e_test(
@@ -255,12 +257,6 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS
         --oesign ${OESIGN}
     )
-
-    ## Add node test
-    add_e2e_test(
-      NAME add_node_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/addnode.py
-    )
   endif()
 
   add_e2e_test(
@@ -275,6 +271,8 @@ if(BUILD_TESTS)
       --scenario ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
   )
 
+  # TODO: These tests make use of dynamic node configuration that is not
+  # yet supported by PBFT
   if (NOT PBFT)
     add_e2e_test(
       NAME election_tests
@@ -289,6 +287,12 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS
         ${RECOVERY_ARGS}
     )
+
+    if(QUOTES_ENABLED)
+      add_e2e_test(
+        NAME add_node_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/addnode.py
+      )
 
     if (QUOTES_ENABLED)
       ## Code update test

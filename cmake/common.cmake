@@ -38,7 +38,7 @@ else()
 endif()
 
 function(enable_coverage name)
-  if (NOT SAN)
+  if (COVERAGE)
     target_compile_options(${name} PRIVATE ${COVERAGE_FLAGS})
     target_link_libraries(${name} PRIVATE ${COVERAGE_LINK})
   endif()
@@ -87,6 +87,7 @@ endif()
 option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
 option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
+option(COVERAGE "Enable coverage mapping" OFF)
 
 option(PBFT "Enable PBFT" OFF)
 if (PBFT)
@@ -389,11 +390,11 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       -nostdlib -nodefaultlibs -nostartfiles
       -Wl,--no-undefined
       -Wl,-Bstatic,-Bsymbolic,--export-dynamic,-pie
-      ${ENCLAVE_LIBS}
       -lgcc
       ${PARSED_ARGS_LINK_LIBS}
       ccfcrypto.enclave
       evercrypt.enclave
+      ${ENCLAVE_LIBS}
       secp256k1.enclave
     )
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -465,8 +466,14 @@ function(add_unit_test name)
 
   add_test(
     NAME ${name}
-
-    COMMAND ${CCF_DIR}/tests/unit_test_wrapper.sh ${name})
+    COMMAND ${CCF_DIR}/tests/unit_test_wrapper.sh ${name}
+  )
+  set_property(
+    TEST ${name}
+    APPEND
+    PROPERTY
+      LABELS unit_test
+  )
 endfunction()
 
 
@@ -614,6 +621,12 @@ function(add_e2e_test)
       PROPERTY
         ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
     )
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY
+        LABELS end_to_end
+    )
   endif()
 endfunction()
 
@@ -655,5 +668,11 @@ function(add_perf_test)
     APPEND
     PROPERTY
       ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+  )
+  set_property(
+    TEST ${PARSED_ARGS_NAME}
+    APPEND
+    PROPERTY
+      LABELS perf
   )
 endfunction()

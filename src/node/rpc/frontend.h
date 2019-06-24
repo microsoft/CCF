@@ -17,8 +17,7 @@
 #include "rpcexception.h"
 #include "serialization.h"
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <fmt/format_header_only.h>
 #include <utility>
 #include <vector>
 
@@ -40,9 +39,6 @@ namespace ccf
       DoNotForward
     };
 
-  protected:
-    Store& tables;
-
     struct RequestArgs
     {
       enclave::RPCContext& rpc_ctx;
@@ -52,6 +48,9 @@ namespace ccf
       const nlohmann::json& params;
       const SignedReq& signed_request;
     };
+
+  protected:
+    Store& tables;
 
   private:
     using HandleFunction =
@@ -473,7 +472,7 @@ namespace ccf
               ctx, local_id, leader_id, caller_id.value(), input))
           {
             // Indicate that the RPC has been forwarded to leader
-            LOG_DEBUG << "RPC forwarded to leader " << leader_id << std::endl;
+            LOG_DEBUG_FMT("RPC forwarded to leader {}", leader_id);
             ctx.is_pending = true;
             return {};
           }

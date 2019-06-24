@@ -152,7 +152,7 @@ namespace ccf
       void push(T&& o)
       {
         prepare_push();
-        lua::push_raw(l, o);
+        lua::push_raw(l, std::forward<T>(o));
       }
 
       /**
