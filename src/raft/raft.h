@@ -31,8 +31,7 @@ namespace raft
 
     void update(Index idx, Term term)
     {
-      LOG_DEBUG << "Updating term to: " << term << " at index: " << idx
-                << std::endl;
+      LOG_DEBUG_FMT("Updating term to: {} at index: {}", term, idx);
       for (auto i = terms.size(); i <= term; ++i)
         terms.push_back(idx);
     }
@@ -192,7 +191,7 @@ namespace raft
       // Suspend replication of append entries up to a specific version
       // Note that this should only be called when the raft lock is taken (e.g.
       // from a commit hook on a follower)
-      LOG_INFO << "Suspending replication for idx > " << idx << std::endl;
+      LOG_INFO_FMT("Suspending replication for idx > {}", idx);
       recovery_max_index = idx;
     }
 
@@ -202,7 +201,7 @@ namespace raft
       // Note that this should be called when the raft lock is not taken (e.g.
       // after the ledger has been read)
       std::lock_guard<SpinLock> guard(lock);
-      LOG_INFO << "Resuming replication" << std::endl;
+      LOG_INFO_FMT("Resuming replication");
       recovery_max_index.reset();
     }
 
@@ -295,21 +294,24 @@ namespace raft
 
       if (state != Leader)
       {
-        LOG_FAIL << "Failed to replicate " << entries.size()
-                 << " items: not leader" << std::endl;
+        LOG_FAIL_FMT(
+          "Failed to replicate {} items: not leader", entries.size());
         rollback(last_idx);
         return false;
       }
 
-      LOG_DEBUG << "Replicating " << entries.size() << " entries" << std::endl;
+      LOG_DEBUG_FMT("Replicating {} entries", entries.size());
 
       for (auto&& [index, data, globally_committable] : entries)
       {
         if (index != last_idx + 1)
           return false;
 
-        LOG_DEBUG << "Replicated on leader " << local_id << ": " << index
-                  << (globally_committable ? " committable" : "") << std::endl;
+        LOG_DEBUG_FMT(
+          "Replicated on leader {}: {}{}",
+          local_id,
+          index,
+          (globally_committable ? " committable" : ""));
 
         if (globally_committable)
           committable_indices.push_back(index);
@@ -328,8 +330,7 @@ namespace raft
           entry_size_not_limited = 0;
           for (const auto& it : nodes)
           {
-            LOG_DEBUG << "Sending updates to follower " << it.first
-                      << std::endl;
+            LOG_DEBUG_FMT("Sending updates to follower {}", it.first);
             send_append_entries(it.first, it.second.sent_idx + 1);
           }
         }
@@ -384,7 +385,7 @@ namespace raft
       {
         if (timeout_elapsed >= request_timeout)
         {
-          LOG_DEBUG << "Sending periodic updates to followers." << std::endl;
+          LOG_DEBUG_FMT("Sending periodic updates to followers");
           using namespace std::chrono_literals;
           timeout_elapsed = 0ms;
 
@@ -455,9 +456,13 @@ namespace raft
       const auto prev_term = get_term_internal(prev_idx);
       const auto term_of_idx = get_term_internal(end_idx);
 
-      LOG_DEBUG << "Send append entries from " << local_id << " to " << to
-                << ": " << start_idx << " to " << end_idx << " (" << commit_idx
-                << ")" << std::endl;
+      LOG_DEBUG_FMT(
+        "Send append entries from {} to {}: {} to {} ({})",
+        local_id,
+        to,
+        start_idx,
+        end_idx,
+        commit_idx);
 
       AppendEntries ae = {raft_append_entries,
                           local_id,
@@ -490,24 +495,31 @@ namespace raft
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL << err.what() << std::endl;
+        LOG_FAIL_FMT(err.what());
         return;
       }
-      LOG_DEBUG << "Received pt: " << r.prev_term << " pi: " << r.prev_idx
-                << " t: " << r.term << " i: " << r.idx << std::endl;
+      LOG_DEBUG_FMT(
+        "Received pt: {} pi: {} t: {} i: {}",
+        r.prev_term,
+        r.prev_idx,
+        r.term,
+        r.idx);
 
       const auto prev_term = get_term_internal(r.prev_idx);
-      LOG_DEBUG << "Previous term for " << r.prev_idx << " should be "
-                << prev_term << std::endl;
+      LOG_DEBUG_FMT("Previous term for {} should be {}", r.prev_idx, prev_term);
 
       // Don't check that the sender node ID is valid. Accept anything that
       // passes the integrity check. This way, entries containing dynamic
       // topology changes that include adding this new leader can be accepted.
       if (r.prev_idx < commit_idx)
       {
-        LOG_DEBUG << "Recv append entries to " << local_id << " from "
-                  << r.from_node << " but prev_idx (" << r.prev_idx
-                  << ") < commit_idx (" << commit_idx << ")" << std::endl;
+        LOG_DEBUG_FMT(
+          "Recv append entries to {} from {} but prev_idex ({}) < commit_idx "
+          "({})",
+          local_id,
+          r.from_node,
+          r.prev_idx,
+          commit_idx);
         return;
       }
 
@@ -526,8 +538,10 @@ namespace raft
       else if (current_term > r.term)
       {
         // Reply false, since our term is later than the received term.
-        LOG_DEBUG << "Recv append entries to " << local_id << " from "
-                  << r.from_node << " but our term is later" << std::endl;
+        LOG_DEBUG_FMT(
+          "Recv append entries to {} from {} but our term is later",
+          local_id,
+          r.from_node);
         send_append_entries_response(r.from_node, false);
         return;
       }
@@ -538,24 +552,34 @@ namespace raft
         // whose term is r.prev_term.
         if (prev_term == 0)
         {
-          LOG_DEBUG << "Recv append entries to " << local_id << " from "
-                    << r.from_node << " but our log does not yet contain index "
-                    << r.prev_idx << std::endl;
+          LOG_DEBUG_FMT(
+            "Recv append entries to {} from {} but our log does not yet "
+            "contain index {}",
+            local_id,
+            r.from_node,
+            r.prev_idx);
         }
         else
         {
-          LOG_DEBUG << "Recv append entries to " << local_id << " from "
-                    << r.from_node << " but our log at " << r.prev_idx
-                    << " has the wrong term (ours: " << prev_term
-                    << ", theirs: " << r.prev_term << ")" << std::endl;
+          LOG_DEBUG_FMT(
+            "Recv append entries to {} from {} but our log at {} has the wrong "
+            "term (ours: {}, theirs: {})",
+            local_id,
+            r.from_node,
+            r.prev_idx,
+            prev_term,
+            r.prev_term);
         }
         send_append_entries_response(r.from_node, false);
         return;
       }
 
-      LOG_DEBUG << "Recv append entries to " << local_id << " from "
-                << r.from_node << " for index " << r.idx
-                << " and previous index " << r.prev_idx << std::endl;
+      LOG_DEBUG_FMT(
+        "Recv append entries to {} from {} for index {} and previous index {}",
+        local_id,
+        r.from_node,
+        r.idx,
+        r.prev_idx);
 
       for (Index i = r.prev_idx + 1; i <= r.idx; i++)
       {
@@ -567,8 +591,7 @@ namespace raft
           continue;
         }
 
-        LOG_DEBUG << "Replicating on follower " << local_id << ": " << i
-                  << std::endl;
+        LOG_DEBUG_FMT("Replicating on follower {}: {}", local_id, i);
 
         // If replication is suspended during recovery, only accept entries if
         // their index is less than the max recovery index
@@ -578,8 +601,8 @@ namespace raft
           {
             // If no entry was replicated in the batch, abort replication of the
             // whole batch
-            LOG_INFO << "Replication suspended: " << i << " > "
-                     << recovery_max_index.value() << std::endl;
+            LOG_INFO_FMT(
+              "Replication suspended: {} > {}", i, recovery_max_index.value());
             send_append_entries_response(r.from_node, false);
             return;
           }
@@ -587,9 +610,10 @@ namespace raft
           {
             // If an entry was successfully replicated in the batch, deserialise
             // up to that entry
-            LOG_INFO << "Replication suspended up to "
-                     << recovery_max_index.value() << " but deserialised up to "
-                     << i - 1 << std::endl;
+            LOG_INFO_FMT(
+              "Replication suspended up to {} but deserialised up to {}",
+              recovery_max_index.value(),
+              i - 1);
             send_append_entries_response(r.from_node, true);
             return;
           }
@@ -604,8 +628,10 @@ namespace raft
           // NB: This will currently never be triggered.
           // This should only fail if there is malformed data. Truncate
           // the log and reply false.
-          LOG_FAIL << "Recv append entries to " << local_id << " from "
-                   << r.from_node << " but the data is malformed" << std::endl;
+          LOG_FAIL_FMT(
+            "Recv append entries to {} from {} but the data is malformed",
+            local_id,
+            r.from_node);
 
           last_idx = r.prev_idx;
           ledger->truncate(r.prev_idx);
@@ -625,7 +651,7 @@ namespace raft
             break;
 
           case kv::DeserialiseSuccess::PASS_SIGNATURE:
-            LOG_INFO << "Deserialising signature at " << i << std::endl;
+            LOG_INFO_FMT("Deserialising signature at {}", i);
             committable_indices.push_back(i);
             if (sig_term)
               term_history.update(commit_idx + 1, sig_term);
@@ -640,8 +666,7 @@ namespace raft
       if (leader_id != r.from_node)
       {
         leader_id = r.from_node;
-        LOG_DEBUG << "Node " << local_id << " thinks leader is " << leader_id
-                  << std::endl;
+        LOG_DEBUG_FMT("Node {} thinks leader is {}", local_id, leader_id);
       }
 
       send_append_entries_response(r.from_node, true);
@@ -652,9 +677,12 @@ namespace raft
 
     void send_append_entries_response(NodeId to, bool answer)
     {
-      LOG_DEBUG << "Send append entries response from " << local_id << " to "
-                << to << " for index " << last_idx << ": " << answer
-                << std::endl;
+      LOG_DEBUG_FMT(
+        "Send append entries response from {} to {} for index {}: {}",
+        local_id,
+        to,
+        last_idx,
+        answer);
 
       AppendEntriesResponse response = {
         raft_append_entries_response, local_id, current_term, last_idx, answer};
@@ -676,15 +704,19 @@ namespace raft
       if (node == nodes.end())
       {
         // Ignore if we don't recognise the node.
-        LOG_FAIL << "Recv append entries response to " << local_id
-                 << " from unknown node " << r.from_node << std::endl;
+        LOG_FAIL_FMT(
+          "Recv append entries response to {} from {}: unknown node",
+          local_id,
+          r.from_node);
         return;
       }
       else if (current_term < r.term)
       {
         // We are behind, convert to a follower.
-        LOG_DEBUG << "Recv append entries response to " << local_id << " from "
-                  << r.from_node << ": more recent term" << std::endl;
+        LOG_DEBUG_FMT(
+          "Recv append entries response to {} from {}: more recent term",
+          local_id,
+          r.from_node);
         become_follower(r.term);
         return;
       }
@@ -692,8 +724,10 @@ namespace raft
       {
         // Stale response, discard if success.
         // Otherwise reset sent_idx and try again.
-        LOG_DEBUG << "Recv append entries response to " << local_id << " from "
-                  << r.from_node << ": stale term" << std::endl;
+        LOG_DEBUG_FMT(
+          "Recv append entries response to {} from {}: stale term",
+          local_id,
+          r.from_node);
         if (r.success)
           return;
       }
@@ -701,8 +735,10 @@ namespace raft
       {
         // Stale response, discard if success.
         // Otherwise reset sent_idx and try again.
-        LOG_DEBUG << "Recv append entries response to " << local_id << " from "
-                  << r.from_node << ": stale idx" << std::endl;
+        LOG_DEBUG_FMT(
+          "Recv append entries response to {} from {}: stale idx",
+          local_id,
+          r.from_node);
         if (r.success)
           return;
       }
@@ -713,22 +749,25 @@ namespace raft
       if (!r.success)
       {
         // Failed due to log inconsistency. Reset sent_idx and try again.
-        LOG_DEBUG << "Recv append entries response to " << local_id << " from "
-                  << r.from_node << ": failed" << std::endl;
+        LOG_DEBUG_FMT(
+          "Recv append entries response to {} from {}: failed",
+          local_id,
+          r.from_node);
         send_append_entries(r.from_node, node->second.match_idx + 1);
         return;
       }
 
-      LOG_DEBUG << "Recv append entries response to " << local_id << " from "
-                << r.from_node << " for index " << r.last_log_idx << ": success"
-                << std::endl;
+      LOG_DEBUG_FMT(
+        "Recv append entries response to {} from {} for index {}: success",
+        local_id,
+        r.from_node,
+        r.last_log_idx);
       update_commit();
     }
 
     void send_request_vote(NodeId to)
     {
-      LOG_INFO << "Send request vote from " << local_id << " to " << to
-               << std::endl;
+      LOG_INFO_FMT("Send request vote from {} to {}", local_id, to);
 
       RequestVote rv = {raft_request_vote,
                         local_id,
@@ -748,33 +787,45 @@ namespace raft
       auto node = nodes.find(r.from_node);
       if (node == nodes.end())
       {
-        LOG_FAIL << "Recv request vote to " << local_id << " from unknown node "
-                 << r.from_node << std::endl;
+        LOG_FAIL_FMT(
+          "Recv request vote to {} from {}: unknown node",
+          local_id,
+          r.from_node);
         return;
       }
 
       if (current_term > r.term)
       {
         // Reply false, since our term is later than the received term.
-        LOG_DEBUG << "Recv request vote to " << local_id << " from "
-                  << r.from_node << " but our term is later" << std::endl;
+        LOG_DEBUG_FMT(
+          "Recv request vote to {} from {}: our term is later ({} > {})",
+          local_id,
+          r.from_node,
+          current_term,
+          r.term);
         send_request_vote_response(r.from_node, false);
         return;
       }
       else if (current_term < r.term)
       {
         // Become a follower in the new term.
-        LOG_DEBUG << "Recv request vote to " << local_id << " from "
-                  << r.from_node << ": their term is more recent" << std::endl;
+        LOG_DEBUG_FMT(
+          "Recv request vote to {} from {}: their term is later ({} < {})",
+          local_id,
+          r.from_node,
+          current_term,
+          r.term);
         become_follower(r.term);
       }
 
       if ((voted_for != NoNode) && (voted_for != r.from_node))
       {
         // Reply false, since we already voted for someone else.
-        LOG_DEBUG << "Recv request vote to " << local_id << " from "
-                  << r.from_node << ": we already voted for " << voted_for
-                  << std::endl;
+        LOG_DEBUG_FMT(
+          "Recv request vote to {} from {}: alredy voted for {}",
+          local_id,
+          r.from_node,
+          voted_for);
         send_request_vote_response(r.from_node, false);
         return;
       }
@@ -799,8 +850,8 @@ namespace raft
 
     void send_request_vote_response(NodeId to, bool answer)
     {
-      LOG_INFO << "Send request vote response from " << local_id << " to " << to
-               << ": " << answer << std::endl;
+      LOG_INFO_FMT(
+        "Send request vote response from {} to {}: {}", local_id, to, answer);
 
       RequestVoteResponse response = {
         raft_request_vote_response, local_id, current_term, answer};
@@ -813,8 +864,8 @@ namespace raft
     {
       if (state != Candidate)
       {
-        LOG_INFO << "Recv request vote response to " << local_id
-                 << ": we aren't a candidate" << std::endl;
+        LOG_INFO_FMT(
+          "Recv request vote response to {}: we aren't a candidate", local_id);
         return;
       }
 
@@ -825,36 +876,51 @@ namespace raft
       auto node = nodes.find(r.from_node);
       if (node == nodes.end())
       {
-        LOG_INFO << "Recv request vote response to " << local_id
-                 << " from unknown node " << r.from_node << std::endl;
+        LOG_INFO_FMT(
+          "Recv request vote response to {} from {}: unknown node",
+          local_id,
+          r.from_node);
         return;
       }
 
       if (current_term < r.term)
       {
         // Become a follower in the new term.
-        LOG_INFO << "Recv request vote response to " << local_id << " from "
-                 << r.from_node << ": their term is more recent" << std::endl;
+        LOG_INFO_FMT(
+          "Recv request vote response to {} from {}: their term is more recent "
+          "({} < {})",
+          local_id,
+          r.from_node,
+          current_term,
+          r.term);
         become_follower(r.term);
         return;
       }
       else if (current_term != r.term)
       {
         // Ignore as it is stale.
-        LOG_INFO << "Recv request vote response to " << local_id << " from "
-                 << r.from_node << ": stale" << std::endl;
+        LOG_INFO_FMT(
+          "Recv request vote response to {} from {}: stale ({} != {})",
+          local_id,
+          r.from_node,
+          current_term,
+          r.term);
         return;
       }
       else if (!r.vote_granted)
       {
         // Do nothing.
-        LOG_INFO << "Recv request vote response to " << local_id << " from "
-                 << r.from_node << ": they voted no" << std::endl;
+        LOG_INFO_FMT(
+          "Recv request vote response to {} from {}: they voted no",
+          local_id,
+          r.from_node);
         return;
       }
 
-      LOG_INFO << "Recv request vote response to " << local_id << " from "
-               << r.from_node << ": they voted yes" << std::endl;
+      LOG_INFO_FMT(
+        "Recv request vote response to {} from {}: they voted yes",
+        local_id,
+        r.from_node);
       add_vote_for_me(r.from_node);
     }
 
@@ -876,8 +942,7 @@ namespace raft
       restart_election_timeout();
       add_vote_for_me(local_id);
 
-      LOG_INFO << "Becoming candidate " << local_id << ": " << current_term
-               << std::endl;
+      LOG_INFO_FMT("Becoming candidate {}: {}", local_id, current_term);
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
         send_request_vote(it->first);
@@ -898,8 +963,7 @@ namespace raft
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
 
-      LOG_INFO << "Becoming leader " << local_id << ": " << current_term
-               << std::endl;
+      LOG_INFO_FMT("Becoming leader {}: {}", local_id, current_term);
 
       // Immediately commit if there are no other nodes.
       if (nodes.size() == 0)
@@ -935,8 +999,7 @@ namespace raft
       rollback(commit_idx);
       committable_indices.clear();
 
-      LOG_INFO << "Becoming follower " << local_id << ": " << current_term
-               << std::endl;
+      LOG_INFO_FMT("Becoming follower {}: {}", local_id, current_term);
     }
 
     void add_vote_for_me(NodeId from)
@@ -977,8 +1040,10 @@ namespace raft
           new_commit_idx = confirmed;
       }
 
-      LOG_DEBUG << "In update_commit, new_commit_idx: " << new_commit_idx
-                << " last_idx: " << last_idx << std::endl;
+      LOG_INFO_FMT(
+        "In update_commit, new_commit_idx: {}, last_idx: {}",
+        new_commit_idx,
+        last_idx);
 
       if (new_commit_idx > last_idx)
       {
@@ -1015,7 +1080,7 @@ namespace raft
           "Tried to commit " + std::to_string(idx) + "but last_idx as " +
           std::to_string(last_idx));
 
-      LOG_DEBUG << "Starting commit." << std::endl;
+      LOG_DEBUG_FMT("Starting commit");
 
       // This could happen if a follower becomes the leader when it
       // has committed fewer log entries, although it has them available.
@@ -1024,9 +1089,9 @@ namespace raft
 
       commit_idx = idx;
 
-      LOG_DEBUG << "Compacting..." << std::endl;
+      LOG_DEBUG_FMT("Compacting...");
       store->compact(idx);
-      LOG_DEBUG << "Commit on " << local_id << ": " << idx << std::endl;
+      LOG_DEBUG_FMT("Commit on {}: {}", local_id, idx);
 
       // Examine all configurations that are followed by a globally committed
       // configuration.
@@ -1099,7 +1164,7 @@ namespace raft
       for (auto node_id : to_remove)
       {
         nodes.erase(node_id);
-        LOG_INFO << "Removed node " << node_id << std::endl;
+        LOG_INFO_FMT("Removed node {}", node_id);
       }
 
       for (auto node_id : active_nodes)
@@ -1117,13 +1182,13 @@ namespace raft
           if (state == Leader)
             send_append_entries(node_id, index);
 
-          LOG_INFO << "Added node " << node_id << std::endl;
+          LOG_INFO_FMT("Added node {}", node_id);
         }
       }
 
       if (active_nodes.find(local_id) == active_nodes.end())
       {
-        LOG_INFO << "Removed self " << local_id << std::endl;
+        LOG_INFO_FMT("Removed self {}", local_id);
         // TODO(#feature): shut down this node
       }
     }

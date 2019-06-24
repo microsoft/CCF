@@ -27,7 +27,7 @@ namespace ccf
         if (verify_result != QuoteVerificationResult::VERIFIED)
           return QuoteVerifier::quote_verification_error_to_json(verify_result);
 #else
-        LOG_INFO << "Skipped joining node quote verification." << std::endl;
+        LOG_INFO_FMT("Skipped joining node quote verification");
 #endif
 
         // TODO(#important,#TR): In addition to verifying the quote, we should
@@ -36,8 +36,8 @@ namespace ccf
         joining_nodeinfo.status = NodeStatus::TRUSTED;
         nodes_view->put(args.caller_id, joining_nodeinfo);
 
-        LOG_INFO << "Accepting a new node to the network as node "
-                 << args.caller_id << std::endl;
+        LOG_INFO_FMT(
+          "Accepting a new node to the network as node {}", args.caller_id);
 
         // Set joiner's fresh key for encrypting past network secrets
         node.set_joiner_key(args.caller_id, args.params["raw_fresh_key"]);

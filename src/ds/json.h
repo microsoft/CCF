@@ -1,8 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include <fmt/format_header_only.h>
 #include <nlohmann/json.hpp>
 #include <sstream>
 

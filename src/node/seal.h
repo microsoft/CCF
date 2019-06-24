@@ -97,7 +97,7 @@ namespace ccf
       if (!seal_key_and_info.has_value())
         return false;
 
-      LOG_DEBUG << "Seal key successfully retrieved" << std::endl;
+      LOG_DEBUG_FMT("Seal key successfully retrieved");
 
       crypto::KeyAesGcm seal_key(CBuffer(
         seal_key_and_info->first.data(), seal_key_and_info->first.size()));
@@ -138,7 +138,7 @@ namespace ccf
       if (!raw_seal_key.has_value())
         return {};
 
-      LOG_DEBUG << "Seal key successfully retrieved from key info" << std::endl;
+      LOG_DEBUG_FMT("Seal key successfully retrieved from key info");
 
       // Decrypt serialised
       crypto::KeyAesGcm seal_key(
@@ -154,7 +154,7 @@ namespace ccf
             CBuffer(),
             plain.data()))
       {
-        LOG_FAIL << "Decryption of sealed data failed" << std::endl;
+        LOG_FAIL_FMT("Decryption of sealed data failed");
         return {};
       }
 
@@ -181,8 +181,8 @@ namespace ccf
         oe_get_seal_key_by_policy(policy, temp_buf, &seal_key_size, NULL, NULL);
       if (result != OE_BUFFER_TOO_SMALL)
       {
-        LOG_FAIL << "oe_get_seal_key_by_policy (1) failed: "
-                 << oe_result_str(result) << std::endl;
+        LOG_FAIL_FMT(
+          "oe_get_seal_key_by_policy (1) failed: {}", oe_result_str(result));
         return {};
       }
       raw_seal_key.resize(seal_key_size);
@@ -192,8 +192,8 @@ namespace ccf
         policy, raw_seal_key.data(), &seal_key_size, temp_buf, &key_info_size);
       if (result != OE_BUFFER_TOO_SMALL)
       {
-        LOG_FAIL << "oe_get_seal_key_by_policy (2) failed: "
-                 << oe_result_str(result) << std::endl;
+        LOG_FAIL_FMT(
+          "oe_get_seal_key_by_policy (2) failed: {}", oe_result_str(result));
         return {};
       }
       key_info.resize(key_info_size);
@@ -207,8 +207,8 @@ namespace ccf
         &key_info_size);
       if (result != OE_OK)
       {
-        LOG_FAIL << "oe_get_seal_key_by_policy (3) failed: "
-                 << oe_result_str(result) << std::endl;
+        LOG_FAIL_FMT(
+          "oe_get_seal_key_by_policy (3) failed: {}", oe_result_str(result));
         return {};
       }
       return std::make_pair(raw_seal_key, key_info);
@@ -231,8 +231,7 @@ namespace ccf
         key_info.data(), key_info.size(), temp_buf, &seal_key_size);
       if (result != OE_BUFFER_TOO_SMALL)
       {
-        LOG_FAIL << "oe_get_seal_key (1) failed: " << oe_result_str(result)
-                 << std::endl;
+        LOG_FAIL_FMT("oe_get_seal_key (1) failed: {}", oe_result_str(result));
         return {};
       }
       raw_seal_key.resize(seal_key_size);
@@ -242,8 +241,7 @@ namespace ccf
         key_info.data(), key_info.size(), raw_seal_key.data(), &seal_key_size);
       if (result != OE_OK)
       {
-        LOG_FAIL << "oe_get_seal_key (2) failed: " << oe_result_str(result)
-                 << std::endl;
+        LOG_FAIL_FMT("oe_get_seal_key (2) failed: {}", oe_result_str(result));
         return {};
       }
       return std::move(raw_seal_key);

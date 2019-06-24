@@ -21,7 +21,7 @@ namespace asynchost
 
     void on_signal()
     {
-      LOG_INFO << "SIGTERM: Shutting down enclave gracefully..." << std::endl;
+      LOG_INFO_FMT("SIGTERM: Shutting down enclave gracefully...");
       RINGBUFFER_WRITE_MESSAGE(AdminMessage::stop, to_enclave);
       uv_stop(uv_default_loop());
     }

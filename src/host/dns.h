@@ -40,7 +40,7 @@ namespace asynchost
              service.c_str(),
              &hints)) < 0)
         {
-          LOG_FAIL << "uv_getaddrinfo failed: " << uv_strerror(rc) << std::endl;
+          LOG_FAIL_FMT("uv_getaddrinfo failed (async): {}", uv_strerror(rc));
           delete resolver;
           return false;
         }
@@ -56,7 +56,7 @@ namespace asynchost
              service.c_str(),
              &hints)) < 0)
         {
-          LOG_FAIL << "uv_getaddrinfo failed: " << uv_strerror(rc) << std::endl;
+          LOG_FAIL_FMT("uv_getaddrinfo failed: {}", uv_strerror(rc));
           delete resolver;
           return false;
         }

@@ -167,6 +167,7 @@ if(BUILD_TESTS)
     target_link_libraries(${name} PRIVATE
       ${CMAKE_THREAD_LIBS_INIT}
     )
+    set_property(TEST ${name} PROPERTY LABELS benchmark)
   endfunction()
 
   ## Picobench benchmarks
@@ -218,6 +219,7 @@ if(BUILD_TESTS)
      COMMAND
        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py ./raft_driver
          ${CMAKE_SOURCE_DIR}/tests/raft_scenarios ${CMAKE_SOURCE_DIR})
+  set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
   ## Member client end to end tests
   add_e2e_test(

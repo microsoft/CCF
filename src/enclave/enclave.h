@@ -172,8 +172,7 @@ namespace enclave
               else if (node.is_reading_private_ledger())
                 node.recover_private_ledger_entry(body);
               else
-                LOG_FAIL << "Cannot recover ledger entry: Unexpected state"
-                         << std::endl;
+                LOG_FAIL_FMT("Cannot recover ledger entry: Unexpected state");
             });
 
           DISPATCHER_SET_MESSAGE_HANDLER(
