@@ -328,7 +328,11 @@ int main(int argc, char** argv)
   std::string new_code_id;
   auto add_code = app.add_subcommand("add_code", "Support executing new code");
   add_code
-    ->add_option("--new_code_id", new_code_id, "The new code id (a 64 character string representing a 32 byte hash value in hex format)")
+    ->add_option(
+      "--new_code_id",
+      new_code_id,
+      "The new code id (a 64 character string representing a 32 byte hash "
+      "value in hex format)")
     ->required(true);
 
   NodeId node_id;
