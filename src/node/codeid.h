@@ -5,6 +5,9 @@
 #include "entities.h"
 
 #include <msgpack.hpp>
+#ifdef GET_QUOTE
+#  include <openenclave/bits/report.h>
+#endif
 
 namespace ccf
 {
@@ -25,7 +28,7 @@ namespace ccf
 
 #ifdef GET_QUOTE
 
-  CodeDigest get_digest_from_parsed_quote(oe_report_t& parsed_quote)
+  inline CodeDigest get_digest_from_parsed_quote(oe_report_t& parsed_quote)
   {
     CodeDigest ret;
     std::copy(
