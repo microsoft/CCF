@@ -121,8 +121,7 @@ def vote_to_accept(primary, proposal_id):
     assert j_result["result"]
 
 
-def add_new_code(primary):
-    new_code_id = create_new_code_version(primary)
+def add_new_code(primary, new_code_id):
     LOG.debug(f"New code id: {new_code_id}")
 
     # first propose adding the new code id
@@ -140,11 +139,12 @@ def add_new_code(primary):
     vote_to_accept(primary, 0)
 
 
-def create_node_using_new_code(network, args, node_id):
+def create_node_using_new_code(network, args):
     # add a node using unsupported code
-    assert network.create_and_add_node(
-        args.patched_file_name, args, node_id, False
-    ) == (False, infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND)
+    assert network.create_and_add_node(args.patched_file_name, args, False) == (
+        False,
+        infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND,
+    )
 
 
 def run(args):
@@ -160,27 +160,30 @@ def run(args):
         }
 
         res, new_node, new_node_id = network.create_and_add_node(
-            args.package, args, 2, True
+            args.package, args, True
         )
         new_node.join_network()
 
+        new_code_id = create_new_code_version(primary)
+
         # try to add a node using unsupported code
-        assert network.create_and_add_node(args.patched_file_name, args, 3, False) == (
+        assert network.create_and_add_node(args.patched_file_name, args, False) == (
             False,
             infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND,
         )
 
-        add_new_code(primary)
+        add_new_code(primary, new_code_id)
 
         with open("networkcert.pem", mode="rb") as file:
             net_cert = list(file.read())
 
         new_nodes = set()
+        old_nodes_count = len(network.nodes)
         # add nodes using the same code id that failed earlier
-        for i in range(4, 9):
-            LOG.debug(f"Adding node {i} using new code")
+        for i in range(0, old_nodes_count + 1):
+            LOG.debug(f"Adding node using new code")
             res, new_node, new_node_id = network.create_and_add_node(
-                args.patched_file_name, args, i, True
+                args.patched_file_name, args
             )
             assert res
             new_node.join_network()
@@ -194,19 +197,18 @@ def run(args):
 
         old_nodes = set(network.nodes).difference(new_nodes)
         for node in old_nodes:
-            old_status = node.remote.node_status
             LOG.debug(f"Stopping node {node.node_id}")
             node.stop()
 
         # wait for a new leader to be elected
-        time.sleep(10)
+        time.sleep(args.election_timeout * 6 / 1000)
 
-        network.set_primary(new_primary)
+        new_leader = network.find_leader()[0]
         LOG.debug(f"Waiting, primary is {new_primary.node_id}")
         res, new_node, new_node_id = network.create_and_add_node(
-            args.patched_file_name, args, 13, True
+            args.patched_file_name, args
         )
-        new_node.join_network_custom(new_primary.host, new_primary.tls_port, net_cert)
+        new_node.join_network_custom(new_leader.host, new_leader.tls_port, net_cert)
         network.wait_for_node_commit_sync()
 
 

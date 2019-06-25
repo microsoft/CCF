@@ -66,7 +66,7 @@ namespace ccf
            nodes->put(id, *info);
            return true;
          }},
-        // accept a node
+        // accept new code
         {"new_code",
          [this](Store::Tx& tx, const nlohmann::json& args) {
            const auto id = args;

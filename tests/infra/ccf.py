@@ -95,6 +95,7 @@ class Network:
         self.nodes = []
         self.members = []
         self.hosts = hosts
+        self.next_node_id = 0
         if create_nodes:
             for node_id, host in enumerate(hosts):
                 node_id_ = node_id + node_offset
@@ -208,12 +209,15 @@ class Network:
     def create_node(self, node_id, host, debug=False, perf=False, recovery=False):
         node = Node(node_id, host, debug, perf, recovery)
         self.nodes.append(node)
+        self.next_node_id = node_id + 1
         return node
 
-    def create_and_add_node(self, lib_name, args, node_id, should_succeed=True):
+    def create_and_add_node(self, lib_name, args, should_succeed=True, node_id=None):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
+        if node_id is None:
+            node_id = self.get_next_node_id()
         node_status = args.node_status or "pending"
         new_node = self.create_node(node_id, "localhost")
         new_node.start(
@@ -225,7 +229,7 @@ class Network:
         )
         new_node_info = new_node.remote.info()
 
-        with self.get_primary().member_client(format="json") as member_client:
+        with self.find_leader()[0].member_client(format="json") as member_client:
             j_result = member_client.rpc("add_node", new_node_info)
 
         if not should_succeed:
@@ -332,9 +336,8 @@ class Network:
     def get_primary(self):
         return self.nodes[0]
 
-    def set_primary(self, node):
-        # TODO: remove from self.nodes before prepending
-        return self.nodes.insert(0, node)
+    def get_next_node_id(self):
+        return self.next_node_id
 
 
 class Checker:
@@ -559,10 +562,11 @@ class Node:
 
     def join_network_custom(self, host, tls_port, net_cert):
         with self.management_client(format="json") as c:
-            c.rpc(
+            res = c.rpc(
                 "joinNetwork",
                 {"hostname": host, "service": str(tls_port), "network_cert": net_cert},
             )
+            assert res.error is None
         self.complete_join_network()
 
     def join_network(self):

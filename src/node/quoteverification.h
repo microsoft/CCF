@@ -34,16 +34,8 @@ namespace ccf
       auto codeid_view = tx.get_view(network.code_id);
       CodeStatus code_id_status = CodeStatus::UNKNOWN;
 
-      std::array<
-        uint8_t,
-        sizeof(parsed_quote.identity.unique_id) /
-          sizeof(*parsed_quote.identity.unique_id)>
-        id_vec;
-      std::copy(
-        std::begin(parsed_quote.identity.unique_id),
-        std::end(parsed_quote.identity.unique_id),
-        id_vec.begin());
-      auto status = codeid_view->get(id_vec);
+      auto code_digest = get_digest_from_parsed_quote(parsed_quote);
+      auto status = codeid_view->get(code_digest);
       if (status)
         code_id_status = *status;
 
