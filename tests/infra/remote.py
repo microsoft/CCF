@@ -31,6 +31,15 @@ def popen(*args, **kwargs):
     return subprocess.Popen(*args, **kwargs)
 
 
+def coverage_enabled(bin):
+    return (
+        subprocess.run(
+            f"nm -C {bin} | grep __llvm_coverage_mapping", shell=True
+        ).returncode
+        == 0
+    )
+
+
 @contextmanager
 def sftp_session(hostname):
     client = paramiko.SSHClient()
@@ -550,7 +559,7 @@ class CCFRemote(object):
 
         env = {}
         self.profraw = None
-        if enclave_type == "virtual":
+        if enclave_type == "virtual" and coverage_enabled(lib_path):
             self.profraw = (
                 f"{uuid.uuid4()}-{node_id}_{os.path.basename(lib_path)}.profraw"
             )
