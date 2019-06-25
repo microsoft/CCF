@@ -62,6 +62,13 @@ namespace kv
   {
   public:
     using RequestID = std::tuple<size_t /* Caller ID */, size_t /* Client Session ID */, kv::Version>;
+    struct CallbackArgs
+    {
+      RequestID id;
+      std::vector<uint8_t> data;
+      Version version;
+    };
+    using CallbackHandler = std::function<void(CallbackArgs)>;
 
     virtual ~TxHistory() {}
     virtual void append(const std::vector<uint8_t>& data) = 0;
@@ -72,6 +79,7 @@ namespace kv
     virtual void add_request(RequestID id, const std::vector<uint8_t>& request) = 0;
     virtual void add_result(RequestID id, kv::Version version, const std::vector<uint8_t>& data) = 0;
     virtual void add_response(RequestID id, const std::vector<uint8_t>& response) = 0;
+    virtual void register_callback(std::string, CallbackHandler) = 0;
   };
 
   using PendingTx =

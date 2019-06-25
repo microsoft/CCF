@@ -5,6 +5,7 @@
 #include "../crypto/hash.h"
 #include "../ds/logger.h"
 #include "../kv/kvtypes.h"
+#include "../pbft/pbfttypes.h"
 #include "../tls/keypair.h"
 #include "../tls/tls.h"
 #include "entities.h"
@@ -141,9 +142,20 @@ namespace ccf
         true);
     }
 
-    void add_request(kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override {}
-    void add_result(kv::TxHistory::RequestID id, kv::Version version, const std::vector<uint8_t>& data) override {}
-    void add_response(kv::TxHistory::RequestID id, const std::vector<uint8_t>& response) override {}
+    void add_request(
+      kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override
+    {}
+    void add_result(
+      kv::TxHistory::RequestID id,
+      kv::Version version,
+      const std::vector<uint8_t>& data) override
+    {}
+    void add_response(
+      kv::TxHistory::RequestID id,
+      const std::vector<uint8_t>& response) override
+    {}
+
+    void register_callback(std::string, CallbackHandler) override {}
   };
 
   class MerkleTreeHistory
@@ -220,6 +232,7 @@ namespace ccf
     std::map<RequestID, std::vector<uint8_t>> requests;
     std::map<RequestID, std::pair<kv::Version, crypto::Sha256Hash>> results;
     std::map<RequestID, std::vector<uint8_t>> responses;
+    std::unordered_map<std::string, CallbackHandler> callbacks;
 
   public:
     HashedTxHistory(
@@ -234,6 +247,11 @@ namespace ccf
       signatures(sig_),
       nodes(nodes_)
     {}
+
+    void register_callback(std::string name, CallbackHandler func) override
+    {
+      callbacks[name] = func;
+    }
 
     void set_node_id(NodeId id_)
     {
@@ -316,21 +334,36 @@ namespace ccf
         true);
     }
 
-    void add_request(kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override
+    void add_request(
+      kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override
     {
       LOG_DEBUG << fmt::format("HISTORY: add_request {0}", id) << std::endl;
       requests[id] = request;
+#ifdef PBFT
+      auto callback = callbacks.find(pbft::Callbacks::ON_REQUEST);
+      if (callback != callbacks.end())
+      {
+        callback->second({id, request, -1});
+      }
+#endif
     }
-    
-    void add_result(kv::TxHistory::RequestID id, kv::Version version, const std::vector<uint8_t>& data) override
+
+    void add_result(
+      kv::TxHistory::RequestID id,
+      kv::Version version,
+      const std::vector<uint8_t>& data) override
     {
       append(data);
       auto root = get_root();
-      LOG_DEBUG << fmt::format("HISTORY: add_result {0} {1} {2}", id, version, root) << std::endl;
+      LOG_DEBUG << fmt::format(
+                     "HISTORY: add_result {0} {1} {2}", id, version, root)
+                << std::endl;
       results[id] = {version, root};
     }
 
-    void add_response(kv::TxHistory::RequestID id, const std::vector<uint8_t>& response) override
+    void add_response(
+      kv::TxHistory::RequestID id,
+      const std::vector<uint8_t>& response) override
     {
       LOG_DEBUG << fmt::format("HISTORY: add_response {0}", id) << std::endl;
       responses[id] = response;

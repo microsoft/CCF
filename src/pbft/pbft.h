@@ -12,6 +12,7 @@
 
 #include <list>
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 namespace pbft
@@ -78,6 +79,7 @@ namespace pbft
     IMessageReceiveBase* message_receiver_base = nullptr;
     char* mem;
     std::unique_ptr<INetwork> pbft_network;
+    std::unordered_map<std::string, kv::TxHistory::CallbackHandler> callbacks;
 
     struct NodeConfiguration
     {
@@ -91,6 +93,16 @@ namespace pbft
       local_id(id),
       channels(channels_)
     {
+      callbacks[pbft::Callbacks::ON_REQUEST] =
+        [&](kv::TxHistory::CallbackArgs args) {
+          auto caller = std::get<0>(args.id);
+          auto session = std::get<1>(args.id);
+          auto version = std::get<2>(args.id);
+          message_receiver_base->receive_request(
+            args.data.data(), args.data.size());
+          LOG_INFO << "v: " << args.version << std::endl;
+          LOG_INFO << "data size: " << args.data.size() << std::endl;
+        };
       LOG_INFO_FMT("Setting up PBFT replica for node with id: {}", local_id);
 
       // configure replica
@@ -100,7 +112,7 @@ namespace pbft
       general_info.max_faulty = 0;
       general_info.service_name = "generic";
       general_info.auth_timeout = 1800000;
-      general_info.view_timeout = 5000;
+      general_info.view_timeout = 1800000;
       general_info.status_timeout = 100;
       general_info.recovery_timeout = 9999250000;
 
@@ -135,7 +147,10 @@ namespace pbft
                              _Byz_buffer* non_det,
                              int client,
                              bool ro,
-                             Seqno n) { return 0; });
+                             Seqno n) {
+        LOG_INFO << "exec command" << std::endl;
+        return 0;
+      });
 
       pbft_network = std::make_unique<PbftEnclaveNetwork>(local_id, channels);
 
@@ -178,6 +193,11 @@ namespace pbft
     Term get_term(Index idx) override
     {
       return 0;
+    }
+
+    kv::TxHistory::CallbackHandler get_callback(std::string name)
+    {
+      return callbacks[name];
     }
 
     void add_configuration(const NodeConfiguration& node_conf)

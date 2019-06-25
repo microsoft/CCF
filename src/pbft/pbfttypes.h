@@ -11,6 +11,11 @@ namespace pbft
   using NodeId = uint64_t;
   using Node2NodeMsg = uint64_t;
 
+  struct Callbacks
+  {
+    static constexpr auto ON_REQUEST = "on_request";
+  };
+
   enum PbftMsgType : Node2NodeMsg
   {
     pbft_message = 0,

@@ -493,7 +493,8 @@ namespace ccf
         tx.set_req_id(reqid);
       }
 
-      auto rep = process_json(ctx, tx, caller_id.value(), unsigned_rpc, signed_request);
+      auto rep =
+        process_json(ctx, tx, caller_id.value(), unsigned_rpc, signed_request);
 
       // If necessary, forward the RPC to the current leader
       if (!rep.has_value())
@@ -583,7 +584,8 @@ namespace ccf
 
       SignedReq signed_request(rpc.second);
 
-      auto rep = process_json(ctx, tx, ctx.fwd->caller_id, rpc.second, signed_request);
+      auto rep =
+        process_json(ctx, tx, ctx.fwd->caller_id, rpc.second, signed_request);
       if (!rep.has_value())
       {
         // This should never be called when process_json is called with a
