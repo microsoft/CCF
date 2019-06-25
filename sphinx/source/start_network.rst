@@ -121,3 +121,13 @@ When executing the ``joinNetwork.json`` RPC, the target node initiates an enclav
         end
 
 
+Supporting code updates
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The code being executed by the nodes might need to be updated from time to time.
+This can be achieved by creating a "new_code" proposal and passing the hash of the signed code. Once the proposal has been accepted, nodes running the new code may join the network. This allows stopping nodes running older versions of the code.
+
+.. note:: It is important to keep the code compatible with the previous version, since there will be a point in time in which the new code is running on at least one node, while the other version is running on a different node.
+
+.. note:: The safest way to restart or replace nodes is by stopping a single node running the old version and starting a node running the new version as a sequence of operations, in order to avoid a situation in which most nodes have been stopped, and new nodes will not be able to join since it would be impossible to reach a majority of nodes agreeing to accept new nodes (this restriction is imposed by the consensus algorithm).
+
