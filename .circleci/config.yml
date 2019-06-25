@@ -16,7 +16,7 @@ commands:
           command: mkdir build
       - run:
           name: CMake
-          command: cmake -GNinja -DVIRTUAL_ONLY=ON -DBUILD_SMALLBANK=OFF << parameters.cmake_flags >> ..
+          command: cmake -GNinja -DTARGET=virtual -DBUILD_SMALLBANK=OFF << parameters.cmake_flags >> ..
           working_directory: build
       - run:
           name: Ninja
