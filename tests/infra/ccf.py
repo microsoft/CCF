@@ -95,7 +95,6 @@ class Network:
         self.nodes = []
         self.members = []
         self.hosts = hosts
-        self.next_node_id = 0
         if create_nodes:
             for node_id, host in enumerate(hosts):
                 node_id_ = node_id + node_offset
@@ -209,8 +208,10 @@ class Network:
     def create_node(self, node_id, host, debug=False, perf=False, recovery=False):
         node = Node(node_id, host, debug, perf, recovery)
         self.nodes.append(node)
-        self.next_node_id = node_id + 1
         return node
+
+    def remove_node(self):
+        last_node = self.nodes.pop()
 
     def create_and_add_node(self, lib_name, args, should_succeed=True, node_id=None):
         forwarded_args = {
@@ -233,6 +234,7 @@ class Network:
             j_result = member_client.rpc("add_node", new_node_info)
 
         if not should_succeed:
+            self.remove_node()
             return (False, j_result.error["code"])
 
         return (True, new_node, j_result.result["id"])
@@ -337,7 +339,9 @@ class Network:
         return self.nodes[0]
 
     def get_next_node_id(self):
-        return self.next_node_id
+        if len(self.nodes):
+            return self.nodes[-1].node_id + 1
+        return 0
 
 
 class Checker:

@@ -141,7 +141,7 @@ def run(args):
         time.sleep(args.election_timeout * 6 / 1000)
 
         new_leader = network.find_leader()[0]
-        LOG.debug(f"Waiting, primary is {new_primary.node_id}")
+        LOG.debug(f"Waiting, new_leader is {new_leader.node_id}")
         res, new_node, new_node_id = network.create_and_add_node(
             args.patched_file_name, args
         )
