@@ -39,7 +39,7 @@ pr:
       - 'LICENSE'
 
 schedules:
-- cron: "15 7 * * *"
+- cron: "15 7 * * Mon-Fri"
   displayName: Daily morning build
   branches:
     include:
