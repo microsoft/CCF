@@ -119,7 +119,8 @@ include_directories(
   ${MSGPACK_INCLUDE_DIR}
 )
 
-option(VIRTUAL_ONLY "Build only virtual enclaves" OFF)
+set(TARGET "all" CACHE STRING "One of sgx, virtual, all")
+
 set(OE_PREFIX "/opt/openenclave" CACHE PATH "Path to Open Enclave install")
 message(STATUS "Open Enclave prefix set to ${OE_PREFIX}")
 
@@ -152,7 +153,7 @@ add_custom_command(
 
 configure_file(${CCF_DIR}/tests/tests.sh ${CMAKE_CURRENT_BINARY_DIR}/tests.sh COPYONLY)
 
-if(NOT VIRTUAL_ONLY)
+if(NOT ${TARGET} STREQUAL "virtual")
   # If OE was built with LINK_SGX=1, then we also need to link SGX
   execute_process(COMMAND "ldd" ${OESIGN}
                   COMMAND "grep" "-c" "sgx"
@@ -350,7 +351,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
     "SRCS;INCLUDE_DIRS;LINK_LIBS"
   )
 
-  if(NOT VIRTUAL_ONLY)
+  if(NOT ${TARGET} STREQUAL "virtual")
     add_library(${name} SHARED
       ${ENCLAVE_FILES}
       ${PARSED_ARGS_SRCS}
@@ -402,52 +403,54 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
     enable_quote_code(${name})
   endif()
 
-  ## Build a virtual enclave, loaded as a shared library without OE
-  set(virt_name ${name}.virtual)
-  add_library(${virt_name} SHARED
-    ${ENCLAVE_FILES}
-    ${PARSED_ARGS_SRCS}
-    ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp
-  )
-  add_san(${virt_name})
-  target_compile_definitions(${virt_name} PRIVATE
-    INSIDE_ENCLAVE
-    VIRTUAL_ENCLAVE
-  )
-  target_compile_options(${virt_name} PRIVATE
-    -stdlib=libc++)
-  target_include_directories(${virt_name} SYSTEM PRIVATE
-    ${PARSED_ARGS_INCLUDE_DIRS}
-    ${CCFCRYPTO_INC}
-    ${EVERCRYPT_INC}
-    ${OE_INCLUDE_DIR}
-    ${CMAKE_CURRENT_BINARY_DIR}
-  )
-  if (PBFT)
+  if(${TARGET} STREQUAL "virtual" OR ${TARGET} STREQUAL "all")
+    ## Build a virtual enclave, loaded as a shared library without OE
+    set(virt_name ${name}.virtual)
+    add_library(${virt_name} SHARED
+      ${ENCLAVE_FILES}
+      ${PARSED_ARGS_SRCS}
+      ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp
+    )
+    add_san(${virt_name})
+    target_compile_definitions(${virt_name} PRIVATE
+      INSIDE_ENCLAVE
+      VIRTUAL_ENCLAVE
+    )
+    target_compile_options(${virt_name} PRIVATE
+      -stdlib=libc++)
     target_include_directories(${virt_name} SYSTEM PRIVATE
-      ${CCF_DIR}/ePBFT/src/pbft/
+      ${PARSED_ARGS_INCLUDE_DIRS}
+      ${CCFCRYPTO_INC}
+      ${EVERCRYPT_INC}
+      ${OE_INCLUDE_DIR}
+      ${CMAKE_CURRENT_BINARY_DIR}
     )
-  endif()
-  if (PBFT)
+    if (PBFT)
+      target_include_directories(${virt_name} SYSTEM PRIVATE
+        ${CCF_DIR}/ePBFT/src/pbft/
+      )
+    endif()
+    if (PBFT)
+      target_link_libraries(${virt_name} PRIVATE
+        -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
+        libbyz.host
+      )
+    endif()
     target_link_libraries(${virt_name} PRIVATE
-      -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
-      libbyz.host
+      ${PARSED_ARGS_LINK_LIBS}
+      -stdlib=libc++
+      -lc++
+      -lc++abi
+      ccfcrypto.host
+      evercrypt.host
+      lua.host
+      ${CMAKE_THREAD_LIBS_INIT}
+      secp256k1.host
     )
+    enable_coverage(${virt_name})
+    use_client_mbedtls(${virt_name})
+    set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
   endif()
-  target_link_libraries(${virt_name} PRIVATE
-    ${PARSED_ARGS_LINK_LIBS}
-    -stdlib=libc++
-    -lc++
-    -lc++abi
-    ccfcrypto.host
-    evercrypt.host
-    lua.host
-    ${CMAKE_THREAD_LIBS_INIT}
-    secp256k1.host
-  )
-  enable_coverage(${virt_name})
-  use_client_mbedtls(${virt_name})
-  set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 endfunction()
 
 ## Unit test wrapper
@@ -476,7 +479,6 @@ function(add_unit_test name)
   )
 endfunction()
 
-
 # GenesisGenerator Executable
 add_executable(genesisgenerator ${CCF_DIR}/src/genesisgen/main.cpp)
 use_client_mbedtls(genesisgenerator)
@@ -486,7 +488,7 @@ target_link_libraries(genesisgenerator PRIVATE
   secp256k1.host
 )
 
-if(NOT VIRTUAL_ONLY)
+if(NOT ${TARGET} STREQUAL "virtual")
   # Host Executable
   add_executable(cchost
     ${CCF_DIR}/src/host/main.cpp
@@ -511,33 +513,30 @@ if(NOT VIRTUAL_ONLY)
   enable_quote_code(cchost)
 endif()
 
-# Virtual Host Executable
-add_executable(cchost.virtual
-  ${CCF_DIR}/src/host/main.cpp)
-use_client_mbedtls(cchost.virtual)
-target_compile_definitions(cchost.virtual PRIVATE -DVIRTUAL_ENCLAVE)
-target_compile_options(cchost.virtual PRIVATE -stdlib=libc++)
-target_include_directories(cchost.virtual PRIVATE
-  ${OE_INCLUDE_DIR}
-  ${CMAKE_CURRENT_BINARY_DIR}
-)
-add_san(cchost.virtual)
-enable_coverage(cchost.virtual)
-target_link_libraries(cchost.virtual PRIVATE
-  uv
-  ${CRYPTO_LIBRARY}
-  ${CMAKE_DL_LIBS}
-  ${CMAKE_THREAD_LIBS_INIT}
-  -lc++
-  -lc++abi
-  -stdlib=libc++
-  ccfcrypto.host
-  evercrypt.host
-)
-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-target_link_libraries(cchost.virtual PRIVATE gcov)
-else()
-target_link_libraries(cchost.virtual PRIVATE -fprofile-instr-generate -fcoverage-mapping)
+if(${TARGET} STREQUAL "virtual" OR ${TARGET} STREQUAL "all")
+  # Virtual Host Executable
+  add_executable(cchost.virtual
+    ${CCF_DIR}/src/host/main.cpp)
+  use_client_mbedtls(cchost.virtual)
+  target_compile_definitions(cchost.virtual PRIVATE -DVIRTUAL_ENCLAVE)
+  target_compile_options(cchost.virtual PRIVATE -stdlib=libc++)
+  target_include_directories(cchost.virtual PRIVATE
+    ${OE_INCLUDE_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}
+  )
+  add_san(cchost.virtual)
+  enable_coverage(cchost.virtual)
+  target_link_libraries(cchost.virtual PRIVATE
+    uv
+    ${CRYPTO_LIBRARY}
+    ${CMAKE_DL_LIBS}
+    ${CMAKE_THREAD_LIBS_INIT}
+    -lc++
+    -lc++abi
+    -stdlib=libc++
+    ccfcrypto.host
+    evercrypt.host
+  )
 endif()
 
 # Client executable
