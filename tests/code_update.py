@@ -10,46 +10,6 @@ import subprocess
 import time
 from infra.ccf import NodeNetworkState
 from loguru import logger as LOG
-from shutil import copyfile
-
-OPCODE_MOV_EAX_DWORD = 0xB8
-OPCODE_PUSH_RBP = 0x55
-OPCODE_RET = 0xC3
-
-
-def patch_binary(so_path, function_name):
-    procs = [
-        ["nm", "-D", so_path],
-        ["grep", f" {function_name}$"],
-        ["cut", "-d", " ", "-f1"],
-    ]
-
-    result = infra.proc.ccall_with_pipe(procs)
-    address = int(result, 0x10)
-
-    with open(so_path, "r+b") as f:
-        f.seek(address, 0)
-        func_prologue = f.read(1)
-        # make sure we know what we patch (the function prologue)
-        if (
-            func_prologue[0] == OPCODE_PUSH_RBP
-            or func_prologue[0] == OPCODE_MOV_EAX_DWORD
-        ):
-            LOG.debug("Patching {} at 0x{:08x}".format(so_path, address))
-            f.seek(address, 0)
-            f.write(bytes([OPCODE_RET]))
-        elif func_prologue[0] == OPCODE_RET:
-            LOG.debug(
-                "Not patching {} at 0x{:08x} - ELF already patched".format(
-                    so_path, address
-                )
-            )
-        else:
-            # The function begins with an instruction which is
-            # neither 'push rbp' nor 'ret', something is not right
-            raise ValueError(
-                "Unexpected function prologue for {}".format(function_name)
-            )
 
 
 def get_code_id(lib_path):
@@ -63,29 +23,6 @@ def get_code_id(lib_path):
     ]
 
     return lines[0].split("=")[1]
-
-
-def create_new_code_version(primary):
-    copyfile(f"{args.package}.so", f"{args.patched_file_name}.so")
-    patch_binary(f"{args.patched_file_name}.so", "stub_for_code_signing")
-
-    # sign the patched binary
-    oed = subprocess.run(
-        [
-            args.oesign,
-            "sign",
-            "-e",
-            f"{args.patched_file_name}.so",
-            "-c",
-            args.oeconfpath,
-            "-k",
-            args.oesignkeypath,
-        ],
-        capture_output=True,
-        check=True,
-    )
-
-    return get_code_id(f"{args.patched_file_name}.so.signed")
 
 
 def vote_to_accept(primary, proposal_id):
@@ -164,7 +101,7 @@ def run(args):
         )
         new_node.join_network()
 
-        new_code_id = create_new_code_version(primary)
+        new_code_id = get_code_id(f"{args.patched_file_name}.so.signed")
 
         # try to add a node using unsupported code
         assert network.create_and_add_node(args.patched_file_name, args, False) == (
@@ -236,5 +173,5 @@ if __name__ == "__main__":
 
     args = e2e_args.cli_args(add)
     args.package = args.app_script and "libluagenericenc" or "libloggingenc"
-    args.patched_file_name = "{}_patched".format(args.package)
+    args.patched_file_name = "{}.patched".format(args.package)
     run(args)
