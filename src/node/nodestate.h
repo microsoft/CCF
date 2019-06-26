@@ -1186,6 +1186,12 @@ namespace ccf
         node_kp,
         network.signatures,
         network.nodes);
+#ifdef PBFT
+      if (pbft)
+        history->register_callback(
+          pbft::Callbacks::ON_REQUEST,
+          pbft->get_callback(pbft::Callbacks::ON_REQUEST));
+#endif
 
       encryptor =
 #ifdef USE_NULL_ENCRYPTOR
