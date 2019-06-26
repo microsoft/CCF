@@ -38,6 +38,14 @@ pr:
       - '.vsts-gh-pages.yml'
       - 'LICENSE'
 
+schedules:
+- cron: "15 7 * * Mon-Fri"
+  displayName: Daily morning build
+  branches:
+    include:
+    - master
+  always: true
+
 jobs:
 - job: ACC_1804_SGX_build
   pool: Ubuntu-1804-SGX-Azure
