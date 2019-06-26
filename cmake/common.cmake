@@ -344,11 +344,11 @@ endif()
 
 function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   set(patched_name ${name}.patched)
-  # configure_file(${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so ${CMAKE_CURRENT_BINARY_DIR}/lib${patched_name}.so COPYONLY)
   add_custom_target(${patched_name}
       COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so ${CMAKE_CURRENT_BINARY_DIR}/lib${patched_name}.so
       COMMAND PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH} python3 patch_binary.py -p ${CMAKE_CURRENT_BINARY_DIR}/lib${patched_name}.so
       WORKING_DIRECTORY ${CCF_DIR}/tests
+      DEPENDS ${name}
   )
   sign_app_library(${patched_name} ${app_oe_conf_path} ${enclave_sign_key_path})
 endfunction()
