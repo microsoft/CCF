@@ -34,12 +34,10 @@ TEST_CASE("ExtendedIv0")
 TEST_CASE("SHA256 short consistency test")
 {
   std::vector<uint8_t> data = {'a', 'b', 'c', '\n'};
-  crypto::Sha256Hash h1, h2, h3;
+  crypto::Sha256Hash h1, h2;
   crypto::Sha256Hash::evercrypt_sha256({data}, h1.h);
   crypto::Sha256Hash::mbedtls_sha256({data}, h2.h);
-  crypto::Sha256Hash::hacl_sha256({data}, h3.h);
   REQUIRE(h1 == h2);
-  REQUIRE(h1 == h3);
 }
 
 TEST_CASE("SHA256 %32 consistency test")
@@ -47,12 +45,10 @@ TEST_CASE("SHA256 %32 consistency test")
   std::vector<uint8_t> data(32);
   for (unsigned i = 0; i < 32; i++)
     data[i] = i;
-  crypto::Sha256Hash h1, h2, h3;
+  crypto::Sha256Hash h1, h2;
   crypto::Sha256Hash::evercrypt_sha256({data}, h1.h);
   crypto::Sha256Hash::mbedtls_sha256({data}, h2.h);
-  crypto::Sha256Hash::hacl_sha256({data}, h3.h);
   REQUIRE(h1 == h2);
-  REQUIRE(h1 == h3);
 }
 
 TEST_CASE("SHA256 long consistency test")
@@ -60,12 +56,10 @@ TEST_CASE("SHA256 long consistency test")
   std::vector<uint8_t> data(512);
   for (unsigned i = 0; i < 512; i++)
     data[i] = i;
-  crypto::Sha256Hash h1, h2, h3;
+  crypto::Sha256Hash h1, h2;
   crypto::Sha256Hash::evercrypt_sha256({data}, h1.h);
   crypto::Sha256Hash::mbedtls_sha256({data}, h2.h);
-  crypto::Sha256Hash::hacl_sha256({data}, h3.h);
   REQUIRE(h1 == h2);
-  REQUIRE(h1 == h3);
 }
 
 TEST_CASE("EverCrypt SHA256 no-collision check")
