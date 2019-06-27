@@ -61,6 +61,11 @@ static const string accept_recovery_proposal(R"xxx(
       return Calls:call("accept_recovery", sealed_secrets)
     )xxx");
 
+static const string accept_code_proposal(R"xxx(
+      tables, code_digest = ...
+      return Calls:call("new_code", code_digest)
+    )xxx");
+
 template <typename T>
 json proposal_params(const string& script, const T& parameter)
 {
@@ -106,6 +111,21 @@ void display(const json& proposals)
   }
 }
 
+template <size_t SZ>
+void hex_str_to_bytes(const std::string& src, std::array<uint8_t, SZ>& dst)
+{
+  if (src.length() != SZ * 2)
+  {
+    throw logic_error("Invalid code id length");
+  }
+
+  for (size_t i = 0; i < SZ; ++i)
+  {
+    auto cur_byte_str = src.substr(i * 2, 2);
+    dst[i] = static_cast<uint8_t>(strtoul(cur_byte_str.c_str(), nullptr, 16));
+  }
+}
+
 void add_new(
   RpcTlsClient& tls_connection, const string& cert_file, const string& proposal)
 {
@@ -120,6 +140,20 @@ void add_new(
 void submit_accept_node(RpcTlsClient& tls_connection, NodeId node_id)
 {
   auto params = proposal_params<NodeId>(accept_node_proposal, node_id);
+  const auto response =
+    json::from_msgpack(tls_connection.call("propose", params));
+  cout << response.dump() << endl;
+}
+
+void submit_accept_code(RpcTlsClient& tls_connection, std::string& new_code_id)
+{
+  CodeDigest digest;
+  // we expect a string representation of the code id,
+  // so every byte is represented by 2 characters
+  // before conversion
+  hex_str_to_bytes<ccf::CODE_DIGEST_BYTES>(new_code_id, digest);
+
+  auto params = proposal_params<CodeDigest>(accept_code_proposal, digest);
   const auto response =
     json::from_msgpack(tls_connection.call("propose", params));
   cout << response.dump() << endl;
@@ -291,6 +325,16 @@ int main(int argc, char** argv)
       "--nodes_to_add", nodes_file, "The file containing the nodes to be added")
     ->required(true);
 
+  std::string new_code_id;
+  auto add_code = app.add_subcommand("add_code", "Support executing new code");
+  add_code
+    ->add_option(
+      "--new_code_id",
+      new_code_id,
+      "The new code id (a 64 character string representing a 32 byte hash "
+      "value in hex format)")
+    ->required(true);
+
   NodeId node_id;
   auto accept_node = app.add_subcommand("accept_node", "Make a node trusted");
   accept_node->add_option("--id", node_id, "The node id")->required(true);
@@ -364,6 +408,11 @@ int main(int argc, char** argv)
         NodeInfo node_info = node;
         submit_add_node(*tls_connection, node_info);
       }
+    }
+
+    if (*add_code)
+    {
+      submit_accept_code(*tls_connection, new_code_id);
     }
 
     if (*accept_node)

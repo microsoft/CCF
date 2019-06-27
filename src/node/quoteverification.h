@@ -34,17 +34,10 @@ namespace ccf
       auto codeid_view = tx.get_view(network.code_id);
       CodeStatus code_id_status = CodeStatus::UNKNOWN;
 
-      codeid_view->foreach([&parsed_quote, &code_id_status](
-                             const CodeVersion& cv, const CodeInfo& ci) {
-        if (
-          memcmp(
-            ci.digest.data(),
-            parsed_quote.identity.unique_id,
-            CODE_DIGEST_BYTES) == 0)
-        {
-          code_id_status = ci.status;
-        }
-      });
+      auto code_digest = get_digest_from_parsed_quote(parsed_quote);
+      auto status = codeid_view->get(code_digest);
+      if (status)
+        code_id_status = *status;
 
       if (code_id_status != CodeStatus::ACCEPTED)
       {

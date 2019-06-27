@@ -163,11 +163,11 @@ The full list of build switches can be obtained by running:
 * **BUILD_TESTS**: Boolean. Build all tests for CCF. Default to ON.
 * **BUILD_SMALLBANK**: Boolean. Build SmallBank performance benchmark. Default to OFF.
 * **CLIENT_MBEDTLS_PREFIX**: Path. Prefix to mbedtls install to be used by test clients. Default to ``/usr/local``.
-* **CURVE_CHOICE**: String, one of secp384r1, curve25519, secp256k1_mbedtls, secp256k1_bitcoin. Elliptic curve to use for CCF asymmetric keys. Default to secp384r1.
+* **CURVE_CHOICE**: String, one of ``secp384r1``, ``curve25519``, ``secp256k1_mbedtls``, ``secp256k1_bitcoin``. Elliptic curve to use for CCF asymmetric keys. Default to ``secp384r1``.
 * **NO_STRICT_TLS_CIPHERSUITES**: Boolean. Relax the list of accepted TLS ciphersuites. Default to OFF.
 * **OE_PREFIX**: Path. OpenEnclave install prefix. Default to ``/opt/openenclave``.
 * **SAN**: Boolean. Build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
-* **VIRTUAL_ONLY**: Boolean. Only build "virtual" enclaves. Default to OFF.
+* **TARGET**: String, one of ``all``, ``sgx``, ``virtual``. Defaults to ``all``, which builds both "virtual" enclaves and actual SGX enclaves.
 * **VERBOSE_LOGGING**: Boolean. Enable all logging levels. Default to OFF.
 
 
@@ -212,7 +212,7 @@ profiling, code coverage, sanitizers etc.
 
     mkdir build
     cd build
-    cmake -GNinja -DVIRTUAL_ONLY=ON ..
+    cmake -GNinja -DTARGET=virtual ..
     ninja
 
 Tests can be run normally, see :ref:`Tests`. On a full build of CCF, it is also possible to

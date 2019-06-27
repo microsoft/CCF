@@ -6,7 +6,7 @@ steps:
 - task: CMake@1
   displayName: CMake
   inputs:
-    cmakeArgs: '-GNinja .. ${{ parameters.cmake_args }}'
+    cmakeArgs: '-GNinja -DTARGET=sgx .. ${{ parameters.cmake_args }}'
 
 - script: ninja
   displayName: Ninja
@@ -17,7 +17,7 @@ steps:
   workingDirectory: build
 
 - script: |
-    tar -cavf artifact.tar.gz cchost cchost.virtual CTestTestfile.cmake json_schema genesisgenerator merkle_mem raft_driver tests.sh *_test *_bench *client *.so *.so.signed env/*
+    tar -cavf artifact.tar.gz cchost CTestTestfile.cmake json_schema genesisgenerator merkle_mem raft_driver tests.sh *_test *_bench *client *.so.signed env/*
   displayName: Compress build artifact
   workingDirectory: build
 

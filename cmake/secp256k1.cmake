@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-if(NOT VIRTUAL_ONLY)
+if(NOT ${TARGET} STREQUAL "virtual")
     add_library(secp256k1.enclave STATIC ${CCF_DIR}/3rdparty/secp256k1/src/secp256k1.c)
     target_include_directories(secp256k1.enclave PUBLIC ${CCF_DIR}/3rdparty/secp256k1)
     target_compile_options(secp256k1.enclave PRIVATE -fvisibility=hidden -nostdinc -U__linux__ -Wno-everything)

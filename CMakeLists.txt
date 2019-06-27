@@ -32,7 +32,7 @@ target_link_libraries(logging_client PRIVATE
 )
 
 # SNIPPET: Logging application
-add_enclave_lib(loggingenc ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem SRCS src/apps/logging/logging.cpp)
+add_enclave_lib(loggingenc ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem SRCS src/apps/logging/logging.cpp src/apps/logging/stub_for_code_signing.cpp)
 
 if(BUILD_TESTS)
   # Tests
@@ -292,6 +292,17 @@ if(BUILD_TESTS)
       add_e2e_test(
         NAME add_node_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/addnode.py
+      )
+
+      ## Code update test
+      add_e2e_test(
+        NAME code_update_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+        ADDITIONAL_ARGS
+          --oesign ${OESIGN}
+          --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+          --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+          --election-timeout 1500
       )
     endif()
   endif()

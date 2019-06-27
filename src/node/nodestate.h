@@ -1016,9 +1016,7 @@ namespace ccf
 #ifdef GET_QUOTE
       // Setting own code version as trusted
       auto codeid_view = tx.get_view(network.code_id);
-      auto code_id =
-        get_next_id(tx.get_view(network.values), ValueIds::NEXT_CODE_ID);
-      codeid_view->put(code_id, {CodeStatus::ACCEPTED, node_code_id});
+      codeid_view->put(node_code_id, CodeStatus::ACCEPTED);
 #else
       throw std::logic_error("Code version check is not implemented");
 #endif
