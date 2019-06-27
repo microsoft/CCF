@@ -5,6 +5,9 @@
 #include "entities.h"
 
 #include <msgpack.hpp>
+#ifdef GET_QUOTE
+#  include <openenclave/bits/report.h>
+#endif
 
 namespace ccf
 {
@@ -21,14 +24,18 @@ MSGPACK_ADD_ENUM(ccf::CodeStatus);
 
 namespace ccf
 {
-  struct CodeInfo
+  using CodeIDs = Store::Map<CodeDigest, CodeStatus>;
+
+#ifdef GET_QUOTE
+
+  inline CodeDigest get_digest_from_parsed_quote(oe_report_t& parsed_quote)
   {
-    CodeStatus status;
-    CodeDigest digest;
-
-    MSGPACK_DEFINE(status, digest);
-  };
-  ADD_JSON_TRANSLATORS(CodeInfo, status, digest)
-
-  using CodeIDs = Store::Map<CodeVersion, CodeInfo>;
+    CodeDigest ret;
+    std::copy(
+      std::begin(parsed_quote.identity.unique_id),
+      std::end(parsed_quote.identity.unique_id),
+      ret.begin());
+    return ret;
+  }
+#endif
 }
