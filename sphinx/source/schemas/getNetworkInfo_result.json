@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "leader_id": {
+      "maximum": 18446744073709551615,
+      "minimum": 0,
+      "type": "number"
+    },
+    "nodes": {
+      "items": {
+        "properties": {
+          "host": {
+            "type": "string"
+          },
+          "node_id": {
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "number"
+          },
+          "port": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "node_id",
+          "host",
+          "port"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "nodes",
+    "leader_id"
+  ],
+  "title": "getNetworkInfo/result",
+  "type": "object"
+}
