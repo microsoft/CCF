@@ -15,13 +15,14 @@ std::vector<ITimer*> ITimer::timers;
 Time ITimer::min_deadline = Long_max;
 Time ITimer::_relative_current_time = 0;
 
-ITimer::ITimer(int t, void (*h)())
+ITimer::ITimer(int t, handler_cb h_, void* owner_)
 {
   state = stopped;
 
   period = t * clock_mhz;
 
-  handler = h;
+  h = h_;
+  owner = owner_;
   timers.push_back(this);
 }
 
@@ -109,7 +110,7 @@ void ITimer::_handle_timeouts(Time current)
       if (timer->deadline < current)
       {
         timer->state = expired;
-        timer->handler();
+        timer->h(timer->owner);
       }
       else
       {

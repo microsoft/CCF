@@ -342,6 +342,17 @@ if (PBFT)
   )
 endif()
 
+function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
+  set(patched_name ${name}.patched)
+  add_custom_target(${patched_name}
+      COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so ${CMAKE_CURRENT_BINARY_DIR}/lib${patched_name}.so
+      COMMAND PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH} python3 patch_binary.py -p ${CMAKE_CURRENT_BINARY_DIR}/lib${patched_name}.so
+      WORKING_DIRECTORY ${CCF_DIR}/tests
+      DEPENDS ${name}
+  )
+  sign_app_library(${patched_name} ${app_oe_conf_path} ${enclave_sign_key_path})
+endfunction()
+
 ## Enclave library wrapper
 function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
 
@@ -401,6 +412,9 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
     sign_app_library(${name} ${app_oe_conf_path} ${enclave_sign_key_path})
     enable_quote_code(${name})
+    if (${name} STREQUAL "loggingenc")
+        create_patched_enclave_lib(${name} ${app_oe_conf_path} ${enclave_sign_key_path})
+    endif()
   endif()
 
   if(${TARGET} STREQUAL "virtual" OR ${TARGET} STREQUAL "all")

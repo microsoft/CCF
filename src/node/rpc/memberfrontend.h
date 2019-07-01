@@ -66,6 +66,17 @@ namespace ccf
            nodes->put(id, *info);
            return true;
          }},
+        // accept new code
+        {"new_code",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
+           const auto id = args;
+           auto code_ids = tx.get_view(this->network.code_id);
+           auto existing_code_id = code_ids->get(id);
+           if (existing_code_id)
+             throw std::logic_error("Code signature already exists");
+           code_ids->put(id, CodeStatus::ACCEPTED);
+           return true;
+         }},
         // initiate end of recovery
         // TODO(#important): for now, recovery assumes that no leader
         // change can happen between the time the public CFTR is established and
