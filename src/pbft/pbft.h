@@ -4,11 +4,14 @@
 
 #include "ds/logger.h"
 #include "kv/kvtypes.h"
+#include "libbyz/Big_req_table.h"
+#include "libbyz/Client_proxy.h"
 #include "libbyz/libbyz.h"
 #include "libbyz/network.h"
 #include "libbyz/receive_message_base.h"
 #include "node/nodetypes.h"
-#include "pbft/pbft_deps.h"
+#include "node/rpc/jsonrpc.h"
+#include "pbft/pbft_config.h"
 
 #include <list>
 #include <memory>
@@ -49,7 +52,7 @@ namespace pbft
         reinterpret_cast<const uint8_t*>(msg->contents()),
         msg->size());
 
-      n2n_channels->send_authenticated(
+      n2n_channels->send(
         ccf::NodeMsgType::consensus_msg_pbft, to, serialized_msg);
       return msg->size();
     }
@@ -80,6 +83,7 @@ namespace pbft
     char* mem;
     std::unique_ptr<INetwork> pbft_network;
     std::unordered_map<std::string, kv::TxHistory::CallbackHandler> callbacks;
+    std::unique_ptr<PbftConfig> pbft_config;
 
     struct NodeConfiguration
     {
@@ -93,26 +97,16 @@ namespace pbft
       local_id(id),
       channels(channels_)
     {
-      callbacks[pbft::Callbacks::ON_REQUEST] =
-        [&](kv::TxHistory::CallbackArgs args) {
-          auto caller = std::get<0>(args.id);
-          auto session = std::get<1>(args.id);
-          auto version = std::get<2>(args.id);
-          message_receiver_base->receive_request(
-            args.data.data(), args.data.size());
-          LOG_INFO << "v: " << args.version << std::endl;
-          LOG_INFO << "data size: " << args.data.size() << std::endl;
-        };
       LOG_INFO_FMT("Setting up PBFT replica for node with id: {}", local_id);
 
       // configure replica
       GeneralInfo general_info;
-      general_info.num_replicas = 2;
+      general_info.num_replicas = 4;
       general_info.num_clients = 0;
-      general_info.max_faulty = 0;
+      general_info.max_faulty = 1;
       general_info.service_name = "generic";
       general_info.auth_timeout = 1800000;
-      general_info.view_timeout = 1800000;
+      general_info.view_timeout = 5000;
       general_info.status_timeout = 100;
       general_info.recovery_timeout = 9999250000;
 
@@ -141,28 +135,57 @@ namespace pbft
       mem = (char*)malloc(mem_size);
       bzero(mem, mem_size);
 
-      auto exec_command = ([](
-                             Byz_req* inb,
-                             Byz_rep* outb,
-                             _Byz_buffer* non_det,
-                             int client,
-                             bool ro,
-                             Seqno n) {
-        LOG_INFO << "exec command" << std::endl;
-        return 0;
-      });
-
       pbft_network = std::make_unique<PbftEnclaveNetwork>(local_id, channels);
+      pbft_config = std::make_unique<PbftConfigCCF>();
 
-      Byz_init_replica(
+      auto used_bytes = Byz_init_replica(
         node_info,
         mem,
         mem_size,
-        exec_command,
+        pbft_config->get_exec_command(),
         0,
         0,
         pbft_network.get(),
         &message_receiver_base);
+
+      service_mem = mem + used_bytes;
+
+      static std::unique_ptr<ClientProxy<uint64_t, void>> client_proxy;
+      LOG_INFO << "Setting up client proxy " << std::endl;
+      client_proxy.reset(
+        new ClientProxy<uint64_t, void>(*message_receiver_base));
+
+      auto cb = [](Reply* m, void* ctx) {
+        auto cp = (ClientProxy<uint64_t, void>*)ctx;
+        cp->recv_reply(m);
+      };
+
+      message_receiver_base->register_reply_handler(cb, client_proxy.get());
+
+      callbacks[pbft::Callbacks::ON_REQUEST] =
+        [&](kv::TxHistory::CallbackArgs args) {
+          auto caller = std::get<0>(args.id);
+          auto session = std::get<1>(args.id);
+          auto version = std::get<2>(args.id);
+
+          LOG_INFO << "v: " << args.version << std::endl;
+          LOG_INFO << "data size: " << args.data.size() << std::endl;
+          auto total_req_size = pbft_config->message_size() + args.data.size();
+          LOG_INFO << "request size: " << total_req_size << std::endl;
+
+          uint8_t request_buffer[total_req_size];
+          pbft_config->fill_request(
+            request_buffer, total_req_size, args.data, version);
+
+          Time t = ITimer::current_time();
+
+          client_proxy->send_request(
+            t,
+            request_buffer,
+            sizeof(request_buffer),
+            nullptr,
+            client_proxy.get());
+        };
     }
 
     NodeId leader() override

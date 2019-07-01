@@ -4,7 +4,6 @@
 #include "../ds/buffer.h"
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
-
 #include <ostream>
 
 namespace crypto
@@ -60,10 +59,7 @@ namespace fmt
     template <typename FormatContext>
     auto format(const crypto::Sha256Hash& p, FormatContext& ctx)
     {
-      return format_to(
-        ctx.out(),
-        "<sha256 {:02x}>",
-        fmt::join(p.h, ""));
+      return format_to(ctx.out(), "<sha256 {:02x}>", fmt::join(p.h, ""));
     }
   };
 }
