@@ -67,22 +67,6 @@ namespace ccf
     }
 
     template <class T>
-    void send(const NodeMsgType& msg_type, NodeId to, const T& data)
-    {
-      auto& n2n_channel = channels->get(to);
-      if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
-      {
-        established_channel(to);
-        return;
-      }
-
-      // The secure channel between self and to has already been established
-      GcmHdr hdr;
-      n2n_channel.tag(hdr, asCb(data));
-      to_host->write(node_outbound, to, msg_type, data);
-    }
-
-    template <class T>
     const T& recv_authenticated(const uint8_t*& data, size_t& size)
     {
       const auto& t = serialized::overlay<T>(data, size);
