@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
 #include "libbyz/libbyz.h"
 #include "libbyz/pbft_assert.h"
 #include "pbft/pbft_deps.h"
