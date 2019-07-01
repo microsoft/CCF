@@ -101,9 +101,9 @@ namespace pbft
 
       // configure replica
       GeneralInfo general_info;
-      general_info.num_replicas = 4;
+      general_info.num_replicas = 2;
       general_info.num_clients = 0;
-      general_info.max_faulty = 1;
+      general_info.max_faulty = 0;
       general_info.service_name = "generic";
       general_info.auth_timeout = 1800000;
       general_info.view_timeout = 5000;
@@ -168,10 +168,7 @@ namespace pbft
           auto session = std::get<1>(args.id);
           auto version = std::get<2>(args.id);
 
-          LOG_INFO << "v: " << args.version << std::endl;
-          LOG_INFO << "data size: " << args.data.size() << std::endl;
           auto total_req_size = pbft_config->message_size() + args.data.size();
-          LOG_INFO << "request size: " << total_req_size << std::endl;
 
           uint8_t request_buffer[total_req_size];
           pbft_config->fill_request(
