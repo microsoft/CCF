@@ -15,6 +15,7 @@ jobs:
     - script: |
         python3.7 -m venv env
         source env/bin/activate
+        pip install wheel
         pip install -U -r requirements.txt
         make html
       displayName: Sphinx
