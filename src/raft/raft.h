@@ -1040,7 +1040,7 @@ namespace raft
           new_commit_idx = confirmed;
       }
 
-      LOG_INFO_FMT(
+      LOG_DEBUG_FMT(
         "In update_commit, new_commit_idx: {}, last_idx: {}",
         new_commit_idx,
         last_idx);

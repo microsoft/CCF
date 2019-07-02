@@ -45,6 +45,9 @@ namespace ccf
   DECLARE_REQUIRED_JSON_FIELDS(
     GetLeaderInfo::Out, leader_id, leader_host, leader_port)
 
+  DECLARE_REQUIRED_JSON_FIELDS(GetNetworkInfo::NodeInfo, node_id, host, port)
+  DECLARE_REQUIRED_JSON_FIELDS(GetNetworkInfo::Out, nodes, leader_id)
+
   DECLARE_REQUIRED_JSON_FIELDS(ListMethods::Out, methods)
 
   DECLARE_REQUIRED_JSON_FIELDS(GetSchema::In, method)

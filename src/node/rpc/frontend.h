@@ -245,6 +245,25 @@ namespace ccf
             jsonrpc::ErrorCodes::TX_LEADER_UNKNOWN, "Leader unknown.");
         };
 
+      auto get_network_info =
+        [this](Store::Tx& tx, const nlohmann::json& params) {
+          GetNetworkInfo::Out out;
+          if (raft != nullptr)
+          {
+            out.leader_id = raft->leader();
+          }
+
+          auto nodes_view = tx.get_view(*nodes);
+          nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
+            if (ni.status == ccf::NodeStatus::TRUSTED)
+            {
+              out.nodes.push_back({nid, ni.pubhost, ni.tlsport});
+            }
+          });
+
+          return jsonrpc::success(out);
+        };
+
       auto list_methods = [this](Store::Tx& tx, const nlohmann::json& params) {
         ListMethods::Out out;
 
@@ -283,6 +302,8 @@ namespace ccf
         GeneralProcs::MK_SIGN, make_signature, Write);
       install_with_auto_schema<void, GetLeaderInfo::Out>(
         GeneralProcs::GET_LEADER_INFO, get_leader_info, Read);
+      install_with_auto_schema<void, GetNetworkInfo::Out>(
+        GeneralProcs::GET_NETWORK_INFO, get_network_info, Read);
       install_with_auto_schema<void, ListMethods::Out>(
         GeneralProcs::LIST_METHODS, list_methods, Read);
       install_with_auto_schema<GetSchema>(
