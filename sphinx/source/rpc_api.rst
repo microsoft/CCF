@@ -7,7 +7,7 @@ The API can also be retrieved from a running service using the `listMethods`_ an
 
 .. code-block:: bash
 
-    $ ./client --pretty-print --host 127.99.16.14 --port 36785 --ca networkcert.pem userrpc --req listMethods.json --cert user1_cert.pem --pk user1_privk.pem
+    $ ./client --pretty-print --host 127.99.16.14 --port 36785 --ca networkcert.pem userrpc --req @listMethods.json --cert user1_cert.pem --pk user1_privk.pem
     Doing user RPC:
     {
       "commit": 4,
@@ -31,7 +31,7 @@ The API can also be retrieved from a running service using the `listMethods`_ an
       "term": 2
     }
 
-    $ ./client --pretty-print --host 127.99.16.14 --port 36785 --ca networkcert.pem userrpc --req getSchema.json --cert user1_cert.pem --pk user1_privk.pem
+    $ ./client --pretty-print --host 127.99.16.14 --port 36785 --ca networkcert.pem userrpc --req @getSchema.json --cert user1_cert.pem --pk user1_privk.pem
     Doing user RPC:
     {
       "commit": 4,
