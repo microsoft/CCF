@@ -557,7 +557,7 @@ class Node:
             "--port={}".format(self.tls_port),
             "--ca={}".format(self.remote.pem),
             "startnetwork",
-            "--req=@startnetwork.json",
+            "--req=@startNetwork.json",
         ).check_returncode()
         LOG.info("Started Network")
 
