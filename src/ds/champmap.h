@@ -80,14 +80,6 @@ namespace champ
 
     Entry(K k, V v) : key(k), value(v) {}
 
-    std::optional<V> get(const K& k) const
-    {
-      if (k == key)
-        return value;
-      else
-        return {};
-    }
-
     const V* getp(const K& k) const
     {
       if (k == key)
@@ -104,18 +96,6 @@ namespace champ
   struct Collisions
   {
     std::array<std::vector<std::shared_ptr<Entry<K, V>>>, collision_bins> bins;
-
-    std::optional<V> get(Hash hash, const K& k) const
-    {
-      const auto idx = mask(hash, collision_depth);
-      const auto& bin = bins[idx];
-      for (const auto& node : bin)
-      {
-        if (k == node->key)
-          return node->value;
-      }
-      return {};
-    }
 
     const V* getp(Hash hash, const K& k) const
     {
@@ -184,23 +164,6 @@ namespace champ
         return (data_map & mask).pop();
 
       return data_map.pop() + (node_map & mask).pop();
-    }
-
-    std::optional<V> get(SmallIndex depth, Hash hash, const K& k) const
-    {
-      const auto idx = mask(hash, depth);
-      const auto c_idx = compressed_idx(idx);
-
-      if (c_idx == (SmallIndex)-1)
-        return {};
-
-      if (data_map.check(idx))
-        return node_as<Entry<K, V>>(c_idx)->get(k);
-
-      if (depth == (collision_depth - 1))
-        return node_as<Collisions<K, V, H>>(c_idx)->get(hash, k);
-
-      return node_as<SubNodes<K, V, H>>(c_idx)->get(depth + 1, hash, k);
     }
 
     const V* getp(SmallIndex depth, Hash hash, const K& k) const
