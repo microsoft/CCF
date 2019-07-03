@@ -82,8 +82,8 @@ namespace pbft
     IMessageReceiveBase* message_receiver_base = nullptr;
     char* mem;
     std::unique_ptr<INetwork> pbft_network;
-    std::unordered_map<std::string, kv::TxHistory::CallbackHandler> callbacks;
     std::unique_ptr<AbstractPBFTConfig> pbft_config;
+    kv::TxHistory::CallbackHandler on_request;
 
     struct NodeConfiguration
     {
@@ -155,33 +155,32 @@ namespace pbft
         std::make_unique<ClientProxy<CallerId, void>>(*message_receiver_base);
 
       auto cb = [](Reply* m, void* ctx) {
-        auto cp = static_cast<ClientProxy<uint64_t, void>*>(ctx);
+        auto cp = static_cast<ClientProxy<CallerId, void>*>(ctx);
         cp->recv_reply(m);
       };
 
       message_receiver_base->register_reply_handler(cb, client_proxy.get());
 
-      callbacks[pbft::Callbacks::ON_REQUEST] =
-        [&](kv::TxHistory::CallbackArgs args) {
-          auto caller = std::get<0>(args.id);
-          auto session = std::get<1>(args.id);
-          auto jsonrpc_id = std::get<2>(args.id);
+      on_request = [&](kv::TxHistory::CallbackArgs args) {
+        auto caller = std::get<0>(args.id);
+        auto session = std::get<1>(args.id);
+        auto jsonrpc_id = std::get<2>(args.id);
 
-          auto total_req_size = pbft_config->message_size() + args.data.size();
+        auto total_req_size = pbft_config->message_size() + args.data.size();
 
-          uint8_t request_buffer[total_req_size];
-          pbft_config->fill_request(
-            request_buffer, total_req_size, args.data, jsonrpc_id);
+        uint8_t request_buffer[total_req_size];
+        pbft_config->fill_request(
+          request_buffer, total_req_size, args.data, jsonrpc_id);
 
-          Time t = ITimer::current_time();
+        Time t = ITimer::current_time();
 
-          client_proxy->send_request(
-            t,
-            request_buffer,
-            sizeof(request_buffer),
-            nullptr,
-            client_proxy.get());
-        };
+        client_proxy->send_request(
+          t,
+          request_buffer,
+          sizeof(request_buffer),
+          nullptr,
+          client_proxy.get());
+      };
     }
 
     NodeId leader() override
@@ -214,9 +213,9 @@ namespace pbft
       return 0;
     }
 
-    kv::TxHistory::CallbackHandler get_callback(std::string name)
+    kv::TxHistory::CallbackHandler get_on_request()
     {
-      return callbacks[name];
+      return on_request;
     }
 
     void add_configuration(const NodeConfiguration& node_conf)

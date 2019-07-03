@@ -155,7 +155,11 @@ namespace ccf
       const std::vector<uint8_t>& response) override
     {}
 
-    void register_callback(std::string, CallbackHandler) override {}
+    void register_on_request(CallbackHandler func) override {}
+
+    void register_on_result(CallbackHandler func) override {}
+
+    void register_on_response(CallbackHandler func) override {}
   };
 
   class MerkleTreeHistory
@@ -232,7 +236,9 @@ namespace ccf
     std::map<RequestID, std::vector<uint8_t>> requests;
     std::map<RequestID, std::pair<kv::Version, crypto::Sha256Hash>> results;
     std::map<RequestID, std::vector<uint8_t>> responses;
-    std::unordered_map<std::string, CallbackHandler> callbacks;
+    std::optional<CallbackHandler> on_request;
+    std::optional<CallbackHandler> on_result;
+    std::optional<CallbackHandler> on_response;
 
   public:
     HashedTxHistory(
@@ -248,9 +254,19 @@ namespace ccf
       nodes(nodes_)
     {}
 
-    void register_callback(std::string name, CallbackHandler func) override
+    void register_on_request(CallbackHandler func) override
     {
-      callbacks[name] = func;
+      on_request = func;
+    }
+
+    void register_on_result(CallbackHandler func) override
+    {
+      on_result = func;
+    }
+
+    void register_on_response(CallbackHandler func) override
+    {
+      on_response = func;
     }
 
     void set_node_id(NodeId id_)
@@ -339,13 +355,8 @@ namespace ccf
     {
       LOG_DEBUG << fmt::format("HISTORY: add_request {0}", id) << std::endl;
       requests[id] = request;
-#ifdef PBFT
-      auto callback = callbacks.find(pbft::Callbacks::ON_REQUEST);
-      if (callback != callbacks.end())
-      {
-        callback->second({id, request, -1});
-      }
-#endif
+      if (on_request.has_value())
+        on_request.value()({id, request, -1});
     }
 
     void add_result(

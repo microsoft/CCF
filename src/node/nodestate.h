@@ -1188,9 +1188,7 @@ namespace ccf
         network.nodes);
 #ifdef PBFT
       if (pbft)
-        history->register_callback(
-          pbft::Callbacks::ON_REQUEST,
-          pbft->get_callback(pbft::Callbacks::ON_REQUEST));
+        history->register_on_request(pbft->get_on_request());
 #endif
 
       encryptor =

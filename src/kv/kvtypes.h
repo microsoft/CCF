@@ -85,7 +85,9 @@ namespace kv
       RequestID id, kv::Version version, const std::vector<uint8_t>& data) = 0;
     virtual void add_response(
       RequestID id, const std::vector<uint8_t>& response) = 0;
-    virtual void register_callback(std::string, CallbackHandler) = 0;
+    virtual void register_on_request(CallbackHandler func) = 0;
+    virtual void register_on_result(CallbackHandler func) = 0;
+    virtual void register_on_response(CallbackHandler func) = 0;
   };
 
   using PendingTx = std::function<
