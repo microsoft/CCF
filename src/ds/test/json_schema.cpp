@@ -156,6 +156,34 @@ TEST_CASE("schema generation")
   }
 }
 
+namespace arbitrary
+{
+  namespace user
+  {
+    namespace defined
+    {
+      struct X
+      {
+        std::string email;
+      };
+
+      void fill_json_schema(nlohmann::json& schema, const X&)
+      {
+        schema["type"] = "string";
+        schema["format"] = "email";
+      }
+    }
+  }
+}
+
+TEST_CASE("custom elements")
+{
+  const auto schema =
+    ccf::build_schema<arbitrary::user::defined::X>("custom-type");
+  
+  REQUIRE(schema["format"] == "email");
+}
+
 namespace ccf
 {
   struct Nest0
