@@ -557,6 +557,7 @@ class Node:
             "--port={}".format(self.tls_port),
             "--ca={}".format(self.remote.pem),
             "startnetwork",
+            "--req=@startNetwork.json",
         ).check_returncode()
         LOG.info("Started Network")
 
@@ -580,7 +581,7 @@ class Node:
             "--port={}".format(self.tls_port),
             "--ca={}".format(self.remote.pem),
             "joinnetwork",
-            "--req=joinNetwork.json",
+            "--req=@joinNetwork.json",
         ).check_returncode()
         self.complete_join_network()
 
