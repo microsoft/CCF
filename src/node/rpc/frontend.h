@@ -98,8 +98,11 @@ namespace ccf
 
     void update_history()
     {
-      if (history == nullptr)
-        history = tables.get_history().get();
+      // TODO: removed for now because frontend needs access to history
+      // during recovery, on RPC, when not primary. Can be changed back once
+      // frontend calls into Consensus.
+      // if (history == nullptr)
+      history = tables.get_history().get();
     }
 
     std::pair<bool, nlohmann::json> unpack_json(
