@@ -148,7 +148,7 @@ DECLARE_REQUIRED_JSON_FIELDS.
     std::apply( \
       [&required, &properties](const auto&... field) { \
         ((required.push_back(field.name), \
-          properties[field.name] = ::ccf::schema_element< \
+          properties[field.name] = ::ds::json::schema_element< \
             typename std::decay_t<decltype(field)>::Target>()), \
          ...); \
       }, \
@@ -157,7 +157,7 @@ DECLARE_REQUIRED_JSON_FIELDS.
     { \
       std::apply( \
         [&properties](const auto&... field) { \
-          ((properties[field.name] = ::ccf::schema_element< \
+          ((properties[field.name] = ::ds::json::schema_element< \
               typename std::decay_t<decltype(field)>::Target>()), \
            ...); \
         }, \

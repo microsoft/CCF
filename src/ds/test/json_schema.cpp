@@ -100,7 +100,7 @@ DECLARE_OPTIONAL_JSON_FIELDS(Foo, n_1, s_1, opt, vec_s);
 
 TEST_CASE("schema generation")
 {
-  const auto schema = ccf::build_schema<Foo>("Foo");
+  const auto schema = ds::json::build_schema<Foo>("Foo");
 
   const auto properties_it = schema.find("properties");
   REQUIRE(properties_it != schema.end());
@@ -186,10 +186,12 @@ namespace custom
 
 TEST_CASE("custom elements")
 {
-  const auto x_schema = ccf::build_schema<custom::user::defined::X>("custom-x");
+  const auto x_schema =
+    ds::json::build_schema<custom::user::defined::X>("custom-x");
   REQUIRE(x_schema["format"] == "email");
 
-  const auto y_schema = ccf::build_schema<custom::user::defined::Y>("custom-y");
+  const auto y_schema =
+    ds::json::build_schema<custom::user::defined::Y>("custom-y");
   REQUIRE(y_schema["required"].size() == 2);
 }
 
@@ -344,7 +346,7 @@ TEST_CASE("enum")
 
   REQUIRE(j["se"] == "two");
 
-  const auto schema = ccf::build_schema<EnumStruct>("EnumStruct");
+  const auto schema = ds::json::build_schema<EnumStruct>("EnumStruct");
 
   const nlohmann::json expected{"one", "two", "three"};
   REQUIRE(schema["properties"]["se"]["enum"] == expected);
