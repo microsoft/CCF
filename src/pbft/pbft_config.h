@@ -6,25 +6,37 @@
 
 namespace pbft
 {
-  static char* service_mem = 0;
-
-  class PbftConfig
+  class AbstractPBFTConfig
   {
   public:
-    virtual ~PbftConfig() = default;
+    static char* service_mem;
+    virtual ~AbstractPBFTConfig() = default;
+    virtual void set_service_mem(char* sm) = 0;
     virtual ExecCommand get_exec_command() = 0;
     virtual size_t message_size() = 0;
     virtual void fill_request(
       uint8_t* buffer,
-      const size_t& total_req_size,
+      size_t total_req_size,
       const std::vector<uint8_t>& data,
-      const size_t& version) = 0;
+      size_t jsonrpc_id) = 0;
   };
 
-  class PbftConfigCCF : public PbftConfig
+  char* AbstractPBFTConfig::service_mem = 0;
+
+  class PbftConfigCCF : public AbstractPBFTConfig
   {
   public:
     ~PbftConfigCCF() = default;
+
+    void set_service_mem(char* sm) override
+    {
+      service_mem = sm;
+    }
+
+    ExecCommand get_exec_command() override
+    {
+      return exec_command;
+    }
 
     size_t message_size() override
     {
@@ -33,12 +45,12 @@ namespace pbft
 
     void fill_request(
       uint8_t* buffer,
-      const size_t& total_req_size,
+      size_t total_req_size,
       const std::vector<uint8_t>& data,
-      const size_t& version) override
+      size_t jsonrpc_id) override
     {
       auto request = new (buffer) ccf_req;
-      request->version = version;
+      request->jsonrpc_id = jsonrpc_id;
       auto array_size = request->get_array_size(total_req_size);
 
       for (size_t j = 0; j < array_size; j++)
@@ -47,9 +59,10 @@ namespace pbft
       }
     }
 
+  private:
     struct ccf_req
     {
-      size_t version;
+      size_t jsonrpc_id;
 
       uint8_t* get_counter_array()
       {
@@ -66,7 +79,6 @@ namespace pbft
       }
     };
 
-  private:
     ExecCommand exec_command = [](
                                  Byz_req* inb,
                                  Byz_rep* outb,
@@ -81,24 +93,24 @@ namespace pbft
 
       if (total_requests_executed != counter)
       {
-        LOG_FATAL << "total requests executed: " << total_requests_executed
-                  << " not equal to exec command counter: " << counter << "\n";
+        LOG_FATAL_FMT(
+          "total requests executed: {} not equal to exec command counter: {}",
+          total_requests_executed,
+          counter);
         throw std::logic_error(
           "Total requests executed not equal to exec command counter");
       }
 
       if (total_requests_executed % 100 == 0)
       {
-        LOG_INFO << "total requests executed " << total_requests_executed
-                 << "\n";
+        LOG_INFO_FMT("total requests executed {}", total_requests_executed);
       }
 
-      LOG_INFO << "request inb size: " << inb->size << std::endl;
+      LOG_INFO_FMT("request inb size: {}", inb->size);
 
       auto request = new (inb->contents) ccf_req;
 
-      LOG_INFO << "received request with version: " << request->version
-               << std::endl;
+      LOG_INFO_FMT("received request with jsonrpc id: {}", request->jsonrpc_id);
 
       auto size_of_array = request->get_array_size(inb->size);
       std::vector<uint8_t> data(size_of_array);
@@ -112,10 +124,5 @@ namespace pbft
       outb->size = 8;
       return 0;
     };
-
-    ExecCommand get_exec_command() override
-    {
-      return exec_command;
-    }
   };
 }

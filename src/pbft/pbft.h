@@ -83,7 +83,7 @@ namespace pbft
     char* mem;
     std::unique_ptr<INetwork> pbft_network;
     std::unordered_map<std::string, kv::TxHistory::CallbackHandler> callbacks;
-    std::unique_ptr<PbftConfig> pbft_config;
+    std::unique_ptr<AbstractPBFTConfig> pbft_config;
 
     struct NodeConfiguration
     {
@@ -148,15 +148,14 @@ namespace pbft
         pbft_network.get(),
         &message_receiver_base);
 
-      service_mem = mem + used_bytes;
+      pbft_config->set_service_mem(mem + used_bytes);
 
-      static std::unique_ptr<ClientProxy<uint64_t, void>> client_proxy;
-      LOG_INFO << "Setting up client proxy " << std::endl;
-      client_proxy.reset(
-        new ClientProxy<uint64_t, void>(*message_receiver_base));
+      LOG_INFO_FMT("Setting up client proxy");
+      static auto client_proxy =
+        std::make_unique<ClientProxy<CallerId, void>>(*message_receiver_base);
 
       auto cb = [](Reply* m, void* ctx) {
-        auto cp = (ClientProxy<uint64_t, void>*)ctx;
+        auto cp = static_cast<ClientProxy<uint64_t, void>*>(ctx);
         cp->recv_reply(m);
       };
 
@@ -166,13 +165,13 @@ namespace pbft
         [&](kv::TxHistory::CallbackArgs args) {
           auto caller = std::get<0>(args.id);
           auto session = std::get<1>(args.id);
-          auto version = std::get<2>(args.id);
+          auto jsonrpc_id = std::get<2>(args.id);
 
           auto total_req_size = pbft_config->message_size() + args.data.size();
 
           uint8_t request_buffer[total_req_size];
           pbft_config->fill_request(
-            request_buffer, total_req_size, args.data, version);
+            request_buffer, total_req_size, args.data, jsonrpc_id);
 
           Time t = ITimer::current_time();
 
