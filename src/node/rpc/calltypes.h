@@ -49,6 +49,22 @@ namespace ccf
     };
   };
 
+  struct GetNetworkInfo
+  {
+    struct NodeInfo
+    {
+      NodeId node_id;
+      std::string host;
+      std::string port;
+    };
+
+    struct Out
+    {
+      std::vector<NodeInfo> nodes = {};
+      std::optional<NodeId> leader_id = {};
+    };
+  };
+
   struct ListMethods
   {
     struct Out

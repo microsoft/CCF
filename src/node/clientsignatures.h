@@ -24,7 +24,10 @@ namespace ccf
 
   inline void to_json(nlohmann::json& j, const SignedReq& sr)
   {
-    j["sig"] = sr.sig;
+    if (!sr.sig.empty())
+    {
+      j["sig"] = sr.sig;
+    }
     if (!sr.req.empty())
     {
       j["req"] = nlohmann::json::from_msgpack(sr.req);
@@ -33,7 +36,11 @@ namespace ccf
 
   inline void from_json(const nlohmann::json& j, SignedReq& sr)
   {
-    assign_j(sr.sig, j["sig"]);
+    auto sig_it = j.find("req");
+    if (sig_it != j.end())
+    {
+      assign_j(sr.sig, j["sig"]);
+    }
     auto req_it = j.find("req");
     if (req_it != j.end())
     {

@@ -98,8 +98,11 @@ namespace ccf
 
     void update_history()
     {
-      if (history == nullptr)
-        history = tables.get_history().get();
+      // TODO: removed for now because frontend needs access to history
+      // during recovery, on RPC, when not primary. Can be changed back once
+      // frontend calls into Consensus.
+      // if (history == nullptr)
+      history = tables.get_history().get();
     }
 
     std::pair<bool, nlohmann::json> unpack_json(
@@ -245,6 +248,25 @@ namespace ccf
             jsonrpc::ErrorCodes::TX_LEADER_UNKNOWN, "Leader unknown.");
         };
 
+      auto get_network_info =
+        [this](Store::Tx& tx, const nlohmann::json& params) {
+          GetNetworkInfo::Out out;
+          if (raft != nullptr)
+          {
+            out.leader_id = raft->leader();
+          }
+
+          auto nodes_view = tx.get_view(*nodes);
+          nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
+            if (ni.status == ccf::NodeStatus::TRUSTED)
+            {
+              out.nodes.push_back({nid, ni.pubhost, ni.tlsport});
+            }
+          });
+
+          return jsonrpc::success(out);
+        };
+
       auto list_methods = [this](Store::Tx& tx, const nlohmann::json& params) {
         ListMethods::Out out;
 
@@ -283,6 +305,8 @@ namespace ccf
         GeneralProcs::MK_SIGN, make_signature, Write);
       install_with_auto_schema<void, GetLeaderInfo::Out>(
         GeneralProcs::GET_LEADER_INFO, get_leader_info, Read);
+      install_with_auto_schema<void, GetNetworkInfo::Out>(
+        GeneralProcs::GET_NETWORK_INFO, get_network_info, Read);
       install_with_auto_schema<void, ListMethods::Out>(
         GeneralProcs::LIST_METHODS, list_methods, Read);
       install_with_auto_schema<GetSchema>(
@@ -422,7 +446,7 @@ namespace ccf
 
     /** Process a serialised command with the associated caller certificate
      *
-     * If a RPC that requires writing to the kv store is processed on a
+     * If an RPC that requires writing to the kv store is processed on a
      * follower, the serialised RPC is forwarded to the current network leader.
      *
      * @param ctx Context for this RPC
@@ -458,13 +482,11 @@ namespace ccf
         return jsonrpc::pack(rpc.second, ctx.pack.value());
 
       auto rpc_ = &rpc.second;
-      SignedReq signed_request;
+      SignedReq signed_request(rpc.second);
       if (rpc_->find(jsonrpc::SIG) != rpc_->end())
       {
         auto& req = rpc_->at(jsonrpc::REQ);
 
-        // TODO(#important): Signature should only be verified for a Write
-        // RPC
         if (!verify_client_signature(
               tx,
               ctx.caller_cert,
@@ -582,10 +604,19 @@ namespace ccf
       if (!rpc.first)
         return jsonrpc::pack(rpc.second, pack.value());
 
+      // Unwrap signed request if necessary
+      auto rpc_ = &rpc.second;
       SignedReq signed_request(rpc.second);
 
+      if (rpc_->find(jsonrpc::SIG) != rpc_->end())
+      {
+        auto& req = rpc_->at(jsonrpc::REQ);
+        rpc_ = &req;
+      }
+      auto& unsigned_rpc = *rpc_;
+
       auto rep =
-        process_json(ctx, tx, ctx.fwd->caller_id, rpc.second, signed_request);
+        process_json(ctx, tx, ctx.fwd->caller_id, unsigned_rpc, signed_request);
       if (!rep.has_value())
       {
         // This should never be called when process_json is called with a
