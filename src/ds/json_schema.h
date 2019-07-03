@@ -94,6 +94,16 @@ namespace ccf
     schema["properties"] = properties;
   }
 
+  namespace adl
+  {
+    template <typename T>
+    void fill_schema(nlohmann::json& schema)
+    {
+      T t;
+      fill_json_schema(schema, t);
+    }
+  }
+
   template <typename T>
   inline void fill_schema(nlohmann::json& schema)
   {
@@ -145,8 +155,7 @@ namespace ccf
     }
     else
     {
-      static_assert(
-        dependent_false<T>::value, "Unsupported type - can't fill schema");
+      adl::fill_schema<T>(schema);
     }
   }
 
