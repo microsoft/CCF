@@ -60,7 +60,7 @@ namespace tls
   using Hash = std::array<uint8_t, MD_SIZE>;
 
 #if CURVE_CHOICE_SECP256K1_BITCOIN
-  bool verify_secp256k_bc(
+  inline bool verify_secp256k_bc(
     secp256k1_context* ctx, const uint8_t* signature, const uint8_t* hash)
   {
     secp256k1_pubkey public_key;
