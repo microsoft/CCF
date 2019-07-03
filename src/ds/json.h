@@ -168,15 +168,6 @@ DECLARE_REQUIRED_JSON_FIELDS.
     schema["properties"] = properties; \
   }
 
-/** Global namespace and ccf namespace are initialised here
- */
-NAMESPACE_CONTAINS_JSON_TYPES;
-
-namespace ccf
-{
-  NAMESPACE_CONTAINS_JSON_TYPES;
-}
-
 #define __FOR_JSON_NN( \
   _0, \
   _1, \
