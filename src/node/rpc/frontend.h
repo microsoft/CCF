@@ -422,7 +422,7 @@ namespace ccf
 
     /** Process a serialised command with the associated caller certificate
      *
-     * If a RPC that requires writing to the kv store is processed on a
+     * If an RPC that requires writing to the kv store is processed on a
      * follower, the serialised RPC is forwarded to the current network leader.
      *
      * @param ctx Context for this RPC
@@ -458,13 +458,11 @@ namespace ccf
         return jsonrpc::pack(rpc.second, ctx.pack.value());
 
       auto rpc_ = &rpc.second;
-      SignedReq signed_request;
+      SignedReq signed_request(rpc.second);
       if (rpc_->find(jsonrpc::SIG) != rpc_->end())
       {
         auto& req = rpc_->at(jsonrpc::REQ);
 
-        // TODO(#important): Signature should only be verified for a Write
-        // RPC
         if (!verify_client_signature(
               tx,
               ctx.caller_cert,
@@ -581,9 +579,18 @@ namespace ccf
       if (!rpc.first)
         return jsonrpc::pack(rpc.second, pack.value());
 
+      // Unwrap signed request if necessary
+      auto rpc_ = &rpc.second;
       SignedReq signed_request(rpc.second);
 
-      auto rep = process_json(ctx, tx, ctx.fwd->caller_id, rpc.second, signed_request);
+      if (rpc_->find(jsonrpc::SIG) != rpc_->end())
+      {
+        auto& req = rpc_->at(jsonrpc::REQ);
+        rpc_ = &req;
+      }
+      auto& unsigned_rpc = *rpc_;
+
+      auto rep = process_json(ctx, tx, ctx.fwd->caller_id, unsigned_rpc, signed_request);
       if (!rep.has_value())
       {
         // This should never be called when process_json is called with a
