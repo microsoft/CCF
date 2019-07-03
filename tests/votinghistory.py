@@ -16,7 +16,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.backends import default_backend
 
 # This function calls the native API and does not rely on the
-# imnport library's implementation. Though not being used by
+# import library's implementation. Though not being used by
 # the current test, it might still be helpful to have this
 # sequence of native calls for verification, in case the
 # imported library's code changes.
