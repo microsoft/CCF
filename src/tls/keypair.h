@@ -54,9 +54,46 @@ namespace tls
 #elif CURVE_CHOICE_SECP256K1_MBEDTLS || CURVE_CHOICE_SECP256K1_BITCOIN
   static constexpr mbedtls_md_type_t MD_TYPE = MBEDTLS_MD_SHA256;
   static constexpr size_t MD_SIZE = 256 / 8;
+  static constexpr size_t REC_ID_IDX = 65;
 #endif
 
   using Hash = std::array<uint8_t, MD_SIZE>;
+
+#if CURVE_CHOICE_SECP256K1_BITCOIN
+  bool verify_secp256k_bc(
+    secp256k1_context* ctx, const uint8_t* signature, const uint8_t* hash)
+  {
+    secp256k1_pubkey public_key;
+    secp256k1_ecdsa_recoverable_signature sig;
+
+    if (
+      secp256k1_ecdsa_recoverable_signature_parse_compact(
+        ctx, &sig, signature, signature[REC_ID_IDX]) != 1)
+    {
+      LOG_INFO_FMT(
+        "secp256k1_ecdsa_recoverable_signature_parse_compact failed");
+      return false;
+    }
+
+    secp256k1_ecdsa_signature nsig;
+    if (secp256k1_ecdsa_recover(ctx, &public_key, &sig, hash) != 1)
+    {
+      LOG_INFO_FMT("secp256k1_ecdsa_sign_recoverable failed");
+      return false;
+    }
+    if (secp256k1_ecdsa_recoverable_signature_convert(ctx, &nsig, &sig) != 1)
+    {
+      LOG_INFO_FMT("secp256k1_ecdsa_recoverable_signature_convert failed");
+      return false;
+    }
+    if (secp256k1_ecdsa_verify(ctx, &nsig, hash, &public_key) != 1)
+    {
+      LOG_INFO_FMT("secp256k1_ecdsa_verify failed");
+      return false;
+    }
+    return true;
+  }
+#endif
 
   class KeyPair
   {
@@ -259,7 +296,8 @@ namespace tls
           rc);
         return {};
       }
-      written = 64;
+      sig[64] = static_cast<uint8_t>(rcode);
+      written = 65;
 #else
       if (
         mbedtls_pk_sign(
@@ -311,7 +349,8 @@ namespace tls
         secp256k1_ecdsa_recoverable_signature_serialize_compact(
           ctx, sig, &rcode, &sig_) != 1)
         rc = 0xf;
-      written = 64;
+      sig[64] = static_cast<uint8_t>(rcode);
+      written = 65;
 #else
       Entropy entropy;
 
@@ -360,7 +399,8 @@ namespace tls
           rc);
         return {};
       }
-      written = 64;
+      sig[64] = static_cast<uint8_t>(rcode);
+      written = 65;
 #else
 
       if (
@@ -531,15 +571,9 @@ namespace tls
       HASH(contents.data(), contents.size(), hash.data());
 
 #if CURVE_CHOICE_SECP256K1_BITCOIN
-      secp256k1_ecdsa_recoverable_signature sig;
-      int rc = secp256k1_ecdsa_recoverable_signature_parse_compact(
-        ctx_, &sig, signature.data(), 0);
-      secp256k1_ecdsa_signature nsig;
-      secp256k1_ecdsa_recoverable_signature_convert(ctx_, &nsig, &sig);
-      if (secp256k1_ecdsa_verify(ctx_, &nsig, hash.data(), &c4_pub) != 1)
+      if (signature.size() != REC_ID_IDX)
         return false;
-
-      return true;
+      return verify_secp256k_bc(ctx_, signature.data(), hash.data());
 #else
       auto rc = mbedtls_pk_verify(
         &ctx,
@@ -577,15 +611,7 @@ namespace tls
       HASH(contents, contents_size, hash.data());
 
 #if CURVE_CHOICE_SECP256K1_BITCOIN
-      secp256k1_ecdsa_recoverable_signature sig_;
-      int rc = secp256k1_ecdsa_recoverable_signature_parse_compact(
-        ctx_, &sig_, sig, 0);
-      secp256k1_ecdsa_signature nsig;
-      secp256k1_ecdsa_recoverable_signature_convert(ctx_, &nsig, &sig_);
-      if (secp256k1_ecdsa_verify(ctx_, &nsig, hash.data(), &c4_pub) != 1)
-        return false;
-
-      return true;
+      return verify_secp256k_bc(ctx_, sig, hash.data());
 #else
 
       return (
@@ -662,12 +688,9 @@ namespace tls
       const std::vector<uint8_t>& signature) const
     {
 #if CURVE_CHOICE_SECP256K1_BITCOIN
-      secp256k1_ecdsa_recoverable_signature sig;
-      int rc = secp256k1_ecdsa_recoverable_signature_parse_compact(
-        ctx, &sig, signature.data(), 0);
-      secp256k1_ecdsa_signature nsig;
-      secp256k1_ecdsa_recoverable_signature_convert(ctx, &nsig, &sig);
-      return secp256k1_ecdsa_verify(ctx, &nsig, hash.h, &c4_pub) == 1;
+      if (signature.size() != REC_ID_IDX)
+        return false;
+      return verify_secp256k_bc(ctx, signature.data(), hash.h);
 #else
       int rc = mbedtls_pk_verify(
         &cert.pk,
@@ -697,12 +720,9 @@ namespace tls
       const Hash& hash, const std::vector<uint8_t>& signature) const
     {
 #if CURVE_CHOICE_SECP256K1_BITCOIN
-      secp256k1_ecdsa_recoverable_signature sig;
-      int rc = secp256k1_ecdsa_recoverable_signature_parse_compact(
-        ctx, &sig, signature.data(), 0);
-      secp256k1_ecdsa_signature nsig;
-      secp256k1_ecdsa_recoverable_signature_convert(ctx, &nsig, &sig);
-      return secp256k1_ecdsa_verify(ctx, &nsig, hash.data(), &c4_pub) == 1;
+      if (signature.size() != REC_ID_IDX)
+        return false;
+      return verify_secp256k_bc(ctx, signature.data(), hash.data());
 #else
       int rc = mbedtls_pk_verify(
         &cert.pk,
