@@ -51,11 +51,11 @@ As soon as ``member3`` accepts the proposal, a quorum (2 out of 3) of members ha
 Displaying proposals
 --------------------
 
-The details of pending proposals, including the proposer member ID, proposal script, parameters and votes, can be displayed with the ``display_proposal`` option of the ``memberclient`` utility. For example:
+The details of pending proposals, including the proposer member ID, proposal script, parameters and votes, can be displayed with the ``proposal_display`` option of the ``memberclient`` utility. For example:
 
 .. code-block:: bash
 
-    $ memberclient display_proposal --cert=member1_cert.pem --privk=member1_privk.pem --host=10.1.0.4 --port=25000 --ca=networkcert.pem
+    $ memberclient proposal_display --cert=member1_cert.pem --privk=member1_privk.pem --host=10.1.0.4 --port=25000 --ca=networkcert.pem
     ------ Proposal ------
     -- Proposal id: 1
     -- Proposer id: 0
