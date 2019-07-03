@@ -14,7 +14,7 @@ The quorum is defined as a Lua script in the genesis transaction (see for exampl
 Submitting a new proposal
 -------------------------
 
-Assuming that 3 members (``member1``, ``member2`` and ``member3``) is already registered in the CCF network and that the quorum is defined as a strict majority of members, a member can submit a new proposal using the ``memberclient`` command-line utility (see :ref:`Member methods` for equivalent JSON-RPC API).
+Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the quorum is defined as a strict majority of members, a member can submit a new proposal using the ``memberclient`` command-line utility (see :ref:`Member methods` for equivalent JSON-RPC API).
 
 For example, ``member1`` may submit a proposal to add a new member (``member4``) to the consortium:
 
