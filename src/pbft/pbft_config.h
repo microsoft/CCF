@@ -79,6 +79,10 @@ namespace pbft
       }
     };
 
+    // TODO (#pbft) this is an example exec_command to ge the integration
+    // started. For now it just takes as input (inb) the json-rpc id and the
+    // json-rpc command. This will be refactored and completed in the upcoming
+    // pull requests
     ExecCommand exec_command = [](
                                  Byz_req* inb,
                                  Byz_rep* outb,
