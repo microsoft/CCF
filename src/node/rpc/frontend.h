@@ -474,10 +474,12 @@ namespace ccf
               ctx.fwd.has_value(),
               signed_request))
         {
-          return jsonrpc::error_response(
-            req.at(jsonrpc::ID),
-            jsonrpc::ErrorCodes::INVALID_CLIENT_SIGNATURE,
-            "Failed to verify client signature.");
+          return jsonrpc::pack(
+            jsonrpc::error_response(
+              req.at(jsonrpc::ID),
+              jsonrpc::ErrorCodes::INVALID_CLIENT_SIGNATURE,
+              "Failed to verify client signature."),
+            ctx.pack.value());
         }
         rpc_ = &req;
       }
