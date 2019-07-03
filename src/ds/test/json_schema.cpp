@@ -11,6 +11,8 @@
 #include <valijson/validator.hpp>
 #include <vector>
 
+NAMESPACE_CONTAINS_JSON_TYPES;
+
 struct Bar
 {
   size_t a = {};
@@ -81,27 +83,24 @@ TEST_CASE("macro parser generation with base classes")
   REQUIRE(baz_1.e == j["e"]);
 }
 
-namespace ccf
+struct Foo
 {
-  struct Foo
-  {
-    size_t n_0 = 42;
-    size_t n_1 = 43;
-    int i_0 = -1;
-    int64_t i64_0 = -2;
-    std::string s_0 = "Default value";
-    std::string s_1 = "Other default value";
-    std::optional<size_t> opt = std::nullopt;
-    std::vector<std::string> vec_s = {};
-    size_t ignored;
-  };
-  DECLARE_REQUIRED_JSON_FIELDS(Foo, n_0, i_0, i64_0, s_0);
-  DECLARE_OPTIONAL_JSON_FIELDS(Foo, n_1, s_1, opt, vec_s);
-}
+  size_t n_0 = 42;
+  size_t n_1 = 43;
+  int i_0 = -1;
+  int64_t i64_0 = -2;
+  std::string s_0 = "Default value";
+  std::string s_1 = "Other default value";
+  std::optional<size_t> opt = std::nullopt;
+  std::vector<std::string> vec_s = {};
+  size_t ignored;
+};
+DECLARE_REQUIRED_JSON_FIELDS(Foo, n_0, i_0, i64_0, s_0);
+DECLARE_OPTIONAL_JSON_FIELDS(Foo, n_1, s_1, opt, vec_s);
 
 TEST_CASE("schema generation")
 {
-  const auto schema = ccf::build_schema<ccf::Foo>("Foo");
+  const auto schema = ccf::build_schema<Foo>("Foo");
 
   const auto properties_it = schema.find("properties");
   REQUIRE(properties_it != schema.end());
@@ -138,8 +137,8 @@ TEST_CASE("schema generation")
       }
     }
 
-    const auto foo_min = j_min.get<ccf::Foo>();
-    const auto foo_max = j_max.get<ccf::Foo>();
+    const auto foo_min = j_min.get<Foo>();
+    const auto foo_max = j_max.get<Foo>();
 
     using size_limits = std::numeric_limits<size_t>;
 
@@ -156,7 +155,7 @@ TEST_CASE("schema generation")
   }
 }
 
-namespace arbitrary
+namespace custom
 {
   namespace user
   {
@@ -187,67 +186,61 @@ namespace arbitrary
 
 TEST_CASE("custom elements")
 {
-  const auto x_schema =
-    ccf::build_schema<arbitrary::user::defined::X>("custom-x");
+  const auto x_schema = ccf::build_schema<custom::user::defined::X>("custom-x");
   REQUIRE(x_schema["format"] == "email");
 
-  const auto y_schema =
-    ccf::build_schema<arbitrary::user::defined::Y>("custom-y");
+  const auto y_schema = ccf::build_schema<custom::user::defined::Y>("custom-y");
   REQUIRE(y_schema["required"].size() == 2);
 }
 
-namespace ccf
+struct Nest0
 {
-  struct Nest0
-  {
-    size_t n = {};
-  };
-  DECLARE_REQUIRED_JSON_FIELDS(Nest0, n);
+  size_t n = {};
+};
+DECLARE_REQUIRED_JSON_FIELDS(Nest0, n);
 
-  bool operator==(const Nest0& l, const Nest0& r)
-  {
-    return l.n == r.n;
-  }
+bool operator==(const Nest0& l, const Nest0& r)
+{
+  return l.n == r.n;
+}
 
-  struct Nest1
-  {
-    Nest0 a = {};
-    Nest0 b = {};
-  };
-  DECLARE_REQUIRED_JSON_FIELDS(Nest1, a, b);
+struct Nest1
+{
+  Nest0 a = {};
+  Nest0 b = {};
+};
+DECLARE_REQUIRED_JSON_FIELDS(Nest1, a, b);
 
-  bool operator==(const Nest1& l, const Nest1& r)
-  {
-    return l.a == r.a && l.b == r.b;
-  }
+bool operator==(const Nest1& l, const Nest1& r)
+{
+  return l.a == r.a && l.b == r.b;
+}
 
-  struct Nest2
-  {
-    Nest1 x;
-    std::vector<Nest1> xs;
-  };
-  DECLARE_REQUIRED_JSON_FIELDS(Nest2, x, xs);
+struct Nest2
+{
+  Nest1 x;
+  std::vector<Nest1> xs;
+};
+DECLARE_REQUIRED_JSON_FIELDS(Nest2, x, xs);
 
-  bool operator==(const Nest2& l, const Nest2& r)
-  {
-    return l.x == r.x && l.xs == r.xs;
-  }
+bool operator==(const Nest2& l, const Nest2& r)
+{
+  return l.x == r.x && l.xs == r.xs;
+}
 
-  struct Nest3
-  {
-    Nest2 v;
-  };
-  DECLARE_REQUIRED_JSON_FIELDS(Nest3, v);
+struct Nest3
+{
+  Nest2 v;
+};
+DECLARE_REQUIRED_JSON_FIELDS(Nest3, v);
 
-  bool operator==(const Nest3& l, const Nest3& r)
-  {
-    return l.v == r.v;
-  }
+bool operator==(const Nest3& l, const Nest3& r)
+{
+  return l.v == r.v;
 }
 
 TEST_CASE("nested")
 {
-  using namespace ccf;
   const Nest0 n0_1{10};
   const Nest0 n0_2{20};
   const Nest0 n0_3{30};
@@ -323,32 +316,27 @@ TEST_CASE("nested")
   }
 }
 
-namespace ccf
+struct EnumStruct
 {
-  struct EnumStruct
+  enum class SampleEnum
   {
-    enum class SampleEnum
-    {
-      One,
-      Two,
-      Three
-    };
-
-    SampleEnum se;
+    One,
+    Two,
+    Three
   };
 
-  DECLARE_JSON_ENUM(
-    EnumStruct::SampleEnum,
-    {{EnumStruct::SampleEnum::One, "one"},
-     {EnumStruct::SampleEnum::Two, "two"},
-     {EnumStruct::SampleEnum::Three, "three"}})
-  DECLARE_REQUIRED_JSON_FIELDS(EnumStruct, se);
-}
+  SampleEnum se;
+};
+
+DECLARE_JSON_ENUM(
+  EnumStruct::SampleEnum,
+  {{EnumStruct::SampleEnum::One, "one"},
+   {EnumStruct::SampleEnum::Two, "two"},
+   {EnumStruct::SampleEnum::Three, "three"}})
+DECLARE_REQUIRED_JSON_FIELDS(EnumStruct, se);
 
 TEST_CASE("enum")
 {
-  using namespace ccf;
-
   EnumStruct es;
   es.se = EnumStruct::SampleEnum::Two;
 
@@ -356,7 +344,7 @@ TEST_CASE("enum")
 
   REQUIRE(j["se"] == "two");
 
-  const auto schema = build_schema<EnumStruct>("EnumStruct");
+  const auto schema = ccf::build_schema<EnumStruct>("EnumStruct");
 
   const nlohmann::json expected{"one", "two", "three"};
   REQUIRE(schema["properties"]["se"]["enum"] == expected);
