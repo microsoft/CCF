@@ -54,7 +54,7 @@ namespace tls
 #elif CURVE_CHOICE_SECP256K1_MBEDTLS || CURVE_CHOICE_SECP256K1_BITCOIN
   static constexpr mbedtls_md_type_t MD_TYPE = MBEDTLS_MD_SHA256;
   static constexpr size_t MD_SIZE = 256 / 8;
-  static constexpr size_t REC_ID_IDX = 65;
+  static constexpr size_t REC_ID_IDX = 64;
 #endif
 
   using Hash = std::array<uint8_t, MD_SIZE>;
@@ -296,8 +296,8 @@ namespace tls
           rc);
         return {};
       }
-      sig[64] = static_cast<uint8_t>(rcode);
-      written = 65;
+      sig[REC_ID_IDX] = static_cast<uint8_t>(rcode);
+      written = REC_ID_IDX + 1;
 #else
       if (
         mbedtls_pk_sign(
@@ -349,8 +349,8 @@ namespace tls
         secp256k1_ecdsa_recoverable_signature_serialize_compact(
           ctx, sig, &rcode, &sig_) != 1)
         rc = 0xf;
-      sig[64] = static_cast<uint8_t>(rcode);
-      written = 65;
+      sig[REC_ID_IDX] = static_cast<uint8_t>(rcode);
+      written = REC_ID_IDX + 1;
 #else
       Entropy entropy;
 
@@ -399,8 +399,8 @@ namespace tls
           rc);
         return {};
       }
-      sig[64] = static_cast<uint8_t>(rcode);
-      written = 65;
+      sig[REC_ID_IDX] = static_cast<uint8_t>(rcode);
+      written = REC_ID_IDX + 1;
 #else
 
       if (
@@ -571,7 +571,7 @@ namespace tls
       HASH(contents.data(), contents.size(), hash.data());
 
 #if CURVE_CHOICE_SECP256K1_BITCOIN
-      if (signature.size() != REC_ID_IDX)
+      if (signature.size() != REC_ID_IDX + 1)
         return false;
       return verify_secp256k_bc(ctx_, signature.data(), hash.data());
 #else
@@ -688,7 +688,7 @@ namespace tls
       const std::vector<uint8_t>& signature) const
     {
 #if CURVE_CHOICE_SECP256K1_BITCOIN
-      if (signature.size() != REC_ID_IDX)
+      if (signature.size() != REC_ID_IDX + 1)
         return false;
       return verify_secp256k_bc(ctx, signature.data(), hash.h);
 #else
@@ -720,7 +720,7 @@ namespace tls
       const Hash& hash, const std::vector<uint8_t>& signature) const
     {
 #if CURVE_CHOICE_SECP256K1_BITCOIN
-      if (signature.size() != REC_ID_IDX)
+      if (signature.size() != REC_ID_IDX + 1)
         return false;
       return verify_secp256k_bc(ctx, signature.data(), hash.data());
 #else
