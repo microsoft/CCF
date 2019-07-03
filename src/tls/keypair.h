@@ -54,12 +54,12 @@ namespace tls
 #elif CURVE_CHOICE_SECP256K1_MBEDTLS || CURVE_CHOICE_SECP256K1_BITCOIN
   static constexpr mbedtls_md_type_t MD_TYPE = MBEDTLS_MD_SHA256;
   static constexpr size_t MD_SIZE = 256 / 8;
-  static constexpr size_t REC_ID_IDX = 64;
 #endif
+  
+  static constexpr size_t REC_ID_IDX = 64;
 
   using Hash = std::array<uint8_t, MD_SIZE>;
 
-#if CURVE_CHOICE_SECP256K1_BITCOIN
   inline bool verify_secp256k_bc(
     secp256k1_context* ctx, const uint8_t* signature, const uint8_t* hash)
   {
@@ -93,7 +93,6 @@ namespace tls
     }
     return true;
   }
-#endif
 
   class KeyPair
   {
