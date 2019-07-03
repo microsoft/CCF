@@ -467,7 +467,8 @@ TEST_CASE("Accept node")
     ccf::SignedReq sr(votej);
 
     Store::Tx tx;
-    check_success(frontend.process_json(rpc_ctx, tx, mid1, votej["req"], sr).value());
+    check_success(
+      frontend.process_json(rpc_ctx, tx, mid1, votej["req"], sr).value());
   }
   // check node exists with status pending
   {
@@ -526,7 +527,8 @@ bool test_raw_writes(
 
     Store::Tx tx;
     check_success(
-      frontend.process_json(mem_rpc_ctx, tx, i, votej["req"], sr).value(), false);
+      frontend.process_json(mem_rpc_ctx, tx, i, votej["req"], sr).value(),
+      false);
   }
   // pro votes (proposer also votes)
   bool completed = false;
