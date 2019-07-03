@@ -55,7 +55,7 @@ namespace tls
   static constexpr mbedtls_md_type_t MD_TYPE = MBEDTLS_MD_SHA256;
   static constexpr size_t MD_SIZE = 256 / 8;
 #endif
-  
+
   static constexpr size_t REC_ID_IDX = 64;
 
   using Hash = std::array<uint8_t, MD_SIZE>;
