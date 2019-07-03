@@ -83,22 +83,6 @@ static void benchmark_get(picobench::state& s)
 }
 
 template <class M>
-static void benchmark_geto(picobench::state& s)
-{
-  size_t size = s.iterations();
-  auto map = gen_map<M>(size);
-  s.start_timer();
-  for (auto _ : s)
-  {
-    (void)_;
-    auto res = map.geto(0);
-    do_not_optimize(res);
-    clobber_memory();
-  }
-  s.stop_timer();
-}
-
-template <class M>
 static void benchmark_getp(picobench::state& s)
 {
   size_t size = s.iterations();
@@ -142,14 +126,10 @@ PICOBENCH(bench_champ_map_put).iterations(sizes).samples(10);
 PICOBENCH_SUITE("get");
 auto bench_rb_map_get = benchmark_get<RBMap<K, V>>;
 PICOBENCH(bench_rb_map_get).iterations(sizes).samples(10).baseline();
-auto bench_rb_map_geto = benchmark_geto<RBMap<K, V>>;
-PICOBENCH(bench_rb_map_geto).iterations(sizes).samples(10);
 auto bench_rb_map_getp = benchmark_getp<RBMap<K, V>>;
 PICOBENCH(bench_rb_map_getp).iterations(sizes).samples(10);
 auto bench_champ_map_get = benchmark_get<champ::Map<K, V>>;
 PICOBENCH(bench_champ_map_get).iterations(sizes).samples(10);
-auto bench_champ_map_geto = benchmark_geto<champ::Map<K, V>>;
-PICOBENCH(bench_champ_map_geto).iterations(sizes).samples(10);
 auto bench_champ_map_getp = benchmark_getp<champ::Map<K, V>>;
 PICOBENCH(bench_champ_map_getp).iterations(sizes).samples(10);
 
