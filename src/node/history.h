@@ -141,9 +141,18 @@ namespace ccf
         true);
     }
 
-    void add_request(kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override {}
-    void add_result(kv::TxHistory::RequestID id, kv::Version version, const std::vector<uint8_t>& data) override {}
-    void add_response(kv::TxHistory::RequestID id, const std::vector<uint8_t>& response) override {}
+    void add_request(
+      kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override
+    {}
+    void add_result(
+      kv::TxHistory::RequestID id,
+      kv::Version version,
+      const std::vector<uint8_t>& data) override
+    {}
+    void add_response(
+      kv::TxHistory::RequestID id,
+      const std::vector<uint8_t>& response) override
+    {}
   };
 
   class MerkleTreeHistory
@@ -316,21 +325,29 @@ namespace ccf
         true);
     }
 
-    void add_request(kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override
+    void add_request(
+      kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override
     {
       LOG_DEBUG << fmt::format("HISTORY: add_request {0}", id) << std::endl;
       requests[id] = request;
     }
-    
-    void add_result(kv::TxHistory::RequestID id, kv::Version version, const std::vector<uint8_t>& data) override
+
+    void add_result(
+      kv::TxHistory::RequestID id,
+      kv::Version version,
+      const std::vector<uint8_t>& data) override
     {
       append(data);
       auto root = get_root();
-      LOG_DEBUG << fmt::format("HISTORY: add_result {0} {1} {2}", id, version, root) << std::endl;
+      LOG_DEBUG << fmt::format(
+                     "HISTORY: add_result {0} {1} {2}", id, version, root)
+                << std::endl;
       results[id] = {version, root};
     }
 
-    void add_response(kv::TxHistory::RequestID id, const std::vector<uint8_t>& response) override
+    void add_response(
+      kv::TxHistory::RequestID id,
+      const std::vector<uint8_t>& response) override
     {
       LOG_DEBUG << fmt::format("HISTORY: add_response {0}", id) << std::endl;
       responses[id] = response;

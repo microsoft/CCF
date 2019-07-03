@@ -61,7 +61,10 @@ namespace kv
   class TxHistory
   {
   public:
-    using RequestID = std::tuple<size_t /* Caller ID */, size_t /* Client Session ID */, kv::Version>;
+    using RequestID = std::tuple<
+      size_t /* Caller ID */,
+      size_t /* Client Session ID */,
+      kv::Version>;
 
     virtual ~TxHistory() {}
     virtual void append(const std::vector<uint8_t>& data) = 0;
@@ -69,13 +72,16 @@ namespace kv
     virtual void rollback(Version v) = 0;
     virtual void compact(Version v) = 0;
     virtual void emit_signature() = 0;
-    virtual void add_request(RequestID id, const std::vector<uint8_t>& request) = 0;
-    virtual void add_result(RequestID id, kv::Version version, const std::vector<uint8_t>& data) = 0;
-    virtual void add_response(RequestID id, const std::vector<uint8_t>& response) = 0;
+    virtual void add_request(
+      RequestID id, const std::vector<uint8_t>& request) = 0;
+    virtual void add_result(
+      RequestID id, kv::Version version, const std::vector<uint8_t>& data) = 0;
+    virtual void add_response(
+      RequestID id, const std::vector<uint8_t>& response) = 0;
   };
 
-  using PendingTx =
-    std::function<std::tuple<CommitSuccess, TxHistory::RequestID, std::vector<uint8_t>>()>;
+  using PendingTx = std::function<
+    std::tuple<CommitSuccess, TxHistory::RequestID, std::vector<uint8_t>>()>;
 
   class AbstractTxEncryptor
   {
