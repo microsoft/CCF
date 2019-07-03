@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../json_schema.h"
+#include "../json.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -162,6 +162,8 @@ namespace arbitrary
   {
     namespace defined
     {
+      NAMESPACE_CONTAINS_JSON_TYPES;
+
       struct X
       {
         std::string email;
@@ -172,16 +174,26 @@ namespace arbitrary
         schema["type"] = "string";
         schema["format"] = "email";
       }
+
+      struct Y
+      {
+        size_t a;
+        int b;
+      };
+      DECLARE_REQUIRED_JSON_FIELDS(Y, a, b);
     }
   }
 }
 
 TEST_CASE("custom elements")
 {
-  const auto schema =
-    ccf::build_schema<arbitrary::user::defined::X>("custom-type");
-  
-  REQUIRE(schema["format"] == "email");
+  const auto x_schema =
+    ccf::build_schema<arbitrary::user::defined::X>("custom-x");
+  REQUIRE(x_schema["format"] == "email");
+
+  const auto y_schema =
+    ccf::build_schema<arbitrary::user::defined::Y>("custom-y");
+  REQUIRE(y_schema["required"].size() == 2);
 }
 
 namespace ccf

@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "json.h"
+#include <nlohmann/json.hpp>
 
 namespace ccf
 {
@@ -57,50 +57,20 @@ namespace ccf
     return element;
   }
 
-  template <
-    typename T,
-    typename = std::enable_if_t<RequiredJsonFields<T>::value>>
-  inline void fill_object_schema(nlohmann::json& schema)
-  {
-    schema["type"] = "object";
-
-    nlohmann::json required = nlohmann::json::array();
-    nlohmann::json properties;
-
-    // For all required fields, add the name of the field to required and the
-    // schema for the field to properties
-    std::apply(
-      [&required, &properties](const auto&... field) {
-        ((required.push_back(field.name),
-          properties[field.name] =
-            schema_element<typename std::decay_t<decltype(field)>::Target>()),
-         ...);
-      },
-      RequiredJsonFields<T>::required_fields);
-
-    // Add all optional fields to properties
-    if constexpr (OptionalJsonFields<T>::value)
-    {
-      std::apply(
-        [&properties](const auto&... field) {
-          ((properties[field.name] =
-              schema_element<typename std::decay_t<decltype(field)>::Target>()),
-           ...);
-        },
-        OptionalJsonFields<T>::optional_fields);
-    }
-
-    schema["required"] = required;
-    schema["properties"] = properties;
-  }
-
   namespace adl
   {
     template <typename T>
     void fill_schema(nlohmann::json& schema)
     {
       T t;
-      fill_json_schema(schema, t);
+      if constexpr (std::is_enum<T>::value)
+      {
+        fill_enum_schema(schema, t);
+      }
+      else
+      {
+        fill_json_schema(schema, t);
+      }
     }
   }
 
@@ -144,14 +114,6 @@ namespace ccf
     else if constexpr (std::is_same<T, JsonSchema>::value)
     {
       schema["$ref"] = JsonSchema::hyperschema;
-    }
-    else if constexpr (RequiredJsonFields<T>::value)
-    {
-      fill_object_schema<T>(schema);
-    }
-    else if constexpr (std::is_enum<T>::value)
-    {
-      fill_enum_schema<T>(schema);
     }
     else
     {

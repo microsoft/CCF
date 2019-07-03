@@ -1,8 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "json_schema.h"
+
 #include <fmt/format_header_only.h>
-#include <nlohmann/json.hpp>
 #include <sstream>
 
 template <typename T>
@@ -108,9 +109,6 @@ DECLARE_REQUIRED_JSON_FIELDS.
   template <typename T, bool Required> \
   void read_fields(const nlohmann::json& j, T& t); \
 \
-  template <typename T> \
-  void fill_enum_schema(nlohmann::json& schema); \
-\
   template < \
     typename T, \
     typename = std::enable_if_t<RequiredJsonFields<T>::value>> \
@@ -138,6 +136,36 @@ DECLARE_REQUIRED_JSON_FIELDS.
     { \
       read_fields<T, false>(j, t); \
     } \
+  } \
+\
+  template < \
+    typename T, \
+    typename = std::enable_if_t<RequiredJsonFields<T>::value>> \
+  inline void fill_json_schema(nlohmann::json& schema, const T&) \
+  { \
+    nlohmann::json required = nlohmann::json::array(); \
+    nlohmann::json properties; \
+    std::apply( \
+      [&required, &properties](const auto&... field) { \
+        ((required.push_back(field.name), \
+          properties[field.name] = ::ccf::schema_element< \
+            typename std::decay_t<decltype(field)>::Target>()), \
+         ...); \
+      }, \
+      RequiredJsonFields<T>::required_fields); \
+    if constexpr (OptionalJsonFields<T>::value) \
+    { \
+      std::apply( \
+        [&properties](const auto&... field) { \
+          ((properties[field.name] = ::ccf::schema_element< \
+              typename std::decay_t<decltype(field)>::Target>()), \
+           ...); \
+        }, \
+        OptionalJsonFields<T>::optional_fields); \
+    } \
+    schema["type"] = "object"; \
+    schema["required"] = required; \
+    schema["properties"] = properties; \
   }
 
 /** Global namespace and ccf namespace are initialised here
@@ -505,8 +533,7 @@ namespace ccf
 
 #define DECLARE_JSON_ENUM(TYPE, ...) \
   NLOHMANN_JSON_SERIALIZE_ENUM(TYPE, __VA_ARGS__) \
-  template <> \
-  inline void fill_enum_schema<TYPE>(nlohmann::json & schema) \
+  inline void fill_enum_schema(nlohmann::json& schema, const TYPE&) \
   { \
     static const std::pair<TYPE, nlohmann::json> m[] = __VA_ARGS__; \
     auto enums = nlohmann::json::array(); \
