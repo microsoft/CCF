@@ -308,7 +308,7 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
       -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so
       -c ${app_oe_conf_path}
       -k ${enclave_sign_key_path}
-    DEPENDS ${name}
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so
       ${app_oe_conf_path}
       ${enclave_sign_key_path}
   )
@@ -344,9 +344,11 @@ endif()
 
 function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   set(patched_name ${name}.patched)
-  add_custom_target(${patched_name}
-      COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so ${CMAKE_CURRENT_BINARY_DIR}/lib${patched_name}.so
-      COMMAND PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH} python3 patch_binary.py -p ${CMAKE_CURRENT_BINARY_DIR}/lib${patched_name}.so
+  set(patched_lib_name lib${patched_name}.so)
+  add_custom_command(
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
+      COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
+      COMMAND PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH} python3 patch_binary.py -p ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
       WORKING_DIRECTORY ${CCF_DIR}/tests
       DEPENDS ${name}
   )
