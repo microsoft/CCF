@@ -73,6 +73,9 @@ namespace ccf
       Forwardable forwardable;
     };
 
+    // TODO: Remove this
+    uint64_t dummy_version = 0;
+
     Nodes* nodes;
     ClientSignatures* client_signatures;
     Certs* certs;
@@ -469,6 +472,7 @@ namespace ccf
       auto caller_id = valid_caller(tx, ctx.caller_cert);
       if (!caller_id.has_value())
       {
+        LOG_FAIL << "Caller is not valid" << std::endl;
         return jsonrpc::pack(
           jsonrpc::error_response(
             0,
@@ -476,6 +480,7 @@ namespace ccf
             "No corresponding caller entry exists."),
           ctx.pack.value());
       }
+      LOG_INFO << "CALLER ID: " << caller_id.value() << std::endl;
 
       auto rpc = unpack_json(input, ctx.pack.value());
 
@@ -518,42 +523,76 @@ namespace ccf
         tx.set_req_id(reqid);
       }
 
-      auto rep =
-        process_json(ctx, tx, caller_id.value(), unsigned_rpc, signed_request);
+      // auto rep =
+      //   process_json(ctx, tx, caller_id.value(), unsigned_rpc,
+      //   signed_request);
 
-      // If necessary, forward the RPC to the current leader
-      if (!rep.has_value())
+      // // If necessary, forward the RPC to the current leader
+      // if (!rep.has_value())
+      // {
+      //   if (raft != nullptr)
+      //   {
+      //     auto leader_id = raft->leader();
+      //     auto local_id = raft->id();
+
+      //     if (
+      //       leader_id != NoNode &&
+      //       cmd_forwarder->forward_command(
+      //         ctx, local_id, leader_id, caller_id.value(), input))
+      //     {
+      //       // Indicate that the RPC has been forwarded to leader
+      //       LOG_DEBUG_FMT("RPC forwarded to leader {}", leader_id);
+      //       ctx.is_pending = true;
+      //       return {};
+      //     }
+      //   }
+      //   return jsonrpc::pack(
+      //     jsonrpc::error_response(
+      //       0,
+      //       jsonrpc::ErrorCodes::RPC_NOT_FORWARDED,
+      //       "RPC could not be forwarded to leader."),
+      //     ctx.pack.value());
+      // }
+
+      // auto rv = jsonrpc::pack(rep.value(), ctx.pack.value());
+
+      // if (history)
+      //   history->add_response(reqid, rv);
+
+      LOG_INFO << "About to process json" << std::endl;
+      auto rep = process_json(
+        ctx, tx, caller_id.value(), unsigned_rpc, signed_request, false);
+
+      return jsonrpc::pack(rep.value(), jsonrpc::Pack::MsgPack);
+    }
+
+    void process_pbft(const std::vector<uint8_t>& input) override
+    {
+      // TODO: This tx should be the same tx object as the one used to verify
+      // the signature and the caller
+      Store::Tx tx;
+      enclave::RPCContext ctx(0, nullb, ccf::ActorsType::users);
+
+      LOG_INFO << "PROCESS PBFT of size " << input.size() << std::endl;
+
+      // TODO: For now, until the RPCContext has been passed properly, use
+      // MsgPack
+      auto rpc = unpack_json(input, jsonrpc::Pack::MsgPack);
+
+      CallerId caller_id = 1;
+      SignedReq signed_request;
+
+      // TODO: Strip signature
+      auto rpc_ = &rpc.second;
+      if (rpc_->find(jsonrpc::SIG) != rpc_->end())
       {
-        if (raft != nullptr)
-        {
-          auto leader_id = raft->leader();
-          auto local_id = raft->id();
-
-          if (
-            leader_id != NoNode &&
-            cmd_forwarder->forward_command(
-              ctx, local_id, leader_id, caller_id.value(), input))
-          {
-            // Indicate that the RPC has been forwarded to leader
-            LOG_DEBUG_FMT("RPC forwarded to leader {}", leader_id);
-            ctx.is_pending = true;
-            return {};
-          }
-        }
-        return jsonrpc::pack(
-          jsonrpc::error_response(
-            0,
-            jsonrpc::ErrorCodes::RPC_NOT_FORWARDED,
-            "RPC could not be forwarded to leader."),
-          ctx.pack.value());
+        auto& req = rpc_->at(jsonrpc::REQ);
+        rpc_ = &req;
       }
+      auto& unsigned_rpc = *rpc_;
 
-      auto rv = jsonrpc::pack(rep.value(), ctx.pack.value());
-
-      if (history)
-        history->add_response(reqid, rv);
-
-      return rv;
+      auto rep =
+        process_json(ctx, tx, caller_id, unsigned_rpc, signed_request, true);
     }
 
     /** Process a serialised input that has been forwarded from another node
@@ -635,7 +674,8 @@ namespace ccf
       Store::Tx& tx,
       CallerId caller_id,
       const nlohmann::json& rpc,
-      const SignedReq& signed_request)
+      const SignedReq& signed_request,
+      bool actually_commit = false)
     {
       std::string method = rpc.at(jsonrpc::METHOD);
       ctx.req.seq_no = rpc.at(jsonrpc::ID);
@@ -665,32 +705,35 @@ namespace ccf
       else if (default_handler)
         handler = &*default_handler;
       else
+      {
+        LOG_FAIL << "Method " << method << " not found" << std::endl;
         return jsonrpc::error_response(
           ctx.req.seq_no, jsonrpc::ErrorCodes::METHOD_NOT_FOUND, method);
+      }
 
       update_raft();
       update_history();
 
       bool is_leader = (raft == nullptr) || raft->is_leader();
 
-      if (!is_leader)
-      {
-        switch (handler->rw)
-        {
-          case Read:
-            break;
+      // if (!is_leader)
+      // {
+      //   switch (handler->rw)
+      //   {
+      //     case Read:
+      //       break;
 
-          case Write:
-            return forward_or_redirect_json(ctx, handler->forwardable);
-            break;
+      //     case Write:
+      //       return forward_or_redirect_json(ctx, handler->forwardable);
+      //       break;
 
-          case MayWrite:
-            bool readonly = rpc.value(jsonrpc::READONLY, true);
-            if (!readonly)
-              return forward_or_redirect_json(ctx, handler->forwardable);
-            break;
-        }
-      }
+      //     case MayWrite:
+      //       bool readonly = rpc.value(jsonrpc::READONLY, true);
+      //       if (!readonly)
+      //         return forward_or_redirect_json(ctx, handler->forwardable);
+      //       break;
+      //   }
+      // }
 
       auto func = handler->func;
       auto args =
@@ -706,6 +749,24 @@ namespace ccf
 
           if (!tx_result.first)
             return jsonrpc::error_response(ctx.req.seq_no, tx_result.second);
+
+          // TODO: For now, do not modify the KV but still reply with the result
+          // of the execution
+          if (!actually_commit)
+          {
+            nlohmann::json result =
+              jsonrpc::result_response(ctx.req.seq_no, tx_result.second);
+
+            dummy_version++;
+            result[COMMIT] = dummy_version;
+            if (raft != nullptr)
+            {
+              result[TERM] = 2;
+              result[GLOBAL_COMMIT] = dummy_version;
+            }
+
+            return result;
+          }
 
           switch (tx.commit())
           {
@@ -836,6 +897,7 @@ namespace ccf
           return;
         }
 
+        LOG_INFO << "Signature is emitted by timer" << std::endl;
         ms_to_sig = sig_max_ms;
         if (history && tables.commit_gap() > 0)
           history->emit_signature();

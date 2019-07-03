@@ -50,7 +50,7 @@ namespace logger
     {
       static Level the_level =
 #if !defined(NDEBUG) || defined(VERBOSE_LOGGING)
-        Level::TRACE
+        Level::INFO
 #else
         Level::INFO
 #endif

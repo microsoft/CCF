@@ -119,11 +119,13 @@ namespace ccf
     raft::Config raft_config;
 
     NetworkState& network;
-    std::shared_ptr<ConsensusRaft> raft;
+    // std::shared_ptr<ConsensusRaft> raft;
+    std::shared_ptr<kv::NullReplicator> raft;
 #ifdef PBFT
     using ConsensusPbft = pbft::Pbft<NodeToNode>;
     std::shared_ptr<ConsensusPbft> pbft;
 #endif
+    std::shared_ptr<enclave::RpcMap> rpc_map;
     std::shared_ptr<NodeToNode> n2n_channels;
     enclave::RPCSessions& rpcsessions;
     std::shared_ptr<kv::TxHistory> history;
@@ -167,13 +169,17 @@ namespace ccf
     // funcs in state "uninitialized"
     //
     void initialize(
-      raft::Config& raft_config_, std::shared_ptr<NodeToNode> n2n_channels_)
+      raft::Config& raft_config_,
+      std::shared_ptr<NodeToNode> n2n_channels_,
+      std::shared_ptr<enclave::RpcMap> rpc_map_)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::uninitialized);
 
       raft_config = raft_config_;
       n2n_channels = n2n_channels_;
+      // Capture rpc_map to pass to pbft for frontend execution
+      rpc_map = rpc_map_;
       sm.advance(State::initialized);
     }
 
@@ -381,6 +387,9 @@ namespace ccf
             accept_all_connections();
           }
           setup_raft(public_only);
+
+          // TODO: Do this for now so that node 1 knows about node 0
+          pbft->add_configuration({0, "hostname", "1258"});
           setup_store();
 
           if (public_only)
@@ -1055,15 +1064,17 @@ namespace ccf
       // setup node-to-node channels, raft, pbft and store hooks
       n2n_channels->initialize(self, network.secrets->get_current().priv_key);
 
-      raft = std::make_shared<ConsensusRaft>(
-        std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(
-          network.tables),
-        std::make_unique<raft::LedgerEnclave>(writer_factory),
-        n2n_channels,
-        self,
-        raft_config.requestTimeout,
-        raft_config.electionTimeout,
-        public_only);
+      // raft = std::make_shared<ConsensusRaft>(
+      //   std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(
+      //     network.tables),
+      //   std::make_unique<raft::LedgerEnclave>(writer_factory),
+      //   n2n_channels,
+      //   self,
+      //   raft_config.requestTimeout,
+      //   raft_config.electionTimeout,
+      //   public_only);
+
+      raft = std::make_shared<kv::NullReplicator>(n2n_channels, self);
 
       network.tables->set_replicator(raft);
 
@@ -1093,6 +1104,7 @@ namespace ccf
           {
             case NodeStatus::PENDING:
             {
+              LOG_INFO << "Adding node " << node_id << std::endl;
               add_node(node_id, ni.value.host, ni.value.raftport);
               configure = true;
               break;
@@ -1238,7 +1250,7 @@ namespace ccf
 #ifdef PBFT
     void setup_pbft()
     {
-      pbft = std::make_shared<ConsensusPbft>(n2n_channels, self);
+      pbft = std::make_shared<ConsensusPbft>(n2n_channels, self, rpc_map);
     }
 #endif
   };
