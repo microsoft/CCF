@@ -196,12 +196,13 @@ namespace kv
 
       size_t count = 0;
       state2.state.foreach(
-        [&count](const K& k, const VersionV& v) { count++; });
+        [&count](const K& k, const VersionV& v) {
+          count++;
+          return true;
+        });
 
       size_t i = 0;
-      bool ok = true;
-
-      state1.state.foreach([&state2, &ok, &i](const K& k, const VersionV& v) {
+      bool ok = state1.state.foreach([&state2, &ok, &i](const K& k, const VersionV& v) {
         auto search = state2.state.get(k);
 
         if (search.has_value())
@@ -209,19 +210,20 @@ namespace kv
           auto& found = search.value();
           if (found.version != v.version)
           {
-            ok = false;
+            return false;
           }
           else if (Check::ne(found.value, v.value))
           {
-            ok = false;
+            return false;
           }
         }
         else
         {
-          ok = false;
+          return false;
         }
 
         i++;
+        return true;
       });
 
       if (i != count)
@@ -433,10 +435,10 @@ namespace kv
        * @param F functor, taking a key and a value, return value is ignored
        */
       template <class F>
-      void foreach(F&& f)
+      bool foreach(F&& f)
       {
         if (commit_version != NoVersion)
-          return;
+          return false;
 
         // Record a global read dependency.
         read_version = start_version;
@@ -446,14 +448,17 @@ namespace kv
           auto write = w.find(k);
 
           if ((write == w.end()) && !deleted(v.version))
-            f(k, v.value);
+            return f(k, v.value);
+          return true;
         });
 
         for (auto write = writes.begin(); write != writes.end(); ++write)
         {
           if (!deleted(write->second.version))
-            f(write->first, write->second.value);
+            if (!f(write->first, write->second.value))
+              return false;
         }
+        return true;
       }
 
       Version start_order()

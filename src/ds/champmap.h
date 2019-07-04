@@ -133,13 +133,15 @@ namespace champ
     }
 
     template <class F>
-    void foreach(F&& f) const
+    bool foreach(F&& f) const
     {
       for (const auto& bin : bins)
       {
         for (const auto& entry : bin)
-          f(entry->key, entry->value);
+          if (!f(entry->key, entry->value))
+            return false;
       }
+      return true;
     }
   };
 
@@ -274,21 +276,30 @@ namespace champ
     }
 
     template <class F>
-    void foreach(SmallIndex depth, F&& f) const
+    bool foreach(SmallIndex depth, F&& f) const
     {
       const auto entries = data_map.pop();
       for (SmallIndex i = 0; i < entries; ++i)
       {
         const auto& entry = node_as<Entry<K, V>>(i);
-        f(entry->key, entry->value);
+        if (!f(entry->key, entry->value))
+          return false;
       }
       for (size_t i = entries; i < nodes.size(); ++i)
       {
         if (depth == (collision_depth - 1))
-          node_as<Collisions<K, V, H>>(i)->foreach(std::forward<F>(f));
+        {
+          if (!node_as<Collisions<K, V, H>>(i)->foreach(std::forward<F>(f)))
+            return false;
+        }
         else
-          node_as<SubNodes<K, V, H>>(i)->foreach(depth + 1, std::forward<F>(f));
+        {
+          if (!node_as<SubNodes<K, V, H>>(i)->foreach(
+                depth + 1, std::forward<F>(f)))
+            return false;
+        }
       }
+      return true;
     }
 
   private:
@@ -340,9 +351,9 @@ namespace champ
     }
 
     template <class F>
-    void foreach(F&& f) const
+    bool foreach(F&& f) const
     {
-      root->foreach(0, std::forward<F>(f));
+      return root->foreach(0, std::forward<F>(f));
     }
   };
 }
