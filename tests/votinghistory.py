@@ -7,19 +7,75 @@ import infra.remote
 import json
 import ledger
 import msgpack
+from coincurve.context import GLOBAL_CONTEXT
+from coincurve.ecdsa import deserialize_recoverable, recover
+from coincurve.utils import bytes_to_int, sha256
 
 import cryptography.x509
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.backends import default_backend
 
+# This function calls the native API and does not rely on the
+# imported library's implementation. Though not being used by
+# the current test, it might still be helpful to have this
+# sequence of native calls for verification, in case the
+# imported library's code changes.
+def verify_recover_secp256k1_bc_native(
+    signature, req, hasher=sha256, context=GLOBAL_CONTEXT
+):
+    # Compact
+    native_rec_sig = ffi.new("secp256k1_ecdsa_recoverable_signature *")
+    raw_sig, rec_id = signature[:64], bytes_to_int(signature[64:])
+    lib.secp256k1_ecdsa_recoverable_signature_parse_compact(
+        context.ctx, native_rec_sig, raw_sig, rec_id
+    )
+
+    # Recover public key
+    native_public_key = ffi.new("secp256k1_pubkey *")
+    msg_hash = hasher(req) if hasher is not None else req
+    lib.secp256k1_ecdsa_recover(
+        context.ctx, native_public_key, native_rec_sig, msg_hash
+    )
+
+    # Convert
+    native_standard_sig = ffi.new("secp256k1_ecdsa_signature *")
+    lib.secp256k1_ecdsa_recoverable_signature_convert(
+        context.ctx, native_standard_sig, native_rec_sig
+    )
+
+    # Verify
+    ret = lib.secp256k1_ecdsa_verify(
+        context.ctx, native_standard_sig, msg_hash, native_public_key
+    )
+
+
+def verify_recover_secp256k1_bc(signature, req, hasher=sha256, context=GLOBAL_CONTEXT):
+    msg_hash = hasher(req) if hasher is not None else req
+    rec_sig = coincurve.ecdsa.deserialize_recoverable(signature)
+    public_key = coincurve.PublicKey(coincurve.ecdsa.recover(req, rec_sig))
+    n_sig = coincurve.ecdsa.recoverable_convert(rec_sig)
+
+    if not lib.secp256k1_ecdsa_verify(
+        context.ctx, n_sig, msg_hash, public_key.public_key
+    ):
+        raise RuntimeError("Failed to verify SECP256K1 bitcoin signature")
+
 
 def verify_sig(raw_cert, sig, req):
-    cert = cryptography.x509.load_der_x509_certificate(
-        raw_cert, backend=default_backend()
-    )
-    pub_key = cert.public_key()
-    hash_alg = ec.ECDSA(cert.signature_hash_algorithm)
-    pub_key.verify(sig, req, hash_alg)
+    try:
+        cert = cryptography.x509.load_der_x509_certificate(
+            raw_cert, backend=default_backend()
+        )
+        pub_key = cert.public_key()
+        hash_alg = ec.ECDSA(cert.signature_hash_algorithm)
+        pub_key.verify(sig, req, hash_alg)
+    except cryptography.exceptions.InvalidSignature as e:
+        # we support a non-standard curve, which is also being
+        # used for bitcoin.
+        if curve_name != "secp256k1":
+            raise e
+
+        verify_recover_secp256k1_bc(sig, req)
 
 
 def run(args):
