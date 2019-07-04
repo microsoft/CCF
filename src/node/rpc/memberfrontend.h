@@ -396,20 +396,25 @@ namespace ccf
           return QuoteVerifier::quote_verification_error_to_json(verify_result);
 #endif
         auto nodes_view = args.tx.get_view(this->network.nodes);
-        bool is_duplicate = false;
+        NodeId duplicate_node_id = NoNode;
         // TODO(#api): foreach should check the callback's value and be able to
         // stop once the returned value is false
-        nodes_view->foreach(
-          [&new_node, &is_duplicate](const NodeId& nid, const NodeInfo& ni) {
-            if (
-              !is_duplicate &&
-              (new_node.tlsport == ni.tlsport && new_node.host == ni.host))
-              is_duplicate = true;
-          });
-        if (is_duplicate)
+        nodes_view->foreach([&new_node, &duplicate_node_id](
+                              const NodeId& nid, const NodeInfo& ni) {
+          if (
+            duplicate_node_id == NoNode &&
+            (new_node.tlsport == ni.tlsport && new_node.host == ni.host))
+            duplicate_node_id = nid;
+        });
+        if (duplicate_node_id != NoNode)
           return jsonrpc::error(
             jsonrpc::ErrorCodes::INVALID_PARAMS,
-            "A node with the same host and port already exists");
+            fmt::format(
+              "A node with the same host {} and port {} already exists (node "
+              "id: {})",
+              new_node.host,
+              new_node.tlsport,
+              duplicate_node_id));
         const auto node_id = get_next_id(
           args.tx.get_view(this->network.values), ValueIds::NEXT_NODE_ID);
         new_node.status = NodeStatus::PENDING;

@@ -213,12 +213,9 @@ class Network:
     def remove_node(self):
         last_node = self.nodes.pop()
 
-    def add_node(self, new_node_info, already_exists=False):
+    def add_node(self, new_node_info):
         with self.find_leader()[0].member_client(format="json") as member_client:
             j_result = member_client.rpc("add_node", new_node_info)
-
-        if j_result.error is None and not already_exists:
-            self.create_node(Node(j_result.result["id"], new_node_info["host"]))
 
         return j_result
 
@@ -239,7 +236,7 @@ class Network:
         )
         new_node_info = new_node.remote.info()
 
-        j_result = self.add_node(new_node_info, True)
+        j_result = self.add_node(new_node_info)
 
         if not should_succeed:
             self.remove_node()
