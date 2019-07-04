@@ -446,7 +446,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::readingPublicLedger);
 
-      LOG_INFO_FMT(
+      LOG_DEBUG_FMT(
         "Deserialising public ledger entry ({})", ledger_entry.size());
 
       // When reading the public ledger, deserialise in the real store
