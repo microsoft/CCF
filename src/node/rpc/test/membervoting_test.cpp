@@ -6,6 +6,7 @@
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
 #include "genesisgen/genesisgen.h"
+#include "node/clientsignatures.h"
 #include "node/rpc/jsonrpc.h"
 #include "node/rpc/memberfrontend.h"
 #include "node/rpc/userfrontend.h"
@@ -175,11 +176,10 @@ TEST_CASE("Member query/read")
     do
     {
       Store::Tx tx;
-      auto rep = frontend.process_json(
-        rpc_ctx,
-        tx,
-        mid,
-        create_json_req(query_params(query, compile), "query"));
+      auto req = create_json_req(query_params(query, compile), "query");
+      ccf::SignedReq sr(req);
+
+      auto rep = frontend.process_json(rpc_ctx, tx, mid, req, sr);
       CHECK(rep.has_value());
       const Response<int> r = rep.value();
       CHECK(r.result == value);
@@ -195,11 +195,11 @@ TEST_CASE("Member query/read")
     CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     Store::Tx tx1;
+    auto req = create_json_req(query_params(query, true), "query");
+    ccf::SignedReq sr(req);
+
     check_error(
-      frontend
-        .process_json(
-          rpc_ctx, tx1, 0, create_json_req(query_params(query, true), "query"))
-        .value(),
+      frontend.process_json(rpc_ctx, tx1, 0, req, sr).value(),
       ErrorCodes::SCRIPT_ERROR);
   }
 
@@ -213,7 +213,9 @@ TEST_CASE("Member query/read")
     Store::Tx tx1;
     auto read_call_j =
       create_json_req(read_params<int>(key, Tables::VALUES), "read");
-    auto response = frontend.process_json(rpc_ctx, tx1, mid, read_call_j);
+    ccf::SignedReq sr(read_call_j);
+
+    auto response = frontend.process_json(rpc_ctx, tx1, mid, read_call_j, sr);
     Response<int> r = response.value();
     CHECK(r.result == value);
   }
@@ -229,8 +231,10 @@ TEST_CASE("Member query/read")
     Store::Tx tx1;
     auto read_call_j =
       create_json_req(read_params<int>(wrong_key, Tables::VALUES), "read");
+    ccf::SignedReq sr(read_call_j);
+
     check_error(
-      frontend.process_json(rpc_ctx, tx1, mid, read_call_j).value(),
+      frontend.process_json(rpc_ctx, tx1, mid, read_call_j, sr).value(),
       ErrorCodes::INVALID_PARAMS);
   }
 
@@ -243,8 +247,10 @@ TEST_CASE("Member query/read")
     Store::Tx tx1;
     auto read_call_j =
       create_json_req(read_params<int>(key, Tables::VALUES), "read");
+    ccf::SignedReq sr(read_call_j);
+
     check_error(
-      frontend.process_json(rpc_ctx, tx1, 0, read_call_j).value(),
+      frontend.process_json(rpc_ctx, tx1, 0, read_call_j, sr).value(),
       ErrorCodes::SCRIPT_ERROR);
   }
 }
@@ -307,8 +313,9 @@ TEST_CASE("Add new members until there are 7, then reject")
 
     {
       Store::Tx tx;
+      ccf::SignedReq sr(proposej);
       Response<Proposal::Out> r =
-        frontend.process_json(rpc_ctx, tx, 0, proposej).value();
+        frontend.process_json(rpc_ctx, tx, 0, proposej, sr).value();
       // the proposal should be accepted, but not succeed immediately
       CHECK(r.result.id == proposal_id);
       CHECK(r.result.completed == false);
@@ -331,7 +338,9 @@ TEST_CASE("Add new members until there are 7, then reject")
     // vote from second member
     Store::Tx tx;
     enclave::RPCContext mem_rpc_ctx(0, member_caller);
-    Response<bool> r = frontend.process_json(mem_rpc_ctx, tx, 1, votej).value();
+    ccf::SignedReq sr(votej);
+    Response<bool> r =
+      frontend.process_json(mem_rpc_ctx, tx, 1, votej["req"], sr).value();
     if (new_member.id < max_members)
     {
       // vote should succeed
@@ -425,8 +434,10 @@ TEST_CASE("Accept node")
     Store::Tx tx;
     auto read_values_j =
       create_json_req(read_params<int>(node_id, Tables::NODES), "read");
+    ccf::SignedReq sr(read_values_j);
+
     Response<NodeInfo> r =
-      frontend.process_json(rpc_ctx, tx, mid0, read_values_j).value();
+      frontend.process_json(rpc_ctx, tx, mid0, read_values_j, sr).value();
     CHECK(r.result.status == NodeStatus::PENDING);
   }
   // m0 proposes adding new node
@@ -437,10 +448,11 @@ TEST_CASE("Accept node")
     )xxx");
 
     json proposej = create_json_req(Proposal::In{proposal, node_id}, "propose");
+    ccf::SignedReq sr(proposej);
 
     Store::Tx tx;
     Response<Proposal::Out> r =
-      frontend.process_json(rpc_ctx, tx, mid0, proposej).value();
+      frontend.process_json(rpc_ctx, tx, mid0, proposej, sr).value();
     CHECK(!r.result.completed);
     CHECK(r.result.id == 0);
   }
@@ -452,16 +464,21 @@ TEST_CASE("Accept node")
        )xxx");
 
     json votej = create_json_req_signed(Vote{0, vote_ballot}, "vote", kp);
+    ccf::SignedReq sr(votej);
+
     Store::Tx tx;
-    check_success(frontend.process_json(rpc_ctx, tx, mid1, votej).value());
+    check_success(
+      frontend.process_json(rpc_ctx, tx, mid1, votej["req"], sr).value());
   }
   // check node exists with status pending
   {
     Store::Tx tx;
     auto read_values_j =
       create_json_req(read_params<int>(node_id, Tables::NODES), "read");
+    ccf::SignedReq sr(read_values_j);
+
     Response<NodeInfo> r =
-      frontend.process_json(rpc_ctx, tx, mid0, read_values_j).value();
+      frontend.process_json(rpc_ctx, tx, mid0, read_values_j, sr).value();
     CHECK(r.result.status == NodeStatus::TRUSTED);
   }
 }
@@ -489,9 +506,11 @@ bool test_raw_writes(
   {
     const uint8_t proposer_id = 0;
     json proposej = create_json_req(proposal, "propose");
+    ccf::SignedReq sr(proposej);
+
     Store::Tx tx;
     Response<Proposal::Out> r =
-      frontend.process_json(rpc_ctx, tx, proposer_id, proposej).value();
+      frontend.process_json(rpc_ctx, tx, proposer_id, proposej, sr).value();
     CHECK(r.result.completed == (n_members == 1));
     CHECK(r.result.id == proposal_id);
     if (r.result.completed)
@@ -504,9 +523,12 @@ bool test_raw_writes(
     enclave::RPCContext mem_rpc_ctx(0, mem_cert);
     const Script vote("return false");
     json votej = create_json_req_signed(Vote{proposal_id, vote}, "vote", kp);
+    ccf::SignedReq sr(votej);
+
     Store::Tx tx;
     check_success(
-      frontend.process_json(mem_rpc_ctx, tx, i, votej).value(), false);
+      frontend.process_json(mem_rpc_ctx, tx, i, votej["req"], sr).value(),
+      false);
   }
   // pro votes (proposer also votes)
   bool completed = false;
@@ -514,20 +536,23 @@ bool test_raw_writes(
   {
     const Script vote("return true");
     json votej = create_json_req_signed(Vote{proposal_id, vote}, "vote", kp);
+    ccf::SignedReq sr(votej);
+
     Store::Tx tx;
     auto mem_cert = get_cert_data(i, kp);
     enclave::RPCContext mem_rpc_ctx(0, mem_cert);
     if (!completed)
     {
       completed =
-        Response<bool>(frontend.process_json(mem_rpc_ctx, tx, i, votej).value())
+        Response<bool>(
+          frontend.process_json(mem_rpc_ctx, tx, i, votej["req"], sr).value())
           .result;
     }
     else
     {
       // proposal does not exist anymore, because it completed -> invalid params
       check_error(
-        frontend.process_json(mem_rpc_ctx, tx, i, votej).value(),
+        frontend.process_json(mem_rpc_ctx, tx, i, votej["req"], sr).value(),
         ErrorCodes::INVALID_PARAMS);
     }
   }
@@ -650,10 +675,11 @@ TEST_CASE("Remove proposal")
   {
     json proposej =
       create_json_req(Proposal::In{proposal_script, 0}, "propose");
+    ccf::SignedReq sr(proposej);
 
     Store::Tx tx;
     Response<Proposal::Out> r =
-      frontend.process_json(rpc_ctx, tx, 0, proposej).value();
+      frontend.process_json(rpc_ctx, tx, 0, proposej, sr).value();
     CHECK(r.result.id == proposal_id);
     CHECK(!r.result.completed);
   }
@@ -670,8 +696,10 @@ TEST_CASE("Remove proposal")
     json param;
     param["id"] = wrong_proposal_id;
     json removalj = create_json_req(param, "removal");
+    ccf::SignedReq sr(removalj);
+
     check_error(
-      frontend.process_json(rpc_ctx, tx, 0, removalj).value(),
+      frontend.process_json(rpc_ctx, tx, 0, removalj, sr).value(),
       ErrorCodes::INVALID_PARAMS);
   }
   SUBCASE("Attempt remove proposal that you didn't propose")
@@ -680,8 +708,10 @@ TEST_CASE("Remove proposal")
     json param;
     param["id"] = proposal_id;
     json removalj = create_json_req(param, "removal");
+    ccf::SignedReq sr(removalj);
+
     check_error(
-      frontend.process_json(rpc_ctx, tx, 1, removalj).value(),
+      frontend.process_json(rpc_ctx, tx, 1, removalj, sr).value(),
       ErrorCodes::INVALID_REQUEST);
   }
   SUBCASE("Successfully remove proposal")
@@ -690,7 +720,9 @@ TEST_CASE("Remove proposal")
     json param;
     param["id"] = proposal_id;
     json removalj = create_json_req(param, "removal");
-    check_success(frontend.process_json(rpc_ctx, tx, 0, removalj).value());
+    ccf::SignedReq sr(removalj);
+
+    check_success(frontend.process_json(rpc_ctx, tx, 0, removalj, sr).value());
     // check that the proposal doesn't exist anymore
     {
       Store::Tx tx;
@@ -712,9 +744,11 @@ TEST_CASE("Complete proposal after initial rejection")
     const auto proposal =
       "return Calls:call('raw_puts', Puts:put('values', 999, 999))"s;
     const auto proposej = create_json_req(Proposal::In{proposal}, "propose");
+    ccf::SignedReq sr(proposej);
+
     Store::Tx tx;
     Response<Proposal::Out> r =
-      frontend.process_json(rpc_ctx, tx, 0, proposej).value();
+      frontend.process_json(rpc_ctx, tx, 0, proposej, sr).value();
     CHECK(r.result.completed == false);
   }
   // vote that rejects initially
@@ -724,15 +758,20 @@ TEST_CASE("Complete proposal after initial rejection")
     return tables["values"]:get(123) == 123
     )xxx");
     const auto votej = create_json_req_signed(Vote{0, vote}, "vote", kp);
+    ccf::SignedReq sr(votej);
+
     Store::Tx tx;
-    check_success(frontend.process_json(rpc_ctx, tx, 1, votej).value(), false);
+    check_success(
+      frontend.process_json(rpc_ctx, tx, 1, votej["req"], sr).value(), false);
   }
   // try to complete
   {
     const auto completej = create_json_req(ProposalAction{0}, "complete");
+    ccf::SignedReq sr(completej);
+
     Store::Tx tx;
     check_error(
-      frontend.process_json(rpc_ctx, tx, 1, completej).value(),
+      frontend.process_json(rpc_ctx, tx, 1, completej, sr).value(),
       ErrorCodes::DENIED);
   }
   // put value that makes vote agree
@@ -744,8 +783,10 @@ TEST_CASE("Complete proposal after initial rejection")
   // try again to complete
   {
     const auto completej = create_json_req(ProposalAction{0}, "complete");
+    ccf::SignedReq sr(completej);
+
     Store::Tx tx;
-    check_success(frontend.process_json(rpc_ctx, tx, 1, completej).value());
+    check_success(frontend.process_json(rpc_ctx, tx, 1, completej, sr).value());
   }
 }
 
@@ -767,10 +808,11 @@ TEST_CASE("Add user via proposed call")
 
   const vector<uint8_t> user_cert = {1, 2, 3};
   json proposej = create_json_req(Proposal::In{proposal, user_cert}, "propose");
+  ccf::SignedReq sr(proposej);
 
   Store::Tx tx;
   Response<Proposal::Out> r =
-    frontend.process_json(rpc_ctx, tx, 0, proposej).value();
+    frontend.process_json(rpc_ctx, tx, 0, proposej, sr).value();
   CHECK(r.result.completed);
   CHECK(r.result.id == 0);
 

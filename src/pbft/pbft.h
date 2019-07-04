@@ -4,14 +4,18 @@
 
 #include "ds/logger.h"
 #include "kv/kvtypes.h"
+#include "libbyz/Big_req_table.h"
+#include "libbyz/Client_proxy.h"
 #include "libbyz/libbyz.h"
 #include "libbyz/network.h"
 #include "libbyz/receive_message_base.h"
 #include "node/nodetypes.h"
-#include "pbft/pbft_deps.h"
+#include "node/rpc/jsonrpc.h"
+#include "pbft/pbft_config.h"
 
 #include <list>
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 namespace pbft
@@ -78,6 +82,8 @@ namespace pbft
     IMessageReceiveBase* message_receiver_base = nullptr;
     char* mem;
     std::unique_ptr<INetwork> pbft_network;
+    std::unique_ptr<AbstractPBFTConfig> pbft_config;
+    kv::TxHistory::CallbackHandler on_request;
 
     struct NodeConfiguration
     {
@@ -129,25 +135,52 @@ namespace pbft
       mem = (char*)malloc(mem_size);
       bzero(mem, mem_size);
 
-      auto exec_command = ([](
-                             Byz_req* inb,
-                             Byz_rep* outb,
-                             _Byz_buffer* non_det,
-                             int client,
-                             bool ro,
-                             Seqno n) { return 0; });
-
       pbft_network = std::make_unique<PbftEnclaveNetwork>(local_id, channels);
+      pbft_config = std::make_unique<PbftConfigCcf>();
 
-      Byz_init_replica(
+      auto used_bytes = Byz_init_replica(
         node_info,
         mem,
         mem_size,
-        exec_command,
+        pbft_config->get_exec_command(),
         0,
         0,
         pbft_network.get(),
         &message_receiver_base);
+
+      pbft_config->set_service_mem(mem + used_bytes);
+
+      LOG_INFO_FMT("Setting up client proxy");
+      static auto client_proxy =
+        std::make_unique<ClientProxy<CallerId, void>>(*message_receiver_base);
+
+      auto cb = [](Reply* m, void* ctx) {
+        auto cp = static_cast<ClientProxy<CallerId, void>*>(ctx);
+        cp->recv_reply(m);
+      };
+
+      message_receiver_base->register_reply_handler(cb, client_proxy.get());
+
+      on_request = [&](kv::TxHistory::CallbackArgs args) {
+        auto caller = std::get<0>(args.id);
+        auto session = std::get<1>(args.id);
+        auto jsonrpc_id = std::get<2>(args.id);
+
+        auto total_req_size = pbft_config->message_size() + args.data.size();
+
+        uint8_t request_buffer[total_req_size];
+        pbft_config->fill_request(
+          request_buffer, total_req_size, args.data, jsonrpc_id);
+
+        Time t = ITimer::current_time();
+
+        client_proxy->send_request(
+          t,
+          request_buffer,
+          sizeof(request_buffer),
+          nullptr,
+          client_proxy.get());
+      };
     }
 
     NodeId leader() override
@@ -178,6 +211,11 @@ namespace pbft
     Term get_term(Index idx) override
     {
       return 0;
+    }
+
+    kv::TxHistory::CallbackHandler get_on_request()
+    {
+      return on_request;
     }
 
     void add_configuration(const NodeConfiguration& node_conf)
@@ -224,7 +262,6 @@ namespace pbft
           message_receiver_base->receive_message(data, size);
           break;
         default:
-        {}
       }
     }
   };

@@ -98,8 +98,11 @@ namespace ccf
 
     void update_history()
     {
-      if (history == nullptr)
-        history = tables.get_history().get();
+      // TODO: removed for now because frontend needs access to history
+      // during recovery, on RPC, when not primary. Can be changed back once
+      // frontend calls into Consensus.
+      // if (history == nullptr)
+      history = tables.get_history().get();
     }
 
     std::pair<bool, nlohmann::json> unpack_json(
@@ -443,7 +446,7 @@ namespace ccf
 
     /** Process a serialised command with the associated caller certificate
      *
-     * If a RPC that requires writing to the kv store is processed on a
+     * If an RPC that requires writing to the kv store is processed on a
      * follower, the serialised RPC is forwarded to the current network leader.
      *
      * @param ctx Context for this RPC
@@ -474,10 +477,48 @@ namespace ccf
       }
 
       auto rpc = unpack_json(input, ctx.pack.value());
+
       if (!rpc.first)
         return jsonrpc::pack(rpc.second, ctx.pack.value());
 
-      auto rep = process_json(ctx, tx, caller_id.value(), rpc.second);
+      auto rpc_ = &rpc.second;
+      SignedReq signed_request(rpc.second);
+      if (rpc_->find(jsonrpc::SIG) != rpc_->end())
+      {
+        auto& req = rpc_->at(jsonrpc::REQ);
+
+        if (!verify_client_signature(
+              tx,
+              ctx.caller_cert,
+              caller_id.value(),
+              *rpc_,
+              ctx.fwd.has_value(),
+              signed_request))
+        {
+          return jsonrpc::pack(
+            jsonrpc::error_response(
+              req.at(jsonrpc::ID),
+              jsonrpc::ErrorCodes::INVALID_CLIENT_SIGNATURE,
+              "Failed to verify client signature."),
+            ctx.pack.value());
+        }
+        rpc_ = &req;
+      }
+      auto& unsigned_rpc = *rpc_;
+
+      kv::TxHistory::RequestID reqid;
+
+      update_history();
+      size_t jsonrpc_id = unsigned_rpc[jsonrpc::ID];
+      reqid = {caller_id.value(), ctx.client_session_id, jsonrpc_id};
+      if (history)
+      {
+        history->add_request(reqid, input);
+        tx.set_req_id(reqid);
+      }
+
+      auto rep =
+        process_json(ctx, tx, caller_id.value(), unsigned_rpc, signed_request);
 
       // If necessary, forward the RPC to the current leader
       if (!rep.has_value())
@@ -506,7 +547,12 @@ namespace ccf
           ctx.pack.value());
       }
 
-      return jsonrpc::pack(rep.value(), ctx.pack.value());
+      auto rv = jsonrpc::pack(rep.value(), ctx.pack.value());
+
+      if (history)
+        history->add_response(reqid, rv);
+
+      return rv;
     }
 
     /** Process a serialised input that has been forwarded from another node
@@ -560,7 +606,19 @@ namespace ccf
       if (!rpc.first)
         return jsonrpc::pack(rpc.second, pack.value());
 
-      auto rep = process_json(ctx, tx, ctx.fwd->caller_id, rpc.second);
+      // Unwrap signed request if necessary
+      auto rpc_ = &rpc.second;
+      SignedReq signed_request(rpc.second);
+
+      if (rpc_->find(jsonrpc::SIG) != rpc_->end())
+      {
+        auto& req = rpc_->at(jsonrpc::REQ);
+        rpc_ = &req;
+      }
+      auto& unsigned_rpc = *rpc_;
+
+      auto rep =
+        process_json(ctx, tx, ctx.fwd->caller_id, unsigned_rpc, signed_request);
       if (!rep.has_value())
       {
         // This should never be called when process_json is called with a
@@ -575,33 +633,9 @@ namespace ccf
       enclave::RPCContext& ctx,
       Store::Tx& tx,
       CallerId caller_id,
-      const nlohmann::json& full_rpc)
+      const nlohmann::json& rpc,
+      const SignedReq& signed_request)
     {
-      auto rpc_ = &full_rpc;
-      SignedReq signed_request;
-      if (full_rpc.find(jsonrpc::SIG) != full_rpc.end())
-      {
-        const auto& req = full_rpc.at(jsonrpc::REQ);
-
-        // TODO(#important): Signature should only be verified for a Write
-        // RPC
-        if (!verify_client_signature(
-              tx,
-              ctx.caller_cert,
-              caller_id,
-              full_rpc,
-              ctx.fwd.has_value(),
-              signed_request))
-        {
-          return jsonrpc::error_response(
-            req.at(jsonrpc::ID),
-            jsonrpc::ErrorCodes::INVALID_CLIENT_SIGNATURE,
-            "Failed to verify client signature.");
-        }
-        rpc_ = &req;
-      }
-      auto& rpc = *rpc_;
-
       std::string method = rpc.at(jsonrpc::METHOD);
       ctx.req.seq_no = rpc.at(jsonrpc::ID);
 

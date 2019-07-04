@@ -1186,6 +1186,10 @@ namespace ccf
         node_kp,
         network.signatures,
         network.nodes);
+#ifdef PBFT
+      if (pbft)
+        history->register_on_request(pbft->get_on_request());
+#endif
 
       encryptor =
 #ifdef USE_NULL_ENCRYPTOR

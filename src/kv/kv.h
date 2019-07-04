@@ -856,6 +856,8 @@ namespace kv
     Version version;
     bool read_globally_committed = false;
 
+    kv::TxHistory::RequestID req_id;
+
     template <class M>
     std::tuple<typename M::TxView*> get_tuple(M& m)
     {
@@ -907,6 +909,11 @@ namespace kv
     {}
 
     Tx(const Tx& that) = delete;
+
+    void set_req_id(const kv::TxHistory::RequestID& req_id_)
+    {
+      req_id = req_id_;
+    }
 
     /** Version for the transaction set
      *
@@ -988,10 +995,11 @@ namespace kv
 
       return store->commit(
         version,
-        [data = std::move(
-           data)]() -> std::pair<CommitSuccess, std::vector<uint8_t>> {
-          return {CommitSuccess::OK, std::move(data)};
-        },
+        [data = std::move(data), req_id = std::move(req_id)]()
+          -> std::
+            tuple<CommitSuccess, TxHistory::RequestID, std::vector<uint8_t>> {
+              return {CommitSuccess::OK, std::move(req_id), std::move(data)};
+            },
         false);
     }
 
@@ -1117,7 +1125,8 @@ namespace kv
     {}
 
     // Used by frontend to commit reserved transactions
-    std::pair<CommitSuccess, std::vector<uint8_t>> commit_reserved()
+    std::tuple<CommitSuccess, TxHistory::RequestID, std::vector<uint8_t>>
+    commit_reserved()
     {
       if (committed)
         throw std::logic_error("Transaction already committed");
@@ -1134,7 +1143,7 @@ namespace kv
         throw std::logic_error("Failed to commit reserved transaction");
 
       auto data = serialise();
-      return {CommitSuccess::OK, std::move(data)};
+      return {CommitSuccess::OK, {0, 0, 0}, std::move(data)};
     }
 
     // Set all reads on transaction to read at the global commit version,
@@ -1593,7 +1602,7 @@ namespace kv
             break;
 
           auto& [pending_tx_, committable_] = search->second;
-          auto [success_, data_] = pending_tx_();
+          auto [success_, reqid, data_] = pending_tx_();
 
           // NB: this cannot happen currently. Regular Tx only make it here if
           // they did succeed, and signatures cannot conflict because they
@@ -1603,7 +1612,9 @@ namespace kv
             LOG_DEBUG_FMT("Failed Tx commit {}", last_replicated + offset);
 
           if (h)
-            h->append(data_);
+          {
+            h->add_result(reqid, version, data_);
+          }
 
           LOG_DEBUG_FMT(
             "Batching {} ({})", last_replicated + offset, data_.size());

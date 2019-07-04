@@ -5,6 +5,7 @@
 #include "../crypto/hash.h"
 #include "../ds/logger.h"
 #include "../kv/kvtypes.h"
+#include "../pbft/pbfttypes.h"
 #include "../tls/keypair.h"
 #include "../tls/tls.h"
 #include "entities.h"
@@ -29,6 +30,30 @@ extern "C"
 #  include <evercrypt/MerkleTree.h>
 
 #endif
+}
+
+namespace fmt
+{
+  template <>
+  struct formatter<kv::TxHistory::RequestID>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const kv::TxHistory::RequestID& p, FormatContext& ctx)
+    {
+      return format_to(
+        ctx.out(),
+        "<RID {0}, {1}, {2}>",
+        std::get<0>(p),
+        std::get<1>(p),
+        std::get<2>(p));
+    }
+  };
 }
 
 namespace ccf
@@ -116,6 +141,25 @@ namespace ccf
         },
         true);
     }
+
+    void add_request(
+      kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override
+    {}
+    void add_result(
+      kv::TxHistory::RequestID id,
+      kv::Version version,
+      const std::vector<uint8_t>& data) override
+    {}
+    void add_response(
+      kv::TxHistory::RequestID id,
+      const std::vector<uint8_t>& response) override
+    {}
+
+    void register_on_request(CallbackHandler func) override {}
+
+    void register_on_result(CallbackHandler func) override {}
+
+    void register_on_response(CallbackHandler func) override {}
   };
 
   class MerkleTreeHistory
@@ -189,6 +233,13 @@ namespace ccf
 
     std::shared_ptr<kv::Replicator> replicator;
 
+    std::map<RequestID, std::vector<uint8_t>> requests;
+    std::map<RequestID, std::pair<kv::Version, crypto::Sha256Hash>> results;
+    std::map<RequestID, std::vector<uint8_t>> responses;
+    std::optional<CallbackHandler> on_request;
+    std::optional<CallbackHandler> on_result;
+    std::optional<CallbackHandler> on_response;
+
   public:
     HashedTxHistory(
       Store& store_,
@@ -202,6 +253,21 @@ namespace ccf
       signatures(sig_),
       nodes(nodes_)
     {}
+
+    void register_on_request(CallbackHandler func) override
+    {
+      on_request = func;
+    }
+
+    void register_on_result(CallbackHandler func) override
+    {
+      on_result = func;
+    }
+
+    void register_on_response(CallbackHandler func) override
+    {
+      on_response = func;
+    }
 
     void set_node_id(NodeId id_)
     {
@@ -282,6 +348,36 @@ namespace ccf
           return sig.commit_reserved();
         },
         true);
+    }
+
+    void add_request(
+      kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override
+    {
+      LOG_DEBUG << fmt::format("HISTORY: add_request {0}", id) << std::endl;
+      requests[id] = request;
+      if (on_request.has_value())
+        on_request.value()({id, request, -1});
+    }
+
+    void add_result(
+      kv::TxHistory::RequestID id,
+      kv::Version version,
+      const std::vector<uint8_t>& data) override
+    {
+      append(data);
+      auto root = get_root();
+      LOG_DEBUG << fmt::format(
+                     "HISTORY: add_result {0} {1} {2}", id, version, root)
+                << std::endl;
+      results[id] = {version, root};
+    }
+
+    void add_response(
+      kv::TxHistory::RequestID id,
+      const std::vector<uint8_t>& response) override
+    {
+      LOG_DEBUG << fmt::format("HISTORY: add_response {0}", id) << std::endl;
+      responses[id] = response;
     }
   };
 
