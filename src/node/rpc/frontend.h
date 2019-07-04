@@ -519,7 +519,7 @@ namespace ccf
       reqid = {caller_id.value(), ctx.client_session_id, jsonrpc_id};
       if (history)
       {
-        history->add_request(reqid, input);
+        history->add_request(reqid, ctx.actor, input);
         tx.set_req_id(reqid);
       }
 
@@ -559,11 +559,13 @@ namespace ccf
       // if (history)
       //   history->add_response(reqid, rv);
 
-      LOG_INFO << "About to process json" << std::endl;
-      auto rep = process_json(
-        ctx, tx, caller_id.value(), unsigned_rpc, signed_request, false);
+      // TODO: Remove this
+      // LOG_INFO << "About to process json" << std::endl;
+      // auto rep = process_json(
+      //   ctx, tx, caller_id.value(), unsigned_rpc, signed_request, false);
 
-      return jsonrpc::pack(rep.value(), jsonrpc::Pack::MsgPack);
+      // return jsonrpc::pack(rep.value(), jsonrpc::Pack::MsgPack);
+      return {};
     }
 
     void process_pbft(const std::vector<uint8_t>& input) override
@@ -897,7 +899,6 @@ namespace ccf
           return;
         }
 
-        LOG_INFO << "Signature is emitted by timer" << std::endl;
         ms_to_sig = sig_max_ms;
         if (history && tables.commit_gap() > 0)
           history->emit_signature();

@@ -90,10 +90,11 @@ namespace enclave
       uint8_t* quote,
       size_t quote_size,
       size_t* quote_len,
+      size_t node_id,
       bool recover_)
     {
       recover = recover_;
-      auto r = node.create_new({recover, quote_size});
+      auto r = node.create_new({node_id, recover, quote_size});
       if (!r.second)
         return false;
 

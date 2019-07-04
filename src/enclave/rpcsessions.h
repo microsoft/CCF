@@ -89,6 +89,8 @@ namespace enclave
           "reply async for unknown session: " + std::to_string(id));
       }
 
+      LOG_INFO << "Replying to session " << id << " with reply of size "
+               << data.size() << std::endl;
       search->second->send(data);
     }
 

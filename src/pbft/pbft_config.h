@@ -18,7 +18,8 @@ namespace pbft
       uint8_t* buffer,
       size_t total_req_size,
       const std::vector<uint8_t>& data,
-      size_t jsonrpc_id) = 0;
+      size_t jsonrpc_id,
+      uint64_t actor) = 0;
   };
 
   char* AbstractPbftConfig::service_mem = 0;
@@ -26,6 +27,9 @@ namespace pbft
   class PbftConfigCcf : public AbstractPbftConfig
   {
   public:
+    PbftConfigCcf(std::shared_ptr<enclave::RpcMap> rpc_map_) : rpc_map(rpc_map_)
+    {}
+
     ~PbftConfigCcf() = default;
 
     void set_service_mem(char* sm) override
@@ -47,85 +51,66 @@ namespace pbft
       uint8_t* buffer,
       size_t total_req_size,
       const std::vector<uint8_t>& data,
-      size_t jsonrpc_id) override
+      size_t jsonrpc_id,
+      uint64_t actor) override
     {
-      auto request = new (buffer) ccf_req;
-      request->jsonrpc_id = jsonrpc_id;
-      auto array_size = request->get_array_size(total_req_size);
-
-      for (size_t j = 0; j < array_size; j++)
-      {
-        memcpy(&request->get_counter_array()[j], &data[j], sizeof(uint8_t));
-      }
+      serialized::write(buffer, total_req_size, jsonrpc_id);
+      serialized::write(buffer, total_req_size, actor);
+      serialized::write(buffer, total_req_size, data.data(), data.size());
     }
 
   private:
+    std::shared_ptr<enclave::RpcMap> rpc_map;
+
     struct ccf_req
     {
       size_t jsonrpc_id;
+      ccf::ActorsType actor;
 
-      uint8_t* get_counter_array()
+      uint8_t* get_data()
       {
         return (uint8_t*)((uintptr_t)this + sizeof(ccf_req));
       }
 
-      size_t get_array_size(size_t total_size)
+      size_t get_size(size_t total_size)
       {
         if (total_size < sizeof(ccf_req))
         {
           return 0;
         }
-        return (total_size - sizeof(ccf_req)) / sizeof(uint8_t);
+        return total_size - sizeof(ccf_req);
       }
     };
 
-    // TODO (#pbft) this is an example exec_command to ge the integration
-    // started. For now it just takes as input (inb) the json-rpc id and the
-    // json-rpc command. This will be refactored and completed in the upcoming
-    // pull requests
-    ExecCommand exec_command = [](
+    ExecCommand exec_command = [this](
                                  Byz_req* inb,
                                  Byz_rep* outb,
                                  _Byz_buffer* non_det,
                                  int client,
                                  bool ro,
                                  Seqno total_requests_executed) {
-      Long& counter = *(Long*)service_mem;
+      LOG_INFO << "<<<< START exec_command() >>>>" << std::endl;
 
-      Byz_modify(&counter, sizeof(counter));
-      counter++;
-
-      if (total_requests_executed != counter)
-      {
-        LOG_FATAL_FMT(
-          "total requests executed: {} not equal to exec command counter: {}",
-          total_requests_executed,
-          counter);
-        throw std::logic_error(
-          "Total requests executed not equal to exec command counter");
-      }
-
-      if (total_requests_executed % 100 == 0)
-      {
-        LOG_INFO_FMT("total requests executed {}", total_requests_executed);
-      }
-
-      LOG_INFO_FMT("request inb size: {}", inb->size);
-
+      // TODO: Do the unpacking of the request the CCF way
       auto request = new (inb->contents) ccf_req;
 
       LOG_INFO_FMT("received request with jsonrpc id: {}", request->jsonrpc_id);
+      LOG_INFO_FMT("received request with actor: {}", request->actor);
 
-      auto size_of_array = request->get_array_size(inb->size);
-      std::vector<uint8_t> data(size_of_array);
-      for (size_t j = 0; j < size_of_array; j++)
-      {
-        memcpy(&data[j], &request->get_counter_array()[j], sizeof(uint8_t));
-      }
+      auto handler = this->rpc_map->find(request->actor);
+      if (!handler.has_value())
+        throw std::logic_error("No frontend in pbft exec_command");
 
-      Byz_modify(outb->contents, 8);
-      bzero(outb->contents, 8);
-      outb->size = 8;
+      auto user_frontend = handler.value();
+
+      // TODO: Also pass the transaction object and rpc_ctx used earlier on to
+      // verify the caller/signature
+      user_frontend->process_pbft(
+        {request->get_data(),
+         request->get_data() + request->get_size(inb->size)});
+
+      LOG_INFO << "<<<< END exec_command() >>>>" << std::endl;
+
       return 0;
     };
   };

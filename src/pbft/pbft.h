@@ -4,6 +4,7 @@
 
 #include "ds/logger.h"
 #include "enclave/rpcmap.h" // TODO: This include is probably not ideal.
+#include "enclave/rpcsessions.h"
 #include "kv/kvtypes.h"
 #include "libbyz/Big_req_table.h"
 #include "libbyz/Client_proxy.h"
@@ -37,9 +38,23 @@ namespace pbft
       return true;
     }
 
+    void set_receiver(IMessageReceiveBase* receiver)
+    {
+      message_receiver_base = receiver;
+    }
+
     int Send(Message* msg, IPrincipal& principal) override
     {
       NodeId to = principal.pid();
+      if (to == id)
+      {
+        LOG_INFO << "Do not go through network if sending a message to yourself"
+                 << std::endl;
+        auto data = (const uint8_t*)(msg->contents());
+        message_receiver_base->receive_message(data, msg->size());
+        return msg->size();
+      }
+
       PbftHeader hdr = {PbftMsgType::pbft_message, id};
 
       // TODO: Encrypt msg here
@@ -71,6 +86,7 @@ namespace pbft
 
   private:
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
+    IMessageReceiveBase* message_receiver_base = nullptr;
     NodeId id;
   };
 
@@ -81,11 +97,11 @@ namespace pbft
     NodeId local_id;
     std::shared_ptr<ChannelProxy> channels;
     IMessageReceiveBase* message_receiver_base = nullptr;
-    std::shared_ptr<enclave::RpcMap> rpc_map;
     char* mem;
-    std::unique_ptr<INetwork> pbft_network;
+    std::unique_ptr<PbftEnclaveNetwork> pbft_network;
     std::unique_ptr<AbstractPbftConfig> pbft_config;
     kv::TxHistory::CallbackHandler on_request;
+    enclave::RPCSessions& rpcsessions;
 
     struct NodeConfiguration
     {
@@ -98,32 +114,12 @@ namespace pbft
     Pbft(
       std::shared_ptr<ChannelProxy> channels_,
       NodeId id,
-      std::shared_ptr<enclave::RpcMap> rpc_map_) :
+      std::shared_ptr<enclave::RpcMap> rpc_map,
+      enclave::RPCSessions& rpcsessions_) :
       local_id(id),
       channels(channels_),
-      rpc_map(rpc_map_)
+      rpcsessions(rpcsessions_)
     {
-      // callbacks[pbft::Callbacks::ON_REQUEST] =
-      //   [&](kv::TxHistory::CallbackArgs args) {
-      //     auto caller = std::get<0>(args.id);
-      //     auto session = std::get<1>(args.id);
-      //     auto version = std::get<2>(args.id);
-
-      //     LOG_INFO << "*************** ON_REQUEST" << std::endl;
-      //     if (session > 4)
-      //     {
-      //       LOG_INFO << "receiving request" << std::endl;
-      //       message_receiver_base->receive_request(
-      //         args.data.data(), args.data.size(), version);
-      //       LOG_INFO << "v: " << args.version << std::endl;
-      //       LOG_INFO << "data size: " << args.data.size() << std::endl;
-      //       LOG_INFO << "session: " << session << std::endl;
-      //     }
-      //     else
-      //     {
-      //       LOG_INFO << "SKIPPING PBFT CALLBACK BECAUSE TOO EARLY" << std::endl;
-      //     }
-      //   };
       LOG_INFO_FMT("Setting up PBFT replica for node with id: {}", local_id);
 
       // configure replica
@@ -162,37 +158,8 @@ namespace pbft
       mem = (char*)malloc(mem_size);
       bzero(mem, mem_size);
 
-      auto exec_command = ([node_info, this](
-                             Byz_req* inb,
-                             Byz_rep* outb,
-                             _Byz_buffer* non_det,
-                             int client,
-                             bool ro,
-                             Seqno n) {
-        LOG_INFO << "<<<< START exec_command() >>>>" << std::endl;
-
-        LOG_INFO << "This is node " << node_info.own_info.id << std::endl;
-
-        // TODO: Support all frontends
-        auto handler = this->rpc_map->find(ccf::ActorsType::users);
-        if (!handler.has_value())
-          throw std::logic_error("No user frontend in pbft exec_command");
-
-        auto user_frontend = handler.value();
-
-        // Extract request
-        LOG_INFO << "Size of request is " << inb->size << std::endl;
-
-        // TODO: Also pass the transaction object and rpc_ctx used earlier on to
-        // verify the caller/signature
-        user_frontend->process_pbft({inb->contents, inb->contents + inb->size});
-
-        LOG_INFO << "<<<< END exec_command() >>>>" << std::endl;
-        return 0;
-      });
-
       pbft_network = std::make_unique<PbftEnclaveNetwork>(local_id, channels);
-      pbft_config = std::make_unique<PbftConfigCcf>();
+      pbft_config = std::make_unique<PbftConfigCcf>(rpc_map);
 
       auto used_bytes = Byz_init_replica(
         node_info,
@@ -205,6 +172,7 @@ namespace pbft
         &message_receiver_base);
 
       pbft_config->set_service_mem(mem + used_bytes);
+      pbft_network->set_receiver(message_receiver_base);
 
       LOG_INFO_FMT("Setting up client proxy");
       static auto client_proxy =
@@ -226,15 +194,41 @@ namespace pbft
 
         uint8_t request_buffer[total_req_size];
         pbft_config->fill_request(
-          request_buffer, total_req_size, args.data, jsonrpc_id);
+          request_buffer, total_req_size, args.data, jsonrpc_id, args.actor);
+
+        auto rep_cb = [&](
+                        void* owner,
+                        uint64_t caller_rid,
+                        int status,
+                        uint8_t* reply,
+                        size_t len) {
+          LOG_INFO << "Client proxy, rep_cb!!! " << caller_rid << std::endl;
+
+          Reply* reply_object = (Reply*)reply;
+
+          // TODO: This does not work yet (for the first transaction) for some
+          // reason, it seems that the reply is empty and does not contain the
+          // right reply
+
+          // TODO: Session ID should be retrieved from the request ID
+          size_t session_id = 2;
+
+          // In the case of pending transactions (i.e. a full round of PBFT),
+          // the rpc context should be marked as pending
+          rpcsessions.reply_async(
+            session_id,
+            {reply_object->contents(),
+             reply_object->contents() + reply_object->size()});
+        };
 
         Time t = ITimer::current_time();
 
+        LOG_INFO << "******** CLIENT PROXY, SENDING REQUEST " << std::endl;
         client_proxy->send_request(
           t,
           request_buffer,
           sizeof(request_buffer),
-          nullptr,
+          rep_cb,
           client_proxy.get());
       };
     }

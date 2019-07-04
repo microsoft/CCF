@@ -9,6 +9,7 @@ enclave {
             [out, count=quote_size] uint8_t * quote,
             size_t quote_size,
             [out] size_t* quote_len,
+            size_t node_id,
             bool recover
         );
 

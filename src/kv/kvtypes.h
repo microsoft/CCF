@@ -70,6 +70,7 @@ namespace kv
       RequestID id;
       std::vector<uint8_t> data;
       Version version;
+      uint64_t actor;
     };
     using CallbackHandler = std::function<void(CallbackArgs)>;
 
@@ -80,7 +81,7 @@ namespace kv
     virtual void compact(Version v) = 0;
     virtual void emit_signature() = 0;
     virtual void add_request(
-      RequestID id, const std::vector<uint8_t>& request) = 0;
+      RequestID id, uint64_t actor, const std::vector<uint8_t>& request) = 0;
     virtual void add_result(
       RequestID id, kv::Version version, const std::vector<uint8_t>& data) = 0;
     virtual void add_response(
