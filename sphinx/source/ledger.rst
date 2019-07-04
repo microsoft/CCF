@@ -67,6 +67,7 @@ The following diagram describes how deltas committed by the leader are written t
 
         end
 
+
 Reading the ledger and verifying entries
 ----------------------------------------
 
@@ -75,6 +76,7 @@ The ledger is stored as a series of a 4 byte transaction length field followed b
 A python implementation for parsing the ledger can be found on ledger.py.
 
 The ``Ledger`` class is constructed using the path of the ledger. It then exposes an iterator for transaction data structures, where each transaction is composed of the following:
+
  * The GCM header (gcm_header)
  * The serialised public domain, containing operations made only on public tables (get_public_domain)
 
