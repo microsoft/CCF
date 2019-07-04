@@ -23,10 +23,10 @@ namespace pbft
 
   char* AbstractPbftConfig::service_mem = 0;
 
-  class PbftConfigCCF : public AbstractPbftConfig
+  class PbftConfigCcf : public AbstractPbftConfig
   {
   public:
-    ~PbftConfigCCF() = default;
+    ~PbftConfigCcf() = default;
 
     void set_service_mem(char* sm) override
     {

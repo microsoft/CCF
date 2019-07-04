@@ -136,7 +136,7 @@ namespace pbft
       bzero(mem, mem_size);
 
       pbft_network = std::make_unique<PbftEnclaveNetwork>(local_id, channels);
-      pbft_config = std::make_unique<PbftConfigCCF>();
+      pbft_config = std::make_unique<PbftConfigCcf>();
 
       auto used_bytes = Byz_init_replica(
         node_info,
@@ -262,7 +262,6 @@ namespace pbft
           message_receiver_base->receive_message(data, size);
           break;
         default:
-        {}
       }
     }
   };
