@@ -114,6 +114,7 @@ TEST_CASE("persistent map operations")
         auto p = rb_new.get(k);
         REQUIRE(p.has_value());
         REQUIRE(p.value() == v);
+        return true;
       });
       REQUIRE(n == champ_new.size());
     }
@@ -126,6 +127,7 @@ TEST_CASE("persistent map operations")
         auto p = rb.get(k);
         REQUIRE(p.has_value());
         REQUIRE(p.value() == v);
+        return true;
       });
       REQUIRE(n == champ.size());
     }

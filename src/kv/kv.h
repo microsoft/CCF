@@ -195,34 +195,36 @@ namespace kv
         return false;
 
       size_t count = 0;
-      state2.state.foreach(
-        [&count](const K& k, const VersionV& v) { count++; });
+      state2.state.foreach([&count](const K& k, const VersionV& v) {
+        count++;
+        return true;
+      });
 
       size_t i = 0;
-      bool ok = true;
+      bool ok =
+        state1.state.foreach([&state2, &i](const K& k, const VersionV& v) {
+          auto search = state2.state.get(k);
 
-      state1.state.foreach([&state2, &ok, &i](const K& k, const VersionV& v) {
-        auto search = state2.state.get(k);
-
-        if (search.has_value())
-        {
-          auto& found = search.value();
-          if (found.version != v.version)
+          if (search.has_value())
           {
-            ok = false;
+            auto& found = search.value();
+            if (found.version != v.version)
+            {
+              return false;
+            }
+            else if (Check::ne(found.value, v.value))
+            {
+              return false;
+            }
           }
-          else if (Check::ne(found.value, v.value))
+          else
           {
-            ok = false;
+            return false;
           }
-        }
-        else
-        {
-          ok = false;
-        }
 
-        i++;
-      });
+          i++;
+          return true;
+        });
 
       if (i != count)
         ok = false;
@@ -430,13 +432,14 @@ namespace kv
 
       /** Iterate over all entries in the map
        *
-       * @param F functor, taking a key and a value, return value is ignored
+       * @param F functor, taking a key and a value, return value determines
+       * whether the iteration should continue (true) or stop (false)
        */
       template <class F>
-      void foreach(F&& f)
+      bool foreach(F&& f)
       {
         if (commit_version != NoVersion)
-          return;
+          return false;
 
         // Record a global read dependency.
         read_version = start_version;
@@ -446,14 +449,17 @@ namespace kv
           auto write = w.find(k);
 
           if ((write == w.end()) && !deleted(v.version))
-            f(k, v.value);
+            return f(k, v.value);
+          return true;
         });
 
         for (auto write = writes.begin(); write != writes.end(); ++write)
         {
           if (!deleted(write->second.version))
-            f(write->first, write->second.value);
+            if (!f(write->first, write->second.value))
+              return false;
         }
+        return true;
       }
 
       Version start_order()

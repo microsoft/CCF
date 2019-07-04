@@ -635,6 +635,7 @@ namespace ccf
 #endif
           result.quotes.push_back(quote);
         }
+        return true;
       });
     };
 
@@ -655,6 +656,7 @@ namespace ccf
           // Only retire nodes that have not already been retired
           if (ni.status != ccf::NodeStatus::RETIRED)
             nodes_to_delete[nid] = ni;
+          return true;
         });
       for (auto [nid, ni] : nodes_to_delete)
       {
@@ -666,6 +668,7 @@ namespace ccf
       certs_view->foreach(
         [&certs_to_delete](const Cert& cstr, const NodeId& _) {
           certs_to_delete.push_back(cstr);
+          return true;
         });
       for (Cert& cstr : certs_to_delete)
       {
@@ -796,6 +799,7 @@ namespace ccf
         [&new_followers, this](const NodeId& nid, const NodeInfo& ni) {
           if (ni.status != ccf::NodeStatus::RETIRED && nid != self)
             new_followers[nid] = ni;
+          return true;
         });
 
       // For all nodes in the new network, write all past network secrets to the
@@ -1108,6 +1112,7 @@ namespace ccf
           s.foreach([&](NodeId node_id, const Nodes::VersionV& v) {
             if (v.value.status != NodeStatus::RETIRED)
               configuration.insert(node_id);
+            return true;
           });
           raft->add_configuration(version, move(configuration));
         }
