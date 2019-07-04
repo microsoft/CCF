@@ -6,11 +6,11 @@
 
 namespace pbft
 {
-  class AbstractPBFTConfig
+  class AbstractPbftConfig
   {
   public:
     static char* service_mem;
-    virtual ~AbstractPBFTConfig() = default;
+    virtual ~AbstractPbftConfig() = default;
     virtual void set_service_mem(char* sm) = 0;
     virtual ExecCommand get_exec_command() = 0;
     virtual size_t message_size() = 0;
@@ -21,9 +21,9 @@ namespace pbft
       size_t jsonrpc_id) = 0;
   };
 
-  char* AbstractPBFTConfig::service_mem = 0;
+  char* AbstractPbftConfig::service_mem = 0;
 
-  class PbftConfigCCF : public AbstractPBFTConfig
+  class PbftConfigCCF : public AbstractPbftConfig
   {
   public:
     ~PbftConfigCCF() = default;
