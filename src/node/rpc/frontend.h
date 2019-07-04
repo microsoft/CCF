@@ -262,6 +262,7 @@ namespace ccf
             {
               out.nodes.push_back({nid, ni.pubhost, ni.tlsport});
             }
+            return true;
           });
 
           return jsonrpc::success(out);

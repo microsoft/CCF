@@ -397,14 +397,14 @@ namespace ccf
 #endif
         auto nodes_view = args.tx.get_view(this->network.nodes);
         NodeId duplicate_node_id = NoNode;
-        // TODO(#api): foreach should check the callback's value and be able to
-        // stop once the returned value is false
         nodes_view->foreach([&new_node, &duplicate_node_id](
                               const NodeId& nid, const NodeInfo& ni) {
-          if (
-            duplicate_node_id == NoNode &&
-            (new_node.tlsport == ni.tlsport && new_node.host == ni.host))
+          if (new_node.tlsport == ni.tlsport && new_node.host == ni.host)
+          {
             duplicate_node_id = nid;
+            return false;
+          }
+          return true;
         });
         if (duplicate_node_id != NoNode)
           return jsonrpc::error(

@@ -80,8 +80,8 @@ public:
 
     nodes_view->foreach(
       [&start_node](const ccf::NodeId& id, const ccf::NodeInfo& v) {
-        if (start_node == ccf::INVALID_ID)
-          start_node = id;
+        start_node = id;
+        return false;
       });
 
     rpc.params.id = start_node;

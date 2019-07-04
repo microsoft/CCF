@@ -108,7 +108,10 @@ static void benchmark_foreach(picobench::state& s)
   for (auto _ : s)
   {
     (void)_;
-    map.foreach([&count](const auto& key, const auto& value) { count++; });
+    map.foreach([&v, s, map](const auto& key, const auto& value) {
+      v += value;
+      return true;
+    });
     clobber_memory();
   }
   s.stop_timer();

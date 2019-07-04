@@ -182,6 +182,20 @@ TEST_CASE("Reads/writes and deletions")
     auto vc = view3->get(k);
     REQUIRE(!vc.has_value());
   }
+
+  INFO("Test early temination of KV foreach");
+  {
+    Store::Tx tx;
+    auto view = tx.get_view(map);
+    view->put("key1", "value1");
+    view->put("key2", "value2");
+    size_t ctr = 0;
+    view->foreach([&ctr](const auto& key, const auto& value) {
+      ++ctr;
+      return false;
+    });
+    REQUIRE(ctr == 1);
+  }
 }
 
 TEST_CASE("Rollback and compact")
