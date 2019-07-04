@@ -634,8 +634,8 @@ namespace ccf
           }
 #endif
           result.quotes.push_back(quote);
-          return true;
         }
+        return true;
       });
     };
 
