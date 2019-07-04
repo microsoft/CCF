@@ -54,7 +54,7 @@ public:
 
   std::vector<uint8_t> finalize_raw()
   {
-    auto [success, vtx0] = tx.commit_reserved();
+    auto [success, reqid, vtx0] = tx.commit_reserved();
     if (success)
       throw std::logic_error("Could not commit tx0.");
     return vtx0;

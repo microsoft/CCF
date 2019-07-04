@@ -256,14 +256,20 @@ TEST_CASE("get_signed_req")
 
   SUBCASE("request with no signature")
   {
-    frontend.process_json(rpc_ctx, txs, caller_id, simple_call);
+    std::vector<uint8_t> serialized_call =
+      jsonrpc::pack(simple_call, jsonrpc::Pack::MsgPack);
+
+    frontend.process(rpc_ctx, serialized_call);
     auto signed_resp = frontend.get_signed_req(caller_id);
     CHECK(!signed_resp.has_value());
   }
   SUBCASE("request with signature")
   {
     auto signed_call = create_signed_json();
-    frontend.process_json(rpc_ctx, txs, caller_id, signed_call);
+    std::vector<uint8_t> serialized_call =
+      jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
+
+    frontend.process(rpc_ctx, serialized_call);
     auto signed_resp = frontend.get_signed_req(caller_id);
     CHECK(signed_resp.has_value());
     auto value = signed_resp.value();
@@ -275,8 +281,12 @@ TEST_CASE("get_signed_req")
   {
     TestReqNotStoredFrontend frontend_nostore(*network.tables);
     auto signed_call = create_signed_json();
-    frontend_nostore.process_json(rpc_ctx, txs, nos_caller_id, signed_call);
-    auto signed_resp = frontend_nostore.get_signed_req(nos_caller_id);
+    std::vector<uint8_t> serialized_call =
+      jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
+
+    frontend_nostore.process(rpc_ctx, serialized_call);
+    auto signed_resp = frontend_nostore.get_signed_req(caller_id);
+
     CHECK(signed_resp.has_value());
     auto value = signed_resp.value();
     CHECK(value.req.empty());
@@ -285,7 +295,10 @@ TEST_CASE("get_signed_req")
   SUBCASE("signature not verified")
   {
     auto signed_call = create_signed_json();
-    frontend.process_json(rpc_ctx, txs, caller_id, signed_call);
+    std::vector<uint8_t> serialized_call =
+      jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
+
+    frontend.process(rpc_ctx, serialized_call);
     auto signed_resp = frontend.get_signed_req(inval_caller_id);
     CHECK(!signed_resp.has_value());
   }
@@ -299,11 +312,12 @@ TEST_CASE("MinimalHandleFuction")
   echo_call[jsonrpc::METHOD] = "echo_function";
   echo_call[jsonrpc::PARAMS] = {{"data", {"nested", "Some string"}},
                                 {"other", "Another string"}};
+  ccf::SignedReq sr(echo_call);
   CallerId caller_id(0);
   Store::Tx txs;
 
   auto response =
-    frontend.process_json(rpc_ctx, txs, caller_id, echo_call).value();
+    frontend.process_json(rpc_ctx, txs, caller_id, echo_call, sr).value();
   CHECK(response[jsonrpc::RESULT] == echo_call[jsonrpc::PARAMS]);
 }
 
@@ -317,29 +331,10 @@ TEST_CASE("process_json")
 
   Store::Tx txs;
 
-  SUBCASE("with out")
-  {
-    auto response =
-      frontend.process_json(rpc_ctx, txs, caller_id, simple_call).value();
-    CHECK(response[jsonrpc::RESULT] == true);
-  }
-  SUBCASE("with signature")
-  {
-    auto signed_call = create_signed_json();
-    auto response =
-      frontend.process_json(rpc_ctx, txs, caller_id, signed_call).value();
-    CHECK(response[jsonrpc::RESULT] == true);
-  }
-  SUBCASE("signature not verified")
-  {
-    auto signed_call = create_signed_json();
-    auto response =
-      frontend.process_json(invalid_rpc_ctx, txs, inval_caller_id, signed_call)
-        .value();
-    CHECK(
-      response[jsonrpc::ERR][jsonrpc::CODE] ==
-      static_cast<int16_t>(jsonrpc::ErrorCodes::INVALID_CLIENT_SIGNATURE));
-  }
+  ccf::SignedReq sr(simple_call);
+  auto response =
+    frontend.process_json(rpc_ctx, txs, caller_id, simple_call, sr).value();
+  CHECK(response[jsonrpc::RESULT] == true);
 }
 
 TEST_CASE("process")

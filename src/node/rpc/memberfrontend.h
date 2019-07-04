@@ -395,10 +395,30 @@ namespace ccf
         if (verify_result != QuoteVerificationResult::VERIFIED)
           return QuoteVerifier::quote_verification_error_to_json(verify_result);
 #endif
+        auto nodes_view = args.tx.get_view(this->network.nodes);
+        NodeId duplicate_node_id = NoNode;
+        // TODO(#api): foreach should check the callback's value and be able to
+        // stop once the returned value is false
+        nodes_view->foreach([&new_node, &duplicate_node_id](
+                              const NodeId& nid, const NodeInfo& ni) {
+          if (
+            duplicate_node_id == NoNode &&
+            (new_node.tlsport == ni.tlsport && new_node.host == ni.host))
+            duplicate_node_id = nid;
+        });
+        if (duplicate_node_id != NoNode)
+          return jsonrpc::error(
+            jsonrpc::ErrorCodes::INVALID_PARAMS,
+            fmt::format(
+              "A node with the same host {} and port {} already exists (node "
+              "id: {})",
+              new_node.host,
+              new_node.tlsport,
+              duplicate_node_id));
         const auto node_id = get_next_id(
           args.tx.get_view(this->network.values), ValueIds::NEXT_NODE_ID);
         new_node.status = NodeStatus::PENDING;
-        args.tx.get_view(this->network.nodes)->put(node_id, new_node);
+        nodes_view->put(node_id, new_node);
         tls::Verifier verifier(new_node.cert);
         args.tx.get_view(this->network.node_certs)
           ->put(verifier.raw_cert_data(), node_id);

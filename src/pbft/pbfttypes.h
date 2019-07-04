@@ -10,6 +10,7 @@ namespace pbft
   using Term = uint64_t;
   using NodeId = uint64_t;
   using Node2NodeMsg = uint64_t;
+  using CallerId = uint64_t;
 
   enum PbftMsgType : Node2NodeMsg
   {

@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "../ds/buffer.h"
-
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <ostream>
 
 namespace crypto
@@ -41,4 +42,23 @@ namespace crypto
   {
     return !(lhs == rhs);
   }
+}
+
+namespace fmt
+{
+  template <>
+  struct formatter<crypto::Sha256Hash>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const crypto::Sha256Hash& p, FormatContext& ctx)
+    {
+      return format_to(ctx.out(), "<sha256 {:02x}>", fmt::join(p.h, ""));
+    }
+  };
 }
