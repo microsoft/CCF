@@ -202,7 +202,7 @@ namespace kv
 
       size_t i = 0;
       bool ok =
-        state1.state.foreach([&state2, &ok, &i](const K& k, const VersionV& v) {
+        state1.state.foreach([&state2, &i](const K& k, const VersionV& v) {
           auto search = state2.state.get(k);
 
           if (search.has_value())
@@ -432,7 +432,8 @@ namespace kv
 
       /** Iterate over all entries in the map
        *
-       * @param F functor, taking a key and a value, return value is ignored
+       * @param F functor, taking a key and a value, return value determines
+       * whether the iteration should continue (true) or stop (false)
        */
       template <class F>
       bool foreach(F&& f)
