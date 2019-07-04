@@ -195,36 +195,36 @@ namespace kv
         return false;
 
       size_t count = 0;
-      state2.state.foreach(
-        [&count](const K& k, const VersionV& v) {
-          count++;
-          return true;
-        });
-
-      size_t i = 0;
-      bool ok = state1.state.foreach([&state2, &ok, &i](const K& k, const VersionV& v) {
-        auto search = state2.state.get(k);
-
-        if (search.has_value())
-        {
-          auto& found = search.value();
-          if (found.version != v.version)
-          {
-            return false;
-          }
-          else if (Check::ne(found.value, v.value))
-          {
-            return false;
-          }
-        }
-        else
-        {
-          return false;
-        }
-
-        i++;
+      state2.state.foreach([&count](const K& k, const VersionV& v) {
+        count++;
         return true;
       });
+
+      size_t i = 0;
+      bool ok =
+        state1.state.foreach([&state2, &ok, &i](const K& k, const VersionV& v) {
+          auto search = state2.state.get(k);
+
+          if (search.has_value())
+          {
+            auto& found = search.value();
+            if (found.version != v.version)
+            {
+              return false;
+            }
+            else if (Check::ne(found.value, v.value))
+            {
+              return false;
+            }
+          }
+          else
+          {
+            return false;
+          }
+
+          i++;
+          return true;
+        });
 
       if (i != count)
         ok = false;
