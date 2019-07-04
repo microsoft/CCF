@@ -82,7 +82,7 @@ namespace pbft
     IMessageReceiveBase* message_receiver_base = nullptr;
     char* mem;
     std::unique_ptr<INetwork> pbft_network;
-    std::unique_ptr<AbstractPBFTConfig> pbft_config;
+    std::unique_ptr<AbstractPbftConfig> pbft_config;
     kv::TxHistory::CallbackHandler on_request;
 
     struct NodeConfiguration
@@ -262,6 +262,7 @@ namespace pbft
           message_receiver_base->receive_message(data, size);
           break;
         default:
+        {}
       }
     }
   };
