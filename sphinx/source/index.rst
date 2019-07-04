@@ -8,9 +8,10 @@ Welcome to CCF's documentation
    introduction
    getting_started
    start_network
-   recovery
    ledger
+   governance
    kv/index.rst
+   recovery
    cryptography
    example
    demo
