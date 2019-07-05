@@ -85,7 +85,7 @@ Once done, each additional node (here, node 1) can join the existing network by 
 
 .. code-block:: bash
 
-    $ client --host=<node1_ip> --port=<node1_tlsport> joinnetwork --ca=<node1_cert> --req=@joinNetwork.json
+    $ client --host=<node1_ip> --port=<node1_tlsport> --ca=<node1_cert> joinnetwork --req=@joinNetwork.json
 
 When executing the ``joinNetwork.json`` RPC, the target node initiates an enclave-to-enclave TLS connection to the network leader to retrieve the network secrets required to decrypt the serialised replicated transactions. Once the join protocol completes, the new node becomes a follower of the Raft network and starts replicating transactions executed by the leader.
 
