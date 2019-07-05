@@ -259,16 +259,72 @@ namespace std
 #define _FOR_JSON_NEXT(FUNC, TYPE, FIELD) FUNC##_FOR_JSON_NEXT(TYPE, FIELD)
 #define _FOR_JSON_FINAL(FUNC, TYPE, FIELD) FUNC##_FOR_JSON_FINAL(TYPE, FIELD)
 
-// TODO: Update this comment. Single set of examples for all variants
-/** Defines from and to json functions for nlohmann::json with error messages on
- * missing elements. Can then use OPTIONAL variant to add non-required fields.
- * Only the given class members are considered. Example:
+/** Defines from_json, to_json, and fill_json_schema functions for struct/class
+ * types, converting member fields to JSON elements. Missing elements will cause
+ * errors to be raised.
+ * To use:
+ *  - Declare struct as normal
+ *  - Add DELARE_JSON_TYPE, or WITH_BASE or WITH_OPTIONAL variants as required
+ *  - Add DECLARE_JSON_REQUIRED_FIELDS listing fields which must be present
+ *  - If there are optional fields, add DECLARE_JSON_OPTIONAL_FIELDS
  *
- * struct X
- * {
- *  int a,b;
- * };
- * DECLARE_REQUIRED_JSON_FIELDS(X, a, b)
+ * Examples:
+ *  struct X
+ *  {
+ *   int a, b;
+ *  };
+ *  DECLARE_JSON_TYPE(X)
+ *  DECLARE_JSON_REQUIRED_FIELDS(X, a, b)
+ *
+ *  Valid JSON:
+ *   { "a": 42, "b": 100 }
+ *   { "a": 42, "b": 100, "Unused": ["Anything"] }
+ *  Invalid JSON:
+ *   {}
+ *   { "a": 42 }
+ *   { "a": 42, "b": "Hello world" }
+ *
+ *  struct Y
+ *  {
+ *   bool c;
+ *   std::string d;
+ *  };
+ *  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Y)
+ *  DECLARE_JSON_REQUIRED_FIELDS(Y, c)
+ *  DECLARE_JSON_OPTIONAL_FIELDS(Y, d)
+ *
+ *  Valid JSON:
+ *   { "c": true }
+ *   { "c": false, "d": "Hello" }
+ *  Invalid JSON:
+ *   { "d": "Hello" }
+ *
+ *  struct X_A : X
+ *  {
+ *   int m;
+ *  };
+ *  DECLARE_JSON_TYPE_WITH_BASE(X_A, X)
+ *  DECLARE_JSON_REQUIRED_FIELDS(X_A, m)
+ *
+ *  Valid JSON:
+ *   { "a": 42, "b": 100, "m": 101 }
+ *  Invalid JSON:
+ *   { "a": 42, "b": 100 }
+ *   { "m": 101 }
+ *
+ *  struct X_B : X
+ *  {
+ *   int n;
+ *  };
+ *  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(X_B, X)
+ *  DECLARE_JSON_REQUIRED_FIELDS(X_B) // NO additional required fields
+ *  DECLARE_JSON_OPTIONAL_FIELDS(X_B, n)
+ *
+ *  Valid JSON:
+ *   { "a": 42, "b": 100 }
+ *   { "a": 42, "b": 100, "n": 101 }
+ *  Invalid JSON:
+ *   { "n": 101 }
  */
 
 #define DECLARE_JSON_TYPE_IMPL( \
