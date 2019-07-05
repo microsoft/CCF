@@ -118,7 +118,6 @@ def run(args):
             "--port={}".format(primary.tls_port),
             "--id=0",
             "--ca=networkcert.pem",
-            "--sign",
         )
         j_result = json.loads(result.stdout)
         assert not j_result["result"]
@@ -134,6 +133,7 @@ def run(args):
             "--port={}".format(primary.tls_port),
             "--id=0",
             "--ca=networkcert.pem",
+            "--force-unsigned",
         )
         j_result = json.loads(result.stdout)
         assert j_result["error"]["code"] == infra.jsonrpc.ErrorCode.RPC_NOT_SIGNED.value
@@ -148,7 +148,6 @@ def run(args):
             "--port={}".format(primary.tls_port),
             "--id=0",
             "--ca=networkcert.pem",
-            "--sign",
         )
         j_result = json.loads(result.stdout)
         assert j_result["result"]
