@@ -43,6 +43,13 @@ TEST_CASE("basic macro parser generation")
   REQUIRE(bar_1.c == j["c"]);
 }
 
+struct Biz : public Bar
+{
+  size_t f = {};
+};
+DECLARE_JSON_TYPE_WITH_BASE(Biz, Bar);
+DECLARE_JSON_REQUIRED_FIELDS(Biz, f);
+
 struct Baz : public Bar
 {
   size_t d = {};
@@ -54,17 +61,26 @@ DECLARE_JSON_OPTIONAL_FIELDS(Baz, e);
 
 TEST_CASE("macro parser generation with base classes")
 {
+  const Biz default_biz = {};
   const Baz default_baz = {};
   nlohmann::json j;
 
+  REQUIRE_THROWS_AS(j.get<Biz>(), std::invalid_argument);
   REQUIRE_THROWS_AS(j.get<Baz>(), std::invalid_argument);
 
   j["a"] = 42;
 
+  REQUIRE_THROWS_AS(j.get<Biz>(), std::invalid_argument);
   REQUIRE_THROWS_AS(j.get<Baz>(), std::invalid_argument);
 
-  j["d"] = 43;
+  j["f"] = 44;
+  const Biz biz_0 = j;
+  REQUIRE(biz_0.a == j["a"]);
+  REQUIRE(biz_0.b == default_biz.b);
+  REQUIRE(biz_0.c == default_biz.c);
+  REQUIRE(biz_0.f == j["f"]);
 
+  j["d"] = 43;
   const Baz baz_0 = j;
   REQUIRE(baz_0.a == j["a"]);
   REQUIRE(baz_0.b == default_baz.b);

@@ -309,12 +309,11 @@ namespace std
 #define DECLARE_JSON_TYPE_WITH_BASE(TYPE, BASE) \
   DECLARE_JSON_TYPE_IMPL( \
     TYPE, \
-    to_json(j, static_cast<BASE>(t)), \
+    to_json(j, static_cast<const BASE&>(t)), \
     , \
-    from_json(j, static_cast<BASE>(t)), \
+    from_json(j, static_cast<BASE&>(t)), \
     , \
-    fill_json_schema(j, static_cast<BASE>(t)), \
-    , )
+    fill_json_schema(j, static_cast<const BASE&>(t)), )
 
 #define DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(TYPE) \
   DECLARE_JSON_TYPE_IMPL( \
