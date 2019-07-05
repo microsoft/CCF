@@ -33,5 +33,6 @@ namespace ccf
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Script);
+  DECLARE_JSON_REQUIRED_FIELDS(Script);
   DECLARE_JSON_OPTIONAL_FIELDS(Script, bytecode, text);
 }

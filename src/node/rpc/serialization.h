@@ -46,6 +46,7 @@ namespace ccf
     JoinNetworkNodeToNode::Out, id, network_secrets, version)
 
   DECLARE_JSON_TYPE(GetCommit::In)
+  DECLARE_JSON_REQUIRED_FIELDS(GetCommit::In)
   DECLARE_JSON_OPTIONAL_FIELDS(GetCommit::In, commit)
   DECLARE_JSON_TYPE(GetCommit::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, term, commit)
