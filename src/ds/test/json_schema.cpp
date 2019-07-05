@@ -383,3 +383,85 @@ TEST_CASE("enum")
   const nlohmann::json expected{"one", "two", "three"};
   REQUIRE(schema["properties"]["se"]["enum"] == expected);
 }
+
+namespace examples
+{
+  struct X
+  {
+    int a, b;
+  };
+  DECLARE_JSON_TYPE(X)
+  DECLARE_JSON_REQUIRED_FIELDS(X, a, b)
+
+  struct Y
+  {
+    bool c;
+    std::string d;
+  };
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Y)
+  DECLARE_JSON_REQUIRED_FIELDS(Y, c)
+  DECLARE_JSON_OPTIONAL_FIELDS(Y, d)
+
+  struct X_A : X
+  {
+    int m;
+  };
+  DECLARE_JSON_TYPE_WITH_BASE(X_A, X)
+  DECLARE_JSON_REQUIRED_FIELDS(X_A, m)
+
+  struct X_B : X
+  {
+    int n;
+  };
+  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(X_B, X)
+  DECLARE_JSON_REQUIRED_FIELDS(X_B)
+  DECLARE_JSON_OPTIONAL_FIELDS(X_B, n)
+}
+
+TEST_CASE("example validation")
+{
+  using namespace examples;
+
+  // struct X
+  {
+    // Valid JSON
+    REQUIRE_NOTHROW("{ \"a\": 42, \"b\": 100 }"_json.get<X>());
+    REQUIRE_NOTHROW(
+      "{ \"a\": 42, \"b\": 100, \"Unused\": [\"Anything\"] }"_json.get<X>());
+
+    // Invalid JSON
+    REQUIRE_THROWS("{}"_json.get<X>());
+    REQUIRE_THROWS("{ \"a\": 42 }"_json.get<X>());
+    REQUIRE_THROWS("{ \"a\": 42, \"b\": \"Hello world\" }"_json.get<X>());
+  }
+
+  // struct Y
+  {
+    // Valid JSON
+    REQUIRE_NOTHROW("{ \"c\": true }"_json.get<Y>());
+    REQUIRE_NOTHROW("{ \"c\": false, \"d\": \"Hello\" }"_json.get<Y>());
+
+    // Invalid JSON
+    REQUIRE_THROWS("{ \"d\": \"Hello\" }"_json.get<Y>());
+  }
+
+  // struct X_A
+  {
+    // Valid JSON
+    REQUIRE_NOTHROW("{ \"a\": 42, \"b\": 100, \"m\": 101 }"_json.get<X_A>());
+
+    // Invalid JSON
+    REQUIRE_THROWS("{ \"a\": 42, \"b\": 100 }"_json.get<X_A>());
+    REQUIRE_THROWS("{ \"m\": 101 }"_json.get<X_A>());
+  }
+
+  // struct X_B
+  {
+    // Valid JSON
+    REQUIRE_NOTHROW("{ \"a\": 42, \"b\": 100 }"_json.get<X_B>());
+    REQUIRE_NOTHROW("{ \"a\": 42, \"b\": 100, \"n\": 101 }"_json.get<X_B>());
+
+    // Invalid JSON
+    REQUIRE_THROWS("{ \"n\": 101 }"_json.get<X_B>());
+  }
+}
