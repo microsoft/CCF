@@ -231,6 +231,18 @@ namespace std
 #define READ_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
   READ_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD)
 
+#define FILL_SCHEMA_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD) \
+  j["properties"][#FIELD] = \
+    ::ds::json::schema_element<decltype(TYPE::FIELD)>(); \
+  j["required"].push_back(#FIELD);
+#define FILL_SCHEMA_REQUIRED_FOR_JSON_FINAL(TYPE, FIELD) \
+  FILL_SCHEMA_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD)
+
+#define FILL_SCHEMA_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD) \
+  j["properties"][#FIELD] = ::ds::json::schema_element<decltype(TYPE::FIELD)>();
+#define FILL_SCHEMA_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
+  FILL_SCHEMA_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD)
+
 #define JSON_FIELD_FOR_JSON_NEXT(TYPE, FIELD) \
   JsonField<decltype(TYPE::FIELD)>{#FIELD},
 #define JSON_FIELD_FOR_JSON_FINAL(TYPE, FIELD) \
@@ -409,19 +421,8 @@ namespace std
   } \
   inline void fill_json_schema_required_fields(nlohmann::json& j, const TYPE&) \
   { \
-    nlohmann::json required = nlohmann::json::array(); \
-    nlohmann::json properties; \
-    std::apply( \
-      [&required, &properties](const auto&... field) { \
-        ((required.push_back(field.name), \
-          properties[field.name] = ::ds::json::schema_element< \
-            typename std::decay_t<decltype(field)>::Target>()), \
-         ...); \
-      }, \
-      RequiredJsonFields<TYPE>::required_fields); \
     j["type"] = "object"; \
-    j["required"] = required; \
-    j["properties"] = properties; \
+    _FOR_JSON_NN(__VA_ARGS__)(FILL_SCHEMA_REQUIRED, TYPE, ##__VA_ARGS__) \
   }
 
 #define DECLARE_JSON_OPTIONAL_FIELDS(TYPE, ...) \
@@ -436,27 +437,16 @@ namespace std
   inline void to_json_optional_fields(nlohmann::json& j, const TYPE& t) \
   { \
     const TYPE t_default{}; \
-    { \
-      _FOR_JSON_NN(__VA_ARGS__)(WRITE_OPTIONAL, TYPE, ##__VA_ARGS__) \
-    } \
+    _FOR_JSON_NN(__VA_ARGS__)(WRITE_OPTIONAL, TYPE, ##__VA_ARGS__) \
   } \
   inline void from_json_optional_fields(const nlohmann::json& j, TYPE& t) \
   { \
-    { \
-      _FOR_JSON_NN(__VA_ARGS__)(READ_OPTIONAL, TYPE, ##__VA_ARGS__) \
-    } \
+    _FOR_JSON_NN(__VA_ARGS__)(READ_OPTIONAL, TYPE, ##__VA_ARGS__) \
   } \
   inline void fill_json_schema_optional_fields( \
     nlohmann::json& j, const TYPE& t) \
   { \
-    auto& properties = j["properties"]; \
-    std::apply( \
-      [&properties](const auto&... field) { \
-        ((properties[field.name] = ::ds::json::schema_element< \
-            typename std::decay_t<decltype(field)>::Target>()), \
-         ...); \
-      }, \
-      OptionalJsonFields<TYPE>::optional_fields); \
+    _FOR_JSON_NN(__VA_ARGS__)(FILL_SCHEMA_OPTIONAL, TYPE, ##__VA_ARGS__) \
   }
 
 #define DECLARE_JSON_ENUM(TYPE, ...) \
