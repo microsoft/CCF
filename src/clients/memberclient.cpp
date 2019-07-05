@@ -278,8 +278,9 @@ int main(int argc, char** argv)
     ->required(true)
     ->check(CLI::ExistingFile);
 
-  bool sign = false;
-  app.add_flag("--sign", sign, "Send client-signed transactions");
+  bool force_unsigned = false;
+  app.add_flag(
+    "--force-unsigned", force_unsigned, "Force sending the request unsigned");
 
   auto add_member = app.add_subcommand("add_member", "Add a new member");
   string member_cert_file;
@@ -377,10 +378,10 @@ int main(int argc, char** argv)
   auto tls_cert = make_shared<tls::Cert>(
     members_sni, make_shared<tls::CA>(ca), raw_cert, raw_key, nullb);
 
-  unique_ptr<RpcTlsClient> tls_connection = sign ?
+  unique_ptr<RpcTlsClient> tls_connection = force_unsigned ?
+    make_unique<RpcTlsClient>(host, port, members_sni, nullptr, tls_cert) :
     make_unique<SigRpcTlsClient>(
-      raw_key, host, port, members_sni, nullptr, tls_cert) :
-    make_unique<RpcTlsClient>(host, port, members_sni, nullptr, tls_cert);
+      raw_key, host, port, members_sni, nullptr, tls_cert);
 
   try
   {
