@@ -85,8 +85,8 @@ namespace ccf
 
     MSGPACK_DEFINE(proposer, votes);
   };
-  DECLARE_REQUIRED_JSON_FIELDS_WITH_BASE(
-    OpenProposal, Proposal::In, proposer, votes)
+  DECLARE_JSON_TYPE_WITH_BASE(OpenProposal, Proposal::In)
+  DECLARE_JSON_REQUIRED_FIELDS(OpenProposal, proposer, votes)
   using Proposals = Store::Map<ObjectId, OpenProposal>;
 
   struct ProposalAction
@@ -101,7 +101,8 @@ namespace ccf
   {
     Script ballot;
   };
-  DECLARE_REQUIRED_JSON_FIELDS_WITH_BASE(Vote, ProposalAction, ballot)
+  DECLARE_JSON_TYPE_WITH_BASE(Vote, ProposalAction)
+  DECLARE_JSON_REQUIRED_FIELDS(Vote, ballot)
 
   //! A call proposed by a proposal script
   struct ProposedCall
