@@ -395,14 +395,6 @@ namespace std
     fill_json_schema_optional_fields(j, t))
 
 #define DECLARE_JSON_REQUIRED_FIELDS(TYPE, ...) \
-  template <typename T> \
-  struct RequiredJsonFields; \
-  template <> \
-  struct RequiredJsonFields<TYPE> : std::true_type \
-  { \
-    static constexpr auto required_fields = std::make_tuple( \
-      _FOR_JSON_NN(__VA_ARGS__)(JSON_FIELD, TYPE, ##__VA_ARGS__)); \
-  }; \
   inline void to_json_required_fields(nlohmann::json& j, const TYPE& t) \
   { \
     if (!j.is_object()) \
@@ -426,14 +418,6 @@ namespace std
   }
 
 #define DECLARE_JSON_OPTIONAL_FIELDS(TYPE, ...) \
-  template <typename T> \
-  struct OptionalJsonFields; \
-  template <> \
-  struct OptionalJsonFields<TYPE> : std::true_type \
-  { \
-    static constexpr auto optional_fields = std::make_tuple( \
-      _FOR_JSON_NN(__VA_ARGS__)(JSON_FIELD, TYPE, ##__VA_ARGS__)); \
-  }; \
   inline void to_json_optional_fields(nlohmann::json& j, const TYPE& t) \
   { \
     const TYPE t_default{}; \
