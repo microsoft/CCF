@@ -90,18 +90,31 @@ namespace std
   }
 }
 
+namespace ds
+{
+  namespace json
+  {
+    template <size_t N>
+    struct priority_tag : priority_tag<N - 1>
+    {};
+
+    template <>
+    struct priority_tag<0>
+    {};
+  }
+}
+
+#define JSON_DECLARE_FIELDS_PREFIX(TYPE) \
+  template <typename T> \
+  struct RequiredJsonFields; \
+  template <typename T> \
+  struct OptionalJsonFields;
+
 /** Template specialisation must happen in the correct namespace, so
 NAMESPACE_CONTAINS_JSON_TYPES must be stated within a namespace to use
 DECLARE_REQUIRED_JSON_FIELDS.
 */
 #define NAMESPACE_CONTAINS_JSON_TYPES \
-  template <typename T> \
-  struct RequiredJsonFields : std::false_type \
-  {}; \
-\
-  template <typename T> \
-  struct OptionalJsonFields : std::false_type \
-  {}; \
 \
   template <typename T, bool Required> \
   void write_fields(nlohmann::json& j, const T& t); \
@@ -348,21 +361,173 @@ DECLARE_REQUIRED_JSON_FIELDS.
  * DECLARE_REQUIRED_JSON_FIELDS(X, a, b)
  */
 #define DECLARE_REQUIRED_JSON_FIELDS(TYPE, ...) \
+  JSON_DECLARE_FIELDS_PREFIX(TYPE) \
   template <> \
   struct RequiredJsonFields<TYPE> : std::true_type \
   { \
     static constexpr auto required_fields = std::make_tuple( \
       _FOR_JSON_NN(__VA_ARGS__)(JSON_FIELD, TYPE, ##__VA_ARGS__)); \
   }; \
-  template <> \
-  inline void write_fields<TYPE, true>(nlohmann::json & j, const TYPE& t) \
+  inline void to_json_impl( \
+    nlohmann::json& j, const TYPE& t, ::ds::json::priority_tag<0>) \
   { \
+    std::cout << "to_json_impl<0>" << std::endl; \
+    j = nlohmann::json::object(); \
     _FOR_JSON_NN(__VA_ARGS__)(WRITE_REQUIRED, TYPE, ##__VA_ARGS__) \
   } \
-  template <> \
-  inline void read_fields<TYPE, true>(const nlohmann::json& j, TYPE& t) \
+  inline void from_json_impl( \
+    const nlohmann::json& j, TYPE& t, ::ds::json::priority_tag<0>) \
   { \
+    if (!j.is_object()) \
+    { \
+      throw JsonParseError("Expected object, found: " + j.dump()); \
+    } \
     _FOR_JSON_NN(__VA_ARGS__)(READ_REQUIRED, TYPE, ##__VA_ARGS__) \
+  } \
+  inline void fill_json_schema_impl( \
+    nlohmann::json& schema, const TYPE&, ::ds::json::priority_tag<0>) \
+  { \
+    nlohmann::json required = nlohmann::json::array(); \
+    nlohmann::json properties; \
+    std::apply( \
+      [&required, &properties](const auto&... field) { \
+        ((required.push_back(field.name), \
+          properties[field.name] = ::ds::json::schema_element< \
+            typename std::decay_t<decltype(field)>::Target>()), \
+         ...); \
+      }, \
+      RequiredJsonFields<TYPE>::required_fields); \
+    schema["type"] = "object"; \
+    schema["required"] = required; \
+    schema["properties"] = properties; \
+  } \
+  inline void to_json(nlohmann::json& j, const TYPE& t) \
+  { \
+    std::cout << "to_json_impl" << std::endl; \
+    to_json_impl(j, t, ::ds::json::priority_tag<1>{}); \
+  } \
+  inline void from_json(const nlohmann::json& j, TYPE& t) \
+  { \
+    from_json_impl(j, t, ::ds::json::priority_tag<1>{}); \
+  } \
+  inline void fill_json_schema(nlohmann::json& schema, const TYPE& t) \
+  { \
+    fill_json_schema_impl(schema, t, ::ds::json::priority_tag<1>{}); \
+  }
+
+#define DECLARE_JSON_TYPE(TYPE) \
+  void to_json_required_fields(nlohmann::json& j, const TYPE& t); \
+  void from_json_required_fields(const nlohmann::json& j, TYPE& t); \
+  void fill_json_schema_required_fields(nlohmann::json& j, const TYPE& t); \
+  inline void to_json(nlohmann::json& j, const TYPE& t) \
+  { \
+    to_json_required_fields(j, t); \
+  } \
+  inline void from_json(const nlohmann::json& j, TYPE& t) \
+  { \
+    from_json_required_fields(j, t); \
+  } \
+  inline void fill_json_schema(nlohmann::json& schema, const TYPE& t) \
+  { \
+    fill_json_schema_required_fields(schema, t); \
+  }
+
+#define DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(TYPE) \
+  void to_json_required_fields(nlohmann::json& j, const TYPE& t); \
+  void to_json_optional_fields(nlohmann::json& j, const TYPE& t); \
+  void from_json_required_fields(const nlohmann::json& j, TYPE& t); \
+  void from_json_optional_fields(const nlohmann::json& j, TYPE& t); \
+  void fill_json_schema_required_fields(nlohmann::json& j, const TYPE& t); \
+  void fill_json_schema_optional_fields(nlohmann::json& j, const TYPE& t); \
+  inline void to_json(nlohmann::json& j, const TYPE& t) \
+  { \
+    to_json_required_fields(j, t); \
+    to_json_optional_fields(j, t); \
+  } \
+  inline void from_json(const nlohmann::json& j, TYPE& t) \
+  { \
+    from_json_required_fields(j, t); \
+    from_json_optional_fields(j, t); \
+  } \
+  inline void fill_json_schema(nlohmann::json& schema, const TYPE& t) \
+  { \
+    fill_json_schema_required_fields(schema, t); \
+    fill_json_schema_optional_fields(schema, t); \
+  }
+
+#define DECLARE_JSON_REQUIRED_FIELDS(TYPE, ...) \
+  template <typename T> \
+  struct RequiredJsonFields; \
+  template <> \
+  struct RequiredJsonFields<TYPE> : std::true_type \
+  { \
+    static constexpr auto required_fields = std::make_tuple( \
+      _FOR_JSON_NN(__VA_ARGS__)(JSON_FIELD, TYPE, ##__VA_ARGS__)); \
+  }; \
+  inline void to_json_required_fields(nlohmann::json& j, const TYPE& t) \
+  { \
+    j = nlohmann::json::object(); \
+    _FOR_JSON_NN(__VA_ARGS__)(WRITE_REQUIRED, TYPE, ##__VA_ARGS__) \
+  } \
+  inline void from_json_required_fields(const nlohmann::json& j, TYPE& t) \
+  { \
+    if (!j.is_object()) \
+    { \
+      throw JsonParseError("Expected object, found: " + j.dump()); \
+    } \
+    _FOR_JSON_NN(__VA_ARGS__)(READ_REQUIRED, TYPE, ##__VA_ARGS__) \
+  } \
+  inline void fill_json_schema_required_fields( \
+    nlohmann::json& schema, const TYPE&) \
+  { \
+    nlohmann::json required = nlohmann::json::array(); \
+    nlohmann::json properties; \
+    std::apply( \
+      [&required, &properties](const auto&... field) { \
+        ((required.push_back(field.name), \
+          properties[field.name] = ::ds::json::schema_element< \
+            typename std::decay_t<decltype(field)>::Target>()), \
+         ...); \
+      }, \
+      RequiredJsonFields<TYPE>::required_fields); \
+    schema["type"] = "object"; \
+    schema["required"] = required; \
+    schema["properties"] = properties; \
+  }
+
+#define DECLARE_JSON_OPTIONAL_FIELDS(TYPE, ...) \
+  template <typename T> \
+  struct OptionalJsonFields; \
+  template <> \
+  struct OptionalJsonFields<TYPE> : std::true_type \
+  { \
+    static constexpr auto optional_fields = std::make_tuple( \
+      _FOR_JSON_NN(__VA_ARGS__)(JSON_FIELD, TYPE, ##__VA_ARGS__)); \
+  }; \
+  inline void to_json_optional_fields(nlohmann::json& j, const TYPE& t) \
+  { \
+    const TYPE t_default{}; \
+    { \
+      _FOR_JSON_NN(__VA_ARGS__)(WRITE_OPTIONAL, TYPE, ##__VA_ARGS__) \
+    } \
+  } \
+  inline void from_json_optional_fields(const nlohmann::json& j, TYPE& t) \
+  { \
+    { \
+      _FOR_JSON_NN(__VA_ARGS__)(READ_OPTIONAL, TYPE, ##__VA_ARGS__) \
+    } \
+  } \
+  inline void fill_json_schema_optional_fields( \
+    nlohmann::json& schema, const TYPE& t) \
+  { \
+    auto& properties = schema["properties"]; \
+    std::apply( \
+      [&properties](const auto&... field) { \
+        ((properties[field.name] = ::ds::json::schema_element< \
+            typename std::decay_t<decltype(field)>::Target>()), \
+         ...); \
+      }, \
+      OptionalJsonFields<TYPE>::optional_fields); \
   }
 
 /** Defines from and to json functions for nlohmann::json with respect to a base
@@ -420,26 +585,43 @@ DECLARE_REQUIRED_JSON_FIELDS.
  * DECLARE_OPTIONAL_JSON_FIELDS(X, a, b, c, d)
  */
 #define DECLARE_OPTIONAL_JSON_FIELDS(TYPE, ...) \
+  JSON_DECLARE_FIELDS_PREFIX(TYPE) \
   template <> \
   struct OptionalJsonFields<TYPE> : std::true_type \
   { \
     static constexpr auto optional_fields = std::make_tuple( \
       _FOR_JSON_NN(__VA_ARGS__)(JSON_FIELD, TYPE, ##__VA_ARGS__)); \
   }; \
-  template <> \
-  inline void write_fields<TYPE, false>(nlohmann::json & j, const TYPE& t) \
+  inline void to_json_impl( \
+    nlohmann::json& j, const TYPE& t, ::ds::json::priority_tag<1>) \
   { \
+    std::cout << "to_json_impl<1>" << std::endl; \
+    to_json_impl(j, t, ::ds::json::priority_tag<0>{}); \
     const TYPE t_default{}; \
     { \
       _FOR_JSON_NN(__VA_ARGS__)(WRITE_OPTIONAL, TYPE, ##__VA_ARGS__) \
     } \
   } \
-  template <> \
-  inline void read_fields<TYPE, false>(const nlohmann::json& j, TYPE& t) \
+  inline void from_json_impl( \
+    const nlohmann::json& j, TYPE& t, ::ds::json::priority_tag<1>) \
   { \
+    from_json_impl(j, t, ::ds::json::priority_tag<0>{}); \
     { \
       _FOR_JSON_NN(__VA_ARGS__)(READ_OPTIONAL, TYPE, ##__VA_ARGS__) \
     } \
+  } \
+  inline void fill_json_schema_impl( \
+    nlohmann::json& schema, const TYPE& t, ::ds::json::priority_tag<1>) \
+  { \
+    fill_json_schema_impl(schema, t, ::ds::json::priority_tag<0>{}); \
+    auto& properties = schema["properties"]; \
+    std::apply( \
+      [&properties](const auto&... field) { \
+        ((properties[field.name] = ::ds::json::schema_element< \
+            typename std::decay_t<decltype(field)>::Target>()), \
+         ...); \
+      }, \
+      OptionalJsonFields<TYPE>::optional_fields); \
   }
 
 /** Extends existing from and to json functions for nlohmann::json with respect
