@@ -20,10 +20,10 @@ private:
   {
     Node(
       Color c,
-      std::shared_ptr<const Node> const& lft,
+      const std::shared_ptr<const Node>& lft,
       const K& key,
       const V& val,
-      std::shared_ptr<const Node> const& rgt) :
+      const std::shared_ptr<const Node>& rgt) :
       _c(c),
       _lft(lft),
       _key(key),
@@ -58,17 +58,27 @@ public:
 
   std::optional<V> get(const K& key) const
   {
-    if (empty())
-      return {};
+    auto v = getp(key);
 
-    K y = rootKey();
+    if (v)
+      return *v;
+    else
+      return {};
+  }
+
+  const V* getp(const K& key) const
+  {
+    if (empty())
+      return nullptr;
+
+    auto& y = rootKey();
 
     if (key < y)
-      return left().get(key);
+      return left().getp(key);
     else if (y < key)
-      return right().get(key);
+      return right().getp(key);
     else
-      return rootValue();
+      return &rootValue();
   }
 
   RBMap put(const K& key, const V& value) const

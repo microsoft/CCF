@@ -69,12 +69,6 @@ namespace champ
     }
   };
 
-  template <class V>
-  static std::optional<V> not_found()
-  {
-    return std::nullopt;
-  }
-
   template <class K, class V, class H>
   struct SubNodes;
 
@@ -86,12 +80,12 @@ namespace champ
 
     Entry(K k, V v) : key(k), value(v) {}
 
-    std::optional<V> get(const K& k) const
+    const V* getp(const K& k) const
     {
       if (k == key)
-        return value;
+        return &value;
       else
-        return not_found<V>();
+        return nullptr;
     }
   };
 
@@ -103,16 +97,16 @@ namespace champ
   {
     std::array<std::vector<std::shared_ptr<Entry<K, V>>>, collision_bins> bins;
 
-    std::optional<V> get(Hash hash, const K& k) const
+    const V* getp(Hash hash, const K& k) const
     {
       const auto idx = mask(hash, collision_depth);
       const auto& bin = bins[idx];
       for (const auto& node : bin)
       {
         if (k == node->key)
-          return node->value;
+          return &node->value;
       }
-      return not_found<V>();
+      return nullptr;
     }
 
     bool put_mut(Hash hash, const K& k, const V& v)
@@ -174,21 +168,21 @@ namespace champ
       return data_map.pop() + (node_map & mask).pop();
     }
 
-    std::optional<V> get(SmallIndex depth, Hash hash, const K& k) const
+    const V* getp(SmallIndex depth, Hash hash, const K& k) const
     {
       const auto idx = mask(hash, depth);
       const auto c_idx = compressed_idx(idx);
 
       if (c_idx == (SmallIndex)-1)
-        return not_found<V>();
+        return nullptr;
 
       if (data_map.check(idx))
-        return node_as<Entry<K, V>>(c_idx)->get(k);
+        return node_as<Entry<K, V>>(c_idx)->getp(k);
 
       if (depth == (collision_depth - 1))
-        return node_as<Collisions<K, V, H>>(c_idx)->get(hash, k);
+        return node_as<Collisions<K, V, H>>(c_idx)->getp(hash, k);
 
-      return node_as<SubNodes<K, V, H>>(c_idx)->get(depth + 1, hash, k);
+      return node_as<SubNodes<K, V, H>>(c_idx)->getp(depth + 1, hash, k);
     }
 
     bool put_mut(SmallIndex depth, Hash hash, const K& k, const V& v)
@@ -337,7 +331,17 @@ namespace champ
 
     std::optional<V> get(const K& key) const
     {
-      return root->get(0, H()(key), key);
+      auto v = root->getp(0, H()(key), key);
+
+      if (v)
+        return *v;
+      else
+        return {};
+    }
+
+    const V* getp(const K& key) const
+    {
+      return root->getp(0, H()(key), key);
     }
 
     const Map<K, V, H> put(const K& key, const V& value) const
