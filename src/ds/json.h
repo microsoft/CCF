@@ -264,7 +264,15 @@ namespace std
 
 /** Defines from_json, to_json, and fill_json_schema functions for struct/class
  * types, converting member fields to JSON elements. Missing elements will cause
- * errors to be raised.
+ * errors to be raised. This assumes that from_json, to_json, and
+ * fill_json_schema are implemented for each member field type, either manually
+ * or through these macros.
+ *  ie, the following must compile, for each foo in T:
+ *    T t; nlohmann::json j, schema;
+ *    j["foo"] = t.foo;
+ *    t.foo = j["foo"].get<decltype(T::foo)>();
+ *    fill_json_schema(schema, t);
+ * 
  * To use:
  *  - Declare struct as normal
  *  - Add DELARE_JSON_TYPE, or WITH_BASE or WITH_OPTIONAL variants as required
