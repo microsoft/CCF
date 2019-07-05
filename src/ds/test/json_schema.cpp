@@ -43,44 +43,45 @@ TEST_CASE("basic macro parser generation")
   REQUIRE(bar_1.c == j["c"]);
 }
 
-// struct Baz : public Bar
-// {
-//   size_t d = {};
-//   size_t e = {};
-// };
-// DECLARE_REQUIRED_JSON_FIELDS_WITH_BASE(Baz, Bar, d);
-// DECLARE_OPTIONAL_JSON_FIELDS_WITH_BASE(Baz, Bar, e);
+struct Baz : public Bar
+{
+  size_t d = {};
+  size_t e = {};
+};
+DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(Baz, Bar);
+DECLARE_JSON_REQUIRED_FIELDS(Baz, d);
+DECLARE_JSON_OPTIONAL_FIELDS(Baz, e);
 
-// TEST_CASE("macro parser generation with base classes")
-// {
-//   const Baz default_baz = {};
-//   nlohmann::json j;
+TEST_CASE("macro parser generation with base classes")
+{
+  const Baz default_baz = {};
+  nlohmann::json j;
 
-//   REQUIRE_THROWS_AS(j.get<Baz>(), std::invalid_argument);
+  REQUIRE_THROWS_AS(j.get<Baz>(), std::invalid_argument);
 
-//   j["a"] = 42;
+  j["a"] = 42;
 
-//   REQUIRE_THROWS_AS(j.get<Baz>(), std::invalid_argument);
+  REQUIRE_THROWS_AS(j.get<Baz>(), std::invalid_argument);
 
-//   j["d"] = 43;
+  j["d"] = 43;
 
-//   const Baz baz_0 = j;
-//   REQUIRE(baz_0.a == j["a"]);
-//   REQUIRE(baz_0.b == default_baz.b);
-//   REQUIRE(baz_0.c == default_baz.c);
-//   REQUIRE(baz_0.d == j["d"]);
-//   REQUIRE(baz_0.e == default_baz.e);
+  const Baz baz_0 = j;
+  REQUIRE(baz_0.a == j["a"]);
+  REQUIRE(baz_0.b == default_baz.b);
+  REQUIRE(baz_0.c == default_baz.c);
+  REQUIRE(baz_0.d == j["d"]);
+  REQUIRE(baz_0.e == default_baz.e);
 
-//   j["b"] = "Test";
-//   j["c"] = 100;
-//   j["e"] = 101;
-//   const Baz baz_1 = j;
-//   REQUIRE(baz_1.a == j["a"]);
-//   REQUIRE(baz_1.b == j["b"]);
-//   REQUIRE(baz_1.c == j["c"]);
-//   REQUIRE(baz_1.d == j["d"]);
-//   REQUIRE(baz_1.e == j["e"]);
-// }
+  j["b"] = "Test";
+  j["c"] = 100;
+  j["e"] = 101;
+  const Baz baz_1 = j;
+  REQUIRE(baz_1.a == j["a"]);
+  REQUIRE(baz_1.b == j["b"]);
+  REQUIRE(baz_1.c == j["c"]);
+  REQUIRE(baz_1.d == j["d"]);
+  REQUIRE(baz_1.e == j["e"]);
+}
 
 struct Foo
 {
