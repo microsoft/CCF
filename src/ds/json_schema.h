@@ -88,6 +88,23 @@ namespace ds
         schema["type"] = "array";
         schema["items"] = schema_element<typename T::value_type>();
       }
+      else if constexpr (
+        is_specialization<T, std::map>::value ||
+        is_specialization<T, std::unordered_map>::value)
+      {
+        // Nlohmann serialises maps to an array of (K, V) pairs
+        schema["type"] = "array";
+        auto items = nlohmann::json::object();
+        {
+          items["type"] = "array";
+
+          auto sub_items = nlohmann::json::array();
+          sub_items.push_back(schema_element<typename T::key_type>());
+          sub_items.push_back(schema_element<typename T::mapped_type>());
+          items["items"] = sub_items;
+        }
+        schema["items"] = items;
+      }
       else if constexpr (is_specialization<T, std::pair>::value)
       {
         schema["type"] = "array";

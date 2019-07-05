@@ -5,10 +5,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #include <nlohmann/json.hpp>
-#include <valijson/adapters/nlohmann_json_adapter.hpp>
-#include <valijson/schema.hpp>
-#include <valijson/schema_parser.hpp>
-#include <valijson/validator.hpp>
 #include <vector>
 
 struct Bar
@@ -170,6 +166,21 @@ TEST_CASE("schema generation")
     REQUIRE(foo_min.i64_0 == int64_limits::min());
     REQUIRE(foo_max.i64_0 == int64_limits::max());
   }
+}
+
+TEST_CASE("schema types")
+{
+  std::map<size_t, std::string> m;
+  const auto schema = ds::json::build_schema<decltype(m)>("Map");
+
+  REQUIRE(schema["type"] == "array");
+  REQUIRE(schema["items"].is_object());
+
+  REQUIRE(schema["items"]["type"] == "array");
+  REQUIRE(schema["items"]["items"].is_array());
+  REQUIRE(schema["items"]["items"].size() == 2);
+  REQUIRE(schema["items"]["items"][0]["type"] == "number");
+  REQUIRE(schema["items"]["items"][1]["type"] == "string");
 }
 
 namespace custom
