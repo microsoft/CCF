@@ -63,7 +63,8 @@ namespace std
   };
 }
 
-ADD_JSON_TRANSLATORS(CustomClass, m_i);
+DECLARE_JSON_TYPE(CustomClass)
+DECLARE_JSON_REQUIRED_FIELDS(CustomClass, m_i)
 
 TEST_CASE("Map creation")
 {
