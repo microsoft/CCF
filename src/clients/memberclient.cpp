@@ -279,7 +279,8 @@ int main(int argc, char** argv)
     ->check(CLI::ExistingFile);
 
   bool force_unsigned = false;
-  app.add_flag("--force-unsigned", force_unsigned, "Force sending the request unsigned");
+  app.add_flag(
+    "--force-unsigned", force_unsigned, "Force sending the request unsigned");
 
   auto add_member = app.add_subcommand("add_member", "Add a new member");
   string member_cert_file;
