@@ -5,10 +5,24 @@ import infra.ccf
 
 import logging
 import time
+import csv
+import random
+from enum import IntEnum
 
 from iso3166 import countries
 
 from loguru import logger as LOG
+
+
+class TransactionType(IntEnum):
+    PAYMENT = 1
+    TRANSFER = 2
+    CASH_OUT = 3
+    DEBIT = 4
+    CASH_IN = 5
+
+
+KNOWN_COUNTRIES = ["us", "gbr", "fr", "grc"]
 
 
 def run(args):
@@ -91,61 +105,92 @@ def run(args):
         revealed_tx_id = 2
         non_revealed_tx_id = 3
         flagged_amt = 99
-        for i, bank in enumerate(banks):
-            bank_id = bank[0] + 1
-            with primary.user_client(format="msgpack", user_id=bank_id) as c:
 
-                # Destination account is the next one in the list of banks
-                dst = banks[(i + 1) % len(banks)]
-                amt = banks[i][2]
+        if args.scenario:
+            LOG.error("Loading scenario file")
+            with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
 
-                src_country = countries.get(bank[1]).numeric
-                check(
-                    c.rpc(
-                        "TX_record",
-                        {
-                            "dst": dst[0],
-                            "amt": amt,
-                            "type": 2,
-                            "src_country": src_country,
-                            "dst_country": countries.get(dst[1]).numeric,
-                        },
-                    ),
-                    result=tx_id,
-                )
-                check(
-                    c.rpc("TX_get", {"tx_id": tx_id}),
-                    result=[
-                        bank[0],  # user id is the identity of the sender
-                        dst[0],
-                        amt,
-                        2,
-                        countries.get(bank[1]).numeric.encode(),
-                        countries.get(dst[1]).numeric.encode(),
-                    ],
-                )
-                if amt == flagged_amt:
+                with open(args.scenario, newline="") as f:
+                    scenario = csv.DictReader(f)
+                    for row in scenario:
+                        json_tx = (
+                            {
+                                "src": row["nameOrig"],
+                                "dst": row["nameDest"],
+                                "amt": row["amount"],
+                                "type": TransactionType[row["type"]].value,
+                                "src_country": countries.get(
+                                    random.choice(KNOWN_COUNTRIES)
+                                ).numeric,
+                                "dst_country": countries.get(
+                                    random.choice(KNOWN_COUNTRIES)
+                                ).numeric,
+                            },
+                        )
+
+                        check(c.rpc("TX_record", json_tx), result=tx_id)
+                        tx_id += 1
+
+            # TODO: Post-processing logic to check which transactions have been flagged
+
+        else:
+            for i, bank in enumerate(banks):
+                bank_id = bank[0] + 1
+                with primary.user_client(format="msgpack", user_id=bank_id) as c:
+
+                    # Destination account is the next one in the list of banks
+                    dst = banks[(i + 1) % len(banks)]
+                    amt = banks[i][2]
+
+                    src_country = countries.get(bank[1]).numeric
                     check(
-                        c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
-                        result=[src_country.encode(), False],
+                        c.rpc(
+                            "TX_record",
+                            {
+                                "src": bank[0],
+                                "dst": dst[0],
+                                "amt": amt,
+                                "type": TransactionType.TRANSFER.value,
+                                "src_country": src_country,
+                                "dst_country": countries.get(dst[1]).numeric,
+                            },
+                        ),
+                        result=tx_id,
                     )
-                    if tx_id == revealed_tx_id:
-                        revealed_tx = [
-                            bank[0],  # user id is the identity of the sender
+                    check(
+                        c.rpc("TX_get", {"tx_id": tx_id}),
+                        result=[
+                            bank[0],
                             dst[0],
                             amt,
-                            2,
+                            TransactionType.TRANSFER.value,
                             countries.get(bank[1]).numeric.encode(),
                             countries.get(dst[1]).numeric.encode(),
-                        ]
-                else:
-                    check(
-                        c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
-                        error=lambda e: e is not None
-                        and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+                        ],
                     )
-                tx_id += 1
-        LOG.success(f"{tx_id} transactions have been successfully issued")
+                    if amt == flagged_amt:
+                        check(
+                            c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
+                            result=[src_country.encode(), False],
+                        )
+                        if tx_id == revealed_tx_id:
+                            revealed_tx = [
+                                bank[0],
+                                dst[0],
+                                amt,
+                                TransactionType.TRANSFER.value,
+                                countries.get(bank[1]).numeric.encode(),
+                                countries.get(dst[1]).numeric.encode(),
+                            ]
+                    else:
+                        check(
+                            c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
+                            error=lambda e: e is not None
+                            and e["code"]
+                            == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+                        )
+                    tx_id += 1
+            LOG.success(f"{tx_id} transactions have been successfully issued")
 
         # bank that issued first flagged transaction
         with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
@@ -186,6 +231,12 @@ def run(args):
 
 
 if __name__ == "__main__":
-    args = e2e_args.cli_args()
+
+    def add(parser):
+        parser.add_argument(
+            "--scenario", help="Load an existing scenario file (csv)", type=str
+        )
+
+    args = e2e_args.cli_args(add)
     args.package = args.app_script and "libluagenericenc" or "libloggingenc"
     run(args)

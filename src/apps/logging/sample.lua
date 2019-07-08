@@ -15,6 +15,14 @@ return {
 
         INSUFFICIENT_RIGHTS = -32006,
         DENIED = -32007
+      },
+
+      transaction_type = {
+        PAYMENT = 1,
+        TRANSFER = 2,
+        CASH_OUT = 3,
+        DEBIT = 4,
+        CASH_IN = 5
       }
     }
 
@@ -37,7 +45,7 @@ return {
     end
 
     -- Regulators table:
-    --    regulator_id  -> [country, lua checker] TODO: Add Lua checker script
+    --    regulator_id  -> [country, lua checker]
     function env.reg_table()
       return tables.priv1
     end
@@ -79,7 +87,7 @@ return {
 
       tx_id = env.get_next_tx_id()
       env.tx_table():put(tx_id,
-        {args.caller_id,
+        {args.params.src,
         args.params.dst,
         args.params.amt,
         args.params.type,
