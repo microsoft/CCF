@@ -18,19 +18,6 @@ return {
       }
     }
 
-    -- tables.priv0: Transactions
-    --    tx_id         -> [src, dst, amt, type, bank_id, src_country, dst_country]
-    -- tables.priv1: Regulator
-    --    regulator_id  -> [country, lua checker]
-    -- tables.priv2: Flagged Transactions
-    --    tx_id         -> [country, revealed]
-
-
-    -- tables.priv3: Regulator ID (to uniquely identify a regulator)
-    --    0             -> [regulator_id]
-    -- tables.priv4: Bank ID (to uniquely identify a bank)
-    --    0             -> [bank_id]
-
     function env.jsucc(result)
       return {result = result}
     end
@@ -39,64 +26,137 @@ return {
       return {error = {code = code, message = message}}
     end
 
-    -- TODO: For now, regulator id is a global variable
-    current_regulator_id = 0
+    --
+    -- TABLES
+    --
+
+    -- Transactions table: tables.priv0
+    --    tx_id         -> [src, dst, amt, type, bank_id, src_country, dst_country]
+    function env.tx_table()
+      return tables.priv0
+    end
+
+    -- Regulators table: tables.priv1
+    --    regulator_id  -> [country, lua checker] TODO: Add Lua checker script
+    function env.reg_table()
+      return tables.priv1
+    end
+
+    -- Bank table: tables.priv2
+    --    bank_id       -> [country]
+    function env.bank_table()
+      return tables.priv2
+    end
+
+    -- Flagged transactions: tables.priv3
+    --    tx_id        ->  [country, revealed]
+    function env.flagged_tx()
+      return tables.priv3
+    end
 
     --
-    -- Transaction functions
+    --  BANK ENDPOINTS
     --
 
     function env.record_transaction()
-      tables.priv0:put(args.params.id, {args.params.src, args.params.dst, args.params.amt})
+      -- TODO: Assign a transaction id
+      bank_v = env.bank_table():get(args.caller_id)
+      if not bank_v then
+        return env.jerr(env.error_codes.INVALID_CALLER_ID, "User is not registered as a bank")
+      end
+
+      env.tx_table():put(args.params.id,
+        {args.caller_id,
+        args.params.dst,
+        args.params.amt,
+        args.params.type,
+        args.params.src_country,
+        args.params.dst_country})
+
+      -- TODO: Run script for all regulators and add to table_flagged_tx is script returns true
       return env.jsucc(true)
     end
 
     function env.get_transaction()
-      tx_v = tables.priv0:get(args.params.id)
+      tx_v = env.tx_table():get(args.params.id)
+      if tx_v[1] ~= args.caller_id then
+        return env.jerr(env.error_codes.INVALID_CALLER_ID, "Transaction was not issued by you.")
+      end
       if not tx_v then
         return env.jerr(env.error_codes.INVALID_PARAMS, "No such transaction")
       end
       return env.jsucc(tx_v)
     end
 
+    function env.register_bank()
+      reg_v = env.reg_table():get(args.caller_id)
+      if reg_v then
+        return env.jerr(env.error_codes.INVALID_CALLER_ID, "User is already registered as a regulator")
+      end
+      env.bank_table():put(args.caller_id, args.params.country)
+      return env.jsucc(args.caller_id)
+    end
+
+    function env.get_bank()
+      bank_v = env.bank_table():get(args.params.id)
+      if not bank_v then
+        return env.jerr(env.error_codes.INVALID_PARAMS, "No such bank")
+      end
+      return env.jsucc(bank_v)
+    end
+
+    -- function env.reveal_transaction()
+    --   -- TODO:
+    -- end
+
     --
-    -- Regulator functions
+    --  REGULATOR ENDPOINTS
     --
 
-    -- custom functions for sample application
+    function env.register_regulator()
+      bank_v = env.bank_table():get(args.caller_id)
+      if bank_v then
+        return env.jerr(env.error_codes.INVALID_CALLER_ID, "User is already registered as a bank")
+      end
 
-    function env.record_regulator()
-      current_regulator_id = current_regulator_id + 1
-      tables.priv1:put(current_regulator_id, args.params.country)
-      return env.jsucc(true)
+      -- TODO: Record lua script as well
+      env.reg_table():put(args.caller_id, args.params.country)
+      return env.jsucc(args.caller_id)
     end
 
     function env.get_regulator()
-      country = tables.priv1:get(args.params.id)
-      if not country then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "No such registrator")
+      reg_v = env.reg_table():get(args.params.id)
+      if not reg_v then
+        return env.jerr(env.error_codes.INVALID_PARAMS, "No such regulator")
       end
-      return env.jsucc(country)
+      return env.jsucc(reg_v)
     end
+
   ]],
 
   TX_record = [[
-    -- SNIPPET_START: lua_params
     tables, gov_tables, args = ...
-    -- SNIPPET_END: lua_params
     return env.record_transaction()
   ]],
 
   TX_get = [[
-    -- SNIPPET_START: lua_params
     tables, gov_tables, args = ...
-    -- SNIPPET_END: lua_params
     return env.get_transaction()
   ]],
 
-  REG_record = [[
+  BK_register = [[
     tables, gov_tables, args = ...
-    return env.record_regulator()
+    return env.register_bank()
+  ]],
+
+  BK_get = [[
+    tables, gov_tables, args = ...
+    return env.get_bank()
+  ]],
+
+  REG_register = [[
+    tables, gov_tables, args = ...
+    return env.register_regulator()
   ]],
 
   REG_get = [[

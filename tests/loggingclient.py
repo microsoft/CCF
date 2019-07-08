@@ -2,35 +2,110 @@
 # Licensed under the Apache 2.0 License.
 import e2e_args
 import infra.ccf
-import infra.proc
 
 import logging
 import time
+
+from iso3166 import countries
 
 from loguru import logger as LOG
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
+    hosts = ["localhost"]
 
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         primary, others = network.start_and_join(args)
 
-        with primary.user_client() as c:
+        # TODO: Use check_commit for Write RPCs
+        regulators = [(0, "gbr")]
+        banks = [(1, "us"), (2, "fr")]
+
+        for reg in regulators:
             with primary.management_client() as mc:
+
+                with primary.user_client(format="msgpack", user_id=reg[0] + 1) as c:
+                    check_commit = infra.ccf.Checker(mc)
+                    check = infra.ccf.Checker()
+
+                    check(
+                        c.rpc(
+                            "REG_register", {"country": countries.get(reg[1]).numeric}
+                        ),
+                        result=reg[0],
+                    )
+                    check(
+                        c.rpc("REG_get", {"id": reg[0]}),
+                        result=countries.get(reg[1]).numeric.encode(),
+                    )
+
+                    check(
+                        c.rpc(
+                            "BK_register", {"country": countries.get(reg[1]).numeric}
+                        ),
+                        error=lambda e: e is not None
+                        and e["code"]
+                        == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
+                    )
+                LOG.debug(f"User {reg[0]} successfully registered as regulator")
+
+        for bank in banks:
+            with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
                 check_commit = infra.ccf.Checker(mc)
                 check = infra.ccf.Checker()
 
-                check(c.rpc("REG_record", {"country": 100}), result=True)
-                check(c.rpc("REG_get", {"id": 1}), result=100)
+                check(
+                    c.rpc("BK_register", {"country": countries.get(bank[1]).numeric}),
+                    result=bank[0],
+                )
+                check(
+                    c.rpc("BK_get", {"id": bank[0]}),
+                    result=countries.get(bank[1]).numeric.encode(),
+                )
 
-                check(c.rpc("REG_record", {"country": 202}), result=True)
-                check(c.rpc("REG_get", {"id": 1}), result=202)
+                check(
+                    c.rpc("REG_register", {"country": countries.get(bank[1]).numeric}),
+                    error=lambda e: e is not None
+                    and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
+                )
+            LOG.debug(f"User {bank[0]} successfully registered as bank")
 
-                check(c.rpc("TX_record", {"id": 0, "src": 100, "dst": 50, "amt": 99}), result=True)
-                check(c.rpc("TX_get", {"id": 0}), result=[100, 50, 99])
+        LOG.success(
+            f"{len(regulators)} regulator(s) and {len(banks)} bank(s) successfully setup"
+        )
+
+        for i, bank in enumerate(banks):
+            with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
+
+                # Destination account is the next one in the list of banks
+                dst = banks[(i + 1) % len(banks)]
+                check(
+                    c.rpc(
+                        "TX_record",
+                        {
+                            "id": 0,
+                            "dst": dst[0],
+                            "amt": 99,
+                            "type": 2,
+                            "src_country": countries.get(bank[1]).numeric,
+                            "dst_country": countries.get(dst[1]).numeric,
+                        },
+                    ),
+                    result=True,
+                )
+                check(
+                    c.rpc("TX_get", {"id": 0}),
+                    result=[
+                        bank[0],  # caller_id is the identify of the sender
+                        dst[0],
+                        99,
+                        2,
+                        countries.get(bank[1]).numeric.encode(),
+                        countries.get(dst[1]).numeric.encode(),
+                    ],
+                )
 
 
 if __name__ == "__main__":
