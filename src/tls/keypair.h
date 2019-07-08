@@ -45,6 +45,63 @@
 
 namespace tls
 {
+  enum class CurveImpl
+  {
+    secp384r1 = 1,
+    curve25519 = 2,
+    secp256k1_mbedtls = 3,
+    secp256k1_bitcoin = 4,
+  };
+
+  template <CurveImpl C>
+  int hash(const uint8_t* data_ptr, size_t data_size, uint8_t* hash_ptr)
+  {
+    if constexpr (C == CurveImpl::secp384r1)
+    {
+      return mbedtls_sha512_ret(data_ptr, data_size, hash_ptr, true);
+    }
+    else if constexpr (C == CurveImpl::curve25519)
+    {
+      return mbedtls_sha512_ret(data_ptr, data_size, hash_ptr, false);
+    }
+    else if constexpr (
+      C == CurveImpl::secp256k1_mbedtls || C == CurveImpl::secp256k1_bitcoin)
+    {
+      return mbedtls_sha256_ret(data_ptr, data_size, hash_ptr, false);
+    }
+  }
+
+  template <CurveImpl>
+  struct MessageDigestParameters;
+
+  template <>
+  struct MessageDigestParameters<CurveImpl::secp384r1>
+  {
+    static constexpr mbedtls_md_type_t type = MBEDTLS_MD_SHA384;
+    static constexpr size_t size = 384 / 8;
+  };
+
+  template <>
+  struct MessageDigestParameters<CurveImpl::curve25519>
+  {
+    static constexpr mbedtls_md_type_t type = MBEDTLS_MD_SHA512;
+    static constexpr size_t size = 512 / 8;
+  };
+
+  template <>
+  struct MessageDigestParameters<CurveImpl::secp256k1_mbedtls>
+  {
+    static constexpr mbedtls_md_type_t type = MBEDTLS_MD_SHA256;
+    static constexpr size_t size = 256 / 8;
+  };
+
+  template <>
+  struct MessageDigestParameters<CurveImpl::secp256k1_bitcoin>
+  {
+    static constexpr mbedtls_md_type_t type = MBEDTLS_MD_SHA384;
+    static constexpr size_t size = 384 / 8;
+  };
+
 #if CURVE_CHOICE_SECP384R1
   static constexpr mbedtls_md_type_t MD_TYPE = MBEDTLS_MD_SHA384;
   static constexpr size_t MD_SIZE = 384 / 8;
