@@ -90,7 +90,8 @@ namespace std
   }
 }
 
-#define __FOR_JSON_NN( \
+// FOREACH macro machinery for counting args
+#define __FOR_JSON_COUNT_NN( \
   _0, \
   _1, \
   _2, \
@@ -115,8 +116,8 @@ namespace std
   N, \
   ...) \
   _FOR_JSON_##N
-#define _FOR_JSON_WITH_0(...) \
-  __FOR_JSON_NN( \
+#define _FOR_JSON_COUNT_NN_WITH_0(...) \
+  __FOR_JSON_COUNT_NN( \
     __VA_ARGS__, \
     20, \
     19, \
@@ -139,112 +140,232 @@ namespace std
     2, \
     1, \
     0)
-#define _FOR_JSON_NN(...) _FOR_JSON_WITH_0(DUMMY, ##__VA_ARGS__)
+#define _FOR_JSON_COUNT_NN(...) _FOR_JSON_COUNT_NN_WITH_0(DUMMY, ##__VA_ARGS__)
 
-#define _FOR_JSON_0(FUNC, TYPE)
-#define _FOR_JSON_1(FUNC, TYPE, FIELD) FUNC##_FOR_JSON_FINAL(TYPE, FIELD)
-#define _FOR_JSON_2(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_1(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_3(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_2(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_4(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_3(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_5(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_4(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_6(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_5(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_7(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_6(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_8(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_7(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_9(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_8(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_10(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_9(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_11(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_10(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_12(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_11(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_13(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_12(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_14(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_13(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_15(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_14(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_16(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_15(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_17(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_16(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_18(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_17(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_19(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_18(FUNC, TYPE, ##__VA_ARGS__)
-#define _FOR_JSON_20(FUNC, TYPE, FIELD, ...) \
-  _FOR_JSON_NEXT(FUNC, TYPE, FIELD) _FOR_JSON_19(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_0(POP_N) _FOR_JSON_0_##POP_N
+#define _FOR_JSON_1(POP_N) _FOR_JSON_1_##POP_N
+#define _FOR_JSON_2(POP_N) _FOR_JSON_2_##POP_N
+#define _FOR_JSON_3(POP_N) _FOR_JSON_3_##POP_N
+#define _FOR_JSON_4(POP_N) _FOR_JSON_4_##POP_N
+#define _FOR_JSON_5(POP_N) _FOR_JSON_5_##POP_N
+#define _FOR_JSON_6(POP_N) _FOR_JSON_6_##POP_N
+#define _FOR_JSON_7(POP_N) _FOR_JSON_7_##POP_N
+#define _FOR_JSON_8(POP_N) _FOR_JSON_8_##POP_N
+#define _FOR_JSON_9(POP_N) _FOR_JSON_9_##POP_N
+#define _FOR_JSON_10(POP_N) _FOR_JSON_10_##POP_N
+#define _FOR_JSON_11(POP_N) _FOR_JSON_11_##POP_N
+#define _FOR_JSON_12(POP_N) _FOR_JSON_12_##POP_N
+#define _FOR_JSON_13(POP_N) _FOR_JSON_13_##POP_N
+#define _FOR_JSON_14(POP_N) _FOR_JSON_14_##POP_N
+#define _FOR_JSON_15(POP_N) _FOR_JSON_15_##POP_N
+#define _FOR_JSON_16(POP_N) _FOR_JSON_16_##POP_N
+#define _FOR_JSON_17(POP_N) _FOR_JSON_17_##POP_N
+#define _FOR_JSON_18(POP_N) _FOR_JSON_18_##POP_N
+#define _FOR_JSON_19(POP_N) _FOR_JSON_19_##POP_N
+#define _FOR_JSON_20(POP_N) _FOR_JSON_20_##POP_N
 
+// FOREACH macro machinery for forwarding to single arg macros
+#define _FOR_JSON_0_POP1(FUNC, TYPE)
+#define _FOR_JSON_1_POP1(FUNC, TYPE, ARG1) _FOR_JSON_FINAL(FUNC, TYPE, ARG1)
+#define _FOR_JSON_2_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_1_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_3_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_2_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_4_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_3_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_5_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_4_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_6_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_5_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_7_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_6_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_8_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_7_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_9_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_8_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_10_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_9_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_11_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_10_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_12_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_11_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_13_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_12_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_14_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_13_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_15_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_14_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_16_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_15_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_17_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_16_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_18_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_17_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_19_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_18_POP1(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_20_POP1(FUNC, TYPE, ARG1, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1) \
+  _FOR_JSON_19_POP1(FUNC, TYPE, ##__VA_ARGS__)
+
+// FOREACH macro machinery for forwarding to double arg macros
+#define _FOR_JSON_0_POP2(FUNC, TYPE)
+#define _FOR_JSON_1_POP2(FUNC, TYPE, ARG1) INVALID_ODD_ARGS
+#define _FOR_JSON_2_POP2(FUNC, TYPE, ARG1, ARG2) \
+  _FOR_JSON_FINAL(FUNC, TYPE, ARG1, ARG2)
+#define _FOR_JSON_3_POP2(FUNC, TYPE, ARG1, ARG2, ...) INVALID_ODD_ARGS
+#define _FOR_JSON_4_POP2(FUNC, TYPE, ARG1, ARG2, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1, ARG2) \
+  _FOR_JSON_2_POP2(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_5_POP2(FUNC, TYPE, ARG1, ARG2, ...) INVALID_ODD_ARGS
+#define _FOR_JSON_6_POP2(FUNC, TYPE, ARG1, ARG2, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1, ARG2) \
+  _FOR_JSON_4_POP2(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_7_POP2(FUNC, TYPE, ARG1, ARG2, ...) INVALID_ODD_ARGS
+#define _FOR_JSON_8_POP2(FUNC, TYPE, ARG1, ARG2, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1, ARG2) \
+  _FOR_JSON_6_POP2(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_9_POP2(FUNC, TYPE, ARG1, ARG2, ...) INVALID_ODD_ARGS
+#define _FOR_JSON_10_POP2(FUNC, TYPE, ARG1, ARG2, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1, ARG2) \
+  _FOR_JSON_8_POP2(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_11_POP2(FUNC, TYPE, ARG1, ARG2, ...) INVALID_ODD_ARGS
+#define _FOR_JSON_12_POP2(FUNC, TYPE, ARG1, ARG2, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1, ARG2) \
+  _FOR_JSON_10_POP2(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_13_POP2(FUNC, TYPE, ARG1, ARG2, ...) INVALID_ODD_ARGS
+#define _FOR_JSON_14_POP2(FUNC, TYPE, ARG1, ARG2, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1, ARG2) \
+  _FOR_JSON_12_POP2(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_15_POP2(FUNC, TYPE, ARG1, ARG2, ...) INVALID_ODD_ARGS
+#define _FOR_JSON_16_POP2(FUNC, TYPE, ARG1, ARG2, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1, ARG2) \
+  _FOR_JSON_14_POP2(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_17_POP2(FUNC, TYPE, ARG1, ARG2, ...) INVALID_ODD_ARGS
+#define _FOR_JSON_18_POP2(FUNC, TYPE, ARG1, ARG2, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1, ARG2) \
+  _FOR_JSON_16_POP2(FUNC, TYPE, ##__VA_ARGS__)
+#define _FOR_JSON_19_POP2(FUNC, TYPE, ARG1, ARG2, ...) INVALID_ODD_ARGS
+#define _FOR_JSON_20_POP2(FUNC, TYPE, ARG1, ARG2, ...) \
+  _FOR_JSON_NEXT(FUNC, TYPE, ARG1, ARG2) \
+  _FOR_JSON_18_POP2(FUNC, TYPE, ##__VA_ARGS__)
+
+// Implementation of macros produced by the machinery above
 #define _FOR_JSON_NEXT(FUNC, ...) FUNC##_FOR_JSON_NEXT(__VA_ARGS__)
 #define _FOR_JSON_FINAL(FUNC, ...) FUNC##_FOR_JSON_FINAL(__VA_ARGS__)
 
-#define WRITE_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD) \
+#define WRITE_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD) \
   { \
-    j[#FIELD] = t.FIELD; \
+    j[#JSON_FIELD] = t.C_FIELD; \
   }
-#define WRITE_REQUIRED_FOR_JSON_FINAL(TYPE, FIELD) \
-  WRITE_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD)
+#define WRITE_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL(TYPE, C_FIELD, JSON_FIELD) \
+  WRITE_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD)
 
-#define WRITE_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD) \
+#define WRITE_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD) \
+  WRITE_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, FIELD)
+#define WRITE_REQUIRED_FOR_JSON_FINAL(TYPE, FIELD) \
+  WRITE_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, FIELD)
+
+#define WRITE_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD) \
   { \
-    if (t.FIELD != t_default.FIELD) \
+    if (t.C_FIELD != t_default.C_FIELD) \
     { \
-      j[#FIELD] = t.FIELD; \
+      j[#JSON_FIELD] = t.C_FIELD; \
     } \
   }
-#define WRITE_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
-  WRITE_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD)
+#define WRITE_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL(TYPE, C_FIELD, JSON_FIELD) \
+  WRITE_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD)
 
-#define READ_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD) \
+#define WRITE_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD) \
+  WRITE_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, FIELD)
+#define WRITE_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
+  WRITE_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, FIELD)
+
+#define READ_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD) \
   { \
-    const auto it = j.find(#FIELD); \
+    const auto it = j.find(#JSON_FIELD); \
     if (it == j.end()) \
     { \
       throw JsonParseError( \
-        "Missing required field '" #FIELD "' in object: " + j.dump()); \
+        "Missing required field '" #JSON_FIELD "' in object: " + j.dump()); \
     } \
     try \
     { \
-      t.FIELD = it->get<decltype(TYPE::FIELD)>(); \
+      t.C_FIELD = it->get<decltype(TYPE::C_FIELD)>(); \
     } \
     catch (JsonParseError & jpe) \
     { \
-      jpe.pointer_elements.push_back(#FIELD); \
+      jpe.pointer_elements.push_back(#JSON_FIELD); \
       throw; \
     } \
   }
-#define READ_REQUIRED_FOR_JSON_FINAL(TYPE, FIELD) \
-  READ_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD)
+#define READ_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL(TYPE, C_FIELD, JSON_FIELD) \
+  READ_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD)
 
-#define READ_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD) \
+#define READ_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD) \
+  READ_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, FIELD)
+#define READ_REQUIRED_FOR_JSON_FINAL(TYPE, FIELD) \
+  READ_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, FIELD)
+
+#define READ_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD) \
   { \
-    const auto it = j.find(#FIELD); \
+    const auto it = j.find(#JSON_FIELD); \
     if (it != j.end()) \
     { \
-      t.FIELD = it->get<decltype(TYPE::FIELD)>(); \
+      t.C_FIELD = it->get<decltype(TYPE::C_FIELD)>(); \
     } \
   }
+#define READ_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL(TYPE, C_FIELD, JSON_FIELD) \
+  READ_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD)
+
+#define READ_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD) \
+  READ_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, FIELD)
 #define READ_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
-  READ_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD)
+  READ_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, FIELD)
+
+#define FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT( \
+  TYPE, C_FIELD, JSON_FIELD) \
+  j["properties"][#JSON_FIELD] = \
+    ::ds::json::schema_element<decltype(TYPE::C_FIELD)>(); \
+  j["required"].push_back(#JSON_FIELD);
+#define FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL( \
+  TYPE, C_FIELD, JSON_FIELD) \
+  FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD)
 
 #define FILL_SCHEMA_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD) \
-  j["properties"][#FIELD] = \
-    ::ds::json::schema_element<decltype(TYPE::FIELD)>(); \
-  j["required"].push_back(#FIELD);
+  FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, FIELD)
 #define FILL_SCHEMA_REQUIRED_FOR_JSON_FINAL(TYPE, FIELD) \
-  FILL_SCHEMA_REQUIRED_FOR_JSON_NEXT(TYPE, FIELD)
+  FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, FIELD)
+
+#define FILL_SCHEMA_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT( \
+  TYPE, C_FIELD, JSON_FIELD) \
+  j["properties"][#JSON_FIELD] = \
+    ::ds::json::schema_element<decltype(TYPE::C_FIELD)>();
+#define FILL_SCHEMA_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL( \
+  TYPE, C_FIELD, JSON_FIELD) \
+  FILL_SCHEMA_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD)
 
 #define FILL_SCHEMA_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD) \
-  j["properties"][#FIELD] = ::ds::json::schema_element<decltype(TYPE::FIELD)>();
+  FILL_SCHEMA_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, FIELD, FIELD)
 #define FILL_SCHEMA_OPTIONAL_FOR_JSON_FINAL(TYPE, FIELD) \
-  FILL_SCHEMA_OPTIONAL_FOR_JSON_NEXT(TYPE, FIELD)
+  FILL_SCHEMA_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL(TYPE, FIELD, FIELD)
 
 #define JSON_FIELD_FOR_JSON_NEXT(TYPE, FIELD) \
   JsonField<decltype(TYPE::FIELD)>{#FIELD},
@@ -401,7 +522,7 @@ namespace std
     { \
       j = nlohmann::json::object(); \
     } \
-    _FOR_JSON_NN(__VA_ARGS__)(WRITE_REQUIRED, TYPE, ##__VA_ARGS__) \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)(WRITE_REQUIRED, TYPE, ##__VA_ARGS__) \
   } \
   inline void from_json_required_fields(const nlohmann::json& j, TYPE& t) \
   { \
@@ -409,28 +530,75 @@ namespace std
     { \
       throw JsonParseError("Expected object, found: " + j.dump()); \
     } \
-    _FOR_JSON_NN(__VA_ARGS__)(READ_REQUIRED, TYPE, ##__VA_ARGS__) \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)(READ_REQUIRED, TYPE, ##__VA_ARGS__) \
   } \
   inline void fill_json_schema_required_fields(nlohmann::json& j, const TYPE&) \
   { \
     j["type"] = "object"; \
-    _FOR_JSON_NN(__VA_ARGS__)(FILL_SCHEMA_REQUIRED, TYPE, ##__VA_ARGS__) \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__) \
+    (POP1)(FILL_SCHEMA_REQUIRED, TYPE, ##__VA_ARGS__) \
+  }
+
+#define DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(TYPE, ...) \
+  inline void to_json_required_fields(nlohmann::json& j, const TYPE& t) \
+  { \
+    if (!j.is_object()) \
+    { \
+      j = nlohmann::json::object(); \
+    } \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__) \
+    (POP2)(WRITE_REQUIRED_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
+  } \
+  inline void from_json_required_fields(const nlohmann::json& j, TYPE& t) \
+  { \
+    if (!j.is_object()) \
+    { \
+      throw JsonParseError("Expected object, found: " + j.dump()); \
+    } \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__) \
+    (POP2)(READ_REQUIRED_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
+  } \
+  inline void fill_json_schema_required_fields(nlohmann::json& j, const TYPE&) \
+  { \
+    j["type"] = "object"; \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__) \
+    (POP2)(FILL_SCHEMA_REQUIRED_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
   }
 
 #define DECLARE_JSON_OPTIONAL_FIELDS(TYPE, ...) \
   inline void to_json_optional_fields(nlohmann::json& j, const TYPE& t) \
   { \
     const TYPE t_default{}; \
-    _FOR_JSON_NN(__VA_ARGS__)(WRITE_OPTIONAL, TYPE, ##__VA_ARGS__) \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)(WRITE_OPTIONAL, TYPE, ##__VA_ARGS__) \
   } \
   inline void from_json_optional_fields(const nlohmann::json& j, TYPE& t) \
   { \
-    _FOR_JSON_NN(__VA_ARGS__)(READ_OPTIONAL, TYPE, ##__VA_ARGS__) \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)(READ_OPTIONAL, TYPE, ##__VA_ARGS__) \
   } \
   inline void fill_json_schema_optional_fields( \
     nlohmann::json& j, const TYPE& t) \
   { \
-    _FOR_JSON_NN(__VA_ARGS__)(FILL_SCHEMA_OPTIONAL, TYPE, ##__VA_ARGS__) \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__) \
+    (POP1)(FILL_SCHEMA_OPTIONAL, TYPE, ##__VA_ARGS__) \
+  }
+
+#define DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(TYPE, ...) \
+  inline void to_json_optional_fields(nlohmann::json& j, const TYPE& t) \
+  { \
+    const TYPE t_default{}; \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__) \
+    (POP2)(WRITE_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
+  } \
+  inline void from_json_optional_fields(const nlohmann::json& j, TYPE& t) \
+  { \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__) \
+    (POP2)(READ_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
+  } \
+  inline void fill_json_schema_optional_fields( \
+    nlohmann::json& j, const TYPE& t) \
+  { \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__) \
+    (POP2)(FILL_SCHEMA_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
   }
 
 #define DECLARE_JSON_ENUM(TYPE, ...) \
