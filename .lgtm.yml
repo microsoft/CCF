@@ -1,0 +1,7 @@
+extraction:
+  python:
+    python_setup:
+      version: 3
+      requirements_files:
+        - tests/requirements.txt
+        - sphinx/requirements.txt
