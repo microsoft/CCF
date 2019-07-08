@@ -5,3 +5,5 @@ extraction:
       requirements_files:
         - tests/requirements.txt
         - sphinx/requirements.txt
+      include:
+        tests
