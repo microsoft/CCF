@@ -17,32 +17,6 @@
 #include <mbedtls/eddsa.h>
 #include <memory>
 
-#if CURVE_CHOICE_SECP384R1
-
-#  define HASH(data_ptr, data_size, hash_ptr) \
-    do \
-    { \
-      mbedtls_sha512_ret(data_ptr, data_size, hash_ptr, true); \
-    } while (0)
-
-#elif CURVE_CHOICE_CURVE25519
-
-#  define HASH(data_ptr, data_size, hash_ptr) \
-    do \
-    { \
-      mbedtls_sha512_ret(data_ptr, data_size, hash_ptr, false); \
-    } while (0)
-
-#elif CURVE_CHOICE_SECP256K1_MBEDTLS || CURVE_CHOICE_SECP256K1_BITCOIN
-
-#  define HASH(data_ptr, data_size, hash_ptr) \
-    do \
-    { \
-      mbedtls_sha256_ret(data_ptr, data_size, hash_ptr, false); \
-    } while (0)
-
-#endif
-
 namespace tls
 {
   enum class CurveImpl
@@ -57,7 +31,7 @@ namespace tls
   };
 
   template <CurveImpl C>
-  int hash(const uint8_t* data_ptr, size_t data_size, uint8_t* hash_ptr)
+  int do_hash(const uint8_t* data_ptr, size_t data_size, uint8_t* hash_ptr)
   {
     if constexpr (C == CurveImpl::secp384r1)
     {
@@ -120,7 +94,7 @@ namespace tls
   static constexpr size_t REC_ID_IDX = 64;
 
   template <CurveImpl C>
-  using Hash = std::array<uint8_t, CurveParameters<C>::md_size>;
+  using HashBytes = std::array<uint8_t, CurveParameters<C>::md_size>;
 
   inline bool verify_secp256k_bc(
     secp256k1_context* ctx, const uint8_t* signature, const uint8_t* hash)
@@ -330,8 +304,8 @@ namespace tls
      */
     std::vector<uint8_t> sign(CBuffer d) const
     {
-      Hash<C> hash;
-      HASH(d.p, d.rawSize(), hash.data());
+      HashBytes<C> hash;
+      do_hash<C>(d.p, d.rawSize(), hash.data());
 
       Entropy entropy;
       uint8_t sig[MBEDTLS_ECDSA_MAX_LEN];
@@ -395,8 +369,8 @@ namespace tls
      */
     int sign(CBuffer d, uint8_t* sig_size, uint8_t* sig) const
     {
-      Hash<C> hash;
-      HASH(d.p, d.rawSize(), hash.data());
+      HashBytes<C> hash;
+      do_hash<C>(d.p, d.rawSize(), hash.data());
 
       size_t written = 0;
 #if CURVE_CHOICE_SECP256K1_BITCOIN
@@ -630,8 +604,8 @@ namespace tls
       const std::vector<uint8_t>& contents,
       const std::vector<uint8_t>& signature)
     {
-      Hash<C> hash;
-      HASH(contents.data(), contents.size(), hash.data());
+      HashBytes<C> hash;
+      do_hash<C>(contents.data(), contents.size(), hash.data());
 
 #if CURVE_CHOICE_SECP256K1_BITCOIN
       if (signature.size() != REC_ID_IDX + 1)
@@ -670,8 +644,8 @@ namespace tls
       const uint8_t* sig,
       uint8_t sig_size)
     {
-      Hash<C> hash;
-      HASH(contents, contents_size, hash.data());
+      HashBytes<C> hash;
+      do_hash<C>(contents, contents_size, hash.data());
 
 #if CURVE_CHOICE_SECP256K1_BITCOIN
       return verify_secp256k_bc(ctx_, sig, hash.data());
@@ -786,7 +760,7 @@ namespace tls
      * @return Whether the signature matches the contents and the key
      */
     bool verify_hash(
-      const Hash<C>& hash, const std::vector<uint8_t>& signature) const
+      const HashBytes<C>& hash, const std::vector<uint8_t>& signature) const
     {
 #if CURVE_CHOICE_SECP256K1_BITCOIN
       if (signature.size() != REC_ID_IDX + 1)
@@ -821,8 +795,8 @@ namespace tls
       const std::vector<uint8_t>& contents,
       const std::vector<uint8_t>& signature) const
     {
-      Hash<C> hash;
-      HASH(contents.data(), contents.size(), hash.data());
+      HashBytes<C> hash;
+      do_hash<C>(contents.data(), contents.size(), hash.data());
 
       return verify_hash(hash, signature);
     }
