@@ -130,6 +130,26 @@ namespace tls
     return true;
   }
 
+  template <CurveImpl>
+  struct AdditionalContext
+  {};
+
+  template <>
+  struct AdditionalContext<CurveImpl::secp256k1_bitcoin>
+  {
+    secp256k1_context* libsec_ctx = secp256k1_context_create(
+      SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
+
+    static constexpr size_t privk_size = 32;
+    uint8_t c4_priv[privk_size] = {0};
+
+    ~AdditionalContext()
+    {
+      if (libsec_ctx)
+        secp256k1_context_destroy(libsec_ctx);
+    }
+  };
+
   template <CurveImpl C = CurveImpl::default_curve_choice>
   class KeyPair
   {
@@ -162,31 +182,18 @@ namespace tls
     std::unique_ptr<mbedtls_pk_context> key =
       std::make_unique<mbedtls_pk_context>();
 
-#if CURVE_CHOICE_SECP256K1_BITCOIN
-    secp256k1_context* ctx = secp256k1_context_create(
-      SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
-
-    static constexpr size_t PK_SIZE = 32;
-    uint8_t c4_priv[PK_SIZE] = {0};
-#endif
+    AdditionalContext<C> ctx;
 
   public:
     /**
      * Create a new public / private key pair
      */
-    KeyPair(
-      mbedtls_ecp_group_id ec =
-#if CURVE_CHOICE_SECP384R1
-        MBEDTLS_ECP_DP_SECP384R1
-#elif CURVE_CHOICE_CURVE25519
-        MBEDTLS_ECP_DP_CURVE25519
-#elif CURVE_CHOICE_SECP256K1_MBEDTLS || CURVE_CHOICE_SECP256K1_BITCOIN
-        MBEDTLS_ECP_DP_SECP256K1
-#endif
-    )
+    KeyPair()
     {
       Entropy entropy;
       mbedtls_pk_init(key.get());
+
+      constexpr auto ec = CurveParameters<C>::ec_group_id;
 
       switch (ec)
       {
@@ -228,10 +235,7 @@ namespace tls
     {
       key = std::move(other.key);
       other.key = nullptr;
-#if CURVE_CHOICE_SECP256K1_BITCOIN
       ctx = std::move(other.ctx);
-      other.ctx = nullptr;
-#endif
     }
 
     /**
@@ -259,10 +263,6 @@ namespace tls
     {
       if (key)
         mbedtls_pk_free(key.get());
-#if CURVE_CHOICE_SECP256K1_BITCOIN
-      if (ctx)
-        secp256k1_context_destroy(ctx);
-#endif
     }
 
     /**
@@ -327,7 +327,8 @@ namespace tls
       if (rc != 1)
       {
         LOG_FAIL_FMT(
-          "secp256k1_ecdsa_recoverable_signature_serialize_compact failed with "
+          "secp256k1_ecdsa_recoverable_signature_serialize_compact failed "
+          "with "
           "{}",
           rc);
         return {};
@@ -430,7 +431,8 @@ namespace tls
       if (rc != 1)
       {
         LOG_FAIL_FMT(
-          "secp256k1_ecdsa_recoverable_signature_serialize_compact failed with "
+          "secp256k1_ecdsa_recoverable_signature_serialize_compact failed "
+          "with "
           "{}",
           rc);
         return {};
@@ -458,8 +460,9 @@ namespace tls
     }
 
     /**
-     * Create a certificate signing request for this key pair. If we were loaded
-     * from a private key, there will be no public key available for this call.
+     * Create a certificate signing request for this key pair. If we were
+     * loaded from a private key, there will be no public key available for
+     * this call.
      */
     std::vector<uint8_t> create_csr(const std::string& name)
     {
