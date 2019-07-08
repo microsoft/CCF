@@ -535,9 +535,8 @@ namespace ccf
         return;
       }
 
-      // If the final recovery version has been reached, end recovery
       if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
-        network.tables->compact(ledger_idx);
+        recovery_store->compact(ledger_idx);
 
       if (recovery_store->current_version() == recovery_v)
       {
