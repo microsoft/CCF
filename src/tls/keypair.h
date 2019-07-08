@@ -51,6 +51,9 @@ namespace tls
     curve25519 = 2,
     secp256k1_mbedtls = 3,
     secp256k1_bitcoin = 4,
+
+    // TODO: Determine this from flag, expose to CMake
+    default_curve_choice = secp384r1,
   };
 
   template <CurveImpl C>
@@ -72,50 +75,52 @@ namespace tls
   }
 
   template <CurveImpl>
-  struct MessageDigestParameters;
+  struct CurveParameters;
 
   template <>
-  struct MessageDigestParameters<CurveImpl::secp384r1>
+  struct CurveParameters<CurveImpl::secp384r1>
   {
-    static constexpr mbedtls_md_type_t type = MBEDTLS_MD_SHA384;
-    static constexpr size_t size = 384 / 8;
+    static constexpr mbedtls_md_type_t md_type = MBEDTLS_MD_SHA384;
+    static constexpr size_t md_size = 384 / 8;
+
+    static constexpr mbedtls_ecp_group_id ec_group_id =
+      MBEDTLS_ECP_DP_SECP384R1;
   };
 
   template <>
-  struct MessageDigestParameters<CurveImpl::curve25519>
+  struct CurveParameters<CurveImpl::curve25519>
   {
-    static constexpr mbedtls_md_type_t type = MBEDTLS_MD_SHA512;
-    static constexpr size_t size = 512 / 8;
+    static constexpr mbedtls_md_type_t md_type = MBEDTLS_MD_SHA512;
+    static constexpr size_t md_size = 512 / 8;
+
+    static constexpr mbedtls_ecp_group_id ec_group_id =
+      MBEDTLS_ECP_DP_CURVE25519;
   };
 
   template <>
-  struct MessageDigestParameters<CurveImpl::secp256k1_mbedtls>
+  struct CurveParameters<CurveImpl::secp256k1_mbedtls>
   {
-    static constexpr mbedtls_md_type_t type = MBEDTLS_MD_SHA256;
-    static constexpr size_t size = 256 / 8;
+    static constexpr mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
+    static constexpr size_t md_size = 256 / 8;
+
+    static constexpr mbedtls_ecp_group_id ec_group_id =
+      MBEDTLS_ECP_DP_SECP256K1;
   };
 
   template <>
-  struct MessageDigestParameters<CurveImpl::secp256k1_bitcoin>
+  struct CurveParameters<CurveImpl::secp256k1_bitcoin>
   {
-    static constexpr mbedtls_md_type_t type = MBEDTLS_MD_SHA384;
-    static constexpr size_t size = 384 / 8;
-  };
+    static constexpr mbedtls_md_type_t md_type = MBEDTLS_MD_SHA384;
+    static constexpr size_t md_size = 384 / 8;
 
-#if CURVE_CHOICE_SECP384R1
-  static constexpr mbedtls_md_type_t MD_TYPE = MBEDTLS_MD_SHA384;
-  static constexpr size_t MD_SIZE = 384 / 8;
-#elif CURVE_CHOICE_CURVE25519
-  static constexpr mbedtls_md_type_t MD_TYPE = MBEDTLS_MD_SHA512;
-  static constexpr size_t MD_SIZE = 512 / 8;
-#elif CURVE_CHOICE_SECP256K1_MBEDTLS || CURVE_CHOICE_SECP256K1_BITCOIN
-  static constexpr mbedtls_md_type_t MD_TYPE = MBEDTLS_MD_SHA256;
-  static constexpr size_t MD_SIZE = 256 / 8;
-#endif
+    static constexpr mbedtls_ecp_group_id ec_group_id =
+      MBEDTLS_ECP_DP_SECP256K1;
+  };
 
   static constexpr size_t REC_ID_IDX = 64;
 
-  using Hash = std::array<uint8_t, MD_SIZE>;
+  template <CurveImpl C>
+  using Hash = std::array<uint8_t, CurveParameters<C>::md_size>;
 
   inline bool verify_secp256k_bc(
     secp256k1_context* ctx, const uint8_t* signature, const uint8_t* hash)
@@ -151,6 +156,7 @@ namespace tls
     return true;
   }
 
+  template <CurveImpl C = CurveImpl::default_curve_choice>
   class KeyPair
   {
   private:
@@ -324,7 +330,7 @@ namespace tls
      */
     std::vector<uint8_t> sign(CBuffer d) const
     {
-      Hash hash;
+      Hash<C> hash;
       HASH(d.p, d.rawSize(), hash.data());
 
       Entropy entropy;
@@ -358,7 +364,7 @@ namespace tls
       if (
         mbedtls_pk_sign(
           key.get(),
-          MD_TYPE,
+          CurveParameters<C>::md_type,
           hash.data(),
           hash.size(),
           sig,
@@ -389,7 +395,7 @@ namespace tls
      */
     int sign(CBuffer d, uint8_t* sig_size, uint8_t* sig) const
     {
-      Hash hash;
+      Hash<C> hash;
       HASH(d.p, d.rawSize(), hash.data());
 
       size_t written = 0;
@@ -412,7 +418,7 @@ namespace tls
 
       int rc = mbedtls_pk_sign(
                  key.get(),
-                 MD_TYPE,
+                 CurveParameters<C>::md_type,
                  hash.data(),
                  hash.size(),
                  sig,
@@ -462,7 +468,7 @@ namespace tls
       if (
         mbedtls_pk_sign(
           key.get(),
-          MD_TYPE,
+          CurveParameters<C>::md_type,
           hash.h,
           hash.SIZE,
           sig,
@@ -520,7 +526,7 @@ namespace tls
       if (r < 0)
         return {};
 
-      mbedtls_x509write_crt_set_md_alg(&sign.crt, MD_TYPE);
+      mbedtls_x509write_crt_set_md_alg(&sign.crt, CurveParameters<C>::md_type);
       mbedtls_x509write_crt_set_subject_key(&sign.crt, &sign.csr.pk);
       mbedtls_x509write_crt_set_issuer_key(&sign.crt, key.get());
 
@@ -574,6 +580,7 @@ namespace tls
     }
   };
 
+  template <CurveImpl C = CurveImpl::default_curve_choice>
   class PublicKey
   {
   protected:
@@ -623,7 +630,7 @@ namespace tls
       const std::vector<uint8_t>& contents,
       const std::vector<uint8_t>& signature)
     {
-      Hash hash;
+      Hash<C> hash;
       HASH(contents.data(), contents.size(), hash.data());
 
 #if CURVE_CHOICE_SECP256K1_BITCOIN
@@ -633,7 +640,7 @@ namespace tls
 #else
       auto rc = mbedtls_pk_verify(
         &ctx,
-        MD_TYPE,
+        CurveParameters<C>::md_type,
         hash.data(),
         hash.size(),
         signature.data(),
@@ -663,7 +670,7 @@ namespace tls
       const uint8_t* sig,
       uint8_t sig_size)
     {
-      Hash hash;
+      Hash<C> hash;
       HASH(contents, contents_size, hash.data());
 
 #if CURVE_CHOICE_SECP256K1_BITCOIN
@@ -672,7 +679,12 @@ namespace tls
 
       return (
         mbedtls_pk_verify(
-          &ctx, MD_TYPE, hash.data(), hash.size(), sig, sig_size) == 0);
+          &ctx,
+          CurveParameters<C>::md_type,
+          hash.data(),
+          hash.size(),
+          sig,
+          sig_size) == 0);
 #endif
     }
 
@@ -686,6 +698,7 @@ namespace tls
     }
   };
 
+  template <CurveImpl C = CurveImpl::default_curve_choice>
   class Verifier
   {
   protected:
@@ -750,7 +763,7 @@ namespace tls
 #else
       int rc = mbedtls_pk_verify(
         &cert.pk,
-        MD_TYPE,
+        CurveParameters<C>::md_type,
         hash.h,
         hash.SIZE,
         signature.data(),
@@ -773,7 +786,7 @@ namespace tls
      * @return Whether the signature matches the contents and the key
      */
     bool verify_hash(
-      const Hash& hash, const std::vector<uint8_t>& signature) const
+      const Hash<C>& hash, const std::vector<uint8_t>& signature) const
     {
 #if CURVE_CHOICE_SECP256K1_BITCOIN
       if (signature.size() != REC_ID_IDX + 1)
@@ -782,7 +795,7 @@ namespace tls
 #else
       int rc = mbedtls_pk_verify(
         &cert.pk,
-        MD_TYPE,
+        CurveParameters<C>::md_type,
         hash.data(),
         hash.size(),
         signature.data(),
@@ -808,7 +821,7 @@ namespace tls
       const std::vector<uint8_t>& contents,
       const std::vector<uint8_t>& signature) const
     {
-      Hash hash;
+      Hash<C> hash;
       HASH(contents.data(), contents.size(), hash.data());
 
       return verify_hash(hash, signature);
