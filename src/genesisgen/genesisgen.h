@@ -54,7 +54,7 @@ public:
 
   std::vector<uint8_t> finalize_raw()
   {
-    auto [success, vtx0] = tx.commit_reserved();
+    auto [success, reqid, vtx0] = tx.commit_reserved();
     if (success)
       throw std::logic_error("Could not commit tx0.");
     return vtx0;
@@ -80,8 +80,8 @@ public:
 
     nodes_view->foreach(
       [&start_node](const ccf::NodeId& id, const ccf::NodeInfo& v) {
-        if (start_node == ccf::INVALID_ID)
-          start_node = id;
+        start_node = id;
+        return false;
       });
 
     rpc.params.id = start_node;

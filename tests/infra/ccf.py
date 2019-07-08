@@ -213,6 +213,12 @@ class Network:
     def remove_node(self):
         last_node = self.nodes.pop()
 
+    def add_node(self, new_node_info):
+        with self.find_leader()[0].member_client(format="json") as member_client:
+            j_result = member_client.rpc("add_node", new_node_info)
+
+        return j_result
+
     def create_and_add_node(self, lib_name, args, should_succeed=True, node_id=None):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
@@ -230,8 +236,7 @@ class Network:
         )
         new_node_info = new_node.remote.info()
 
-        with self.find_leader()[0].member_client(format="json") as member_client:
-            j_result = member_client.rpc("add_node", new_node_info)
+        j_result = self.add_node(new_node_info)
 
         if not should_succeed:
             self.remove_node()
@@ -557,6 +562,7 @@ class Node:
             "--port={}".format(self.tls_port),
             "--ca={}".format(self.remote.pem),
             "startnetwork",
+            "--req=@startNetwork.json",
         ).check_returncode()
         LOG.info("Started Network")
 
@@ -580,7 +586,7 @@ class Node:
             "--port={}".format(self.tls_port),
             "--ca={}".format(self.remote.pem),
             "joinnetwork",
-            "--req=joinNetwork.json",
+            "--req=@joinNetwork.json",
         ).check_returncode()
         self.complete_join_network()
 

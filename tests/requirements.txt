@@ -1,3 +1,4 @@
 paramiko
 msgpack
 loguru
+coincurve

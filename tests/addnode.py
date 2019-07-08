@@ -25,6 +25,13 @@ def run(args):
         assert res[0] == True
         new_node = res[1]
 
+        # attempt to add a node having the host and port fields
+        # similar to a the ones of an existing node
+        assert (
+            network.add_node(new_node.remote.info()).error["code"]
+            == infra.jsonrpc.ErrorCode.INVALID_PARAMS
+        )
+
         # add an invalid node
         assert network.create_and_add_node("libluagenericenc", args, False) == (
             False,

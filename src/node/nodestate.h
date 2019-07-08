@@ -446,7 +446,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::readingPublicLedger);
 
-      LOG_INFO_FMT(
+      LOG_DEBUG_FMT(
         "Deserialising public ledger entry ({})", ledger_entry.size());
 
       // When reading the public ledger, deserialise in the real store
@@ -535,9 +535,8 @@ namespace ccf
         return;
       }
 
-      // If the final recovery version has been reached, end recovery
       if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
-        network.tables->compact(ledger_idx);
+        recovery_store->compact(ledger_idx);
 
       if (recovery_store->current_version() == recovery_v)
       {
@@ -635,6 +634,7 @@ namespace ccf
 #endif
           result.quotes.push_back(quote);
         }
+        return true;
       });
     };
 
@@ -655,6 +655,7 @@ namespace ccf
           // Only retire nodes that have not already been retired
           if (ni.status != ccf::NodeStatus::RETIRED)
             nodes_to_delete[nid] = ni;
+          return true;
         });
       for (auto [nid, ni] : nodes_to_delete)
       {
@@ -666,6 +667,7 @@ namespace ccf
       certs_view->foreach(
         [&certs_to_delete](const Cert& cstr, const NodeId& _) {
           certs_to_delete.push_back(cstr);
+          return true;
         });
       for (Cert& cstr : certs_to_delete)
       {
@@ -796,6 +798,7 @@ namespace ccf
         [&new_followers, this](const NodeId& nid, const NodeInfo& ni) {
           if (ni.status != ccf::NodeStatus::RETIRED && nid != self)
             new_followers[nid] = ni;
+          return true;
         });
 
       // For all nodes in the new network, write all past network secrets to the
@@ -1108,6 +1111,7 @@ namespace ccf
           s.foreach([&](NodeId node_id, const Nodes::VersionV& v) {
             if (v.value.status != NodeStatus::RETIRED)
               configuration.insert(node_id);
+            return true;
           });
           raft->add_configuration(version, move(configuration));
         }
@@ -1186,6 +1190,10 @@ namespace ccf
         node_kp,
         network.signatures,
         network.nodes);
+#ifdef PBFT
+      if (pbft)
+        history->register_on_request(pbft->get_on_request());
+#endif
 
       encryptor =
 #ifdef USE_NULL_ENCRYPTOR

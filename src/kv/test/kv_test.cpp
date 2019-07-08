@@ -183,6 +183,20 @@ TEST_CASE("Reads/writes and deletions")
     auto vc = view3->get(k);
     REQUIRE(!vc.has_value());
   }
+
+  INFO("Test early temination of KV foreach");
+  {
+    Store::Tx tx;
+    auto view = tx.get_view(map);
+    view->put("key1", "value1");
+    view->put("key2", "value2");
+    size_t ctr = 0;
+    view->foreach([&ctr](const auto& key, const auto& value) {
+      ++ctr;
+      return false;
+    });
+    REQUIRE(ctr == 1);
+  }
 }
 
 TEST_CASE("Rollback and compact")
@@ -467,7 +481,7 @@ TEST_CASE("Custom type serialisation test")
     view->put(k, v1);
     view->put(k2, v2);
 
-    auto [success, serialised] = tx.commit_reserved();
+    auto [success, reqid, serialised] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
     kv_store.compact(view->end_order());
 
@@ -499,7 +513,7 @@ TEST_CASE("Clone schema")
   auto [view1, view2] = tx1.get_view(public_map, private_map);
   view1->put(42, "aardvark");
   view2->put(14, "alligator");
-  auto [success, serialised] = tx1.commit_reserved();
+  auto [success, reqid, serialised] = tx1.commit_reserved();
   REQUIRE(success == kv::CommitSuccess::OK);
 
   Store clone;
@@ -525,7 +539,7 @@ TEST_CASE("Deserialise return status")
     Store::Tx tx(store.next_version());
     auto data_view = tx.get_view(data);
     data_view->put(42, 42);
-    auto [success, serialised] = tx.commit_reserved();
+    auto [success, reqid, serialised] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
     REQUIRE(store.deserialise(serialised) == kv::DeserialiseSuccess::PASS);
@@ -536,7 +550,7 @@ TEST_CASE("Deserialise return status")
     auto sig_view = tx.get_view(signatures);
     ccf::Signature sigv(0, 2);
     sig_view->put(0, sigv);
-    auto [success, serialised] = tx.commit_reserved();
+    auto [success, reqid, serialised] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
     REQUIRE(
@@ -550,7 +564,7 @@ TEST_CASE("Deserialise return status")
     ccf::Signature sigv(0, 2);
     sig_view->put(0, sigv);
     data_view->put(43, 43);
-    auto [success, serialised] = tx.commit_reserved();
+    auto [success, reqid, serialised] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
     REQUIRE(store.deserialise(serialised) == kv::DeserialiseSuccess::FAILED);

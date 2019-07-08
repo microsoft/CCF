@@ -141,6 +141,7 @@ namespace ccf
 
           // Call the lua functor. This pops the args and functor-copy
           lua_pcall(l, ifunc, 0, 0);
+          return true;
         });
 
         return 0;

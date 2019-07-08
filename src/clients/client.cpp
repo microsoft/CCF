@@ -51,13 +51,19 @@ std::vector<uint8_t> make_rpc_raw(
   Pack pack,
   const string& sni,
   const string& ca_file,
-  const string& req_file,
+  const string& req_arg,
   const string& client_cert_file = "",
   const string& client_pk_file = "",
   tls::Auth auth = tls::auth_required)
 {
   auto ca = files::slurp(ca_file);
-  auto req = files::slurp(req_file);
+  auto req_str = req_arg;
+  if (req_arg[0] == '@')
+  {
+    req_str = files::slurp_string(req_arg.substr(1));
+  }
+
+  std::vector<uint8_t> req(req_str.begin(), req_str.end());
 
   auto tls_ca = std::make_shared<tls::CA>(ca);
 
@@ -116,7 +122,7 @@ nlohmann::json make_rpc(
   const string& ca_file,
   const string& client_cert_file,
   const string& client_pk_file,
-  const string& req_file,
+  const string& req_arg,
   tls::Auth auth = tls::auth_required)
 {
   auto s = make_rpc_raw(
@@ -125,7 +131,7 @@ nlohmann::json make_rpc(
     pack,
     sni,
     ca_file,
-    req_file,
+    req_arg,
     client_cert_file,
     client_pk_file,
     auth);
@@ -147,6 +153,11 @@ nlohmann::json make_rpc(
     throw;
   }
   return nlohmann::json();
+}
+
+CLI::Option* add_request_arg(CLI::App* app, std::string& req)
+{
+  return app->add_option("--req", req, "RPC request data, '@' allowed", true);
 }
 
 int main(int argc, char** argv)
@@ -176,39 +187,39 @@ int main(int argc, char** argv)
 
   auto start_network = app.add_subcommand("startnetwork", "Start network");
 
-  std::string req_sn = "startNetwork.json";
-  start_network->add_option("--req", req_sn, "RPC file", true);
+  std::string req_sn = "@startNetwork.json";
+  add_request_arg(start_network, req_sn);
 
   auto join_network = app.add_subcommand("joinnetwork", "Join network");
 
-  std::string req_jn = "joinNetwork.json";
-  join_network->add_option("--req", req_jn, "RPC file", true);
+  std::string req_jn = "@joinNetwork.json";
+  add_request_arg(join_network, req_jn);
 
   auto member_rpc = app.add_subcommand("memberrpc", "Member RPC");
 
-  std::string req_mem = "memberrpc.json";
+  std::string req_mem = "@memberrpc.json";
   std::string member_cert_file = "member1_cert.pem";
   std::string member_pk_file = "member1_privk.pem";
-  member_rpc->add_option("--req", req_mem, "RPC file", true);
+  add_request_arg(member_rpc, req_mem);
   member_rpc->add_option(
     "--cert", member_cert_file, "Member's certificate", true);
   member_rpc->add_option("--pk", member_pk_file, "Member's private key", true);
 
   auto user_rpc = app.add_subcommand("userrpc", "User RPC");
 
-  std::string req_user = "userrpc.json";
+  std::string req_user = "@userrpc.json";
   std::string user_cert_file = "user1_cert.pem";
   std::string user_pk_file = "user1_privk.pem";
-  user_rpc->add_option("--req", req_user, "RPC file", true);
+  add_request_arg(user_rpc, req_user);
   user_rpc->add_option("--cert", user_cert_file, "User's certificate", true);
   user_rpc->add_option("--pk", user_pk_file, "User's private key", true);
 
   auto mgmt_rpc = app.add_subcommand("mgmtrpc", "Management RPC");
 
-  std::string req_mgmt = "mgmt.json";
+  std::string req_mgmt = "@mgmt.json";
   std::string mgmt_cert_file;
   std::string mgmt_pk_file;
-  mgmt_rpc->add_option("--req", req_mgmt, "RPC file", true);
+  add_request_arg(mgmt_rpc, req_mgmt);
   mgmt_rpc->add_option("--cert", mgmt_cert_file, "Manager's certificate", true);
   mgmt_rpc->add_option("--pk", mgmt_pk_file, "Manager's private key", true);
 
