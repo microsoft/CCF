@@ -20,8 +20,8 @@ def run(args):
         primary, others = network.start_and_join(args)
 
         # TODO: Use check_commit for Write RPCs
-        regulators = [(0, "gbr")]
-        banks = [(1, "us"), (2, "fr")]
+        regulators = [(0, "gbr", "if amt == 99 then return true else return false end")]
+        banks = [(1, "us", 99), (2, "fr", 29)]
 
         for reg in regulators:
             with primary.management_client() as mc:
@@ -32,13 +32,20 @@ def run(args):
 
                     check(
                         c.rpc(
-                            "REG_register", {"country": countries.get(reg[1]).numeric}
+                            "REG_register",
+                            {
+                                "country": countries.get(reg[1]).numeric,
+                                "script": reg[2],
+                            },
                         ),
                         result=reg[0],
                     )
                     check(
                         c.rpc("REG_get", {"id": reg[0]}),
-                        result=countries.get(reg[1]).numeric.encode(),
+                        result=[
+                            countries.get(reg[1]).numeric.encode(),
+                            reg[2].encode(),
+                        ],
                     )
 
                     check(
@@ -76,21 +83,25 @@ def run(args):
             f"{len(regulators)} regulator(s) and {len(banks)} bank(s) successfully setup"
         )
 
-        tx_id = 0 # Tracks how many transactions have been issued
-
+        tx_id = 0  # Tracks how many transactions have been issued
+        flagged_tx_ids = []
+        flagged_amt = 99
         for i, bank in enumerate(banks):
             with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
 
                 # Destination account is the next one in the list of banks
                 dst = banks[(i + 1) % len(banks)]
+                amt = banks[i][2]
+
+                src_country = countries.get(bank[1]).numeric
                 check(
                     c.rpc(
                         "TX_record",
                         {
                             "dst": dst[0],
-                            "amt": 99,
+                            "amt": amt,
                             "type": 2,
-                            "src_country": countries.get(bank[1]).numeric,
+                            "src_country": src_country,
                             "dst_country": countries.get(dst[1]).numeric,
                         },
                     ),
@@ -101,14 +112,40 @@ def run(args):
                     result=[
                         bank[0],  # user id is the identity of the sender
                         dst[0],
-                        99,
+                        amt,
                         2,
                         countries.get(bank[1]).numeric.encode(),
                         countries.get(dst[1]).numeric.encode(),
                     ],
                 )
+                if amt == flagged_amt:
+                    check(
+                        c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
+                        result=[src_country.encode(), False],
+                    )
+                else:
+                    check(
+                        c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
+                        error=lambda e: e is not None
+                        and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+                    )
+                if amt == flagged_amt:
+                    flagged_tx_ids.append(tx_id)
                 tx_id += 1
         LOG.success(f"{tx_id} transactions have been successfully issued")
+
+        bank = banks[0]
+        with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
+            check(
+                c.rpc("REG_poll_flagged", {}),
+                error=lambda e: e is not None
+                and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
+            )
+
+        reg = regulators[0]
+        with primary.management_client() as mc:
+            with primary.user_client(format="msgpack", user_id=reg[0] + 1) as c:
+                check(c.rpc("REG_poll_flagged", {}), result=flagged_tx_ids)
 
 
 if __name__ == "__main__":

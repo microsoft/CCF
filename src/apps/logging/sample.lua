@@ -86,7 +86,14 @@ return {
         args.params.src_country,
         args.params.dst_country})
 
-      -- TODO: Run script for all regulators and add to table_flagged_tx is script returns true
+      reg_table = env.reg_table()
+      flagged_table = env.flagged_tx()
+
+      reg_table:foreach(
+        function (k, v) flagged = env.run_checker(v[2]);
+          if flagged then flagged_table:put(tx_id, {src_country, false}) end
+        end
+      )
       return env.jsucc(tx_id)
     end
 
@@ -132,8 +139,7 @@ return {
         return env.jerr(env.error_codes.INVALID_CALLER_ID, "User is already registered as a bank")
       end
 
-      -- TODO: Record lua script as well
-      env.reg_table():put(args.caller_id, args.params.country)
+      env.reg_table():put(args.caller_id, {args.params.country, args.params.script})
       return env.jsucc(args.caller_id)
     end
 
@@ -143,6 +149,41 @@ return {
         return env.jerr(env.error_codes.INVALID_PARAMS, "No such regulator")
       end
       return env.jsucc(reg_v)
+    end
+
+    function env.run_checker(script)
+      txid = args.params.id
+      dst = args.params.dst
+      amt = args.params.amt
+      type = args.params.type
+      src_country = args.params.src_country
+      dst_country = args.params.dst_country
+      f = load(script);
+      return f()
+    end
+
+    function env.poll_flagged()
+      reg_v = env.reg_table():get(args.caller_id)
+      if not reg_v then
+        return env.jerr(env.error_codes.INVALID_CALLER_ID, "User is not registered as a regulator")
+      end
+      tx_ids = {}
+      env.flagged_tx():foreach(
+        function (k, v) table.insert(tx_ids, k) end
+      )
+      return env.jsucc(tx_ids)
+    end
+
+    --
+    --  FLAGGED TX ENDPOINTS
+    --
+
+    function env.get_flagged_tx()
+      flagged_tx = env.flagged_tx():get(args.params.tx_id)
+      if not flagged_tx then
+        return env.jerr(env.error_codes.INVALID_PARAMS, "No such transaction")
+      end
+      return env.jsucc(flagged_tx)
     end
 
   ]],
@@ -180,5 +221,15 @@ return {
   REG_get = [[
     tables, gov_tables, args = ...
     return env.get_regulator()
+  ]],
+
+  REG_poll_flagged = [[
+    tables, gov_tables, args = ...
+    return env.poll_flagged()
+  ]],
+
+  FLAGGED_TX_get = [[
+    tables, gov_tables, args = ...
+    return env.get_flagged_tx()
   ]],
 }
