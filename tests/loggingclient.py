@@ -76,6 +76,8 @@ def run(args):
             f"{len(regulators)} regulator(s) and {len(banks)} bank(s) successfully setup"
         )
 
+        tx_id = 0 # Tracks how many transactions have been issued
+
         for i, bank in enumerate(banks):
             with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
 
@@ -85,7 +87,6 @@ def run(args):
                     c.rpc(
                         "TX_record",
                         {
-                            "id": 0,
                             "dst": dst[0],
                             "amt": 99,
                             "type": 2,
@@ -93,12 +94,12 @@ def run(args):
                             "dst_country": countries.get(dst[1]).numeric,
                         },
                     ),
-                    result=True,
+                    result=tx_id,
                 )
                 check(
-                    c.rpc("TX_get", {"id": 0}),
+                    c.rpc("TX_get", {"tx_id": tx_id}),
                     result=[
-                        bank[0],  # caller_id is the identify of the sender
+                        bank[0],  # user id is the identity of the sender
                         dst[0],
                         99,
                         2,
@@ -106,6 +107,8 @@ def run(args):
                         countries.get(dst[1]).numeric.encode(),
                     ],
                 )
+                tx_id += 1
+        LOG.success(f"{tx_id} transactions have been successfully issued")
 
 
 if __name__ == "__main__":

@@ -30,28 +30,41 @@ return {
     -- TABLES
     --
 
-    -- Transactions table: tables.priv0
-    --    tx_id         -> [src, dst, amt, type, bank_id, src_country, dst_country]
+    -- Transactions table:
+    --    tx_id         -> [src, dst, amt, type, src_country, dst_country]
     function env.tx_table()
       return tables.priv0
     end
 
-    -- Regulators table: tables.priv1
+    -- Regulators table:
     --    regulator_id  -> [country, lua checker] TODO: Add Lua checker script
     function env.reg_table()
       return tables.priv1
     end
 
-    -- Bank table: tables.priv2
+    -- Bank table:
     --    bank_id       -> [country]
     function env.bank_table()
       return tables.priv2
     end
 
-    -- Flagged transactions: tables.priv3
+    -- Flagged transactions:
     --    tx_id        ->  [country, revealed]
     function env.flagged_tx()
       return tables.priv3
+    end
+
+    -- Transaction ID:
+    --    0           -> tx_id
+    function env.get_next_tx_id()
+      tx_id = tables.priv4:get(0)
+      -- For the first tx, initialise tx_id table
+      if not tx_id then
+        tables.priv4:put(0, 1)
+        return 0
+      end
+      tables.priv4:put(0, tx_id + 1)
+      return tx_id
     end
 
     --
@@ -59,13 +72,13 @@ return {
     --
 
     function env.record_transaction()
-      -- TODO: Assign a transaction id
       bank_v = env.bank_table():get(args.caller_id)
       if not bank_v then
         return env.jerr(env.error_codes.INVALID_CALLER_ID, "User is not registered as a bank")
       end
 
-      env.tx_table():put(args.params.id,
+      tx_id = env.get_next_tx_id()
+      env.tx_table():put(tx_id,
         {args.caller_id,
         args.params.dst,
         args.params.amt,
@@ -74,16 +87,16 @@ return {
         args.params.dst_country})
 
       -- TODO: Run script for all regulators and add to table_flagged_tx is script returns true
-      return env.jsucc(true)
+      return env.jsucc(tx_id)
     end
 
     function env.get_transaction()
-      tx_v = env.tx_table():get(args.params.id)
-      if tx_v[1] ~= args.caller_id then
-        return env.jerr(env.error_codes.INVALID_CALLER_ID, "Transaction was not issued by you.")
-      end
+      tx_v = env.tx_table():get(args.params.tx_id)
       if not tx_v then
         return env.jerr(env.error_codes.INVALID_PARAMS, "No such transaction")
+      end
+      if tx_v[1] ~= args.caller_id then
+        return env.jerr(env.error_codes.INVALID_CALLER_ID, "Transaction was not issued by you.")
       end
       return env.jsucc(tx_v)
     end
@@ -142,6 +155,11 @@ return {
   TX_get = [[
     tables, gov_tables, args = ...
     return env.get_transaction()
+  ]],
+
+  TX_reveal = [[
+    tables, gov_tables, args = ...
+    -- return env.get_transaction()
   ]],
 
   BK_register = [[
