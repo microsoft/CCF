@@ -21,7 +21,7 @@ def run(args):
 
         # TODO: Use check_commit for Write RPCs
         regulators = [(0, "gbr", "if amt == 99 then return true else return false end")]
-        banks = [(1, "us", 99), (2, "fr", 29)]
+        banks = [(1, "us", 99), (1, "gbr", 29), (2, "grc", 99), (2, "fr", 29)]
 
         for reg in regulators:
             with primary.management_client() as mc:
@@ -84,10 +84,16 @@ def run(args):
         )
 
         tx_id = 0  # Tracks how many transactions have been issued
-        flagged_tx_ids = []
+        # tracks flagged/non flagged and revealed/non revealed transactions for validation
+        revealed_tx = None
+        flagged_tx_ids = [0, 2]
+        not_flagged_tx_ids = [1, 3]
+        revealed_tx_id = 2
+        non_revealed_tx_id = 3
         flagged_amt = 99
         for i, bank in enumerate(banks):
-            with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
+            bank_id = bank[0] + 1
+            with primary.user_client(format="msgpack", user_id=bank_id) as c:
 
                 # Destination account is the next one in the list of banks
                 dst = banks[(i + 1) % len(banks)]
@@ -123,29 +129,60 @@ def run(args):
                         c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
                         result=[src_country.encode(), False],
                     )
+                    if tx_id == revealed_tx_id:
+                        revealed_tx = [
+                            bank[0],  # user id is the identity of the sender
+                            dst[0],
+                            amt,
+                            2,
+                            countries.get(bank[1]).numeric.encode(),
+                            countries.get(dst[1]).numeric.encode(),
+                        ]
                 else:
                     check(
                         c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
                         error=lambda e: e is not None
                         and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
                     )
-                if amt == flagged_amt:
-                    flagged_tx_ids.append(tx_id)
                 tx_id += 1
         LOG.success(f"{tx_id} transactions have been successfully issued")
 
-        bank = banks[0]
+        # bank that issued first flagged transaction
         with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
+            # try to poll flagged but fail as you are not a regulator
             check(
                 c.rpc("REG_poll_flagged", {}),
                 error=lambda e: e is not None
                 and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
             )
 
+            # bank reveal first transaction that was flagged
+            check(c.rpc("TX_reveal", {"tx_id": revealed_tx_id}), result=True)
+
+            # bank try to reveal non flagged tx
+            check(
+                c.rpc("TX_reveal", {"tx_id": non_revealed_tx_id}),
+                error=lambda e: e is not None
+                and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+            )
+
+        # regulator poll for transactions that are flagged
         reg = regulators[0]
         with primary.management_client() as mc:
             with primary.user_client(format="msgpack", user_id=reg[0] + 1) as c:
                 check(c.rpc("REG_poll_flagged", {}), result=flagged_tx_ids)
+
+                # get from flagged txs, try to get the flagged one that was not revealed
+                check(
+                    c.rpc("REG_get_revealed", {"tx_id": flagged_tx_ids[0]}),
+                    error=lambda e: e is not None
+                    and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+                )
+                # get from flagged txs, try to get the flagged one that was revealed
+                check(
+                    c.rpc("REG_get_revealed", {"tx_id": flagged_tx_ids[1]}),
+                    result=revealed_tx,
+                )
 
 
 if __name__ == "__main__":

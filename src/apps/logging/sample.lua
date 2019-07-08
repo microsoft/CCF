@@ -108,6 +108,22 @@ return {
       return env.jsucc(tx_v)
     end
 
+    function env.get_revealed_transaction()
+      tx_id = args.params.tx_id
+
+      flagged_v = env.flagged_tx():get(tx_id)
+      if not flagged_v then
+        return env.jerr(env.error_codes.INVALID_PARAMS, "Transaction has not been flagged")
+      end
+
+      if not flagged_v[2] then
+        return env.jerr(env.error_codes.INVALID_PARAMS, "Transaction has not been revealed")
+      end
+
+      tx_v = env.tx_table():get(tx_id)
+      return env.jsucc(tx_v)
+    end
+
     function env.register_bank()
       reg_v = env.reg_table():get(args.caller_id)
       if reg_v then
@@ -125,9 +141,24 @@ return {
       return env.jsucc(bank_v)
     end
 
-    -- function env.reveal_transaction()
-    --   -- TODO:
-    -- end
+    function env.reveal_transaction()
+      tx_id = args.params.tx_id
+      tx_v = env.tx_table():get(tx_id)
+      if not tx_v then
+        return env.jerr(env.error_codes.INVALID_PARAMS, "No such transaction")
+      end
+      if tx_v[1] ~= args.caller_id then
+        return env.jerr(env.error_codes.INVALID_CALLER_ID, "Transaction was not issued by you")
+      end
+      flagged_tx_table = env.flagged_tx()
+      flagged_v = flagged_tx_table:get(tx_id)
+      if not flagged_v then
+        return env.jerr(env.error_codes.INVALID_PARAMS, "Transaction has not been flagged")
+      end
+      flagged_v[2] = true
+      flagged_tx_table:put(tx_id, flagged_v)
+      return env.jsucc(true)
+    end
 
     --
     --  REGULATOR ENDPOINTS
@@ -174,6 +205,14 @@ return {
       return env.jsucc(tx_ids)
     end
 
+    function env.get_revealed()
+      reg_v = env.reg_table():get(args.caller_id)
+      if not reg_v then
+        return env.jerr(env.error_codes.INVALID_CALLER_ID, "User is not registered as a regulator")
+      end
+      return(env.get_revealed_transaction())
+    end
+
     --
     --  FLAGGED TX ENDPOINTS
     --
@@ -200,7 +239,7 @@ return {
 
   TX_reveal = [[
     tables, gov_tables, args = ...
-    -- return env.get_transaction()
+    return env.reveal_transaction()
   ]],
 
   BK_register = [[
@@ -226,6 +265,11 @@ return {
   REG_poll_flagged = [[
     tables, gov_tables, args = ...
     return env.poll_flagged()
+  ]],
+
+  REG_get_revealed = [[
+    tables, gov_tables, args = ...
+    return env.get_revealed()
   ]],
 
   FLAGGED_TX_get = [[
