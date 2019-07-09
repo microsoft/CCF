@@ -71,6 +71,22 @@ TEST_CASE_TEMPLATE(
     contents.data(), contents.size(), signature.data(), signature.size()));
 }
 
+TEST_CASE_TEMPLATE(
+  "Sign, fail to verify with wrong curve", CP, TEMPLATE_CURVE_TYPES)
+{
+  tls::KeyPair<CP::curve> kp;
+  vector<uint8_t> contents(contents_.begin(), contents_.end());
+  vector<uint8_t> signature = kp.sign(contents);
+
+  vector<uint8_t> public_key = kp.public_key();
+  const auto wrong_curve = CP::curve == tls::CurveImpl::secp384r1 ?
+    tls::CurveImpl::curve25519 :
+    tls::CurveImpl::secp384r1;
+  tls::PublicKey<wrong_curve> pubk(public_key);
+  REQUIRE_FALSE(pubk.verify(
+    contents.data(), contents.size(), signature.data(), signature.size()));
+}
+
 TEST_CASE_TEMPLATE("Sign, verify with certificate", CP, TEMPLATE_CURVE_TYPES)
 {
   tls::KeyPair<CP::curve> kp;
