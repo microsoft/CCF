@@ -33,8 +33,16 @@ def run(args):
     ) as network:
         primary, others = network.start_and_join(args)
 
+        script = "if amt == 99 then return true else return false end"
+        if args.lua_script is not None:
+            data = []
+            with open(args.lua_script, "r") as f:
+                data = f.readlines()
+
+            script = "".join(data)
+
         # TODO: Use check_commit for Write RPCs
-        regulators = [(0, "gbr", "if amt == 99 then return true else return false end")]
+        regulators = [(0, "gbr", script)]
         banks = [(1, "us", 99), (1, "gbr", 29), (2, "grc", 99), (2, "fr", 29)]
 
         for reg in regulators:
@@ -235,6 +243,9 @@ if __name__ == "__main__":
     def add(parser):
         parser.add_argument(
             "--scenario", help="Load an existing scenario file (csv)", type=str
+        )
+        parser.add_argument(
+            "--lua-script", help="Regulator checker loaded as lua script file", type=str
         )
 
     args = e2e_args.cli_args(add)

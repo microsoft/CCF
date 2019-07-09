@@ -98,7 +98,7 @@ return {
       flagged_table = env.flagged_tx()
 
       reg_table:foreach(
-        function (k, v) flagged = env.run_checker(v[2]);
+        function (k, v) flagged = env.run_checker(tx_id, v[2]);
           if flagged then flagged_table:put(tx_id, {src_country, false}) end
         end
       )
@@ -190,8 +190,7 @@ return {
       return env.jsucc(reg_v)
     end
 
-    function env.run_checker(script)
-      txid = args.params.id
+    function env.run_checker(tx_id, script)
       dst = args.params.dst
       amt = args.params.amt
       type = args.params.type
