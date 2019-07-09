@@ -39,7 +39,7 @@ return {
     --
 
     -- Transactions table:
-    --    tx_id         -> [src, dst, amt, type, bank_id, src_country, dst_country]
+    --    tx_id         -> [src, dst, amt, type, bank_id, src_country, dst_country, timestamp]
     function env.tx_table()
       return tables.priv0
     end
@@ -57,7 +57,7 @@ return {
     end
 
     -- Flagged transactions:
-    --    tx_id        ->  [country, revealed]
+    --    tx_id        ->  [regulator id, revealed, timestamp]
     function env.flagged_tx()
       return tables.priv3
     end
@@ -84,7 +84,7 @@ return {
       if not bank_v then
         return env.jerr(env.error_codes.INVALID_CALLER_ID, "User is not registered as a bank")
       end
-
+      a = args.params.amt
       tx_id = env.get_next_tx_id()
       env.tx_table():put(tx_id,
         {args.params.src,
@@ -93,14 +93,16 @@ return {
         args.params.type,
         args.caller_id,
         args.params.src_country,
-        args.params.dst_country})
+        args.params.dst_country,
+        args.params.timestamp})
 
       reg_table = env.reg_table()
       flagged_table = env.flagged_tx()
 
+      -- reg_table: key-> regulator id, value -> (src_country, script)
       reg_table:foreach(
         function (k, v) flagged = env.run_checker(tx_id, v[2]);
-          if flagged then flagged_table:put(tx_id, {src_country, false}) end
+          if flagged then flagged_table:put(tx_id, {k, false, args.params.timestamp}) end
         end
       )
       return env.jsucc(tx_id)
@@ -159,13 +161,13 @@ return {
       if tx_v[5] ~= args.caller_id then
         return env.jerr(env.error_codes.INVALID_CALLER_ID, "Transaction was not issued by you")
       end
-      flagged_tx_table = env.flagged_tx()
-      flagged_v = flagged_tx_table:get(tx_id)
+      flagged_table = env.flagged_tx()
+      flagged_v = flagged_table:get(tx_id)
       if not flagged_v then
         return env.jerr(env.error_codes.INVALID_PARAMS, "Transaction has not been flagged")
       end
       flagged_v[2] = true
-      flagged_tx_table:put(tx_id, flagged_v)
+      flagged_table:put(tx_id, flagged_v)
       return env.jsucc(true)
     end
 
@@ -194,7 +196,7 @@ return {
     function env.run_checker(tx_id, script)
       dst = args.params.dst
       amt = args.params.amt
-      type = args.params.type
+      tx_type = args.params.type
       src_country = args.params.src_country
       dst_country = args.params.dst_country
       f = load(script);
