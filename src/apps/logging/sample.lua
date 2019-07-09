@@ -121,8 +121,8 @@ return {
 
     function env.get_revealed_transaction()
       tx_id = args.params.tx_id
-
-      flagged_v = env.flagged_tx():get(tx_id)
+      flagged_table = env.flagged_tx()
+      flagged_v = flagged_table:get(tx_id)
       if not flagged_v then
         return env.jerr(env.error_codes.INVALID_PARAMS, "Transaction has not been flagged")
       end
@@ -132,7 +132,23 @@ return {
       end
 
       tx_v = env.tx_table():get(tx_id)
-      return env.jsucc(tx_v)
+
+      -- remove the transaction from the flagged_tx table
+      flagged_table:put(tx_id, {})
+
+      tx = {
+        tx_id = tx_id,
+        src = tx_v[1],
+        dst = tx_v[2],
+        amt = tx_v[3],
+        type = tx_v[4],
+        bank_id = tx_v[5],
+        src_country = tx_v[6],
+        dst_country = tx_v[7],
+        timestamp = tx_v[8]
+      }
+
+      return env.jsucc(tx)
     end
 
     function env.register_bank()
@@ -210,7 +226,7 @@ return {
       end
       tx_ids = {}
       env.flagged_tx():foreach(
-        function (k, v) table.insert(tx_ids, k) end
+        function (k, v) if next(v) then table.insert(tx_ids, k) end end
       )
       return env.jsucc(tx_ids)
     end

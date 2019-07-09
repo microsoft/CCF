@@ -2,15 +2,13 @@
 # Licensed under the Apache 2.0 License.
 import e2e_args
 import infra.ccf
-
+import os
 import logging
-from time import gmtime, strftime
+from time import gmtime, strftime, perf_counter
 import csv
 import random
 from enum import IntEnum
-
 from iso3166 import countries
-
 from loguru import logger as LOG
 
 
@@ -33,14 +31,23 @@ def run(args):
     ) as network:
         primary, others = network.start_and_join(args)
 
-        script = "if amt == 99 then return true else return false end"
-        if args.lua_script is not None:
-            data = []
-            with open(args.lua_script, "r") as f:
-                data = f.readlines()
-            script = "".join(data)
+        print("")
+        print(
+            "================= Netowrk setup complete, you can run the below command to poll the service. "
+            + "Press enter to continue ================="
+        )
+        print("")
+        print(
+            f"python3 {os.path.realpath(os.path.dirname(__file__))}/poll.py --host={primary.host} --port={primary.tls_port}"
+        )
+        print("")
+        input("Press Enter to continue...")
 
-        # TODO: Use check_commit for Write RPCs
+        data = []
+        with open(args.lua_script, "r") as f:
+            data = f.readlines()
+        script = "".join(data)
+
         regulator = (0, "gbr", script)
         banks = [(1, "us", 99), (1, "gbr", 29), (2, "grc", 99), (2, "fr", 29)]
 
@@ -92,8 +99,11 @@ def run(args):
 
         with primary.user_client(format="msgpack", user_id=regulator[0] + 1) as reg_c:
 
-            with primary.user_client(format="msgpack", user_id=bank_id) as c:
+            with primary.user_client(
+                format="msgpack", user_id=bank_id, log_file=None
+            ) as c:
                 with open(args.datafile, newline="") as f:
+                    start_time = perf_counter()
                     datafile = csv.DictReader(f)
                     for row in datafile:
                         json_tx = {
@@ -115,8 +125,12 @@ def run(args):
                         check(c.rpc("TX_record", json_tx), result=tx_id)
                         tx_id += 1
 
-                        # TODO separate script
-                        reg_c.rpc("REG_poll_flagged", {})
+                        if tx_id % 1000 == 0:
+                            elapsed_time = perf_counter() - start_time
+                            LOG.info(
+                                f"1000 transactions took {elapsed_time}: tx_id: {tx_id}"
+                            )
+                            start_time = perf_counter()
                 LOG.success("Scenario file successfully loaded")
 
 
@@ -124,10 +138,16 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.add_argument(
-            "--datafile", help="Load an existing scenario file (csv)", type=str
+            "--datafile",
+            help="Load an existing scenario file (csv)",
+            type=str,
+            required=True,
         )
         parser.add_argument(
-            "--lua-script", help="Regulator checker loaded as lua script file", type=str
+            "--lua-script",
+            help="Regulator checker loaded as lua script file",
+            type=str,
+            required=True,
         )
 
     args = e2e_args.cli_args(add)
