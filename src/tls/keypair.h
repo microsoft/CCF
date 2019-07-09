@@ -703,8 +703,6 @@ namespace tls
       const Hash& hash, const std::vector<uint8_t>& signature) const
     {
 #if CURVE_CHOICE_SECP256K1_BITCOIN
-      if (signature.size() != REC_ID_IDX + 1)
-        return false;
       return verify_secp256k_bc(
         ctx, signature.data(), signature.size(), hash.data(), &c4_pub);
 #else
