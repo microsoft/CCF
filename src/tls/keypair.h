@@ -122,7 +122,7 @@ namespace tls
     secp256k1_ecdsa_signature nsig;
     if (secp256k1_ecdsa_recover(ctx, &public_key, &sig, hash) != 1)
     {
-      LOG_INFO_FMT("secp256k1_ecdsa_sign_recoverable failed");
+      LOG_INFO_FMT("secp256k1_ecdsa_recover failed");
       return false;
     }
     if (secp256k1_ecdsa_recoverable_signature_convert(ctx, &nsig, &sig) != 1)
@@ -658,30 +658,8 @@ namespace tls
       const std::vector<uint8_t>& contents,
       const std::vector<uint8_t>& signature)
     {
-      HashBytes<C> hash;
-      do_hash<C>(contents.data(), contents.size(), hash.data());
-
-      if constexpr (C == CurveImpl::secp256k1_bitcoin)
-      {
-        if (signature.size() != REC_ID_IDX + 1)
-          return false;
-        return verify_secp256k_bc(curve_ctx.ctx, signature.data(), hash.data());
-      }
-      else
-      {
-        auto rc = mbedtls_pk_verify(
-          &ctx,
-          CurveParameters<C>::md_type,
-          hash.data(),
-          hash.size(),
-          signature.data(),
-          signature.size());
-
-        if (rc)
-          LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
-
-        return rc;
-      }
+      return verify(
+        contents.data(), contents.size(), signature.data(), signature.size());
     }
 
     /**
