@@ -39,7 +39,7 @@ return {
     --
 
     -- Transactions table:
-    --    tx_id         -> [src, dst, amt, type, src_country, dst_country]
+    --    tx_id         -> [src, dst, amt, type, bank_id, src_country, dst_country]
     function env.tx_table()
       return tables.priv0
     end
@@ -91,6 +91,7 @@ return {
         args.params.dst,
         args.params.amt,
         args.params.type,
+        args.caller_id,
         args.params.src_country,
         args.params.dst_country})
 
@@ -110,7 +111,7 @@ return {
       if not tx_v then
         return env.jerr(env.error_codes.INVALID_PARAMS, "No such transaction")
       end
-      if tx_v[1] ~= args.caller_id then
+      if tx_v[5] ~= args.caller_id then
         return env.jerr(env.error_codes.INVALID_CALLER_ID, "Transaction was not issued by you.")
       end
       return env.jsucc(tx_v)
@@ -155,7 +156,7 @@ return {
       if not tx_v then
         return env.jerr(env.error_codes.INVALID_PARAMS, "No such transaction")
       end
-      if tx_v[1] ~= args.caller_id then
+      if tx_v[5] ~= args.caller_id then
         return env.jerr(env.error_codes.INVALID_CALLER_ID, "Transaction was not issued by you")
       end
       flagged_tx_table = env.flagged_tx()

@@ -115,29 +115,29 @@ def run(args):
         flagged_amt = 99
 
         if args.scenario:
-            LOG.error("Loading scenario file")
-            with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
+            bank_id = banks[0][0] + 1
+            LOG.info(f"Loading scenario file as bank {bank_id}")
 
+            with primary.user_client(format="msgpack", user_id=bank_id) as c:
                 with open(args.scenario, newline="") as f:
                     scenario = csv.DictReader(f)
                     for row in scenario:
-                        json_tx = (
-                            {
-                                "src": row["nameOrig"],
-                                "dst": row["nameDest"],
-                                "amt": row["amount"],
-                                "type": TransactionType[row["type"]].value,
-                                "src_country": countries.get(
-                                    random.choice(KNOWN_COUNTRIES)
-                                ).numeric,
-                                "dst_country": countries.get(
-                                    random.choice(KNOWN_COUNTRIES)
-                                ).numeric,
-                            },
-                        )
+                        json_tx = {
+                            "src": row["nameOrig"],
+                            "dst": row["nameDest"],
+                            "amt": row["amount"],
+                            "type": TransactionType[row["type"]].value,
+                            "src_country": countries.get(
+                                random.choice(KNOWN_COUNTRIES)
+                            ).numeric,
+                            "dst_country": countries.get(
+                                random.choice(KNOWN_COUNTRIES)
+                            ).numeric,
+                        }
 
                         check(c.rpc("TX_record", json_tx), result=tx_id)
                         tx_id += 1
+                LOG.success("Scenario file successfully loaded")
 
             # TODO: Post-processing logic to check which transactions have been flagged
 
@@ -172,6 +172,7 @@ def run(args):
                             dst[0],
                             amt,
                             TransactionType.TRANSFER.value,
+                            bank[0],
                             countries.get(bank[1]).numeric.encode(),
                             countries.get(dst[1]).numeric.encode(),
                         ],
@@ -187,6 +188,7 @@ def run(args):
                                 dst[0],
                                 amt,
                                 TransactionType.TRANSFER.value,
+                                bank[0],
                                 countries.get(bank[1]).numeric.encode(),
                                 countries.get(dst[1]).numeric.encode(),
                             ]
@@ -200,42 +202,42 @@ def run(args):
                     tx_id += 1
             LOG.success(f"{tx_id} transactions have been successfully issued")
 
-        # bank that issued first flagged transaction
-        with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
-            # try to poll flagged but fail as you are not a regulator
-            check(
-                c.rpc("REG_poll_flagged", {}),
-                error=lambda e: e is not None
-                and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
-            )
-
-            # bank reveal first transaction that was flagged
-            check(c.rpc("TX_reveal", {"tx_id": revealed_tx_id}), result=True)
-
-            # bank try to reveal non flagged tx
-            check(
-                c.rpc("TX_reveal", {"tx_id": non_revealed_tx_id}),
-                error=lambda e: e is not None
-                and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
-            )
-
-        # regulator poll for transactions that are flagged
-        reg = regulators[0]
-        with primary.management_client() as mc:
-            with primary.user_client(format="msgpack", user_id=reg[0] + 1) as c:
-                check(c.rpc("REG_poll_flagged", {}), result=flagged_tx_ids)
-
-                # get from flagged txs, try to get the flagged one that was not revealed
+            # bank that issued first flagged transaction
+            with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
+                # try to poll flagged but fail as you are not a regulator
                 check(
-                    c.rpc("REG_get_revealed", {"tx_id": flagged_tx_ids[0]}),
+                    c.rpc("REG_poll_flagged", {}),
+                    error=lambda e: e is not None
+                    and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
+                )
+
+                # bank reveal first transaction that was flagged
+                check(c.rpc("TX_reveal", {"tx_id": revealed_tx_id}), result=True)
+
+                # bank try to reveal non flagged tx
+                check(
+                    c.rpc("TX_reveal", {"tx_id": non_revealed_tx_id}),
                     error=lambda e: e is not None
                     and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
                 )
-                # get from flagged txs, try to get the flagged one that was revealed
-                check(
-                    c.rpc("REG_get_revealed", {"tx_id": flagged_tx_ids[1]}),
-                    result=revealed_tx,
-                )
+
+            # regulator poll for transactions that are flagged
+            reg = regulators[0]
+            with primary.management_client() as mc:
+                with primary.user_client(format="msgpack", user_id=reg[0] + 1) as c:
+                    check(c.rpc("REG_poll_flagged", {}), result=flagged_tx_ids)
+
+                    # get from flagged txs, try to get the flagged one that was not revealed
+                    check(
+                        c.rpc("REG_get_revealed", {"tx_id": flagged_tx_ids[0]}),
+                        error=lambda e: e is not None
+                        and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+                    )
+                    # get from flagged txs, try to get the flagged one that was revealed
+                    check(
+                        c.rpc("REG_get_revealed", {"tx_id": flagged_tx_ids[1]}),
+                        result=revealed_tx,
+                    )
 
 
 if __name__ == "__main__":
