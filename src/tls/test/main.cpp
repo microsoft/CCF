@@ -22,7 +22,9 @@ static const string contents_ =
 
 void corrupt(std::vector<uint8_t>& buf)
 {
+  buf[1]++;
   buf[buf.size() / 2]++;
+  buf[buf.size() - 2]++;
 }
 
 #define TEMPLATE_CURVE_TYPES \
