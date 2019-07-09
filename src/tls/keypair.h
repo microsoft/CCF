@@ -54,6 +54,8 @@ namespace tls
   template <>
   struct CurveParameters<CurveImpl::secp384r1>
   {
+    static constexpr CurveImpl curve = CurveImpl::secp384r1;
+
     static constexpr mbedtls_md_type_t md_type = MBEDTLS_MD_SHA384;
     static constexpr size_t md_size = 384 / 8;
 
@@ -64,6 +66,8 @@ namespace tls
   template <>
   struct CurveParameters<CurveImpl::curve25519>
   {
+    static constexpr CurveImpl curve = CurveImpl::curve25519;
+
     static constexpr mbedtls_md_type_t md_type = MBEDTLS_MD_SHA512;
     static constexpr size_t md_size = 512 / 8;
 
@@ -74,6 +78,8 @@ namespace tls
   template <>
   struct CurveParameters<CurveImpl::secp256k1_mbedtls>
   {
+    static constexpr CurveImpl curve = CurveImpl::secp256k1_mbedtls;
+
     static constexpr mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
     static constexpr size_t md_size = 256 / 8;
 
@@ -84,8 +90,10 @@ namespace tls
   template <>
   struct CurveParameters<CurveImpl::secp256k1_bitcoin>
   {
-    static constexpr mbedtls_md_type_t md_type = MBEDTLS_MD_SHA384;
-    static constexpr size_t md_size = 384 / 8;
+    static constexpr CurveImpl curve = CurveImpl::secp256k1_bitcoin;
+
+    static constexpr mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
+    static constexpr size_t md_size = 256 / 8;
 
     static constexpr mbedtls_ecp_group_id ec_group_id =
       MBEDTLS_ECP_DP_SECP256K1;
@@ -623,7 +631,7 @@ namespace tls
 
       if constexpr (C == CurveImpl::secp256k1_bitcoin)
       {
-        auto k = mbedtls_pk_ec(curve_ctx.ctx);
+        auto k = mbedtls_pk_ec(ctx);
         size_t pub_len;
         uint8_t pub_buf[100];
         int rc = mbedtls_ecp_point_write_binary(
