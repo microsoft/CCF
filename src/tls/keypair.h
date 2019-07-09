@@ -26,8 +26,15 @@ namespace tls
     secp256k1_mbedtls = 3,
     secp256k1_bitcoin = 4,
 
-    // TODO: Determine this from flag, expose to CMake
+#if LEDGER_CURVE_CHOICE_SECP384R1
     default_curve_choice = secp384r1,
+#elif LEDGER_CURVE_CHOICE_CURVE25519
+    default_curve_choice = curve25519,
+#elif LEDGER_CURVE_CHOICE_SECP256K1_MBEDTLS
+    default_curve_choice = secp256k1_mbedtls,
+#elif LEDGER_CURVE_CHOICE_SECP256K1_BITCOIN
+    default_curve_choice = secp256k1_bitcoin,
+#endif
   };
 
   template <CurveImpl C>
@@ -218,6 +225,7 @@ namespace tls
               mbedtls_pk_eddsa(*key), ec, &Entropy::rng, &entropy) != 0)
             throw std::logic_error("Could not generate EdDSA keypair");
           break;
+
         default:
           if (
             mbedtls_pk_setup(
