@@ -26,6 +26,8 @@ namespace tls
     secp256k1_mbedtls = 3,
     secp256k1_bitcoin = 4,
 
+    TODO,
+
 #if LEDGER_CURVE_CHOICE_SECP384R1
     default_curve_choice = secp384r1,
 #elif LEDGER_CURVE_CHOICE_CURVE25519
@@ -37,26 +39,143 @@ namespace tls
 #endif
   };
 
-  template <CurveImpl C>
-  int do_hash(const uint8_t* data_ptr, size_t data_size, uint8_t* hash_ptr)
+  using HashBytes = std::vector<uint8_t>;
+
+  inline int do_hash(
+    CurveImpl curve,
+    const uint8_t* data_ptr,
+    size_t data_size,
+    HashBytes& o_hash)
   {
-    if constexpr (C == CurveImpl::secp384r1)
+    switch (curve)
     {
-      return mbedtls_sha512_ret(data_ptr, data_size, hash_ptr, true);
-    }
-    else if constexpr (C == CurveImpl::curve25519)
-    {
-      return mbedtls_sha512_ret(data_ptr, data_size, hash_ptr, false);
-    }
-    else if constexpr (
-      C == CurveImpl::secp256k1_mbedtls || C == CurveImpl::secp256k1_bitcoin)
-    {
-      return mbedtls_sha256_ret(data_ptr, data_size, hash_ptr, false);
+      case CurveImpl::secp384r1:
+      {
+        constexpr auto hash_size = 384 / 8;
+        if (o_hash.size() < hash_size)
+          o_hash.resize(hash_size);
+
+        return mbedtls_sha512_ret(data_ptr, data_size, o_hash.data(), true);
+      }
+      case CurveImpl::curve25519:
+      {
+        constexpr auto hash_size = 512 / 8;
+        if (o_hash.size() < hash_size)
+          o_hash.resize(hash_size);
+
+        return mbedtls_sha512_ret(data_ptr, data_size, o_hash.data(), false);
+      }
+      case CurveImpl::secp256k1_mbedtls:
+      case CurveImpl::secp256k1_bitcoin:
+      {
+        constexpr auto hash_size = 256 / 8;
+        if (o_hash.size() < hash_size)
+          o_hash.resize(hash_size);
+
+        return mbedtls_sha256_ret(data_ptr, data_size, o_hash.data(), false);
+      }
+      case CurveImpl::TODO:
+      {
+        return -1;
+      }
     }
   }
 
   template <CurveImpl>
   struct CurveParameters;
+
+  static constexpr size_t REC_ID_IDX = 64;
+
+  inline bool verify_secp256k_bc(
+    secp256k1_context* ctx, const uint8_t* signature, const uint8_t* hash)
+  {
+    secp256k1_pubkey public_key;
+    secp256k1_ecdsa_recoverable_signature sig;
+
+    if (
+      secp256k1_ecdsa_recoverable_signature_parse_compact(
+        ctx, &sig, signature, signature[REC_ID_IDX]) != 1)
+    {
+      LOG_INFO_FMT(
+        "secp256k1_ecdsa_recoverable_signature_parse_compact failed");
+      return false;
+    }
+
+    secp256k1_ecdsa_signature nsig;
+    if (secp256k1_ecdsa_recover(ctx, &public_key, &sig, hash) != 1)
+    {
+      LOG_INFO_FMT("secp256k1_ecdsa_recover failed");
+      return false;
+    }
+    if (secp256k1_ecdsa_recoverable_signature_convert(ctx, &nsig, &sig) != 1)
+    {
+      LOG_INFO_FMT("secp256k1_ecdsa_recoverable_signature_convert failed");
+      return false;
+    }
+    if (secp256k1_ecdsa_verify(ctx, &nsig, hash, &public_key) != 1)
+    {
+      LOG_INFO_FMT("secp256k1_ecdsa_verify failed");
+      return false;
+    }
+    return true;
+  }
+
+  struct CurveParams
+  {
+    CurveImpl curve_impl;
+
+    mbedtls_md_type_t md_type;
+    size_t md_size;
+
+    mbedtls_ecp_group_id ec;
+  };
+
+  static constexpr CurveParams params_secp384r1{
+    CurveImpl::secp384r1, MBEDTLS_MD_SHA384, 384 / 8, MBEDTLS_ECP_DP_SECP384R1};
+
+  static constexpr CurveParams params_curve25519{CurveImpl::curve25519,
+                                                 MBEDTLS_MD_SHA512,
+                                                 512 / 8,
+                                                 MBEDTLS_ECP_DP_CURVE25519};
+
+  static constexpr CurveParams params_secp256k1_mbedtls{
+    CurveImpl::secp256k1_mbedtls,
+    MBEDTLS_MD_SHA256,
+    256 / 8,
+    MBEDTLS_ECP_DP_SECP256K1};
+
+  static constexpr CurveParams params_secp256k1_bitcoin{
+    CurveImpl::secp256k1_bitcoin,
+    MBEDTLS_MD_SHA256,
+    256 / 8,
+    MBEDTLS_ECP_DP_SECP256K1};
+
+  const CurveParams& get_curve_params(CurveImpl curve)
+  {
+    switch (curve)
+    {
+      case CurveImpl::secp384r1:
+      {
+        return params_secp384r1;
+      }
+      case CurveImpl::curve25519:
+      {
+        return params_curve25519;
+      }
+      case CurveImpl::secp256k1_mbedtls:
+      {
+        return params_secp256k1_mbedtls;
+      }
+      case CurveImpl::secp256k1_bitcoin:
+      {
+        return params_secp256k1_bitcoin;
+      }
+      case CurveImpl::TODO:
+      {
+        return params_secp384r1;
+      }
+    }
+  }
 
   template <>
   struct CurveParameters<CurveImpl::secp384r1>
@@ -106,66 +225,9 @@ namespace tls
       MBEDTLS_ECP_DP_SECP256K1;
   };
 
-  static constexpr size_t REC_ID_IDX = 64;
+  class KeyPair;
+  using KeyPairHandle = std::shared_ptr<KeyPair>;
 
-  template <CurveImpl C>
-  using HashBytes = std::array<uint8_t, CurveParameters<C>::md_size>;
-
-  inline bool verify_secp256k_bc(
-    secp256k1_context* ctx, const uint8_t* signature, const uint8_t* hash)
-  {
-    secp256k1_pubkey public_key;
-    secp256k1_ecdsa_recoverable_signature sig;
-
-    if (
-      secp256k1_ecdsa_recoverable_signature_parse_compact(
-        ctx, &sig, signature, signature[REC_ID_IDX]) != 1)
-    {
-      LOG_INFO_FMT(
-        "secp256k1_ecdsa_recoverable_signature_parse_compact failed");
-      return false;
-    }
-
-    secp256k1_ecdsa_signature nsig;
-    if (secp256k1_ecdsa_recover(ctx, &public_key, &sig, hash) != 1)
-    {
-      LOG_INFO_FMT("secp256k1_ecdsa_recover failed");
-      return false;
-    }
-    if (secp256k1_ecdsa_recoverable_signature_convert(ctx, &nsig, &sig) != 1)
-    {
-      LOG_INFO_FMT("secp256k1_ecdsa_recoverable_signature_convert failed");
-      return false;
-    }
-    if (secp256k1_ecdsa_verify(ctx, &nsig, hash, &public_key) != 1)
-    {
-      LOG_INFO_FMT("secp256k1_ecdsa_verify failed");
-      return false;
-    }
-    return true;
-  }
-
-  template <CurveImpl>
-  struct KeyPairContext
-  {};
-
-  template <>
-  struct KeyPairContext<CurveImpl::secp256k1_bitcoin>
-  {
-    secp256k1_context* ctx = secp256k1_context_create(
-      SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
-
-    static constexpr size_t privk_size = 32;
-    uint8_t c4_priv[privk_size] = {0};
-
-    ~KeyPairContext()
-    {
-      if (ctx)
-        secp256k1_context_destroy(ctx);
-    }
-  };
-
-  template <CurveImpl C = CurveImpl::default_curve_choice>
   class KeyPair
   {
   private:
@@ -197,20 +259,17 @@ namespace tls
     std::unique_ptr<mbedtls_pk_context> key =
       std::make_unique<mbedtls_pk_context>();
 
-    KeyPairContext<C> curve_ctx;
+    CurveParams params;
 
-  public:
     /**
      * Create a new public / private key pair
      */
-    KeyPair()
+    KeyPair(const CurveParams& cp) : params(cp)
     {
       Entropy entropy;
       mbedtls_pk_init(key.get());
 
-      constexpr auto ec = CurveParameters<C>::ec_group_id;
-
-      switch (ec)
+      switch (params.ec)
       {
         case MBEDTLS_ECP_DP_CURVE25519:
         case MBEDTLS_ECP_DP_CURVE448:
@@ -222,7 +281,7 @@ namespace tls
 
           if (
             mbedtls_eddsa_genkey(
-              mbedtls_pk_eddsa(*key), ec, &Entropy::rng, &entropy) != 0)
+              mbedtls_pk_eddsa(*key), params.ec, &Entropy::rng, &entropy) != 0)
             throw std::logic_error("Could not generate EdDSA keypair");
           break;
 
@@ -234,27 +293,9 @@ namespace tls
 
           if (
             mbedtls_ecp_gen_key(
-              ec, mbedtls_pk_ec(*key), &Entropy::rng, &entropy) != 0)
+              params.ec, mbedtls_pk_ec(*key), &Entropy::rng, &entropy) != 0)
             throw std::logic_error("Could not generate ECDSA keypair");
       }
-
-      if constexpr (C == CurveImpl::secp256k1_bitcoin)
-      {
-        if (
-          mbedtls_mpi_write_binary(
-            &(mbedtls_pk_ec(*key)->d),
-            curve_ctx.c4_priv,
-            curve_ctx.privk_size) != 0)
-          throw std::logic_error("Could not extract raw private key");
-      }
-    }
-
-    KeyPair(const KeyPair&) = delete;
-    KeyPair(KeyPair&& other)
-    {
-      key = std::move(other.key);
-      other.key = nullptr;
-      curve_ctx = std::move(other.curve_ctx);
     }
 
     /**
@@ -269,17 +310,17 @@ namespace tls
       {
         throw std::logic_error("Could not parse key");
       }
-
-      if constexpr (C == CurveImpl::secp256k1_bitcoin)
-      {
-        if (
-          mbedtls_mpi_write_binary(
-            &(mbedtls_pk_ec(*key)->d),
-            curve_ctx.c4_priv,
-            curve_ctx.privk_size) != 0)
-          throw std::logic_error("Could not extract raw private key");
-      }
     }
+
+    friend KeyPairHandle make_key_pair(CurveImpl);
+
+  public:
+    KeyPair(const KeyPair&) = delete;
+    // KeyPair(KeyPair&& other)
+    // {
+    //   key = std::move(other.key);
+    //   params = std::move(other.params);
+    // }
 
     ~KeyPair()
     {
@@ -324,62 +365,29 @@ namespace tls
      *
      * @return Signature as a vector
      */
-    std::vector<uint8_t> sign(CBuffer d) const
+    virtual std::vector<uint8_t> sign(CBuffer d) const
     {
-      HashBytes<C> hash;
-      do_hash<C>(d.p, d.rawSize(), hash.data());
+      HashBytes hash;
+      do_hash(params.curve_impl, d.p, d.rawSize(), hash);
 
       Entropy entropy;
       uint8_t sig[MBEDTLS_ECDSA_MAX_LEN];
-      size_t written = 0;
 
-      if constexpr (C == CurveImpl::secp256k1_bitcoin)
-      {
-        int rc = 0;
-        secp256k1_ecdsa_recoverable_signature sig_;
-        rc = secp256k1_ecdsa_sign_recoverable(
-          curve_ctx.ctx,
-          &sig_,
+      size_t written = 0;
+      if (
+        mbedtls_pk_sign(
+          key.get(),
+          params.md_type,
           hash.data(),
-          curve_ctx.c4_priv,
-          nullptr,
-          nullptr);
-        if (rc != 1)
-        {
-          LOG_FAIL_FMT("secp256k1_ecdsa_sign_recoverable failed with {}", rc);
-          return {};
-        }
-        int rcode = 0;
-        rc = secp256k1_ecdsa_recoverable_signature_serialize_compact(
-          curve_ctx.ctx, sig, &rcode, &sig_);
-        if (rc != 1)
-        {
-          LOG_FAIL_FMT(
-            "secp256k1_ecdsa_recoverable_signature_serialize_compact failed "
-            "with "
-            "{}",
-            rc);
-          return {};
-        }
-        sig[REC_ID_IDX] = static_cast<uint8_t>(rcode);
-        written = REC_ID_IDX + 1;
-      }
-      else
+          hash.size(),
+          sig,
+          &written,
+          &Entropy::rng,
+          &entropy) != 0)
       {
-        if (
-          mbedtls_pk_sign(
-            key.get(),
-            CurveParameters<C>::md_type,
-            hash.data(),
-            hash.size(),
-            sig,
-            &written,
-            &Entropy::rng,
-            &entropy) != 0)
-        {
-          return {};
-        }
+        return {};
       }
+
       return {sig, sig + written};
     }
 
@@ -398,107 +406,34 @@ namespace tls
      * @return 0 if successful, error code of mbedtls_pk_sign otherwise,
      *         or 0xf if the signature_size exceeds that of a uint8_t.
      */
-    int sign(CBuffer d, uint8_t* sig_size, uint8_t* sig) const
+    virtual int sign(CBuffer d, uint8_t* sig_size, uint8_t* sig) const
     {
-      HashBytes<C> hash;
-      do_hash<C>(d.p, d.rawSize(), hash.data());
-
-      size_t written = 0;
+      HashBytes hash;
+      do_hash(params.curve_impl, d.p, d.rawSize(), hash);
 
       int rc = 0;
-      if constexpr (C == CurveImpl::secp256k1_bitcoin)
-      {
-        secp256k1_ecdsa_recoverable_signature sig_;
-        if (
-          secp256k1_ecdsa_sign_recoverable(
-            curve_ctx.ctx,
-            &sig_,
-            hash.data(),
-            curve_ctx.c4_priv,
-            nullptr,
-            nullptr) != 1)
-          rc = 0xf;
-        int rcode;
-        if (
-          secp256k1_ecdsa_recoverable_signature_serialize_compact(
-            curve_ctx.ctx, sig, &rcode, &sig_) != 1)
-          rc = 0xf;
-        sig[REC_ID_IDX] = static_cast<uint8_t>(rcode);
-        written = REC_ID_IDX + 1;
-      }
-      else
-      {
-        Entropy entropy;
+      Entropy entropy;
 
-        rc = mbedtls_pk_sign(
-               key.get(),
-               CurveParameters<C>::md_type,
-               hash.data(),
-               hash.size(),
-               sig,
-               &written,
-               &Entropy::rng,
-               &entropy) != 0;
+      size_t written = 0;
+      rc = mbedtls_pk_sign(
+             key.get(),
+             params.md_type,
+             hash.data(),
+             hash.size(),
+             sig,
+             &written,
+             &Entropy::rng,
+             &entropy) != 0;
 
-        if (!rc && written > std::numeric_limits<uint8_t>::max())
-          rc = 0xf;
-
-        *sig_size = written;
-      }
+      if (!rc && written > std::numeric_limits<uint8_t>::max())
+        rc = 0xf;
 
       return rc;
     }
 
     std::vector<uint8_t> sign_hash(const crypto::Sha256Hash& hash) const
     {
-      Entropy entropy;
-      uint8_t sig[MBEDTLS_ECDSA_MAX_LEN];
-
-      size_t written = 0;
-      if constexpr (C == CurveImpl::secp256k1_bitcoin)
-      {
-        int rc = 0;
-        secp256k1_ecdsa_recoverable_signature sig_;
-        rc = secp256k1_ecdsa_sign_recoverable(
-          curve_ctx.ctx, &sig_, hash.h, curve_ctx.ctx, nullptr, nullptr);
-        if (rc != 1)
-        {
-          LOG_FAIL_FMT("secp256k1_ecdsa_sign_recoverable failed with {}", rc);
-          return {};
-        }
-        int rcode = 0;
-        rc = secp256k1_ecdsa_recoverable_signature_serialize_compact(
-          curve_ctx.ctx, sig, &rcode, &sig_);
-        if (rc != 1)
-        {
-          LOG_FAIL_FMT(
-            "secp256k1_ecdsa_recoverable_signature_serialize_compact failed "
-            "with "
-            "{}",
-            rc);
-          return {};
-        }
-        sig[REC_ID_IDX] = static_cast<uint8_t>(rcode);
-        written = REC_ID_IDX + 1;
-      }
-      else
-      {
-        if (
-          mbedtls_pk_sign(
-            key.get(),
-            CurveParameters<C>::md_type,
-            hash.h,
-            hash.SIZE,
-            sig,
-            &written,
-            &Entropy::rng,
-            &entropy) != 0)
-        {
-          return {};
-        }
-      }
-
-      return {sig, sig + written};
+      return sign(CBuffer{hash.h, crypto::Sha256Hash::SIZE});
     }
 
     /**
@@ -545,7 +480,7 @@ namespace tls
       if (r < 0)
         return {};
 
-      mbedtls_x509write_crt_set_md_alg(&sign.crt, CurveParameters<C>::md_type);
+      mbedtls_x509write_crt_set_md_alg(&sign.crt, params.md_type);
       mbedtls_x509write_crt_set_subject_key(&sign.crt, &sign.csr.pk);
       mbedtls_x509write_crt_set_issuer_key(&sign.crt, key.get());
 
@@ -598,6 +533,116 @@ namespace tls
       return sign_csr(csr, name, ca);
     }
   };
+
+  class KeyPair_k1Bitcoin : public KeyPair
+  {
+  protected:
+    secp256k1_context* k1_ctx = secp256k1_context_create(
+      SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
+
+    static constexpr size_t privk_size = 32;
+    uint8_t c4_priv[privk_size] = {0};
+
+    KeyPair_k1Bitcoin(const CurveParams& cp) : KeyPair(cp)
+    {
+      if (
+        mbedtls_mpi_write_binary(
+          &(mbedtls_pk_ec(*key)->d), c4_priv, privk_size) != 0)
+        throw std::logic_error("Could not extract raw private key");
+    }
+
+    KeyPair_k1Bitcoin(CBuffer pkey, CBuffer pw = nullb) : KeyPair(pkey, pw)
+    {
+      if (
+        mbedtls_mpi_write_binary(
+          &(mbedtls_pk_ec(*key)->d), c4_priv, privk_size) != 0)
+        throw std::logic_error("Could not extract raw private key");
+    }
+
+    friend KeyPairHandle make_key_pair(CurveImpl);
+
+  public:
+    ~KeyPair_k1Bitcoin()
+    {
+      if (k1_ctx)
+        secp256k1_context_destroy(k1_ctx);
+    }
+
+    std::vector<uint8_t> sign(CBuffer d) const override
+    {
+      HashBytes hash;
+      do_hash(params.curve_impl, d.p, d.rawSize(), hash);
+
+      uint8_t sig[MBEDTLS_ECDSA_MAX_LEN];
+      size_t written = 0;
+
+      int rc = 0;
+      secp256k1_ecdsa_recoverable_signature sig_;
+      rc = secp256k1_ecdsa_sign_recoverable(
+        k1_ctx, &sig_, hash.data(), c4_priv, nullptr, nullptr);
+      if (rc != 1)
+      {
+        LOG_FAIL_FMT("secp256k1_ecdsa_sign_recoverable failed with {}", rc);
+        return {};
+      }
+
+      int rcode = 0;
+      rc = secp256k1_ecdsa_recoverable_signature_serialize_compact(
+        k1_ctx, sig, &rcode, &sig_);
+      if (rc != 1)
+      {
+        LOG_FAIL_FMT(
+          "secp256k1_ecdsa_recoverable_signature_serialize_compact failed "
+          "with "
+          "{}",
+          rc);
+        return {};
+      }
+
+      sig[REC_ID_IDX] = static_cast<uint8_t>(rcode);
+      written = REC_ID_IDX + 1;
+
+      return {sig, sig + written};
+    }
+
+    int sign(CBuffer d, uint8_t* sig_size, uint8_t* sig) const override
+    {
+      HashBytes hash;
+      do_hash(params.curve_impl, d.p, d.rawSize(), hash);
+
+      int rc = 0;
+      secp256k1_ecdsa_recoverable_signature sig_;
+      if (
+        secp256k1_ecdsa_sign_recoverable(
+          k1_ctx, &sig_, hash.data(), c4_priv, nullptr, nullptr) != 1)
+        rc = 0xf;
+
+      int rcode;
+      if (
+        secp256k1_ecdsa_recoverable_signature_serialize_compact(
+          k1_ctx, sig, &rcode, &sig_) != 1)
+        rc = 0xf;
+
+      sig[REC_ID_IDX] = static_cast<uint8_t>(rcode);
+      *sig_size = REC_ID_IDX + 1;
+
+      return rc;
+    }
+  };
+
+  KeyPairHandle make_key_pair(CurveImpl curve)
+  {
+    const auto& params = get_curve_params(curve);
+
+    if (curve == CurveImpl::secp256k1_bitcoin)
+    {
+      return KeyPairHandle(new KeyPair_k1Bitcoin(params));
+    }
+    else
+    {
+      return KeyPairHandle(new KeyPair(params));
+    }
+  }
 
   template <CurveImpl>
   struct PublicKeyContext
@@ -687,8 +732,8 @@ namespace tls
       const uint8_t* sig,
       uint8_t sig_size)
     {
-      HashBytes<C> hash;
-      do_hash<C>(contents, contents_size, hash.data());
+      HashBytes hash;
+      do_hash(CurveImpl::TODO, contents, contents_size, hash);
 
       if constexpr (C == CurveImpl::secp256k1_bitcoin)
       {
@@ -713,34 +758,15 @@ namespace tls
     }
   };
 
-  template <CurveImpl>
-  struct VerifierContext
-  {};
+  class Verifier;
+  using VerifierHandle = std::shared_ptr<Verifier>;
 
-  template <>
-  struct VerifierContext<CurveImpl::secp256k1_bitcoin>
-  {
-    secp256k1_context* ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY);
-
-    secp256k1_pubkey c4_pub;
-
-    ~VerifierContext()
-    {
-      if (ctx)
-        secp256k1_context_destroy(ctx);
-    }
-  };
-
-  template <CurveImpl C = CurveImpl::default_curve_choice>
   class Verifier
   {
   protected:
     mutable mbedtls_x509_crt cert;
 
-    VerifierContext<C> curve_ctx;
-
-  public:
-    Verifier(const Verifier&) = delete;
+    CurveParams params;
 
     /**
      * Construct from a certificate in PEM format
@@ -748,7 +774,8 @@ namespace tls
      * @param public_pem Sequence of bytes containing the certificate in PEM
      * format
      */
-    Verifier(const std::vector<uint8_t>& cert_pem)
+    Verifier(const CurveParams& cp, const std::vector<uint8_t>& cert_pem) :
+      params(cp)
     {
       mbedtls_x509_crt_init(&cert);
       int rc = mbedtls_x509_crt_parse(&cert, cert_pem.data(), cert_pem.size());
@@ -758,92 +785,66 @@ namespace tls
         s << "Failed to parse certificate: " << rc;
         throw std::invalid_argument(s.str());
       }
-
-      if constexpr (C == CurveImpl::secp256k1_bitcoin)
-      {
-        auto k = mbedtls_pk_ec(cert.pk);
-        size_t pub_len;
-        uint8_t pub_buf[100];
-        rc = mbedtls_ecp_point_write_binary(
-          &k->grp, &k->Q, MBEDTLS_ECP_PF_COMPRESSED, &pub_len, pub_buf, 100);
-        if (rc)
-          throw std::logic_error("mbedtls_ecp_point_write_binary failed");
-        rc = secp256k1_ec_pubkey_parse(
-          curve_ctx.ctx, &curve_ctx.c4_pub, pub_buf, pub_len);
-        if (rc != 1)
-          throw std::logic_error("ecp256k1_ec_pubkey_parse failed");
-      }
     }
+
+    friend VerifierHandle make_verifier(
+      CurveImpl curve, const std::vector<uint8_t>& cert_pem);
+
+  public:
+    Verifier(const Verifier&) = delete;
 
     /**
      * Verify that a signature was produced on a hash with the private key
      * associated with the public key contained in the certificate.
      *
-     * @param contents Sequence of bytes that was signed
+     * @param hash Hash produced from contents as a sequence of bytes
      * @param signature Signature as a sequence of bytes
      *
      * @return Whether the signature matches the contents and the key
      */
-    bool verify_hash(
+    virtual bool verify_hash(
       const crypto::Sha256Hash& hash,
       const std::vector<uint8_t>& signature) const
     {
-      if constexpr (C == CurveImpl::secp256k1_bitcoin)
-      {
-        if (signature.size() != REC_ID_IDX + 1)
-          return false;
-        return verify_secp256k_bc(curve_ctx.ctx, signature.data(), hash.h);
-      }
-      else
-      {
-        int rc = mbedtls_pk_verify(
-          &cert.pk,
-          CurveParameters<C>::md_type,
-          hash.h,
-          hash.SIZE,
-          signature.data(),
-          signature.size());
+      int rc = mbedtls_pk_verify(
+        &cert.pk,
+        params.md_type,
+        hash.h,
+        hash.SIZE,
+        signature.data(),
+        signature.size());
 
-        if (rc)
-          LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
+      if (rc)
+        LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
 
-        return rc == 0;
-      }
+      return rc == 0;
     }
 
     /**
      * Verify that a signature was produced on a hash with the private key
      * associated with the public key contained in the certificate.
      *
-     * @param contents Sequence of bytes that was signed
+     * @param hash Hash produced from contents as a sequence of bytes
      * @param signature Signature as a sequence of bytes
      *
-     * @return Whether the signature matches the contents and the key
+     * @return Whether the signature matches the hash and the key
      */
-    bool verify_hash(
-      const HashBytes<C>& hash, const std::vector<uint8_t>& signature) const
+    virtual bool verify_hash(
+      const std::vector<uint8_t>& hash,
+      const std::vector<uint8_t>& signature) const
     {
-      if constexpr (C == CurveImpl::secp256k1_bitcoin)
-      {
-        if (signature.size() != REC_ID_IDX + 1)
-          return false;
-        return verify_secp256k_bc(curve_ctx.ctx, signature.data(), hash.data());
-      }
-      else
-      {
-        int rc = mbedtls_pk_verify(
-          &cert.pk,
-          CurveParameters<C>::md_type,
-          hash.data(),
-          hash.size(),
-          signature.data(),
-          signature.size());
+      int rc = mbedtls_pk_verify(
+        &cert.pk,
+        params.md_type,
+        hash.data(),
+        hash.size(),
+        signature.data(),
+        signature.size());
 
-        if (rc)
-          LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
+      if (rc)
+        LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
 
-        return rc == 0;
-      }
+      return rc == 0;
     }
 
     /**
@@ -859,8 +860,8 @@ namespace tls
       const std::vector<uint8_t>& contents,
       const std::vector<uint8_t>& signature) const
     {
-      HashBytes<C> hash;
-      do_hash<C>(contents.data(), contents.size(), hash.data());
+      HashBytes hash;
+      do_hash(params.curve_impl, contents.data(), contents.size(), hash);
 
       return verify_hash(hash, signature);
     }
@@ -876,9 +877,76 @@ namespace tls
       return {crt->raw.p, crt->raw.p + crt->raw.len};
     }
 
-    ~Verifier()
+    virtual ~Verifier()
     {
       mbedtls_x509_crt_free(&cert);
     }
   };
+
+  class Verifier_k1Bitcoin : public Verifier
+  {
+  protected:
+    secp256k1_context* k1_ctx =
+      secp256k1_context_create(SECP256K1_CONTEXT_VERIFY);
+    secp256k1_pubkey c4_pub;
+
+    Verifier_k1Bitcoin(
+      const CurveParams& cp, const std::vector<uint8_t>& cert_pem) :
+      Verifier(cp, cert_pem)
+    {
+      auto k = mbedtls_pk_ec(cert.pk);
+      size_t pub_len;
+      uint8_t pub_buf[100];
+      int rc = mbedtls_ecp_point_write_binary(
+        &k->grp, &k->Q, MBEDTLS_ECP_PF_COMPRESSED, &pub_len, pub_buf, 100);
+      if (rc)
+        throw std::logic_error("mbedtls_ecp_point_write_binary failed");
+      rc = secp256k1_ec_pubkey_parse(k1_ctx, &c4_pub, pub_buf, pub_len);
+      if (rc != 1)
+        throw std::logic_error("ecp256k1_ec_pubkey_parse failed");
+    }
+
+    friend VerifierHandle make_verifier(
+      CurveImpl curve, const std::vector<uint8_t>& cert_pem);
+
+  public:
+    bool verify_hash(
+      const crypto::Sha256Hash& hash,
+      const std::vector<uint8_t>& signature) const override
+    {
+      if (signature.size() != REC_ID_IDX + 1)
+        return false;
+      return verify_secp256k_bc(k1_ctx, signature.data(), hash.h);
+    }
+
+    bool verify_hash(
+      const std::vector<uint8_t>& hash,
+      const std::vector<uint8_t>& signature) const override
+    {
+      if (signature.size() != REC_ID_IDX + 1)
+        return false;
+      return verify_secp256k_bc(k1_ctx, signature.data(), hash.data());
+    }
+
+    ~Verifier_k1Bitcoin()
+    {
+      if (k1_ctx)
+        secp256k1_context_destroy(k1_ctx);
+    }
+  };
+
+  VerifierHandle make_verifier(
+    CurveImpl curve, const std::vector<uint8_t>& cert_pem)
+  {
+    const auto& params = get_curve_params(curve);
+
+    if (curve == CurveImpl::secp256k1_bitcoin)
+    {
+      return VerifierHandle(new Verifier_k1Bitcoin(params, cert_pem));
+    }
+    else
+    {
+      return VerifierHandle(new Verifier(params, cert_pem));
+    }
+  }
 }
