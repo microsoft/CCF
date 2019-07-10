@@ -19,8 +19,6 @@ static const string contents_ =
   "sint occaecat cupidatat non proident, sunt in culpa "
   "qui officia deserunt mollit anim id est laborum.";
 
-static constexpr auto curve = tls::CurveImpl::default_curve_choice;
-
 template <class A>
 inline void do_not_optimize(A const& value)
 {
