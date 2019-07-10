@@ -152,9 +152,6 @@ namespace tls
     }
   }
 
-  class KeyPair;
-  using KeyPairHandle = std::shared_ptr<KeyPair>;
-
   class KeyPair
   {
   private:
@@ -188,6 +185,7 @@ namespace tls
 
     const CurveParams params;
 
+  public:
     /**
      * Create a new public / private key pair
      */
@@ -240,10 +238,6 @@ namespace tls
       }
     }
 
-    template <typename... Ts>
-    friend KeyPairHandle make_key_pair(CurveImpl, Ts...);
-
-  public:
     KeyPair(const KeyPair&) = delete;
     // KeyPair(KeyPair&& other)
     // {
@@ -487,6 +481,7 @@ namespace tls
     static constexpr size_t privk_size = 32;
     uint8_t c4_priv[privk_size] = {0};
 
+  public:
     KeyPair_k1Bitcoin(const CurveParams& cp) : KeyPair(cp)
     {
       if (
@@ -510,10 +505,6 @@ namespace tls
         throw std::logic_error("secp256k1 private key is not valid");
     }
 
-    template <typename... Ts>
-    friend KeyPairHandle make_key_pair(CurveImpl, Ts...);
-
-  public:
     ~KeyPair_k1Bitcoin()
     {
       if (k1_ctx)
@@ -542,6 +533,8 @@ namespace tls
     }
   };
 
+  using KeyPairHandle = std::shared_ptr<KeyPair>;
+
   template <typename... Ts>
   KeyPairHandle make_key_pair(CurveImpl curve, Ts... ts)
   {
@@ -558,9 +551,6 @@ namespace tls
     }
   }
 
-  class PublicKey;
-  using PublicKeyHandle = std::shared_ptr<PublicKey>;
-
   class PublicKey
   {
   protected:
@@ -568,6 +558,7 @@ namespace tls
 
     const CurveParams params;
 
+  public:
     /**
      * Construct from a public key in PEM format
      *
@@ -580,10 +571,6 @@ namespace tls
       mbedtls_pk_parse_public_key(&ctx, public_pem.data(), public_pem.size());
     }
 
-    friend PublicKeyHandle make_public_key(
-      CurveImpl, const std::vector<uint8_t>&);
-
-  public:
     /**
      * Verify that a signature was produced on contents with the private key
      * associated with the public key held by the object.
@@ -640,6 +627,7 @@ namespace tls
 
     secp256k1_pubkey c4_pub;
 
+  public:
     PublicKey_k1Bitcoin(
       const CurveParams& cp, const std::vector<uint8_t>& public_pem) :
       PublicKey(cp, public_pem)
@@ -658,10 +646,6 @@ namespace tls
         throw std::logic_error("ecp256k1_ec_pubkey_parse failed");
     }
 
-    friend PublicKeyHandle make_public_key(
-      CurveImpl, const std::vector<uint8_t>&);
-
-  public:
     ~PublicKey_k1Bitcoin()
     {
       if (k1_ctx)
@@ -681,23 +665,23 @@ namespace tls
     }
   };
 
-  PublicKeyHandle make_public_key(
-    CurveImpl curve, const std::vector<uint8_t>& public_pem)
+  using PublicKeyHandle = std::shared_ptr<PublicKey>;
+
+  template <typename... Ts>
+  PublicKeyHandle make_public_key(CurveImpl curve, Ts... ts)
   {
     const auto& params = get_curve_params(curve);
 
     if (curve == CurveImpl::secp256k1_bitcoin)
     {
-      return PublicKeyHandle(new PublicKey_k1Bitcoin(params, public_pem));
+      return PublicKeyHandle(
+        new PublicKey_k1Bitcoin(params, std::forward<Ts>(ts)...));
     }
     else
     {
-      return PublicKeyHandle(new PublicKey(params, public_pem));
+      return PublicKeyHandle(new PublicKey(params, std::forward<Ts>(ts)...));
     }
   }
-
-  class Verifier;
-  using VerifierHandle = std::shared_ptr<Verifier>;
 
   class Verifier
   {
@@ -706,6 +690,7 @@ namespace tls
 
     const CurveParams params;
 
+  public:
     /**
      * Construct from a certificate in PEM format
      *
@@ -725,10 +710,6 @@ namespace tls
       }
     }
 
-    friend VerifierHandle make_verifier(
-      CurveImpl curve, const std::vector<uint8_t>& cert_pem);
-
-  public:
     Verifier(const Verifier&) = delete;
 
     /**
@@ -828,6 +809,7 @@ namespace tls
       secp256k1_context_create(SECP256K1_CONTEXT_VERIFY);
     secp256k1_pubkey c4_pub;
 
+  public:
     Verifier_k1Bitcoin(
       const CurveParams& cp, const std::vector<uint8_t>& cert_pem) :
       Verifier(cp, cert_pem)
@@ -844,10 +826,6 @@ namespace tls
         throw std::logic_error("ecp256k1_ec_pubkey_parse failed");
     }
 
-    friend VerifierHandle make_verifier(
-      CurveImpl curve, const std::vector<uint8_t>& cert_pem);
-
-  public:
     bool verify_hash(
       const crypto::Sha256Hash& hash,
       const std::vector<uint8_t>& signature) const override
@@ -881,18 +859,21 @@ namespace tls
     }
   };
 
-  VerifierHandle make_verifier(
-    CurveImpl curve, const std::vector<uint8_t>& cert_pem)
+  using VerifierHandle = std::shared_ptr<Verifier>;
+
+  template <typename... Ts>
+  VerifierHandle make_verifier(CurveImpl curve, Ts... ts)
   {
     const auto& params = get_curve_params(curve);
 
     if (curve == CurveImpl::secp256k1_bitcoin)
     {
-      return VerifierHandle(new Verifier_k1Bitcoin(params, cert_pem));
+      return VerifierHandle(
+        new Verifier_k1Bitcoin(params, std::forward<Ts>(ts)...));
     }
     else
     {
-      return VerifierHandle(new Verifier(params, cert_pem));
+      return VerifierHandle(new Verifier(params, std::forward<Ts>(ts)...));
     }
   }
 }
