@@ -11,6 +11,18 @@ from loguru import logger as LOG
 import argparse
 from infra.jsonrpc import client
 
+import json
+
+def convert(data):
+    if isinstance(data, bytes):
+        return data.decode('ascii')
+    elif isinstance(data, dict):
+        return dict(map(convert, data.items()))
+    elif isinstance(data, tuple):
+        return map(convert, data)
+    else:
+        return data
+
 
 def run(args):
     regulator = (0, "gbr", None)
@@ -38,15 +50,20 @@ def run(args):
             while True:
                 time.sleep(1)
                 resp = reg_c.rpc("REG_poll_flagged", {}).to_dict()
+
                 if "result" in resp:
                     flagged_txs = resp["result"]
+
                     for flagged in flagged_txs:
                         # bank reveal the transaction
                         c.rpc("TX_reveal", {"tx_id": flagged})
                         # regulator get the transaction
-                        tx = reg_c.rpc("REG_get_revealed", {"tx_id": flagged}).to_dict()[
-                            "result"
-                        ]
+                        tx = reg_c.rpc("REG_get_revealed", {"tx_id": flagged}).to_dict()["result"]
+
+                        # Convert transaction for json serialisation
+                        stringified_tx = {k:convert(v) for k,v in tx.items()}
+                        print(json.dumps(stringified_tx))
+
                         tx["src_country"] = countries.get(
                             tx["src_country"].decode()
                         ).alpha2.lower()

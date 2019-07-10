@@ -10,6 +10,7 @@ import random
 from enum import IntEnum
 from iso3166 import countries
 from loguru import logger as LOG
+import json
 
 
 class TransactionType(IntEnum):
@@ -24,24 +25,24 @@ KNOWN_COUNTRIES = ["us", "gbr", "fr", "grc"]
 
 
 def run(args):
-    hosts = ["localhost"]
+    hosts = ["127.10.10.10:8888"]
 
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         primary, others = network.start_and_join(args)
 
-        print("")
-        print(
+        LOG.warning("")
+        LOG.warning(
             "================= Netowrk setup complete, you can run the below command to poll the service. "
             + "Press enter to continue ================="
         )
-        print("")
-        print(
+        LOG.warning("")
+        LOG.warning(
             f"python3 {os.path.realpath(os.path.dirname(__file__))}/poll.py --host={primary.host} --port={primary.tls_port}"
         )
-        print("")
-        input("Press Enter to continue...")
+        LOG.warning("")
+        input("")
 
         data = []
         with open(args.lua_script, "r") as f:
@@ -123,6 +124,7 @@ def run(args):
                         }
 
                         check(c.rpc("TX_record", json_tx), result=tx_id)
+                        print(json.dumps(json_tx))
                         tx_id += 1
 
                         if tx_id % 1000 == 0:
