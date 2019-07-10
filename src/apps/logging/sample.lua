@@ -226,7 +226,7 @@ return {
       end
       tx_ids = {}
       env.flagged_tx():foreach(
-        function (k, v) if next(v) then table.insert(tx_ids, k) end end
+        function (k, v) if next(v) then table.insert(tx_ids, {k, v[1]}) end end
       )
       return env.jsucc(tx_ids)
     end

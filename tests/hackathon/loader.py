@@ -8,7 +8,6 @@ from time import gmtime, strftime, perf_counter
 import csv
 import random
 from enum import IntEnum
-from iso3166 import countries
 from loguru import logger as LOG
 import json
 
@@ -21,7 +20,7 @@ class TransactionType(IntEnum):
     CASH_IN = 5
 
 
-KNOWN_COUNTRIES = ["us", "gbr", "fr", "grc"]
+KNOWN_COUNTRIES = ["US", "GB", "FR", "GR"]
 
 
 def run(args):
@@ -34,7 +33,7 @@ def run(args):
 
         LOG.warning("")
         LOG.warning(
-            "================= Netowrk setup complete, you can run the below command to poll the service. "
+            "================= Network setup complete, you can run the below command to poll the service. "
             + "Press enter to continue ================="
         )
         LOG.warning("")
@@ -61,7 +60,7 @@ def run(args):
                     c.rpc(
                         "REG_register",
                         {
-                            "country": countries.get(regulator[1]).numeric,
+                            "country": regulator[1],
                             "script": regulator[2],
                         },
                     ),
@@ -70,7 +69,7 @@ def run(args):
                 check(
                     c.rpc("REG_get", {"id": regulator[0]}),
                     result=[
-                        countries.get(regulator[1]).numeric.encode(),
+                        regulator[1].encode(),
                         regulator[2].encode(),
                     ],
                 )
@@ -83,12 +82,12 @@ def run(args):
                 check = infra.ccf.Checker()
 
                 check(
-                    c.rpc("BK_register", {"country": countries.get(bank[1]).numeric}),
+                    c.rpc("BK_register", {"country": bank[1]}),
                     result=bank[0],
                 )
                 check(
                     c.rpc("BK_get", {"id": bank[0]}),
-                    result=countries.get(bank[1]).numeric.encode(),
+                    result=bank[1].encode(),
                 )
             LOG.debug(f"User {bank[0]} successfully registered as bank")
 
@@ -115,12 +114,9 @@ def run(args):
                             "timestamp": strftime(
                                 "%a, %d %b %Y %H:%M:%S +0000", gmtime()
                             ),
-                            "src_country": countries.get(
-                                random.choice(KNOWN_COUNTRIES)
-                            ).numeric,
-                            "dst_country": countries.get(
-                                random.choice(KNOWN_COUNTRIES)
-                            ).numeric,
+                            "src_country": random.choice(KNOWN_COUNTRIES)
+                            ,
+                            "dst_country": random.choice(KNOWN_COUNTRIES),
                         }
 
                         check(c.rpc("TX_record", json_tx), result=tx_id)

@@ -56,12 +56,13 @@ def run(args):
 
                     for flagged in flagged_txs:
                         # bank reveal the transaction
-                        c.rpc("TX_reveal", {"tx_id": flagged})
+                        c.rpc("TX_reveal", {"tx_id": flagged[0]})
                         # regulator get the transaction
-                        tx = reg_c.rpc("REG_get_revealed", {"tx_id": flagged}).to_dict()["result"]
+                        tx = reg_c.rpc("REG_get_revealed", {"tx_id": flagged[0]}).to_dict()["result"]
 
                         # Convert transaction for json serialisation
                         stringified_tx = {k:convert(v) for k,v in tx.items()}
+                        stringified_tx["reg_id"] = flagged[1]
                         print(json.dumps(stringified_tx))
 
                         tx["src_country"] = countries.get(
