@@ -32,15 +32,22 @@ inline void clobber_memory()
   asm volatile("" : : : "memory");
 }
 
-template <tls::CurveImpl Curve, size_t Repeats>
-static void benchmark_sign(picobench::state& s)
+template <size_t NContents>
+vector<uint8_t> make_contents()
 {
-  auto kp = tls::make_key_pair(Curve);
-  vector<uint8_t> contents(contents_.size() * Repeats);
-  for (decltype(Repeats) i = 0; i < Repeats; i++)
+  vector<uint8_t> contents(contents_.size() * NContents);
+  for (decltype(NContents) i = 0; i < NContents; i++)
   {
     copy(contents_.begin(), contents_.end(), back_inserter(contents));
   }
+  return contents;
+}
+
+template <tls::CurveImpl Curve, size_t NContents>
+static void benchmark_sign(picobench::state& s)
+{
+  auto kp = tls::make_key_pair(Curve);
+  const auto contents = make_contents<NContents>();
 
   s.start_timer();
   for (auto _ : s)
@@ -53,15 +60,12 @@ static void benchmark_sign(picobench::state& s)
   s.stop_timer();
 }
 
-template <size_t Repeats>
+template <size_t NContents>
 static void benchmark_verify(picobench::state& s)
 {
   auto kp = tls::make_key_pair(curve);
-  vector<uint8_t> contents(contents_.size() * Repeats);
-  for (decltype(Repeats) i = 0; i < Repeats; i++)
-  {
-    copy(contents_.begin(), contents_.end(), back_inserter(contents));
-  }
+  const auto contents = make_contents<NContents>();
+
   auto signature = kp->sign(contents);
   auto public_key = kp->public_key();
   auto pubk = tls::make_public_key(curve, public_key);
@@ -77,15 +81,11 @@ static void benchmark_verify(picobench::state& s)
   s.stop_timer();
 }
 
-template <size_t Repeats>
+template <size_t NContents>
 static void benchmark_hash(picobench::state& s)
 {
   auto kp = tls::make_key_pair(curve);
-  vector<uint8_t> contents(contents_.size() * Repeats);
-  for (decltype(Repeats) i = 0; i < Repeats; i++)
-  {
-    copy(contents_.begin(), contents_.end(), back_inserter(contents));
-  }
+  const auto contents = make_contents<NContents>();
 
   s.start_timer();
   for (auto _ : s)
