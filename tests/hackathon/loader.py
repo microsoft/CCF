@@ -21,7 +21,7 @@ class TransactionType(IntEnum):
     CASH_IN = 5
 
 
-KNOWN_COUNTRIES = ["US", "GB", "FR", "GR"]
+KNOWN_COUNTRIES = ["US", "GB", "FR", "GR", "AU", "BR", "ZA", "JP", "IN"]
 
 
 def run(args):
