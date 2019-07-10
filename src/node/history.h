@@ -307,10 +307,10 @@ namespace ccf
           "No node info, and therefore no cert for node {}", sig_value.node);
         return false;
       }
-      tls::Verifier from_cert(ni.value().cert);
+      tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
       crypto::Sha256Hash root = tree.get_root();
       log_hash(root, VERIFY);
-      return from_cert.verify_hash(root, sig.value().sig);
+      return from_cert->verify_hash(root, sig.value().sig);
     }
 
     void rollback(kv::Version v) override
