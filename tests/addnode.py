@@ -12,7 +12,7 @@ import time
 from loguru import logger as LOG
 
 
-def remove_node(primary, node_id):
+def retire_node(primary, node_id):
     result = infra.proc.ccall(
         "./memberclient",
         "retire_node",
@@ -80,7 +80,7 @@ def run(args):
         network.wait_for_node_commit_sync()
 
         # retire a node
-        remove_node(primary, new_node_id)
+        retire_node(primary, new_node_id)
 
 
 if __name__ == "__main__":
