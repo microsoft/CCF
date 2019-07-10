@@ -84,20 +84,13 @@ namespace tls
     const uint8_t* hash,
     const secp256k1_pubkey* public_key)
   {
-    if (signature_size != REC_ID_IDX + 1)
-      return false;
-
-    secp256k1_ecdsa_recoverable_signature sig;
+    secp256k1_ecdsa_signature sec_sig;
     if (
-      secp256k1_ecdsa_recoverable_signature_parse_compact(
-        ctx, &sig, signature, signature[REC_ID_IDX]) != 1)
+      secp256k1_ecdsa_signature_parse_der(
+        ctx, &sec_sig, signature, signature_size) != 1)
       return false;
 
-    secp256k1_ecdsa_signature nsig;
-    if (secp256k1_ecdsa_recoverable_signature_convert(ctx, &nsig, &sig) != 1)
-      return false;
-
-    return secp256k1_ecdsa_verify(ctx, &nsig, hash, public_key) == 1;
+    return secp256k1_ecdsa_verify(ctx, &sec_sig, hash, public_key) == 1;
   }
 
   struct CurveParams
@@ -332,15 +325,31 @@ namespace tls
       Entropy entropy;
 
       size_t written = 0;
-      rc = mbedtls_pk_sign(
-        key.get(),
-        params.md_type,
-        hash.data(),
-        hash.size(),
-        sig,
-        &written,
-        &Entropy::rng,
-        &entropy);
+
+      if (params.curve_impl == CurveImpl::secp256k1_mbedtls)
+      {
+        mbedtls_ecdsa_context ecdsa;
+        mbedtls_ecdsa_init(&ecdsa);
+
+        rc = mbedtls_ecdsa_from_keypair(&ecdsa, mbedtls_pk_ec(*key));
+        if (rc != 0)
+          return rc;
+
+        rc = mbedtls_ecdsa_write_signature_det(
+          &ecdsa, hash.data(), hash.size(), sig, &written, params.md_type);
+      }
+      else
+      {
+        rc = mbedtls_pk_sign(
+          key.get(),
+          params.md_type,
+          hash.data(),
+          hash.size(),
+          sig,
+          &written,
+          &Entropy::rng,
+          &entropy);
+      }
 
       if (rc == 0 && written > std::numeric_limits<uint8_t>::max())
         rc = 0xf;
@@ -837,9 +846,6 @@ namespace tls
       const crypto::Sha256Hash& hash,
       const std::vector<uint8_t>& signature) const override
     {
-      if (signature.size() != REC_ID_IDX + 1)
-        return false;
-
       int rc = verify_secp256k_bc(
         k1_ctx, signature.data(), signature.size(), hash.h, &c4_pub);
 
@@ -853,9 +859,6 @@ namespace tls
       const std::vector<uint8_t>& hash,
       const std::vector<uint8_t>& signature) const override
     {
-      if (signature.size() != REC_ID_IDX + 1)
-        return false;
-
       int rc = verify_secp256k_bc(
         k1_ctx, signature.data(), signature.size(), hash.data(), &c4_pub);
 
