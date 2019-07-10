@@ -81,9 +81,6 @@ namespace tls
     }
   }
 
-  template <CurveImpl>
-  struct CurveParameters;
-
   static constexpr size_t REC_ID_IDX = 64;
 
   inline bool verify_secp256k_bc(
@@ -165,54 +162,6 @@ namespace tls
       }
     }
   }
-
-  template <>
-  struct CurveParameters<CurveImpl::secp384r1>
-  {
-    static constexpr CurveImpl curve = CurveImpl::secp384r1;
-
-    static constexpr mbedtls_md_type_t md_type = MBEDTLS_MD_SHA384;
-    static constexpr size_t md_size = 384 / 8;
-
-    static constexpr mbedtls_ecp_group_id ec_group_id =
-      MBEDTLS_ECP_DP_SECP384R1;
-  };
-
-  template <>
-  struct CurveParameters<CurveImpl::curve25519>
-  {
-    static constexpr CurveImpl curve = CurveImpl::curve25519;
-
-    static constexpr mbedtls_md_type_t md_type = MBEDTLS_MD_SHA512;
-    static constexpr size_t md_size = 512 / 8;
-
-    static constexpr mbedtls_ecp_group_id ec_group_id =
-      MBEDTLS_ECP_DP_CURVE25519;
-  };
-
-  template <>
-  struct CurveParameters<CurveImpl::secp256k1_mbedtls>
-  {
-    static constexpr CurveImpl curve = CurveImpl::secp256k1_mbedtls;
-
-    static constexpr mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
-    static constexpr size_t md_size = 256 / 8;
-
-    static constexpr mbedtls_ecp_group_id ec_group_id =
-      MBEDTLS_ECP_DP_SECP256K1;
-  };
-
-  template <>
-  struct CurveParameters<CurveImpl::secp256k1_bitcoin>
-  {
-    static constexpr CurveImpl curve = CurveImpl::secp256k1_bitcoin;
-
-    static constexpr mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
-    static constexpr size_t md_size = 256 / 8;
-
-    static constexpr mbedtls_ecp_group_id ec_group_id =
-      MBEDTLS_ECP_DP_SECP256K1;
-  };
 
   class KeyPair;
   using KeyPairHandle = std::shared_ptr<KeyPair>;
