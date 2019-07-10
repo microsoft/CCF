@@ -692,6 +692,7 @@ namespace tls
   protected:
     mutable mbedtls_x509_crt cert;
 
+    // TODO: Remove this, should be retrievable from cert
     const CurveParams params;
 
   public:
