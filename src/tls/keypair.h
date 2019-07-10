@@ -631,8 +631,8 @@ namespace tls
      *
      * @param contents address of contents
      * @param contents_size size of contents
-     * @param contents address of signature
-     * @param contents_size size of signature
+     * @param sig address of signature
+     * @param sig_size size of signature
      *
      * @return Whether the signature matches the contents and the key
      */
@@ -640,7 +640,7 @@ namespace tls
       const uint8_t* contents,
       size_t contents_size,
       const uint8_t* sig,
-      uint8_t sig_size)
+      size_t sig_size)
     {
       HashBytes hash;
       do_hash(params.curve_impl, contents, contents_size, hash);
@@ -696,7 +696,7 @@ namespace tls
       const uint8_t* contents,
       size_t contents_size,
       const uint8_t* sig,
-      uint8_t sig_size) override
+      size_t sig_size) override
     {
       HashBytes hash;
       do_hash(params.curve_impl, contents, contents_size, hash);
