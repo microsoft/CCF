@@ -64,8 +64,8 @@ def run(args):
                         ).to_dict()["result"]
 
                         # Convert transaction for json serialisation
-                        stringified_tx = {k: convert(v) for k, v in tx.items()}
-                        stringified_tx["reg_id"] = flagged[1]
+                        tx["reg_name"] = flagged[2]
+                        stringified_tx = {k:convert(v) for k,v in tx.items()}
                         print(json.dumps(stringified_tx))
 
                         tx["src_country"] = countries.get(

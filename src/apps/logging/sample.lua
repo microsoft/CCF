@@ -99,10 +99,10 @@ return {
       reg_table = env.reg_table()
       flagged_table = env.flagged_tx()
 
-      -- reg_table: key-> regulator id, value -> (src_country, script)
+      -- reg_table: key-> regulator id, value -> (src_country, script, name)
       reg_table:foreach(
         function (k, v) flagged = env.run_checker(tx_id, v[2]);
-          if flagged then flagged_table:put(tx_id, {k, false, args.params.timestamp}) end
+          if flagged then flagged_table:put(tx_id, {k, false, args.params.timestamp, v[3]}) end
         end
       )
       return env.jsucc(tx_id)
@@ -174,9 +174,10 @@ return {
       if not tx_v then
         return env.jerr(env.error_codes.INVALID_PARAMS, "No such transaction")
       end
-      if tx_v[5] ~= args.caller_id then
-        return env.jerr(env.error_codes.INVALID_CALLER_ID, "Transaction was not issued by you")
-      end
+      -- TODO: For now, anyone can reveal transactions
+      -- if tx_v[5] ~= args.caller_id then
+      --   return env.jerr(env.error_codes.INVALID_CALLER_ID, "Transaction was not issued by you")
+      -- end
       flagged_table = env.flagged_tx()
       flagged_v = flagged_table:get(tx_id)
       if not flagged_v then
@@ -197,7 +198,7 @@ return {
         return env.jerr(env.error_codes.INVALID_CALLER_ID, "User is already registered as a bank")
       end
 
-      env.reg_table():put(args.caller_id, {args.params.country, args.params.script})
+      env.reg_table():put(args.caller_id, {args.params.country, args.params.script, args.params.name})
       return env.jsucc(args.caller_id)
     end
 
@@ -226,7 +227,7 @@ return {
       end
       tx_ids = {}
       env.flagged_tx():foreach(
-        function (k, v) if next(v) then table.insert(tx_ids, {k, v[1]}) end end
+        function (k, v) if next(v) then table.insert(tx_ids, {k, v[1], v[4]}) end end
       )
       return env.jsucc(tx_ids)
     end

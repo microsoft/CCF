@@ -60,38 +60,54 @@ def run(args):
             data = f.readlines()
         script = "".join(data)
 
-        regulator = (0, "gbr", script)
-        banks = [(1, "us", 99), (1, "gbr", 29), (2, "grc", 99), (2, "fr", 29)]
+        regulators = [
+            (0, "GB", script, "FCA"),
+            (
+                1,
+                "FR",
+                "if tonumber(amt) > 15000 then return true else return false end",
+                "SEC",
+            ),
+        ]
+        banks = [(2, "US", 99), (3, "GB", 29), (4, "GR", 99), (5, "FR", 29)]
 
-        with primary.management_client() as mc:
+        for regulator in regulators:
             with primary.user_client(format="msgpack", user_id=regulator[0] + 1) as c:
-                check_commit = infra.ccf.Checker(mc)
                 check = infra.ccf.Checker()
 
                 check(
                     c.rpc(
                         "REG_register",
-                        {"country": regulator[1], "script": regulator[2]},
+                        {
+                            "country": regulator[1],
+                            "script": regulator[2],
+                            "name": regulator[3],
+                        },
                     ),
                     result=regulator[0],
                 )
                 check(
                     c.rpc("REG_get", {"id": regulator[0]}),
-                    result=[regulator[1].encode(), regulator[2].encode()],
+                    result=[
+                        regulator[1].encode(),
+                        regulator[2].encode(),
+                        regulator[3].encode(),
+                    ],
                 )
 
             LOG.debug(f"User {regulator[0]} successfully registered as regulator")
 
         for bank in banks:
             with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
-                check_commit = infra.ccf.Checker(mc)
                 check = infra.ccf.Checker()
 
                 check(c.rpc("BK_register", {"country": bank[1]}), result=bank[0])
                 check(c.rpc("BK_get", {"id": bank[0]}), result=bank[1].encode())
             LOG.debug(f"User {bank[0]} successfully registered as bank")
 
-        LOG.success(f"{1} regulator and {len(banks)} bank(s) successfully setup")
+        LOG.success(
+            f"{len(regulators)} regulator and {len(banks)} bank(s) successfully setup"
+        )
 
         tx_id = 0  # Tracks how many transactions have been issued
         bank_id = banks[0][0] + 1
