@@ -180,10 +180,14 @@ NodeId submit_add_node(RpcTlsClient& tls_connection, NodeInfo& node_info)
   cout << response.dump() << endl;
 
   auto result = response.find("result");
-  if (result != response.end())
-    return result->get<NodeId>();
+  if (result == response.end())
+    return INVALID_NODE_ID;
 
-  return INVALID_NODE_ID;
+  auto ret_id = result->find("id");
+  if (ret_id == result->end())
+    return INVALID_NODE_ID;
+
+  return *ret_id;
 }
 
 void submit_accept_recovery(
