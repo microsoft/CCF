@@ -66,6 +66,19 @@ namespace ccf
            nodes->put(id, *info);
            return true;
          }},
+        // retire a node
+        {"retire_node",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
+           const auto id = args;
+           auto nodes = tx.get_view(this->network.nodes);
+           auto info = nodes->get(id);
+           if (!info)
+             throw std::logic_error("Node does not exist.");
+           NodeInfo retired_info;
+           retired_info.status = NodeStatus::RETIRED;
+           nodes->put(id, retired_info);
+           return true;
+         }},
         // accept new code
         {"new_code",
          [this](Store::Tx& tx, const nlohmann::json& args) {

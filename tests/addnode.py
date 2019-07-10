@@ -12,6 +12,43 @@ import time
 from loguru import logger as LOG
 
 
+def remove_node(primary, node_id):
+    result = infra.proc.ccall(
+        "./memberclient",
+        "retire_node",
+        "--cert=member1_cert.pem",
+        "--privk=member1_privk.pem",
+        "--host={}".format(primary.host),
+        "--port={}".format(primary.tls_port),
+        "--id={}".format(node_id),
+        "--ca=networkcert.pem",
+    )
+    j_result = json.loads(result.stdout)
+    assert not j_result["result"]["completed"]
+    proposal_id = j_result["result"]["id"]
+
+    # members vote to accept the proposal
+    # result is true with just 1 vote because proposer implicit pro vote is assumed
+    result = infra.proc.ccall(
+        "./memberclient",
+        "vote",
+        "--accept",
+        "--cert=member2_cert.pem",
+        "--privk=member2_privk.pem",
+        "--host={}".format(primary.host),
+        "--port={}".format(primary.tls_port),
+        "--id={}".format(proposal_id),
+        "--ca=networkcert.pem",
+        "--sign",
+    )
+    j_result = json.loads(result.stdout)
+    assert j_result["result"]
+
+    with primary.member_client() as c:
+        id = c.request("read", {"table": "nodes", "key": node_id})
+        assert c.response(id).result["status"].decode() == "RETIRED"
+
+
 def run(args):
     hosts = ["localhost", "localhost"]
 
@@ -24,6 +61,7 @@ def run(args):
         res = network.create_and_add_node("libloggingenc", args)
         assert res[0] == True
         new_node = res[1]
+        new_node_id = res[2]
 
         # attempt to add a node having the host and port fields
         # similar to a the ones of an existing node
@@ -40,6 +78,9 @@ def run(args):
 
         new_node.join_network()
         network.wait_for_node_commit_sync()
+
+        # retire a node
+        remove_node(primary, new_node_id)
 
 
 if __name__ == "__main__":
