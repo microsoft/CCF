@@ -26,8 +26,6 @@ namespace tls
     secp256k1_mbedtls = 3,
     secp256k1_bitcoin = 4,
 
-    TODO,
-
 #if LEDGER_CURVE_CHOICE_SECP384R1
     default_curve_choice = secp384r1,
 #elif LEDGER_CURVE_CHOICE_CURVE25519
@@ -74,10 +72,6 @@ namespace tls
 
         return mbedtls_sha256_ret(data_ptr, data_size, o_hash.data(), false);
       }
-      case CurveImpl::TODO:
-      {
-        return -1;
-      }
     }
   }
 
@@ -96,7 +90,7 @@ namespace tls
     secp256k1_ecdsa_recoverable_signature sig;
     if (
       secp256k1_ecdsa_recoverable_signature_parse_compact(
-        ctx, &sig, signature, 0) != 1)
+        ctx, &sig, signature, signature[REC_ID_IDX]) != 1)
       return false;
 
     secp256k1_ecdsa_signature nsig;
@@ -155,10 +149,6 @@ namespace tls
       case CurveImpl::secp256k1_bitcoin:
       {
         return params_secp256k1_bitcoin;
-      }
-      case CurveImpl::TODO:
-      {
-        return params_secp384r1;
       }
     }
   }
