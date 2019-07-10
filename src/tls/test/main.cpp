@@ -108,56 +108,21 @@ std::vector<CurvePair> equivalent_curves{
   std::make_pair(
     tls::CurveImpl::secp256k1_bitcoin, tls::CurveImpl::secp256k1_mbedtls)};
 
-TEST_CASE("Key transfer across implementations")
+TEST_CASE("Sign, verify with alternate implementation")
 {
   for (const auto& curves : equivalent_curves)
   {
     INFO("From curve: " << labels[static_cast<size_t>(curves.first) - 1]);
     INFO("To curve: " << labels[static_cast<size_t>(curves.second) - 1]);
-    auto kp_a = tls::make_key_pair(curves.first);
+    auto kp = tls::make_key_pair(curves.first);
+    vector<uint8_t> contents(contents_.begin(), contents_.end());
+    vector<uint8_t> signature = kp->sign(contents);
 
-    auto raw_key = kp_a->private_key();
-    auto kp_b = tls::make_key_pair(curves.second, raw_key);
-
-    const vector<uint8_t> contents(contents_.begin(), contents_.end());
-
-    const auto sig_a = kp_a->sign(contents);
-
-    const auto sig_b = kp_b->sign(contents);
-
-    CHECK(sig_a == sig_b);
-
-    if (sig_a != sig_b)
-    {
-      std::cout << fmt::format("Sig_a size = {}", sig_a.size()) << std::endl;
-      std::cout << fmt::format("  contents [{:x}]", fmt::join(sig_a, " "))
-                << std::endl;
-      std::cout << fmt::format("Sig_b size = {}", sig_b.size()) << std::endl;
-      std::cout << fmt::format("  contents [{:x}]", fmt::join(sig_b, " "))
-                << std::endl;
-    }
+    vector<uint8_t> public_key = kp->public_key();
+    auto pubk = tls::make_public_key(curves.second, public_key);
+    REQUIRE(pubk->verify(contents, signature));
   }
 }
-
-// TEST_CASE("Sign, verify with alternate implementation")
-// {
-//   using CurvePair = std::pair<tls::CurveImpl, tls::CurveImpl>;
-//   std::vector<CurvePair> impl_pairs{
-//     std::make_pair(
-//       tls::CurveImpl::secp256k1_mbedtls, tls::CurveImpl::secp256k1_bitcoin),
-//     std::make_pair(
-//       tls::CurveImpl::secp256k1_bitcoin, tls::CurveImpl::secp256k1_mbedtls)};
-//   for (const auto& pair : impl_pairs)
-//   {
-//     auto kp = tls::make_key_pair(pair.first);
-//     vector<uint8_t> contents(contents_.begin(), contents_.end());
-//     vector<uint8_t> signature = kp->sign(contents);
-
-//     vector<uint8_t> public_key = kp->public_key();
-//     auto pubk = tls::make_public_key(pair.second, public_key);
-//     REQUIRE(pubk->verify(contents, signature));
-//   }
-// }
 
 TEST_CASE("Sign, verify with certificate")
 {

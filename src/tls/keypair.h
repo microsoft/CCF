@@ -335,8 +335,15 @@ namespace tls
         if (rc != 0)
           return rc;
 
-        rc = mbedtls_ecdsa_write_signature_det(
-          &ecdsa, hash.data(), hash.size(), sig, &written, params.md_type);
+        rc = mbedtls_ecdsa_write_signature(
+          &ecdsa,
+          params.md_type,
+          hash.data(),
+          hash.size(),
+          sig,
+          &written,
+          &Entropy::rng,
+          &entropy);
       }
       else
       {
@@ -512,24 +519,17 @@ namespace tls
       HashBytes hash;
       do_hash(params.curve_impl, d.p, d.rawSize(), hash);
 
-      secp256k1_ecdsa_recoverable_signature recoverable_sig;
+      secp256k1_ecdsa_signature k1_sig;
       if (
-        secp256k1_ecdsa_sign_recoverable(
-          k1_ctx, &recoverable_sig, hash.data(), c4_priv, nullptr, nullptr) !=
-        1)
+        secp256k1_ecdsa_sign(
+          k1_ctx, &k1_sig, hash.data(), c4_priv, nullptr, nullptr) != 1)
         return -1;
-
-      secp256k1_ecdsa_signature normal_sig;
-      if (
-        secp256k1_ecdsa_recoverable_signature_convert(
-          k1_ctx, &normal_sig, &recoverable_sig) != 1)
-        return -2;
 
       size_t written = MBEDTLS_ECDSA_MAX_LEN;
       if (
         secp256k1_ecdsa_signature_serialize_der(
-          k1_ctx, sig, &written, &normal_sig) != 1)
-        return -3;
+          k1_ctx, sig, &written, &k1_sig) != 1)
+        return -2;
 
       *sig_size = written;
       return 0;
