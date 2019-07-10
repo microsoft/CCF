@@ -224,24 +224,22 @@ namespace tls
               params.ec, mbedtls_pk_ec(*key), &Entropy::rng, &entropy) != 0)
             throw std::logic_error("Could not generate ECDSA keypair");
       }
-
-      const auto ec_context = mbedtls_pk_ec(*key);
-      LOG_INFO_FMT("Created private key on ec group {}", ec_context->grp.id);
     }
 
     /**
      * Initialise from just a private key
      */
-    // KeyPair(CBuffer pkey, CBuffer pw = nullb)
-    // {
-    //   mbedtls_pk_init(key.get());
+    KeyPair(const CurveParams& cp, CBuffer pkey, CBuffer pw = nullb) :
+      params(cp)
+    {
+      mbedtls_pk_init(key.get());
 
-    //   Pem pemPk(pkey);
-    //   if (mbedtls_pk_parse_key(key.get(), pemPk.p, pemPk.n, pw.p, pw.n) != 0)
-    //   {
-    //     throw std::logic_error("Could not parse key");
-    //   }
-    // }
+      Pem pemPk(pkey);
+      if (mbedtls_pk_parse_key(key.get(), pemPk.p, pemPk.n, pw.p, pw.n) != 0)
+      {
+        throw std::logic_error("Could not parse key");
+      }
+    }
 
     template <typename... Ts>
     friend KeyPairHandle make_key_pair(CurveImpl, Ts...);
@@ -315,7 +313,7 @@ namespace tls
      * specified locations.
      *
      * Important: While sig_size will always be written to as a single
-     * unint8_t, sig must point somewhere that's at least
+     * uint8_t, sig must point somewhere that's at least
      * MBEDTLS_E{C,D}DSA_MAX_LEN.
      *
      * @param d data
@@ -352,6 +350,9 @@ namespace tls
       return rc;
     }
 
+    // TODO: This ends up being hashed again. Should it? Does it make sense to
+    // sign pre-hashed data? The pre-hashing needs to produce the correct size
+    // for the target signing algorithm.
     std::vector<uint8_t> sign_hash(const crypto::Sha256Hash& hash) const
     {
       return sign(CBuffer{hash.h, crypto::Sha256Hash::SIZE});
@@ -470,15 +471,22 @@ namespace tls
         mbedtls_mpi_write_binary(
           &(mbedtls_pk_ec(*key)->d), c4_priv, privk_size) != 0)
         throw std::logic_error("Could not extract raw private key");
+
+      if (secp256k1_ec_seckey_verify(k1_ctx, c4_priv) != 1)
+        throw std::logic_error("secp256k1 private key is not valid");
     }
 
-    // KeyPair_k1Bitcoin(CBuffer pkey, CBuffer pw = nullb) : KeyPair(pkey, pw)
-    // {
-    //   if (
-    //     mbedtls_mpi_write_binary(
-    //       &(mbedtls_pk_ec(*key)->d), c4_priv, privk_size) != 0)
-    //     throw std::logic_error("Could not extract raw private key");
-    // }
+    KeyPair_k1Bitcoin(const CurveParams& cp, CBuffer pkey, CBuffer pw = nullb) :
+      KeyPair(cp, pkey, pw)
+    {
+      if (
+        mbedtls_mpi_write_binary(
+          &(mbedtls_pk_ec(*key)->d), c4_priv, privk_size) != 0)
+        throw std::logic_error("Could not extract raw private key");
+
+      if (secp256k1_ec_seckey_verify(k1_ctx, c4_priv) != 1)
+        throw std::logic_error("secp256k1 private key is not valid");
+    }
 
     template <typename... Ts>
     friend KeyPairHandle make_key_pair(CurveImpl, Ts...);
@@ -495,23 +503,27 @@ namespace tls
       HashBytes hash;
       do_hash(params.curve_impl, d.p, d.rawSize(), hash);
 
-      int rc = 0;
-      secp256k1_ecdsa_recoverable_signature sig_;
+      secp256k1_ecdsa_recoverable_signature recoverable_sig;
       if (
         secp256k1_ecdsa_sign_recoverable(
-          k1_ctx, &sig_, hash.data(), c4_priv, nullptr, nullptr) != 1)
-        rc = 0xf;
+          k1_ctx, &recoverable_sig, hash.data(), c4_priv, nullptr, nullptr) !=
+        1)
+        return -1;
 
-      int rcode;
+      secp256k1_ecdsa_signature normal_sig;
       if (
-        secp256k1_ecdsa_recoverable_signature_serialize_compact(
-          k1_ctx, sig, &rcode, &sig_) != 1)
-        rc = 0xf;
+        secp256k1_ecdsa_recoverable_signature_convert(
+          k1_ctx, &normal_sig, &recoverable_sig) != 1)
+        return -2;
 
-      sig[REC_ID_IDX] = static_cast<uint8_t>(rcode);
-      *sig_size = REC_ID_IDX + 1;
+      size_t written = MBEDTLS_ECDSA_MAX_LEN;
+      if (
+        secp256k1_ecdsa_signature_serialize_der(
+          k1_ctx, sig, &written, &normal_sig) != 1)
+        return -3;
 
-      return rc;
+      *sig_size = written;
+      return 0;
     }
   };
 
@@ -551,9 +563,6 @@ namespace tls
     {
       mbedtls_pk_init(&ctx);
       mbedtls_pk_parse_public_key(&ctx, public_pem.data(), public_pem.size());
-
-      const auto ec_context = mbedtls_pk_ec(ctx);
-      LOG_INFO_FMT("Created public key on ec group {}", ec_context->grp.id);
     }
 
     friend PublicKeyHandle make_public_key(
@@ -699,9 +708,6 @@ namespace tls
         s << "Failed to parse certificate: " << rc;
         throw std::invalid_argument(s.str());
       }
-
-      const auto ec_context = mbedtls_pk_ec(cert.pk);
-      LOG_INFO_FMT("Parsed cert on ec group {}", ec_context->grp.id);
     }
 
     friend VerifierHandle make_verifier(
@@ -838,7 +844,7 @@ namespace tls
         k1_ctx, signature.data(), signature.size(), hash.h, &c4_pub);
 
       if (rc)
-        LOG_DEBUG_FMT("Failed to verify signature (secp256k1_bitcoin): {}", rc);
+        LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
 
       return rc;
     }
@@ -854,7 +860,7 @@ namespace tls
         k1_ctx, signature.data(), signature.size(), hash.data(), &c4_pub);
 
       if (rc)
-        LOG_DEBUG_FMT("Failed to verify signature (secp256k1_bitcoin): {}", rc);
+        LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
 
       return rc;
     }
