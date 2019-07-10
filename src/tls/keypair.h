@@ -87,37 +87,26 @@ namespace tls
   static constexpr size_t REC_ID_IDX = 64;
 
   inline bool verify_secp256k_bc(
-    secp256k1_context* ctx, const uint8_t* signature, const uint8_t* hash)
+    secp256k1_context* ctx,
+    const uint8_t* signature,
+    size_t signature_size,
+    const uint8_t* hash,
+    const secp256k1_pubkey* public_key)
   {
-    secp256k1_pubkey public_key;
-    secp256k1_ecdsa_recoverable_signature sig;
+    if (signature_size != REC_ID_IDX + 1)
+      return false;
 
+    secp256k1_ecdsa_recoverable_signature sig;
     if (
       secp256k1_ecdsa_recoverable_signature_parse_compact(
-        ctx, &sig, signature, signature[REC_ID_IDX]) != 1)
-    {
-      LOG_INFO_FMT(
-        "secp256k1_ecdsa_recoverable_signature_parse_compact failed");
+        ctx, &sig, signature, 0) != 1)
       return false;
-    }
 
     secp256k1_ecdsa_signature nsig;
-    if (secp256k1_ecdsa_recover(ctx, &public_key, &sig, hash) != 1)
-    {
-      LOG_INFO_FMT("secp256k1_ecdsa_recover failed");
-      return false;
-    }
     if (secp256k1_ecdsa_recoverable_signature_convert(ctx, &nsig, &sig) != 1)
-    {
-      LOG_INFO_FMT("secp256k1_ecdsa_recoverable_signature_convert failed");
       return false;
-    }
-    if (secp256k1_ecdsa_verify(ctx, &nsig, hash, &public_key) != 1)
-    {
-      LOG_INFO_FMT("secp256k1_ecdsa_verify failed");
-      return false;
-    }
-    return true;
+
+    return secp256k1_ecdsa_verify(ctx, &nsig, hash, public_key) == 1;
   }
 
   struct CurveParams
@@ -737,7 +726,8 @@ namespace tls
 
       if constexpr (C == CurveImpl::secp256k1_bitcoin)
       {
-        return verify_secp256k_bc(curve_ctx.ctx, sig, hash.data());
+        return verify_secp256k_bc(
+          curve_ctx.ctx, sig, sig_size, hash.data(), curve_ctx.c4_pub);
       }
       else
       {
@@ -916,7 +906,8 @@ namespace tls
     {
       if (signature.size() != REC_ID_IDX + 1)
         return false;
-      return verify_secp256k_bc(k1_ctx, signature.data(), hash.h);
+      return verify_secp256k_bc(
+        k1_ctx, signature.data(), signature.size(), hash.h, &c4_pub);
     }
 
     bool verify_hash(
@@ -925,7 +916,8 @@ namespace tls
     {
       if (signature.size() != REC_ID_IDX + 1)
         return false;
-      return verify_secp256k_bc(k1_ctx, signature.data(), hash.data());
+      return verify_secp256k_bc(
+        k1_ctx, signature.data(), signature.size(), hash.data(), &c4_pub);
     }
 
     ~Verifier_k1Bitcoin()
