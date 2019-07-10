@@ -84,13 +84,19 @@ namespace tls
     const uint8_t* hash,
     const secp256k1_pubkey* public_key)
   {
-    secp256k1_ecdsa_signature sec_sig;
+    secp256k1_ecdsa_signature sig;
     if (
       secp256k1_ecdsa_signature_parse_der(
-        ctx, &sec_sig, signature, signature_size) != 1)
+        ctx, &sig, signature, signature_size) != 1)
       return false;
 
-    return secp256k1_ecdsa_verify(ctx, &sec_sig, hash, public_key) == 1;
+    secp256k1_ecdsa_signature norm_sig;
+    if (secp256k1_ecdsa_signature_normalize(ctx, &norm_sig, &sig) == 1)
+    {
+      LOG_TRACE_FMT("secp256k1 normalized a signature to lower-S form");
+    }
+
+    return secp256k1_ecdsa_verify(ctx, &norm_sig, hash, public_key) == 1;
   }
 
   struct CurveParams
