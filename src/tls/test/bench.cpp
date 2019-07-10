@@ -60,15 +60,15 @@ static void benchmark_sign(picobench::state& s)
   s.stop_timer();
 }
 
-template <size_t NContents>
+template <tls::CurveImpl Curve, size_t NContents>
 static void benchmark_verify(picobench::state& s)
 {
-  auto kp = tls::make_key_pair(curve);
+  auto kp = tls::make_key_pair(Curve);
   const auto contents = make_contents<NContents>();
 
   auto signature = kp->sign(contents);
   auto public_key = kp->public_key();
-  auto pubk = tls::make_public_key(curve, public_key);
+  auto pubk = tls::make_public_key(Curve, public_key);
 
   s.start_timer();
   for (auto _ : s)
@@ -81,10 +81,10 @@ static void benchmark_verify(picobench::state& s)
   s.stop_timer();
 }
 
-template <size_t NContents>
+template <tls::CurveImpl Curve, size_t NContents>
 static void benchmark_hash(picobench::state& s)
 {
-  auto kp = tls::make_key_pair(curve);
+  auto kp = tls::make_key_pair(Curve);
   const auto contents = make_contents<NContents>();
 
   s.start_timer();
@@ -103,45 +103,114 @@ const std::vector<int> sizes = {8, 16};
 
 using namespace tls;
 
+#define BASELINE(CURVE) baseline(CURVE == CurveImpl::default_curve_choice)
+
 PICOBENCH_SUITE("sign");
-auto sign_384_1 = benchmark_sign<CurveImpl::secp384r1, 1>;
-PICOBENCH(sign_384_1)
-  .iterations(sizes)
-  .samples(10)
-  .baseline(CurveImpl::secp384r1 == CurveImpl::default_curve_choice);
-auto sign_384_100 = benchmark_sign<CurveImpl::secp384r1, 100>;
-PICOBENCH(sign_384_100).iterations(sizes).samples(10);
+namespace
+{
+  auto sign_384_1 = benchmark_sign<CurveImpl::secp384r1, 1>;
+  PICOBENCH(sign_384_1)
+    .iterations(sizes)
+    .samples(10)
+    .BASELINE(CurveImpl::secp384r1);
+  auto sign_384_100 = benchmark_sign<CurveImpl::secp384r1, 100>;
+  PICOBENCH(sign_384_100).iterations(sizes).samples(10);
 
-auto sign_25519_1 = benchmark_sign<CurveImpl::curve25519, 1>;
-PICOBENCH(sign_25519_1)
-  .iterations(sizes)
-  .samples(10)
-  .baseline(CurveImpl::curve25519 == CurveImpl::default_curve_choice);
-auto sign_25519_100 = benchmark_sign<CurveImpl::curve25519, 100>;
-PICOBENCH(sign_25519_100).iterations(sizes).samples(10);
+  auto sign_25519_1 = benchmark_sign<CurveImpl::curve25519, 1>;
+  PICOBENCH(sign_25519_1)
+    .iterations(sizes)
+    .samples(10)
+    .BASELINE(CurveImpl::curve25519);
+  auto sign_25519_100 = benchmark_sign<CurveImpl::curve25519, 100>;
+  PICOBENCH(sign_25519_100).iterations(sizes).samples(10);
 
-auto sign_256k1_mbed_1 = benchmark_sign<CurveImpl::secp256k1_mbedtls, 1>;
-PICOBENCH(sign_256k1_mbed_1)
-  .iterations(sizes)
-  .samples(10)
-  .baseline(CurveImpl::secp256k1_mbedtls == CurveImpl::default_curve_choice);
-auto sign_256k1_mbed_100 = benchmark_sign<CurveImpl::secp256k1_mbedtls, 100>;
-PICOBENCH(sign_256k1_mbed_100).iterations(sizes).samples(10);
+  auto sign_256k1_mbed_1 = benchmark_sign<CurveImpl::secp256k1_mbedtls, 1>;
+  PICOBENCH(sign_256k1_mbed_1)
+    .iterations(sizes)
+    .samples(10)
+    .BASELINE(CurveImpl::secp256k1_mbedtls);
+  auto sign_256k1_mbed_100 = benchmark_sign<CurveImpl::secp256k1_mbedtls, 100>;
+  PICOBENCH(sign_256k1_mbed_100).iterations(sizes).samples(10);
 
-auto sign_256k1_bitc_1 = benchmark_sign<CurveImpl::secp256k1_bitcoin, 1>;
-PICOBENCH(sign_256k1_bitc_1)
-  .iterations(sizes)
-  .samples(10)
-  .baseline(CurveImpl::secp256k1_bitcoin == CurveImpl::default_curve_choice);
-auto sign_256k1_bitc_100 = benchmark_sign<CurveImpl::secp256k1_bitcoin, 100>;
-PICOBENCH(sign_256k1_bitc_100).iterations(sizes).samples(10);
+  auto sign_256k1_bitc_1 = benchmark_sign<CurveImpl::secp256k1_bitcoin, 1>;
+  PICOBENCH(sign_256k1_bitc_1)
+    .iterations(sizes)
+    .samples(10)
+    .BASELINE(CurveImpl::secp256k1_bitcoin);
+  auto sign_256k1_bitc_100 = benchmark_sign<CurveImpl::secp256k1_bitcoin, 100>;
+  PICOBENCH(sign_256k1_bitc_100).iterations(sizes).samples(10);
+}
 
 PICOBENCH_SUITE("verify");
-PICOBENCH(benchmark_verify<1>).iterations(sizes).samples(10).baseline();
-PICOBENCH(benchmark_verify<10>).iterations(sizes).samples(10);
-PICOBENCH(benchmark_verify<100>).iterations(sizes).samples(10);
+namespace
+{
+  auto verify_384_1 = benchmark_verify<CurveImpl::secp384r1, 1>;
+  PICOBENCH(verify_384_1)
+    .iterations(sizes)
+    .samples(10)
+    .BASELINE(CurveImpl::secp384r1);
+  auto verify_384_100 = benchmark_verify<CurveImpl::secp384r1, 100>;
+  PICOBENCH(verify_384_100).iterations(sizes).samples(10);
+
+  auto verify_25519_1 = benchmark_verify<CurveImpl::curve25519, 1>;
+  PICOBENCH(verify_25519_1)
+    .iterations(sizes)
+    .samples(10)
+    .BASELINE(CurveImpl::curve25519);
+  auto verify_25519_100 = benchmark_verify<CurveImpl::curve25519, 100>;
+  PICOBENCH(verify_25519_100).iterations(sizes).samples(10);
+
+  auto verify_256k1_mbed_1 = benchmark_verify<CurveImpl::secp256k1_mbedtls, 1>;
+  PICOBENCH(verify_256k1_mbed_1)
+    .iterations(sizes)
+    .samples(10)
+    .BASELINE(CurveImpl::secp256k1_mbedtls);
+  auto verify_256k1_mbed_100 =
+    benchmark_verify<CurveImpl::secp256k1_mbedtls, 100>;
+  PICOBENCH(verify_256k1_mbed_100).iterations(sizes).samples(10);
+
+  auto verify_256k1_bitc_1 = benchmark_verify<CurveImpl::secp256k1_bitcoin, 1>;
+  PICOBENCH(verify_256k1_bitc_1)
+    .iterations(sizes)
+    .samples(10)
+    .BASELINE(CurveImpl::secp256k1_bitcoin);
+  auto verify_256k1_bitc_100 =
+    benchmark_verify<CurveImpl::secp256k1_bitcoin, 100>;
+  PICOBENCH(verify_256k1_bitc_100).iterations(sizes).samples(10);
+}
 
 PICOBENCH_SUITE("hash");
-PICOBENCH(benchmark_hash<1>).iterations(sizes).samples(10).baseline();
-PICOBENCH(benchmark_hash<10>).iterations(sizes).samples(10);
-PICOBENCH(benchmark_hash<100>).iterations(sizes).samples(10);
+namespace
+{
+  auto hash_384_1 = benchmark_hash<CurveImpl::secp384r1, 1>;
+  PICOBENCH(hash_384_1)
+    .iterations(sizes)
+    .samples(10)
+    .BASELINE(CurveImpl::secp384r1);
+  auto hash_384_100 = benchmark_hash<CurveImpl::secp384r1, 100>;
+  PICOBENCH(hash_384_100).iterations(sizes).samples(10);
+
+  auto hash_25519_1 = benchmark_hash<CurveImpl::curve25519, 1>;
+  PICOBENCH(hash_25519_1)
+    .iterations(sizes)
+    .samples(10)
+    .BASELINE(CurveImpl::curve25519);
+  auto hash_25519_100 = benchmark_hash<CurveImpl::curve25519, 100>;
+  PICOBENCH(hash_25519_100).iterations(sizes).samples(10);
+
+  auto hash_256k1_mbed_1 = benchmark_hash<CurveImpl::secp256k1_mbedtls, 1>;
+  PICOBENCH(hash_256k1_mbed_1)
+    .iterations(sizes)
+    .samples(10)
+    .BASELINE(CurveImpl::secp256k1_mbedtls);
+  auto hash_256k1_mbed_100 = benchmark_hash<CurveImpl::secp256k1_mbedtls, 100>;
+  PICOBENCH(hash_256k1_mbed_100).iterations(sizes).samples(10);
+
+  auto hash_256k1_bitc_1 = benchmark_hash<CurveImpl::secp256k1_bitcoin, 1>;
+  PICOBENCH(hash_256k1_bitc_1)
+    .iterations(sizes)
+    .samples(10)
+    .BASELINE(CurveImpl::secp256k1_bitcoin);
+  auto hash_256k1_bitc_100 = benchmark_hash<CurveImpl::secp256k1_bitcoin, 100>;
+  PICOBENCH(hash_256k1_bitc_100).iterations(sizes).samples(10);
+}
