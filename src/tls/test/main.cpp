@@ -33,60 +33,69 @@ static constexpr tls::CurveImpl supported_curves[] = {
   tls::CurveImpl::secp256k1_mbedtls,
   tls::CurveImpl::secp256k1_bitcoin};
 
-// TEST_CASE_TEMPLATE("Sign, verify, with PublicKey", CP, TEMPLATE_CURVE_TYPES)
+TEST_CASE("Sign, verify, with PublicKey")
+{
+  for (const auto curve : supported_curves)
+  {
+    auto kp = tls::make_key_pair(curve);
+    vector<uint8_t> contents(contents_.begin(), contents_.end());
+    const vector<uint8_t> signature = kp->sign(contents);
+
+    vector<uint8_t> public_key = kp->public_key();
+    auto pubk = tls::make_public_key(curve, public_key);
+    REQUIRE(pubk->verify(
+      contents.data(), contents.size(), signature.data(), signature.size()));
+  }
+}
+
+TEST_CASE("Sign, fail to verify with bad signature")
+{
+  for (const auto curve : supported_curves)
+  {
+    auto kp = tls::make_key_pair(curve);
+    vector<uint8_t> contents(contents_.begin(), contents_.end());
+    vector<uint8_t> signature = kp->sign(contents);
+
+    vector<uint8_t> public_key = kp->public_key();
+    auto pubk = tls::make_public_key(curve, public_key);
+    corrupt(signature);
+    REQUIRE_FALSE(pubk->verify(
+      contents.data(), contents.size(), signature.data(), signature.size()));
+  }
+}
+
+TEST_CASE("Sign, fail to verify with bad contents")
+{
+  for (const auto curve : supported_curves)
+  {
+    auto kp = tls::make_key_pair(curve);
+    vector<uint8_t> contents(contents_.begin(), contents_.end());
+    vector<uint8_t> signature = kp->sign(contents);
+
+    vector<uint8_t> public_key = kp->public_key();
+    auto pubk = tls::make_public_key(curve, public_key);
+    corrupt(contents);
+    REQUIRE_FALSE(pubk->verify(
+      contents.data(), contents.size(), signature.data(), signature.size()));
+  }
+}
+
+// TEST_CASE("Sign, fail to verify with wrong curve")
 // {
-//   tls::KeyPair<CP::curve> kp;
-//   vector<uint8_t> contents(contents_.begin(), contents_.end());
-//   const vector<uint8_t> signature = kp.sign(contents);
+//   for (const auto curve : supported_curves)
+//   {
+//     auto kp = tls::make_key_pair(curve);
+//     vector<uint8_t> contents(contents_.begin(), contents_.end());
+//     vector<uint8_t> signature = kp->sign(contents);
 
-//   vector<uint8_t> public_key = kp.public_key();
-//   tls::PublicKey<CP::curve> pubk(public_key);
-//   REQUIRE(pubk.verify(
-//     contents.data(), contents.size(), signature.data(), signature.size()));
-// }
-
-// TEST_CASE_TEMPLATE(
-//   "Sign, fail to verify with bad signature", CP, TEMPLATE_CURVE_TYPES)
-// {
-//   tls::KeyPair<CP::curve> kp;
-//   vector<uint8_t> contents(contents_.begin(), contents_.end());
-//   vector<uint8_t> signature = kp.sign(contents);
-
-//   vector<uint8_t> public_key = kp.public_key();
-//   tls::PublicKey<CP::curve> pubk(public_key);
-//   corrupt(signature);
-//   REQUIRE_FALSE(pubk.verify(
-//     contents.data(), contents.size(), signature.data(), signature.size()));
-// }
-
-// TEST_CASE_TEMPLATE(
-//   "Sign, fail to verify with bad contents", CP, TEMPLATE_CURVE_TYPES)
-// {
-//   tls::KeyPair<CP::curve> kp;
-//   vector<uint8_t> contents(contents_.begin(), contents_.end());
-//   vector<uint8_t> signature = kp.sign(contents);
-
-//   vector<uint8_t> public_key = kp.public_key();
-//   tls::PublicKey<CP::curve> pubk(public_key);
-//   corrupt(contents);
-//   REQUIRE_FALSE(pubk.verify(
-//     contents.data(), contents.size(), signature.data(), signature.size()));
-// }
-
-// TEST_CASE_TEMPLATE(
-//   "Sign, fail to verify with wrong curve", CP, TEMPLATE_CURVE_TYPES)
-// {
-//   tls::KeyPair<CP::curve> kp;
-//   vector<uint8_t> contents(contents_.begin(), contents_.end());
-//   vector<uint8_t> signature = kp.sign(contents);
-
-//   vector<uint8_t> public_key = kp.public_key();
-//   const auto wrong_curve = CP::curve == tls::CurveImpl::secp384r1 ?
-//     tls::CurveImpl::curve25519 :
-//     tls::CurveImpl::secp384r1;
-//   tls::PublicKey<wrong_curve> pubk(public_key);
-//   REQUIRE_FALSE(pubk.verify(
-//     contents.data(), contents.size(), signature.data(), signature.size()));
+//     vector<uint8_t> public_key = kp->public_key();
+//     const auto wrong_curve = CP::curve == tls::CurveImpl::secp384r1 ?
+//       tls::CurveImpl::curve25519 :
+//       tls::CurveImpl::secp384r1;
+//     tls::PublicKey<wrong_curve> pubk(public_key);
+//     REQUIRE_FALSE(pubk->verify(
+//       contents.data(), contents.size(), signature.data(), signature.size()));
+//   }
 // }
 
 TEST_CASE("Sign, verify with certificate")
