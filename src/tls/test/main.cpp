@@ -122,16 +122,20 @@ TEST_CASE("Key transfer across implementations")
     const vector<uint8_t> contents(contents_.begin(), contents_.end());
 
     const auto sig_a = kp_a->sign(contents);
-    std::cout << fmt::format("Sig_a size = {}", sig_a.size()) << std::endl;
-    std::cout << fmt::format("  contents [{:x}]", fmt::join(sig_a, " "))
-              << std::endl;
 
     const auto sig_b = kp_b->sign(contents);
-    std::cout << fmt::format("Sig_b size = {}", sig_b.size()) << std::endl;
-    std::cout << fmt::format("  contents [{:x}]", fmt::join(sig_b, " "))
-              << std::endl;
 
     CHECK(sig_a == sig_b);
+
+    if (sig_a != sig_b)
+    {
+      std::cout << fmt::format("Sig_a size = {}", sig_a.size()) << std::endl;
+      std::cout << fmt::format("  contents [{:x}]", fmt::join(sig_a, " "))
+                << std::endl;
+      std::cout << fmt::format("Sig_b size = {}", sig_b.size()) << std::endl;
+      std::cout << fmt::format("  contents [{:x}]", fmt::join(sig_b, " "))
+                << std::endl;
+    }
   }
 }
 
