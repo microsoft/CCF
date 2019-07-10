@@ -131,6 +131,9 @@ def run(args):
                             start_time = perf_counter()
                 LOG.success("Scenario file successfully loaded")
 
+        LOG.warning("Data loading completed, press Enter to shutdown...")
+        input()
+
 
 if __name__ == "__main__":
 
