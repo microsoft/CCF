@@ -303,25 +303,12 @@ namespace tls
      *
      * @return Signature as a vector
      */
-    virtual std::vector<uint8_t> sign(CBuffer d) const
+    std::vector<uint8_t> sign(CBuffer d) const
     {
-      HashBytes hash;
-      do_hash(params.curve_impl, d.p, d.rawSize(), hash);
-
-      Entropy entropy;
       uint8_t sig[MBEDTLS_ECDSA_MAX_LEN];
 
-      size_t written = 0;
-      if (
-        mbedtls_pk_sign(
-          key.get(),
-          params.md_type,
-          hash.data(),
-          hash.size(),
-          sig,
-          &written,
-          &Entropy::rng,
-          &entropy) != 0)
+      uint8_t written = 0;
+      if (sign(d, &written, sig) != 0)
       {
         return {};
       }
@@ -354,17 +341,19 @@ namespace tls
 
       size_t written = 0;
       rc = mbedtls_pk_sign(
-             key.get(),
-             params.md_type,
-             hash.data(),
-             hash.size(),
-             sig,
-             &written,
-             &Entropy::rng,
-             &entropy) != 0;
+        key.get(),
+        params.md_type,
+        hash.data(),
+        hash.size(),
+        sig,
+        &written,
+        &Entropy::rng,
+        &entropy);
 
-      if (!rc && written > std::numeric_limits<uint8_t>::max())
+      if (rc == 0 && written > std::numeric_limits<uint8_t>::max())
         rc = 0xf;
+
+      *sig_size = written;
 
       return rc;
     }
@@ -504,43 +493,6 @@ namespace tls
     {
       if (k1_ctx)
         secp256k1_context_destroy(k1_ctx);
-    }
-
-    std::vector<uint8_t> sign(CBuffer d) const override
-    {
-      HashBytes hash;
-      do_hash(params.curve_impl, d.p, d.rawSize(), hash);
-
-      uint8_t sig[MBEDTLS_ECDSA_MAX_LEN];
-      size_t written = 0;
-
-      int rc = 0;
-      secp256k1_ecdsa_recoverable_signature sig_;
-      rc = secp256k1_ecdsa_sign_recoverable(
-        k1_ctx, &sig_, hash.data(), c4_priv, nullptr, nullptr);
-      if (rc != 1)
-      {
-        LOG_FAIL_FMT("secp256k1_ecdsa_sign_recoverable failed with {}", rc);
-        return {};
-      }
-
-      int rcode = 0;
-      rc = secp256k1_ecdsa_recoverable_signature_serialize_compact(
-        k1_ctx, sig, &rcode, &sig_);
-      if (rc != 1)
-      {
-        LOG_FAIL_FMT(
-          "secp256k1_ecdsa_recoverable_signature_serialize_compact failed "
-          "with "
-          "{}",
-          rc);
-        return {};
-      }
-
-      sig[REC_ID_IDX] = static_cast<uint8_t>(rcode);
-      written = REC_ID_IDX + 1;
-
-      return {sig, sig + written};
     }
 
     int sign(CBuffer d, uint8_t* sig_size, uint8_t* sig) const override
