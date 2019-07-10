@@ -224,6 +224,9 @@ namespace tls
               params.ec, mbedtls_pk_ec(*key), &Entropy::rng, &entropy) != 0)
             throw std::logic_error("Could not generate ECDSA keypair");
       }
+
+      const auto ec_context = mbedtls_pk_ec(*key);
+      LOG_INFO_FMT("Created private key on ec group {}", ec_context->grp.id);
     }
 
     /**
@@ -240,7 +243,8 @@ namespace tls
     //   }
     // }
 
-    friend KeyPairHandle make_key_pair(CurveImpl);
+    template <typename... Ts>
+    friend KeyPairHandle make_key_pair(CurveImpl, Ts...);
 
   public:
     KeyPair(const KeyPair&) = delete;
@@ -476,7 +480,8 @@ namespace tls
     //     throw std::logic_error("Could not extract raw private key");
     // }
 
-    friend KeyPairHandle make_key_pair(CurveImpl);
+    template <typename... Ts>
+    friend KeyPairHandle make_key_pair(CurveImpl, Ts...);
 
   public:
     ~KeyPair_k1Bitcoin()
@@ -510,17 +515,19 @@ namespace tls
     }
   };
 
-  KeyPairHandle make_key_pair(CurveImpl curve)
+  template <typename... Ts>
+  KeyPairHandle make_key_pair(CurveImpl curve, Ts... ts)
   {
     const auto& params = get_curve_params(curve);
 
     if (curve == CurveImpl::secp256k1_bitcoin)
     {
-      return KeyPairHandle(new KeyPair_k1Bitcoin(params));
+      return KeyPairHandle(
+        new KeyPair_k1Bitcoin(params, std::forward<Ts>(ts)...));
     }
     else
     {
-      return KeyPairHandle(new KeyPair(params));
+      return KeyPairHandle(new KeyPair(params, std::forward<Ts>(ts)...));
     }
   }
 
@@ -544,6 +551,9 @@ namespace tls
     {
       mbedtls_pk_init(&ctx);
       mbedtls_pk_parse_public_key(&ctx, public_pem.data(), public_pem.size());
+
+      const auto ec_context = mbedtls_pk_ec(ctx);
+      LOG_INFO_FMT("Created public key on ec group {}", ec_context->grp.id);
     }
 
     friend PublicKeyHandle make_public_key(
@@ -689,6 +699,9 @@ namespace tls
         s << "Failed to parse certificate: " << rc;
         throw std::invalid_argument(s.str());
       }
+
+      const auto ec_context = mbedtls_pk_ec(cert.pk);
+      LOG_INFO_FMT("Parsed cert on ec group {}", ec_context->grp.id);
     }
 
     friend VerifierHandle make_verifier(
@@ -820,8 +833,14 @@ namespace tls
     {
       if (signature.size() != REC_ID_IDX + 1)
         return false;
-      return verify_secp256k_bc(
+
+      int rc = verify_secp256k_bc(
         k1_ctx, signature.data(), signature.size(), hash.h, &c4_pub);
+
+      if (rc)
+        LOG_DEBUG_FMT("Failed to verify signature (secp256k1_bitcoin): {}", rc);
+
+      return rc;
     }
 
     bool verify_hash(
@@ -830,8 +849,14 @@ namespace tls
     {
       if (signature.size() != REC_ID_IDX + 1)
         return false;
-      return verify_secp256k_bc(
+
+      int rc = verify_secp256k_bc(
         k1_ctx, signature.data(), signature.size(), hash.data(), &c4_pub);
+
+      if (rc)
+        LOG_DEBUG_FMT("Failed to verify signature (secp256k1_bitcoin): {}", rc);
+
+      return rc;
     }
 
     ~Verifier_k1Bitcoin()
