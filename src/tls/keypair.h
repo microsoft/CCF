@@ -248,7 +248,7 @@ namespace tls
     std::unique_ptr<mbedtls_pk_context> key =
       std::make_unique<mbedtls_pk_context>();
 
-    CurveParams params;
+    const CurveParams params;
 
     /**
      * Create a new public / private key pair
@@ -290,16 +290,16 @@ namespace tls
     /**
      * Initialise from just a private key
      */
-    KeyPair(CBuffer pkey, CBuffer pw = nullb)
-    {
-      mbedtls_pk_init(key.get());
+    // KeyPair(CBuffer pkey, CBuffer pw = nullb)
+    // {
+    //   mbedtls_pk_init(key.get());
 
-      Pem pemPk(pkey);
-      if (mbedtls_pk_parse_key(key.get(), pemPk.p, pemPk.n, pw.p, pw.n) != 0)
-      {
-        throw std::logic_error("Could not parse key");
-      }
-    }
+    //   Pem pemPk(pkey);
+    //   if (mbedtls_pk_parse_key(key.get(), pemPk.p, pemPk.n, pw.p, pw.n) != 0)
+    //   {
+    //     throw std::logic_error("Could not parse key");
+    //   }
+    // }
 
     friend KeyPairHandle make_key_pair(CurveImpl);
 
@@ -311,7 +311,7 @@ namespace tls
     //   params = std::move(other.params);
     // }
 
-    ~KeyPair()
+    virtual ~KeyPair()
     {
       if (key)
         mbedtls_pk_free(key.get());
@@ -540,13 +540,13 @@ namespace tls
         throw std::logic_error("Could not extract raw private key");
     }
 
-    KeyPair_k1Bitcoin(CBuffer pkey, CBuffer pw = nullb) : KeyPair(pkey, pw)
-    {
-      if (
-        mbedtls_mpi_write_binary(
-          &(mbedtls_pk_ec(*key)->d), c4_priv, privk_size) != 0)
-        throw std::logic_error("Could not extract raw private key");
-    }
+    // KeyPair_k1Bitcoin(CBuffer pkey, CBuffer pw = nullb) : KeyPair(pkey, pw)
+    // {
+    //   if (
+    //     mbedtls_mpi_write_binary(
+    //       &(mbedtls_pk_ec(*key)->d), c4_priv, privk_size) != 0)
+    //     throw std::logic_error("Could not extract raw private key");
+    // }
 
     friend KeyPairHandle make_key_pair(CurveImpl);
 
@@ -633,60 +633,32 @@ namespace tls
     }
   }
 
-  template <CurveImpl>
-  struct PublicKeyContext
-  {};
+  class PublicKey;
+  using PublicKeyHandle = std::shared_ptr<PublicKey>;
 
-  template <>
-  struct PublicKeyContext<CurveImpl::secp256k1_bitcoin>
-  {
-    secp256k1_context* ctx = secp256k1_context_create(
-      SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
-
-    secp256k1_pubkey c4_pub;
-
-    ~PublicKeyContext()
-    {
-      if (ctx)
-        secp256k1_context_destroy(ctx);
-    }
-  };
-
-  template <CurveImpl C = CurveImpl::default_curve_choice>
   class PublicKey
   {
   protected:
     mbedtls_pk_context ctx;
 
-    PublicKeyContext<C> curve_ctx;
+    const CurveParams params;
 
-  public:
     /**
      * Construct from a public key in PEM format
      *
      * @param public_pem Sequence of bytes containing the key in PEM format
      */
-    PublicKey(const std::vector<uint8_t>& public_pem)
+    PublicKey(const CurveParams& cp, const std::vector<uint8_t>& public_pem) :
+      params(cp)
     {
       mbedtls_pk_init(&ctx);
       mbedtls_pk_parse_public_key(&ctx, public_pem.data(), public_pem.size());
-
-      if constexpr (C == CurveImpl::secp256k1_bitcoin)
-      {
-        auto k = mbedtls_pk_ec(ctx);
-        size_t pub_len;
-        uint8_t pub_buf[100];
-        int rc = mbedtls_ecp_point_write_binary(
-          &k->grp, &k->Q, MBEDTLS_ECP_PF_COMPRESSED, &pub_len, pub_buf, 100);
-        if (rc)
-          throw std::logic_error("mbedtls_ecp_point_write_binary failed");
-        rc = secp256k1_ec_pubkey_parse(
-          curve_ctx.ctx, &curve_ctx.c4_pub, pub_buf, pub_len);
-        if (rc != 1)
-          throw std::logic_error("ecp256k1_ec_pubkey_parse failed");
-      }
     }
 
+    friend PublicKeyHandle make_public_key(
+      CurveImpl, const std::vector<uint8_t>&);
+
+  public:
     /**
      * Verify that a signature was produced on contents with the private key
      * associated with the public key held by the object.
@@ -715,38 +687,89 @@ namespace tls
      *
      * @return Whether the signature matches the contents and the key
      */
-    bool verify(
+    virtual bool verify(
       const uint8_t* contents,
       size_t contents_size,
       const uint8_t* sig,
       uint8_t sig_size)
     {
       HashBytes hash;
-      do_hash(CurveImpl::TODO, contents, contents_size, hash);
+      do_hash(params.curve_impl, contents, contents_size, hash);
 
-      if constexpr (C == CurveImpl::secp256k1_bitcoin)
-      {
-        return verify_secp256k_bc(
-          curve_ctx.ctx, sig, sig_size, hash.data(), curve_ctx.c4_pub);
-      }
-      else
-      {
-        return (
-          mbedtls_pk_verify(
-            &ctx,
-            CurveParameters<C>::md_type,
-            hash.data(),
-            hash.size(),
-            sig,
-            sig_size) == 0);
-      }
+      return (
+        mbedtls_pk_verify(
+          &ctx, params.md_type, hash.data(), hash.size(), sig, sig_size) == 0);
     }
 
-    ~PublicKey()
+    virtual ~PublicKey()
     {
       mbedtls_pk_free(&ctx);
     }
   };
+
+  class PublicKey_k1Bitcoin : public PublicKey
+  {
+  protected:
+    secp256k1_context* k1_ctx = secp256k1_context_create(
+      SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
+
+    secp256k1_pubkey c4_pub;
+
+    PublicKey_k1Bitcoin(
+      const CurveParams& cp, const std::vector<uint8_t>& public_pem) :
+      PublicKey(cp, public_pem)
+    {
+      auto k = mbedtls_pk_ec(ctx);
+      size_t pub_len;
+      uint8_t pub_buf[100];
+
+      int rc = mbedtls_ecp_point_write_binary(
+        &k->grp, &k->Q, MBEDTLS_ECP_PF_COMPRESSED, &pub_len, pub_buf, 100);
+      if (rc)
+        throw std::logic_error("mbedtls_ecp_point_write_binary failed");
+
+      rc = secp256k1_ec_pubkey_parse(k1_ctx, &c4_pub, pub_buf, pub_len);
+      if (rc != 1)
+        throw std::logic_error("ecp256k1_ec_pubkey_parse failed");
+    }
+
+    friend PublicKeyHandle make_public_key(
+      CurveImpl, const std::vector<uint8_t>&);
+
+  public:
+    ~PublicKey_k1Bitcoin()
+    {
+      if (k1_ctx)
+        secp256k1_context_destroy(k1_ctx);
+    }
+
+    bool verify(
+      const uint8_t* contents,
+      size_t contents_size,
+      const uint8_t* sig,
+      uint8_t sig_size) override
+    {
+      HashBytes hash;
+      do_hash(params.curve_impl, contents, contents_size, hash);
+
+      return verify_secp256k_bc(k1_ctx, sig, sig_size, hash.data(), &c4_pub);
+    }
+  };
+
+  PublicKeyHandle make_public_key(
+    CurveImpl curve, const std::vector<uint8_t>& public_pem)
+  {
+    const auto& params = get_curve_params(curve);
+
+    if (curve == CurveImpl::secp256k1_bitcoin)
+    {
+      return PublicKeyHandle(new PublicKey_k1Bitcoin(params, public_pem));
+    }
+    else
+    {
+      return PublicKeyHandle(new PublicKey(params, public_pem));
+    }
+  }
 
   class Verifier;
   using VerifierHandle = std::shared_ptr<Verifier>;
@@ -756,7 +779,7 @@ namespace tls
   protected:
     mutable mbedtls_x509_crt cert;
 
-    CurveParams params;
+    const CurveParams params;
 
     /**
      * Construct from a certificate in PEM format
