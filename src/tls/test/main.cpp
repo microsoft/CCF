@@ -33,16 +33,14 @@ static constexpr tls::CurveImpl supported_curves[] = {
   tls::CurveImpl::secp256k1_mbedtls,
   tls::CurveImpl::secp256k1_bitcoin};
 
-static constexpr char const* labels[] = {"With curve secp384r1",
-                                         "With curve curve25519",
-                                         "With curve secp256k1_mbedtls",
-                                         "With curve secp256k1_bitcoin"};
+static constexpr char const* labels[] = {
+  "secp384r1", "curve25519", "secp256k1_mbedtls", "secp256k1_bitcoin"};
 
 TEST_CASE("Sign, verify, with PublicKey")
 {
   for (const auto curve : supported_curves)
   {
-    INFO(labels[(size_t)curve]);
+    INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = tls::make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
@@ -57,7 +55,7 @@ TEST_CASE("Sign, fail to verify with bad signature")
 {
   for (const auto curve : supported_curves)
   {
-    INFO(labels[(size_t)curve]);
+    INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = tls::make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
@@ -73,7 +71,7 @@ TEST_CASE("Sign, fail to verify with bad contents")
 {
   for (const auto curve : supported_curves)
   {
-    INFO(labels[(size_t)curve]);
+    INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = tls::make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
@@ -89,7 +87,7 @@ TEST_CASE("Sign, fail to verify with wrong curve")
 {
   for (const auto curve : supported_curves)
   {
-    INFO(labels[(size_t)curve]);
+    INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = tls::make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
@@ -100,6 +98,40 @@ TEST_CASE("Sign, fail to verify with wrong curve")
       tls::CurveImpl::secp384r1;
     auto pubk = tls::make_public_key(wrong_curve, public_key);
     REQUIRE_FALSE(pubk->verify(contents, signature));
+  }
+}
+
+using CurvePair = std::pair<tls::CurveImpl, tls::CurveImpl>;
+std::vector<CurvePair> equivalent_curves{
+  std::make_pair(
+    tls::CurveImpl::secp256k1_mbedtls, tls::CurveImpl::secp256k1_bitcoin),
+  std::make_pair(
+    tls::CurveImpl::secp256k1_bitcoin, tls::CurveImpl::secp256k1_mbedtls)};
+
+TEST_CASE("Key transfer across implementations")
+{
+  for (const auto& curves : equivalent_curves)
+  {
+    INFO("From curve: " << labels[static_cast<size_t>(curves.first) - 1]);
+    INFO("To curve: " << labels[static_cast<size_t>(curves.second) - 1]);
+    auto kp_a = tls::make_key_pair(curves.first);
+
+    auto raw_key = kp_a->private_key();
+    auto kp_b = tls::make_key_pair(curves.second, raw_key);
+
+    const vector<uint8_t> contents(contents_.begin(), contents_.end());
+
+    const auto sig_a = kp_a->sign(contents);
+    std::cout << fmt::format("Sig_a size = {}", sig_a.size()) << std::endl;
+    std::cout << fmt::format("  contents [{:x}]", fmt::join(sig_a, " "))
+              << std::endl;
+
+    const auto sig_b = kp_b->sign(contents);
+    std::cout << fmt::format("Sig_b size = {}", sig_b.size()) << std::endl;
+    std::cout << fmt::format("  contents [{:x}]", fmt::join(sig_b, " "))
+              << std::endl;
+
+    CHECK(sig_a == sig_b);
   }
 }
 
@@ -127,7 +159,7 @@ TEST_CASE("Sign, verify with certificate")
 {
   for (const auto curve : supported_curves)
   {
-    INFO(labels[(size_t)curve]);
+    INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = tls::make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
@@ -142,7 +174,7 @@ TEST_CASE("Sign, verify. Fail to verify with bad contents")
 {
   for (const auto curve : supported_curves)
   {
-    INFO(labels[(size_t)curve]);
+    INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = tls::make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
