@@ -103,7 +103,7 @@ using namespace tls;
 
 #define PICO_SUFFIX(CURVE) \
   iterations(sizes).samples(10).baseline( \
-    CURVE == CurveImpl::default_curve_choice)
+    CURVE == CurveImpl::ledger_curve_choice)
 
 PICOBENCH_SUITE("sign");
 namespace

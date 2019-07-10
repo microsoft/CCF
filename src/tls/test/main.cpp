@@ -134,7 +134,7 @@ TEST_CASE("Sign, verify with certificate")
     const vector<uint8_t> signature = kp->sign(contents);
 
     auto cert = kp->self_sign("CN=name");
-    auto verifier = tls::make_verifier(curve, cert);
+    auto verifier = tls::make_verifier(cert);
     REQUIRE(verifier->verify(contents, signature));
   }
 }
@@ -149,7 +149,7 @@ TEST_CASE("Sign, verify. Fail to verify with bad contents")
     const vector<uint8_t> signature = kp->sign(contents);
 
     auto cert = kp->self_sign("CN=name");
-    auto verifier = tls::make_verifier(curve, cert);
+    auto verifier = tls::make_verifier(cert);
     REQUIRE(verifier->verify(contents, signature));
     corrupt(contents);
     REQUIRE_FALSE(verifier->verify(contents, signature));
