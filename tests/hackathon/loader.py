@@ -32,14 +32,16 @@ def run(args):
     ) as network:
         primary, others = network.start_and_join(args)
         if args.run_poll:
-            subprocess.Popen(
-                [
-                    "python3",
-                    f"{os.path.realpath(os.path.dirname(__file__))}/poll.py",
-                    f"--host={primary.host}",
-                    f"--port={primary.tls_port}",
-                ]
-            )
+            with open("revealed.log", "a+") as stdout:
+                subprocess.Popen(
+                    [
+                        "python3",
+                        f"{os.path.realpath(os.path.dirname(__file__))}/poll.py",
+                        f"--host={primary.host}",
+                        f"--port={primary.tls_port}",
+                    ],
+                    stdout=stdout,
+                )
         else:
             LOG.warning("")
             LOG.warning(

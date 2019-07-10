@@ -9,4 +9,4 @@ fi
 
 datafile=$1
 
-python3 "../tests/hackathon/loader.py" "-b" "." "--label" "lua_logging_client_test" "-l" "info" "-g" "../src/runtime_config/gov.lua" --app-script ../src/apps/logging/sample.lua --lua-script ../tests/hackathon/checker.lua --datafile $datafile --run-poll
+python3 "../tests/hackathon/loader.py" "-b" "." "--label" "lua_logging_client_test" "-l" "info" "-g" "../src/runtime_config/gov.lua" --app-script ../src/apps/logging/sample.lua --lua-script ../tests/hackathon/checker.lua --datafile $datafile --run-poll 1>>transactions.log
