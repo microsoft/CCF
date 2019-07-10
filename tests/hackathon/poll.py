@@ -13,9 +13,10 @@ from infra.jsonrpc import client
 
 import json
 
+
 def convert(data):
     if isinstance(data, bytes):
-        return data.decode('ascii')
+        return data.decode("ascii")
     elif isinstance(data, dict):
         return dict(map(convert, data.items()))
     elif isinstance(data, tuple):
@@ -58,10 +59,12 @@ def run(args):
                         # bank reveal the transaction
                         c.rpc("TX_reveal", {"tx_id": flagged[0]})
                         # regulator get the transaction
-                        tx = reg_c.rpc("REG_get_revealed", {"tx_id": flagged[0]}).to_dict()["result"]
+                        tx = reg_c.rpc(
+                            "REG_get_revealed", {"tx_id": flagged[0]}
+                        ).to_dict()["result"]
 
                         # Convert transaction for json serialisation
-                        stringified_tx = {k:convert(v) for k,v in tx.items()}
+                        stringified_tx = {k: convert(v) for k, v in tx.items()}
                         stringified_tx["reg_id"] = flagged[1]
                         print(json.dumps(stringified_tx))
 

@@ -10,6 +10,7 @@ import random
 from enum import IntEnum
 from loguru import logger as LOG
 import json
+import subprocess
 
 
 class TransactionType(IntEnum):
@@ -30,18 +31,27 @@ def run(args):
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         primary, others = network.start_and_join(args)
-
-        LOG.warning("")
-        LOG.warning(
-            "================= Network setup complete, you can run the below command to poll the service. "
-            + "Press enter to continue ================="
-        )
-        LOG.warning("")
-        LOG.warning(
-            f"python3 {os.path.realpath(os.path.dirname(__file__))}/poll.py --host={primary.host} --port={primary.tls_port}"
-        )
-        LOG.warning("")
-        input("")
+        if args.run_poll:
+            subprocess.Popen(
+                [
+                    "python3",
+                    f"{os.path.realpath(os.path.dirname(__file__))}/poll.py",
+                    f"--host={primary.host}",
+                    f"--port={primary.tls_port}",
+                ]
+            )
+        else:
+            LOG.warning("")
+            LOG.warning(
+                "================= Network setup complete, you can run the below command to poll the service. "
+                + "Press enter to continue ================="
+            )
+            LOG.warning("")
+            LOG.warning(
+                f"python3 {os.path.realpath(os.path.dirname(__file__))}/poll.py --host={primary.host} --port={primary.tls_port}"
+            )
+            LOG.warning("")
+            input("")
 
         data = []
         with open(args.lua_script, "r") as f:
@@ -59,19 +69,13 @@ def run(args):
                 check(
                     c.rpc(
                         "REG_register",
-                        {
-                            "country": regulator[1],
-                            "script": regulator[2],
-                        },
+                        {"country": regulator[1], "script": regulator[2]},
                     ),
                     result=regulator[0],
                 )
                 check(
                     c.rpc("REG_get", {"id": regulator[0]}),
-                    result=[
-                        regulator[1].encode(),
-                        regulator[2].encode(),
-                    ],
+                    result=[regulator[1].encode(), regulator[2].encode()],
                 )
 
             LOG.debug(f"User {regulator[0]} successfully registered as regulator")
@@ -81,14 +85,8 @@ def run(args):
                 check_commit = infra.ccf.Checker(mc)
                 check = infra.ccf.Checker()
 
-                check(
-                    c.rpc("BK_register", {"country": bank[1]}),
-                    result=bank[0],
-                )
-                check(
-                    c.rpc("BK_get", {"id": bank[0]}),
-                    result=bank[1].encode(),
-                )
+                check(c.rpc("BK_register", {"country": bank[1]}), result=bank[0])
+                check(c.rpc("BK_get", {"id": bank[0]}), result=bank[1].encode())
             LOG.debug(f"User {bank[0]} successfully registered as bank")
 
         LOG.success(f"{1} regulator and {len(banks)} bank(s) successfully setup")
@@ -114,8 +112,7 @@ def run(args):
                             "timestamp": strftime(
                                 "%a, %d %b %Y %H:%M:%S +0000", gmtime()
                             ),
-                            "src_country": random.choice(KNOWN_COUNTRIES)
-                            ,
+                            "src_country": random.choice(KNOWN_COUNTRIES),
                             "dst_country": random.choice(KNOWN_COUNTRIES),
                         }
 
@@ -150,6 +147,7 @@ if __name__ == "__main__":
             type=str,
             required=True,
         )
+        parser.add_argument("--run-poll", help="Run the poller", action="store_true")
 
     args = e2e_args.cli_args(add)
     args.package = args.app_script and "libluagenericenc" or "libloggingenc"
