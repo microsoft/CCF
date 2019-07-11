@@ -20,7 +20,7 @@ commands:
           working_directory: build
       - run:
           name: Ninja
-          command: ninja -j4
+          command: ninja -j2
           working_directory: build
       - run:
           name: Run tests
@@ -44,11 +44,11 @@ commands:
 
 executors:
   small_1804:
-    resource_class: small
+    resource_class: medium
     docker:
       - image: ccfciteam/ccf-ci-18.04:latest
   large_1804:
-    resource_class: medium+
+    resource_class: medium
     docker:
       - image: ccfciteam/ccf-ci-18.04:latest
 
