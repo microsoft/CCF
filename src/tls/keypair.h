@@ -309,18 +309,18 @@ namespace tls
      * Write signature over hash of data, and the size of that signature to
      * specified locations.
      *
-     * Important: While sig_size will always be written to as a single
-     * uint8_t, sig must point somewhere that's at least
+     * Important: sig must point somewhere that's at least
      * MBEDTLS_E{C,D}DSA_MAX_LEN.
      *
      * @param d data
-     * @param sig_size location to which the signature size will be written
+     * @param sig_size location to which the signature size will be written.
+     * Initial value should be max size of sig
      * @param sig location to which the signature will be written
      *
      * @return 0 if successful, error code of mbedtls_pk_sign otherwise,
      *         or 0xf if the signature_size exceeds that of a uint8_t.
      */
-    int sign(CBuffer d, uint8_t* sig_size, uint8_t* sig) const
+    int sign(CBuffer d, size_t* sig_size, uint8_t* sig) const
     {
       HashBytes hash;
       do_hash(*key, d.p, d.rawSize(), hash);
@@ -340,7 +340,7 @@ namespace tls
     {
       uint8_t sig[MBEDTLS_ECDSA_MAX_LEN];
 
-      uint8_t written = 0;
+      size_t written = MBEDTLS_ECDSA_MAX_LEN;
       if (sign_hash(hash, hash_size, &written, sig) != 0)
       {
         return {};
@@ -352,13 +352,11 @@ namespace tls
     virtual int sign_hash(
       const uint8_t* hash,
       size_t hash_size,
-      uint8_t* sig_size,
+      size_t* sig_size,
       uint8_t* sig) const
     {
       int rc = 0;
       Entropy entropy;
-
-      size_t written = 0;
 
       const auto ec = get_ec_from_context(*key);
       const auto md_type = get_md_for_ec(ec);
@@ -369,14 +367,9 @@ namespace tls
         hash,
         hash_size,
         sig,
-        &written,
+        sig_size,
         &Entropy::rng,
         &entropy);
-
-      if (rc == 0 && written > std::numeric_limits<uint8_t>::max())
-        rc = 0xf;
-
-      *sig_size = written;
 
       return rc;
     }
@@ -516,7 +509,7 @@ namespace tls
     int sign_hash(
       const uint8_t* hash,
       size_t hash_size,
-      uint8_t* sig_size,
+      size_t* sig_size,
       uint8_t* sig) const override
     {
       if (hash_size != 32)
@@ -528,13 +521,11 @@ namespace tls
           k1_ctx, &k1_sig, hash, c4_priv, nullptr, nullptr) != 1)
         return -2;
 
-      size_t written = MBEDTLS_ECDSA_MAX_LEN;
       if (
         secp256k1_ecdsa_signature_serialize_der(
-          k1_ctx, sig, &written, &k1_sig) != 1)
+          k1_ctx, sig, sig_size, &k1_sig) != 1)
         return -3;
 
-      *sig_size = written;
       return 0;
     }
   };
