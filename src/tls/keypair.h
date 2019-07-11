@@ -792,6 +792,29 @@ namespace tls
       return {crt->raw.p, crt->raw.p + crt->raw.len};
     }
 
+    virtual CurveImpl get_curve() const
+    {
+      switch (params.ecp_group_id)
+      {
+        case MBEDTLS_ECP_DP_SECP384R1:
+        {
+          return CurveImpl::secp384r1;
+        }
+        case MBEDTLS_ECP_DP_CURVE25519:
+        {
+          return CurveImpl::curve25519;
+        }
+        case MBEDTLS_ECP_DP_SECP256K1:
+        {
+          return CurveImpl::secp256k1_mbedtls;
+        }
+        default:
+        {
+          throw std::logic_error("Unhandled curve type");
+        }
+      }
+    }
+
     virtual ~Verifier()
     {
       mbedtls_x509_crt_free(&cert);
@@ -847,6 +870,11 @@ namespace tls
         LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
 
       return rc;
+    }
+
+    CurveImpl get_curve() const override
+    {
+      return CurveImpl::secp256k1_bitcoin;
     }
 
     ~Verifier_k1Bitcoin()

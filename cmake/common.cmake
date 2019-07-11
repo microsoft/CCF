@@ -560,6 +560,7 @@ add_executable(client ${CCF_DIR}/src/clients/client.cpp)
 use_client_mbedtls(client)
 target_link_libraries(client PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
+  secp256k1.host
 )
 
 # Lua for host and enclave
