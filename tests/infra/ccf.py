@@ -490,10 +490,16 @@ def node(
 
 class Node:
     def __init__(
-        self, node_id, host, debug=False, perf=False, recovery=False, verify_quote=False
+        self,
+        local_node_id,
+        host,
+        debug=False,
+        perf=False,
+        recovery=False,
+        verify_quote=False,
     ):
-        self.node_id = node_id
-        self.local_node_id = node_id
+        self.node_id = local_node_id
+        self.local_node_id = local_node_id
         self.debug = debug
         self.perf = perf
         self.recovery = recovery
