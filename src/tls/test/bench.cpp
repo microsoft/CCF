@@ -89,8 +89,8 @@ static void benchmark_hash(picobench::state& s)
   for (auto _ : s)
   {
     (void)_;
-    uint8_t hash[SHA256_BYTES];
-    mbedtls_sha256_ret(contents.data(), contents.size(), hash, 0);
+    std::vector<uint8_t> hash;
+    tls::do_hash(kp->get_raw_context(), contents.data(), contents.size(), hash);
     do_not_optimize(hash);
     clobber_memory();
   }
