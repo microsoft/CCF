@@ -363,37 +363,15 @@ namespace tls
       const auto ec = get_ec_from_context(*key);
       const auto md_type = get_md_for_ec(ec);
 
-      if (ec == MBEDTLS_ECP_DP_SECP256K1)
-      {
-        mbedtls_ecdsa_context ecdsa;
-        mbedtls_ecdsa_init(&ecdsa);
-
-        rc = mbedtls_ecdsa_from_keypair(&ecdsa, mbedtls_pk_ec(*key));
-        if (rc != 0)
-          return rc;
-
-        rc = mbedtls_ecdsa_write_signature(
-          &ecdsa,
-          md_type,
-          hash,
-          hash_size,
-          sig,
-          &written,
-          &Entropy::rng,
-          &entropy);
-      }
-      else
-      {
-        rc = mbedtls_pk_sign(
-          key.get(),
-          md_type,
-          hash,
-          hash_size,
-          sig,
-          &written,
-          &Entropy::rng,
-          &entropy);
-      }
+      rc = mbedtls_pk_sign(
+        key.get(),
+        md_type,
+        hash,
+        hash_size,
+        sig,
+        &written,
+        &Entropy::rng,
+        &entropy);
 
       if (rc == 0 && written > std::numeric_limits<uint8_t>::max())
         rc = 0xf;
@@ -568,7 +546,8 @@ namespace tls
    * implementation
    */
   template <typename... Ts>
-  inline KeyPairPtr make_key_pair(CurveImpl curve = CurveImpl::ledger_curve_choice)
+  inline KeyPairPtr make_key_pair(
+    CurveImpl curve = CurveImpl::ledger_curve_choice)
   {
     const auto ec = get_ec_for_curve_impl(curve);
 
