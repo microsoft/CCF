@@ -48,7 +48,7 @@ executors:
     docker:
       - image: ccfciteam/ccf-ci-18.04:latest
   large_1804:
-    resource_class: large
+    resource_class: medium+
     docker:
       - image: ccfciteam/ccf-ci-18.04:latest
 
