@@ -253,6 +253,8 @@ set(ENCLAVE_LIBS
   ${OE_ENCLAVE_LIBC}
   ${OE_ENCLAVE_CORE}
   ccfcrypto.enclave
+  evercrypt.enclave
+  secp256k1.enclave
 )
 
 set(ENCLAVE_FILES
@@ -406,10 +408,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       -Wl,-Bstatic,-Bsymbolic,--export-dynamic,-pie
       -lgcc
       ${PARSED_ARGS_LINK_LIBS}
-      ccfcrypto.enclave
-      evercrypt.enclave
       ${ENCLAVE_LIBS}
-      secp256k1.enclave
     )
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
     sign_app_library(${name} ${app_oe_conf_path} ${enclave_sign_key_path})
