@@ -173,3 +173,41 @@ TEST_CASE("Sign, verify. Fail to verify with bad contents")
     REQUIRE_FALSE(verifier->verify(contents, signature));
   }
 }
+
+TEST_CASE("Manually hash, sign, verify, with PublicKey")
+{
+  for (const auto curve : supported_curves)
+  {
+    INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
+    auto kp = tls::make_key_pair(curve);
+    vector<uint8_t> contents(contents_.begin(), contents_.end());
+    tls::HashBytes hash;
+    tls::do_hash(kp->get_raw_context(), contents.data(), contents.size(), hash);
+    const vector<uint8_t> signature = kp->sign_hash(hash);
+
+    vector<uint8_t> public_key = kp->public_key();
+    auto pubk = tls::make_public_key(public_key);
+    REQUIRE(pubk->verify_hash(hash, signature));
+    corrupt(hash);
+    REQUIRE_FALSE(pubk->verify_hash(hash, signature));
+  }
+}
+
+TEST_CASE("Manually hash, sign, verify, with certificate")
+{
+  for (const auto curve : supported_curves)
+  {
+    INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
+    auto kp = tls::make_key_pair(curve);
+    vector<uint8_t> contents(contents_.begin(), contents_.end());
+    tls::HashBytes hash;
+    tls::do_hash(kp->get_raw_context(), contents.data(), contents.size(), hash);
+    const vector<uint8_t> signature = kp->sign_hash(hash);
+
+    auto cert = kp->self_sign("CN=name");
+    auto verifier = tls::make_verifier(cert);
+    REQUIRE(verifier->verify_hash(hash, signature));
+    corrupt(hash);
+    REQUIRE_FALSE(verifier->verify(hash, signature));
+  }
+}
