@@ -171,8 +171,7 @@ namespace ccf
       auto& channel = get(peer_id);
 
       // Verify signature
-      auto network_pubk = tls::make_public_key(
-        tls::CurveImpl::ledger_curve_choice, network_kp->public_key());
+      auto network_pubk = tls::make_public_key(network_kp->public_key());
 
       if (!network_pubk->verify(
             peer_signed_public.data(),
