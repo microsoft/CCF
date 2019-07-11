@@ -17,12 +17,6 @@
 #include <mbedtls/eddsa.h>
 #include <memory>
 
-// 2 implementations of secp256k1 are available - mbedtls and bitcoin. Either
-// can be asked for explicitly via the CurveImpl enum. For cases where we
-// receive a raw 256k1 key/signature/cert only, this flag determines which
-// implementation is used
-#define PREFER_BITCOIN_SECP256K1 true
-
 namespace tls
 {
   enum class CurveImpl
@@ -44,6 +38,12 @@ namespace tls
   };
 
   using HashBytes = std::vector<uint8_t>;
+
+  // 2 implementations of secp256k1 are available - mbedtls and bitcoin. Either
+  // can be asked for explicitly via the CurveImpl enum. For cases where we
+  // receive a raw 256k1 key/signature/cert only, this flag determines which
+  // implementation is used
+  static constexpr bool prefer_bitcoin_secp256k1 = true;
 
   // Helper to access elliptic curve id from context
   inline mbedtls_ecp_group_id get_ec_from_context(const mbedtls_pk_context& ctx)
@@ -113,7 +113,6 @@ namespace tls
   {
     const auto ec = get_ec_from_context(ctx);
 
-    // TODO: This could use evercrypt implementations?
     switch (ec)
     {
       case MBEDTLS_ECP_DP_SECP384R1:
@@ -570,7 +569,7 @@ namespace tls
 
     const auto curve = get_ec_from_context(*key);
 
-    if (curve == MBEDTLS_ECP_DP_SECP256K1 && PREFER_BITCOIN_SECP256K1)
+    if (curve == MBEDTLS_ECP_DP_SECP256K1 && prefer_bitcoin_secp256k1)
     {
       return std::make_shared<KeyPair_k1Bitcoin>(std::move(key));
     }
@@ -722,7 +721,7 @@ namespace tls
   template <typename... Ts>
   inline PublicKeyPtr make_public_key(
     const std::vector<uint8_t>& public_pem,
-    bool use_bitcoin_impl = PREFER_BITCOIN_SECP256K1)
+    bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
     mbedtls_pk_context ctx;
 
@@ -903,7 +902,7 @@ namespace tls
 
     const auto curve = get_ec_from_context(cert.pk);
 
-    if (curve == MBEDTLS_ECP_DP_SECP256K1 && PREFER_BITCOIN_SECP256K1)
+    if (curve == MBEDTLS_ECP_DP_SECP256K1 && prefer_bitcoin_secp256k1)
     {
       return std::make_shared<Verifier_k1Bitcoin>(cert);
     }
