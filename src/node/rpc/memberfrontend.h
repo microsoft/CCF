@@ -74,9 +74,8 @@ namespace ccf
            auto info = nodes->get(id);
            if (!info)
              throw std::logic_error("Node does not exist.");
-           NodeInfo retired_info;
-           retired_info.status = NodeStatus::RETIRED;
-           nodes->put(id, retired_info);
+           info->status = NodeStatus::RETIRED;
+           nodes->put(id, *info);
            return true;
          }},
         // accept new code
@@ -412,7 +411,9 @@ namespace ccf
         NodeId duplicate_node_id = NoNode;
         nodes_view->foreach([&new_node, &duplicate_node_id](
                               const NodeId& nid, const NodeInfo& ni) {
-          if (new_node.tlsport == ni.tlsport && new_node.host == ni.host)
+          if (
+            new_node.tlsport == ni.tlsport && new_node.host == ni.host &&
+            ni.status != NodeStatus::RETIRED)
           {
             duplicate_node_id = nid;
             return false;
