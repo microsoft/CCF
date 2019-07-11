@@ -20,7 +20,7 @@ commands:
           working_directory: build
       - run:
           name: Ninja
-          command: ninja -j2
+          command: ninja -j1
           working_directory: build
       - run:
           name: Run tests
