@@ -287,7 +287,7 @@ namespace tls
     }
 
     /**
-     * Create signature over data from private key.
+     * Create signature over hash of data from private key.
      *
      * @param d data
      *
@@ -295,19 +295,14 @@ namespace tls
      */
     std::vector<uint8_t> sign(CBuffer d) const
     {
-      uint8_t sig[MBEDTLS_ECDSA_MAX_LEN];
+      HashBytes hash;
+      do_hash(params.ecp_group_id, d.p, d.rawSize(), hash);
 
-      uint8_t written = 0;
-      if (sign(d, &written, sig) != 0)
-      {
-        return {};
-      }
-
-      return {sig, sig + written};
+      return sign_hash(hash);
     }
 
     /**
-     * Write signature over data, and the size of that signature to
+     * Write signature over hash of data, and the size of that signature to
      * specified locations.
      *
      * Important: While sig_size will always be written to as a single
@@ -321,11 +316,38 @@ namespace tls
      * @return 0 if successful, error code of mbedtls_pk_sign otherwise,
      *         or 0xf if the signature_size exceeds that of a uint8_t.
      */
-    virtual int sign(CBuffer d, uint8_t* sig_size, uint8_t* sig) const
+    int sign(CBuffer d, uint8_t* sig_size, uint8_t* sig) const
     {
       HashBytes hash;
       do_hash(params.ecp_group_id, d.p, d.rawSize(), hash);
 
+      return sign_hash(hash, sig_size, sig);
+    }
+
+    /**
+     * Create signature over hashed data.
+     *
+     * @param hash Data to be signed. Should be of expected length for this
+     * key's signature algorithm
+     *
+     * @return Signature as a vector
+     */
+    virtual std::vector<uint8_t> sign_hash(const HashBytes& hash) const
+    {
+      uint8_t sig[MBEDTLS_ECDSA_MAX_LEN];
+
+      uint8_t written = 0;
+      if (sign_hash(hash, &written, sig) != 0)
+      {
+        return {};
+      }
+
+      return {sig, sig + written};
+    }
+
+    virtual int sign_hash(
+      const HashBytes& hash, uint8_t* sig_size, uint8_t* sig) const
+    {
       int rc = 0;
       Entropy entropy;
 
@@ -369,14 +391,6 @@ namespace tls
       *sig_size = written;
 
       return rc;
-    }
-
-    // TODO: This ends up being hashed again. Should it? Does it make sense to
-    // sign pre-hashed data? The pre-hashing needs to produce the correct size
-    // for the target signing algorithm.
-    std::vector<uint8_t> sign_hash(const crypto::Sha256Hash& hash) const
-    {
-      return sign(CBuffer{hash.h, crypto::Sha256Hash::SIZE});
     }
 
     /**
@@ -516,11 +530,9 @@ namespace tls
         secp256k1_context_destroy(k1_ctx);
     }
 
-    int sign(CBuffer d, uint8_t* sig_size, uint8_t* sig) const override
+    int sign_hash(
+      const HashBytes& hash, uint8_t* sig_size, uint8_t* sig) const override
     {
-      HashBytes hash;
-      do_hash(params.ecp_group_id, d.p, d.rawSize(), hash);
-
       secp256k1_ecdsa_signature k1_sig;
       if (
         secp256k1_ecdsa_sign(
@@ -715,33 +727,6 @@ namespace tls
      * @param hash Hash produced from contents as a sequence of bytes
      * @param signature Signature as a sequence of bytes
      *
-     * @return Whether the signature matches the contents and the key
-     */
-    virtual bool verify_hash(
-      const crypto::Sha256Hash& hash,
-      const std::vector<uint8_t>& signature) const
-    {
-      int rc = mbedtls_pk_verify(
-        &cert.pk,
-        params.md_type,
-        hash.h,
-        hash.SIZE,
-        signature.data(),
-        signature.size());
-
-      if (rc)
-        LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
-
-      return rc == 0;
-    }
-
-    /**
-     * Verify that a signature was produced on a hash with the private key
-     * associated with the public key contained in the certificate.
-     *
-     * @param hash Hash produced from contents as a sequence of bytes
-     * @param signature Signature as a sequence of bytes
-     *
      * @return Whether the signature matches the hash and the key
      */
     virtual bool verify_hash(
@@ -844,19 +829,6 @@ namespace tls
       rc = secp256k1_ec_pubkey_parse(k1_ctx, &c4_pub, pub_buf, pub_len);
       if (rc != 1)
         throw std::logic_error("ecp256k1_ec_pubkey_parse failed");
-    }
-
-    bool verify_hash(
-      const crypto::Sha256Hash& hash,
-      const std::vector<uint8_t>& signature) const override
-    {
-      int rc = verify_secp256k_bc(
-        k1_ctx, signature.data(), signature.size(), hash.h, &c4_pub);
-
-      if (rc)
-        LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
-
-      return rc;
     }
 
     bool verify_hash(

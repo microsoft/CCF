@@ -360,6 +360,7 @@ TEST_CASE("Add new members until there are 7, then reject")
         ErrorCodes::INVALID_CALLER_ID);
     }
   }
+
   SUBCASE("ACK from newly added members")
   {
     // iterate over all new_members, except for the last one
@@ -383,15 +384,15 @@ TEST_CASE("Add new members until there are 7, then reject")
         munpack(frontend.process(rpc_ctx, read_nonce));
       CHECK(ack0.result.next_nonce != ack1.result.next_nonce);
       // (4) sign old nonce and send it
-      const auto bad_sig = RawSignature{
-        new_member->kp->sign_hash(crypto::Sha256Hash{ack0.result.next_nonce})};
+      const auto bad_sig =
+        RawSignature{new_member->kp->sign(ack0.result.next_nonce)};
       const auto send_bad_sig = mpack(create_json_req(bad_sig, "ack"));
       check_error(
         munpack(frontend.process(rpc_ctx, send_bad_sig)),
         jsonrpc::INVALID_PARAMS);
       // (5) sign new nonce and send it
-      const auto good_sig = RawSignature{
-        new_member->kp->sign_hash(crypto::Sha256Hash{ack1.result.next_nonce})};
+      const auto good_sig =
+        RawSignature{new_member->kp->sign(ack1.result.next_nonce)};
       const auto send_good_sig = mpack(create_json_req(good_sig, "ack"));
       check_success(munpack(frontend.process(rpc_ctx, send_good_sig)));
       // (6) read ack entry again and check that the signature matches

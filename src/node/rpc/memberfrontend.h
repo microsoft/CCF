@@ -354,8 +354,7 @@ namespace ccf
         auto verifier =
           tls::make_verifier(std::vector<uint8_t>(args.rpc_ctx.caller_cert));
         const auto rs = args.params.get<RawSignature>();
-        if (!verifier->verify_hash(
-              crypto::Sha256Hash{last_ma->next_nonce}, rs.sig))
+        if (!verifier->verify(last_ma->next_nonce, rs.sig))
           return jsonrpc::error(jerr::INVALID_PARAMS, "Signature is not valid");
 
         MemberAck next_ma{rs.sig, rng.random(SIZE_NONCE)};
