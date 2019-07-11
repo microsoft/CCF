@@ -183,7 +183,7 @@ TEST_CASE("Manually hash, sign, verify, with PublicKey")
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     tls::HashBytes hash;
     tls::do_hash(kp->get_raw_context(), contents.data(), contents.size(), hash);
-    const vector<uint8_t> signature = kp->sign_hash(hash);
+    const vector<uint8_t> signature = kp->sign_hash(hash.data(), hash.size());
 
     vector<uint8_t> public_key = kp->public_key();
     auto pubk = tls::make_public_key(public_key);
@@ -202,7 +202,7 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     tls::HashBytes hash;
     tls::do_hash(kp->get_raw_context(), contents.data(), contents.size(), hash);
-    const vector<uint8_t> signature = kp->sign_hash(hash);
+    const vector<uint8_t> signature = kp->sign_hash(hash.data(), hash.size());
 
     auto cert = kp->self_sign("CN=name");
     auto verifier = tls::make_verifier(cert);

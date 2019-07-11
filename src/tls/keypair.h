@@ -113,6 +113,7 @@ namespace tls
   {
     const auto ec = get_ec_from_context(ctx);
 
+    // TODO: This could use evercrypt implementations?
     switch (ec)
     {
       case MBEDTLS_ECP_DP_SECP384R1:
@@ -151,8 +152,12 @@ namespace tls
     const uint8_t* signature,
     size_t signature_size,
     const uint8_t* hash,
+    size_t hash_size,
     const secp256k1_pubkey* public_key)
   {
+    if (hash_size != 32)
+      return false;
+
     secp256k1_ecdsa_signature sig;
     if (
       secp256k1_ecdsa_signature_parse_der(
@@ -311,7 +316,7 @@ namespace tls
       HashBytes hash;
       do_hash(*key, d.p, d.rawSize(), hash);
 
-      return sign_hash(hash);
+      return sign_hash(hash.data(), hash.size());
     }
 
     /**
@@ -334,23 +339,23 @@ namespace tls
       HashBytes hash;
       do_hash(*key, d.p, d.rawSize(), hash);
 
-      return sign_hash(hash, sig_size, sig);
+      return sign_hash(hash.data(), hash.size(), sig_size, sig);
     }
 
     /**
      * Create signature over hashed data.
      *
-     * @param hash Data to be signed. Should be of expected length for this
-     * key's signature algorithm
+     * @param hash First byte in hash sequence
+     * @param hash_size Number of bytes in hash sequence
      *
      * @return Signature as a vector
      */
-    virtual std::vector<uint8_t> sign_hash(const HashBytes& hash) const
+    std::vector<uint8_t> sign_hash(const uint8_t* hash, size_t hash_size) const
     {
       uint8_t sig[MBEDTLS_ECDSA_MAX_LEN];
 
       uint8_t written = 0;
-      if (sign_hash(hash, &written, sig) != 0)
+      if (sign_hash(hash, hash_size, &written, sig) != 0)
       {
         return {};
       }
@@ -359,7 +364,10 @@ namespace tls
     }
 
     virtual int sign_hash(
-      const HashBytes& hash, uint8_t* sig_size, uint8_t* sig) const
+      const uint8_t* hash,
+      size_t hash_size,
+      uint8_t* sig_size,
+      uint8_t* sig) const
     {
       int rc = 0;
       Entropy entropy;
@@ -381,8 +389,8 @@ namespace tls
         rc = mbedtls_ecdsa_write_signature(
           &ecdsa,
           md_type,
-          hash.data(),
-          hash.size(),
+          hash,
+          hash_size,
           sig,
           &written,
           &Entropy::rng,
@@ -393,8 +401,8 @@ namespace tls
         rc = mbedtls_pk_sign(
           key.get(),
           md_type,
-          hash.data(),
-          hash.size(),
+          hash,
+          hash_size,
           sig,
           &written,
           &Entropy::rng,
@@ -542,19 +550,25 @@ namespace tls
     }
 
     int sign_hash(
-      const HashBytes& hash, uint8_t* sig_size, uint8_t* sig) const override
+      const uint8_t* hash,
+      size_t hash_size,
+      uint8_t* sig_size,
+      uint8_t* sig) const override
     {
+      if (hash_size != 32)
+        return -1;
+
       secp256k1_ecdsa_signature k1_sig;
       if (
         secp256k1_ecdsa_sign(
-          k1_ctx, &k1_sig, hash.data(), c4_priv, nullptr, nullptr) != 1)
-        return -1;
+          k1_ctx, &k1_sig, hash, c4_priv, nullptr, nullptr) != 1)
+        return -2;
 
       size_t written = MBEDTLS_ECDSA_MAX_LEN;
       if (
         secp256k1_ecdsa_signature_serialize_der(
           k1_ctx, sig, &written, &k1_sig) != 1)
-        return -2;
+        return -3;
 
       *sig_size = written;
       return 0;
@@ -705,10 +719,8 @@ namespace tls
       const uint8_t* sig,
       size_t sig_size) override
     {
-      if (hash_size != 32)
-        return false;
-
-      return verify_secp256k_bc(k1_ctx, sig, sig_size, hash, &c4_pub);
+      return verify_secp256k_bc(
+        k1_ctx, sig, sig_size, hash, hash_size, &c4_pub);
     }
   };
 
@@ -760,29 +772,45 @@ namespace tls
      * Verify that a signature was produced on a hash with the private key
      * associated with the public key contained in the certificate.
      *
-     * @param hash Hash produced from contents as a sequence of bytes
-     * @param signature Signature as a sequence of bytes
+     * @param hash First byte in hash sequence
+     * @param hash_size Number of bytes in hash sequence
+     * @param signature First byte in signature sequence
+     * @param signature_size Number of bytes in signature sequence
      *
      * @return Whether the signature matches the hash and the key
      */
     virtual bool verify_hash(
-      const std::vector<uint8_t>& hash,
-      const std::vector<uint8_t>& signature) const
+      const uint8_t* hash,
+      size_t hash_size,
+      const uint8_t* signature,
+      size_t signature_size) const
     {
       const auto md_type = get_md_for_ec(get_ec_from_context(cert.pk));
 
       int rc = mbedtls_pk_verify(
-        &cert.pk,
-        md_type,
-        hash.data(),
-        hash.size(),
-        signature.data(),
-        signature.size());
+        &cert.pk, md_type, hash, hash_size, signature, signature_size);
 
       if (rc)
         LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
 
       return rc == 0;
+    }
+
+    /**
+     * Verify that a signature was produced on a hash with the private key
+     * associated with the public key contained in the certificate.
+     *
+     * @param hash Hash produced from contents as a sequence of bytes
+     * @param signature Signature as a sequence of bytes
+     *
+     * @return Whether the signature matches the hash and the key
+     */
+    bool verify_hash(
+      const std::vector<uint8_t>& hash,
+      const std::vector<uint8_t>& signature) const
+    {
+      return verify_hash(
+        hash.data(), hash.size(), signature.data(), signature.size());
     }
 
     /**
@@ -847,16 +875,15 @@ namespace tls
     }
 
     bool verify_hash(
-      const std::vector<uint8_t>& hash,
-      const std::vector<uint8_t>& signature) const override
+      const uint8_t* hash,
+      size_t hash_size,
+      const uint8_t* signature,
+      size_t signature_size) const override
     {
-      int rc = verify_secp256k_bc(
-        k1_ctx, signature.data(), signature.size(), hash.data(), &c4_pub);
+      bool ok = verify_secp256k_bc(
+        k1_ctx, signature, signature_size, hash, hash_size, &c4_pub);
 
-      if (rc)
-        LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
-
-      return rc;
+      return ok;
     }
 
     ~Verifier_k1Bitcoin()
