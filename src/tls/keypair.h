@@ -555,7 +555,10 @@ namespace tls
    * Create a public / private from existing raw private key data
    */
   template <typename... Ts>
-  inline KeyPairPtr make_key_pair(CBuffer pkey, CBuffer pw = nullb)
+  inline KeyPairPtr make_key_pair(
+    CBuffer pkey,
+    CBuffer pw = nullb,
+    bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
     std::unique_ptr<mbedtls_pk_context> key =
       std::make_unique<mbedtls_pk_context>();
@@ -569,7 +572,7 @@ namespace tls
 
     const auto curve = get_ec_from_context(*key);
 
-    if (curve == MBEDTLS_ECP_DP_SECP256K1 && prefer_bitcoin_secp256k1)
+    if (curve == MBEDTLS_ECP_DP_SECP256K1 && use_bitcoin_impl)
     {
       return std::make_shared<KeyPair_k1Bitcoin>(std::move(key));
     }
@@ -888,7 +891,9 @@ namespace tls
    * @param public_pem Sequence of bytes containing the certificate in PEM
    * format
    */
-  inline VerifierPtr make_verifier(const std::vector<uint8_t>& cert_pem)
+  inline VerifierPtr make_verifier(
+    const std::vector<uint8_t>& cert_pem,
+    bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
     mbedtls_x509_crt cert;
     mbedtls_x509_crt_init(&cert);
@@ -902,7 +907,7 @@ namespace tls
 
     const auto curve = get_ec_from_context(cert.pk);
 
-    if (curve == MBEDTLS_ECP_DP_SECP256K1 && prefer_bitcoin_secp256k1)
+    if (curve == MBEDTLS_ECP_DP_SECP256K1 && use_bitcoin_impl)
     {
       return std::make_shared<Verifier_k1Bitcoin>(cert);
     }
