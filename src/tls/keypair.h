@@ -100,6 +100,11 @@ namespace tls
     }
   }
 
+  /**
+   * Hash the given data, with an algorithm chosen by key type
+   *
+   * @return 0 on success
+   */
   inline int do_hash(
     const mbedtls_pk_context& ctx,
     const uint8_t* data_ptr,
@@ -501,6 +506,11 @@ namespace tls
       auto csr = create_csr(name);
       return sign_csr(csr, name, ca);
     }
+
+    const mbedtls_pk_context& get_raw_context() const
+    {
+      return *key;
+    }
   };
 
   class KeyPair_k1Bitcoin : public KeyPair
@@ -607,7 +617,7 @@ namespace tls
      *
      * @return Whether the signature matches the contents and the key
      */
-    virtual bool verify(
+    bool verify(
       const uint8_t* contents,
       size_t contents_size,
       const uint8_t* sig,
@@ -616,10 +626,39 @@ namespace tls
       HashBytes hash;
       do_hash(ctx, contents, contents_size, hash);
 
+      return verify_hash(hash.data(), hash.size(), sig, sig_size);
+    }
+
+    /**
+     * Verify that a signature was produced on a hash with the private key
+     * associated with the public key held by the object.
+     *
+     * @param hash Hash produced from contents as a sequence of bytes
+     * @param signature Signature as a sequence of bytes
+     *
+     * @return Whether the signature matches the hash and the key
+     */
+    bool verify_hash(
+      const std::vector<uint8_t>& hash, const std::vector<uint8_t>& signature)
+    {
+      return verify_hash(
+        hash.data(), hash.size(), signature.data(), signature.size());
+    }
+
+    virtual bool verify_hash(
+      const uint8_t* hash,
+      size_t hash_size,
+      const uint8_t* sig,
+      size_t sig_size)
+    {
       const auto md_type = get_md_for_ec(get_ec_from_context(ctx));
-      return (
-        mbedtls_pk_verify(
-          &ctx, md_type, hash.data(), hash.size(), sig, sig_size) == 0);
+
+      int rc = mbedtls_pk_verify(&ctx, md_type, hash, hash_size, sig, sig_size);
+
+      if (rc)
+        LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
+
+      return rc == 0;
     }
 
     virtual ~PublicKey()
@@ -660,16 +699,16 @@ namespace tls
         secp256k1_context_destroy(k1_ctx);
     }
 
-    bool verify(
-      const uint8_t* contents,
-      size_t contents_size,
+    bool verify_hash(
+      const uint8_t* hash,
+      size_t hash_size,
       const uint8_t* sig,
       size_t sig_size) override
     {
-      HashBytes hash;
-      do_hash(ctx, contents, contents_size, hash);
+      if (hash_size != 32)
+        return false;
 
-      return verify_secp256k_bc(k1_ctx, sig, sig_size, hash.data(), &c4_pub);
+      return verify_secp256k_bc(k1_ctx, sig, sig_size, hash, &c4_pub);
     }
   };
 
