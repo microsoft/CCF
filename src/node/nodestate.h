@@ -967,12 +967,12 @@ namespace ccf
   private:
     void accept_member_connections()
     {
-      tls::KeyPair nw(network.secrets->get_current().priv_key);
-      tls::KeyPair members_keypair;
+      auto nw = tls::make_key_pair(network.secrets->get_current().priv_key);
+      auto members_keypair = tls::make_key_pair();
 
-      auto members_privkey = members_keypair.private_key();
+      auto members_privkey = members_keypair->private_key();
       auto members_cert =
-        nw.sign_csr(members_keypair.create_csr("CN=members"), "CN=The CA");
+        nw->sign_csr(members_keypair->create_csr("CN=members"), "CN=The CA");
 
       // Accept member connections.
       rpcsessions.add_cert(
@@ -981,12 +981,12 @@ namespace ccf
 
     void accept_node_connections()
     {
-      tls::KeyPair nw(network.secrets->get_current().priv_key);
-      tls::KeyPair nodes_keypair;
+      auto nw = tls::make_key_pair(network.secrets->get_current().priv_key);
+      auto nodes_keypair = tls::make_key_pair();
 
-      auto nodes_privkey = nodes_keypair.private_key();
+      auto nodes_privkey = nodes_keypair->private_key();
       auto nodes_cert =
-        nw.sign_csr(nodes_keypair.create_csr("CN=nodes"), "CN=The CA");
+        nw->sign_csr(nodes_keypair->create_csr("CN=nodes"), "CN=The CA");
 
       // Accept node connections.
       rpcsessions.add_cert(
@@ -995,12 +995,12 @@ namespace ccf
 
     void accept_user_connections()
     {
-      tls::KeyPair nw(network.secrets->get_current().priv_key);
-      tls::KeyPair users_keypair;
+      auto nw = tls::make_key_pair(network.secrets->get_current().priv_key);
+      auto users_keypair = tls::make_key_pair();
 
-      auto users_privkey = users_keypair.private_key();
+      auto users_privkey = users_keypair->private_key();
       auto users_cert =
-        nw.sign_csr(users_keypair.create_csr("CN=users"), "CN=The CA");
+        nw->sign_csr(users_keypair->create_csr("CN=users"), "CN=The CA");
 
       // Accept user connections.
       rpcsessions.add_cert(
