@@ -568,7 +568,7 @@ namespace tls
    * implementation
    */
   template <typename... Ts>
-  KeyPairPtr make_key_pair(CurveImpl curve = CurveImpl::ledger_curve_choice)
+  inline KeyPairPtr make_key_pair(CurveImpl curve = CurveImpl::ledger_curve_choice)
   {
     const auto ec = get_ec_for_curve_impl(curve);
 
@@ -586,7 +586,7 @@ namespace tls
    * Create a public / private from existing raw private key data
    */
   template <typename... Ts>
-  KeyPairPtr make_key_pair(CBuffer pkey, CBuffer pw = nullb)
+  inline KeyPairPtr make_key_pair(CBuffer pkey, CBuffer pw = nullb)
   {
     std::unique_ptr<mbedtls_pk_context> key =
       std::make_unique<mbedtls_pk_context>();
@@ -750,7 +750,7 @@ namespace tls
    * @param public_pem Sequence of bytes containing the key in PEM format
    */
   template <typename... Ts>
-  PublicKeyPtr make_public_key(
+  inline PublicKeyPtr make_public_key(
     const std::vector<uint8_t>& public_pem,
     bool use_bitcoin_impl = PREFER_BITCOIN_SECP256K1)
   {
@@ -919,7 +919,7 @@ namespace tls
    * @param public_pem Sequence of bytes containing the certificate in PEM
    * format
    */
-  VerifierPtr make_verifier(const std::vector<uint8_t>& cert_pem)
+  inline VerifierPtr make_verifier(const std::vector<uint8_t>& cert_pem)
   {
     mbedtls_x509_crt cert;
     mbedtls_x509_crt_init(&cert);
