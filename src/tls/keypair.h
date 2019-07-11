@@ -248,23 +248,9 @@ namespace tls
     }
 
     /**
-     * Initialise from just a private key
+     * Initialise from existing pre-parsed key
      */
-    KeyPair(mbedtls_ecp_group_id ec, CBuffer pkey, CBuffer pw = nullb)
-    {
-      mbedtls_pk_init(key.get());
-
-      Pem pemPk(pkey);
-      if (mbedtls_pk_parse_key(key.get(), pemPk.p, pemPk.n, pw.p, pw.n) != 0)
-      {
-        throw std::logic_error("Could not parse key");
-      }
-
-      if (get_ec_from_context(*key) != ec)
-      {
-        throw std::logic_error("Parsed key and received unexpected type");
-      }
-    }
+    KeyPair(std::unique_ptr<mbedtls_pk_context>&& k) : key(std::move(k)) {}
 
     KeyPair(const KeyPair&) = delete;
 
@@ -577,18 +563,50 @@ namespace tls
 
   using KeyPairPtr = std::shared_ptr<KeyPair>;
 
+  /**
+   * Create a new public / private key pair on specified curve and
+   * implementation
+   */
   template <typename... Ts>
-  KeyPairPtr make_key_pair(CurveImpl curve, Ts... ts)
+  KeyPairPtr make_key_pair(CurveImpl curve = CurveImpl::ledger_curve_choice)
   {
     const auto ec = get_ec_for_curve_impl(curve);
 
     if (curve == CurveImpl::secp256k1_bitcoin)
     {
-      return KeyPairPtr(new KeyPair_k1Bitcoin(ec, std::forward<Ts>(ts)...));
+      return KeyPairPtr(new KeyPair_k1Bitcoin(ec));
     }
     else
     {
-      return KeyPairPtr(new KeyPair(ec, std::forward<Ts>(ts)...));
+      return KeyPairPtr(new KeyPair(ec));
+    }
+  }
+
+  /**
+   * Create a public / private from existing raw private key data
+   */
+  template <typename... Ts>
+  KeyPairPtr make_key_pair(CBuffer pkey, CBuffer pw = nullb)
+  {
+    std::unique_ptr<mbedtls_pk_context> key =
+      std::make_unique<mbedtls_pk_context>();
+    mbedtls_pk_init(key.get());
+
+    Pem pemPk(pkey);
+    if (mbedtls_pk_parse_key(key.get(), pemPk.p, pemPk.n, pw.p, pw.n) != 0)
+    {
+      throw std::logic_error("Could not parse key");
+    }
+
+    const auto curve = get_ec_from_context(*key);
+
+    if (curve == MBEDTLS_ECP_DP_SECP256K1 && PREFER_BITCOIN_SECP256K1)
+    {
+      return std::make_shared<KeyPair_k1Bitcoin>(std::move(key));
+    }
+    else
+    {
+      return std::make_shared<KeyPair>(std::move(key));
     }
   }
 
