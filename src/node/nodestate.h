@@ -107,7 +107,7 @@ namespace ccf
     SpinLock lock;
 
     NodeId self;
-    tls::KeyPair node_kp;
+    tls::KeyPairPtr node_kp;
     std::vector<uint8_t> node_cert;
     CodeDigest node_code_id;
 
@@ -155,6 +155,7 @@ namespace ccf
       enclave::RPCSessions& rpcsessions) :
       sm(State::uninitialized),
       self(INVALID_ID),
+      node_kp(tls::make_key_pair(tls::CurveImpl::ledger_curve_choice)),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
@@ -188,11 +189,11 @@ namespace ccf
       // Generate node key pair
       std::stringstream name;
       name << "CN=" << Actors::MANAGEMENT;
-      node_cert = node_kp.self_sign(name.str());
+      node_cert = node_kp->self_sign(name.str());
 
       // We present our self-signed certificate to the management frontend
       rpcsessions.add_cert(
-        Actors::MANAGEMENT, nullb, node_cert, node_kp.private_key());
+        Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key());
 
       // Generate node quote
       std::vector<uint8_t> quote(args.quote_max_size);
@@ -318,7 +319,7 @@ namespace ccf
       // Peer certificate needs to be signed by network certificate
       auto tls_ca = std::make_shared<tls::CA>(args.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
-        Actors::NODES, tls_ca, node_cert, node_kp.private_key(), nullb);
+        Actors::NODES, tls_ca, node_cert, node_kp->private_key(), nullb);
 
       // Create and connect to endpoint
       auto join_client =
@@ -684,10 +685,9 @@ namespace ccf
           self = nid;
           LOG_INFO_FMT("Setting self to {}", self);
         }
-        tls::Verifier verifier(ni.cert);
+        auto verifier = tls::make_verifier(ni.cert);
         certs_view->put(
-          {verifier.raw()->raw.p,
-           verifier.raw()->raw.p + verifier.raw()->raw.len},
+          verifier->raw_cert_data(),
           nid);
       }
 
@@ -753,7 +753,7 @@ namespace ccf
       recovery_history = std::make_shared<MerkleTxHistory>(
         *recovery_store.get(),
         self,
-        node_kp,
+        *node_kp,
         *recovery_signature_map,
         *recovery_nodes_map);
 
@@ -1187,7 +1187,7 @@ namespace ccf
       history = std::make_shared<MerkleTxHistory>(
         *network.tables.get(),
         self,
-        node_kp,
+        *node_kp,
         network.signatures,
         network.nodes);
 #ifdef PBFT

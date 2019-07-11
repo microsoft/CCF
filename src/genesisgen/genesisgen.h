@@ -141,9 +141,9 @@ public:
     auto node_id =
       get_next_id(tx.get_view(values), ccf::ValueIds::NEXT_NODE_ID);
     // store pubk
-    tls::Verifier verifier(ni.cert);
+    auto verifier = tls::make_verifier(ni.cert);
     auto tx_node_certs = tx.get_view(node_certs);
-    tx_node_certs->put(verifier.raw_cert_data(), node_id);
+    tx_node_certs->put(verifier->raw_cert_data(), node_id);
 
     auto tx_nodes = tx.get_view(nodes);
     tx_nodes->put(node_id, ni);
