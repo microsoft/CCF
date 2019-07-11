@@ -265,6 +265,35 @@ class Network:
                 "./genesisgenerator", "cert", "--name={}".format(u)
             ).check_returncode()
 
+    def vote_using_majority(self, proposal_id, accept, member_id=1, remote_node=None):
+        member_count = int(len(self.members) / 2 + 1)
+        for i, member in enumerate(self.members):
+            if i >= member_count:
+                break
+            res = self.vote(proposal_id, accept, member, remote_node)
+            if res:
+                break
+
+    def vote(self, proposal_id, accept, member_id=1, remote_node=None):
+        if remote_node is None:
+            remote_node = self.find_leader()[0]
+
+        result = infra.proc.ccall(
+            "./memberclient",
+            "vote",
+            f"--cert=member{member_id}_cert.pem",
+            f"--privk=member{member_id}_privk.pem",
+            f"--host={remote_node.host}",
+            f"--port={remote_node.tls_port}",
+            f"--id={proposal_id}",
+            "--ca=networkcert.pem",
+            "--sign",
+            "--accept" if accept else "--reject",
+        )
+
+        j_result = json.loads(result.stdout)
+        return j_result["result"]
+
     def genesis_generator(self, args):
         gen = ["./genesisgenerator", "tx"]
         if args.app_script:

@@ -12,7 +12,7 @@ import time
 from loguru import logger as LOG
 
 
-def retire_node(primary, node_id):
+def retire_node(network, primary, node_id):
     result = infra.proc.ccall(
         "./memberclient",
         "retire_node",
@@ -27,22 +27,7 @@ def retire_node(primary, node_id):
     assert not j_result["result"]["completed"]
     proposal_id = j_result["result"]["id"]
 
-    # members vote to accept the proposal
-    # result is true with just 1 vote because proposer implicit pro vote is assumed
-    result = infra.proc.ccall(
-        "./memberclient",
-        "vote",
-        "--accept",
-        "--cert=member2_cert.pem",
-        "--privk=member2_privk.pem",
-        "--host={}".format(primary.host),
-        "--port={}".format(primary.tls_port),
-        "--id={}".format(proposal_id),
-        "--ca=networkcert.pem",
-        "--sign",
-    )
-    j_result = json.loads(result.stdout)
-    assert j_result["result"]
+    j_result = network.vote_using_majority(proposal_id, True)
 
     with primary.member_client() as c:
         id = c.request("read", {"table": "nodes", "key": node_id})
@@ -79,7 +64,7 @@ def run(args):
         network.wait_for_node_commit_sync()
 
         # retire a node
-        retire_node(primary, new_node.node_id)
+        retire_node(network, primary, new_node.node_id)
 
 
 if __name__ == "__main__":
