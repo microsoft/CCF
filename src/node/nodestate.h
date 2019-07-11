@@ -155,7 +155,7 @@ namespace ccf
       enclave::RPCSessions& rpcsessions) :
       sm(State::uninitialized),
       self(INVALID_ID),
-      node_kp(tls::make_key_pair(tls::CurveImpl::ledger_curve_choice)),
+      node_kp(tls::make_key_pair()),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
@@ -285,8 +285,8 @@ namespace ccf
       raft->replicate({{1, protected_tx0, true}});
 
       // Network signs tx0.
-      tls::KeyPair keys(network.secrets->get_current().priv_key);
-      auto tx0Sig = keys.sign(args.tx0);
+      auto keys = tls::make_key_pair(network.secrets->get_current().priv_key);
+      auto tx0Sig = keys->sign(args.tx0);
 
       // Sets itself as trusted.
       auto nodes_view = tx.get_view(network.nodes);

@@ -116,7 +116,7 @@ public:
 };
 
 // used throughout
-auto kp = tls::make_key_pair(tls::CurveImpl::ledger_curve_choice);
+auto kp = tls::make_key_pair();
 ccf::NetworkState network;
 ccf::NetworkState network2;
 ccf::StubNodeState node;
@@ -160,7 +160,7 @@ auto ca_nos = kp -> self_sign("CN=nostore_user");
 auto verifier_nos = tls::make_verifier(ca_nos);
 auto nos_caller = verifier_nos -> raw_cert_data();
 
-auto kp_other = tls::make_key_pair(tls::CurveImpl::ledger_curve_choice);
+auto kp_other = tls::make_key_pair();
 auto ca_inv = kp_other -> self_sign("CN=name");
 auto verifier_inv = tls::make_verifier(ca_inv);
 auto invalid_caller = verifier_inv -> raw_cert_data();

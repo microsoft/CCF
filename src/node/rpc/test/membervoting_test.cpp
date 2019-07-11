@@ -28,7 +28,7 @@ using namespace jsonrpc;
 using namespace nlohmann;
 
 // used throughout
-auto kp = tls::make_key_pair(tls::CurveImpl::ledger_curve_choice);
+auto kp = tls::make_key_pair();
 auto ca_mem = kp -> self_sign("CN=name_member");
 auto verifier_mem = tls::make_verifier(ca_mem);
 auto member_caller = verifier_mem -> raw_cert_data();
@@ -258,7 +258,7 @@ TEST_CASE("Member query/read")
 struct NewMember
 {
   MemberId id;
-  tls::KeyPairPtr kp = tls::make_key_pair(tls::CurveImpl::ledger_curve_choice);
+  tls::KeyPairPtr kp = tls::make_key_pair();
   Cert cert;
 };
 
@@ -413,7 +413,7 @@ TEST_CASE("Accept node")
 {
   GenesisGenerator network;
   StubNodeState node;
-  auto new_kp = tls::make_key_pair(tls::CurveImpl::ledger_curve_choice);
+  auto new_kp = tls::make_key_pair();
 
   const Cert mcert0 = get_cert_data(0, new_kp), mcert1 = get_cert_data(1, kp);
   const auto mid0 = network.add_member(mcert0, MemberStatus::ACTIVE);

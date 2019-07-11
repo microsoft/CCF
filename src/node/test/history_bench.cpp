@@ -167,7 +167,7 @@ static void append(picobench::state& s)
   auto& nodes = store.create<ccf::Nodes>(ccf::Tables::NODES);
   auto& signatures = store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
 
-  auto kp = make_key_pair(tls::CurveImpl::ledger_curve_choice);
+  auto kp = tls::make_key_pair();
 
   std::shared_ptr<kv::Replicator> replicator =
     std::make_shared<DummyReplicator>();
@@ -208,7 +208,7 @@ static void append_compact(picobench::state& s)
   auto& nodes = store.create<ccf::Nodes>(ccf::Tables::NODES);
   auto& signatures = store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
 
-  auto kp = make_key_pair(tls::CurveImpl::ledger_curve_choice);
+  auto kp = tls::make_key_pair();
 
   std::shared_ptr<kv::Replicator> replicator =
     std::make_shared<DummyReplicator>();

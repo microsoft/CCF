@@ -25,7 +25,7 @@ using namespace ccf;
 
 tls::Cert gen_cert(const string& name)
 {
-  auto k = tls::make_key_pair(tls::CurveImpl::ledger_curve_choice);
+  auto k = tls::make_key_pair();
   auto cert = k->self_sign("CN=" + name);
   auto privk = k->private_key();
 

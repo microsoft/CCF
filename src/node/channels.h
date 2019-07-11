@@ -127,7 +127,7 @@ namespace ccf
   public:
     ChannelManager(const std::vector<uint8_t>& network_pkey) :
       network_kp(
-        tls::make_key_pair(tls::CurveImpl::ledger_curve_choice, network_pkey))
+        tls::make_key_pair(network_pkey))
     {}
 
     Channel& get(NodeId peer_id)

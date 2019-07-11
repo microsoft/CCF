@@ -17,7 +17,7 @@ public:
   template <typename... Ts>
   SigRpcTlsClient(const std::vector<uint8_t>& priv_key_, Ts&&... ts) :
     RpcTlsClient(ts...),
-    key_pair(tls::make_key_pair(tls::CurveImpl::ledger_curve_choice, priv_key_))
+    key_pair(tls::make_key_pair(priv_key_))
   {}
 
   /** Generate sign and serialize transaction

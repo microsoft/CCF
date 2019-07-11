@@ -114,7 +114,7 @@ namespace ccf
       seal(std::move(seal_))
     {
       // Generate fresh network secrets
-      auto keys = tls::make_key_pair(tls::CurveImpl::ledger_curve_choice);
+      auto keys = tls::make_key_pair();
       auto new_secret = std::make_unique<Secret>();
       new_secret->cert = keys->self_sign(name);
       new_secret->priv_key = keys->private_key();

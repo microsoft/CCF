@@ -250,9 +250,8 @@ void submit_ack(
     tls_connection.call("read", read_params(member_id, "memberacks")));
 
   // member signs nonce and sends ack
-  auto kp = tls::make_key_pair(verifier->get_curve(), raw_key);
-  const auto sig =
-    kp->sign_hash(crypto::Sha256Hash{read_ack.result.next_nonce});
+  auto kp = tls::make_key_pair(raw_key);
+  const auto sig = kp->sign(read_ack.result.next_nonce);
   const auto response =
     json::from_msgpack(tls_connection.call("ack", ack_params(sig)));
   cout << response << endl;
