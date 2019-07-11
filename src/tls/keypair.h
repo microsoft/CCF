@@ -45,13 +45,70 @@ namespace tls
 
   using HashBytes = std::vector<uint8_t>;
 
+  // Helper to access elliptic curve id from context
+  inline mbedtls_ecp_group_id get_ec_from_context(const mbedtls_pk_context& ctx)
+  {
+    return mbedtls_pk_ec(ctx)->grp.id;
+  }
+
+  // Get mbedtls elliptic curve for given CCF curve implementation
+  inline mbedtls_ecp_group_id get_ec_for_curve_impl(CurveImpl curve)
+  {
+    switch (curve)
+    {
+      case CurveImpl::secp384r1:
+      {
+        return MBEDTLS_ECP_DP_SECP384R1;
+      }
+      case CurveImpl::curve25519:
+      {
+        return MBEDTLS_ECP_DP_CURVE25519;
+      }
+      case CurveImpl::secp256k1_mbedtls:
+      case CurveImpl::secp256k1_bitcoin:
+      {
+        return MBEDTLS_ECP_DP_SECP256K1;
+      }
+      default:
+      {
+        throw std::logic_error("Unhandled curve type");
+      }
+    }
+  }
+
+  // Get message digest algorithm to use for given elliptic curve
+  inline mbedtls_md_type_t get_md_for_ec(mbedtls_ecp_group_id ec)
+  {
+    switch (ec)
+    {
+      case MBEDTLS_ECP_DP_SECP384R1:
+      {
+        return MBEDTLS_MD_SHA384;
+      }
+      case MBEDTLS_ECP_DP_CURVE25519:
+      {
+        return MBEDTLS_MD_SHA512;
+      }
+      case MBEDTLS_ECP_DP_SECP256K1:
+      {
+        return MBEDTLS_MD_SHA256;
+      }
+      default:
+      {
+        throw std::logic_error("Unhandled curve type");
+      }
+    }
+  }
+
   inline int do_hash(
-    mbedtls_ecp_group_id curve,
+    const mbedtls_pk_context& ctx,
     const uint8_t* data_ptr,
     size_t data_size,
     HashBytes& o_hash)
   {
-    switch (curve)
+    const auto ec = get_ec_from_context(ctx);
+
+    switch (ec)
     {
       case MBEDTLS_ECP_DP_SECP384R1:
       {
@@ -84,8 +141,6 @@ namespace tls
     }
   }
 
-  static constexpr size_t REC_ID_IDX = 64;
-
   inline bool verify_secp256k_bc(
     secp256k1_context* ctx,
     const uint8_t* signature,
@@ -106,49 +161,6 @@ namespace tls
     }
 
     return secp256k1_ecdsa_verify(ctx, &norm_sig, hash, public_key) == 1;
-  }
-
-  struct CurveParams
-  {
-    mbedtls_md_type_t md_type;
-    size_t md_size;
-
-    mbedtls_ecp_group_id ecp_group_id;
-  };
-
-  static constexpr CurveParams params_secp384r1{
-    MBEDTLS_MD_SHA384, 384 / 8, MBEDTLS_ECP_DP_SECP384R1};
-
-  static constexpr CurveParams params_curve25519{
-    MBEDTLS_MD_SHA512, 512 / 8, MBEDTLS_ECP_DP_CURVE25519};
-
-  static constexpr CurveParams params_secp256k1_mbedtls{
-    MBEDTLS_MD_SHA256, 256 / 8, MBEDTLS_ECP_DP_SECP256K1};
-
-  static constexpr CurveParams params_secp256k1_bitcoin{
-    MBEDTLS_MD_SHA256, 256 / 8, MBEDTLS_ECP_DP_SECP256K1};
-
-  const CurveParams& get_curve_params(CurveImpl curve)
-  {
-    switch (curve)
-    {
-      case CurveImpl::secp384r1:
-      {
-        return params_secp384r1;
-      }
-      case CurveImpl::curve25519:
-      {
-        return params_curve25519;
-      }
-      case CurveImpl::secp256k1_mbedtls:
-      {
-        return params_secp256k1_mbedtls;
-      }
-      case CurveImpl::secp256k1_bitcoin:
-      {
-        return params_secp256k1_bitcoin;
-      }
-    }
   }
 
   class KeyPair
@@ -182,18 +194,16 @@ namespace tls
     std::unique_ptr<mbedtls_pk_context> key =
       std::make_unique<mbedtls_pk_context>();
 
-    const CurveParams params;
-
   public:
     /**
      * Create a new public / private key pair
      */
-    KeyPair(const CurveParams& cp) : params(cp)
+    KeyPair(mbedtls_ecp_group_id ec)
     {
       Entropy entropy;
       mbedtls_pk_init(key.get());
 
-      switch (params.ecp_group_id)
+      switch (ec)
       {
         case MBEDTLS_ECP_DP_CURVE25519:
         case MBEDTLS_ECP_DP_CURVE448:
@@ -205,10 +215,7 @@ namespace tls
 
           if (
             mbedtls_eddsa_genkey(
-              mbedtls_pk_eddsa(*key),
-              params.ecp_group_id,
-              &Entropy::rng,
-              &entropy) != 0)
+              mbedtls_pk_eddsa(*key), ec, &Entropy::rng, &entropy) != 0)
             throw std::logic_error("Could not generate EdDSA keypair");
           break;
 
@@ -220,19 +227,20 @@ namespace tls
 
           if (
             mbedtls_ecp_gen_key(
-              params.ecp_group_id,
-              mbedtls_pk_ec(*key),
-              &Entropy::rng,
-              &entropy) != 0)
+              ec, mbedtls_pk_ec(*key), &Entropy::rng, &entropy) != 0)
             throw std::logic_error("Could not generate ECDSA keypair");
+      }
+
+      if (get_ec_from_context(*key) != ec)
+      {
+        throw std::logic_error("Created key and received unexpected type");
       }
     }
 
     /**
      * Initialise from just a private key
      */
-    KeyPair(const CurveParams& cp, CBuffer pkey, CBuffer pw = nullb) :
-      params(cp)
+    KeyPair(mbedtls_ecp_group_id ec, CBuffer pkey, CBuffer pw = nullb)
     {
       mbedtls_pk_init(key.get());
 
@@ -241,14 +249,14 @@ namespace tls
       {
         throw std::logic_error("Could not parse key");
       }
+
+      if (get_ec_from_context(*key) != ec)
+      {
+        throw std::logic_error("Parsed key and received unexpected type");
+      }
     }
 
     KeyPair(const KeyPair&) = delete;
-    // KeyPair(KeyPair&& other)
-    // {
-    //   key = std::move(other.key);
-    //   params = std::move(other.params);
-    // }
 
     virtual ~KeyPair()
     {
@@ -296,7 +304,7 @@ namespace tls
     std::vector<uint8_t> sign(CBuffer d) const
     {
       HashBytes hash;
-      do_hash(params.ecp_group_id, d.p, d.rawSize(), hash);
+      do_hash(*key, d.p, d.rawSize(), hash);
 
       return sign_hash(hash);
     }
@@ -319,7 +327,7 @@ namespace tls
     int sign(CBuffer d, uint8_t* sig_size, uint8_t* sig) const
     {
       HashBytes hash;
-      do_hash(params.ecp_group_id, d.p, d.rawSize(), hash);
+      do_hash(*key, d.p, d.rawSize(), hash);
 
       return sign_hash(hash, sig_size, sig);
     }
@@ -353,7 +361,10 @@ namespace tls
 
       size_t written = 0;
 
-      if (params.ecp_group_id == MBEDTLS_ECP_DP_SECP256K1)
+      const auto ec = get_ec_from_context(*key);
+      const auto md_type = get_md_for_ec(ec);
+
+      if (ec == MBEDTLS_ECP_DP_SECP256K1)
       {
         mbedtls_ecdsa_context ecdsa;
         mbedtls_ecdsa_init(&ecdsa);
@@ -364,7 +375,7 @@ namespace tls
 
         rc = mbedtls_ecdsa_write_signature(
           &ecdsa,
-          params.md_type,
+          md_type,
           hash.data(),
           hash.size(),
           sig,
@@ -376,7 +387,7 @@ namespace tls
       {
         rc = mbedtls_pk_sign(
           key.get(),
-          params.md_type,
+          md_type,
           hash.data(),
           hash.size(),
           sig,
@@ -437,7 +448,8 @@ namespace tls
       if (r < 0)
         return {};
 
-      mbedtls_x509write_crt_set_md_alg(&sign.crt, params.md_type);
+      mbedtls_x509write_crt_set_md_alg(
+        &sign.crt, get_md_for_ec(get_ec_from_context(*key)));
       mbedtls_x509write_crt_set_subject_key(&sign.crt, &sign.csr.pk);
       mbedtls_x509write_crt_set_issuer_key(&sign.crt, key.get());
 
@@ -501,19 +513,8 @@ namespace tls
     uint8_t c4_priv[privk_size] = {0};
 
   public:
-    KeyPair_k1Bitcoin(const CurveParams& cp) : KeyPair(cp)
-    {
-      if (
-        mbedtls_mpi_write_binary(
-          &(mbedtls_pk_ec(*key)->d), c4_priv, privk_size) != 0)
-        throw std::logic_error("Could not extract raw private key");
-
-      if (secp256k1_ec_seckey_verify(k1_ctx, c4_priv) != 1)
-        throw std::logic_error("secp256k1 private key is not valid");
-    }
-
-    KeyPair_k1Bitcoin(const CurveParams& cp, CBuffer pkey, CBuffer pw = nullb) :
-      KeyPair(cp, pkey, pw)
+    template <typename... Ts>
+    KeyPair_k1Bitcoin(Ts... ts) : KeyPair(std::forward<Ts>(ts)...)
     {
       if (
         mbedtls_mpi_write_binary(
@@ -555,15 +556,15 @@ namespace tls
   template <typename... Ts>
   KeyPairPtr make_key_pair(CurveImpl curve, Ts... ts)
   {
-    const auto& params = get_curve_params(curve);
+    const auto ec = get_ec_for_curve_impl(curve);
 
     if (curve == CurveImpl::secp256k1_bitcoin)
     {
-      return KeyPairPtr(new KeyPair_k1Bitcoin(params, std::forward<Ts>(ts)...));
+      return KeyPairPtr(new KeyPair_k1Bitcoin(ec, std::forward<Ts>(ts)...));
     }
     else
     {
-      return KeyPairPtr(new KeyPair(params, std::forward<Ts>(ts)...));
+      return KeyPairPtr(new KeyPair(ec, std::forward<Ts>(ts)...));
     }
   }
 
@@ -572,20 +573,11 @@ namespace tls
   protected:
     mbedtls_pk_context ctx;
 
-    const CurveParams params;
-
   public:
     /**
-     * Construct from a public key in PEM format
-     *
-     * @param public_pem Sequence of bytes containing the key in PEM format
+     * Construct from a pre-constructed pk context
      */
-    PublicKey(const CurveParams& cp, const std::vector<uint8_t>& public_pem) :
-      params(cp)
-    {
-      mbedtls_pk_init(&ctx);
-      mbedtls_pk_parse_public_key(&ctx, public_pem.data(), public_pem.size());
-    }
+    PublicKey(const mbedtls_pk_context& c) : ctx(c) {}
 
     /**
      * Verify that a signature was produced on contents with the private key
@@ -622,11 +614,12 @@ namespace tls
       size_t sig_size)
     {
       HashBytes hash;
-      do_hash(params.ecp_group_id, contents, contents_size, hash);
+      do_hash(ctx, contents, contents_size, hash);
 
+      const auto md_type = get_md_for_ec(get_ec_from_context(ctx));
       return (
         mbedtls_pk_verify(
-          &ctx, params.md_type, hash.data(), hash.size(), sig, sig_size) == 0);
+          &ctx, md_type, hash.data(), hash.size(), sig, sig_size) == 0);
     }
 
     virtual ~PublicKey()
@@ -644,9 +637,8 @@ namespace tls
     secp256k1_pubkey c4_pub;
 
   public:
-    PublicKey_k1Bitcoin(
-      const CurveParams& cp, const std::vector<uint8_t>& public_pem) :
-      PublicKey(cp, public_pem)
+    template <typename... Ts>
+    PublicKey_k1Bitcoin(Ts... ts) : PublicKey(std::forward<Ts>(ts)...)
     {
       auto k = mbedtls_pk_ec(ctx);
       size_t pub_len;
@@ -675,7 +667,7 @@ namespace tls
       size_t sig_size) override
     {
       HashBytes hash;
-      do_hash(params.ecp_group_id, contents, contents_size, hash);
+      do_hash(ctx, contents, contents_size, hash);
 
       return verify_secp256k_bc(k1_ctx, sig, sig_size, hash.data(), &c4_pub);
     }
@@ -683,19 +675,30 @@ namespace tls
 
   using PublicKeyPtr = std::shared_ptr<PublicKey>;
 
+  /**
+   * Construct PublicKey from a raw public key in PEM format
+   *
+   * @param public_pem Sequence of bytes containing the key in PEM format
+   */
   template <typename... Ts>
-  PublicKeyPtr make_public_key(CurveImpl curve, Ts... ts)
+  PublicKeyPtr make_public_key(
+    const std::vector<uint8_t>& public_pem,
+    bool use_bitcoin_impl = PREFER_BITCOIN_SECP256K1)
   {
-    const auto& params = get_curve_params(curve);
+    mbedtls_pk_context ctx;
 
-    if (curve == CurveImpl::secp256k1_bitcoin)
+    mbedtls_pk_init(&ctx);
+    mbedtls_pk_parse_public_key(&ctx, public_pem.data(), public_pem.size());
+
+    const auto curve = get_ec_from_context(ctx);
+
+    if (curve == MBEDTLS_ECP_DP_SECP256K1 && use_bitcoin_impl)
     {
-      return PublicKeyPtr(
-        new PublicKey_k1Bitcoin(params, std::forward<Ts>(ts)...));
+      return std::make_shared<PublicKey_k1Bitcoin>(ctx);
     }
     else
     {
-      return PublicKeyPtr(new PublicKey(params, std::forward<Ts>(ts)...));
+      return std::make_shared<PublicKey>(ctx);
     }
   }
 
@@ -704,19 +707,13 @@ namespace tls
   protected:
     mutable mbedtls_x509_crt cert;
 
-    // TODO: Remove this, should be retrievable from cert
-    const CurveParams params;
-
   public:
     /**
      * Construct from a pre-parsed cert
      *
      * @param c Initialised and parsed x509 cert
      */
-    Verifier(const CurveParams& cp, const mbedtls_x509_crt& c) :
-      cert(c),
-      params(cp)
-    {}
+    Verifier(const mbedtls_x509_crt& c) : cert(c) {}
 
     Verifier(const Verifier&) = delete;
 
@@ -733,9 +730,11 @@ namespace tls
       const std::vector<uint8_t>& hash,
       const std::vector<uint8_t>& signature) const
     {
+      const auto md_type = get_md_for_ec(get_ec_from_context(cert.pk));
+
       int rc = mbedtls_pk_verify(
         &cert.pk,
-        params.md_type,
+        md_type,
         hash.data(),
         hash.size(),
         signature.data(),
@@ -761,7 +760,7 @@ namespace tls
       const std::vector<uint8_t>& signature) const
     {
       HashBytes hash;
-      do_hash(params.ecp_group_id, contents.data(), contents.size(), hash);
+      do_hash(cert.pk, contents.data(), contents.size(), hash);
 
       return verify_hash(hash, signature);
     }
@@ -775,29 +774,6 @@ namespace tls
     {
       const auto crt = raw();
       return {crt->raw.p, crt->raw.p + crt->raw.len};
-    }
-
-    virtual CurveImpl get_curve() const
-    {
-      switch (params.ecp_group_id)
-      {
-        case MBEDTLS_ECP_DP_SECP384R1:
-        {
-          return CurveImpl::secp384r1;
-        }
-        case MBEDTLS_ECP_DP_CURVE25519:
-        {
-          return CurveImpl::curve25519;
-        }
-        case MBEDTLS_ECP_DP_SECP256K1:
-        {
-          return CurveImpl::secp256k1_mbedtls;
-        }
-        default:
-        {
-          throw std::logic_error("Unhandled curve type");
-        }
-      }
     }
 
     virtual ~Verifier()
@@ -814,8 +790,8 @@ namespace tls
     secp256k1_pubkey c4_pub;
 
   public:
-    Verifier_k1Bitcoin(const CurveParams& cp, const mbedtls_x509_crt& c) :
-      Verifier(cp, c)
+    template <typename... Ts>
+    Verifier_k1Bitcoin(Ts... ts) : Verifier(std::forward<Ts>(ts)...)
     {
       auto k = mbedtls_pk_ec(cert.pk);
       size_t pub_len;
@@ -842,11 +818,6 @@ namespace tls
         LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
 
       return rc;
-    }
-
-    CurveImpl get_curve() const override
-    {
-      return CurveImpl::secp256k1_bitcoin;
     }
 
     ~Verifier_k1Bitcoin()
@@ -876,31 +847,15 @@ namespace tls
       throw std::invalid_argument(s.str());
     }
 
-    const auto curve = mbedtls_pk_ec(cert.pk)->grp.id;
+    const auto curve = get_ec_from_context(cert.pk);
 
-    switch (curve)
+    if (curve == MBEDTLS_ECP_DP_SECP256K1 && PREFER_BITCOIN_SECP256K1)
     {
-      case MBEDTLS_ECP_DP_SECP384R1:
-      {
-        return VerifierPtr(new Verifier(params_secp384r1, cert));
-      }
-      case MBEDTLS_ECP_DP_CURVE25519:
-      {
-        return VerifierPtr(new Verifier(params_curve25519, cert));
-      }
-      case MBEDTLS_ECP_DP_SECP256K1:
-      {
-#if PREFER_BITCOIN_SECP256K1
-        return VerifierPtr(
-          new Verifier_k1Bitcoin(params_secp256k1_bitcoin, cert));
-#else
-        return VerifierPtr(new Verifier(params_secp256k1_mbedtls, cert));
-#endif
-      }
-      default:
-      {
-        throw std::logic_error("Unhandled curve type");
-      }
+      return std::make_shared<Verifier_k1Bitcoin>(cert);
+    }
+    else
+    {
+      return std::make_shared<Verifier>(cert);
     }
   }
 }
