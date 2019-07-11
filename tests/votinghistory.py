@@ -7,9 +7,9 @@ import infra.remote
 import json
 import ledger
 import msgpack
+import coincurve
+from coincurve._libsecp256k1 import ffi, lib
 from coincurve.context import GLOBAL_CONTEXT
-from coincurve.ecdsa import deserialize_recoverable, recover
-from coincurve.utils import bytes_to_int, sha256
 
 import cryptography.x509
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -21,11 +21,11 @@ from cryptography.hazmat.backends import default_backend
 # sequence of native calls for verification, in case the
 # imported library's code changes.
 def verify_recover_secp256k1_bc_native(
-    signature, req, hasher=sha256, context=GLOBAL_CONTEXT
+    signature, req, hasher=coincurve.utils.sha256, context=GLOBAL_CONTEXT
 ):
     # Compact
     native_rec_sig = ffi.new("secp256k1_ecdsa_recoverable_signature *")
-    raw_sig, rec_id = signature[:64], bytes_to_int(signature[64:])
+    raw_sig, rec_id = signature[:64], coincurve.utils.bytes_to_int(signature[64:])
     lib.secp256k1_ecdsa_recoverable_signature_parse_compact(
         context.ctx, native_rec_sig, raw_sig, rec_id
     )
@@ -49,7 +49,9 @@ def verify_recover_secp256k1_bc_native(
     )
 
 
-def verify_recover_secp256k1_bc(signature, req, hasher=sha256, context=GLOBAL_CONTEXT):
+def verify_recover_secp256k1_bc(
+    signature, req, hasher=coincurve.utils.sha256, context=GLOBAL_CONTEXT
+):
     msg_hash = hasher(req) if hasher is not None else req
     rec_sig = coincurve.ecdsa.deserialize_recoverable(signature)
     public_key = coincurve.PublicKey(coincurve.ecdsa.recover(req, rec_sig))
@@ -72,7 +74,7 @@ def verify_sig(raw_cert, sig, req):
     except cryptography.exceptions.InvalidSignature as e:
         # we support a non-standard curve, which is also being
         # used for bitcoin.
-        if curve_name != "secp256k1":
+        if pub_key._curve.name != "secp256k1":
             raise e
 
         verify_recover_secp256k1_bc(sig, req)
