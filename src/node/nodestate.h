@@ -686,9 +686,7 @@ namespace ccf
           LOG_INFO_FMT("Setting self to {}", self);
         }
         auto verifier = tls::make_verifier(ni.cert);
-        certs_view->put(
-          verifier->raw_cert_data(),
-          nid);
+        certs_view->put(verifier->raw_cert_data(), nid);
       }
 
       LOG_INFO_FMT("Replaced nodes");
