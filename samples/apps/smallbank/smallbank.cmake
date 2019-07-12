@@ -47,19 +47,6 @@ if(BUILD_TESTS)
       --metrics-file small_bank_sigs_metrics.json
   )
 
-  add_perf_test(
-    NAME small_bank_warmup_cooldown_client_test
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
-    CLIENT_BIN ./small_bank_client
-    VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank.json
-    ADDITIONAL_ARGS
-      --label Small_Bank_WarmupCooldown
-      --max-writes-ahead 1
-      --warmup 1000
-      --cooldown 1000
-      --metrics-file small_bank_wc_metrics.json
-  )
-
   # It is better to run performance tests with forwarding on different machines
   # (i.e. nodes and clients)
   add_perf_test(
