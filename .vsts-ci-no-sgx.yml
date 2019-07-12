@@ -50,7 +50,9 @@ jobs:
 - job: Coverage
   pool:
     vmImage: 'ubuntu-16.04'
-  container: ccfciteam/ccf-ci-18.04:latest
+  container:
+    image: ccfciteam/ccf-ci-18.04:latest
+    options: --network="host" --device=/dev/sgx
   steps:
     - checkout: self
       clean: true
@@ -77,7 +79,7 @@ jobs:
     # Actual coverage build steps starts here
     - template: .vsts-ci-templates/build.yml
       parameters:
-        cmake_args: ' -DTARGET=virtual -DBUILD_SMALLBANK=OFF -DCOVERAGE=ON'
+        cmake_args: ' -DCMAKE_BUILD_TYPE=Debug -DTARGET=virtual -DBUILD_SMALLBANK=OFF -DCOVERAGE=ON'
 
     - template: .vsts-ci-templates/test.yml
       parameters:
@@ -90,6 +92,7 @@ jobs:
       condition: succeededOrFailed()
 
     - script: |
+        set -ex
         cat workspace/schema_tests_0/out
         cat workspace/schema_tests_0/err
         cat workspace/schema_tests_1/out
@@ -98,14 +101,8 @@ jobs:
       workingDirectory: build
       condition: succeededOrFailed()
 
-    - task: PublishPipelineArtifact@0
-      displayName: Publish CCF logs
-      inputs:
-        artifactName: failing_test_logs
-        targetPath: build/workspace
-      condition: succeededOrFailed()
-
-- job: SAN
+jobs:
+- job: Sig_Ill_hunt
   pool:
     vmImage: 'ubuntu-16.04'
   container: ccfciteam/ccf-ci-18.04:latest
@@ -113,11 +110,33 @@ jobs:
     - checkout: self
       clean: true
       submodules: true
-      
-    - template: .vsts-ci-templates/build.yml
-      parameters:
-        cmake_args: ' -DTARGET=virtual -DBUILD_SMALLBANK=OFF -DSAN=ON'
 
-    - template: .vsts-ci-templates/test.yml
-      parameters:
-        suite_name_suffix: 'san'
+    - task: CMake@1
+      displayName: CMake
+      inputs:
+        cmakeArgs: '-GNinja -DTARGET=virtual -DBUILD_SMALLBANK=OFF'
+
+    - script: ninja keyexchange_test
+      displayName: Ninja
+      workingDirectory: build
+
+    - script: ./keyexchange_test
+      displayName: Run
+      workingDirectory: build
+
+# - job: SAN
+#   pool:
+#     vmImage: 'ubuntu-16.04'
+#   container: ccfciteam/ccf-ci-18.04:latest
+#   steps:
+#     - checkout: self
+#       clean: true
+#       submodules: true
+      
+#     - template: .vsts-ci-templates/build.yml
+#       parameters:
+#         cmake_args: ' -DTARGET=virtual -DBUILD_SMALLBANK=OFF -DSAN=ON'
+
+#     - template: .vsts-ci-templates/test.yml
+#       parameters:
+#         suite_name_suffix: 'san'
