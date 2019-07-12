@@ -114,6 +114,10 @@ jobs:
       clean: true
       submodules: true
 
+    - script: |
+        cat /proc/cpuinfo
+      displayName: /proc/cpuinfo
+
     - task: CMake@1
       displayName: CMake
       inputs:
