@@ -89,11 +89,6 @@ option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 
-option(SOFTWARE_ENTROPY "Use a software entropy implementation, where RDRAND/RDSEED are unavailable" OFF)
-if (SOFTWARE_ENTROPY)
-  add_definitions(-DSOFTWARE_ENTROPY)
-endif()
-
 option(PBFT "Enable PBFT" OFF)
 if (PBFT)
   add_definitions(-DPBFT)

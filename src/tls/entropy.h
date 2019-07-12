@@ -11,15 +11,13 @@
 
 namespace tls
 {
-#ifndef SOFTWARE_ENTROPY
-#  pragma message("Using hardware entropy")
+#if 1
   class Entropy : public IntelDRNG
   {
   public:
     Entropy() : IntelDRNG() {}
   };
 #else
-#  pragma message("Using software entropy")
   class Entropy
   {
   private:
