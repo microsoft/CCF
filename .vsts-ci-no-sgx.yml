@@ -46,8 +46,7 @@ schedules:
     - master
   always: true
 
-jobs:
-- job : static_checks
+- job: Coverage
   pool:
     vmImage: 'ubuntu-16.04'
   container: ccfciteam/ccf-ci-18.04:latest
@@ -56,6 +55,8 @@ jobs:
       clean: true
       submodules: true
 
+    # Container initialization is expensive, so don't start separate container
+    # for static_checks. Piggy back them here
     - script: find . -regex ".*\.sh$" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091
       displayName: 'Shell Check'
 
@@ -72,17 +73,7 @@ jobs:
         black --check sphinx/ tests/ notice-check.py
       displayName: 'Check Python code format'
 
-- job: Coverage
-  pool:
-    vmImage: 'ubuntu-16.04'
-  container: ccfciteam/ccf-ci-18.04:latest
-  dependsOn:
-    - static_checks
-  steps:
-    - checkout: self
-      clean: true
-      submodules: true
-
+    # Actual coverage build steps starts here
     - template: .vsts-ci-templates/build.yml
       parameters:
         cmake_args: ' -DTARGET=virtual -DBUILD_SMALLBANK=OFF -DCOVERAGE=ON'
@@ -114,8 +105,6 @@ jobs:
   pool:
     vmImage: 'ubuntu-16.04'
   container: ccfciteam/ccf-ci-18.04:latest
-  dependsOn:
-    - static_checks
   steps:
     - checkout: self
       clean: true
