@@ -112,38 +112,14 @@ namespace tls
     HashBytes& o_hash)
   {
     const auto ec = get_ec_from_context(ctx);
+    const auto md_type = get_md_for_ec(ec);
+    const auto md_info = mbedtls_md_info_from_type(md_type);
+    const auto hash_size = mbedtls_md_get_size(md_info);
 
-    switch (ec)
-    {
-      case MBEDTLS_ECP_DP_SECP384R1:
-      {
-        constexpr auto hash_size = 384 / 8;
-        if (o_hash.size() < hash_size)
-          o_hash.resize(hash_size);
+    if (o_hash.size() < hash_size)
+      o_hash.resize(hash_size);
 
-        return mbedtls_sha512_ret(data_ptr, data_size, o_hash.data(), true);
-      }
-      case MBEDTLS_ECP_DP_CURVE25519:
-      {
-        constexpr auto hash_size = 512 / 8;
-        if (o_hash.size() < hash_size)
-          o_hash.resize(hash_size);
-
-        return mbedtls_sha512_ret(data_ptr, data_size, o_hash.data(), false);
-      }
-      case MBEDTLS_ECP_DP_SECP256K1:
-      {
-        constexpr auto hash_size = 256 / 8;
-        if (o_hash.size() < hash_size)
-          o_hash.resize(hash_size);
-
-        return mbedtls_sha256_ret(data_ptr, data_size, o_hash.data(), false);
-      }
-      default:
-      {
-        throw std::logic_error("Unhandled curve type");
-      }
-    }
+    return mbedtls_md(md_info, data_ptr, data_size, o_hash.data());
   }
 
   inline bool verify_secp256k_bc(
