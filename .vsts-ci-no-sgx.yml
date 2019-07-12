@@ -123,19 +123,19 @@ jobs:
       displayName: Run
       workingDirectory: build
 
-# - job: SAN
-#   pool:
-#     vmImage: 'ubuntu-16.04'
-#   container: ccfciteam/ccf-ci-18.04:latest
-#   steps:
-#     - checkout: self
-#       clean: true
-#       submodules: true
+- job: SAN
+  pool:
+    vmImage: 'ubuntu-16.04'
+  container: ccfciteam/ccf-ci-18.04:latest
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
       
-#     - template: .vsts-ci-templates/build.yml
-#       parameters:
-#         cmake_args: ' -DTARGET=virtual -DBUILD_SMALLBANK=OFF -DSAN=ON'
+    - template: .vsts-ci-templates/build.yml
+      parameters:
+        cmake_args: ' -DTARGET=virtual -DBUILD_SMALLBANK=OFF -DSAN=ON'
 
-#     - template: .vsts-ci-templates/test.yml
-#       parameters:
-#         suite_name_suffix: 'san'
+    - template: .vsts-ci-templates/test.yml
+      parameters:
+        suite_name_suffix: 'san'
