@@ -249,8 +249,12 @@ namespace tls
   public:
     IntelDRNG()
     {
-      if (!(get_drng_support() & DRNG_HAS_RDRAND))
+      const auto support = get_drng_support();
+      if (!(support & DRNG_HAS_RDRAND))
         throw std::logic_error("No support for RDRAND on this CPU.");
+
+      if (!(support & DRNG_HAS_RDSEED))
+        throw std::logic_error("No support for RDSEED on this CPU.");
     }
 
     std::vector<uint8_t> random(size_t len)
