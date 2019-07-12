@@ -369,7 +369,9 @@ namespace ccf
       LOG_DEBUG << fmt::format(
                      "HISTORY: add_result {0} {1} {2}", id, version, root)
                 << std::endl;
+#ifdef PBFT
       results[id] = {version, root};
+#endif
     }
 
     void add_response(
