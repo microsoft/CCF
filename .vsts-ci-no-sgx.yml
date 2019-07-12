@@ -101,7 +101,6 @@ jobs:
       workingDirectory: build
       condition: succeededOrFailed()
 
-jobs:
 - job: Sig_Ill_hunt
   pool:
     vmImage: 'ubuntu-16.04'
