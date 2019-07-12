@@ -71,7 +71,9 @@ namespace tls
       }
       default:
       {
-        throw std::logic_error("Unhandled curve type");
+        throw std::logic_error(
+          "Unhandled curve type: " +
+          std::to_string(static_cast<size_t>(curve)));
       }
     }
   }
@@ -95,7 +97,9 @@ namespace tls
       }
       default:
       {
-        throw std::logic_error("Unhandled curve type");
+        throw std::logic_error(
+          std::string("Unhandled ecp group id: ") +
+          mbedtls_ecp_curve_info_from_grp_id(ec)->name);
       }
     }
   }
@@ -188,37 +192,59 @@ namespace tls
       Entropy entropy;
       mbedtls_pk_init(key.get());
 
+      int rc = 0;
+
       switch (ec)
       {
         case MBEDTLS_ECP_DP_CURVE25519:
         case MBEDTLS_ECP_DP_CURVE448:
+        {
           // These curves are technically not ECDSA, but EdDSA.
-          if (
-            mbedtls_pk_setup(
-              key.get(), mbedtls_pk_info_from_type(MBEDTLS_PK_EDDSA)) != 0)
-            throw std::logic_error("Could not set up EdDSA context");
+          rc = mbedtls_pk_setup(
+            key.get(), mbedtls_pk_info_from_type(MBEDTLS_PK_EDDSA));
+          if (rc != 0)
+          {
+            throw std::logic_error(
+              "Could not set up EdDSA context: " + std::to_string(rc));
+          }
 
-          if (
-            mbedtls_eddsa_genkey(
-              mbedtls_pk_eddsa(*key), ec, &Entropy::rng, &entropy) != 0)
-            throw std::logic_error("Could not generate EdDSA keypair");
+          rc = mbedtls_eddsa_genkey(
+            mbedtls_pk_eddsa(*key), ec, &Entropy::rng, &entropy);
+          if (rc != 0)
+          {
+            throw std::logic_error(
+              "Could not generate EdDSA keypair: " + std::to_string(rc));
+          }
           break;
+        }
 
         default:
-          if (
-            mbedtls_pk_setup(
-              key.get(), mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY)) != 0)
-            throw std::logic_error("Could not set up ECDSA context");
+        {
+          rc = mbedtls_pk_setup(
+            key.get(), mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
+          if (rc != 0)
+          {
+            throw std::logic_error(
+              "Could not set up ECDSA context: " + std::to_string(rc));
+          }
 
-          if (
-            mbedtls_ecp_gen_key(
-              ec, mbedtls_pk_ec(*key), &Entropy::rng, &entropy) != 0)
-            throw std::logic_error("Could not generate ECDSA keypair");
+          rc = mbedtls_ecp_gen_key(
+            ec, mbedtls_pk_ec(*key), &Entropy::rng, &entropy);
+          if (rc != 0)
+          {
+            throw std::logic_error(
+              "Could not generate ECDSA keypair: " + std::to_string(rc));
+          }
+          break;
+        }
       }
 
-      if (get_ec_from_context(*key) != ec)
+      const auto actual_ec = get_ec_from_context(*key);
+      if (actual_ec != ec)
       {
-        throw std::logic_error("Created key and received unexpected type");
+        throw std::logic_error(
+          "Created key and received unexpected type: " +
+          std::to_string(actual_ec) + " != " + std::to_string(ec));
       }
     }
 
@@ -466,13 +492,20 @@ namespace tls
     template <typename... Ts>
     KeyPair_k1Bitcoin(Ts... ts) : KeyPair(std::forward<Ts>(ts)...)
     {
-      if (
-        mbedtls_mpi_write_binary(
-          &(mbedtls_pk_ec(*key)->d), c4_priv, privk_size) != 0)
-        throw std::logic_error("Could not extract raw private key");
+      int rc = 0;
+
+      rc = mbedtls_mpi_write_binary(
+        &(mbedtls_pk_ec(*key)->d), c4_priv, privk_size);
+      if (rc != 0)
+      {
+        throw std::logic_error(
+          "Could not extract raw private key: " + std::to_string(rc));
+      }
 
       if (secp256k1_ec_seckey_verify(k1_ctx, c4_priv) != 1)
+      {
         throw std::logic_error("secp256k1 private key is not valid");
+      }
     }
 
     ~KeyPair_k1Bitcoin()
@@ -541,9 +574,10 @@ namespace tls
     mbedtls_pk_init(key.get());
 
     Pem pemPk(pkey);
-    if (mbedtls_pk_parse_key(key.get(), pemPk.p, pemPk.n, pw.p, pw.n) != 0)
+    int rc = mbedtls_pk_parse_key(key.get(), pemPk.p, pemPk.n, pw.p, pw.n);
+    if (rc != 0)
     {
-      throw std::logic_error("Could not parse key");
+      throw std::logic_error("Could not parse key: " + std::to_string(rc));
     }
 
     const auto curve = get_ec_from_context(*key);
@@ -665,12 +699,17 @@ namespace tls
 
       int rc = mbedtls_ecp_point_write_binary(
         &k->grp, &k->Q, MBEDTLS_ECP_PF_COMPRESSED, &pub_len, pub_buf, 100);
-      if (rc)
-        throw std::logic_error("mbedtls_ecp_point_write_binary failed");
+      if (rc != 0)
+      {
+        throw std::logic_error(
+          "mbedtls_ecp_point_write_binary failed: " + std::to_string(rc));
+      }
 
       rc = secp256k1_ec_pubkey_parse(k1_ctx, &c4_pub, pub_buf, pub_len);
       if (rc != 1)
+      {
         throw std::logic_error("ecp256k1_ec_pubkey_parse failed");
+      }
     }
 
     ~PublicKey_k1Bitcoin()
@@ -832,12 +871,17 @@ namespace tls
 
       int rc = mbedtls_ecp_point_write_binary(
         &k->grp, &k->Q, MBEDTLS_ECP_PF_COMPRESSED, &pub_len, pub_buf, 100);
-      if (rc)
-        throw std::logic_error("mbedtls_ecp_point_write_binary failed");
+      if (rc != 0)
+      {
+        throw std::logic_error(
+          "mbedtls_ecp_point_write_binary failed: " + std::to_string(rc));
+      }
 
       rc = secp256k1_ec_pubkey_parse(k1_ctx, &c4_pub, pub_buf, pub_len);
       if (rc != 1)
+      {
         throw std::logic_error("ecp256k1_ec_pubkey_parse failed");
+      }
     }
 
     bool verify_hash(
