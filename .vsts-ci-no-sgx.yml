@@ -52,7 +52,7 @@ jobs:
     vmImage: 'ubuntu-16.04'
   container:
     image: ccfciteam/ccf-ci-18.04:latest
-    options: --network="host" --device=/dev/sgx
+    options: --device=/dev/sgx
   steps:
     - checkout: self
       clean: true
@@ -113,7 +113,7 @@ jobs:
     - task: CMake@1
       displayName: CMake
       inputs:
-        cmakeArgs: '-GNinja -DTARGET=virtual -DBUILD_SMALLBANK=OFF'
+        cmakeArgs: '.. -GNinja -DTARGET=virtual -DBUILD_SMALLBANK=OFF'
 
     - script: ninja keyexchange_test
       displayName: Ninja
