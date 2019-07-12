@@ -91,6 +91,11 @@ jobs:
       condition: succeededOrFailed()
 
     - script: |
+        cat /etc/hosts
+      displayName: /etc/hosts
+      condition: succeededOrFailed()
+
+    - script: |
         set -ex
         cat workspace/schema_tests_0/out
         cat workspace/schema_tests_0/err
