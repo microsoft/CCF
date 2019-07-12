@@ -291,7 +291,7 @@ TEST_CASE("Add new members until there are 7, then reject")
     new_member.id = initial_members + i++;
     // new member certificate
     auto v = tls::make_verifier(
-      new_member.kp->self_sign("CN=new member" + to_string(new_member.id)));
+      new_member.kp->self_sign(fmt::format("CN=new member{}", new_member.id)));
     const auto _cert = v->raw();
     new_member.cert = {_cert->raw.p, _cert->raw.p + _cert->raw.len};
 
