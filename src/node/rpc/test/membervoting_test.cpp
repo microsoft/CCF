@@ -28,10 +28,10 @@ using namespace jsonrpc;
 using namespace nlohmann;
 
 // used throughout
-tls::KeyPair kp;
-auto ca_mem = kp.self_sign("CN=name_member");
-tls::Verifier verifier_mem(ca_mem);
-auto member_caller = verifier_mem.raw_cert_data();
+auto kp = tls::make_key_pair();
+auto ca_mem = kp -> self_sign("CN=name_member");
+auto verifier_mem = tls::make_verifier(ca_mem);
+auto member_caller = verifier_mem -> raw_cert_data();
 
 string get_script_path(string name)
 {
@@ -71,10 +71,10 @@ void set_whitelists(GenesisGenerator& network)
     network.set_whitelist(wl.first, wl.second);
 }
 
-std::vector<uint8_t> sign_json(nlohmann::json j, tls::KeyPair& kp_)
+std::vector<uint8_t> sign_json(nlohmann::json j, tls::KeyPairPtr& kp_)
 {
   auto contents = nlohmann::json::to_msgpack(j);
-  return kp_.sign(contents);
+  return kp_->sign(contents);
 }
 
 json create_json_req(const json& params, const string& method_name)
@@ -89,7 +89,7 @@ json create_json_req(const json& params, const string& method_name)
 }
 
 json create_json_req_signed(
-  const json& params, const string& method_name, tls::KeyPair& kp_)
+  const json& params, const string& method_name, tls::KeyPairPtr& kp_)
 {
   auto j = create_json_req(params, method_name);
   nlohmann::json sj;
@@ -119,12 +119,12 @@ auto read_params(const T& key, const string& table_name)
   return params;
 }
 
-std::vector<uint8_t> get_cert_data(uint64_t member_id, tls::KeyPair& kp_mem)
+std::vector<uint8_t> get_cert_data(uint64_t member_id, tls::KeyPairPtr& kp_mem)
 {
   std::vector<uint8_t> ca_mem =
-    kp_mem.self_sign("CN=new member" + to_string(member_id));
-  tls::Verifier v_mem(ca_mem);
-  std::vector<uint8_t> cert_data = v_mem.raw_cert_data();
+    kp_mem->self_sign("CN=new member" + to_string(member_id));
+  auto v_mem = tls::make_verifier(ca_mem);
+  std::vector<uint8_t> cert_data = v_mem->raw_cert_data();
   return cert_data;
 }
 
@@ -258,7 +258,7 @@ TEST_CASE("Member query/read")
 struct NewMember
 {
   MemberId id;
-  tls::KeyPair kp;
+  tls::KeyPairPtr kp = tls::make_key_pair();
   Cert cert;
 };
 
@@ -290,9 +290,9 @@ TEST_CASE("Add new members until there are 7, then reject")
     const auto proposal_id = i;
     new_member.id = initial_members + i++;
     // new member certificate
-    tls::Verifier v(
-      new_member.kp.self_sign("CN=new member" + to_string(new_member.id)));
-    const auto _cert = v.raw();
+    auto v = tls::make_verifier(
+      new_member.kp->self_sign(fmt::format("CN=new member{}", new_member.id)));
+    const auto _cert = v->raw();
     new_member.cert = {_cert->raw.p, _cert->raw.p + _cert->raw.len};
 
     // check new_member id does not work before member is added
@@ -360,6 +360,7 @@ TEST_CASE("Add new members until there are 7, then reject")
         ErrorCodes::INVALID_CALLER_ID);
     }
   }
+
   SUBCASE("ACK from newly added members")
   {
     // iterate over all new_members, except for the last one
@@ -383,15 +384,15 @@ TEST_CASE("Add new members until there are 7, then reject")
         munpack(frontend.process(rpc_ctx, read_nonce));
       CHECK(ack0.result.next_nonce != ack1.result.next_nonce);
       // (4) sign old nonce and send it
-      const auto bad_sig = RawSignature{
-        new_member->kp.sign_hash(crypto::Sha256Hash{ack0.result.next_nonce})};
+      const auto bad_sig =
+        RawSignature{new_member->kp->sign(ack0.result.next_nonce)};
       const auto send_bad_sig = mpack(create_json_req(bad_sig, "ack"));
       check_error(
         munpack(frontend.process(rpc_ctx, send_bad_sig)),
         jsonrpc::INVALID_PARAMS);
       // (5) sign new nonce and send it
-      const auto good_sig = RawSignature{
-        new_member->kp.sign_hash(crypto::Sha256Hash{ack1.result.next_nonce})};
+      const auto good_sig =
+        RawSignature{new_member->kp->sign(ack1.result.next_nonce)};
       const auto send_good_sig = mpack(create_json_req(good_sig, "ack"));
       check_success(munpack(frontend.process(rpc_ctx, send_good_sig)));
       // (6) read ack entry again and check that the signature matches
@@ -412,16 +413,16 @@ TEST_CASE("Accept node")
 {
   GenesisGenerator network;
   StubNodeState node;
-  tls::KeyPair kp;
+  auto new_kp = tls::make_key_pair();
 
-  const Cert mcert0 = get_cert_data(0, kp), mcert1 = get_cert_data(1, kp);
+  const Cert mcert0 = get_cert_data(0, new_kp), mcert1 = get_cert_data(1, kp);
   const auto mid0 = network.add_member(mcert0, MemberStatus::ACTIVE);
   const auto mid1 = network.add_member(mcert1, MemberStatus::ACTIVE);
   enclave::RPCContext rpc_ctx(0, mcert1);
 
   // node to be tested
   // new node certificate
-  auto new_ca = kp.self_sign("CN=new node");
+  auto new_ca = new_kp->self_sign("CN=new node");
   NodeInfo ni = {"", "", "", "", new_ca, {}};
   network.add_node(ni);
   set_whitelists(network);
@@ -646,8 +647,8 @@ TEST_CASE("Propose raw writes")
 TEST_CASE("Remove proposal")
 {
   NewMember caller;
-  tls::Verifier v(caller.kp.self_sign("CN=new member"));
-  caller.cert = v.raw_cert_data();
+  auto v = tls::make_verifier(caller.kp->self_sign("CN=new member"));
+  caller.cert = v->raw_cert_data();
 
   GenesisGenerator network;
   StubNodeState node;

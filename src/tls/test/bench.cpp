@@ -30,86 +30,145 @@ inline void clobber_memory()
   asm volatile("" : : : "memory");
 }
 
-template <size_t C>
-static void benchmark_sign(picobench::state& s)
+template <size_t NContents>
+vector<uint8_t> make_contents()
 {
-  tls::KeyPair kp;
-  vector<uint8_t> contents(contents_.size() * C);
-  for (decltype(C) i = 0; i < C; i++)
+  vector<uint8_t> contents(contents_.size() * NContents);
+  for (decltype(NContents) i = 0; i < NContents; i++)
   {
     copy(contents_.begin(), contents_.end(), back_inserter(contents));
   }
+  return contents;
+}
+
+template <tls::CurveImpl Curve, size_t NContents>
+static void benchmark_sign(picobench::state& s)
+{
+  auto kp = tls::make_key_pair(Curve);
+  const auto contents = make_contents<NContents>();
 
   s.start_timer();
   for (auto _ : s)
   {
     (void)_;
-    auto signature = kp.sign(contents);
+    auto signature = kp->sign(contents);
     do_not_optimize(signature);
     clobber_memory();
   }
   s.stop_timer();
 }
 
-template <size_t C>
+template <tls::CurveImpl Curve, size_t NContents>
 static void benchmark_verify(picobench::state& s)
 {
-  tls::KeyPair kp;
-  vector<uint8_t> contents(contents_.size() * C);
-  for (decltype(C) i = 0; i < C; i++)
-  {
-    copy(contents_.begin(), contents_.end(), back_inserter(contents));
-  }
-  auto signature = kp.sign(contents);
-  auto public_key = kp.public_key();
-  tls::PublicKey pubk(public_key);
+  auto kp = tls::make_key_pair(Curve);
+  const auto contents = make_contents<NContents>();
+
+  auto signature = kp->sign(contents);
+  auto public_key = kp->public_key();
+  auto pubk = tls::make_public_key(public_key);
 
   s.start_timer();
   for (auto _ : s)
   {
     (void)_;
-    auto verified = pubk.verify(contents, signature);
+    auto verified = pubk->verify(contents, signature);
     do_not_optimize(verified);
     clobber_memory();
   }
   s.stop_timer();
 }
 
-template <size_t C>
+template <tls::CurveImpl Curve, size_t NContents>
 static void benchmark_hash(picobench::state& s)
 {
-  tls::KeyPair kp;
-  vector<uint8_t> contents(contents_.size() * C);
-  for (decltype(C) i = 0; i < C; i++)
-  {
-    copy(contents_.begin(), contents_.end(), back_inserter(contents));
-  }
+  auto kp = tls::make_key_pair(Curve);
+  const auto contents = make_contents<NContents>();
 
   s.start_timer();
   for (auto _ : s)
   {
     (void)_;
-    uint8_t hash[SHA256_BYTES];
-    mbedtls_sha256_ret(contents.data(), contents.size(), hash, 0);
+    std::vector<uint8_t> hash;
+    tls::do_hash(kp->get_raw_context(), contents.data(), contents.size(), hash);
     do_not_optimize(hash);
     clobber_memory();
   }
   s.stop_timer();
 }
 
-const std::vector<int> sizes = {8, 16, 32};
+const std::vector<int> sizes = {8, 16};
+
+using namespace tls;
+
+#define PICO_SUFFIX(CURVE) \
+  iterations(sizes).samples(10).baseline( \
+    CURVE == CurveImpl::service_identity_curve_choice)
 
 PICOBENCH_SUITE("sign");
-PICOBENCH(benchmark_sign<1>).iterations(sizes).samples(10).baseline();
-PICOBENCH(benchmark_sign<10>).iterations(sizes).samples(10);
-PICOBENCH(benchmark_sign<100>).iterations(sizes).samples(10);
+namespace
+{
+  auto sign_384_1 = benchmark_sign<CurveImpl::secp384r1, 1>;
+  PICOBENCH(sign_384_1).PICO_SUFFIX(CurveImpl::secp384r1);
+  auto sign_25519_1 = benchmark_sign<CurveImpl::curve25519, 1>;
+  PICOBENCH(sign_25519_1).PICO_SUFFIX(CurveImpl::curve25519);
+  auto sign_256k1_mbed_1 = benchmark_sign<CurveImpl::secp256k1_mbedtls, 1>;
+  PICOBENCH(sign_256k1_mbed_1).PICO_SUFFIX(CurveImpl::secp256k1_mbedtls);
+  auto sign_256k1_bitc_1 = benchmark_sign<CurveImpl::secp256k1_bitcoin, 1>;
+  PICOBENCH(sign_256k1_bitc_1).PICO_SUFFIX(CurveImpl::secp256k1_bitcoin);
+
+  auto sign_384_100 = benchmark_sign<CurveImpl::secp384r1, 100>;
+  PICOBENCH(sign_384_100).PICO_SUFFIX(CurveImpl::secp384r1);
+  auto sign_25519_100 = benchmark_sign<CurveImpl::curve25519, 100>;
+  PICOBENCH(sign_25519_100).PICO_SUFFIX(CurveImpl::curve25519);
+  auto sign_256k1_mbed_100 = benchmark_sign<CurveImpl::secp256k1_mbedtls, 100>;
+  PICOBENCH(sign_256k1_mbed_100).PICO_SUFFIX(CurveImpl::secp256k1_mbedtls);
+  auto sign_256k1_bitc_100 = benchmark_sign<CurveImpl::secp256k1_bitcoin, 100>;
+  PICOBENCH(sign_256k1_bitc_100).PICO_SUFFIX(CurveImpl::secp256k1_bitcoin);
+}
 
 PICOBENCH_SUITE("verify");
-PICOBENCH(benchmark_verify<1>).iterations(sizes).samples(10).baseline();
-PICOBENCH(benchmark_verify<10>).iterations(sizes).samples(10);
-PICOBENCH(benchmark_verify<100>).iterations(sizes).samples(10);
+namespace
+{
+  auto verify_384_1 = benchmark_verify<CurveImpl::secp384r1, 1>;
+  PICOBENCH(verify_384_1).PICO_SUFFIX(CurveImpl::secp384r1);
+  auto verify_25519_1 = benchmark_verify<CurveImpl::curve25519, 1>;
+  PICOBENCH(verify_25519_1).PICO_SUFFIX(CurveImpl::curve25519);
+  auto verify_256k1_mbed_1 = benchmark_verify<CurveImpl::secp256k1_mbedtls, 1>;
+  PICOBENCH(verify_256k1_mbed_1).PICO_SUFFIX(CurveImpl::secp256k1_mbedtls);
+  auto verify_256k1_bitc_1 = benchmark_verify<CurveImpl::secp256k1_bitcoin, 1>;
+  PICOBENCH(verify_256k1_bitc_1).PICO_SUFFIX(CurveImpl::secp256k1_bitcoin);
+
+  auto verify_384_100 = benchmark_verify<CurveImpl::secp384r1, 100>;
+  PICOBENCH(verify_384_100).PICO_SUFFIX(CurveImpl::secp384r1);
+  auto verify_25519_100 = benchmark_verify<CurveImpl::curve25519, 100>;
+  PICOBENCH(verify_25519_100).PICO_SUFFIX(CurveImpl::curve25519);
+  auto verify_256k1_mbed_100 =
+    benchmark_verify<CurveImpl::secp256k1_mbedtls, 100>;
+  PICOBENCH(verify_256k1_mbed_100).PICO_SUFFIX(CurveImpl::secp256k1_mbedtls);
+  auto verify_256k1_bitc_100 =
+    benchmark_verify<CurveImpl::secp256k1_bitcoin, 100>;
+  PICOBENCH(verify_256k1_bitc_100).PICO_SUFFIX(CurveImpl::secp256k1_bitcoin);
+}
 
 PICOBENCH_SUITE("hash");
-PICOBENCH(benchmark_hash<1>).iterations(sizes).samples(10).baseline();
-PICOBENCH(benchmark_hash<10>).iterations(sizes).samples(10);
-PICOBENCH(benchmark_hash<100>).iterations(sizes).samples(10);
+namespace
+{
+  auto hash_384_1 = benchmark_hash<CurveImpl::secp384r1, 1>;
+  PICOBENCH(hash_384_1).PICO_SUFFIX(CurveImpl::secp384r1);
+  auto hash_25519_1 = benchmark_hash<CurveImpl::curve25519, 1>;
+  PICOBENCH(hash_25519_1).PICO_SUFFIX(CurveImpl::curve25519);
+  auto hash_256k1_mbed_1 = benchmark_hash<CurveImpl::secp256k1_mbedtls, 1>;
+  PICOBENCH(hash_256k1_mbed_1).PICO_SUFFIX(CurveImpl::secp256k1_mbedtls);
+  auto hash_256k1_bitc_1 = benchmark_hash<CurveImpl::secp256k1_bitcoin, 1>;
+  PICOBENCH(hash_256k1_bitc_1).PICO_SUFFIX(CurveImpl::secp256k1_bitcoin);
+
+  auto hash_384_100 = benchmark_hash<CurveImpl::secp384r1, 100>;
+  PICOBENCH(hash_384_100).PICO_SUFFIX(CurveImpl::secp384r1);
+  auto hash_25519_100 = benchmark_hash<CurveImpl::curve25519, 100>;
+  PICOBENCH(hash_25519_100).PICO_SUFFIX(CurveImpl::curve25519);
+  auto hash_256k1_mbed_100 = benchmark_hash<CurveImpl::secp256k1_mbedtls, 100>;
+  PICOBENCH(hash_256k1_mbed_100).PICO_SUFFIX(CurveImpl::secp256k1_mbedtls);
+  auto hash_256k1_bitc_100 = benchmark_hash<CurveImpl::secp256k1_bitcoin, 100>;
+  PICOBENCH(hash_256k1_bitc_100).PICO_SUFFIX(CurveImpl::secp256k1_bitcoin);
+}

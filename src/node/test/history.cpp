@@ -86,7 +86,7 @@ TEST_CASE("Check signature verification")
   auto& follower_signatures = follower_store.create<ccf::Signatures>(
     ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
 
-  tls::KeyPair kp;
+  auto kp = tls::make_key_pair();
 
   std::shared_ptr<kv::Replicator> replicator =
     std::make_shared<DummyReplicator>(&follower_store);
@@ -97,12 +97,12 @@ TEST_CASE("Check signature verification")
 
   std::shared_ptr<kv::TxHistory> leader_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      leader_store, 0, kp, leader_signatures, leader_nodes);
+      leader_store, 0, *kp, leader_signatures, leader_nodes);
   leader_store.set_history(leader_history);
 
   std::shared_ptr<kv::TxHistory> follower_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      follower_store, 1, kp, follower_signatures, follower_nodes);
+      follower_store, 1, *kp, follower_signatures, follower_nodes);
   follower_store.set_history(follower_history);
 
   INFO("Write certificate");
@@ -110,7 +110,7 @@ TEST_CASE("Check signature verification")
     Store::Tx txs;
     auto tx = txs.get_view(leader_nodes);
     ccf::NodeInfo ni;
-    ni.cert = kp.self_sign("CN=name");
+    ni.cert = kp->self_sign("CN=name");
     tx->put(0, ni);
     REQUIRE(txs.commit() == kv::CommitSuccess::OK);
   }
@@ -149,7 +149,7 @@ TEST_CASE("Check signing works across rollback")
   auto& follower_signatures = follower_store.create<ccf::Signatures>(
     ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
 
-  tls::KeyPair kp;
+  auto kp = tls::make_key_pair();
 
   std::shared_ptr<kv::Replicator> replicator =
     std::make_shared<DummyReplicator>(&follower_store);
@@ -160,12 +160,12 @@ TEST_CASE("Check signing works across rollback")
 
   std::shared_ptr<kv::TxHistory> leader_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      leader_store, 0, kp, leader_signatures, leader_nodes);
+      leader_store, 0, *kp, leader_signatures, leader_nodes);
   leader_store.set_history(leader_history);
 
   std::shared_ptr<kv::TxHistory> follower_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      follower_store, 1, kp, follower_signatures, follower_nodes);
+      follower_store, 1, *kp, follower_signatures, follower_nodes);
   follower_store.set_history(follower_history);
 
   INFO("Write certificate");
@@ -173,7 +173,7 @@ TEST_CASE("Check signing works across rollback")
     Store::Tx txs;
     auto tx = txs.get_view(leader_nodes);
     ccf::NodeInfo ni;
-    ni.cert = kp.self_sign("CN=name");
+    ni.cert = kp->self_sign("CN=name");
     tx->put(0, ni);
     REQUIRE(txs.commit() == kv::CommitSuccess::OK);
   }
