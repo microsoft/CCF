@@ -79,7 +79,7 @@ jobs:
     # Actual coverage build steps starts here
     - template: .vsts-ci-templates/build.yml
       parameters:
-        cmake_args: ' -DCMAKE_BUILD_TYPE=Debug -DTARGET=virtual -DBUILD_SMALLBANK=OFF -DCOVERAGE=ON'
+        cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DCOVERAGE=ON'
 
     - template: .vsts-ci-templates/test.yml
       parameters:
@@ -140,7 +140,7 @@ jobs:
       
     - template: .vsts-ci-templates/build.yml
       parameters:
-        cmake_args: ' -DTARGET=virtual -DBUILD_SMALLBANK=OFF -DSAN=ON'
+        cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DSAN=ON'
 
     - template: .vsts-ci-templates/test.yml
       parameters:
