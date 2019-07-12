@@ -7,6 +7,10 @@ steps:
   inputs:
     cmakeArgs: '-GNinja -DTARGET=sgx .. ${{ parameters.cmake_args }}'
 
+- script: cmake .. -L
+  displayName: Print CMake config
+  workingDirectory: build
+
 - script: ninja
   displayName: Ninja
   workingDirectory: build
