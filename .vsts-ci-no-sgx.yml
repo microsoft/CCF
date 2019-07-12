@@ -89,7 +89,26 @@ jobs:
 
     - template: .vsts-ci-templates/test.yml
       parameters:
+        ctest_filter: '-R schema_tests'
         suite_name_suffix: 'coverage'
+
+    - script: |
+        cat /proc/cpuinfo
+      displayName: /proc/cpuinfo
+
+    - script: |
+        cat workspace/schema_tests_0/out
+        cat workspace/schema_tests_0/err
+        cat workspace/schema_tests_1/out
+        cat workspace/schema_tests_1/err
+      displayName: Cat CCF logs
+      workingDirectory: build
+
+    - task: PublishPipelineArtifact@0
+      displayName: Publish CCF logs
+      inputs:
+        artifactName: failing_test_logs
+        targetPath: build/workspace
 
 - job: SAN
   pool:
