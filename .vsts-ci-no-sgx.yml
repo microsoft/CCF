@@ -83,7 +83,6 @@ jobs:
 
     - template: .vsts-ci-templates/test.yml
       parameters:
-        ctest_filter: '-R schema_tests'
         suite_name_suffix: 'coverage'
 
     - script: |
@@ -131,7 +130,9 @@ jobs:
 - job: SAN
   pool:
     vmImage: 'ubuntu-16.04'
-  container: ccfciteam/ccf-ci-18.04:latest
+  container:
+    image: ccfciteam/ccf-ci-18.04:latest
+    options: --publish-all
   steps:
     - checkout: self
       clean: true
