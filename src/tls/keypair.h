@@ -544,7 +544,6 @@ namespace tls
    * Create a new public / private key pair on specified curve and
    * implementation
    */
-  template <typename... Ts>
   inline KeyPairPtr make_key_pair(
     CurveImpl curve = CurveImpl::service_identity_curve_choice)
   {
@@ -563,7 +562,6 @@ namespace tls
   /**
    * Create a public / private from existing raw private key data
    */
-  template <typename... Ts>
   inline KeyPairPtr make_key_pair(
     CBuffer pkey,
     CBuffer pw = nullb,
@@ -735,8 +733,10 @@ namespace tls
    * Construct PublicKey from a raw public key in PEM format
    *
    * @param public_pem Sequence of bytes containing the key in PEM format
+   * @param use_bitcoin_impl If true, and the key is on secp256k1, then the
+   * bitcoin secp256k1 library will be used as the implementation rather than
+   * mbedtls
    */
-  template <typename... Ts>
   inline PublicKeyPtr make_public_key(
     const std::vector<uint8_t>& public_pem,
     bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
