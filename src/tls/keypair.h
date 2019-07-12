@@ -26,14 +26,14 @@ namespace tls
     secp256k1_mbedtls = 3,
     secp256k1_bitcoin = 4,
 
-#if LEDGER_CURVE_CHOICE_SECP384R1
-    ledger_curve_choice = secp384r1,
-#elif LEDGER_CURVE_CHOICE_CURVE25519
-    ledger_curve_choice = curve25519,
-#elif LEDGER_CURVE_CHOICE_SECP256K1_MBEDTLS
-    ledger_curve_choice = secp256k1_mbedtls,
-#elif LEDGER_CURVE_CHOICE_SECP256K1_BITCOIN
-    ledger_curve_choice = secp256k1_bitcoin,
+#if SERVICE_IDENTITY_CURVE_CHOICE_SECP384R1
+    service_identity_curve_choice = secp384r1,
+#elif SERVICE_IDENTITY_CURVE_CHOICE_CURVE25519
+    service_identity_curve_choice = curve25519,
+#elif SERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_MBEDTLS
+    service_identity_curve_choice = secp256k1_mbedtls,
+#elif SERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_BITCOIN
+    service_identity_curve_choice = secp256k1_bitcoin,
 #endif
   };
 
@@ -537,7 +537,7 @@ namespace tls
    */
   template <typename... Ts>
   inline KeyPairPtr make_key_pair(
-    CurveImpl curve = CurveImpl::ledger_curve_choice)
+    CurveImpl curve = CurveImpl::service_identity_curve_choice)
   {
     const auto ec = get_ec_for_curve_impl(curve);
 
