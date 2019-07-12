@@ -86,6 +86,7 @@ schedules:
     - script: |
         cat /proc/cpuinfo
       displayName: /proc/cpuinfo
+      condition: succeededOrFailed()
 
     - script: |
         cat workspace/schema_tests_0/out
@@ -94,12 +95,14 @@ schedules:
         cat workspace/schema_tests_1/err
       displayName: Cat CCF logs
       workingDirectory: build
+      condition: succeededOrFailed()
 
     - task: PublishPipelineArtifact@0
       displayName: Publish CCF logs
       inputs:
         artifactName: failing_test_logs
         targetPath: build/workspace
+      condition: succeededOrFailed()
 
 - job: SAN
   pool:
