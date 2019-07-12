@@ -509,6 +509,7 @@ namespace ccf
 
       kv::TxHistory::RequestID reqid;
 
+#ifdef PBFT
       update_history();
       size_t jsonrpc_id = unsigned_rpc[jsonrpc::ID];
       reqid = {caller_id.value(), ctx.client_session_id, jsonrpc_id};
@@ -517,6 +518,7 @@ namespace ccf
         history->add_request(reqid, input);
         tx.set_req_id(reqid);
       }
+#endif
 
       auto rep =
         process_json(ctx, tx, caller_id.value(), unsigned_rpc, signed_request);
@@ -550,8 +552,10 @@ namespace ccf
 
       auto rv = jsonrpc::pack(rep.value(), ctx.pack.value());
 
+#ifdef PBFT
       if (history)
         history->add_response(reqid, rv);
+#endif
 
       return rv;
     }
