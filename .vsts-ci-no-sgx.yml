@@ -85,6 +85,9 @@ jobs:
       parameters:
         suite_name_suffix: 'coverage'
 
+    - script: ../tests/coverage/generate_coverage.sh
+      displayName: 'Push coverage'
+
 - job: SAN
   pool:
     vmImage: 'ubuntu-16.04'
