@@ -26,7 +26,7 @@ if(BUILD_TESTS)
       --metrics-file small_bank_metrics.json
   )
 
-  if (${CURVE_CHOICE} STREQUAL "secp256k1_bitcoin")
+  if (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_bitcoin")
     set(SMALL_BANK_SIGNED_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_50k.json)
     set(SMALL_BANK_SIGNED_ITERATIONS 50000)
   else ()

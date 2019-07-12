@@ -351,9 +351,10 @@ namespace ccf
           return jsonrpc::error(
             jsonrpc::ErrorCodes::INVALID_PARAMS, "No ACK record exists (1)");
 
-        tls::Verifier v((std::vector<uint8_t>(args.rpc_ctx.caller_cert)));
+        auto verifier =
+          tls::make_verifier(std::vector<uint8_t>(args.rpc_ctx.caller_cert));
         const auto rs = args.params.get<RawSignature>();
-        if (!v.verify_hash(crypto::Sha256Hash{last_ma->next_nonce}, rs.sig))
+        if (!verifier->verify(last_ma->next_nonce, rs.sig))
           return jsonrpc::error(jerr::INVALID_PARAMS, "Signature is not valid");
 
         MemberAck next_ma{rs.sig, rng.random(SIZE_NONCE)};
@@ -419,9 +420,12 @@ namespace ccf
           args.tx.get_view(this->network.values), ValueIds::NEXT_NODE_ID);
         new_node.status = NodeStatus::PENDING;
         nodes_view->put(node_id, new_node);
-        tls::Verifier verifier(new_node.cert);
+
+        // TODO: We don't use verifier here, is it needed? Perhaps it is
+        // canonicalising the cert?
+        auto verifier = tls::make_verifier(new_node.cert);
         args.tx.get_view(this->network.node_certs)
-          ->put(verifier.raw_cert_data(), node_id);
+          ->put(verifier->raw_cert_data(), node_id);
 
         return jsonrpc::success(nlohmann::json(JoinNetwork::Out{node_id}));
       };

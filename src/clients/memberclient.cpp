@@ -130,8 +130,8 @@ void add_new(
   RpcTlsClient& tls_connection, const string& cert_file, const string& proposal)
 {
   const auto cert = slurp(cert_file);
-  const auto params =
-    proposal_params(proposal, tls::Verifier(cert).raw_cert_data());
+  auto verifier = tls::make_verifier(cert);
+  const auto params = proposal_params(proposal, verifier->raw_cert_data());
   const auto response =
     json::from_msgpack(tls_connection.call("propose", params));
   cout << response.dump() << endl;
@@ -240,9 +240,9 @@ void submit_ack(
   const vector<uint8_t>& raw_key)
 {
   // member using its own certificate reads its member id
-  tls::Verifier verifier(raw_cert);
+  auto verifier = tls::make_verifier(raw_cert);
   Response<ObjectId> read_id = json::from_msgpack(tls_connection.call(
-    "read", read_params(verifier.raw_cert_data(), "membercerts")));
+    "read", read_params(verifier->raw_cert_data(), "membercerts")));
   const auto member_id = read_id.result;
 
   // member reads nonce
@@ -250,8 +250,8 @@ void submit_ack(
     tls_connection.call("read", read_params(member_id, "memberacks")));
 
   // member signs nonce and sends ack
-  tls::KeyPair kp(raw_key);
-  const auto sig = kp.sign_hash(crypto::Sha256Hash{read_ack.result.next_nonce});
+  auto kp = tls::make_key_pair(raw_key);
+  const auto sig = kp->sign(read_ack.result.next_nonce);
   const auto response =
     json::from_msgpack(tls_connection.call("ack", ack_params(sig)));
   cout << response << endl;

@@ -10,14 +10,14 @@
 class SigRpcTlsClient : public RpcTlsClient
 {
 private:
-  tls::KeyPair key_pair;
+  tls::KeyPairPtr key_pair;
 
 public:
   // Forward common arguments directly to base class
   template <typename... Ts>
   SigRpcTlsClient(const std::vector<uint8_t>& priv_key_, Ts&&... ts) :
     RpcTlsClient(ts...),
-    key_pair(priv_key_)
+    key_pair(tls::make_key_pair(priv_key_))
   {}
 
   /** Generate sign and serialize transaction
@@ -33,7 +33,7 @@ public:
     nlohmann::json j = RpcTlsClient::json_rpc(method, params);
 
     auto contents = nlohmann::json::to_msgpack(j);
-    auto sig_contents = key_pair.sign(contents);
+    auto sig_contents = key_pair->sign(contents);
 
     nlohmann::json sj;
     sj["req"] = j;
