@@ -52,7 +52,6 @@ jobs:
     vmImage: 'ubuntu-16.04'
   container:
     image: ccfciteam/ccf-ci-18.04:latest
-    options: --device=/dev/sgx
   steps:
     - checkout: self
       clean: true
