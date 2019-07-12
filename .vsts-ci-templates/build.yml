@@ -10,7 +10,3 @@ steps:
 - script: ninja
   displayName: Ninja
   workingDirectory: build
-
-- script: ./tests.sh -N
-  displayName: Create Python venv
-  workingDirectory: build
