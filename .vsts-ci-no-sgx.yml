@@ -47,105 +47,59 @@ schedules:
   always: true
 
 jobs:
-# - job: Coverage
-#   pool:
-#     vmImage: 'ubuntu-16.04'
-#   container:
-#     image: ccfciteam/ccf-ci-18.04:latest
-#     options: --publish-all
-#   steps:
-#     - checkout: self
-#       clean: true
-#       submodules: true
-
-#     # Container initialization is expensive, so don't start separate container
-#     # for static_checks. Piggy back them here
-#     - script: find . -regex ".*\.sh$" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091
-#       displayName: 'Shell Check'
-
-#     - script: python3.7 notice-check.py
-#       displayName: 'Check copyright notices'
-
-#     - script: ./check-format.sh src
-#       displayName: 'Check C++ code format'
-
-#     - script: |
-#         python3.7 -m venv env
-#         source env/bin/activate
-#         pip install black
-#         black --check sphinx/ tests/ notice-check.py
-#       displayName: 'Check Python code format'
-
-#     # Actual coverage build steps starts here
-#     - template: .vsts-ci-templates/build.yml
-#       parameters:
-#         cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DCOVERAGE=ON'
-
-#     - template: .vsts-ci-templates/test.yml
-#       parameters:
-#         suite_name_suffix: 'coverage'
-
-#     - script: |
-#         cat /proc/cpuinfo
-#       displayName: /proc/cpuinfo
-#       condition: succeededOrFailed()
-
-#     - script: |
-#         cat /etc/hosts
-#       displayName: /etc/hosts
-#       condition: succeededOrFailed()
-
-#     - script: |
-#         set -ex
-#         cat workspace/schema_tests_0/out
-#         cat workspace/schema_tests_0/err
-#         cat workspace/schema_tests_1/out
-#         cat workspace/schema_tests_1/err
-#       displayName: Cat CCF logs
-#       workingDirectory: build
-#       condition: succeededOrFailed()
-
-- job: Sig_Ill_hunt
+- job: Coverage
   pool:
     vmImage: 'ubuntu-16.04'
-  container: ccfciteam/ccf-ci-18.04:latest
+  container:
+    image: ccfciteam/ccf-ci-18.04:latest
+    options: --publish-all
   steps:
     - checkout: self
       clean: true
       submodules: true
 
+    # Container initialization is expensive, so don't start separate container
+    # for static_checks. Piggy back them here
+    - script: find . -regex ".*\.sh$" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091
+      displayName: 'Shell Check'
+
+    - script: python3.7 notice-check.py
+      displayName: 'Check copyright notices'
+
+    - script: ./check-format.sh src
+      displayName: 'Check C++ code format'
+
     - script: |
-        cat /proc/cpuinfo
-      displayName: /proc/cpuinfo
+        python3.7 -m venv env
+        source env/bin/activate
+        pip install black
+        black --check sphinx/ tests/ notice-check.py
+      displayName: 'Check Python code format'
 
-    - task: CMake@1
-      displayName: CMake
-      inputs:
-        cmakeArgs: '.. -GNinja -DTARGET=virtual -DBUILD_SMALLBANK=OFF'
+    # Actual coverage build steps starts here
+    - template: .vsts-ci-templates/build.yml
+      parameters:
+        cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DCOVERAGE=ON'
 
-    - script: ninja keyexchange_test
-      displayName: Ninja
-      workingDirectory: build
+    - template: .vsts-ci-templates/test.yml
+      parameters:
+        suite_name_suffix: 'coverage'
 
-    - script: ./keyexchange_test
-      displayName: Run
-      workingDirectory: build
-
-# - job: SAN
-#   pool:
-#     vmImage: 'ubuntu-16.04'
-#   container:
-#     image: ccfciteam/ccf-ci-18.04:latest
-#     options: --publish-all
-#   steps:
-#     - checkout: self
-#       clean: true
-#       submodules: true
+- job: SAN
+  pool:
+    vmImage: 'ubuntu-16.04'
+  container:
+    image: ccfciteam/ccf-ci-18.04:latest
+    options: --publish-all
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
       
-#     - template: .vsts-ci-templates/build.yml
-#       parameters:
-#         cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DSAN=ON'
+    - template: .vsts-ci-templates/build.yml
+      parameters:
+        cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DSAN=ON'
 
-#     - template: .vsts-ci-templates/test.yml
-#       parameters:
-#         suite_name_suffix: 'san'
+    - template: .vsts-ci-templates/test.yml
+      parameters:
+        suite_name_suffix: 'san'
