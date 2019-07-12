@@ -11,7 +11,7 @@
 
 namespace tls
 {
-#if 1
+#ifndef SOFTWARE_ENTROPY
   class Entropy : public IntelDRNG
   {
   public:
