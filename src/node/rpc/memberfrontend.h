@@ -66,6 +66,18 @@ namespace ccf
            nodes->put(id, *info);
            return true;
          }},
+        // retire a node
+        {"retire_node",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
+           const auto id = args;
+           auto nodes = tx.get_view(this->network.nodes);
+           auto info = nodes->get(id);
+           if (!info)
+             throw std::logic_error("Node does not exist.");
+           info->status = NodeStatus::RETIRED;
+           nodes->put(id, *info);
+           return true;
+         }},
         // accept new code
         {"new_code",
          [this](Store::Tx& tx, const nlohmann::json& args) {
@@ -400,7 +412,9 @@ namespace ccf
         NodeId duplicate_node_id = NoNode;
         nodes_view->foreach([&new_node, &duplicate_node_id](
                               const NodeId& nid, const NodeInfo& ni) {
-          if (new_node.tlsport == ni.tlsport && new_node.host == ni.host)
+          if (
+            new_node.tlsport == ni.tlsport && new_node.host == ni.host &&
+            ni.status != NodeStatus::RETIRED)
           {
             duplicate_node_id = nid;
             return false;
