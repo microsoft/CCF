@@ -100,6 +100,7 @@ namespace pbft
     char* mem;
     std::unique_ptr<PbftEnclaveNetwork> pbft_network;
     std::unique_ptr<AbstractPbftConfig> pbft_config;
+    std::unique_ptr<ClientProxy<CallerId, void>> client_proxy;
     kv::TxHistory::CallbackHandler on_request;
     enclave::RPCSessions& rpcsessions;
 
@@ -175,7 +176,7 @@ namespace pbft
       pbft_network->set_receiver(message_receiver_base);
 
       LOG_INFO_FMT("Setting up client proxy");
-      static auto client_proxy =
+      client_proxy =
         std::make_unique<ClientProxy<CallerId, void>>(*message_receiver_base);
 
       auto cb = [](Reply* m, void* ctx) {
@@ -204,8 +205,6 @@ namespace pbft
                         size_t len) {
           LOG_INFO << "Client proxy, rep_cb!!! " << caller_rid << std::endl;
 
-          Reply* reply_object = (Reply*)reply;
-
           // TODO: This does not work yet (for the first transaction) for some
           // reason, it seems that the reply is empty and does not contain the
           // right reply
@@ -213,12 +212,12 @@ namespace pbft
           // TODO: Session ID should be retrieved from the request ID
           size_t session_id = 2;
 
+          LOG_INFO << "session id: " << session_id << std::endl;
+          LOG_INFO << "reply_object size: " << len << std::endl;
+
           // In the case of pending transactions (i.e. a full round of PBFT),
           // the rpc context should be marked as pending
-          rpcsessions.reply_async(
-            session_id,
-            {reply_object->contents(),
-             reply_object->contents() + reply_object->size()});
+          rpcsessions.reply_async(session_id, {reply, reply + len});
         };
 
         Time t = ITimer::current_time();

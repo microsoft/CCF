@@ -105,9 +105,19 @@ namespace pbft
 
       // TODO: Also pass the transaction object and rpc_ctx used earlier on to
       // verify the caller/signature
-      user_frontend->process_pbft(
+      auto rep = user_frontend->process_pbft(
         {request->get_data(),
          request->get_data() + request->get_size(inb->size)});
+
+      LOG_INFO << "After process_pbft, size of reply " << rep.size()
+               << std::endl;
+
+
+      outb->size = rep.size();
+      auto outb_ptr = (uint8_t*)outb->contents;
+      size_t outb_size = (size_t)outb->size;
+
+      serialized::write(outb_ptr, outb_size, rep.data(), rep.size());
 
       LOG_INFO << "<<<< END exec_command() >>>>" << std::endl;
 

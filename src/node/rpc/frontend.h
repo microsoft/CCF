@@ -565,10 +565,13 @@ namespace ccf
       //   ctx, tx, caller_id.value(), unsigned_rpc, signed_request, false);
 
       // return jsonrpc::pack(rep.value(), jsonrpc::Pack::MsgPack);
+
+      // TODO: For now, assume that all RPC responses will come back from PBFT
+      ctx.is_pending = true;
       return {};
     }
 
-    void process_pbft(const std::vector<uint8_t>& input) override
+    std::vector<uint8_t> process_pbft(const std::vector<uint8_t>& input) override
     {
       // TODO: This tx should be the same tx object as the one used to verify
       // the signature and the caller
@@ -577,11 +580,14 @@ namespace ccf
 
       LOG_INFO << "PROCESS PBFT of size " << input.size() << std::endl;
 
-      // TODO: For now, until the RPCContext has been passed properly, use
-      // MsgPack
-      auto rpc = unpack_json(input, jsonrpc::Pack::MsgPack);
+      // TODO: Handle packing based on original packing method
+      auto pack_for_now = jsonrpc::Pack::MsgPack;
 
+      // TODO: Handle caller id based on original caller id
       CallerId caller_id = 1;
+
+      auto rpc = unpack_json(input, pack_for_now);
+
       SignedReq signed_request;
 
       // TODO: Strip signature
@@ -595,6 +601,8 @@ namespace ccf
 
       auto rep =
         process_json(ctx, tx, caller_id, unsigned_rpc, signed_request, true);
+
+      return jsonrpc::pack(rep.value(), pack_for_now);
     }
 
     /** Process a serialised input that has been forwarded from another node
