@@ -127,7 +127,7 @@ jobs:
       displayName: Ninja
       workingDirectory: build
 
-    - script: gdb -ex run ./keyexchange_test -ex backtrace -ex q
+    - script: ./keyexchange_test
       displayName: Run
       workingDirectory: build
 
