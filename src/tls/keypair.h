@@ -240,7 +240,10 @@ namespace tls
           }
 
           rc = mbedtls_eddsa_genkey(
-            mbedtls_pk_eddsa(*key), ec, &entropy->rng, entropy->get_data());
+            mbedtls_pk_eddsa(*key),
+            ec,
+            &entropy->get_rng(),
+            entropy->get_data());
           if (rc != 0)
           {
             throw std::logic_error(
@@ -260,7 +263,7 @@ namespace tls
           }
 
           rc = mbedtls_ecp_gen_key(
-            ec, mbedtls_pk_ec(*key), &entropy->rng, entropy->get_data());
+            ec, mbedtls_pk_ec(*key), &entropy->get_rng(), entropy->get_data());
           if (rc != 0)
           {
             throw std::logic_error(
@@ -400,7 +403,7 @@ namespace tls
         hash_size,
         sig,
         sig_size,
-        &entropy->rng,
+        &entropy->get_rng(),
         entropy->get_data());
 
       return rc;
@@ -426,7 +429,11 @@ namespace tls
 
       if (
         mbedtls_x509write_csr_pem(
-          &csr.req, buf, sizeof(buf), &entropy->rng, entropy->get_data()) != 0)
+          &csr.req,
+          buf,
+          sizeof(buf),
+          &entropy->get_rng(),
+          entropy->get_data()) != 0)
         return {};
 
       auto len = strlen((char*)buf) + 1;
@@ -457,7 +464,10 @@ namespace tls
 
       if (
         mbedtls_mpi_fill_random(
-          &sign.serial, 16, &sign.entropy->rng, sign.entropy->get_data()) != 0)
+          &sign.serial,
+          16,
+          &sign.entropy->get_rng(),
+          sign.entropy->get_data()) != 0)
         return {};
 
       if (mbedtls_x509write_crt_set_subject_name(&sign.crt, subject) != 0)
@@ -493,7 +503,7 @@ namespace tls
           &sign.crt,
           buf,
           sizeof(buf),
-          &sign.entropy->rng,
+          &sign.entropy->get_rng(),
           sign.entropy->get_data()) != 0)
         return {};
 

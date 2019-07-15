@@ -25,11 +25,14 @@
 
 namespace tls
 {
+  using rng_func_t = int (*)(void* ctx, unsigned char* output, size_t len);
+
   class Entropy
   {
+  public:
     virtual void* get_data() = 0;
-    int rng(void* ctx, unsigned char* output, size_t len) const = 0;
-    std::vector<uint8_t> random(size_t len) = 0;
+    virtual rng_func_t get_rng() = 0;
+    virtual std::vector<uint8_t> random(size_t len) = 0;
     virtual ~Entropy() {}
   };
 
@@ -257,7 +260,7 @@ namespace tls
   public:
     IntelDRNG()
     {
-      if (!(is_drng_supported()))
+      if (!is_drng_supported())
         throw std::logic_error("No support for RDRAND / RDSEED on this CPU.");
     }
 
@@ -271,11 +274,16 @@ namespace tls
       return std::vector<uint8_t>(buf, buf + len);
     }
 
-    int rng(void*, unsigned char* output, size_t len) const override
+    static int rng(void*, unsigned char* output, size_t len)
     {
       if (rdrand_get_bytes(len, output) < len)
         throw std::logic_error("Couldn't create random data");
       return 0;
+    }
+
+    rng_func_t get_rng() override
+    {
+      return &rng;
     }
 
     void* get_data() override
