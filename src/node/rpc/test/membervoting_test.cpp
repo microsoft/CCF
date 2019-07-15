@@ -127,9 +127,9 @@ nlohmann::json get_proposal(
 {
   Script read_proposal(fmt::format(
     R"xxx(
-        tables = ...
-        return tables["proposals"]:get({})
-      )xxx",
+      tables = ...
+      return tables["proposals"]:get({})
+    )xxx",
     proposal_id));
 
   const auto readj = create_json_req(read_proposal, "query");
@@ -353,16 +353,18 @@ TEST_CASE("Add new members until there are 7, then reject")
     CHECK(initial_read.result.parameter == new_member.cert);
 
     // vote as second member
-    Script vote_ballot(R"xxx(
-      local tables, calls = ...
-      local n = 0
-      tables["members"]:foreach( function(k, v) n = n + 1 end )
-      if n < 8 then
-        return true
-      else
-        return false
-      end
-    )xxx");
+    Script vote_ballot(fmt::format(
+      R"xxx(
+        local tables, calls = ...
+        local n = 0
+        tables["members"]:foreach( function(k, v) n = n + 1 end )
+        if n < {} then
+          return true
+        else
+          return false
+        end
+      )xxx",
+      max_members));
 
     json votej =
       create_json_req_signed(Vote{proposal_id, vote_ballot}, "vote", kp);
@@ -374,6 +376,7 @@ TEST_CASE("Add new members until there are 7, then reject")
       Response<bool> r =
         frontend.process_json(mem_rpc_ctx, tx, voter_a, votej["req"], sr)
           .value();
+
       if (new_member.id < max_members)
       {
         // vote should succeed
@@ -382,6 +385,9 @@ TEST_CASE("Add new members until there are 7, then reject")
         CHECK(
           Response<int>(munpack(frontend.process(rpc_ctx, read_next_member_id)))
             .result == new_member.id + 1);
+
+        // successful proposals are removed from the kv, so we can't confirm
+        // their final state
       }
       else
       {
@@ -391,6 +397,17 @@ TEST_CASE("Add new members until there are 7, then reject")
         check_error(
           munpack(frontend.process(rpc_ctx, read_next_member_id)),
           ErrorCodes::INVALID_CALLER_ID);
+
+        // re-read proposal, as second member
+        const Response<OpenProposal> final_read =
+          get_proposal(rpc_ctx, frontend, proposal_id, voter_a);
+        CHECK(final_read.result.proposer == proposer_id);
+        CHECK(final_read.result.script == proposal);
+        CHECK(final_read.result.parameter == new_member.cert);
+
+        const auto my_vote = final_read.result.votes.find(voter_a);
+        CHECK(my_vote != final_read.result.votes.end());
+        CHECK(my_vote->second == vote_ballot);
       }
     }
   }
