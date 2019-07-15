@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "../members.h"
 #include "../proposals.h"
+#include "../signatures.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
@@ -99,5 +101,72 @@ TEST_CASE("OpenProposal")
     proposal.votes[4] = Script("Robert'); DROP TABLE Students;--");
     const auto converted = msgpack_roundtrip(proposal);
     CHECK(proposal == converted);
+  }
+}
+
+void fill_rand(std::vector<uint8_t>& v, size_t n)
+{
+  v.resize(n);
+  for (size_t i = 0; i < n; ++i)
+  {
+    v[i] = rand();
+  }
+}
+
+TEST_CASE("RawSignature")
+{
+  using namespace ccf;
+
+  {
+    INFO("Empty signature");
+    RawSignature rs;
+    const auto converted = msgpack_roundtrip(rs);
+    CHECK(rs == converted);
+  }
+
+  {
+    INFO("Byte signature");
+    RawSignature rs;
+    rs.sig.push_back(42);
+    const auto converted = msgpack_roundtrip(rs);
+    CHECK(rs == converted);
+  }
+
+  {
+    INFO("Large signature");
+    RawSignature rs;
+    fill_rand(rs.sig, 256);
+    const auto converted = msgpack_roundtrip(rs);
+    CHECK(rs == converted);
+  }
+}
+
+TEST_CASE("MemberAck")
+{
+  using namespace ccf;
+
+  {
+    INFO("Empty ack");
+    MemberAck ma;
+    const auto converted = msgpack_roundtrip(ma);
+    CHECK(ma == converted);
+  }
+
+  {
+    INFO("Implausible ack");
+    MemberAck ma;
+    ma.sig.push_back(42);
+    ma.next_nonce.push_back(100);
+    const auto converted = msgpack_roundtrip(ma);
+    CHECK(ma == converted);
+  }
+
+  {
+    INFO("Plausible ack");
+    MemberAck ma;
+    fill_rand(ma.sig, 256);
+    fill_rand(ma.next_nonce, 16);
+    const auto converted = msgpack_roundtrip(ma);
+    CHECK(ma == converted);
   }
 }
