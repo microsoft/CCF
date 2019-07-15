@@ -96,9 +96,7 @@ def run(args):
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
 
-        res, new_node, new_node_id = network.create_and_add_node(
-            args.package, args, True
-        )
+        res, new_node = network.create_and_add_node(args.package, args, True)
         new_node.join_network()
 
         new_code_id = get_code_id(f"{args.patched_file_name}.so.signed")
@@ -119,9 +117,7 @@ def run(args):
         # add nodes using the same code id that failed earlier
         for i in range(0, old_nodes_count + 1):
             LOG.debug(f"Adding node using new code")
-            res, new_node, new_node_id = network.create_and_add_node(
-                args.patched_file_name, args
-            )
+            res, new_node = network.create_and_add_node(args.patched_file_name, args)
             assert res
             new_node.join_network()
             new_nodes.add(new_node)
@@ -142,9 +138,7 @@ def run(args):
 
         new_leader = network.find_leader()[0]
         LOG.debug(f"Waiting, new_leader is {new_leader.node_id}")
-        res, new_node, new_node_id = network.create_and_add_node(
-            args.patched_file_name, args
-        )
+        res, new_node = network.create_and_add_node(args.patched_file_name, args)
         new_node.join_network_custom(new_leader.host, new_leader.tls_port, net_cert)
         network.wait_for_node_commit_sync()
 

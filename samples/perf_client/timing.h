@@ -49,14 +49,6 @@ namespace timing
     double variance;
   };
 
-  enum class MeasureState
-  {
-    warmup = 0,
-    measure,
-    cooldown,
-    end
-  };
-
   std::string timestamp()
   {
     std::stringstream ss;

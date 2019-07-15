@@ -66,6 +66,18 @@ namespace ccf
            nodes->put(id, *info);
            return true;
          }},
+        // retire a node
+        {"retire_node",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
+           const auto id = args;
+           auto nodes = tx.get_view(this->network.nodes);
+           auto info = nodes->get(id);
+           if (!info)
+             throw std::logic_error("Node does not exist.");
+           info->status = NodeStatus::RETIRED;
+           nodes->put(id, *info);
+           return true;
+         }},
         // accept new code
         {"new_code",
          [this](Store::Tx& tx, const nlohmann::json& args) {
@@ -351,9 +363,10 @@ namespace ccf
           return jsonrpc::error(
             jsonrpc::ErrorCodes::INVALID_PARAMS, "No ACK record exists (1)");
 
-        tls::Verifier v((std::vector<uint8_t>(args.rpc_ctx.caller_cert)));
+        auto verifier =
+          tls::make_verifier(std::vector<uint8_t>(args.rpc_ctx.caller_cert));
         const auto rs = args.params.get<RawSignature>();
-        if (!v.verify_hash(crypto::Sha256Hash{last_ma->next_nonce}, rs.sig))
+        if (!verifier->verify(last_ma->next_nonce, rs.sig))
           return jsonrpc::error(jerr::INVALID_PARAMS, "Signature is not valid");
 
         MemberAck next_ma{rs.sig, rng.random(SIZE_NONCE)};
@@ -399,7 +412,9 @@ namespace ccf
         NodeId duplicate_node_id = NoNode;
         nodes_view->foreach([&new_node, &duplicate_node_id](
                               const NodeId& nid, const NodeInfo& ni) {
-          if (new_node.tlsport == ni.tlsport && new_node.host == ni.host)
+          if (
+            new_node.tlsport == ni.tlsport && new_node.host == ni.host &&
+            ni.status != NodeStatus::RETIRED)
           {
             duplicate_node_id = nid;
             return false;
@@ -419,9 +434,12 @@ namespace ccf
           args.tx.get_view(this->network.values), ValueIds::NEXT_NODE_ID);
         new_node.status = NodeStatus::PENDING;
         nodes_view->put(node_id, new_node);
-        tls::Verifier verifier(new_node.cert);
+
+        // TODO: We don't use verifier here, is it needed? Perhaps it is
+        // canonicalising the cert?
+        auto verifier = tls::make_verifier(new_node.cert);
         args.tx.get_view(this->network.node_certs)
-          ->put(verifier.raw_cert_data(), node_id);
+          ->put(verifier->raw_cert_data(), node_id);
 
         return jsonrpc::success(nlohmann::json(JoinNetwork::Out{node_id}));
       };

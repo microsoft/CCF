@@ -122,11 +122,11 @@ namespace ccf
   {
   private:
     std::unordered_map<NodeId, std::unique_ptr<Channel>> channels;
-    tls::KeyPair network_kp;
+    tls::KeyPairPtr network_kp;
 
   public:
     ChannelManager(const std::vector<uint8_t>& network_pkey) :
-      network_kp(network_pkey)
+      network_kp(tls::make_key_pair(network_pkey))
     {}
 
     Channel& get(NodeId peer_id)
@@ -148,7 +148,7 @@ namespace ccf
       if (!own_public_for_peer.has_value())
         return {};
 
-      auto signature = network_kp.sign(own_public_for_peer.value());
+      auto signature = network_kp->sign(own_public_for_peer.value());
 
       // Serialise channel public and network signature
       auto space = own_public_for_peer.value().size() + signature.size();
@@ -170,9 +170,9 @@ namespace ccf
       auto& channel = get(peer_id);
 
       // Verify signature
-      tls::PublicKey network_pubk(network_kp.public_key());
+      auto network_pubk = tls::make_public_key(network_kp->public_key());
 
-      if (!network_pubk.verify(
+      if (!network_pubk->verify(
             peer_signed_public.data(),
             Channel::len_public,
             peer_signed_public.data() + Channel::len_public,

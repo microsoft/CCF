@@ -96,13 +96,13 @@ class Network:
         self.members = []
         self.hosts = hosts
         if create_nodes:
-            for node_id, host in enumerate(hosts):
-                node_id_ = node_id + node_offset
+            for local_node_id, host in enumerate(hosts):
+                local_node_id_ = local_node_id + node_offset
                 self.create_node(
-                    node_id_,
+                    local_node_id_,
                     host,
-                    debug=str(node_id_) in (dbg_nodes or []),
-                    perf=str(node_id_) in (perf_nodes or []),
+                    debug=str(local_node_id_) in (dbg_nodes or []),
+                    perf=str(local_node_id_) in (perf_nodes or []),
                     recovery=recovery,
                 )
 
@@ -160,6 +160,8 @@ class Network:
         for node in self.nodes[1:]:
             node.join_network()
 
+        primary.network_state = NodeNetworkState.joined
+
         LOG.success("All nodes joined Network")
 
         return primary, self.nodes[1:]
@@ -205,12 +207,12 @@ class Network:
         primary = self.nodes[0]
         return primary, self.nodes[1:]
 
-    def create_node(self, node_id, host, debug=False, perf=False, recovery=False):
-        node = Node(node_id, host, debug, perf, recovery)
+    def create_node(self, local_node_id, host, debug=False, perf=False, recovery=False):
+        node = Node(local_node_id, host, debug, perf, recovery)
         self.nodes.append(node)
         return node
 
-    def remove_node(self):
+    def remove_last_node(self):
         last_node = self.nodes.pop()
 
     def add_node(self, new_node_info):
@@ -219,14 +221,16 @@ class Network:
 
         return j_result
 
-    def create_and_add_node(self, lib_name, args, should_succeed=True, node_id=None):
+    def create_and_add_node(
+        self, lib_name, args, should_succeed=True, local_node_id=None
+    ):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
-        if node_id is None:
-            node_id = self.get_next_node_id()
+        if local_node_id is None:
+            local_node_id = self.get_next_local_node_id()
         node_status = args.node_status or "pending"
-        new_node = self.create_node(node_id, "localhost")
+        new_node = self.create_node(local_node_id, "localhost")
         new_node.start(
             lib_name=lib_name,
             node_status=node_status,
@@ -238,11 +242,13 @@ class Network:
 
         j_result = self.add_node(new_node_info)
 
-        if not should_succeed:
-            self.remove_node()
+        if j_result.error is not None:
+            self.remove_last_node()
             return (False, j_result.error["code"])
 
-        return (True, new_node, j_result.result["id"])
+        new_node.node_id = j_result.result["id"]
+
+        return (True, new_node)
 
     def add_members(self, members):
         self.members.extend(members)
@@ -258,6 +264,35 @@ class Network:
             infra.proc.ccall(
                 "./genesisgenerator", "cert", "--name={}".format(u)
             ).check_returncode()
+
+    def vote_using_majority(self, proposal_id, accept, member_id=1, remote_node=None):
+        member_count = int(len(self.members) / 2 + 1)
+        for i, member in enumerate(self.members):
+            if i >= member_count:
+                break
+            res = self.vote(proposal_id, accept, member, remote_node)
+            if res:
+                break
+
+    def vote(self, proposal_id, accept, member_id=1, remote_node=None):
+        if remote_node is None:
+            remote_node = self.find_leader()[0]
+
+        result = infra.proc.ccall(
+            "./memberclient",
+            "vote",
+            f"--cert=member{member_id}_cert.pem",
+            f"--privk=member{member_id}_privk.pem",
+            f"--host={remote_node.host}",
+            f"--port={remote_node.tls_port}",
+            f"--id={proposal_id}",
+            "--ca=networkcert.pem",
+            "--sign",
+            "--accept" if accept else "--reject",
+        )
+
+        j_result = json.loads(result.stdout)
+        return j_result["result"]
 
     def genesis_generator(self, args):
         gen = ["./genesisgenerator", "tx"]
@@ -301,6 +336,14 @@ class Network:
     def get_running_nodes(self):
         return [node for node in self.nodes if node.is_stopped() is not True]
 
+    def get_node_by_id(self, node_id):
+        return next((node for node in self.nodes if node.node_id == node_id), None)
+
+    def get_node_by_local_id(self, local_node_id):
+        return next(
+            (node for node in self.nodes if node.local_node_id == local_node_id), None
+        )
+
     def find_leader(self):
         """
         Find the identity of the leader in the network and return its identity and the current term.
@@ -322,7 +365,43 @@ class Network:
                     ), "RPC error code is not TX_NOT_LEADER"
         assert leader_id is not None, "No leader found"
 
-        return (self.nodes[leader_id], term)
+        return (self.get_node_by_id(leader_id), term)
+
+    def update_nodes(self):
+        leader = self.find_leader()[0]
+        with leader.management_client() as c:
+            id = c.request("getNetworkInfo", {})
+            res = c.response(id)
+
+            # this is a json array of all the nodes in TRUSTED state
+            active_nodes = res.result["nodes"]
+
+            active_local_nodes = list(filter(lambda node: node.is_joined(), self.nodes))
+            assert len(active_nodes) == len(
+                active_local_nodes
+            ), f"active node count ({len(active_nodes)}) does not match active local nodes ({len(active_local_nodes)})"
+
+            for node in active_nodes:
+                port = int(node["port"].decode())
+                local_node = next(
+                    (
+                        local_node
+                        for local_node in active_local_nodes
+                        if local_node.tls_port == port
+                    ),
+                    None,
+                )
+                # make sure we know all the nodes
+                assert (
+                    local_node
+                ), f"The node {str(node['host'])}:{port} is not known to the local network environment"
+
+                node_id = int(node["node_id"])
+                if local_node.node_id != node_id:
+                    local_node.node_id = node_id
+                    LOG.info(
+                        "Correcting node id for {local_node.node_id} to be {node_id}"
+                    )
 
     def wait_for_node_commit_sync(self):
         """
@@ -343,9 +422,9 @@ class Network:
     def get_primary(self):
         return self.nodes[0]
 
-    def get_next_node_id(self):
+    def get_next_local_node_id(self):
         if len(self.nodes):
-            return self.nodes[-1].node_id + 1
+            return self.nodes[-1].local_node_id + 1
         return 0
 
 
@@ -396,7 +475,7 @@ class Checker:
 
 @contextmanager
 def node(
-    node_id,
+    local_node_id,
     host,
     build_directory,
     debug=False,
@@ -407,7 +486,7 @@ def node(
 ):
     """
     Context manager for Node class.
-    :param node_id: unique ID of node
+    :param local_node_id: unique ID of node - relevant only for the python environment
     :param build_directory: the build directory
     :param host: node's hostname
     :param debug: default: False. If set, node will not start (user is prompted to start them manually)
@@ -418,7 +497,7 @@ def node(
     """
     with infra.path.working_dir(build_directory):
         node = Node(
-            node_id=node_id,
+            local_node_id=local_node_id,
             host=host,
             debug=debug,
             perf=perf,
@@ -440,9 +519,16 @@ def node(
 
 class Node:
     def __init__(
-        self, node_id, host, debug=False, perf=False, recovery=False, verify_quote=False
+        self,
+        local_node_id,
+        host,
+        debug=False,
+        perf=False,
+        recovery=False,
+        verify_quote=False,
     ):
-        self.node_id = node_id
+        self.node_id = local_node_id
+        self.local_node_id = local_node_id
         self.debug = debug
         self.perf = perf
         self.recovery = recovery
@@ -505,7 +591,7 @@ class Node:
         lib_path = infra.path.build_lib_path(lib_name, enclave_type)
         self.remote = infra.remote.CCFRemote(
             lib_path,
-            str(self.node_id),
+            str(self.local_node_id),
             self.host,
             self.pubhost,
             self.raft_port,
@@ -520,7 +606,7 @@ class Node:
             **kwargs,
         )
         self.remote.setup()
-        LOG.info("Remote {} started".format(self.node_id))
+        LOG.info("Remote {} started".format(self.local_node_id))
         self.network_state = NodeNetworkState.started
         if self.recovery:
             self.remote.set_recovery()
@@ -606,7 +692,7 @@ class Node:
             cert="user{}_cert.pem".format(user_id),
             key="user{}_privk.pem".format(user_id),
             cafile="networkcert.pem",
-            description="node {} (user)".format(self.node_id),
+            description="node {} (user)".format(self.local_node_id),
             format=format,
             **kwargs,
         )
@@ -618,8 +704,8 @@ class Node:
             "management",
             cert=None,
             key=None,
-            cafile="{}.pem".format(self.node_id),
-            description="node {} (mgmt)".format(self.node_id),
+            cafile="{}.pem".format(self.local_node_id),
+            description="node {} (mgmt)".format(self.local_node_id),
             **kwargs,
         )
 
@@ -631,6 +717,6 @@ class Node:
             cert="member{}_cert.pem".format(member_id),
             key="member{}_privk.pem".format(member_id),
             cafile="networkcert.pem",
-            description="node {} (member)".format(self.node_id),
+            description="node {} (member)".format(self.local_node_id),
             **kwargs,
         )
