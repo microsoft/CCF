@@ -12,9 +12,9 @@
 namespace tls
 {
   static bool use_drng = IntelDRNG::is_drng_supported();
-  using EntropyPtr = std::unique_ptr<Entropy>;
+  using EntropyPtr = std::shared_ptr<Entropy>;
+  static EntropyPtr intel_drng_ptr;
   EntropyPtr create_entropy();
-  EntropyPtr intel_drng_ptr;
 
   class MbedtlsEntropy : public Entropy
   {
@@ -70,11 +70,11 @@ namespace tls
     if (use_drng)
     {
       if (!intel_drng_ptr)
-        intel_drng_ptr = std::make_unique<IntelDRNG>();
+        intel_drng_ptr = std::make_shared<IntelDRNG>();
       return intel_drng_ptr;
     }
 
-    return std::make_unique<MbedtlsEntropy>();
+    return std::make_shared<MbedtlsEntropy>();
   }
 
 }
