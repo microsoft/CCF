@@ -190,12 +190,12 @@ namespace tls
 
     struct SignCsr
     {
-      Entropy entropy;
+      EntropyPtr entropy;
       mbedtls_x509_csr csr;
       mbedtls_mpi serial;
       mbedtls_x509write_cert crt;
 
-      SignCsr()
+      SignCsr() : entropy(create_entropy())
       {
         mbedtls_x509_csr_init(&csr);
         mbedtls_mpi_init(&serial);
@@ -220,7 +220,7 @@ namespace tls
      */
     KeyPair(mbedtls_ecp_group_id ec)
     {
-      Entropy entropy;
+      EntropyPtr entropy = create_entropy();
       mbedtls_pk_init(key.get());
 
       int rc = 0;
@@ -240,7 +240,10 @@ namespace tls
           }
 
           rc = mbedtls_eddsa_genkey(
-            mbedtls_pk_eddsa(*key), ec, &Entropy::rng, &entropy);
+            mbedtls_pk_eddsa(*key),
+            ec,
+            entropy->get_rng(),
+            entropy->get_data());
           if (rc != 0)
           {
             throw std::logic_error(
@@ -260,7 +263,7 @@ namespace tls
           }
 
           rc = mbedtls_ecp_gen_key(
-            ec, mbedtls_pk_ec(*key), &Entropy::rng, &entropy);
+            ec, mbedtls_pk_ec(*key), entropy->get_rng(), entropy->get_data());
           if (rc != 0)
           {
             throw std::logic_error(
@@ -388,7 +391,7 @@ namespace tls
       uint8_t* sig) const
     {
       int rc = 0;
-      Entropy entropy;
+      EntropyPtr entropy = create_entropy();
 
       const auto ec = get_ec_from_context(*key);
       const auto md_type = get_md_for_ec(ec);
@@ -400,8 +403,8 @@ namespace tls
         hash_size,
         sig,
         sig_size,
-        &Entropy::rng,
-        &entropy);
+        entropy->get_rng(),
+        entropy->get_data());
 
       return rc;
     }
@@ -422,11 +425,15 @@ namespace tls
 
       uint8_t buf[4096];
       memset(buf, 0, sizeof(buf));
-      Entropy entropy;
+      EntropyPtr entropy = create_entropy();
 
       if (
         mbedtls_x509write_csr_pem(
-          &csr.req, buf, sizeof(buf), &Entropy::rng, &entropy) != 0)
+          &csr.req,
+          buf,
+          sizeof(buf),
+          entropy->get_rng(),
+          entropy->get_data()) != 0)
         return {};
 
       auto len = strlen((char*)buf) + 1;
@@ -457,7 +464,10 @@ namespace tls
 
       if (
         mbedtls_mpi_fill_random(
-          &sign.serial, 16, &Entropy::rng, &sign.entropy) != 0)
+          &sign.serial,
+          16,
+          sign.entropy->get_rng(),
+          sign.entropy->get_data()) != 0)
         return {};
 
       if (mbedtls_x509write_crt_set_subject_name(&sign.crt, subject) != 0)
@@ -490,7 +500,11 @@ namespace tls
 
       if (
         mbedtls_x509write_crt_pem(
-          &sign.crt, buf, sizeof(buf), &Entropy::rng, &sign.entropy) != 0)
+          &sign.crt,
+          buf,
+          sizeof(buf),
+          sign.entropy->get_rng(),
+          sign.entropy->get_data()) != 0)
         return {};
 
       auto len = strlen((char*)buf) + 1;
