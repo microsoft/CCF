@@ -25,7 +25,15 @@
 
 namespace tls
 {
-  class IntelDRNG
+  class Entropy
+  {
+    virtual void* get_data() = 0;
+    int rng(void* ctx, unsigned char* output, size_t len) const = 0;
+    std::vector<uint8_t> random(size_t len) = 0;
+    virtual ~Entropy() {}
+  };
+
+  class IntelDRNG : public Entropy
   {
   private:
     typedef struct cpuid_struct
@@ -249,11 +257,11 @@ namespace tls
   public:
     IntelDRNG()
     {
-      if (!(get_drng_support() & DRNG_HAS_RDRAND))
-        throw std::logic_error("No support for RDRAND on this CPU.");
+      if (!(is_drng_supported()))
+        throw std::logic_error("No support for RDRAND / RDSEED on this CPU.");
     }
 
-    std::vector<uint8_t> random(size_t len)
+    std::vector<uint8_t> random(size_t len) override
     {
       unsigned char buf[len];
 
@@ -263,11 +271,22 @@ namespace tls
       return std::vector<uint8_t>(buf, buf + len);
     }
 
-    static int rng(void*, unsigned char* output, size_t len)
+    int rng(void*, unsigned char* output, size_t len) const override
     {
       if (rdrand_get_bytes(len, output) < len)
         throw std::logic_error("Couldn't create random data");
       return 0;
+    }
+
+    void* get_data() override
+    {
+      return this;
+    }
+
+    static bool is_drng_supported()
+    {
+      return (get_drng_support() & (DRNG_HAS_RDRAND | DRNG_HAS_RDSEED)) ==
+        (DRNG_HAS_RDRAND | DRNG_HAS_RDSEED);
     }
   };
 }

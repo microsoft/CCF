@@ -11,14 +11,11 @@
 
 namespace tls
 {
-#if 1
-  class Entropy : public IntelDRNG
-  {
-  public:
-    Entropy() : IntelDRNG() {}
-  };
-#else
-  class Entropy
+  static bool use_drng = IntelDRNG::is_drng_supported();
+  using EntropyPtr = std::unique_ptr<Entropy>;
+  EntropyPtr create_entropy();
+
+  class MbedtlsEntropy : public Entropy
   {
   private:
     mbedtls_entropy_context entropy;
@@ -27,20 +24,20 @@ namespace tls
     static bool gen(uint64_t& v);
 
   public:
-    Entropy()
+    MbedtlsEntropy()
     {
       mbedtls_entropy_init(&entropy);
       mbedtls_ctr_drbg_init(&drbg);
       mbedtls_ctr_drbg_seed(&drbg, mbedtls_entropy_func, &entropy, NULL, 0);
     }
 
-    ~Entropy()
+    ~MbedtlsEntropy()
     {
       mbedtls_ctr_drbg_free(&drbg);
       mbedtls_entropy_free(&entropy);
     }
 
-    std::vector<uint8_t> random(size_t len)
+    std::vector<uint8_t> random(size_t len) override
     {
       std::vector<uint8_t> data(len);
 
@@ -50,11 +47,22 @@ namespace tls
       return data;
     }
 
-    static int rng(void* ctx, unsigned char* output, size_t len)
+    int rng(void* ctx, unsigned char* output, size_t len) const override
     {
-      Entropy* e = reinterpret_cast<Entropy*>(ctx);
+      MbedtlsEntropy* e = reinterpret_cast<MbedtlsEntropy*>(ctx);
       return mbedtls_ctr_drbg_random(&e->drbg, output, len);
     }
+
+    void* get_data() override
+    {
+      return &entropy;
+    }
   };
-#endif
+
+  EntropyPtr create_entropy()
+  {
+    return use_drng ? std::make_unique<IntelDRNG>() :
+                      std::make_unique<MbedtlsEntropy>();
+  }
+
 }
