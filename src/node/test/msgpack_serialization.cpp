@@ -5,38 +5,99 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
+template <typename T>
+T msgpack_roundtrip(const T& t)
+{
+  // Serialize
+  msgpack::sbuffer sb;
+  msgpack::pack(sb, t);
+
+  // Deserialize
+  msgpack::object_handle obj;
+  msgpack::unpack(obj, sb.data(), sb.size(), 0);
+
+  return obj->as<T>();
+}
+
+TEST_CASE("nlohmann::json")
+{
+  using namespace nlohmann;
+
+  json j_null = nullptr;
+  {
+    const auto converted = msgpack_roundtrip(j_null);
+    CHECK(j_null == converted);
+  }
+
+  json j_int = 42;
+  {
+    const auto converted = msgpack_roundtrip(j_int);
+    CHECK(j_int == converted);
+  }
+
+  json j_float = 3.14f;
+  {
+    const auto converted = msgpack_roundtrip(j_float);
+    CHECK(j_float == converted);
+  }
+
+  json j_string = "hello world";
+  {
+    const auto converted = msgpack_roundtrip(j_string);
+    CHECK(j_string == converted);
+  }
+
+  json j_array = json::array();
+  j_array.push_back(j_null);
+  j_array.push_back(j_int);
+  j_array.push_back(j_float);
+  j_array.push_back(j_string);
+  {
+    const auto converted = msgpack_roundtrip(j_array);
+    CHECK(j_array == converted);
+  }
+
+  json j_object = json::object();
+  j_object["A"] = j_array;
+  j_object["saluton mondo"] = j_string;
+  {
+    const auto converted = msgpack_roundtrip(j_object);
+    CHECK(j_object == converted);
+  }
+}
+
 TEST_CASE("OpenProposal")
 {
   using namespace ccf;
 
-  // Construct proposals
-  OpenProposal op0;
+  {
+    INFO("Empty proposal");
+    OpenProposal proposal;
+    const auto converted = msgpack_roundtrip(proposal);
+    CHECK(proposal == converted);
+  }
 
-  Script script0("return true");
-  nlohmann::json param0("hello world");
-  MemberId member0(0);
-  OpenProposal op1(script0, param0, member0);
+  {
+    INFO("Initial proposal");
+    Script s("return true");
+    nlohmann::json p("hello world");
+    MemberId m(0);
+    OpenProposal proposal(s, p, m);
+    const auto converted = msgpack_roundtrip(proposal);
+    CHECK(proposal == converted);
+  }
 
-  // Check they're distinct
-  CHECK(!(op0 == op1));
-
-  // Serialize
-  msgpack::sbuffer sb0;
-  msgpack::pack(sb0, op0);
-
-  msgpack::sbuffer sb1;
-  msgpack::pack(sb1, op1);
-
-  // Deserialize
-  msgpack::object_handle obj0;
-  msgpack::unpack(obj0, sb0.data(), sb0.size(), 0);
-  OpenProposal _op0 = obj0->convert();
-
-  msgpack::object_handle obj1;
-  msgpack::unpack(obj1, sb1.data(), sb1.size(), 0);
-  OpenProposal _op1 = obj1->convert();
-
-  // Check deserializations are correct
-  CHECK(op0 == _op0);
-  CHECK(op1 == _op1);
+  {
+    INFO("Voted proposal");
+    Script s("return true");
+    nlohmann::json p("hello world");
+    MemberId m(0);
+    OpenProposal proposal(s, p, m);
+    proposal.votes[1] = Script("return true");
+    proposal.votes[2] = Script("return false");
+    proposal.votes[3] = Script("return RoN");
+    proposal.votes[4] = Script("Robert'); DROP TABLE Students;--");
+    const auto converted = msgpack_roundtrip(proposal);
+    CHECK(proposal == converted);
+  }
 }

@@ -130,8 +130,8 @@ namespace ccf
 
     bool operator==(const OpenProposal& o) const
     {
-      return proposer == o.proposer && script.text == o.script.text &&
-        parameter == o.parameter;
+      return script == o.script && parameter == o.parameter &&
+        proposer == o.proposer && votes == o.votes;
     }
 
     MSGPACK_DEFINE(script, parameter, proposer, votes);
