@@ -105,7 +105,8 @@ namespace ccf
       sealed_data.key_info = seal_key_and_info->second;
 
       // Get random IV
-      auto iv = tls::Entropy().random(sealed_data.encrypted_data.hdr.getIv().n);
+      auto iv =
+        tls::create_entropy()->random(sealed_data.encrypted_data.hdr.getIv().n);
       std::copy(iv.begin(), iv.end(), sealed_data.encrypted_data.hdr.iv);
 
       // Encrypt data
