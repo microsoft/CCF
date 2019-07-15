@@ -48,7 +48,7 @@ def run(args):
         # proposal number 0
         infra.proc.ccall("./genesisgenerator", "cert", "--name=member4")
         result = network.propose(
-            "add_member", "--member_cert=member4_cert.pem", 1, primary
+            1, primary, "add_member", "--member_cert=member4_cert.pem"
         )
 
         # when proposal is added the proposal id and the result of running complete proposal are returned
@@ -57,59 +57,51 @@ def run(args):
         assert proposal_id == 0
 
         # display all proposals
-        infra.proc.ccall(
-            "./memberclient",
-            "proposal_display",
-            "--cert=member1_cert.pem",
-            "--privk=member1_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--ca=networkcert.pem",
-        )
+        network.member_client_rpc(1, primary, "proposal_display")
 
         # 2 out of 3 members vote to accept the new member so that that member can send its own proposals
-        result = network.vote(0, True, 1, primary)
+        result = network.vote(1, primary, proposal_id, True)
         assert not result
 
-        result = network.vote(0, True, 2, primary)
+        result = network.vote(2, primary, proposal_id, True)
         assert result
 
         # member 4 try to make a proposal without having been accepted should get insufficient rights response
-        result = network.propose("accept_node", "--id=0", 4, primary)
+        result = network.propose(4, primary, "accept_node", "--id=0")
         assert result[1] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
         # member 4 ack
-        j_result = network.member_client_rpc(4, primary, "ack")
+        j_result = network.member_client_rpc_as_json(4, primary, "ack")
         assert j_result["result"]
 
         # member 4 is now active and sends an accept node proposal
         # proposal number 1
-        result = network.propose("accept_node", "--id=0", 4, primary)
+        result = network.propose(4, primary, "accept_node", "--id=0")
         assert not result[1]["completed"]
         proposal_id = result[1]["id"]
         assert proposal_id == 1
 
         # members vote to accept the node proposal
-        result = network.vote(proposal_id, True, 1, primary)
+        result = network.vote(1, primary, proposal_id, True)
         assert not result
 
         # result is true with just 2 votes because proposer implicit pro vote is assumed
-        result = network.vote(proposal_id, True, 2, primary)
+        result = network.vote(2, primary, proposal_id, True)
         assert j_result
 
         # member 4 is makes a proposal and then removes it
         # proposal number 2
-        result = network.propose("accept_node", "--id=1", 4, primary)
+        result = network.propose(4, primary, "accept_node", "--id=1")
         proposal_id = result[1]["id"]
         assert not result[1]["completed"]
         assert proposal_id == 2
 
-        j_result = network.member_client_rpc(4, primary, "removal", "--id=2")
+        j_result = network.member_client_rpc_as_json(4, primary, "removal", "--id=2")
         assert j_result["result"]
 
         # member 4 proposes to inactivate member 1 and other members vote yes
         # proposal number 3
-        j_result = network.member_client_rpc(
+        j_result = network.member_client_rpc_as_json(
             4,
             primary,
             "raw_puts",
@@ -120,19 +112,19 @@ def run(args):
         assert not j_result["result"]["completed"]
         assert j_result["result"]["id"] == 3
 
-        result = network.vote(3, True, 3, primary)
+        result = network.vote(3, primary, 3, True)
         assert not result
 
-        result = network.vote(3, True, 2, primary)
+        result = network.vote(2, primary, 3, True)
         assert j_result
 
         # member 1 attempts to accept a proposal but should get insufficient rights
         # proposal number 4
-        result = network.propose("accept_node", "--id=0", 1, primary)
+        result = network.propose(1, primary, "accept_node", "--id=0")
         assert result[1] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
         # member 4 proposes to add member 3 as user
-        result = network.propose("add_user", "--user_cert=member3_cert.pem", 4, primary)
+        result = network.propose(4, primary, "add_user", "--user_cert=member3_cert.pem")
         assert not result[1]["completed"]
 
 

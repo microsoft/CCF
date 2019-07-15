@@ -279,11 +279,17 @@ class Network:
             "--sign",
             *args,
         )
+        return result
+
+    def member_client_rpc_as_json(self, member_id, remote_node, *args):
+        result = self.member_client_rpc(member_id, remote_node, *args)
         j_result = json.loads(result.stdout)
         return j_result
 
-    def propose(self, proposal, arg, member_id=1, remote_node=None):
-        j_result = self.member_client_rpc(member_id, remote_node, proposal, arg)
+    def propose(self, member_id, remote_node, proposal, *args):
+        j_result = self.member_client_rpc_as_json(
+            member_id, remote_node, proposal, *args
+        )
 
         if "error" in j_result and j_result["error"] is not None:
             self.remove_last_node()
@@ -291,17 +297,22 @@ class Network:
 
         return (True, j_result["result"])
 
-    def vote_using_majority(self, proposal_id, accept, member_id=1, remote_node=None):
+    def vote_using_majority(self, remote_node, proposal_id, accept):
+        # There is no need to stop after n / 2 + 1 members have voted,
+        # but this could prove to be useful in detecting errors
+        # related to the voting mechanism
         member_count = int(len(self.members) / 2 + 1)
         for i, member in enumerate(self.members):
             if i >= member_count:
                 break
-            res = self.vote(proposal_id, accept, member, remote_node)
+            res = self.vote(member, remote_node, proposal_id, accept)
             if res:
                 break
 
-    def vote(self, proposal_id, accept, member_id=1, remote_node=None):
-        j_result = self.member_client_rpc(
+        assert res
+
+    def vote(self, member_id, remote_node, proposal_id, accept):
+        j_result = self.member_client_rpc_as_json(
             member_id,
             remote_node,
             "vote",
@@ -309,6 +320,9 @@ class Network:
             "--accept" if accept else "--reject",
         )
         return j_result["result"]
+
+    def propose_retire_node(self, member_id=1, remote_node=None):
+        j_result = self.propose("retire_node")
 
     def genesis_generator(self, args):
         gen = ["./genesisgenerator", "tx"]

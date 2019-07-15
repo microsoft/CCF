@@ -27,7 +27,7 @@ def retire_node(network, primary, node_id):
     assert not j_result["result"]["completed"]
     proposal_id = j_result["result"]["id"]
 
-    j_result = network.vote_using_majority(proposal_id, True)
+    j_result = network.vote_using_majority(primary, proposal_id, True)
 
     with primary.member_client() as c:
         id = c.request("read", {"table": "nodes", "key": node_id})
