@@ -16,7 +16,7 @@ namespace tls
   class KeyExchangeContext
   {
   private:
-    tls::Entropy entropy;
+    tls::EntropyPtr entropy;
     mbedtls_ecdh_context ctx;
     std::vector<uint8_t> own_public;
 
@@ -30,7 +30,7 @@ namespace tls
     // Size of shared secret, as per mbedtls_x25519_calc_secret
     static constexpr size_t len_shared_secret = MBEDTLS_X25519_KEY_SIZE_BYTES;
 
-    KeyExchangeContext() : own_public(len_public)
+    KeyExchangeContext() : own_public(len_public), entropy(create_entropy())
     {
       mbedtls_ecdh_init(&ctx);
       size_t len;
@@ -46,8 +46,8 @@ namespace tls
           &len,
           own_public.data(),
           len_public,
-          &tls::Entropy::rng,
-          &entropy) != 0)
+          entropy->get_rng(),
+          entropy->get_data()) != 0)
       {
         throw std::logic_error("Failed to generate key exchange pair");
       }
@@ -91,8 +91,8 @@ namespace tls
           &len,
           shared_secret.data(),
           len_shared_secret,
-          &tls::Entropy::rng,
-          &entropy) != 0)
+          entropy->get_rng(),
+          entropy->get_data()) != 0)
       {
         throw std::logic_error("Failed to compute shared secret");
       }

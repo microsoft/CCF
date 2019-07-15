@@ -405,7 +405,7 @@ namespace ccf
 
       // Generate fresh key to encrypt/decrypt historical network secrets sent
       // by the leader via the kv store
-      raw_fresh_key = tls::Entropy().random(crypto::GCM_SIZE_KEY);
+      raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
 
       // Send RPC request to remote node to join the network.
       jsonrpc::ProcedureCall<JoinNetworkNodeToNode::In> join_rpc;
@@ -832,7 +832,7 @@ namespace ccf
             crypto::GcmCipher gcmcipher(serial.value().size());
 
             // Get random IV
-            auto iv = tls::Entropy().random(gcmcipher.hdr.getIv().n);
+            auto iv = tls::create_entropy()->random(gcmcipher.hdr.getIv().n);
             std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
 
             joiner_key.encrypt(

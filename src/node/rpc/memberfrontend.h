@@ -51,7 +51,7 @@ namespace ccf
              ->put(id, {MemberStatus::ACCEPTED});
            // create nonce for ACK
            tx.get_view(this->network.member_acks)
-             ->put(id, {rng.random(SIZE_NONCE)});
+             ->put(id, {rng->random(SIZE_NONCE)});
            return true;
          }},
         // accept a node
@@ -226,7 +226,7 @@ namespace ccf
     AbstractNodeState& node;
     const lua::TxScriptRunner tsr;
 
-    tls::Entropy rng;
+    tls::EntropyPtr rng;
     static constexpr auto SIZE_NONCE = 16;
 
   public:
@@ -237,7 +237,8 @@ namespace ccf
         &network.member_certs),
       network(network),
       node(node),
-      tsr(network)
+      tsr(network),
+      rng(tls::create_entropy())
     {
       using jerr = jsonrpc::ErrorCodes;
       auto read = [this](RequestArgs& args) {
@@ -369,7 +370,7 @@ namespace ccf
         if (!verifier->verify(last_ma->next_nonce, rs.sig))
           return jsonrpc::error(jerr::INVALID_PARAMS, "Signature is not valid");
 
-        MemberAck next_ma{rs.sig, rng.random(SIZE_NONCE)};
+        MemberAck next_ma{rs.sig, rng->random(SIZE_NONCE)};
         mas->put(args.caller_id, next_ma);
 
         // update member status to ACTIVE
@@ -392,7 +393,7 @@ namespace ccf
         if (!ma)
           return jsonrpc::error(
             jsonrpc::ErrorCodes::INVALID_PARAMS, "No ACK record exists (2)");
-        ma->next_nonce = rng.random(SIZE_NONCE);
+        ma->next_nonce = rng->random(SIZE_NONCE);
         mas->put(args.caller_id, *ma);
         return jsonrpc::success(true);
       };
