@@ -66,8 +66,10 @@ namespace tls
 
   EntropyPtr create_entropy()
   {
-    return use_drng ? std::make_unique<IntelDRNG>() :
-                      std::make_unique<MbedtlsEntropy>();
+    if (use_drng)
+      return std::make_unique<IntelDRNG>();
+
+    return std::make_unique<MbedtlsEntropy>();
   }
 
 }

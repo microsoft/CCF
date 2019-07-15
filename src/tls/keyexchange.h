@@ -46,7 +46,7 @@ namespace tls
           &len,
           own_public.data(),
           len_public,
-          &entropy->get_rng(),
+          entropy->get_rng(),
           entropy->get_data()) != 0)
       {
         throw std::logic_error("Failed to generate key exchange pair");
@@ -91,7 +91,7 @@ namespace tls
           &len,
           shared_secret.data(),
           len_shared_secret,
-          &entropy->get_rng(),
+          entropy->get_rng(),
           entropy->get_data()) != 0)
       {
         throw std::logic_error("Failed to compute shared secret");

@@ -28,7 +28,7 @@ namespace tls
     {
       mbedtls_ssl_init(&ssl);
       mbedtls_ssl_config_init(&cfg);
-      mbedtls_ssl_conf_rng(&cfg, &entropy->get_rng(), entropy->get_data());
+      mbedtls_ssl_conf_rng(&cfg, entropy->get_rng(), entropy->get_data());
 
       if (
         mbedtls_ssl_config_defaults(
