@@ -3,56 +3,13 @@
 #pragma once
 
 #include "ds/json.h"
+#include "ds/msgpack_adaptor_nlohmann.h"
 #include "entities.h"
 #include "script.h"
 
 #include <msgpack-c/msgpack.hpp>
 #include <unordered_map>
 #include <vector>
-
-namespace msgpack
-{
-  MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
-  {
-    namespace adaptor
-    {
-      template <>
-      struct pack<nlohmann::json>
-      {
-        template <typename Stream>
-        msgpack::packer<Stream>& operator()(
-          msgpack::packer<Stream>& o, const nlohmann::json& j) const
-        {
-          const auto packed = nlohmann::json::to_msgpack(j);
-
-          o.pack_bin(packed.size());
-          o.pack_bin_body(
-            reinterpret_cast<const char*>(packed.data()), packed.size());
-
-          return o;
-        }
-      };
-
-      template <>
-      struct convert<nlohmann::json>
-      {
-        const msgpack::object& operator()(
-          const msgpack::object& o, nlohmann::json& j) const
-        {
-          if ((o.type) != msgpack::type::BIN)
-          {
-            throw msgpack::type_error();
-          }
-
-          std::vector<uint8_t> v(o.via.bin.ptr, o.via.bin.ptr + o.via.bin.size);
-          j = nlohmann::json::from_msgpack(v);
-
-          return o;
-        }
-      };
-    }
-  }
-}
 
 namespace ccf
 {
