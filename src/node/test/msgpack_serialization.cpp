@@ -170,3 +170,39 @@ TEST_CASE("MemberAck")
     CHECK(ma == converted);
   }
 }
+
+TEST_CASE("Signature")
+{
+  using namespace ccf;
+
+  {
+    INFO("Empty sig");
+    Signature sig;
+    const auto converted = msgpack_roundtrip(sig);
+    CHECK(sig == converted);
+  }
+
+  {
+    INFO("Simple sig");
+    Signature sig;
+    sig.sig.push_back(0);
+    sig.node = 0;
+    sig.index = 1;
+    sig.term = 2;
+    sig.commit = 3;
+    const auto converted = msgpack_roundtrip(sig);
+    CHECK(sig == converted);
+  }
+
+  {
+    INFO("Rand sig");
+    Signature sig;
+    fill_rand(sig.sig, 256);
+    sig.node = rand();
+    sig.index = rand();
+    sig.term = rand();
+    sig.commit = rand();
+    const auto converted = msgpack_roundtrip(sig);
+    CHECK(sig == converted);
+  }
+}
