@@ -87,6 +87,7 @@ jobs:
 
     - script: ../tests/coverage/generate_coverage.sh
       displayName: 'Push coverage'
+      workingDirectory: build
 
 - job: SAN
   pool:
