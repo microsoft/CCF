@@ -265,6 +265,32 @@ class Network:
                 "./genesisgenerator", "cert", "--name={}".format(u)
             ).check_returncode()
 
+    def member_client_rpc(self, member_id, remote_node, *args):
+        if remote_node is None:
+            remote_node = self.find_leader()[0]
+
+        result = infra.proc.ccall(
+            "./memberclient",
+            f"--cert=member{member_id}_cert.pem",
+            f"--privk=member{member_id}_privk.pem",
+            f"--host={remote_node.host}",
+            f"--port={remote_node.tls_port}",
+            "--ca=networkcert.pem",
+            "--sign",
+            *args,
+        )
+        j_result = json.loads(result.stdout)
+        return j_result
+
+    def propose(self, proposal, arg, member_id=1, remote_node=None):
+        j_result = self.member_client_rpc(member_id, remote_node, proposal, arg)
+
+        if "error" in j_result and j_result["error"] is not None:
+            self.remove_last_node()
+            return (False, j_result["error"]["code"])
+
+        return (True, j_result["result"])
+
     def vote_using_majority(self, proposal_id, accept, member_id=1, remote_node=None):
         member_count = int(len(self.members) / 2 + 1)
         for i, member in enumerate(self.members):
@@ -275,23 +301,13 @@ class Network:
                 break
 
     def vote(self, proposal_id, accept, member_id=1, remote_node=None):
-        if remote_node is None:
-            remote_node = self.find_leader()[0]
-
-        result = infra.proc.ccall(
-            "./memberclient",
+        j_result = self.member_client_rpc(
+            member_id,
+            remote_node,
             "vote",
-            f"--cert=member{member_id}_cert.pem",
-            f"--privk=member{member_id}_privk.pem",
-            f"--host={remote_node.host}",
-            f"--port={remote_node.tls_port}",
             f"--id={proposal_id}",
-            "--ca=networkcert.pem",
-            "--sign",
             "--accept" if accept else "--reject",
         )
-
-        j_result = json.loads(result.stdout)
         return j_result["result"]
 
     def genesis_generator(self, args):
