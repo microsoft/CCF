@@ -196,7 +196,7 @@ namespace ccf
         Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key());
 
       // Generate node quote
-      std::vector<uint8_t> quote(args.quote_max_size);
+      std::vector<uint8_t> quote;
 
 #ifdef GET_QUOTE
       crypto::Sha256Hash h{node_cert};
