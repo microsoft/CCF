@@ -195,8 +195,8 @@ namespace ccf
       rpcsessions.add_cert(
         Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key());
 
-      // Generate node quote
-      std::vector<uint8_t> quote;
+      // Quotes should be initialised and non-empty
+      std::vector<uint8_t> quote{1};
 
 #ifdef GET_QUOTE
       crypto::Sha256Hash h{node_cert};
