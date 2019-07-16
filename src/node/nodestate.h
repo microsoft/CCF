@@ -195,12 +195,13 @@ namespace ccf
       rpcsessions.add_cert(
         Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key());
 
-      // Generate node quote
-      std::vector<uint8_t> quote(args.quote_max_size);
+      // Quotes should be initialised and non-empty
+      std::vector<uint8_t> quote{1};
 
 #ifdef GET_QUOTE
       crypto::Sha256Hash h{node_cert};
-      size_t quote_len = args.quote_max_size;
+      uint8_t* report;
+      size_t report_len = 0;
 
       // TODO(#important,#TR): The "alpha" parameters, including the unique
       // service identifier, should also be included in the quote.
@@ -210,15 +211,17 @@ namespace ccf
         h.SIZE,
         nullptr,
         0,
-        quote.data(),
-        &quote_len);
+        &report,
+        &report_len);
 
       if (res != OE_OK)
       {
         LOG_FAIL_FMT("Failed to get quote: {}", oe_result_str(res));
         return Fail<CreateNew::Out>("oe_get_report failed");
       }
-      quote.resize(quote_len);
+
+      quote.assign(report, report + report_len);
+      oe_free_report(report);
 
       // Set own code version
       oe_report_t parsed_quote = {0};
