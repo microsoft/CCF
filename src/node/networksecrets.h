@@ -118,7 +118,7 @@ namespace ccf
       auto new_secret = std::make_unique<Secret>();
       new_secret->cert = keys->self_sign(name);
       new_secret->priv_key = keys->private_key();
-      new_secret->master = tls::Entropy().random(16);
+      new_secret->master = tls::create_entropy()->random(16);
 
       add_secret(0, std::move(new_secret), force_seal);
     }

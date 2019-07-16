@@ -14,7 +14,7 @@ namespace tls
   protected:
     mbedtls_ssl_context ssl;
     mbedtls_ssl_config cfg;
-    Entropy entropy;
+    EntropyPtr entropy;
 
 #ifndef NO_STRICT_TLS_CIPHERSUITES
     const int ciphersuites[3] = {
@@ -24,11 +24,11 @@ namespace tls
 #endif
 
   public:
-    Context(bool client, bool dgram)
+    Context(bool client, bool dgram) : entropy(tls::create_entropy())
     {
       mbedtls_ssl_init(&ssl);
       mbedtls_ssl_config_init(&cfg);
-      mbedtls_ssl_conf_rng(&cfg, &Entropy::rng, &entropy);
+      mbedtls_ssl_conf_rng(&cfg, entropy->get_rng(), entropy->get_data());
 
       if (
         mbedtls_ssl_config_defaults(
