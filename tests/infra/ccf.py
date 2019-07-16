@@ -276,7 +276,6 @@ class Network:
             f"--host={remote_node.host}",
             f"--port={remote_node.tls_port}",
             "--ca=networkcert.pem",
-            "--sign",
             *args,
         )
         return result
@@ -291,9 +290,9 @@ class Network:
             member_id, remote_node, proposal, *args
         )
 
-        if "error" in j_result and j_result["error"] is not None:
+        if j_result.get("error") is not None:
             self.remove_last_node()
-            return (False, j_result["error"]["code"])
+            return (False, j_result["error"])
 
         return (True, j_result["result"])
 
@@ -306,32 +305,41 @@ class Network:
             if i >= member_count:
                 break
             res = self.vote(member, remote_node, proposal_id, accept)
-            if res:
+            assert res[0]
+            if res[1]:
                 break
 
         assert res
 
-    def vote(self, member_id, remote_node, proposal_id, accept):
+    def vote(self, member_id, remote_node, proposal_id, accept, force_unsigned=False):
         j_result = self.member_client_rpc_as_json(
             member_id,
             remote_node,
             "vote",
             f"--id={proposal_id}",
             "--accept" if accept else "--reject",
+            "--sign" if not force_unsigned else "--force-unsigned",
         )
-        return j_result["result"]
+        if j_result.get("error") is not None:
+            return (False, j_result["error"])
+        return (True, j_result["result"])
 
     def propose_retire_node(self, member_id, remote_node, node_id):
         return self.propose(member_id, remote_node, "retire_node", f"--id={node_id}")
 
     def retire_node(self, member_id, remote_node, node_id):
-        result = self.propose_retire_node(1, remote_node, node_id)
+        result = self.propose_retire_node(node_id, remote_node, node_id)
         proposal_id = result[1]["id"]
         result = self.vote_using_majority(remote_node, proposal_id, True)
 
         with remote_node.member_client() as c:
             id = c.request("read", {"table": "nodes", "key": node_id})
             assert c.response(id).result["status"].decode() == "RETIRED"
+
+    def propose_add_member(self, member_id, remote_node, new_member_cert):
+        return self.propose(
+            member_id, remote_node, "add_member", f"--member_cert={new_member_cert}"
+        )
 
     def genesis_generator(self, args):
         gen = ["./genesisgenerator", "tx"]

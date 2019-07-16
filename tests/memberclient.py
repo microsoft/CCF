@@ -61,14 +61,14 @@ def run(args):
 
         # 2 out of 3 members vote to accept the new member so that that member can send its own proposals
         result = network.vote(1, primary, proposal_id, True)
-        assert not result
+        assert result[0] and not result[1]
 
         result = network.vote(2, primary, proposal_id, True)
-        assert result
+        assert result[0] and result[1]
 
         # member 4 try to make a proposal without having been accepted should get insufficient rights response
         result = network.propose(4, primary, "accept_node", "--id=0")
-        assert result[1] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
+        assert result[1]["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
         # member 4 ack
         j_result = network.member_client_rpc_as_json(4, primary, "ack")
@@ -83,11 +83,11 @@ def run(args):
 
         # members vote to accept the node proposal
         result = network.vote(1, primary, proposal_id, True)
-        assert not result
+        assert result[0] and not result[1]
 
         # result is true with just 2 votes because proposer implicit pro vote is assumed
         result = network.vote(2, primary, proposal_id, True)
-        assert j_result
+        assert result[0] and result[1]
 
         # member 4 is makes a proposal and then removes it
         # proposal number 2
@@ -113,10 +113,10 @@ def run(args):
         assert j_result["result"]["id"] == 3
 
         result = network.vote(3, primary, 3, True)
-        assert not result
+        assert result[0] and not result[1]
 
         result = network.vote(2, primary, 3, True)
-        assert j_result
+        assert result[0] and result[1]
 
         # member 1 attempts to accept a proposal but should get insufficient rights
         # proposal number 4
