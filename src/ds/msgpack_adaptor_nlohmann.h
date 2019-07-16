@@ -11,6 +11,10 @@ namespace msgpack
   {
     namespace adaptor
     {
+      // Both pack and convert involve unnecessary copies. If this
+      // nlohmann::json issue is accepted, we can write custom input_adapter and
+      // output_adapter to read/write directly from msgpack objects.
+      // https://github.com/nlohmann/json/issues/1534
       template <>
       struct pack<nlohmann::json>
       {
