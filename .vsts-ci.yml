@@ -4,7 +4,7 @@ trigger:
     include:
       - "ci/*"
   paths:
-    exclude: &exclude-paths
+    exclude:
       - 'README.md'
       - 'CCF-TECHNICAL-REPORT.pdf'
       - 'Dockerfile'
@@ -25,7 +25,18 @@ pr:
   paths:
     include:
       - '*'
-    exclude: *exclude-paths
+    exclude:
+      - 'README.md'
+      - 'CCF-TECHNICAL-REPORT.pdf'
+      - 'Dockerfile'
+      - 'Doxyfile'
+      - 'THIRD_PARTY_NOTICES.txt'
+      - 'getting_started/'
+      - 'sphinx/'
+      - '.circleci/'
+      - '.github/'
+      - '.vsts-gh-pages.yml'
+      - 'LICENSE'
 
 schedules:
 - cron: "0 3 * * Mon-Fri"
