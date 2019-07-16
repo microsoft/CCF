@@ -265,7 +265,7 @@ class Network:
                 "./genesisgenerator", "cert", "--name={}".format(u)
             ).check_returncode()
 
-    def member_client_rpc(self, member_id, remote_node, *args):
+    def member_client_rpc_as_json(self, member_id, remote_node, *args):
         if remote_node is None:
             remote_node = self.find_leader()[0]
 
@@ -278,10 +278,6 @@ class Network:
             "--ca=networkcert.pem",
             *args,
         )
-        return result
-
-    def member_client_rpc_as_json(self, member_id, remote_node, *args):
-        result = self.member_client_rpc(member_id, remote_node, *args)
         j_result = json.loads(result.stdout)
         return j_result
 
@@ -328,7 +324,7 @@ class Network:
         return self.propose(member_id, remote_node, "retire_node", f"--id={node_id}")
 
     def retire_node(self, member_id, remote_node, node_id):
-        result = self.propose_retire_node(node_id, remote_node, node_id)
+        result = self.propose_retire_node(member_id, remote_node, node_id)
         proposal_id = result[1]["id"]
         result = self.vote_using_majority(remote_node, proposal_id, True)
 

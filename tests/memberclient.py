@@ -47,9 +47,7 @@ def run(args):
         # propose to add a new member
         # proposal number 0
         infra.proc.ccall("./genesisgenerator", "cert", "--name=member4")
-        result = network.propose(
-            1, primary, "add_member", "--member_cert=member4_cert.pem"
-        )
+        result = network.propose_add_member(1, primary, "member4_cert.pem")
 
         # when proposal is added the proposal id and the result of running complete proposal are returned
         proposal_id = result[1]["id"]
@@ -57,7 +55,7 @@ def run(args):
         assert proposal_id == 0
 
         # display all proposals
-        network.member_client_rpc(1, primary, "proposal_display")
+        network.member_client_rpc_as_json(1, primary, "proposal_display")
 
         # 2 out of 3 members vote to accept the new member so that that member can send its own proposals
         result = network.vote(1, primary, proposal_id, True)
