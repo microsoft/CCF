@@ -18,10 +18,24 @@ steps:
   displayName: Uncompress build artifact
   workingDirectory: build
 
+- script: |
+    echo "HEAD"
+    head CTestTestfile.cmake
+    grep python3 CTestTestfile.cmake
+  displayName: Print initial test metadata
+  workingDirectory: build
+
 - task: CMake@1
   displayName: Re-generate test metadata
   inputs:
     cmakeArgs: '..'
+
+- script: |
+    echo "HEAD"
+    head CTestTestfile.cmake
+    grep python3 CTestTestfile.cmake
+  displayName: Print re-generated test metadata
+  workingDirectory: build
 
 - script: |
     ./tests.sh -VV --timeout 240 --no-compress-output -T Test ${{ parameters.ctest_filter }}
