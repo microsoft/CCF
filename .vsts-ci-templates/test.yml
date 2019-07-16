@@ -4,6 +4,10 @@ parameters:
   artifact_name: ''
 
 steps:
+- script: |
+    rm -rf build
+  displayName: Remove old build directory
+
 - task: DownloadPipelineArtifact@1
   inputs:
     artifactName: ${{ parameters.artifact_name }}
@@ -13,6 +17,11 @@ steps:
     tar -xaf artifact.tar.gz
   displayName: Uncompress build artifact
   workingDirectory: build
+
+- task: CMake@1
+  displayName: Re-generate test metadata
+  inputs:
+    cmakeArgs: '..'
 
 - script: |
     ./tests.sh -VV --timeout 240 --no-compress-output -T Test ${{ parameters.ctest_filter }}
