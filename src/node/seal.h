@@ -170,49 +170,26 @@ namespace ccf
       // Virtual enclaves return the dummy seal key and key info
       return std::make_pair(virtual_raw_seal_key, virtual_key_info);
 #else
-      std::vector<uint8_t> raw_seal_key;
-      std::vector<uint8_t> key_info;
-      oe_result_t result = OE_OK;
-      uint8_t temp_buf[1];
+      uint8_t* seal_key;
+      uint8_t* key_info;
       size_t seal_key_size = 0;
       size_t key_info_size = 0;
 
-      // Retrieve size of seal key
-      result =
-        oe_get_seal_key_by_policy(policy, temp_buf, &seal_key_size, NULL, NULL);
-      if (result != OE_BUFFER_TOO_SMALL)
-      {
-        LOG_FAIL_FMT(
-          "oe_get_seal_key_by_policy (1) failed: {}", oe_result_str(result));
-        return {};
-      }
-      raw_seal_key.resize(seal_key_size);
-
-      // Retrieve size of key info
-      result = oe_get_seal_key_by_policy(
-        policy, raw_seal_key.data(), &seal_key_size, temp_buf, &key_info_size);
-      if (result != OE_BUFFER_TOO_SMALL)
-      {
-        LOG_FAIL_FMT(
-          "oe_get_seal_key_by_policy (2) failed: {}", oe_result_str(result));
-        return {};
-      }
-      key_info.resize(key_info_size);
-
-      // Actually retrieve the seal key and key info
-      result = oe_get_seal_key_by_policy(
-        policy,
-        raw_seal_key.data(),
-        &seal_key_size,
-        key_info.data(),
-        &key_info_size);
+      auto result = oe_get_seal_key_by_policy(
+        policy, &seal_key, &seal_key_size, &key_info, &key_info_size);
       if (result != OE_OK)
       {
         LOG_FAIL_FMT(
-          "oe_get_seal_key_by_policy (3) failed: {}", oe_result_str(result));
+          "oe_get_seal_key_by_policy failed: {}", oe_result_str(result));
         return {};
       }
-      return std::make_pair(raw_seal_key, key_info);
+
+      auto seal_key_and_info = std::make_pair(
+        std::vector<uint8_t>(seal_key, seal_key + seal_key_size),
+        std::vector<uint8_t>(key_info, key_info + key_info_size));
+      oe_free_key(seal_key, seal_key_size, key_info, key_info_size);
+
+      return seal_key_and_info;
 #endif
     }
 
@@ -222,30 +199,20 @@ namespace ccf
 #ifdef VIRTUAL_ENCLAVE
       return virtual_raw_seal_key;
 #else
-      std::vector<uint8_t> raw_seal_key;
-      uint8_t temp_buf[1];
+      uint8_t* seal_key;
       size_t seal_key_size = 0;
-      oe_result_t result = OE_OK;
 
-      // Retrieve size of seal key
-      result = oe_get_seal_key(
-        key_info.data(), key_info.size(), temp_buf, &seal_key_size);
-      if (result != OE_BUFFER_TOO_SMALL)
-      {
-        LOG_FAIL_FMT("oe_get_seal_key (1) failed: {}", oe_result_str(result));
-        return {};
-      }
-      raw_seal_key.resize(seal_key_size);
-
-      // Actually retrieve the seal key from key info
-      result = oe_get_seal_key(
-        key_info.data(), key_info.size(), raw_seal_key.data(), &seal_key_size);
+      auto result = oe_get_seal_key(
+        key_info.data(), key_info.size(), &seal_key, &seal_key_size);
       if (result != OE_OK)
       {
-        LOG_FAIL_FMT("oe_get_seal_key (2) failed: {}", oe_result_str(result));
+        LOG_FAIL_FMT("oe_get_seal_key failed: {}", oe_result_str(result));
         return {};
       }
-      return std::move(raw_seal_key);
+      auto key = std::vector<uint8_t>(seal_key, seal_key + seal_key_size);
+      oe_free_key(seal_key, seal_key_size, NULL, 0);
+
+      return key;
 #endif
     }
   };
