@@ -18,14 +18,14 @@ from loguru import logger as LOG
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
+    hosts = ["localhost"]
 
     with infra.notification.notification_server(args.notify_server) as notifications:
 
         with infra.ccf.network(
             hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
         ) as network:
-            primary, (follower,) = network.start_and_join(args)
+            primary, _ = network.start_and_join(args)
 
             with primary.management_client() as mc:
                 check_commit = infra.ccf.Checker(mc)
@@ -38,19 +38,13 @@ def run(args):
 
                 LOG.debug("Write/Read on leader")
                 with primary.user_client() as c:
-                    time.sleep(1)
                     c.rpc("LOG_record", {"id": 42, "msg": msg})
-                    time.sleep(1)
-                    c.rpc("LOG_record", {"id": 42, "msg": msg})
-                    time.sleep(1)
-                    c.rpc("LOG_record", {"id": 42, "msg": msg})
-                    time.sleep(1)
-                    c.rpc("LOG_record", {"id": 42, "msg": msg})
+                    c.rpc("LOG_record", {"id": 43, "msg": msg2})
                     # check_notification(
                     #     c.rpc("LOG_record", {"id": 43, "msg": msg2}), result=True
                     # )
-                    # check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
-                    # check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2})
+                    check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg.encode()})
+                    check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2.encode()})
 
                 # LOG.debug("Write on all follower frontends")
                 # with follower.management_client(format="json") as c:
@@ -76,7 +70,7 @@ def run(args):
                 #             c.rpc("LOG_record", {"id": id, "msg": long_msg}),
                 #             result=True,
                 #         )
-                #         check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg})
+                #         check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg.encode()})
                 #     id += 1
                 # time.sleep(5)
 

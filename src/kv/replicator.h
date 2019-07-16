@@ -75,7 +75,8 @@ namespace kv
     ccf::NodeId self;
 
   public:
-    NullReplicator(std::shared_ptr<ccf::NodeToNode> n2n_channels_, ccf::NodeId self_) :
+    NullReplicator(
+      std::shared_ptr<ccf::NodeToNode> n2n_channels_, ccf::NodeId self_) :
       n2n_channels(n2n_channels_),
       i_am_leader(false),
       self(self_)
@@ -101,19 +102,8 @@ namespace kv
     void enable_all_domains() {}
     void resume_replication() {}
     void suspend_replication(Version) {}
-    void periodic(std::chrono::milliseconds elapsed)
-    {
-      if (i_am_leader)
-      {
-        std::vector<uint8_t> some_data;
-        n2n_channels->send_authenticated(
-          ccf::NodeMsgType::consensus_msg_raft, 1, some_data);
-      }
-    }
-    void recv_message(const uint8_t* data, size_t size)
-    {
-      // LOG_FAIL << "!!!!!!! RECEIVED SOMETHING !!!!" << std::endl;
-    }
+    void periodic(std::chrono::milliseconds elapsed) {}
+    void recv_message(const uint8_t* data, size_t size) {}
 
     void add_configuration(Version, std::unordered_set<NodeId> conf) {}
 

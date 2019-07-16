@@ -48,8 +48,6 @@ namespace pbft
       NodeId to = principal.pid();
       if (to == id)
       {
-        LOG_INFO << "Do not go through network if sending a message to yourself"
-                 << std::endl;
         auto data = (const uint8_t*)(msg->contents());
         message_receiver_base->receive_message(data, msg->size());
         return msg->size();
@@ -100,7 +98,7 @@ namespace pbft
     char* mem;
     std::unique_ptr<PbftEnclaveNetwork> pbft_network;
     std::unique_ptr<AbstractPbftConfig> pbft_config;
-    std::unique_ptr<ClientProxy<CallerId, void>> client_proxy;
+    std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
     kv::TxHistory::CallbackHandler on_request;
     enclave::RPCSessions& rpcsessions;
 
@@ -125,8 +123,8 @@ namespace pbft
 
       // configure replica
       GeneralInfo general_info;
-      general_info.num_replicas = 2;
-      general_info.num_clients = 0;
+      general_info.num_replicas = 1;
+      general_info.num_clients = 1;
       general_info.max_faulty = 0;
       general_info.service_name = "generic";
       general_info.auth_timeout = 1800000;
@@ -175,21 +173,23 @@ namespace pbft
       pbft_config->set_service_mem(mem + used_bytes);
       pbft_network->set_receiver(message_receiver_base);
 
+      Byz_start_replica();
+
       LOG_INFO_FMT("Setting up client proxy");
       client_proxy =
-        std::make_unique<ClientProxy<CallerId, void>>(*message_receiver_base);
+        std::make_unique<ClientProxy<kv::TxHistory::RequestID, void>>(
+          *message_receiver_base);
 
       auto cb = [](Reply* m, void* ctx) {
-        auto cp = static_cast<ClientProxy<CallerId, void>*>(ctx);
+        auto cp =
+          static_cast<ClientProxy<kv::TxHistory::RequestID, void>*>(ctx);
         cp->recv_reply(m);
       };
 
       message_receiver_base->register_reply_handler(cb, client_proxy.get());
 
       on_request = [&](kv::TxHistory::CallbackArgs args) {
-        auto caller = std::get<0>(args.id);
-        auto session = std::get<1>(args.id);
-        auto jsonrpc_id = std::get<2>(args.id);
+        auto jsonrpc_id = args.rid.jsonrpc_seq_no;
 
         auto total_req_size = pbft_config->message_size() + args.data.size();
 
@@ -199,32 +199,28 @@ namespace pbft
 
         auto rep_cb = [&](
                         void* owner,
-                        uint64_t caller_rid,
+                        kv::TxHistory::RequestID caller_rid,
                         int status,
                         uint8_t* reply,
                         size_t len) {
-          LOG_INFO << "Client proxy, rep_cb!!! " << caller_rid << std::endl;
 
-          // TODO: This does not work yet (for the first transaction) for some
-          // reason, it seems that the reply is empty and does not contain the
-          // right reply
+          LOG_INFO << fmt::format("Reply callback: {0}", caller_rid)
+                   << std::endl;
 
           // TODO: Session ID should be retrieved from the request ID
-          size_t session_id = 2;
 
-          LOG_INFO << "session id: " << session_id << std::endl;
+          LOG_INFO << "session id: " << caller_rid.session_id << std::endl;
           LOG_INFO << "reply_object size: " << len << std::endl;
 
-          // In the case of pending transactions (i.e. a full round of PBFT),
-          // the rpc context should be marked as pending
-          rpcsessions.reply_async(session_id, {reply, reply + len});
+          // TODO: In the case of pending transactions (i.e. a full round of
+          // PBFT), the rpc context should be marked as pending somewhere
+          // suitable?
+          rpcsessions.reply_async(caller_rid.session_id, {reply, reply + len});
         };
-
-        Time t = ITimer::current_time();
 
         LOG_INFO << "******** CLIENT PROXY, SENDING REQUEST " << std::endl;
         client_proxy->send_request(
-          t,
+          args.rid,
           request_buffer,
           sizeof(request_buffer),
           rep_cb,

@@ -61,13 +61,24 @@ namespace kv
   class TxHistory
   {
   public:
-    using RequestID = std::tuple<
-      size_t /* Caller ID */,
-      size_t /* Client Session ID */,
-      size_t /* JSON-RPC sequence number */>;
+    struct RequestID
+    {
+      uint64_t caller_id;
+      size_t session_id;
+      uint64_t jsonrpc_seq_no;
+
+      // TODO: We need this because RequestID is used a key of an ordered map in
+      // history.h. Perhaps change it to an unordered map instead?
+      bool operator<(const RequestID& other) const
+      {
+        // TODO: Terrible comparison for now
+        return caller_id < other.caller_id;
+      }
+    };
+
     struct CallbackArgs
     {
-      RequestID id;
+      RequestID rid;
       std::vector<uint8_t> data;
       Version version;
       uint64_t actor;

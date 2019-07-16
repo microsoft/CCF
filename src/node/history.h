@@ -49,9 +49,9 @@ namespace fmt
       return format_to(
         ctx.out(),
         "<RID {0}, {1}, {2}>",
-        std::get<0>(p),
-        std::get<1>(p),
-        std::get<2>(p));
+        p.caller_id,
+        p.session_id,
+        p.jsonrpc_seq_no);
     }
   };
 }

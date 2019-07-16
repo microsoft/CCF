@@ -397,9 +397,6 @@ namespace ccf
             accept_all_connections();
           }
           setup_raft(public_only);
-
-          // TODO: Do this for now so that node 1 knows about node 0
-          pbft->add_configuration({0, "hostname", "1258"});
           setup_store();
 
           if (public_only)
@@ -1114,7 +1111,6 @@ namespace ccf
           {
             case NodeStatus::PENDING:
             {
-              LOG_INFO << "Adding node " << node_id << std::endl;
               add_node(node_id, ni.value.host, ni.value.raftport);
               configure = true;
               break;

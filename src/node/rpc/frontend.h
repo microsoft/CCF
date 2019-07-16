@@ -566,7 +566,7 @@ namespace ccf
 
       // return jsonrpc::pack(rep.value(), jsonrpc::Pack::MsgPack);
 
-      // TODO: For now, assume that all RPC responses will come back from PBFT
+      // TODO: For now, assume that all RPC responses will come back from PBFT later
       ctx.is_pending = true;
       return {};
     }
