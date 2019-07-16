@@ -116,7 +116,7 @@ jobs:
       submodules: true
     - template: .vsts-ci-templates/build.yml
       parameters:
-        cmake_args: '-DBUILD_SMALLBANK=ON -DCURVE_CHOICE=secp256k1_bitcoin'
+        cmake_args: '-DBUILD_SMALLBANK=ON -DSERVICE_IDENTITY_CURVE_CHOICE=secp256k1_bitcoin'
     - template: .vsts-ci-templates/publish_build.yml
       parameters:
         artifact_name: perf_build_results

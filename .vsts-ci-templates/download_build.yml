@@ -11,3 +11,8 @@ steps:
     tar -xaf artifact.tar.gz
   displayName: Uncompress build artifact
   workingDirectory: build
+
+- task: CMake@1
+  displayName: Re-generate test metadata
+  inputs:
+    cmakeArgs: '..'
