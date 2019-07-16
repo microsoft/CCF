@@ -104,6 +104,9 @@ if(BUILD_TESTS)
   target_link_libraries(encryptor_test PRIVATE
     secp256k1.host)
 
+  add_unit_test(msgpack_serialization_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/msgpack_serialization.cpp)
+
   add_unit_test(tls_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
   target_link_libraries(tls_test PRIVATE

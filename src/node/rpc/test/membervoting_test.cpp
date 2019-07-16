@@ -119,6 +119,26 @@ auto read_params(const T& key, const string& table_name)
   return params;
 }
 
+nlohmann::json get_proposal(
+  enclave::RPCContext& rpc_ctx,
+  RpcFrontend& frontend,
+  size_t proposal_id,
+  CallerId as_member)
+{
+  Script read_proposal(fmt::format(
+    R"xxx(
+      tables = ...
+      return tables["proposals"]:get({})
+    )xxx",
+    proposal_id));
+
+  const auto readj = create_json_req(read_proposal, "query");
+
+  Store::Tx tx;
+  ccf::SignedReq sr(readj);
+  return frontend.process_json(rpc_ctx, tx, as_member, readj, sr).value();
+}
+
 std::vector<uint8_t> get_cert_data(uint64_t member_id, tls::KeyPairPtr& kp_mem)
 {
   std::vector<uint8_t> ca_mem =
@@ -269,13 +289,14 @@ TEST_CASE("Add new members until there are 7, then reject")
   constexpr auto max_members = 8;
   GenesisGenerator network;
   StubNodeState node;
-  // add three active members
+  // add three initial active members
   // the proposer
-  network.add_member(vector<uint8_t>(member_caller), MemberStatus::ACTIVE);
-  // the voter
-  vector<uint8_t> voter = get_cert_data(1, kp);
-  network.add_member(voter, MemberStatus::ACTIVE);
-  network.add_member(get_cert_data(2, kp), MemberStatus::ACTIVE);
+  auto proposer_id =
+    network.add_member(vector<uint8_t>(member_caller), MemberStatus::ACTIVE);
+
+  // the voters
+  auto voter_a = network.add_member(get_cert_data(1, kp), MemberStatus::ACTIVE);
+  auto voter_b = network.add_member(get_cert_data(2, kp), MemberStatus::ACTIVE);
 
   set_whitelists(network);
   network.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
@@ -289,6 +310,7 @@ TEST_CASE("Add new members until there are 7, then reject")
   {
     const auto proposal_id = i;
     new_member.id = initial_members + i++;
+
     // new member certificate
     auto v = tls::make_verifier(
       new_member.kp->self_sign(fmt::format("CN=new member{}", new_member.id)));
@@ -303,6 +325,7 @@ TEST_CASE("Add new members until there are 7, then reject")
       munpack(frontend.process(rpc_ctx, read_next_member_id)),
       ErrorCodes::INVALID_CALLER_ID);
 
+    // propose new member, as proposer
     Script proposal(R"xxx(
       local tables, member_cert = ...
       return Calls:call("new_member", member_cert)
@@ -315,49 +338,77 @@ TEST_CASE("Add new members until there are 7, then reject")
       Store::Tx tx;
       ccf::SignedReq sr(proposej);
       Response<Proposal::Out> r =
-        frontend.process_json(rpc_ctx, tx, 0, proposej, sr).value();
+        frontend.process_json(rpc_ctx, tx, proposer_id, proposej, sr).value();
+
       // the proposal should be accepted, but not succeed immediately
       CHECK(r.result.id == proposal_id);
       CHECK(r.result.completed == false);
     }
 
-    Script vote_ballot(R"xxx(
+    // read initial proposal, as second member
+    const Response<OpenProposal> initial_read =
+      get_proposal(rpc_ctx, frontend, proposal_id, voter_a);
+    CHECK(initial_read.result.proposer == proposer_id);
+    CHECK(initial_read.result.script == proposal);
+    CHECK(initial_read.result.parameter == new_member.cert);
+
+    // vote as second member
+    Script vote_ballot(fmt::format(
+      R"xxx(
         local tables, calls = ...
         local n = 0
         tables["members"]:foreach( function(k, v) n = n + 1 end )
-        if n < 8 then
+        if n < {} then
           return true
         else
           return false
         end
-        )xxx");
+      )xxx",
+      max_members));
 
     json votej =
       create_json_req_signed(Vote{proposal_id, vote_ballot}, "vote", kp);
 
-    // vote from second member
-    Store::Tx tx;
-    enclave::RPCContext mem_rpc_ctx(0, member_caller);
-    ccf::SignedReq sr(votej);
-    Response<bool> r =
-      frontend.process_json(mem_rpc_ctx, tx, 1, votej["req"], sr).value();
-    if (new_member.id < max_members)
     {
-      // vote should succeed
-      CHECK(r.result);
-      // check that member with the new new_member cert can make rpc's now
-      CHECK(
-        Response<int>(munpack(frontend.process(rpc_ctx, read_next_member_id)))
-          .result == new_member.id + 1);
-    }
-    else
-    {
-      // vote should not succeed
-      CHECK(!r.result);
-      // check that member with the new new_member cert can make rpc's now
-      check_error(
-        munpack(frontend.process(rpc_ctx, read_next_member_id)),
-        ErrorCodes::INVALID_CALLER_ID);
+      Store::Tx tx;
+      enclave::RPCContext mem_rpc_ctx(0, member_caller);
+      ccf::SignedReq sr(votej);
+      Response<bool> r =
+        frontend.process_json(mem_rpc_ctx, tx, voter_a, votej["req"], sr)
+          .value();
+
+      if (new_member.id < max_members)
+      {
+        // vote should succeed
+        CHECK(r.result);
+        // check that member with the new new_member cert can make rpc's now
+        CHECK(
+          Response<int>(munpack(frontend.process(rpc_ctx, read_next_member_id)))
+            .result == new_member.id + 1);
+
+        // successful proposals are removed from the kv, so we can't confirm
+        // their final state
+      }
+      else
+      {
+        // vote should not succeed
+        CHECK(!r.result);
+        // check that member with the new new_member cert can make rpc's now
+        check_error(
+          munpack(frontend.process(rpc_ctx, read_next_member_id)),
+          ErrorCodes::INVALID_CALLER_ID);
+
+        // re-read proposal, as second member
+        const Response<OpenProposal> final_read =
+          get_proposal(rpc_ctx, frontend, proposal_id, voter_a);
+        CHECK(final_read.result.proposer == proposer_id);
+        CHECK(final_read.result.script == proposal);
+        CHECK(final_read.result.parameter == new_member.cert);
+
+        const auto my_vote = final_read.result.votes.find(voter_a);
+        CHECK(my_vote != final_read.result.votes.end());
+        CHECK(my_vote->second == vote_ballot);
+      }
     }
   }
 
