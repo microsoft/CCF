@@ -101,17 +101,13 @@ namespace pbft
       if (!handler.has_value())
         throw std::logic_error("No frontend in pbft exec_command");
 
-      auto user_frontend = handler.value();
+      auto frontend = handler.value();
 
       // TODO: Also pass the transaction object and rpc_ctx used earlier on to
       // verify the caller/signature
-      auto rep = user_frontend->process_pbft(
+      auto rep = frontend->process_pbft(
         {request->get_data(),
          request->get_data() + request->get_size(inb->size)});
-
-      LOG_INFO << "After process_pbft, size of reply " << rep.size()
-               << std::endl;
-
 
       outb->size = rep.size();
       auto outb_ptr = (uint8_t*)outb->contents;

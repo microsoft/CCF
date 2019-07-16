@@ -73,9 +73,6 @@ namespace ccf
       Forwardable forwardable;
     };
 
-    // TODO: Remove this
-    uint64_t dummy_version = 0;
-
     Nodes* nodes;
     ClientSignatures* client_signatures;
     Certs* certs;
@@ -472,7 +469,6 @@ namespace ccf
       auto caller_id = valid_caller(tx, ctx.caller_cert);
       if (!caller_id.has_value())
       {
-        LOG_FAIL << "Caller is not valid" << std::endl;
         return jsonrpc::pack(
           jsonrpc::error_response(
             0,
@@ -480,8 +476,6 @@ namespace ccf
             "No corresponding caller entry exists."),
           ctx.pack.value());
       }
-      LOG_INFO << "CALLER ID: " << caller_id.value() << std::endl;
-
       auto rpc = unpack_json(input, ctx.pack.value());
 
       if (!rpc.first)
@@ -523,50 +517,6 @@ namespace ccf
         tx.set_req_id(reqid);
       }
 
-      // auto rep =
-      //   process_json(ctx, tx, caller_id.value(), unsigned_rpc,
-      //   signed_request);
-
-      // // If necessary, forward the RPC to the current leader
-      // if (!rep.has_value())
-      // {
-      //   if (raft != nullptr)
-      //   {
-      //     auto leader_id = raft->leader();
-      //     auto local_id = raft->id();
-
-      //     if (
-      //       leader_id != NoNode &&
-      //       cmd_forwarder->forward_command(
-      //         ctx, local_id, leader_id, caller_id.value(), input))
-      //     {
-      //       // Indicate that the RPC has been forwarded to leader
-      //       LOG_DEBUG_FMT("RPC forwarded to leader {}", leader_id);
-      //       ctx.is_pending = true;
-      //       return {};
-      //     }
-      //   }
-      //   return jsonrpc::pack(
-      //     jsonrpc::error_response(
-      //       0,
-      //       jsonrpc::ErrorCodes::RPC_NOT_FORWARDED,
-      //       "RPC could not be forwarded to leader."),
-      //     ctx.pack.value());
-      // }
-
-      // auto rv = jsonrpc::pack(rep.value(), ctx.pack.value());
-
-      // if (history)
-      //   history->add_response(reqid, rv);
-
-      // TODO: Remove this
-      // LOG_INFO << "About to process json" << std::endl;
-      // auto rep = process_json(
-      //   ctx, tx, caller_id.value(), unsigned_rpc, signed_request, false);
-
-      // return jsonrpc::pack(rep.value(), jsonrpc::Pack::MsgPack);
-
-      // TODO: For now, assume that all RPC responses will come back from PBFT later
       ctx.is_pending = true;
       return {};
     }
@@ -577,8 +527,6 @@ namespace ccf
       // the signature and the caller
       Store::Tx tx;
       enclave::RPCContext ctx(0, nullb, ccf::ActorsType::users);
-
-      LOG_INFO << "PROCESS PBFT of size " << input.size() << std::endl;
 
       // TODO: Handle packing based on original packing method
       auto pack_for_now = jsonrpc::Pack::MsgPack;
@@ -726,24 +674,24 @@ namespace ccf
 
       bool is_leader = (raft == nullptr) || raft->is_leader();
 
-      // if (!is_leader)
-      // {
-      //   switch (handler->rw)
-      //   {
-      //     case Read:
-      //       break;
+      if (!is_leader)
+      {
+        switch (handler->rw)
+        {
+          case Read:
+            break;
 
-      //     case Write:
-      //       return forward_or_redirect_json(ctx, handler->forwardable);
-      //       break;
+          case Write:
+            return forward_or_redirect_json(ctx, handler->forwardable);
+            break;
 
-      //     case MayWrite:
-      //       bool readonly = rpc.value(jsonrpc::READONLY, true);
-      //       if (!readonly)
-      //         return forward_or_redirect_json(ctx, handler->forwardable);
-      //       break;
-      //   }
-      // }
+          case MayWrite:
+            bool readonly = rpc.value(jsonrpc::READONLY, true);
+            if (!readonly)
+              return forward_or_redirect_json(ctx, handler->forwardable);
+            break;
+        }
+      }
 
       auto func = handler->func;
       auto args =
@@ -759,24 +707,6 @@ namespace ccf
 
           if (!tx_result.first)
             return jsonrpc::error_response(ctx.req.seq_no, tx_result.second);
-
-          // TODO: For now, do not modify the KV but still reply with the result
-          // of the execution
-          if (!actually_commit)
-          {
-            nlohmann::json result =
-              jsonrpc::result_response(ctx.req.seq_no, tx_result.second);
-
-            dummy_version++;
-            result[COMMIT] = dummy_version;
-            if (raft != nullptr)
-            {
-              result[TERM] = 2;
-              result[GLOBAL_COMMIT] = dummy_version;
-            }
-
-            return result;
-          }
 
           switch (tx.commit())
           {
