@@ -121,7 +121,7 @@ def run(args):
         # member 1 attempts to accept a proposal but should get insufficient rights
         # proposal number 4
         result = network.propose(1, primary, "accept_node", "--id=0")
-        assert result[1] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
+        assert result[1]["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
         # member 4 proposes to add member 3 as user
         result = network.propose(4, primary, "add_user", "--user_cert=member3_cert.pem")
