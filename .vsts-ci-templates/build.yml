@@ -12,12 +12,8 @@ steps:
   displayName: Ninja
   workingDirectory: build
 
-- script: ./tests.sh -N
-  displayName: Create Python venv
-  workingDirectory: build
-
 - script: |
-    tar -cavf artifact.tar.gz cchost CTestTestfile.cmake json_schema genesisgenerator merkle_mem raft_driver tests.sh *_test *_bench *client *.so.signed env/*
+    tar -cavf artifact.tar.gz cchost CTestTestfile.cmake json_schema genesisgenerator merkle_mem raft_driver tests.sh *_test *_bench *client *.so.signed
   displayName: Compress build artifact
   workingDirectory: build
 
