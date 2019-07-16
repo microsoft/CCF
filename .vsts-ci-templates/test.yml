@@ -4,6 +4,10 @@ parameters:
   artifact_name: ''
 
 steps:
+- script: |
+    rm -rf build
+  displayName: Remove old build directory
+
 - task: DownloadPipelineArtifact@1
   inputs:
     artifactName: ${{ parameters.artifact_name }}
