@@ -246,9 +246,17 @@ void display_proposals(RpcTlsClient& tls_connection)
   auto params = query_params(read_proposals);
   Response<json> response =
     json::from_msgpack(tls_connection.call("query", params));
-  cout << "Displaying all pending proposals: " << endl;
-  cout << endl;
-  display(response.result);
+
+  if (response.result.empty())
+  {
+    cout << "There are no pending proposals" << endl;
+  }
+  else
+  {
+    cout << "Displaying all pending proposals: " << endl;
+    cout << endl;
+    display(response.result);
+  }
 }
 
 void submit_ack(
