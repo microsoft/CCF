@@ -321,8 +321,17 @@ class Network:
         )
         return j_result["result"]
 
-    def propose_retire_node(self, member_id=1, remote_node=None):
-        j_result = self.propose("retire_node")
+    def propose_retire_node(self, member_id, remote_node, node_id):
+        return self.propose(member_id, remote_node, "retire_node", f"--id={node_id}")
+
+    def retire_node(self, member_id, remote_node, node_id):
+        result = self.propose_retire_node(1, remote_node, node_id)
+        proposal_id = result[1]["id"]
+        result = self.vote_using_majority(remote_node, proposal_id, True)
+
+        with remote_node.member_client() as c:
+            id = c.request("read", {"table": "nodes", "key": node_id})
+            assert c.response(id).result["status"].decode() == "RETIRED"
 
     def genesis_generator(self, args):
         gen = ["./genesisgenerator", "tx"]
