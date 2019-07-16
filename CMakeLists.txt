@@ -2,6 +2,8 @@
 # Licensed under the Apache 2.0 License.
 cmake_minimum_required(VERSION 3.11)
 
+add_definitions(-DOE_API_VERSION=2)
+
 set(CCF_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 include(${CCF_DIR}/cmake/preproject.cmake)
 
