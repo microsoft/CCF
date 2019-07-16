@@ -14,6 +14,10 @@ steps:
   displayName: Uncompress build artifact
   workingDirectory: build
 
+- script: cmake ..
+  displayName: Re-generate test metadata
+  workingDirectory: build
+
 - script: |
     ./tests.sh -VV --timeout 240 --no-compress-output -T Test ${{ parameters.ctest_filter }}
   displayName: CTest
