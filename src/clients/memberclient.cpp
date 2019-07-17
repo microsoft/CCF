@@ -100,22 +100,6 @@ auto read_params(const T& key, const string& table_name)
   return params;
 }
 
-void display(const json& proposals)
-{
-  for (auto it = proposals.begin(); it != proposals.end(); ++it)
-  {
-    cout << "------ Proposal ------" << endl;
-    cout << "-- Proposal id: " << it.key() << endl;
-    OpenProposal op = it.value();
-    cout << "-- Proposer id: " << op.proposer << endl;
-    cout << "-- Script: " << json(op.script) << endl;
-    cout << "-- Parameter: " << op.parameter << endl;
-    cout << "-- Votes: " << json(op.votes) << endl;
-    cout << "----------------------" << endl;
-    cout << endl;
-  }
-}
-
 template <size_t SZ>
 void hex_str_to_bytes(const std::string& src, std::array<uint8_t, SZ>& dst)
 {
@@ -246,17 +230,8 @@ void display_proposals(RpcTlsClient& tls_connection)
   auto params = query_params(read_proposals);
   Response<json> response =
     json::from_msgpack(tls_connection.call("query", params));
-
-  if (response.result.empty())
-  {
-    cout << "There are no pending proposals" << endl;
-  }
-  else
-  {
-    cout << "Displaying all pending proposals: " << endl;
-    cout << endl;
-    display(response.result);
-  }
+  cout << endl;
+  cout << response.result;
 }
 
 void submit_ack(

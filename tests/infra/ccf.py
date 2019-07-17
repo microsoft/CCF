@@ -95,6 +95,7 @@ class Network:
         self.nodes = []
         self.members = []
         self.hosts = hosts
+        self.net_cert = []
         if create_nodes:
             for local_node_id, host in enumerate(hosts):
                 local_node_id_ = local_node_id + node_offset
@@ -153,12 +154,10 @@ class Network:
         self.genesis_generator(args)
 
         primary = self.nodes[0]
-        primary.start_network()
-
-        self.generate_join_rpc(primary)
+        primary.start_network(self)
 
         for node in self.nodes[1:]:
-            node.join_network()
+            node.join_network(self)
 
         primary.network_state = NodeNetworkState.joined
 
@@ -265,34 +264,77 @@ class Network:
                 "./genesisgenerator", "cert", "--name={}".format(u)
             ).check_returncode()
 
-    def vote_using_majority(self, proposal_id, accept, member_id=1, remote_node=None):
-        member_count = int(len(self.members) / 2 + 1)
-        for i, member in enumerate(self.members):
-            if i >= member_count:
-                break
-            res = self.vote(proposal_id, accept, member, remote_node)
-            if res:
-                break
-
-    def vote(self, proposal_id, accept, member_id=1, remote_node=None):
+    def member_client_rpc_as_json(self, member_id, remote_node, *args):
         if remote_node is None:
             remote_node = self.find_leader()[0]
 
         result = infra.proc.ccall(
             "./memberclient",
-            "vote",
             f"--cert=member{member_id}_cert.pem",
             f"--privk=member{member_id}_privk.pem",
             f"--host={remote_node.host}",
             f"--port={remote_node.tls_port}",
-            f"--id={proposal_id}",
             "--ca=networkcert.pem",
-            "--sign",
-            "--accept" if accept else "--reject",
+            *args,
+        )
+        j_result = json.loads(result.stdout)
+        return j_result
+
+    def propose(self, member_id, remote_node, proposal, *args):
+        j_result = self.member_client_rpc_as_json(
+            member_id, remote_node, proposal, *args
         )
 
-        j_result = json.loads(result.stdout)
-        return j_result["result"]
+        if j_result.get("error") is not None:
+            self.remove_last_node()
+            return (False, j_result["error"])
+
+        return (True, j_result["result"])
+
+    def vote_using_majority(self, remote_node, proposal_id, accept):
+        # There is no need to stop after n / 2 + 1 members have voted,
+        # but this could prove to be useful in detecting errors
+        # related to the voting mechanism
+        member_count = int(len(self.members) / 2 + 1)
+        for i, member in enumerate(self.members):
+            if i >= member_count:
+                break
+            res = self.vote(member, remote_node, proposal_id, accept)
+            assert res[0]
+            if res[1]:
+                break
+
+        assert res
+
+    def vote(self, member_id, remote_node, proposal_id, accept, force_unsigned=False):
+        j_result = self.member_client_rpc_as_json(
+            member_id,
+            remote_node,
+            "vote",
+            f"--id={proposal_id}",
+            "--accept" if accept else "--reject",
+            "--sign" if not force_unsigned else "--force-unsigned",
+        )
+        if j_result.get("error") is not None:
+            return (False, j_result["error"])
+        return (True, j_result["result"])
+
+    def propose_retire_node(self, member_id, remote_node, node_id):
+        return self.propose(member_id, remote_node, "retire_node", f"--id={node_id}")
+
+    def retire_node(self, member_id, remote_node, node_id):
+        result = self.propose_retire_node(member_id, remote_node, node_id)
+        proposal_id = result[1]["id"]
+        result = self.vote_using_majority(remote_node, proposal_id, True)
+
+        with remote_node.member_client() as c:
+            id = c.request("read", {"table": "nodes", "key": node_id})
+            assert c.response(id).result["status"].decode() == "RETIRED"
+
+    def propose_add_member(self, member_id, remote_node, new_member_cert):
+        return self.propose(
+            member_id, remote_node, "add_member", f"--member_cert={new_member_cert}"
+        )
 
     def genesis_generator(self, args):
         gen = ["./genesisgenerator", "tx"]
@@ -302,18 +344,6 @@ class Network:
             gen.append("--gov-script={}".format(args.gov_script))
         infra.proc.ccall(*gen).check_returncode()
         LOG.info("Created Genesis TX")
-
-    def generate_join_rpc(self, node):
-        gen = [
-            "./genesisgenerator",
-            "joinrpc",
-            "--host",
-            node.host,
-            "--port",
-            str(node.tls_port),
-        ]
-        infra.proc.ccall(*gen).check_returncode()
-        LOG.info("Created join network RPC")
 
     def nodes_json(self):
         nodes_json = [node.node_json for node in self.nodes]
@@ -641,7 +671,7 @@ class Node:
     def is_joined(self):
         return self.network_state == NodeNetworkState.joined
 
-    def start_network(self):
+    def start_network(self, network):
         infra.proc.ccall(
             "./client",
             "--host={}".format(self.host),
@@ -651,29 +681,25 @@ class Node:
             "--req=@startNetwork.json",
         ).check_returncode()
         LOG.info("Started Network")
+        with open("networkcert.pem", mode="rb") as cafile:
+            network.net_cert = list(cafile.read())
 
     def complete_join_network(self):
         LOG.info("Joining Network")
         self.network_state = NodeNetworkState.joined
 
-    def join_network_custom(self, host, tls_port, net_cert):
+    def join_network(self, network):
+        leader, term = network.find_leader()
         with self.management_client(format="json") as c:
             res = c.rpc(
                 "joinNetwork",
-                {"hostname": host, "service": str(tls_port), "network_cert": net_cert},
+                {
+                    "hostname": leader.host,
+                    "service": str(leader.tls_port),
+                    "network_cert": network.net_cert,
+                },
             )
             assert res.error is None
-        self.complete_join_network()
-
-    def join_network(self):
-        infra.proc.ccall(
-            "./client",
-            "--host={}".format(self.host),
-            "--port={}".format(self.tls_port),
-            "--ca={}".format(self.remote.pem),
-            "joinnetwork",
-            "--req=@joinNetwork.json",
-        ).check_returncode()
         self.complete_join_network()
 
     def set_recovery(self):
