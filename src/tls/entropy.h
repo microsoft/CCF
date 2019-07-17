@@ -66,7 +66,7 @@ namespace tls
 
   inline EntropyPtr create_entropy()
   {
-    if (false && use_drng)
+    if (use_drng)
     {
       if (!intel_drng_ptr)
         intel_drng_ptr = std::make_shared<IntelDRNG>();
