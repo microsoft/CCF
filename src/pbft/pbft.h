@@ -12,6 +12,7 @@
 #include "node/nodetypes.h"
 #include "node/rpc/jsonrpc.h"
 #include "pbft/pbft_config.h"
+#include "raft/ledgerenclave.h"
 
 #include <list>
 #include <memory>
@@ -93,7 +94,10 @@ namespace pbft
     };
 
   public:
-    Pbft(std::shared_ptr<ChannelProxy> channels_, NodeId id) :
+    Pbft(
+      std::shared_ptr<ChannelProxy> channels_,
+      std::shared_ptr<raft::LedgerEnclave> ledger_,
+      NodeId id) :
       local_id(id),
       channels(channels_)
     {
@@ -154,12 +158,38 @@ namespace pbft
       static auto client_proxy =
         std::make_unique<ClientProxy<CallerId, void>>(*message_receiver_base);
 
-      auto cb = [](Reply* m, void* ctx) {
+      auto reply_handler_cb = [](Reply* m, void* ctx) {
         auto cp = static_cast<ClientProxy<CallerId, void>*>(ctx);
         cp->recv_reply(m);
       };
+      message_receiver_base->register_reply_handler(
+        reply_handler_cb, client_proxy.get());
 
-      message_receiver_base->register_reply_handler(cb, client_proxy.get());
+      auto batch_committed_cb =
+        [](uint64_t batch_id, void* batch, uint32_t size, void* ctx) {
+          LOG_INFO << "Got batch committed callback" << std::endl;
+          auto ledger = static_cast<raft::LedgerEnclave*>(ctx);
+
+          struct LedgerEntry
+          {
+            uint64_t batch_id;
+            uint32_t size;
+            uint8_t data[0];
+          };
+
+          // TODO: This needs to be encrypted
+          std::vector<uint8_t> entry;
+          entry.resize(sizeof(LedgerEntry) + sizeof(uint64_t));
+          auto ledger_entry = reinterpret_cast<LedgerEntry*>(entry.data());
+
+          ledger_entry->batch_id = batch_id;
+          ledger_entry->size = size;
+          memcpy(ledger_entry->data, batch, size);
+
+          ledger->put_entry(entry);
+        };
+      message_receiver_base->register_batch_committed(
+        batch_committed_cb, ledger_.get());
 
       on_request = [&](kv::TxHistory::CallbackArgs args) {
         auto caller = std::get<0>(args.id);

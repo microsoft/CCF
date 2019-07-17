@@ -1237,7 +1237,10 @@ namespace ccf
 #ifdef PBFT
     void setup_pbft()
     {
-      pbft = std::make_shared<ConsensusPbft>(n2n_channels, self);
+      pbft = std::make_shared<ConsensusPbft>(
+        n2n_channels,
+        std::make_unique<raft::LedgerEnclave>(writer_factory),
+        self);
     }
 #endif
   };
