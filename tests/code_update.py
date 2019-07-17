@@ -25,55 +25,13 @@ def get_code_id(lib_path):
     return lines[0].split("=")[1]
 
 
-def vote_to_accept(primary, proposal_id):
-    # vote to accept the new code id
-    result = infra.proc.ccall(
-        "./memberclient",
-        "vote",
-        "--accept",
-        "--cert=member1_cert.pem",
-        "--privk=member1_privk.pem",
-        f"--host={primary.host}",
-        f"--port={primary.tls_port}",
-        f"--id={proposal_id}",
-        "--ca=networkcert.pem",
-        "--sign",
-    )
-    j_result = json.loads(result.stdout)
-    assert not j_result["result"]
-
-    result = infra.proc.ccall(
-        "./memberclient",
-        "vote",
-        "--accept",
-        "--cert=member2_cert.pem",
-        "--privk=member2_privk.pem",
-        f"--host={primary.host}",
-        f"--port={primary.tls_port}",
-        f"--id={proposal_id}",
-        "--ca=networkcert.pem",
-        "--sign",
-    )
-    j_result = json.loads(result.stdout)
-    assert j_result["result"]
-
-
-def add_new_code(primary, new_code_id):
+def add_new_code(network, primary, new_code_id):
     LOG.debug(f"New code id: {new_code_id}")
 
     # first propose adding the new code id
-    result = infra.proc.ccall(
-        "./memberclient",
-        "add_code",
-        "--cert=member1_cert.pem",
-        "--privk=member1_privk.pem",
-        f"--host={primary.host}",
-        f"--port={primary.tls_port}",
-        "--ca=networkcert.pem",
-        f"--new_code_id={new_code_id}",
-    )
+    result = network.propose(1, primary, "add_code", f"--new_code_id={new_code_id}")
 
-    vote_to_accept(primary, 0)
+    network.vote_using_majority(primary, result[1]["id"], True)
 
 
 def create_node_using_new_code(network, args):
@@ -108,7 +66,7 @@ def run(args):
             infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND,
         )
 
-        add_new_code(primary, new_code_id)
+        add_new_code(network, primary, new_code_id)
 
         new_nodes = set()
         old_nodes_count = len(network.nodes)

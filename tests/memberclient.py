@@ -47,248 +47,83 @@ def run(args):
         # propose to add a new member
         # proposal number 0
         infra.proc.ccall("./genesisgenerator", "cert", "--name=member4")
-        result = infra.proc.ccall(
-            "./memberclient",
-            "add_member",
-            "--cert=member1_cert.pem",
-            "--privk=member1_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--member_cert=member4_cert.pem",
-            "--ca=networkcert.pem",
-        )
+        result = network.propose_add_member(1, primary, "member4_cert.pem")
+
         # when proposal is added the proposal id and the result of running complete proposal are returned
-        j_result = json.loads(result.stdout)
-        assert not j_result["result"]["completed"]
-        assert j_result["result"]["id"] == 0
+        proposal_id = result[1]["id"]
+        assert not result[1]["completed"]
+        assert proposal_id == 0
 
         # display all proposals
-        infra.proc.ccall(
-            "./memberclient",
-            "proposal_display",
-            "--cert=member1_cert.pem",
-            "--privk=member1_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--ca=networkcert.pem",
-        )
+        network.member_client_rpc_as_json(1, primary, "proposal_display")
 
         # 2 out of 3 members vote to accept the new member so that that member can send its own proposals
-        result = infra.proc.ccall(
-            "./memberclient",
-            "vote",
-            "--accept",
-            "--cert=member1_cert.pem",
-            "--privk=member1_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--id=0",
-            "--ca=networkcert.pem",
-            "--sign",
-        )
-        j_result = json.loads(result.stdout)
-        assert not j_result["result"]
+        result = network.vote(1, primary, proposal_id, True)
+        assert result[0] and not result[1]
 
-        result = infra.proc.ccall(
-            "./memberclient",
-            "vote",
-            "--accept",
-            "--cert=member2_cert.pem",
-            "--privk=member2_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--id=0",
-            "--ca=networkcert.pem",
-            "--sign",
-        )
-        j_result = json.loads(result.stdout)
-        assert j_result["result"]
+        result = network.vote(2, primary, proposal_id, True)
+        assert result[0] and result[1]
 
         # member 4 try to make a proposal without having been accepted should get insufficient rights response
-        result = infra.proc.ccall(
-            "./memberclient",
-            "accept_node",
-            "--cert=member4_cert.pem",
-            "--privk=member4_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--id=0",
-            "--ca=networkcert.pem",
-        )  # id here is node id
-        j_result = json.loads(result.stdout)
-        assert (
-            j_result["error"]["code"]
-            == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
-        )
+        result = network.propose(4, primary, "accept_node", "--id=0")
+        assert result[1]["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
         # member 4 ack
-        result = infra.proc.ccall(
-            "./memberclient",
-            "ack",
-            "--cert=member4_cert.pem",
-            "--privk=member4_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--ca=networkcert.pem",
-        )
-        j_result = json.loads(result.stdout)
+        j_result = network.member_client_rpc_as_json(4, primary, "ack")
         assert j_result["result"]
 
         # member 4 is now active and sends an accept node proposal
         # proposal number 1
-        result = infra.proc.ccall(
-            "./memberclient",
-            "accept_node",
-            "--cert=member4_cert.pem",
-            "--privk=member4_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--id=0",
-            "--ca=networkcert.pem",
-        )  # id here is node id
-        j_result = json.loads(result.stdout)
-        assert not j_result["result"]["completed"]
-        assert j_result["result"]["id"] == 1
+        result = network.propose(4, primary, "accept_node", "--id=0")
+        assert not result[1]["completed"]
+        proposal_id = result[1]["id"]
+        assert proposal_id == 1
 
         # members vote to accept the node proposal
-        result = infra.proc.ccall(
-            "./memberclient",
-            "vote",
-            "--accept",
-            "--cert=member1_cert.pem",
-            "--privk=member1_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--id=1",
-            "--ca=networkcert.pem",
-            "--sign",
-        )
-        j_result = json.loads(result.stdout)
-        assert not j_result["result"]
+        result = network.vote(1, primary, proposal_id, True)
+        assert result[0] and not result[1]
 
         # result is true with just 2 votes because proposer implicit pro vote is assumed
-        result = infra.proc.ccall(
-            "./memberclient",
-            "vote",
-            "--accept",
-            "--cert=member2_cert.pem",
-            "--privk=member2_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--id=1",
-            "--ca=networkcert.pem",
-            "--sign",
-        )
-        j_result = json.loads(result.stdout)
-        assert j_result["result"]
+        result = network.vote(2, primary, proposal_id, True)
+        assert result[0] and result[1]
 
         # member 4 is makes a proposal and then removes it
         # proposal number 2
-        result = infra.proc.ccall(
-            "./memberclient",
-            "accept_node",
-            "--cert=member4_cert.pem",
-            "--privk=member4_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--id=1",
-            "--ca=networkcert.pem",
-        )
-        j_result = json.loads(result.stdout)
-        assert not j_result["result"]["completed"]
-        assert j_result["result"]["id"] == 2
+        result = network.propose(4, primary, "accept_node", "--id=1")
+        proposal_id = result[1]["id"]
+        assert not result[1]["completed"]
+        assert proposal_id == 2
 
-        result = infra.proc.ccall(
-            "./memberclient",
-            "removal",
-            "--cert=member4_cert.pem",
-            "--privk=member4_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--id=2",
-            "--ca=networkcert.pem",
-        )
-        j_result = json.loads(result.stdout)
+        j_result = network.member_client_rpc_as_json(4, primary, "removal", "--id=2")
         assert j_result["result"]
 
         # member 4 proposes to inactivate member 1 and other members vote yes
         # proposal number 3
-        result = infra.proc.ccall(
-            "./memberclient",
+        j_result = network.member_client_rpc_as_json(
+            4,
+            primary,
             "raw_puts",
-            "--cert=member4_cert.pem",
-            "--privk=member4_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
+            "raw_puts",
             "--script=query.lua",
             "--param=param.json",
-            "--ca=networkcert.pem",
         )
-        j_result = json.loads(result.stdout)
         assert not j_result["result"]["completed"]
         assert j_result["result"]["id"] == 3
 
-        result = infra.proc.ccall(
-            "./memberclient",
-            "vote",
-            "--accept",
-            "--cert=member3_cert.pem",
-            "--privk=member3_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--id=3",
-            "--ca=networkcert.pem",
-            "--sign",
-        )
-        j_result = json.loads(result.stdout)
-        assert not j_result["result"]
+        result = network.vote(3, primary, 3, True)
+        assert result[0] and not result[1]
 
-        result = infra.proc.ccall(
-            "./memberclient",
-            "vote",
-            "--accept",
-            "--cert=member2_cert.pem",
-            "--privk=member2_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--id=3",
-            "--ca=networkcert.pem",
-            "--sign",
-        )
-        j_result = json.loads(result.stdout)
-        assert j_result["result"]
+        result = network.vote(2, primary, 3, True)
+        assert result[0] and result[1]
 
         # member 1 attempts to accept a proposal but should get insufficient rights
         # proposal number 4
-        result = infra.proc.ccall(
-            "./memberclient",
-            "accept_node",
-            "--cert=member1_cert.pem",
-            "--privk=member1_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--id=0",
-            "--ca=networkcert.pem",
-        )  # id here is node id
-        j_result = json.loads(result.stdout)
-        assert (
-            j_result["error"]["code"]
-            == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
-        )
+        result = network.propose(1, primary, "accept_node", "--id=0")
+        assert result[1]["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
         # member 4 proposes to add member 3 as user
-        result = infra.proc.ccall(
-            "./memberclient",
-            "add_user",
-            "--cert=member4_cert.pem",
-            "--privk=member4_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--user_cert=member3_cert.pem",
-            "--ca=networkcert.pem",
-        )
-        j_result = json.loads(result.stdout)
-        assert not j_result["result"]["completed"]
+        result = network.propose(4, primary, "add_user", "--user_cert=member3_cert.pem")
+        assert not result[1]["completed"]
 
 
 if __name__ == "__main__":
