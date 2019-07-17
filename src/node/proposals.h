@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ds/json.h"
+#include "ds/msgpack_adaptor_nlohmann.h"
 #include "entities.h"
 #include "script.h"
 
@@ -70,21 +71,29 @@ namespace ccf
   DECLARE_REQUIRED_JSON_FIELDS(Proposal::In, script, parameter)
   DECLARE_REQUIRED_JSON_FIELDS(Proposal::Out, id, completed)
 
-  struct OpenProposal : public Proposal::In
+  struct OpenProposal
   {
-    MemberId proposer;
-    std::unordered_map<MemberId, Script> votes;
+    Script script = {};
+    nlohmann::json parameter = {};
+    MemberId proposer = {};
+    std::unordered_map<MemberId, Script> votes = {};
 
     OpenProposal() = default;
-    OpenProposal(MemberId proposer, Proposal::In proposal) :
-      Proposal::In(proposal),
-      proposer(proposer)
+    OpenProposal(const Script& s, const nlohmann::json& param, MemberId prop) :
+      script(s),
+      parameter(param),
+      proposer(prop)
     {}
 
-    MSGPACK_DEFINE(proposer, votes);
+    bool operator==(const OpenProposal& o) const
+    {
+      return script == o.script && parameter == o.parameter &&
+        proposer == o.proposer && votes == o.votes;
+    }
+
+    MSGPACK_DEFINE(script, parameter, proposer, votes);
   };
-  DECLARE_REQUIRED_JSON_FIELDS_WITH_BASE(
-    OpenProposal, Proposal::In, proposer, votes)
+  DECLARE_REQUIRED_JSON_FIELDS(OpenProposal, script, parameter, proposer, votes)
   using Proposals = Store::Map<ObjectId, OpenProposal>;
 
   struct ProposalAction

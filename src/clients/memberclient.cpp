@@ -230,7 +230,9 @@ void display_proposals(RpcTlsClient& tls_connection)
   auto params = query_params(read_proposals);
   Response<json> response =
     json::from_msgpack(tls_connection.call("query", params));
+  cout << endl;
   cout << response.result;
+}
 }
 
 void submit_ack(
