@@ -284,8 +284,8 @@ namespace ccf
         const auto in = args.params.get<Proposal::In>();
         const auto proposal_id = get_next_id(
           args.tx.get_view(this->network.values), ValueIds::NEXT_PROPOSAL_ID);
-        args.tx.get_view(this->network.proposals)
-          ->put(proposal_id, {args.caller_id, in});
+        const OpenProposal proposal(in.script, in.parameter, args.caller_id);
+        args.tx.get_view(this->network.proposals)->put(proposal_id, proposal);
         const bool completed = complete_proposal(args.tx, proposal_id);
         return jsonrpc::success<Proposal::Out>({proposal_id, completed});
       };
