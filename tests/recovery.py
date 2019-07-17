@@ -83,7 +83,7 @@ def wait_for_state(node, state):
         raise TimeoutError("Timed out waiting for public ledger to be read")
 
 
-def set_recovery_nodes(primary, followers):
+def set_recovery_nodes(network, primary, followers):
     """
     Create and send recovery transaction, with new network definition.
     """
@@ -92,6 +92,7 @@ def set_recovery_nodes(primary, followers):
     with primary.management_client() as c:
         id = c.request("setRecoveryNodes", recovery_rpc)
         r = c.response(id).result
+        network.net_cert = list(r)
         with open("networkcert.pem", "w") as nc:
             nc.write(r.decode())
 
@@ -136,11 +137,10 @@ def run(args):
                 check = infra.ccf.Checker()
 
                 wait_for_state(primary, b"awaitingRecovery")
-                set_recovery_nodes(primary, followers)
+                set_recovery_nodes(network, primary, followers)
 
-                network.generate_join_rpc(primary)
                 for node in followers:
-                    node.join_network()
+                    node.join_network(network)
 
                 LOG.success("Public CFTR started")
                 network.wait_for_node_commit_sync()

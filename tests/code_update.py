@@ -97,7 +97,8 @@ def run(args):
         }
 
         res, new_node = network.create_and_add_node(args.package, args, True)
-        new_node.join_network()
+        assert res
+        new_node.join_network(network)
 
         new_code_id = get_code_id(f"{args.patched_file_name}.so.signed")
 
@@ -109,9 +110,6 @@ def run(args):
 
         add_new_code(primary, new_code_id)
 
-        with open("networkcert.pem", mode="rb") as file:
-            net_cert = list(file.read())
-
         new_nodes = set()
         old_nodes_count = len(network.nodes)
         # add nodes using the same code id that failed earlier
@@ -119,7 +117,7 @@ def run(args):
             LOG.debug(f"Adding node using new code")
             res, new_node = network.create_and_add_node(args.patched_file_name, args)
             assert res
-            new_node.join_network()
+            new_node.join_network(network)
             new_nodes.add(new_node)
 
         network.wait_for_node_commit_sync()
@@ -137,9 +135,10 @@ def run(args):
         time.sleep(args.election_timeout * 6 / 1000)
 
         new_leader = network.find_leader()[0]
-        LOG.debug(f"Waiting, new_leader is {new_leader.node_id}")
+        LOG.debug(f"Waited, new_leader is {new_leader.node_id}")
         res, new_node = network.create_and_add_node(args.patched_file_name, args)
-        new_node.join_network_custom(new_leader.host, new_leader.tls_port, net_cert)
+        assert res
+        new_node.join_network(network)
         network.wait_for_node_commit_sync()
 
 

@@ -95,6 +95,7 @@ class Network:
         self.nodes = []
         self.members = []
         self.hosts = hosts
+        self.net_cert = []
         if create_nodes:
             for local_node_id, host in enumerate(hosts):
                 local_node_id_ = local_node_id + node_offset
@@ -153,12 +154,10 @@ class Network:
         self.genesis_generator(args)
 
         primary = self.nodes[0]
-        primary.start_network()
-
-        self.generate_join_rpc(primary)
+        primary.start_network(self)
 
         for node in self.nodes[1:]:
-            node.join_network()
+            node.join_network(self)
 
         primary.network_state = NodeNetworkState.joined
 
@@ -302,18 +301,6 @@ class Network:
             gen.append("--gov-script={}".format(args.gov_script))
         infra.proc.ccall(*gen).check_returncode()
         LOG.info("Created Genesis TX")
-
-    def generate_join_rpc(self, node):
-        gen = [
-            "./genesisgenerator",
-            "joinrpc",
-            "--host",
-            node.host,
-            "--port",
-            str(node.tls_port),
-        ]
-        infra.proc.ccall(*gen).check_returncode()
-        LOG.info("Created join network RPC")
 
     def nodes_json(self):
         nodes_json = [node.node_json for node in self.nodes]
@@ -641,7 +628,7 @@ class Node:
     def is_joined(self):
         return self.network_state == NodeNetworkState.joined
 
-    def start_network(self):
+    def start_network(self, network):
         infra.proc.ccall(
             "./client",
             "--host={}".format(self.host),
@@ -651,29 +638,25 @@ class Node:
             "--req=@startNetwork.json",
         ).check_returncode()
         LOG.info("Started Network")
+        with open("networkcert.pem", mode="rb") as cafile:
+            network.net_cert = list(cafile.read())
 
     def complete_join_network(self):
         LOG.info("Joining Network")
         self.network_state = NodeNetworkState.joined
 
-    def join_network_custom(self, host, tls_port, net_cert):
+    def join_network(self, network):
+        leader, term = network.find_leader()
         with self.management_client(format="json") as c:
             res = c.rpc(
                 "joinNetwork",
-                {"hostname": host, "service": str(tls_port), "network_cert": net_cert},
+                {
+                    "hostname": leader.host,
+                    "service": str(leader.tls_port),
+                    "network_cert": network.net_cert,
+                },
             )
             assert res.error is None
-        self.complete_join_network()
-
-    def join_network(self):
-        infra.proc.ccall(
-            "./client",
-            "--host={}".format(self.host),
-            "--port={}".format(self.tls_port),
-            "--ca={}".format(self.remote.pem),
-            "joinnetwork",
-            "--req=@joinNetwork.json",
-        ).check_returncode()
         self.complete_join_network()
 
     def set_recovery(self):
