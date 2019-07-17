@@ -1,23 +1,17 @@
 parameters:
   cmake_args: ''
-  artifact_name: ''
 
 steps:
+- script: |
+    cat /proc/cpuinfo
+  displayName: /proc/cpuinfo
+  condition: succeededOrFailed()
+
 - task: CMake@1
   displayName: CMake
   inputs:
-    cmakeArgs: '-GNinja -DTARGET=sgx .. ${{ parameters.cmake_args }}'
+    cmakeArgs: '-L -GNinja -DTARGET=sgx .. ${{ parameters.cmake_args }}'
 
 - script: ninja
   displayName: Ninja
   workingDirectory: build
-
-- script: |
-    tar -cavf artifact.tar.gz cchost CTestTestfile.cmake json_schema genesisgenerator merkle_mem raft_driver tests.sh *_test *_bench *client *.so.signed
-  displayName: Compress build artifact
-  workingDirectory: build
-
-- task: PublishPipelineArtifact@0
-  inputs:
-    artifactName: ${{ parameters.artifact_name }}
-    targetPath: build/artifact.tar.gz

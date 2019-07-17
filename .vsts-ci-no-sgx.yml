@@ -1,0 +1,112 @@
+trigger:
+  batch: true
+  branches:
+    include:
+      - "ci/*"
+  paths:
+    exclude:
+      - 'README.md'
+      - 'CCF-TECHNICAL-REPORT.pdf'
+      - 'Dockerfile'
+      - 'Doxyfile'
+      - 'THIRD_PARTY_NOTICES.txt'
+      - 'getting_started/'
+      - 'sphinx/'
+      - '.circleci/'
+      - '.github/'
+      - '.vsts-gh-pages.yml'
+      - 'LICENSE'
+
+pr:
+  autoCancel: true
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - '*'
+    exclude:
+      - 'README.md'
+      - 'CCF-TECHNICAL-REPORT.pdf'
+      - 'Dockerfile'
+      - 'Doxyfile'
+      - 'THIRD_PARTY_NOTICES.txt'
+      - 'getting_started/'
+      - 'sphinx/'
+      - '.circleci/'
+      - '.github/'
+      - '.vsts-gh-pages.yml'
+      - 'LICENSE'
+
+schedules:
+- cron: "0 3 * * Mon-Fri"
+  displayName: Daily morning build
+  branches:
+    include:
+    - master
+  always: true
+
+jobs:
+- job: Coverage
+  pool:
+    vmImage: 'ubuntu-16.04'
+  container:
+    image: ccfciteam/ccf-ci-18.04:latest
+    # Docker image is created with constrained network, unable to communicate
+    # with other nodes in end-to-end tests. Publishing the ports allows the
+    # nodes to communicate.
+    options: --publish-all
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
+
+    # Container initialization is expensive, so don't start separate container
+    # for static_checks. Piggy back them here
+    - script: find . -regex ".*\.sh$" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091
+      displayName: 'Shell Check'
+
+    - script: python3.7 notice-check.py
+      displayName: 'Check copyright notices'
+
+    - script: ./check-format.sh src
+      displayName: 'Check C++ code format'
+
+    - script: |
+        python3.7 -m venv env
+        source env/bin/activate
+        pip install black
+        black --check sphinx/ tests/ notice-check.py
+      displayName: 'Check Python code format'
+
+    # Actual coverage build steps starts here
+    - template: .vsts-ci-templates/build.yml
+      parameters:
+        cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DCOVERAGE=ON'
+
+    - template: .vsts-ci-templates/test.yml
+      parameters:
+        suite_name_suffix: 'coverage'
+
+    - script: ../tests/coverage/generate_coverage.sh
+      displayName: 'Push coverage'
+      workingDirectory: build
+
+- job: SAN
+  pool:
+    vmImage: 'ubuntu-16.04'
+  container:
+    image: ccfciteam/ccf-ci-18.04:latest
+    options: --publish-all
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
+      
+    - template: .vsts-ci-templates/build.yml
+      parameters:
+        cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DSAN=ON'
+
+    - template: .vsts-ci-templates/test.yml
+      parameters:
+        suite_name_suffix: 'san'
