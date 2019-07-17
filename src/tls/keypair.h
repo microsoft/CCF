@@ -39,7 +39,7 @@ namespace tls
 
   using HashBytes = std::vector<uint8_t>;
 
-  std::string str_err(int err)
+  inline std::string str_err(int err)
   {
     constexpr size_t len = 100;
     char buf[len];
