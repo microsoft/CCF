@@ -233,7 +233,6 @@ void display_proposals(RpcTlsClient& tls_connection)
   cout << endl;
   cout << response.result;
 }
-}
 
 void submit_ack(
   RpcTlsClient& tls_connection,
