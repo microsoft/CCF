@@ -306,7 +306,8 @@ int main(int argc, char** argv)
   auto vote = app.add_subcommand("vote", "Accept a proposal");
   vote->add_option("--script", vote_file, "Vote lua script")
     ->check(CLI::ExistingFile);
-  vote->add_option("--proposal-id", proposal_id, "The proposal id")->required(true);
+  vote->add_option("--proposal-id", proposal_id, "The proposal id")
+    ->required(true);
   vote->add_flag("--accept", accept, "Accept the proposal");
   vote->add_flag("--reject", reject, "Reject the proposal");
 
