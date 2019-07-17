@@ -60,7 +60,7 @@ def run(args):
             infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND,
         )
 
-        new_node.join_network()
+        new_node.join_network(network)
         network.wait_for_node_commit_sync()
 
         # retire a node

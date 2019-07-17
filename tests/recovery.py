@@ -138,9 +138,8 @@ def run(args):
                 wait_for_state(primary, b"awaitingRecovery")
                 set_recovery_nodes(primary, followers)
 
-                network.generate_join_rpc(primary)
                 for node in followers:
-                    node.join_network()
+                    node.join_network(network)
 
                 LOG.success("Public CFTR started")
                 network.wait_for_node_commit_sync()

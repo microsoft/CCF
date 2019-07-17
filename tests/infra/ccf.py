@@ -155,10 +155,8 @@ class Network:
         primary = self.nodes[0]
         primary.start_network()
 
-        self.generate_join_rpc(primary)
-
         for node in self.nodes[1:]:
-            node.join_network()
+            node.join_network(self)
 
         primary.network_state = NodeNetworkState.joined
 
@@ -302,18 +300,6 @@ class Network:
             gen.append("--gov-script={}".format(args.gov_script))
         infra.proc.ccall(*gen).check_returncode()
         LOG.info("Created Genesis TX")
-
-    def generate_join_rpc(self, node):
-        gen = [
-            "./genesisgenerator",
-            "joinrpc",
-            "--host",
-            node.host,
-            "--port",
-            str(node.tls_port),
-        ]
-        infra.proc.ccall(*gen).check_returncode()
-        LOG.info("Created join network RPC")
 
     def nodes_json(self):
         nodes_json = [node.node_json for node in self.nodes]
@@ -656,24 +642,20 @@ class Node:
         LOG.info("Joining Network")
         self.network_state = NodeNetworkState.joined
 
-    def join_network_custom(self, host, tls_port, net_cert):
+    def join_network(self, network):
+        leader, term = network.find_leader()
+        with open("networkcert.pem", mode="rb") as cafile:
+            net_cert = list(cafile.read())
         with self.management_client(format="json") as c:
             res = c.rpc(
                 "joinNetwork",
-                {"hostname": host, "service": str(tls_port), "network_cert": net_cert},
+                {
+                    "hostname": leader.host,
+                    "service": str(leader.tls_port),
+                    "network_cert": net_cert,
+                },
             )
             assert res.error is None
-        self.complete_join_network()
-
-    def join_network(self):
-        infra.proc.ccall(
-            "./client",
-            "--host={}".format(self.host),
-            "--port={}".format(self.tls_port),
-            "--ca={}".format(self.remote.pem),
-            "joinnetwork",
-            "--req=@joinNetwork.json",
-        ).check_returncode()
         self.complete_join_network()
 
     def set_recovery(self):
