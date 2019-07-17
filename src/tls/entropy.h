@@ -61,7 +61,7 @@ namespace tls
 
     void* get_data() override
     {
-      return this;
+      return &entropy;
     }
   };
 
