@@ -95,6 +95,7 @@ class Network:
         self.nodes = []
         self.members = []
         self.hosts = hosts
+        self.net_cert = []
         if create_nodes:
             for local_node_id, host in enumerate(hosts):
                 local_node_id_ = local_node_id + node_offset
@@ -153,7 +154,7 @@ class Network:
         self.genesis_generator(args)
 
         primary = self.nodes[0]
-        primary.start_network()
+        primary.start_network(self)
 
         for node in self.nodes[1:]:
             node.join_network(self)
@@ -627,7 +628,7 @@ class Node:
     def is_joined(self):
         return self.network_state == NodeNetworkState.joined
 
-    def start_network(self):
+    def start_network(self, network):
         infra.proc.ccall(
             "./client",
             "--host={}".format(self.host),
@@ -637,6 +638,8 @@ class Node:
             "--req=@startNetwork.json",
         ).check_returncode()
         LOG.info("Started Network")
+        with open("networkcert.pem", mode="rb") as cafile:
+            network.net_cert = list(cafile.read())
 
     def complete_join_network(self):
         LOG.info("Joining Network")
@@ -644,15 +647,13 @@ class Node:
 
     def join_network(self, network):
         leader, term = network.find_leader()
-        with open("networkcert.pem", mode="rb") as cafile:
-            net_cert = list(cafile.read())
         with self.management_client(format="json") as c:
             res = c.rpc(
                 "joinNetwork",
                 {
                     "hostname": leader.host,
                     "service": str(leader.tls_port),
-                    "network_cert": net_cert,
+                    "network_cert": network.net_cert,
                 },
             )
             assert res.error is None
