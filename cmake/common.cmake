@@ -246,14 +246,14 @@ set(CLIENT_MBEDTLS_LIBRARIES
 
 # The OE libraries must be listed in a specific order. Issue #887 on github
 set(ENCLAVE_LIBS
+  ccfcrypto.enclave
+  evercrypt.enclave
   lua.enclave
   ${OE_ENCLAVE_LIBRARY}
   ${OE_MBEDTLS_LIBRARIES}
   ${OE_ENCLAVE_LIBCXX}
   ${OE_ENCLAVE_LIBC}
   ${OE_ENCLAVE_CORE}
-  ccfcrypto.enclave
-  evercrypt.enclave
   secp256k1.enclave
 )
 
