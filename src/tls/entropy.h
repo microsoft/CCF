@@ -50,8 +50,7 @@ namespace tls
 
     static int rng(void* ctx, unsigned char* output, size_t len)
     {
-      MbedtlsEntropy* e = reinterpret_cast<MbedtlsEntropy*>(ctx);
-      return mbedtls_ctr_drbg_random(&e->drbg, output, len);
+      return mbedtls_ctr_drbg_random(ctx, output, len);
     }
 
     rng_func_t get_rng() override
@@ -61,13 +60,13 @@ namespace tls
 
     void* get_data() override
     {
-      return &entropy;
+      return &drbg;
     }
   };
 
   inline EntropyPtr create_entropy()
   {
-    if (use_drng)
+    if (false && use_drng)
     {
       if (!intel_drng_ptr)
         intel_drng_ptr = std::make_shared<IntelDRNG>();
