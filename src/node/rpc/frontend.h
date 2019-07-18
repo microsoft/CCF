@@ -513,7 +513,7 @@ namespace ccf
       reqid = {caller_id.value(), ctx.client_session_id, jsonrpc_id};
       if (history)
       {
-        if (!history->add_request(reqid, ctx.actor, input))
+        if (!history->add_request(reqid, ctx.actor, caller_id.value(), input))
         {
           LOG_FAIL_FMT("Adding request {} failed", jsonrpc_id);
           return jsonrpc::pack(
@@ -589,17 +589,25 @@ namespace ccf
       // verify the signature and the caller
       Store::Tx tx;
 
-      // TODO: Handle packing based on original packing method
-      auto pack_for_now = jsonrpc::Pack::MsgPack;
-
       // TODO: Handle caller id based on original caller id
       CallerId caller_id = 1;
 
-      auto rpc = unpack_json(input, pack_for_now);
+      auto pack = detect_pack(input);
+      if (!pack.has_value())
+        return jsonrpc::pack(
+          jsonrpc::error_response(
+            0, jsonrpc::ErrorCodes::INVALID_REQUEST, "Empty PBFT request."),
+          jsonrpc::Pack::Text);
+
+      LOG_INFO << "process_pbft: pack" << (int)pack.value() << std::endl;
+
+      auto rpc = unpack_json(input, pack.value());
+      if (!rpc.first)
+        return jsonrpc::pack(rpc.second, pack.value());
 
       SignedReq signed_request;
 
-      // TODO: Strip signature
+      // Strip signature
       auto rpc_ = &rpc.second;
       if (rpc_->find(jsonrpc::SIG) != rpc_->end())
       {
@@ -615,7 +623,7 @@ namespace ccf
       // if (history)
       //   history->add_response(reqid, rv);
 
-      return jsonrpc::pack(rep.value(), pack_for_now);
+      return jsonrpc::pack(rep.value(), pack.value());
     }
 
     /** Process a serialised input forwarded from another node

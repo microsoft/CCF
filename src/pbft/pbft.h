@@ -193,7 +193,11 @@ namespace pbft
 
         uint8_t request_buffer[total_req_size];
         pbft_config->fill_request(
-          request_buffer, total_req_size, args.data, args.actor);
+          request_buffer,
+          total_req_size,
+          args.data,
+          args.actor,
+          args.caller_id);
 
         auto rep_cb = [&](
                         void* owner,

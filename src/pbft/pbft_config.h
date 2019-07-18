@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "libbyz/libbyz.h"
 #include "libbyz/pbft_assert.h"
-#include "pbft/pbft_deps.h"
+#include "pbft_deps.h"
 
 namespace pbft
 {
@@ -18,7 +18,8 @@ namespace pbft
       uint8_t* buffer,
       size_t total_req_size,
       const std::vector<uint8_t>& data,
-      uint64_t actor) = 0;
+      uint64_t actor,
+      uint64_t caller_id) = 0;
   };
 
   char* AbstractPbftConfig::service_mem = 0;
@@ -50,9 +51,11 @@ namespace pbft
       uint8_t* buffer,
       size_t total_req_size,
       const std::vector<uint8_t>& data,
-      uint64_t actor) override
+      uint64_t actor,
+      uint64_t caller_id) override
     {
       serialized::write(buffer, total_req_size, actor);
+      serialized::write(buffer, total_req_size, caller_id);
       serialized::write(buffer, total_req_size, data.data(), data.size());
     }
 
@@ -62,6 +65,7 @@ namespace pbft
     struct ccf_req
     {
       ccf::ActorsType actor;
+      uint64_t caller_id;
 
       uint8_t* get_data()
       {
@@ -97,9 +101,9 @@ namespace pbft
 
       auto frontend = handler.value();
 
-      // TODO: Also pass the transaction object and rpc_ctx used earlier on to
-      // verify the caller/signature
-      enclave::RPCContext ctx(0, nullb, request->actor);
+      // TODO: For now, re-use the RPCContext for forwarded commands.
+      // Eventually, the two process_() commands will be refactored accordingly.
+      enclave::RPCContext ctx(0, 0, request->caller_id);
 
       auto rep = frontend->process_pbft(
         ctx,

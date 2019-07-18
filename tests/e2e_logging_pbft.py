@@ -48,7 +48,10 @@ def run(args):
                 LOG.debug("Write/Read large messages on leader")
                 with primary.user_client(format="json") as c:
                     id = 44
-                    for p in range(14, 20):
+                    # For larger values of p, PBFT crashes since the size of the
+                    # request is bigger than the max size supported by PBFT
+                    # (Max_message_size)
+                    for p in range(10, 13):
                         long_msg = "X" * (2 ** p)
                         check_commit(
                             c.rpc("LOG_record", {"id": id, "msg": long_msg}),

@@ -145,6 +145,7 @@ namespace ccf
     bool add_request(
       kv::TxHistory::RequestID id,
       uint64_t actor,
+      CallerId caller_id,
       const std::vector<uint8_t>& request) override
     {
       return true;
@@ -359,6 +360,7 @@ namespace ccf
     bool add_request(
       kv::TxHistory::RequestID id,
       uint64_t actor,
+      CallerId caller_id,
       const std::vector<uint8_t>& request) override
     {
       LOG_DEBUG << fmt::format("HISTORY: add_request {0}", id) << std::endl;
@@ -367,7 +369,7 @@ namespace ccf
       if (!on_request.has_value())
         return false;
 
-      return on_request.value()({id, request, -1, actor});
+      return on_request.value()({id, request, -1, actor, caller_id});
     }
 
     void add_result(
