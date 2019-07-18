@@ -8,6 +8,8 @@ steps:
   condition: succeededOrFailed()
 
 - script: |
+    mkdir build
+    cd build
     cmake -L -GNinja -DTARGET=sgx .. ${{ parameters.cmake_args }}
   displayName: CMake
 
