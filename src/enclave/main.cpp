@@ -20,7 +20,6 @@ extern "C"
     uint8_t* quote,
     size_t quote_size,
     size_t* quote_len,
-    size_t node_id,
     bool recover)
   {
     std::lock_guard<SpinLock> guard(create_lock);
@@ -43,7 +42,6 @@ extern "C"
       quote,
       quote_size,
       quote_len,
-      node_id,
       recover);
 
     return ret;

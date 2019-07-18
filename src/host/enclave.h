@@ -79,7 +79,6 @@ namespace host
       const EnclaveConfig& config,
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& quote,
-      size_t node_id,
       bool recover)
     {
       bool ret;
@@ -96,7 +95,6 @@ namespace host
         quote.data(),
         quote.size(),
         &quote_len,
-        node_id,
         recover);
 
       if (err != OE_OK)

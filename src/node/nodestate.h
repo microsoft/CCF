@@ -257,9 +257,9 @@ namespace ccf
       }
 
 #ifdef PBFT
-      // TODO(#PBFT): For now, node id set when the network is created and used
+      // TODO(#PBFT): For now, node id set when the node is created and used
       // to create PBFT
-      self = args.node_id;
+      self = 0;
       setup_pbft();
       setup_history();
 #endif

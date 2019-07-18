@@ -95,9 +95,6 @@ int main(int argc, char** argv)
   std::string ledger_file("ccf.ledger");
   app.add_option("--ledger-file", ledger_file, "Ledger file", true);
 
-  size_t node_id;
-  app.add_option("--id", node_id, "Node ID", true)->required(true);
-
   size_t raft_timeout = 100;
   app.add_option(
     "--raft-timeout-ms", raft_timeout, "Raft timeout in milliseconds", true);
@@ -261,7 +258,7 @@ int main(int argc, char** argv)
   config.debug_config = {memory_reserve_startup};
 #endif
 
-  enclave.create_node(config, node_cert, quote, node_id, start == "recover");
+  enclave.create_node(config, node_cert, quote, start == "recover");
 
   LOG_INFO_FMT("Created new node");
 

@@ -106,7 +106,6 @@ namespace ccf
   {
     struct In
     {
-      NodeId node_id;
       bool recover;
       size_t quote_max_size;
     };
