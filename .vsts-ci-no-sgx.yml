@@ -49,6 +49,9 @@ schedules:
 jobs:
 - job: Coverage
   pool: Ubuntu-1804-Non-SGX-Azure
+  container:
+    image: ccfciteam/ccf-ci-18.04:latest
+    options: --publish-all
   steps:
     - checkout: self
       clean: true
@@ -87,6 +90,9 @@ jobs:
 
 - job: SAN
   pool: Ubuntu-1804-Non-SGX-Azure
+  container:
+    image: ccfciteam/ccf-ci-18.04:latest
+    options: --publish-all
   steps:
     - checkout: self
       clean: true
