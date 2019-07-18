@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tlsendpoint.h"
+#include <http-parser/http_parser.h>
 
 namespace enclave
 {
@@ -20,7 +21,11 @@ namespace enclave
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
       msg_size(-1),
       count(0)
-    {}
+    {
+      http_parser_settings settings;
+      http_parser *parser = static_cast<http_parser *>(malloc(sizeof(http_parser)));
+      http_parser_init(parser, HTTP_REQUEST);
+    }
 
     void recv(const uint8_t* data, size_t size)
     {
