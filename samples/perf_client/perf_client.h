@@ -200,8 +200,6 @@ namespace client
     size_t latency_rounds = 1;
     size_t verbosity = 0;
     size_t generator_seed = 42u;
-    size_t warmup_index = 0;
-    size_t cooldown_index = 0;
 
     bool sign = false;
     bool no_create = false;
@@ -233,16 +231,12 @@ namespace client
 
     virtual timing::Results call_raw_batch(
       const std::shared_ptr<RpcTlsClient>& connection,
-      const PreparedTxs& txs,
-      bool measure_index)
+      const PreparedTxs& txs)
     {
       size_t read;
       size_t written;
-      bool is_recording = false;
-      timing::MeasureState state(timing::MeasureState::end);
 
-      init_state(measure_index, state, is_recording);
-
+      kick_off_timing();
       std::optional<size_t> end_highest_local_commit;
 
       // Repeat for each session
@@ -253,28 +247,8 @@ namespace client
 
         // Write everything
         while (written < txs.size())
-        {
-          if (
-            measure_index && state == timing::MeasureState::warmup &&
-            written >= warmup_index)
-          {
-            state = timing::MeasureState::measure;
-            is_recording = true;
-            kick_off_timing();
-          }
+          write(txs[written], read, written, connection);
 
-          write(txs[written], read, written, connection, is_recording);
-
-          if (
-            measure_index && state == timing::MeasureState::measure &&
-            written >= cooldown_index)
-          {
-            // stop counting now
-            state = timing::MeasureState::cooldown;
-            end_highest_local_commit = highest_local_commit;
-            is_recording = false;
-          }
-        }
 
         blocking_read(read, written, connection);
 
@@ -292,22 +266,6 @@ namespace client
       return timing_results;
     }
 
-    void init_state(
-      bool measure_index, timing::MeasureState& state, bool& is_recording)
-    {
-      if (measure_index)
-      {
-        std::cout << timing::timestamp() << "warmup index is: " << warmup_index
-                  << " and cooldown index is: " << cooldown_index << std::endl;
-        state = timing::MeasureState::warmup;
-      }
-      else
-      {
-        is_recording = true;
-        kick_off_timing();
-      }
-    }
-
     void kick_off_timing()
     {
       std::cout << timing::timestamp() << "About to begin timing" << std::endl;
@@ -319,18 +277,12 @@ namespace client
       const PreparedTx& tx,
       size_t& read,
       size_t& written,
-      const std::shared_ptr<RpcTlsClient>& connection,
-      bool is_recording)
+      const std::shared_ptr<RpcTlsClient>& connection)
     {
       // Record time of sent requests
       if (timing.has_value())
-      {
-        if (is_recording)
-        {
-          timing->record_send(tx.method, tx.rpc.id, tx.expects_commit);
-        }
-      }
-
+        timing->record_send(tx.method, tx.rpc.id, tx.expects_commit);
+      
       connection->write(tx.rpc.encoded);
       ++written;
 
@@ -528,17 +480,6 @@ namespace client
         "throughput and latency");
 
       app.add_option("--latency-rounds", latency_rounds);
-
-      app.add_option(
-        "--warmup",
-        warmup_index,
-        "Index of transactions after which we will start measuring time");
-      app.add_option(
-        "--cooldown",
-        cooldown_index,
-        "Index of transactions before total transactions for which we will "
-        "stop measuring time");
-
       app.add_flag("-v,-V,--verbose", verbosity);
 
       // Boolean flags
@@ -608,18 +549,11 @@ namespace client
     timing::Results send_all_prepared_transactions()
     {
       init_connection();
-      bool measure_index = false;
-      if (cooldown_index != 0 || warmup_index != 0)
-      {
-        max_writes_ahead = 1;
-        measure_index = true;
-        cooldown_index = prepared_txs.size() - cooldown_index;
-      }
 
       try
       {
         // ...send any transactions which were previously prepared
-        return call_raw_batch(rpc_connection, prepared_txs, measure_index);
+        return call_raw_batch(rpc_connection, prepared_txs);
       }
       catch (std::exception& e)
       {

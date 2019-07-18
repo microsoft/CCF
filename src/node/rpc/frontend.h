@@ -62,7 +62,7 @@ namespace ccf
     using CallerKey = std::vector<uint8_t>;
 
     // TODO: replace with an lru map
-    std::map<CallerId, std::shared_ptr<tls::Verifier>> verifiers;
+    std::map<CallerId, tls::VerifierPtr> verifiers;
 
     struct Handler
     {
@@ -508,6 +508,7 @@ namespace ccf
 
 #ifdef PBFT
       kv::TxHistory::RequestID reqid;
+
       update_history();
       size_t jsonrpc_id = unsigned_rpc[jsonrpc::ID];
       reqid = {caller_id.value(), ctx.client_session_id, jsonrpc_id};
@@ -535,7 +536,6 @@ namespace ccf
             "PBFT is not yet ready."),
           ctx.pack.value());
       }
-
       return {};
 #else
       auto rep =
@@ -866,9 +866,9 @@ namespace ccf
         auto v = verifiers.find(caller_id);
         if (v == verifiers.end())
         {
-          CallerKey key(caller);
+          CallerKey caller_cert(caller);
           verifiers.emplace(
-            std::make_pair(caller_id, std::make_shared<tls::Verifier>(key)));
+            std::make_pair(caller_id, tls::make_verifier(caller_cert)));
         }
         if (!verifiers[caller_id]->verify(
               signed_request.req, signed_request.sig))

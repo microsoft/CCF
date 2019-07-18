@@ -253,6 +253,8 @@ int main(int argc, char** argv)
 
     nlohmann::json response;
 
+    cout << fmt::format("Sending RPC to {}:{}", host, port) << endl;
+
     if (*start_network)
     {
       cout << "Starting network:" << endl;

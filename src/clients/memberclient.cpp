@@ -39,6 +39,11 @@ static const string accept_node_proposal(R"xxx(
       return Calls:call("accept_node", node_id)
     )xxx");
 
+static const string retire_node_proposal(R"xxx(
+      tables, node_id = ...
+      return Calls:call("retire_node", node_id)
+    )xxx");
+
 static const string vote_ballot_accept(R"xxx(
       tables, changes = ...
       return true)xxx");
@@ -95,22 +100,6 @@ auto read_params(const T& key, const string& table_name)
   return params;
 }
 
-void display(const json& proposals)
-{
-  for (auto it = proposals.begin(); it != proposals.end(); ++it)
-  {
-    cout << "------ Proposal ------" << endl;
-    cout << "-- Proposal id: " << it.key() << endl;
-    OpenProposal op = it.value();
-    cout << "-- Proposer id: " << op.proposer << endl;
-    cout << "-- Script: " << json(op.script) << endl;
-    cout << "-- Parameter: " << op.parameter << endl;
-    cout << "-- Votes: " << json(op.votes) << endl;
-    cout << "----------------------" << endl;
-    cout << endl;
-  }
-}
-
 template <size_t SZ>
 void hex_str_to_bytes(const std::string& src, std::array<uint8_t, SZ>& dst)
 {
@@ -130,8 +119,8 @@ void add_new(
   RpcTlsClient& tls_connection, const string& cert_file, const string& proposal)
 {
   const auto cert = slurp(cert_file);
-  const auto params =
-    proposal_params(proposal, tls::Verifier(cert).raw_cert_data());
+  auto verifier = tls::make_verifier(cert);
+  const auto params = proposal_params(proposal, verifier->raw_cert_data());
   const auto response =
     json::from_msgpack(tls_connection.call("propose", params));
   cout << response.dump() << endl;
@@ -159,6 +148,14 @@ void submit_accept_code(RpcTlsClient& tls_connection, std::string& new_code_id)
   cout << response.dump() << endl;
 }
 
+void submit_retire_node(RpcTlsClient& tls_connection, NodeId node_id)
+{
+  auto params = proposal_params<NodeId>(retire_node_proposal, node_id);
+  const auto response =
+    json::from_msgpack(tls_connection.call("propose", params));
+  cout << response.dump() << endl;
+}
+
 NodeId submit_add_node(RpcTlsClient& tls_connection, NodeInfo& node_info)
 {
   const auto response =
@@ -167,10 +164,14 @@ NodeId submit_add_node(RpcTlsClient& tls_connection, NodeInfo& node_info)
   cout << response.dump() << endl;
 
   auto result = response.find("result");
-  if (result != response.end())
-    return result->get<NodeId>();
+  if (result == response.end())
+    return INVALID_NODE_ID;
 
-  return INVALID_NODE_ID;
+  auto ret_id = result->find("id");
+  if (ret_id == result->end())
+    return INVALID_NODE_ID;
+
+  return *ret_id;
 }
 
 void submit_accept_recovery(
@@ -229,9 +230,8 @@ void display_proposals(RpcTlsClient& tls_connection)
   auto params = query_params(read_proposals);
   Response<json> response =
     json::from_msgpack(tls_connection.call("query", params));
-  cout << "Displaying all pending proposals: " << endl;
   cout << endl;
-  display(response.result);
+  cout << response.result;
 }
 
 void submit_ack(
@@ -240,9 +240,9 @@ void submit_ack(
   const vector<uint8_t>& raw_key)
 {
   // member using its own certificate reads its member id
-  tls::Verifier verifier(raw_cert);
+  auto verifier = tls::make_verifier(raw_cert);
   Response<ObjectId> read_id = json::from_msgpack(tls_connection.call(
-    "read", read_params(verifier.raw_cert_data(), "membercerts")));
+    "read", read_params(verifier->raw_cert_data(), "membercerts")));
   const auto member_id = read_id.result;
 
   // member reads nonce
@@ -250,8 +250,8 @@ void submit_ack(
     tls_connection.call("read", read_params(member_id, "memberacks")));
 
   // member signs nonce and sends ack
-  tls::KeyPair kp(raw_key);
-  const auto sig = kp.sign_hash(crypto::Sha256Hash{read_ack.result.next_nonce});
+  auto kp = tls::make_key_pair(raw_key);
+  const auto sig = kp->sign(read_ack.result.next_nonce);
   const auto response =
     json::from_msgpack(tls_connection.call("ack", ack_params(sig)));
   cout << response << endl;
@@ -306,7 +306,8 @@ int main(int argc, char** argv)
   auto vote = app.add_subcommand("vote", "Accept a proposal");
   vote->add_option("--script", vote_file, "Vote lua script")
     ->check(CLI::ExistingFile);
-  vote->add_option("--id", proposal_id, "The proposal id")->required(true);
+  vote->add_option("--proposal-id", proposal_id, "The proposal id")
+    ->required(true);
   vote->add_flag("--accept", accept, "Accept the proposal");
   vote->add_flag("--reject", reject, "Reject the proposal");
 
@@ -338,7 +339,10 @@ int main(int argc, char** argv)
 
   NodeId node_id;
   auto accept_node = app.add_subcommand("accept_node", "Make a node trusted");
-  accept_node->add_option("--id", node_id, "The node id")->required(true);
+  accept_node->add_option("--node-id", node_id, "The node id")->required(true);
+
+  auto retire_node = app.add_subcommand("retire_node", "Make a node retired");
+  retire_node->add_option("--node-id", node_id, "The node id")->required(true);
 
   string param_file;
   string script_file;
@@ -419,6 +423,11 @@ int main(int argc, char** argv)
     if (*accept_node)
     {
       submit_accept_node(*tls_connection, node_id);
+    }
+
+    if (*retire_node)
+    {
+      submit_retire_node(*tls_connection, node_id);
     }
 
     if (*raw_puts)

@@ -23,16 +23,14 @@ def has_notice(path):
         for prefix in PREFIXES:
             if text.startswith(prefix):
                 return True
-        else:
-            return False
+    return False
 
 
 def is_src(name):
     for suffix in [".c", ".cpp", ".h", ".hpp", ".py", ".sh", ".lua"]:
         if name.endswith(suffix):
             return True
-    else:
-        return False
+    return False
 
 
 def submodules():

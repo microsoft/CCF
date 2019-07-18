@@ -25,55 +25,13 @@ def get_code_id(lib_path):
     return lines[0].split("=")[1]
 
 
-def vote_to_accept(primary, proposal_id):
-    # vote to accept the new code id
-    result = infra.proc.ccall(
-        "./memberclient",
-        "vote",
-        "--accept",
-        "--cert=member1_cert.pem",
-        "--privk=member1_privk.pem",
-        f"--host={primary.host}",
-        f"--port={primary.tls_port}",
-        f"--id={proposal_id}",
-        "--ca=networkcert.pem",
-        "--sign",
-    )
-    j_result = json.loads(result.stdout)
-    assert not j_result["result"]
-
-    result = infra.proc.ccall(
-        "./memberclient",
-        "vote",
-        "--accept",
-        "--cert=member2_cert.pem",
-        "--privk=member2_privk.pem",
-        f"--host={primary.host}",
-        f"--port={primary.tls_port}",
-        f"--id={proposal_id}",
-        "--ca=networkcert.pem",
-        "--sign",
-    )
-    j_result = json.loads(result.stdout)
-    assert j_result["result"]
-
-
-def add_new_code(primary, new_code_id):
+def add_new_code(network, primary, new_code_id):
     LOG.debug(f"New code id: {new_code_id}")
 
     # first propose adding the new code id
-    result = infra.proc.ccall(
-        "./memberclient",
-        "add_code",
-        "--cert=member1_cert.pem",
-        "--privk=member1_privk.pem",
-        f"--host={primary.host}",
-        f"--port={primary.tls_port}",
-        "--ca=networkcert.pem",
-        f"--new_code_id={new_code_id}",
-    )
+    result = network.propose(1, primary, "add_code", f"--new_code_id={new_code_id}")
 
-    vote_to_accept(primary, 0)
+    network.vote_using_majority(primary, result[1]["id"], True)
 
 
 def create_node_using_new_code(network, args):
@@ -96,10 +54,9 @@ def run(args):
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
 
-        res, new_node, new_node_id = network.create_and_add_node(
-            args.package, args, True
-        )
-        new_node.join_network()
+        res, new_node = network.create_and_add_node(args.package, args, True)
+        assert res
+        new_node.join_network(network)
 
         new_code_id = get_code_id(f"{args.patched_file_name}.so.signed")
 
@@ -109,21 +66,16 @@ def run(args):
             infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND,
         )
 
-        add_new_code(primary, new_code_id)
-
-        with open("networkcert.pem", mode="rb") as file:
-            net_cert = list(file.read())
+        add_new_code(network, primary, new_code_id)
 
         new_nodes = set()
         old_nodes_count = len(network.nodes)
         # add nodes using the same code id that failed earlier
         for i in range(0, old_nodes_count + 1):
             LOG.debug(f"Adding node using new code")
-            res, new_node, new_node_id = network.create_and_add_node(
-                args.patched_file_name, args
-            )
+            res, new_node = network.create_and_add_node(args.patched_file_name, args)
             assert res
-            new_node.join_network()
+            new_node.join_network(network)
             new_nodes.add(new_node)
 
         network.wait_for_node_commit_sync()
@@ -141,11 +93,10 @@ def run(args):
         time.sleep(args.election_timeout * 6 / 1000)
 
         new_leader = network.find_leader()[0]
-        LOG.debug(f"Waiting, new_leader is {new_leader.node_id}")
-        res, new_node, new_node_id = network.create_and_add_node(
-            args.patched_file_name, args
-        )
-        new_node.join_network_custom(new_leader.host, new_leader.tls_port, net_cert)
+        LOG.debug(f"Waited, new_leader is {new_leader.node_id}")
+        res, new_node = network.create_and_add_node(args.patched_file_name, args)
+        assert res
+        new_node.join_network(network)
         network.wait_for_node_commit_sync()
 
 

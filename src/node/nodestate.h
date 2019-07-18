@@ -108,7 +108,7 @@ namespace ccf
     SpinLock lock;
 
     NodeId self;
-    tls::KeyPair node_kp;
+    tls::KeyPairPtr node_kp;
     std::vector<uint8_t> node_cert;
     CodeDigest node_code_id;
 
@@ -163,6 +163,7 @@ namespace ccf
       enclave::RPCSessions& rpcsessions) :
       sm(State::uninitialized),
       self(INVALID_ID),
+      node_kp(tls::make_key_pair()),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
@@ -200,18 +201,19 @@ namespace ccf
       // Generate node key pair
       std::stringstream name;
       name << "CN=" << Actors::MANAGEMENT;
-      node_cert = node_kp.self_sign(name.str());
+      node_cert = node_kp->self_sign(name.str());
 
       // We present our self-signed certificate to the management frontend
       rpcsessions.add_cert(
-        Actors::MANAGEMENT, nullb, node_cert, node_kp.private_key());
+        Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key());
 
-      // Generate node quote
-      std::vector<uint8_t> quote(args.quote_max_size);
+      // Quotes should be initialised and non-empty
+      std::vector<uint8_t> quote{1};
 
 #ifdef GET_QUOTE
       crypto::Sha256Hash h{node_cert};
-      size_t quote_len = args.quote_max_size;
+      uint8_t* report;
+      size_t report_len = 0;
 
       // TODO(#important,#TR): The "alpha" parameters, including the unique
       // service identifier, should also be included in the quote.
@@ -221,15 +223,17 @@ namespace ccf
         h.SIZE,
         nullptr,
         0,
-        quote.data(),
-        &quote_len);
+        &report,
+        &report_len);
 
       if (res != OE_OK)
       {
         LOG_FAIL_FMT("Failed to get quote: {}", oe_result_str(res));
         return Fail<CreateNew::Out>("oe_get_report failed");
       }
-      quote.resize(quote_len);
+
+      quote.assign(report, report + report_len);
+      oe_free_report(report);
 
       // Set own code version
       oe_report_t parsed_quote = {0};
@@ -311,8 +315,8 @@ namespace ccf
       raft->replicate({{1, protected_tx0, true}});
 
       // Network signs tx0.
-      tls::KeyPair keys(network.secrets->get_current().priv_key);
-      auto tx0Sig = keys.sign(args.tx0);
+      auto keys = tls::make_key_pair(network.secrets->get_current().priv_key);
+      auto tx0Sig = keys->sign(args.tx0);
 
       // Sets itself as trusted.
       auto nodes_view = tx.get_view(network.nodes);
@@ -345,7 +349,7 @@ namespace ccf
       // Peer certificate needs to be signed by network certificate
       auto tls_ca = std::make_shared<tls::CA>(args.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
-        Actors::NODES, tls_ca, node_cert, node_kp.private_key(), nullb);
+        Actors::NODES, tls_ca, node_cert, node_kp->private_key(), nullb);
 
       // Create and connect to endpoint
       auto join_client =
@@ -432,7 +436,7 @@ namespace ccf
 
       // Generate fresh key to encrypt/decrypt historical network secrets sent
       // by the leader via the kv store
-      raw_fresh_key = tls::Entropy().random(crypto::GCM_SIZE_KEY);
+      raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
 
       // Send RPC request to remote node to join the network.
       jsonrpc::ProcedureCall<JoinNetworkNodeToNode::In> join_rpc;
@@ -564,9 +568,8 @@ namespace ccf
         return;
       }
 
-      // If the final recovery version has been reached, end recovery
       if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
-        network.tables->compact(ledger_idx);
+        recovery_store->compact(ledger_idx);
 
       if (recovery_store->current_version() == recovery_v)
       {
@@ -714,11 +717,8 @@ namespace ccf
           self = nid;
           LOG_INFO_FMT("Setting self to {}", self);
         }
-        tls::Verifier verifier(ni.cert);
-        certs_view->put(
-          {verifier.raw()->raw.p,
-           verifier.raw()->raw.p + verifier.raw()->raw.len},
-          nid);
+        auto verifier = tls::make_verifier(ni.cert);
+        certs_view->put(verifier->raw_cert_data(), nid);
       }
 
       LOG_INFO_FMT("Replaced nodes");
@@ -783,7 +783,7 @@ namespace ccf
       recovery_history = std::make_shared<MerkleTxHistory>(
         *recovery_store.get(),
         self,
-        node_kp,
+        *node_kp,
         *recovery_signature_map,
         *recovery_nodes_map);
 
@@ -864,7 +864,7 @@ namespace ccf
             crypto::GcmCipher gcmcipher(serial.value().size());
 
             // Get random IV
-            auto iv = tls::Entropy().random(gcmcipher.hdr.getIv().n);
+            auto iv = tls::create_entropy()->random(gcmcipher.hdr.getIv().n);
             std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
 
             joiner_key.encrypt(
@@ -997,12 +997,12 @@ namespace ccf
   private:
     void accept_member_connections()
     {
-      tls::KeyPair nw(network.secrets->get_current().priv_key);
-      tls::KeyPair members_keypair;
+      auto nw = tls::make_key_pair(network.secrets->get_current().priv_key);
+      auto members_keypair = tls::make_key_pair();
 
-      auto members_privkey = members_keypair.private_key();
+      auto members_privkey = members_keypair->private_key();
       auto members_cert =
-        nw.sign_csr(members_keypair.create_csr("CN=members"), "CN=The CA");
+        nw->sign_csr(members_keypair->create_csr("CN=members"), "CN=The CA");
 
       // Accept member connections.
       rpcsessions.add_cert(
@@ -1011,12 +1011,12 @@ namespace ccf
 
     void accept_node_connections()
     {
-      tls::KeyPair nw(network.secrets->get_current().priv_key);
-      tls::KeyPair nodes_keypair;
+      auto nw = tls::make_key_pair(network.secrets->get_current().priv_key);
+      auto nodes_keypair = tls::make_key_pair();
 
-      auto nodes_privkey = nodes_keypair.private_key();
+      auto nodes_privkey = nodes_keypair->private_key();
       auto nodes_cert =
-        nw.sign_csr(nodes_keypair.create_csr("CN=nodes"), "CN=The CA");
+        nw->sign_csr(nodes_keypair->create_csr("CN=nodes"), "CN=The CA");
 
       // Accept node connections.
       rpcsessions.add_cert(
@@ -1025,12 +1025,12 @@ namespace ccf
 
     void accept_user_connections()
     {
-      tls::KeyPair nw(network.secrets->get_current().priv_key);
-      tls::KeyPair users_keypair;
+      auto nw = tls::make_key_pair(network.secrets->get_current().priv_key);
+      auto users_keypair = tls::make_key_pair();
 
-      auto users_privkey = users_keypair.private_key();
+      auto users_privkey = users_keypair->private_key();
       auto users_cert =
-        nw.sign_csr(users_keypair.create_csr("CN=users"), "CN=The CA");
+        nw->sign_csr(users_keypair->create_csr("CN=users"), "CN=The CA");
 
       // Accept user connections.
       rpcsessions.add_cert(
@@ -1218,7 +1218,7 @@ namespace ccf
       history = std::make_shared<MerkleTxHistory>(
         *network.tables.get(),
         self,
-        node_kp,
+        *node_kp,
         network.signatures,
         network.nodes);
 

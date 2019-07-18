@@ -208,7 +208,7 @@ namespace pbft
           LOG_DEBUG_FMT("PBFT reply callback for {}", caller_rid);
 
           return rpcsessions.reply_async(
-            caller_rid.session_id, {reply, reply + len});
+            std::get<1>(caller_rid), {reply, reply + len});
         };
 
         LOG_DEBUG_FMT("PBFT sending request {}", args.rid);

@@ -116,7 +116,7 @@ public:
 };
 
 // used throughout
-tls::KeyPair kp;
+auto kp = tls::make_key_pair();
 ccf::NetworkState network;
 ccf::NetworkState network2;
 ccf::StubNodeState node;
@@ -124,7 +124,7 @@ ccf::StubNodeState node;
 std::vector<uint8_t> sign_json(nlohmann::json j)
 {
   auto contents = nlohmann::json::to_msgpack(j);
-  return kp.sign(contents);
+  return kp->sign(contents);
 }
 
 auto create_simple_json()
@@ -148,22 +148,22 @@ auto create_signed_json()
 }
 
 // caller used throughout
-auto ca = kp.self_sign("CN=name");
-tls::Verifier verifier(ca);
-auto user_caller = verifier.raw_cert_data();
+auto ca = kp -> self_sign("CN=name");
+auto verifier = tls::make_verifier(ca);
+auto user_caller = verifier -> raw_cert_data();
 
-auto ca_mem = kp.self_sign("CN=name_member");
-tls::Verifier verifier_mem(ca_mem);
-auto member_caller = verifier_mem.raw_cert_data();
+auto ca_mem = kp -> self_sign("CN=name_member");
+auto verifier_mem = tls::make_verifier(ca_mem);
+auto member_caller = verifier_mem -> raw_cert_data();
 
-auto ca_nos = kp.self_sign("CN=nostore_user");
-tls::Verifier verifier_nos(ca_nos);
-auto nos_caller = verifier_nos.raw_cert_data();
+auto ca_nos = kp -> self_sign("CN=nostore_user");
+auto verifier_nos = tls::make_verifier(ca_nos);
+auto nos_caller = verifier_nos -> raw_cert_data();
 
-tls::KeyPair kp_other;
-auto ca_inv = kp_other.self_sign("CN=name");
-tls::Verifier verifier_inv(ca_inv);
-auto invalid_caller = verifier_inv.raw_cert_data();
+auto kp_other = tls::make_key_pair();
+auto ca_inv = kp_other -> self_sign("CN=name");
+auto verifier_inv = tls::make_verifier(ca_inv);
+auto invalid_caller = verifier_inv -> raw_cert_data();
 
 enclave::RPCContext rpc_ctx(0, user_caller);
 enclave::RPCContext invalid_rpc_ctx(0, invalid_caller);

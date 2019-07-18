@@ -2,6 +2,8 @@
 # Licensed under the Apache 2.0 License.
 cmake_minimum_required(VERSION 3.11)
 
+add_definitions(-DOE_API_VERSION=2)
+
 set(CCF_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 include(${CCF_DIR}/cmake/preproject.cmake)
 
@@ -76,7 +78,8 @@ if(BUILD_TESTS)
   target_include_directories(raft_enclave_test PRIVATE
     ${CCFCRYPTO_INC})
   target_link_libraries(raft_enclave_test PRIVATE
-    ${CRYPTO_LIBRARY})
+    ${CRYPTO_LIBRARY}
+    secp256k1.host)
 
   add_unit_test(crypto_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp)
@@ -100,6 +103,9 @@ if(BUILD_TESTS)
   use_client_mbedtls(encryptor_test)
   target_link_libraries(encryptor_test PRIVATE
     secp256k1.host)
+
+  add_unit_test(msgpack_serialization_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/msgpack_serialization.cpp)
 
   add_unit_test(tls_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
@@ -184,7 +190,8 @@ if(BUILD_TESTS)
   add_picobench(merkle_bench src/node/test/merkle_bench.cpp)
   target_link_libraries(merkle_bench PRIVATE
     ccfcrypto.host
-    evercrypt.host)
+    evercrypt.host
+    secp256k1.host)
   target_include_directories(merkle_bench PRIVATE
     ${EVERCRYPT_INC})
   add_picobench(history_bench src/node/test/history_bench.cpp)
@@ -202,8 +209,9 @@ if(BUILD_TESTS)
   target_link_libraries(merkle_mem PRIVATE
     ccfcrypto.host
     evercrypt.host
+    secp256k1.host
     ${CMAKE_THREAD_LIBS_INIT})
-    use_client_mbedtls(merkle_mem)
+  use_client_mbedtls(merkle_mem)
   target_include_directories(merkle_mem PRIVATE
     ${EVERCRYPT_INC}
     src)
