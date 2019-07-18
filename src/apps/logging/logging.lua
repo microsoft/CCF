@@ -14,7 +14,6 @@ return {
         INVALID_CALLER_ID = -32606,
         
         INSUFFICIENT_RIGHTS = -32006,
-        DENIED = -32007
       }
     }
 

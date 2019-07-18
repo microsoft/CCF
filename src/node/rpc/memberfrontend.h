@@ -321,7 +321,7 @@ namespace ccf
           return jsonrpc::error(jerr::INSUFFICIENT_RIGHTS);
 
         if (args.signed_request.sig.empty())
-          return jsonrpc::error(jerr::RPC_NOT_SIGNED);
+          return jsonrpc::error(jerr::RPC_NOT_SIGNED, "Votes must be signed");
 
         const auto vote = args.params.get<Vote>();
         auto proposals = args.tx.get_view(this->network.proposals);
@@ -348,7 +348,8 @@ namespace ccf
         const auto proposal_action = args.params.get<ProposalAction>();
         const auto proposal_id = proposal_action.id;
         if (!complete_proposal(args.tx, proposal_id))
-          return jsonrpc::error(jerr::DENIED);
+          return jsonrpc::success(false);
+
         return jsonrpc::success(true);
       };
       install_with_auto_schema<ProposalAction, bool>(

@@ -822,9 +822,8 @@ TEST_CASE("Complete proposal after initial rejection")
     ccf::SignedReq sr(completej);
 
     Store::Tx tx;
-    check_error(
-      frontend.process_json(rpc_ctx, tx, 1, completej, sr).value(),
-      ErrorCodes::DENIED);
+    check_success(
+      frontend.process_json(rpc_ctx, tx, 1, completej, sr).value(), false);
   }
   // put value that makes vote agree
   {

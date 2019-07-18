@@ -26,6 +26,13 @@ namespace jsonrpc
   static constexpr auto REQ = "req";
 
 // -32000 to -32099 are reserved for implementation-defined server-errors
+// Apparently unused error:
+//  TX_REPLICATED
+//  TX_ROLLED_BACK
+//  TX_FAILED_TO_COMMIT
+//  TX_FAILED_TO_COMMIT
+//  NODE_NOT_FOUND
+//  RPC_NOT_FORWARDED
 #define XX_ERROR_CODES \
   XX(PARSE_ERROR, -32700) \
   XX(INVALID_REQUEST, -32600) \
@@ -41,7 +48,6 @@ namespace jsonrpc
   XX(TX_FAILED_TO_REPLICATE, -32005) \
   XX(SCRIPT_ERROR, -32006) \
   XX(INSUFFICIENT_RIGHTS, -32007) \
-  XX(DENIED, -32008) \
   XX(TX_LEADER_UNKNOWN, -32009) \
   XX(RPC_NOT_SIGNED, -32010) \
   XX(NODE_NOT_FOUND, -32011) \
