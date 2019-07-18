@@ -445,7 +445,7 @@ namespace ccf
         return jsonrpc::Pack::MsgPack;
     }
 
-    /** Process a serialised command with the associated caller certificate
+    /** Process a serialised command with the associated RPC context
      *
      * If an RPC that requires writing to the kv store is processed on a
      * follower, the serialised RPC is forwarded to the current network leader.
@@ -506,27 +506,88 @@ namespace ccf
       }
       auto& unsigned_rpc = *rpc_;
 
+#ifdef PBFT
       kv::TxHistory::RequestID reqid;
-
       update_history();
       size_t jsonrpc_id = unsigned_rpc[jsonrpc::ID];
       reqid = {caller_id.value(), ctx.client_session_id, jsonrpc_id};
       if (history)
       {
-        history->add_request(reqid, ctx.actor, input);
+        if (!history->add_request(reqid, ctx.actor, input))
+        {
+          LOG_FAIL_FMT("Adding request {} failed", jsonrpc_id);
+          return jsonrpc::pack(
+            jsonrpc::error_response(
+              jsonrpc_id,
+              jsonrpc::ErrorCodes::INTERNAL_ERROR,
+              "PBFT could not process request."),
+            ctx.pack.value());
+        }
         tx.set_req_id(reqid);
+        ctx.is_pending = true;
+      }
+      else
+      {
+        return jsonrpc::pack(
+          jsonrpc::error_response(
+            jsonrpc_id,
+            jsonrpc::ErrorCodes::INTERNAL_ERROR,
+            "PBFT is not yet ready."),
+          ctx.pack.value());
       }
 
-      ctx.is_pending = true;
       return {};
+#else
+      auto rep =
+        process_json(ctx, tx, caller_id.value(), unsigned_rpc, signed_request);
+
+      // If necessary, forward the RPC to the current leader
+      if (!rep.has_value())
+      {
+        if (raft != nullptr)
+        {
+          auto leader_id = raft->leader();
+          auto local_id = raft->id();
+
+          if (
+            leader_id != NoNode &&
+            cmd_forwarder->forward_command(
+              ctx, local_id, leader_id, caller_id.value(), input))
+          {
+            // Indicate that the RPC has been forwarded to leader
+            LOG_DEBUG_FMT("RPC forwarded to leader {}", leader_id);
+            ctx.is_pending = true;
+            return {};
+          }
+        }
+        return jsonrpc::pack(
+          jsonrpc::error_response(
+            0,
+            jsonrpc::ErrorCodes::RPC_NOT_FORWARDED,
+            "RPC could not be forwarded to leader."),
+          ctx.pack.value());
+      }
+
+      auto rv = jsonrpc::pack(rep.value(), ctx.pack.value());
+
+      return rv;
+#endif
     }
 
-    std::vector<uint8_t> process_pbft(const std::vector<uint8_t>& input) override
+    /** Process a serialised command with the associated RPC context via PBFT
+     *
+     * If an RPC that requires writing to the kv store is processed on a
+     * follower, the serialised RPC is forwarded to the current network leader.
+     *
+     * @param ctx Context for this RPC
+     * @param input Serialised JSON RPC
+     */
+    std::vector<uint8_t> process_pbft(
+      enclave::RPCContext& ctx, const std::vector<uint8_t>& input) override
     {
-      // TODO: This tx should be the same tx object as the one used to verify
-      // the signature and the caller
+      // TODO(#PBFT): This tx should be the same tx object as the one used to
+      // verify the signature and the caller
       Store::Tx tx;
-      enclave::RPCContext ctx(0, nullb, ccf::ActorsType::users);
 
       // TODO: Handle packing based on original packing method
       auto pack_for_now = jsonrpc::Pack::MsgPack;
@@ -550,10 +611,14 @@ namespace ccf
       auto rep =
         process_json(ctx, tx, caller_id, unsigned_rpc, signed_request, true);
 
+      // TODO(#PBFT): Add RPC response to history based on Request ID
+      // if (history)
+      //   history->add_response(reqid, rv);
+
       return jsonrpc::pack(rep.value(), pack_for_now);
     }
 
-    /** Process a serialised input that has been forwarded from another node
+    /** Process a serialised input forwarded from another node
      *
      * This function assumes that ctx contains the caller_id as read by the
      * forwarding follower.
@@ -663,11 +728,8 @@ namespace ccf
       else if (default_handler)
         handler = &*default_handler;
       else
-      {
-        LOG_FAIL << "Method " << method << " not found" << std::endl;
         return jsonrpc::error_response(
           ctx.req.seq_no, jsonrpc::ErrorCodes::METHOD_NOT_FOUND, method);
-      }
 
       update_raft();
       update_history();

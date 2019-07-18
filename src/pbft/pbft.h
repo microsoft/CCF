@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ds/logger.h"
-#include "enclave/rpcmap.h" // TODO: This include is probably not ideal.
+#include "enclave/rpcmap.h"
 #include "enclave/rpcsessions.h"
 #include "kv/kvtypes.h"
 #include "libbyz/Big_req_table.h"
@@ -48,8 +48,10 @@ namespace pbft
       NodeId to = principal.pid();
       if (to == id)
       {
-        auto data = (const uint8_t*)(msg->contents());
-        message_receiver_base->receive_message(data, msg->size());
+        // If a replica sends a message to itself (e.g. if f == 0), handle the
+        // message straight away without writing it to the ringbuffer
+        message_receiver_base->receive_message(
+          (const uint8_t*)(msg->contents()), msg->size());
         return msg->size();
       }
 
@@ -119,8 +121,6 @@ namespace pbft
       channels(channels_),
       rpcsessions(rpcsessions_)
     {
-      LOG_INFO_FMT("Setting up PBFT replica for node with id: {}", local_id);
-
       // configure replica
       GeneralInfo general_info;
       general_info.num_replicas = 1;
@@ -149,7 +149,6 @@ namespace pbft
       my_info.pubk_enc = pubk_enc;
       my_info.host_name = "machineB";
       my_info.is_replica = true;
-      LOG_INFO_FMT("PBFT setup for self with id: {}", local_id);
 
       ::NodeInfo node_info = {my_info, privk, general_info};
 
@@ -169,13 +168,14 @@ namespace pbft
         0,
         pbft_network.get(),
         &message_receiver_base);
+      LOG_INFO_FMT("PBFT setup for self with id: {}", local_id);
 
       pbft_config->set_service_mem(mem + used_bytes);
       pbft_network->set_receiver(message_receiver_base);
 
       Byz_start_replica();
 
-      LOG_INFO_FMT("Setting up client proxy");
+      LOG_INFO_FMT("PBFT setting up client proxy");
       client_proxy =
         std::make_unique<ClientProxy<kv::TxHistory::RequestID, void>>(
           *message_receiver_base);
@@ -189,13 +189,11 @@ namespace pbft
       message_receiver_base->register_reply_handler(cb, client_proxy.get());
 
       on_request = [&](kv::TxHistory::CallbackArgs args) {
-        auto jsonrpc_id = args.rid.jsonrpc_seq_no;
-
         auto total_req_size = pbft_config->message_size() + args.data.size();
 
         uint8_t request_buffer[total_req_size];
         pbft_config->fill_request(
-          request_buffer, total_req_size, args.data, jsonrpc_id, args.actor);
+          request_buffer, total_req_size, args.data, args.actor);
 
         auto rep_cb = [&](
                         void* owner,
@@ -203,23 +201,14 @@ namespace pbft
                         int status,
                         uint8_t* reply,
                         size_t len) {
+          LOG_DEBUG_FMT("PBFT reply callback for {}", caller_rid);
 
-          LOG_INFO << fmt::format("Reply callback: {0}", caller_rid)
-                   << std::endl;
-
-          // TODO: Session ID should be retrieved from the request ID
-
-          LOG_INFO << "session id: " << caller_rid.session_id << std::endl;
-          LOG_INFO << "reply_object size: " << len << std::endl;
-
-          // TODO: In the case of pending transactions (i.e. a full round of
-          // PBFT), the rpc context should be marked as pending somewhere
-          // suitable?
-          rpcsessions.reply_async(caller_rid.session_id, {reply, reply + len});
+          return rpcsessions.reply_async(
+            caller_rid.session_id, {reply, reply + len});
         };
 
-        LOG_INFO << "******** CLIENT PROXY, SENDING REQUEST " << std::endl;
-        client_proxy->send_request(
+        LOG_DEBUG_FMT("PBFT sending request {}", args.rid);
+        return client_proxy->send_request(
           args.rid,
           request_buffer,
           sizeof(request_buffer),
@@ -228,6 +217,9 @@ namespace pbft
       };
     }
 
+    // TODO(#PBFT): PBFT consensus should implement the following functions to
+    // return meaningful information to clients (e.g. global commit, term/view)
+    // instead of relying on the NullReplicator
     NodeId leader() override
     {
       return 0;
@@ -286,9 +278,8 @@ namespace pbft
       info.pubk_enc = pubk_enc;
       info.host_name = node_conf.host_name;
       info.is_replica = true;
-      LOG_INFO_FMT("PBFT - adding node, id: {}", info.id);
       Byz_add_principal(info);
-      LOG_INFO_FMT("PBFT - added node, id: {}", info.id);
+      LOG_INFO_FMT("PBFT added node, id: {}", info.id);
     }
 
     bool replicate(

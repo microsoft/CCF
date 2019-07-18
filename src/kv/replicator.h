@@ -4,7 +4,6 @@
 
 #include "../crypto/symmkey.h"
 #include "kvtypes.h"
-#include "node/nodetonode.h"
 
 #include <algorithm>
 #include <iostream>
@@ -64,89 +63,6 @@ namespace kv
     bool is_leader() override
     {
       return true;
-    }
-  };
-
-  class NullReplicator : public Replicator
-  {
-  private:
-    std::shared_ptr<ccf::NodeToNode> n2n_channels;
-    bool i_am_leader;
-    ccf::NodeId self;
-
-  public:
-    NullReplicator(
-      std::shared_ptr<ccf::NodeToNode> n2n_channels_, ccf::NodeId self_) :
-      n2n_channels(n2n_channels_),
-      i_am_leader(false),
-      self(self_)
-    {}
-
-    void force_become_leader()
-    {
-      i_am_leader = true;
-    }
-    void force_become_leader(Version index, Term term, Version commit_idx_)
-    {
-      i_am_leader = true;
-    }
-    void force_become_leader(
-      Version index,
-      Term term,
-      const std::vector<Version>& terms,
-      Version commit_idx_)
-    {
-      i_am_leader = true;
-    }
-
-    void enable_all_domains() {}
-    void resume_replication() {}
-    void suspend_replication(Version) {}
-    void periodic(std::chrono::milliseconds elapsed) {}
-    void recv_message(const uint8_t* data, size_t size) {}
-
-    void add_configuration(Version, std::unordered_set<NodeId> conf) {}
-
-    bool replicate(
-      const std::vector<std::tuple<Version, std::vector<uint8_t>, bool>>&
-        entries) override
-    {
-      return true;
-    }
-
-    kv::Term get_term() override
-    {
-      return 2;
-    }
-
-    kv::Term get_term(kv::Version version) override
-    {
-      return 2;
-    }
-
-    kv::Version get_commit_idx() override
-    {
-      return 0;
-    }
-
-    bool is_leader() override
-    {
-      return i_am_leader;
-    }
-
-    bool is_follower()
-    {
-      return !is_leader();
-    }
-
-    NodeId leader() override
-    {
-      return 0;
-    }
-
-    NodeId id() override
-    {
-      return self;
     }
   };
 

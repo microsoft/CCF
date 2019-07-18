@@ -994,7 +994,6 @@ namespace kv
       }
 
       version = c.value();
-      LOG_INFO << "Committing transaction at version " << version << std::endl;
 
       const std::vector<uint8_t> data = serialise();
       if (!data.size())

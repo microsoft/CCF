@@ -18,7 +18,6 @@ namespace pbft
       uint8_t* buffer,
       size_t total_req_size,
       const std::vector<uint8_t>& data,
-      size_t jsonrpc_id,
       uint64_t actor) = 0;
   };
 
@@ -51,10 +50,8 @@ namespace pbft
       uint8_t* buffer,
       size_t total_req_size,
       const std::vector<uint8_t>& data,
-      size_t jsonrpc_id,
       uint64_t actor) override
     {
-      serialized::write(buffer, total_req_size, jsonrpc_id);
       serialized::write(buffer, total_req_size, actor);
       serialized::write(buffer, total_req_size, data.data(), data.size());
     }
@@ -64,7 +61,6 @@ namespace pbft
 
     struct ccf_req
     {
-      size_t jsonrpc_id;
       ccf::ActorsType actor;
 
       uint8_t* get_data()
@@ -89,23 +85,24 @@ namespace pbft
                                  int client,
                                  bool ro,
                                  Seqno total_requests_executed) {
-      LOG_INFO << "<<<< START exec_command() >>>>" << std::endl;
-
-      // TODO: Do the unpacking of the request the CCF way
       auto request = new (inb->contents) ccf_req;
 
-      LOG_INFO_FMT("received request with jsonrpc id: {}", request->jsonrpc_id);
-      LOG_INFO_FMT("received request with actor: {}", request->actor);
+      LOG_DEBUG_FMT("PBFT exec_command() for frontend {}", request->actor);
 
       auto handler = this->rpc_map->find(request->actor);
       if (!handler.has_value())
-        throw std::logic_error("No frontend in pbft exec_command");
+        throw std::logic_error(
+          "No frontend associated with actor " +
+          std::to_string(request->actor));
 
       auto frontend = handler.value();
 
       // TODO: Also pass the transaction object and rpc_ctx used earlier on to
       // verify the caller/signature
+      enclave::RPCContext ctx(0, nullb, request->actor);
+
       auto rep = frontend->process_pbft(
+        ctx,
         {request->get_data(),
          request->get_data() + request->get_size(inb->size)});
 
@@ -114,8 +111,6 @@ namespace pbft
       size_t outb_size = (size_t)outb->size;
 
       serialized::write(outb_ptr, outb_size, rep.data(), rep.size());
-
-      LOG_INFO << "<<<< END exec_command() >>>>" << std::endl;
 
       return 0;
     };

@@ -83,7 +83,7 @@ namespace kv
       Version version;
       uint64_t actor;
     };
-    using CallbackHandler = std::function<void(CallbackArgs)>;
+    using CallbackHandler = std::function<bool(CallbackArgs)>;
 
     virtual ~TxHistory() {}
     virtual void append(const std::vector<uint8_t>& data) = 0;
@@ -91,7 +91,7 @@ namespace kv
     virtual void rollback(Version v) = 0;
     virtual void compact(Version v) = 0;
     virtual void emit_signature() = 0;
-    virtual void add_request(
+    virtual bool add_request(
       RequestID id, uint64_t actor, const std::vector<uint8_t>& request) = 0;
     virtual void add_result(
       RequestID id, kv::Version version, const std::vector<uint8_t>& data) = 0;

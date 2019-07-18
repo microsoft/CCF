@@ -3,6 +3,7 @@
 #pragma once
 
 #ifdef PBFT
+#  include "pbft/nullreplicator.h"
 #  include "pbft/pbft.h"
 #endif
 
@@ -119,10 +120,15 @@ namespace ccf
     raft::Config raft_config;
 
     NetworkState& network;
-    // std::shared_ptr<ConsensusRaft> raft;
-    std::shared_ptr<kv::NullReplicator> raft;
-#ifdef PBFT
+
+#ifndef PBFT
+    std::shared_ptr<ConsensusRaft> raft;
+#else
     using ConsensusPbft = pbft::Pbft<NodeToNode>;
+
+    // TODO(#PBFT): For now, when using PBFT as consensus, replace raft with the
+    // NullReplicator
+    std::shared_ptr<pbft::NullReplicator> raft;
     std::shared_ptr<ConsensusPbft> pbft;
 #endif
     std::shared_ptr<enclave::RpcMap> rpc_map;
@@ -251,10 +257,9 @@ namespace ccf
       }
 
 #ifdef PBFT
-      // TODO: For now, node id set when the network is created and used to
-      // create PBFT
+      // TODO(#PBFT): For now, node id set when the network is created and used
+      // to create PBFT
       self = args.node_id;
-      LOG_INFO << "Created new node enclave with " << self << std::endl;
       setup_pbft();
       setup_history();
 #endif
@@ -281,8 +286,14 @@ namespace ccf
       accept_all_connections();
       self = args.id;
       setup_raft();
-
-      setup_store();
+#ifndef PBFT
+      // In the case of PBFT, the history was already setup when the node was
+      // created.
+      // TODO(#PBFT): When/if we stop using the history to registering PBFT
+      // callbacks, we should be able to initialise the history as late as here.
+      setup_history();
+#endif
+      setup_encryptor();
 
       // Before loading the initial transaction, its integrity needs to be
       // protected since deserialise only accepts protected entries.
@@ -397,7 +408,8 @@ namespace ccf
             accept_all_connections();
           }
           setup_raft(public_only);
-          setup_store();
+          setup_history();
+          setup_encryptor();
 
           if (public_only)
             sm.advance(State::partOfPublicNetwork);
@@ -443,7 +455,8 @@ namespace ccf
       network.secrets = std::make_unique<NetworkSecrets>(
         "CN=The CA", std::make_unique<Seal>(writer_factory), false);
       accept_member_connections();
-      setup_store();
+      setup_history();
+      setup_encryptor();
     }
 
     //
@@ -1068,26 +1081,23 @@ namespace ccf
 
     void setup_raft(bool public_only = false)
     {
-      // setup node-to-node channels, raft, pbft and store hooks
+      // setup node-to-node channels, raft and store hooks
       n2n_channels->initialize(self, network.secrets->get_current().priv_key);
 
-      // raft = std::make_shared<ConsensusRaft>(
-      //   std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(
-      //     network.tables),
-      //   std::make_unique<raft::LedgerEnclave>(writer_factory),
-      //   n2n_channels,
-      //   self,
-      //   raft_config.requestTimeout,
-      //   raft_config.electionTimeout,
-      //   public_only);
-
-      raft = std::make_shared<kv::NullReplicator>(n2n_channels, self);
-
+#ifndef PBFT
+      raft = std::make_shared<ConsensusRaft>(
+        std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(
+          network.tables),
+        std::make_unique<raft::LedgerEnclave>(writer_factory),
+        n2n_channels,
+        self,
+        raft_config.requestTimeout,
+        raft_config.electionTimeout,
+        public_only);
+#else
+      raft = std::make_shared<pbft::NullReplicator>(n2n_channels, self);
+#endif
       network.tables->set_replicator(raft);
-
-      // #ifdef PBFT
-      //       setup_pbft();
-      // #endif
 
       // When a node is added, even locally, inform the host so that it can
       // map the node id to a hostname and service and inform raft so that it
@@ -1201,19 +1211,10 @@ namespace ccf
       });
     }
 
-    void setup_store()
-    {
-      encryptor =
-#ifdef USE_NULL_ENCRYPTOR
-        std::make_shared<NullTxEncryptor>();
-#else
-        std::make_shared<TxEncryptor>(self, *network.secrets);
-#endif
-      network.tables->set_encryptor(encryptor);
-    }
-
     void setup_history()
     {
+      // This function can be called once the node has started up and before it
+      // has joined the service.
       history = std::make_shared<MerkleTxHistory>(
         *network.tables.get(),
         self,
@@ -1221,13 +1222,27 @@ namespace ccf
         network.signatures,
         network.nodes);
 
-      LOG_INFO << "History created" << std::endl;
 #ifdef PBFT
       if (pbft)
         history->register_on_request(pbft->get_on_request());
 #endif
 
       network.tables->set_history(history);
+    }
+
+    void setup_encryptor()
+    {
+      // This function makes use of network secrets and should be called once
+      // the node has joined the service (either via start_network() or
+      // join_network())
+      encryptor =
+#ifdef USE_NULL_ENCRYPTOR
+        std::make_shared<NullTxEncryptor>();
+#else
+        std::make_shared<TxEncryptor>(self, *network.secrets);
+#endif
+
+      network.tables->set_encryptor(encryptor);
     }
 
     void add_node(

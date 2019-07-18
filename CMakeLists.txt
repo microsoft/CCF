@@ -208,87 +208,57 @@ if(BUILD_TESTS)
     ${EVERCRYPT_INC}
     src)
 
-  # Raft driver and scenario test
-  add_executable(raft_driver
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/raft/test/driver.cpp)
-  use_client_mbedtls(raft_driver)
-  target_include_directories(raft_driver PRIVATE
-    src/raft)
-  add_test(
-     NAME raft_scenario_test
-     COMMAND
-       ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py ./raft_driver
-         ${CMAKE_SOURCE_DIR}/tests/raft_scenarios ${CMAKE_SOURCE_DIR})
-  set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
-
-  ## Member client end to end tests
-  add_e2e_test(
-    NAME member_client_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
-  )
-
-  ## Logging client end to end test
-  add_e2e_test(
-    NAME logging_client_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
-  )
-
-  ## Storing signed votes test
-  add_e2e_test(
-    NAME voting_history_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
-
-  ## Lua Logging client end to end test
-  add_e2e_test(
-    NAME lua_logging_client_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
-    ADDITIONAL_ARGS
-      --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua)
-
-  if(QUOTES_ENABLED)
-    add_e2e_test(
-      NAME quote_verification_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/quote_verification.py
-    )
-
-    add_e2e_test(
-      NAME governance_tests
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-      ADDITIONAL_ARGS
-        --oesign ${OESIGN}
-    )
-  endif()
-
-  add_e2e_test(
-    NAME end_to_end_logging
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-  )
-
-  add_e2e_test(
-    NAME end_to_end_scenario
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
-    ADDITIONAL_ARGS
-      --scenario ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
-  )
-
-  # TODO: These tests make use of dynamic node configuration that is not
-  # yet supported by PBFT
   if (NOT PBFT)
+    # Raft driver and scenario test
+    add_executable(raft_driver
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/raft/test/driver.cpp)
+    use_client_mbedtls(raft_driver)
+    target_include_directories(raft_driver PRIVATE
+      src/raft)
+    add_test(
+      NAME raft_scenario_test
+      COMMAND
+        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py ./raft_driver
+          ${CMAKE_SOURCE_DIR}/tests/raft_scenarios ${CMAKE_SOURCE_DIR})
+    set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
+
+    ## Member client end to end tests
     add_e2e_test(
-      NAME election_tests
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-      ADDITIONAL_ARGS
-        --election-timeout 2000
+      NAME member_client_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
     )
 
+    ## Logging client end to end test
     add_e2e_test(
-      NAME recovery_tests
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-      ADDITIONAL_ARGS
-        ${RECOVERY_ARGS}
+      NAME logging_client_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
     )
+
+    ## Storing signed votes test
+    add_e2e_test(
+      NAME voting_history_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
+
+    ## Lua Logging client end to end test
+    add_e2e_test(
+      NAME lua_logging_client_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
+      ADDITIONAL_ARGS
+        --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua)
 
     if(QUOTES_ENABLED)
+      add_e2e_test(
+        NAME quote_verification_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/quote_verification.py
+      )
+
+      add_e2e_test(
+        NAME governance_tests
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+        ADDITIONAL_ARGS
+          --oesign ${OESIGN}
+      )
+
       add_e2e_test(
         NAME add_node_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/addnode.py
@@ -305,18 +275,55 @@ if(BUILD_TESTS)
           --election-timeout 1500
       )
     endif()
-  endif()
 
-  add_e2e_test(
-    NAME schema_tests
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
-    ADDITIONAL_ARGS
+    add_e2e_test(
+      NAME end_to_end_logging
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+    )
+
+    add_e2e_test(
+      NAME end_to_end_scenario
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
+      ADDITIONAL_ARGS
+        --scenario ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
+    )
+
+    # TODO: These tests make use of dynamic node configuration that is not
+    # yet supported by PBFT
+    add_e2e_test(
+      NAME election_tests
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+      ADDITIONAL_ARGS
+        --election-timeout 2000
+    )
+
+    add_e2e_test(
+      NAME recovery_tests
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+      ADDITIONAL_ARGS
+        ${RECOVERY_ARGS}
+    )
+
+    add_e2e_test(
+      NAME schema_tests
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+      ADDITIONAL_ARGS
       -p libloggingenc
       --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
-  )
+      )
 
-  if (BUILD_SMALLBANK)
-    include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
+    if (BUILD_SMALLBANK)
+      include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
+    endif()
+
+  else()
+    # TODO: For now, this is the only end to end test run with PBFT. When the
+    # integration is complete, all existing tests will be supported with both
+    # Raft and PBFT.
+    add_e2e_test(
+      NAME end_to_end_pbft
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging_pbft.py
+    )
   endif()
 
   if (EXTENSIVE_TESTS)
