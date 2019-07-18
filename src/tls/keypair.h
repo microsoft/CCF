@@ -39,6 +39,14 @@ namespace tls
 
   using HashBytes = std::vector<uint8_t>;
 
+  inline std::string str_err(int err)
+  {
+    constexpr size_t len = 100;
+    char buf[len];
+    mbedtls_strerror(err, buf, len);
+    return std::string(buf);
+  }
+
   // 2 implementations of secp256k1 are available - mbedtls and bitcoin. Either
   // can be asked for explicitly via the CurveImpl enum. For cases where we
   // receive a raw 256k1 key/signature/cert only, this flag determines which
@@ -173,7 +181,7 @@ namespace tls
     if (rc != 0)
     {
       throw std::logic_error(
-        "mbedtls_ecp_point_write_binary failed: " + std::to_string(rc));
+        "mbedtls_ecp_point_write_binary failed: " + str_err(rc));
     }
 
     rc = secp256k1_ec_pubkey_parse(bc_ctx, bc_pub, pub_buf, pub_len);
@@ -236,7 +244,7 @@ namespace tls
           if (rc != 0)
           {
             throw std::logic_error(
-              "Could not set up EdDSA context: " + std::to_string(rc));
+              "Could not set up EdDSA context: " + str_err(rc));
           }
 
           rc = mbedtls_eddsa_genkey(
@@ -247,7 +255,7 @@ namespace tls
           if (rc != 0)
           {
             throw std::logic_error(
-              "Could not generate EdDSA keypair: " + std::to_string(rc));
+              "Could not generate EdDSA keypair: " + str_err(rc));
           }
           break;
         }
@@ -259,7 +267,7 @@ namespace tls
           if (rc != 0)
           {
             throw std::logic_error(
-              "Could not set up ECDSA context: " + std::to_string(rc));
+              "Could not set up ECDSA context: " + str_err(rc));
           }
 
           rc = mbedtls_ecp_gen_key(
@@ -267,7 +275,7 @@ namespace tls
           if (rc != 0)
           {
             throw std::logic_error(
-              "Could not generate ECDSA keypair: " + std::to_string(rc));
+              "Could not generate ECDSA keypair: " + str_err(rc));
           }
           break;
         }
@@ -278,7 +286,7 @@ namespace tls
       {
         throw std::logic_error(
           "Created key and received unexpected type: " +
-          std::to_string(actual_ec) + " != " + std::to_string(ec));
+          std::to_string(actual_ec) + " != " + str_err(ec));
       }
     }
 
@@ -544,7 +552,7 @@ namespace tls
       if (rc != 0)
       {
         throw std::logic_error(
-          "Could not extract raw private key: " + std::to_string(rc));
+          "Could not extract raw private key: " + str_err(rc));
       }
 
       if (secp256k1_ec_seckey_verify(bc_ctx, c4_priv) != 1)
@@ -620,7 +628,7 @@ namespace tls
     int rc = mbedtls_pk_parse_key(key.get(), pemPk.p, pemPk.n, pw.p, pw.n);
     if (rc != 0)
     {
-      throw std::logic_error("Could not parse key: " + std::to_string(rc));
+      throw std::logic_error("Could not parse key: " + str_err(rc));
     }
 
     const auto curve = get_ec_from_context(*key);
