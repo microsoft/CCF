@@ -17,7 +17,7 @@ namespace ccf
     ObjectId term;
     ObjectId commit;
 
-    MSGPACK_DEFINE(node, index, term, commit, sig);
+    MSGPACK_DEFINE(MSGPACK_BASE(RawSignature), node, index, term, commit);
 
     Signature() {}
 

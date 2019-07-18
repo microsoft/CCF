@@ -451,7 +451,7 @@ class CCFRemote(object):
     def __init__(
         self,
         lib_path,
-        node_id,
+        local_node_id,
         host,
         pubhost,
         raft_port,
@@ -477,23 +477,23 @@ class CCFRemote(object):
         """
         Run a ccf binary on a remote host.
         """
-        self.node_id = node_id
+        self.local_node_id = local_node_id
         self.host = host
         self.pubhost = pubhost
         self.raft_port = raft_port
         self.tls_port = tls_port
-        self.pem = "{}.pem".format(node_id)
+        self.pem = "{}.pem".format(local_node_id)
         self.quote = None
         self.node_status = node_status
         self.verify_quote = verify_quote
         # Only expect a quote if the enclave is not virtual and quotes have
         # not been explictly ignored
         if enclave_type != "virtual" and not ignore_quote:
-            self.quote = f"quote{node_id}.bin"
+            self.quote = f"quote{local_node_id}.bin"
         self.BIN = infra.path.build_bin_path(self.BIN, enclave_type)
         self.ledger_file = ledger_file
         self.ledger_file_name = (
-            os.path.basename(ledger_file) if ledger_file else f"{node_id}"
+            os.path.basename(ledger_file) if ledger_file else f"{local_node_id}"
         )
 
         cmd = [self.BIN, f"--enclave-file={lib_path}"]
@@ -557,7 +557,7 @@ class CCFRemote(object):
         self.profraw = None
         if enclave_type == "virtual" and coverage_enabled(lib_path):
             self.profraw = (
-                f"{uuid.uuid4()}-{node_id}_{os.path.basename(lib_path)}.profraw"
+                f"{uuid.uuid4()}-{local_node_id}_{os.path.basename(lib_path)}.profraw"
             )
             env["LLVM_PROFILE_FILE"] = self.profraw
 
@@ -566,7 +566,7 @@ class CCFRemote(object):
             env["OE_LOG_LEVEL"] = oe_log_level
 
         self.remote = remote_class(
-            node_id,
+            local_node_id,
             host,
             [self.BIN, lib_path] + self.DEPS,
             ([self.ledger_file] if self.ledger_file else [])
@@ -614,7 +614,7 @@ class CCFRemote(object):
         try:
             self.remote.stop()
         except Exception:
-            LOG.exception("Failed to shut down {} cleanly".format(self.node_id))
+            LOG.exception("Failed to shut down {} cleanly".format(self.local_node_id))
         if self.profraw:
             try:
                 self.remote.get(self.profraw)
@@ -663,13 +663,13 @@ class CCFRemote(object):
 
 @contextmanager
 def ccf_remote(
-    lib_path, node_id, host, pubhost, raft_port, tls_port, args, remote_class
+    lib_path, local_node_id, host, pubhost, raft_port, tls_port, args, remote_class
 ):
     """
     Context Manager wrapper for CCFRemote
     """
     remote = CCFRemote(
-        lib_path, node_id, host, pubhost, raft_port, tls_port, args, remote_class
+        lib_path, local_node_id, host, pubhost, raft_port, tls_port, args, remote_class
     )
     try:
         remote.setup()

@@ -92,8 +92,11 @@ namespace enclave
       size_t* quote_len,
       bool recover_)
     {
+      // quote_size is ignored here, but we pass it in because it allows
+      // us to set EDL an annotation so that quote_len <= quote_size is
+      // checked by the EDL-generated wrapper
       recover = recover_;
-      auto r = node.create_new({recover, quote_size});
+      auto r = node.create_new({recover});
       if (!r.second)
         return false;
 

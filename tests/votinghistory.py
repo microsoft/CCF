@@ -7,9 +7,9 @@ import infra.remote
 import json
 import ledger
 import msgpack
+import coincurve
+from coincurve._libsecp256k1 import ffi, lib
 from coincurve.context import GLOBAL_CONTEXT
-from coincurve.ecdsa import deserialize_recoverable, recover
-from coincurve.utils import bytes_to_int, sha256
 
 import cryptography.x509
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -21,11 +21,11 @@ from cryptography.hazmat.backends import default_backend
 # sequence of native calls for verification, in case the
 # imported library's code changes.
 def verify_recover_secp256k1_bc_native(
-    signature, req, hasher=sha256, context=GLOBAL_CONTEXT
+    signature, req, hasher=coincurve.utils.sha256, context=GLOBAL_CONTEXT
 ):
     # Compact
     native_rec_sig = ffi.new("secp256k1_ecdsa_recoverable_signature *")
-    raw_sig, rec_id = signature[:64], bytes_to_int(signature[64:])
+    raw_sig, rec_id = signature[:64], coincurve.utils.bytes_to_int(signature[64:])
     lib.secp256k1_ecdsa_recoverable_signature_parse_compact(
         context.ctx, native_rec_sig, raw_sig, rec_id
     )
@@ -49,7 +49,9 @@ def verify_recover_secp256k1_bc_native(
     )
 
 
-def verify_recover_secp256k1_bc(signature, req, hasher=sha256, context=GLOBAL_CONTEXT):
+def verify_recover_secp256k1_bc(
+    signature, req, hasher=coincurve.utils.sha256, context=GLOBAL_CONTEXT
+):
     msg_hash = hasher(req) if hasher is not None else req
     rec_sig = coincurve.ecdsa.deserialize_recoverable(signature)
     public_key = coincurve.PublicKey(coincurve.ecdsa.recover(req, rec_sig))
@@ -72,7 +74,7 @@ def verify_sig(raw_cert, sig, req):
     except cryptography.exceptions.InvalidSignature as e:
         # we support a non-standard curve, which is also being
         # used for bitcoin.
-        if curve_name != "secp256k1":
+        if pub_key._curve.name != "secp256k1":
             raise e
 
         verify_recover_secp256k1_bc(sig, req)
@@ -91,66 +93,27 @@ def run(args):
         # propose to add a new member
         # proposal number 0
         infra.proc.ccall("./genesisgenerator", "cert", "--name=member4")
-        result = infra.proc.ccall(
-            "./memberclient",
-            "add_member",
-            "--cert=member1_cert.pem",
-            "--privk=member1_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--member_cert=member4_cert.pem",
-            "--ca=networkcert.pem",
-        )
+        result = network.propose_add_member(1, primary, "member4_cert.pem")
 
         # when proposal is added the proposal id and the result of running complete proposal are returned
-        j_result = json.loads(result.stdout)
-        assert not j_result["result"]["completed"]
-        assert j_result["result"]["id"] == 0
+        # j_result = json.loads(result.stdout)
+        assert not result[1]["completed"]
+        proposal_id = result[1]["id"]
+        assert proposal_id == 0
 
         # 2 out of 3 members vote to accept the new member so that that member can send its own proposals
-        result = infra.proc.ccall(
-            "./memberclient",
-            "vote",
-            "--accept",
-            "--cert=member1_cert.pem",
-            "--privk=member1_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--id=0",
-            "--ca=networkcert.pem",
-        )
-        j_result = json.loads(result.stdout)
-        assert not j_result["result"]
+        result = network.vote(1, primary, proposal_id, True)
+        assert result[0] and not result[1]
 
         # this request should fail, as it is not signed
-        result = infra.proc.ccall(
-            "./memberclient",
-            "vote",
-            "--accept",
-            "--cert=member2_cert.pem",
-            "--privk=member2_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--id=0",
-            "--ca=networkcert.pem",
-            "--force-unsigned",
+        result = network.vote(2, primary, proposal_id, True, True)
+        assert (
+            not result[0]
+            and result[1]["code"] == infra.jsonrpc.ErrorCode.RPC_NOT_SIGNED.value
         )
-        j_result = json.loads(result.stdout)
-        assert j_result["error"]["code"] == infra.jsonrpc.ErrorCode.RPC_NOT_SIGNED.value
 
-        result = infra.proc.ccall(
-            "./memberclient",
-            "vote",
-            "--accept",
-            "--cert=member2_cert.pem",
-            "--privk=member2_privk.pem",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
-            "--id=0",
-            "--ca=networkcert.pem",
-        )
-        j_result = json.loads(result.stdout)
-        assert j_result["result"]
+        result = network.vote(2, primary, proposal_id, True)
+        assert result[0] and result[1]
 
         ledger_filename = network.find_leader()[0].remote.ledger_path()
 
