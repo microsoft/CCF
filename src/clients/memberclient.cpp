@@ -306,7 +306,8 @@ int main(int argc, char** argv)
   auto vote = app.add_subcommand("vote", "Accept a proposal");
   vote->add_option("--script", vote_file, "Vote lua script")
     ->check(CLI::ExistingFile);
-  vote->add_option("--id", proposal_id, "The proposal id")->required(true);
+  vote->add_option("--proposal-id", proposal_id, "The proposal id")
+    ->required(true);
   vote->add_flag("--accept", accept, "Accept the proposal");
   vote->add_flag("--reject", reject, "Reject the proposal");
 
@@ -338,10 +339,10 @@ int main(int argc, char** argv)
 
   NodeId node_id;
   auto accept_node = app.add_subcommand("accept_node", "Make a node trusted");
-  accept_node->add_option("--id", node_id, "The node id")->required(true);
+  accept_node->add_option("--node-id", node_id, "The node id")->required(true);
 
   auto retire_node = app.add_subcommand("retire_node", "Make a node retired");
-  retire_node->add_option("--id", node_id, "The node id")->required(true);
+  retire_node->add_option("--node-id", node_id, "The node id")->required(true);
 
   string param_file;
   string script_file;

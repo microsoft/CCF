@@ -311,7 +311,7 @@ class Network:
             member_id,
             remote_node,
             "vote",
-            f"--id={proposal_id}",
+            f"--proposal-id={proposal_id}",
             "--accept" if accept else "--reject",
             "--sign" if not force_unsigned else "--force-unsigned",
         )
@@ -320,7 +320,9 @@ class Network:
         return (True, j_result["result"])
 
     def propose_retire_node(self, member_id, remote_node, node_id):
-        return self.propose(member_id, remote_node, "retire_node", f"--id={node_id}")
+        return self.propose(
+            member_id, remote_node, "retire_node", f"--node-id={node_id}"
+        )
 
     def retire_node(self, member_id, remote_node, node_id):
         result = self.propose_retire_node(member_id, remote_node, node_id)
