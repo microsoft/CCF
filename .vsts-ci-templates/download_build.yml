@@ -12,7 +12,7 @@ steps:
   displayName: Uncompress build artifact
   workingDirectory: build
 
-- task: CMake@1
+- script: |
+    cmake .. -L
   displayName: Re-generate test metadata
-  inputs:
-    cmakeArgs: '..'
+  workingDirectory: build
