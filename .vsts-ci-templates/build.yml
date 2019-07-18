@@ -7,10 +7,9 @@ steps:
   displayName: /proc/cpuinfo
   condition: succeededOrFailed()
 
-- task: CMake@1
+- script: |
+    cmake -L -GNinja -DTARGET=sgx .. ${{ parameters.cmake_args }}
   displayName: CMake
-  inputs:
-    cmakeArgs: '-L -GNinja -DTARGET=sgx .. ${{ parameters.cmake_args }}'
 
 - script: ninja
   displayName: Ninja
