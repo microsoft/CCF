@@ -585,12 +585,8 @@ namespace ccf
     std::vector<uint8_t> process_pbft(
       enclave::RPCContext& ctx, const std::vector<uint8_t>& input) override
     {
-      // TODO(#PBFT): This tx should be the same tx object as the one used to
-      // verify the signature and the caller
+      // TODO(#PBFT): Refactor this with process_forwarded().
       Store::Tx tx;
-
-      // TODO: Handle caller id based on original caller id
-      CallerId caller_id = 1;
 
       auto pack = detect_pack(input);
       if (!pack.has_value())
@@ -598,8 +594,6 @@ namespace ccf
           jsonrpc::error_response(
             0, jsonrpc::ErrorCodes::INVALID_REQUEST, "Empty PBFT request."),
           jsonrpc::Pack::Text);
-
-      LOG_INFO << "process_pbft: pack" << (int)pack.value() << std::endl;
 
       auto rpc = unpack_json(input, pack.value());
       if (!rpc.first)
@@ -617,7 +611,7 @@ namespace ccf
       auto& unsigned_rpc = *rpc_;
 
       auto rep =
-        process_json(ctx, tx, caller_id, unsigned_rpc, signed_request, true);
+        process_json(ctx, tx, ctx.fwd->caller_id, unsigned_rpc, signed_request);
 
       // TODO(#PBFT): Add RPC response to history based on Request ID
       // if (history)
@@ -705,8 +699,7 @@ namespace ccf
       Store::Tx& tx,
       CallerId caller_id,
       const nlohmann::json& rpc,
-      const SignedReq& signed_request,
-      bool actually_commit = false)
+      const SignedReq& signed_request)
     {
       std::string method = rpc.at(jsonrpc::METHOD);
       ctx.req.seq_no = rpc.at(jsonrpc::ID);

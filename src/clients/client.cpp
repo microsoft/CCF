@@ -279,7 +279,7 @@ int main(int argc, char** argv)
       response = make_rpc(
         host,
         port,
-        Pack::Text,
+        Pack::MsgPack,
         "members",
         ca_file,
         member_cert_file,

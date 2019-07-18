@@ -335,6 +335,7 @@ namespace ccf
     void emit_signature() override
     {
 #ifndef PBFT
+      // Signatures are only emitted when Raft is used as consensus
       auto replicator = store.get_replicator();
       if (!replicator)
         return;
