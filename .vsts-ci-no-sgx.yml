@@ -48,14 +48,7 @@ schedules:
 
 jobs:
 - job: Coverage
-  pool:
-    vmImage: 'ubuntu-16.04'
-  container:
-    image: ccfciteam/ccf-ci-18.04:latest
-    # Docker image is created with constrained network, unable to communicate
-    # with other nodes in end-to-end tests. Publishing the ports allows the
-    # nodes to communicate.
-    options: --publish-all
+  pool: Ubuntu-1804-Non-SGX-Azure
   steps:
     - checkout: self
       clean: true
@@ -93,11 +86,7 @@ jobs:
       workingDirectory: build
 
 - job: SAN
-  pool:
-    vmImage: 'ubuntu-16.04'
-  container:
-    image: ccfciteam/ccf-ci-18.04:latest
-    options: --publish-all
+  pool: Ubuntu-1804-Non-SGX-Azure
   steps:
     - checkout: self
       clean: true
