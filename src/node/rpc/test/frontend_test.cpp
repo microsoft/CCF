@@ -681,7 +681,7 @@ TEST_CASE("App-defined errors")
     CHECK(bar_response[jsonrpc::ERR] != nullptr);
     CHECK(
       bar_response[jsonrpc::ERR][jsonrpc::CODE].get<jsonrpc::ErrorBaseType>() ==
-      static_cast<jsonrpc::ErrorBaseType>(userapp::AppError::Foo));
+      static_cast<jsonrpc::ErrorBaseType>(userapp::AppError::Bar));
 
     const auto msg =
       bar_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
