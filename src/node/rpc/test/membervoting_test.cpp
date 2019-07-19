@@ -55,9 +55,12 @@ auto munpack(T&& a)
   return unpack(forward<T>(a), Pack::MsgPack);
 }
 
-void check_error(const nlohmann::json& j, const int expected)
+template <typename E>
+void check_error(const nlohmann::json& j, const E expected)
 {
-  CHECK(j[ERR][CODE] == expected);
+  CHECK(
+    j[ERR][CODE].get<jsonrpc::ErrorBaseType>() ==
+    static_cast<jsonrpc::ErrorBaseType>(expected));
 }
 
 void check_success(const Response<bool> r, const bool expected = true)
@@ -440,7 +443,7 @@ TEST_CASE("Add new members until there are 7, then reject")
       const auto send_bad_sig = mpack(create_json_req(bad_sig, "ack"));
       check_error(
         munpack(frontend.process(rpc_ctx, send_bad_sig)),
-        jsonrpc::INVALID_PARAMS);
+        jsonrpc::StandardErrorCodes::INVALID_PARAMS);
       // (5) sign new nonce and send it
       const auto good_sig =
         RawSignature{new_member->kp->sign(ack1.result.next_nonce)};
