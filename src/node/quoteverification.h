@@ -97,7 +97,7 @@ namespace ccf
       {
         case FAIL_VERIFY_OE:
           return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            jsonrpc::StandardErrorCodes::QUOTE_NOT_VERIFIED,
             "Quote could not be verified");
         case FAIL_VERIFY_CODE_ID_RETIRED:
           return jsonrpc::error(

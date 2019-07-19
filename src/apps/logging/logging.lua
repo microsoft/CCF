@@ -22,6 +22,7 @@ return {
         CODE_ID_NOT_FOUND = -32009,
         CODE_ID_RETIRED = -32010,
         RPC_NOT_FORWARDED = -32011,
+        QUOTE_NOT_VERIFIED = -32012,
 
         UNKNOWN_ID = -32050,
         MESSAGE_EMPTY = -32051,
