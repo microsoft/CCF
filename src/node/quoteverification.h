@@ -97,14 +97,15 @@ namespace ccf
       {
         case FAIL_VERIFY_OE:
           return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR, "Quote could not be verified");
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            "Quote could not be verified");
         case FAIL_VERIFY_CODE_ID_RETIRED:
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::CODE_ID_RETIRED,
+            jsonrpc::CCFErrorCodes::CODE_ID_RETIRED,
             "Quote does not contain valid enclave measurement");
         case FAIL_VERIFY_CODE_ID_NOT_FOUND:
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::CODE_ID_NOT_FOUND,
+            jsonrpc::CCFErrorCodes::CODE_ID_NOT_FOUND,
             "Quote does not contain known enclave measurement");
         case FAIL_VERIFY_INVALID_HASH:
           return jsonrpc::error(

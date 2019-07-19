@@ -30,10 +30,13 @@ namespace ccf
   }
 }
 
-nlohmann::json check_error(const vector<uint8_t>& v, const int expected)
+template <typename E>
+nlohmann::json check_error(const vector<uint8_t>& v, const E expected)
 {
   const auto j_error = json::from_msgpack(v);
-  CHECK(j_error[ERR][CODE] == expected);
+  CHECK(
+    j_error[ERR][CODE].get<jsonrpc::ErrorBaseType>() ==
+    static_cast<jsonrpc::ErrorBaseType>(expected));
   return j_error;
 }
 
@@ -209,7 +212,8 @@ TEST_CASE("simple lua apps")
 
     // (3) attempt to read non-existing key (set of integers)
     const auto pc = make_pc("load", {{"k", set{5, 6, 7}}});
-    check_error(frontend->process(rpc_ctx, pc), StandardErrorCodes::INVALID_PARAMS);
+    check_error(
+      frontend->process(rpc_ctx, pc), StandardErrorCodes::INVALID_PARAMS);
   }
 
   SUBCASE("access gov tables")
@@ -329,7 +333,8 @@ TEST_CASE("simple bank")
 
   {
     const auto pc = make_pc(read_method, {{"account", 3}});
-    check_error(frontend->process(rpc_ctx, pc), StandardErrorCodes::INVALID_PARAMS);
+    check_error(
+      frontend->process(rpc_ctx, pc), StandardErrorCodes::INVALID_PARAMS);
   }
 
   {
