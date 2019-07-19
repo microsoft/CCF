@@ -120,7 +120,7 @@ namespace userapp
   enum class AppError : jsonrpc::ErrorBaseType
   {
     Foo = static_cast<jsonrpc::ErrorBaseType>(
-      jsonrpc::CCFErrorCodes::CCF_APP_ERROR_START),
+      jsonrpc::CCFErrorCodes::APP_ERROR_START),
     Bar = Foo - 1
   };
 

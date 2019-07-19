@@ -47,7 +47,7 @@ namespace jsonrpc
   XX(CODE_ID_NOT_FOUND, -32009) \
   XX(CODE_ID_RETIRED, -32010) \
   XX(RPC_NOT_FORWARDED, -32011) \
-  XX(CCF_APP_ERROR_START, -32050)
+  XX(APP_ERROR_START, -32050)
 
   using ErrorBaseType = int;
 

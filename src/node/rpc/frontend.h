@@ -114,13 +114,14 @@ namespace ccf
         rpc = jsonrpc::unpack(input, pack);
         if (!rpc.is_object())
           return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_REQUEST, "Non-object.");
+            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+            fmt::format("RPC payload is a not a valid object: {}", rpc.dump()));
       }
       catch (const std::exception& e)
       {
         return jsonrpc::error(
           jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-          "Exception during unpack.");
+          fmt::format("Exception during unpack: {}", e.what()));
       }
 
       return {true, rpc};
@@ -588,7 +589,9 @@ namespace ccf
       if (!pack.has_value())
         return jsonrpc::pack(
           jsonrpc::error_response(
-            0, jsonrpc::ErrorCodes::INVALID_REQUEST, "Empty PBFT request."),
+            0,
+            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+            "Empty PBFT request."),
           jsonrpc::Pack::Text);
 
       auto rpc = unpack_json(input, pack.value());
@@ -700,20 +703,30 @@ namespace ccf
       std::string method = rpc.at(jsonrpc::METHOD);
       ctx.req.seq_no = rpc.at(jsonrpc::ID);
 
-      if (rpc.at(jsonrpc::JSON_RPC) != jsonrpc::RPC_VERSION)
+      const auto rpc_version = rpc.at(jsonrpc::JSON_RPC);
+      if (rpc_version != jsonrpc::RPC_VERSION)
+      {
         return jsonrpc::error_response(
           ctx.req.seq_no,
           jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-          "Wrong JSON-RPC version.");
+          fmt::format(
+            "Unexpected JSON-RPC version. Must be '{}', received '{}'.",
+            jsonrpc::RPC_VERSION,
+            rpc_version.dump()));
+      }
 
       const auto params_it = rpc.find(jsonrpc::PARAMS);
       if (
         params_it != rpc.end() &&
         (!params_it->is_array() && !params_it->is_object()))
+      {
         return jsonrpc::error_response(
           ctx.req.seq_no,
           jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-          "If present, parameters must be an array or object");
+          fmt::format(
+            "If present, parameters must be an array or object. Received: {}",
+            params_it->dump()));
+      }
 
       const auto& params =
         params_it == rpc.end() ? nlohmann::json(nullptr) : *params_it;
