@@ -180,7 +180,7 @@ namespace logger
       std::tm* now = std::localtime(&ts.tv_sec);
 
       std::cout << fmt::format(
-                     "{:%Y-%m-%d %H:%M:%S}.{:0<6}       ",
+                     "{:%Y-%m-%d %H:%M:%S}.{:0<6}        ",
                      *now,
                      ts.tv_nsec / 1000)
                 << s << std::flush;
@@ -194,6 +194,7 @@ namespace logger
       time_t elapsed_s = ms_offset_from_start / 1000;
       ssize_t elapsed_ns = (ms_offset_from_start % 1000) * 1000000;
 
+      // TODO: store last value & offset, only advance when offset changes
       ::timespec enclave_ts{logger::config::start.tv_sec + elapsed_s,
                             logger::config::start.tv_nsec + elapsed_ns};
       if (enclave_ts.tv_nsec > 1000000000)
