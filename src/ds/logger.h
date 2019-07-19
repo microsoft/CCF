@@ -5,7 +5,9 @@
 #include "ringbuffer.h"
 
 #include <cstring>
+#include <ctime>
 #include <fmt/format_header_only.h>
+#include <fmt/time.h>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -99,7 +101,16 @@ namespace logger
       if (len > max_len)
         data += len - max_len;
 
-      ss << fmt::format("[{:<5}] {:<36} | ", config::to_string(ll), data);
+      ::timespec ts;
+      ::timespec_get(&ts, TIME_UTC);
+
+      std::tm* now = std::localtime(&ts.tv_sec);
+      ss << fmt::format(
+        "[{:<5}] {:%Y-%m-%d %H:%M:%S}.{:0<6} {:<36} | ",
+        config::to_string(ll),
+        *now,
+        ts.tv_nsec / 1000,
+        data);
     }
 
     template <typename T>
