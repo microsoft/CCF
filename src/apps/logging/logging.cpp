@@ -130,7 +130,7 @@ namespace ccfapp
           return jsonrpc::success(LoggingGet::Out{r.value()});
 
         return jsonrpc::error(
-          jsonrpc::ErrorCodes::INVALID_PARAMS, "No such record");
+          jsonrpc::StandardErrorCodes::INVALID_PARAMS, "No such record");
       };
       // SNIPPET_END: get
 
@@ -143,7 +143,7 @@ namespace ccfapp
         if (validation_error.has_value())
         {
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::PARSE_ERROR, *validation_error);
+            jsonrpc::StandardErrorCodes::PARSE_ERROR, *validation_error);
         }
         // SNIPPET_END: valijson_record_public
 
@@ -161,7 +161,7 @@ namespace ccfapp
         if (validation_error.has_value())
         {
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::PARSE_ERROR, *validation_error);
+            jsonrpc::StandardErrorCodes::PARSE_ERROR, *validation_error);
         }
 
         auto view = tx.get_view(public_records);
@@ -175,7 +175,7 @@ namespace ccfapp
         }
 
         return jsonrpc::error(
-          jsonrpc::ErrorCodes::INVALID_PARAMS, "No such record");
+          jsonrpc::StandardErrorCodes::INVALID_PARAMS, "No such record");
       };
       // SNIPPET_END: get_public
 

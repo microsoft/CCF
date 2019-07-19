@@ -155,7 +155,7 @@ TEST_CASE("simple lua apps")
     // call "missing"
     const auto pc = make_pc("missing", {});
     const auto response =
-      check_error(frontend->process(rpc_ctx, pc), ErrorCodes::SCRIPT_ERROR);
+      check_error(frontend->process(rpc_ctx, pc), CCFErrorCodes::SCRIPT_ERROR);
     const auto error_msg = response[ERR][MESSAGE].get<string>();
     CHECK(error_msg.find("THIS_KEY_DOESNT_EXIST") != string::npos);
   }
@@ -209,7 +209,7 @@ TEST_CASE("simple lua apps")
 
     // (3) attempt to read non-existing key (set of integers)
     const auto pc = make_pc("load", {{"k", set{5, 6, 7}}});
-    check_error(frontend->process(rpc_ctx, pc), ErrorCodes::INVALID_PARAMS);
+    check_error(frontend->process(rpc_ctx, pc), StandardErrorCodes::INVALID_PARAMS);
   }
 
   SUBCASE("access gov tables")
@@ -242,7 +242,7 @@ TEST_CASE("simple lua apps")
     // (2) try to write to members table
     const auto pc1 = make_pc(
       "put_member", {{"k", 99}, {"v", MemberInfo{MemberStatus::ACTIVE}}});
-    check_error(frontend->process(rpc_ctx, pc1), ErrorCodes::SCRIPT_ERROR);
+    check_error(frontend->process(rpc_ctx, pc1), CCFErrorCodes::SCRIPT_ERROR);
   }
 }
 
@@ -329,7 +329,7 @@ TEST_CASE("simple bank")
 
   {
     const auto pc = make_pc(read_method, {{"account", 3}});
-    check_error(frontend->process(rpc_ctx, pc), ErrorCodes::INVALID_PARAMS);
+    check_error(frontend->process(rpc_ctx, pc), StandardErrorCodes::INVALID_PARAMS);
   }
 
   {

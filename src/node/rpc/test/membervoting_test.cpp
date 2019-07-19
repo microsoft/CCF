@@ -220,7 +220,7 @@ TEST_CASE("Member query/read")
 
     check_error(
       frontend.process_json(rpc_ctx, tx1, 0, req, sr).value(),
-      ErrorCodes::SCRIPT_ERROR);
+      CCFErrorCodes::SCRIPT_ERROR);
   }
 
   SUBCASE("Read: allowed access, key exists")
@@ -255,7 +255,7 @@ TEST_CASE("Member query/read")
 
     check_error(
       frontend.process_json(rpc_ctx, tx1, mid, read_call_j, sr).value(),
-      ErrorCodes::INVALID_PARAMS);
+      StandardErrorCodes::INVALID_PARAMS);
   }
 
   SUBCASE("Read: access not allowed")
@@ -271,7 +271,7 @@ TEST_CASE("Member query/read")
 
     check_error(
       frontend.process_json(rpc_ctx, tx1, 0, read_call_j, sr).value(),
-      ErrorCodes::SCRIPT_ERROR);
+      CCFErrorCodes::SCRIPT_ERROR);
   }
 }
 
@@ -323,7 +323,7 @@ TEST_CASE("Add new members until there are 7, then reject")
       read_params<int>(ValueIds::NEXT_MEMBER_ID, Tables::VALUES), "read"));
     check_error(
       munpack(frontend.process(rpc_ctx, read_next_member_id)),
-      ErrorCodes::INVALID_CALLER_ID);
+      CCFErrorCodes::INVALID_CALLER_ID);
 
     // propose new member, as proposer
     Script proposal(R"xxx(
@@ -396,7 +396,7 @@ TEST_CASE("Add new members until there are 7, then reject")
         // check that member with the new new_member cert can make rpc's now
         check_error(
           munpack(frontend.process(rpc_ctx, read_next_member_id)),
-          ErrorCodes::INVALID_CALLER_ID);
+          CCFErrorCodes::INVALID_CALLER_ID);
 
         // re-read proposal, as second member
         const Response<OpenProposal> final_read =
@@ -605,7 +605,7 @@ bool test_raw_writes(
       // proposal does not exist anymore, because it completed -> invalid params
       check_error(
         frontend.process_json(mem_rpc_ctx, tx, i, votej["req"], sr).value(),
-        ErrorCodes::INVALID_PARAMS);
+        StandardErrorCodes::INVALID_PARAMS);
     }
   }
   return completed;
@@ -752,7 +752,7 @@ TEST_CASE("Remove proposal")
 
     check_error(
       frontend.process_json(rpc_ctx, tx, 0, removalj, sr).value(),
-      ErrorCodes::INVALID_PARAMS);
+      StandardErrorCodes::INVALID_PARAMS);
   }
   SUBCASE("Attempt remove proposal that you didn't propose")
   {
@@ -764,7 +764,7 @@ TEST_CASE("Remove proposal")
 
     check_error(
       frontend.process_json(rpc_ctx, tx, 1, removalj, sr).value(),
-      ErrorCodes::INVALID_REQUEST);
+      StandardErrorCodes::INVALID_REQUEST);
   }
   SUBCASE("Successfully remove proposal")
   {

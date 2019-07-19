@@ -97,7 +97,7 @@ namespace ccf
       {
         case FAIL_VERIFY_OE:
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::INTERNAL_ERROR, "Quote could not be verified");
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR, "Quote could not be verified");
         case FAIL_VERIFY_CODE_ID_RETIRED:
           return jsonrpc::error(
             jsonrpc::ErrorCodes::CODE_ID_RETIRED,
@@ -108,11 +108,11 @@ namespace ccf
             "Quote does not contain known enclave measurement");
         case FAIL_VERIFY_INVALID_HASH:
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::INTERNAL_ERROR,
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             "Quote does not contain joining node certificate hash");
         default:
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::INTERNAL_ERROR, "Unknown error");
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR, "Unknown error");
       }
     }
   };
