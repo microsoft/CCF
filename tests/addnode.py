@@ -22,7 +22,7 @@ def run(args):
 
         # add a valid node
         res = network.create_and_add_node("libloggingenc", args)
-        assert res[0] == True
+        assert res[0]
         new_node = res[1]
 
         # attempt to add a node having the host and port fields
@@ -38,8 +38,11 @@ def run(args):
             infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND,
         )
 
-        new_node.join_network()
+        new_node.join_network(network)
         network.wait_for_node_commit_sync()
+
+        # retire a node
+        network.retire_node(1, primary, new_node.node_id)
 
 
 if __name__ == "__main__":

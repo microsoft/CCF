@@ -24,10 +24,16 @@ namespace ccf
     {
       text = std::move(script_);
     };
+
     Script(std::vector<uint8_t> script_)
     {
       bytecode = std::move(script_);
     };
+
+    bool operator==(const Script& other) const
+    {
+      return bytecode == other.bytecode && text == other.text;
+    }
 
     MSGPACK_DEFINE(bytecode, text);
   };

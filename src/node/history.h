@@ -142,9 +142,14 @@ namespace ccf
         true);
     }
 
-    void add_request(
-      kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override
-    {}
+    bool add_request(
+      kv::TxHistory::RequestID id,
+      uint64_t actor,
+      CallerId caller_id,
+      const std::vector<uint8_t>& request) override
+    {
+      return true;
+    }
     void add_result(
       kv::TxHistory::RequestID id,
       kv::Version version,
@@ -307,10 +312,11 @@ namespace ccf
           "No node info, and therefore no cert for node {}", sig_value.node);
         return false;
       }
-      tls::Verifier from_cert(ni.value().cert);
+      tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
       crypto::Sha256Hash root = tree.get_root();
       log_hash(root, VERIFY);
-      return from_cert.verify_hash(root, sig.value().sig);
+      return from_cert->verify_hash(
+        root.h, root.SIZE, sig_value.sig.data(), sig_value.sig.size());
     }
 
     void rollback(kv::Version v) override
@@ -328,6 +334,8 @@ namespace ccf
 
     void emit_signature() override
     {
+#ifndef PBFT
+      // Signatures are only emitted when Raft is used as consensus
       auto replicator = store.get_replicator();
       if (!replicator)
         return;
@@ -343,20 +351,28 @@ namespace ccf
           Store::Tx sig(version);
           auto sig_view = sig.get_view(signatures);
           crypto::Sha256Hash root = tree.get_root();
-          Signature sig_value(id, version, term, commit, kp.sign_hash(root));
+          Signature sig_value(
+            id, version, term, commit, kp.sign_hash(root.h, root.SIZE));
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
         },
         true);
+#endif
     }
 
-    void add_request(
-      kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override
+    bool add_request(
+      kv::TxHistory::RequestID id,
+      uint64_t actor,
+      CallerId caller_id,
+      const std::vector<uint8_t>& request) override
     {
       LOG_DEBUG << fmt::format("HISTORY: add_request {0}", id) << std::endl;
       requests[id] = request;
-      if (on_request.has_value())
-        on_request.value()({id, request, -1});
+
+      if (!on_request.has_value())
+        return false;
+
+      return on_request.value()({id, request, -1, actor, caller_id});
     }
 
     void add_result(
@@ -369,7 +385,9 @@ namespace ccf
       LOG_DEBUG << fmt::format(
                      "HISTORY: add_result {0} {1} {2}", id, version, root)
                 << std::endl;
+#ifdef PBFT
       results[id] = {version, root};
+#endif
     }
 
     void add_response(

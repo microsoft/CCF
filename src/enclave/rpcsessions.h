@@ -78,18 +78,21 @@ namespace enclave
       sessions.insert(std::make_pair(id, std::move(session)));
     }
 
-    void reply_async(size_t id, const std::vector<uint8_t>& data) override
+    bool reply_async(size_t id, const std::vector<uint8_t>& data) override
     {
       std::lock_guard<SpinLock> guard(lock);
 
       auto search = sessions.find(id);
       if (search == sessions.end())
       {
-        throw std::logic_error(
-          "reply async for unknown session: " + std::to_string(id));
+        LOG_FAIL_FMT("Replying to unknown session {}", id);
+        return false;
       }
 
+      LOG_DEBUG_FMT("Replying to session {}", id);
+
       search->second->send(data);
+      return true;
     }
 
     void remove_session(size_t id)

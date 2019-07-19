@@ -57,7 +57,7 @@ namespace ccf
     //! the next nonce the member is supposed to sign
     std::vector<uint8_t> next_nonce;
 
-    MSGPACK_DEFINE(next_nonce);
+    MSGPACK_DEFINE(MSGPACK_BASE(RawSignature), next_nonce);
   };
   ADD_JSON_TRANSLATORS_WITH_BASE(MemberAck, RawSignature, next_nonce)
   using MemberAcks = Store::Map<MemberId, MemberAck>;

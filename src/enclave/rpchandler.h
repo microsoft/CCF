@@ -17,7 +17,10 @@ namespace enclave
     virtual ~RpcHandler() {}
 
     virtual std::vector<uint8_t> process(
-      RPCContext& rpc_ctx, const std::vector<uint8_t>& input) = 0;
+      RPCContext& ctx, const std::vector<uint8_t>& input) = 0;
+
+    virtual std::vector<uint8_t> process_pbft(
+      RPCContext& ctx, const std::vector<uint8_t>& input) = 0;
 
     virtual void tick(std::chrono::milliseconds elapsed_ms_count) {}
   };

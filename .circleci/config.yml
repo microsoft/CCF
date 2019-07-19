@@ -20,7 +20,7 @@ commands:
           working_directory: build
       - run:
           name: Ninja
-          command: ninja -j4
+          command: ninja -j1
           working_directory: build
       - run:
           name: Run tests
@@ -43,18 +43,14 @@ commands:
           working_directory: build
 
 executors:
-  small_1804:
-    resource_class: small
-    docker:
-      - image: ccfciteam/ccf-ci-18.04:latest
-  large_1804:
-    resource_class: large
+  medium_1804:
+    resource_class: medium
     docker:
       - image: ccfciteam/ccf-ci-18.04:latest
 
 jobs:
   static_checks:
-    executor: small_1804
+    executor: medium_1804
     steps:
       - checkout
       - run:
@@ -75,14 +71,14 @@ jobs:
             black --check sphinx/ tests/ notice-check.py
 
   build_coverage:
-    executor: large_1804
+    executor: medium_1804
     steps:
       - build_and_tests:
           cmake_flags: "-DCOVERAGE=ON"
       - gather_and_push_coverage
 
   build_san:
-    executor: large_1804
+    executor: medium_1804
     steps:
       - build_and_tests:
           cmake_flags: "-DSAN=ON"
