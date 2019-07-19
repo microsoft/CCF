@@ -63,6 +63,7 @@ namespace ccfapp
     static constexpr auto LOG_GET_PUBLIC = "LOG_get_pub";
   };
 
+  // SNIPPET_START: errors
   enum class LoggerErrors : jsonrpc::ErrorBaseType
   {
     UNKNOWN_ID =
@@ -95,6 +96,7 @@ namespace ccfapp
     ss << "]: ";
     return ss.str();
   }
+  // SNIPPET_END: errors
 
   // SNIPPET: table_definition
   using Table = Store::Map<size_t, string>;
@@ -132,11 +134,14 @@ namespace ccfapp
     }
 
   public:
+    // SNIPPET_START: constructor
     Logger(NetworkTables& nwt, AbstractNotifier& notifier) :
       UserRpcFrontend(*nwt.tables),
-      records(tables.create<Table>(ccf::Tables::APP)),
+      records(
+        tables.create<Table>(ccf::Tables::APP, kv::SecurityDomain::PRIVATE)),
       public_records(tables.create<Table>(
         ccf::Tables::APP_PUBLIC, kv::SecurityDomain::PUBLIC)),
+      // SNIPPET_END: constructor
       record_public_params_schema(nlohmann::json::parse(j_record_public_in)),
       record_public_result_schema(nlohmann::json::parse(j_record_public_out)),
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
@@ -227,9 +232,9 @@ namespace ccfapp
       };
       // SNIPPET_END: get_public
 
-      // SNIPPET: install_record
       install_with_auto_schema<LoggingRecord::In, bool>(
         Procs::LOG_RECORD, record, Write);
+      // SNIPPET: install_get
       install_with_auto_schema<LoggingGet>(Procs::LOG_GET, get, Read);
 
       install(
