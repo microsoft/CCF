@@ -445,7 +445,7 @@ namespace ccf
         return jsonrpc::Pack::MsgPack;
     }
 
-    /** Process a serialised command with the associated caller certificate
+    /** Process a serialised command with the associated RPC context
      *
      * If an RPC that requires writing to the kv store is processed on a
      * follower, the serialised RPC is forwarded to the current network leader.
@@ -476,7 +476,6 @@ namespace ccf
             "No corresponding caller entry exists."),
           ctx.pack.value());
       }
-
       auto rpc = unpack_json(input, ctx.pack.value());
 
       if (!rpc.first)
@@ -507,19 +506,38 @@ namespace ccf
       }
       auto& unsigned_rpc = *rpc_;
 
+#ifdef PBFT
       kv::TxHistory::RequestID reqid;
 
-#ifdef PBFT
       update_history();
       size_t jsonrpc_id = unsigned_rpc[jsonrpc::ID];
       reqid = {caller_id.value(), ctx.client_session_id, jsonrpc_id};
       if (history)
       {
-        history->add_request(reqid, input);
+        if (!history->add_request(reqid, ctx.actor, caller_id.value(), input))
+        {
+          LOG_FAIL_FMT("Adding request {} failed", jsonrpc_id);
+          return jsonrpc::pack(
+            jsonrpc::error_response(
+              jsonrpc_id,
+              jsonrpc::ErrorCodes::INTERNAL_ERROR,
+              "PBFT could not process request."),
+            ctx.pack.value());
+        }
         tx.set_req_id(reqid);
+        ctx.is_pending = true;
       }
-#endif
-
+      else
+      {
+        return jsonrpc::pack(
+          jsonrpc::error_response(
+            jsonrpc_id,
+            jsonrpc::ErrorCodes::INTERNAL_ERROR,
+            "PBFT is not yet ready."),
+          ctx.pack.value());
+      }
+      return {};
+#else
       auto rep =
         process_json(ctx, tx, caller_id.value(), unsigned_rpc, signed_request);
 
@@ -552,15 +570,54 @@ namespace ccf
 
       auto rv = jsonrpc::pack(rep.value(), ctx.pack.value());
 
-#ifdef PBFT
-      if (history)
-        history->add_response(reqid, rv);
-#endif
-
       return rv;
+#endif
     }
 
-    /** Process a serialised input that has been forwarded from another node
+    /** Process a serialised command with the associated RPC context via PBFT
+     *
+     * @param ctx Context for this RPC
+     * @param input Serialised JSON RPC
+     */
+    std::vector<uint8_t> process_pbft(
+      enclave::RPCContext& ctx, const std::vector<uint8_t>& input) override
+    {
+      // TODO(#PBFT): Refactor this with process_forwarded().
+      Store::Tx tx;
+
+      auto pack = detect_pack(input);
+      if (!pack.has_value())
+        return jsonrpc::pack(
+          jsonrpc::error_response(
+            0, jsonrpc::ErrorCodes::INVALID_REQUEST, "Empty PBFT request."),
+          jsonrpc::Pack::Text);
+
+      auto rpc = unpack_json(input, pack.value());
+      if (!rpc.first)
+        return jsonrpc::pack(rpc.second, pack.value());
+
+      SignedReq signed_request;
+
+      // Strip signature
+      auto rpc_ = &rpc.second;
+      if (rpc_->find(jsonrpc::SIG) != rpc_->end())
+      {
+        auto& req = rpc_->at(jsonrpc::REQ);
+        rpc_ = &req;
+      }
+      auto& unsigned_rpc = *rpc_;
+
+      auto rep =
+        process_json(ctx, tx, ctx.fwd->caller_id, unsigned_rpc, signed_request);
+
+      // TODO(#PBFT): Add RPC response to history based on Request ID
+      // if (history)
+      //   history->add_response(reqid, rv);
+
+      return jsonrpc::pack(rep.value(), pack.value());
+    }
+
+    /** Process a serialised input forwarded from another node
      *
      * This function assumes that ctx contains the caller_id as read by the
      * forwarding follower.
