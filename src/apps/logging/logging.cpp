@@ -70,6 +70,32 @@ namespace ccfapp
     MESSAGE_EMPTY = UNKNOWN_ID - 1,
   };
 
+  std::string get_error_prefix(LoggerErrors ec)
+  {
+    std::stringstream ss;
+    ss << "[";
+    switch (ec)
+    {
+      case (LoggerErrors::UNKNOWN_ID):
+      {
+        ss << "UNKNOWN_ID";
+        break;
+      }
+      case (LoggerErrors::MESSAGE_EMPTY):
+      {
+        ss << "MESSAGE_EMPTY";
+        break;
+      }
+      default:
+      {
+        ss << "UNKNOWN LOGGER ERROR";
+        break;
+      }
+    }
+    ss << "]: ";
+    return ss.str();
+  }
+
   // SNIPPET: table_definition
   using Table = Store::Map<size_t, string>;
 
