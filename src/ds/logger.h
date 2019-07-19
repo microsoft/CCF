@@ -4,6 +4,7 @@
 
 #include "ringbuffer.h"
 
+#include <chrono>
 #include <cstring>
 #include <ctime>
 #include <fmt/format_header_only.h>
@@ -61,6 +62,8 @@ namespace logger
       return the_level;
     }
 
+    static std::chrono::milliseconds ms;
+
 #ifdef INSIDE_ENCLAVE
     static inline int& msg()
     {
@@ -73,6 +76,18 @@ namespace logger
       static std::unique_ptr<ringbuffer::AbstractWriter> the_writer;
       return the_writer;
     }
+
+    static void elapse_ms(std::chrono::milliseconds ms_)
+    {
+      ms += ms_;
+    }
+
+    static std::chrono::milliseconds elapsed_ms()
+    {
+      return ms;
+    }
+#else
+
 #endif
 
     static inline bool ok(Level l)
@@ -101,16 +116,7 @@ namespace logger
       if (len > max_len)
         data += len - max_len;
 
-      ::timespec ts;
-      ::timespec_get(&ts, TIME_UTC);
-
-      std::tm* now = std::localtime(&ts.tv_sec);
-      ss << fmt::format(
-        "[{:<5}] {:%Y-%m-%d %H:%M:%S}.{:0<6} {:<36} | ",
-        config::to_string(ll),
-        *now,
-        ts.tv_nsec / 1000,
-        data);
+      ss << fmt::format("[{:<5}] {:<36} | ", config::to_string(ll), data);
     }
 
     template <typename T>
@@ -135,7 +141,8 @@ namespace logger
       if (line.log_level == Level::FATAL)
         throw std::logic_error("Fatal: " + line.ss.str());
       else
-        config::writer()->write(config::msg(), line.ss.str());
+        config::writer()->write(
+          config::msg(), config::elapsed_ms(), line.ss.str());
 
       return true;
     }
@@ -145,12 +152,23 @@ namespace logger
   {
     bool operator==(LogLine& line)
     {
-      std::cout << line.ss.str() << std::flush;
+      write(line.ss.str());
 
       if (line.log_level == Level::FATAL)
         throw std::logic_error("Fatal: " + line.ss.str());
 
       return true;
+    }
+
+    static void write(const std::string& s)
+    {
+      ::timespec ts;
+      ::timespec_get(&ts, TIME_UTC);
+      std::tm* now = std::localtime(&ts.tv_sec);
+
+      std::cout << fmt::format(
+                     "{:%Y-%m-%d %H:%M:%S}.{:0<6} ", *now, ts.tv_nsec / 1000)
+                << s << std::flush;
     }
   };
 #endif

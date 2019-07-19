@@ -3,6 +3,7 @@
 #pragma once
 
 #include "../ds/files.h"
+#include "../ds/logger.h"
 #include "../enclave/interface.h"
 #include "everyio.h"
 
@@ -36,10 +37,12 @@ namespace asynchost
       // Register message handler for log message from enclave
       DISPATCHER_SET_MESSAGE_HANDLER(
         bp, AdminMessage::log_msg, [](const uint8_t* data, size_t size) {
-          auto [msg] =
+          auto [elapsed, msg] =
             ringbuffer::read_message<AdminMessage::log_msg>(data, size);
 
-          std::cout << msg << std::flush;
+          auto full_msg = fmt::format("{} {}", elapsed.count(), msg);
+
+          logger::Out::write(full_msg);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
