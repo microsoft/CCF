@@ -101,6 +101,7 @@ namespace ccfapp
   // SNIPPET: table_definition
   using Table = Store::Map<size_t, string>;
 
+  // SNIPPET: inherit_frontend
   class Logger : public ccf::UserRpcFrontend
   {
   private:

@@ -33,7 +33,7 @@ The Logging application simply has:
         :lines: 1
         :dedent: 2
 
-    Table creation happens in the Handler's constructor:
+    Table creation happens in the app's constructor:
 
     .. literalinclude:: ../../src/apps/logging/logging.cpp
         :language: cpp
@@ -48,6 +48,9 @@ The handler returned by :cpp:func:`ccfapp::getRpcHandler()` needs to subclass :c
 
 .. literalinclude:: ../../src/apps/logging/logging.cpp
     :language: cpp
+    :start-after: SNIPPET: inherit_frontend
+    :lines: 1
+    :dedent: 2
 
 The constructor then needs to create a handler function or lambda for each transaction type. This takes a transaction object and the request's ``params``, interacts with the KV tables, and returns a result:
 
