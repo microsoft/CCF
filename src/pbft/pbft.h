@@ -195,13 +195,11 @@ namespace pbft
 
       auto batch_committed_cb =
         [](uint64_t batch_id, void* batch, uint32_t size, void* ctx) {
-          LOG_INFO << "Got batch committed callback" << std::endl;
           auto ledger = static_cast<raft::LedgerEnclave*>(ctx);
 
           struct LedgerEntry
           {
             uint64_t batch_id;
-            uint32_t size;
             uint8_t data[0];
           };
 
@@ -211,7 +209,6 @@ namespace pbft
           auto ledger_entry = reinterpret_cast<LedgerEntry*>(entry.data());
 
           ledger_entry->batch_id = batch_id;
-          ledger_entry->size = size;
           memcpy(ledger_entry->data, batch, size);
 
           ledger->put_entry(entry);
