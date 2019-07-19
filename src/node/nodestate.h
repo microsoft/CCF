@@ -293,7 +293,7 @@ namespace ccf
 #ifndef PBFT
       // In the case of PBFT, the history was already setup when the node was
       // created.
-      // TODO(#PBFT): When/if we stop using the history to registering PBFT
+      // TODO(#PBFT): When/if we stop using the history to register PBFT
       // callbacks, we should be able to initialise the history as late as here.
       setup_history();
 #endif

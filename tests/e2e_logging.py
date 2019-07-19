@@ -45,7 +45,7 @@ def run(args):
                         c.rpc("LOG_record", {"id": 43, "msg": msg2}), result=True
                     )
                     check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
-                check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2})
+                    check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2})
 
                 LOG.debug("Write on all follower frontends")
                 with follower.management_client(format="json") as c:

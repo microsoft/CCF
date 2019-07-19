@@ -576,9 +576,6 @@ namespace ccf
 
     /** Process a serialised command with the associated RPC context via PBFT
      *
-     * If an RPC that requires writing to the kv store is processed on a
-     * follower, the serialised RPC is forwarded to the current network leader.
-     *
      * @param ctx Context for this RPC
      * @param input Serialised JSON RPC
      */

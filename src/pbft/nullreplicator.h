@@ -15,7 +15,7 @@ namespace pbft
   {
   private:
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
-    bool i_am_leader;
+    bool _is_leader;
     ccf::NodeId self;
     kv::Version global_commit_index;
 
@@ -23,19 +23,19 @@ namespace pbft
     NullReplicator(
       std::shared_ptr<ccf::NodeToNode> n2n_channels_, ccf::NodeId self_) :
       n2n_channels(n2n_channels_),
-      i_am_leader(false),
+      _is_leader(false),
       self(self_),
       global_commit_index(0)
     {}
 
     void force_become_leader()
     {
-      i_am_leader = true;
+      _is_leader = true;
     }
     void force_become_leader(
       kv::Version index, kv::Term term, kv::Version commit_idx_)
     {
-      i_am_leader = true;
+      _is_leader = true;
     }
     void force_become_leader(
       kv::Version index,
@@ -43,7 +43,7 @@ namespace pbft
       const std::vector<kv::Version>& terms,
       kv::Version commit_idx_)
     {
-      i_am_leader = true;
+      _is_leader = true;
     }
 
     void enable_all_domains() {}
@@ -85,7 +85,7 @@ namespace pbft
 
     bool is_leader() override
     {
-      return i_am_leader;
+      return _is_leader;
     }
 
     bool is_follower()
