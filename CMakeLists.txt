@@ -235,6 +235,11 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
   )
 
+  add_e2e_test(
+    NAME propose_load_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/propose.py
+  )
+
   ## Logging client end to end test
   add_e2e_test(
     NAME logging_client_test
