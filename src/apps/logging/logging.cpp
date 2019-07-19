@@ -63,6 +63,13 @@ namespace ccfapp
     static constexpr auto LOG_GET_PUBLIC = "LOG_get_pub";
   };
 
+  enum class LoggerErrors : jsonrpc::ErrorBaseType
+  {
+    UNKNOWN_ID =
+      (jsonrpc::ErrorBaseType)jsonrpc::CCFErrorCodes::APP_ERROR_START,
+    MESSAGE_EMPTY = UNKNOWN_ID - 1,
+  };
+
   // SNIPPET: table_definition
   using Table = Store::Map<size_t, string>;
 
@@ -114,6 +121,13 @@ namespace ccfapp
       auto record = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<LoggingRecord::In>();
         // SNIPPET_END: macro_validation_record
+
+        if (in.msg.empty())
+        {
+          return jsonrpc::error(
+            LoggerErrors::MESSAGE_EMPTY, "Cannot record an empty log message");
+        }
+
         auto view = tx.get_view(records);
         view->put(in.id, in.msg);
         return jsonrpc::success(true);
@@ -130,7 +144,7 @@ namespace ccfapp
           return jsonrpc::success(LoggingGet::Out{r.value()});
 
         return jsonrpc::error(
-          jsonrpc::StandardErrorCodes::INVALID_PARAMS, "No such record");
+          LoggerErrors::UNKNOWN_ID, fmt::format("No such record: {}", in.id));
       };
       // SNIPPET_END: get
 
@@ -147,8 +161,15 @@ namespace ccfapp
         }
         // SNIPPET_END: valijson_record_public
 
+        const auto msg = params["msg"].get<std::string>();
+        if (msg.empty())
+        {
+          return jsonrpc::error(
+            LoggerErrors::MESSAGE_EMPTY, "Cannot record an empty log message");
+        }
+
         auto view = tx.get_view(public_records);
-        view->put(params["id"], params["msg"]);
+        view->put(params["id"], msg);
         return jsonrpc::success(true);
       };
       // SNIPPET_END: record_public
@@ -165,7 +186,8 @@ namespace ccfapp
         }
 
         auto view = tx.get_view(public_records);
-        auto r = view->get(params["id"]);
+        const auto id = params["id"];
+        auto r = view->get(id);
 
         if (r.has_value())
         {
@@ -175,7 +197,7 @@ namespace ccfapp
         }
 
         return jsonrpc::error(
-          jsonrpc::StandardErrorCodes::INVALID_PARAMS, "No such record");
+          LoggerErrors::UNKNOWN_ID, fmt::format("No such record: {}", id));
       };
       // SNIPPET_END: get_public
 
