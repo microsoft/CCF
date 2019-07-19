@@ -62,9 +62,9 @@ namespace logger
       return the_level;
     }
 
+#ifdef INSIDE_ENCLAVE
     static std::chrono::milliseconds ms;
 
-#ifdef INSIDE_ENCLAVE
     static inline int& msg()
     {
       static int the_msg = ringbuffer::Const::msg_none;
@@ -87,7 +87,20 @@ namespace logger
       return ms;
     }
 #else
+    static ::timespec start;
 
+    static void set_start(
+      const std::chrono::time_point<std::chrono::system_clock>& start_)
+    {
+      start.tv_sec = std::chrono::time_point_cast<std::chrono::seconds>(start_)
+                       .time_since_epoch()
+                       .count();
+      start.tv_nsec =
+        std::chrono::time_point_cast<std::chrono::nanoseconds>(start_)
+          .time_since_epoch()
+          .count() -
+        start.tv_sec * 1000000000;
+    }
 #endif
 
     static inline bool ok(Level l)
@@ -167,7 +180,42 @@ namespace logger
       std::tm* now = std::localtime(&ts.tv_sec);
 
       std::cout << fmt::format(
-                     "{:%Y-%m-%d %H:%M:%S}.{:0<6} ", *now, ts.tv_nsec / 1000)
+                     "{:%Y-%m-%d %H:%M:%S}.{:0<6}       ",
+                     *now,
+                     ts.tv_nsec / 1000)
+                << s << std::flush;
+    }
+
+    static void write(const std::string& s, size_t ms_offset_from_start)
+    {
+      ::timespec ts;
+      ::timespec_get(&ts, TIME_UTC);
+      std::tm* now = std::localtime(&ts.tv_sec);
+      time_t elapsed_s = ms_offset_from_start / 1000;
+      ssize_t elapsed_ns = (ms_offset_from_start % 1000) * 1000000;
+
+      ::timespec enclave_ts{logger::config::start.tv_sec + elapsed_s,
+                            logger::config::start.tv_nsec + elapsed_ns};
+      if (enclave_ts.tv_nsec > 1000000000)
+      {
+        enclave_ts.tv_sec++;
+        enclave_ts.tv_nsec -= 1000000000;
+      }
+
+      enclave_ts.tv_sec = ts.tv_sec - enclave_ts.tv_sec;
+      enclave_ts.tv_nsec = ts.tv_nsec - enclave_ts.tv_nsec;
+      if (enclave_ts.tv_nsec < 0)
+      {
+        enclave_ts.tv_sec--;
+        enclave_ts.tv_nsec += 1000000000;
+      }
+
+      std::cout << fmt::format(
+                     "{:%Y-%m-%d %H:%M:%S}.{:0>6} -{}.{:0>3} ",
+                     *now,
+                     ts.tv_nsec / 1000,
+                     enclave_ts.tv_sec,
+                     enclave_ts.tv_nsec / 1000000)
                 << s << std::flush;
     }
   };

@@ -40,9 +40,7 @@ namespace asynchost
           auto [elapsed, msg] =
             ringbuffer::read_message<AdminMessage::log_msg>(data, size);
 
-          auto full_msg = fmt::format("{} {}", elapsed.count(), msg);
-
-          logger::Out::write(full_msg);
+          logger::Out::write(msg, elapsed.count());
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
