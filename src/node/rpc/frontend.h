@@ -710,7 +710,7 @@ namespace ccf
           ctx.req.seq_no,
           jsonrpc::StandardErrorCodes::INVALID_REQUEST,
           fmt::format(
-            "Unexpected JSON-RPC version. Must be '{}', received '{}'.",
+            "Unexpected JSON-RPC version. Must be string \"{}\", received {}",
             jsonrpc::RPC_VERSION,
             rpc_version.dump()));
       }
@@ -827,8 +827,9 @@ namespace ccf
             static_cast<jsonrpc::CCFErrorCodes>(e.error_id),
             e.msg);
         }
-        catch (const JsonParseError& e)
+        catch (JsonParseError& e)
         {
+          e.pointer_elements.push_back(jsonrpc::PARAMS);
           const auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
           return jsonrpc::error_response(
             ctx.req.seq_no, jsonrpc::StandardErrorCodes::PARSE_ERROR, err);
