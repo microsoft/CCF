@@ -53,7 +53,7 @@ namespace ccfapp
         if (account_r.has_value())
         {
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS, "Account already exists");
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Account already exists");
         }
 
         account_view->put(name, acc_id);
@@ -64,7 +64,7 @@ namespace ccfapp
         if (savings_r.has_value())
         {
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS, "Account already exists");
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Account already exists");
         }
 
         savings_view->put(acc_id, savings_amt);
@@ -75,7 +75,7 @@ namespace ccfapp
         if (checking_r.has_value())
         {
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS, "Account already exists");
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Account already exists");
         }
 
         checking_view->put(acc_id, checking_amt);
@@ -102,7 +102,7 @@ namespace ccfapp
           if (account_r.has_value())
           {
             return error(
-              jsonrpc::ErrorCodes::INVALID_PARAMS,
+              jsonrpc::StandardErrorCodes::INVALID_PARAMS,
               "Account already exists in accounts table: " + name);
           }
           account_view->put(name, acc_id);
@@ -111,7 +111,7 @@ namespace ccfapp
           if (savings_r.has_value())
           {
             return error(
-              jsonrpc::ErrorCodes::INVALID_PARAMS,
+              jsonrpc::StandardErrorCodes::INVALID_PARAMS,
               "Account already exists in savings table: " + name);
           }
           savings_view->put(acc_id, savings_amt);
@@ -120,7 +120,7 @@ namespace ccfapp
           if (checking_r.has_value())
           {
             return error(
-              jsonrpc::ErrorCodes::INVALID_PARAMS,
+              jsonrpc::StandardErrorCodes::INVALID_PARAMS,
               "Account already exists in checkings table: " + name);
           }
           checking_view->put(acc_id, checking_amt);
@@ -137,14 +137,14 @@ namespace ccfapp
 
         if (!account_r.has_value())
           return error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS, "Account does not exist");
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Account does not exist");
 
         auto savings_view = tx.get_view(savingsTable);
         auto savings_r = savings_view->get(account_r.value());
 
         if (!savings_r.has_value())
           return error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS,
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             "Savings account does not exist");
 
         auto checking_view = tx.get_view(checkingTable);
@@ -152,7 +152,7 @@ namespace ccfapp
 
         if (!checking_r.has_value())
           return error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS,
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             "Checking account does not exist");
 
         auto result = checking_r.value() + savings_r.value();
@@ -167,27 +167,27 @@ namespace ccfapp
 
           if (name.empty())
             return error(
-              jsonrpc::ErrorCodes::INVALID_PARAMS, "A name must be specified");
+              jsonrpc::StandardErrorCodes::INVALID_PARAMS, "A name must be specified");
 
           auto account_view = tx.get_view(accountTable);
           auto account_r = account_view->get(name);
 
           if (!account_r.has_value())
             return error(
-              jsonrpc::ErrorCodes::INVALID_PARAMS, "Account does not exist");
+              jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Account does not exist");
 
           auto savings_view = tx.get_view(savingsTable);
           auto savings_r = savings_view->get(account_r.value());
 
           if (!savings_r.has_value())
             return error(
-              jsonrpc::ErrorCodes::INVALID_PARAMS,
+              jsonrpc::StandardErrorCodes::INVALID_PARAMS,
               "Savings account does not exist");
 
           if (savings_r.value() + value < 0)
           {
             return error(
-              jsonrpc::ErrorCodes::INVALID_PARAMS,
+              jsonrpc::StandardErrorCodes::INVALID_PARAMS,
               "Not enough money in savings account");
           }
 
@@ -204,24 +204,24 @@ namespace ccfapp
 
           if (name.empty())
             return error(
-              jsonrpc::ErrorCodes::INVALID_PARAMS, "A name must be specified");
+              jsonrpc::StandardErrorCodes::INVALID_PARAMS, "A name must be specified");
 
           if (value <= 0)
-            return error(jsonrpc::ErrorCodes::INVALID_PARAMS, "Value <= 0");
+            return error(jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Value <= 0");
 
           auto account_view = tx.get_view(accountTable);
           auto account_r = account_view->get(name);
 
           if (!account_r.has_value())
             return error(
-              jsonrpc::ErrorCodes::INVALID_PARAMS, "Account does not exist");
+              jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Account does not exist");
 
           auto checking_view = tx.get_view(checkingTable);
           auto checking_r = checking_view->get(account_r.value());
 
           if (!checking_r.has_value())
             return error(
-              jsonrpc::ErrorCodes::INVALID_PARAMS,
+              jsonrpc::StandardErrorCodes::INVALID_PARAMS,
               "Checking account does not exist");
 
           checking_view->put(account_r.value(), value + checking_r.value());
@@ -238,14 +238,14 @@ namespace ccfapp
 
         if (!account_1_r.has_value())
           return error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS,
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             "Source account does not exist");
 
         auto account_2_r = account_view->get(name_2);
 
         if (!account_2_r.has_value())
           return error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS,
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             "Destination account does not exist");
 
         auto savings_view = tx.get_view(savingsTable);
@@ -253,7 +253,7 @@ namespace ccfapp
 
         if (!savings_r.has_value())
           return error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS,
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             "Source savings account does not exist");
 
         auto checking_view = tx.get_view(checkingTable);
@@ -261,7 +261,7 @@ namespace ccfapp
 
         if (!checking_r.has_value())
           return error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS,
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             "Source checking account does not exist");
 
         auto sum_account_1 = checking_r.value() + savings_r.value();
@@ -273,7 +273,7 @@ namespace ccfapp
 
         if (!checking_2_r.has_value())
           return error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS,
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             "Destination checking account does not exist");
 
         checking_2_view->put(
@@ -291,14 +291,14 @@ namespace ccfapp
 
         if (!account_r.has_value())
           return error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS, "Account does not exist");
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Account does not exist");
 
         auto savings_view = tx.get_view(savingsTable);
         auto savings_r = savings_view->get(account_r.value());
 
         if (!savings_r.has_value())
           return error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS,
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             "Savings account does not exist");
 
         auto checking_view = tx.get_view(checkingTable);
@@ -306,7 +306,7 @@ namespace ccfapp
 
         if (!checking_r.has_value())
           return error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS,
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             "Checking account does not exist");
 
         auto account_value = checking_r.value() + savings_r.value();

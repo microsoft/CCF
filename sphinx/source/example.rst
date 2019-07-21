@@ -10,7 +10,7 @@ The repository contains equivalent C++ and a Lua implementations of a simple exa
 
     The following description is out-of-date. Logging will be extended to demonstrate more features, and this document should be updated in-sync.
 
-The Logging application implements a trivial protocol, made up of two single transaction types:
+The Logging application implements a trivial protocol, made up of four transaction types:
 
 - ``"LOG_record"``, which writes a log at a given index. Note that the log message will be encrypted on the ledger and only readable by nodes on the network.
 
@@ -19,22 +19,58 @@ The Logging application implements a trivial protocol, made up of two single tra
     .. code-block:: json
 
         {
+            "jsonrpc": "2.0",
+            "id": 0,
             "method": "LOG_record",
             "params": {
+                "id": 42,
                 "msg": "A sample private log message"
             }
         }
 
-- ``"LOG_record_pub"``, which writes a log at a given index. Note that the log message will be not be encrypted and thus visible by all users or anyone with access to the ledger.
+- ``"LOG_get"``, which retrieves a log from a given index written by a previous ``"LOG_record"`` call.
+
+    Get a private message:
+
+    .. code-block:: json
+
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "LOG_get",
+            "params": {
+                "id": 42
+            }
+        }
+
+- ``"LOG_record_pub"``, which writes a log at a given index. Note that the log message will be not be encrypted and thus to anyone with access to the ledger.
 
     Log a public message:
 
     .. code-block:: json
 
         {
+            "jsonrpc": "2.0",
+            "id": 2,
             "method": "LOG_record_pub",
             "params": {
+                "id": 100,
                 "msg": "A sample public log message"
+            }
+        }
+
+- ``"LOG_get_pub"``, which retrieves a public log from a given index written by a previous ``"LOG_record_pub"`` call.
+
+    Get a public message:
+
+    .. code-block:: json
+
+        {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "LOG_get_pub",
+            "params": {
+                "id": 100
             }
         }
 
