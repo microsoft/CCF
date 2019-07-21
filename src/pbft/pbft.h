@@ -3,6 +3,8 @@
 #pragma once
 
 #include "ds/logger.h"
+#include "enclave/rpcmap.h"
+#include "enclave/rpcsessions.h"
 #include "kv/kvtypes.h"
 #include "libbyz/Big_req_table.h"
 #include "libbyz/Client_proxy.h"
@@ -36,9 +38,24 @@ namespace pbft
       return true;
     }
 
+    void set_receiver(IMessageReceiveBase* receiver)
+    {
+      message_receiver_base = receiver;
+    }
+
     int Send(Message* msg, IPrincipal& principal) override
     {
       NodeId to = principal.pid();
+      if (to == id)
+      {
+        // If a replica sends a message to itself (e.g. if f == 0), handle the
+        // message straight away without writing it to the ringbuffer
+        assert(message_receiver_base->f() == 0);
+        message_receiver_base->receive_message(
+          (const uint8_t*)(msg->contents()), msg->size());
+        return msg->size();
+      }
+
       PbftHeader hdr = {PbftMsgType::pbft_message, id};
 
       // TODO: Encrypt msg here
@@ -70,6 +87,7 @@ namespace pbft
 
   private:
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
+    IMessageReceiveBase* message_receiver_base = nullptr;
     NodeId id;
   };
 
@@ -81,9 +99,11 @@ namespace pbft
     std::shared_ptr<ChannelProxy> channels;
     IMessageReceiveBase* message_receiver_base = nullptr;
     char* mem;
-    std::unique_ptr<INetwork> pbft_network;
+    std::unique_ptr<PbftEnclaveNetwork> pbft_network;
     std::unique_ptr<AbstractPbftConfig> pbft_config;
+    std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
     kv::TxHistory::CallbackHandler on_request;
+    enclave::RPCSessions& rpcsessions;
 
     struct NodeConfiguration
     {
@@ -93,16 +113,19 @@ namespace pbft
     };
 
   public:
-    Pbft(std::shared_ptr<ChannelProxy> channels_, NodeId id) :
+    Pbft(
+      std::shared_ptr<ChannelProxy> channels_,
+      NodeId id,
+      std::shared_ptr<enclave::RpcMap> rpc_map,
+      enclave::RPCSessions& rpcsessions_) :
       local_id(id),
-      channels(channels_)
+      channels(channels_),
+      rpcsessions(rpcsessions_)
     {
-      LOG_INFO_FMT("Setting up PBFT replica for node with id: {}", local_id);
-
       // configure replica
       GeneralInfo general_info;
-      general_info.num_replicas = 2;
-      general_info.num_clients = 0;
+      general_info.num_replicas = 1;
+      general_info.num_clients = 1;
       general_info.max_faulty = 0;
       general_info.service_name = "generic";
       general_info.auth_timeout = 1800000;
@@ -127,7 +150,6 @@ namespace pbft
       my_info.pubk_enc = pubk_enc;
       my_info.host_name = "machineB";
       my_info.is_replica = true;
-      LOG_INFO_FMT("PBFT setup for self with id: {}", local_id);
 
       ::NodeInfo node_info = {my_info, privk, general_info};
 
@@ -136,7 +158,7 @@ namespace pbft
       bzero(mem, mem_size);
 
       pbft_network = std::make_unique<PbftEnclaveNetwork>(local_id, channels);
-      pbft_config = std::make_unique<PbftConfigCcf>();
+      pbft_config = std::make_unique<PbftConfigCcf>(rpc_map);
 
       auto used_bytes = Byz_init_replica(
         node_info,
@@ -147,42 +169,62 @@ namespace pbft
         0,
         pbft_network.get(),
         &message_receiver_base);
+      LOG_INFO_FMT("PBFT setup for self with id: {}", local_id);
 
       pbft_config->set_service_mem(mem + used_bytes);
+      pbft_network->set_receiver(message_receiver_base);
 
-      LOG_INFO_FMT("Setting up client proxy");
-      static auto client_proxy =
-        std::make_unique<ClientProxy<CallerId, void>>(*message_receiver_base);
+      Byz_start_replica();
+
+      LOG_INFO_FMT("PBFT setting up client proxy");
+      client_proxy =
+        std::make_unique<ClientProxy<kv::TxHistory::RequestID, void>>(
+          *message_receiver_base);
 
       auto cb = [](Reply* m, void* ctx) {
-        auto cp = static_cast<ClientProxy<CallerId, void>*>(ctx);
+        auto cp =
+          static_cast<ClientProxy<kv::TxHistory::RequestID, void>*>(ctx);
         cp->recv_reply(m);
       };
 
       message_receiver_base->register_reply_handler(cb, client_proxy.get());
 
       on_request = [&](kv::TxHistory::CallbackArgs args) {
-        auto caller = std::get<0>(args.id);
-        auto session = std::get<1>(args.id);
-        auto jsonrpc_id = std::get<2>(args.id);
-
         auto total_req_size = pbft_config->message_size() + args.data.size();
 
         uint8_t request_buffer[total_req_size];
         pbft_config->fill_request(
-          request_buffer, total_req_size, args.data, jsonrpc_id);
+          request_buffer,
+          total_req_size,
+          args.data,
+          args.actor,
+          args.caller_id);
 
-        Time t = ITimer::current_time();
+        auto rep_cb = [&](
+                        void* owner,
+                        kv::TxHistory::RequestID caller_rid,
+                        int status,
+                        uint8_t* reply,
+                        size_t len) {
+          LOG_DEBUG_FMT("PBFT reply callback for {}", caller_rid);
 
-        client_proxy->send_request(
-          t,
+          return rpcsessions.reply_async(
+            std::get<1>(caller_rid), {reply, reply + len});
+        };
+
+        LOG_DEBUG_FMT("PBFT sending request {}", args.rid);
+        return client_proxy->send_request(
+          args.rid,
           request_buffer,
           sizeof(request_buffer),
-          nullptr,
+          rep_cb,
           client_proxy.get());
       };
     }
 
+    // TODO(#PBFT): PBFT consensus should implement the following functions to
+    // return meaningful information to clients (e.g. global commit, term/view)
+    // instead of relying on the NullReplicator
     NodeId leader() override
     {
       return 0;
@@ -241,9 +283,8 @@ namespace pbft
       info.pubk_enc = pubk_enc;
       info.host_name = node_conf.host_name;
       info.is_replica = true;
-      LOG_INFO_FMT("PBFT - adding node, id: {}", info.id);
       Byz_add_principal(info);
-      LOG_INFO_FMT("PBFT - added node, id: {}", info.id);
+      LOG_INFO_FMT("PBFT added node, id: {}", info.id);
     }
 
     bool replicate(

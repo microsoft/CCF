@@ -78,7 +78,7 @@ namespace enclave
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
 
-      node.initialize(config->raft_config, n2n_channels);
+      node.initialize(config->raft_config, n2n_channels, rpc_map);
       rpcsessions.initialize(rpc_map);
       cmd_forwarder->initialize(rpc_map);
     }
