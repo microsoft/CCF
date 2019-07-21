@@ -10,11 +10,22 @@ return {
         METHOD_NOT_FOUND = -32601,
         INVALID_PARAMS = -32602,
         INTERNAL_ERROR = -32603,
-        INVALID_CLIENT_SIGNATURE = -32605,
-        INVALID_CALLER_ID = -32606,
-        
-        INSUFFICIENT_RIGHTS = -32006,
-        DENIED = -32007
+
+        TX_NOT_LEADER = -32001,
+        TX_FAILED_TO_REPLICATE = -32002,
+        SCRIPT_ERROR = -32003,
+        INSUFFICIENT_RIGHTS = -32004,
+        TX_LEADER_UNKNOWN = -32005,
+        RPC_NOT_SIGNED = -32006,
+        INVALID_CLIENT_SIGNATURE = -32007,
+        INVALID_CALLER_ID = -32008,
+        CODE_ID_NOT_FOUND = -32009,
+        CODE_ID_RETIRED = -32010,
+        RPC_NOT_FORWARDED = -32011,
+        QUOTE_NOT_VERIFIED = -32012,
+
+        UNKNOWN_ID = -32050,
+        MESSAGE_EMPTY = -32051,
       }
     }
 
@@ -30,12 +41,15 @@ return {
     function env.get(table)
       msg = table:get(args.params.id)
       if not msg then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "No such record") 
+        return env.jerr(env.error_codes.UNKNOWN_ID, "No such record: " .. args.params.id) 
       end
       return env.jsucc(msg)
     end
     
     function env.record(table)
+      if string.len(args.params.msg) == 0 then
+        return env.jerr(env.error_codes.MESSAGE_EMPTY, "Cannot record an empty log message") 
+      end
       table:put(args.params.id, args.params.msg)
       return env.jsucc(true)
     end

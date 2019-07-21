@@ -25,7 +25,7 @@ The Logging application simply has:
     :cpp:class:`kv::Store` tables are essentially the only interface between CCF
     and the application, and the sole mechanism for it to have state.
 
-    The Logging application keeps its state in a single table, defined as:
+    The Logging application keeps its state in a pair of tables, one containing private encrypted logs and the other containing public unencrypted logs. Their type is defined as:
 
     .. literalinclude:: ../../src/apps/logging/logging.cpp
         :language: cpp
@@ -33,7 +33,13 @@ The Logging application simply has:
         :lines: 1
         :dedent: 2
 
-    Table creation happens in the Handler's constructor, described below.
+    Table creation happens in the app's constructor:
+
+    .. literalinclude:: ../../src/apps/logging/logging.cpp
+        :language: cpp
+        :start-after: SNIPPET_START: constructor
+        :end-before: SNIPPET_END: constructor
+        :dedent: 4
 
 RPC Handler
 ```````````
@@ -42,28 +48,42 @@ The handler returned by :cpp:func:`ccfapp::getRpcHandler()` needs to subclass :c
 
 .. literalinclude:: ../../src/apps/logging/logging.cpp
     :language: cpp
+    :start-after: SNIPPET: inherit_frontend
+    :lines: 1
+    :dedent: 2
 
-The constructor then needs to create a handler for the single transaction type supported here:
+The constructor then needs to create a handler function or lambda for each transaction type. This takes a transaction object and the request's ``params``, interacts with the KV tables, and returns a result:
 
 .. literalinclude:: ../../src/apps/logging/logging.cpp
     :language: cpp
-    :start-after: SNIPPET_START: record
-    :end-before: SNIPPET_END: record
+    :start-after: SNIPPET_START: get
+    :end-before: SNIPPET_END: get
     :dedent: 6
 
-Before being installed:
+Each function is installed as the handler for a specific RPC ``method``, optionally with schema included:
 
 .. literalinclude:: ../../src/apps/logging/logging.cpp
     :language: cpp
-    :start-after: SNIPPET: install_record
+    :start-after: SNIPPET: install_get
     :lines: 1
     :dedent: 6
 
-A handle can either be installed as:
+A handler can either be installed as:
 
 - ``Write``: this handler can only be executed on the leader of the Raft network.
 - ``Read``: this handler can be executed on any node of the network.
 - ``MayWrite``: the execution of this handler on a specific node depends on the value of the ``"readonly"`` paramater in the JSON-RPC command.
+
+App-defined errors
+..................
+
+Applications can define their own error codes. These should be between ``-32050`` and ``-32099`` to avoid conflicting with CCF's error codes. The Logging application returns errors if the user tries to get an ID which has not been logged, or tries to log an empty message. These error codes should be given their own ``enum class``, and a ``get_error_prefix`` function should be defined in the same namespace to help users distinguish error messages:
+
+.. literalinclude:: ../../src/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: errors
+    :end-before: SNIPPET_END: errors
+    :dedent: 2
 
 API Schema
 ..........

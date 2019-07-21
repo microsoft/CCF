@@ -113,16 +113,15 @@ namespace ccf
       {
         rpc = jsonrpc::unpack(input, pack);
         if (!rpc.is_object())
-          return {false,
-                  jsonrpc::error_response(
-                    jsonrpc::ErrorCodes::INVALID_REQUEST, "Non-object.")};
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+            fmt::format("RPC payload is a not a valid object: {}", rpc.dump()));
       }
       catch (const std::exception& e)
       {
-        return {
-          false,
-          jsonrpc::error_response(
-            jsonrpc::ErrorCodes::INVALID_REQUEST, "Exception during unpack.")};
+        return jsonrpc::error(
+          jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+          fmt::format("Exception during unpack: {}", e.what()));
       }
 
       return {true, rpc};
@@ -166,13 +165,13 @@ namespace ccf
           {
             return jsonrpc::error_response(
               ctx.req.seq_no,
-              jsonrpc::ErrorCodes::TX_NOT_LEADER,
+              jsonrpc::CCFErrorCodes::TX_NOT_LEADER,
               info->pubhost + ":" + info->tlsport);
           }
         }
         return jsonrpc::error_response(
           ctx.req.seq_no,
-          jsonrpc::ErrorCodes::TX_NOT_LEADER,
+          jsonrpc::CCFErrorCodes::TX_NOT_LEADER,
           "Not leader, leader unknown.");
       }
     }
@@ -202,7 +201,7 @@ namespace ccf
         }
 
         return jsonrpc::error(
-          jsonrpc::ErrorCodes::INTERNAL_ERROR,
+          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
           "Failed to get commit info from Raft");
       };
 
@@ -222,7 +221,8 @@ namespace ccf
           }
 
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::INTERNAL_ERROR, "Failed to trigger signature");
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            "Failed to trigger signature");
         };
 
       auto get_leader_info =
@@ -245,7 +245,7 @@ namespace ccf
           }
 
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::TX_LEADER_UNKNOWN, "Leader unknown.");
+            jsonrpc::CCFErrorCodes::TX_LEADER_UNKNOWN, "Leader unknown.");
         };
 
       auto get_network_info =
@@ -288,7 +288,7 @@ namespace ccf
         if (it == handlers.end())
         {
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS,
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             fmt::format("Method {} not recognised", in.method));
         }
 
@@ -462,7 +462,7 @@ namespace ccf
       if (!ctx.pack.has_value())
         return jsonrpc::pack(
           jsonrpc::error_response(
-            0, jsonrpc::ErrorCodes::INVALID_REQUEST, "Empty request."),
+            0, jsonrpc::StandardErrorCodes::INVALID_REQUEST, "Empty request."),
           jsonrpc::Pack::Text);
 
       // Retrieve id of caller
@@ -472,7 +472,7 @@ namespace ccf
         return jsonrpc::pack(
           jsonrpc::error_response(
             0,
-            jsonrpc::ErrorCodes::INVALID_CALLER_ID,
+            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
             "No corresponding caller entry exists."),
           ctx.pack.value());
       }
@@ -498,7 +498,7 @@ namespace ccf
           return jsonrpc::pack(
             jsonrpc::error_response(
               req.at(jsonrpc::ID),
-              jsonrpc::ErrorCodes::INVALID_CLIENT_SIGNATURE,
+              jsonrpc::CCFErrorCodes::INVALID_CLIENT_SIGNATURE,
               "Failed to verify client signature."),
             ctx.pack.value());
         }
@@ -563,7 +563,7 @@ namespace ccf
         return jsonrpc::pack(
           jsonrpc::error_response(
             0,
-            jsonrpc::ErrorCodes::RPC_NOT_FORWARDED,
+            jsonrpc::CCFErrorCodes::RPC_NOT_FORWARDED,
             "RPC could not be forwarded to leader."),
           ctx.pack.value());
       }
@@ -589,7 +589,9 @@ namespace ccf
       if (!pack.has_value())
         return jsonrpc::pack(
           jsonrpc::error_response(
-            0, jsonrpc::ErrorCodes::INVALID_REQUEST, "Empty PBFT request."),
+            0,
+            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+            "Empty PBFT request."),
           jsonrpc::Pack::Text);
 
       auto rpc = unpack_json(input, pack.value());
@@ -648,7 +650,7 @@ namespace ccf
         return jsonrpc::pack(
           jsonrpc::error_response(
             0,
-            jsonrpc::ErrorCodes::INVALID_REQUEST,
+            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
             "Empty forwarded request."),
           jsonrpc::Pack::Text);
 
@@ -659,7 +661,7 @@ namespace ccf
         return jsonrpc::pack(
           jsonrpc::error_response(
             0,
-            jsonrpc::ErrorCodes::INVALID_CALLER_ID,
+            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
             "No corresponding caller entry exists (forwarded)."),
           pack.value());
       }
@@ -701,20 +703,30 @@ namespace ccf
       std::string method = rpc.at(jsonrpc::METHOD);
       ctx.req.seq_no = rpc.at(jsonrpc::ID);
 
-      if (rpc.at(jsonrpc::JSON_RPC) != jsonrpc::RPC_VERSION)
+      const auto rpc_version = rpc.at(jsonrpc::JSON_RPC);
+      if (rpc_version != jsonrpc::RPC_VERSION)
+      {
         return jsonrpc::error_response(
           ctx.req.seq_no,
-          jsonrpc::ErrorCodes::INVALID_REQUEST,
-          "Wrong JSON-RPC version.");
+          jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+          fmt::format(
+            "Unexpected JSON-RPC version. Must be string \"{}\", received {}",
+            jsonrpc::RPC_VERSION,
+            rpc_version.dump()));
+      }
 
       const auto params_it = rpc.find(jsonrpc::PARAMS);
       if (
         params_it != rpc.end() &&
         (!params_it->is_array() && !params_it->is_object()))
+      {
         return jsonrpc::error_response(
           ctx.req.seq_no,
-          jsonrpc::ErrorCodes::INVALID_REQUEST,
-          "If present, parameters must be an array or object");
+          jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+          fmt::format(
+            "If present, parameters must be an array or object. Received: {}",
+            params_it->dump()));
+      }
 
       const auto& params =
         params_it == rpc.end() ? nlohmann::json(nullptr) : *params_it;
@@ -727,7 +739,9 @@ namespace ccf
         handler = &*default_handler;
       else
         return jsonrpc::error_response(
-          ctx.req.seq_no, jsonrpc::ErrorCodes::METHOD_NOT_FOUND, method);
+          ctx.req.seq_no,
+          jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
+          method);
 
       update_raft();
       update_history();
@@ -801,25 +815,31 @@ namespace ccf
             case kv::CommitSuccess::NO_REPLICATE:
               return jsonrpc::error_response(
                 ctx.req.seq_no,
-                jsonrpc::ErrorCodes::TX_FAILED_TO_REPLICATE,
+                jsonrpc::CCFErrorCodes::TX_FAILED_TO_REPLICATE,
                 "Transaction failed to replicate.");
               break;
           }
         }
         catch (const RpcException& e)
         {
-          return jsonrpc::error_response(ctx.req.seq_no, e.error_id, e.msg);
+          return jsonrpc::error_response(
+            ctx.req.seq_no,
+            static_cast<jsonrpc::CCFErrorCodes>(e.error_id),
+            e.msg);
         }
-        catch (const JsonParseError& e)
+        catch (JsonParseError& e)
         {
+          e.pointer_elements.push_back(jsonrpc::PARAMS);
           const auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
           return jsonrpc::error_response(
-            ctx.req.seq_no, jsonrpc::ErrorCodes::PARSE_ERROR, err);
+            ctx.req.seq_no, jsonrpc::StandardErrorCodes::PARSE_ERROR, err);
         }
         catch (const std::exception& e)
         {
           return jsonrpc::error_response(
-            ctx.req.seq_no, jsonrpc::ErrorCodes::INTERNAL_ERROR, e.what());
+            ctx.req.seq_no,
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            e.what());
         }
       }
     }
