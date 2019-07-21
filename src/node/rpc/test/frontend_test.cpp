@@ -115,6 +115,52 @@ public:
   }
 };
 
+namespace userapp
+{
+  enum class AppError : jsonrpc::ErrorBaseType
+  {
+    Foo = static_cast<jsonrpc::ErrorBaseType>(
+      jsonrpc::CCFErrorCodes::APP_ERROR_START),
+    Bar = Foo - 1
+  };
+
+  inline std::string get_error_prefix(AppError ec)
+  {
+    switch (ec)
+    {
+      case (AppError::Foo):
+      {
+        return "FOO: ";
+      }
+      case (AppError::Bar):
+      {
+        return "BAR: ";
+      }
+    }
+
+    throw std::logic_error("Missing case");
+  }
+}
+
+class TestAppErrorFrontEnd : public ccf::RpcFrontend
+{
+public:
+  static constexpr auto bar_msg = "Bar is broken";
+
+  TestAppErrorFrontEnd(Store& tables) : RpcFrontend(tables)
+  {
+    auto foo = [this](RequestArgs& args) {
+      return jsonrpc::error(userapp::AppError::Foo);
+    };
+    install("foo", foo, Read);
+
+    auto bar = [this](RequestArgs& args) {
+      return jsonrpc::error(userapp::AppError::Bar, bar_msg);
+    };
+    install("bar", bar, Read);
+  }
+};
+
 // used throughout
 auto kp = tls::make_key_pair();
 ccf::NetworkState network;
@@ -377,7 +423,8 @@ TEST_CASE("process")
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
-      static_cast<int16_t>(jsonrpc::ErrorCodes::INVALID_CLIENT_SIGNATURE));
+      static_cast<jsonrpc::ErrorBaseType>(
+        jsonrpc::CCFErrorCodes::INVALID_CLIENT_SIGNATURE));
   }
 }
 
@@ -407,7 +454,8 @@ TEST_CASE("User caller")
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
-      static_cast<int16_t>(jsonrpc::ErrorCodes::INVALID_CALLER_ID));
+      static_cast<jsonrpc::ErrorBaseType>(
+        jsonrpc::CCFErrorCodes::INVALID_CALLER_ID));
   }
 }
 
@@ -435,7 +483,8 @@ TEST_CASE("Member caller")
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
-      static_cast<int16_t>(jsonrpc::ErrorCodes::INVALID_CALLER_ID));
+      static_cast<jsonrpc::ErrorBaseType>(
+        jsonrpc::CCFErrorCodes::INVALID_CALLER_ID));
   }
 }
 
@@ -521,7 +570,8 @@ TEST_CASE("Forwarding")
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
-      static_cast<int16_t>(jsonrpc::ErrorCodes::TX_NOT_LEADER));
+      static_cast<jsonrpc::ErrorBaseType>(
+        jsonrpc::CCFErrorCodes::TX_NOT_LEADER));
   }
 
   frontend_follower.set_cmd_forwarder(follower_forwarder);
@@ -568,7 +618,8 @@ TEST_CASE("Forwarding")
 
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
-      static_cast<int16_t>(jsonrpc::ErrorCodes::TX_NOT_LEADER));
+      static_cast<jsonrpc::ErrorBaseType>(
+        jsonrpc::CCFErrorCodes::TX_NOT_LEADER));
   }
 
   INFO("Write command should not be forwarded if marked as non-forwardable");
@@ -586,5 +637,55 @@ TEST_CASE("Forwarding")
     frontend_follower_no_forwarding.process(ctx, serialized_call);
     REQUIRE(ctx.is_pending == false);
     REQUIRE(follower2_forwarder->forwarded_cmds.size() == 0);
+  }
+}
+
+TEST_CASE("App-defined errors")
+{
+  prepare_callers();
+
+  TestAppErrorFrontEnd frontend(*network.tables);
+
+  {
+    auto foo_call = create_simple_json();
+    foo_call[jsonrpc::METHOD] = "foo";
+    std::vector<uint8_t> serialized_foo =
+      jsonrpc::pack(foo_call, jsonrpc::Pack::MsgPack);
+
+    std::vector<uint8_t> serialized_foo_response =
+      frontend.process(rpc_ctx, serialized_foo);
+    auto foo_response =
+      jsonrpc::unpack(serialized_foo_response, jsonrpc::Pack::MsgPack);
+
+    CHECK(foo_response[jsonrpc::ERR] != nullptr);
+    CHECK(
+      foo_response[jsonrpc::ERR][jsonrpc::CODE].get<jsonrpc::ErrorBaseType>() ==
+      static_cast<jsonrpc::ErrorBaseType>(userapp::AppError::Foo));
+
+    const auto msg =
+      foo_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
+    CHECK(msg.find("FOO") != std::string::npos);
+  }
+
+  {
+    auto bar_call = create_simple_json();
+    bar_call[jsonrpc::METHOD] = "bar";
+    std::vector<uint8_t> serialized_bar =
+      jsonrpc::pack(bar_call, jsonrpc::Pack::MsgPack);
+
+    std::vector<uint8_t> serialized_bar_response =
+      frontend.process(rpc_ctx, serialized_bar);
+    auto bar_response =
+      jsonrpc::unpack(serialized_bar_response, jsonrpc::Pack::MsgPack);
+
+    CHECK(bar_response[jsonrpc::ERR] != nullptr);
+    CHECK(
+      bar_response[jsonrpc::ERR][jsonrpc::CODE].get<jsonrpc::ErrorBaseType>() ==
+      static_cast<jsonrpc::ErrorBaseType>(userapp::AppError::Bar));
+
+    const auto msg =
+      bar_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
+    CHECK(msg.find("BAR") != std::string::npos);
+    CHECK(msg.find(TestAppErrorFrontEnd::bar_msg) != std::string::npos);
   }
 }
