@@ -63,8 +63,6 @@ namespace logger
     }
 
 #ifdef INSIDE_ENCLAVE
-    static std::chrono::milliseconds ms;
-
     static inline int& msg()
     {
       static int the_msg = ringbuffer::Const::msg_none;
@@ -77,7 +75,11 @@ namespace logger
       return the_writer;
     }
 
-    static void elapse_ms(std::chrono::milliseconds ms_)
+    // Count of milliseconds elapsed since enclave started, used to produce
+    // offsets to host time when logging from inside the enclave
+    static std::chrono::milliseconds ms;
+
+    static void tick(std::chrono::milliseconds ms_)
     {
       ms += ms_;
     }
@@ -87,6 +89,10 @@ namespace logger
       return ms;
     }
 #else
+    // Timestamp of first tick. Used by the host when receiving log messages
+    // from the enclave. Combined with the elapsed ms reported by the enclave,
+    // and used to compute the offset between time inside the enclave, and time
+    // on the host when the log message is received.
     static ::timespec start;
 
     static void set_start(
@@ -175,26 +181,34 @@ namespace logger
 
     static void write(const std::string& s)
     {
+      // When logging from host code, print local time.
       ::timespec ts;
       ::timespec_get(&ts, TIME_UTC);
-      std::tm* now = std::localtime(&ts.tv_sec);
+      std::tm now;
+      ::localtime_r(&ts.tv_sec, &now);
 
       std::cout << fmt::format(
                      "{:%Y-%m-%d %H:%M:%S}.{:0<6}        ",
-                     *now,
+                     now,
                      ts.tv_nsec / 1000)
                 << s << std::flush;
     }
 
     static void write(const std::string& s, size_t ms_offset_from_start)
     {
+      // When logging messages received from the enclave, print local time,
+      // and the offset to time inside the enclave at the time the message
+      // was logged there.
+      // Not thread-safe (uses std::localtime)
       ::timespec ts;
       ::timespec_get(&ts, TIME_UTC);
-      std::tm* now = std::localtime(&ts.tv_sec);
+      std::tm now;
+      ::localtime_r(&ts.tv_sec, &now);
       time_t elapsed_s = ms_offset_from_start / 1000;
       ssize_t elapsed_ns = (ms_offset_from_start % 1000) * 1000000;
 
-      // TODO: store last value & offset, only advance when offset changes
+      // Enclave time is recomputed every time. If multiple threads
+      // log inside the enclave, offsets may not always increase
       ::timespec enclave_ts{logger::config::start.tv_sec + elapsed_s,
                             logger::config::start.tv_nsec + elapsed_ns};
       if (enclave_ts.tv_nsec > 1000000000)
@@ -203,6 +217,10 @@ namespace logger
         enclave_ts.tv_nsec -= 1000000000;
       }
 
+      // We assume time in the enclave is delayed compared to time on the
+      // host. This would reliably be the case if we used a monotonic clock,
+      // but we want human-readable wall-clock time. Inaccurate offsets may
+      // occasionally occur as a result.
       enclave_ts.tv_sec = ts.tv_sec - enclave_ts.tv_sec;
       enclave_ts.tv_nsec = ts.tv_nsec - enclave_ts.tv_nsec;
       if (enclave_ts.tv_nsec < 0)
@@ -213,7 +231,7 @@ namespace logger
 
       std::cout << fmt::format(
                      "{:%Y-%m-%d %H:%M:%S}.{:0>6} -{}.{:0>3} ",
-                     *now,
+                     now,
                      ts.tv_nsec / 1000,
                      enclave_ts.tv_sec,
                      enclave_ts.tv_nsec / 1000000)
