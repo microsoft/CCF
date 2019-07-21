@@ -115,11 +115,13 @@ TEST_CASE("Check signature verification")
     REQUIRE(txs.commit() == kv::CommitSuccess::OK);
   }
 
+#ifndef PBFT
   INFO("Issue signature, and verify successfully on follower");
   {
     leader_history->emit_signature();
     REQUIRE(follower_store.current_version() == 2);
   }
+#endif
 
   INFO("Issue a bogus signature, rejected by verification on the follower");
   {

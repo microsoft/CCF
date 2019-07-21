@@ -142,9 +142,14 @@ namespace ccf
         true);
     }
 
-    void add_request(
-      kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override
-    {}
+    bool add_request(
+      kv::TxHistory::RequestID id,
+      uint64_t actor,
+      CallerId caller_id,
+      const std::vector<uint8_t>& request) override
+    {
+      return true;
+    }
     void add_result(
       kv::TxHistory::RequestID id,
       kv::Version version,
@@ -329,6 +334,8 @@ namespace ccf
 
     void emit_signature() override
     {
+#ifndef PBFT
+      // Signatures are only emitted when Raft is used as consensus
       auto replicator = store.get_replicator();
       if (!replicator)
         return;
@@ -350,15 +357,22 @@ namespace ccf
           return sig.commit_reserved();
         },
         true);
+#endif
     }
 
-    void add_request(
-      kv::TxHistory::RequestID id, const std::vector<uint8_t>& request) override
+    bool add_request(
+      kv::TxHistory::RequestID id,
+      uint64_t actor,
+      CallerId caller_id,
+      const std::vector<uint8_t>& request) override
     {
       LOG_DEBUG << fmt::format("HISTORY: add_request {0}", id) << std::endl;
       requests[id] = request;
-      if (on_request.has_value())
-        on_request.value()({id, request, -1});
+
+      if (!on_request.has_value())
+        return false;
+
+      return on_request.value()({id, request, -1, actor, caller_id});
     }
 
     void add_result(
