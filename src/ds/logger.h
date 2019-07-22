@@ -27,6 +27,8 @@ namespace logger
     MAX_LOG_LEVEL
   };
 
+  static constexpr size_t ns_per_s = 1'000'000'000;
+
   class config
   {
   public:
@@ -105,7 +107,7 @@ namespace logger
         std::chrono::time_point_cast<std::chrono::nanoseconds>(start_)
           .time_since_epoch()
           .count() -
-        start.tv_sec * 1000000000;
+        start.tv_sec * ns_per_s;
     }
 #endif
 
@@ -187,6 +189,9 @@ namespace logger
       std::tm now;
       ::localtime_r(&ts.tv_sec, &now);
 
+      // Sample: "2019-07-19 18:53:25.690267        "
+      // Padding on the right to align the rest of the message
+      // with lines that contain enclave time offsets
       std::cout << fmt::format(
                      "{:%Y-%m-%d %H:%M:%S}.{:0<6}        ",
                      now,
@@ -211,14 +216,14 @@ namespace logger
       // log inside the enclave, offsets may not always increase
       ::timespec enclave_ts{logger::config::start.tv_sec + elapsed_s,
                             logger::config::start.tv_nsec + elapsed_ns};
-      if (enclave_ts.tv_nsec > 1000000000)
+      if (enclave_ts.tv_nsec > ns_per_s)
       {
         enclave_ts.tv_sec++;
-        enclave_ts.tv_nsec -= 1000000000;
+        enclave_ts.tv_nsec -= ns_per_s;
       }
 
-      // We assume time in the enclave is delayed compared to time on the
-      // host. This would reliably be the case if we used a monotonic clock,
+      // We assume time in the enclave is behind (less than) time on the host.
+      // This would reliably be the case if we used a monotonic clock,
       // but we want human-readable wall-clock time. Inaccurate offsets may
       // occasionally occur as a result.
       enclave_ts.tv_sec = ts.tv_sec - enclave_ts.tv_sec;
@@ -226,9 +231,12 @@ namespace logger
       if (enclave_ts.tv_nsec < 0)
       {
         enclave_ts.tv_sec--;
-        enclave_ts.tv_nsec += 1000000000;
+        enclave_ts.tv_nsec += ns_per_s;
       }
 
+      // Sample: "2019-07-19 18:53:25.690183 -0.130 " where -0.130 indicates
+      // that the time inside the enclave was 130 milliseconds earlier than
+      // the host timestamp printed on the line
       std::cout << fmt::format(
                      "{:%Y-%m-%d %H:%M:%S}.{:0>6} -{}.{:0>3} ",
                      now,
