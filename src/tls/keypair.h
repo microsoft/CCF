@@ -22,7 +22,9 @@ namespace tls
   enum class CurveImpl
   {
     secp384r1 = 1,
+#ifdef MOD_MBEDTLS
     curve25519 = 2,
+#endif
     secp256k1_mbedtls = 3,
     secp256k1_bitcoin = 4,
 
@@ -70,10 +72,12 @@ namespace tls
       {
         return MBEDTLS_ECP_DP_SECP384R1;
       }
+#ifdef MOD_MBEDTLS
       case CurveImpl::curve25519:
       {
         return MBEDTLS_ECP_DP_CURVE25519;
       }
+#endif
       case CurveImpl::secp256k1_mbedtls:
       case CurveImpl::secp256k1_bitcoin:
       {
@@ -97,10 +101,12 @@ namespace tls
       {
         return MBEDTLS_MD_SHA384;
       }
+#ifdef MOD_MBEDTLS
       case MBEDTLS_ECP_DP_CURVE25519:
       {
         return MBEDTLS_MD_SHA512;
       }
+#endif
       case MBEDTLS_ECP_DP_SECP256K1:
       {
         return MBEDTLS_MD_SHA256;
@@ -235,7 +241,7 @@ namespace tls
 
       switch (ec)
       {
-        #ifdef MOD_MBEDTLS
+#ifdef MOD_MBEDTLS
         case MBEDTLS_ECP_DP_CURVE25519:
         case MBEDTLS_ECP_DP_CURVE448:
         {
@@ -260,7 +266,7 @@ namespace tls
           }
           break;
         }
-        #endif
+#endif
 
         default:
         {

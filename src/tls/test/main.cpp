@@ -29,12 +29,18 @@ void corrupt(std::vector<uint8_t>& buf)
 
 static constexpr tls::CurveImpl supported_curves[] = {
   tls::CurveImpl::secp384r1,
+#ifdef MOD_MBEDTLS
   tls::CurveImpl::curve25519,
+#endif
   tls::CurveImpl::secp256k1_mbedtls,
   tls::CurveImpl::secp256k1_bitcoin};
 
-static constexpr char const* labels[] = {
-  "secp384r1", "curve25519", "secp256k1_mbedtls", "secp256k1_bitcoin"};
+static constexpr char const* labels[] = {"secp384r1",
+#ifdef MOD_MBEDTLS
+                                         "curve25519",
+#endif
+                                         "secp256k1_mbedtls",
+                                         "secp256k1_bitcoin"};
 
 TEST_CASE("Sign, verify, with PublicKey")
 {
@@ -109,7 +115,7 @@ TEST_CASE("Sign, fail to verify with wrong key on wrong curve")
     vector<uint8_t> signature = kp->sign(contents);
 
     const auto wrong_curve = curve == tls::CurveImpl::secp384r1 ?
-      tls::CurveImpl::curve25519 :
+      tls::CurveImpl::secp256k1_mbedtls :
       tls::CurveImpl::secp384r1;
     auto kp2 = tls::make_key_pair(wrong_curve);
     vector<uint8_t> public_key = kp2->public_key();
