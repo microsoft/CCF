@@ -21,6 +21,7 @@ namespace tls
     std::vector<uint8_t> own_public;
 
   public:
+  #ifdef MOD_MBEDTLS
     // Curve parameters for key exchange
     static constexpr mbedtls_ecp_group_id domain_parameter =
       MBEDTLS_ECP_DP_CURVE25519;
@@ -29,13 +30,24 @@ namespace tls
     static constexpr size_t len_public = MBEDTLS_X25519_KEY_SIZE_BYTES + 1;
     // Size of shared secret, as per mbedtls_x25519_calc_secret
     static constexpr size_t len_shared_secret = MBEDTLS_X25519_KEY_SIZE_BYTES;
+  #else
+    static constexpr mbedtls_ecp_group_id domain_parameter =
+      MBEDTLS_ECP_DP_SECP384R1;
+
+    static constexpr size_t len_public = (384 / 8) + 1;
+    static constexpr size_t len_shared_secret = (384 / 8);
+  #endif
 
     KeyExchangeContext() : own_public(len_public), entropy(create_entropy())
     {
       mbedtls_ecdh_init(&ctx);
       size_t len;
 
+#ifdef MOD_MBEDTLS
       if (mbedtls_ecdh_setup(&ctx, domain_parameter) != 0)
+#else
+      if (mbedtls_ecp_group_load(&ctx.grp, domain_parameter) != 0)
+#endif
       {
         throw std::logic_error("Failed to setup context");
       }

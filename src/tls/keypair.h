@@ -235,6 +235,7 @@ namespace tls
 
       switch (ec)
       {
+        #ifdef MOD_MBEDTLS
         case MBEDTLS_ECP_DP_CURVE25519:
         case MBEDTLS_ECP_DP_CURVE448:
         {
@@ -259,6 +260,7 @@ namespace tls
           }
           break;
         }
+        #endif
 
         default:
         {
