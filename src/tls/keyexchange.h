@@ -43,16 +43,18 @@ namespace tls
       mbedtls_ecdh_init(&ctx);
       size_t len;
 
+      int rc =
 #ifdef MOD_MBEDTLS
-      if (mbedtls_ecdh_setup(&ctx, domain_parameter) != 0)
+        mbedtls_ecdh_setup(&ctx, domain_parameter);
 #else
-      if (mbedtls_ecp_group_load(&ctx.grp, domain_parameter) != 0)
+        mbedtls_ecp_group_load(&ctx.grp, domain_parameter);
 #endif
+      if (rc != 0)
       {
-        throw std::logic_error("Failed to setup context");
+        throw std::logic_error(str_err(rc));
       }
 
-      int rc = mbedtls_ecdh_make_public(
+      rc = mbedtls_ecdh_make_public(
         &ctx,
         &len,
         own_public.data(),
@@ -87,9 +89,10 @@ namespace tls
 
     void load_peer_public(const uint8_t* bytes, size_t size)
     {
-      if (mbedtls_ecdh_read_public(&ctx, bytes, size) != 0)
+      int rc = mbedtls_ecdh_read_public(&ctx, bytes, size);
+      if (rc != 0)
       {
-        throw std::logic_error("Failed to read peer public");
+        throw std::logic_error(str_err(rc));
       }
     }
 
@@ -98,16 +101,16 @@ namespace tls
       // Should only be called once, when peer public has been loaded.
       std::vector<uint8_t> shared_secret(len_shared_secret);
       size_t len;
-      if (
-        mbedtls_ecdh_calc_secret(
-          &ctx,
-          &len,
-          shared_secret.data(),
-          len_shared_secret,
-          entropy->get_rng(),
-          entropy->get_data()) != 0)
+      int rc = mbedtls_ecdh_calc_secret(
+        &ctx,
+        &len,
+        shared_secret.data(),
+        len_shared_secret,
+        entropy->get_rng(),
+        entropy->get_data());
+      if (rc != 0)
       {
-        throw std::logic_error("Failed to compute shared secret");
+        throw std::logic_error(str_err(rc));
       }
 
       return shared_secret;
