@@ -34,8 +34,8 @@ namespace tls
     static constexpr mbedtls_ecp_group_id domain_parameter =
       MBEDTLS_ECP_DP_SECP384R1;
 
-    static constexpr size_t len_public = 1024 + 1;
-    static constexpr size_t len_shared_secret = 1024;
+    static constexpr size_t len_public = MBEDTLS_ECP_MAX_PT_LEN + 1;
+    static constexpr size_t len_shared_secret = MBEDTLS_ECP_MAX_PT_LEN;
 #endif
 
     KeyExchangeContext() : own_public(len_public), entropy(create_entropy())
