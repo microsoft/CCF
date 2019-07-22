@@ -34,8 +34,8 @@ namespace tls
     static constexpr mbedtls_ecp_group_id domain_parameter =
       MBEDTLS_ECP_DP_SECP384R1;
 
-    static constexpr size_t len_public = MBEDTLS_ECP_MAX_PT_LEN + 1;
-    static constexpr size_t len_shared_secret = MBEDTLS_ECP_MAX_PT_LEN;
+    static constexpr size_t len_public = 1024 + 1;
+    static constexpr size_t len_shared_secret = 1024;
 #endif
 
     KeyExchangeContext() : own_public(len_public), entropy(create_entropy())
@@ -58,7 +58,7 @@ namespace tls
         &ctx,
         &len,
         own_public.data(),
-        len_public,
+        own_public.size(),
         entropy->get_rng(),
         entropy->get_data());
 
@@ -66,6 +66,8 @@ namespace tls
       {
         throw std::logic_error(str_err(rc));
       }
+
+      own_public.resize(len);
     }
 
     void free_ctx()
@@ -105,13 +107,15 @@ namespace tls
         &ctx,
         &len,
         shared_secret.data(),
-        len_shared_secret,
+        shared_secret.size(),
         entropy->get_rng(),
         entropy->get_data());
       if (rc != 0)
       {
         throw std::logic_error(str_err(rc));
       }
+
+      shared_secret.resize(len);
 
       return shared_secret;
     }
