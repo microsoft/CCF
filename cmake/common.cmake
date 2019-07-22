@@ -293,6 +293,7 @@ endfunction()
 function(use_client_mbedtls name)
   target_include_directories(${name} PRIVATE ${CLIENT_MBEDTLS_INCLUDE_DIR})
   target_link_libraries(${name} PRIVATE ${CLIENT_MBEDTLS_LIBRARIES})
+  target_compile_definitions(${name} PRIVATE -DMOD_MBEDTLS)
 endfunction()
 
 function(use_oe_mbedtls name)

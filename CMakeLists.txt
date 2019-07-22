@@ -113,6 +113,46 @@ if(BUILD_TESTS)
     ${CMAKE_THREAD_LIBS_INIT}
     secp256k1.host)
 
+  add_unit_test(keyexchange_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/keyexchange.cpp)
+  use_client_mbedtls(keyexchange_test)
+
+  add_unit_test(channels_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp)
+  use_client_mbedtls(channels_test)
+  target_link_libraries(channels_test PRIVATE secp256k1.host)
+
+  if(NOT PBFT)
+    add_unit_test(frontend_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp)
+    target_link_libraries(frontend_test PRIVATE
+      ${CMAKE_THREAD_LIBS_INIT}
+      evercrypt.host
+      lua.host
+      secp256k1.host)
+
+    add_unit_test(membervoting_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/membervoting_test.cpp)
+    target_link_libraries(membervoting_test PRIVATE
+      ${CMAKE_THREAD_LIBS_INIT}
+      evercrypt.host
+      lua.host
+      secp256k1.host)
+
+    if(NOT ENV{RUNTIME_CONFIG_DIR})
+      set_tests_properties(membervoting_test PROPERTIES ENVIRONMENT RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config)
+    endif()
+
+    add_unit_test(luageneric_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/luageneric_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/luageneric.cpp)
+    target_include_directories(luageneric_test PRIVATE
+      ${LUA_DIR})
+    target_link_libraries(luageneric_test PRIVATE
+      lua.host
+      secp256k1.host)
+  endif()
+
   add_unit_test(lua_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/luainterp/test/lua_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/luainterp/test/luakv.cpp)
