@@ -24,11 +24,23 @@ namespace crypto
     ctx = new mbedtls_gcm_context;
     mbedtls_gcm_init(reinterpret_cast<mbedtls_gcm_context*>(ctx));
 
-    static constexpr auto n_bits = 256;
+    size_t n_bits;
     const auto n = static_cast<unsigned int>(rawKey.rawSize() * 8);
-    if (n < n_bits)
+    if (n >= 256)
     {
-      LOG_FATAL_FMT("Need at least {} bits, only have {}", n_bits, n);
+      n_bits = 256;
+    }
+    else if (n >= 192)
+    {
+      n_bits = 192;
+    }
+    else if (n >= 128)
+    {
+      n_bits = 128;
+    }
+    else
+    {
+      LOG_FATAL_FMT("Need at least {} bits, only have {}", 128, n);
     }
 
     int rc = mbedtls_gcm_setkey(
