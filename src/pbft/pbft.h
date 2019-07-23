@@ -193,11 +193,10 @@ namespace pbft
       message_receiver_base->register_reply_handler(
         reply_handler_cb, client_proxy.get());
 
-      auto append_ledger_entry_cb =
-        [](std::vector<uint8_t>& data, void* ctx) {
-          auto ledger = static_cast<raft::LedgerEnclave*>(ctx);
-          ledger->put_entry(data);
-        };
+      auto append_ledger_entry_cb = [](std::vector<uint8_t>& data, void* ctx) {
+        auto ledger = static_cast<raft::LedgerEnclave*>(ctx);
+        ledger->put_entry(data);
+      };
 
       message_receiver_base->register_append_ledger_entry_cb(
         append_ledger_entry_cb, ledger.get());
