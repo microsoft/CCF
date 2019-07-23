@@ -193,28 +193,14 @@ namespace pbft
       message_receiver_base->register_reply_handler(
         reply_handler_cb, client_proxy.get());
 
-      auto batch_committed_cb =
-        [](uint64_t batch_id, void* batch, uint32_t size, void* ctx) {
+      auto append_ledger_entry_cb =
+        [](std::vector<uint8_t>& data, void* ctx) {
           auto ledger = static_cast<raft::LedgerEnclave*>(ctx);
-
-          struct LedgerEntry
-          {
-            uint64_t batch_id;
-            uint8_t data[0];
-          };
-
-          // TODO: This needs to be encrypted
-          std::vector<uint8_t> entry;
-          entry.resize(sizeof(LedgerEntry) + size);
-          auto ledger_entry = reinterpret_cast<LedgerEntry*>(entry.data());
-
-          ledger_entry->batch_id = batch_id;
-          memcpy(ledger_entry->data, batch, size);
-
-          ledger->put_entry(entry);
+          ledger->put_entry(data);
         };
-      message_receiver_base->register_batch_committed(
-        batch_committed_cb, ledger.get());
+
+      message_receiver_base->register_append_ledger_entry_cb(
+        append_ledger_entry_cb, ledger.get());
 
       on_request = [&](kv::TxHistory::CallbackArgs args) {
         auto total_req_size = pbft_config->message_size() + args.data.size();
