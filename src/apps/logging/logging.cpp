@@ -63,9 +63,45 @@ namespace ccfapp
     static constexpr auto LOG_GET_PUBLIC = "LOG_get_pub";
   };
 
+  // SNIPPET_START: errors
+  enum class LoggerErrors : jsonrpc::ErrorBaseType
+  {
+    UNKNOWN_ID =
+      (jsonrpc::ErrorBaseType)jsonrpc::CCFErrorCodes::APP_ERROR_START,
+    MESSAGE_EMPTY = UNKNOWN_ID - 1,
+  };
+
+  std::string get_error_prefix(LoggerErrors ec)
+  {
+    std::stringstream ss;
+    ss << "[";
+    switch (ec)
+    {
+      case (LoggerErrors::UNKNOWN_ID):
+      {
+        ss << "UNKNOWN_ID";
+        break;
+      }
+      case (LoggerErrors::MESSAGE_EMPTY):
+      {
+        ss << "MESSAGE_EMPTY";
+        break;
+      }
+      default:
+      {
+        ss << "UNKNOWN LOGGER ERROR";
+        break;
+      }
+    }
+    ss << "]: ";
+    return ss.str();
+  }
+  // SNIPPET_END: errors
+
   // SNIPPET: table_definition
   using Table = Store::Map<size_t, string>;
 
+  // SNIPPET: inherit_frontend
   class Logger : public ccf::UserRpcFrontend
   {
   private:
@@ -99,11 +135,14 @@ namespace ccfapp
     }
 
   public:
+    // SNIPPET_START: constructor
     Logger(NetworkTables& nwt, AbstractNotifier& notifier) :
       UserRpcFrontend(*nwt.tables),
-      records(tables.create<Table>(ccf::Tables::APP)),
+      records(
+        tables.create<Table>(ccf::Tables::APP, kv::SecurityDomain::PRIVATE)),
       public_records(tables.create<Table>(
         ccf::Tables::APP_PUBLIC, kv::SecurityDomain::PUBLIC)),
+      // SNIPPET_END: constructor
       record_public_params_schema(nlohmann::json::parse(j_record_public_in)),
       record_public_result_schema(nlohmann::json::parse(j_record_public_out)),
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
@@ -114,6 +153,13 @@ namespace ccfapp
       auto record = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<LoggingRecord::In>();
         // SNIPPET_END: macro_validation_record
+
+        if (in.msg.empty())
+        {
+          return jsonrpc::error(
+            LoggerErrors::MESSAGE_EMPTY, "Cannot record an empty log message");
+        }
+
         auto view = tx.get_view(records);
         view->put(in.id, in.msg);
         return jsonrpc::success(true);
@@ -130,7 +176,7 @@ namespace ccfapp
           return jsonrpc::success(LoggingGet::Out{r.value()});
 
         return jsonrpc::error(
-          jsonrpc::ErrorCodes::INVALID_PARAMS, "No such record");
+          LoggerErrors::UNKNOWN_ID, fmt::format("No such record: {}", in.id));
       };
       // SNIPPET_END: get
 
@@ -143,12 +189,19 @@ namespace ccfapp
         if (validation_error.has_value())
         {
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::PARSE_ERROR, *validation_error);
+            jsonrpc::StandardErrorCodes::PARSE_ERROR, *validation_error);
         }
         // SNIPPET_END: valijson_record_public
 
+        const auto msg = params["msg"].get<std::string>();
+        if (msg.empty())
+        {
+          return jsonrpc::error(
+            LoggerErrors::MESSAGE_EMPTY, "Cannot record an empty log message");
+        }
+
         auto view = tx.get_view(public_records);
-        view->put(params["id"], params["msg"]);
+        view->put(params["id"], msg);
         return jsonrpc::success(true);
       };
       // SNIPPET_END: record_public
@@ -161,11 +214,12 @@ namespace ccfapp
         if (validation_error.has_value())
         {
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::PARSE_ERROR, *validation_error);
+            jsonrpc::StandardErrorCodes::PARSE_ERROR, *validation_error);
         }
 
         auto view = tx.get_view(public_records);
-        auto r = view->get(params["id"]);
+        const auto id = params["id"];
+        auto r = view->get(id);
 
         if (r.has_value())
         {
@@ -175,13 +229,13 @@ namespace ccfapp
         }
 
         return jsonrpc::error(
-          jsonrpc::ErrorCodes::INVALID_PARAMS, "No such record");
+          LoggerErrors::UNKNOWN_ID, fmt::format("No such record: {}", id));
       };
       // SNIPPET_END: get_public
 
-      // SNIPPET: install_record
       install_with_auto_schema<LoggingRecord::In, bool>(
         Procs::LOG_RECORD, record, Write);
+      // SNIPPET: install_get
       install_with_auto_schema<LoggingGet>(Procs::LOG_GET, get, Read);
 
       install(

@@ -1,14 +1,18 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "../ds/logger.h"
 #include "../ds/spinlock.h"
 #include "enclave.h"
 
 #include <ccf_t.h>
+#include <chrono>
 
 // the central enclave object
 static SpinLock create_lock;
 static enclave::Enclave* e;
 static uint8_t* reserved_memory;
+std::chrono::milliseconds logger::config::ms =
+  std::chrono::milliseconds::zero();
 
 extern "C"
 {

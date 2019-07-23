@@ -133,6 +133,7 @@ namespace enclave
             if (ms_count > 0)
             {
               std::chrono::milliseconds elapsed_ms(ms_count);
+              logger::config::tick(elapsed_ms);
               node.tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // ledger is being read

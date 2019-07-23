@@ -25,57 +25,84 @@ namespace jsonrpc
   static constexpr auto SIG = "sig";
   static constexpr auto REQ = "req";
 
-#define XX_ERROR_CODES \
+// -32000 to -32099 are reserved for implementation-defined server-errors
+#define XX_STANDARD_ERROR_CODES \
   XX(PARSE_ERROR, -32700) \
   XX(INVALID_REQUEST, -32600) \
   XX(METHOD_NOT_FOUND, -32601) \
   XX(INVALID_PARAMS, -32602) \
   XX(INTERNAL_ERROR, -32603) \
-  XX(NODE_NOT_FOUND, -32604) \
-  XX(INVALID_CLIENT_SIGNATURE, -32605) \
-  XX(INVALID_CALLER_ID, -32606) \
-  XX(CODE_ID_NOT_FOUND, -32607) \
-  XX(CODE_ID_RETIRED, -32608) \
-  XX(RPC_NOT_FORWARDED, -3269) \
   XX(SERVER_ERROR_START, -32000) \
-  XX(TX_NOT_LEADER, -32001) \
-  XX(TX_REPLICATED, -32002) \
-  XX(TX_ROLLED_BACK, -32003) \
-  XX(TX_FAILED_TO_COMMIT, -32004) \
-  XX(TX_FAILED_TO_REPLICATE, -32005) \
-  XX(SCRIPT_ERROR, -32006) \
-  XX(INSUFFICIENT_RIGHTS, -32007) \
-  XX(DENIED, -32008) \
-  XX(TX_LEADER_UNKNOWN, -32009) \
-  XX(RPC_NOT_SIGNED, -32010) \
   XX(SERVER_ERROR_END, -32099)
 
-  enum ErrorCodes : int16_t
+#define XX_CCF_ERROR_CODES \
+  XX(TX_NOT_LEADER, -32001) \
+  XX(TX_FAILED_TO_REPLICATE, -32002) \
+  XX(SCRIPT_ERROR, -32003) \
+  XX(INSUFFICIENT_RIGHTS, -32004) \
+  XX(TX_LEADER_UNKNOWN, -32005) \
+  XX(RPC_NOT_SIGNED, -32006) \
+  XX(INVALID_CLIENT_SIGNATURE, -32007) \
+  XX(INVALID_CALLER_ID, -32008) \
+  XX(CODE_ID_NOT_FOUND, -32009) \
+  XX(CODE_ID_RETIRED, -32010) \
+  XX(RPC_NOT_FORWARDED, -32011) \
+  XX(QUOTE_NOT_VERIFIED, -32012) \
+  XX(APP_ERROR_START, -32050)
+
+  using ErrorBaseType = int;
+
+  enum class StandardErrorCodes : ErrorBaseType
   {
 #define XX(Name, Value) Name = Value,
-    XX_ERROR_CODES
+    XX_STANDARD_ERROR_CODES
 #undef XX
   };
+
+  enum class CCFErrorCodes : ErrorBaseType
+  {
+#define XX(Name, Value) Name = Value,
+    XX_CCF_ERROR_CODES
+#undef XX
+  };
+
+  inline std::string get_error_prefix(StandardErrorCodes ec)
+  {
+#define XX(Name, Value) \
+  case (StandardErrorCodes::Name): \
+    return "[" #Name "]: ";
+
+    switch (ec)
+    {
+      XX_STANDARD_ERROR_CODES
+    }
+
+#undef XX
+
+    return "";
+  }
+
+  inline std::string get_error_prefix(CCFErrorCodes ec)
+  {
+#define XX(Name, Value) \
+  case (CCFErrorCodes::Name): \
+    return "[" #Name "]: ";
+
+    switch (ec)
+    {
+      XX_CCF_ERROR_CODES
+    }
+
+#undef XX
+
+    return "";
+  }
 
   enum class Pack
   {
     Text,
     MsgPack
   };
-
-  inline char const* get_error_prefix(int ec)
-  {
-    switch (ec)
-    {
-#define XX(Name, Value) \
-  case (Name): \
-    return "[" #Name "]: ";
-      XX_ERROR_CODES
-#undef XX
-    }
-
-    return "";
-  }
 
   inline std::vector<uint8_t> pack(const nlohmann::json& j, Pack pack)
   {
@@ -211,12 +238,13 @@ namespace jsonrpc
 
   struct Error
   {
-    int code;
+    ErrorBaseType code;
     std::string message;
 
-    Error(int error_code, const std::string& msg = "") :
-      code(error_code),
-      message(std::string(get_error_prefix(error_code)) + msg)
+    template <typename ErrorEnum>
+    Error(ErrorEnum error_code, const std::string& msg = "") :
+      code(static_cast<ErrorBaseType>(error_code)),
+      message(get_error_prefix(error_code) + msg)
     {}
   };
   ADD_JSON_TRANSLATORS(Error, code, message);
@@ -243,10 +271,11 @@ namespace jsonrpc
     e.data = j[DATA];
   }
 
+  template <typename ErrorEnum>
   inline std::pair<bool, nlohmann::json> error(
-    int error, const std::string msg = "")
+    ErrorEnum error_code, const std::string msg = "")
   {
-    return std::make_pair(false, Error(error, msg));
+    return std::make_pair(false, Error(error_code, msg));
   }
 
   template <typename T>
@@ -274,8 +303,9 @@ namespace jsonrpc
     return j;
   }
 
+  template <typename ErrorEnum>
   inline nlohmann::json error_response(
-    SeqNo id, int error_code, const std::string& msg)
+    SeqNo id, ErrorEnum error_code, const std::string& msg)
   {
     nlohmann::json j;
     j[JSON_RPC] = RPC_VERSION;

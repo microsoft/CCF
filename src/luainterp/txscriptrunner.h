@@ -149,7 +149,8 @@ namespace ccf
       {
         std::stringstream ss;
         ss << "Script failed: " << e.what();
-        throw RpcException(ss.str(), jsonrpc::ErrorCodes::SCRIPT_ERROR);
+        throw RpcException(
+          ss.str(), static_cast<int>(jsonrpc::CCFErrorCodes::SCRIPT_ERROR));
       }
 
       virtual void add_custom_tables(
