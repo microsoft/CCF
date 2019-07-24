@@ -5,6 +5,7 @@
 #include "ds/logger.h"
 #include "enclave/rpcmap.h"
 #include "enclave/rpcsessions.h"
+#include "host/ledger.h"
 #include "kv/kvtypes.h"
 #include "libbyz/Big_req_table.h"
 #include "libbyz/Client_proxy.h"
@@ -197,10 +198,12 @@ namespace pbft
         [](const uint8_t* data, size_t size, void* ctx) {
           auto ledger = static_cast<raft::LedgerEnclave*>(ctx);
 
-          std::vector<uint8_t> entry;
-          entry.reserve(size + sizeof(size_t));
-          entry.push_back(size);
-          std::copy(data, data + size, std::back_inserter(entry));
+          size_t tsize = size + sizeof(uint32_t);
+          std::vector<uint8_t> entry(tsize);
+          uint8_t* tdata = entry.data();
+
+          serialized::write<uint32_t>(tdata, tsize, tsize);
+          serialized::write(tdata, tsize, data, size);
 
           ledger->put_entry(entry);
         };
