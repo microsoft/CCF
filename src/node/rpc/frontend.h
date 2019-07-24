@@ -520,7 +520,7 @@ namespace ccf
           return jsonrpc::pack(
             jsonrpc::error_response(
               jsonrpc_id,
-              jsonrpc::ErrorCodes::INTERNAL_ERROR,
+              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
               "PBFT could not process request."),
             ctx.pack.value());
         }
@@ -532,7 +532,7 @@ namespace ccf
         return jsonrpc::pack(
           jsonrpc::error_response(
             jsonrpc_id,
-            jsonrpc::ErrorCodes::INTERNAL_ERROR,
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             "PBFT is not yet ready."),
           ctx.pack.value());
       }

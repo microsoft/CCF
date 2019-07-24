@@ -5,6 +5,7 @@
 #include "ds/logger.h"
 #include "enclave/rpcmap.h"
 #include "enclave/rpcsessions.h"
+#include "host/ledger.h"
 #include "kv/kvtypes.h"
 #include "libbyz/Big_req_table.h"
 #include "libbyz/Client_proxy.h"
@@ -14,6 +15,7 @@
 #include "node/nodetypes.h"
 #include "node/rpc/jsonrpc.h"
 #include "pbft/pbft_config.h"
+#include "raft/ledgerenclave.h"
 
 #include <list>
 #include <memory>
@@ -104,6 +106,7 @@ namespace pbft
     std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
     kv::TxHistory::CallbackHandler on_request;
     enclave::RPCSessions& rpcsessions;
+    std::unique_ptr<raft::LedgerEnclave> ledger;
 
     struct NodeConfiguration
     {
@@ -116,11 +119,13 @@ namespace pbft
     Pbft(
       std::shared_ptr<ChannelProxy> channels_,
       NodeId id,
+      std::unique_ptr<raft::LedgerEnclave> ledger_,
       std::shared_ptr<enclave::RpcMap> rpc_map,
       enclave::RPCSessions& rpcsessions_) :
       local_id(id),
       channels(channels_),
-      rpcsessions(rpcsessions_)
+      rpcsessions(rpcsessions_),
+      ledger(std::move(ledger_))
     {
       // configure replica
       GeneralInfo general_info;
@@ -181,13 +186,31 @@ namespace pbft
         std::make_unique<ClientProxy<kv::TxHistory::RequestID, void>>(
           *message_receiver_base);
 
-      auto cb = [](Reply* m, void* ctx) {
+      auto reply_handler_cb = [](Reply* m, void* ctx) {
         auto cp =
           static_cast<ClientProxy<kv::TxHistory::RequestID, void>*>(ctx);
         cp->recv_reply(m);
       };
+      message_receiver_base->register_reply_handler(
+        reply_handler_cb, client_proxy.get());
 
-      message_receiver_base->register_reply_handler(cb, client_proxy.get());
+      auto append_ledger_entry_cb =
+        [](const uint8_t* data, size_t size, void* ctx) {
+          auto ledger = static_cast<raft::LedgerEnclave*>(ctx);
+
+          size_t tsize = size + raft::LedgerEnclave::FRAME_SIZE;
+          assert(raft::LedgerEnclave::FRAME_SIZE <= sizeof(tsize));
+          std::vector<uint8_t> entry(tsize);
+          uint8_t* tdata = entry.data();
+
+          serialized::write<uint32_t>(tdata, tsize, tsize);
+          serialized::write(tdata, tsize, data, size);
+
+          ledger->put_entry(entry);
+        };
+
+      message_receiver_base->register_append_ledger_entry_cb(
+        append_ledger_entry_cb, ledger.get());
 
       on_request = [&](kv::TxHistory::CallbackArgs args) {
         auto total_req_size = pbft_config->message_size() + args.data.size();
