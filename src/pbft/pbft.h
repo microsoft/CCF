@@ -198,7 +198,8 @@ namespace pbft
         [](const uint8_t* data, size_t size, void* ctx) {
           auto ledger = static_cast<raft::LedgerEnclave*>(ctx);
 
-          size_t tsize = size + sizeof(uint32_t);
+          size_t tsize = size + raft::LedgerEnclave::FRAME_SIZE;
+          assert(raft::LedgerEnclave::FRAME_SIZE <= sizeof(tsize));
           std::vector<uint8_t> entry(tsize);
           uint8_t* tdata = entry.data();
 
