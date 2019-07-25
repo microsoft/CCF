@@ -153,11 +153,40 @@ namespace ccf
           ss.str(), static_cast<int>(jsonrpc::CCFErrorCodes::SCRIPT_ERROR));
       }
 
+      static int lua_log_debug(lua_State* l)
+      {
+        LOG_DEBUG_FMT(lua_tostring(l, 1));
+        return 0;
+      }
+
+      static int lua_log_info(lua_State* l)
+      {
+        LOG_INFO_FMT(lua_tostring(l, 1));
+        return 0;
+      }
+
+      static int lua_log_fail(lua_State* l)
+      {
+        LOG_FAIL_FMT(lua_tostring(l, 1));
+        return 0;
+      }
+
+      static int lua_log_fatal(lua_State* l)
+      {
+        LOG_FATAL_FMT(lua_tostring(l, 1));
+        return 0;
+      }
+
       virtual void run_environment_script(
         lua::Interpreter& li, const std::optional<Script>& env_script) const
       {
-        lua_newtable(li.get_state());
-        lua_setglobal(li.get_state(), "env");
+        auto state = li.get_state();
+        lua_newtable(state);
+        lua_setglobal(state, "env");
+        lua_register(state, "LOG_DEBUG", lua_log_debug);
+        lua_register(state, "LOG_INFO", lua_log_info);
+        lua_register(state, "LOG_FAIL", lua_log_fail);
+        lua_register(state, "LOG_FATAL", lua_log_fatal);
 
         if (env_script)
         {
