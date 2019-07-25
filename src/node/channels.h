@@ -193,7 +193,7 @@ namespace ccf
       // Channel can be established
       channel.establish();
 
-      LOG_DEBUG_FMT("node2node channel with {} is now established", peer_id);
+      LOG_INFO_FMT("node2node channel with {} is now established", peer_id);
 
       return true;
     }

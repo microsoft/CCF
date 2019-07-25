@@ -164,32 +164,13 @@ def run(args):
                             )
 
                 LOG.debug("2/3 members vote to complete the recovery")
-                result = infra.proc.ccall(
-                    "./memberclient",
-                    "accept_recovery",
-                    "--sealed-secrets={}".format(sealed_secrets),
-                    "--cert=member1_cert.pem",
-                    "--privk=member1_privk.pem",
-                    "--host={}".format(primary.host),
-                    "--port={}".format(primary.tls_port),
-                    "--ca=networkcert.pem",
+                result = network.propose(
+                    1, primary, "accept_recovery", f"--sealed-secrets={sealed_secrets}"
                 )
-                j_result = json.loads(result.stdout)
-                assert not j_result["result"]["completed"]
-                proposal_id = j_result["result"]["id"]
+                assert not result[1]["completed"]
+                proposal_id = result[1]["id"]
 
-                result = infra.proc.ccall(
-                    "./memberclient",
-                    "vote",
-                    "--accept",
-                    "--cert=member2_cert.pem",
-                    "--privk=member2_privk.pem",
-                    "--host={}".format(primary.host),
-                    "--port={}".format(primary.tls_port),
-                    "--id={}".format(proposal_id),
-                    "--ca=networkcert.pem",
-                    "--sign",
-                )
+                result = network.vote(2, primary, proposal_id, True)
 
                 for node in network.nodes:
                     wait_for_state(node, b"partOfNetwork")

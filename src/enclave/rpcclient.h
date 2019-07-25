@@ -48,9 +48,11 @@ namespace enclave
       auto res = handle_data_cb(data);
       if (res.first)
       {
-        LOG_DEBUG_FMT(
-          "RPCClient: responding to session {}", rpc_ctx.client_session_id);
-        rpcresponder.reply_async(rpc_ctx.client_session_id, res.second);
+        if (rpcresponder.reply_async(rpc_ctx.client_session_id, res.second))
+        {
+          LOG_DEBUG_FMT(
+            "RPCClient responded to session {}", rpc_ctx.client_session_id);
+        }
       }
 
       close();

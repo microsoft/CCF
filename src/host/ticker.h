@@ -13,17 +13,22 @@ namespace asynchost
   {
   private:
     std::unique_ptr<ringbuffer::AbstractWriter> to_enclave;
-    std::chrono::time_point<std::chrono::steady_clock> last;
+    std::chrono::time_point<std::chrono::system_clock> last;
 
   public:
-    TickerImpl(ringbuffer::AbstractWriterFactory& writer_factory) :
+    TickerImpl(
+      ringbuffer::AbstractWriterFactory& writer_factory,
+      std::function<void(std::chrono::time_point<std::chrono::system_clock>)>
+        set_start) :
       to_enclave(writer_factory.create_writer_to_inside()),
-      last(std::chrono::steady_clock::now())
-    {}
+      last(std::chrono::system_clock::now())
+    {
+      set_start(last);
+    }
 
     void on_timer()
     {
-      auto next = std::chrono::steady_clock::now();
+      auto next = std::chrono::system_clock::now();
       auto elapsed =
         std::chrono::duration_cast<std::chrono::milliseconds>(next - last);
       last = next;

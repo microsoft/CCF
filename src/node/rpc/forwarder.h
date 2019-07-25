@@ -202,13 +202,8 @@ namespace ccf
           LOG_DEBUG_FMT(
             "Sending forwarded response to RPC endpoint {}", rep->first);
 
-          try
+          if (!rpcresponder.reply_async(rep->first, rep->second))
           {
-            rpcresponder.reply_async(rep->first, rep->second);
-          }
-          catch (const std::logic_error& err)
-          {
-            LOG_FAIL_FMT(err.what());
             return;
           }
 

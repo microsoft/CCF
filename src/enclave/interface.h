@@ -58,7 +58,8 @@ enum AdminMessage : ringbuffer::Message
   DEFINE_RINGBUFFER_MSG_TYPE(tick)
 };
 
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::log_msg, std::string);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  AdminMessage::log_msg, std::chrono::milliseconds, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::fatal_error_msg, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   AdminMessage::sealed_secrets, kv::Version, std::vector<uint8_t>);
