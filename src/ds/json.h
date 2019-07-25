@@ -450,7 +450,7 @@ namespace std
  *   { "a": 42, "b": 100, "n": 101 }
  *  Invalid JSON:
  *   { "n": 101 }
- * 
+ *
  *  struct Z
  *  {
  *   int snake_case;
@@ -463,7 +463,7 @@ namespace std
  *  Valid JSON:
  *   { "camelCase": 42, "msg": "Hello" }
  *   (converts to and from struct {snake_case: 42, s: "Hello"})
- * 
+ *
  */
 
 #define DECLARE_JSON_TYPE_IMPL( \
