@@ -267,7 +267,7 @@ namespace std
   _FOR_JSON_NEXT(FUNC, TYPE, ARG1, ARG2) \
   _FOR_JSON_18_POP2(FUNC, TYPE, ##__VA_ARGS__)
 
-// Implementation of macros produced by the machinery above
+// Forwarders for macros produced by the machinery above
 #define _FOR_JSON_NEXT(FUNC, ...) FUNC##_FOR_JSON_NEXT(__VA_ARGS__)
 #define _FOR_JSON_FINAL(FUNC, ...) FUNC##_FOR_JSON_FINAL(__VA_ARGS__)
 
@@ -391,6 +391,7 @@ namespace std
  *  - Add DELARE_JSON_TYPE, or WITH_BASE or WITH_OPTIONAL variants as required
  *  - Add DECLARE_JSON_REQUIRED_FIELDS listing fields which must be present
  *  - If there are optional fields, add DECLARE_JSON_OPTIONAL_FIELDS
+ *  - If the json and struct fields have different names, use WITH_RENAMES
  *
  * Examples:
  *  struct X
@@ -449,6 +450,20 @@ namespace std
  *   { "a": 42, "b": 100, "n": 101 }
  *  Invalid JSON:
  *   { "n": 101 }
+ * 
+ *  struct Z
+ *  {
+ *   int snake_case;
+ *   std::string s;
+ *  };
+ *  DECLARE_JSON_TYPE(Z);
+ *  DECLARE_JSON_REQUIRE_FIELDS_WITH_RENAMES(
+ *    Z, snake_case, camelCase, s, msg);
+ *
+ *  Valid JSON:
+ *   { "camelCase": 42, "msg": "Hello" }
+ *   (converts to and from struct {snake_case: 42, s: "Hello"})
+ * 
  */
 
 #define DECLARE_JSON_TYPE_IMPL( \
