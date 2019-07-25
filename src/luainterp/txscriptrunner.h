@@ -153,6 +153,19 @@ namespace ccf
           ss.str(), static_cast<int>(jsonrpc::CCFErrorCodes::SCRIPT_ERROR));
       }
 
+      virtual void run_environment_script(
+        lua::Interpreter& li, const std::optional<Script>& env_script) const
+      {
+        lua_newtable(li.get_state());
+        lua_setglobal(li.get_state(), "env");
+
+        if (env_script)
+        {
+          load(li, *env_script);
+          li.invoke_raw(0);
+        }
+      }
+
       virtual void add_custom_tables(
         lua::Interpreter& li, Store::Tx& tx, int& n_registered_tables) const
       {}
@@ -185,12 +198,10 @@ namespace ccf
       T run(Store::Tx& tx, const TxScript& txs, Args&&... args) const
       {
         lua::Interpreter li;
+
         // run an optional environment script
-        if (txs.env_script)
-        {
-          load(li, *txs.env_script);
-          li.invoke_raw(0);
-        }
+        run_environment_script(li, txs.env_script);
+
         load(li, txs.script);
 
         // register writable and read-only tables with respect to the given
