@@ -13,7 +13,6 @@
       "type": "string"
     }
   },
-  "required": [],
   "title": "query/params",
   "type": "object"
 }

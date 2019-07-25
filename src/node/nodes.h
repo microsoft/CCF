@@ -40,8 +40,9 @@ namespace ccf
 
     MSGPACK_DEFINE(host, pubhost, raftport, tlsport, cert, quote, status);
   };
-  DECLARE_REQUIRED_JSON_FIELDS(
-    NodeInfo, host, pubhost, raftport, tlsport, cert, quote, status)
+  DECLARE_JSON_TYPE(NodeInfo);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    NodeInfo, host, pubhost, raftport, tlsport, cert, quote, status);
 
   using Nodes = Store::Map<NodeId, NodeInfo>;
 }
