@@ -3,6 +3,9 @@
 
 return {
   __environment = [[
+    env.error_codes.UNKNOWN_ID = env.error_codes.APP_ERROR_START
+    env.error_codes.MESSAGE_EMPTY = env.error_codes.UNKNOWN_ID - 1
+
     function env.jsucc(result)
       return {result = result}
     end
