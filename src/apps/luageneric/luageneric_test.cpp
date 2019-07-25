@@ -71,20 +71,6 @@ auto init_frontend(
   const auto env_script = R"xxx(
     return {
       __environment = [[
-        env = {
-          error_codes = {
-            PARSE_ERROR = -32700,
-            INVALID_REQUEST = -32600,
-            METHOD_NOT_FOUND = -32601,
-            INVALID_PARAMS = -32602,
-            INTERNAL_ERROR = -32603,
-            INVALID_CLIENT_SIGNATURE = -32605,
-            INVALID_CALLER_ID = -32606,
-
-            INSUFFICIENT_RIGHTS = -32006,
-          }
-        }
-
         function env.jsucc (result)
           return {result = result}
         end

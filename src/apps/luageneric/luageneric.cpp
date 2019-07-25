@@ -31,7 +31,7 @@ namespace ccfapp
       lua_getglobal(l, env_table_name);
       if (lua_isnil(l, -1))
       {
-        LOG_INFO_FMT(
+        LOG_FAIL_FMT(
           "There is no env table '{}', skipping creation of error codes table "
           "'{}'",
           env_table_name,
