@@ -153,27 +153,38 @@ namespace ccf
           ss.str(), static_cast<int>(jsonrpc::CCFErrorCodes::SCRIPT_ERROR));
       }
 
+      static std::string get_var_string_from_args(lua_State* l)
+      {
+        size_t args = lua_gettop(l);
+        std::stringstream ss;
+        for (size_t i = 1; i <= args; ++i)
+        {
+          ss << lua_tostring(l, i);
+        }
+        return ss.str();
+      }
+
       static int lua_log_debug(lua_State* l)
       {
-        LOG_DEBUG_FMT(lua_tostring(l, 1));
+        LOG_DEBUG_FMT(get_var_string_from_args(l));
         return 0;
       }
 
       static int lua_log_info(lua_State* l)
       {
-        LOG_INFO_FMT(lua_tostring(l, 1));
+        LOG_INFO_FMT(get_var_string_from_args(l));
         return 0;
       }
 
       static int lua_log_fail(lua_State* l)
       {
-        LOG_FAIL_FMT(lua_tostring(l, 1));
+        LOG_FAIL_FMT(get_var_string_from_args(l));
         return 0;
       }
 
       static int lua_log_fatal(lua_State* l)
       {
-        LOG_FATAL_FMT(lua_tostring(l, 1));
+        LOG_FATAL_FMT(get_var_string_from_args(l));
         return 0;
       }
 
@@ -182,6 +193,8 @@ namespace ccf
       {
         auto state = li.get_state();
         lua_newtable(state);
+        lua_pushinteger(state, 5);
+        lua_setfield(state, -2, "foo");
         lua_setglobal(state, "env");
         lua_register(state, "LOG_DEBUG", lua_log_debug);
         lua_register(state, "LOG_INFO", lua_log_info);
