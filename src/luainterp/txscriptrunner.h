@@ -31,6 +31,8 @@ namespace ccf
     class TxScriptRunner
     {
     protected:
+      static constexpr auto env_table_name = "env";
+
       /** Dummy type to distinguish writable from read-only tables at compile
        * time. Used to instantiate lua::UserDataExt for writable tables.
        */
@@ -188,18 +190,20 @@ namespace ccf
         return 0;
       }
 
-      virtual void run_environment_script(
+      virtual void setup_environment(
         lua::Interpreter& li, const std::optional<Script>& env_script) const
       {
-        auto state = li.get_state();
-        lua_newtable(state);
-        lua_pushinteger(state, 5);
-        lua_setfield(state, -2, "foo");
-        lua_setglobal(state, "env");
-        lua_register(state, "LOG_DEBUG", lua_log_debug);
-        lua_register(state, "LOG_INFO", lua_log_info);
-        lua_register(state, "LOG_FAIL", lua_log_fail);
-        lua_register(state, "LOG_FATAL", lua_log_fatal);
+        auto l = li.get_state();
+
+        // Create env table
+        lua_newtable(l);
+        lua_setglobal(l, env_table_name);
+
+        // Register global logging functions
+        lua_register(l, "LOG_DEBUG", lua_log_debug);
+        lua_register(l, "LOG_INFO", lua_log_info);
+        lua_register(l, "LOG_FAIL", lua_log_fail);
+        lua_register(l, "LOG_FATAL", lua_log_fatal);
 
         if (env_script)
         {
@@ -242,7 +246,7 @@ namespace ccf
         lua::Interpreter li;
 
         // run an optional environment script
-        run_environment_script(li, txs.env_script);
+        setup_environment(li, txs.env_script);
 
         load(li, txs.script);
 
