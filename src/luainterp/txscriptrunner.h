@@ -166,6 +166,12 @@ namespace ccf
         return ss.str();
       }
 
+      static int lua_log_trace(lua_State* l)
+      {
+        LOG_TRACE_FMT(get_var_string_from_args(l));
+        return 0;
+      }
+
       static int lua_log_debug(lua_State* l)
       {
         LOG_DEBUG_FMT(get_var_string_from_args(l));
@@ -200,6 +206,7 @@ namespace ccf
         lua_setglobal(l, env_table_name);
 
         // Register global logging functions
+        lua_register(l, "LOG_TRACE", lua_log_trace);
         lua_register(l, "LOG_DEBUG", lua_log_debug);
         lua_register(l, "LOG_INFO", lua_log_info);
         lua_register(l, "LOG_FAIL", lua_log_fail);
