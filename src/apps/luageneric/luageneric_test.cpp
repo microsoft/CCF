@@ -71,20 +71,6 @@ auto init_frontend(
   const auto env_script = R"xxx(
     return {
       __environment = [[
-        env = {
-          error_codes = {
-            PARSE_ERROR = -32700,
-            INVALID_REQUEST = -32600,
-            METHOD_NOT_FOUND = -32601,
-            INVALID_PARAMS = -32602,
-            INTERNAL_ERROR = -32603,
-            INVALID_CLIENT_SIGNATURE = -32605,
-            INVALID_CALLER_ID = -32606,
-
-            INSUFFICIENT_RIGHTS = -32006,
-          }
-        }
-
         function env.jsucc (result)
           return {result = result}
         end
@@ -347,5 +333,146 @@ TEST_CASE("simple bank")
 
     const auto pc2 = make_pc(read_method, {{"account", 2}});
     check_success(frontend->process(rpc_ctx, pc2), 999 + 5);
+  }
+}
+
+TEST_CASE("pre-populated environment")
+{
+  GenesisGenerator network;
+  StubNotifier notifier;
+  // create network with 1 user and 3 active members
+  auto frontend = init_frontend(network, notifier, 1, 3);
+  const Cert u0 = {0};
+  enclave::RPCContext rpc_ctx(0, u0);
+
+  {
+    constexpr auto log_trace_method = "log_trace";
+    constexpr auto log_trace = R"xxx(
+      LOG_TRACE("Logging trace message from Lua")
+      LOG_TRACE("Concatenating ", 3, " args")
+      return env.jsucc(true)
+    )xxx";
+    set_handler(network, log_trace_method, {log_trace});
+
+    {
+      const auto pc = make_pc(log_trace_method, {});
+      check_success(frontend->process(rpc_ctx, pc), true);
+    }
+
+    constexpr auto log_debug_method = "log_debug";
+    constexpr auto log_debug = R"xxx(
+      LOG_DEBUG("Logging debug message from Lua")
+      LOG_DEBUG("Concatenating ", 3, " args")
+      return env.jsucc(true)
+    )xxx";
+    set_handler(network, log_debug_method, {log_debug});
+
+    {
+      const auto pc = make_pc(log_debug_method, {});
+      check_success(frontend->process(rpc_ctx, pc), true);
+    }
+
+    constexpr auto log_info_method = "log_info";
+    constexpr auto log_info = R"xxx(
+      LOG_INFO("Logging state message from Lua")
+      LOG_INFO("Concatenating ", 3, " args")
+      return env.jsucc(true)
+    )xxx";
+    set_handler(network, log_info_method, {log_info});
+
+    {
+      const auto pc = make_pc(log_info_method, {});
+      check_success(frontend->process(rpc_ctx, pc), true);
+    }
+
+    constexpr auto log_fail_method = "log_fail";
+    constexpr auto log_fail = R"xxx(
+      LOG_FAIL("Logging failures from Lua")
+      LOG_FAIL("Concatenating ", 3, " args")
+      return env.jsucc(true)
+    )xxx";
+    set_handler(network, log_fail_method, {log_fail});
+
+    {
+      const auto pc = make_pc(log_fail_method, {});
+      check_success(frontend->process(rpc_ctx, pc), true);
+    }
+
+    constexpr auto log_fatal_method = "log_fatal";
+    constexpr auto log_fatal = R"xxx(
+      LOG_FATAL("Logging a fatal error, raising an error")
+      return env.jsucc(true)
+    )xxx";
+    set_handler(network, log_fatal_method, {log_fatal});
+
+    {
+      const auto pc = make_pc(log_fatal_method, {});
+      check_error(
+        frontend->process(rpc_ctx, pc),
+        jsonrpc::StandardErrorCodes::INTERNAL_ERROR);
+    }
+  }
+
+  {
+    // Test Lua sees the correct error codes by returning them from RPC
+    constexpr auto invalid_params_method = "invalid_params";
+    constexpr auto invalid_params = R"xxx(
+      return env.jsucc(
+        {
+          env.error_codes.PARSE_ERROR,
+          env.error_codes.INVALID_REQUEST,
+          env.error_codes.METHOD_NOT_FOUND,
+          env.error_codes.INVALID_PARAMS,
+          env.error_codes.INTERNAL_ERROR,
+          env.error_codes.METHOD_NOT_FOUND,
+
+          env.error_codes.TX_NOT_LEADER,
+          env.error_codes.TX_FAILED_TO_REPLICATE,
+          env.error_codes.SCRIPT_ERROR,
+          env.error_codes.INSUFFICIENT_RIGHTS,
+          env.error_codes.TX_LEADER_UNKNOWN,
+          env.error_codes.RPC_NOT_SIGNED,
+          env.error_codes.INVALID_CLIENT_SIGNATURE,
+          env.error_codes.INVALID_CALLER_ID,
+          env.error_codes.CODE_ID_NOT_FOUND,
+          env.error_codes.CODE_ID_RETIRED,
+          env.error_codes.RPC_NOT_FORWARDED,
+          env.error_codes.QUOTE_NOT_VERIFIED
+        }
+      )
+    )xxx";
+    set_handler(network, invalid_params_method, {invalid_params});
+
+    {
+      using EBT = jsonrpc::ErrorBaseType;
+      using StdEC = jsonrpc::StandardErrorCodes;
+      using CCFEC = jsonrpc::CCFErrorCodes;
+      const auto pc = make_pc(invalid_params_method, {});
+      const Response<std::vector<EBT>> r =
+        json::from_msgpack(frontend->process(rpc_ctx, pc));
+
+      std::vector<EBT> expected;
+      expected.push_back(EBT(StdEC::PARSE_ERROR));
+      expected.push_back(EBT(StdEC::INVALID_REQUEST));
+      expected.push_back(EBT(StdEC::METHOD_NOT_FOUND));
+      expected.push_back(EBT(StdEC::INVALID_PARAMS));
+      expected.push_back(EBT(StdEC::INTERNAL_ERROR));
+      expected.push_back(EBT(StdEC::METHOD_NOT_FOUND));
+
+      expected.push_back(EBT(CCFEC::TX_NOT_LEADER));
+      expected.push_back(EBT(CCFEC::TX_FAILED_TO_REPLICATE));
+      expected.push_back(EBT(CCFEC::SCRIPT_ERROR));
+      expected.push_back(EBT(CCFEC::INSUFFICIENT_RIGHTS));
+      expected.push_back(EBT(CCFEC::TX_LEADER_UNKNOWN));
+      expected.push_back(EBT(CCFEC::RPC_NOT_SIGNED));
+      expected.push_back(EBT(CCFEC::INVALID_CLIENT_SIGNATURE));
+      expected.push_back(EBT(CCFEC::INVALID_CALLER_ID));
+      expected.push_back(EBT(CCFEC::CODE_ID_NOT_FOUND));
+      expected.push_back(EBT(CCFEC::CODE_ID_RETIRED));
+      expected.push_back(EBT(CCFEC::RPC_NOT_FORWARDED));
+      expected.push_back(EBT(CCFEC::QUOTE_NOT_VERIFIED));
+
+      CHECK(r.result == expected);
+    }
   }
 }
