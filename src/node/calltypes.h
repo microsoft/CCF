@@ -107,7 +107,6 @@ namespace ccf
     struct In
     {
       bool recover;
-      size_t quote_max_size;
     };
     struct Out
     {

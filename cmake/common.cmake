@@ -44,17 +44,17 @@ function(enable_coverage name)
   endif()
 endfunction()
 
-set(CURVE_CHOICE "secp384r1" CACHE STRING "One of secp384r1, curve25519, secp256k1_mbedtls, secp256k1_bitcoin")
-if (${CURVE_CHOICE} STREQUAL "secp384r1")
-  add_definitions(-DCURVE_CHOICE_SECP384R1)
-elseif (${CURVE_CHOICE} STREQUAL "curve25519")
-  add_definitions(-DCURVE_CHOICE_CURVE25519)
-elseif (${CURVE_CHOICE} STREQUAL "secp256k1_mbedtls")
-  add_definitions(-DCURVE_CHOICE_SECP256K1_MBEDTLS)
-elseif (${CURVE_CHOICE} STREQUAL "secp256k1_bitcoin")
-  add_definitions(-DCURVE_CHOICE_SECP256K1_BITCOIN)
+set(SERVICE_IDENTITY_CURVE_CHOICE "secp384r1" CACHE STRING "One of secp384r1, curve25519, secp256k1_mbedtls, secp256k1_bitcoin")
+if (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp384r1")
+  add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP384R1)
+elseif (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "curve25519")
+  add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_CURVE25519)
+elseif (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_mbedtls")
+  add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_MBEDTLS)
+elseif (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_bitcoin")
+  add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_BITCOIN)
 else ()
-  message(FATAL_ERROR "Unsupported curve choice ${CURVE_CHOICE}")
+  message(FATAL_ERROR "Unsupported curve choice ${SERVICE_IDENTITY_CURVE_CHOICE}")
 endif ()
 
 option (COLORED_OUTPUT "Always produce ANSI-colored output (GNU/Clang only)." TRUE)
@@ -246,13 +246,15 @@ set(CLIENT_MBEDTLS_LIBRARIES
 
 # The OE libraries must be listed in a specific order. Issue #887 on github
 set(ENCLAVE_LIBS
+  ccfcrypto.enclave
+  evercrypt.enclave
   lua.enclave
   ${OE_ENCLAVE_LIBRARY}
   ${OE_MBEDTLS_LIBRARIES}
   ${OE_ENCLAVE_LIBCXX}
   ${OE_ENCLAVE_LIBC}
   ${OE_ENCLAVE_CORE}
-  ccfcrypto.enclave
+  secp256k1.enclave
 )
 
 set(ENCLAVE_FILES
@@ -324,6 +326,7 @@ include(${CCF_DIR}/cmake/secp256k1.cmake)
 ## Build PBFT if used as consensus
 if (PBFT)
   message(STATUS "Using PBFT as consensus")
+  set(SIGN_BATCH ON)
   include(${CCF_DIR}/ePBFT/cmake/pbft.cmake)
 
   target_include_directories(libbyz.host PRIVATE
@@ -406,10 +409,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       -Wl,-Bstatic,-Bsymbolic,--export-dynamic,-pie
       -lgcc
       ${PARSED_ARGS_LINK_LIBS}
-      ccfcrypto.enclave
-      evercrypt.enclave
       ${ENCLAVE_LIBS}
-      secp256k1.enclave
     )
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
     sign_app_library(${name} ${app_oe_conf_path} ${enclave_sign_key_path})
@@ -560,6 +560,7 @@ add_executable(client ${CCF_DIR}/src/clients/client.cpp)
 use_client_mbedtls(client)
 target_link_libraries(client PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
+  secp256k1.host
 )
 
 # Lua for host and enclave

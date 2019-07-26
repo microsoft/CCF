@@ -63,7 +63,8 @@ namespace std
   };
 }
 
-ADD_JSON_TRANSLATORS(CustomClass, m_i);
+DECLARE_JSON_TYPE(CustomClass)
+DECLARE_JSON_REQUIRED_FIELDS(CustomClass, m_i)
 
 TEST_CASE("Map creation")
 {
@@ -528,10 +529,10 @@ TEST_CASE("Deserialise return status")
   auto& nodes = store.create<ccf::Nodes>("nodes");
   auto& data = store.create<size_t, size_t>("data");
 
-  tls::KeyPair kp;
+  auto kp = tls::make_key_pair();
 
   auto history =
-    std::make_shared<ccf::NullTxHistory>(store, 0, kp, signatures, nodes);
+    std::make_shared<ccf::NullTxHistory>(store, 0, *kp, signatures, nodes);
   store.set_history(history);
 
   {

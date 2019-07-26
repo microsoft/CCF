@@ -25,9 +25,9 @@ using namespace ccf;
 
 tls::Cert gen_cert(const string& name)
 {
-  KeyPair k;
-  auto cert = k.self_sign("CN=" + name);
-  auto privk = k.private_key();
+  auto k = tls::make_key_pair();
+  auto cert = k->self_sign("CN=" + name);
+  auto privk = k->private_key();
 
   ofstream(name + "_cert.pem", ios_base::trunc | ios::binary)
     .write((char*)cert.data(), cert.size());

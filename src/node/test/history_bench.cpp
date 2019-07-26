@@ -167,14 +167,14 @@ static void append(picobench::state& s)
   auto& nodes = store.create<ccf::Nodes>(ccf::Tables::NODES);
   auto& signatures = store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
 
-  tls::KeyPair kp;
+  auto kp = tls::make_key_pair();
 
   std::shared_ptr<kv::Replicator> replicator =
     std::make_shared<DummyReplicator>();
   store.set_replicator(replicator);
 
   std::shared_ptr<kv::TxHistory> history =
-    std::make_shared<ccf::MerkleTxHistory>(store, 0, kp, signatures, nodes);
+    std::make_shared<ccf::MerkleTxHistory>(store, 0, *kp, signatures, nodes);
   store.set_history(history);
 
   std::vector<std::vector<uint8_t>> txs;
@@ -208,14 +208,14 @@ static void append_compact(picobench::state& s)
   auto& nodes = store.create<ccf::Nodes>(ccf::Tables::NODES);
   auto& signatures = store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
 
-  tls::KeyPair kp;
+  auto kp = tls::make_key_pair();
 
   std::shared_ptr<kv::Replicator> replicator =
     std::make_shared<DummyReplicator>();
   store.set_replicator(replicator);
 
   std::shared_ptr<kv::TxHistory> history =
-    std::make_shared<ccf::MerkleTxHistory>(store, 0, kp, signatures, nodes);
+    std::make_shared<ccf::MerkleTxHistory>(store, 0, *kp, signatures, nodes);
   store.set_history(history);
 
   std::vector<std::vector<uint8_t>> txs;

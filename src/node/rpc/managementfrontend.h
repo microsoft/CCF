@@ -18,7 +18,7 @@ namespace ccf
           return jsonrpc::success(result.first);
 
         return jsonrpc::error(
-          jsonrpc::ErrorCodes::INTERNAL_ERROR,
+          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
           "Could not start network. Does tx0 have the right format?");
       };
 
@@ -30,7 +30,7 @@ namespace ccf
         // the return type an enum rather than bool, make it clear that this
         // handler is not returning a value - something else is in the future.
         return jsonrpc::error(
-          jsonrpc::ErrorCodes::INTERNAL_ERROR,
+          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
           "The true response should be sent from elsewhere, this should never "
           "be seen");
       };
@@ -60,7 +60,7 @@ namespace ccf
         else
         {
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::INVALID_REQUEST,
+            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
             "Network is not in recovery mode");
         }
 
@@ -78,7 +78,7 @@ namespace ccf
         else
         {
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::INVALID_REQUEST,
+            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
             "Network is not ready to recover");
         }
       };

@@ -67,7 +67,7 @@ namespace ccfapp
       auto default_handler = [this](RequestArgs& args) {
         if (args.method == UserScriptIds::ENV_HANDLER)
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::METHOD_NOT_FOUND,
+            jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
             "Cannot call environment script ('" + args.method + "')");
 
         const auto scripts = args.tx.get_view(this->network.app_scripts);
@@ -76,7 +76,7 @@ namespace ccfapp
         auto handler_script = scripts->get(args.method);
         if (!handler_script)
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::METHOD_NOT_FOUND,
+            jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
             "No handler script found for method '" + args.method + "'");
 
         const auto response = tsr->run<nlohmann::json>(

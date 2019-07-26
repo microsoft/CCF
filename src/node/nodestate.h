@@ -3,6 +3,7 @@
 #pragma once
 
 #ifdef PBFT
+#  include "pbft/nullreplicator.h"
 #  include "pbft/pbft.h"
 #endif
 
@@ -107,7 +108,7 @@ namespace ccf
     SpinLock lock;
 
     NodeId self;
-    tls::KeyPair node_kp;
+    tls::KeyPairPtr node_kp;
     std::vector<uint8_t> node_cert;
     CodeDigest node_code_id;
 
@@ -119,11 +120,18 @@ namespace ccf
     raft::Config raft_config;
 
     NetworkState& network;
+
+#ifndef PBFT
     std::shared_ptr<ConsensusRaft> raft;
-#ifdef PBFT
+#else
     using ConsensusPbft = pbft::Pbft<NodeToNode>;
+
+    // TODO(#PBFT): For now, when using PBFT as consensus, replace raft with the
+    // NullReplicator
+    std::shared_ptr<pbft::NullReplicator> raft;
     std::shared_ptr<ConsensusPbft> pbft;
 #endif
+    std::shared_ptr<enclave::RpcMap> rpc_map;
     std::shared_ptr<NodeToNode> n2n_channels;
     enclave::RPCSessions& rpcsessions;
     std::shared_ptr<kv::TxHistory> history;
@@ -155,6 +163,7 @@ namespace ccf
       enclave::RPCSessions& rpcsessions) :
       sm(State::uninitialized),
       self(INVALID_ID),
+      node_kp(tls::make_key_pair()),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
@@ -167,13 +176,17 @@ namespace ccf
     // funcs in state "uninitialized"
     //
     void initialize(
-      raft::Config& raft_config_, std::shared_ptr<NodeToNode> n2n_channels_)
+      raft::Config& raft_config_,
+      std::shared_ptr<NodeToNode> n2n_channels_,
+      std::shared_ptr<enclave::RpcMap> rpc_map_)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::uninitialized);
 
       raft_config = raft_config_;
       n2n_channels = n2n_channels_;
+      // Capture rpc_map to pass to pbft for frontend execution
+      rpc_map = rpc_map_;
       sm.advance(State::initialized);
     }
 
@@ -188,18 +201,19 @@ namespace ccf
       // Generate node key pair
       std::stringstream name;
       name << "CN=" << Actors::MANAGEMENT;
-      node_cert = node_kp.self_sign(name.str());
+      node_cert = node_kp->self_sign(name.str());
 
       // We present our self-signed certificate to the management frontend
       rpcsessions.add_cert(
-        Actors::MANAGEMENT, nullb, node_cert, node_kp.private_key());
+        Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key());
 
-      // Generate node quote
-      std::vector<uint8_t> quote(args.quote_max_size);
+      // Quotes should be initialised and non-empty
+      std::vector<uint8_t> quote{1};
 
 #ifdef GET_QUOTE
       crypto::Sha256Hash h{node_cert};
-      size_t quote_len = args.quote_max_size;
+      uint8_t* report;
+      size_t report_len = 0;
 
       // TODO(#important,#TR): The "alpha" parameters, including the unique
       // service identifier, should also be included in the quote.
@@ -209,15 +223,17 @@ namespace ccf
         h.SIZE,
         nullptr,
         0,
-        quote.data(),
-        &quote_len);
+        &report,
+        &report_len);
 
       if (res != OE_OK)
       {
         LOG_FAIL_FMT("Failed to get quote: {}", oe_result_str(res));
         return Fail<CreateNew::Out>("oe_get_report failed");
       }
-      quote.resize(quote_len);
+
+      quote.assign(report, report + report_len);
+      oe_free_report(report);
 
       // Set own code version
       oe_report_t parsed_quote = {0};
@@ -243,6 +259,15 @@ namespace ccf
       {
         sm.advance(State::started);
       }
+
+#ifdef PBFT
+      // TODO(#PBFT): For now, node id set when the node is created and used
+      // to create PBFT
+      self = 0;
+      setup_pbft();
+      setup_history();
+#endif
+
       return Success<CreateNew::Out>({node_cert, quote});
     }
 
@@ -265,8 +290,14 @@ namespace ccf
       accept_all_connections();
       self = args.id;
       setup_raft();
-
-      setup_store();
+#ifndef PBFT
+      // In the case of PBFT, the history was already setup when the node was
+      // created.
+      // TODO(#PBFT): When/if we stop using the history to register PBFT
+      // callbacks, we should be able to initialise the history as late as here.
+      setup_history();
+#endif
+      setup_encryptor();
 
       // Before loading the initial transaction, its integrity needs to be
       // protected since deserialise only accepts protected entries.
@@ -284,8 +315,8 @@ namespace ccf
       raft->replicate({{1, protected_tx0, true}});
 
       // Network signs tx0.
-      tls::KeyPair keys(network.secrets->get_current().priv_key);
-      auto tx0Sig = keys.sign(args.tx0);
+      auto keys = tls::make_key_pair(network.secrets->get_current().priv_key);
+      auto tx0Sig = keys->sign(args.tx0);
 
       // Sets itself as trusted.
       auto nodes_view = tx.get_view(network.nodes);
@@ -318,7 +349,7 @@ namespace ccf
       // Peer certificate needs to be signed by network certificate
       auto tls_ca = std::make_shared<tls::CA>(args.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
-        Actors::NODES, tls_ca, node_cert, node_kp.private_key(), nullb);
+        Actors::NODES, tls_ca, node_cert, node_kp->private_key(), nullb);
 
       // Create and connect to endpoint
       auto join_client =
@@ -345,7 +376,7 @@ namespace ccf
               jsonrpc::pack(
                 jsonrpc::error_response(
                   rpc_ctx.req.seq_no,
-                  jsonrpc::ErrorCodes::INTERNAL_ERROR,
+                  jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
                   "An error occured while joining the network"),
                 rpc_ctx.pack.value()));
           }
@@ -381,7 +412,8 @@ namespace ccf
             accept_all_connections();
           }
           setup_raft(public_only);
-          setup_store();
+          setup_history();
+          setup_encryptor();
 
           if (public_only)
             sm.advance(State::partOfPublicNetwork);
@@ -404,7 +436,7 @@ namespace ccf
 
       // Generate fresh key to encrypt/decrypt historical network secrets sent
       // by the leader via the kv store
-      raw_fresh_key = tls::Entropy().random(crypto::GCM_SIZE_KEY);
+      raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
 
       // Send RPC request to remote node to join the network.
       jsonrpc::ProcedureCall<JoinNetworkNodeToNode::In> join_rpc;
@@ -427,7 +459,8 @@ namespace ccf
       network.secrets = std::make_unique<NetworkSecrets>(
         "CN=The CA", std::make_unique<Seal>(writer_factory), false);
       accept_member_connections();
-      setup_store();
+      setup_history();
+      setup_encryptor();
     }
 
     //
@@ -535,9 +568,8 @@ namespace ccf
         return;
       }
 
-      // If the final recovery version has been reached, end recovery
       if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
-        network.tables->compact(ledger_idx);
+        recovery_store->compact(ledger_idx);
 
       if (recovery_store->current_version() == recovery_v)
       {
@@ -685,11 +717,8 @@ namespace ccf
           self = nid;
           LOG_INFO_FMT("Setting self to {}", self);
         }
-        tls::Verifier verifier(ni.cert);
-        certs_view->put(
-          {verifier.raw()->raw.p,
-           verifier.raw()->raw.p + verifier.raw()->raw.len},
-          nid);
+        auto verifier = tls::make_verifier(ni.cert);
+        certs_view->put(verifier->raw_cert_data(), nid);
       }
 
       LOG_INFO_FMT("Replaced nodes");
@@ -754,7 +783,7 @@ namespace ccf
       recovery_history = std::make_shared<MerkleTxHistory>(
         *recovery_store.get(),
         self,
-        node_kp,
+        *node_kp,
         *recovery_signature_map,
         *recovery_nodes_map);
 
@@ -835,7 +864,7 @@ namespace ccf
             crypto::GcmCipher gcmcipher(serial.value().size());
 
             // Get random IV
-            auto iv = tls::Entropy().random(gcmcipher.hdr.getIv().n);
+            auto iv = tls::create_entropy()->random(gcmcipher.hdr.getIv().n);
             std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
 
             joiner_key.encrypt(
@@ -968,12 +997,12 @@ namespace ccf
   private:
     void accept_member_connections()
     {
-      tls::KeyPair nw(network.secrets->get_current().priv_key);
-      tls::KeyPair members_keypair;
+      auto nw = tls::make_key_pair(network.secrets->get_current().priv_key);
+      auto members_keypair = tls::make_key_pair();
 
-      auto members_privkey = members_keypair.private_key();
+      auto members_privkey = members_keypair->private_key();
       auto members_cert =
-        nw.sign_csr(members_keypair.create_csr("CN=members"), "CN=The CA");
+        nw->sign_csr(members_keypair->create_csr("CN=members"), "CN=The CA");
 
       // Accept member connections.
       rpcsessions.add_cert(
@@ -982,12 +1011,12 @@ namespace ccf
 
     void accept_node_connections()
     {
-      tls::KeyPair nw(network.secrets->get_current().priv_key);
-      tls::KeyPair nodes_keypair;
+      auto nw = tls::make_key_pair(network.secrets->get_current().priv_key);
+      auto nodes_keypair = tls::make_key_pair();
 
-      auto nodes_privkey = nodes_keypair.private_key();
+      auto nodes_privkey = nodes_keypair->private_key();
       auto nodes_cert =
-        nw.sign_csr(nodes_keypair.create_csr("CN=nodes"), "CN=The CA");
+        nw->sign_csr(nodes_keypair->create_csr("CN=nodes"), "CN=The CA");
 
       // Accept node connections.
       rpcsessions.add_cert(
@@ -996,12 +1025,12 @@ namespace ccf
 
     void accept_user_connections()
     {
-      tls::KeyPair nw(network.secrets->get_current().priv_key);
-      tls::KeyPair users_keypair;
+      auto nw = tls::make_key_pair(network.secrets->get_current().priv_key);
+      auto users_keypair = tls::make_key_pair();
 
-      auto users_privkey = users_keypair.private_key();
+      auto users_privkey = users_keypair->private_key();
       auto users_cert =
-        nw.sign_csr(users_keypair.create_csr("CN=users"), "CN=The CA");
+        nw->sign_csr(users_keypair->create_csr("CN=users"), "CN=The CA");
 
       // Accept user connections.
       rpcsessions.add_cert(
@@ -1052,9 +1081,10 @@ namespace ccf
 
     void setup_raft(bool public_only = false)
     {
-      // setup node-to-node channels, raft, pbft and store hooks
+      // setup node-to-node channels, raft and store hooks
       n2n_channels->initialize(self, network.secrets->get_current().priv_key);
 
+#ifndef PBFT
       raft = std::make_shared<ConsensusRaft>(
         std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(
           network.tables),
@@ -1064,12 +1094,10 @@ namespace ccf
         raft_config.requestTimeout,
         raft_config.electionTimeout,
         public_only);
-
-      network.tables->set_replicator(raft);
-
-#ifdef PBFT
-      setup_pbft();
+#else
+      raft = std::make_shared<pbft::NullReplicator>(n2n_channels, self);
 #endif
+      network.tables->set_replicator(raft);
 
       // When a node is added, even locally, inform the host so that it can
       // map the node id to a hostname and service and inform raft so that it
@@ -1183,19 +1211,30 @@ namespace ccf
       });
     }
 
-    void setup_store()
+    void setup_history()
     {
+      // This function can be called once the node has started up and before it
+      // has joined the service.
       history = std::make_shared<MerkleTxHistory>(
         *network.tables.get(),
         self,
-        node_kp,
+        *node_kp,
         network.signatures,
         network.nodes);
+
 #ifdef PBFT
       if (pbft)
         history->register_on_request(pbft->get_on_request());
 #endif
 
+      network.tables->set_history(history);
+    }
+
+    void setup_encryptor()
+    {
+      // This function makes use of network secrets and should be called once
+      // the node has joined the service (either via start_network() or
+      // join_network())
       encryptor =
 #ifdef USE_NULL_ENCRYPTOR
         std::make_shared<NullTxEncryptor>();
@@ -1203,7 +1242,6 @@ namespace ccf
         std::make_shared<TxEncryptor>(self, *network.secrets);
 #endif
 
-      network.tables->set_history(history);
       network.tables->set_encryptor(encryptor);
     }
 
@@ -1238,7 +1276,12 @@ namespace ccf
 #ifdef PBFT
     void setup_pbft()
     {
-      pbft = std::make_shared<ConsensusPbft>(n2n_channels, self);
+      pbft = std::make_shared<ConsensusPbft>(
+        n2n_channels,
+        self,
+        std::make_unique<raft::LedgerEnclave>(writer_factory),
+        rpc_map,
+        rpcsessions);
     }
 #endif
   };

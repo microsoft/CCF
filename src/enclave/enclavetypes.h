@@ -87,6 +87,6 @@ namespace enclave
   {
   public:
     virtual ~AbstractRPCResponder() {}
-    virtual void reply_async(size_t id, const std::vector<uint8_t>& data) = 0;
+    virtual bool reply_async(size_t id, const std::vector<uint8_t>& data) = 0;
   };
 }

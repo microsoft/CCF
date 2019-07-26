@@ -83,7 +83,7 @@ def wait_for_state(node, state):
         raise TimeoutError("Timed out waiting for public ledger to be read")
 
 
-def set_recovery_nodes(primary, followers):
+def set_recovery_nodes(network, primary, followers):
     """
     Create and send recovery transaction, with new network definition.
     """
@@ -92,6 +92,7 @@ def set_recovery_nodes(primary, followers):
     with primary.management_client() as c:
         id = c.request("setRecoveryNodes", recovery_rpc)
         r = c.response(id).result
+        network.net_cert = list(r)
         with open("networkcert.pem", "w") as nc:
             nc.write(r.decode())
 
@@ -136,11 +137,10 @@ def run(args):
                 check = infra.ccf.Checker()
 
                 wait_for_state(primary, b"awaitingRecovery")
-                set_recovery_nodes(primary, followers)
+                set_recovery_nodes(network, primary, followers)
 
-                network.generate_join_rpc(primary)
                 for node in followers:
-                    node.join_network()
+                    node.join_network(network)
 
                 LOG.success("Public CFTR started")
                 network.wait_for_node_commit_sync()
@@ -164,32 +164,13 @@ def run(args):
                             )
 
                 LOG.debug("2/3 members vote to complete the recovery")
-                result = infra.proc.ccall(
-                    "./memberclient",
-                    "accept_recovery",
-                    "--sealed-secrets={}".format(sealed_secrets),
-                    "--cert=member1_cert.pem",
-                    "--privk=member1_privk.pem",
-                    "--host={}".format(primary.host),
-                    "--port={}".format(primary.tls_port),
-                    "--ca=networkcert.pem",
+                result = network.propose(
+                    1, primary, "accept_recovery", f"--sealed-secrets={sealed_secrets}"
                 )
-                j_result = json.loads(result.stdout)
-                assert not j_result["result"]["completed"]
-                proposal_id = j_result["result"]["id"]
+                assert not result[1]["completed"]
+                proposal_id = result[1]["id"]
 
-                result = infra.proc.ccall(
-                    "./memberclient",
-                    "vote",
-                    "--accept",
-                    "--cert=member2_cert.pem",
-                    "--privk=member2_privk.pem",
-                    "--host={}".format(primary.host),
-                    "--port={}".format(primary.tls_port),
-                    "--id={}".format(proposal_id),
-                    "--ca=networkcert.pem",
-                    "--sign",
-                )
+                result = network.vote(2, primary, proposal_id, True)
 
                 for node in network.nodes:
                     wait_for_state(node, b"partOfNetwork")

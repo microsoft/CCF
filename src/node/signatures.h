@@ -17,7 +17,7 @@ namespace ccf
     ObjectId term;
     ObjectId commit;
 
-    MSGPACK_DEFINE(node, index, term, commit, sig);
+    MSGPACK_DEFINE(MSGPACK_BASE(RawSignature), node, index, term, commit);
 
     Signature() {}
 
@@ -41,7 +41,7 @@ namespace ccf
       commit(commit_)
     {}
   };
-  ADD_JSON_TRANSLATORS_WITH_BASE(
-    Signature, RawSignature, node, index, term, commit)
+  DECLARE_JSON_TYPE_WITH_BASE(Signature, RawSignature)
+  DECLARE_JSON_REQUIRED_FIELDS(Signature, node, index, term, commit)
   using Signatures = Store::Map<ObjectId, Signature>;
 }

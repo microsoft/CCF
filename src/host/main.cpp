@@ -21,6 +21,8 @@
 
 using namespace std;
 
+::timespec logger::config::start{0, 0};
+
 int main(int argc, char** argv)
 {
   // ignore SIGPIPE
@@ -230,7 +232,9 @@ int main(int argc, char** argv)
   oversized::FragmentReconstructor fr(bp.get_dispatcher());
 
   // provide regular ticks to the enclave
-  asynchost::Ticker ticker(tick_period_ms, writer_factory);
+  asynchost::Ticker ticker(tick_period_ms, writer_factory, [](auto s) {
+    logger::config::set_start(s);
+  });
 
   // handle outbound messages from the enclave
   asynchost::HandleRingbuffer handle_ringbuffer(bp, circuit.read_from_inside());

@@ -51,7 +51,7 @@ namespace ccf
              ->put(id, {MemberStatus::ACCEPTED});
            // create nonce for ACK
            tx.get_view(this->network.member_acks)
-             ->put(id, {rng.random(SIZE_NONCE)});
+             ->put(id, {rng->random(SIZE_NONCE)});
            return true;
          }},
         // accept a node
@@ -63,6 +63,18 @@ namespace ccf
            if (!info)
              throw std::logic_error("Node does not exist.");
            info->status = NodeStatus::TRUSTED;
+           nodes->put(id, *info);
+           return true;
+         }},
+        // retire a node
+        {"retire_node",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
+           const auto id = args;
+           auto nodes = tx.get_view(this->network.nodes);
+           auto info = nodes->get(id);
+           if (!info)
+             throw std::logic_error("Node does not exist.");
+           info->status = NodeStatus::RETIRED;
            nodes->put(id, *info);
            return true;
          }},
@@ -214,7 +226,7 @@ namespace ccf
     AbstractNodeState& node;
     const lua::TxScriptRunner tsr;
 
-    tls::Entropy rng;
+    tls::EntropyPtr rng;
     static constexpr auto SIZE_NONCE = 16;
 
   public:
@@ -225,15 +237,15 @@ namespace ccf
         &network.member_certs),
       network(network),
       node(node),
-      tsr(network)
+      tsr(network),
+      rng(tls::create_entropy())
     {
-      using jerr = jsonrpc::ErrorCodes;
       auto read = [this](RequestArgs& args) {
         if (!check_member_status(
               args.tx,
               args.caller_id,
               {MemberStatus::ACTIVE, MemberStatus::ACCEPTED}))
-          return jsonrpc::error(jerr::INSUFFICIENT_RIGHTS);
+          return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
 
         const auto in = args.params.get<KVRead::In>();
 
@@ -248,14 +260,15 @@ namespace ccf
           in.table,
           in.key);
         if (value.empty())
-          return jsonrpc::error(jerr::INVALID_PARAMS, "key does not exist");
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS, "key does not exist");
         return jsonrpc::success(value);
       };
       install_with_auto_schema<KVRead>(MemberProcs::READ, read, Read);
 
       auto query = [this](RequestArgs& args) {
         if (!check_member_accepted(args.tx, args.caller_id))
-          return jsonrpc::error(jerr::INSUFFICIENT_RIGHTS);
+          return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
 
         const auto script = args.params.get<ccf::Script>();
         return jsonrpc::success(tsr.run<nlohmann::json>(
@@ -266,13 +279,13 @@ namespace ccf
 
       auto propose = [this](RequestArgs& args) {
         if (!check_member_active(args.tx, args.caller_id))
-          return jsonrpc::error(jerr::INSUFFICIENT_RIGHTS);
+          return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
 
         const auto in = args.params.get<Proposal::In>();
         const auto proposal_id = get_next_id(
           args.tx.get_view(this->network.values), ValueIds::NEXT_PROPOSAL_ID);
-        args.tx.get_view(this->network.proposals)
-          ->put(proposal_id, {args.caller_id, in});
+        const OpenProposal proposal(in.script, in.parameter, args.caller_id);
+        args.tx.get_view(this->network.proposals)->put(proposal_id, proposal);
         const bool completed = complete_proposal(args.tx, proposal_id);
         return jsonrpc::success<Proposal::Out>({proposal_id, completed});
       };
@@ -281,7 +294,7 @@ namespace ccf
       auto removal = [this](RequestArgs& args) {
         if (!check_member_status(
               args.tx, args.caller_id, {MemberStatus::ACTIVE}))
-          return jsonrpc::error(jerr::INSUFFICIENT_RIGHTS);
+          return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
 
         const auto proposal_action = args.params.get<ProposalAction>();
         const auto proposal_id = proposal_action.id;
@@ -290,11 +303,12 @@ namespace ccf
 
         if (!proposal)
           return jsonrpc::error(
-            jerr::INVALID_PARAMS, "Proposal does not exist");
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            "Proposal does not exist");
 
         if (proposal->proposer != args.caller_id)
           return jsonrpc::error(
-            jerr::INVALID_REQUEST,
+            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
             "Proposals can only be removed by proposer.");
 
         proposals->remove(proposal_id);
@@ -305,17 +319,19 @@ namespace ccf
 
       auto vote = [this](RequestArgs& args) {
         if (!check_member_active(args.tx, args.caller_id))
-          return jsonrpc::error(jerr::INSUFFICIENT_RIGHTS);
+          return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
 
         if (args.signed_request.sig.empty())
-          return jsonrpc::error(jerr::RPC_NOT_SIGNED);
+          return jsonrpc::error(
+            jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED, "Votes must be signed");
 
         const auto vote = args.params.get<Vote>();
         auto proposals = args.tx.get_view(this->network.proposals);
         auto proposal = proposals->get(vote.id);
         if (!proposal)
           return jsonrpc::error(
-            jerr::INVALID_PARAMS, "Proposal does not exist");
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            "Proposal does not exist");
 
         // record vote
         proposal->votes[args.caller_id] = vote.ballot;
@@ -330,12 +346,13 @@ namespace ccf
 
       auto complete = [this](RequestArgs& args) {
         if (!check_member_active(args.tx, args.caller_id))
-          return jsonrpc::error(jerr::INSUFFICIENT_RIGHTS);
+          return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
 
         const auto proposal_action = args.params.get<ProposalAction>();
         const auto proposal_id = proposal_action.id;
         if (!complete_proposal(args.tx, proposal_id))
-          return jsonrpc::error(jerr::DENIED);
+          return jsonrpc::success(false);
+
         return jsonrpc::success(true);
       };
       install_with_auto_schema<ProposalAction, bool>(
@@ -349,14 +366,18 @@ namespace ccf
         const auto last_ma = mas->get(args.caller_id);
         if (!last_ma)
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS, "No ACK record exists (1)");
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            "No ACK record exists (1)");
 
-        tls::Verifier v((std::vector<uint8_t>(args.rpc_ctx.caller_cert)));
+        auto verifier =
+          tls::make_verifier(std::vector<uint8_t>(args.rpc_ctx.caller_cert));
         const auto rs = args.params.get<RawSignature>();
-        if (!v.verify_hash(crypto::Sha256Hash{last_ma->next_nonce}, rs.sig))
-          return jsonrpc::error(jerr::INVALID_PARAMS, "Signature is not valid");
+        if (!verifier->verify(last_ma->next_nonce, rs.sig))
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            "Signature is not valid");
 
-        MemberAck next_ma{rs.sig, rng.random(SIZE_NONCE)};
+        MemberAck next_ma{rs.sig, rng->random(SIZE_NONCE)};
         mas->put(args.caller_id, next_ma);
 
         // update member status to ACTIVE
@@ -378,8 +399,9 @@ namespace ccf
         auto ma = mas->get(args.caller_id);
         if (!ma)
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS, "No ACK record exists (2)");
-        ma->next_nonce = rng.random(SIZE_NONCE);
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            "No ACK record exists (2)");
+        ma->next_nonce = rng->random(SIZE_NONCE);
         mas->put(args.caller_id, *ma);
         return jsonrpc::success(true);
       };
@@ -399,7 +421,9 @@ namespace ccf
         NodeId duplicate_node_id = NoNode;
         nodes_view->foreach([&new_node, &duplicate_node_id](
                               const NodeId& nid, const NodeInfo& ni) {
-          if (new_node.tlsport == ni.tlsport && new_node.host == ni.host)
+          if (
+            new_node.tlsport == ni.tlsport && new_node.host == ni.host &&
+            ni.status != NodeStatus::RETIRED)
           {
             duplicate_node_id = nid;
             return false;
@@ -408,7 +432,7 @@ namespace ccf
         });
         if (duplicate_node_id != NoNode)
           return jsonrpc::error(
-            jsonrpc::ErrorCodes::INVALID_PARAMS,
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             fmt::format(
               "A node with the same host {} and port {} already exists (node "
               "id: {})",
@@ -419,9 +443,12 @@ namespace ccf
           args.tx.get_view(this->network.values), ValueIds::NEXT_NODE_ID);
         new_node.status = NodeStatus::PENDING;
         nodes_view->put(node_id, new_node);
-        tls::Verifier verifier(new_node.cert);
+
+        // TODO: We don't use verifier here, is it needed? Perhaps it is
+        // canonicalising the cert?
+        auto verifier = tls::make_verifier(new_node.cert);
         args.tx.get_view(this->network.node_certs)
-          ->put(verifier.raw_cert_data(), node_id);
+          ->put(verifier->raw_cert_data(), node_id);
 
         return jsonrpc::success(nlohmann::json(JoinNetwork::Out{node_id}));
       };
