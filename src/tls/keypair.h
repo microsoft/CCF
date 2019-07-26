@@ -589,6 +589,17 @@ namespace tls
 
       return 0;
     }
+
+    secp256k1_context* get_raw_bc_context() const
+    {
+      return bc_ctx;
+    }
+
+    // TODO: Do this internally, don't expose
+    uint8_t* get_raw_privk()
+    {
+      return c4_priv;
+    }
   };
 
   using KeyPairPtr = std::shared_ptr<KeyPair>;
