@@ -315,7 +315,7 @@ namespace tls
       auto len = strlen((char*)pem.data());
       if (len >= pem.size())
         return {};
-      return {pem.data(), pem.data() + len + 1};
+      return {pem.data(), pem.data() + len};
     }
 
     /**
@@ -330,7 +330,7 @@ namespace tls
       auto len = strlen((char*)pem.data());
       if (len >= pem.size())
         return {};
-      return {pem.data(), pem.data() + len + 1};
+      return {pem.data(), pem.data() + len};
     }
 
     /**
