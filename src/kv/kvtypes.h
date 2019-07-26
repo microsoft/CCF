@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/hash.h"
+
 #include <array>
 #include <functional>
 #include <limits>
@@ -66,15 +68,28 @@ namespace kv
       size_t /* Client Session ID */,
       size_t /* JSON-RPC sequence number */>;
 
-    struct CallbackArgs
+    struct RequestCallbackArgs
     {
       RequestID rid;
-      std::vector<uint8_t> data;
-      Version version;
+      std::vector<uint8_t> request;
       uint64_t actor;
       uint64_t caller_id;
     };
-    using CallbackHandler = std::function<bool(CallbackArgs)>;
+    struct ResultCallbackArgs
+    {
+      RequestID rid;
+      Version version;
+      crypto::Sha256Hash merkle_root;
+    };
+    struct ResponseCallbackArgs
+    {
+      RequestID rid;
+      std::vector<uint8_t> response;
+    };
+
+    using RequestCallbackHandler = std::function<bool(RequestCallbackArgs)>;
+    using ResultCallbackHandler = std::function<bool(ResultCallbackArgs)>;
+    using ResponseCallbackHandler = std::function<bool(ResponseCallbackArgs)>;
 
     virtual ~TxHistory() {}
     virtual void append(const std::vector<uint8_t>& data) = 0;
@@ -91,9 +106,12 @@ namespace kv
       RequestID id, kv::Version version, const std::vector<uint8_t>& data) = 0;
     virtual void add_response(
       RequestID id, const std::vector<uint8_t>& response) = 0;
-    virtual void register_on_request(CallbackHandler func) = 0;
-    virtual void register_on_result(CallbackHandler func) = 0;
-    virtual void register_on_response(CallbackHandler func) = 0;
+    virtual void register_on_request(RequestCallbackHandler func) = 0;
+    virtual void register_on_result(ResultCallbackHandler func) = 0;
+    virtual void register_on_response(ResponseCallbackHandler func) = 0;
+    virtual void clear_on_request() = 0;
+    virtual void clear_on_result() = 0;
+    virtual void clear_on_response() = 0;
   };
 
   using PendingTx = std::function<

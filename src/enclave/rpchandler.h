@@ -19,7 +19,7 @@ namespace enclave
     virtual std::vector<uint8_t> process(
       RPCContext& ctx, const std::vector<uint8_t>& input) = 0;
 
-    virtual std::vector<uint8_t> process_pbft(
+    virtual std::tuple<std::vector<uint8_t>, crypto::Sha256Hash> process_pbft(
       RPCContext& ctx, const std::vector<uint8_t>& input) = 0;
 
     virtual void tick(std::chrono::milliseconds elapsed_ms_count) {}
