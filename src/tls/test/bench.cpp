@@ -90,7 +90,8 @@ static void benchmark_hash(picobench::state& s)
   {
     (void)_;
     std::vector<uint8_t> hash;
-    tls::do_hash(kp->get_raw_context(), contents.data(), contents.size(), hash);
+    tls::do_hash(
+      *kp->get_raw_context(), contents.data(), contents.size(), hash);
     do_not_optimize(hash);
     clobber_memory();
   }

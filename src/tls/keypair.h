@@ -526,9 +526,9 @@ namespace tls
       return sign_csr(csr, name, ca);
     }
 
-    const mbedtls_pk_context& get_raw_context() const
+    mbedtls_pk_context* get_raw_context() const
     {
-      return *key;
+      return key.get();
     }
   };
 
