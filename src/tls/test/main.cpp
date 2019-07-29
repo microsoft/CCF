@@ -234,33 +234,68 @@ TEST_CASE("Recoverable signatures")
   tls::HashBytes hash = bad_manual_hash(contents);
 
   auto signature = kp.sign_recoverable_hashed(hash);
+  const auto target_pem = kp.public_key_pem().str();
 
   auto recovered = tls::PublicKey_k1Bitcoin::recover_key(signature, hash);
 
   {
     INFO("Normal recovery");
-    CHECK(kp.public_key_pem().str() == recovered.public_key_pem().str());
+    CHECK(target_pem == recovered.public_key_pem().str());
   }
+
+  // NB: Incorrect arguments _may_ cause the verification to throw with no
+  // recoverable key, but they may simply cause a different key to be returned.
+  // These tests look for either type of failure.
 
   {
     INFO("Corrupted hash");
     auto hash2(hash);
     corrupt(hash2);
-    CHECK_THROWS(tls::PublicKey_k1Bitcoin::recover_key(signature, hash2));
+    bool recovery_failed = false;
+    try
+    {
+      auto r = tls::PublicKey_k1Bitcoin::recover_key(signature, hash2);
+      recovery_failed = target_pem != r.public_key_pem().str();
+    }
+    catch (const std::exception& e)
+    {
+      recovery_failed = true;
+    }
+    CHECK(recovery_failed);
   }
 
   {
     INFO("Corrupted signature");
     auto signature2(signature);
     corrupt(signature2.raw);
-    CHECK_THROWS(tls::PublicKey_k1Bitcoin::recover_key(signature2, hash));
+    bool recovery_failed = false;
+    try
+    {
+      auto r = tls::PublicKey_k1Bitcoin::recover_key(signature2, hash);
+      recovery_failed = target_pem != r.public_key_pem().str();
+    }
+    catch (const std::exception& e)
+    {
+      recovery_failed = true;
+    }
+    CHECK(recovery_failed);
   }
 
   {
     INFO("Corrupted rec_id");
     auto signature3(signature);
     signature3.rec_id = (signature3.rec_id + 1) % 4;
-    CHECK_THROWS(tls::PublicKey_k1Bitcoin::recover_key(signature3, hash));
+    bool recovery_failed = false;
+    try
+    {
+      auto r = tls::PublicKey_k1Bitcoin::recover_key(signature3, hash);
+      recovery_failed = target_pem != r.public_key_pem().str();
+    }
+    catch (const std::exception& e)
+    {
+      recovery_failed = true;
+    }
+    CHECK(recovery_failed);
   }
 
   {
