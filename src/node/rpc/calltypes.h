@@ -82,8 +82,8 @@ namespace ccf
 
     struct Out
     {
-      JsonSchema params_schema = {};
-      JsonSchema result_schema = {};
+      ds::json::JsonSchema params_schema = {};
+      ds::json::JsonSchema result_schema = {};
     };
   };
 }

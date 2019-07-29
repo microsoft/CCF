@@ -24,8 +24,62 @@ namespace ccfapp
   class AppTsr : public TxScriptRunner
   {
   private:
-    // TODO: once the kv store allows for dynamic table creation, we can derive
-    // this list dynamically based on an apps requirements.
+    void add_error_codes(
+      lua_State* l, char const* table_name = "error_codes") const
+    {
+      // Get env table on top of stack
+      lua_getglobal(l, env_table_name);
+      if (lua_isnil(l, -1))
+      {
+        LOG_FAIL_FMT(
+          "There is no env table '{}', skipping creation of error codes table "
+          "'{}'",
+          env_table_name,
+          table_name);
+      }
+
+      // Create error_codes table
+      lua_newtable(l);
+
+#define XX(Name, Value) \
+  lua_pushinteger(l, Value); \
+  lua_setfield(l, -2, #Name);
+
+      XX_STANDARD_ERROR_CODES;
+      XX_CCF_ERROR_CODES;
+
+#undef XX
+
+      lua_setfield(l, -2, table_name);
+
+      // Remove env table from stack
+      lua_pop(l, 1);
+    }
+
+    void setup_environment(
+      lua::Interpreter& li,
+      const std::optional<Script>& env_script) const override
+    {
+      auto l = li.get_state();
+
+      // Create env table
+      lua_newtable(l);
+      lua_setglobal(l, env_table_name);
+
+      // Register global logging functions
+      lua_register(l, "LOG_TRACE", lua_log_trace);
+      lua_register(l, "LOG_DEBUG", lua_log_debug);
+      lua_register(l, "LOG_INFO", lua_log_info);
+      lua_register(l, "LOG_FAIL", lua_log_fail);
+      lua_register(l, "LOG_FATAL", lua_log_fatal);
+
+      add_error_codes(li.get_state());
+
+      TxScriptRunner::setup_environment(li, env_script);
+    }
+
+    // TODO: once the kv store allows for dynamic table creation, we can
+    // derive this list dynamically based on an apps requirements.
     const std::vector<GenericTable*> app_tables;
     void add_custom_tables(
       lua::Interpreter& li,
