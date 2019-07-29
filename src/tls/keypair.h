@@ -191,6 +191,24 @@ namespace tls
     }
   }
 
+  static void secp256k1_illegal_callback(const char* str, void*)
+  {
+    throw std::logic_error(
+      fmt::format("[libsecp256k1] illegal argument: {}", str));
+  }
+
+  // Wrap calls to secp256k1_context_create, setting illegal callback to throw
+  // catchable errors rather than aborting
+  inline secp256k1_context* create_secp256k1_context(unsigned int flags)
+  {
+    auto ctx = secp256k1_context_create(flags);
+
+    secp256k1_context_set_illegal_callback(
+      ctx, secp256k1_illegal_callback, nullptr);
+
+    return ctx;
+  }
+
   class KeyPair
   {
   private:
@@ -535,7 +553,7 @@ namespace tls
   class KeyPair_k1Bitcoin : public KeyPair
   {
   protected:
-    secp256k1_context* bc_ctx = secp256k1_context_create(
+    secp256k1_context* bc_ctx = create_secp256k1_context(
       SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
 
     static constexpr size_t privk_size = 32;
@@ -746,7 +764,7 @@ namespace tls
   class PublicKey_k1Bitcoin : public PublicKey
   {
   protected:
-    secp256k1_context* bc_ctx = secp256k1_context_create(
+    secp256k1_context* bc_ctx = create_secp256k1_context(
       SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
 
     secp256k1_pubkey bc_pub;
@@ -906,7 +924,7 @@ namespace tls
   {
   protected:
     secp256k1_context* bc_ctx =
-      secp256k1_context_create(SECP256K1_CONTEXT_VERIFY);
+      create_secp256k1_context(SECP256K1_CONTEXT_VERIFY);
 
     secp256k1_pubkey bc_pub;
 
