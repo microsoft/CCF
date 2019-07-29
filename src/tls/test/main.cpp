@@ -20,7 +20,8 @@ static const string contents_ =
   "sint occaecat cupidatat non proident, sunt in culpa "
   "qui officia deserunt mollit anim id est laborum.";
 
-void corrupt(std::vector<uint8_t>& buf)
+template <typename T>
+void corrupt(T& buf)
 {
   buf[1]++;
   buf[buf.size() / 2]++;
@@ -222,5 +223,52 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
     CHECK(verifier->verify_hash(hash, signature));
     corrupt(hash);
     CHECK_FALSE(verifier->verify(hash, signature));
+  }
+}
+
+TEST_CASE("Recoverable signatures")
+{
+  auto kp = tls::KeyPair_k1Bitcoin(MBEDTLS_ECP_DP_SECP256K1);
+
+  vector<uint8_t> contents(contents_.begin(), contents_.end());
+  tls::HashBytes hash = bad_manual_hash(contents);
+
+  auto signature = kp.sign_recoverable_hashed(hash);
+
+  auto recovered = tls::PublicKey_k1Bitcoin::recover_key(signature, hash);
+
+  {
+    INFO("Normal recovery");
+    CHECK(kp.public_key_pem().str() == recovered.public_key_pem().str());
+  }
+
+  {
+    INFO("Corrupted hash");
+    auto hash2(hash);
+    corrupt(hash2);
+    CHECK_THROWS(tls::PublicKey_k1Bitcoin::recover_key(signature, hash2));
+  }
+
+  {
+    INFO("Corrupted signature");
+    auto signature2(signature);
+    corrupt(signature2.raw);
+    CHECK_THROWS(tls::PublicKey_k1Bitcoin::recover_key(signature2, hash));
+  }
+
+  {
+    INFO("Corrupted rec_id");
+    auto signature3(signature);
+    signature3.rec_id = (signature3.rec_id + 1) % 4;
+    CHECK_THROWS(tls::PublicKey_k1Bitcoin::recover_key(signature3, hash));
+  }
+
+  {
+    INFO("Recovered key is useable");
+
+    auto norm_sig = kp.sign(contents);
+    CHECK(recovered.verify(contents, norm_sig));
+    corrupt(norm_sig);
+    CHECK_FALSE(recovered.verify(contents, norm_sig));
   }
 }
