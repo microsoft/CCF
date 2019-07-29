@@ -16,8 +16,10 @@ namespace tls
   // required by mbedTLS
   class Pem
   {
-  public:
     std::string s;
+
+  public:
+    Pem(){};
 
     Pem(CBuffer b)
     {
@@ -27,9 +29,19 @@ namespace tls
       s.assign(reinterpret_cast<const char*>(b.p), b.n);
     }
 
+    const std::string& str() const
+    {
+      return s;
+    }
+
     uint8_t* data()
     {
       return reinterpret_cast<uint8_t*>(s.data());
+    }
+
+    const uint8_t* data() const
+    {
+      return reinterpret_cast<const uint8_t*>(s.data());
     }
 
     size_t size() const

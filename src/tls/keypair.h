@@ -7,6 +7,7 @@
 #include "cert.h"
 #include "csr.h"
 #include "entropy.h"
+#include "error_string.h"
 #include "secp256k1/include/secp256k1.h"
 #include "secp256k1/include/secp256k1_recovery.h"
 
@@ -38,14 +39,6 @@ namespace tls
   };
 
   using HashBytes = std::vector<uint8_t>;
-
-  inline std::string str_err(int err)
-  {
-    constexpr size_t len = 100;
-    char buf[len];
-    mbedtls_strerror(err, buf, len);
-    return std::string(buf);
-  }
 
   // 2 implementations of secp256k1 are available - mbedtls and bitcoin. Either
   // can be asked for explicitly via the CurveImpl enum. For cases where we
@@ -181,7 +174,7 @@ namespace tls
     if (rc != 0)
     {
       throw std::logic_error(
-        "mbedtls_ecp_point_write_binary failed: " + str_err(rc));
+        "mbedtls_ecp_point_write_binary failed: " + error_string(rc));
     }
 
     rc = secp256k1_ec_pubkey_parse(bc_ctx, bc_pub, pub_buf, pub_len);
@@ -212,7 +205,7 @@ namespace tls
   class KeyPair
   {
   private:
-    static constexpr size_t MAX_SIZE_PEM = 2048;
+    static constexpr size_t MAX_KEY_SIZE_PEM = 2048;
 
     struct SignCsr
     {
@@ -262,7 +255,7 @@ namespace tls
           if (rc != 0)
           {
             throw std::logic_error(
-              "Could not set up EdDSA context: " + str_err(rc));
+              "Could not set up EdDSA context: " + error_string(rc));
           }
 
           rc = mbedtls_eddsa_genkey(
@@ -273,7 +266,7 @@ namespace tls
           if (rc != 0)
           {
             throw std::logic_error(
-              "Could not generate EdDSA keypair: " + str_err(rc));
+              "Could not generate EdDSA keypair: " + error_string(rc));
           }
           break;
         }
@@ -285,7 +278,7 @@ namespace tls
           if (rc != 0)
           {
             throw std::logic_error(
-              "Could not set up ECDSA context: " + str_err(rc));
+              "Could not set up ECDSA context: " + error_string(rc));
           }
 
           rc = mbedtls_ecp_gen_key(
@@ -293,7 +286,7 @@ namespace tls
           if (rc != 0)
           {
             throw std::logic_error(
-              "Could not generate ECDSA keypair: " + str_err(rc));
+              "Could not generate ECDSA keypair: " + error_string(rc));
           }
           break;
         }
@@ -304,7 +297,7 @@ namespace tls
       {
         throw std::logic_error(
           "Created key and received unexpected type: " +
-          std::to_string(actual_ec) + " != " + str_err(ec));
+          std::to_string(actual_ec) + " != " + error_string(ec));
       }
     }
 
@@ -324,31 +317,36 @@ namespace tls
     /**
      * Get the private key in PEM format
      */
-    std::vector<uint8_t> private_key()
+    Pem private_key_pem()
     {
-      std::vector<uint8_t> pem(MAX_SIZE_PEM);
-      if (mbedtls_pk_write_key_pem(key.get(), pem.data(), pem.size()))
-        return {};
+      uint8_t data[MAX_KEY_SIZE_PEM];
 
-      auto len = strlen((char*)pem.data());
-      if (len >= pem.size())
-        return {};
-      return {pem.data(), pem.data() + len};
+      int rc = mbedtls_pk_write_key_pem(key.get(), data, MAX_KEY_SIZE_PEM);
+      if (rc != 0)
+      {
+        throw std::logic_error("mbedtls_pk_write_key_pem: " + error_string(rc));
+      }
+
+      const size_t len = strlen((char const*)data);
+      return Pem({data, len});
     }
 
     /**
      * Get the public key in PEM format
      */
-    std::vector<uint8_t> public_key()
+    Pem public_key_pem()
     {
-      std::vector<uint8_t> pem(MAX_SIZE_PEM);
-      if (mbedtls_pk_write_pubkey_pem(key.get(), pem.data(), pem.size()))
-        return {};
+      uint8_t data[MAX_KEY_SIZE_PEM];
 
-      auto len = strlen((char*)pem.data());
-      if (len >= pem.size())
-        return {};
-      return {pem.data(), pem.data() + len};
+      int rc = mbedtls_pk_write_pubkey_pem(key.get(), data, MAX_KEY_SIZE_PEM);
+      if (rc != 0)
+      {
+        throw std::logic_error(
+          "mbedtls_pk_write_pubkey_pem: " + error_string(rc));
+      }
+
+      const size_t len = strlen((char const*)data);
+      return Pem({data, len});
     }
 
     /**
@@ -570,7 +568,7 @@ namespace tls
       if (rc != 0)
       {
         throw std::logic_error(
-          "Could not extract raw private key: " + str_err(rc));
+          "Could not extract raw private key: " + error_string(rc));
       }
 
       if (secp256k1_ec_seckey_verify(bc_ctx, c4_priv) != 1)
@@ -642,10 +640,10 @@ namespace tls
   }
 
   /**
-   * Create a public / private from existing raw private key data
+   * Create a public / private from existing private key data
    */
   inline KeyPairPtr make_key_pair(
-    CBuffer pkey,
+    const Pem& pkey,
     CBuffer pw = nullb,
     bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
@@ -653,12 +651,12 @@ namespace tls
       std::make_unique<mbedtls_pk_context>();
     mbedtls_pk_init(key.get());
 
-    Pem pemPk(pkey);
+    // keylen is +1 to include terminating null byte
     int rc =
-      mbedtls_pk_parse_key(key.get(), pemPk.data(), pemPk.size(), pw.p, pw.n);
+      mbedtls_pk_parse_key(key.get(), pkey.data(), pkey.size() + 1, pw.p, pw.n);
     if (rc != 0)
     {
-      throw std::logic_error("Could not parse key: " + str_err(rc));
+      throw std::logic_error("Could not parse key: " + error_string(rc));
     }
 
     const auto curve = get_ec_from_context(*key);
@@ -805,13 +803,22 @@ namespace tls
    * mbedtls
    */
   inline PublicKeyPtr make_public_key(
-    const std::vector<uint8_t>& public_pem,
-    bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
+    const Pem& public_pem, bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
     mbedtls_pk_context ctx;
 
     mbedtls_pk_init(&ctx);
-    mbedtls_pk_parse_public_key(&ctx, public_pem.data(), public_pem.size());
+
+    int rc = mbedtls_pk_parse_public_key(
+      &ctx, public_pem.data(), public_pem.size() + 1);
+
+    if (rc != 0)
+    {
+      throw std::logic_error(fmt::format(
+        "Could not parse public key PEM: {}\n\n(Key: {})",
+        error_string(rc),
+        public_pem.str()));
+    }
 
     const auto curve = get_ec_from_context(ctx);
 

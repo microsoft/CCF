@@ -45,7 +45,7 @@ TEST_CASE("Sign, verify, with PublicKey")
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
 
-    vector<uint8_t> public_key = kp->public_key();
+    const auto public_key = kp->public_key_pem();
     auto pubk = tls::make_public_key(public_key);
     CHECK(pubk->verify(contents, signature));
   }
@@ -60,7 +60,7 @@ TEST_CASE("Sign, fail to verify with bad signature")
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
-    vector<uint8_t> public_key = kp->public_key();
+    const auto public_key = kp->public_key_pem();
     auto pubk = tls::make_public_key(public_key);
     corrupt(signature);
     CHECK_FALSE(pubk->verify(contents, signature));
@@ -76,7 +76,7 @@ TEST_CASE("Sign, fail to verify with bad contents")
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
-    vector<uint8_t> public_key = kp->public_key();
+    const auto public_key = kp->public_key_pem();
     auto pubk = tls::make_public_key(public_key);
     corrupt(contents);
     CHECK_FALSE(pubk->verify(contents, signature));
@@ -93,7 +93,7 @@ TEST_CASE("Sign, fail to verify with wrong key on correct curve")
     vector<uint8_t> signature = kp->sign(contents);
 
     auto kp2 = tls::make_key_pair(curve);
-    vector<uint8_t> public_key = kp2->public_key();
+    const auto public_key = kp2->public_key_pem();
     auto pubk = tls::make_public_key(public_key);
     CHECK_FALSE(pubk->verify(contents, signature));
   }
@@ -112,7 +112,7 @@ TEST_CASE("Sign, fail to verify with wrong key on wrong curve")
       tls::CurveImpl::curve25519 :
       tls::CurveImpl::secp384r1;
     auto kp2 = tls::make_key_pair(wrong_curve);
-    vector<uint8_t> public_key = kp2->public_key();
+    const auto public_key = kp2->public_key_pem();
     auto pubk = tls::make_public_key(public_key);
     CHECK_FALSE(pubk->verify(contents, signature));
   }
@@ -135,7 +135,7 @@ TEST_CASE("Sign, verify with alternate implementation")
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
-    vector<uint8_t> public_key = kp->public_key();
+    const auto public_key = kp->public_key_pem();
     auto pubk = tls::make_public_key(
       public_key, curves.second == tls::CurveImpl::secp256k1_bitcoin);
     CHECK(pubk->verify(contents, signature));
@@ -199,7 +199,7 @@ TEST_CASE("Manually hash, sign, verify, with PublicKey")
     tls::HashBytes hash = bad_manual_hash(contents);
     const vector<uint8_t> signature = kp->sign_hash(hash.data(), hash.size());
 
-    vector<uint8_t> public_key = kp->public_key();
+    const auto public_key = kp->public_key_pem();
     auto pubk = tls::make_public_key(public_key);
     CHECK(pubk->verify_hash(hash, signature));
     corrupt(hash);

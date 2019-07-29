@@ -125,7 +125,7 @@ namespace ccf
     tls::KeyPairPtr network_kp;
 
   public:
-    ChannelManager(const std::vector<uint8_t>& network_pkey) :
+    ChannelManager(const tls::Pem& network_pkey) :
       network_kp(tls::make_key_pair(network_pkey))
     {}
 
@@ -170,7 +170,7 @@ namespace ccf
       auto& channel = get(peer_id);
 
       // Verify signature
-      auto network_pubk = tls::make_public_key(network_kp->public_key());
+      auto network_pubk = tls::make_public_key(network_kp->public_key_pem());
 
       if (!network_pubk->verify(
             peer_signed_public.data(),
