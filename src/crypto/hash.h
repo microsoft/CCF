@@ -19,12 +19,6 @@ namespace crypto
 
     static void mbedtls_sha256(std::initializer_list<CBuffer> il, uint8_t* h);
     static void evercrypt_sha256(std::initializer_list<CBuffer> il, uint8_t* h);
-    static Sha256Hash ZeroHash()
-    {
-      Sha256Hash hash;
-      memset(hash.h, 0, SIZE);
-      return hash;
-    }
 
     friend std::ostream& operator<<(
       std::ostream& os, const crypto::Sha256Hash& h)

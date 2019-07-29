@@ -579,7 +579,7 @@ namespace ccf
      * @param ctx Context for this RPC
      * @param input Serialised JSON RPC
      */
-    std::tuple<std::vector<uint8_t>, crypto::Sha256Hash> process_pbft(
+    ProcessPbftResp process_pbft(
       enclave::RPCContext& ctx, const std::vector<uint8_t>& input) override
     {
       // TODO(#PBFT): Refactor this with process_forwarded().
@@ -588,19 +588,17 @@ namespace ccf
 
       auto pack = detect_pack(input);
       if (!pack.has_value())
-        return std::make_tuple(
-          jsonrpc::pack(
-            jsonrpc::error_response(
-              0,
-              jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-              "Empty PBFT request."),
-            jsonrpc::Pack::Text),
-          merkle_root);
+        return {jsonrpc::pack(
+                  jsonrpc::error_response(
+                    0,
+                    jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+                    "Empty PBFT request."),
+                  jsonrpc::Pack::Text),
+                merkle_root};
 
       auto rpc = unpack_json(input, pack.value());
       if (!rpc.first)
-        return std::make_tuple(
-          jsonrpc::pack(rpc.second, pack.value()), merkle_root);
+        return {jsonrpc::pack(rpc.second, pack.value()), merkle_root};
 
       SignedReq signed_request;
 
@@ -628,8 +626,7 @@ namespace ccf
       // if (history)
       //   history->add_response(reqid, rv);
 
-      return std::make_tuple(
-        jsonrpc::pack(rep.value(), pack.value()), merkle_root);
+      return {jsonrpc::pack(rep.value(), pack.value()), merkle_root};
     }
 
     /** Process a serialised input forwarded from another node

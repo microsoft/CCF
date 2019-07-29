@@ -113,16 +113,16 @@ namespace pbft
 
       static_assert(sizeof(info.merkle_root) == sizeof(crypto::Sha256Hash));
       std::copy(
-        std::begin(std::get<1>(rep).h),
-        std::end(std::get<1>(rep).h),
+        std::begin(rep.merkle_root.h),
+        std::end(rep.merkle_root.h),
         std::begin(info.merkle_root));
 
-      outb->size = std::get<0>(rep).size();
+      outb->size = rep.result.size();
       auto outb_ptr = (uint8_t*)outb->contents;
       size_t outb_size = (size_t)outb->size;
 
       serialized::write(
-        outb_ptr, outb_size, std::get<0>(rep).data(), std::get<0>(rep).size());
+        outb_ptr, outb_size, rep.result.data(), rep.result.size());
 
       return 0;
     };
