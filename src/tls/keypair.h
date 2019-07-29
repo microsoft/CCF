@@ -473,7 +473,7 @@ namespace tls
       SignCsr sign;
 
       Pem pemCsr(csr);
-      if (mbedtls_x509_csr_parse(&sign.csr, pemCsr.p, pemCsr.n) != 0)
+      if (mbedtls_x509_csr_parse(&sign.csr, pemCsr.data(), pemCsr.size()) != 0)
         return {};
 
       char subject[512];
@@ -654,7 +654,8 @@ namespace tls
     mbedtls_pk_init(key.get());
 
     Pem pemPk(pkey);
-    int rc = mbedtls_pk_parse_key(key.get(), pemPk.p, pemPk.n, pw.p, pw.n);
+    int rc =
+      mbedtls_pk_parse_key(key.get(), pemPk.data(), pemPk.size(), pw.p, pw.n);
     if (rc != 0)
     {
       throw std::logic_error("Could not parse key: " + str_err(rc));

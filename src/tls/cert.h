@@ -47,11 +47,13 @@ namespace tls
       if ((cert_.n > 0) && (pkey_.n > 0))
       {
         Pem pemCert(cert_);
-        if (mbedtls_x509_crt_parse(&cert, pemCert.p, pemCert.n) != 0)
+        if (mbedtls_x509_crt_parse(&cert, pemCert.data(), pemCert.size()) != 0)
           throw std::logic_error("Could not parse certificate");
 
         Pem pemPk(pkey_);
-        if (mbedtls_pk_parse_key(&pkey, pemPk.p, pemPk.n, pw.p, pw.n) != 0)
+        if (
+          mbedtls_pk_parse_key(&pkey, pemPk.data(), pemPk.size(), pw.p, pw.n) !=
+          0)
           throw std::logic_error("Could not parse key");
 
         has_cert = true;

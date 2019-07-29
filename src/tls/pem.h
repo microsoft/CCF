@@ -16,33 +16,25 @@ namespace tls
   // required by mbedTLS
   class Pem
   {
-    std::vector<uint8_t> v;
-
   public:
+    std::string s;
+
     Pem(CBuffer b)
     {
       if (b.n == 0)
         throw std::logic_error("Got PEM of size 0.");
 
-      // has terminating zero?
-      if (!b.p[b.n - 1])
-      {
-        p = b.p;
-        n = b.n;
-      }
-      else
-      {
-        n = b.n + 1;
-        if (n < b.n)
-          throw std::overflow_error("integer overflow");
-        v.resize(n);
-        std::memcpy(v.data(), b.p, b.n);
-        v[n - 1] = 0;
-        p = v.data();
-      }
+      s.assign(reinterpret_cast<const char*>(b.p), b.n);
     }
 
-    const uint8_t* p;
-    size_t n;
+    uint8_t* data()
+    {
+      return reinterpret_cast<uint8_t*>(s.data());
+    }
+
+    size_t size() const
+    {
+      return s.size();
+    }
   };
 }
