@@ -640,7 +640,7 @@ namespace tls
     struct RecoverableSignature
     {
       std::array<uint8_t, 64> raw;
-      int rec_id;
+      int recovery_id;
     };
 
     RecoverableSignature sign_recoverable_hashed(CBuffer hashed)
@@ -663,7 +663,7 @@ namespace tls
 
       RecoverableSignature ret;
       rc = secp256k1_ecdsa_recoverable_signature_serialize_compact(
-        bc_ctx, ret.raw.data(), &ret.rec_id, &sig);
+        bc_ctx, ret.raw.data(), &ret.recovery_id, &sig);
       if (rc != 1)
       {
         throw std::logic_error(
@@ -675,6 +675,24 @@ namespace tls
   };
 
   using KeyPairPtr = std::shared_ptr<KeyPair>;
+
+  inline std::unique_ptr<mbedtls_pk_context> parse_private_key(
+    const Pem& pkey, CBuffer pw = nullb)
+  {
+    std::unique_ptr<mbedtls_pk_context> key =
+      std::make_unique<mbedtls_pk_context>();
+    mbedtls_pk_init(key.get());
+
+    // keylen is +1 to include terminating null byte
+    int rc =
+      mbedtls_pk_parse_key(key.get(), pkey.data(), pkey.size() + 1, pw.p, pw.n);
+    if (rc != 0)
+    {
+      throw std::logic_error("Could not parse key: " + error_string(rc));
+    }
+
+    return std::move(key);
+  }
 
   /**
    * Create a new public / private key pair on specified curve and
@@ -702,17 +720,7 @@ namespace tls
     CBuffer pw = nullb,
     bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
-    std::unique_ptr<mbedtls_pk_context> key =
-      std::make_unique<mbedtls_pk_context>();
-    mbedtls_pk_init(key.get());
-
-    // keylen is +1 to include terminating null byte
-    int rc =
-      mbedtls_pk_parse_key(key.get(), pkey.data(), pkey.size() + 1, pw.p, pw.n);
-    if (rc != 0)
-    {
-      throw std::logic_error("Could not parse key: " + error_string(rc));
-    }
+    auto key = parse_private_key(pkey, pw);
 
     const auto curve = get_ec_from_context(*key);
 
@@ -884,7 +892,7 @@ namespace tls
 
         secp256k1_ecdsa_recoverable_signature sig;
         rc = secp256k1_ecdsa_recoverable_signature_parse_compact(
-          ctx, &sig, rs.raw.data(), rs.rec_id);
+          ctx, &sig, rs.raw.data(), rs.recovery_id);
         if (rc != 1)
         {
           throw std::logic_error(
@@ -910,7 +918,6 @@ namespace tls
 
       // Read recovered key into mbedtls context
       {
-        // TODO: Check if this is correct value
         auto pk_info = mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY);
         if (pk_info == nullptr)
         {

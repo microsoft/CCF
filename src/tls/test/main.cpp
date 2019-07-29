@@ -282,9 +282,9 @@ TEST_CASE("Recoverable signatures")
   }
 
   {
-    INFO("Corrupted rec_id");
+    INFO("Corrupted recovery_id");
     auto signature3(signature);
-    signature3.rec_id = (signature3.rec_id + 1) % 4;
+    signature3.recovery_id = (signature3.recovery_id + 1) % 4;
     bool recovery_failed = false;
     try
     {
