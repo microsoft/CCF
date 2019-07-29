@@ -104,7 +104,7 @@ namespace pbft
     std::unique_ptr<PbftEnclaveNetwork> pbft_network;
     std::unique_ptr<AbstractPbftConfig> pbft_config;
     std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
-    kv::TxHistory::CallbackHandler on_request;
+    kv::TxHistory::RequestCallbackHandler on_request;
     enclave::RPCSessions& rpcsessions;
     std::unique_ptr<raft::LedgerEnclave> ledger;
 
@@ -212,14 +212,14 @@ namespace pbft
       message_receiver_base->register_append_ledger_entry_cb(
         append_ledger_entry_cb, ledger.get());
 
-      on_request = [&](kv::TxHistory::CallbackArgs args) {
-        auto total_req_size = pbft_config->message_size() + args.data.size();
+      on_request = [&](kv::TxHistory::RequestCallbackArgs args) {
+        auto total_req_size = pbft_config->message_size() + args.request.size();
 
         uint8_t request_buffer[total_req_size];
         pbft_config->fill_request(
           request_buffer,
           total_req_size,
-          args.data,
+          args.request,
           args.actor,
           args.caller_id);
 
@@ -278,7 +278,7 @@ namespace pbft
       return 0;
     }
 
-    kv::TxHistory::CallbackHandler get_on_request()
+    kv::TxHistory::RequestCallbackHandler get_on_request()
     {
       return on_request;
     }

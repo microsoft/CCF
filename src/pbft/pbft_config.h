@@ -88,7 +88,8 @@ namespace pbft
                                  _Byz_buffer* non_det,
                                  int client,
                                  bool ro,
-                                 Seqno total_requests_executed) {
+                                 Seqno total_requests_executed,
+                                 ByzInfo& info) {
       auto request = new (inb->contents) ccf_req;
 
       LOG_DEBUG_FMT("PBFT exec_command() for frontend {}", request->actor);
@@ -110,11 +111,18 @@ namespace pbft
         {request->get_data(),
          request->get_data() + request->get_size(inb->size)});
 
-      outb->size = rep.size();
+      static_assert(sizeof(info.merkle_root) == sizeof(crypto::Sha256Hash));
+      std::copy(
+        std::begin(rep.merkle_root.h),
+        std::end(rep.merkle_root.h),
+        std::begin(info.merkle_root));
+
+      outb->size = rep.result.size();
       auto outb_ptr = (uint8_t*)outb->contents;
       size_t outb_size = (size_t)outb->size;
 
-      serialized::write(outb_ptr, outb_size, rep.data(), rep.size());
+      serialized::write(
+        outb_ptr, outb_size, rep.result.data(), rep.result.size());
 
       return 0;
     };

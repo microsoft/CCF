@@ -579,24 +579,26 @@ namespace ccf
      * @param ctx Context for this RPC
      * @param input Serialised JSON RPC
      */
-    std::vector<uint8_t> process_pbft(
+    ProcessPbftResp process_pbft(
       enclave::RPCContext& ctx, const std::vector<uint8_t>& input) override
     {
       // TODO(#PBFT): Refactor this with process_forwarded().
       Store::Tx tx;
+      crypto::Sha256Hash merkle_root;
 
       auto pack = detect_pack(input);
       if (!pack.has_value())
-        return jsonrpc::pack(
-          jsonrpc::error_response(
-            0,
-            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-            "Empty PBFT request."),
-          jsonrpc::Pack::Text);
+        return {jsonrpc::pack(
+                  jsonrpc::error_response(
+                    0,
+                    jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+                    "Empty PBFT request."),
+                  jsonrpc::Pack::Text),
+                merkle_root};
 
       auto rpc = unpack_json(input, pack.value());
       if (!rpc.first)
-        return jsonrpc::pack(rpc.second, pack.value());
+        return {jsonrpc::pack(rpc.second, pack.value()), merkle_root};
 
       SignedReq signed_request;
 
@@ -609,14 +611,22 @@ namespace ccf
       }
       auto& unsigned_rpc = *rpc_;
 
+      auto cb = [&merkle_root](kv::TxHistory::ResultCallbackArgs args) -> bool {
+        merkle_root = args.merkle_root;
+        return true;
+      };
+      history->register_on_result(cb);
+
       auto rep =
         process_json(ctx, tx, ctx.fwd->caller_id, unsigned_rpc, signed_request);
+
+      history->clear_on_result();
 
       // TODO(#PBFT): Add RPC response to history based on Request ID
       // if (history)
       //   history->add_response(reqid, rv);
 
-      return jsonrpc::pack(rep.value(), pack.value());
+      return {jsonrpc::pack(rep.value(), pack.value()), merkle_root};
     }
 
     /** Process a serialised input forwarded from another node
