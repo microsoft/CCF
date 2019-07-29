@@ -396,13 +396,13 @@ namespace ccf
       auto params_schema = nlohmann::json::object();
       if constexpr (!std::is_same_v<In, void>)
       {
-        params_schema = build_schema<In>(method + "/params");
+        params_schema = ds::json::build_schema<In>(method + "/params");
       }
 
       auto result_schema = nlohmann::json::object();
       if constexpr (!std::is_same_v<Out, void>)
       {
-        result_schema = build_schema<Out>(method + "/result");
+        result_schema = ds::json::build_schema<Out>(method + "/result");
       }
 
       install(
