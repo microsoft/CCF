@@ -37,6 +37,30 @@ static constexpr tls::CurveImpl supported_curves[] = {
 static constexpr char const* labels[] = {
   "secp384r1", "curve25519", "secp256k1_mbedtls", "secp256k1_bitcoin"};
 
+TEST_CASE("Sign, verify, with KeyPair")
+{
+  for (const auto curve : supported_curves)
+  {
+    INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
+    auto kp = tls::make_key_pair(curve);
+    vector<uint8_t> contents(contents_.begin(), contents_.end());
+    const vector<uint8_t> signature = kp->sign(contents);
+    CHECK(kp->verify(contents, signature));
+
+    auto kp2 = tls::make_key_pair(kp->private_key_pem());
+    CHECK(kp2->verify(contents, signature));
+
+    // Signatures won't necessarily be identical due to entropy, but should be
+    // mutually verifiable
+    for (auto i = 0; i < 10; ++i)
+    {
+      const auto new_sig = kp2->sign(contents);
+      CHECK(kp->verify(contents, new_sig));
+      CHECK(kp2->verify(contents, new_sig));
+    }
+  }
+}
+
 TEST_CASE("Sign, verify, with PublicKey")
 {
   for (const auto curve : supported_curves)
