@@ -222,7 +222,8 @@ namespace enclave
         }
         else
         {
-          LOG_TRACE_FMT("TLS {} on flush: {}", session_id, tls::error_string(r));
+          LOG_TRACE_FMT(
+            "TLS {} on flush: {}", session_id, tls::error_string(r));
           stop(error);
         }
       }
@@ -259,7 +260,8 @@ namespace enclave
 
             default:
             {
-              LOG_TRACE_FMT("TLS {} on_close: {}", session_id, tls::error_string(r));
+              LOG_TRACE_FMT(
+                "TLS {} on_close: {}", session_id, tls::error_string(r));
               stop(error);
               break;
             }
