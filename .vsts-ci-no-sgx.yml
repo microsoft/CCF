@@ -48,13 +48,10 @@ schedules:
 
 jobs:
 - job: Coverage
-  pool:
-    vmImage: 'ubuntu-16.04'
+  pool: Ubuntu-1804-Non-SGX-Azure
   container:
     image: ccfciteam/ccf-ci-18.04:latest
-    # Docker image is created with constrained network, unable to communicate
-    # with other nodes in end-to-end tests. Publishing the ports allows the
-    # nodes to communicate.
+    # --publish-all enables end-to-end tests to communicate over ports
     options: --publish-all
   steps:
     - checkout: self
@@ -93,11 +90,12 @@ jobs:
       workingDirectory: build
 
 - job: SAN
-  pool:
-    vmImage: 'ubuntu-16.04'
+  pool: Ubuntu-1804-Non-SGX-Azure
   container:
     image: ccfciteam/ccf-ci-18.04:latest
-    options: --publish-all
+    # --publish-all enables end-to-end tests to communicate over ports
+    # --cap-add SYS_PTRACE enables ptrace and thus LeakSanitizer
+    options: --publish-all --cap-add SYS_PTRACE
   steps:
     - checkout: self
       clean: true

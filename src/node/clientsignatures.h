@@ -13,9 +13,9 @@ namespace ccf
   struct SignedReq
   {
     // the encoded json-rpc signed by the clients private key
-    std::vector<uint8_t> sig;
+    std::vector<uint8_t> sig = {};
     // the encoded json-rpc sent by the client
-    std::vector<uint8_t> req;
+    std::vector<uint8_t> req = {};
 
     MSGPACK_DEFINE(sig, req);
   };
@@ -46,5 +46,19 @@ namespace ccf
     {
       assign_j(sr.req, nlohmann::json::to_msgpack(req_it.value()));
     }
+  }
+
+  inline void fill_json_schema(nlohmann::json& j, const SignedReq& sr)
+  {
+    j["type"] = "object";
+
+    j["properties"]["req"] = nlohmann::json();
+
+    auto sig_schema = nlohmann::json::object();
+    sig_schema["type"] = "array";
+    sig_schema["items"] = ::ds::json::schema_element<uint8_t>();
+    j["properties"]["sig"] = sig_schema;
+
+    j["required"].push_back("req");
   }
 }

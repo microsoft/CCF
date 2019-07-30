@@ -78,7 +78,7 @@ namespace enclave
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
 
-      node.initialize(config->raft_config, n2n_channels);
+      node.initialize(config->raft_config, n2n_channels, rpc_map);
       rpcsessions.initialize(rpc_map);
       cmd_forwarder->initialize(rpc_map);
     }
@@ -133,6 +133,7 @@ namespace enclave
             if (ms_count > 0)
             {
               std::chrono::milliseconds elapsed_ms(ms_count);
+              logger::config::tick(elapsed_ms);
               node.tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // ledger is being read

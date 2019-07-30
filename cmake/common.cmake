@@ -326,6 +326,7 @@ include(${CCF_DIR}/cmake/secp256k1.cmake)
 ## Build PBFT if used as consensus
 if (PBFT)
   message(STATUS "Using PBFT as consensus")
+  set(SIGN_BATCH ON)
   include(${CCF_DIR}/ePBFT/cmake/pbft.cmake)
 
   target_include_directories(libbyz.host PRIVATE
