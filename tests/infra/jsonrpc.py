@@ -263,7 +263,9 @@ class FramedTLSJSONRPCClient:
         format="msgpack",
         description=None,
     ):
-        self.client = FramedTLSClient(host, port, server_hostname, cert, key, cafile)
+        self.client = FramedTLSClient(
+            host, int(port), server_hostname, cert, key, cafile
+        )
         self.stream = Stream(version, format=format)
         self.format = format
         self.name = "[{}:{}]".format(host, port)
