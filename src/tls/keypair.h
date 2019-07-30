@@ -193,15 +193,32 @@ namespace tls
   }
 
   // Wrap calls to secp256k1_context_create, setting illegal callback to throw
-  // catchable errors rather than aborting
-  inline secp256k1_context* create_secp256k1_context(unsigned int flags)
+  // catchable errors rather than aborting, and ensuring destroy is called when
+  // this goes out of scope
+  class BCk1Context
   {
-    auto ctx = secp256k1_context_create(flags);
+  public:
+    secp256k1_context* p = nullptr;
 
-    secp256k1_context_set_illegal_callback(
-      ctx, secp256k1_illegal_callback, nullptr);
+    BCk1Context(unsigned int flags)
+    {
+      p = secp256k1_context_create(flags);
 
-    return ctx;
+      secp256k1_context_set_illegal_callback(
+        p, secp256k1_illegal_callback, nullptr);
+    }
+
+    ~BCk1Context()
+    {
+      secp256k1_context_destroy(p);
+    }
+  };
+
+  using BCk1ContextPtr = std::unique_ptr<BCk1Context>;
+
+  BCk1ContextPtr make_bc_context(unsigned int flags)
+  {
+    return std::make_unique<BCk1Context>(flags);
   }
 
   class KeyPair
@@ -574,8 +591,8 @@ namespace tls
   class KeyPair_k1Bitcoin : public KeyPair
   {
   protected:
-    secp256k1_context* bc_ctx = create_secp256k1_context(
-      SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
+    BCk1ContextPtr bc_ctx =
+      make_bc_context(SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
 
     static constexpr size_t privk_size = 32;
     uint8_t c4_priv[privk_size] = {0};
@@ -602,16 +619,10 @@ namespace tls
           "Could not extract raw private key: " + error_string(rc));
       }
 
-      if (secp256k1_ec_seckey_verify(bc_ctx, c4_priv) != 1)
+      if (secp256k1_ec_seckey_verify(bc_ctx->p, c4_priv) != 1)
       {
         throw std::logic_error("secp256k1 private key is not valid");
       }
-    }
-
-    ~KeyPair_k1Bitcoin()
-    {
-      if (bc_ctx)
-        secp256k1_context_destroy(bc_ctx);
     }
 
     int sign_hash(
@@ -626,12 +637,12 @@ namespace tls
       secp256k1_ecdsa_signature k1_sig;
       if (
         secp256k1_ecdsa_sign(
-          bc_ctx, &k1_sig, hash, c4_priv, nullptr, nullptr) != 1)
+          bc_ctx->p, &k1_sig, hash, c4_priv, nullptr, nullptr) != 1)
         return -2;
 
       if (
         secp256k1_ecdsa_signature_serialize_der(
-          bc_ctx, sig, sig_size, &k1_sig) != 1)
+          bc_ctx->p, sig, sig_size, &k1_sig) != 1)
         return -3;
 
       return 0;
@@ -655,7 +666,7 @@ namespace tls
 
       secp256k1_ecdsa_recoverable_signature sig;
       rc = secp256k1_ecdsa_sign_recoverable(
-        bc_ctx, &sig, hashed.p, c4_priv, nullptr, nullptr);
+        bc_ctx->p, &sig, hashed.p, c4_priv, nullptr, nullptr);
       if (rc != 1)
       {
         throw std::logic_error("secp256k1_ecdsa_sign_recoverable failed");
@@ -663,7 +674,7 @@ namespace tls
 
       RecoverableSignature ret;
       rc = secp256k1_ecdsa_recoverable_signature_serialize_compact(
-        bc_ctx, ret.raw.data(), &ret.recovery_id, &sig);
+        bc_ctx->p, ret.raw.data(), &ret.recovery_id, &sig);
       if (rc != 1)
       {
         throw std::logic_error(
@@ -844,8 +855,7 @@ namespace tls
   class PublicKey_k1Bitcoin : public PublicKey
   {
   protected:
-    secp256k1_context* bc_ctx = create_secp256k1_context(
-      SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
+    BCk1ContextPtr bc_ctx = make_bc_context(SECP256K1_CONTEXT_VERIFY);
 
     secp256k1_pubkey bc_pub;
 
@@ -853,13 +863,7 @@ namespace tls
     template <typename... Ts>
     PublicKey_k1Bitcoin(Ts... ts) : PublicKey(std::forward<Ts>(ts)...)
     {
-      parse_secp256k_bc(ctx, bc_ctx, &bc_pub);
-    }
-
-    ~PublicKey_k1Bitcoin()
-    {
-      if (bc_ctx)
-        secp256k1_context_destroy(bc_ctx);
+      parse_secp256k_bc(ctx, bc_ctx->p, &bc_pub);
     }
 
     bool verify_hash(
@@ -869,7 +873,7 @@ namespace tls
       size_t sig_size) override
     {
       return verify_secp256k_bc(
-        bc_ctx, sig, sig_size, hash, hash_size, &bc_pub);
+        bc_ctx->p, sig, sig_size, hash, hash_size, &bc_pub);
     }
 
     static PublicKey_k1Bitcoin recover_key(
@@ -880,19 +884,19 @@ namespace tls
       size_t buf_len = 65;
       std::array<uint8_t, 65> buf;
 
+      if (hashed.n != 32)
+      {
+        throw std::logic_error(
+          fmt::format("Expected {} bytes in hash, got {}", 32, hashed.n));
+      }
+
       // Recover with libsecp256k1
       {
-        if (hashed.n != 32)
-        {
-          throw std::logic_error(
-            fmt::format("Expected {} bytes in hash, got {}", 32, hashed.n));
-        }
-
-        auto ctx = create_secp256k1_context(SECP256K1_CONTEXT_VERIFY);
+        auto ctx = make_bc_context(SECP256K1_CONTEXT_VERIFY);
 
         secp256k1_ecdsa_recoverable_signature sig;
         rc = secp256k1_ecdsa_recoverable_signature_parse_compact(
-          ctx, &sig, rs.raw.data(), rs.recovery_id);
+          ctx->p, &sig, rs.raw.data(), rs.recovery_id);
         if (rc != 1)
         {
           throw std::logic_error(
@@ -900,20 +904,18 @@ namespace tls
         }
 
         secp256k1_pubkey pubk;
-        rc = secp256k1_ecdsa_recover(ctx, &pubk, &sig, hashed.p);
+        rc = secp256k1_ecdsa_recover(ctx->p, &pubk, &sig, hashed.p);
         if (rc != 1)
         {
           throw std::logic_error("secp256k1_ecdsa_recover failed");
         }
 
         rc = secp256k1_ec_pubkey_serialize(
-          ctx, buf.data(), &buf_len, &pubk, SECP256K1_EC_UNCOMPRESSED);
+          ctx->p, buf.data(), &buf_len, &pubk, SECP256K1_EC_UNCOMPRESSED);
         if (rc != 1)
         {
           throw std::logic_error("secp256k1_ec_pubkey_serialize failed");
         }
-
-        secp256k1_context_destroy(ctx);
       }
 
       // Read recovered key into mbedtls context
@@ -1102,8 +1104,7 @@ namespace tls
   class Verifier_k1Bitcoin : public Verifier
   {
   protected:
-    secp256k1_context* bc_ctx =
-      create_secp256k1_context(SECP256K1_CONTEXT_VERIFY);
+    BCk1ContextPtr bc_ctx = make_bc_context(SECP256K1_CONTEXT_VERIFY);
 
     secp256k1_pubkey bc_pub;
 
@@ -1111,7 +1112,7 @@ namespace tls
     template <typename... Ts>
     Verifier_k1Bitcoin(Ts... ts) : Verifier(std::forward<Ts>(ts)...)
     {
-      parse_secp256k_bc(cert.pk, bc_ctx, &bc_pub);
+      parse_secp256k_bc(cert.pk, bc_ctx->p, &bc_pub);
     }
 
     bool verify_hash(
@@ -1121,15 +1122,9 @@ namespace tls
       size_t signature_size) const override
     {
       bool ok = verify_secp256k_bc(
-        bc_ctx, signature, signature_size, hash, hash_size, &bc_pub);
+        bc_ctx->p, signature, signature_size, hash, hash_size, &bc_pub);
 
       return ok;
-    }
-
-    ~Verifier_k1Bitcoin()
-    {
-      if (bc_ctx)
-        secp256k1_context_destroy(bc_ctx);
     }
   };
 
