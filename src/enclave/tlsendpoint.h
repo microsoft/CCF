@@ -107,7 +107,7 @@ namespace enclave
         case MBEDTLS_ERR_NET_CONN_RESET:
         case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
         {
-          LOG_TRACE_FMT("TLS {} on read: {}", session_id, strerror(r));
+          LOG_TRACE_FMT("TLS {} on read: {}", session_id, tls::error_string(r));
 
           stop(closed);
 
@@ -138,7 +138,7 @@ namespace enclave
 
       if (r < 0)
       {
-        LOG_TRACE_FMT("TLS {} on read: {}", session_id, strerror(r));
+        LOG_TRACE_FMT("TLS {} on read: {}", session_id, tls::error_string(r));
         stop(error);
         return {};
       }
@@ -222,7 +222,8 @@ namespace enclave
         }
         else
         {
-          LOG_TRACE_FMT("TLS {} on flush: {}", session_id, strerror(r));
+          LOG_TRACE_FMT(
+            "TLS {} on flush: {}", session_id, tls::error_string(r));
           stop(error);
         }
       }
@@ -259,7 +260,8 @@ namespace enclave
 
             default:
             {
-              LOG_TRACE_FMT("TLS {} on_close: {}", session_id, strerror(r));
+              LOG_TRACE_FMT(
+                "TLS {} on_close: {}", session_id, tls::error_string(r));
               stop(error);
               break;
             }
@@ -297,14 +299,16 @@ namespace enclave
         case MBEDTLS_ERR_SSL_NO_CLIENT_CERTIFICATE:
         case MBEDTLS_ERR_SSL_PEER_VERIFY_FAILED:
         {
-          LOG_TRACE_FMT("TLS {} on handshake: {}", session_id, strerror(rc));
+          LOG_TRACE_FMT(
+            "TLS {} on handshake: {}", session_id, tls::error_string(rc));
           stop(authfail);
           break;
         }
 
         case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
         {
-          LOG_TRACE_FMT("TLS {} on handshake: {}", session_id, strerror(rc));
+          LOG_TRACE_FMT(
+            "TLS {} on handshake: {}", session_id, tls::error_string(rc));
           stop(closed);
           break;
         }
@@ -324,14 +328,16 @@ namespace enclave
             LOG_TRACE_FMT(std::string(buf.data(), buf.size()));
           }
 
-          LOG_TRACE_FMT("TLS {} on handshake: {}", session_id, strerror(rc));
+          LOG_TRACE_FMT(
+            "TLS {} on handshake: {}", session_id, tls::error_string(rc));
           stop(authfail);
           return;
         }
 
         default:
         {
-          LOG_TRACE_FMT("TLS {} on handshake: {}", session_id, strerror(rc));
+          LOG_TRACE_FMT(
+            "TLS {} on handshake: {}", session_id, tls::error_string(rc));
           stop(error);
           break;
         }
@@ -442,14 +448,6 @@ namespace enclave
     {
       (void)level;
       LOG_DEBUG_FMT("{}:{}: {}", file, line, str);
-    }
-
-    std::string strerror(int err)
-    {
-      constexpr size_t len = 100;
-      char buf[len];
-      mbedtls_strerror(err, buf, len);
-      return std::string(buf);
     }
   };
 }

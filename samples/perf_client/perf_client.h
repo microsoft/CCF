@@ -52,7 +52,7 @@ namespace client
   class PerfBase
   {
   private:
-    std::vector<uint8_t> raw_key;
+    tls::Pem key = {};
     std::shared_ptr<tls::Cert> tls_cert;
 
     // Create tls_cert if it doesn't exist, and return it
@@ -61,11 +61,13 @@ namespace client
       if (tls_cert == nullptr)
       {
         const auto raw_cert = files::slurp(cert_file);
-        raw_key = files::slurp(key_file);
+        const auto raw_key = files::slurp(key_file);
         const auto ca = files::slurp(ca_file);
 
+        key = tls::Pem(raw_key);
+
         tls_cert = std::make_shared<tls::Cert>(
-          users_sni, std::make_shared<tls::CA>(ca), raw_cert, raw_key, nullb);
+          users_sni, std::make_shared<tls::CA>(ca), raw_cert, key, nullb);
 
         return true;
       }
@@ -145,7 +147,7 @@ namespace client
 
       const auto conn = (sign && !force_unsigned) ?
         std::make_shared<SigRpcTlsClient>(
-          raw_key, host, port, users_sni, nullptr, tls_cert) :
+          key, host, port, users_sni, nullptr, tls_cert) :
         std::make_shared<RpcTlsClient>(
           host, port, users_sni, nullptr, tls_cert);
 
@@ -230,8 +232,7 @@ namespace client
     virtual void post_timing_body_hook(){};
 
     virtual timing::Results call_raw_batch(
-      const std::shared_ptr<RpcTlsClient>& connection,
-      const PreparedTxs& txs)
+      const std::shared_ptr<RpcTlsClient>& connection, const PreparedTxs& txs)
     {
       size_t read;
       size_t written;
@@ -248,7 +249,6 @@ namespace client
         // Write everything
         while (written < txs.size())
           write(txs[written], read, written, connection);
-
 
         blocking_read(read, written, connection);
 
@@ -282,7 +282,7 @@ namespace client
       // Record time of sent requests
       if (timing.has_value())
         timing->record_send(tx.method, tx.rpc.id, tx.expects_commit);
-      
+
       connection->write(tx.rpc.encoded);
       ++written;
 

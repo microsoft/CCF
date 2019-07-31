@@ -205,7 +205,7 @@ namespace ccf
 
       // We present our self-signed certificate to the management frontend
       rpcsessions.add_cert(
-        Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key());
+        Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key_pem());
 
       // Quotes should be initialised and non-empty
       std::vector<uint8_t> quote{1};
@@ -315,7 +315,7 @@ namespace ccf
       raft->replicate({{1, protected_tx0, true}});
 
       // Network signs tx0.
-      auto keys = tls::make_key_pair(network.secrets->get_current().priv_key);
+      auto keys = tls::make_key_pair({network.secrets->get_current().priv_key});
       auto tx0Sig = keys->sign(args.tx0);
 
       // Sets itself as trusted.
@@ -349,7 +349,7 @@ namespace ccf
       // Peer certificate needs to be signed by network certificate
       auto tls_ca = std::make_shared<tls::CA>(args.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
-        Actors::NODES, tls_ca, node_cert, node_kp->private_key(), nullb);
+        Actors::NODES, tls_ca, node_cert, node_kp->private_key_pem(), nullb);
 
       // Create and connect to endpoint
       auto join_client =
@@ -997,10 +997,10 @@ namespace ccf
   private:
     void accept_member_connections()
     {
-      auto nw = tls::make_key_pair(network.secrets->get_current().priv_key);
+      auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
       auto members_keypair = tls::make_key_pair();
 
-      auto members_privkey = members_keypair->private_key();
+      auto members_privkey = members_keypair->private_key_pem();
       auto members_cert =
         nw->sign_csr(members_keypair->create_csr("CN=members"), "CN=The CA");
 
@@ -1011,10 +1011,10 @@ namespace ccf
 
     void accept_node_connections()
     {
-      auto nw = tls::make_key_pair(network.secrets->get_current().priv_key);
+      auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
       auto nodes_keypair = tls::make_key_pair();
 
-      auto nodes_privkey = nodes_keypair->private_key();
+      auto nodes_privkey = nodes_keypair->private_key_pem();
       auto nodes_cert =
         nw->sign_csr(nodes_keypair->create_csr("CN=nodes"), "CN=The CA");
 
@@ -1025,10 +1025,10 @@ namespace ccf
 
     void accept_user_connections()
     {
-      auto nw = tls::make_key_pair(network.secrets->get_current().priv_key);
+      auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
       auto users_keypair = tls::make_key_pair();
 
-      auto users_privkey = users_keypair->private_key();
+      auto users_privkey = users_keypair->private_key_pem();
       auto users_cert =
         nw->sign_csr(users_keypair->create_csr("CN=users"), "CN=The CA");
 
@@ -1081,8 +1081,8 @@ namespace ccf
 
     void setup_raft(bool public_only = false)
     {
-      // setup node-to-node channels, raft and store hooks
-      n2n_channels->initialize(self, network.secrets->get_current().priv_key);
+      // setup node-to-node channels, raft, pbft and store hooks
+      n2n_channels->initialize(self, {network.secrets->get_current().priv_key});
 
 #ifndef PBFT
       raft = std::make_shared<ConsensusRaft>(

@@ -25,9 +25,9 @@ def verify_recover_secp256k1_bc_native(
 ):
     # Compact
     native_rec_sig = ffi.new("secp256k1_ecdsa_recoverable_signature *")
-    raw_sig, rec_id = signature[:64], coincurve.utils.bytes_to_int(signature[64:])
+    raw_sig, recovery_id = signature[:64], coincurve.utils.bytes_to_int(signature[64:])
     lib.secp256k1_ecdsa_recoverable_signature_parse_compact(
-        context.ctx, native_rec_sig, raw_sig, rec_id
+        context.ctx, native_rec_sig, raw_sig, recovery_id
     )
 
     # Recover public key
