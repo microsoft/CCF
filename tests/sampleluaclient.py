@@ -136,16 +136,14 @@ def run(args):
                 )
                 check(
                     c.rpc("TX_get", {"tx_id": tx_id}),
-                    result=[
-                        bank[0],
-                        dst[0],
-                        amt,
-                        TransactionType.TRANSFER.value,
-                        bank[0],
-                        countries.get(bank[1]).numeric.encode(),
-                        countries.get(dst[1]).numeric.encode(),
-                        tmstamp.encode(),
-                    ],
+                    result={"bank_id":bank[0],
+                        "dst_country" : countries.get(dst[1]).numeric.encode(),
+                        "src" : bank[0],
+                        "type" : TransactionType.TRANSFER.value,
+                        "timestamp" : tmstamp.encode(),
+                        "amt": amt,
+                        "src_country": countries.get(bank[1]).numeric.encode(),
+                        "dst" : dst[0]}
                 )
                 if amt == flagged_amt:
                     check(

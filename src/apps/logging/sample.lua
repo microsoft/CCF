@@ -69,17 +69,16 @@ return {
       if not bank_v then
         return env.jerr(env.error_codes.INVALID_CALLER_ID, "User is not registered as a bank")
       end
-      a = args.params.amt
+
+      table_entries = {bank_id=args.caller_id}
+      for k,v in pairs(args.params) do
+        table_entries[k] = v
+      end
+
+      env.tx_table():put(tx_id, table_entries)
+
       tx_id = env.get_next_tx_id()
-      env.tx_table():put(tx_id,
-        {args.params.src,
-        args.params.dst,
-        args.params.amt,
-        args.params.type,
-        args.caller_id,
-        args.params.src_country,
-        args.params.dst_country,
-        args.params.timestamp})
+      env.tx_table():put(tx_id, table_entries)
 
       reg_table = env.reg_table()
       flagged_table = env.flagged_tx()
@@ -98,7 +97,7 @@ return {
       if not tx_v then
         return env.jerr(env.error_codes.INVALID_PARAMS, "No such transaction")
       end
-      if tx_v[5] ~= args.caller_id then
+      if tx_v.bank_id ~= args.caller_id then
         return env.jerr(env.error_codes.INVALID_CALLER_ID, "Transaction was not issued by you.")
       end
       return env.jsucc(tx_v)
@@ -120,18 +119,11 @@ return {
 
       -- remove the transaction from the flagged_tx table
       flagged_table:put(tx_id, {})
-
-      tx = {
-        tx_id = tx_id,
-        src = tx_v[1],
-        dst = tx_v[2],
-        amt = tx_v[3],
-        type = tx_v[4],
-        bank_id = tx_v[5],
-        src_country = tx_v[6],
-        dst_country = tx_v[7],
-        timestamp = tx_v[8]
-      }
+      
+      tx = {tx_id=tx_id}
+      for k, v in pairs(tx_v) do
+        tx[k] = v
+      end
 
       return env.jsucc(tx)
     end
@@ -160,7 +152,7 @@ return {
         return env.jerr(env.error_codes.INVALID_PARAMS, "No such transaction")
       end
       -- TODO: For now, anyone can reveal transactions
-      -- if tx_v[5] ~= args.caller_id then
+      -- if tx_v[1] ~= args.caller_id then
       --   return env.jerr(env.error_codes.INVALID_CALLER_ID, "Transaction was not issued by you")
       -- end
       flagged_table = env.flagged_tx()
