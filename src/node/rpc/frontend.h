@@ -610,9 +610,12 @@ namespace ccf
         rpc_ = &req;
       }
       auto& unsigned_rpc = *rpc_;
+      bool has_updated_merkle_root = false;
 
-      auto cb = [&merkle_root](kv::TxHistory::ResultCallbackArgs args) -> bool {
+      auto cb = [&merkle_root, &has_updated_merkle_root](
+                  kv::TxHistory::ResultCallbackArgs args) -> bool {
         merkle_root = args.merkle_root;
+        has_updated_merkle_root = true;
         return true;
       };
       history->register_on_result(cb);
@@ -621,6 +624,11 @@ namespace ccf
         process_json(ctx, tx, ctx.fwd->caller_id, unsigned_rpc, signed_request);
 
       history->clear_on_result();
+
+      if (!has_updated_merkle_root)
+      {
+        merkle_root = history->get_root();
+      }
 
       // TODO(#PBFT): Add RPC response to history based on Request ID
       // if (history)
