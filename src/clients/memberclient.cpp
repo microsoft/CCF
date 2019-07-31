@@ -237,7 +237,7 @@ void display_proposals(RpcTlsClient& tls_connection)
 void submit_ack(
   RpcTlsClient& tls_connection,
   const vector<uint8_t>& raw_cert,
-  const vector<uint8_t>& raw_key)
+  const tls::Pem& key)
 {
   // member using its own certificate reads its member id
   auto verifier = tls::make_verifier(raw_cert);
@@ -250,7 +250,7 @@ void submit_ack(
     tls_connection.call("read", read_params(member_id, "memberacks")));
 
   // member signs nonce and sends ack
-  auto kp = tls::make_key_pair(raw_key);
+  auto kp = tls::make_key_pair(key);
   const auto sig = kp->sign(read_ack.result.next_nonce);
   const auto response =
     json::from_msgpack(tls_connection.call("ack", ack_params(sig)));
@@ -378,14 +378,16 @@ int main(int argc, char** argv)
   const auto raw_key = slurp(privk_file);
   const auto ca = files::slurp(ca_file);
 
+  const tls::Pem key_pem(raw_key);
+
   // create tls client
   auto tls_cert = make_shared<tls::Cert>(
-    members_sni, make_shared<tls::CA>(ca), raw_cert, raw_key, nullb);
+    members_sni, make_shared<tls::CA>(ca), raw_cert, key_pem, nullb);
 
   unique_ptr<RpcTlsClient> tls_connection = force_unsigned ?
     make_unique<RpcTlsClient>(host, port, members_sni, nullptr, tls_cert) :
     make_unique<SigRpcTlsClient>(
-      raw_key, host, port, members_sni, nullptr, tls_cert);
+      key_pem, host, port, members_sni, nullptr, tls_cert);
 
   try
   {
@@ -479,7 +481,7 @@ int main(int argc, char** argv)
 
     if (*ack)
     {
-      submit_ack(*tls_connection, raw_cert, raw_key);
+      submit_ack(*tls_connection, raw_cert, key_pem);
     }
 
     if (*accept_recovery)

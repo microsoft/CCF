@@ -7,6 +7,7 @@
 #include "cert.h"
 #include "csr.h"
 #include "entropy.h"
+#include "error_string.h"
 #include "secp256k1/include/secp256k1.h"
 #include "secp256k1/include/secp256k1_recovery.h"
 
@@ -39,14 +40,6 @@ namespace tls
 
   using HashBytes = std::vector<uint8_t>;
 
-  inline std::string str_err(int err)
-  {
-    constexpr size_t len = 100;
-    char buf[len];
-    mbedtls_strerror(err, buf, len);
-    return std::string(buf);
-  }
-
   // 2 implementations of secp256k1 are available - mbedtls and bitcoin. Either
   // can be asked for explicitly via the CurveImpl enum. For cases where we
   // receive a raw 256k1 key/signature/cert only, this flag determines which
@@ -54,6 +47,8 @@ namespace tls
   static constexpr bool prefer_bitcoin_secp256k1 = true;
 
   static constexpr size_t ecp_num_size = 100;
+
+  static constexpr size_t max_pem_key_size = 2048;
 
   // Helper to access elliptic curve id from context
   inline mbedtls_ecp_group_id get_ec_from_context(const mbedtls_pk_context& ctx)
@@ -181,7 +176,7 @@ namespace tls
     if (rc != 0)
     {
       throw std::logic_error(
-        "mbedtls_ecp_point_write_binary failed: " + str_err(rc));
+        "mbedtls_ecp_point_write_binary failed: " + error_string(rc));
     }
 
     rc = secp256k1_ec_pubkey_parse(bc_ctx, bc_pub, pub_buf, pub_len);
@@ -191,11 +186,341 @@ namespace tls
     }
   }
 
-  class KeyPair
+  static void secp256k1_illegal_callback(const char* str, void*)
+  {
+    throw std::logic_error(
+      fmt::format("[libsecp256k1] illegal argument: {}", str));
+  }
+
+  // Wrap calls to secp256k1_context_create, setting illegal callback to throw
+  // catchable errors rather than aborting, and ensuring destroy is called when
+  // this goes out of scope
+  class BCk1Context
+  {
+  public:
+    secp256k1_context* p = nullptr;
+
+    BCk1Context(unsigned int flags)
+    {
+      p = secp256k1_context_create(flags);
+
+      secp256k1_context_set_illegal_callback(
+        p, secp256k1_illegal_callback, nullptr);
+    }
+
+    ~BCk1Context()
+    {
+      secp256k1_context_destroy(p);
+    }
+  };
+
+  using BCk1ContextPtr = std::unique_ptr<BCk1Context>;
+
+  inline BCk1ContextPtr make_bc_context(unsigned int flags)
+  {
+    return std::make_unique<BCk1Context>(flags);
+  }
+
+  struct RecoverableSignature
+  {
+    // Signature consists of 32 byte R, 32 byte S, and recovery id. Some formats
+    // concatenate all 3 into 65 bytes. We stick with libsecp256k1 and separate
+    // 64 bytes of (R, S) from recovery_id.
+    static constexpr size_t RS_Size = 64;
+    std::array<uint8_t, RS_Size> raw;
+    int recovery_id;
+  };
+
+  class PublicKey
+  {
+  protected:
+    std::unique_ptr<mbedtls_pk_context> ctx =
+      std::make_unique<mbedtls_pk_context>();
+
+    PublicKey() {}
+
+  public:
+    /**
+     * Construct from a pre-initialised pk context
+     */
+    PublicKey(std::unique_ptr<mbedtls_pk_context>&& c) : ctx(std::move(c)) {}
+
+    /**
+     * Verify that a signature was produced on contents with the private key
+     * associated with the public key held by the object.
+     *
+     * @param contents Sequence of bytes that was signed
+     * @param signature Signature as a sequence of bytes
+     *
+     * @return Whether the signature matches the contents and the key
+     */
+    bool verify(
+      const std::vector<uint8_t>& contents,
+      const std::vector<uint8_t>& signature)
+    {
+      return verify(
+        contents.data(), contents.size(), signature.data(), signature.size());
+    }
+
+    /**
+     * Verify that a signature was produced on contents with the private key
+     * associated with the public key held by the object.
+     *
+     * @param contents address of contents
+     * @param contents_size size of contents
+     * @param sig address of signature
+     * @param sig_size size of signature
+     *
+     * @return Whether the signature matches the contents and the key
+     */
+    bool verify(
+      const uint8_t* contents,
+      size_t contents_size,
+      const uint8_t* sig,
+      size_t sig_size)
+    {
+      HashBytes hash;
+      do_hash(*ctx, contents, contents_size, hash);
+
+      return verify_hash(hash.data(), hash.size(), sig, sig_size);
+    }
+
+    /**
+     * Verify that a signature was produced on a hash with the private key
+     * associated with the public key held by the object.
+     *
+     * @param hash Hash produced from contents as a sequence of bytes
+     * @param signature Signature as a sequence of bytes
+     *
+     * @return Whether the signature matches the hash and the key
+     */
+    bool verify_hash(
+      const std::vector<uint8_t>& hash, const std::vector<uint8_t>& signature)
+    {
+      return verify_hash(
+        hash.data(), hash.size(), signature.data(), signature.size());
+    }
+
+    virtual bool verify_hash(
+      const uint8_t* hash,
+      size_t hash_size,
+      const uint8_t* sig,
+      size_t sig_size)
+    {
+      const auto md_type = get_md_for_ec(get_ec_from_context(*ctx));
+
+      int rc =
+        mbedtls_pk_verify(ctx.get(), md_type, hash, hash_size, sig, sig_size);
+
+      if (rc)
+        LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
+
+      return rc == 0;
+    }
+
+    /**
+     * Get the public key in PEM format
+     */
+    Pem public_key_pem()
+    {
+      uint8_t data[max_pem_key_size];
+
+      int rc = mbedtls_pk_write_pubkey_pem(ctx.get(), data, max_pem_key_size);
+      if (rc != 0)
+      {
+        throw std::logic_error(
+          "mbedtls_pk_write_pubkey_pem: " + error_string(rc));
+      }
+
+      const size_t len = strlen((char const*)data);
+      return Pem({data, len});
+    }
+
+    /**
+     * Get the public key in ASN.1 format
+     */
+    std::vector<uint8_t> public_key_asn1()
+    {
+      static constexpr auto buf_size = 256u;
+      uint8_t buf[buf_size];
+
+      uint8_t* p = buf + buf_size;
+
+      const auto written = mbedtls_pk_write_pubkey(&p, buf, ctx.get());
+
+      if (written < 0)
+      {
+        throw std::logic_error(
+          "mbedtls_pk_write_pubkey: " + error_string(written));
+      }
+
+      // ASN.1 key is written to end of buffer
+      uint8_t* first = buf + buf_size - written;
+      return {first, buf + buf_size};
+    }
+
+    virtual ~PublicKey()
+    {
+      if (ctx)
+        mbedtls_pk_free(ctx.get());
+    }
+  };
+
+  class PublicKey_k1Bitcoin : public PublicKey
+  {
+  protected:
+    BCk1ContextPtr bc_ctx = make_bc_context(SECP256K1_CONTEXT_VERIFY);
+
+    secp256k1_pubkey bc_pub;
+
+  public:
+    template <typename... Ts>
+    PublicKey_k1Bitcoin(Ts... ts) : PublicKey(std::forward<Ts>(ts)...)
+    {
+      parse_secp256k_bc(*ctx, bc_ctx->p, &bc_pub);
+    }
+
+    bool verify_hash(
+      const uint8_t* hash,
+      size_t hash_size,
+      const uint8_t* sig,
+      size_t sig_size) override
+    {
+      return verify_secp256k_bc(
+        bc_ctx->p, sig, sig_size, hash, hash_size, &bc_pub);
+    }
+
+    static PublicKey_k1Bitcoin recover_key(
+      const RecoverableSignature& rs, CBuffer hashed)
+    {
+      int rc;
+
+      size_t buf_len = 65;
+      std::array<uint8_t, 65> buf;
+
+      if (hashed.n != 32)
+      {
+        throw std::logic_error(
+          fmt::format("Expected {} bytes in hash, got {}", 32, hashed.n));
+      }
+
+      // Recover with libsecp256k1
+      {
+        auto ctx = make_bc_context(SECP256K1_CONTEXT_VERIFY);
+
+        secp256k1_ecdsa_recoverable_signature sig;
+        rc = secp256k1_ecdsa_recoverable_signature_parse_compact(
+          ctx->p, &sig, rs.raw.data(), rs.recovery_id);
+        if (rc != 1)
+        {
+          throw std::logic_error(
+            "secp256k1_ecdsa_recoverable_signature_parse_compact failed");
+        }
+
+        secp256k1_pubkey pubk;
+        rc = secp256k1_ecdsa_recover(ctx->p, &pubk, &sig, hashed.p);
+        if (rc != 1)
+        {
+          throw std::logic_error("secp256k1_ecdsa_recover failed");
+        }
+
+        rc = secp256k1_ec_pubkey_serialize(
+          ctx->p, buf.data(), &buf_len, &pubk, SECP256K1_EC_UNCOMPRESSED);
+        if (rc != 1)
+        {
+          throw std::logic_error("secp256k1_ec_pubkey_serialize failed");
+        }
+      }
+
+      // Read recovered key into mbedtls context
+      {
+        auto pk_info = mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY);
+        if (pk_info == nullptr)
+        {
+          throw std::logic_error("mbedtls_pk_info_t not found");
+        }
+
+        auto ctx = std::make_unique<mbedtls_pk_context>();
+        mbedtls_pk_init(ctx.get());
+
+        rc = mbedtls_pk_setup(ctx.get(), pk_info);
+        if (rc != 0)
+        {
+          throw std::logic_error(
+            "mbedtls_pk_setup failed with: " + error_string(rc));
+        }
+
+        auto kp = mbedtls_pk_ec(*ctx);
+
+        rc = mbedtls_ecp_group_load(&kp->grp, MBEDTLS_ECP_DP_SECP256K1);
+        if (rc != 0)
+        {
+          throw std::logic_error(
+            "mbedtls_ecp_group_load failed with: " + error_string(rc));
+        }
+
+        rc = mbedtls_ecp_point_read_binary(
+          &kp->grp, &kp->Q, buf.data(), buf.size());
+        if (rc != 0)
+        {
+          throw std::logic_error(
+            "mbedtls_ecp_point_read_binary failed with: " + error_string(rc));
+        }
+
+        rc = mbedtls_ecp_check_pubkey(&kp->grp, &kp->Q);
+        if (rc != 0)
+        {
+          throw std::logic_error(
+            "mbedtls_ecp_check_pubkey failed with: " + error_string(rc));
+        }
+
+        return PublicKey_k1Bitcoin(std::move(ctx));
+      }
+    }
+  };
+
+  using PublicKeyPtr = std::shared_ptr<PublicKey>;
+
+  /**
+   * Construct PublicKey from a raw public key in PEM format
+   *
+   * @param public_pem Sequence of bytes containing the key in PEM format
+   * @param use_bitcoin_impl If true, and the key is on secp256k1, then the
+   * bitcoin secp256k1 library will be used as the implementation rather than
+   * mbedtls
+   */
+  inline PublicKeyPtr make_public_key(
+    const Pem& public_pem, bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
+  {
+    auto ctx = std::make_unique<mbedtls_pk_context>();
+    mbedtls_pk_init(ctx.get());
+
+    int rc = mbedtls_pk_parse_public_key(
+      ctx.get(), public_pem.data(), public_pem.size() + 1);
+
+    if (rc != 0)
+    {
+      throw std::logic_error(fmt::format(
+        "Could not parse public key PEM: {}\n\n(Key: {})",
+        error_string(rc),
+        public_pem.str()));
+    }
+
+    const auto curve = get_ec_from_context(*ctx);
+
+    if (curve == MBEDTLS_ECP_DP_SECP256K1 && use_bitcoin_impl)
+    {
+      return std::make_shared<PublicKey_k1Bitcoin>(std::move(ctx));
+    }
+    else
+    {
+      return std::make_shared<PublicKey>(std::move(ctx));
+    }
+  }
+
+  class KeyPair : public PublicKey
   {
   private:
-    static constexpr size_t MAX_SIZE_PEM = 2048;
-
     struct SignCsr
     {
       EntropyPtr entropy;
@@ -218,10 +543,6 @@ namespace tls
       }
     };
 
-  protected:
-    std::unique_ptr<mbedtls_pk_context> key =
-      std::make_unique<mbedtls_pk_context>();
-
   public:
     /**
      * Create a new public / private key pair
@@ -229,7 +550,7 @@ namespace tls
     KeyPair(mbedtls_ecp_group_id ec)
     {
       EntropyPtr entropy = create_entropy();
-      mbedtls_pk_init(key.get());
+      mbedtls_pk_init(ctx.get());
 
       int rc = 0;
 
@@ -240,22 +561,22 @@ namespace tls
         {
           // These curves are technically not ECDSA, but EdDSA.
           rc = mbedtls_pk_setup(
-            key.get(), mbedtls_pk_info_from_type(MBEDTLS_PK_EDDSA));
+            ctx.get(), mbedtls_pk_info_from_type(MBEDTLS_PK_EDDSA));
           if (rc != 0)
           {
             throw std::logic_error(
-              "Could not set up EdDSA context: " + str_err(rc));
+              "Could not set up EdDSA context: " + error_string(rc));
           }
 
           rc = mbedtls_eddsa_genkey(
-            mbedtls_pk_eddsa(*key),
+            mbedtls_pk_eddsa(*ctx),
             ec,
             entropy->get_rng(),
             entropy->get_data());
           if (rc != 0)
           {
             throw std::logic_error(
-              "Could not generate EdDSA keypair: " + str_err(rc));
+              "Could not generate EdDSA keypair: " + error_string(rc));
           }
           break;
         }
@@ -263,74 +584,56 @@ namespace tls
         default:
         {
           rc = mbedtls_pk_setup(
-            key.get(), mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
+            ctx.get(), mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
           if (rc != 0)
           {
             throw std::logic_error(
-              "Could not set up ECDSA context: " + str_err(rc));
+              "Could not set up ECDSA context: " + error_string(rc));
           }
 
           rc = mbedtls_ecp_gen_key(
-            ec, mbedtls_pk_ec(*key), entropy->get_rng(), entropy->get_data());
+            ec, mbedtls_pk_ec(*ctx), entropy->get_rng(), entropy->get_data());
           if (rc != 0)
           {
             throw std::logic_error(
-              "Could not generate ECDSA keypair: " + str_err(rc));
+              "Could not generate ECDSA keypair: " + error_string(rc));
           }
           break;
         }
       }
 
-      const auto actual_ec = get_ec_from_context(*key);
+      const auto actual_ec = get_ec_from_context(*ctx);
       if (actual_ec != ec)
       {
         throw std::logic_error(
           "Created key and received unexpected type: " +
-          std::to_string(actual_ec) + " != " + str_err(ec));
+          std::to_string(actual_ec) + " != " + error_string(ec));
       }
     }
 
     /**
      * Initialise from existing pre-parsed key
      */
-    KeyPair(std::unique_ptr<mbedtls_pk_context>&& k) : key(std::move(k)) {}
+    KeyPair(std::unique_ptr<mbedtls_pk_context>&& k) : PublicKey(std::move(k))
+    {}
 
     KeyPair(const KeyPair&) = delete;
-
-    virtual ~KeyPair()
-    {
-      if (key)
-        mbedtls_pk_free(key.get());
-    }
 
     /**
      * Get the private key in PEM format
      */
-    std::vector<uint8_t> private_key()
+    Pem private_key_pem()
     {
-      std::vector<uint8_t> pem(MAX_SIZE_PEM);
-      if (mbedtls_pk_write_key_pem(key.get(), pem.data(), pem.size()))
-        return {};
+      uint8_t data[max_pem_key_size];
 
-      auto len = strlen((char*)pem.data());
-      if (len >= pem.size())
-        return {};
-      return {pem.data(), pem.data() + len + 1};
-    }
+      int rc = mbedtls_pk_write_key_pem(ctx.get(), data, max_pem_key_size);
+      if (rc != 0)
+      {
+        throw std::logic_error("mbedtls_pk_write_key_pem: " + error_string(rc));
+      }
 
-    /**
-     * Get the public key in PEM format
-     */
-    std::vector<uint8_t> public_key()
-    {
-      std::vector<uint8_t> pem(MAX_SIZE_PEM);
-      if (mbedtls_pk_write_pubkey_pem(key.get(), pem.data(), pem.size()))
-        return {};
-
-      auto len = strlen((char*)pem.data());
-      if (len >= pem.size())
-        return {};
-      return {pem.data(), pem.data() + len + 1};
+      const size_t len = strlen((char const*)data);
+      return Pem({data, len});
     }
 
     /**
@@ -343,7 +646,7 @@ namespace tls
     std::vector<uint8_t> sign(CBuffer d) const
     {
       HashBytes hash;
-      do_hash(*key, d.p, d.rawSize(), hash);
+      do_hash(*ctx, d.p, d.rawSize(), hash);
 
       return sign_hash(hash.data(), hash.size());
     }
@@ -366,7 +669,7 @@ namespace tls
     int sign(CBuffer d, size_t* sig_size, uint8_t* sig) const
     {
       HashBytes hash;
-      do_hash(*key, d.p, d.rawSize(), hash);
+      do_hash(*ctx, d.p, d.rawSize(), hash);
 
       return sign_hash(hash.data(), hash.size(), sig_size, sig);
     }
@@ -401,11 +704,11 @@ namespace tls
       int rc = 0;
       EntropyPtr entropy = create_entropy();
 
-      const auto ec = get_ec_from_context(*key);
+      const auto ec = get_ec_from_context(*ctx);
       const auto md_type = get_md_for_ec(ec);
 
       rc = mbedtls_pk_sign(
-        key.get(),
+        ctx.get(),
         md_type,
         hash,
         hash_size,
@@ -429,7 +732,7 @@ namespace tls
       if (mbedtls_x509write_csr_set_subject_name(&csr.req, name.c_str()) != 0)
         return {};
 
-      mbedtls_x509write_csr_set_key(&csr.req, key.get());
+      mbedtls_x509write_csr_set_key(&csr.req, ctx.get());
 
       uint8_t buf[4096];
       memset(buf, 0, sizeof(buf));
@@ -455,7 +758,7 @@ namespace tls
       SignCsr sign;
 
       Pem pemCsr(csr);
-      if (mbedtls_x509_csr_parse(&sign.csr, pemCsr.p, pemCsr.n) != 0)
+      if (mbedtls_x509_csr_parse(&sign.csr, pemCsr.data(), pemCsr.size()) != 0)
         return {};
 
       char subject[512];
@@ -466,9 +769,9 @@ namespace tls
         return {};
 
       mbedtls_x509write_crt_set_md_alg(
-        &sign.crt, get_md_for_ec(get_ec_from_context(*key)));
+        &sign.crt, get_md_for_ec(get_ec_from_context(*ctx)));
       mbedtls_x509write_crt_set_subject_key(&sign.crt, &sign.csr.pk);
-      mbedtls_x509write_crt_set_issuer_key(&sign.crt, key.get());
+      mbedtls_x509write_crt_set_issuer_key(&sign.crt, ctx.get());
 
       if (
         mbedtls_mpi_fill_random(
@@ -526,17 +829,18 @@ namespace tls
       return sign_csr(csr, name, ca);
     }
 
-    const mbedtls_pk_context& get_raw_context() const
+    // TODO: This should be removed
+    mbedtls_pk_context* get_raw_context() const
     {
-      return *key;
+      return ctx.get();
     }
   };
 
   class KeyPair_k1Bitcoin : public KeyPair
   {
   protected:
-    secp256k1_context* bc_ctx = secp256k1_context_create(
-      SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
+    BCk1ContextPtr bc_ctx =
+      make_bc_context(SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
 
     static constexpr size_t privk_size = 32;
     uint8_t c4_priv[privk_size] = {0};
@@ -545,26 +849,28 @@ namespace tls
     template <typename... Ts>
     KeyPair_k1Bitcoin(Ts... ts) : KeyPair(std::forward<Ts>(ts)...)
     {
+      const auto ec = get_ec_from_context(*ctx);
+      if (ec != MBEDTLS_ECP_DP_SECP256K1)
+      {
+        throw std::logic_error(
+          "Bitcoin implementation cannot extend curve on " +
+          std::to_string(ec));
+      }
+
       int rc = 0;
 
       rc = mbedtls_mpi_write_binary(
-        &(mbedtls_pk_ec(*key)->d), c4_priv, privk_size);
+        &(mbedtls_pk_ec(*ctx)->d), c4_priv, privk_size);
       if (rc != 0)
       {
         throw std::logic_error(
-          "Could not extract raw private key: " + str_err(rc));
+          "Could not extract raw private key: " + error_string(rc));
       }
 
-      if (secp256k1_ec_seckey_verify(bc_ctx, c4_priv) != 1)
+      if (secp256k1_ec_seckey_verify(bc_ctx->p, c4_priv) != 1)
       {
         throw std::logic_error("secp256k1 private key is not valid");
       }
-    }
-
-    ~KeyPair_k1Bitcoin()
-    {
-      if (bc_ctx)
-        secp256k1_context_destroy(bc_ctx);
     }
 
     int sign_hash(
@@ -579,19 +885,67 @@ namespace tls
       secp256k1_ecdsa_signature k1_sig;
       if (
         secp256k1_ecdsa_sign(
-          bc_ctx, &k1_sig, hash, c4_priv, nullptr, nullptr) != 1)
+          bc_ctx->p, &k1_sig, hash, c4_priv, nullptr, nullptr) != 1)
         return -2;
 
       if (
         secp256k1_ecdsa_signature_serialize_der(
-          bc_ctx, sig, sig_size, &k1_sig) != 1)
+          bc_ctx->p, sig, sig_size, &k1_sig) != 1)
         return -3;
 
       return 0;
     }
+
+    RecoverableSignature sign_recoverable_hashed(CBuffer hashed)
+    {
+      int rc;
+
+      if (hashed.n != 32)
+      {
+        throw std::logic_error(
+          fmt::format("Expected {} bytes in hash, got {}", 32, hashed.n));
+      }
+
+      secp256k1_ecdsa_recoverable_signature sig;
+      rc = secp256k1_ecdsa_sign_recoverable(
+        bc_ctx->p, &sig, hashed.p, c4_priv, nullptr, nullptr);
+      if (rc != 1)
+      {
+        throw std::logic_error("secp256k1_ecdsa_sign_recoverable failed");
+      }
+
+      RecoverableSignature ret;
+      rc = secp256k1_ecdsa_recoverable_signature_serialize_compact(
+        bc_ctx->p, ret.raw.data(), &ret.recovery_id, &sig);
+      if (rc != 1)
+      {
+        throw std::logic_error(
+          "secp256k1_ecdsa_recoverable_signature_serialize_compact failed");
+      }
+
+      return ret;
+    }
   };
 
   using KeyPairPtr = std::shared_ptr<KeyPair>;
+
+  inline std::unique_ptr<mbedtls_pk_context> parse_private_key(
+    const Pem& pkey, CBuffer pw = nullb)
+  {
+    std::unique_ptr<mbedtls_pk_context> key =
+      std::make_unique<mbedtls_pk_context>();
+    mbedtls_pk_init(key.get());
+
+    // keylen is +1 to include terminating null byte
+    int rc =
+      mbedtls_pk_parse_key(key.get(), pkey.data(), pkey.size() + 1, pw.p, pw.n);
+    if (rc != 0)
+    {
+      throw std::logic_error("Could not parse key: " + error_string(rc));
+    }
+
+    return std::move(key);
+  }
 
   /**
    * Create a new public / private key pair on specified curve and
@@ -601,7 +955,6 @@ namespace tls
     CurveImpl curve = CurveImpl::service_identity_curve_choice)
   {
     const auto ec = get_ec_for_curve_impl(curve);
-
     if (curve == CurveImpl::secp256k1_bitcoin)
     {
       return KeyPairPtr(new KeyPair_k1Bitcoin(ec));
@@ -613,23 +966,14 @@ namespace tls
   }
 
   /**
-   * Create a public / private from existing raw private key data
+   * Create a public / private from existing private key data
    */
   inline KeyPairPtr make_key_pair(
-    CBuffer pkey,
+    const Pem& pkey,
     CBuffer pw = nullb,
     bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
-    std::unique_ptr<mbedtls_pk_context> key =
-      std::make_unique<mbedtls_pk_context>();
-    mbedtls_pk_init(key.get());
-
-    Pem pemPk(pkey);
-    int rc = mbedtls_pk_parse_key(key.get(), pemPk.p, pemPk.n, pw.p, pw.n);
-    if (rc != 0)
-    {
-      throw std::logic_error("Could not parse key: " + str_err(rc));
-    }
+    auto key = parse_private_key(pkey, pw);
 
     const auto curve = get_ec_from_context(*key);
 
@@ -640,158 +984,6 @@ namespace tls
     else
     {
       return std::make_shared<KeyPair>(std::move(key));
-    }
-  }
-
-  class PublicKey
-  {
-  protected:
-    mbedtls_pk_context ctx;
-
-  public:
-    /**
-     * Construct from a pre-constructed pk context
-     */
-    PublicKey(const mbedtls_pk_context& c) : ctx(c) {}
-
-    /**
-     * Verify that a signature was produced on contents with the private key
-     * associated with the public key held by the object.
-     *
-     * @param contents Sequence of bytes that was signed
-     * @param signature Signature as a sequence of bytes
-     *
-     * @return Whether the signature matches the contents and the key
-     */
-    bool verify(
-      const std::vector<uint8_t>& contents,
-      const std::vector<uint8_t>& signature)
-    {
-      return verify(
-        contents.data(), contents.size(), signature.data(), signature.size());
-    }
-
-    /**
-     * Verify that a signature was produced on contents with the private key
-     * associated with the public key held by the object.
-     *
-     * @param contents address of contents
-     * @param contents_size size of contents
-     * @param sig address of signature
-     * @param sig_size size of signature
-     *
-     * @return Whether the signature matches the contents and the key
-     */
-    bool verify(
-      const uint8_t* contents,
-      size_t contents_size,
-      const uint8_t* sig,
-      size_t sig_size)
-    {
-      HashBytes hash;
-      do_hash(ctx, contents, contents_size, hash);
-
-      return verify_hash(hash.data(), hash.size(), sig, sig_size);
-    }
-
-    /**
-     * Verify that a signature was produced on a hash with the private key
-     * associated with the public key held by the object.
-     *
-     * @param hash Hash produced from contents as a sequence of bytes
-     * @param signature Signature as a sequence of bytes
-     *
-     * @return Whether the signature matches the hash and the key
-     */
-    bool verify_hash(
-      const std::vector<uint8_t>& hash, const std::vector<uint8_t>& signature)
-    {
-      return verify_hash(
-        hash.data(), hash.size(), signature.data(), signature.size());
-    }
-
-    virtual bool verify_hash(
-      const uint8_t* hash,
-      size_t hash_size,
-      const uint8_t* sig,
-      size_t sig_size)
-    {
-      const auto md_type = get_md_for_ec(get_ec_from_context(ctx));
-
-      int rc = mbedtls_pk_verify(&ctx, md_type, hash, hash_size, sig, sig_size);
-
-      if (rc)
-        LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
-
-      return rc == 0;
-    }
-
-    virtual ~PublicKey()
-    {
-      mbedtls_pk_free(&ctx);
-    }
-  };
-
-  class PublicKey_k1Bitcoin : public PublicKey
-  {
-  protected:
-    secp256k1_context* bc_ctx = secp256k1_context_create(
-      SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
-
-    secp256k1_pubkey bc_pub;
-
-  public:
-    template <typename... Ts>
-    PublicKey_k1Bitcoin(Ts... ts) : PublicKey(std::forward<Ts>(ts)...)
-    {
-      parse_secp256k_bc(ctx, bc_ctx, &bc_pub);
-    }
-
-    ~PublicKey_k1Bitcoin()
-    {
-      if (bc_ctx)
-        secp256k1_context_destroy(bc_ctx);
-    }
-
-    bool verify_hash(
-      const uint8_t* hash,
-      size_t hash_size,
-      const uint8_t* sig,
-      size_t sig_size) override
-    {
-      return verify_secp256k_bc(
-        bc_ctx, sig, sig_size, hash, hash_size, &bc_pub);
-    }
-  };
-
-  using PublicKeyPtr = std::shared_ptr<PublicKey>;
-
-  /**
-   * Construct PublicKey from a raw public key in PEM format
-   *
-   * @param public_pem Sequence of bytes containing the key in PEM format
-   * @param use_bitcoin_impl If true, and the key is on secp256k1, then the
-   * bitcoin secp256k1 library will be used as the implementation rather than
-   * mbedtls
-   */
-  inline PublicKeyPtr make_public_key(
-    const std::vector<uint8_t>& public_pem,
-    bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
-  {
-    mbedtls_pk_context ctx;
-
-    mbedtls_pk_init(&ctx);
-    mbedtls_pk_parse_public_key(&ctx, public_pem.data(), public_pem.size());
-
-    const auto curve = get_ec_from_context(ctx);
-
-    if (curve == MBEDTLS_ECP_DP_SECP256K1 && use_bitcoin_impl)
-    {
-      return std::make_shared<PublicKey_k1Bitcoin>(ctx);
-    }
-    else
-    {
-      return std::make_shared<PublicKey>(ctx);
     }
   }
 
@@ -894,8 +1086,7 @@ namespace tls
   class Verifier_k1Bitcoin : public Verifier
   {
   protected:
-    secp256k1_context* bc_ctx =
-      secp256k1_context_create(SECP256K1_CONTEXT_VERIFY);
+    BCk1ContextPtr bc_ctx = make_bc_context(SECP256K1_CONTEXT_VERIFY);
 
     secp256k1_pubkey bc_pub;
 
@@ -903,7 +1094,7 @@ namespace tls
     template <typename... Ts>
     Verifier_k1Bitcoin(Ts... ts) : Verifier(std::forward<Ts>(ts)...)
     {
-      parse_secp256k_bc(cert.pk, bc_ctx, &bc_pub);
+      parse_secp256k_bc(cert.pk, bc_ctx->p, &bc_pub);
     }
 
     bool verify_hash(
@@ -913,15 +1104,9 @@ namespace tls
       size_t signature_size) const override
     {
       bool ok = verify_secp256k_bc(
-        bc_ctx, signature, signature_size, hash, hash_size, &bc_pub);
+        bc_ctx->p, signature, signature_size, hash, hash_size, &bc_pub);
 
       return ok;
-    }
-
-    ~Verifier_k1Bitcoin()
-    {
-      if (bc_ctx)
-        secp256k1_context_destroy(bc_ctx);
     }
   };
 

@@ -47,7 +47,7 @@ namespace enclave
     }
 
     void add_cert(
-      const std::string& sni, CBuffer ca_cert, CBuffer cert, CBuffer pk)
+      const std::string& sni, CBuffer ca_cert, CBuffer cert, const tls::Pem& pk)
     {
       std::lock_guard<SpinLock> guard(lock);
       auto hasCa = ca_cert != nullb;

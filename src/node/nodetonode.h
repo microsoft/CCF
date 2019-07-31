@@ -43,7 +43,7 @@ namespace ccf
       to_host(writer_factory_.create_writer_to_outside())
     {}
 
-    void initialize(NodeId id, const std::vector<uint8_t>& network_pkey)
+    void initialize(NodeId id, const tls::Pem& network_pkey)
     {
       self = id;
       channels = std::make_unique<ChannelManager>(network_pkey);

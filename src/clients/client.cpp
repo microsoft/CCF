@@ -71,10 +71,11 @@ std::vector<uint8_t> make_rpc_raw(
 
   if (!client_cert_file.empty() && !client_pk_file.empty())
   {
-    auto client_cert = files::slurp(client_cert_file);
-    auto client_pk = files::slurp(client_pk_file);
+    const auto client_cert = files::slurp(client_cert_file);
+    const auto client_pk = files::slurp(client_pk_file);
+    const tls::Pem pk_pem(client_pk);
     cert = std::make_shared<tls::Cert>(
-      sni, tls_ca, client_cert, client_pk, nullb, auth);
+      sni, tls_ca, client_cert, pk_pem, nullb, auth);
   }
 
   switch (pack)
