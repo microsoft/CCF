@@ -104,6 +104,7 @@ namespace kv
       const std::vector<uint8_t>& request) = 0;
     virtual void add_result(
       RequestID id, kv::Version version, const std::vector<uint8_t>& data) = 0;
+    virtual void add_result(RequestID id, kv::Version version) = 0;
     virtual void add_response(
       RequestID id, const std::vector<uint8_t>& response) = 0;
     virtual void register_on_request(RequestCallbackHandler func) = 0;
@@ -112,6 +113,7 @@ namespace kv
     virtual void clear_on_request() = 0;
     virtual void clear_on_result() = 0;
     virtual void clear_on_response() = 0;
+    virtual crypto::Sha256Hash get_root() = 0;
   };
 
   using PendingTx = std::function<

@@ -997,7 +997,14 @@ namespace kv
 
       const std::vector<uint8_t> data = serialise();
       if (!data.size())
+      {
+        auto h = store->get_history();
+        if (h != nullptr)
+        {
+          h->add_result(req_id, version);
+        }
         return CommitSuccess::OK;
+      }
 
       return store->commit(
         version,
