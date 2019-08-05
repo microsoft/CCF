@@ -88,11 +88,11 @@ int main(int argc, char** argv)
     "Size of the internal ringbuffers, as a power of 2",
     true);
 
-  std::string raft_hostname("0.0.0.0");
-  app.add_option("--raft-host", raft_hostname, "Raft listening hostname", true);
+  std::string node_hostname("0.0.0.0");
+  app.add_option("--node-host", node_hostname, "Node-to-node listening hostname", true);
 
-  std::string raft_port("4568");
-  app.add_option("--raft-port", raft_port, "Raft listening port", true);
+  std::string node_port("4568");
+  app.add_option("--node-port", node_port, "Node-to-node listening port", true);
 
   std::string ledger_file("ccf.ledger");
   app.add_option("--ledger-file", ledger_file, "Ledger file", true);
@@ -271,7 +271,7 @@ int main(int argc, char** argv)
   ledger.register_message_handlers(bp.get_dispatcher());
 
   asynchost::NodeConnections node(
-    ledger, writer_factory, raft_hostname, raft_port);
+    ledger, writer_factory, node_hostname, node_port);
   node.register_message_handlers(bp.get_dispatcher());
 
   asynchost::NotifyConnections report(

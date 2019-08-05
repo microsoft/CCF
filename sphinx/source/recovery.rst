@@ -22,7 +22,7 @@ To initiate the first phase of the recovery protocol, one of several nodes must 
 
 .. code-block:: bash
 
-    $ cchost --start=recover --enclave-file=/path/to/application --raft-host=raft_ip --raft-port=raft_port
+    $ cchost --start=recover --enclave-file=/path/to/application --node-host=node_ip --node-port=node_port
     --tls-host=tls_ip --tls-pubhost=tls_public_ip --tls-port=tls_port --ledger-file=ledger_file
     --node-cert-file=/path/to/node_certificate --quote-file=/path/to/quote
 

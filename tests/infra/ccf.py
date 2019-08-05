@@ -591,11 +591,11 @@ class Node:
 
     def _set_ports(self, probably_free_function):
         if self.tls_port is None:
-            self.raft_port, self.tls_port = infra.net.two_different(
+            self.node_port, self.tls_port = infra.net.two_different(
                 probably_free_function, self.host
             )
         else:
-            self.raft_port = probably_free_function(self.host)
+            self.node_port = probably_free_function(self.host)
 
     def start(
         self,
@@ -626,7 +626,7 @@ class Node:
             str(self.local_node_id),
             self.host,
             self.pubhost,
-            self.raft_port,
+            self.node_port,
             self.tls_port,
             self.remote_impl,
             enclave_type,

@@ -1115,13 +1115,13 @@ namespace ccf
         for (auto& [node_id, ni] : w)
         {
 #ifdef PBFT
-          pbft->add_configuration({node_id, ni.value.host, ni.value.raftport});
+          pbft->add_configuration({node_id, ni.value.host, ni.value.nodeport});
 #endif
           switch (ni.value.status)
           {
             case NodeStatus::PENDING:
             {
-              add_node(node_id, ni.value.host, ni.value.raftport);
+              add_node(node_id, ni.value.host, ni.value.nodeport);
               configure = true;
               break;
             }

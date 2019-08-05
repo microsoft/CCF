@@ -454,7 +454,7 @@ class CCFRemote(object):
         local_node_id,
         host,
         pubhost,
-        raft_port,
+        node_port,
         tls_port,
         remote_class,
         enclave_type,
@@ -480,7 +480,7 @@ class CCFRemote(object):
         self.local_node_id = local_node_id
         self.host = host
         self.pubhost = pubhost
-        self.raft_port = raft_port
+        self.node_port = node_port
         self.tls_port = tls_port
         self.pem = "{}.pem".format(local_node_id)
         self.quote = None
@@ -517,8 +517,8 @@ class CCFRemote(object):
                 self.BIN,
                 f"--enclave-file={lib_path}",
                 f"--raft-election-timeout-ms={election_timeout}",
-                f"--raft-host={host}",
-                f"--raft-port={raft_port}",
+                f"--node-host={host}",
+                f"--node-port={node_port}",
                 f"--tls-host={host}",
                 f"--tls-pubhost={pubhost}",
                 f"--tls-port={tls_port}",
@@ -596,7 +596,7 @@ class CCFRemote(object):
 
         return {
             "host": self.host,
-            "raftport": str(self.raft_port),
+            "nodeport": str(self.node_port),
             "pubhost": self.pubhost,
             "tlsport": str(self.tls_port),
             "cert": infra.path.cert_bytes(self.pem),
@@ -663,13 +663,13 @@ class CCFRemote(object):
 
 @contextmanager
 def ccf_remote(
-    lib_path, local_node_id, host, pubhost, raft_port, tls_port, args, remote_class
+    lib_path, local_node_id, host, pubhost, node_port, tls_port, args, remote_class
 ):
     """
     Context Manager wrapper for CCFRemote
     """
     remote = CCFRemote(
-        lib_path, local_node_id, host, pubhost, raft_port, tls_port, args, remote_class
+        lib_path, local_node_id, host, pubhost, node_port, tls_port, args, remote_class
     )
     try:
         remote.setup()
