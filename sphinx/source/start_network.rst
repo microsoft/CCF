@@ -31,7 +31,7 @@ Once the initial set of nodes is running, the ``nodes.json`` file specifying the
             "host": "raft/tls_ip0",
             "quote": [<output quote0 bytes>],
             "status": 0,
-            "raftport": "raft_port0",
+            "nodeport": "node_port0",
             "tlsport": "tls_port0"
         },
         {
@@ -40,7 +40,7 @@ Once the initial set of nodes is running, the ``nodes.json`` file specifying the
             "host": "tls_ip1",
             "quote": [<output quote1 bytes>],
             "status": 0,
-            "raftport": "raft_port1",
+            "nodeport": "node_port1",
             "tlsport": "tls_port1"
         }
     ]

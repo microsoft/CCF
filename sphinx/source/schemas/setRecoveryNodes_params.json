@@ -15,6 +15,9 @@
           "host": {
             "type": "string"
           },
+          "nodeport": {
+            "type": "string"
+          },
           "pubhost": {
             "type": "string"
           },
@@ -25,9 +28,6 @@
               "type": "number"
             },
             "type": "array"
-          },
-          "raftport": {
-            "type": "string"
           },
           "status": {
             "enum": [
@@ -43,7 +43,7 @@
         "required": [
           "host",
           "pubhost",
-          "raftport",
+          "nodeport",
           "tlsport",
           "cert",
           "quote",
