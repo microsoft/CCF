@@ -92,13 +92,11 @@ int main(int argc, char** argv)
 
   cli::ParsedAddress node_address;
   cli::add_address_option(
-    app, node_address, "--node-address", "Node-to-node listening address")
-    ->required();
+    app, node_address, "--node-address", "Node-to-node listening address");
 
   cli::ParsedAddress rpc_address;
   cli::add_address_option(
-    app, rpc_address, "--rpc-address", "RPC over TLS listening address")
-    ->required();
+    app, rpc_address, "--rpc-address", "RPC over TLS listening address");
 
   cli::ParsedAddress notifications_address;
   cli::add_address_option(
