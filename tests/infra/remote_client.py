@@ -55,10 +55,9 @@ class CCFRemoteClient(object):
 
         cmd = [
             self.BIN,
-            "--host={}".format(node_host),
-            "--port={}".format(node_port),
-            "--transactions={}".format(iterations),
-            "--config={}".format(os.path.basename(config)),
+            f"--server-address={node_host}:{node_port}",
+            f"--transactions={iterations}",
+            f"--config={os.path.basename(config)}",
         ] + client_command_args
 
         self.remote = remote_class(

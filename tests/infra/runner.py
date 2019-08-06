@@ -79,10 +79,9 @@ def configure_remote_client(args, client_id, client_host, node, command_args):
 def run_client(args, primary, command_args):
     command = [
         args.client,
-        "--host={}".format(primary.host),
-        "--port={}".format(primary.rpc_port),
-        "--transactions={}".format(args.iterations),
-        "--config={}".format(args.config),
+        f"--server-address={primary.host}:{primary.port}",
+        f"--transactions={args.iterations}",
+        f"--config={args.config}",
     ]
     command += command_args
 

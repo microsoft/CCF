@@ -493,7 +493,7 @@ class CCFRemote(object):
         self.BIN = infra.path.build_bin_path(self.BIN, enclave_type)
         self.ledger_file = ledger_file
         self.ledger_file_name = (
-            os.path.basename(ledger_file) if ledger_file else f"{local_node_id}"
+            os.path.basename(ledger_file) if ledger_file else f"{local_node_id}.ledger"
         )
 
         cmd = [self.BIN, f"--enclave-file={lib_path}"]
