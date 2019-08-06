@@ -21,6 +21,7 @@
 #include <thread>
 
 using namespace std::string_literals;
+using namespace std::chrono_literals;
 
 ::timespec logger::config::start{0, 0};
 
@@ -198,7 +199,7 @@ int main(int argc, char** argv)
     auto passed = enclave.verify_quote(q, d);
     if (!passed)
     {
-      throw runtime_error("Quote verification failed");
+      throw std::runtime_error("Quote verification failed");
     }
     else
     {

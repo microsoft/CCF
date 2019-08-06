@@ -61,7 +61,7 @@ def configure_remote_client(args, client_id, client_host, node, command_args):
             client_host,
             args.client,
             node.host,
-            node.tls_port,
+            node.rpc_port,
             args.workspace,
             args.label,
             args.iterations,
@@ -80,7 +80,7 @@ def run_client(args, primary, command_args):
     command = [
         args.client,
         "--host={}".format(primary.host),
-        "--port={}".format(primary.tls_port),
+        "--port={}".format(primary.rpc_port),
         "--transactions={}".format(args.iterations),
         "--config={}".format(args.config),
     ]

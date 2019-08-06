@@ -455,7 +455,7 @@ class CCFRemote(object):
         host,
         pubhost,
         node_port,
-        tls_port,
+        rpc_port,
         remote_class,
         enclave_type,
         verify_quote,
@@ -481,7 +481,7 @@ class CCFRemote(object):
         self.host = host
         self.pubhost = pubhost
         self.node_port = node_port
-        self.tls_port = tls_port
+        self.rpc_port = rpc_port
         self.pem = "{}.pem".format(local_node_id)
         self.quote = None
         self.node_status = node_status
@@ -517,11 +517,8 @@ class CCFRemote(object):
                 self.BIN,
                 f"--enclave-file={lib_path}",
                 f"--raft-election-timeout-ms={election_timeout}",
-                f"--node-host={host}",
-                f"--node-port={node_port}",
-                f"--tls-host={host}",
-                f"--tls-pubhost={pubhost}",
-                f"--tls-port={tls_port}",
+                f"--node-address={host}:{node_port}",
+                f"--rpc-address={host}:{rpc_port}",
                 f"--ledger-file={self.ledger_file_name}",
                 f"--node-cert-file={self.pem}",
                 f"--enclave-type={enclave_type}",
@@ -547,8 +544,9 @@ class CCFRemote(object):
                         "Notification server host:port configuration is invalid"
                     )
 
-                cmd += [f"--notify-server-host={notify_server_host}"]
-                cmd += [f"--notify-server-port={notify_server_port[0]}"]
+                cmd += [
+                    f"--notify-server-address={notify_server_host}:{notify_server_port[0]}"
+                ]
 
             if self.quote:
                 cmd.append(f"--quote-file={self.quote}")
@@ -598,7 +596,7 @@ class CCFRemote(object):
             "host": self.host,
             "nodeport": str(self.node_port),
             "pubhost": self.pubhost,
-            "tlsport": str(self.tls_port),
+            "rpcport": str(self.rpc_port),
             "cert": infra.path.cert_bytes(self.pem),
             "quote": quote_bytes,
             "status": NodeStatus[self.node_status].value,
@@ -663,13 +661,13 @@ class CCFRemote(object):
 
 @contextmanager
 def ccf_remote(
-    lib_path, local_node_id, host, pubhost, node_port, tls_port, args, remote_class
+    lib_path, local_node_id, host, pubhost, node_port, rpc_port, args, remote_class
 ):
     """
     Context Manager wrapper for CCFRemote
     """
     remote = CCFRemote(
-        lib_path, local_node_id, host, pubhost, node_port, tls_port, args, remote_class
+        lib_path, local_node_id, host, pubhost, node_port, rpc_port, args, remote_class
     )
     try:
         remote.setup()
