@@ -184,7 +184,10 @@ int main(int argc, char** argv)
   std::string ca_file = "networkcert.pem";
 
   cli::ParsedAddress server_address;
-  auto server_addr_opt = cli::add_address_option(app, server_address, "--server-address", "Remote server")->excludes(nodes_opt);
+  auto server_addr_opt =
+    cli::add_address_option(
+      app, server_address, "--server-address", "Remote server")
+      ->excludes(nodes_opt);
   app.add_option("--ca", ca_file, "Network CA", true);
 
   auto start_network = app.add_subcommand("startnetwork", "Start network");

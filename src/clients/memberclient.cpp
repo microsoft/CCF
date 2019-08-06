@@ -265,7 +265,10 @@ int main(int argc, char** argv)
   app.allow_extras(true);
 
   cli::ParsedAddress server_address;
-  auto server_addr_opt = cli::add_address_option(app, server_address, "--server-address", "Remote server")->required();
+  auto server_addr_opt =
+    cli::add_address_option(
+      app, server_address, "--server-address", "Remote server")
+      ->required();
 
   string cert_file, privk_file, ca_file;
   app.add_option("--cert", cert_file, "Client certificate")
@@ -385,9 +388,19 @@ int main(int argc, char** argv)
     members_sni, make_shared<tls::CA>(ca), raw_cert, key_pem, nullb);
 
   unique_ptr<RpcTlsClient> tls_connection = force_unsigned ?
-    make_unique<RpcTlsClient>(server_address.hostname, server_address.port, members_sni, nullptr, tls_cert) :
+    make_unique<RpcTlsClient>(
+      server_address.hostname,
+      server_address.port,
+      members_sni,
+      nullptr,
+      tls_cert) :
     make_unique<SigRpcTlsClient>(
-      key_pem, server_address.hostname, server_address.port, members_sni, nullptr, tls_cert);
+      key_pem,
+      server_address.hostname,
+      server_address.port,
+      members_sni,
+      nullptr,
+      tls_cert);
 
   try
   {
