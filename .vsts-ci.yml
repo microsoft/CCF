@@ -48,7 +48,7 @@ schedules:
 
 jobs:
 - job: ACC_1804_SGX_build
-  pool: Ubuntu-1804-SGX-Azure
+  pool: Ubuntu-1804-DC4s
   steps:
     - checkout: self
       clean: true
@@ -61,7 +61,7 @@ jobs:
         artifact_name: build_results
 
 - job: ACC_1804_SGX_quick_tests
-  pool: Ubuntu-1804-SGX-Azure
+  pool: Ubuntu-1804-DC4s
   dependsOn:
     - ACC_1804_SGX_build
   steps:
@@ -77,7 +77,7 @@ jobs:
         suite_name_suffix: ' SGX quick tests'
 
 - job: ACC_1804_SGX_e2e_tests_A
-  pool: Ubuntu-1804-SGX-Azure
+  pool: Ubuntu-1804-DC4s
   dependsOn:
     - ACC_1804_SGX_build
   steps:
@@ -93,7 +93,7 @@ jobs:
         suite_name_suffix: ' SGX end to end tests A'
 
 - job: ACC_1804_SGX_e2e_tests_B
-  pool: Ubuntu-1804-SGX-Azure
+  pool: Ubuntu-1804-DC4s
   dependsOn:
     - ACC_1804_SGX_build
   steps:
@@ -109,7 +109,7 @@ jobs:
         suite_name_suffix: ' SGX end to end tests B'
 
 - job: ACC_1804_SGX_perf_build
-  pool: Ubuntu-1804-SGX-Azure
+  pool: Ubuntu-1804-DC4s
   steps:
     - checkout: self
       clean: true
@@ -122,7 +122,7 @@ jobs:
         artifact_name: perf_build_results
 
 - job: ACC_1804_SGX_perf_build_A
-  pool: Ubuntu-1804-SGX-Azure
+  pool: Ubuntu-1804-DC4s
   dependsOn:
     - ACC_1804_SGX_perf_build
   steps:
@@ -139,7 +139,7 @@ jobs:
     - template: .vsts-ci-templates/push_perf_data.yml
 
 - job: ACC_1804_SGX_perf_build_B
-  pool: Ubuntu-1804-SGX-Azure
+  pool: Ubuntu-1804-DC4s
   dependsOn:
     - ACC_1804_SGX_perf_build
   steps:
