@@ -240,7 +240,6 @@ int main(int argc, char** argv)
     auto network_cert = files::slurp(network_cert_file);
     GenesisGenerator g;
 
-    // For now, the node to contact to join the network is the first one
     g.create_join_rpc(
       join_target_address.hostname,
       join_target_address.port,

@@ -36,7 +36,7 @@
               "RETIRED"
             ]
           },
-          "tlsport": {
+          "rpcport": {
             "type": "string"
           }
         },
@@ -44,7 +44,7 @@
           "host",
           "pubhost",
           "nodeport",
-          "tlsport",
+          "rpcport",
           "cert",
           "quote",
           "status"
