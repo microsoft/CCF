@@ -29,15 +29,15 @@
             },
             "type": "array"
           },
+          "rpcport": {
+            "type": "string"
+          },
           "status": {
             "enum": [
               "PENDING",
               "TRUSTED",
               "RETIRED"
             ]
-          },
-          "rpcport": {
-            "type": "string"
           }
         },
         "required": [
