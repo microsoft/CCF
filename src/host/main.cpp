@@ -89,7 +89,8 @@ int main(int argc, char** argv)
     true);
 
   std::string node_hostname("0.0.0.0");
-  app.add_option("--node-host", node_hostname, "Node-to-node listening hostname", true);
+  app.add_option(
+    "--node-host", node_hostname, "Node-to-node listening hostname", true);
 
   std::string node_port("4568");
   app.add_option("--node-port", node_port, "Node-to-node listening port", true);
