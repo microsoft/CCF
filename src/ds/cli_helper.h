@@ -5,8 +5,6 @@
 
 namespace cli
 {
-  static constexpr auto DEFAULT_ADDR = "0.0.0.0:4567";
-
   struct ParsedAddress
   {
     std::string hostname;
@@ -17,8 +15,7 @@ namespace cli
     CLI::App& app,
     ParsedAddress& parsed,
     const std::string& option_name,
-    const std::string& option_desc,
-    bool defaulted = true)
+    const std::string& option_desc)
   {
     CLI::callback_t fun = [&parsed, option_name](CLI::results_t results) {
       if (results.size() != 1)
@@ -54,11 +51,7 @@ namespace cli
       return true;
     };
 
-    auto* option = app.add_option(option_name, fun, option_desc, defaulted);
-    if (defaulted)
-    {
-      option->default_str(DEFAULT_ADDR);
-    }
+    auto* option = app.add_option(option_name, fun, option_desc, true);
 
     return option;
   }

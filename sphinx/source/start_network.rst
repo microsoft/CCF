@@ -30,7 +30,7 @@ Once the initial set of nodes is running, the ``nodes.json`` file specifying the
         {
             "pubhost": "rpc_public_ip0",
             "cert": [<output node0 cert bytes>],
-            "host": "raft/rpc_ip0",
+            "host": "node/rpc_ip0",
             "quote": [<output quote0 bytes>],
             "status": 0,
             "nodeport": "node_port0",
@@ -39,7 +39,7 @@ Once the initial set of nodes is running, the ``nodes.json`` file specifying the
         {
             "pubhost": "rpc_public_ip1",
             "cert": [<output node1 cert bytes>],
-            "host": "rpc_ip1",
+            "host": "node/rpc_ip1",
             "quote": [<output quote1 bytes>],
             "status": 0,
             "nodeport": "node_port1",

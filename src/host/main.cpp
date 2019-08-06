@@ -103,8 +103,7 @@ int main(int argc, char** argv)
     app,
     notifications_address,
     "--notify-server-address",
-    "Server address to notify progress to",
-    false);
+    "Server address to notify progress to");
 
   std::string ledger_file("ccf.ledger");
   app.add_option("--ledger-file", ledger_file, "Ledger file", true);
