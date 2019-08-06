@@ -48,7 +48,7 @@ schedules:
 
 jobs:
 - job: Coverage
-  pool: Ubuntu-1804-Non-SGX-Azure
+  pool: Ubuntu-1804-D8s_v3
   container:
     image: ccfciteam/ccf-ci-18.04:latest
     # --publish-all enables end-to-end tests to communicate over ports
@@ -90,7 +90,7 @@ jobs:
       workingDirectory: build
 
 - job: SAN
-  pool: Ubuntu-1804-Non-SGX-Azure
+  pool: Ubuntu-1804-D8s_v3
   container:
     image: ccfciteam/ccf-ci-18.04:latest
     # --publish-all enables end-to-end tests to communicate over ports
