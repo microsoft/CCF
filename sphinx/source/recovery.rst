@@ -64,13 +64,13 @@ Once the public crash-fault tolerant network is established, members are allowed
 
 .. code-block:: bash
 
-    $ memberclient accept_recovery --sealed-secrets=/path/to/sealed/secrets/file --cert=/path/to/member1/cert --privk=/path/to/member1/private/key --server-addr=leader_rpc_ip/leader_port_ip --ca=/path/to/new/network/cert
+    $ memberclient accept_recovery --sealed-secrets=/path/to/sealed/secrets/file --cert=/path/to/member1/cert --privk=/path/to/member1/private/key --server-address=leader_rpc_ip:leader_port_ip --ca=/path/to/new/network/cert
 
 If successful, this commands returns the proposal id that can be used by other members to submit their votes:
 
 .. code-block:: bash
 
-    $ ./memberclient vote --accept --cert=/path/to/member2/cert --privk=/path/to/member2/private/key --server-addr=leader_rpc_ip/leader_rpc_port --id=proposal_id --ca=/path/to/new/network/cert
+    $ ./memberclient vote --accept --cert=/path/to/member2/cert --privk=/path/to/member2/private/key --server-address=leader_rpc_ip:leader_rpc_port --id=proposal_id --ca=/path/to/new/network/cert
 
 Once a quorum of members (defined by the constitution rules but typically, a majority of members) have agreed to recover the network, the network secrets are unsealed and the recovery of the private entries of the ledger is automatically started.
 

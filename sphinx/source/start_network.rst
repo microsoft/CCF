@@ -10,7 +10,6 @@ To start up a network, operators should start up each node separately by running
 
     $ cchost --enclave-file=/path/to/application --node-address=node_ip:node_port --rpc-address=rpc_ip:rpc_public_ip
     --ledger-file=/path/to/ledger --node-cert-file=/path/to/node_certificate --quote-file=/path/to/quote
-
     2019-08-06 15:04:36.951158        [info ] ../src/host/main.cpp:240             | Starting new node
     2019-08-06 15:04:39.355423        [info ] ../src/host/main.cpp:257             | Created new node
     ...
