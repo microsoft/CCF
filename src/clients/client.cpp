@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "../ds/cli_helper.h"
 #include "../ds/files.h"
 #include "../node/calltypes.h"
 #include "../node/rpc/jsonrpc.h"
@@ -181,9 +182,12 @@ int main(int argc, char** argv)
 
   std::string host, port;
   std::string ca_file = "networkcert.pem";
-  auto host_opt =
-    app.add_option("--host", host, "Remote host")->excludes(nodes_opt);
-  app.add_option("--port", port, "Remote port")->needs(host_opt);
+
+  cli::ParsedAddress server_address;
+  auto server_addr_opt =
+    cli::add_address_option(
+      app, server_address, "--server-address", "Remote node RPC server address")
+      ->excludes(nodes_opt);
   app.add_option("--ca", ca_file, "Network CA", true);
 
   auto start_network = app.add_subcommand("startnetwork", "Start network");
@@ -230,7 +234,7 @@ int main(int argc, char** argv)
   {
     // If host connection has not been set explicitly by options then load from
     // nodes file
-    if (!*host_opt)
+    if (!*server_addr_opt)
     {
       const auto j_nodes = files::slurp_json(nodes_file);
 
@@ -249,7 +253,12 @@ int main(int argc, char** argv)
       const auto& j_node = j_nodes[node_index];
 
       host = j_node["pubhost"];
-      port = j_node["tlsport"];
+      port = j_node["rpcport"];
+    }
+    else
+    {
+      host = server_address.hostname;
+      port = server_address.port;
     }
 
     nlohmann::json response;

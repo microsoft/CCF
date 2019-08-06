@@ -454,8 +454,8 @@ class CCFRemote(object):
         local_node_id,
         host,
         pubhost,
-        raft_port,
-        tls_port,
+        node_port,
+        rpc_port,
         remote_class,
         enclave_type,
         verify_quote,
@@ -480,8 +480,8 @@ class CCFRemote(object):
         self.local_node_id = local_node_id
         self.host = host
         self.pubhost = pubhost
-        self.raft_port = raft_port
-        self.tls_port = tls_port
+        self.node_port = node_port
+        self.rpc_port = rpc_port
         self.pem = "{}.pem".format(local_node_id)
         self.quote = None
         self.node_status = node_status
@@ -493,7 +493,7 @@ class CCFRemote(object):
         self.BIN = infra.path.build_bin_path(self.BIN, enclave_type)
         self.ledger_file = ledger_file
         self.ledger_file_name = (
-            os.path.basename(ledger_file) if ledger_file else f"{local_node_id}"
+            os.path.basename(ledger_file) if ledger_file else f"{local_node_id}.ledger"
         )
 
         cmd = [self.BIN, f"--enclave-file={lib_path}"]
@@ -517,11 +517,8 @@ class CCFRemote(object):
                 self.BIN,
                 f"--enclave-file={lib_path}",
                 f"--raft-election-timeout-ms={election_timeout}",
-                f"--raft-host={host}",
-                f"--raft-port={raft_port}",
-                f"--tls-host={host}",
-                f"--tls-pubhost={pubhost}",
-                f"--tls-port={tls_port}",
+                f"--node-address={host}:{node_port}",
+                f"--rpc-address={host}:{rpc_port}",
                 f"--ledger-file={self.ledger_file_name}",
                 f"--node-cert-file={self.pem}",
                 f"--enclave-type={enclave_type}",
@@ -547,8 +544,9 @@ class CCFRemote(object):
                         "Notification server host:port configuration is invalid"
                     )
 
-                cmd += [f"--notify-server-host={notify_server_host}"]
-                cmd += [f"--notify-server-port={notify_server_port[0]}"]
+                cmd += [
+                    f"--notify-server-address={notify_server_host}:{notify_server_port[0]}"
+                ]
 
             if self.quote:
                 cmd.append(f"--quote-file={self.quote}")
@@ -596,9 +594,9 @@ class CCFRemote(object):
 
         return {
             "host": self.host,
-            "raftport": str(self.raft_port),
+            "nodeport": str(self.node_port),
             "pubhost": self.pubhost,
-            "tlsport": str(self.tls_port),
+            "rpcport": str(self.rpc_port),
             "cert": infra.path.cert_bytes(self.pem),
             "quote": quote_bytes,
             "status": NodeStatus[self.node_status].value,
@@ -663,13 +661,13 @@ class CCFRemote(object):
 
 @contextmanager
 def ccf_remote(
-    lib_path, local_node_id, host, pubhost, raft_port, tls_port, args, remote_class
+    lib_path, local_node_id, host, pubhost, node_port, rpc_port, args, remote_class
 ):
     """
     Context Manager wrapper for CCFRemote
     """
     remote = CCFRemote(
-        lib_path, local_node_id, host, pubhost, raft_port, tls_port, args, remote_class
+        lib_path, local_node_id, host, pubhost, node_port, rpc_port, args, remote_class
     )
     try:
         remote.setup()

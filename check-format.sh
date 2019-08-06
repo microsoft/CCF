@@ -22,7 +22,11 @@ while getopts ":f:" opt; do
   esac
 done
 
-echo "Checking file format in" "$@"
+if $fix ; then
+  echo "Formatting files in" "$@"
+else
+  echo "Checking file format in" "$@"
+fi
 
 unformatted_files=""
 for file in $(find "$@" -name "*.h" -or -name "*.hpp" -or -name "*.cpp" -or -name "*.c"); do

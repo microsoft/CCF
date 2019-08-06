@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "rpc_tls_client.h"
 
@@ -83,8 +84,7 @@ public:
 
 int main(int argc, char** argv)
 {
-  string host;
-  string port;
+  cli::ParsedAddress server_address;
   size_t num_messages = 1;
   size_t msg_id = 42;
   std::string msg_body = "Sample log message, for the purposes of testing";
@@ -96,8 +96,12 @@ int main(int argc, char** argv)
     CLI::App cli_app{"Logging Client"};
     cli_app.require_subcommand(0, 1);
 
-    cli_app.add_option("--host", host);
-    cli_app.add_option("--port", port);
+    cli::add_address_option(
+      cli_app,
+      server_address,
+      "--server-address",
+      "Remote node RPC server address");
+
     cli_app.add_option("--cert", cert_file)
       ->required(true)
       ->check(CLI::ExistingFile);
@@ -130,7 +134,7 @@ int main(int argc, char** argv)
   const auto cert = make_shared<tls::Cert>(
     "users", make_shared<tls::CA>(ca), raw_cert, key_pem, nullb);
 
-  LoggingClient client(host, port, cert);
+  LoggingClient client(server_address.hostname, server_address.port, cert);
 
   if (*multi_command)
   {

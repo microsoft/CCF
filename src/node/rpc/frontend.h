@@ -166,7 +166,7 @@ namespace ccf
             return jsonrpc::error_response(
               ctx.req.seq_no,
               jsonrpc::CCFErrorCodes::TX_NOT_LEADER,
-              info->pubhost + ":" + info->tlsport);
+              info->pubhost + ":" + info->rpcport);
           }
         }
         return jsonrpc::error_response(
@@ -239,7 +239,7 @@ namespace ccf
               GetLeaderInfo::Out out;
               out.leader_id = leader_id;
               out.leader_host = info->pubhost;
-              out.leader_port = info->tlsport;
+              out.leader_port = info->rpcport;
               return jsonrpc::success(out);
             }
           }
@@ -260,7 +260,7 @@ namespace ccf
           nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
             if (ni.status == ccf::NodeStatus::TRUSTED)
             {
-              out.nodes.push_back({nid, ni.pubhost, ni.tlsport});
+              out.nodes.push_back({nid, ni.pubhost, ni.rpcport});
             }
             return true;
           });
