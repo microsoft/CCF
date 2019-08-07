@@ -22,9 +22,8 @@ To initiate the first phase of the recovery protocol, one of several nodes must 
 
 .. code-block:: bash
 
-    $ cchost --start=recover --enclave-file=/path/to/application --raft-host=raft_ip --raft-port=raft_port
-    --tls-host=tls_ip --tls-pubhost=tls_public_ip --tls-port=tls_port --ledger-file=ledger_file
-    --node-cert-file=/path/to/node_certificate --quote-file=/path/to/quote
+    $ cchost --start=recover --enclave-file=/path/to/application --node-address=node_ip:node_port --rpc-address=rpc_ip:rpc_port
+    --ledger-file=ledger_file --node-cert-file=/path/to/node_certificate --quote-file=/path/to/quote
 
 Each node will then immediately restore the public entries of its ledger (``--ledger-file``). Because deserialising the public entries present in the ledger may take some time, members are allowed to query the progress of the public recovery by running the ``getSignedIndex`` RPC which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the ``getSignedIndex`` RPC returns ``{"state": "awaitingRecovery"}``.
 
@@ -65,13 +64,13 @@ Once the public crash-fault tolerant network is established, members are allowed
 
 .. code-block:: bash
 
-    $ memberclient accept_recovery --sealed-secrets=/path/to/sealed/secrets/file --cert=/path/to/member1/cert --privk=/path/to/member1/private/key --host=leader_ip --port=leader_port --ca=/path/to/new/network/cert
+    $ memberclient accept_recovery --sealed-secrets=/path/to/sealed/secrets/file --cert=/path/to/member1/cert --privk=/path/to/member1/private/key --server-address=leader_rpc_ip:leader_rpc_port --ca=/path/to/new/network/cert
 
 If successful, this commands returns the proposal id that can be used by other members to submit their votes:
 
 .. code-block:: bash
 
-    $ ./memberclient vote --accept --cert=/path/to/member2/cert --privk=/path/to/member2/private/key --host=leader_ip --port=port_ip --id=<proposal_id> --ca=/path/to/new/network/cert
+    $ ./memberclient vote --accept --cert=/path/to/member2/cert --privk=/path/to/member2/private/key --server-address=leader_rpc_ip:leader_rpc_port --id=proposal_id --ca=/path/to/new/network/cert
 
 Once a quorum of members (defined by the constitution rules but typically, a majority of members) have agreed to recover the network, the network secrets are unsealed and the recovery of the private entries of the ledger is automatically started.
 

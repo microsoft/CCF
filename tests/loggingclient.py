@@ -20,8 +20,7 @@ def run(args):
 
         infra.proc.ccall(
             "./logging_client",
-            "--host={}".format(primary.host),
-            "--port={}".format(primary.tls_port),
+            f"--server-address={primary.host}:{primary.rpc_port}",
             "--ca=networkcert.pem",
             "--cert=user1_cert.pem",
             "--privk=user1_privk.pem",

@@ -3,7 +3,7 @@ trigger:
 
 jobs:
 - job: build_and_publish_docs
-  pool: Ubuntu-1804-SGX-Azure
+  pool: Ubuntu-1804-DC4s
   steps:
     - checkout: self
       clean: true

@@ -8,6 +8,7 @@
 // CCF
 #include "clients/rpc_tls_client.h"
 #include "clients/sig_rpc_tls_client.h"
+#include "ds/cli_helper.h"
 #include "ds/files.h"
 
 // STL/3rdparty
@@ -147,9 +148,18 @@ namespace client
 
       const auto conn = (sign && !force_unsigned) ?
         std::make_shared<SigRpcTlsClient>(
-          key, host, port, users_sni, nullptr, tls_cert) :
+          key,
+          server_address.hostname,
+          server_address.port,
+          users_sni,
+          nullptr,
+          tls_cert) :
         std::make_shared<RpcTlsClient>(
-          host, port, users_sni, nullptr, tls_cert);
+          server_address.hostname,
+          server_address.port,
+          users_sni,
+          nullptr,
+          tls_cert);
 
       // Report ciphersuite of first client (assume it is the same for each)
       if (verbosity >= 1 && is_first)
@@ -193,7 +203,8 @@ namespace client
     ///@{
     std::string label; //< Default set in constructor
 
-    std::string host, port, cert_file, key_file, ca_file, verification_file;
+    cli::ParsedAddress server_address;
+    std::string cert_file, key_file, ca_file, verification_file;
 
     size_t num_transactions = 10000;
     size_t thread_count = 1;
@@ -438,13 +449,13 @@ namespace client
         "Identifier for this client, written to " + std::string(perf_summary));
 
       // Connection details
-      app
-        .add_option("--host", host, "IP address where requests should be sent")
+      cli::add_address_option(
+        app,
+        server_address,
+        "--server-address",
+        "Remote node RPC server address where requests should be sent")
         ->required(true);
-      app
-        .add_option(
-          "-p,--port", port, "Port on host where requests should be sent")
-        ->required(true);
+
       app.add_option("--cert", cert_file)
         ->required(true)
         ->check(CLI::ExistingFile);
@@ -678,7 +689,7 @@ namespace client
                               .count(); // timeStamp
         perf_summary_csv << "," << dur_ms; // elapsed
         perf_summary_csv << ","
-                         << (host.find("127.") == 0 ?
+                         << (server_address.hostname.find("127.") == 0 ?
                                label :
                                label + string("_distributed")); // label
         perf_summary_csv << "," << total_bytes; // bytes

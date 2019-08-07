@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "crypto/hash.h"
+#include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "node/entities.h"
 #include "node/members.h"
@@ -262,10 +263,12 @@ int main(int argc, char** argv)
   CLI::App app{"Member client"};
   app.fallthrough(true);
   app.allow_extras(true);
-  string host = "localhost";
-  app.add_option("--host", host, "Remote host")->required(true);
-  string port = "5678";
-  app.add_option("--port", port, "Remote port")->required(true);
+
+  cli::ParsedAddress server_address;
+  auto server_addr_opt =
+    cli::add_address_option(
+      app, server_address, "--server-address", "Remote node RPC server address")
+      ->required();
 
   string cert_file, privk_file, ca_file;
   app.add_option("--cert", cert_file, "Client certificate")
@@ -385,9 +388,19 @@ int main(int argc, char** argv)
     members_sni, make_shared<tls::CA>(ca), raw_cert, key_pem, nullb);
 
   unique_ptr<RpcTlsClient> tls_connection = force_unsigned ?
-    make_unique<RpcTlsClient>(host, port, members_sni, nullptr, tls_cert) :
+    make_unique<RpcTlsClient>(
+      server_address.hostname,
+      server_address.port,
+      members_sni,
+      nullptr,
+      tls_cert) :
     make_unique<SigRpcTlsClient>(
-      key_pem, host, port, members_sni, nullptr, tls_cert);
+      key_pem,
+      server_address.hostname,
+      server_address.port,
+      members_sni,
+      nullptr,
+      tls_cert);
 
   try
   {

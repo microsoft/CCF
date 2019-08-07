@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "ds/oversized.h"
@@ -19,7 +20,8 @@
 #include <string>
 #include <thread>
 
-using namespace std;
+using namespace std::string_literals;
+using namespace std::chrono_literals;
 
 ::timespec logger::config::start{0, 0};
 
@@ -88,11 +90,20 @@ int main(int argc, char** argv)
     "Size of the internal ringbuffers, as a power of 2",
     true);
 
-  std::string raft_hostname("0.0.0.0");
-  app.add_option("--raft-host", raft_hostname, "Raft listening hostname", true);
+  cli::ParsedAddress node_address;
+  cli::add_address_option(
+    app, node_address, "--node-address", "Node-to-node listening address");
 
-  std::string raft_port("4568");
-  app.add_option("--raft-port", raft_port, "Raft listening port", true);
+  cli::ParsedAddress rpc_address;
+  cli::add_address_option(
+    app, rpc_address, "--rpc-address", "RPC over TLS listening address");
+
+  cli::ParsedAddress notifications_address;
+  cli::add_address_option(
+    app,
+    notifications_address,
+    "--notify-server-address",
+    "Server address to notify progress to");
 
   std::string ledger_file("ccf.ledger");
   app.add_option("--ledger-file", ledger_file, "Ledger file", true);
@@ -113,30 +124,6 @@ int main(int argc, char** argv)
     "--node-cert-file",
     node_cert_file,
     "Path to which the node certificate will be written",
-    true);
-
-  std::string tls_hostname("0.0.0.0");
-  app.add_option("--tls-host", tls_hostname, "TLS listening hostname", true);
-
-  std::string tls_pubhostname("0.0.0.0");
-  app.add_option(
-    "--tls-pubhost", tls_pubhostname, "TLS public listening hostname", true);
-
-  std::string tls_port("4567");
-  app.add_option("--tls-port", tls_port, "TLS listening port", true);
-
-  std::string notify_server_hostname;
-  app.add_option(
-    "--notify-server-host",
-    notify_server_hostname,
-    "Server host to notify progress to",
-    true);
-
-  std::string notify_server_port;
-  app.add_option(
-    "--notify-server-port",
-    notify_server_port,
-    "Server port to notify progress to",
     true);
 
   size_t max_msg_size = 24;
@@ -187,12 +174,12 @@ int main(int argc, char** argv)
   else if (enclave_type == "virtual")
     oe_flags = ENCLAVE_FLAG_VIRTUAL;
   else
-    throw logic_error("invalid enclave type: "s + enclave_type);
+    throw std::logic_error("invalid enclave type: "s + enclave_type);
 
   // log level
   auto host_log_level = logger::config::to_level(log_level.c_str());
   if (!host_log_level)
-    throw logic_error("No such logging level: "s + log_level);
+    throw std::logic_error("No such logging level: "s + log_level);
 
   // set the host log level
   logger::config::level() = host_log_level.value();
@@ -209,7 +196,7 @@ int main(int argc, char** argv)
     auto passed = enclave.verify_quote(q, d);
     if (!passed)
     {
-      throw runtime_error("Quote verification failed");
+      throw std::runtime_error("Quote verification failed");
     }
     else
     {
@@ -244,13 +231,13 @@ int main(int argc, char** argv)
 
   // Initialise the enclave and create a CCF node in it
   const size_t node_size = 4096;
-  vector<uint8_t> node_cert(node_size);
-  vector<uint8_t> quote(OE_MAX_REPORT_SIZE);
+  std::vector<uint8_t> node_cert(node_size);
+  std::vector<uint8_t> quote(OE_MAX_REPORT_SIZE);
   LOG_INFO_FMT(
     "Starting new node{}", (start == "recover" ? " (recovery)" : ""));
   raft::Config raft_config{
-    chrono::milliseconds(raft_timeout),
-    chrono::milliseconds(raft_election_timeout),
+    std::chrono::milliseconds(raft_timeout),
+    std::chrono::milliseconds(raft_election_timeout),
   };
 
   EnclaveConfig config;
@@ -271,16 +258,16 @@ int main(int argc, char** argv)
   ledger.register_message_handlers(bp.get_dispatcher());
 
   asynchost::NodeConnections node(
-    ledger, writer_factory, raft_hostname, raft_port);
+    ledger, writer_factory, node_address.hostname, node_address.port);
   node.register_message_handlers(bp.get_dispatcher());
 
   asynchost::NotifyConnections report(
-    notify_server_hostname, notify_server_port);
+    notifications_address.hostname, notifications_address.port);
   report.register_message_handlers(bp.get_dispatcher());
 
   asynchost::RPCConnections rpc(writer_factory);
   rpc.register_message_handlers(bp.get_dispatcher());
-  rpc.listen(0, tls_hostname, tls_port);
+  rpc.listen(0, rpc_address.hostname, rpc_address.port);
 
   // Write the node cert and quote to disk. Actors can use the node cert
   // as a CA on their end of the TLS connection.

@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "genesisgen.h"
 #include "luainterp/luainterp.h"
@@ -183,11 +184,9 @@ int main(int argc, char** argv)
     "network",
     true);
 
-  string join_host;
-  join_rpc->add_option("--host", join_host, "Target host")->required();
-
-  string join_port;
-  join_rpc->add_option("--port", join_port, "Target port")->required();
+  cli::ParsedAddress join_target_address;
+  auto server_addr_opt = cli::add_address_option(
+    app, join_target_address, "--target-address", "Target node address");
 
   string join_json = "joinNetwork.json";
   join_rpc->add_option(
@@ -241,8 +240,11 @@ int main(int argc, char** argv)
     auto network_cert = files::slurp(network_cert_file);
     GenesisGenerator g;
 
-    // For now, the node to contact to join the network is the first one
-    g.create_join_rpc(join_host, join_port, join_json, network_cert);
+    g.create_join_rpc(
+      join_target_address.hostname,
+      join_target_address.port,
+      join_json,
+      network_cert);
   }
 
   cout << "Done." << endl;
