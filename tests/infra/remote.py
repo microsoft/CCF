@@ -293,7 +293,7 @@ class SSHRemote(CmdMixin):
                     if res:
                         # Upload to cimetrics
                         results_uploaded = True
-                        metrics.put(name, res.group(1))
+                        metrics.put(name, float(res.group(1)))
                         LOG.success("Results uploaded")
                     LOG.debug(line.decode())
 
@@ -447,7 +447,7 @@ class LocalRemote(CmdMixin):
                 if res:
                     # Upload to cimetrics
                     results_uploaded = True
-                    metrics.put(name, res.group(1))
+                    metrics.put(name, float(res.group(1)))
                     LOG.success("Results uploaded")
                 LOG.debug(line.decode())
 
