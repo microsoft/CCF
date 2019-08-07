@@ -150,7 +150,7 @@ class Network:
 
         self.nodes_json()
         self.add_members([1, 2, 3])
-        self.add_users([1, 2, 3, 4, 5, 6])
+        self.add_users([1, 2, 3])
         self.genesis_generator(args)
 
         primary = self.nodes[0]
