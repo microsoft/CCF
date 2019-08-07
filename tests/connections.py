@@ -48,6 +48,8 @@ def run(args):
                     LOG.info(f"Connected client {i}")
                 except OSError:
                     LOG.error(f"Failed to connect client {i}")
+
+            assert len(clients) >= max_fds - num_fds - 1, f"{len(clients)}, expected at least {max_fds - num_fds - 1}"
             
             num_fds = psutil.Process(primary_pid).num_fds()
             LOG.info(f"{primary_pid} has {num_fds} open file descriptors")
@@ -62,6 +64,8 @@ def run(args):
             for i in range(max_fds - num_fds):
                 clients.append(es.enter_context(primary.user_client(format="json")))
                 LOG.info(f"Connected client {i}")
+
+            assert len(clients) >= max_fds - num_fds - 1, f"{len(clients)}, expected at least {max_fds - num_fds - 1}"
             
             num_fds = psutil.Process(primary_pid).num_fds()
             LOG.info(f"{primary_pid} has {num_fds} open file descriptors")
