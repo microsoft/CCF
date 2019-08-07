@@ -410,7 +410,6 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       -lgcc
       ${PARSED_ARGS_LINK_LIBS}
       ${ENCLAVE_LIBS}
-      http_parser.enclave
     )
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
     sign_app_library(${name} ${app_oe_conf_path} ${enclave_sign_key_path})
