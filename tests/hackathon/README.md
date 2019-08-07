@@ -1,3 +1,5 @@
+# PoC sample application for flagging and revealing fraudulent transactions
+
 ## What is this app/demo doing?
 
 There are banks and regulators. Banks issue transactions that can not be leaked outside of CCF. Regulators register algorithms that
@@ -11,7 +13,7 @@ indicating  if the transaction has been revealed or not. A flagged transaction d
 The bank that issued the transaction can then go and reveal it by setting the `revealed` boolean to true. The regulator can then see
 all the details related to it (src_country, dst_country, amt, etc).
 
-# PoC sample application for flagging and revealing fraudulent transactions
+## Running the demo
 
 To run this demo and have the results visualized using ELK you will need to follow the below instructions
 
@@ -48,3 +50,13 @@ You can find the Kibana dashboard that is used for this demo in the `tests/hacka
 You just need to import that into Kibana by clicking on Management -> Saved Objects -> Import. 
 
 The dashboard should then be available in the Dashboard tab once some data has been loaded in ELK.
+
+## Dataset
+
+The dataset file that is used in the demo should be a csv file with the below headers:
+
+`origin,destination,amount,type`
+
+where origin and destination are the origin and destination accounts of the transaction, amount is the amount being transfered,
+type is the type of the transaction (e.g. cash, wire_transfer). The transaction will be randomly populated with a source and
+destination country among `["US", "GB", "FR", "GR", "AU", "BR", "ZA", "JP", "IN"]`, and it will also be given a timestamp.

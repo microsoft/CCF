@@ -123,8 +123,8 @@ def run(args):
                     datafile = csv.DictReader(f)
                     for row in datafile:
                         json_tx = {
-                            "src": row["nameOrig"],
-                            "dst": row["nameDest"],
+                            "src": row["origin"],
+                            "dst": row["dest"],
                             "amt": row["amount"],
                             "type": TransactionType[row["type"]].value,
                             "timestamp": strftime(
