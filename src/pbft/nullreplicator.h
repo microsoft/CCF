@@ -10,7 +10,7 @@ namespace pbft
 {
   // TODO(#PBFT): This class should eventually disappear and become one with
   // PBFT. Note that all replicated entries are automatically marked as globally
-  // committed.
+  // committed
   class NullReplicator : public kv::Replicator
   {
   private:
