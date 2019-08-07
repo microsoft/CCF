@@ -451,7 +451,6 @@ class LocalRemote(CmdMixin):
                     LOG.success("Results uploaded")
                 LOG.debug(line.decode())
 
-
             if not results_uploaded:
                 LOG.error("Results were not uploaded")
 
