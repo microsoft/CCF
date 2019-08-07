@@ -261,7 +261,7 @@ if(BUILD_TESTS)
       NAME lua_sample_app_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/sampleluaclient.py
       ADDITIONAL_ARGS
-        --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/sample.lua)
+        --app-script ${CMAKE_SOURCE_DIR}/src/apps/sample_app/sample.lua)
 
     if(QUOTES_ENABLED)
       add_e2e_test(
