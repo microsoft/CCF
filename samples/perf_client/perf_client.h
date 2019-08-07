@@ -8,6 +8,7 @@
 // CCF
 #include "clients/rpc_tls_client.h"
 #include "clients/sig_rpc_tls_client.h"
+#include "ds/cli_helper.h"
 #include "ds/files.h"
 
 // STL/3rdparty
@@ -52,7 +53,7 @@ namespace client
   class PerfBase
   {
   private:
-    std::vector<uint8_t> raw_key;
+    tls::Pem key = {};
     std::shared_ptr<tls::Cert> tls_cert;
 
     // Create tls_cert if it doesn't exist, and return it
@@ -61,11 +62,13 @@ namespace client
       if (tls_cert == nullptr)
       {
         const auto raw_cert = files::slurp(cert_file);
-        raw_key = files::slurp(key_file);
+        const auto raw_key = files::slurp(key_file);
         const auto ca = files::slurp(ca_file);
 
+        key = tls::Pem(raw_key);
+
         tls_cert = std::make_shared<tls::Cert>(
-          users_sni, std::make_shared<tls::CA>(ca), raw_cert, raw_key, nullb);
+          users_sni, std::make_shared<tls::CA>(ca), raw_cert, key, nullb);
 
         return true;
       }
@@ -145,9 +148,18 @@ namespace client
 
       const auto conn = (sign && !force_unsigned) ?
         std::make_shared<SigRpcTlsClient>(
-          raw_key, host, port, users_sni, nullptr, tls_cert) :
+          key,
+          server_address.hostname,
+          server_address.port,
+          users_sni,
+          nullptr,
+          tls_cert) :
         std::make_shared<RpcTlsClient>(
-          host, port, users_sni, nullptr, tls_cert);
+          server_address.hostname,
+          server_address.port,
+          users_sni,
+          nullptr,
+          tls_cert);
 
       // Report ciphersuite of first client (assume it is the same for each)
       if (verbosity >= 1 && is_first)
@@ -191,7 +203,8 @@ namespace client
     ///@{
     std::string label; //< Default set in constructor
 
-    std::string host, port, cert_file, key_file, ca_file, verification_file;
+    cli::ParsedAddress server_address;
+    std::string cert_file, key_file, ca_file, verification_file;
 
     size_t num_transactions = 10000;
     size_t thread_count = 1;
@@ -230,8 +243,7 @@ namespace client
     virtual void post_timing_body_hook(){};
 
     virtual timing::Results call_raw_batch(
-      const std::shared_ptr<RpcTlsClient>& connection,
-      const PreparedTxs& txs)
+      const std::shared_ptr<RpcTlsClient>& connection, const PreparedTxs& txs)
     {
       size_t read;
       size_t written;
@@ -248,7 +260,6 @@ namespace client
         // Write everything
         while (written < txs.size())
           write(txs[written], read, written, connection);
-
 
         blocking_read(read, written, connection);
 
@@ -282,7 +293,7 @@ namespace client
       // Record time of sent requests
       if (timing.has_value())
         timing->record_send(tx.method, tx.rpc.id, tx.expects_commit);
-      
+
       connection->write(tx.rpc.encoded);
       ++written;
 
@@ -438,13 +449,13 @@ namespace client
         "Identifier for this client, written to " + std::string(perf_summary));
 
       // Connection details
-      app
-        .add_option("--host", host, "IP address where requests should be sent")
+      cli::add_address_option(
+        app,
+        server_address,
+        "--server-address",
+        "Remote node RPC server address where requests should be sent")
         ->required(true);
-      app
-        .add_option(
-          "-p,--port", port, "Port on host where requests should be sent")
-        ->required(true);
+
       app.add_option("--cert", cert_file)
         ->required(true)
         ->check(CLI::ExistingFile);
@@ -678,7 +689,7 @@ namespace client
                               .count(); // timeStamp
         perf_summary_csv << "," << dur_ms; // elapsed
         perf_summary_csv << ","
-                         << (host.find("127.") == 0 ?
+                         << (server_address.hostname.find("127.") == 0 ?
                                label :
                                label + string("_distributed")); // label
         perf_summary_csv << "," << total_bytes; // bytes

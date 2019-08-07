@@ -15,7 +15,7 @@ private:
 public:
   // Forward common arguments directly to base class
   template <typename... Ts>
-  SigRpcTlsClient(const std::vector<uint8_t>& priv_key_, Ts&&... ts) :
+  SigRpcTlsClient(const tls::Pem& priv_key_, Ts&&... ts) :
     RpcTlsClient(ts...),
     key_pair(tls::make_key_pair(priv_key_))
   {}

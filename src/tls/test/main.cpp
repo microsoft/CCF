@@ -20,7 +20,8 @@ static const string contents_ =
   "sint occaecat cupidatat non proident, sunt in culpa "
   "qui officia deserunt mollit anim id est laborum.";
 
-void corrupt(std::vector<uint8_t>& buf)
+template <typename T>
+void corrupt(T& buf)
 {
   buf[1]++;
   buf[buf.size() / 2]++;
@@ -36,6 +37,30 @@ static constexpr tls::CurveImpl supported_curves[] = {
 static constexpr char const* labels[] = {
   "secp384r1", "curve25519", "secp256k1_mbedtls", "secp256k1_bitcoin"};
 
+TEST_CASE("Sign, verify, with KeyPair")
+{
+  for (const auto curve : supported_curves)
+  {
+    INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
+    auto kp = tls::make_key_pair(curve);
+    vector<uint8_t> contents(contents_.begin(), contents_.end());
+    const vector<uint8_t> signature = kp->sign(contents);
+    CHECK(kp->verify(contents, signature));
+
+    auto kp2 = tls::make_key_pair(kp->private_key_pem());
+    CHECK(kp2->verify(contents, signature));
+
+    // Signatures won't necessarily be identical due to entropy, but should be
+    // mutually verifiable
+    for (auto i = 0; i < 10; ++i)
+    {
+      const auto new_sig = kp2->sign(contents);
+      CHECK(kp->verify(contents, new_sig));
+      CHECK(kp2->verify(contents, new_sig));
+    }
+  }
+}
+
 TEST_CASE("Sign, verify, with PublicKey")
 {
   for (const auto curve : supported_curves)
@@ -45,7 +70,7 @@ TEST_CASE("Sign, verify, with PublicKey")
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     const vector<uint8_t> signature = kp->sign(contents);
 
-    vector<uint8_t> public_key = kp->public_key();
+    const auto public_key = kp->public_key_pem();
     auto pubk = tls::make_public_key(public_key);
     CHECK(pubk->verify(contents, signature));
   }
@@ -60,7 +85,7 @@ TEST_CASE("Sign, fail to verify with bad signature")
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
-    vector<uint8_t> public_key = kp->public_key();
+    const auto public_key = kp->public_key_pem();
     auto pubk = tls::make_public_key(public_key);
     corrupt(signature);
     CHECK_FALSE(pubk->verify(contents, signature));
@@ -76,7 +101,7 @@ TEST_CASE("Sign, fail to verify with bad contents")
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
-    vector<uint8_t> public_key = kp->public_key();
+    const auto public_key = kp->public_key_pem();
     auto pubk = tls::make_public_key(public_key);
     corrupt(contents);
     CHECK_FALSE(pubk->verify(contents, signature));
@@ -93,7 +118,7 @@ TEST_CASE("Sign, fail to verify with wrong key on correct curve")
     vector<uint8_t> signature = kp->sign(contents);
 
     auto kp2 = tls::make_key_pair(curve);
-    vector<uint8_t> public_key = kp2->public_key();
+    const auto public_key = kp2->public_key_pem();
     auto pubk = tls::make_public_key(public_key);
     CHECK_FALSE(pubk->verify(contents, signature));
   }
@@ -112,7 +137,7 @@ TEST_CASE("Sign, fail to verify with wrong key on wrong curve")
       tls::CurveImpl::curve25519 :
       tls::CurveImpl::secp384r1;
     auto kp2 = tls::make_key_pair(wrong_curve);
-    vector<uint8_t> public_key = kp2->public_key();
+    const auto public_key = kp2->public_key_pem();
     auto pubk = tls::make_public_key(public_key);
     CHECK_FALSE(pubk->verify(contents, signature));
   }
@@ -135,7 +160,7 @@ TEST_CASE("Sign, verify with alternate implementation")
     vector<uint8_t> contents(contents_.begin(), contents_.end());
     vector<uint8_t> signature = kp->sign(contents);
 
-    vector<uint8_t> public_key = kp->public_key();
+    const auto public_key = kp->public_key_pem();
     auto pubk = tls::make_public_key(
       public_key, curves.second == tls::CurveImpl::secp256k1_bitcoin);
     CHECK(pubk->verify(contents, signature));
@@ -199,7 +224,7 @@ TEST_CASE("Manually hash, sign, verify, with PublicKey")
     tls::HashBytes hash = bad_manual_hash(contents);
     const vector<uint8_t> signature = kp->sign_hash(hash.data(), hash.size());
 
-    vector<uint8_t> public_key = kp->public_key();
+    const auto public_key = kp->public_key_pem();
     auto pubk = tls::make_public_key(public_key);
     CHECK(pubk->verify_hash(hash, signature));
     corrupt(hash);
@@ -222,5 +247,87 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
     CHECK(verifier->verify_hash(hash, signature));
     corrupt(hash);
     CHECK_FALSE(verifier->verify(hash, signature));
+  }
+}
+
+TEST_CASE("Recoverable signatures")
+{
+  auto kp = tls::KeyPair_k1Bitcoin(MBEDTLS_ECP_DP_SECP256K1);
+
+  vector<uint8_t> contents(contents_.begin(), contents_.end());
+  tls::HashBytes hash = bad_manual_hash(contents);
+
+  auto signature = kp.sign_recoverable_hashed(hash);
+  const auto target_pem = kp.public_key_pem().str();
+
+  auto recovered = tls::PublicKey_k1Bitcoin::recover_key(signature, hash);
+
+  {
+    INFO("Normal recovery");
+    CHECK(target_pem == recovered.public_key_pem().str());
+  }
+
+  // NB: Incorrect arguments _may_ cause the verification to throw with no
+  // recoverable key, but they may simply cause a different key to be returned.
+  // These tests look for either type of failure.
+
+  {
+    INFO("Corrupted hash");
+    auto hash2(hash);
+    corrupt(hash2);
+    bool recovery_failed = false;
+    try
+    {
+      auto r = tls::PublicKey_k1Bitcoin::recover_key(signature, hash2);
+      recovery_failed = target_pem != r.public_key_pem().str();
+    }
+    catch (const std::exception& e)
+    {
+      recovery_failed = true;
+    }
+    CHECK(recovery_failed);
+  }
+
+  {
+    INFO("Corrupted signature");
+    auto signature2(signature);
+    corrupt(signature2.raw);
+    bool recovery_failed = false;
+    try
+    {
+      auto r = tls::PublicKey_k1Bitcoin::recover_key(signature2, hash);
+      recovery_failed = target_pem != r.public_key_pem().str();
+    }
+    catch (const std::exception& e)
+    {
+      recovery_failed = true;
+    }
+    CHECK(recovery_failed);
+  }
+
+  {
+    INFO("Corrupted recovery_id");
+    auto signature3(signature);
+    signature3.recovery_id = (signature3.recovery_id + 1) % 4;
+    bool recovery_failed = false;
+    try
+    {
+      auto r = tls::PublicKey_k1Bitcoin::recover_key(signature3, hash);
+      recovery_failed = target_pem != r.public_key_pem().str();
+    }
+    catch (const std::exception& e)
+    {
+      recovery_failed = true;
+    }
+    CHECK(recovery_failed);
+  }
+
+  {
+    INFO("Recovered key is useable");
+
+    auto norm_sig = kp.sign(contents);
+    CHECK(recovered.verify(contents, norm_sig));
+    corrupt(norm_sig);
+    CHECK_FALSE(recovered.verify(contents, norm_sig));
   }
 }

@@ -422,7 +422,7 @@ namespace ccf
         nodes_view->foreach([&new_node, &duplicate_node_id](
                               const NodeId& nid, const NodeInfo& ni) {
           if (
-            new_node.tlsport == ni.tlsport && new_node.host == ni.host &&
+            new_node.rpcport == ni.rpcport && new_node.host == ni.host &&
             ni.status != NodeStatus::RETIRED)
           {
             duplicate_node_id = nid;
@@ -437,7 +437,7 @@ namespace ccf
               "A node with the same host {} and port {} already exists (node "
               "id: {})",
               new_node.host,
-              new_node.tlsport,
+              new_node.rpcport,
               duplicate_node_id));
         const auto node_id = get_next_id(
           args.tx.get_view(this->network.values), ValueIds::NEXT_NODE_ID);

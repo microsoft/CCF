@@ -272,8 +272,7 @@ class Network:
             "./memberclient",
             f"--cert=member{member_id}_cert.pem",
             f"--privk=member{member_id}_privk.pem",
-            f"--host={remote_node.host}",
-            f"--port={remote_node.tls_port}",
+            f"--server-address={remote_node.host}:{remote_node.rpc_port}",
             "--ca=networkcert.pem",
             *args,
         )
@@ -419,7 +418,7 @@ class Network:
                     (
                         local_node
                         for local_node in active_local_nodes
-                        if local_node.tls_port == port
+                        if local_node.rpc_port == port
                     ),
                     None,
                 )
@@ -571,7 +570,7 @@ class Node:
 
         hosts, *port = host.split(":")
         self.host, *self.pubhost = hosts.split(",")
-        self.tls_port = port[0] if port else None
+        self.rpc_port = port[0] if port else None
 
         if self.host == "localhost":
             self.host = infra.net.expand_localhost()
@@ -590,12 +589,12 @@ class Node:
         return self.node_id == other.node_id
 
     def _set_ports(self, probably_free_function):
-        if self.tls_port is None:
-            self.raft_port, self.tls_port = infra.net.two_different(
+        if self.rpc_port is None:
+            self.node_port, self.rpc_port = infra.net.two_different(
                 probably_free_function, self.host
             )
         else:
-            self.raft_port = probably_free_function(self.host)
+            self.node_port = probably_free_function(self.host)
 
     def start(
         self,
@@ -626,8 +625,8 @@ class Node:
             str(self.local_node_id),
             self.host,
             self.pubhost,
-            self.raft_port,
-            self.tls_port,
+            self.node_port,
+            self.rpc_port,
             self.remote_impl,
             enclave_type,
             self.verify_quote,
@@ -676,9 +675,8 @@ class Node:
     def start_network(self, network):
         infra.proc.ccall(
             "./client",
-            "--host={}".format(self.host),
-            "--port={}".format(self.tls_port),
-            "--ca={}".format(self.remote.pem),
+            f"--server-address={self.host}:{self.rpc_port}",
+            f"--ca={self.remote.pem}",
             "startnetwork",
             "--req=@startNetwork.json",
         ).check_returncode()
@@ -697,7 +695,7 @@ class Node:
                 "joinNetwork",
                 {
                     "hostname": leader.host,
-                    "service": str(leader.tls_port),
+                    "service": str(leader.rpc_port),
                     "network_cert": network.net_cert,
                 },
             )
@@ -716,7 +714,7 @@ class Node:
     def user_client(self, format="msgpack", user_id=1, **kwargs):
         return infra.jsonrpc.client(
             self.host,
-            self.tls_port,
+            self.rpc_port,
             cert="user{}_cert.pem".format(user_id),
             key="user{}_privk.pem".format(user_id),
             cafile="networkcert.pem",
@@ -728,7 +726,7 @@ class Node:
     def management_client(self, **kwargs):
         return infra.jsonrpc.client(
             self.host,
-            self.tls_port,
+            self.rpc_port,
             "management",
             cert=None,
             key=None,
@@ -740,7 +738,7 @@ class Node:
     def member_client(self, member_id=1, **kwargs):
         return infra.jsonrpc.client(
             self.host,
-            self.tls_port,
+            self.rpc_port,
             "members",
             cert="member{}_cert.pem".format(member_id),
             key="member{}_privk.pem".format(member_id),

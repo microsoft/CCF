@@ -166,7 +166,7 @@ namespace ccf
             return jsonrpc::error_response(
               ctx.req.seq_no,
               jsonrpc::CCFErrorCodes::TX_NOT_LEADER,
-              info->pubhost + ":" + info->tlsport);
+              info->pubhost + ":" + info->rpcport);
           }
         }
         return jsonrpc::error_response(
@@ -239,7 +239,7 @@ namespace ccf
               GetLeaderInfo::Out out;
               out.leader_id = leader_id;
               out.leader_host = info->pubhost;
-              out.leader_port = info->tlsport;
+              out.leader_port = info->rpcport;
               return jsonrpc::success(out);
             }
           }
@@ -260,7 +260,7 @@ namespace ccf
           nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
             if (ni.status == ccf::NodeStatus::TRUSTED)
             {
-              out.nodes.push_back({nid, ni.pubhost, ni.tlsport});
+              out.nodes.push_back({nid, ni.pubhost, ni.rpcport});
             }
             return true;
           });
@@ -610,9 +610,12 @@ namespace ccf
         rpc_ = &req;
       }
       auto& unsigned_rpc = *rpc_;
+      bool has_updated_merkle_root = false;
 
-      auto cb = [&merkle_root](kv::TxHistory::ResultCallbackArgs args) -> bool {
+      auto cb = [&merkle_root, &has_updated_merkle_root](
+                  kv::TxHistory::ResultCallbackArgs args) -> bool {
         merkle_root = args.merkle_root;
+        has_updated_merkle_root = true;
         return true;
       };
       history->register_on_result(cb);
@@ -621,6 +624,11 @@ namespace ccf
         process_json(ctx, tx, ctx.fwd->caller_id, unsigned_rpc, signed_request);
 
       history->clear_on_result();
+
+      if (!has_updated_merkle_root)
+      {
+        merkle_root = history->get_root();
+      }
 
       // TODO(#PBFT): Add RPC response to history based on Request ID
       // if (history)

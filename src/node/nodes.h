@@ -32,17 +32,17 @@ namespace ccf
   {
     std::string host;
     std::string pubhost;
-    std::string raftport;
-    std::string tlsport;
+    std::string nodeport;
+    std::string rpcport;
     std::vector<uint8_t> cert;
     std::vector<uint8_t> quote;
     NodeStatus status = NodeStatus::PENDING;
 
-    MSGPACK_DEFINE(host, pubhost, raftport, tlsport, cert, quote, status);
+    MSGPACK_DEFINE(host, pubhost, nodeport, rpcport, cert, quote, status);
   };
   DECLARE_JSON_TYPE(NodeInfo);
   DECLARE_JSON_REQUIRED_FIELDS(
-    NodeInfo, host, pubhost, raftport, tlsport, cert, quote, status);
+    NodeInfo, host, pubhost, nodeport, rpcport, cert, quote, status);
 
   using Nodes = Store::Map<NodeId, NodeInfo>;
 }

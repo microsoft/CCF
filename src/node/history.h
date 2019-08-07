@@ -155,6 +155,7 @@ namespace ccf
       kv::Version version,
       const std::vector<uint8_t>& data) override
     {}
+    void add_result(RequestID id, kv::Version version) override {}
     void add_response(
       kv::TxHistory::RequestID id,
       const std::vector<uint8_t>& response) override
@@ -171,6 +172,11 @@ namespace ccf
     void clear_on_result() override {}
 
     void clear_on_response() override {}
+
+    crypto::Sha256Hash get_root() override
+    {
+      return crypto::Sha256Hash();
+    }
   };
 
   class MerkleTreeHistory
@@ -306,7 +312,7 @@ namespace ccf
       id = id_;
     }
 
-    crypto::Sha256Hash get_root()
+    crypto::Sha256Hash get_root() override
     {
       return tree.get_root();
     }
@@ -408,6 +414,19 @@ namespace ccf
       const std::vector<uint8_t>& data) override
     {
       append(data);
+      auto root = get_root();
+      LOG_DEBUG << fmt::format(
+                     "HISTORY: add_result {0} {1} {2}", id, version, root)
+                << std::endl;
+#ifdef PBFT
+      results[id] = {version, root};
+      if (on_result.has_value())
+        on_result.value()({id, version, root});
+#endif
+    }
+
+    void add_result(kv::TxHistory::RequestID id, kv::Version version) override
+    {
       auto root = get_root();
       LOG_DEBUG << fmt::format(
                      "HISTORY: add_result {0} {1} {2}", id, version, root)
