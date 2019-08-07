@@ -27,4 +27,22 @@ the dataset provided, and it will launch the poll.py script which polls the serv
 the revealed transactions. 
 
 The logs that will be pushed to ELK will be in the build directory and are transactions.log for the transactions and revealed.log
-for the revealed transactions. 
+for the revealed transactions.
+
+## Kibana Dashboard
+
+You can find the Kibana dashboard that is used for this demo in the `tests/hackathon/Demo_Dashboard_v0.1.ndjson`file. 
+You just need to import that into Kibana.
+
+## What is this app/demo doing?
+
+There are banks and regulators. Banks issue transactions that can not be leaked outside of CCF. Regulators register algorithms that
+return true or false but do not reveal any transactions. The algorithms run on each transaction that the banks issue.
+
+If a transaction is flagged (i.e. an algorithm returns true), then the flagged transactions table gets populated. In that table the
+key will be the `tx_id` and it will map to `[regulator id, revealed, timestamp, regulator name]` where `revealed` is a boolean 
+indicating  if the transaction has been revealed or not. A flagged transaction does not mean that it's details are visible to regulators 
+(hence the `revealed` boolean). 
+
+The bank that issued the transaction can then go and reveal it by setting the `revealed` boolean to true. The regulator can then see
+all the details related to it (src_country, dst_country, amt, etc).

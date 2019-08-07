@@ -40,7 +40,6 @@ def run(args):
                 data = f.readlines()
             script = "".join(data)
 
-        # TODO: Use check_commit for Write RPCs
         regulator = (0, "gbr", script)
         banks = [(1, "us", 99), (1, "gbr", 29), (2, "grc", 99), (2, "fr", 29)]
 

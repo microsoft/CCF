@@ -42,7 +42,7 @@ return {
     end
 
     -- Flagged transactions:
-    --    tx_id        ->  [regulator id, revealed, timestamp]
+    --    tx_id        ->  [regulator id, revealed, timestamp, regulator name]
     function env.flagged_tx()
       return tables.priv3
     end
