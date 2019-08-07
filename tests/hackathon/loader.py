@@ -25,7 +25,7 @@ KNOWN_COUNTRIES = ["US", "GB", "FR", "GR", "AU", "BR", "ZA", "JP", "IN"]
 
 
 def run(args):
-    hosts = ["127.10.10.10:8888"]
+    hosts = ["localhost"]
 
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
