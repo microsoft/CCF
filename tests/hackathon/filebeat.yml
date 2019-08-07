@@ -1,6 +1,6 @@
 ###
 #
-## Copy me to /etc/filebeat/filebeat.yml, unpte the paths and certificate and restart filebeat
+## Copy me to /etc/filebeat/filebeat.yml, update the paths and certificate and restart filebeat
 ## with "$ sudo service filebeat restart"
 #
 ##
