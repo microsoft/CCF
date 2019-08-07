@@ -29,7 +29,6 @@ steps:
   env:
     GITHUB_TOKEN: $(GITHUB_TOKEN)
   displayName: 'Post cimetrics graphs as PR comment'
-  workingDirectory: build
   condition: eq(variables['Build.Reason'], 'PullRequest')
 
 - task: PublishBuildArtifacts@1
