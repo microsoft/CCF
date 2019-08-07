@@ -10,13 +10,13 @@ steps:
   displayName: CTest
   workingDirectory: build
 
-- script: source env/bin/activate && python -m cimetrics.plot
+- script: ./env.sh python -m cimetrics.plot
   env:
     METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
   displayName: 'Plot metrics'
 
 # This step is only run on Pull Request
-- script: source env/bin/activate && python -m cimetrics.github_pr
+- script: ./env.sh python -m cimetrics.github_pr
   env:
     GITHUB_TOKEN: $(GITHUB_TOKEN)
   displayName: 'Post metrics graphs as PR comment'
