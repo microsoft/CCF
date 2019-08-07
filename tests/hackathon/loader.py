@@ -38,7 +38,7 @@ def run(args):
                         "python3",
                         f"{os.path.realpath(os.path.dirname(__file__))}/poll.py",
                         f"--host={primary.host}",
-                        f"--port={primary.tls_port}",
+                        f"--port={primary.rpc_port}",
                     ],
                     stdout=stdout,
                 )
@@ -50,7 +50,7 @@ def run(args):
             )
             LOG.warning("")
             LOG.warning(
-                f"python3 {os.path.realpath(os.path.dirname(__file__))}/poll.py --host={primary.host} --port={primary.tls_port}"
+                f"python3 {os.path.realpath(os.path.dirname(__file__))}/poll.py --host={primary.host} --port={primary.rpc_port}"
             )
             LOG.warning("")
             input("")

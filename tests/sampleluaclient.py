@@ -9,8 +9,6 @@ import csv
 import random
 from enum import IntEnum
 
-from iso3166 import countries
-
 from loguru import logger as LOG
 
 
@@ -51,25 +49,17 @@ def run(args):
                 check(
                     c.rpc(
                         "REG_register",
-                        {
-                            "country": countries.get(regulator[1]).numeric,
-                            "script": regulator[2],
-                        },
+                        {"country": regulator[1], "script": regulator[2]},
                     ),
                     result=regulator[0],
                 )
                 check(
                     c.rpc("REG_get", {"id": regulator[0]}),
-                    result=[
-                        countries.get(regulator[1]).numeric.encode(),
-                        regulator[2].encode(),
-                    ],
+                    result=[regulator[1].encode(), regulator[2].encode()],
                 )
 
                 check(
-                    c.rpc(
-                        "BK_register", {"country": countries.get(regulator[1]).numeric}
-                    ),
+                    c.rpc("BK_register", {"country": regulator[1]}),
                     error=lambda e: e is not None
                     and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
                 )
@@ -80,17 +70,11 @@ def run(args):
                 check_commit = infra.ccf.Checker(mc)
                 check = infra.ccf.Checker()
 
-                check(
-                    c.rpc("BK_register", {"country": countries.get(bank[1]).numeric}),
-                    result=bank[0],
-                )
-                check(
-                    c.rpc("BK_get", {"id": bank[0]}),
-                    result=countries.get(bank[1]).numeric.encode(),
-                )
+                check(c.rpc("BK_register", {"country": bank[1]}), result=bank[0])
+                check(c.rpc("BK_get", {"id": bank[0]}), result=bank[1].encode())
 
                 check(
-                    c.rpc("REG_register", {"country": countries.get(bank[1]).numeric}),
+                    c.rpc("REG_register", {"country": bank[1]}),
                     error=lambda e: e is not None
                     and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
                 )
@@ -116,7 +100,7 @@ def run(args):
                 dst = banks[(i + 1) % len(banks)]
                 amt = banks[i][2]
 
-                src_country = countries.get(bank[1]).numeric
+                src_country = bank[1]
                 tmstamp = strftime("%a, %d %b %Y %H:%M:%S +0000", gmtime())
                 check(
                     c.rpc(
@@ -128,7 +112,7 @@ def run(args):
                             "type": TransactionType.TRANSFER.value,
                             "timestamp": tmstamp,
                             "src_country": src_country,
-                            "dst_country": countries.get(dst[1]).numeric,
+                            "dst_country": dst[1],
                         },
                     ),
                     result=tx_id,
@@ -137,12 +121,12 @@ def run(args):
                     c.rpc("TX_get", {"tx_id": tx_id}),
                     result={
                         "bank_id": bank[0],
-                        "dst_country": countries.get(dst[1]).numeric.encode(),
+                        "dst_country": dst[1].encode(),
                         "src": bank[0],
                         "type": TransactionType.TRANSFER.value,
                         "timestamp": tmstamp.encode(),
                         "amt": amt,
-                        "src_country": countries.get(bank[1]).numeric.encode(),
+                        "src_country": bank[1].encode(),
                         "dst": dst[0],
                     },
                 )
@@ -156,9 +140,9 @@ def run(args):
                             "amt": amt,
                             "bank_id": bank[0],
                             "dst": dst[0],
-                            "dst_country": countries.get(dst[1]).numeric.encode(),
+                            "dst_country": dst[1].encode(),
                             "src": bank[0],
-                            "src_country": countries.get(bank[1]).numeric.encode(),
+                            "src_country": bank[1].encode(),
                             "timestamp": tmstamp.encode(),
                             "tx_id": tx_id,
                             "type": TransactionType.TRANSFER.value,

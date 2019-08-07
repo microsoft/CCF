@@ -6,7 +6,6 @@ import infra.ccf
 import logging
 import time
 import csv
-from iso3166 import countries
 from loguru import logger as LOG
 import argparse
 from infra.jsonrpc import client
@@ -70,12 +69,8 @@ def run(args):
                             stringified_tx = {k: convert(v) for k, v in tx.items()}
                             print(json.dumps(stringified_tx))
 
-                            tx["src_country"] = countries.get(
-                                tx["src_country"].decode()
-                            ).alpha2.lower()
-                            tx["dst_country"] = countries.get(
-                                tx["dst_country"].decode()
-                            ).alpha2.lower()
+                            tx["src_country"] = tx["src_country"].decode()
+                            tx["dst_country"] = tx["dst_country"].decode()
                             revealed.append(tx)
                     LOG.info(flagged_txs)
                     LOG.info(revealed)
@@ -84,8 +79,8 @@ def run(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", help="Load an existing scenario file (csv)", type=str)
-    parser.add_argument("--port", help="Load an existing scenario file (csv)", type=int)
+    parser.add_argument("--host", help="Hostname that service is running on", type=str)
+    parser.add_argument("--port", help="Port that service is running on", type=int)
 
     args = parser.parse_args()
     run(args)

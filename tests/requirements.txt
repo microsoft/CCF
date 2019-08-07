@@ -2,4 +2,3 @@ paramiko
 msgpack
 loguru
 coincurve
-iso3166
