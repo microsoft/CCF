@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tlsendpoint.h"
+
 #include <http-parser/http_parser.h>
 
 namespace enclave
@@ -23,7 +24,8 @@ namespace enclave
       count(0)
     {
       http_parser_settings settings;
-      http_parser *parser = static_cast<http_parser *>(malloc(sizeof(http_parser)));
+      http_parser* parser =
+        static_cast<http_parser*>(malloc(sizeof(http_parser)));
       http_parser_init(parser, HTTP_REQUEST);
     }
 
