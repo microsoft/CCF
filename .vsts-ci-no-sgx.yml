@@ -88,6 +88,8 @@ jobs:
     - script: ../tests/coverage/generate_coverage.sh
       displayName: 'Push coverage'
       workingDirectory: build
+      env: 
+        CODECOV_TOKEN: $(codecov.token)
 
 - job: SAN
   pool: Ubuntu-1804-D8s_v3
