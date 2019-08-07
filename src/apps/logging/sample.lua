@@ -151,10 +151,12 @@ return {
       if not tx_v then
         return env.jerr(env.error_codes.INVALID_PARAMS, "No such transaction")
       end
+
       -- TODO: For now, anyone can reveal transactions
       -- if tx_v[1] ~= args.caller_id then
       --   return env.jerr(env.error_codes.INVALID_CALLER_ID, "Transaction was not issued by you")
       -- end
+
       flagged_table = env.flagged_tx()
       flagged_v = flagged_table:get(tx_id)
       if not flagged_v then
