@@ -225,9 +225,6 @@ set(LUA_SOURCES
   ${LUA_DIR}/lvm.c
   ${LUA_DIR}/lzio.c)
 
-set(HTTP_PARSER_SOURCES
-  ${CCF_DIR}/3rdparty/http-parser/http_parser.c)
-
 set(OE_MBEDTLS_LIBRARIES
   "${OE_LIB_DIR}/enclave/libmbedtls.a"
   "${OE_LIB_DIR}/enclave/libmbedx509.a"
@@ -466,7 +463,6 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       lua.host
       ${CMAKE_THREAD_LIBS_INIT}
       secp256k1.host
-      http_parser.host
     )
     enable_coverage(${virt_name})
     use_client_mbedtls(${virt_name})
@@ -574,11 +570,6 @@ target_compile_definitions(lua.enclave PRIVATE NO_IO)
 add_library(lua.host STATIC ${LUA_SOURCES})
 target_compile_definitions(lua.host PRIVATE NO_IO)
 set_property(TARGET lua.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-
-add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
-set_property(TARGET http_parser.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
-add_enclave_library_c(http_parser.host "${HTTP_PARSER_SOURCES}")
-set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Common test args for Python scripts starting up CCF networks
 set(CCF_NETWORK_TEST_ARGS
