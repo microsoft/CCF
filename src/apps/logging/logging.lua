@@ -3,20 +3,8 @@
 
 return {
   __environment = [[
-    env = {
-      error_codes = {
-        PARSE_ERROR = -32700,
-        INVALID_REQUEST = -32600,
-        METHOD_NOT_FOUND = -32601,
-        INVALID_PARAMS = -32602,
-        INTERNAL_ERROR = -32603,
-        INVALID_CLIENT_SIGNATURE = -32605,
-        INVALID_CALLER_ID = -32606,
-        
-        INSUFFICIENT_RIGHTS = -32006,
-        DENIED = -32007
-      }
-    }
+    env.error_codes.UNKNOWN_ID = env.error_codes.APP_ERROR_START
+    env.error_codes.MESSAGE_EMPTY = env.error_codes.UNKNOWN_ID - 1
 
     function env.jsucc(result)
       return {result = result}
@@ -30,12 +18,15 @@ return {
     function env.get(table)
       msg = table:get(args.params.id)
       if not msg then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "No such record") 
+        return env.jerr(env.error_codes.UNKNOWN_ID, "No such record: " .. args.params.id) 
       end
       return env.jsucc(msg)
     end
     
     function env.record(table)
+      if string.len(args.params.msg) == 0 then
+        return env.jerr(env.error_codes.MESSAGE_EMPTY, "Cannot record an empty log message") 
+      end
       table:put(args.params.id, args.params.msg)
       return env.jsucc(true)
     end

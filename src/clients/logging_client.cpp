@@ -125,8 +125,10 @@ int main(int argc, char** argv)
   const auto raw_key = files::slurp(key_file);
   const auto ca = files::slurp(ca_file);
 
+  const tls::Pem key_pem(raw_key);
+
   const auto cert = make_shared<tls::Cert>(
-    "users", make_shared<tls::CA>(ca), raw_cert, raw_key, nullb);
+    "users", make_shared<tls::CA>(ca), raw_cert, key_pem, nullb);
 
   LoggingClient client(host, port, cert);
 

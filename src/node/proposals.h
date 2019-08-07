@@ -68,8 +68,10 @@ namespace ccf
       bool completed;
     };
   };
-  DECLARE_REQUIRED_JSON_FIELDS(Proposal::In, script, parameter)
-  DECLARE_REQUIRED_JSON_FIELDS(Proposal::Out, id, completed)
+  DECLARE_JSON_TYPE(Proposal::In)
+  DECLARE_JSON_REQUIRED_FIELDS(Proposal::In, script, parameter)
+  DECLARE_JSON_TYPE(Proposal::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(Proposal::Out, id, completed)
 
   struct OpenProposal
   {
@@ -93,7 +95,9 @@ namespace ccf
 
     MSGPACK_DEFINE(script, parameter, proposer, votes);
   };
-  DECLARE_REQUIRED_JSON_FIELDS(OpenProposal, script, parameter, proposer, votes)
+  DECLARE_JSON_TYPE(OpenProposal)
+  DECLARE_JSON_REQUIRED_FIELDS(OpenProposal, script, parameter, proposer, votes)
+
   using Proposals = Store::Map<ObjectId, OpenProposal>;
 
   struct ProposalAction
@@ -101,13 +105,15 @@ namespace ccf
     //! the id of the proposal subject to the action
     ObjectId id;
   };
-  DECLARE_REQUIRED_JSON_FIELDS(ProposalAction, id)
+  DECLARE_JSON_TYPE(ProposalAction)
+  DECLARE_JSON_REQUIRED_FIELDS(ProposalAction, id)
 
   struct Vote : public ProposalAction
   {
     Script ballot;
   };
-  DECLARE_REQUIRED_JSON_FIELDS_WITH_BASE(Vote, ProposalAction, ballot)
+  DECLARE_JSON_TYPE_WITH_BASE(Vote, ProposalAction)
+  DECLARE_JSON_REQUIRED_FIELDS(Vote, ballot)
 
   //! A call proposed by a proposal script
   struct ProposedCall
@@ -117,7 +123,8 @@ namespace ccf
     //! the corresponding arguments
     nlohmann::json args;
   };
-  DECLARE_REQUIRED_JSON_FIELDS(ProposedCall, func, args)
+  DECLARE_JSON_TYPE(ProposedCall)
+  DECLARE_JSON_REQUIRED_FIELDS(ProposedCall, func, args)
 
   /** A list of calls proposed (and returned) by a proposal script
    * Every proposal script must return a compatible data structure.
@@ -134,5 +141,6 @@ namespace ccf
 
     using Out = nlohmann::json;
   };
-  DECLARE_REQUIRED_JSON_FIELDS(KVRead::In, table, key);
+  DECLARE_JSON_TYPE(KVRead::In)
+  DECLARE_JSON_REQUIRED_FIELDS(KVRead::In, table, key);
 }

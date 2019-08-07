@@ -55,9 +55,12 @@ auto munpack(T&& a)
   return unpack(forward<T>(a), Pack::MsgPack);
 }
 
-void check_error(const nlohmann::json& j, const int expected)
+template <typename E>
+void check_error(const nlohmann::json& j, const E expected)
 {
-  CHECK(j[ERR][CODE] == expected);
+  CHECK(
+    j[ERR][CODE].get<jsonrpc::ErrorBaseType>() ==
+    static_cast<jsonrpc::ErrorBaseType>(expected));
 }
 
 void check_success(const Response<bool> r, const bool expected = true)
@@ -220,7 +223,7 @@ TEST_CASE("Member query/read")
 
     check_error(
       frontend.process_json(rpc_ctx, tx1, 0, req, sr).value(),
-      ErrorCodes::SCRIPT_ERROR);
+      CCFErrorCodes::SCRIPT_ERROR);
   }
 
   SUBCASE("Read: allowed access, key exists")
@@ -255,7 +258,7 @@ TEST_CASE("Member query/read")
 
     check_error(
       frontend.process_json(rpc_ctx, tx1, mid, read_call_j, sr).value(),
-      ErrorCodes::INVALID_PARAMS);
+      StandardErrorCodes::INVALID_PARAMS);
   }
 
   SUBCASE("Read: access not allowed")
@@ -271,7 +274,7 @@ TEST_CASE("Member query/read")
 
     check_error(
       frontend.process_json(rpc_ctx, tx1, 0, read_call_j, sr).value(),
-      ErrorCodes::SCRIPT_ERROR);
+      CCFErrorCodes::SCRIPT_ERROR);
   }
 }
 
@@ -323,7 +326,7 @@ TEST_CASE("Add new members until there are 7, then reject")
       read_params<int>(ValueIds::NEXT_MEMBER_ID, Tables::VALUES), "read"));
     check_error(
       munpack(frontend.process(rpc_ctx, read_next_member_id)),
-      ErrorCodes::INVALID_CALLER_ID);
+      CCFErrorCodes::INVALID_CALLER_ID);
 
     // propose new member, as proposer
     Script proposal(R"xxx(
@@ -396,7 +399,7 @@ TEST_CASE("Add new members until there are 7, then reject")
         // check that member with the new new_member cert can make rpc's now
         check_error(
           munpack(frontend.process(rpc_ctx, read_next_member_id)),
-          ErrorCodes::INVALID_CALLER_ID);
+          CCFErrorCodes::INVALID_CALLER_ID);
 
         // re-read proposal, as second member
         const Response<OpenProposal> final_read =
@@ -440,7 +443,7 @@ TEST_CASE("Add new members until there are 7, then reject")
       const auto send_bad_sig = mpack(create_json_req(bad_sig, "ack"));
       check_error(
         munpack(frontend.process(rpc_ctx, send_bad_sig)),
-        jsonrpc::INVALID_PARAMS);
+        jsonrpc::StandardErrorCodes::INVALID_PARAMS);
       // (5) sign new nonce and send it
       const auto good_sig =
         RawSignature{new_member->kp->sign(ack1.result.next_nonce)};
@@ -605,7 +608,7 @@ bool test_raw_writes(
       // proposal does not exist anymore, because it completed -> invalid params
       check_error(
         frontend.process_json(mem_rpc_ctx, tx, i, votej["req"], sr).value(),
-        ErrorCodes::INVALID_PARAMS);
+        StandardErrorCodes::INVALID_PARAMS);
     }
   }
   return completed;
@@ -752,7 +755,7 @@ TEST_CASE("Remove proposal")
 
     check_error(
       frontend.process_json(rpc_ctx, tx, 0, removalj, sr).value(),
-      ErrorCodes::INVALID_PARAMS);
+      StandardErrorCodes::INVALID_PARAMS);
   }
   SUBCASE("Attempt remove proposal that you didn't propose")
   {
@@ -764,7 +767,7 @@ TEST_CASE("Remove proposal")
 
     check_error(
       frontend.process_json(rpc_ctx, tx, 1, removalj, sr).value(),
-      ErrorCodes::INVALID_REQUEST);
+      StandardErrorCodes::INVALID_REQUEST);
   }
   SUBCASE("Successfully remove proposal")
   {
@@ -822,9 +825,8 @@ TEST_CASE("Complete proposal after initial rejection")
     ccf::SignedReq sr(completej);
 
     Store::Tx tx;
-    check_error(
-      frontend.process_json(rpc_ctx, tx, 1, completej, sr).value(),
-      ErrorCodes::DENIED);
+    check_success(
+      frontend.process_json(rpc_ctx, tx, 1, completej, sr).value(), false);
   }
   // put value that makes vote agree
   {

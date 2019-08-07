@@ -6,7 +6,14 @@ Overview
 
 CCF comes with a generic application for running Lua scripts called *luageneric*, implemented in [CCF]/src/apps/luageneric/luageneric.cpp. At runtime, *luageneric* dispatches incoming RPCs to Lua scripts stored in the table *APP_SCRIPTS*. The RPC method name is used as the key, and if a script exists at this key it is called with the RPC arguments. The initial contents of the table (i.e., at "genesis") are set by a Lua script passed to the *genesisgenerator* via the ``--app-script`` parameter. 
 
-The script at key ``__environment`` is special. If set, the corresponding script is invoked before any actual handler script to initialize the Lua environment. 
+The script at key ``__environment`` is special. If set, the corresponding script is invoked before any actual handler script to initialize the Lua environment.
+
+Some global values are pre-populated in the Lua environment, to be used by both ``__environment`` and the handler scripts:
+
+* Loggers: the functions ``LOG_TRACE``, ``LOG_DEBUG``, ``LOG_INFO``, ``LOG_FAIL``, and ``LOG_FATAL`` will call CCF's equivalent logging macros, allowing Lua apps to write to stdout.
+
+* ``env`` table: common constants/functions should be set on this table rather than as additional global fields. This will contain a table named ``error_codes`` listing JSON RPC error codes defined by CCF (e.g., ``env.error_codes.INVALID_PARAMS`` can be used rather than ``-32603``). App-specific error codes may be added to this table with values between ``APP_ERROR_START`` and ``SERVER_ERROR_END``.
+
 
 RPC Handler
 ```````````
@@ -16,7 +23,7 @@ The following shows an implementation of the Logging application, where each RPC
 .. literalinclude:: ../../src/apps/logging/logging.lua
     :language: lua
 
-Here, functionality shared between the handlers (e.g., ``env.jsucc()``) is defined in the ``__environment`` script.
+Here, functionality shared between the handlers (e.g., ``env.jsucc()``) and app-specific error codes (e.g., ``MESSAGE_EMPTY``) are defined in the ``__environment`` script.
 
 Interface
 `````````

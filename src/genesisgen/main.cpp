@@ -27,7 +27,7 @@ tls::Cert gen_cert(const string& name)
 {
   auto k = tls::make_key_pair();
   auto cert = k->self_sign("CN=" + name);
-  auto privk = k->private_key();
+  auto privk = k->private_key_pem();
 
   ofstream(name + "_cert.pem", ios_base::trunc | ios::binary)
     .write((char*)cert.data(), cert.size());

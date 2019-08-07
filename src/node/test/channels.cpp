@@ -112,8 +112,8 @@ TEST_CASE("Channel manager")
   NodeId other_id = 3;
 
   auto kp = tls::make_key_pair(), kp_other = tls::make_key_pair();
-  auto network_pkey = kp->private_key();
-  auto other_pkey = kp_other->private_key();
+  auto network_pkey = kp->private_key_pem();
+  auto other_pkey = kp_other->private_key_pem();
 
   ChannelManager leader_n2n_channel_manager(network_pkey);
   ChannelManager follower_n2n_channel_manager(network_pkey);
