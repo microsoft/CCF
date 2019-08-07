@@ -38,13 +38,16 @@ def run(args):
         resource.prlimit(primary_pid, resource.RLIMIT_NOFILE, (max_fds, max_fds))
         LOG.info(f"set max fds to {max_fds} on {primary_pid}")
 
-        nb_conn = max_fds - num_fds
+        nb_conn = (max_fds - num_fds) * 2
         clients = []
 
         with contextlib.ExitStack() as es:
-            for i in range(nb_conn - 1):
-                clients.append(es.enter_context(primary.user_client(format="json")))
-                LOG.info(f"Connected client {i}")
+            for i in range(nb_conn):
+                try:
+                    clients.append(es.enter_context(primary.user_client(format="json")))
+                    LOG.info(f"Connected client {i}")
+                except OSError:
+                    LOG.error(f"Failed to connect client {i}")
             
             num_fds = psutil.Process(primary_pid).num_fds()
             LOG.info(f"{primary_pid} has {num_fds} open file descriptors")
@@ -56,7 +59,7 @@ def run(args):
 
         clients = []
         with contextlib.ExitStack() as es:
-            for i in range(nb_conn - 1):
+            for i in range(max_fds - num_fds):
                 clients.append(es.enter_context(primary.user_client(format="json")))
                 LOG.info(f"Connected client {i}")
             
