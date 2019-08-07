@@ -245,8 +245,8 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME propose
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/propose.py
+      NAME connections
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
     )
 
     ## Storing signed votes test
