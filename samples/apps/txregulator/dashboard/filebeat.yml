@@ -1,0 +1,24 @@
+###
+#
+## Copy me to /etc/filebeat/filebeat.yml, update the paths and certificate and restart filebeat
+## with "$ sudo service filebeat restart"
+#
+##
+
+# Inputs
+filebeat.inputs:
+
+- type: log
+  enabled: true
+  paths:
+    - /path/to/transactions.log
+    - /path/to/revealed.log
+  json:
+    - add_error_key: true
+
+# Outputs
+
+output.logstash:
+  enabled: true
+  hosts: ["elk:5044"]
+  ssl.certificate_authorities: ["/path/to/logstash-beats.crt"]
