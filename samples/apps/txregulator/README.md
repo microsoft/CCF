@@ -53,15 +53,6 @@ The dashboard should then be available in the Dashboard tab once some data has b
 
 ## Dataset
 
-The dataset file that is used in the demo should be a csv file with the below headers:
+A sample dataset file: txregulator/dataset/sample_data.csv. You can run use it to run run_demo.sh script.
 
-`nameOrig,nameDest,amount,type`
-`str,str,float,str`
-
-type example : {PAYMENT, CASH_OUT, TRANSFER}
-
-data example : `acc1,acc2,200.1,PAYMENT`
-
-where origin and destination are the origin and destination accounts of the transaction, amount is the amount being transfered,
-type is the type of the transaction (e.g. cash, wire_transfer). The transaction will be randomly populated with a source and
-destination country among `["US", "GB", "FR", "GR", "AU", "BR", "ZA", "JP", "IN"]`, and it will also be given a timestamp.
+There is also a python script: txregulator/tests/create_dataset.py which creates a random sample dataset 10000 lines long.

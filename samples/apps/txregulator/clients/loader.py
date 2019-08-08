@@ -7,13 +7,9 @@ import logging
 from time import gmtime, strftime, perf_counter
 import csv
 import random
-from enum import IntEnum
 from loguru import logger as LOG
 import json
 import subprocess
-
-KNOWN_COUNTRIES = ["US", "GB", "FR", "GR", "AU", "BR", "ZA", "JP", "IN"]
-
 
 def run(args):
     hosts = ["localhost"]
@@ -114,15 +110,15 @@ def run(args):
                     datafile = csv.DictReader(f)
                     for row in datafile:
                         json_tx = {
-                            "src": row["nameOrig"],
-                            "dst": row["nameDest"],
+                            "src": row["origin"],
+                            "dst": row["destination"],
                             "amt": row["amount"],
                             "type": row["type"],
                             "timestamp": strftime(
                                 "%a, %d %b %Y %H:%M:%S +0000", gmtime()
                             ),
-                            "src_country": random.choice(KNOWN_COUNTRIES),
-                            "dst_country": random.choice(KNOWN_COUNTRIES),
+                            "src_country": row["src_country"],
+                            "dst_country": row["dst_country"],
                         }
 
                         check(c.rpc("TX_record", json_tx), result=tx_id)

@@ -7,12 +7,8 @@ import logging
 from time import gmtime, strftime
 import csv
 import random
-from enum import IntEnum
 
 from loguru import logger as LOG
-
-KNOWN_COUNTRIES = ["us", "gbr", "fr", "grc"]
-
 
 def run(args):
     hosts = ["localhost"]
@@ -22,15 +18,34 @@ def run(args):
     ) as network:
         primary, others = network.start_and_join(args)
 
-        script = "if amt == 99 then return true else return false end"
+        script = "if tonumber(amt) > 200000 then return true else return false end"
         if args.lua_script is not None:
             data = []
             with open(args.lua_script, "r") as f:
                 data = f.readlines()
             script = "".join(data)
 
-        regulator = (0, "gbr", script)
-        banks = [(1, "us", 99), (1, "gbr", 29), (2, "grc", 99), (2, "fr", 29)]
+        regulator = (0, "GB", script)
+        banks = [(1, "US", 99), (1, "GB", 29), (2, "GR", 99), (2, "FR", 29)]
+        transactions = []
+        with open(args.datafile, newline="") as f:
+            datafile = csv.DictReader(f)
+            for i, row in enumerate(datafile):
+                # read first 10 lines
+                if i > 10:
+                    break
+                json_tx = {
+                    "src": row["origin"],
+                    "dst": row["destination"],
+                    "amt": row["amount"],
+                    "type": row["type"],
+                    "timestamp": strftime(
+                        "%a, %d %b %Y %H:%M:%S +0000", gmtime()
+                    ),
+                    "src_country": row["src_country"],
+                    "dst_country": row["dst_country"],
+                }
+                transactions.append(json_tx)
 
         with primary.management_client() as mc:
             with primary.user_client(format="msgpack", user_id=regulator[0] + 1) as c:
@@ -75,76 +90,68 @@ def run(args):
 
         tx_id = 0  # Tracks how many transactions have been issued
         # tracks flagged/non flagged and revealed/non revealed transactions for validation
-        revealed_tx = None
-        # [id, reg_id]
-        flagged_tx_ids = [[0, regulator[0]], [2, regulator[0]]]
-        revealed_tx_id = 2
-        non_revealed_tx_id = 3
-        flagged_amt = 99
+        flagged_txs = {}
+        revealed_tx_ids = []
+        flagged_ids = []
+        non_flagged_ids = []
+        flagged_amt = 200000
 
         for i, bank in enumerate(banks):
             bank_id = bank[0] + 1
             reg_id = regulator[0]
             with primary.user_client(format="msgpack", user_id=bank_id) as c:
-
                 # Destination account is the next one in the list of banks
-                dst = banks[(i + 1) % len(banks)]
-                amt = banks[i][2]
+                for transaction in transactions:
+                    print(transaction)
+                    amount = transaction["amt"]
 
-                src_country = bank[1]
-                tmstamp = strftime("%a, %d %b %Y %H:%M:%S +0000", gmtime())
-                check(
-                    c.rpc(
-                        "TX_record",
-                        {
-                            "src": bank[0],
-                            "dst": dst[0],
-                            "amt": amt,
-                            "type": "TRANSFER",
-                            "timestamp": tmstamp,
-                            "src_country": src_country,
-                            "dst_country": dst[1],
-                        },
-                    ),
-                    result=tx_id,
-                )
-                check(
-                    c.rpc("TX_get", {"tx_id": tx_id}),
-                    result={
-                        "bank_id": bank[0],
-                        "dst_country": dst[1].encode(),
-                        "src": bank[0],
-                        "type": "TRANSFER".encode(),
-                        "timestamp": tmstamp.encode(),
-                        "amt": amt,
-                        "src_country": bank[1].encode(),
-                        "dst": dst[0],
-                    },
-                )
-                if amt == flagged_amt:
                     check(
-                        c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
-                        result=[reg_id, False, tmstamp.encode()],
+                        c.rpc(
+                            "TX_record",
+                            transaction,
+                        ),
+                        result=tx_id,
                     )
-                    if tx_id == revealed_tx_id:
-                        revealed_tx = {
-                            "amt": amt,
+                    check(
+                        c.rpc("TX_get", {"tx_id": tx_id}),
+                        result={
+                            "amt": amount.encode(),
                             "bank_id": bank[0],
-                            "dst": dst[0],
-                            "dst_country": dst[1].encode(),
-                            "src": bank[0],
-                            "src_country": bank[1].encode(),
-                            "timestamp": tmstamp.encode(),
-                            "tx_id": tx_id,
-                            "type": "TRANSFER".encode(),
-                        }
-                else:
-                    check(
-                        c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
-                        error=lambda e: e is not None
-                        and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+                            "dst": transaction["dst"].encode(),
+                            "dst_country": transaction["dst_country"].encode(),
+                            "src": transaction["src"].encode(),
+                            "src_country": transaction["src_country"].encode(),
+                            "timestamp": transaction["timestamp"].encode(),
+                            "type": transaction["type"].encode(),
+                        },
                     )
-                tx_id += 1
+                    if float(amount) > flagged_amt:
+                        check(
+                            c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
+                            result=[reg_id, False, transaction["timestamp"].encode()],
+                        )
+                        flagged_tx = {
+                            "amt": amount.encode(),
+                            "bank_id": bank[0],
+                            "dst": transaction["dst"].encode(),
+                            "dst_country": transaction["dst_country"].encode(),
+                            "src": transaction["src"].encode(),
+                            "src_country": transaction["src_country"].encode(),
+                            "timestamp": transaction["timestamp"].encode(),
+                            "tx_id": tx_id,
+                            "type": transaction["type"].encode(),
+                        }
+                        flagged_ids.append(tx_id)
+                        flagged_txs[tx_id] = flagged_tx
+                    else:
+                        check(
+                            c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
+                            error=lambda e: e is not None
+                            and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+                        )
+                        non_flagged_ids.append(tx_id)
+
+                    tx_id += 1
         LOG.success(f"{tx_id} transactions have been successfully issued")
 
         # bank that issued first flagged transaction
@@ -156,32 +163,47 @@ def run(args):
                 and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
             )
 
-            # bank reveal first transaction that was flagged
-            check(c.rpc("TX_reveal", {"tx_id": revealed_tx_id}), result=True)
+            # bank reveal some transactions that were flagged
+            for i, tx_id in enumerate(flagged_ids):
+                if i % 2 == 0:
+                    check(c.rpc("TX_reveal", {"tx_id": tx_id}), result=True)
+                    revealed_tx_ids.append(tx_id)
 
-            # bank try to reveal non flagged tx
-            check(
-                c.rpc("TX_reveal", {"tx_id": non_revealed_tx_id}),
-                error=lambda e: e is not None
-                and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
-            )
+            # bank try to reveal non flagged txs
+            for tx_id in non_flagged_ids:
+                check(
+                    c.rpc("TX_reveal", {"tx_id": tx_id}),
+                    error=lambda e: e is not None
+                    and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+                )
 
         # regulator poll for transactions that are flagged
         with primary.management_client() as mc:
             with primary.user_client(format="msgpack", user_id=regulator[0] + 1) as c:
-                check(c.rpc("REG_poll_flagged", {}), result=flagged_tx_ids)
+                # assert that the flagged txs that we poll for are correct
+                resp = c.rpc("REG_poll_flagged", {})
+                poll_flagged_ids = []
+                for poll_flagged in resp.result:
+                    # poll flagged is a list [tx_id, regulator_id]
+                    poll_flagged_ids.append(poll_flagged[0])
+                poll_flagged_ids.sort()
+                assert poll_flagged_ids == flagged_ids
 
-                # get from flagged txs, try to get the flagged one that was not revealed
-                check(
-                    c.rpc("REG_get_revealed", {"tx_id": non_revealed_tx_id}),
-                    error=lambda e: e is not None
-                    and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
-                )
-                # get from flagged txs, try to get the flagged one that was revealed
-                check(
-                    c.rpc("REG_get_revealed", {"tx_id": revealed_tx_id}),
-                    result=revealed_tx,
-                )
+                for tx_id in flagged_ids:
+                    # get from flagged txs, try to get the flagged one that was not revealed
+                    if tx_id not in revealed_tx_ids:
+                        check(
+                            c.rpc("REG_get_revealed", {"tx_id": tx_id}),
+                            error=lambda e: e is not None
+                            and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+                        )
+                    
+                # get from flagged txs, try to get the flagged ones that were revealed
+                for tx_id in revealed_tx_ids:
+                    check(
+                        c.rpc("REG_get_revealed", {"tx_id": tx_id}),
+                        result=flagged_txs[tx_id],
+                    )
 
 
 if __name__ == "__main__":
@@ -190,7 +212,9 @@ if __name__ == "__main__":
         parser.add_argument(
             "--lua-script", help="Regulator checker loaded as lua script file", type=str
         )
-
+        parser.add_argument(
+            "--datafile", help="Load an existing scenario file (csv)", type=str
+        )
     args = e2e_args.cli_args(add)
     args.package = args.app_script and "libluagenericenc" or "libloggingenc"
     run(args)
