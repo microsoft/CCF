@@ -49,7 +49,7 @@ namespace oversized
             auto total_size = serialized::read<size_t>(data, size);
 
             // No safety checks on the size - trust that in normal operation the
-            // Writer has set sensible limits, don't duplicate here
+            // Writer has set sensible limits, don't duplicate here.
             uint8_t* dest = new uint8_t[total_size];
 
             auto ib =
