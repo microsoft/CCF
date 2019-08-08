@@ -18,6 +18,7 @@ import json
 import contextlib
 import resource
 import psutil
+import random
 
 from loguru import logger as LOG
 
@@ -28,6 +29,7 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
+        check = infra.ccf.Checker()
         primary, others = network.start_and_join(args)
 
         primary_pid = primary.remote.remote.proc.pid
@@ -49,6 +51,9 @@ def run(args):
                 except OSError:
                     LOG.error(f"Failed to connect client {i}")
 
+            c = clients[int(random.random() * len(clients))]
+            check(c.rpc("LOG_record", {"id": 42, "msg": "foo"}), result=True)
+
             assert (
                 len(clients) >= max_fds - num_fds - 1
             ), f"{len(clients)}, expected at least {max_fds - num_fds - 1}"
@@ -66,6 +71,9 @@ def run(args):
             for i in range(max_fds - num_fds):
                 clients.append(es.enter_context(primary.user_client(format="json")))
                 LOG.info(f"Connected client {i}")
+
+            c = clients[int(random.random() * len(clients))]
+            check(c.rpc("LOG_record", {"id": 42, "msg": "foo"}), result=True)
 
             assert (
                 len(clients) >= max_fds - num_fds - 1
