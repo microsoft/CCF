@@ -152,6 +152,7 @@ add_custom_command(
 )
 
 configure_file(${CCF_DIR}/tests/tests.sh ${CMAKE_CURRENT_BINARY_DIR}/tests.sh COPYONLY)
+configure_file(${CCF_DIR}/tests/cimetrics_env.sh ${CMAKE_CURRENT_BINARY_DIR}/cimetrics_env.sh COPYONLY)
 
 if(NOT ${TARGET} STREQUAL "virtual")
   # If OE was built with LINK_SGX=1, then we also need to link SGX
