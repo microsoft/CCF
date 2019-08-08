@@ -90,6 +90,14 @@ class CmdMixin(object):
             "-s",
         ] + self.cmd
 
+    def _print_upload_perf(self, name, metrics, lines):
+        for line in lines:
+            LOG.debug(line.decode())
+            res = re.search("=> (.*)tx/s", line.decode())
+            if res:
+                results_uploaded = True
+                metrics.put(name, float(res.group(1)))
+
 
 class SSHRemote(CmdMixin):
     def __init__(
@@ -287,18 +295,7 @@ class SSHRemote(CmdMixin):
             _, stdout, _ = client.exec_command(f"tail -{lines} {self.root}/out")
             if stdout.channel.recv_exit_status() == 0:
                 LOG.success(f"Result for {self.name}:")
-                results_uploaded = False
-                for line in stdout.read().splitlines():
-                    res = re.search("=> (.*)tx/s", line.decode())
-                    if res:
-                        # Upload to cimetrics
-                        results_uploaded = True
-                        metrics.put(name, float(res.group(1)))
-                        LOG.success("Results uploaded")
-                    LOG.debug(line.decode())
-
-                if not results_uploaded:
-                    LOG.error("Results were not uploaded")
+                self._print_upload_perf(name, metrics, stdout.read().splitlines())
                 return
         finally:
             client.close()
@@ -442,18 +439,7 @@ class LocalRemote(CmdMixin):
             lines = out.read().splitlines()
             result = lines[-line:]
             LOG.success(f"Result for {self.name}:")
-            for line in result:
-                res = re.search("=> (.*)tx/s", line.decode())
-                if res:
-                    # Upload to cimetrics
-                    results_uploaded = True
-                    metrics.put(name, float(res.group(1)))
-                    LOG.success("Results uploaded")
-                LOG.debug(line.decode())
-
-            if not results_uploaded:
-                LOG.error("Results were not uploaded")
-
+            self._print_upload_perf(name, metrics, result)
 
 CCF_TO_OE_LOG_LEVEL = {
     "trace": "VERBOSE",
@@ -643,7 +629,7 @@ class CCFRemote(object):
         return self.remote.wait_for_stdout_line(line, timeout)
 
     def print_and_upload_result(self, name, metrics, lines):
-        self.remote.print_and_upload_result(metrics, name, lines)
+        self.remote.print_and_upload_result(name, metrics, lines)
 
     def set_recovery(self):
         self.remote.set_recovery()
