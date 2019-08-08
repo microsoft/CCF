@@ -121,7 +121,7 @@ jobs:
       parameters:
         artifact_name: perf_build_results
 
-- job: ACC_1804_SGX_perf_build_A
+- job: ACC_1804_SGX_perf_tests
   pool: Ubuntu-1804-DC4s
   dependsOn:
     - ACC_1804_SGX_perf_build
@@ -134,23 +134,6 @@ jobs:
         artifact_name: perf_build_results
     - template: .vsts-ci-templates/test.yml
       parameters:
-        suite_name_suffix: ' SGX Performance A'
-        ctest_filter: '-L perf -I 0,,2'
-    - template: .vsts-ci-templates/push_perf_data.yml
-
-- job: ACC_1804_SGX_perf_build_B
-  pool: Ubuntu-1804-DC4s
-  dependsOn:
-    - ACC_1804_SGX_perf_build
-  steps:
-    - checkout: self
-      clean: true
-      submodules: true
-    - template: .vsts-ci-templates/download_build.yml
-      parameters:
-        artifact_name: perf_build_results
-    - template: .vsts-ci-templates/test.yml
-      parameters:
-        suite_name_suffix: ' SGX Performance B'
-        ctest_filter: '-L perf -I 1,,2'
+        suite_name_suffix: ' SGX Performance'
+        ctest_filter: '-L perf'
     - template: .vsts-ci-templates/push_perf_data.yml
