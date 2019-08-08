@@ -20,7 +20,7 @@ To run this demo and have the results visualized using ELK you will need to foll
 ## Filebeat
 
 * ** https://www.elastic.co/guide/en/beats/filebeat/current/filebeat-installation.html
-* ** replace /etc/filebeat/filebeat.yml with the yml config file located in the tests/hackathon directory
+* ** replace /etc/filebeat/filebeat.yml with the yml config file located in the txregulator/dashboard directory
 * ** place the certificate file (logstash-beats.crt) in the correct location, indicated in the flatbeat.yml file
 * ** `$ sudo service filebeat restart`
 * ** `$ sudo service filebeat status`
@@ -37,7 +37,7 @@ To run this demo and have the results visualized using ELK you will need to foll
 
 ## Run the demo
 
-From the build directory run `../tests/hackathon/run_demo.sh <path to dataset file>`. This will run the loader.py script which load
+From the build directory run `../samples/apps/txregulator/clients/run_demo.sh <path to dataset file>`. This will run the loader.py script which load
 the dataset provided, and it will launch the poll.py script which polls the service for flagged transactions, reveals and retrieved 
 the revealed transactions. 
 
@@ -46,7 +46,7 @@ for the revealed transactions.
 
 ## Kibana Dashboard
 
-You can find the Kibana dashboard that is used for this demo in the `tests/hackathon/Demo_Dashboard_v0.1.ndjson`file. 
+You can find the Kibana dashboard that is used for this demo in the `samples/apps/txregulator/dashboard/Demo_Dashboard_v0.1.ndjson` file. 
 You just need to import that into Kibana by clicking on Management -> Saved Objects -> Import. 
 
 The dashboard should then be available in the Dashboard tab once some data has been loaded in ELK.
@@ -55,7 +55,12 @@ The dashboard should then be available in the Dashboard tab once some data has b
 
 The dataset file that is used in the demo should be a csv file with the below headers:
 
-`origin,destination,amount,type`
+`nameOrig,nameDest,amount,type`
+`str,str,float,str`
+
+type example : {PAYMENT, CASH_OUT, TRANSFER}
+
+data example : `acc1,acc2,200.1,PAYMENT`
 
 where origin and destination are the origin and destination accounts of the transaction, amount is the amount being transfered,
 type is the type of the transaction (e.g. cash, wire_transfer). The transaction will be randomly populated with a source and

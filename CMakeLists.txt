@@ -259,9 +259,9 @@ if(BUILD_TESTS)
     ## Lua sample app end to end test
     add_e2e_test(
       NAME lua_sample_app_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/sampleluaclient.py
+      PYTHON_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/sampleluaclient.py
       ADDITIONAL_ARGS
-        --app-script ${CMAKE_SOURCE_DIR}/src/apps/sample_app/sample.lua)
+        --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/sample.lua)
 
     if(QUOTES_ENABLED)
       add_e2e_test(
