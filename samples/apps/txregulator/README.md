@@ -51,6 +51,8 @@ You just need to import that into Kibana by clicking on Management -> Saved Obje
 
 The dashboard should then be available in the Dashboard tab once some data has been loaded in ELK.
 
+![Kibana Dashboard](dashboard/kibana_dashboard.png?raw=true "Kibana Dashboard Example")
+
 ## Dataset
 
 A sample dataset file: txregulator/dataset/sample_data.csv. You can run use it to run run_demo.sh script.
