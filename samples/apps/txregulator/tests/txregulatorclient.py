@@ -10,6 +10,7 @@ import random
 
 from loguru import logger as LOG
 
+
 def run(args):
     hosts = ["localhost"]
 
@@ -39,9 +40,7 @@ def run(args):
                     "dst": row["destination"],
                     "amt": row["amount"],
                     "type": row["type"],
-                    "timestamp": strftime(
-                        "%a, %d %b %Y %H:%M:%S +0000", gmtime()
-                    ),
+                    "timestamp": strftime("%a, %d %b %Y %H:%M:%S +0000", gmtime()),
                     "src_country": row["src_country"],
                     "dst_country": row["dst_country"],
                 }
@@ -105,13 +104,7 @@ def run(args):
                     print(transaction)
                     amount = transaction["amt"]
 
-                    check(
-                        c.rpc(
-                            "TX_record",
-                            transaction,
-                        ),
-                        result=tx_id,
-                    )
+                    check(c.rpc("TX_record", transaction), result=tx_id)
                     check(
                         c.rpc("TX_get", {"tx_id": tx_id}),
                         result={
@@ -147,7 +140,8 @@ def run(args):
                         check(
                             c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
                             error=lambda e: e is not None
-                            and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+                            and e["code"]
+                            == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
                         )
                         non_flagged_ids.append(tx_id)
 
@@ -195,9 +189,10 @@ def run(args):
                         check(
                             c.rpc("REG_get_revealed", {"tx_id": tx_id}),
                             error=lambda e: e is not None
-                            and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+                            and e["code"]
+                            == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
                         )
-                    
+
                 # get from flagged txs, try to get the flagged ones that were revealed
                 for tx_id in revealed_tx_ids:
                     check(
@@ -215,6 +210,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "--datafile", help="Load an existing scenario file (csv)", type=str
         )
+
     args = e2e_args.cli_args(add)
     args.package = args.app_script and "libluagenericenc" or "libloggingenc"
     run(args)

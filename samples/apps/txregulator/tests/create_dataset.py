@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
 import random
 from time import strftime, gmtime
 import csv
@@ -16,8 +18,8 @@ with open(data_file, "a") as df:
     for i in range(rows):
         writer.writerow(
             [
-                "C" + str(random.randint(1000,9000)),
-                "M" + str(random.randint(1000,9000)),
+                "C" + str(random.randint(1000, 9000)),
+                "M" + str(random.randint(1000, 9000)),
                 random.uniform(1, max_money_moved),
                 random.choice(TYPES),
                 random.choice(KNOWN_COUNTRIES),

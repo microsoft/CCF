@@ -11,6 +11,7 @@ from loguru import logger as LOG
 import json
 import subprocess
 
+
 def run(args):
     hosts = ["localhost"]
 
