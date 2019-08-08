@@ -31,8 +31,8 @@ def run(args):
         primary, others = network.start_and_join(args)
 
         primary_pid = primary.remote.remote.proc.pid
-        max_fds = 50
         num_fds = psutil.Process(primary_pid).num_fds()
+        max_fds = num_fds + 50
         LOG.info(f"{primary_pid} has {num_fds} open file descriptors")
 
         resource.prlimit(primary_pid, resource.RLIMIT_NOFILE, (max_fds, max_fds))
@@ -49,12 +49,14 @@ def run(args):
                 except OSError:
                     LOG.error(f"Failed to connect client {i}")
 
-            assert len(clients) >= max_fds - num_fds - 1, f"{len(clients)}, expected at least {max_fds - num_fds - 1}"
-            
+            assert (
+                len(clients) >= max_fds - num_fds - 1
+            ), f"{len(clients)}, expected at least {max_fds - num_fds - 1}"
+
             num_fds = psutil.Process(primary_pid).num_fds()
             LOG.info(f"{primary_pid} has {num_fds} open file descriptors")
             LOG.info(f"Disconnecting clients")
-        
+
         time.sleep(1)
         num_fds = psutil.Process(primary_pid).num_fds()
         LOG.info(f"{primary_pid} has {num_fds} open file descriptors")
@@ -65,8 +67,10 @@ def run(args):
                 clients.append(es.enter_context(primary.user_client(format="json")))
                 LOG.info(f"Connected client {i}")
 
-            assert len(clients) >= max_fds - num_fds - 1, f"{len(clients)}, expected at least {max_fds - num_fds - 1}"
-            
+            assert (
+                len(clients) >= max_fds - num_fds - 1
+            ), f"{len(clients)}, expected at least {max_fds - num_fds - 1}"
+
             num_fds = psutil.Process(primary_pid).num_fds()
             LOG.info(f"{primary_pid} has {num_fds} open file descriptors")
             LOG.info(f"Disconnecting clients")
