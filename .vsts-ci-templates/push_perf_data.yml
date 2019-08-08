@@ -18,12 +18,13 @@ steps:
       az storage blob upload-batch -d metrics/$AGENT_NAME/${BUILD_SOURCEBRANCHNAME}_${BUILD_BUILDNUMBER} -s. --pattern "*_metrics.json.gz" --account-name ccfperf --subscription $(subscription)
     workingDirectory: build
 
-# cimetrics related tasks: render and publish results
+# cimetrics related tasks: render and publish results for Pull Requests build
 - script: ./env.sh python -m cimetrics.plot
   env:
     METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
   workingDirectory: build
   displayName: 'Plot cimetrics'
+  condition: eq(variables['Build.Reason'], 'PullRequest')
 
 - script: ./env.sh python -m cimetrics.github_pr
   env:
@@ -37,3 +38,4 @@ steps:
     pathtoPublish: _cimetrics
     artifactName: cimetrics
   displayName: 'Publish cimetrics graphs as build artifact'
+  condition: eq(variables['Build.Reason'], 'PullRequest')
