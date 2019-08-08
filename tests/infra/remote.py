@@ -13,6 +13,7 @@ import json
 import uuid
 import ctypes
 import signal
+import re
 
 from loguru import logger as LOG
 
@@ -88,6 +89,14 @@ class CmdMixin(object):
             "--call-graph=dwarf",
             "-s",
         ] + self.cmd
+
+    def _print_upload_perf(self, name, metrics, lines):
+        for line in lines:
+            LOG.debug(line.decode())
+            res = re.search("=> (.*)tx/s", line.decode())
+            if res:
+                results_uploaded = True
+                metrics.put(name, float(res.group(1)))
 
 
 class SSHRemote(CmdMixin):
@@ -280,14 +289,13 @@ class SSHRemote(CmdMixin):
         finally:
             client.close()
 
-    def print_result(self, lines):
+    def print_and_upload_result(self, name, metrics, lines):
         client = self._connect_new()
         try:
             _, stdout, _ = client.exec_command(f"tail -{lines} {self.root}/out")
             if stdout.channel.recv_exit_status() == 0:
                 LOG.success(f"Result for {self.name}:")
-                for line in stdout.read().splitlines():
-                    LOG.debug(line.decode())
+                self._print_upload_perf(name, metrics, stdout.read().splitlines())
                 return
         finally:
             client.close()
@@ -426,13 +434,12 @@ class LocalRemote(CmdMixin):
             "{} not found in stdout after {} seconds".format(line, timeout)
         )
 
-    def print_result(self, line):
+    def print_and_upload_result(self, name, metrics, line):
         with open(os.path.join(self.root, "out"), "rb") as out:
             lines = out.read().splitlines()
             result = lines[-line:]
             LOG.success(f"Result for {self.name}:")
-            for line in result:
-                LOG.debug(line.decode())
+            self._print_upload_perf(name, metrics, result)
 
 
 CCF_TO_OE_LOG_LEVEL = {
@@ -622,8 +629,8 @@ class CCFRemote(object):
     def wait_for_stdout_line(self, line, timeout=5):
         return self.remote.wait_for_stdout_line(line, timeout)
 
-    def print_result(self, lines):
-        self.remote.print_result(lines)
+    def print_and_upload_result(self, name, metrics, lines):
+        self.remote.print_and_upload_result(name, metrics, lines)
 
     def set_recovery(self):
         self.remote.set_recovery()

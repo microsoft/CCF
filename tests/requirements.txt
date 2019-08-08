@@ -2,3 +2,4 @@ paramiko
 msgpack
 loguru
 coincurve
+cimetrics>=0.1.5
