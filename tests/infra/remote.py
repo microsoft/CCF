@@ -441,6 +441,7 @@ class LocalRemote(CmdMixin):
             LOG.success(f"Result for {self.name}:")
             self._print_upload_perf(name, metrics, result)
 
+
 CCF_TO_OE_LOG_LEVEL = {
     "trace": "VERBOSE",
     "debug": "INFO",
