@@ -105,5 +105,5 @@ class CCFRemoteClient(object):
             LOG.exception("Failed to wait on client {}".format(self.name))
             raise
 
-    def print_result(self):
-        self.remote.print_result(self.LINES_RESULT_FROM_END)
+    def print_and_upload_result(self, name, metrics):
+        self.remote.print_and_upload_result(name, metrics, self.LINES_RESULT_FROM_END)
