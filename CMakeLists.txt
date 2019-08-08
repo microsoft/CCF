@@ -261,7 +261,7 @@ if(BUILD_TESTS)
       NAME lua_sample_app_test
       PYTHON_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/sampleluaclient.py
       ADDITIONAL_ARGS
-        --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/sample.lua)
+        --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua)
 
     if(QUOTES_ENABLED)
       add_e2e_test(

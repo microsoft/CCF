@@ -10,4 +10,4 @@ fi
 datafile=$1
 
 python3 "../samples/apps/txregulator/clients/loader.py" "-b" "." "--label" "lua_logging_client_test" "-l" "info" "-g" "../src/runtime_config/gov.lua" \
---app-script ../samples/apps/txregulator/app/sample.lua --lua-script ../samples/apps/txregulator/app/checker.lua --datafile "$datafile" --run-poll 1>>transactions.log
+--app-script ../samples/apps/txregulator/app/txregulator.lua --lua-script ../samples/apps/txregulator/app/checker.lua --datafile "$datafile" --run-poll 1>>transactions.log
