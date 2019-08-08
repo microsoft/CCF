@@ -11,15 +11,6 @@ from enum import IntEnum
 
 from loguru import logger as LOG
 
-
-class TransactionType(IntEnum):
-    PAYMENT = 1
-    TRANSFER = 2
-    CASH_OUT = 3
-    DEBIT = 4
-    CASH_IN = 5
-
-
 KNOWN_COUNTRIES = ["us", "gbr", "fr", "grc"]
 
 
@@ -109,7 +100,7 @@ def run(args):
                             "src": bank[0],
                             "dst": dst[0],
                             "amt": amt,
-                            "type": TransactionType.TRANSFER.value,
+                            "type": "TRANSFER",
                             "timestamp": tmstamp,
                             "src_country": src_country,
                             "dst_country": dst[1],
@@ -123,7 +114,7 @@ def run(args):
                         "bank_id": bank[0],
                         "dst_country": dst[1].encode(),
                         "src": bank[0],
-                        "type": TransactionType.TRANSFER.value,
+                        "type": "TRANSFER".encode(),
                         "timestamp": tmstamp.encode(),
                         "amt": amt,
                         "src_country": bank[1].encode(),
@@ -145,7 +136,7 @@ def run(args):
                             "src_country": bank[1].encode(),
                             "timestamp": tmstamp.encode(),
                             "tx_id": tx_id,
-                            "type": TransactionType.TRANSFER.value,
+                            "type": "TRANSFER".encode(),
                         }
                 else:
                     check(

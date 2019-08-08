@@ -2,8 +2,8 @@
 
 ## What is this app/demo doing?
 
-There are banks and regulators. Banks issue transactions that can not be leaked outside of CCF. Regulators register algorithms that
-return true or false but do not reveal any transactions. The algorithms run on each transaction that the banks issue.
+There are banks and regulators. Banks issue transactions that can not be leaked outside of CCF. Each regulator can register an
+algorithm that returns true or false but do not reveal any transactions. The algorithms run on each transaction that the banks issue.
 
 If a transaction is flagged (i.e. an algorithm returns true), then the flagged transactions table gets populated. In that table the
 key will be the `tx_id` and it will map to `[regulator id, revealed, timestamp, regulator name]` where `revealed` is a boolean 

@@ -12,15 +12,6 @@ from loguru import logger as LOG
 import json
 import subprocess
 
-
-class TransactionType(IntEnum):
-    PAYMENT = 1
-    TRANSFER = 2
-    CASH_OUT = 3
-    DEBIT = 4
-    CASH_IN = 5
-
-
 KNOWN_COUNTRIES = ["US", "GB", "FR", "GR", "AU", "BR", "ZA", "JP", "IN"]
 
 
@@ -123,10 +114,10 @@ def run(args):
                     datafile = csv.DictReader(f)
                     for row in datafile:
                         json_tx = {
-                            "src": row["origin"],
-                            "dst": row["dest"],
+                            "src": row["nameOrig"],
+                            "dst": row["nameDest"],
                             "amt": row["amount"],
-                            "type": TransactionType[row["type"]].value,
+                            "type": row["type"],
                             "timestamp": strftime(
                                 "%a, %d %b %Y %H:%M:%S +0000", gmtime()
                             ),
