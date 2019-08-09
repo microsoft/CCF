@@ -13,6 +13,14 @@
 
 namespace tls
 {
+  inline std::string str_err(int err)
+  {
+    constexpr size_t len = 100;
+    char buf[len];
+    mbedtls_strerror(err, buf, len);
+    return std::string(buf);
+  }
+
   class KeyExchangeContext
   {
   private:
