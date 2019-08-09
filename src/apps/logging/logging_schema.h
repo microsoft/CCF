@@ -30,10 +30,13 @@ namespace ccf
     };
   };
 
-  DECLARE_REQUIRED_JSON_FIELDS(LoggingRecord::In, id, msg);
+  DECLARE_JSON_TYPE(LoggingRecord::In);
+  DECLARE_JSON_REQUIRED_FIELDS(LoggingRecord::In, id, msg);
 
-  DECLARE_REQUIRED_JSON_FIELDS(LoggingGet::In, id);
-  DECLARE_REQUIRED_JSON_FIELDS(LoggingGet::Out, msg);
+  DECLARE_JSON_TYPE(LoggingGet::In);
+  DECLARE_JSON_REQUIRED_FIELDS(LoggingGet::In, id);
+  DECLARE_JSON_TYPE(LoggingGet::Out);
+  DECLARE_JSON_REQUIRED_FIELDS(LoggingGet::Out, msg);
   // SNIPPET_END: macro_validation_macros
 
   // Public record/get

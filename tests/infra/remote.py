@@ -13,6 +13,7 @@ import json
 import uuid
 import ctypes
 import signal
+import re
 
 from loguru import logger as LOG
 
@@ -88,6 +89,14 @@ class CmdMixin(object):
             "--call-graph=dwarf",
             "-s",
         ] + self.cmd
+
+    def _print_upload_perf(self, name, metrics, lines):
+        for line in lines:
+            LOG.debug(line.decode())
+            res = re.search("=> (.*)tx/s", line.decode())
+            if res:
+                results_uploaded = True
+                metrics.put(name, float(res.group(1)))
 
 
 class SSHRemote(CmdMixin):
@@ -280,14 +289,13 @@ class SSHRemote(CmdMixin):
         finally:
             client.close()
 
-    def print_result(self, lines):
+    def print_and_upload_result(self, name, metrics, lines):
         client = self._connect_new()
         try:
             _, stdout, _ = client.exec_command(f"tail -{lines} {self.root}/out")
             if stdout.channel.recv_exit_status() == 0:
                 LOG.success(f"Result for {self.name}:")
-                for line in stdout.read().splitlines():
-                    LOG.debug(line.decode())
+                self._print_upload_perf(name, metrics, stdout.read().splitlines())
                 return
         finally:
             client.close()
@@ -426,13 +434,12 @@ class LocalRemote(CmdMixin):
             "{} not found in stdout after {} seconds".format(line, timeout)
         )
 
-    def print_result(self, line):
+    def print_and_upload_result(self, name, metrics, line):
         with open(os.path.join(self.root, "out"), "rb") as out:
             lines = out.read().splitlines()
             result = lines[-line:]
             LOG.success(f"Result for {self.name}:")
-            for line in result:
-                LOG.debug(line.decode())
+            self._print_upload_perf(name, metrics, result)
 
 
 CCF_TO_OE_LOG_LEVEL = {
@@ -454,8 +461,8 @@ class CCFRemote(object):
         local_node_id,
         host,
         pubhost,
-        raft_port,
-        tls_port,
+        node_port,
+        rpc_port,
         remote_class,
         enclave_type,
         verify_quote,
@@ -480,8 +487,8 @@ class CCFRemote(object):
         self.local_node_id = local_node_id
         self.host = host
         self.pubhost = pubhost
-        self.raft_port = raft_port
-        self.tls_port = tls_port
+        self.node_port = node_port
+        self.rpc_port = rpc_port
         self.pem = "{}.pem".format(local_node_id)
         self.quote = None
         self.node_status = node_status
@@ -493,7 +500,7 @@ class CCFRemote(object):
         self.BIN = infra.path.build_bin_path(self.BIN, enclave_type)
         self.ledger_file = ledger_file
         self.ledger_file_name = (
-            os.path.basename(ledger_file) if ledger_file else f"{local_node_id}"
+            os.path.basename(ledger_file) if ledger_file else f"{local_node_id}.ledger"
         )
 
         cmd = [self.BIN, f"--enclave-file={lib_path}"]
@@ -517,11 +524,8 @@ class CCFRemote(object):
                 self.BIN,
                 f"--enclave-file={lib_path}",
                 f"--raft-election-timeout-ms={election_timeout}",
-                f"--raft-host={host}",
-                f"--raft-port={raft_port}",
-                f"--tls-host={host}",
-                f"--tls-pubhost={pubhost}",
-                f"--tls-port={tls_port}",
+                f"--node-address={host}:{node_port}",
+                f"--rpc-address={host}:{rpc_port}",
                 f"--ledger-file={self.ledger_file_name}",
                 f"--node-cert-file={self.pem}",
                 f"--enclave-type={enclave_type}",
@@ -547,8 +551,9 @@ class CCFRemote(object):
                         "Notification server host:port configuration is invalid"
                     )
 
-                cmd += [f"--notify-server-host={notify_server_host}"]
-                cmd += [f"--notify-server-port={notify_server_port[0]}"]
+                cmd += [
+                    f"--notify-server-address={notify_server_host}:{notify_server_port[0]}"
+                ]
 
             if self.quote:
                 cmd.append(f"--quote-file={self.quote}")
@@ -596,9 +601,9 @@ class CCFRemote(object):
 
         return {
             "host": self.host,
-            "raftport": str(self.raft_port),
+            "nodeport": str(self.node_port),
             "pubhost": self.pubhost,
-            "tlsport": str(self.tls_port),
+            "rpcport": str(self.rpc_port),
             "cert": infra.path.cert_bytes(self.pem),
             "quote": quote_bytes,
             "status": NodeStatus[self.node_status].value,
@@ -624,8 +629,8 @@ class CCFRemote(object):
     def wait_for_stdout_line(self, line, timeout=5):
         return self.remote.wait_for_stdout_line(line, timeout)
 
-    def print_result(self, lines):
-        self.remote.print_result(lines)
+    def print_and_upload_result(self, name, metrics, lines):
+        self.remote.print_and_upload_result(name, metrics, lines)
 
     def set_recovery(self):
         self.remote.set_recovery()
@@ -663,13 +668,13 @@ class CCFRemote(object):
 
 @contextmanager
 def ccf_remote(
-    lib_path, local_node_id, host, pubhost, raft_port, tls_port, args, remote_class
+    lib_path, local_node_id, host, pubhost, node_port, rpc_port, args, remote_class
 ):
     """
     Context Manager wrapper for CCFRemote
     """
     remote = CCFRemote(
-        lib_path, local_node_id, host, pubhost, raft_port, tls_port, args, remote_class
+        lib_path, local_node_id, host, pubhost, node_port, rpc_port, args, remote_class
     )
     try:
         remote.setup()

@@ -38,6 +38,7 @@ namespace ccf
     MSGPACK_DEFINE(bytecode, text);
   };
 
-  DECLARE_REQUIRED_JSON_FIELDS(Script)
-  DECLARE_OPTIONAL_JSON_FIELDS(Script, bytecode, text)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Script);
+  DECLARE_JSON_REQUIRED_FIELDS(Script);
+  DECLARE_JSON_OPTIONAL_FIELDS(Script, bytecode, text);
 }

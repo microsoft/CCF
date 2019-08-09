@@ -155,16 +155,28 @@ namespace ccf
       kv::Version version,
       const std::vector<uint8_t>& data) override
     {}
+    void add_result(RequestID id, kv::Version version) override {}
     void add_response(
       kv::TxHistory::RequestID id,
       const std::vector<uint8_t>& response) override
     {}
 
-    void register_on_request(CallbackHandler func) override {}
+    void register_on_request(RequestCallbackHandler func) override {}
 
-    void register_on_result(CallbackHandler func) override {}
+    void register_on_result(ResultCallbackHandler func) override {}
 
-    void register_on_response(CallbackHandler func) override {}
+    void register_on_response(ResponseCallbackHandler func) override {}
+
+    void clear_on_request() override {}
+
+    void clear_on_result() override {}
+
+    void clear_on_response() override {}
+
+    crypto::Sha256Hash get_root() override
+    {
+      return crypto::Sha256Hash();
+    }
   };
 
   class MerkleTreeHistory
@@ -241,9 +253,9 @@ namespace ccf
     std::map<RequestID, std::vector<uint8_t>> requests;
     std::map<RequestID, std::pair<kv::Version, crypto::Sha256Hash>> results;
     std::map<RequestID, std::vector<uint8_t>> responses;
-    std::optional<CallbackHandler> on_request;
-    std::optional<CallbackHandler> on_result;
-    std::optional<CallbackHandler> on_response;
+    std::optional<RequestCallbackHandler> on_request;
+    std::optional<ResultCallbackHandler> on_result;
+    std::optional<ResponseCallbackHandler> on_response;
 
   public:
     HashedTxHistory(
@@ -259,19 +271,40 @@ namespace ccf
       nodes(nodes_)
     {}
 
-    void register_on_request(CallbackHandler func) override
+    void register_on_request(RequestCallbackHandler func) override
     {
+      if (on_request.has_value())
+        throw std::logic_error("on_request has already been set");
       on_request = func;
     }
 
-    void register_on_result(CallbackHandler func) override
+    void register_on_result(ResultCallbackHandler func) override
     {
+      if (on_result.has_value())
+        throw std::logic_error("on_result has already been set");
       on_result = func;
     }
 
-    void register_on_response(CallbackHandler func) override
+    void register_on_response(ResponseCallbackHandler func) override
     {
+      if (on_response.has_value())
+        throw std::logic_error("on_response has already been set");
       on_response = func;
+    }
+
+    void clear_on_request() override
+    {
+      on_request.reset();
+    }
+
+    void clear_on_result() override
+    {
+      on_result.reset();
+    }
+
+    void clear_on_response() override
+    {
+      on_response.reset();
     }
 
     void set_node_id(NodeId id_)
@@ -279,7 +312,7 @@ namespace ccf
       id = id_;
     }
 
-    crypto::Sha256Hash get_root()
+    crypto::Sha256Hash get_root() override
     {
       return tree.get_root();
     }
@@ -372,7 +405,7 @@ namespace ccf
       if (!on_request.has_value())
         return false;
 
-      return on_request.value()({id, request, -1, actor, caller_id});
+      return on_request.value()({id, request, actor, caller_id});
     }
 
     void add_result(
@@ -387,6 +420,21 @@ namespace ccf
                 << std::endl;
 #ifdef PBFT
       results[id] = {version, root};
+      if (on_result.has_value())
+        on_result.value()({id, version, root});
+#endif
+    }
+
+    void add_result(kv::TxHistory::RequestID id, kv::Version version) override
+    {
+      auto root = get_root();
+      LOG_DEBUG << fmt::format(
+                     "HISTORY: add_result {0} {1} {2}", id, version, root)
+                << std::endl;
+#ifdef PBFT
+      results[id] = {version, root};
+      if (on_result.has_value())
+        on_result.value()({id, version, root});
 #endif
     }
 

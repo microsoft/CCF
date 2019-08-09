@@ -247,7 +247,8 @@ namespace jsonrpc
       message(get_error_prefix(error_code) + msg)
     {}
   };
-  ADD_JSON_TRANSLATORS(Error, code, message);
+  DECLARE_JSON_TYPE(Error)
+  DECLARE_JSON_REQUIRED_FIELDS(Error, code, message)
 
   template <typename T>
   struct ErrorEx : public Error

@@ -12,6 +12,9 @@
     "host": {
       "type": "string"
     },
+    "nodeport": {
+      "type": "string"
+    },
     "pubhost": {
       "type": "string"
     },
@@ -23,7 +26,7 @@
       },
       "type": "array"
     },
-    "raftport": {
+    "rpcport": {
       "type": "string"
     },
     "status": {
@@ -32,16 +35,13 @@
         "TRUSTED",
         "RETIRED"
       ]
-    },
-    "tlsport": {
-      "type": "string"
     }
   },
   "required": [
     "host",
     "pubhost",
-    "raftport",
-    "tlsport",
+    "nodeport",
+    "rpcport",
     "cert",
     "quote",
     "status"

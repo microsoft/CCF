@@ -17,6 +17,7 @@ namespace ccf
     SignedReq signed_request;
     MSGPACK_DEFINE(signed_request);
   };
-  ADD_JSON_TRANSLATORS(VotingHistory, signed_request)
+  DECLARE_JSON_TYPE(VotingHistory)
+  DECLARE_JSON_REQUIRED_FIELDS(VotingHistory, signed_request)
   using VotingHistoryTable = Store::Map<MemberId, VotingHistory>;
 }

@@ -256,6 +256,14 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS
         --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua)
 
+    ## Lua sample app (tx regulator) end to end test
+    add_e2e_test(
+      NAME lua_txregulator_test
+      PYTHON_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
+      ADDITIONAL_ARGS
+        --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
+        --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
+
     if(QUOTES_ENABLED)
       add_e2e_test(
         NAME quote_verification_test

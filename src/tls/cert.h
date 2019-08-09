@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ca.h"
+#include "error_string.h"
 
 #include <cstring>
 #include <memory>
@@ -33,7 +34,7 @@ namespace tls
       std::string hostname_,
       std::shared_ptr<CA> peer_ca_,
       CBuffer cert_ = nullb,
-      CBuffer pkey_ = nullb,
+      const tls::Pem& pkey_ = {},
       CBuffer pw = nullb,
       Auth auth_ = auth_default) :
       hostname(hostname_),
@@ -44,15 +45,23 @@ namespace tls
       mbedtls_x509_crt_init(&cert);
       mbedtls_pk_init(&pkey);
 
-      if ((cert_.n > 0) && (pkey_.n > 0))
+      if ((cert_.n > 0) && (pkey_.size() > 0))
       {
         Pem pemCert(cert_);
-        if (mbedtls_x509_crt_parse(&cert, pemCert.p, pemCert.n) != 0)
-          throw std::logic_error("Could not parse certificate");
+        int rc = mbedtls_x509_crt_parse(&cert, pemCert.data(), pemCert.size());
 
-        Pem pemPk(pkey_);
-        if (mbedtls_pk_parse_key(&pkey, pemPk.p, pemPk.n, pw.p, pw.n) != 0)
-          throw std::logic_error("Could not parse key");
+        if (rc != 0)
+        {
+          throw std::logic_error(
+            "Could not parse certificate: " + error_string(rc));
+        }
+
+        rc = mbedtls_pk_parse_key(
+          &pkey, pkey_.data(), pkey_.size() + 1, pw.p, pw.n);
+        if (rc != 0)
+        {
+          throw std::logic_error("Could not parse key: " + error_string(rc));
+        }
 
         has_cert = true;
       }

@@ -65,7 +65,7 @@ static void benchmark_verify(picobench::state& s)
   const auto contents = make_contents<NContents>();
 
   auto signature = kp->sign(contents);
-  auto public_key = kp->public_key();
+  auto public_key = kp->public_key_pem();
   auto pubk = tls::make_public_key(public_key);
 
   s.start_timer();
@@ -90,7 +90,8 @@ static void benchmark_hash(picobench::state& s)
   {
     (void)_;
     std::vector<uint8_t> hash;
-    tls::do_hash(kp->get_raw_context(), contents.data(), contents.size(), hash);
+    tls::do_hash(
+      *kp->get_raw_context(), contents.data(), contents.size(), hash);
     do_not_optimize(hash);
     clobber_memory();
   }

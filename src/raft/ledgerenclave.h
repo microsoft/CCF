@@ -13,6 +13,9 @@ namespace raft
 {
   class LedgerEnclave
   {
+  public:
+    static constexpr size_t FRAME_SIZE = sizeof(uint32_t);
+
   private:
     std::unique_ptr<ringbuffer::AbstractWriter> to_host;
 

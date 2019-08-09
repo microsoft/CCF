@@ -55,10 +55,9 @@ class CCFRemoteClient(object):
 
         cmd = [
             self.BIN,
-            "--host={}".format(node_host),
-            "--port={}".format(node_port),
-            "--transactions={}".format(iterations),
-            "--config={}".format(os.path.basename(config)),
+            f"--server-address={node_host}:{node_port}",
+            f"--transactions={iterations}",
+            f"--config={os.path.basename(config)}",
         ] + client_command_args
 
         self.remote = remote_class(
@@ -106,5 +105,5 @@ class CCFRemoteClient(object):
             LOG.exception("Failed to wait on client {}".format(self.name))
             raise
 
-    def print_result(self):
-        self.remote.print_result(self.LINES_RESULT_FROM_END)
+    def print_and_upload_result(self, name, metrics):
+        self.remote.print_and_upload_result(name, metrics, self.LINES_RESULT_FROM_END)

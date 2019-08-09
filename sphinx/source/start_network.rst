@@ -8,11 +8,13 @@ To start up a network, operators should start up each node separately by running
 
 .. code-block:: bash
 
-    $ cchost --enclave-file=/path/to/application --raft-host=<raft_ip> --raft-port=<raft_port>
-    --tls-host=<tls_ip> --tls-pubhost=<tls_public_ip> --tls-port=<tls_port> --ledger-file=/path/to/ledger
-    --node-cert-file=/path/to/node_certificate --quote-file=/path/to/quote
-
-    <Some log messages confirming that the enclave has been created>
+    $ cchost --enclave-file=/path/to/application --node-address=node_ip:node_port --rpc-address=rpc_ip:rpc_public_ip
+    --ledger-file=/path/to/ledger --node-cert-file=/path/to/node_certificate --quote-file=/path/to/quote
+    2019-08-06 15:04:36.951158        [info ] ../src/host/main.cpp:240             | Starting new node
+    2019-08-06 15:04:39.355423        [info ] ../src/host/main.cpp:257             | Created new node
+    ...
+    2019-08-06 15:04:40.542079        [info ] ../src/host/enclave.h:174            | Quote verified
+    ...
 
 When starting up, each node generates its own key pair and outputs the certificate associated with the public key at the location specified by ``--node-cert``. A quote file, required for remote attestation when this node joins the network, is also output at the location specified by ``--quote-file``.
 
@@ -26,22 +28,22 @@ Once the initial set of nodes is running, the ``nodes.json`` file specifying the
     $ cat nodes.json
     [
         {
-            "pubhost": "tls_public_ip0",
+            "pubhost": "rpc_public_ip0",
             "cert": [<output node0 cert bytes>],
-            "host": "raft/tls_ip0",
+            "host": "node/rpc_ip0",
             "quote": [<output quote0 bytes>],
             "status": 0,
-            "raftport": "raft_port0",
-            "tlsport": "tls_port0"
+            "nodeport": "node_port0",
+            "rpcport": "rpc_port0"
         },
         {
-            "pubhost": "tls_public_ip1",
+            "pubhost": "rpc_public_ip1",
             "cert": [<output node1 cert bytes>],
-            "host": "tls_ip1",
+            "host": "node/rpc_ip1",
             "quote": [<output quote1 bytes>],
             "status": 0,
-            "raftport": "raft_port1",
-            "tlsport": "tls_port1"
+            "nodeport": "node_port1",
+            "rpcport": "rpc_port1"
         }
     ]
 
@@ -68,7 +70,7 @@ Once the initial nodes are running and the initial state of the network is ready
 
 .. code-block:: bash
 
-    $ client --host=<node0_ip> --port=<node0_tlsport> startnetwork --ca=<node0_cert> --req=@startNetwork.json
+    $ client --server-address=node0_ip:node0_rpcport startnetwork --ca=node0_cert_file --req=@startNetwork.json
 
 When executing the ``startNetwork.json`` RPC request, the target node deserialises the genesis transaction and immediately becomes the Raft leader of the new single-node network. Business transactions can then be issued by users and will commit immediately.
 
@@ -79,13 +81,13 @@ Once a network has been started on one node, assuming that this node remains lea
 
 .. code-block:: bash
 
-    $ genesisgenerator joinrpc --network-cert=networkcert.pem --host=<node0_ip> --port=<node0_tlsport> --join-json=joinNetwork.json
+    $ genesisgenerator joinrpc --network-cert=networkcert.pem --target-address=node0_ip:node0_rpcport --join-json=joinNetwork.json
 
 Once done, each additional node (here, node 1) can join the existing network by running the following command:
 
 .. code-block:: bash
 
-    $ client --host=<node1_ip> --port=<node1_tlsport> --ca=<node1_cert> joinnetwork --req=@joinNetwork.json
+    $ client --server-address=node1_ip:node1_rpcport --ca=node1_cert_file joinnetwork --req=@joinNetwork.json
 
 When executing the ``joinNetwork.json`` RPC, the target node initiates an enclave-to-enclave TLS connection to the network leader to retrieve the network secrets required to decrypt the serialised replicated transactions. Once the join protocol completes, the new node becomes a follower of the Raft network and starts replicating transactions executed by the leader.
 

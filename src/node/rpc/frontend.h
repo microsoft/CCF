@@ -166,7 +166,7 @@ namespace ccf
             return jsonrpc::error_response(
               ctx.req.seq_no,
               jsonrpc::CCFErrorCodes::TX_NOT_LEADER,
-              info->pubhost + ":" + info->tlsport);
+              info->pubhost + ":" + info->rpcport);
           }
         }
         return jsonrpc::error_response(
@@ -239,7 +239,7 @@ namespace ccf
               GetLeaderInfo::Out out;
               out.leader_id = leader_id;
               out.leader_host = info->pubhost;
-              out.leader_port = info->tlsport;
+              out.leader_port = info->rpcport;
               return jsonrpc::success(out);
             }
           }
@@ -260,7 +260,7 @@ namespace ccf
           nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
             if (ni.status == ccf::NodeStatus::TRUSTED)
             {
-              out.nodes.push_back({nid, ni.pubhost, ni.tlsport});
+              out.nodes.push_back({nid, ni.pubhost, ni.rpcport});
             }
             return true;
           });
@@ -396,13 +396,13 @@ namespace ccf
       auto params_schema = nlohmann::json::object();
       if constexpr (!std::is_same_v<In, void>)
       {
-        params_schema = build_schema<In>(method + "/params");
+        params_schema = ds::json::build_schema<In>(method + "/params");
       }
 
       auto result_schema = nlohmann::json::object();
       if constexpr (!std::is_same_v<Out, void>)
       {
-        result_schema = build_schema<Out>(method + "/result");
+        result_schema = ds::json::build_schema<Out>(method + "/result");
       }
 
       install(
@@ -520,7 +520,7 @@ namespace ccf
           return jsonrpc::pack(
             jsonrpc::error_response(
               jsonrpc_id,
-              jsonrpc::ErrorCodes::INTERNAL_ERROR,
+              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
               "PBFT could not process request."),
             ctx.pack.value());
         }
@@ -532,7 +532,7 @@ namespace ccf
         return jsonrpc::pack(
           jsonrpc::error_response(
             jsonrpc_id,
-            jsonrpc::ErrorCodes::INTERNAL_ERROR,
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             "PBFT is not yet ready."),
           ctx.pack.value());
       }
@@ -579,24 +579,26 @@ namespace ccf
      * @param ctx Context for this RPC
      * @param input Serialised JSON RPC
      */
-    std::vector<uint8_t> process_pbft(
+    ProcessPbftResp process_pbft(
       enclave::RPCContext& ctx, const std::vector<uint8_t>& input) override
     {
       // TODO(#PBFT): Refactor this with process_forwarded().
       Store::Tx tx;
+      crypto::Sha256Hash merkle_root;
 
       auto pack = detect_pack(input);
       if (!pack.has_value())
-        return jsonrpc::pack(
-          jsonrpc::error_response(
-            0,
-            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-            "Empty PBFT request."),
-          jsonrpc::Pack::Text);
+        return {jsonrpc::pack(
+                  jsonrpc::error_response(
+                    0,
+                    jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+                    "Empty PBFT request."),
+                  jsonrpc::Pack::Text),
+                merkle_root};
 
       auto rpc = unpack_json(input, pack.value());
       if (!rpc.first)
-        return jsonrpc::pack(rpc.second, pack.value());
+        return {jsonrpc::pack(rpc.second, pack.value()), merkle_root};
 
       SignedReq signed_request;
 
@@ -608,15 +610,31 @@ namespace ccf
         rpc_ = &req;
       }
       auto& unsigned_rpc = *rpc_;
+      bool has_updated_merkle_root = false;
+
+      auto cb = [&merkle_root, &has_updated_merkle_root](
+                  kv::TxHistory::ResultCallbackArgs args) -> bool {
+        merkle_root = args.merkle_root;
+        has_updated_merkle_root = true;
+        return true;
+      };
+      history->register_on_result(cb);
 
       auto rep =
         process_json(ctx, tx, ctx.fwd->caller_id, unsigned_rpc, signed_request);
+
+      history->clear_on_result();
+
+      if (!has_updated_merkle_root)
+      {
+        merkle_root = history->get_root();
+      }
 
       // TODO(#PBFT): Add RPC response to history based on Request ID
       // if (history)
       //   history->add_response(reqid, rv);
 
-      return jsonrpc::pack(rep.value(), pack.value());
+      return {jsonrpc::pack(rep.value(), pack.value()), merkle_root};
     }
 
     /** Process a serialised input forwarded from another node
