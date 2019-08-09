@@ -31,8 +31,8 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument(
         "-l",
-        "--log-level",
-        help="Runtime log level",
+        "--host-log-level",
+        help="Runtime host log level",
         default="info",
         choices=("trace", "debug", "info", "fail", "fatal"),
     )

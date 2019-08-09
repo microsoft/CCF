@@ -32,6 +32,8 @@ int main(int argc, char** argv)
 
   CLI::App app{"ccf"};
 
+  app.require_subcommand(1, 1);
+
   std::string enclave_file("");
   app.add_option("-e,--enclave-file", enclave_file, "CCF transaction engine")
     ->required()
@@ -45,26 +47,38 @@ int main(int argc, char** argv)
     "Enclave type",
     true);
 
-  std::string start("new");
-  app.add_set(
-    "-s,--start",
-    start,
-    {"new", "verify", "recover"},
-    "Startup mode: new for a fresh network, verify to verify an enclave quote, "
-    "recover to start a recovery",
-    true);
+  cli::ParsedAddress node_address;
+  cli::add_address_option(
+    app, node_address, "--node-address", "Node-to-node listening address");
 
-  std::string log_level("info");
+  cli::ParsedAddress rpc_address;
+  cli::add_address_option(
+    app, rpc_address, "--rpc-address", "RPC over TLS listening address");
+
+  std::string ledger_file("ccf.ledger");
+  app.add_option("--ledger-file", ledger_file, "Ledger file", true);
+
+  // std::string start("new");
+  // app.add_set(
+  //   "-s,--start",
+  //   start,
+  //   {"new", "verify", "recover"},
+  //   "Startup mode: new for a fresh network, verify to verify an enclave
+  //   quote, " "recover to start a recovery", true);
+
+  std::string host_log_level("info");
   app.add_set(
-    "-l,--log-level",
-    log_level,
+    "-l,--host-log-level",
+    host_log_level,
     {"fatal", "fail", "info", "debug", "trace"},
-    "Only emit log messages above that level",
+    "Only emit host log messages above that level",
     true);
 
   std::string quote_file("quote.bin");
   app.add_option("-q,--quote-file", quote_file, "SGX quote file", true);
 
+  // TODO: Do we still need this?
+  // Only for start = verify
   std::string quoted_data("nodecert.pem");
   app.add_option(
     "-c,--quoted-data", quoted_data, "SGX quoted certificate", true);
@@ -90,23 +104,12 @@ int main(int argc, char** argv)
     "Size of the internal ringbuffers, as a power of 2",
     true);
 
-  cli::ParsedAddress node_address;
-  cli::add_address_option(
-    app, node_address, "--node-address", "Node-to-node listening address");
-
-  cli::ParsedAddress rpc_address;
-  cli::add_address_option(
-    app, rpc_address, "--rpc-address", "RPC over TLS listening address");
-
   cli::ParsedAddress notifications_address;
   cli::add_address_option(
     app,
     notifications_address,
     "--notify-server-address",
     "Server address to notify progress to");
-
-  std::string ledger_file("ccf.ledger");
-  app.add_option("--ledger-file", ledger_file, "Ledger file", true);
 
   size_t raft_timeout = 100;
   app.add_option(
@@ -119,6 +122,7 @@ int main(int argc, char** argv)
     "Raft election timeout in milliseconds",
     true);
 
+  // TODO: Do we still need this?
   std::string node_cert_file("nodecert.pem");
   app.add_option(
     "--node-cert-file",
@@ -164,6 +168,54 @@ int main(int argc, char** argv)
 #endif
     true);
 
+  // The network certificate file can either be an input or output parameter,
+  // depending on the subcommand.
+  std::string network_cert_file = "networkcert.pem";
+
+  auto start = app.add_subcommand("start", "Start new network");
+  start
+    ->add_option(
+      "--network-cert",
+      network_cert_file,
+      "Destination path to freshly created network certificate",
+      true)
+    ->check(CLI::NonexistentPath);
+
+  std::string gov_script = "gov.lua";
+  start
+    ->add_option(
+      "--gov-script",
+      gov_script,
+      "Path to Lua file that defines the contents of the gov_scripts table",
+      true)
+    ->check(CLI::ExistingFile);
+
+  // TODO: Support more than one member
+  std::string member_cert_file = "member1_cert.pem";
+  start
+    ->add_option(
+      "--member", member_cert_file, "Path to existing member certificate", true)
+    ->check(CLI::ExistingFile);
+
+  auto join = app.add_subcommand("join", "Join existing network");
+  join
+    ->add_option(
+      "--network-cert",
+      network_cert_file,
+      "Path to certificate of existing network to join",
+      true)
+    ->check(CLI::ExistingFile);
+
+  cli::ParsedAddress target_rpc_address;
+  cli::add_address_option(
+    *join,
+    target_rpc_address,
+    "--target-rpc-address",
+    "RPC over TLS listening address of target network node");
+
+  auto recover = app.add_subcommand("recover", "Recover crashed network");
+  // TODO: Recovery options
+
   CLI11_PARSE(app, argc, argv);
 
   uint32_t oe_flags = 0;
@@ -177,12 +229,12 @@ int main(int argc, char** argv)
     throw std::logic_error("invalid enclave type: "s + enclave_type);
 
   // log level
-  auto host_log_level = logger::config::to_level(log_level.c_str());
-  if (!host_log_level)
-    throw std::logic_error("No such logging level: "s + log_level);
+  auto host_log_level_ = logger::config::to_level(host_log_level.c_str());
+  if (!host_log_level_)
+    throw std::logic_error("No such logging level: "s + host_log_level);
 
   // set the host log level
-  logger::config::level() = host_log_level.value();
+  logger::config::level() = host_log_level_.value();
 
   // create the enclave
   host::Enclave enclave(enclave_file, oe_flags);
@@ -233,8 +285,16 @@ int main(int argc, char** argv)
   const size_t node_size = 4096;
   std::vector<uint8_t> node_cert(node_size);
   std::vector<uint8_t> quote(OE_MAX_REPORT_SIZE);
-  LOG_INFO_FMT(
-    "Starting new node{}", (start == "recover" ? " (recovery)" : ""));
+  if (*start)
+    LOG_INFO_FMT("Starting new node - new network");
+  else if (*join)
+    LOG_INFO_FMT(
+      "Starting new node - joining existing network at {}:{}",
+      target_rpc_address.hostname,
+      target_rpc_address.port);
+  else if (*recover)
+    LOG_INFO_FMT("Starting new node - recover");
+
   raft::Config raft_config{
     std::chrono::milliseconds(raft_timeout),
     std::chrono::milliseconds(raft_election_timeout),
@@ -249,7 +309,7 @@ int main(int argc, char** argv)
   config.debug_config = {memory_reserve_startup};
 #endif
 
-  enclave.create_node(config, node_cert, quote, start == "recover");
+  enclave.create_node(config, node_cert, quote, false);
 
   LOG_INFO_FMT("Created new node");
 

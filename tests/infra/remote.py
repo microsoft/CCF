@@ -470,7 +470,7 @@ class CCFRemote(object):
         label,
         other_quote=None,
         other_quoted_data=None,
-        log_level="info",
+        host_log_level="info",
         ignore_quote=False,
         sig_max_tx=1000,
         sig_max_ms=1000,
@@ -523,13 +523,13 @@ class CCFRemote(object):
             cmd = [
                 self.BIN,
                 f"--enclave-file={lib_path}",
-                f"--raft-election-timeout-ms={election_timeout}",
+                f"--enclave-type={enclave_type}",
                 f"--node-address={host}:{node_port}",
                 f"--rpc-address={host}:{rpc_port}",
                 f"--ledger-file={self.ledger_file_name}",
                 f"--node-cert-file={self.pem}",
-                f"--enclave-type={enclave_type}",
-                f"--log-level={log_level}",
+                f"--host-log-level={host_log_level}",
+                f"--raft-election-timeout-ms={election_timeout}",
             ]
 
             if sig_max_tx:
@@ -566,7 +566,7 @@ class CCFRemote(object):
             )
             env["LLVM_PROFILE_FILE"] = self.profraw
 
-        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(log_level)
+        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(host_log_level)
         if oe_log_level:
             env["OE_LOG_LEVEL"] = oe_log_level
 

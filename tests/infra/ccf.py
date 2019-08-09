@@ -71,7 +71,7 @@ def network(
 class Network:
     node_args_to_forward = [
         "enclave_type",
-        "log_level",
+        "host_log_level",
         "ignore_quote",
         "sig_max_tx",
         "sig_max_ms",
