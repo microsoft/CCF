@@ -3,4 +3,4 @@ msgpack
 loguru
 coincurve
 psutil
-cimetrics>=0.1.5
+cimetrics>=0.1.6
