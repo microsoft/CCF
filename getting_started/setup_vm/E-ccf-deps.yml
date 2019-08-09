@@ -15,6 +15,7 @@
       - llvm-7
       - expect
       - xsltproc
+      - git
     everest_ver: "mbedtls-snapshot-7"
     everest_src: "{{ everest_ver }}.tar.gz"
 
