@@ -2,6 +2,7 @@ trigger:
   batch: true
   branches:
     include:
+      - "master"
       - "ci/*"
   paths:
     exclude:
@@ -88,7 +89,7 @@ jobs:
     - script: ../tests/coverage/generate_coverage.sh
       displayName: 'Push coverage'
       workingDirectory: build
-      env: 
+      env:
         CODECOV_TOKEN: $(codecov.token)
 
 - job: SAN
@@ -102,7 +103,7 @@ jobs:
     - checkout: self
       clean: true
       submodules: true
-      
+
     - template: .vsts-ci-templates/build.yml
       parameters:
         cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DSAN=ON'
