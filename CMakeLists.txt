@@ -244,10 +244,12 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
     )
 
-    add_e2e_test(
-      NAME connections
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-    )
+    if (not SAN)
+      add_e2e_test(
+        NAME connections
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+      )
+    endif()
 
     ## Storing signed votes test
     add_e2e_test(
