@@ -13,6 +13,7 @@ import infra.jsonrpc
 import infra.rates
 import os
 import re
+import cimetrics.upload
 
 from loguru import logger as LOG
 
@@ -124,18 +125,20 @@ def run(build_directory, get_command, args):
                 remote_client.start()
 
             try:
+                metrics = cimetrics.upload.Metrics()
                 tx_rates = infra.rates.TxRates(primary)
                 while True:
                     if not tx_rates.process_next():
                         for i, remote_client in enumerate(clients):
                             remote_client.wait()
-                            remote_client.print_result()
+                            remote_client.print_and_upload_result(args.label, metrics)
                             remote_client.stop()
                         break
                     time.sleep(1)
 
                 LOG.info(f"Rates: {tx_rates}")
                 tx_rates.save_results(args.metrics_file)
+                metrics.publish()
 
             except KeyboardInterrupt:
                 for remote_client in clients:
