@@ -36,9 +36,12 @@ namespace enclave
     bool recover = false;
 
   public:
-    Enclave(EnclaveConfig* config) :
-      circuit(config->circuit),
-      writer_factory(circuit, config->writer_config),
+    Enclave(
+      EnclaveConfig* enclave_config,
+      CCFConfig::SignatureIntervals& signature_intervals,
+      raft::Config& raft_config) :
+      circuit(enclave_config->circuit),
+      writer_factory(circuit, enclave_config->writer_config),
       rpcsessions(writer_factory),
       n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
       node(writer_factory, network, rpcsessions),
@@ -70,20 +73,20 @@ namespace enclave
       {
         auto frontend = dynamic_cast<ccf::RpcFrontend*>(r.second.get());
         frontend->set_sig_intervals(
-          config->signature_intervals.sig_max_tx,
-          config->signature_intervals.sig_max_ms);
+          signature_intervals.sig_max_tx, signature_intervals.sig_max_ms);
         frontend->set_cmd_forwarder(cmd_forwarder);
       }
 
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
 
-      node.initialize(config->raft_config, n2n_channels, rpc_map);
+      node.initialize(raft_config, n2n_channels, rpc_map);
       rpcsessions.initialize(rpc_map);
       cmd_forwarder->initialize(rpc_map);
     }
 
     bool create_node(
+      const CCFConfig::Genesis& genesis_config,
       uint8_t* node_cert,
       size_t node_cert_size,
       size_t* node_cert_len,
@@ -95,8 +98,14 @@ namespace enclave
       // quote_size is ignored here, but we pass it in because it allows
       // us to set EDL an annotation so that quote_len <= quote_size is
       // checked by the EDL-generated wrapper
+
+      // TODO: Recover should eventually go and we should branch here based on
+      // {start, join, recover}
       recover = recover_;
-      auto r = node.create_new({recover});
+      auto r = node.create_new({genesis_config.node_info,
+                                genesis_config.member_cert,
+                                genesis_config.gov_script,
+                                recover});
       if (!r.second)
         return false;
 

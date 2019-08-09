@@ -10,7 +10,7 @@
 #include "../ds/ringbuffer_types.h"
 #include "../kv/kvtypes.h"
 #include "../raft/rafttypes.h"
-#include "../tls/tls.h"
+#include "../node/calltypes.h"
 
 #include <chrono>
 
@@ -18,14 +18,6 @@ struct EnclaveConfig
 {
   ringbuffer::Circuit* circuit = nullptr;
   oversized::WriterConfig writer_config = {};
-  raft::Config raft_config = {};
-
-  struct SignatureIntervals
-  {
-    size_t sig_max_tx;
-    size_t sig_max_ms;
-  };
-  SignatureIntervals signature_intervals = {};
 
 #ifdef DEBUG_CONFIG
   struct DebugConfig
@@ -34,6 +26,26 @@ struct EnclaveConfig
   };
   DebugConfig debug_config = {};
 #endif
+};
+
+struct CCFConfig
+{
+  raft::Config raft_config = {};
+
+  struct Genesis
+  {
+    ccf::NodeInfoCreation node_info = {};
+    std::vector<uint8_t> member_cert;
+    std::vector<uint8_t> gov_script;
+  };
+  Genesis genesis = {};
+
+  struct SignatureIntervals
+  {
+    size_t sig_max_tx;
+    size_t sig_max_ms;
+  };
+  SignatureIntervals signature_intervals = {};
 };
 
 /// General administrative messages

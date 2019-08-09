@@ -47,8 +47,8 @@ extern "C"
     size_t output_buffer_size,
     size_t* output_bytes_written);
 
-  using create_node_func_t =
-    bool (*)(void*, uint8_t*, size_t, size_t*, uint8_t*, size_t, size_t*, bool);
+  using create_node_func_t = bool (*)(
+    void*, void*, uint8_t*, size_t, size_t*, uint8_t*, size_t, size_t*, bool);
 
   using run_func_t = bool (*)();
 
@@ -75,7 +75,8 @@ extern "C"
   inline oe_result_t enclave_create_node(
     oe_enclave_t* enclave,
     bool* _retval,
-    void* config,
+    void* enclave_config,
+    void* ccf_config,
     uint8_t* node_cert,
     size_t node_cert_size,
     size_t* node_cert_len,
@@ -88,7 +89,8 @@ extern "C"
       get_enclave_exported_function<create_node_func_t>("enclave_create_node");
 
     *_retval = create_node_func(
-      config,
+      enclave_config,
+      ccf_config,
       node_cert,
       node_cert_size,
       node_cert_len,

@@ -34,26 +34,38 @@ int main(int argc, char** argv)
 
   app.require_subcommand(1, 1);
 
-  std::string enclave_file("");
+  std::string enclave_file;
   app.add_option("-e,--enclave-file", enclave_file, "CCF transaction engine")
     ->required()
     ->check(CLI::ExistingFile);
 
-  std::string enclave_type("debug");
-  app.add_set(
-    "-t,--enclave-type",
-    enclave_type,
-    {"debug", "simulate", "virtual"},
-    "Enclave type",
-    true);
+  std::string enclave_type;
+  app
+    .add_set(
+      "-t,--enclave-type",
+      enclave_type,
+      {"debug", "simulate", "virtual"},
+      "Enclave type",
+      true)
+    ->required();
 
   cli::ParsedAddress node_address;
   cli::add_address_option(
-    app, node_address, "--node-address", "Node-to-node listening address");
+    app, node_address, "--node-address", "Node-to-node listening address")
+    ->required();
 
   cli::ParsedAddress rpc_address;
   cli::add_address_option(
-    app, rpc_address, "--rpc-address", "RPC over TLS listening address");
+    app, rpc_address, "--rpc-address", "RPC over TLS listening address")
+    ->required();
+
+  cli::ParsedAddress public_rpc_address;
+  cli::add_address_option(
+    app,
+    public_rpc_address,
+    "--public-rpc-address",
+    "Public RPC over TLS listening address")
+    ->required();
 
   std::string ledger_file("ccf.ledger");
   app.add_option("--ledger-file", ledger_file, "Ledger file", true);
@@ -194,7 +206,11 @@ int main(int argc, char** argv)
   std::string member_cert_file = "member1_cert.pem";
   start
     ->add_option(
-      "--member", member_cert_file, "Path to existing member certificate", true)
+      "--member-cert",
+      member_cert_file,
+      "Path to existing member certificate",
+      true)
+    ->required()
     ->check(CLI::ExistingFile);
 
   auto join = app.add_subcommand("join", "Join existing network");
@@ -240,22 +256,22 @@ int main(int argc, char** argv)
   host::Enclave enclave(enclave_file, oe_flags);
 
 #ifdef GET_QUOTE
-  if (start == "verify")
-  {
-    auto q = files::slurp(quote_file);
-    auto d = files::slurp(quoted_data);
+  // if (start == "verify")
+  // {
+  //   auto q = files::slurp(quote_file);
+  //   auto d = files::slurp(quoted_data);
 
-    auto passed = enclave.verify_quote(q, d);
-    if (!passed)
-    {
-      throw std::runtime_error("Quote verification failed");
-    }
-    else
-    {
-      LOG_INFO_FMT("Quote verified");
-      return 0;
-    }
-  }
+  //   auto passed = enclave.verify_quote(q, d);
+  //   if (!passed)
+  //   {
+  //     throw std::runtime_error("Quote verification failed");
+  //   }
+  //   else
+  //   {
+  //     LOG_INFO_FMT("Quote verified");
+  //     return 0;
+  //   }
+  // }
 #endif
 
   // messaging ring buffers
@@ -285,31 +301,46 @@ int main(int argc, char** argv)
   const size_t node_size = 4096;
   std::vector<uint8_t> node_cert(node_size);
   std::vector<uint8_t> quote(OE_MAX_REPORT_SIZE);
+
   if (*start)
+  {
     LOG_INFO_FMT("Starting new node - new network");
+  }
   else if (*join)
+  {
     LOG_INFO_FMT(
       "Starting new node - joining existing network at {}:{}",
       target_rpc_address.hostname,
       target_rpc_address.port);
+  }
   else if (*recover)
+  {
     LOG_INFO_FMT("Starting new node - recover");
+  }
+
+  EnclaveConfig enclave_config;
+  enclave_config.circuit = &circuit;
+  enclave_config.writer_config = writer_config;
+#ifdef DEBUG_CONFIG
+  enclave_config.debug_config = {memory_reserve_startup};
+#endif
 
   raft::Config raft_config{
     std::chrono::milliseconds(raft_timeout),
     std::chrono::milliseconds(raft_election_timeout),
   };
 
-  EnclaveConfig config;
-  config.circuit = &circuit;
-  config.writer_config = writer_config;
-  config.raft_config = raft_config;
-  config.signature_intervals = {sig_max_tx, sig_max_ms};
-#ifdef DEBUG_CONFIG
-  config.debug_config = {memory_reserve_startup};
-#endif
+  CCFConfig ccf_config;
+  ccf_config.raft_config = raft_config;
+  ccf_config.signature_intervals = {sig_max_tx, sig_max_ms};
+  ccf_config.genesis.node_info = {rpc_address.hostname,
+                                  public_rpc_address.hostname,
+                                  node_address.port,
+                                  rpc_address.port};
+  ccf_config.genesis.member_cert = files::slurp(member_cert_file);
+  ccf_config.genesis.gov_script = files::slurp(gov_script);
 
-  enclave.create_node(config, node_cert, quote, false);
+  enclave.create_node(enclave_config, ccf_config, node_cert, quote, false);
 
   LOG_INFO_FMT("Created new node");
 

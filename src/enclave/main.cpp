@@ -17,7 +17,8 @@ std::chrono::milliseconds logger::config::ms =
 extern "C"
 {
   bool enclave_create_node(
-    void* config,
+    void* enclave_config,
+    void* ccf_config,
     uint8_t* node_cert,
     size_t node_cert_size,
     size_t* node_cert_len,
@@ -31,15 +32,17 @@ extern "C"
     if (e != nullptr)
       return false;
 
-    EnclaveConfig* ec = (EnclaveConfig*)config;
+    EnclaveConfig* ec = (EnclaveConfig*)enclave_config;
+    CCFConfig* cc = (CCFConfig*)ccf_config;
 
 #ifdef DEBUG_CONFIG
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];
 #endif
 
-    e = new enclave::Enclave(ec);
+    e = new enclave::Enclave(ec, cc->signature_intervals, cc->raft_config);
 
     auto ret = e->create_node(
+      cc->genesis,
       node_cert,
       node_cert_size,
       node_cert_len,

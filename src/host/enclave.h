@@ -76,7 +76,8 @@ namespace host
     }
 
     bool create_node(
-      const EnclaveConfig& config,
+      const EnclaveConfig& enclave_config,
+      const CCFConfig& ccf_config,
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& quote,
       bool recover)
@@ -88,7 +89,8 @@ namespace host
       auto err = enclave_create_node(
         e,
         &ret,
-        (void*)&config,
+        (void*)&enclave_config,
+        (void*)&ccf_config,
         node_cert.data(),
         node_cert.size(),
         &node_cert_len,

@@ -198,14 +198,27 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::initialized);
 
+      // TODO:
+      // 1. Create KV and Consensus
+      // 2. Generate node key pair and service signing key + secrets
+      // 3. Generate quote over node and service keys
+      // 4. Set code version
+      // 5. Record initial arguments:
+      //    - governance script
+      //    - member certs and members
+      //    - self node
+      //    - code_id
+      //    - whitelist
+
       // Generate node key pair
       std::stringstream name;
       name << "CN=" << Actors::MANAGEMENT;
       node_cert = node_kp->self_sign(name.str());
 
-      // We present our self-signed certificate to the management frontend
-      rpcsessions.add_cert(
-        Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key_pem());
+      // TODO: Delete this
+      // // We present our self-signed certificate to the management frontend
+      // rpcsessions.add_cert(
+      //   Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key_pem());
 
       // Quotes should be initialised and non-empty
       std::vector<uint8_t> quote{1};

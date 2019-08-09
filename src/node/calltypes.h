@@ -7,6 +7,39 @@
 
 namespace ccf
 {
+  // TODO: Merge that with nodes.h?
+  struct NodeInfoCreation
+  {
+    std::string host;
+    std::string pubhost;
+    std::string nodeport;
+    std::string rpcport;
+  };
+
+  struct CreateNew
+  {
+    enum StartType
+    {
+      start = 0,
+      join,
+      recover
+    };
+
+    struct In
+    {
+      NodeInfoCreation node_info;
+      std::vector<uint8_t> member_cert;
+      std::vector<uint8_t> gov_script;
+      bool recover; // TODO: This should go eventually
+    };
+    struct Out
+    {
+      std::vector<uint8_t> node_cert;
+      std::vector<uint8_t> quote;
+    };
+  };
+
+  // TODO: This will need to go
   struct StartNetwork
   {
     struct In
@@ -23,6 +56,7 @@ namespace ccf
     };
   };
 
+  // TODO: This will need to go
   struct JoinNetwork
   {
     struct In
@@ -99,19 +133,6 @@ namespace ccf
       NodeId id;
       NetworkSecrets::Secret network_secrets;
       int64_t version; // Current version of the network secrets
-    };
-  };
-
-  struct CreateNew
-  {
-    struct In
-    {
-      bool recover;
-    };
-    struct Out
-    {
-      std::vector<uint8_t> node_cert;
-      std::vector<uint8_t> quote;
     };
   };
 }
