@@ -1,6 +1,9 @@
-[![CircleCI](https://circleci.com/gh/microsoft/CCF/tree/master.svg?style=svg&circle-token=4baa7c8b286e0d8b6c2f320f9f6427e156fa8562)](https://circleci.com/gh/microsoft/CCF/tree/master) [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20Github%20CI?branchName=master)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=3&branchName=master)
-[![codecov](https://codecov.io/gh/microsoft/CCF/branch/master/graph/badge.svg)](https://codecov.io/gh/microsoft/CCF)
-[![docs](https://img.shields.io/badge/docs-microsoft.github.io%2FCCF-brightgreen.svg)](https://microsoft.github.io/CCF/)
+| | Link |
+|- |- |
+| SGX CI | [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20Github%20CI?branchName=master)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=3&branchName=master) |
+| Non-SGX CI | [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20Github%20CI%20-%20No%20SGX?branchName=master)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=2&branchName=master) |
+| Code coverage | [![codecov](https://codecov.io/gh/microsoft/CCF/branch/master/graph/badge.svg)](https://codecov.io/gh/microsoft/CCF) |
+| Documentation | [![docs](https://img.shields.io/badge/docs-microsoft.github.io%2FCCF-brightgreen.svg)](https://microsoft.github.io/CCF/) |
 
 # The Confidential Consortium Framework
 
