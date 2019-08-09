@@ -560,11 +560,11 @@ class CCFRemote(object):
 
         env = {}
         self.profraw = None
-        if enclave_type == "virtual" and coverage_enabled(lib_path):
-            self.profraw = (
-                f"{uuid.uuid4()}-{local_node_id}_{os.path.basename(lib_path)}.profraw"
-            )
-            env["LLVM_PROFILE_FILE"] = self.profraw
+        if enclave_type == "virtual":
+            env["UBSAN_OPTIONS"] = "print_stacktrace=1"
+            if coverage_enabled(lib_path):
+                self.profraw = f"{uuid.uuid4()}-{local_node_id}_{os.path.basename(lib_path)}.profraw"
+                env["LLVM_PROFILE_FILE"] = self.profraw
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(log_level)
         if oe_log_level:
