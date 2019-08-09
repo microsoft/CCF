@@ -244,7 +244,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
     )
 
-    if (not SAN)
+    if (NOT SAN)
       add_e2e_test(
         NAME connections
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
