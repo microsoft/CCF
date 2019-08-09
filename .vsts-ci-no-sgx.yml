@@ -51,7 +51,7 @@ jobs:
 - job: Coverage
   pool: Ubuntu-1804-D8s_v3
   container:
-    image: ccfciteam/ccf-ci-18.04:latest
+    image: ccfciteam/ccf-ci-18.04-oe-0.6:latest
     # --publish-all enables end-to-end tests to communicate over ports
     options: --publish-all
   steps:
