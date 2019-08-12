@@ -313,10 +313,14 @@ namespace ccf
         kv::DeserialiseSuccess::FAILED)
         return Fail<StartNetwork::Out>("Deserialisation of tx0 failed");
 
-      // Become the leader and force replication.
+        // Become the leader and force replication.
+#ifndef PBFT
       raft->force_become_leader();
-      raft->replicate({{1, protected_tx0, true}});
-
+      raft->replicate({{ 1, protected_tx0, true }});
+#else
+      pbft->force_become_leader();
+      pbft->replicate({{1, protected_tx0, true}});
+#endif
       // Network signs tx0.
       auto keys = tls::make_key_pair({network.secrets->get_current().priv_key});
       auto tx0Sig = keys->sign(args.tx0);
@@ -910,10 +914,10 @@ namespace ccf
         !sm.check(State::partOfPublicNetwork))
         return;
 
+#ifndef PBFT
       raft->periodic(elapsed);
-
-#ifdef PBFT
-      ITimer::handle_timeouts(elapsed);
+#else
+      pbft->periodic(elapsed);
 #endif
     }
 
@@ -944,7 +948,12 @@ namespace ccf
 #endif
           break;
         case consensus_msg_raft:
+
+#ifndef PBFT
           raft->recv_message(p, psize);
+#else
+          pbft->recv_message(p, psize);
+#endif
           break;
 
         default:
@@ -957,10 +966,18 @@ namespace ccf
     //
     bool is_leader() const override
     {
+      auto is_lead = false;
+
+#ifndef PBFT
+      is_lead = raft->is_leader();
+#else
+      is_lead = pbft->is_leader();
+#endif
+
       return (
         (sm.check(State::partOfNetwork) ||
          sm.check(State::partOfPublicNetwork)) &&
-        raft->is_leader());
+        is_lead);
     }
 
     bool is_part_of_network() const
@@ -1099,8 +1116,6 @@ namespace ccf
         public_only);
 
       network.tables->set_replicator(raft);
-#else
-      raft = std::make_shared<pbft::NullReplicator>(n2n_channels, self);
 #endif
 
       // When a node is added, even locally, inform the host so that it can
