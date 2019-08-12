@@ -13,7 +13,6 @@ trigger:
       - 'THIRD_PARTY_NOTICES.txt'
       - 'getting_started/'
       - 'sphinx/'
-      - '.circleci/'
       - '.github/'
       - '.vsts-gh-pages.yml'
       - 'LICENSE'
@@ -34,7 +33,6 @@ pr:
       - 'THIRD_PARTY_NOTICES.txt'
       - 'getting_started/'
       - 'sphinx/'
-      - '.circleci/'
       - '.github/'
       - '.vsts-gh-pages.yml'
       - 'LICENSE'
@@ -67,7 +65,7 @@ jobs:
     - script: python3.7 notice-check.py
       displayName: 'Check copyright notices'
 
-    - script: ./check-format.sh src
+    - script: ./check-format.sh src samples
       displayName: 'Check C++ code format'
 
     - script: |
