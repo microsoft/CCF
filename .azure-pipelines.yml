@@ -13,9 +13,8 @@ trigger:
       - 'THIRD_PARTY_NOTICES.txt'
       - 'getting_started/'
       - 'sphinx/'
-      - '.circleci/'
       - '.github/'
-      - '.vsts-gh-pages.yml'
+      - '.azure-pipelines-gh-pages.yml'
       - 'LICENSE'
 
 pr:
@@ -34,9 +33,8 @@ pr:
       - 'THIRD_PARTY_NOTICES.txt'
       - 'getting_started/'
       - 'sphinx/'
-      - '.circleci/'
       - '.github/'
-      - '.vsts-gh-pages.yml'
+      - '.azure-pipelines-gh-pages.yml'
       - 'LICENSE'
 
 schedules:
@@ -54,10 +52,10 @@ jobs:
     - checkout: self
       clean: true
       submodules: true
-    - template: .vsts-ci-templates/build.yml
+    - template: .azure-pipelines-templates/build.yml
       parameters:
         cmake_args: '-DBUILD_SMALLBANK=OFF'
-    - template: .vsts-ci-templates/publish_build.yml
+    - template: .azure-pipelines-templates/publish_build.yml
       parameters:
         artifact_name: build_results
 
@@ -69,10 +67,10 @@ jobs:
     - checkout: self
       clean: true
       submodules: true
-    - template: .vsts-ci-templates/download_build.yml
+    - template: .azure-pipelines-templates/download_build.yml
       parameters:
         artifact_name: build_results
-    - template: .vsts-ci-templates/test.yml
+    - template: .azure-pipelines-templates/test.yml
       parameters:
         ctest_filter: '-LE "perf|end_to_end"'
         suite_name_suffix: ' SGX quick tests'
@@ -85,10 +83,10 @@ jobs:
     - checkout: self
       clean: true
       submodules: true
-    - template: .vsts-ci-templates/download_build.yml
+    - template: .azure-pipelines-templates/download_build.yml
       parameters:
         artifact_name: build_results
-    - template: .vsts-ci-templates/test.yml
+    - template: .azure-pipelines-templates/test.yml
       parameters:
         ctest_filter: '-L end_to_end -I 0,,2'
         suite_name_suffix: ' SGX end to end tests A'
@@ -101,10 +99,10 @@ jobs:
     - checkout: self
       clean: true
       submodules: true
-    - template: .vsts-ci-templates/download_build.yml
+    - template: .azure-pipelines-templates/download_build.yml
       parameters:
         artifact_name: build_results
-    - template: .vsts-ci-templates/test.yml
+    - template: .azure-pipelines-templates/test.yml
       parameters:
         ctest_filter: '-L end_to_end -I 1,,2'
         suite_name_suffix: ' SGX end to end tests B'
@@ -115,10 +113,10 @@ jobs:
     - checkout: self
       clean: true
       submodules: true
-    - template: .vsts-ci-templates/build.yml
+    - template: .azure-pipelines-templates/build.yml
       parameters:
         cmake_args: '-DBUILD_SMALLBANK=ON -DSERVICE_IDENTITY_CURVE_CHOICE=secp256k1_bitcoin'
-    - template: .vsts-ci-templates/publish_build.yml
+    - template: .azure-pipelines-templates/publish_build.yml
       parameters:
         artifact_name: perf_build_results
 
@@ -130,11 +128,11 @@ jobs:
     - checkout: self
       clean: true
       submodules: true
-    - template: .vsts-ci-templates/download_build.yml
+    - template: .azure-pipelines-templates/download_build.yml
       parameters:
         artifact_name: perf_build_results
-    - template: .vsts-ci-templates/test.yml
+    - template: .azure-pipelines-templates/test.yml
       parameters:
         suite_name_suffix: ' SGX Performance'
         ctest_filter: '-L perf'
-    - template: .vsts-ci-templates/push_perf_data.yml
+    - template: .azure-pipelines-templates/push_perf_data.yml
