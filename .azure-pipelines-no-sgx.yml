@@ -13,9 +13,8 @@ trigger:
       - 'THIRD_PARTY_NOTICES.txt'
       - 'getting_started/'
       - 'sphinx/'
-      - '.circleci/'
       - '.github/'
-      - '.vsts-gh-pages.yml'
+      - '.azure-pipelines-gh-pages.yml'
       - 'LICENSE'
 
 pr:
@@ -34,9 +33,8 @@ pr:
       - 'THIRD_PARTY_NOTICES.txt'
       - 'getting_started/'
       - 'sphinx/'
-      - '.circleci/'
       - '.github/'
-      - '.vsts-gh-pages.yml'
+      - '.azure-pipelines-gh-pages.yml'
       - 'LICENSE'
 
 schedules:
@@ -67,7 +65,7 @@ jobs:
     - script: python3.7 notice-check.py
       displayName: 'Check copyright notices'
 
-    - script: ./check-format.sh src
+    - script: ./check-format.sh src samples
       displayName: 'Check C++ code format'
 
     - script: |
@@ -78,11 +76,11 @@ jobs:
       displayName: 'Check Python code format'
 
     # Actual coverage build steps starts here
-    - template: .vsts-ci-templates/build.yml
+    - template: .azure-pipelines-templates/build.yml
       parameters:
         cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DCOVERAGE=ON'
 
-    - template: .vsts-ci-templates/test.yml
+    - template: .azure-pipelines-templates/test.yml
       parameters:
         suite_name_suffix: 'coverage'
 
@@ -104,10 +102,10 @@ jobs:
       clean: true
       submodules: true
 
-    - template: .vsts-ci-templates/build.yml
+    - template: .azure-pipelines-templates/build.yml
       parameters:
         cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DSAN=ON'
 
-    - template: .vsts-ci-templates/test.yml
+    - template: .azure-pipelines-templates/test.yml
       parameters:
         suite_name_suffix: 'san'

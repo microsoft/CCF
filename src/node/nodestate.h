@@ -377,7 +377,7 @@ namespace ccf
                 jsonrpc::error_response(
                   rpc_ctx.req.seq_no,
                   jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-                  "An error occured while joining the network"),
+                  "An error occurred while joining the network"),
                 rpc_ctx.pack.value()));
           }
 
