@@ -14,7 +14,7 @@ trigger:
       - 'getting_started/'
       - 'sphinx/'
       - '.github/'
-      - '.vsts-gh-pages.yml'
+      - '.azure-pipelines-gh-pages.yml'
       - 'LICENSE'
 
 pr:
@@ -34,7 +34,7 @@ pr:
       - 'getting_started/'
       - 'sphinx/'
       - '.github/'
-      - '.vsts-gh-pages.yml'
+      - '.azure-pipelines-gh-pages.yml'
       - 'LICENSE'
 
 schedules:
@@ -76,11 +76,11 @@ jobs:
       displayName: 'Check Python code format'
 
     # Actual coverage build steps starts here
-    - template: .vsts-ci-templates/build.yml
+    - template: .azure-pipelines-templates/build.yml
       parameters:
         cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DCOVERAGE=ON'
 
-    - template: .vsts-ci-templates/test.yml
+    - template: .azure-pipelines-templates/test.yml
       parameters:
         suite_name_suffix: 'coverage'
 
@@ -102,10 +102,10 @@ jobs:
       clean: true
       submodules: true
 
-    - template: .vsts-ci-templates/build.yml
+    - template: .azure-pipelines-templates/build.yml
       parameters:
         cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DSAN=ON'
 
-    - template: .vsts-ci-templates/test.yml
+    - template: .azure-pipelines-templates/test.yml
       parameters:
         suite_name_suffix: 'san'
