@@ -198,8 +198,9 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::initialized);
 
+      Store::Tx tx;
+
       // TODO:
-      // 1. Create KV and Consensus
       // 2. Generate node key pair and service signing key + secrets
       // 3. Generate quote over node and service keys
       // 4. Set code version
@@ -209,18 +210,22 @@ namespace ccf
       //    - self node
       //    - code_id
       //    - whitelist
+      // 1. Create history and Consensus
 
       // Generate node key pair
       std::stringstream name;
       name << "CN=" << Actors::MANAGEMENT;
       node_cert = node_kp->self_sign(name.str());
 
-      // TODO: Delete this
-      // // We present our self-signed certificate to the management frontend
-      // rpcsessions.add_cert(
-      //   Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key_pem());
+      // Generate and seal network secrets
+      network.secrets = std::make_unique<NetworkSecrets>(
+        "CN=The CA", std::make_unique<Seal>(writer_factory));
 
-      // Quotes should be initialised and non-empty
+      // Accept member connections
+      accept_member_connections();
+
+      // Generate quote over node certificate
+      // TODO: https://github.com/microsoft/CCF/issues/59
       std::vector<uint8_t> quote{1};
 
 #ifdef GET_QUOTE
@@ -263,6 +268,50 @@ namespace ccf
         std::begin(node_code_id));
 #endif
 
+      // Initialise store
+      auto [nodes_view, node_certs_view, members_view, member_certs_view, gov_view] =
+        tx.get_view(
+          network.tables.nodes,
+          network.tables.node_certs,
+          network.tables.members,
+          network.tables.member_certs,
+          network.tables.gov_scripts);
+
+      // TODO: This is not very elegant. Need to merge NodeInfoCreation with
+      // NodeInfo
+      // TODO: Should we only become TRUSTED once the member has vetted the
+      // network?
+      self = get_next_id(tx.get_view(network.tables.values), NEXT_NODE_ID);
+
+      LOG_INFO_FMT("Setting self as {}", self);
+
+      // Nodes
+      nodes_view->put(
+        self,
+        {args.node_info.host,
+         args.node_info.pubhost,
+         args.node_info.nodeport,
+         args.node_info.rpcport,
+         node_cert,
+         quote,
+         NodeStatus::TRUSTED});
+      node_certs_view->put(node_cert, self);
+
+      // Members
+      // TODO: In a loop
+      auto member_id =
+        members_view->put(tx.get_view(network.tables.values), NEXT_MEMBER_ID);
+      // TODO: Status can be active straight away?
+      members_view->put(member_id, {MemberStatus::ACCEPTED, {}});
+      member_certs_view->put(args.member_cert);
+
+      // Governance
+      // gov_view->put();
+
+
+
+      tx.commit();
+
       if (args.recover)
       {
         init_public_ledger_recovery();
@@ -273,13 +322,27 @@ namespace ccf
         sm.advance(State::started);
       }
 
+      // Initialise history and consensus
+      // TODO: https://github.com/microsoft/CCF/issues/300
 #ifdef PBFT
-      // TODO(#PBFT): For now, node id set when the node is created and used
-      // to create PBFT
-      self = 0;
       setup_pbft();
-      setup_history();
 #endif
+      setup_history();
+      setup_raft();
+
+      // Become the raft leader and force replication
+      raft->force_become_leader();
+      raft->replicate({{1, protected_tx0, true}});
+
+#ifdef GET_QUOTE
+      if (!trust_own_code_id(tx, self))
+        return Fail<StartNetwork::Out>("Parsing quote of starting node failed");
+#endif
+
+      // TODO: Delete this
+      // // We present our self-signed certificate to the management frontend
+      // rpcsessions.add_cert(
+      //   Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key_pem());
 
       return Success<CreateNew::Out>({node_cert, quote});
     }
