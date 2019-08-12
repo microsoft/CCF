@@ -402,10 +402,11 @@ namespace ccf
       LOG_DEBUG << fmt::format("HISTORY: add_request {0}", id) << std::endl;
       requests[id] = request;
 
-      if (!on_request.has_value())
+      auto replicator = store.get_replicator();
+      if (!replicator)
         return false;
 
-      return on_request.value()({id, request, actor, caller_id});
+      return replicator->on_request({id, request, actor, caller_id});
     }
 
     void add_result(

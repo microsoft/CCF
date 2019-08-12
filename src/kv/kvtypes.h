@@ -42,24 +42,6 @@ namespace kv
     PASS_SIGNATURE = 2
   };
 
-  class Replicator
-  {
-  public:
-    virtual ~Replicator() {}
-    virtual bool replicate(
-      const std::vector<std::tuple<Version, std::vector<uint8_t>, bool>>&
-        entries) = 0;
-    virtual Term get_term() = 0; // TODO(#api): this ought to have a more
-                                 // abstract name than Term
-
-    virtual Term get_term(Version version) = 0;
-    virtual Version get_commit_idx() = 0;
-
-    virtual NodeId leader() = 0;
-    virtual NodeId id() = 0;
-    virtual bool is_leader() = 0;
-  };
-
   class TxHistory
   {
   public:
@@ -114,6 +96,25 @@ namespace kv
     virtual void clear_on_result() = 0;
     virtual void clear_on_response() = 0;
     virtual crypto::Sha256Hash get_root() = 0;
+  };
+
+  class Replicator
+  {
+  public:
+    virtual ~Replicator() {}
+    virtual bool replicate(
+      const std::vector<std::tuple<Version, std::vector<uint8_t>, bool>>&
+        entries) = 0;
+    virtual Term get_term() = 0; // TODO(#api): this ought to have a more
+                                 // abstract name than Term
+
+    virtual Term get_term(Version version) = 0;
+    virtual Version get_commit_idx() = 0;
+
+    virtual NodeId leader() = 0;
+    virtual NodeId id() = 0;
+    virtual bool is_leader() = 0;
+    virtual bool on_request(TxHistory::RequestCallbackArgs args) = 0;
   };
 
   using PendingTx = std::function<

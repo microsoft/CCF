@@ -191,6 +191,8 @@ namespace kv
     {
       return true;
     }
+
+    bool on_request(kv::TxHistory::RequestCallbackArgs args) override {return true;}
   };
 
   class FollowerStubReplicator : public StubReplicator

@@ -51,20 +51,17 @@ namespace pbft
     void suspend_replication(kv::Version) {}
     void periodic(std::chrono::milliseconds elapsed) {}
     void recv_message(const uint8_t* data, size_t size) {}
-
+    bool on_request(kv::TxHistory::RequestCallbackArgs args) override
+    {
+      LOG_INFO << "IN NULL REPLICATOR" << std::endl;
+      return true;
+    }
     void add_configuration(kv::Version, std::unordered_set<kv::NodeId> conf) {}
 
     bool replicate(
       const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
         entries) override
     {
-      for (auto&& [index, data, globally_committable] : entries)
-      {
-        if (index != global_commit_index + 1)
-          return false;
-
-        global_commit_index = index;
-      }
       return true;
     }
 

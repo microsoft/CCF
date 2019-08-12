@@ -124,7 +124,7 @@ namespace ccf
 #ifndef PBFT
     std::shared_ptr<ConsensusRaft> raft;
 #else
-    using ConsensusPbft = pbft::Pbft<NodeToNode>;
+    using ConsensusPbft = pbft::Pbft<raft::LedgerEnclave, NodeToNode>;
 
     // TODO(#PBFT): For now, when using PBFT as consensus, replace raft with the
     // NullReplicator
@@ -266,6 +266,9 @@ namespace ccf
       self = 0;
       setup_pbft();
       setup_history();
+      LOG_INFO_FMT("just setup replicator in network tables");
+      network.tables->set_replicator(pbft);
+      pbft->force_become_leader();
 #endif
 
       return Success<CreateNew::Out>({node_cert, quote});
@@ -1094,10 +1097,11 @@ namespace ccf
         raft_config.requestTimeout,
         raft_config.electionTimeout,
         public_only);
+
+      network.tables->set_replicator(raft);
 #else
       raft = std::make_shared<pbft::NullReplicator>(n2n_channels, self);
 #endif
-      network.tables->set_replicator(raft);
 
       // When a node is added, even locally, inform the host so that it can
       // map the node id to a hostname and service and inform raft so that it
@@ -1221,11 +1225,6 @@ namespace ccf
         *node_kp,
         network.signatures,
         network.nodes);
-
-#ifdef PBFT
-      if (pbft)
-        history->register_on_request(pbft->get_on_request());
-#endif
 
       network.tables->set_history(history);
     }

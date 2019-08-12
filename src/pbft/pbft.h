@@ -93,20 +93,21 @@ namespace pbft
     NodeId id;
   };
 
-  template <class ChannelProxy>
+  template <class LedgerProxy, class ChannelProxy>
   class Pbft : public kv::Replicator
   {
   private:
-    NodeId local_id;
+    NodeId self;
     std::shared_ptr<ChannelProxy> channels;
     IMessageReceiveBase* message_receiver_base = nullptr;
     char* mem;
     std::unique_ptr<PbftEnclaveNetwork> pbft_network;
     std::unique_ptr<AbstractPbftConfig> pbft_config;
     std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
-    kv::TxHistory::RequestCallbackHandler on_request;
     enclave::RPCSessions& rpcsessions;
     std::unique_ptr<raft::LedgerEnclave> ledger;
+    bool _is_leader;
+    kv::Version global_commit_index;
 
     struct NodeConfiguration
     {
@@ -122,10 +123,12 @@ namespace pbft
       std::unique_ptr<raft::LedgerEnclave> ledger_,
       std::shared_ptr<enclave::RpcMap> rpc_map,
       enclave::RPCSessions& rpcsessions_) :
-      local_id(id),
+      self(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
-      ledger(std::move(ledger_))
+      ledger(std::move(ledger_)),
+      _is_leader(false),
+      global_commit_index(0)
     {
       // configure replica
       GeneralInfo general_info;
@@ -148,7 +151,7 @@ namespace pbft
 
       // Adding myself
       PrincipalInfo my_info;
-      my_info.id = local_id;
+      my_info.id = self;
       my_info.port = 0;
       my_info.ip = "256.256.256.256"; // Invalid
       my_info.pubk_sig = pubk_sig;
@@ -162,7 +165,7 @@ namespace pbft
       mem = (char*)malloc(mem_size);
       bzero(mem, mem_size);
 
-      pbft_network = std::make_unique<PbftEnclaveNetwork>(local_id, channels);
+      pbft_network = std::make_unique<PbftEnclaveNetwork>(self, channels);
       pbft_config = std::make_unique<PbftConfigCcf>(rpc_map);
 
       auto used_bytes = Byz_init_replica(
@@ -174,7 +177,7 @@ namespace pbft
         0,
         pbft_network.get(),
         &message_receiver_base);
-      LOG_INFO_FMT("PBFT setup for self with id: {}", local_id);
+      LOG_INFO_FMT("PBFT setup for self with id: {}", self);
 
       pbft_config->set_service_mem(mem + used_bytes);
       pbft_network->set_receiver(message_receiver_base);
@@ -211,76 +214,78 @@ namespace pbft
 
       message_receiver_base->register_append_ledger_entry_cb(
         append_ledger_entry_cb, ledger.get());
+    }
 
-      on_request = [&](kv::TxHistory::RequestCallbackArgs args) {
-        auto total_req_size = pbft_config->message_size() + args.request.size();
+    bool on_request(kv::TxHistory::RequestCallbackArgs args) override
+    {
+      LOG_INFO_FMT("in on request of pbft");
+      auto total_req_size = pbft_config->message_size() + args.request.size();
 
-        uint8_t request_buffer[total_req_size];
-        pbft_config->fill_request(
-          request_buffer,
-          total_req_size,
-          args.request,
-          args.actor,
-          args.caller_id);
+      uint8_t request_buffer[total_req_size];
+      pbft_config->fill_request(
+        request_buffer,
+        total_req_size,
+        args.request,
+        args.actor,
+        args.caller_id);
 
-        auto rep_cb = [&](
-                        void* owner,
-                        kv::TxHistory::RequestID caller_rid,
-                        int status,
-                        uint8_t* reply,
-                        size_t len) {
-          LOG_DEBUG_FMT("PBFT reply callback for {}", caller_rid);
+      auto rep_cb = [&](
+                      void* owner,
+                      kv::TxHistory::RequestID caller_rid,
+                      int status,
+                      uint8_t* reply,
+                      size_t len) {
+        LOG_DEBUG_FMT("PBFT reply callback for {}", caller_rid);
 
-          return rpcsessions.reply_async(
-            std::get<1>(caller_rid), {reply, reply + len});
-        };
-
-        LOG_DEBUG_FMT("PBFT sending request {}", args.rid);
-        return client_proxy->send_request(
-          args.rid,
-          request_buffer,
-          sizeof(request_buffer),
-          rep_cb,
-          client_proxy.get());
+        return rpcsessions.reply_async(
+          std::get<1>(caller_rid), {reply, reply + len});
       };
+
+      LOG_DEBUG_FMT("PBFT sending request {}", args.rid);
+      return client_proxy->send_request(
+        args.rid,
+        request_buffer,
+        sizeof(request_buffer),
+        rep_cb,
+        client_proxy.get());
     }
 
     // TODO(#PBFT): PBFT consensus should implement the following functions to
     // return meaningful information to clients (e.g. global commit, term/view)
     // instead of relying on the NullReplicator
-    NodeId leader() override
+    kv::Term get_term() override
     {
-      return 0;
+      return 2;
     }
 
-    NodeId id() override
+    kv::Term get_term(kv::Version version) override
     {
-      return local_id;
+      return 2;
+    }
+
+    kv::Version get_commit_idx() override
+    {
+      return global_commit_index;
     }
 
     bool is_leader() override
     {
-      return false;
+      return _is_leader;
     }
 
-    Index get_commit_idx() override
+    bool is_follower()
+    {
+      return !is_leader();
+    }
+
+    ccf::NodeId leader() override
     {
       return 0;
     }
 
-    Term get_term() override
+    ccf::NodeId id() override
     {
-      return 0;
-    }
-
-    Term get_term(Index idx) override
-    {
-      return 0;
-    }
-
-    kv::TxHistory::RequestCallbackHandler get_on_request()
-    {
-      return on_request;
+      return self;
     }
 
     void add_configuration(const NodeConfiguration& node_conf)
@@ -293,7 +298,7 @@ namespace pbft
       std::string pubk_enc =
         "893d4101c5b225c2bdc8633bb322c0ef9861e0c899014536e11196808ffc0d17";
 
-      if (node_conf.node_id == local_id)
+      if (node_conf.node_id == self)
       {
         return;
       }
@@ -310,10 +315,43 @@ namespace pbft
       LOG_INFO_FMT("PBFT added node, id: {}", info.id);
     }
 
-    bool replicate(
-      const std::vector<std::tuple<Index, std::vector<uint8_t>, bool>>& entries)
-      override
+    void force_become_leader()
     {
+      _is_leader = true;
+    }
+    void force_become_leader(
+      kv::Version index, kv::Term term, kv::Version commit_idx_)
+    {
+      _is_leader = true;
+    }
+    void force_become_leader(
+      kv::Version index,
+      kv::Term term,
+      const std::vector<kv::Version>& terms,
+      kv::Version commit_idx_)
+    {
+      _is_leader = true;
+    }
+
+    void enable_all_domains() {}
+    void resume_replication() {}
+    void suspend_replication(kv::Version) {}
+    void periodic(std::chrono::milliseconds elapsed)
+    {
+      ITimer::handle_timeouts(elapsed);
+    }
+
+    bool replicate(
+      const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
+        entries) override
+    {
+      for (auto&& [index, data, globally_committable] : entries)
+      {
+        if (index != global_commit_index + 1)
+          return false;
+
+        global_commit_index = index;
+      }
       return true;
     }
 

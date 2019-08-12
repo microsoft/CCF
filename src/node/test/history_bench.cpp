@@ -55,6 +55,8 @@ public:
   {
     return true;
   }
+
+  bool on_request(kv::TxHistory::RequestCallbackArgs args) override {return true;}
 };
 
 template <class A>

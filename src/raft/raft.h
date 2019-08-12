@@ -205,6 +205,8 @@ namespace raft
       recovery_max_index.reset();
     }
 
+    bool on_request(kv::TxHistory::RequestCallbackArgs args) override {return true;}
+
     void force_become_leader()
     {
       // This is unsafe and should only be called when the node is certain

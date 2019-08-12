@@ -67,6 +67,8 @@ public:
   {
     return true;
   }
+
+  bool on_request(kv::TxHistory::RequestCallbackArgs args) override {return true;}
 };
 
 TEST_CASE("Check signature verification")
@@ -248,6 +250,8 @@ public:
   {
     return true;
   }
+
+  bool on_request(kv::TxHistory::RequestCallbackArgs args) override {return true;}
 };
 
 TEST_CASE(
@@ -362,6 +366,8 @@ public:
   {
     return true;
   }
+
+  bool on_request(kv::TxHistory::RequestCallbackArgs args) override {return true;}
 };
 
 TEST_CASE(
