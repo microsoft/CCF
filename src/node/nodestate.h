@@ -289,8 +289,10 @@ namespace ccf
       // TODO(#PBFT): When/if we stop using the history to register PBFT
       // callbacks, we should be able to initialise the history as late as here.
       setup_history();
-#endif
+#else
+      // n2n channels not set up yet if we are in PBFT mode
       setup_n2n_channels();
+#endif
       setup_encryptor();
 
       // Before loading the initial transaction, its integrity needs to be
