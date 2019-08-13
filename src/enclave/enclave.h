@@ -86,35 +86,39 @@ namespace enclave
     }
 
     bool create_node(
-      const CCFConfig::Genesis& genesis_config,
+      const CCFConfig& ccf_config,
       uint8_t* node_cert,
       size_t node_cert_size,
       size_t* node_cert_len,
       uint8_t* quote,
       size_t quote_size,
       size_t* quote_len,
+      uint8_t* network_cert,
+      size_t network_cert_size,
+      size_t* network_cert_len,
       bool recover_)
     {
-      // quote_size is ignored here, but we pass it in because it allows
-      // us to set EDL an annotation so that quote_len <= quote_size is
-      // checked by the EDL-generated wrapper
+      // node_cert_size, quote_size and network_cert_size are ignored here, but
+      // we pass it in because it allows us to set EDL an annotation so that
+      // quote_len <= quote_size is checked by the EDL-generated wrapper
 
       // TODO: Recover should eventually go and we should branch here based on
       // {start, join, recover}
       recover = recover_;
-      auto r = node.create_new({genesis_config.node_info,
-                                genesis_config.member_cert,
-                                genesis_config.gov_script,
-                                recover});
+      auto r = node.create_new({ccf_config, recover});
       if (!r.second)
         return false;
 
-      // Copy quote and node cert out
+      // Copy quote, node and network certs out
       ::memcpy(quote, r.first.quote.data(), r.first.quote.size());
       *quote_len = r.first.quote.size();
 
       ::memcpy(node_cert, r.first.node_cert.data(), r.first.node_cert.size());
       *node_cert_len = r.first.node_cert.size();
+
+      ::memcpy(
+        network_cert, r.first.network_cert.data(), r.first.network_cert.size());
+      *network_cert_len = r.first.network_cert.size();
       return true;
     }
 

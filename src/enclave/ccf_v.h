@@ -48,7 +48,18 @@ extern "C"
     size_t* output_bytes_written);
 
   using create_node_func_t = bool (*)(
-    void*, void*, uint8_t*, size_t, size_t*, uint8_t*, size_t, size_t*, bool);
+    void*,
+    void*,
+    uint8_t*,
+    size_t,
+    size_t*,
+    uint8_t*,
+    size_t,
+    size_t*,
+    uint8_t*,
+    size_t,
+    size_t*,
+    bool);
 
   using run_func_t = bool (*)();
 
@@ -83,6 +94,9 @@ extern "C"
     uint8_t* quote,
     size_t quote_size,
     size_t* quote_len,
+    uint8_t* network_cert,
+    size_t network_cert_size,
+    size_t* network_cert_len,
     bool recover)
   {
     static create_node_func_t create_node_func =
@@ -99,6 +113,9 @@ extern "C"
       quote,
       quote_size,
       quote_len,
+      network_cert,
+      network_cert_size,
+      network_cert_len,
       recover);
     return *_retval ? OE_OK : OE_FAILURE;
   }

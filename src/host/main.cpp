@@ -227,7 +227,8 @@ int main(int argc, char** argv)
     *join,
     target_rpc_address,
     "--target-rpc-address",
-    "RPC over TLS listening address of target network node");
+    "RPC over TLS listening address of target network node")
+    ->required();
 
   auto recover = app.add_subcommand("recover", "Recover crashed network");
   // TODO: Recovery options
@@ -298,25 +299,10 @@ int main(int argc, char** argv)
   asynchost::Sigterm sigterm(writer_factory);
 
   // Initialise the enclave and create a CCF node in it
-  const size_t node_size = 4096;
-  std::vector<uint8_t> node_cert(node_size);
+  const size_t certificate_size = 4096;
+  std::vector<uint8_t> node_cert(certificate_size);
   std::vector<uint8_t> quote(OE_MAX_REPORT_SIZE);
-
-  if (*start)
-  {
-    LOG_INFO_FMT("Starting new node - new network");
-  }
-  else if (*join)
-  {
-    LOG_INFO_FMT(
-      "Starting new node - joining existing network at {}:{}",
-      target_rpc_address.hostname,
-      target_rpc_address.port);
-  }
-  else if (*recover)
-  {
-    LOG_INFO_FMT("Starting new node - recover");
-  }
+  std::vector<uint8_t> network_cert(certificate_size);
 
   EnclaveConfig enclave_config;
   enclave_config.circuit = &circuit;
@@ -333,14 +319,34 @@ int main(int argc, char** argv)
   CCFConfig ccf_config;
   ccf_config.raft_config = raft_config;
   ccf_config.signature_intervals = {sig_max_tx, sig_max_ms};
-  ccf_config.genesis.node_info = {rpc_address.hostname,
-                                  public_rpc_address.hostname,
-                                  node_address.port,
-                                  rpc_address.port};
-  ccf_config.genesis.member_cert = files::slurp(member_cert_file);
-  ccf_config.genesis.gov_script = files::slurp_string(gov_script);
 
-  enclave.create_node(enclave_config, ccf_config, node_cert, quote, false);
+  if (*start)
+  {
+    LOG_INFO_FMT("Starting new node - new network");
+    ccf_config.genesis.node_info = {rpc_address.hostname,
+                                    public_rpc_address.hostname,
+                                    node_address.port,
+                                    rpc_address.port};
+    ccf_config.genesis.member_cert = files::slurp(member_cert_file);
+    ccf_config.genesis.gov_script = files::slurp_string(gov_script);
+  }
+  else if (*join)
+  {
+    LOG_INFO_FMT(
+      "Starting new node - joining existing network at {}:{}",
+      target_rpc_address.hostname,
+      target_rpc_address.port);
+    ccf_config.joining.target_host = target_rpc_address.hostname;
+    ccf_config.joining.target_port = target_rpc_address.port;
+    ccf_config.joining.network_cert = files::slurp(network_cert_file);
+  }
+  else if (*recover)
+  {
+    LOG_INFO_FMT("Starting new node - recover");
+  }
+
+  enclave.create_node(
+    enclave_config, ccf_config, node_cert, quote, network_cert, false);
 
   LOG_INFO_FMT("Created new node");
 
@@ -360,9 +366,9 @@ int main(int argc, char** argv)
   rpc.register_message_handlers(bp.get_dispatcher());
   rpc.listen(0, rpc_address.hostname, rpc_address.port);
 
-  // Write the node cert and quote to disk. Actors can use the node cert
-  // as a CA on their end of the TLS connection.
+  // Write the node and network certs and quote to disk.
   files::dump(node_cert, node_cert_file);
+  files::dump(network_cert, network_cert_file);
 
 #ifdef GET_QUOTE
   files::dump(quote, quote_file);

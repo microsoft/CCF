@@ -10,9 +10,17 @@
 #include "../ds/ringbuffer_types.h"
 #include "../kv/kvtypes.h"
 #include "../raft/rafttypes.h"
-#include "../node/calltypes.h"
+// #include "../node/calltypes.h"
 
 #include <chrono>
+
+struct NodeInfoCreation
+  {
+    std::string host;
+    std::string pubhost;
+    std::string nodeport;
+    std::string rpcport;
+  };
 
 struct EnclaveConfig
 {
@@ -32,20 +40,28 @@ struct CCFConfig
 {
   raft::Config raft_config = {};
 
-  struct Genesis
-  {
-    ccf::NodeInfoCreation node_info = {};
-    std::vector<uint8_t> member_cert;
-    std::string gov_script;
-  };
-  Genesis genesis = {};
-
   struct SignatureIntervals
   {
     size_t sig_max_tx;
     size_t sig_max_ms;
   };
   SignatureIntervals signature_intervals = {};
+
+  struct Genesis
+  {
+    NodeInfoCreation node_info = {};
+    std::vector<uint8_t> member_cert;
+    std::string gov_script;
+  };
+  Genesis genesis = {};
+
+  struct Joining
+  {
+    std::string target_host;
+    std::string target_port;
+    std::vector<uint8_t> network_cert;
+  };
+  Joining joining = {};
 };
 
 /// General administrative messages

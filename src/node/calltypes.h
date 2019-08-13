@@ -5,16 +5,18 @@
 #include "networksecrets.h"
 #include "nodes.h"
 
+#include "enclave/interface.h"
+
 namespace ccf
 {
   // TODO: Merge that with nodes.h?
-  struct NodeInfoCreation
-  {
-    std::string host;
-    std::string pubhost;
-    std::string nodeport;
-    std::string rpcport;
-  };
+  // struct NodeInfoCreation
+  // {
+  //   std::string host;
+  //   std::string pubhost;
+  //   std::string nodeport;
+  //   std::string rpcport;
+  // };
 
   struct CreateNew
   {
@@ -27,15 +29,23 @@ namespace ccf
 
     struct In
     {
-      NodeInfoCreation node_info;
-      std::vector<uint8_t> member_cert;
-      std::string gov_script;
+      // NodeInfoCreation node_info;
+      // std::vector<uint8_t> member_cert;
+      // std::string gov_script;
+
+      // std::string target_host;
+      // std::string target_port;
+      // std::vector<uint8_t> network_cert;
+
+      CCFConfig config;
+      
       bool recover; // TODO: This should go eventually
     };
     struct Out
     {
       std::vector<uint8_t> node_cert;
       std::vector<uint8_t> quote;
+      std::vector<uint8_t> network_cert;
     };
   };
 

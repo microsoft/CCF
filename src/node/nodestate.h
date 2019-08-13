@@ -202,29 +202,17 @@ namespace ccf
 
       Store::Tx tx;
 
-      // TODO:
-      // 2. Generate node key pair and service signing key + secrets
-      // 3. Generate quote over node and service keys
-      // 4. Set code version
-      // 5. Record initial arguments:
-      //    - governance script
-      //    - member certs and members
-      //    - self node
-      //    - code_id
-      //    - whitelist
-      // 1. Create history and Consensus
-
       // Generate node key pair
       std::stringstream name;
       name << "CN=" << Actors::MANAGEMENT;
       node_cert = node_kp->self_sign(name.str());
 
-      // Generate and seal network secrets
       network.secrets = std::make_unique<NetworkSecrets>(
         "CN=The CA", std::make_unique<Seal>(writer_factory));
 
-      // Accept member connections
+      // Accept member and node connections
       accept_member_connections();
+      accept_node_connections();
 
       // Generate quote over node certificate
       // TODO: https://github.com/microsoft/CCF/issues/59
@@ -302,10 +290,10 @@ namespace ccf
       // Nodes
       nodes_view->put(
         self,
-        {args.node_info.host,
-         args.node_info.pubhost,
-         args.node_info.nodeport,
-         args.node_info.rpcport,
+        {args.config.genesis.node_info.host,
+         args.config.genesis.node_info.pubhost,
+         args.config.genesis.node_info.nodeport,
+         args.config.genesis.node_info.rpcport,
          node_cert,
          quote,
          NodeStatus::PENDING});
@@ -316,11 +304,11 @@ namespace ccf
       auto member_id = get_next_id(tx.get_view(network.values), NEXT_MEMBER_ID);
       // TODO: Status can be active straight away?
       members_view->put(member_id, {MemberStatus::ACCEPTED, {}});
-      member_certs_view->put(args.member_cert, member_id);
+      member_certs_view->put({}, member_id);
 
-      // Governance is written to not compiled
+      // Governance is not compiled
       std::map<std::string, std::string> scripts =
-        lua::Interpreter().invoke<nlohmann::json>(args.gov_script);
+        lua::Interpreter().invoke<nlohmann::json>(args.config.genesis.gov_script);
       for (auto& rs : scripts)
       {
         gov_view->put(rs.first, rs.second);
@@ -335,10 +323,6 @@ namespace ccf
       {
         init_public_ledger_recovery();
         sm.advance(State::readingPublicLedger);
-      }
-      else
-      {
-        sm.advance(State::started);
       }
 
       // Initialise history and consensus
@@ -357,12 +341,12 @@ namespace ccf
         return Fail<CreateNew::Out>(
           "Genesis transaction could not be committed");
 
-      // TODO: Delete this
-      // // We present our self-signed certificate to the management frontend
-      // rpcsessions.add_cert(
-      //   Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key_pem());
+      if(!args.recover)
+      {
+        sm.advance(State::started);
+      }
 
-      return Success<CreateNew::Out>({node_cert, quote});
+      return Success<CreateNew::Out>({node_cert, quote, network.secrets->get_current().cert});
     }
 
     //

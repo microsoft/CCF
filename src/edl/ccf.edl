@@ -10,6 +10,9 @@ enclave {
             [out, count=quote_size] uint8_t * quote,
             size_t quote_size,
             [out] size_t* quote_len,
+            [out, count=network_cert_size] uint8_t * network_cert,
+            size_t network_cert_size,
+            [out] size_t* network_cert_len,
             bool recover
         );
 
