@@ -36,7 +36,7 @@ struct CCFConfig
   {
     ccf::NodeInfoCreation node_info = {};
     std::vector<uint8_t> member_cert;
-    std::vector<uint8_t> gov_script;
+    std::string gov_script;
   };
   Genesis genesis = {};
 

@@ -338,7 +338,7 @@ int main(int argc, char** argv)
                                   node_address.port,
                                   rpc_address.port};
   ccf_config.genesis.member_cert = files::slurp(member_cert_file);
-  ccf_config.genesis.gov_script = files::slurp(gov_script);
+  ccf_config.genesis.gov_script = files::slurp_string(gov_script);
 
   enclave.create_node(enclave_config, ccf_config, node_cert, quote, false);
 

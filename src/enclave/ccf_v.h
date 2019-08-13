@@ -88,6 +88,8 @@ extern "C"
     static create_node_func_t create_node_func =
       get_enclave_exported_function<create_node_func_t>("enclave_create_node");
 
+    // TODO: The error string should be returned to the host and displayed if
+    // OE_FAILURE is returned
     *_retval = create_node_func(
       enclave_config,
       ccf_config,

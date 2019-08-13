@@ -16,6 +16,8 @@
 #include "entities.h"
 #include "history.h"
 #include "kv/replicator.h"
+#include "luainterp/luainterp.h"
+#include "luainterp/luautil.h"
 #include "networkstate.h"
 #include "nodetonode.h"
 #include "rpc/consts.h"
@@ -269,19 +271,31 @@ namespace ccf
 #endif
 
       // Initialise store
-      auto [nodes_view, node_certs_view, members_view, member_certs_view, gov_view] =
-        tx.get_view(
-          network.tables.nodes,
-          network.tables.node_certs,
-          network.tables.members,
-          network.tables.member_certs,
-          network.tables.gov_scripts);
+      auto
+        [nodes_view,
+         node_certs_view,
+         members_view,
+         member_certs_view,
+         gov_view] =
+          tx.get_view(
+            network.nodes,
+            network.node_certs,
+            network.members,
+            network.member_certs,
+            network.gov_scripts);
+
+      // Init values
+      {
+        auto v = tx.get_view(network.values);
+        for (int id_type = 0; id_type < ccf::ValueIds::END_ID; id_type++)
+          v->put(id_type, 0);
+      }
 
       // TODO: This is not very elegant. Need to merge NodeInfoCreation with
       // NodeInfo
       // TODO: Should we only become TRUSTED once the member has vetted the
       // network?
-      self = get_next_id(tx.get_view(network.tables.values), NEXT_NODE_ID);
+      self = get_next_id(tx.get_view(network.values), NEXT_NODE_ID);
 
       LOG_INFO_FMT("Setting self as {}", self);
 
@@ -294,23 +308,28 @@ namespace ccf
          args.node_info.rpcport,
          node_cert,
          quote,
-         NodeStatus::TRUSTED});
+         NodeStatus::PENDING});
       node_certs_view->put(node_cert, self);
 
       // Members
-      // TODO: In a loop
-      auto member_id =
-        members_view->put(tx.get_view(network.tables.values), NEXT_MEMBER_ID);
+      // TODO: In a loop for each member
+      auto member_id = get_next_id(tx.get_view(network.values), NEXT_MEMBER_ID);
       // TODO: Status can be active straight away?
       members_view->put(member_id, {MemberStatus::ACCEPTED, {}});
-      member_certs_view->put(args.member_cert);
+      member_certs_view->put(args.member_cert, member_id);
 
-      // Governance
-      // gov_view->put();
+      // Governance is written to not compiled
+      std::map<std::string, std::string> scripts =
+        lua::Interpreter().invoke<nlohmann::json>(args.gov_script);
+      for (auto& rs : scripts)
+      {
+        gov_view->put(rs.first, rs.second);
+      }
 
-
-
-      tx.commit();
+#ifdef GET_QUOTE
+      if (!trust_own_code_id(tx, self))
+        return Fail<CreateNew::Out>("Parsing quote of starting node failed");
+#endif
 
       if (args.recover)
       {
@@ -332,12 +351,11 @@ namespace ccf
 
       // Become the raft leader and force replication
       raft->force_become_leader();
-      raft->replicate({{1, protected_tx0, true}});
 
-#ifdef GET_QUOTE
-      if (!trust_own_code_id(tx, self))
-        return Fail<StartNetwork::Out>("Parsing quote of starting node failed");
-#endif
+      auto rc = tx.commit();
+      if (rc != kv::CommitSuccess::OK)
+        return Fail<CreateNew::Out>(
+          "Genesis transaction could not be committed");
 
       // TODO: Delete this
       // // We present our self-signed certificate to the management frontend
