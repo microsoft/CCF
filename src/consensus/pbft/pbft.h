@@ -14,8 +14,8 @@
 #include "libbyz/receive_message_base.h"
 #include "node/nodetypes.h"
 #include "node/rpc/jsonrpc.h"
-#include "pbft/pbft_config.h"
-#include "raft/ledgerenclave.h"
+#include "consensus/pbft/pbft_config.h"
+#include "consensus/raft/ledgerenclave.h"
 
 #include <list>
 #include <memory>

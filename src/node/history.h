@@ -5,7 +5,7 @@
 #include "../crypto/hash.h"
 #include "../ds/logger.h"
 #include "../kv/kvtypes.h"
-#include "../pbft/pbfttypes.h"
+#include "../consensus/pbft/pbfttypes.h"
 #include "../tls/keypair.h"
 #include "../tls/tls.h"
 #include "entities.h"

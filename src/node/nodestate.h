@@ -3,7 +3,7 @@
 #pragma once
 
 #ifdef PBFT
-#  include "pbft/pbft.h"
+#  include "consensus/pbft/pbft.h"
 #endif
 
 #include "calltypes.h"

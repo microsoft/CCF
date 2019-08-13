@@ -5,7 +5,7 @@
 #include "../crypto/hash.h"
 #include "../ds/logger.h"
 #include "../enclave/interface.h"
-#include "../raft/rafttypes.h"
+#include "../consensus/raft/rafttypes.h"
 
 #include <dlfcn.h>
 #include <openenclave/bits/report.h>

@@ -4,7 +4,7 @@
 
 #include "../ds/logger.h"
 #include "../ds/messaging.h"
-#include "../raft/rafttypes.h" // TODO(#refactoring): Separate raft messages from ledger messages
+#include "../consensus/raft/rafttypes.h" // TODO(#refactoring): Separate raft messages from ledger messages
 
 #include <cstdint>
 #include <cstdio>

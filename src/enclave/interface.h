@@ -9,7 +9,7 @@
 #include "../ds/oversized.h"
 #include "../ds/ringbuffer_types.h"
 #include "../kv/kvtypes.h"
-#include "../raft/rafttypes.h"
+#include "../consensus/raft/rafttypes.h"
 #include "../tls/tls.h"
 
 #include <chrono>

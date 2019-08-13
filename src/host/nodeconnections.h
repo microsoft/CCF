@@ -4,7 +4,7 @@
 
 #include "ledger.h"
 #include "node/nodetypes.h"
-#include "raft/rafttypes.h"
+#include "consensus/raft/rafttypes.h"
 #include "tcp.h"
 
 #include <unordered_map>

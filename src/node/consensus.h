@@ -3,8 +3,8 @@
 #pragma once
 
 #include "node/nodetonode.h"
-#include "raft/ledgerenclave.h"
-#include "raft/raft.h"
+#include "consensus/raft/ledgerenclave.h"
+#include "consensus/raft/raft.h"
 
 namespace ccf
 {

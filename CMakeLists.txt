@@ -66,7 +66,7 @@ if(BUILD_TESTS)
     ${CMAKE_THREAD_LIBS_INIT})
 
   add_unit_test(raft_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/raft/test/main.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/main.cpp)
   target_link_libraries(raft_test PRIVATE
     ${CRYPTO_LIBRARY})
 
@@ -74,7 +74,7 @@ if(BUILD_TESTS)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp)
 
   add_unit_test(raft_enclave_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/raft/test/enclave.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/enclave.cpp)
   target_include_directories(raft_enclave_test PRIVATE
     ${CCFCRYPTO_INC})
   target_link_libraries(raft_enclave_test PRIVATE
@@ -221,7 +221,7 @@ if(BUILD_TESTS)
   if (NOT PBFT)
     # Raft driver and scenario test
     add_executable(raft_driver
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/raft/test/driver.cpp)
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/driver.cpp)
     use_client_mbedtls(raft_driver)
     target_include_directories(raft_driver PRIVATE
       src/raft)
