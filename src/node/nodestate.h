@@ -14,7 +14,6 @@
 #include "encryptor.h"
 #include "entities.h"
 #include "history.h"
-#include "kv/replicator.h"
 #include "networkstate.h"
 #include "nodetonode.h"
 #include "rpc/consts.h"

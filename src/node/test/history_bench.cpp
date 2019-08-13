@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #define PICOBENCH_IMPLEMENT
 #include "../history.h"
+#include "kv/replicator.h"
 
 #include <cstdlib>
 #include <ctime>
@@ -14,76 +15,10 @@ extern "C"
 
 using namespace ccf;
 
-class DummyReplicator : public kv::Replicator
+class DummyReplicator : public kv::StubReplicator
 {
 public:
   DummyReplicator() {}
-
-  bool replicate(
-    const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
-      entries) override
-  {
-    return true;
-  }
-
-  kv::Term get_term() override
-  {
-    return 2;
-  }
-
-  kv::Version get_commit_idx() override
-  {
-    return 0;
-  }
-
-  NodeId leader() override
-  {
-    return 1;
-  }
-
-  NodeId id() override
-  {
-    return 0;
-  }
-
-  kv::Term get_term(kv::Version version) override
-  {
-    return 2;
-  }
-
-  bool is_leader() override
-  {
-    return true;
-  }
-
-  bool on_request(kv::TxHistory::RequestCallbackArgs args) override
-  {
-    return true;
-  }
-  void periodic(std::chrono::milliseconds elapsed) override {}
-  bool is_follower() override
-  {
-    return false;
-  }
-  void recv_message(const uint8_t* data, size_t size) override {}
-  void add_configuration(
-    kv::Index idx,
-    std::unordered_set<kv::NodeId> conf,
-    const NodeConf& node_conf) override
-  {}
-
-  void force_become_leader() override {}
-
-  void force_become_leader(
-    kv::Version index,
-    kv::Term term,
-    const std::vector<kv::Version>& terms,
-    kv::Version commit_idx_) override
-  {}
-
-  void enable_all_domains() override {}
-  void resume_replication() override {}
-  void suspend_replication(kv::Version) override {}
 };
 
 template <class A>

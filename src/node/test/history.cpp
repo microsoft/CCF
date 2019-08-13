@@ -9,6 +9,7 @@
 #include "../entities.h"
 #include "../nodes.h"
 #include "../signatures.h"
+#include "../../kv/replicator.h"
 
 #include <doctest/doctest.h>
 
@@ -19,7 +20,7 @@ extern "C"
 
 using namespace ccfapp;
 
-class DummyReplicator : public kv::Replicator
+class DummyReplicator : public kv::StubReplicator
 {
 public:
   Store* store;
@@ -67,34 +68,6 @@ public:
   {
     return true;
   }
-
-  bool on_request(kv::TxHistory::RequestCallbackArgs args) override
-  {
-    return true;
-  }
-  void periodic(std::chrono::milliseconds elapsed) override {}
-  bool is_follower() override
-  {
-    return false;
-  }
-  void recv_message(const uint8_t* data, size_t size) override {}
-  void add_configuration(
-    kv::Index idx,
-    std::unordered_set<kv::NodeId> conf,
-    const NodeConf& node_conf) override
-  {}
-  void force_become_leader() override {}
-
-  void force_become_leader(
-    kv::Version index,
-    kv::Term term,
-    const std::vector<kv::Version>& terms,
-    kv::Version commit_idx_) override
-  {}
-
-  void enable_all_domains() override {}
-  void resume_replication() override {}
-  void suspend_replication(kv::Version) override {}
 };
 
 TEST_CASE("Check signature verification")
@@ -226,7 +199,7 @@ TEST_CASE("Check signing works across rollback")
   }
 }
 
-class CompactingReplicator : public kv::Replicator
+class CompactingReplicator : public kv::StubReplicator
 {
 public:
   Store* store;
@@ -276,34 +249,6 @@ public:
   {
     return true;
   }
-
-  bool on_request(kv::TxHistory::RequestCallbackArgs args) override
-  {
-    return true;
-  }
-  void periodic(std::chrono::milliseconds elapsed) override {}
-  bool is_follower() override
-  {
-    return false;
-  }
-  void recv_message(const uint8_t* data, size_t size) override {}
-  void add_configuration(
-    kv::Index idx,
-    std::unordered_set<kv::NodeId> conf,
-    const NodeConf& node_conf) override
-  {}
-  void force_become_leader() override {}
-
-  void force_become_leader(
-    kv::Version index,
-    kv::Term term,
-    const std::vector<kv::Version>& terms,
-    kv::Version commit_idx_) override
-  {}
-
-  void enable_all_domains() override {}
-  void resume_replication() override {}
-  void suspend_replication(kv::Version) override {}
 };
 
 TEST_CASE(
@@ -361,7 +306,7 @@ TEST_CASE(
   }
 }
 
-class RollbackReplicator : public kv::Replicator
+class RollbackReplicator : public kv::StubReplicator
 {
 public:
   Store* store;
@@ -418,35 +363,6 @@ public:
   {
     return true;
   }
-
-  bool on_request(kv::TxHistory::RequestCallbackArgs args) override
-  {
-    return true;
-  }
-
-  void periodic(std::chrono::milliseconds elapsed) override {}
-  bool is_follower() override
-  {
-    return false;
-  }
-  void recv_message(const uint8_t* data, size_t size) override {}
-  void add_configuration(
-    kv::Index idx,
-    std::unordered_set<kv::NodeId> conf,
-    const NodeConf& node_conf) override
-  {}
-  void force_become_leader() override {}
-
-  void force_become_leader(
-    kv::Version index,
-    kv::Term term,
-    const std::vector<kv::Version>& terms,
-    kv::Version commit_idx_) override
-  {}
-
-  void enable_all_domains() override {}
-  void resume_replication() override {}
-  void suspend_replication(kv::Version) override {}
 };
 
 TEST_CASE(
