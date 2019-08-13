@@ -5,13 +5,16 @@
 #include "crypto/hash.h"
 
 #include <array>
+#include <chrono>
 #include <functional>
 #include <limits>
 #include <memory>
+#include <unordered_set>
 #include <vector>
 
 namespace kv
 {
+  using Index = int64_t;
   using Version = int64_t;
   using Term = uint64_t;
   using NodeId = uint64_t;
@@ -101,6 +104,12 @@ namespace kv
   class Replicator
   {
   public:
+    struct NodeConf
+    {
+      NodeId node_id;
+      std::string host_name;
+      std::string port;
+    };
     virtual ~Replicator() {}
     virtual bool replicate(
       const std::vector<std::tuple<Version, std::vector<uint8_t>, bool>>&
@@ -114,7 +123,26 @@ namespace kv
     virtual NodeId leader() = 0;
     virtual NodeId id() = 0;
     virtual bool is_leader() = 0;
-    virtual bool on_request(TxHistory::RequestCallbackArgs args) = 0;
+    virtual bool on_request(kv::TxHistory::RequestCallbackArgs args) = 0;
+    virtual void periodic(std::chrono::milliseconds elapsed) = 0;
+
+    virtual bool is_follower() = 0;
+    virtual void recv_message(const uint8_t* data, size_t size) = 0;
+    virtual void add_configuration(
+      Index idx,
+      std::unordered_set<NodeId> conf,
+      const NodeConf& node_conf) = 0;
+
+    virtual void force_become_leader() = 0;
+    virtual void force_become_leader(
+      Version index,
+      Term term,
+      const std::vector<Version>& terms,
+      Version commit_idx_) = 0;
+
+    virtual void enable_all_domains() = 0;
+    virtual void resume_replication() = 0;
+    virtual void suspend_replication(kv::Version) = 0;
   };
 
   using PendingTx = std::function<

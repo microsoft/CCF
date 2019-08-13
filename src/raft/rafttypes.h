@@ -4,9 +4,9 @@
 
 #include "ds/ringbuffer_types.h"
 
-#include <chrono>
 #include <cstdint>
 #include <limits>
+#include <chrono>
 
 namespace raft
 {

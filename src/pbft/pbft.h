@@ -109,13 +109,6 @@ namespace pbft
     bool _is_leader;
     kv::Version global_commit_index;
 
-    struct NodeConfiguration
-    {
-      NodeId node_id;
-      std::string host_name;
-      std::string port;
-    };
-
   public:
     Pbft(
       std::shared_ptr<ChannelProxy> channels_,
@@ -273,22 +266,25 @@ namespace pbft
       return _is_leader;
     }
 
-    bool is_follower()
+    bool is_follower() override
     {
       return !is_leader();
     }
 
-    ccf::NodeId leader() override
+    kv::NodeId leader() override
     {
       return 0;
     }
 
-    ccf::NodeId id() override
+    kv::NodeId id() override
     {
       return self;
     }
 
-    void add_configuration(const NodeConfiguration& node_conf)
+    void add_configuration(
+      Index index,
+      std::unordered_set<kv::NodeId> config,
+      const NodeConf& node_conf) override
     {
       // TODO(#pbft): We do not need this in the long run
       std::string privk =
@@ -315,28 +311,24 @@ namespace pbft
       LOG_INFO_FMT("PBFT added node, id: {}", info.id);
     }
 
-    void force_become_leader()
-    {
-      _is_leader = true;
-    }
-    void force_become_leader(
-      kv::Version index, kv::Term term, kv::Version commit_idx_)
-    {
-      _is_leader = true;
-    }
-    void force_become_leader(
-      kv::Version index,
-      kv::Term term,
-      const std::vector<kv::Version>& terms,
-      kv::Version commit_idx_)
+    void force_become_leader() override
     {
       _is_leader = true;
     }
 
-    void enable_all_domains() {}
-    void resume_replication() {}
-    void suspend_replication(kv::Version) {}
-    void periodic(std::chrono::milliseconds elapsed)
+    void force_become_leader(
+      kv::Version index,
+      kv::Term term,
+      const std::vector<kv::Version>& terms,
+      kv::Version commit_idx_) override
+    {
+      _is_leader = true;
+    }
+
+    void enable_all_domains() override {}
+    void resume_replication() override {}
+    void suspend_replication(kv::Version) override {}
+    void periodic(std::chrono::milliseconds elapsed) override
     {
       ITimer::handle_timeouts(elapsed);
     }
@@ -355,7 +347,7 @@ namespace pbft
       return true;
     }
 
-    void recv_message(const uint8_t* data, size_t size)
+    void recv_message(const uint8_t* data, size_t size) override
     {
       switch (serialized::peek<PbftMsgType>(data, size))
       {
