@@ -1,6 +1,33 @@
 FROM ubuntu:18.04
 
+RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
+
 COPY getting_started/setup_vm/ /setup_vm/
 RUN apt update
 RUN apt install -y ansible software-properties-common
-RUN cd setup_vm; ansible-playbook -i local *.yml
+
+# gpg-agent needed for apt-add-repository (dependency missing?)
+RUN apt-get update && apt-get -y --no-install-recommends install \
+    ca-certificates apt-transport-https software-properties-common \
+    curl gpg-agent \
+    build-essential ocaml ocamlbuild automake autoconf libtool ninja-build \
+    libssl-dev libcurl4-openssl-dev
+
+# Latest CMake
+RUN curl --retry 5 --retry-connrefused https://cmake.org/files/v3.14/cmake-3.14.3-Linux-x86_64.sh -o cmake.sh && \
+    chmod +x cmake.sh && \
+    ./cmake.sh --prefix=/usr --exclude-subdir --skip-license && \
+    rm cmake.sh
+
+# Work-around for https://github.com/intel/linux-sgx/issues/395
+RUN mkdir -p /etc/init
+
+RUN curl --retry 5 --retry-connrefused https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add - && \
+    apt-add-repository https://download.01.org/intel-sgx/sgx_repo/ubuntu && \
+    apt-get update && apt-get -y --no-install-recommends install \
+    libsgx-enclave-common \
+    libsgx-enclave-common-dev \
+    libsgx-dcap-ql \
+    libsgx-dcap-ql-dev
+
+RUN cd setup_vm; ansible-playbook -i local E-ccf-deps.yml

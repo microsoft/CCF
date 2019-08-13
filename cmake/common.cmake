@@ -488,9 +488,13 @@ function(add_unit_test name)
   target_include_directories(${name} PRIVATE
     src
     ${CCFCRYPTO_INC})
-  target_compile_options(${name} PRIVATE -fdiagnostics-color=always)
+  target_compile_options(${name} PRIVATE -fdiagnostics-color=always -stdlib=libc++)
   enable_coverage(${name})
-  target_link_libraries(${name} PRIVATE ccfcrypto.host)
+  target_link_libraries(${name} PRIVATE 
+      -stdlib=libc++
+      -lc++
+      -lc++abi
+  ccfcrypto.host)
 
   use_client_mbedtls(${name})
   add_san(${name})
