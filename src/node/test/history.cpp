@@ -5,11 +5,11 @@
 
 #include "../../enclave/appinterface.h"
 #include "../../kv/kv.h"
+#include "../../kv/replicator.h"
 #include "../encryptor.h"
 #include "../entities.h"
 #include "../nodes.h"
 #include "../signatures.h"
-#include "../../kv/replicator.h"
 
 #include <doctest/doctest.h>
 

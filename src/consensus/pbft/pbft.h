@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/pbft/pbft_config.h"
+#include "consensus/raft/ledgerenclave.h"
 #include "ds/logger.h"
 #include "enclave/rpcmap.h"
 #include "enclave/rpcsessions.h"
@@ -14,8 +16,6 @@
 #include "libbyz/receive_message_base.h"
 #include "node/nodetypes.h"
 #include "node/rpc/jsonrpc.h"
-#include "consensus/pbft/pbft_config.h"
-#include "consensus/raft/ledgerenclave.h"
 
 #include <list>
 #include <memory>
