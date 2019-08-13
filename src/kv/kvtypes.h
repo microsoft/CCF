@@ -131,7 +131,7 @@ namespace kv
     virtual void add_configuration(
       Index idx,
       std::unordered_set<NodeId> conf,
-      const NodeConf& node_conf) = 0;
+      const NodeConf& node_conf = {}) = 0;
 
     virtual void force_become_leader() = 0;
     virtual void force_become_leader(

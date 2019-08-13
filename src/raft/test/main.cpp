@@ -31,7 +31,7 @@ TEST_CASE("Single node startup" * doctest::test_suite("single"))
     election_timeout);
 
   std::unordered_set<raft::NodeId> config = {node_id};
-  r0.add_configuration(0, config, {});
+  r0.add_configuration(0, config);
 
   INFO("REQUIRE Initial State");
 
@@ -65,7 +65,7 @@ TEST_CASE("Single node commit" * doctest::test_suite("single"))
     election_timeout);
 
   std::unordered_set<raft::NodeId> config = {node_id};
-  r0.add_configuration(0, config, {});
+  r0.add_configuration(0, config);
 
   INFO("Become leader after election timeout");
 
@@ -118,9 +118,9 @@ TEST_CASE(
     ms(50));
 
   std::unordered_set<raft::NodeId> config = {node_id0, node_id1, node_id2};
-  r0.add_configuration(0, config, {});
-  r1.add_configuration(0, config, {});
-  r2.add_configuration(0, config, {});
+  r0.add_configuration(0, config);
+  r1.add_configuration(0, config);
+  r2.add_configuration(0, config);
 
   auto by_0 = [](auto const& lhs, auto const& rhs) -> bool {
     return get<0>(lhs) < get<0>(rhs);
@@ -280,9 +280,9 @@ TEST_CASE("Multiple nodes append entries" * doctest::test_suite("multiple"))
     ms(50));
 
   std::unordered_set<raft::NodeId> config = {node_id0, node_id1, node_id2};
-  r0.add_configuration(0, config, {});
-  r1.add_configuration(0, config, {});
-  r2.add_configuration(0, config, {});
+  r0.add_configuration(0, config);
+  r1.add_configuration(0, config);
+  r2.add_configuration(0, config);
 
   map<raft::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
@@ -399,8 +399,8 @@ TEST_CASE("Multiple nodes, late join" * doctest::test_suite("multiple"))
     ms(50));
 
   std::unordered_set<raft::NodeId> config0 = {node_id0, node_id1};
-  r0.add_configuration(0, config0, {});
-  r1.add_configuration(0, config0, {});
+  r0.add_configuration(0, config0);
+  r1.add_configuration(0, config0);
 
   map<raft::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
@@ -448,9 +448,9 @@ TEST_CASE("Multiple nodes, late join" * doctest::test_suite("multiple"))
   INFO("Node 2 joins the ensemble");
 
   std::unordered_set<raft::NodeId> config1 = {node_id0, node_id1, node_id2};
-  r0.add_configuration(1, config1, {});
-  r1.add_configuration(1, config1, {});
-  r2.add_configuration(1, config1, {});
+  r0.add_configuration(1, config1);
+  r1.add_configuration(1, config1);
+  r2.add_configuration(1, config1);
 
   nodes[node_id2] = &r2;
 
@@ -496,8 +496,8 @@ TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     ms(100));
 
   std::unordered_set<raft::NodeId> config0 = {node_id0, node_id1};
-  r0.add_configuration(0, config0, {});
-  r1.add_configuration(0, config0, {});
+  r0.add_configuration(0, config0);
+  r1.add_configuration(0, config0);
 
   map<raft::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
@@ -639,8 +639,8 @@ TEST_CASE("Exceed append entries limit")
     ms(50));
 
   std::unordered_set<raft::NodeId> config0 = {node_id0, node_id1};
-  r0.add_configuration(0, config0, {});
-  r1.add_configuration(0, config0, {});
+  r0.add_configuration(0, config0);
+  r1.add_configuration(0, config0);
 
   map<raft::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
@@ -701,9 +701,9 @@ TEST_CASE("Exceed append entries limit")
   INFO("Node 2 joins the ensemble");
 
   std::unordered_set<raft::NodeId> config1 = {node_id0, node_id1, node_id2};
-  r0.add_configuration(1, config1, {});
-  r1.add_configuration(1, config1, {});
-  r2.add_configuration(1, config1, {});
+  r0.add_configuration(1, config1);
+  r1.add_configuration(1, config1);
+  r2.add_configuration(1, config1);
 
   nodes[node_id2] = &r2;
 

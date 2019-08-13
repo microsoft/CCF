@@ -1199,7 +1199,7 @@ namespace ccf
                 configuration.insert(node_id);
               return true;
             });
-            replicator->add_configuration(version, move(configuration), {});
+            replicator->add_configuration(version, move(configuration));
           }
         });
 

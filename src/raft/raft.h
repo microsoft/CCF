@@ -286,7 +286,7 @@ namespace raft
     void add_configuration(
       Index idx,
       std::unordered_set<NodeId> conf,
-      const NodeConf& node_conf) override
+      const NodeConf& node_conf = {}) override
     {
       // This should only be called when the spin lock is held.
       configurations.push_back({idx, move(conf)});
