@@ -91,7 +91,7 @@ namespace kv
     void recv_message(const uint8_t* data, size_t size) override {}
 
     void add_configuration(
-      Index idx,
+      ConfigIndex idx,
       std::unordered_set<NodeId> conf,
       const NodeConf& node_conf) override
     {}
