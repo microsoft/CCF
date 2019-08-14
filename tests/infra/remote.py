@@ -57,7 +57,7 @@ def sftp_session(hostname):
 
 
 def log_errors(out_path, err_path):
-    error_filter = ["[fail]", "[fatal]"]
+    error_filter = ["fail", "fatal"]
     try:
         errors = 0
         with open(out_path, "r") as lines:
