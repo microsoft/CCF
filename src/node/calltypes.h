@@ -20,13 +20,6 @@ namespace ccf
 
   struct CreateNew
   {
-    enum StartType
-    {
-      start = 0,
-      join,
-      recover
-    };
-
     struct In
     {
       // NodeInfoCreation node_info;
@@ -38,7 +31,7 @@ namespace ccf
       // std::vector<uint8_t> network_cert;
 
       CCFConfig config;
-      
+
       bool recover; // TODO: This should go eventually
     };
     struct Out

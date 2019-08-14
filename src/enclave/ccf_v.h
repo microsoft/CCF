@@ -40,6 +40,13 @@ extern "C"
 
 #define oe_result_str(x) x
 
+  typedef enum StartType
+  {
+    Start = 1,
+    Join = 2,
+    Recover = 3
+  } StartType;
+
   typedef void (*oe_ocall_func_t)(
     const uint8_t* input_buffer,
     size_t input_buffer_size,
@@ -59,7 +66,7 @@ extern "C"
     uint8_t*,
     size_t,
     size_t*,
-    bool);
+    StartType);
 
   using run_func_t = bool (*)();
 
@@ -97,7 +104,7 @@ extern "C"
     uint8_t* network_cert,
     size_t network_cert_size,
     size_t* network_cert_len,
-    bool recover)
+    StartType start_type)
   {
     static create_node_func_t create_node_func =
       get_enclave_exported_function<create_node_func_t>("enclave_create_node");
@@ -116,7 +123,7 @@ extern "C"
       network_cert,
       network_cert_size,
       network_cert_len,
-      recover);
+      start_type);
     return *_retval ? OE_OK : OE_FAILURE;
   }
 

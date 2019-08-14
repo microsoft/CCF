@@ -81,7 +81,7 @@ namespace host
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& quote,
       std::vector<uint8_t>& network_cert,
-      bool recover)
+      StartType start_type)
     {
       bool ret;
       size_t node_cert_len = 0;
@@ -102,7 +102,7 @@ namespace host
         network_cert.data(),
         network_cert.size(),
         &network_cert_len,
-        recover);
+        start_type);
 
       if (err != OE_OK)
       {

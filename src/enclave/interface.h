@@ -10,17 +10,23 @@
 #include "../ds/ringbuffer_types.h"
 #include "../kv/kvtypes.h"
 #include "../raft/rafttypes.h"
-// #include "../node/calltypes.h"
 
 #include <chrono>
 
 struct NodeInfoCreation
-  {
-    std::string host;
-    std::string pubhost;
-    std::string nodeport;
-    std::string rpcport;
-  };
+{
+  std::string host;
+  std::string pubhost;
+  std::string nodeport;
+  std::string rpcport;
+};
+
+// typedef enum StartType
+// {
+//   Start = 1,
+//   Join = 2,
+//   Recover = 3
+// } StartType;
 
 struct EnclaveConfig
 {

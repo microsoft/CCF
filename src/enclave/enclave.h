@@ -19,6 +19,14 @@
 #include "rpcmap.h"
 #include "rpcsessions.h"
 
+#include <ccf_t.h>
+
+// #ifdef VIRTUAL_ENCLAVE
+// #  include "enclave/ccf_v.h"
+// #else
+// #  include <ccf_t.h>
+// #endif
+
 namespace enclave
 {
   class Enclave
@@ -96,7 +104,7 @@ namespace enclave
       uint8_t* network_cert,
       size_t network_cert_size,
       size_t* network_cert_len,
-      bool recover_)
+      StartType start_type)
     {
       // node_cert_size, quote_size and network_cert_size are ignored here, but
       // we pass it in because it allows us to set EDL an annotation so that
@@ -104,7 +112,7 @@ namespace enclave
 
       // TODO: Recover should eventually go and we should branch here based on
       // {start, join, recover}
-      recover = recover_;
+      recover = false;
       auto r = node.create_new({ccf_config, recover});
       if (!r.second)
         return false;

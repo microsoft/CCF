@@ -304,6 +304,8 @@ int main(int argc, char** argv)
   std::vector<uint8_t> quote(OE_MAX_REPORT_SIZE);
   std::vector<uint8_t> network_cert(certificate_size);
 
+  StartType start_type;
+
   EnclaveConfig enclave_config;
   enclave_config.circuit = &circuit;
   enclave_config.writer_config = writer_config;
@@ -323,6 +325,7 @@ int main(int argc, char** argv)
   if (*start)
   {
     LOG_INFO_FMT("Starting new node - new network");
+    start_type = StartType::Start;
     ccf_config.genesis.node_info = {rpc_address.hostname,
                                     public_rpc_address.hostname,
                                     node_address.port,
@@ -336,6 +339,7 @@ int main(int argc, char** argv)
       "Starting new node - joining existing network at {}:{}",
       target_rpc_address.hostname,
       target_rpc_address.port);
+    start_type = StartType::Join;
     ccf_config.joining.target_host = target_rpc_address.hostname;
     ccf_config.joining.target_port = target_rpc_address.port;
     ccf_config.joining.network_cert = files::slurp(network_cert_file);
@@ -343,10 +347,11 @@ int main(int argc, char** argv)
   else if (*recover)
   {
     LOG_INFO_FMT("Starting new node - recover");
+    start_type = StartType::Recover;
   }
 
   enclave.create_node(
-    enclave_config, ccf_config, node_cert, quote, network_cert, false);
+    enclave_config, ccf_config, node_cert, quote, network_cert, start_type);
 
   LOG_INFO_FMT("Created new node");
 

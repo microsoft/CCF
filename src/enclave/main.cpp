@@ -4,7 +4,6 @@
 #include "../ds/spinlock.h"
 #include "enclave.h"
 
-#include <ccf_t.h>
 #include <chrono>
 
 // the central enclave object
@@ -28,7 +27,7 @@ extern "C"
     uint8_t* network_cert,
     size_t network_cert_size,
     size_t* network_cert_len,
-    bool recover)
+    StartType start_type)
   {
     std::lock_guard<SpinLock> guard(create_lock);
 
@@ -44,6 +43,8 @@ extern "C"
 
     e = new enclave::Enclave(ec, cc->signature_intervals, cc->raft_config);
 
+    LOG_INFO << "Starting node in starting mode: " << start_type << std::endl;
+
     auto ret = e->create_node(
       *cc,
       node_cert,
@@ -55,7 +56,7 @@ extern "C"
       network_cert,
       network_cert_size,
       network_cert_len,
-      recover);
+      start_type);
 
     return ret;
   }

@@ -1,4 +1,12 @@
 enclave {
+
+    enum StartType
+    {
+        Start = 1,
+        Join = 2,
+        Recover = 3
+    };
+
     trusted {
 
         public bool enclave_create_node(
@@ -13,7 +21,7 @@ enclave {
             [out, count=network_cert_size] uint8_t * network_cert,
             size_t network_cert_size,
             [out] size_t* network_cert_len,
-            bool recover
+            StartType start_type
         );
 
         public bool enclave_run();
