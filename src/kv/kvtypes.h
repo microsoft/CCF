@@ -60,12 +60,14 @@ namespace kv
       uint64_t actor;
       uint64_t caller_id;
     };
+
     struct ResultCallbackArgs
     {
       RequestID rid;
       Version version;
       crypto::Sha256Hash merkle_root;
     };
+
     struct ResponseCallbackArgs
     {
       RequestID rid;
@@ -101,7 +103,7 @@ namespace kv
     virtual crypto::Sha256Hash get_root() = 0;
   };
 
-  class Replicator
+  class Consensus
   {
   public:
     struct NodeConf
@@ -110,7 +112,7 @@ namespace kv
       std::string host_name;
       std::string port;
     };
-    virtual ~Replicator() {}
+    virtual ~Consensus() {}
     virtual bool replicate(
       const std::vector<std::tuple<Version, std::vector<uint8_t>, bool>>&
         entries) = 0;
@@ -123,7 +125,7 @@ namespace kv
     virtual NodeId leader() = 0;
     virtual NodeId id() = 0;
     virtual bool is_leader() = 0;
-    virtual bool on_request(kv::TxHistory::RequestCallbackArgs args) = 0;
+    virtual bool on_request(const kv::TxHistory::RequestCallbackArgs& args) = 0;
     virtual void periodic(std::chrono::milliseconds elapsed) = 0;
 
     virtual bool is_follower() = 0;
@@ -174,7 +176,7 @@ namespace kv
     virtual Version next_version() = 0;
     virtual Version current_version() = 0;
     virtual Version commit_version() = 0;
-    virtual std::shared_ptr<Replicator> get_replicator() = 0;
+    virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;
     virtual std::shared_ptr<AbstractTxEncryptor> get_encryptor() = 0;
     virtual DeserialiseSuccess deserialise(

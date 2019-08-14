@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 
-#include "../../enclave/appinterface.h"
-#include "../../node/encryptor.h"
-#include "../kv.h"
-#include "../replicator.h"
+#include "enclave/appinterface.h"
+#include "kv/kv.h"
+#include "node/encryptor.h"
+#include "stub_consensus.h"
 
 #include <picobench/picobench.hpp>
 #include <string>
@@ -61,8 +61,8 @@ static void serialise(picobench::state& s)
 template <kv::SecurityDomain SD>
 static void deserialise(picobench::state& s)
 {
-  auto replicator = std::make_shared<kv::StubReplicator>();
-  Store kv_store(replicator);
+  auto consensus = std::make_shared<kv::StubConsensus>();
+  Store kv_store(consensus);
   Store kv_store2;
 
   auto secrets = create_network_secrets();
@@ -85,7 +85,7 @@ static void deserialise(picobench::state& s)
   }
   tx.commit();
 
-  auto serial = replicator->get_latest_data();
+  auto serial = consensus->get_latest_data();
   s.start_timer();
   auto rc = kv_store2.deserialise(serial.first);
   if (rc != kv::DeserialiseSuccess::PASS)

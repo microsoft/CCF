@@ -46,7 +46,7 @@ namespace raft
   };
 
   template <class LedgerProxy, class ChannelProxy>
-  class Raft : public kv::Replicator
+  class Raft : public kv::Consensus
   {
   private:
     enum State
@@ -204,7 +204,7 @@ namespace raft
       recovery_max_index.reset();
     }
 
-    bool on_request(kv::TxHistory::RequestCallbackArgs args) override
+    bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
       return true;
     }

@@ -50,8 +50,8 @@ namespace pbft
       NodeId to = principal.pid();
       if (to == id)
       {
-        // If a replica sends a message to itself (e.g. if f == 0), handle the
-        // message straight away without writing it to the ringbuffer
+        // If a replica sends a message to itlocal_id (e.g. if f == 0), handle
+        // the message straight away without writing it to the ringbuffer
         assert(message_receiver_base->f() == 0);
         message_receiver_base->receive_message(
           (const uint8_t*)(msg->contents()), msg->size());
@@ -94,10 +94,10 @@ namespace pbft
   };
 
   template <class LedgerProxy, class ChannelProxy>
-  class Pbft : public kv::Replicator
+  class Pbft : public kv::Consensus
   {
   private:
-    NodeId self;
+    NodeId local_id;
     std::shared_ptr<ChannelProxy> channels;
     IMessageReceiveBase* message_receiver_base = nullptr;
     char* mem;
@@ -106,7 +106,7 @@ namespace pbft
     std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
     enclave::RPCSessions& rpcsessions;
     std::unique_ptr<raft::LedgerEnclave> ledger;
-    bool _is_leader;
+    bool isleader;
     kv::Version global_commit_index;
 
   public:
@@ -116,11 +116,11 @@ namespace pbft
       std::unique_ptr<raft::LedgerEnclave> ledger_,
       std::shared_ptr<enclave::RpcMap> rpc_map,
       enclave::RPCSessions& rpcsessions_) :
-      self(id),
+      local_id(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
       ledger(std::move(ledger_)),
-      _is_leader(false),
+      isleader(false),
       global_commit_index(0)
     {
       // configure replica
@@ -142,9 +142,9 @@ namespace pbft
       std::string pubk_enc =
         "893d4101c5b225c2bdc8633bb322c0ef9861e0c899014536e11196808ffc0d17";
 
-      // Adding myself
+      // Adding mylocal_id
       PrincipalInfo my_info;
-      my_info.id = self;
+      my_info.id = local_id;
       my_info.port = 0;
       my_info.ip = "256.256.256.256"; // Invalid
       my_info.pubk_sig = pubk_sig;
@@ -158,7 +158,7 @@ namespace pbft
       mem = (char*)malloc(mem_size);
       bzero(mem, mem_size);
 
-      pbft_network = std::make_unique<PbftEnclaveNetwork>(self, channels);
+      pbft_network = std::make_unique<PbftEnclaveNetwork>(local_id, channels);
       pbft_config = std::make_unique<PbftConfigCcf>(rpc_map);
 
       auto used_bytes = Byz_init_replica(
@@ -170,7 +170,7 @@ namespace pbft
         0,
         pbft_network.get(),
         &message_receiver_base);
-      LOG_INFO_FMT("PBFT setup for self with id: {}", self);
+      LOG_INFO_FMT("PBFT setup for local_id with id: {}", local_id);
 
       pbft_config->set_service_mem(mem + used_bytes);
       pbft_network->set_receiver(message_receiver_base);
@@ -209,7 +209,7 @@ namespace pbft
         append_ledger_entry_cb, ledger.get());
     }
 
-    bool on_request(kv::TxHistory::RequestCallbackArgs args) override
+    bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
       LOG_INFO_FMT("in on request of pbft");
       auto total_req_size = pbft_config->message_size() + args.request.size();
@@ -245,7 +245,7 @@ namespace pbft
 
     // TODO(#PBFT): PBFT consensus should implement the following functions to
     // return meaningful information to clients (e.g. global commit, term/view)
-    // instead of relying on the NullReplicator
+    // instead of relying on the NullConsensus
     kv::Term get_term() override
     {
       return 2;
@@ -263,12 +263,12 @@ namespace pbft
 
     bool is_leader() override
     {
-      return _is_leader;
+      return isleader;
     }
 
     bool is_follower() override
     {
-      return !is_leader();
+      return !isleader;
     }
 
     kv::NodeId leader() override
@@ -278,7 +278,7 @@ namespace pbft
 
     kv::NodeId id() override
     {
-      return self;
+      return local_id;
     }
 
     void add_configuration(
@@ -294,7 +294,7 @@ namespace pbft
       std::string pubk_enc =
         "893d4101c5b225c2bdc8633bb322c0ef9861e0c899014536e11196808ffc0d17";
 
-      if (node_conf.node_id == self)
+      if (node_conf.node_id == local_id)
       {
         return;
       }
@@ -313,7 +313,7 @@ namespace pbft
 
     void force_become_leader() override
     {
-      _is_leader = true;
+      isleader = true;
     }
 
     void force_become_leader(
@@ -322,7 +322,7 @@ namespace pbft
       const std::vector<kv::Version>& terms,
       kv::Version commit_idx_) override
     {
-      _is_leader = true;
+      isleader = true;
     }
 
     void enable_all_domains() override {}

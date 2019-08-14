@@ -2,21 +2,21 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../crypto/symmkey.h"
-#include "kvtypes.h"
+#include "crypto/symmkey.h"
+#include "kv/kvtypes.h"
 
 #include <algorithm>
 #include <iostream>
 
 namespace kv
 {
-  class StubReplicator : public Replicator
+  class StubConsensus : public Consensus
   {
   private:
     std::vector<std::vector<uint8_t>> replica;
 
   public:
-    StubReplicator() : replica() {}
+    StubConsensus() : replica() {}
 
     bool replicate(
       const std::vector<std::tuple<Version, std::vector<uint8_t>, bool>>&
@@ -77,16 +77,19 @@ namespace kv
       return true;
     }
 
-    bool on_request(kv::TxHistory::RequestCallbackArgs args) override
+    bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
       return true;
     }
+
     void periodic(std::chrono::milliseconds elapsed) override {}
+
     bool is_follower() override
     {
       return false;
     }
     void recv_message(const uint8_t* data, size_t size) override {}
+
     void add_configuration(
       Index idx,
       std::unordered_set<NodeId> conf,
@@ -103,11 +106,13 @@ namespace kv
     {}
 
     void enable_all_domains() override {}
+
     void resume_replication() override {}
+
     void suspend_replication(kv::Version) override {}
   };
 
-  class FollowerStubReplicator : public StubReplicator
+  class FollowerStubConsensus : public StubConsensus
   {
   public:
     bool is_leader() override
@@ -116,7 +121,7 @@ namespace kv
     }
   };
 
-  class LeaderStubReplicator : public StubReplicator
+  class LeaderStubConsensus : public StubConsensus
   {
   public:
     bool is_leader() override
