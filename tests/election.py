@@ -93,7 +93,7 @@ def run(args):
         )
         try:
             primary, current_term = network.find_primary()
-            assert False, "Leader should not be found"
+            assert False, "Primary should not be found"
         except AssertionError:
             LOG.info(
                 "As expected, primary could not be found after election timeout. Test ended successfully."

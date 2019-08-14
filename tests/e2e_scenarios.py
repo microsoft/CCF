@@ -76,7 +76,7 @@ def run(args):
         LOG.info("Keeping network alive with the following nodes:")
         LOG.info("  Primary = {}:{}".format(primary.pubhost, primary.rpc_port))
         for i, f in enumerate(backups):
-            LOG.info("  Follower[{}] = {}:{}".format(i, f.pubhost, f.rpc_port))
+            LOG.info("  Backup[{}] = {}:{}".format(i, f.pubhost, f.rpc_port))
 
         input("Press Enter to shutdown...")
 

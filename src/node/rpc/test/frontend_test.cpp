@@ -571,7 +571,7 @@ TEST_CASE("Forwarding")
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
       static_cast<jsonrpc::ErrorBaseType>(
-        jsonrpc::CCFErrorCodes::TX_NOT_LEADER));
+        jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY));
   }
 
   frontend_backup.set_cmd_forwarder(backup_forwarder);
@@ -596,7 +596,7 @@ TEST_CASE("Forwarding")
     CHECK(response[jsonrpc::RESULT] == true);
   }
 
-  INFO("Forwarding write command to a backup return TX_NOT_LEADER");
+  INFO("Forwarding write command to a backup return TX_NOT_PRIMARY");
   {
     enclave::RPCContext ctx(0, nullb);
     REQUIRE(ctx.is_pending == false);
@@ -619,7 +619,7 @@ TEST_CASE("Forwarding")
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
       static_cast<jsonrpc::ErrorBaseType>(
-        jsonrpc::CCFErrorCodes::TX_NOT_LEADER));
+        jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY));
   }
 
   INFO("Write command should not be forwarded if marked as non-forwardable");

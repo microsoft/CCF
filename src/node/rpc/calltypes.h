@@ -39,7 +39,7 @@ namespace ccf
     };
   };
 
-  struct GetLeaderInfo
+  struct GetPrimaryInfo
   {
     struct Out
     {

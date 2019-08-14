@@ -384,7 +384,7 @@ class Network:
 
         for node in self.get_running_nodes():
             with node.management_client() as c:
-                id = c.request("getLeaderInfo", {})
+                id = c.request("getPrimaryInfo", {})
                 res = c.response(id)
                 if res.error is None:
                     primary_id = res.result["primary_id"]
@@ -392,8 +392,8 @@ class Network:
                     break
                 else:
                     assert (
-                        res.error["code"] == infra.jsonrpc.ErrorCode.TX_LEADER_UNKNOWN
-                    ), "RPC error code is not TX_NOT_LEADER"
+                        res.error["code"] == infra.jsonrpc.ErrorCode.TX_PRIMARY_UNKNOWN
+                    ), "RPC error code is not TX_NOT_PRIMARY"
         assert primary_id is not None, "No primary found"
 
         return (self.get_node_by_id(primary_id), term)

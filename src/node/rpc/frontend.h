@@ -165,13 +165,13 @@ namespace ccf
           {
             return jsonrpc::error_response(
               ctx.req.seq_no,
-              jsonrpc::CCFErrorCodes::TX_NOT_LEADER,
+              jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
               info->pubhost + ":" + info->rpcport);
           }
         }
         return jsonrpc::error_response(
           ctx.req.seq_no,
-          jsonrpc::CCFErrorCodes::TX_NOT_LEADER,
+          jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
           "Not primary, primary unknown.");
       }
     }
@@ -236,7 +236,7 @@ namespace ccf
 
             if (info)
             {
-              GetLeaderInfo::Out out;
+              GetPrimaryInfo::Out out;
               out.primary_id = primary_id;
               out.primary_host = info->pubhost;
               out.primary_port = info->rpcport;
@@ -245,7 +245,7 @@ namespace ccf
           }
 
           return jsonrpc::error(
-            jsonrpc::CCFErrorCodes::TX_LEADER_UNKNOWN, "Leader unknown.");
+            jsonrpc::CCFErrorCodes::TX_PRIMARY_UNKNOWN, "Primary unknown.");
         };
 
       auto get_network_info =
@@ -304,8 +304,8 @@ namespace ccf
         GeneralProcs::GET_METRICS, get_metrics, Read);
       install_with_auto_schema<void, bool>(
         GeneralProcs::MK_SIGN, make_signature, Write);
-      install_with_auto_schema<void, GetLeaderInfo::Out>(
-        GeneralProcs::GET_LEADER_INFO, get_primary_info, Read);
+      install_with_auto_schema<void, GetPrimaryInfo::Out>(
+        GeneralProcs::GET_PRIMARY_INFO, get_primary_info, Read);
       install_with_auto_schema<void, GetNetworkInfo::Out>(
         GeneralProcs::GET_NETWORK_INFO, get_network_info, Read);
       install_with_auto_schema<void, ListMethods::Out>(

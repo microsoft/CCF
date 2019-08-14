@@ -21,7 +21,7 @@ The API can also be retrieved from a running service using the `listMethods`_ an
           "LOG_record",
           "LOG_record_pub",
           "getCommit",
-          "getLeaderInfo",
+          "getPrimaryInfo",
           "getMetrics",
           "getSchema",
           "listMethods",
@@ -43,24 +43,24 @@ The API can also be retrieved from a running service using the `listMethods`_ an
         "result_schema": {
           "$schema": "http://json-schema.org/draft-07/schema#",
           "properties": {
-            "leader_host": {
+            "primary_host": {
               "type": "string"
             },
-            "leader_id": {
+            "primary_id": {
               "maximum": 18446744073709551615,
               "minimum": 0,
               "type": "number"
             },
-            "leader_port": {
+            "primary_port": {
               "type": "string"
             }
           },
           "required": [
-            "leader_id",
-            "leader_host",
-            "leader_port"
+            "primary_id",
+            "primary_host",
+            "primary_port"
           ],
-          "title": "getLeaderInfo/result",
+          "title": "getPrimaryInfo/result",
           "type": "object"
         }
       },
@@ -77,10 +77,10 @@ getCommit
 .. jsonschema:: schemas/getCommit_params.json
 .. jsonschema:: schemas/getCommit_result.json
 
-getLeaderInfo
+getPrimaryInfo
 -------------
 
-.. jsonschema:: schemas/getLeaderInfo_result.json
+.. jsonschema:: schemas/getPrimaryInfo_result.json
 
 getMetrics
 ----------

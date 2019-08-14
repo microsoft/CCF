@@ -1,14 +1,14 @@
 Ledger
 ======
 
-The ledger is the persistent distributed append-only record of the transactions that have been executed by the network. It is written by the leader when a transaction is committed and replicated to all followers which maintain their own duplicated copy.
+The ledger is the persistent distributed append-only record of the transactions that have been executed by the network. It is written by the primary when a transaction is committed and replicated to all backups which maintain their own duplicated copy.
 
 A node writes its ledger to a file as specified by the ``--ledger-file`` command line argument.
 
 Ledger encryption
 -----------------
 
-Each entry in the ledger corresponds to a transaction (or delta) committed by the leader's key-value store.
+Each entry in the ledger corresponds to a transaction (or delta) committed by the primary's key-value store.
 
 When a transaction is committed, each affected ``Store::Map`` is serialised in different security domains (i.e. public or private), based on the policy set when the ``Store::Map`` was created (default is private). Public ``Store::Map`` are serialised and stored in the ledger as plaintext while private ``Store::Map`` are serialised and encrypted before being stored.
 
@@ -21,48 +21,48 @@ Note that even if a transaction only affects a private ``Store::Map``, unencrypt
 Ledger replication
 ------------------
 
-The replication process currently uses Raft as the consensus algorithm. As such, it relies on authenticated Append Entries (AE) headers sent from the leader to followers and which specify the start and end index of the encrypted deltas payload. When an AE header is emitted from a node's enclave for replication, the corresponding encrypted deltas are read from the ledger and appended to the AE header.
+The replication process currently uses Raft as the consensus algorithm. As such, it relies on authenticated Append Entries (AE) headers sent from the primary to backups and which specify the start and end index of the encrypted deltas payload. When an AE header is emitted from a node's enclave for replication, the corresponding encrypted deltas are read from the ledger and appended to the AE header.
 
-The following diagram describes how deltas committed by the leader are written to the ledger and how they are replicated to one follower. Note that the full replication process and acknowledgment from the follower is not detailed here.
+The following diagram describes how deltas committed by the primary are written to the ledger and how they are replicated to one backup. Note that the full replication process and acknowledgment from the backup is not detailed here.
 
 .. mermaid::
 
     sequenceDiagram
-        participant Leader KV
-        participant Leader Raft
-        participant Leader Host
-        participant Leader Ledger
+        participant Primary KV
+        participant Primary Raft
+        participant Primary Host
+        participant Primary Ledger
 
-        participant Follower Ledger
-        participant Follower Host
-        participant Follower Raft
-        participant Follower KV
+        participant Backup Ledger
+        participant Backup Host
+        participant Backup Raft
+        participant Backup KV
 
-        Note left of Leader KV: tx.commit(): Serialise transaction based on maps security domain
-        Leader KV->>+Leader Raft: replicate (batch of serialised deltas)
+        Note left of Primary KV: tx.commit(): Serialise transaction based on maps security domain
+        Primary KV->>+Primary Raft: replicate (batch of serialised deltas)
 
         loop for each serialised delta in batch
-            Leader Raft->>+Leader Host: log_append (delta)
-            Leader Host->>+Leader Ledger: write(delta)
+            Primary Raft->>+Primary Host: log_append (delta)
+            Primary Host->>+Primary Ledger: write(delta)
 
-            Leader Raft->>+Leader Host: node_outbound (AE)
-            Leader Raft-->>+Leader KV: replicate success
+            Primary Raft->>+Primary Host: node_outbound (AE)
+            Primary Raft-->>+Primary KV: replicate success
 
-            Note right of Leader Host: Append Ledger entries to AE
+            Note right of Primary Host: Append Ledger entries to AE
             loop for each entry in AE
-                Leader Host->>+Leader Ledger: read(entry's index)
-                Leader Ledger-->>Leader Host: delta
+                Primary Host->>+Primary Ledger: read(entry's index)
+                Primary Ledger-->>Primary Host: delta
             end
-            Leader Host->>+Follower Host: TCP packet (AE + deltas)
+            Primary Host->>+Backup Host: TCP packet (AE + deltas)
 
-            Follower Host->>+Follower Raft: node_inbound (AE + deltas)
+            Backup Host->>+Backup Raft: node_inbound (AE + deltas)
 
-            Follower Raft->>Follower Raft: recv_authenticated (AE + deltas)
+            Backup Raft->>Backup Raft: recv_authenticated (AE + deltas)
             loop for each delta
-                Follower Raft->>Follower Host: log_append (delta)
-                Follower Host->>+Follower Ledger: write(delta)
-                Follower Raft->>Follower KV: deserialise(delta)
-                Follower KV-->>+Follower Raft: deserialise success
+                Backup Raft->>Backup Host: log_append (delta)
+                Backup Host->>+Backup Ledger: write(delta)
+                Backup Raft->>Backup KV: deserialise(delta)
+                Backup KV-->>+Backup Raft: deserialise success
             end
 
         end
@@ -84,7 +84,7 @@ The ``Ledger`` class is constructed using the path of the ledger. It then expose
 ..
 
 An example of how to read and verify entries on the ledger can be found on ``votinghistory.py``, which verifies the voting history.
-Since every vote request is signed by the requesting member, verified by the leader and then stored on the ledger, the test performs the following (this sequence of operations is performed sequentially per transaction):
+Since every vote request is signed by the requesting member, verified by the primary and then stored on the ledger, the test performs the following (this sequence of operations is performed sequentially per transaction):
  1. Read and store the member certificates
  2. Read an entry from the ``votinghistory`` table (each entry on the ``votinghistory`` table contains the member id of the voting member, along with the signed request)
  3. Create a public key using the certificate of the voting member (which was stored on step 1)
