@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../../ds/logger.h"
-#include "../raft.h"
+#include "consensus/raft/raft.h"
+#include "ds/logger.h"
 
 #include <chrono>
 #include <set>

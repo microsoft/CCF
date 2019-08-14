@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/raft/rafttypes.h"
 #include "ledger.h"
 #include "node/nodetypes.h"
-#include "raft/rafttypes.h"
 #include "tcp.h"
 
 #include <unordered_map>
