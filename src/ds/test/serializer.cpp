@@ -205,9 +205,7 @@ TEST_CASE("Deserialize" * doctest::test_suite("serializer"))
     w.write_with<CommonSerializer>(any_message, buffer.size(), buffer);
     auto deser = CommonSerializer::deserialize<std::string>(
       w.payload.data(), w.payload.size());
-    std::string foo = "Hello World";
-    REQUIRE(std::get<0>(deser) == foo);
-    //REQUIRE("What" == "no?");
+    REQUIRE(strcmp(std::get<0>(deser).data(), "Hello World") == 0);
 
     // As ByteRange
     ByteRange br{buffer.data(), buffer.size()};
