@@ -196,7 +196,7 @@ namespace ccf
 
         if (raft != nullptr)
         {
-          auto term = raft->get_term(commit);
+          auto term = raft->get_view(commit);
           return jsonrpc::success(GetCommit::Out{term, commit});
         }
 
@@ -815,8 +815,8 @@ namespace ccf
               result[COMMIT] = cv;
               if (raft != nullptr)
               {
-                result[TERM] = raft->get_term();
-                result[GLOBAL_COMMIT] = raft->get_commit_idx();
+                result[TERM] = raft->get_view();
+                result[GLOBAL_COMMIT] = raft->get_commit_seqno();
 
                 if (
                   history && raft->is_leader() &&

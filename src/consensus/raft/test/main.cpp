@@ -37,8 +37,8 @@ TEST_CASE("Single node startup" * doctest::test_suite("single"))
 
   REQUIRE(!r0.is_leader());
   REQUIRE(r0.leader() == raft::NoNode);
-  REQUIRE(r0.get_term() == 0);
-  REQUIRE(r0.get_commit_idx() == 0);
+  REQUIRE(r0.get_view() == 0);
+  REQUIRE(r0.get_commit_seqno() == 0);
 
   INFO("In the absence of other nodes, become leader after election timeout");
 
@@ -78,7 +78,7 @@ TEST_CASE("Single node commit" * doctest::test_suite("single"))
   {
     r0.replicate({{i, {1, 2, 3}, true}});
     REQUIRE(r0.get_last_idx() == i);
-    REQUIRE(r0.get_commit_idx() == i);
+    REQUIRE(r0.get_commit_seqno() == i);
   }
 }
 

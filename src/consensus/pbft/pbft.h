@@ -107,7 +107,7 @@ namespace pbft
     enclave::RPCSessions& rpcsessions;
     std::unique_ptr<raft::LedgerEnclave> ledger;
     bool isleader;
-    kv::Version global_commit_index;
+    kv::SeqNo global_commit_seqno;
 
   public:
     Pbft(
@@ -121,7 +121,7 @@ namespace pbft
       rpcsessions(rpcsessions_),
       ledger(std::move(ledger_)),
       isleader(false),
-      global_commit_index(0)
+      global_commit_seqno(0)
     {
       // configure replica
       GeneralInfo general_info;
@@ -245,19 +245,19 @@ namespace pbft
     // TODO(#PBFT): PBFT consensus should implement the following functions to
     // return meaningful information to clients (e.g. global commit, term/view)
     // https://github.com/microsoft/CCF/issues/57
-    kv::Term get_term() override
+    kv::View get_view() override
     {
       return 2;
     }
 
-    kv::Term get_term(kv::Version version) override
+    kv::View get_view(kv::SeqNo seqno) override
     {
       return 2;
     }
 
-    kv::Version get_commit_idx() override
+    kv::SeqNo get_commit_seqno() override
     {
-      return global_commit_index;
+      return global_commit_seqno;
     }
 
     bool is_leader() override
@@ -281,7 +281,7 @@ namespace pbft
     }
 
     void add_configuration(
-      kv::Index index,
+      kv::SeqNo seqno,
       std::unordered_set<kv::NodeId> config,
       const NodeConf& node_conf) override
     {
@@ -316,10 +316,10 @@ namespace pbft
     }
 
     void force_become_leader(
-      kv::Version index,
-      kv::Term term,
+      kv::SeqNo seqno,
+      kv::View view,
       const std::vector<kv::Version>& terms,
-      kv::Version commit_idx_) override
+      kv::SeqNo commit_seqno_) override
     {
       isleader = true;
     }
@@ -333,15 +333,15 @@ namespace pbft
     }
 
     bool replicate(
-      const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
+      const std::vector<std::tuple<kv::SeqNo, std::vector<uint8_t>, bool>>&
         entries) override
     {
-      for (auto&& [index, data, globally_committable] : entries)
+      for (auto&& [seqno, data, globally_committable] : entries)
       {
-        if (index != global_commit_index + 1)
+        if (seqno != global_commit_seqno + 1)
           return false;
 
-        global_commit_index = index;
+        global_commit_seqno = seqno;
       }
       return true;
     }

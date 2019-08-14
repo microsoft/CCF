@@ -19,7 +19,7 @@ namespace kv
     StubConsensus() : replica() {}
 
     bool replicate(
-      const std::vector<std::tuple<Version, std::vector<uint8_t>, bool>>&
+      const std::vector<std::tuple<kv::SeqNo, std::vector<uint8_t>, bool>>&
         entries) override
     {
       for (auto&& [index, data, globally_committable] : entries)
@@ -47,12 +47,12 @@ namespace kv
       replica.clear();
     }
 
-    kv::Term get_term() override
+    View get_view() override
     {
       return 0;
     }
 
-    kv::Version get_commit_idx() override
+    SeqNo get_commit_seqno() override
     {
       return 0;
     }
@@ -67,7 +67,7 @@ namespace kv
       return 0;
     }
 
-    kv::Term get_term(kv::Version version) override
+    View get_view(SeqNo seqno) override
     {
       return 2;
     }
@@ -91,7 +91,7 @@ namespace kv
     void recv_message(const uint8_t* data, size_t size) override {}
 
     void add_configuration(
-      Index idx,
+      SeqNo seqno,
       std::unordered_set<NodeId> conf,
       const NodeConf& node_conf) override
     {}
@@ -99,10 +99,10 @@ namespace kv
     void force_become_leader() override {}
 
     void force_become_leader(
-      kv::Version index,
-      kv::Term term,
+      SeqNo seqno,
+      View view,
       const std::vector<kv::Version>& terms,
-      kv::Version commit_idx_) override
+      SeqNo commit_seqno_) override
     {}
 
     void enable_all_domains() override {}

@@ -161,13 +161,9 @@ namespace ccf
       const std::vector<uint8_t>& response) override
     {}
 
-    void register_on_request(RequestCallbackHandler func) override {}
-
     void register_on_result(ResultCallbackHandler func) override {}
 
     void register_on_response(ResponseCallbackHandler func) override {}
-
-    void clear_on_request() override {}
 
     void clear_on_result() override {}
 
@@ -253,7 +249,6 @@ namespace ccf
     std::map<RequestID, std::vector<uint8_t>> requests;
     std::map<RequestID, std::pair<kv::Version, crypto::Sha256Hash>> results;
     std::map<RequestID, std::vector<uint8_t>> responses;
-    std::optional<RequestCallbackHandler> on_request;
     std::optional<ResultCallbackHandler> on_result;
     std::optional<ResponseCallbackHandler> on_response;
 
@@ -271,13 +266,6 @@ namespace ccf
       nodes(nodes_)
     {}
 
-    void register_on_request(RequestCallbackHandler func) override
-    {
-      if (on_request.has_value())
-        throw std::logic_error("on_request has already been set");
-      on_request = func;
-    }
-
     void register_on_result(ResultCallbackHandler func) override
     {
       if (on_result.has_value())
@@ -290,11 +278,6 @@ namespace ccf
       if (on_response.has_value())
         throw std::logic_error("on_response has already been set");
       on_response = func;
-    }
-
-    void clear_on_request() override
-    {
-      on_request.reset();
     }
 
     void clear_on_result() override
@@ -374,18 +357,18 @@ namespace ccf
         return;
 
       auto version = store.next_version();
-      auto term = consensus->get_term();
-      auto commit = consensus->get_commit_idx();
+      auto view = consensus->get_view();
+      auto commit = consensus->get_commit_seqno();
       LOG_INFO_FMT("Issuing signature at {}", version);
-      LOG_DEBUG_FMT("Signed at {} term: {} commit: {}", version, term, commit);
+      LOG_DEBUG_FMT("Signed at {} view: {} commit: {}", version, view, commit);
       store.commit(
         version,
-        [version, term, commit, this]() {
+        [version, view, commit, this]() {
           Store::Tx sig(version);
           auto sig_view = sig.get_view(signatures);
           crypto::Sha256Hash root = tree.get_root();
           Signature sig_value(
-            id, version, term, commit, kp.sign_hash(root.h, root.SIZE));
+            id, version, view, commit, kp.sign_hash(root.h, root.SIZE));
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
         },

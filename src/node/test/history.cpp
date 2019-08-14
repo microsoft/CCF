@@ -28,7 +28,7 @@ public:
   DummyConsensus(Store* store_) : store(store_) {}
 
   bool replicate(
-    const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
+    const std::vector<std::tuple<kv::SeqNo, std::vector<uint8_t>, bool>>&
       entries) override
   {
     if (store)
@@ -39,12 +39,12 @@ public:
     return true;
   }
 
-  kv::Term get_term() override
+  kv::View get_view() override
   {
     return 2;
   }
 
-  kv::Version get_commit_idx() override
+  kv::SeqNo get_commit_seqno() override
   {
     return 0;
   }
@@ -59,7 +59,7 @@ public:
     return 0;
   }
 
-  kv::Term get_term(kv::Version version) override
+  kv::View get_view(kv::SeqNo seqno) override
   {
     return 2;
   }
@@ -208,7 +208,7 @@ public:
   CompactingConsensus(Store* store_) : store(store_) {}
 
   bool replicate(
-    const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
+    const std::vector<std::tuple<kv::SeqNo, std::vector<uint8_t>, bool>>&
       entries) override
   {
     for (auto& [version, data, committable] : entries)
@@ -220,12 +220,12 @@ public:
     return true;
   }
 
-  kv::Term get_term() override
+  kv::Term get_view() override
   {
     return 2;
   }
 
-  kv::Version get_commit_idx() override
+  kv::SeqNo get_commit_seqno() override
   {
     return 0;
   }
@@ -240,7 +240,7 @@ public:
     return 0;
   }
 
-  kv::Term get_term(kv::Version version) override
+  kv::Term get_view(kv::Version version) override
   {
     return 2;
   }
@@ -322,7 +322,7 @@ public:
   {}
 
   bool replicate(
-    const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
+    const std::vector<std::tuple<kv::SeqNo, std::vector<uint8_t>, bool>>&
       entries) override
   {
     for (auto& [version, data, committable] : entries)
@@ -334,12 +334,12 @@ public:
     return true;
   }
 
-  kv::Term get_term() override
+  kv::Term get_view() override
   {
     return 2;
   }
 
-  kv::Version get_commit_idx() override
+  kv::SeqNo get_commit_seqno() override
   {
     return 0;
   }
@@ -354,7 +354,7 @@ public:
     return 0;
   }
 
-  kv::Term get_term(kv::Version version) override
+  kv::View get_view(kv::SeqNo seqno) override
   {
     return 2;
   }

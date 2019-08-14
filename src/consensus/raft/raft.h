@@ -222,7 +222,8 @@ namespace raft
       become_leader();
     }
 
-    void force_become_leader(Index index, Term term, Index commit_idx_)
+    void force_become_leader(
+      kv::SeqNo seqno, kv::View view, kv::SeqNo commit_seqno_)
     {
       // This is unsafe and should only be called when the node is certain
       // there is no leader and no other node will attempt to force leadership.
@@ -231,19 +232,19 @@ namespace raft
           "Can't force leadership if there is already a leader");
 
       std::lock_guard<SpinLock> guard(lock);
-      current_term = term;
-      last_idx = index;
-      commit_idx = commit_idx_;
-      term_history.update(index, term);
+      current_term = view;
+      last_idx = seqno;
+      commit_idx = commit_seqno_;
+      term_history.update(seqno, view);
       current_term += 2;
       become_leader();
     }
 
     void force_become_leader(
-      Index index,
-      Term term,
+      kv::SeqNo seqno,
+      kv::View view,
       const std::vector<Index>& terms,
-      Index commit_idx_) override
+      kv::SeqNo commit_seqno_) override
     {
       // This is unsafe and should only be called when the node is certain
       // there is no leader and no other node will attempt to force leadership.
@@ -251,11 +252,11 @@ namespace raft
         throw std::logic_error(
           "Can't force leadership if there is already a leader");
       std::lock_guard<SpinLock> guard(lock);
-      current_term = term;
-      last_idx = index;
-      commit_idx = commit_idx_;
+      current_term = view;
+      last_idx = seqno;
+      commit_idx = commit_seqno_;
       term_history.initialise(terms);
-      term_history.update(index, term);
+      term_history.update(seqno, view);
       current_term += 2;
       become_leader();
     }
@@ -265,37 +266,37 @@ namespace raft
       return last_idx;
     }
 
-    Index get_commit_idx() override
+    kv::SeqNo get_commit_seqno() override
     {
       std::lock_guard<SpinLock> guard(lock);
       return commit_idx;
     }
 
-    Term get_term() override
+    kv::View get_view() override
     {
       std::lock_guard<SpinLock> guard(lock);
       return current_term;
     }
 
-    Term get_term(Index idx) override
+    kv::View get_view(kv::SeqNo seqno) override
     {
       std::lock_guard<SpinLock> guard(lock);
-      return get_term_internal(idx);
+      return get_term_internal(seqno);
     }
 
     void add_configuration(
-      kv::Index idx,
+      kv::SeqNo seqno,
       std::unordered_set<NodeId> conf,
       const NodeConf& node_conf = {}) override
     {
       // This should only be called when the spin lock is held.
-      configurations.push_back({idx, move(conf)});
+      configurations.push_back({seqno, move(conf)});
       create_and_remove_node_state();
     }
 
     bool replicate(
-      const std::vector<std::tuple<Index, std::vector<uint8_t>, bool>>& entries)
-      override
+      const std::vector<std::tuple<kv::SeqNo, std::vector<uint8_t>, bool>>&
+        entries) override
     {
       std::lock_guard<SpinLock> guard(lock);
 

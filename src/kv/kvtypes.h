@@ -14,9 +14,10 @@
 
 namespace kv
 {
-  using Index = int64_t;
+  using SeqNo = int64_t;
   using Version = int64_t;
   using Term = uint64_t;
+  using View = uint64_t;
   using NodeId = uint64_t;
   static const Version NoVersion = std::numeric_limits<Version>::min();
 
@@ -74,7 +75,6 @@ namespace kv
       std::vector<uint8_t> response;
     };
 
-    using RequestCallbackHandler = std::function<bool(RequestCallbackArgs)>;
     using ResultCallbackHandler = std::function<bool(ResultCallbackArgs)>;
     using ResponseCallbackHandler = std::function<bool(ResponseCallbackArgs)>;
 
@@ -94,10 +94,8 @@ namespace kv
     virtual void add_result(RequestID id, kv::Version version) = 0;
     virtual void add_response(
       RequestID id, const std::vector<uint8_t>& response) = 0;
-    virtual void register_on_request(RequestCallbackHandler func) = 0;
     virtual void register_on_result(ResultCallbackHandler func) = 0;
     virtual void register_on_response(ResponseCallbackHandler func) = 0;
-    virtual void clear_on_request() = 0;
     virtual void clear_on_result() = 0;
     virtual void clear_on_response() = 0;
     virtual crypto::Sha256Hash get_root() = 0;
@@ -114,13 +112,12 @@ namespace kv
     };
     virtual ~Consensus() {}
     virtual bool replicate(
-      const std::vector<std::tuple<Version, std::vector<uint8_t>, bool>>&
+      const std::vector<std::tuple<kv::SeqNo, std::vector<uint8_t>, bool>>&
         entries) = 0;
-    virtual Term get_term() = 0; // TODO(#api): this ought to have a more
-                                 // abstract name than Term
+    virtual View get_view() = 0;
 
-    virtual Term get_term(Version version) = 0;
-    virtual Version get_commit_idx() = 0;
+    virtual View get_view(SeqNo seqno) = 0;
+    virtual SeqNo get_commit_seqno() = 0;
 
     virtual NodeId leader() = 0;
     virtual NodeId id() = 0;
@@ -131,16 +128,16 @@ namespace kv
     virtual bool is_follower() = 0;
     virtual void recv_message(const uint8_t* data, size_t size) = 0;
     virtual void add_configuration(
-      Index idx,
+      SeqNo seqno,
       std::unordered_set<NodeId> conf,
       const NodeConf& node_conf = {}) = 0;
 
     virtual void force_become_leader() = 0;
     virtual void force_become_leader(
-      Version index,
-      Term term,
+      SeqNo seqno,
+      View view,
       const std::vector<Version>& terms,
-      Version commit_idx_) = 0;
+      SeqNo commit_seqno_) = 0;
 
     virtual void enable_all_domains() = 0;
     virtual void resume_replication() = 0;

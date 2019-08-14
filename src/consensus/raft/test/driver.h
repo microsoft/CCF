@@ -144,8 +144,8 @@ public:
     if (raft->is_leader())
       std::cout << "L ";
 
-    std::cout << " t: " << raft->get_term() << ", li: " << raft->get_last_idx()
-              << ", ci: " << raft->get_commit_idx() << std::endl;
+    std::cout << " t: " << raft->get_view() << ", li: " << raft->get_last_idx()
+              << ", ci: " << raft->get_commit_seqno() << std::endl;
   }
 
   void state_all()
