@@ -284,7 +284,7 @@ namespace raft
     }
 
     void add_configuration(
-      kv::ConfigIndex idx,
+      kv::Index idx,
       std::unordered_set<NodeId> conf,
       const NodeConf& node_conf = {}) override
     {

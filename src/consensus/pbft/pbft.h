@@ -282,7 +282,7 @@ namespace pbft
     }
 
     void add_configuration(
-      kv::ConfigIndex index,
+      kv::Index index,
       std::unordered_set<kv::NodeId> config,
       const NodeConf& node_conf) override
     {

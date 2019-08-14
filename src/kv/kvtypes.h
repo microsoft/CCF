@@ -14,7 +14,7 @@
 
 namespace kv
 {
-  using ConfigIndex = int64_t;
+  using Index = int64_t;
   using Version = int64_t;
   using Term = uint64_t;
   using NodeId = uint64_t;
@@ -131,7 +131,7 @@ namespace kv
     virtual bool is_follower() = 0;
     virtual void recv_message(const uint8_t* data, size_t size) = 0;
     virtual void add_configuration(
-      ConfigIndex idx,
+      Index idx,
       std::unordered_set<NodeId> conf,
       const NodeConf& node_conf = {}) = 0;
 
