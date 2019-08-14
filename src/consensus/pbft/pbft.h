@@ -244,7 +244,8 @@ namespace pbft
 
     // TODO(#PBFT): PBFT consensus should implement the following functions to
     // return meaningful information to clients (e.g. global commit, term/view)
-    // instead of relying on the NullConsensus, see https://github.com/microsoft/CCF/issues/57
+    // instead of relying on the NullConsensus, see
+    // https://github.com/microsoft/CCF/issues/57
     kv::Term get_term() override
     {
       return 2;
