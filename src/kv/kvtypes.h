@@ -5,13 +5,16 @@
 #include "crypto/hash.h"
 
 #include <array>
+#include <chrono>
 #include <functional>
 #include <limits>
 #include <memory>
+#include <unordered_set>
 #include <vector>
 
 namespace kv
 {
+  using Index = int64_t;
   using Version = int64_t;
   using Term = uint64_t;
   using NodeId = uint64_t;
@@ -42,24 +45,6 @@ namespace kv
     PASS_SIGNATURE = 2
   };
 
-  class Replicator
-  {
-  public:
-    virtual ~Replicator() {}
-    virtual bool replicate(
-      const std::vector<std::tuple<Version, std::vector<uint8_t>, bool>>&
-        entries) = 0;
-    virtual Term get_term() = 0; // TODO(#api): this ought to have a more
-                                 // abstract name than Term
-
-    virtual Term get_term(Version version) = 0;
-    virtual Version get_commit_idx() = 0;
-
-    virtual NodeId leader() = 0;
-    virtual NodeId id() = 0;
-    virtual bool is_leader() = 0;
-  };
-
   class TxHistory
   {
   public:
@@ -75,12 +60,14 @@ namespace kv
       uint64_t actor;
       uint64_t caller_id;
     };
+
     struct ResultCallbackArgs
     {
       RequestID rid;
       Version version;
       crypto::Sha256Hash merkle_root;
     };
+
     struct ResponseCallbackArgs
     {
       RequestID rid;
@@ -116,6 +103,50 @@ namespace kv
     virtual crypto::Sha256Hash get_root() = 0;
   };
 
+  class Consensus
+  {
+  public:
+    struct NodeConf
+    {
+      NodeId node_id;
+      std::string host_name;
+      std::string port;
+    };
+    virtual ~Consensus() {}
+    virtual bool replicate(
+      const std::vector<std::tuple<Version, std::vector<uint8_t>, bool>>&
+        entries) = 0;
+    virtual Term get_term() = 0; // TODO(#api): this ought to have a more
+                                 // abstract name than Term
+
+    virtual Term get_term(Version version) = 0;
+    virtual Version get_commit_idx() = 0;
+
+    virtual NodeId leader() = 0;
+    virtual NodeId id() = 0;
+    virtual bool is_leader() = 0;
+    virtual bool on_request(const kv::TxHistory::RequestCallbackArgs& args) = 0;
+    virtual void periodic(std::chrono::milliseconds elapsed) = 0;
+
+    virtual bool is_follower() = 0;
+    virtual void recv_message(const uint8_t* data, size_t size) = 0;
+    virtual void add_configuration(
+      Index idx,
+      std::unordered_set<NodeId> conf,
+      const NodeConf& node_conf = {}) = 0;
+
+    virtual void force_become_leader() = 0;
+    virtual void force_become_leader(
+      Version index,
+      Term term,
+      const std::vector<Version>& terms,
+      Version commit_idx_) = 0;
+
+    virtual void enable_all_domains() = 0;
+    virtual void resume_replication() = 0;
+    virtual void suspend_replication(kv::Version) = 0;
+  };
+
   using PendingTx = std::function<
     std::tuple<CommitSuccess, TxHistory::RequestID, std::vector<uint8_t>>()>;
 
@@ -145,7 +176,7 @@ namespace kv
     virtual Version next_version() = 0;
     virtual Version current_version() = 0;
     virtual Version commit_version() = 0;
-    virtual std::shared_ptr<Replicator> get_replicator() = 0;
+    virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;
     virtual std::shared_ptr<AbstractTxEncryptor> get_encryptor() = 0;
     virtual DeserialiseSuccess deserialise(

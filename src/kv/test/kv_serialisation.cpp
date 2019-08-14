@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../../ds/logger.h"
-#include "../../enclave/appinterface.h"
-#include "../../node/encryptor.h"
-#include "../kv.h"
-#include "../kvserialiser.h"
-#include "../replicator.h"
+#include "ds/logger.h"
+#include "enclave/appinterface.h"
+#include "kv/kv.h"
+#include "kv/kvserialiser.h"
+#include "node/encryptor.h"
+#include "stub_consensus.h"
 
 #include <doctest/doctest.h>
 #include <msgpack-c/msgpack.hpp>
@@ -16,11 +16,11 @@ using namespace ccfapp;
 
 TEST_CASE("Serialise/deserialise public map only")
 {
-  auto replicator = std::make_shared<kv::StubReplicator>();
+  auto consensus = std::make_shared<kv::StubConsensus>();
   auto secrets = ccf::NetworkSecrets("");
   auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
 
-  Store kv_store(replicator);
+  Store kv_store(consensus);
   Store kv_store_target;
   kv_store.set_encryptor(encryptor);
   kv_store_target.set_encryptor(encryptor);
@@ -40,7 +40,7 @@ TEST_CASE("Serialise/deserialise public map only")
   INFO("Deserialise transaction in target store");
   {
     REQUIRE(
-      kv_store_target.deserialise(replicator->get_latest_data().first) ==
+      kv_store_target.deserialise(consensus->get_latest_data().first) ==
       kv::DeserialiseSuccess::PASS);
 
     Store::Tx tx_target;
@@ -52,11 +52,11 @@ TEST_CASE("Serialise/deserialise public map only")
 
 TEST_CASE("Serialise/deserialise private map only")
 {
-  auto replicator = std::make_shared<kv::StubReplicator>();
+  auto consensus = std::make_shared<kv::StubConsensus>();
   auto secrets = ccf::NetworkSecrets("");
   auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
 
-  Store kv_store(replicator);
+  Store kv_store(consensus);
   Store kv_store_target;
   kv_store.set_encryptor(encryptor);
   kv_store_target.set_encryptor(encryptor);
@@ -76,7 +76,7 @@ TEST_CASE("Serialise/deserialise private map only")
   INFO("Deserialise transaction in target store");
   {
     REQUIRE(
-      kv_store_target.deserialise(replicator->get_latest_data().first) ==
+      kv_store_target.deserialise(consensus->get_latest_data().first) ==
       kv::DeserialiseSuccess::PASS);
 
     Store::Tx tx_target;
@@ -88,11 +88,11 @@ TEST_CASE("Serialise/deserialise private map only")
 
 TEST_CASE("Serialise/deserialise private and public maps")
 {
-  auto replicator = std::make_shared<kv::StubReplicator>();
+  auto consensus = std::make_shared<kv::StubConsensus>();
   auto secrets = ccf::NetworkSecrets("");
   auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
 
-  Store kv_store(replicator);
+  Store kv_store(consensus);
   Store kv_store_target;
   kv_store.set_encryptor(encryptor);
   kv_store_target.set_encryptor(encryptor);
@@ -115,7 +115,7 @@ TEST_CASE("Serialise/deserialise private and public maps")
 
   INFO("Deserialise transaction in target store");
   {
-    auto serial = replicator->get_latest_data();
+    auto serial = consensus->get_latest_data();
     REQUIRE(
       kv_store_target.deserialise(serial.first) !=
       kv::DeserialiseSuccess::FAILED);
@@ -132,11 +132,11 @@ TEST_CASE("Serialise/deserialise private and public maps")
 
 TEST_CASE("Serialise/deserialise removed keys")
 {
-  auto replicator = std::make_shared<kv::StubReplicator>();
+  auto consensus = std::make_shared<kv::StubConsensus>();
   auto secrets = ccf::NetworkSecrets("");
   auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
 
-  Store kv_store(replicator);
+  Store kv_store(consensus);
   Store kv_store_target;
   kv_store.set_encryptor(encryptor);
   kv_store_target.set_encryptor(encryptor);
@@ -151,7 +151,7 @@ TEST_CASE("Serialise/deserialise removed keys")
     view_priv->put("privk1", "privv1");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
-    auto serial = replicator->get_latest_data();
+    auto serial = consensus->get_latest_data();
     REQUIRE(
       kv_store_target.deserialise(serial.first) !=
       kv::DeserialiseSuccess::FAILED);
@@ -174,7 +174,7 @@ TEST_CASE("Serialise/deserialise removed keys")
     auto view_priv2 = tx2.get_view(priv_map);
     REQUIRE(view_priv2->get("privk1").has_value() == false);
 
-    auto serial = replicator->get_latest_data();
+    auto serial = consensus->get_latest_data();
     REQUIRE(
       kv_store_target.deserialise(serial.first) !=
       kv::DeserialiseSuccess::FAILED);
@@ -190,8 +190,8 @@ TEST_CASE("Serialise private map with no encryptor/Deserialise in new store")
 {
   // This test mirrors the behaviour of the genesisgenerator utility which does
   // not have an encryptor and serialise all maps as if they were public.
-  auto replicator = std::make_shared<kv::StubReplicator>();
-  Store kv_store(replicator);
+  auto consensus = std::make_shared<kv::StubConsensus>();
+  Store kv_store(consensus);
 
   auto& map = kv_store.create<std::string, std::string>("map");
 
@@ -214,8 +214,8 @@ TEST_CASE("Serialise private map with no encryptor/Deserialise in new store")
     Store kv_store2;
     auto& map2 = kv_store2.create<std::string, std::string>("map");
 
-    auto serial = replicator->get_latest_data();
-    REQUIRE(replicator->number_of_replicas() == 1);
+    auto serial = consensus->get_latest_data();
+    REQUIRE(consensus->number_of_replicas() == 1);
     REQUIRE(serial.second);
     REQUIRE(!serial.first.empty());
 
@@ -229,7 +229,7 @@ TEST_CASE("Serialise private map with no encryptor/Deserialise in new store")
     auto vb = view2->get(k2);
     REQUIRE(vb.has_value());
     REQUIRE(vb.value() == v2);
-    replicator->flush();
+    consensus->flush();
   }
 }
 
@@ -263,12 +263,12 @@ TEST_CASE("Integrity")
 {
   SUBCASE("Public and Private")
   {
-    auto replicator = std::make_shared<kv::StubReplicator>();
+    auto consensus = std::make_shared<kv::StubConsensus>();
 
     auto secrets = ccf::NetworkSecrets("");
     auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
 
-    Store kv_store(replicator);
+    Store kv_store(consensus);
     Store kv_store_target;
     kv_store.set_encryptor(encryptor);
     kv_store_target.set_encryptor(encryptor);
@@ -288,7 +288,7 @@ TEST_CASE("Integrity")
     auto rc = tx.commit();
 
     // Tamper with serialised public data
-    auto serialised_tx = replicator->get_latest_data().first;
+    auto serialised_tx = consensus->get_latest_data().first;
     std::vector<uint8_t> value_to_corrupt(pub_value.begin(), pub_value.end());
     REQUIRE(corrupt_serialised_tx(serialised_tx, value_to_corrupt));
 
@@ -308,7 +308,7 @@ TEST_CASE("nlohmann (de)serialisation")
 
   SUBCASE("baseline")
   {
-    auto r = std::make_shared<kv::StubReplicator>();
+    auto r = std::make_shared<kv::StubConsensus>();
     using Table = Store::Map<std::vector<int>, std::string>;
     Store s0(r), s1;
     auto& t = s0.create<Table>("t");
@@ -325,7 +325,7 @@ TEST_CASE("nlohmann (de)serialisation")
 
   SUBCASE("nlohmann")
   {
-    auto r = std::make_shared<kv::StubReplicator>();
+    auto r = std::make_shared<kv::StubConsensus>();
     using Table = Store::Map<nlohmann::json, nlohmann::json>;
     Store s0(r), s1;
     auto& t = s0.create<Table>("t");

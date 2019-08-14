@@ -78,7 +78,7 @@ namespace ccf
     Certs* certs;
     std::optional<Handler> default_handler;
     std::unordered_map<std::string, Handler> handlers;
-    kv::Replicator* raft;
+    kv::Consensus* raft;
     std::shared_ptr<AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
     size_t sig_max_tx = 1000;
@@ -90,9 +90,9 @@ namespace ccf
 
     void update_raft()
     {
-      if (raft != tables.get_replicator().get())
+      if (raft != tables.get_consensus().get())
       {
-        raft = tables.get_replicator().get();
+        raft = tables.get_consensus().get();
       }
     }
 

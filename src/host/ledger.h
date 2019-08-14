@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../ds/logger.h"
-#include "../ds/messaging.h"
-#include "../raft/rafttypes.h" // TODO(#refactoring): Separate raft messages from ledger messages
+#include "consensus/raft/rafttypes.h" // TODO(#refactoring): Separate raft messages from ledger messages
+#include "ds/logger.h"
+#include "ds/messaging.h"
 
 #include <cstdint>
 #include <cstdio>

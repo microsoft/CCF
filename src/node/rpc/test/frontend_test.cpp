@@ -5,7 +5,7 @@
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
-#include "kv/replicator.h"
+#include "kv/test/stub_consensus.h"
 #include "node/entities.h"
 #include "node/networkstate.h"
 #include "node/rpc/jsonrpc.h"
@@ -547,11 +547,11 @@ TEST_CASE("Forwarding")
   TestForwardingFrontEnd frontend_leader(*network2.tables);
 
   auto follower_forwarder = std::make_shared<StubForwarder>();
-  auto follower_replicator = std::make_shared<kv::FollowerStubReplicator>();
-  network.tables->set_replicator(follower_replicator);
+  auto follower_consensus = std::make_shared<kv::FollowerStubConsensus>();
+  network.tables->set_consensus(follower_consensus);
 
-  auto leader_replicator = std::make_shared<kv::LeaderStubReplicator>();
-  network2.tables->set_replicator(leader_replicator);
+  auto leader_consensus = std::make_shared<kv::LeaderStubConsensus>();
+  network2.tables->set_consensus(leader_consensus);
 
   auto write_req = create_simple_json();
   std::vector<uint8_t> serialized_call =
@@ -627,8 +627,8 @@ TEST_CASE("Forwarding")
     TestNoForwardingFrontEnd frontend_follower_no_forwarding(*network.tables);
 
     auto follower2_forwarder = std::make_shared<StubForwarder>();
-    auto follower2_replicator = std::make_shared<kv::FollowerStubReplicator>();
-    network.tables->set_replicator(follower_replicator);
+    auto follower2_consensus = std::make_shared<kv::FollowerStubConsensus>();
+    network.tables->set_consensus(follower_consensus);
     frontend_follower_no_forwarding.set_cmd_forwarder(follower2_forwarder);
 
     enclave::RPCContext ctx(0, nullb);

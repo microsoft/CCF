@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "../consensus/pbft/pbfttypes.h"
 #include "../crypto/hash.h"
 #include "../ds/logger.h"
 #include "../kv/kvtypes.h"
-#include "../pbft/pbfttypes.h"
 #include "../tls/keypair.h"
 #include "../tls/tls.h"
 #include "entities.h"
@@ -248,7 +248,7 @@ namespace ccf
     Signatures& signatures;
     Nodes& nodes;
 
-    std::shared_ptr<kv::Replicator> replicator;
+    std::shared_ptr<kv::Consensus> consensus;
 
     std::map<RequestID, std::vector<uint8_t>> requests;
     std::map<RequestID, std::pair<kv::Version, crypto::Sha256Hash>> results;
@@ -369,13 +369,13 @@ namespace ccf
     {
 #ifndef PBFT
       // Signatures are only emitted when Raft is used as consensus
-      auto replicator = store.get_replicator();
-      if (!replicator)
+      auto consensus = store.get_consensus();
+      if (!consensus)
         return;
 
       auto version = store.next_version();
-      auto term = replicator->get_term();
-      auto commit = replicator->get_commit_idx();
+      auto term = consensus->get_term();
+      auto commit = consensus->get_commit_idx();
       LOG_INFO_FMT("Issuing signature at {}", version);
       LOG_DEBUG_FMT("Signed at {} term: {} commit: {}", version, term, commit);
       store.commit(
@@ -402,10 +402,11 @@ namespace ccf
       LOG_DEBUG << fmt::format("HISTORY: add_request {0}", id) << std::endl;
       requests[id] = request;
 
-      if (!on_request.has_value())
+      auto consensus = store.get_consensus();
+      if (!consensus)
         return false;
 
-      return on_request.value()({id, request, actor, caller_id});
+      return consensus->on_request({id, request, actor, caller_id});
     }
 
     void add_result(
