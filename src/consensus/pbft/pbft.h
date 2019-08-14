@@ -50,7 +50,7 @@ namespace pbft
       NodeId to = principal.pid();
       if (to == id)
       {
-        // If a replica sends a message to local_id (e.g. if f == 0), handle
+        // If a replica sends a message to itself (e.g. if f == 0), handle
         // the message straight away without writing it to the ringbuffer
         assert(message_receiver_base->f() == 0);
         message_receiver_base->receive_message(
@@ -244,7 +244,6 @@ namespace pbft
 
     // TODO(#PBFT): PBFT consensus should implement the following functions to
     // return meaningful information to clients (e.g. global commit, term/view)
-    // instead of relying on the NullConsensus, see
     // https://github.com/microsoft/CCF/issues/57
     kv::Term get_term() override
     {
