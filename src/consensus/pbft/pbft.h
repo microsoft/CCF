@@ -50,7 +50,7 @@ namespace pbft
       NodeId to = principal.pid();
       if (to == id)
       {
-        // If a replica sends a message to itlocal_id (e.g. if f == 0), handle
+        // If a replica sends a message to local_id (e.g. if f == 0), handle
         // the message straight away without writing it to the ringbuffer
         assert(message_receiver_base->f() == 0);
         message_receiver_base->receive_message(
@@ -142,7 +142,7 @@ namespace pbft
       std::string pubk_enc =
         "893d4101c5b225c2bdc8633bb322c0ef9861e0c899014536e11196808ffc0d17";
 
-      // Adding mylocal_id
+      // Adding myself
       PrincipalInfo my_info;
       my_info.id = local_id;
       my_info.port = 0;
@@ -170,7 +170,7 @@ namespace pbft
         0,
         pbft_network.get(),
         &message_receiver_base);
-      LOG_INFO_FMT("PBFT setup for local_id with id: {}", local_id);
+      LOG_INFO_FMT("PBFT setup for local_id: {}", local_id);
 
       pbft_config->set_service_mem(mem + used_bytes);
       pbft_network->set_receiver(message_receiver_base);
@@ -211,7 +211,6 @@ namespace pbft
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
-      LOG_INFO_FMT("in on request of pbft");
       auto total_req_size = pbft_config->message_size() + args.request.size();
 
       uint8_t request_buffer[total_req_size];
