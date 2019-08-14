@@ -16,7 +16,7 @@ namespace kv
     std::vector<std::vector<uint8_t>> replica;
 
   public:
-    StubConsensus() : replica() {}
+    StubConsensus() : Consensus(0), replica() {}
 
     bool replicate(
       const std::vector<std::tuple<kv::SeqNo, std::vector<uint8_t>, bool>>&
@@ -57,7 +57,7 @@ namespace kv
       return 0;
     }
 
-    NodeId leader() override
+    NodeId primary() override
     {
       return 1;
     }
@@ -72,22 +72,6 @@ namespace kv
       return 2;
     }
 
-    bool is_leader() override
-    {
-      return true;
-    }
-
-    bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
-    {
-      return true;
-    }
-
-    void periodic(std::chrono::milliseconds elapsed) override {}
-
-    bool is_follower() override
-    {
-      return false;
-    }
     void recv_message(const uint8_t* data, size_t size) override {}
 
     void add_configuration(
@@ -95,36 +79,21 @@ namespace kv
       std::unordered_set<NodeId> conf,
       const NodeConf& node_conf) override
     {}
-
-    void force_become_leader() override {}
-
-    void force_become_leader(
-      SeqNo seqno,
-      View view,
-      const std::vector<kv::Version>& terms,
-      SeqNo commit_seqno_) override
-    {}
-
-    void enable_all_domains() override {}
-
-    void resume_replication() override {}
-
-    void suspend_replication(kv::Version) override {}
   };
 
-  class FollowerStubConsensus : public StubConsensus
+  class BackupStubConsensus : public StubConsensus
   {
   public:
-    bool is_leader() override
+    bool is_primary() override
     {
       return false;
     }
   };
 
-  class LeaderStubConsensus : public StubConsensus
+  class PrimaryStubConsensus : public StubConsensus
   {
   public:
-    bool is_leader() override
+    bool is_primary() override
     {
       return true;
     }

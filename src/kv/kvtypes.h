@@ -103,6 +103,17 @@ namespace kv
 
   class Consensus
   {
+  protected:
+    enum State
+    {
+      PRIMARY,
+      BACKUP,
+      CANDIDATE
+    };
+
+    State state;
+    NodeId local_id;
+
   public:
     struct NodeConf
     {
@@ -110,7 +121,10 @@ namespace kv
       std::string host_name;
       std::string port;
     };
+
+    Consensus(NodeId id) : local_id(id), state(BACKUP){};
     virtual ~Consensus() {}
+
     virtual bool replicate(
       const std::vector<std::tuple<kv::SeqNo, std::vector<uint8_t>, bool>>&
         entries) = 0;
@@ -118,30 +132,55 @@ namespace kv
 
     virtual View get_view(SeqNo seqno) = 0;
     virtual SeqNo get_commit_seqno() = 0;
+    virtual NodeId primary() = 0;
 
-    virtual NodeId leader() = 0;
-    virtual NodeId id() = 0;
-    virtual bool is_leader() = 0;
-    virtual bool on_request(const kv::TxHistory::RequestCallbackArgs& args) = 0;
-    virtual void periodic(std::chrono::milliseconds elapsed) = 0;
-
-    virtual bool is_follower() = 0;
     virtual void recv_message(const uint8_t* data, size_t size) = 0;
     virtual void add_configuration(
       SeqNo seqno,
       std::unordered_set<NodeId> conf,
       const NodeConf& node_conf = {}) = 0;
 
-    virtual void force_become_leader() = 0;
-    virtual void force_become_leader(
+    virtual NodeId id()
+    {
+      return local_id;
+    }
+
+    virtual bool is_primary()
+    {
+      return state == PRIMARY;
+    }
+
+    virtual bool is_backup()
+    {
+      return state == BACKUP;
+    }
+
+    virtual void force_become_primary()
+    {
+      state = PRIMARY;
+    };
+
+    virtual void force_become_primary(
       SeqNo seqno,
       View view,
       const std::vector<Version>& terms,
-      SeqNo commit_seqno_) = 0;
+      SeqNo commit_seqno_)
+    {
+      state = PRIMARY;
+    };
 
-    virtual void enable_all_domains() = 0;
-    virtual void resume_replication() = 0;
-    virtual void suspend_replication(kv::Version) = 0;
+    virtual bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
+    {
+      return true;
+    }
+
+    virtual void periodic(std::chrono::milliseconds elapsed) {}
+
+    virtual void enable_all_domains(){};
+
+    virtual void resume_replication(){};
+
+    virtual void suspend_replication(kv::Version){};
   };
 
   using PendingTx = std::function<

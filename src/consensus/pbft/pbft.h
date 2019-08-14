@@ -97,7 +97,6 @@ namespace pbft
   class Pbft : public kv::Consensus
   {
   private:
-    NodeId local_id;
     std::shared_ptr<ChannelProxy> channels;
     IMessageReceiveBase* message_receiver_base = nullptr;
     char* mem;
@@ -106,7 +105,6 @@ namespace pbft
     std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
     enclave::RPCSessions& rpcsessions;
     std::unique_ptr<raft::LedgerEnclave> ledger;
-    bool isleader;
     kv::SeqNo global_commit_seqno;
 
   public:
@@ -116,11 +114,10 @@ namespace pbft
       std::unique_ptr<raft::LedgerEnclave> ledger_,
       std::shared_ptr<enclave::RpcMap> rpc_map,
       enclave::RPCSessions& rpcsessions_) :
-      local_id(id),
+      Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
       ledger(std::move(ledger_)),
-      isleader(false),
       global_commit_seqno(0)
     {
       // configure replica
@@ -260,24 +257,9 @@ namespace pbft
       return global_commit_seqno;
     }
 
-    bool is_leader() override
-    {
-      return isleader;
-    }
-
-    bool is_follower() override
-    {
-      return !isleader;
-    }
-
-    kv::NodeId leader() override
+    kv::NodeId primary() override
     {
       return 0;
-    }
-
-    kv::NodeId id() override
-    {
-      return local_id;
     }
 
     void add_configuration(
@@ -310,23 +292,6 @@ namespace pbft
       LOG_INFO_FMT("PBFT added node, id: {}", info.id);
     }
 
-    void force_become_leader() override
-    {
-      isleader = true;
-    }
-
-    void force_become_leader(
-      kv::SeqNo seqno,
-      kv::View view,
-      const std::vector<kv::Version>& terms,
-      kv::SeqNo commit_seqno_) override
-    {
-      isleader = true;
-    }
-
-    void enable_all_domains() override {}
-    void resume_replication() override {}
-    void suspend_replication(kv::Version) override {}
     void periodic(std::chrono::milliseconds elapsed) override
     {
       ITimer::handle_timeouts(elapsed);

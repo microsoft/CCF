@@ -60,7 +60,7 @@ if(BUILD_TESTS)
       --metrics-file small_bank_fwd_metrics.json
       -n localhost -n localhost
       -cn localhost
-      --send-tx-to followers
+      --send-tx-to backups
       --sign
   )
 endif()

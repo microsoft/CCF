@@ -20,7 +20,7 @@ namespace ccf
       return true;
     }
 
-    bool is_leader() const override
+    bool is_primary() const override
     {
       return true;
     }

@@ -97,7 +97,7 @@ public:
     std::ostringstream s;
     s << "append_entries i: " << ae.idx << ", t: " << ae.term
       << ", pi: " << ae.prev_idx << ", pt: " << ae.prev_term
-      << ", lci: " << ae.leader_commit_idx;
+      << ", lci: " << ae.primary_commit_idx;
     log(node_id, tgt_node_id, s.str());
   }
 
@@ -141,7 +141,7 @@ public:
     std::cout << "  Note right of Node" << node_id << ": ";
     auto raft = _nodes.at(node_id).raft;
 
-    if (raft->is_leader())
+    if (raft->is_primary())
       std::cout << "L ";
 
     std::cout << " t: " << raft->get_view() << ", li: " << raft->get_last_idx()

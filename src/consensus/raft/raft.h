@@ -49,13 +49,6 @@ namespace raft
   class Raft : public kv::Consensus
   {
   private:
-    enum State
-    {
-      Leader,
-      Follower,
-      Candidate
-    };
-
     struct NodeState
     {
       // the highest matching index with the node that was confirmed
@@ -75,7 +68,6 @@ namespace raft
 
     // Persistent
     Term current_term;
-    NodeId local_id;
     NodeId voted_for;
 
     Index last_idx;
@@ -83,10 +75,9 @@ namespace raft
     TermHistory term_history;
 
     // Volatile
-    NodeId leader_id;
+    NodeId primary_id;
     std::unordered_set<NodeId> votes_for_me;
 
-    State state;
     std::chrono::milliseconds timeout_elapsed;
 
     // Timeouts
@@ -110,7 +101,7 @@ namespace raft
     // entries
     bool public_only = false;
 
-    // In recovery mode, while a follower is reading the private ledger, no
+    // In recovery mode, while a backup is reading the private ledger, no
     // entries later than the index at which the network secrets are known
     // should be replicated
     std::optional<Index> recovery_max_index;
@@ -133,17 +124,15 @@ namespace raft
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
       bool public_only_ = false) :
-      store(std::move(store)),
+      Consensus(id),
 
+      store(std::move(store)),
       current_term(0),
-      local_id(id),
       voted_for(NoNode),
       last_idx(0),
       commit_idx(0),
 
-      leader_id(NoNode),
-
-      state(Follower),
+      primary_id(NoNode),
       timeout_elapsed(0),
 
       request_timeout(request_timeout_),
@@ -157,29 +146,14 @@ namespace raft
       rand((int)(uintptr_t)this)
     {}
 
-    NodeId leader() override
+    NodeId primary() override
     {
-      return leader_id;
-    }
-
-    NodeId id() override
-    {
-      return local_id;
-    }
-
-    bool is_leader() override
-    {
-      return state == Leader;
-    }
-
-    bool is_follower() override
-    {
-      return state == Follower;
+      return primary_id;
     }
 
     void enable_all_domains() override
     {
-      // When receiving append entries as a follower, all security domains will
+      // When receiving append entries as a backup, all security domains will
       // be deserialised
       std::lock_guard<SpinLock> guard(lock);
       public_only = false;
@@ -189,7 +163,7 @@ namespace raft
     {
       // Suspend replication of append entries up to a specific version
       // Note that this should only be called when the raft lock is taken (e.g.
-      // from a commit hook on a follower)
+      // from a commit hook on a backup)
       LOG_INFO_FMT("Suspending replication for idx > {}", idx);
       recovery_max_index = idx;
     }
@@ -204,32 +178,29 @@ namespace raft
       recovery_max_index.reset();
     }
 
-    bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
-    {
-      return true;
-    }
-
-    void force_become_leader() override
+    void force_become_primary() override
     {
       // This is unsafe and should only be called when the node is certain
-      // there is no leader and no other node will attempt to force leadership.
-      if (leader_id != NoNode)
+      // there is no primary and no other node will attempt to force
+      // primaryship.
+      if (primary_id != NoNode)
         throw std::logic_error(
-          "Can't force leadership if there is already a leader");
+          "Can't force primaryship if there is already a primary");
 
       std::lock_guard<SpinLock> guard(lock);
       current_term += 2;
-      become_leader();
+      become_primary();
     }
 
-    void force_become_leader(
+    void force_become_primary(
       kv::SeqNo seqno, kv::View view, kv::SeqNo commit_seqno_)
     {
       // This is unsafe and should only be called when the node is certain
-      // there is no leader and no other node will attempt to force leadership.
-      if (leader_id != NoNode)
+      // there is no primary and no other node will attempt to force
+      // primaryship.
+      if (primary_id != NoNode)
         throw std::logic_error(
-          "Can't force leadership if there is already a leader");
+          "Can't force primaryship if there is already a primary");
 
       std::lock_guard<SpinLock> guard(lock);
       current_term = view;
@@ -237,20 +208,21 @@ namespace raft
       commit_idx = commit_seqno_;
       term_history.update(seqno, view);
       current_term += 2;
-      become_leader();
+      become_primary();
     }
 
-    void force_become_leader(
+    void force_become_primary(
       kv::SeqNo seqno,
       kv::View view,
       const std::vector<Index>& terms,
       kv::SeqNo commit_seqno_) override
     {
       // This is unsafe and should only be called when the node is certain
-      // there is no leader and no other node will attempt to force leadership.
-      if (leader_id != NoNode)
+      // there is no primary and no other node will attempt to force
+      // primaryship.
+      if (primary_id != NoNode)
         throw std::logic_error(
-          "Can't force leadership if there is already a leader");
+          "Can't force primaryship if there is already a primary");
       std::lock_guard<SpinLock> guard(lock);
       current_term = view;
       last_idx = seqno;
@@ -258,7 +230,7 @@ namespace raft
       term_history.initialise(terms);
       term_history.update(seqno, view);
       current_term += 2;
-      become_leader();
+      become_primary();
     }
 
     Index get_last_idx()
@@ -300,10 +272,10 @@ namespace raft
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      if (state != Leader)
+      if (state != PRIMARY)
       {
         LOG_FAIL_FMT(
-          "Failed to replicate {} items: not leader", entries.size());
+          "Failed to replicate {} items: not primary", entries.size());
         rollback(last_idx);
         return false;
       }
@@ -316,7 +288,7 @@ namespace raft
           return false;
 
         LOG_DEBUG_FMT(
-          "Replicated on leader {}: {}{}",
+          "Replicated on primary {}: {}{}",
           local_id,
           index,
           (globally_committable ? " committable" : ""));
@@ -338,7 +310,7 @@ namespace raft
           entry_size_not_limited = 0;
           for (const auto& it : nodes)
           {
-            LOG_DEBUG_FMT("Sending updates to follower {}", it.first);
+            LOG_DEBUG_FMT("Sending updates to backup {}", it.first);
             send_append_entries(it.first, it.second.sent_idx + 1);
           }
         }
@@ -389,11 +361,11 @@ namespace raft
       std::lock_guard<SpinLock> guard(lock);
       timeout_elapsed += elapsed;
 
-      if (state == Leader)
+      if (state == PRIMARY)
       {
         if (timeout_elapsed >= request_timeout)
         {
-          LOG_DEBUG_FMT("Sending periodic updates to followers");
+          LOG_DEBUG_FMT("Sending periodic updates to backups");
           using namespace std::chrono_literals;
           timeout_elapsed = 0ms;
 
@@ -518,7 +490,7 @@ namespace raft
 
       // Don't check that the sender node ID is valid. Accept anything that
       // passes the integrity check. This way, entries containing dynamic
-      // topology changes that include adding this new leader can be accepted.
+      // topology changes that include adding this new primary can be accepted.
       if (r.prev_idx < commit_idx)
       {
         LOG_DEBUG_FMT(
@@ -533,15 +505,15 @@ namespace raft
 
       restart_election_timeout();
 
-      if (current_term == r.term && state == Candidate)
+      if (current_term == r.term && state == CANDIDATE)
       {
-        // Become a follower in this term.
-        become_follower(r.term);
+        // Become a backup in this term.
+        become_backup(r.term);
       }
       else if (current_term < r.term)
       {
-        // Become a follower in the new term.
-        become_follower(r.term);
+        // Become a backup in the new term.
+        become_backup(r.term);
       }
       else if (current_term > r.term)
       {
@@ -599,7 +571,7 @@ namespace raft
           continue;
         }
 
-        LOG_DEBUG_FMT("Replicating on follower {}: {}", local_id, i);
+        LOG_DEBUG_FMT("Replicating on backup {}: {}", local_id, i);
 
         // If replication is suspended during recovery, only accept entries if
         // their index is less than the max recovery index
@@ -655,7 +627,7 @@ namespace raft
         {
           case kv::DeserialiseSuccess::FAILED:
             throw std::logic_error(
-              "Follower failed to apply log entry " + std::to_string(i));
+              "BACKUP failed to apply log entry " + std::to_string(i));
             break;
 
           case kv::DeserialiseSuccess::PASS_SIGNATURE:
@@ -670,15 +642,15 @@ namespace raft
         }
       }
 
-      // Update the current leader because we accepted entries.
-      if (leader_id != r.from_node)
+      // Update the current primary because we accepted entries.
+      if (primary_id != r.from_node)
       {
-        leader_id = r.from_node;
-        LOG_DEBUG_FMT("Node {} thinks leader is {}", local_id, leader_id);
+        primary_id = r.from_node;
+        LOG_DEBUG_FMT("Node {} thinks primary is {}", local_id, primary_id);
       }
 
       send_append_entries_response(r.from_node, true);
-      commit_if_possible(r.leader_commit_idx);
+      commit_if_possible(r.primary_commit_idx);
 
       term_history.update(commit_idx + 1, r.term_of_idx);
     }
@@ -701,8 +673,8 @@ namespace raft
 
     void recv_append_entries_response(const uint8_t* data, size_t size)
     {
-      // Ignore if we're not the leader.
-      if (state != Leader)
+      // Ignore if we're not the primary.
+      if (state != PRIMARY)
         return;
 
       auto r = channels->template recv_authenticated<AppendEntriesResponse>(
@@ -720,12 +692,12 @@ namespace raft
       }
       else if (current_term < r.term)
       {
-        // We are behind, convert to a follower.
+        // We are behind, convert to a backup.
         LOG_DEBUG_FMT(
           "Recv append entries response to {} from {}: more recent term",
           local_id,
           r.from_node);
-        become_follower(r.term);
+        become_backup(r.term);
         return;
       }
       else if (current_term != r.term)
@@ -816,14 +788,14 @@ namespace raft
       }
       else if (current_term < r.term)
       {
-        // Become a follower in the new term.
+        // Become a backup in the new term.
         LOG_DEBUG_FMT(
           "Recv request vote to {} from {}: their term is later ({} < {})",
           local_id,
           r.from_node,
           current_term,
           r.term);
-        become_follower(r.term);
+        become_backup(r.term);
       }
 
       if ((voted_for != NoNode) && (voted_for != r.from_node))
@@ -849,7 +821,7 @@ namespace raft
         // If we grant our vote, we also acknowledge that an election is in
         // progress.
         restart_election_timeout();
-        leader_id = NoNode;
+        primary_id = NoNode;
         voted_for = r.from_node;
       }
 
@@ -870,7 +842,7 @@ namespace raft
 
     void recv_request_vote_response(const uint8_t* data, size_t size)
     {
-      if (state != Candidate)
+      if (state != CANDIDATE)
       {
         LOG_INFO_FMT(
           "Recv request vote response to {}: we aren't a candidate", local_id);
@@ -893,7 +865,7 @@ namespace raft
 
       if (current_term < r.term)
       {
-        // Become a follower in the new term.
+        // Become a backup in the new term.
         LOG_INFO_FMT(
           "Recv request vote response to {} from {}: their term is more recent "
           "({} < {})",
@@ -901,7 +873,7 @@ namespace raft
           r.from_node,
           current_term,
           r.term);
-        become_follower(r.term);
+        become_backup(r.term);
         return;
       }
       else if (current_term != r.term)
@@ -941,8 +913,8 @@ namespace raft
 
     void become_candidate()
     {
-      state = Candidate;
-      leader_id = NoNode;
+      state = CANDIDATE;
+      primary_id = NoNode;
       voted_for = local_id;
       votes_for_me.clear();
       current_term++;
@@ -956,7 +928,7 @@ namespace raft
         send_request_vote(it->first);
     }
 
-    void become_leader()
+    void become_primary()
     {
       // Discard any un-committed updates we may hold,
       // since we have no signature for them. Except at startup,
@@ -965,13 +937,13 @@ namespace raft
         rollback(commit_idx);
 
       committable_indices.clear();
-      state = Leader;
-      leader_id = local_id;
+      state = PRIMARY;
+      primary_id = local_id;
 
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
 
-      LOG_INFO_FMT("Becoming leader {}: {}", local_id, current_term);
+      LOG_INFO_FMT("Becoming primary {}: {}", local_id, current_term);
 
       // Immediately commit if there are no other nodes.
       if (nodes.size() == 0)
@@ -993,10 +965,10 @@ namespace raft
       }
     }
 
-    void become_follower(Term term)
+    void become_backup(Term term)
     {
-      state = Follower;
-      leader_id = NoNode;
+      state = BACKUP;
+      primary_id = NoNode;
       restart_election_timeout();
 
       current_term = term;
@@ -1007,7 +979,7 @@ namespace raft
       rollback(commit_idx);
       committable_indices.clear();
 
-      LOG_INFO_FMT("Becoming follower {}: {}", local_id, current_term);
+      LOG_INFO_FMT("Becoming backup {}: {}", local_id, current_term);
     }
 
     void add_vote_for_me(NodeId from)
@@ -1016,7 +988,7 @@ namespace raft
       votes_for_me.insert(from);
 
       if (votes_for_me.size() >= ((nodes.size() + 1) / 2) + 1)
-        become_leader();
+        become_primary();
     }
 
     void update_commit()
@@ -1056,7 +1028,7 @@ namespace raft
       if (new_commit_idx > last_idx)
       {
         throw std::logic_error(
-          "Followers appear to have later match indices than leader");
+          "BACKUPs appear to have later match indices than primary");
       }
 
       commit_if_possible(new_commit_idx);
@@ -1090,7 +1062,7 @@ namespace raft
 
       LOG_DEBUG_FMT("Starting commit");
 
-      // This could happen if a follower becomes the leader when it
+      // This could happen if a backup becomes the primary when it
       // has committed fewer log entries, although it has them available.
       if (idx <= commit_idx)
         return;
@@ -1183,11 +1155,11 @@ namespace raft
         if (nodes.find(node_id) == nodes.end())
         {
           // A new node is sent only future entries initially. If it does not
-          // have prior data, it will communicate that back to the leader.
+          // have prior data, it will communicate that back to the primary.
           auto index = last_idx + 1;
           nodes[node_id] = {0, index};
 
-          if (state == Leader)
+          if (state == PRIMARY)
             send_append_entries(node_id, index);
 
           LOG_INFO_FMT("Added node {}", node_id);
