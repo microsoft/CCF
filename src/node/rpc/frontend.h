@@ -135,6 +135,9 @@ namespace ccf
       if (!caller.p)
         return {};
 
+      // TODO: Workaround for now
+      return 0;
+
       auto certs_view = tx.get_view(*certs);
       auto caller_id = certs_view->get(std::vector<uint8_t>(caller));
 

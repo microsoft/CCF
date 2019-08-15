@@ -425,7 +425,8 @@ namespace ccf
           //       jsonrpc::error_response(
           //         rpc_ctx.req.seq_no,
           //         jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-          //         "An error occurred while joining the network: " + j.dump()),
+          //         "An error occurred while joining the network: " +
+          //         j.dump()),
           //       rpc_ctx.pack.value()));
           // }
 
@@ -498,6 +499,17 @@ namespace ccf
       join_rpc.id = 1;
       join_rpc.method = ccf::NodeProcs::JOIN;
       join_rpc.params.raw_fresh_key = raw_fresh_key;
+      join_rpc.params.node_info = args.config.node_info;
+
+      // For now, regenerate the quote from before. This is okay since the quote
+      // generation will change anyway and the quote will not be returned until
+      // here.
+      std::vector<uint8_t> quote{1};
+
+#ifdef GET_QUOTE
+      quote = get_quote();
+#endif
+      join_rpc.params.quote = quote;
 
       auto join_req =
         jsonrpc::pack(nlohmann::json(join_rpc), jsonrpc::Pack::MsgPack);

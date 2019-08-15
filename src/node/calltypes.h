@@ -2,21 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "enclave/interface.h"
+#include "enclave/nodeinfonetwork.h"
 #include "entities.h"
 #include "networksecrets.h"
 #include "nodes.h"
 
 namespace ccf
 {
-  // TODO: Merge that with nodes.h?
-  // struct NodeInfoCreation
-  // {
-  //   std::string host;
-  //   std::string pubhost;
-  //   std::string nodeport;
-  //   std::string rpcport;
-  // };
-
   struct CreateJoin
   {
     struct In
@@ -140,6 +132,8 @@ namespace ccf
     struct In
     {
       std::vector<uint8_t> raw_fresh_key;
+      NodeInfoNetwork node_info;
+      std::vector<uint8_t> quote;
     };
 
     struct Out

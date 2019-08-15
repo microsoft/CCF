@@ -21,12 +21,6 @@
 
 #include <ccf_t.h>
 
-// #ifdef VIRTUAL_ENCLAVE
-// #  include "enclave/ccf_v.h"
-// #else
-// #  include <ccf_t.h>
-// #endif
-
 namespace enclave
 {
   class Enclave

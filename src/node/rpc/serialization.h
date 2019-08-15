@@ -4,6 +4,7 @@
 #include "ds/json.h"
 #include "node/calltypes.h"
 #include "node/rpc/calltypes.h"
+#include "enclave/interface.h"
 
 namespace ccf
 {
@@ -40,7 +41,8 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(NetworkSecrets::Secret, cert, priv_key, master)
 
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::In)
-  DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::In, raw_fresh_key)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    JoinNetworkNodeToNode::In, raw_fresh_key, node_info, quote)
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(
     JoinNetworkNodeToNode::Out, id, network_secrets, version)
