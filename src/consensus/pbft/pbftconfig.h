@@ -3,7 +3,7 @@
 #include "enclave/rpcmap.h"
 #include "libbyz/libbyz.h"
 #include "libbyz/pbft_assert.h"
-#include "pbft_deps.h"
+#include "pbftdeps.h"
 
 namespace pbft
 {

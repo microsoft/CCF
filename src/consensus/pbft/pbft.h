@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/pbft/pbft_config.h"
+#include "consensus/pbft/pbftconfig.h"
 #include "consensus/raft/ledgerenclave.h"
 #include "ds/logger.h"
 #include "enclave/rpcmap.h"

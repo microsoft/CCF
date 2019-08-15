@@ -1,3 +1,7 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+#pragma once
+
 #include "kv/kvtypes.h"
 #include "raft.h"
 
@@ -6,13 +10,13 @@
 namespace raft
 {
   template <class LedgerProxy, class ChannelProxy>
-  class ConsensusRaft : public kv::Consensus
+  class RaftConsensus : public kv::Consensus
   {
   private:
     std::unique_ptr<Raft<LedgerProxy, ChannelProxy>> raft;
 
   public:
-    ConsensusRaft(std::unique_ptr<Raft<LedgerProxy, ChannelProxy>> raft_) :
+    RaftConsensus(std::unique_ptr<Raft<LedgerProxy, ChannelProxy>> raft_) :
       Consensus(raft_->id()),
       raft(std::move(raft_))
     {}

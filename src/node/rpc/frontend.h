@@ -11,7 +11,7 @@
 #include "metrics.h"
 #include "node/certs.h"
 #include "node/clientsignatures.h"
-#include "node/consensus.h"
+#include "node/consensustypes.h"
 #include "node/nodes.h"
 #include "nodeinterface.h"
 #include "rpcexception.h"

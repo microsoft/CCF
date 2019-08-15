@@ -2,12 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#ifdef PBFT
-#  include "consensus/pbft/pbft.h"
-#endif
-
 #include "calltypes.h"
-#include "consensus.h"
+#include "consensustypes.h"
 #include "ds/logger.h"
 #include "enclave/rpcclient.h"
 #include "enclave/rpcsessions.h"
@@ -120,9 +116,6 @@ namespace ccf
     NetworkState& network;
 
     std::shared_ptr<kv::Consensus> consensus;
-#ifdef PBFT
-    using ConsensusPbft = pbft::Pbft<raft::LedgerEnclave, NodeToNode>;
-#endif
     std::shared_ptr<enclave::RpcMap> rpc_map;
     std::shared_ptr<NodeToNode> n2n_channels;
     enclave::RPCSessions& rpcsessions;
@@ -1270,7 +1263,7 @@ namespace ccf
 #ifdef PBFT
     void setup_pbft()
     {
-      consensus = std::make_shared<ConsensusPbft>(
+      consensus = std::make_shared<PbftConsensusType>(
         n2n_channels,
         self,
         std::make_unique<raft::LedgerEnclave>(writer_factory),
