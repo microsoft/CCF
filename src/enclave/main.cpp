@@ -45,19 +45,40 @@ extern "C"
 
     LOG_INFO << "Starting node in starting mode: " << start_type << std::endl;
 
-    auto ret = e->create_node(
-      *cc,
-      node_cert,
-      node_cert_size,
-      node_cert_len,
-      quote,
-      quote_size,
-      quote_len,
-      network_cert,
-      network_cert_size,
-      network_cert_len,
-      start_type);
+    bool ret;
+    switch (start_type)
+    {
+      case StartType::Start:
+        ret = e->create_new_node(
+          *cc,
+          node_cert,
+          node_cert_size,
+          node_cert_len,
+          quote,
+          quote_size,
+          quote_len,
+          network_cert,
+          network_cert_size,
+          network_cert_len);
+        break;
 
+      case StartType::Join:
+        ret = e->create_join_node(
+          *cc,
+          node_cert,
+          node_cert_size,
+          node_cert_len,
+          quote,
+          quote_size,
+          quote_len);
+        break;
+
+      case StartType::Recover:
+        break;
+
+      default:
+        return false;
+    }
     return ret;
   }
 

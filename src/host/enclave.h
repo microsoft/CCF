@@ -86,7 +86,7 @@ namespace host
       bool ret;
       size_t node_cert_len = 0;
       size_t quote_len = 0;
-      size_t network_cert_len;
+      size_t network_cert_len = 0;
 
       auto err = enclave_create_node(
         e,

@@ -174,48 +174,9 @@ namespace ccf
       ::EverCrypt_AutoConfig2_init();
     }
 
-    //
-    // funcs in state "uninitialized"
-    //
-    void initialize(
-      raft::Config& raft_config_,
-      std::shared_ptr<NodeToNode> n2n_channels_,
-      std::shared_ptr<enclave::RpcMap> rpc_map_)
+    // TODO: To move to the right location in this file
+    std::vector<uint8_t> get_quote()
     {
-      std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::uninitialized);
-
-      raft_config = raft_config_;
-      n2n_channels = n2n_channels_;
-      // Capture rpc_map to pass to pbft for frontend execution
-      rpc_map = rpc_map_;
-      sm.advance(State::initialized);
-    }
-
-    //
-    // funcs in state "initialized"
-    //
-    auto create_new(const CreateNew::In& args)
-    {
-      std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::initialized);
-
-      Store::Tx tx;
-
-      // Generate node key pair
-      std::stringstream name;
-      name << "CN=" << Actors::MANAGEMENT;
-      node_cert = node_kp->self_sign(name.str());
-
-      network.secrets = std::make_unique<NetworkSecrets>(
-        "CN=The CA", std::make_unique<Seal>(writer_factory));
-
-      // Accept member and node connections
-      accept_member_connections();
-      accept_node_connections();
-
-      // Generate quote over node certificate
-      // TODO: https://github.com/microsoft/CCF/issues/59
       std::vector<uint8_t> quote{1};
 
 #ifdef GET_QUOTE
@@ -256,7 +217,59 @@ namespace ccf
         std::begin(parsed_quote.identity.unique_id),
         std::end(parsed_quote.identity.unique_id),
         std::begin(node_code_id));
+#else
+      throw std::logic_error("Quote retrieval is not yet implemented");
 #endif
+      return quote;
+    }
+
+    //
+    // funcs in state "uninitialized"
+    //
+    void initialize(
+      raft::Config& raft_config_,
+      std::shared_ptr<NodeToNode> n2n_channels_,
+      std::shared_ptr<enclave::RpcMap> rpc_map_)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      sm.expect(State::uninitialized);
+
+      raft_config = raft_config_;
+      n2n_channels = n2n_channels_;
+      // Capture rpc_map to pass to pbft for frontend execution
+      rpc_map = rpc_map_;
+      sm.advance(State::initialized);
+    }
+
+    //
+    // funcs in state "initialized"
+    //
+    auto create_new(const CreateNew::In& args)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      sm.expect(State::initialized);
+
+      Store::Tx tx;
+
+      // Generate node key pair
+      std::stringstream name;
+      name << "CN=" << Actors::MANAGEMENT;
+      node_cert = node_kp->self_sign(name.str());
+
+      // Generate quote over node certificate
+      // TODO: https://github.com/microsoft/CCF/issues/59
+      std::vector<uint8_t> quote{1};
+
+#ifdef GET_QUOTE
+      quote = get_quote();
+#endif
+
+      network.secrets = std::make_unique<NetworkSecrets>(
+        "CN=The CA", std::make_unique<Seal>(writer_factory));
+
+      // Accept member and node connections
+      accept_member_connections();
+      accept_node_connections();
 
       // Initialise store
       auto
@@ -290,10 +303,10 @@ namespace ccf
       // Nodes
       nodes_view->put(
         self,
-        {args.config.genesis.node_info.host,
-         args.config.genesis.node_info.pubhost,
-         args.config.genesis.node_info.nodeport,
-         args.config.genesis.node_info.rpcport,
+        {args.config.node_info.host,
+         args.config.node_info.pubhost,
+         args.config.node_info.nodeport,
+         args.config.node_info.rpcport,
          node_cert,
          quote,
          NodeStatus::PENDING});
@@ -308,7 +321,8 @@ namespace ccf
 
       // Governance is not compiled
       std::map<std::string, std::string> scripts =
-        lua::Interpreter().invoke<nlohmann::json>(args.config.genesis.gov_script);
+        lua::Interpreter().invoke<nlohmann::json>(
+          args.config.genesis.gov_script);
       for (auto& rs : scripts)
       {
         gov_view->put(rs.first, rs.second);
@@ -319,14 +333,14 @@ namespace ccf
         return Fail<CreateNew::Out>("Parsing quote of starting node failed");
 #endif
 
-      if (args.recover)
-      {
-        init_public_ledger_recovery();
-        sm.advance(State::readingPublicLedger);
-      }
+        // if (args.recover)
+        // {
+        // init_public_ledger_recovery();
+        // sm.advance(State::readingPublicLedger);
+        // }
 
-      // Initialise history and consensus
-      // TODO: https://github.com/microsoft/CCF/issues/300
+        // Initialise history and consensus
+        // TODO: https://github.com/microsoft/CCF/issues/300
 #ifdef PBFT
       setup_pbft();
 #endif
@@ -341,12 +355,154 @@ namespace ccf
         return Fail<CreateNew::Out>(
           "Genesis transaction could not be committed");
 
-      if(!args.recover)
+      // if (!args.recover)
       {
-        sm.advance(State::started);
+        sm.advance(State::partOfNetwork);
       }
 
-      return Success<CreateNew::Out>({node_cert, quote, network.secrets->get_current().cert});
+      return Success<CreateNew::Out>(
+        {node_cert, quote, network.secrets->get_current().cert});
+    }
+
+    auto create_join()
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      sm.expect(State::initialized);
+
+      // Generate node key pair
+      std::stringstream name;
+      name << "CN=" << Actors::MANAGEMENT;
+      node_cert = node_kp->self_sign(name.str());
+
+      // Generate quote over node certificate
+      // TODO: https://github.com/microsoft/CCF/issues/59
+      std::vector<uint8_t> quote{1};
+
+#ifdef GET_QUOTE
+      quote = get_quote();
+#endif
+
+      sm.advance(State::started);
+
+      return Success<CreateJoin::Out>({node_cert, quote});
+    }
+
+    void initiate_join(const CreateJoin::In& args)
+    {
+      // Peer certificate needs to be signed by network certificate
+      auto tls_ca = std::make_shared<tls::CA>(args.config.joining.network_cert);
+      auto join_client_cert = std::make_unique<tls::Cert>(
+        Actors::NODES, tls_ca, node_cert, node_kp->private_key_pem(), nullb);
+
+      enclave::RPCContext rpc_ctx(0, nullb);
+
+      // Create and connect to endpoint
+      auto join_client =
+        rpcsessions.create_client(rpc_ctx, std::move(join_client_cert));
+
+      // TODO: If the connection fails (e.g. the target node does not exist),
+      // the node should shut down
+
+      join_client->connect(
+        args.config.joining.target_host,
+        args.config.joining.target_port,
+        [this](const std::vector<uint8_t>& data) {
+          auto j = jsonrpc::unpack(data, jsonrpc::Pack::MsgPack);
+
+          LOG_INFO << "Response from leader" << std::endl;
+          LOG_INFO << j.dump() << std::endl;
+
+          // Check that the response is valid.
+          // try
+          // {
+          //   auto resp = jsonrpc::Response<JoinNetworkNodeToNode::Out>(j);
+          // }
+          // catch (const std::exception& e)
+          // {
+          //   return std::make_pair(
+          //     rpc_ctx.is_pending,
+          //     jsonrpc::pack(
+          //       jsonrpc::error_response(
+          //         rpc_ctx.req.seq_no,
+          //         jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          //         "An error occurred while joining the network: " + j.dump()),
+          //       rpc_ctx.pack.value()));
+          // }
+
+          // // Set network secrets, node id and become part of network.
+          // auto res = j.at(jsonrpc::RESULT).get<JoinNetworkNodeToNode::Out>();
+
+          // // If the current network secrets do not apply since the genesis,
+          // the
+          // // joining node can only join the public network
+          // bool public_only = (res.version != 0);
+
+          // // In a private network, seal secrets immediately. Note that in
+          // // recovery, temporary secrets are overwritten
+          // network.secrets = std::make_unique<NetworkSecrets>(
+          //   res.version,
+          //   res.network_secrets,
+          //   std::make_unique<Seal>(writer_factory),
+          //   !public_only);
+
+          // self = res.id;
+          // if (res.version != 0 && sm.check(State::awaitingRecoveryTx))
+          // {
+          //   // If the joining node was started in recovery, truncate the
+          //   ledger
+          //   // and reset the store as we will receive the entirety of the
+          //   ledger
+          //   // from the leader
+          //   LOG_INFO_FMT("Truncating entire ledger");
+          //   log_truncate(0);
+          //   network.tables->clear();
+          // }
+          // else
+          // {
+          //   // If the node was started normally, accept all connections
+          //   accept_all_connections();
+          // }
+          // setup_raft(public_only);
+          // setup_history();
+          // setup_encryptor();
+
+          // if (public_only)
+          //   sm.advance(State::partOfPublicNetwork);
+          // else
+          //   sm.advance(State::partOfNetwork);
+
+          // LOG_INFO_FMT(
+          //   "Node has now joined the network as node {}: {}",
+          //   self,
+          //   (public_only ? "public only" : "all domains"));
+
+          // jsonrpc::Response<JoinNetwork::Out> join_rpc_resp;
+          // join_rpc_resp.id = rpc_ctx.req.seq_no;
+          // join_rpc_resp.result.id = self;
+
+          std::vector<uint8_t> empty_vector;
+
+          return std::make_pair(false, empty_vector);
+
+          // return std::make_pair(
+          //   rpc_ctx.is_pending,
+          //   jsonrpc::pack(join_rpc_resp, rpc_ctx.pack.value()));
+        });
+
+      // Generate fresh key to encrypt/decrypt historical network secrets sent
+      // by the leader via the kv store
+      raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
+
+      // Send RPC request to remote node to join the network.
+      jsonrpc::ProcedureCall<JoinNetworkNodeToNode::In> join_rpc;
+      join_rpc.id = 1;
+      join_rpc.method = ccf::NodeProcs::JOIN;
+      join_rpc.params.raw_fresh_key = raw_fresh_key;
+
+      auto join_req =
+        jsonrpc::pack(nlohmann::json(join_rpc), jsonrpc::Pack::MsgPack);
+
+      join_client->send(join_req);
     }
 
     //

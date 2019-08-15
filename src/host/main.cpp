@@ -321,15 +321,15 @@ int main(int argc, char** argv)
   CCFConfig ccf_config;
   ccf_config.raft_config = raft_config;
   ccf_config.signature_intervals = {sig_max_tx, sig_max_ms};
+  ccf_config.node_info = {rpc_address.hostname,
+                          public_rpc_address.hostname,
+                          node_address.port,
+                          rpc_address.port};
 
   if (*start)
   {
     LOG_INFO_FMT("Starting new node - new network");
     start_type = StartType::Start;
-    ccf_config.genesis.node_info = {rpc_address.hostname,
-                                    public_rpc_address.hostname,
-                                    node_address.port,
-                                    rpc_address.port};
     ccf_config.genesis.member_cert = files::slurp(member_cert_file);
     ccf_config.genesis.gov_script = files::slurp_string(gov_script);
   }
@@ -340,6 +340,7 @@ int main(int argc, char** argv)
       target_rpc_address.hostname,
       target_rpc_address.port);
     start_type = StartType::Join;
+
     ccf_config.joining.target_host = target_rpc_address.hostname;
     ccf_config.joining.target_port = target_rpc_address.port;
     ccf_config.joining.network_cert = files::slurp(network_cert_file);
@@ -373,7 +374,10 @@ int main(int argc, char** argv)
 
   // Write the node and network certs and quote to disk.
   files::dump(node_cert, node_cert_file);
-  files::dump(network_cert, network_cert_file);
+  if (*start)
+  {
+    files::dump(network_cert, network_cert_file);
+  }
 
 #ifdef GET_QUOTE
   files::dump(quote, quote_file);

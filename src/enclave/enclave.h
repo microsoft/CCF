@@ -42,6 +42,7 @@ namespace enclave
     ccf::Notifier notifier;
     std::shared_ptr<RpcMap> rpc_map;
     bool recover = false;
+    std::optional<CCFConfig> ccf_config; // TODO: Delete this
 
   public:
     Enclave(
@@ -93,8 +94,8 @@ namespace enclave
       cmd_forwarder->initialize(rpc_map);
     }
 
-    bool create_node(
-      const CCFConfig& ccf_config,
+    bool create_new_node(
+      const CCFConfig& ccf_config_,
       uint8_t* node_cert,
       size_t node_cert_size,
       size_t* node_cert_len,
@@ -103,30 +104,50 @@ namespace enclave
       size_t* quote_len,
       uint8_t* network_cert,
       size_t network_cert_size,
-      size_t* network_cert_len,
-      StartType start_type)
+      size_t* network_cert_len)
     {
       // node_cert_size, quote_size and network_cert_size are ignored here, but
-      // we pass it in because it allows us to set EDL an annotation so that
+      // we pass them in because it allows us to set EDL an annotation so that
       // quote_len <= quote_size is checked by the EDL-generated wrapper
 
-      // TODO: Recover should eventually go and we should branch here based on
-      // {start, join, recover}
       recover = false;
-      auto r = node.create_new({ccf_config, recover});
+      auto r = node.create_new({ccf_config_});
       if (!r.second)
         return false;
 
-      // Copy quote, node and network certs out
-      ::memcpy(quote, r.first.quote.data(), r.first.quote.size());
-      *quote_len = r.first.quote.size();
-
+      // Copy node, quote and network certs out
       ::memcpy(node_cert, r.first.node_cert.data(), r.first.node_cert.size());
       *node_cert_len = r.first.node_cert.size();
+
+      ::memcpy(quote, r.first.quote.data(), r.first.quote.size());
+      *quote_len = r.first.quote.size();
 
       ::memcpy(
         network_cert, r.first.network_cert.data(), r.first.network_cert.size());
       *network_cert_len = r.first.network_cert.size();
+      return true;
+    }
+
+    bool create_join_node(
+      const CCFConfig& ccf_config_,
+      uint8_t* node_cert,
+      size_t node_cert_size,
+      size_t* node_cert_len,
+      uint8_t* quote,
+      size_t quote_size,
+      size_t* quote_len)
+    {
+      ccf_config = ccf_config_;
+      auto r = node.create_join();
+      if (!r.second)
+        return false;
+
+      ::memcpy(node_cert, r.first.node_cert.data(), r.first.node_cert.size());
+      *node_cert_len = r.first.node_cert.size();
+
+      ::memcpy(quote, r.first.quote.data(), r.first.quote.size());
+      *quote_len = r.first.quote.size();
+
       return true;
     }
 
@@ -207,6 +228,12 @@ namespace enclave
             });
 
           node.start_ledger_recovery();
+        }
+
+        if (ccf_config)
+        {
+          LOG_INFO_FMT("Node join when enclave starts running");
+          node.initiate_join({ccf_config.value()});
         }
 
         rpcsessions.register_message_handlers(bp.get_dispatcher());

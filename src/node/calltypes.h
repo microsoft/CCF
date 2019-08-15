@@ -1,11 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "enclave/interface.h"
 #include "entities.h"
 #include "networksecrets.h"
 #include "nodes.h"
-
-#include "enclave/interface.h"
 
 namespace ccf
 {
@@ -17,6 +16,20 @@ namespace ccf
   //   std::string nodeport;
   //   std::string rpcport;
   // };
+
+  struct CreateJoin
+  {
+    struct In
+    {
+      CCFConfig config;
+    };
+
+    struct Out
+    {
+      std::vector<uint8_t> node_cert;
+      std::vector<uint8_t> quote;
+    };
+  };
 
   struct CreateNew
   {
@@ -31,8 +44,6 @@ namespace ccf
       // std::vector<uint8_t> network_cert;
 
       CCFConfig config;
-
-      bool recover; // TODO: This should go eventually
     };
     struct Out
     {

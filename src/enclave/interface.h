@@ -45,6 +45,7 @@ struct EnclaveConfig
 struct CCFConfig
 {
   raft::Config raft_config = {};
+  NodeInfoCreation node_info = {};
 
   struct SignatureIntervals
   {
@@ -55,7 +56,6 @@ struct CCFConfig
 
   struct Genesis
   {
-    NodeInfoCreation node_info = {};
     std::vector<uint8_t> member_cert;
     std::string gov_script;
   };
