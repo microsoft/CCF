@@ -14,8 +14,13 @@
 
 namespace kv
 {
-  using Index = int64_t;
+  // Version indexes modifications to the local kv store. Special value -1
+  // indicates deletion
   using Version = int64_t;
+  // Term describes an epoch of Versions. It is incremented when global kv's
+  // writer(s) changes. Term and Version combined give a unique identifier for
+  // all accepted kv modifications. Terms are handled by Raft via the
+  // TermHistory
   using Term = uint64_t;
   using NodeId = uint64_t;
   static const Version NoVersion = std::numeric_limits<Version>::min();
@@ -74,7 +79,6 @@ namespace kv
       std::vector<uint8_t> response;
     };
 
-    using RequestCallbackHandler = std::function<bool(RequestCallbackArgs)>;
     using ResultCallbackHandler = std::function<bool(ResultCallbackArgs)>;
     using ResponseCallbackHandler = std::function<bool(ResponseCallbackArgs)>;
 
@@ -94,10 +98,8 @@ namespace kv
     virtual void add_result(RequestID id, kv::Version version) = 0;
     virtual void add_response(
       RequestID id, const std::vector<uint8_t>& response) = 0;
-    virtual void register_on_request(RequestCallbackHandler func) = 0;
     virtual void register_on_result(ResultCallbackHandler func) = 0;
     virtual void register_on_response(ResponseCallbackHandler func) = 0;
-    virtual void clear_on_request() = 0;
     virtual void clear_on_result() = 0;
     virtual void clear_on_response() = 0;
     virtual crypto::Sha256Hash get_root() = 0;
@@ -105,46 +107,88 @@ namespace kv
 
   class Consensus
   {
+  protected:
+    enum State
+    {
+      Primary,
+      Backup,
+      Candidate
+    };
+
+    State state;
+    NodeId local_id;
+
   public:
+    // SeqNo indexes transactions processed by the consensus protocol providing
+    // ordering
+    using SeqNo = int64_t;
+    // View describes an epoch of SeqNos. View is incremented when Consensus's
+    // primary changes
+    using View = uint64_t;
+
     struct NodeConf
     {
       NodeId node_id;
       std::string host_name;
       std::string port;
     };
+
+    Consensus(NodeId id) : local_id(id), state(Backup){};
     virtual ~Consensus() {}
+
+    virtual NodeId id()
+    {
+      return local_id;
+    }
+
+    virtual bool is_primary()
+    {
+      return state == Primary;
+    }
+
+    virtual bool is_backup()
+    {
+      return state == Backup;
+    }
+
+    virtual void force_become_primary()
+    {
+      state = Primary;
+    }
+
+    virtual void force_become_primary(
+      SeqNo seqno,
+      View view,
+      const std::vector<Version>& terms,
+      SeqNo commit_seqno)
+    {
+      state = Primary;
+    }
+
     virtual bool replicate(
-      const std::vector<std::tuple<Version, std::vector<uint8_t>, bool>>&
+      const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>&
         entries) = 0;
-    virtual Term get_term() = 0; // TODO(#api): this ought to have a more
-                                 // abstract name than Term
+    virtual View get_view() = 0;
 
-    virtual Term get_term(Version version) = 0;
-    virtual Version get_commit_idx() = 0;
+    virtual View get_view(SeqNo seqno) = 0;
+    virtual SeqNo get_commit_seqno() = 0;
+    virtual NodeId primary() = 0;
 
-    virtual NodeId leader() = 0;
-    virtual NodeId id() = 0;
-    virtual bool is_leader() = 0;
-    virtual bool on_request(const kv::TxHistory::RequestCallbackArgs& args) = 0;
-    virtual void periodic(std::chrono::milliseconds elapsed) = 0;
-
-    virtual bool is_follower() = 0;
     virtual void recv_message(const uint8_t* data, size_t size) = 0;
     virtual void add_configuration(
-      Index idx,
+      SeqNo seqno,
       std::unordered_set<NodeId> conf,
       const NodeConf& node_conf = {}) = 0;
 
-    virtual void force_become_leader() = 0;
-    virtual void force_become_leader(
-      Version index,
-      Term term,
-      const std::vector<Version>& terms,
-      Version commit_idx_) = 0;
+    virtual bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
+    {
+      return true;
+    }
 
-    virtual void enable_all_domains() = 0;
-    virtual void resume_replication() = 0;
-    virtual void suspend_replication(kv::Version) = 0;
+    virtual void periodic(std::chrono::milliseconds elapsed) {}
+    virtual void enable_all_domains() {}
+    virtual void resume_replication() {}
+    virtual void suspend_replication(kv::Version) {}
   };
 
   using PendingTx = std::function<

@@ -11,7 +11,7 @@
 #include "metrics.h"
 #include "node/certs.h"
 #include "node/clientsignatures.h"
-#include "node/consensus.h"
+#include "node/consensustypes.h"
 #include "node/nodes.h"
 #include "nodeinterface.h"
 #include "rpcexception.h"
@@ -153,26 +153,26 @@ namespace ccf
       else
       {
         // If this frontend is not allowed to forward or the command has already
-        // been forwarded, redirect to the current leader
+        // been forwarded, redirect to the current primary
         if ((nodes != nullptr) && (raft != nullptr))
         {
-          NodeId leader_id = raft->leader();
+          NodeId primary_id = raft->primary();
           Store::Tx tx;
           auto nodes_view = tx.get_view(*nodes);
-          auto info = nodes_view->get(leader_id);
+          auto info = nodes_view->get(primary_id);
 
           if (info)
           {
             return jsonrpc::error_response(
               ctx.req.seq_no,
-              jsonrpc::CCFErrorCodes::TX_NOT_LEADER,
+              jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
               info->pubhost + ":" + info->rpcport);
           }
         }
         return jsonrpc::error_response(
           ctx.req.seq_no,
-          jsonrpc::CCFErrorCodes::TX_NOT_LEADER,
-          "Not leader, leader unknown.");
+          jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
+          "Not primary, primary unknown.");
       }
     }
 
@@ -196,7 +196,7 @@ namespace ccf
 
         if (raft != nullptr)
         {
-          auto term = raft->get_term(commit);
+          auto term = raft->get_view(commit);
           return jsonrpc::success(GetCommit::Out{term, commit});
         }
 
@@ -225,27 +225,27 @@ namespace ccf
             "Failed to trigger signature");
         };
 
-      auto get_leader_info =
+      auto get_primary_info =
         [this](Store::Tx& tx, const nlohmann::json& params) {
           if ((nodes != nullptr) && (raft != nullptr))
           {
-            NodeId leader_id = raft->leader();
+            NodeId primary_id = raft->primary();
 
             auto nodes_view = tx.get_view(*nodes);
-            auto info = nodes_view->get(leader_id);
+            auto info = nodes_view->get(primary_id);
 
             if (info)
             {
-              GetLeaderInfo::Out out;
-              out.leader_id = leader_id;
-              out.leader_host = info->pubhost;
-              out.leader_port = info->rpcport;
+              GetPrimaryInfo::Out out;
+              out.primary_id = primary_id;
+              out.primary_host = info->pubhost;
+              out.primary_port = info->rpcport;
               return jsonrpc::success(out);
             }
           }
 
           return jsonrpc::error(
-            jsonrpc::CCFErrorCodes::TX_LEADER_UNKNOWN, "Leader unknown.");
+            jsonrpc::CCFErrorCodes::TX_PRIMARY_UNKNOWN, "Primary unknown.");
         };
 
       auto get_network_info =
@@ -253,7 +253,7 @@ namespace ccf
           GetNetworkInfo::Out out;
           if (raft != nullptr)
           {
-            out.leader_id = raft->leader();
+            out.primary_id = raft->primary();
           }
 
           auto nodes_view = tx.get_view(*nodes);
@@ -304,8 +304,8 @@ namespace ccf
         GeneralProcs::GET_METRICS, get_metrics, Read);
       install_with_auto_schema<void, bool>(
         GeneralProcs::MK_SIGN, make_signature, Write);
-      install_with_auto_schema<void, GetLeaderInfo::Out>(
-        GeneralProcs::GET_LEADER_INFO, get_leader_info, Read);
+      install_with_auto_schema<void, GetPrimaryInfo::Out>(
+        GeneralProcs::GET_PRIMARY_INFO, get_primary_info, Read);
       install_with_auto_schema<void, GetNetworkInfo::Out>(
         GeneralProcs::GET_NETWORK_INFO, get_network_info, Read);
       install_with_auto_schema<void, ListMethods::Out>(
@@ -341,7 +341,7 @@ namespace ccf
      * @param rw Flag if method will Read, Write, MayWrite
      * @param params_schema JSON schema for params object in requests
      * @param result_schema JSON schema for result object in responses
-     * @param forwardable Allow method to be forwarded to leader
+     * @param forwardable Allow method to be forwarded to primary
      */
     void install(
       const std::string& method,
@@ -448,7 +448,7 @@ namespace ccf
     /** Process a serialised command with the associated RPC context
      *
      * If an RPC that requires writing to the kv store is processed on a
-     * follower, the serialised RPC is forwarded to the current network leader.
+     * backup, the serialised RPC is forwarded to the current network primary.
      *
      * @param ctx Context for this RPC
      * @param input Serialised JSON RPC
@@ -541,21 +541,21 @@ namespace ccf
       auto rep =
         process_json(ctx, tx, caller_id.value(), unsigned_rpc, signed_request);
 
-      // If necessary, forward the RPC to the current leader
+      // If necessary, forward the RPC to the current primary
       if (!rep.has_value())
       {
         if (raft != nullptr)
         {
-          auto leader_id = raft->leader();
+          auto primary_id = raft->primary();
           auto local_id = raft->id();
 
           if (
-            leader_id != NoNode &&
+            primary_id != NoNode &&
             cmd_forwarder->forward_command(
-              ctx, local_id, leader_id, caller_id.value(), input))
+              ctx, local_id, primary_id, caller_id.value(), input))
           {
-            // Indicate that the RPC has been forwarded to leader
-            LOG_DEBUG_FMT("RPC forwarded to leader {}", leader_id);
+            // Indicate that the RPC has been forwarded to primary
+            LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
             ctx.is_pending = true;
             return {};
           }
@@ -564,7 +564,7 @@ namespace ccf
           jsonrpc::error_response(
             0,
             jsonrpc::CCFErrorCodes::RPC_NOT_FORWARDED,
-            "RPC could not be forwarded to leader."),
+            "RPC could not be forwarded to primary."),
           ctx.pack.value());
       }
 
@@ -640,7 +640,7 @@ namespace ccf
     /** Process a serialised input forwarded from another node
      *
      * This function assumes that ctx contains the caller_id as read by the
-     * forwarding follower.
+     * forwarding backup.
      *
      * @param ctx Context for this forwarded RPC
      * @param input Serialised JSON RPC
@@ -661,7 +661,7 @@ namespace ccf
       CBuffer caller;
 
       update_raft();
-      ctx.fwd->leader_id = raft->id();
+      ctx.fwd->primary_id = raft->id();
 
       auto pack = detect_pack(input);
       if (!pack.has_value())
@@ -764,9 +764,9 @@ namespace ccf
       update_raft();
       update_history();
 
-      bool is_leader = (raft == nullptr) || raft->is_leader();
+      bool is_primary = (raft == nullptr) || raft->is_primary();
 
-      if (!is_leader)
+      if (!is_primary)
       {
         switch (handler->rw)
         {
@@ -815,11 +815,11 @@ namespace ccf
               result[COMMIT] = cv;
               if (raft != nullptr)
               {
-                result[TERM] = raft->get_term();
-                result[GLOBAL_COMMIT] = raft->get_commit_idx();
+                result[TERM] = raft->get_view();
+                result[GLOBAL_COMMIT] = raft->get_commit_seqno();
 
                 if (
-                  history && raft->is_leader() &&
+                  history && raft->is_primary() &&
                   (cv % sig_max_tx == sig_max_tx / 2))
                   history->emit_signature();
               }
@@ -888,7 +888,7 @@ namespace ccf
       signed_request = full_rpc;
 
       // If the RPC is forwarded, assume that the signature has already been
-      // verified by the follower
+      // verified by the backup
       if (!is_forwarded)
       {
         auto v = verifiers.find(caller_id);
@@ -903,7 +903,7 @@ namespace ccf
           return false;
       }
 
-      // TODO(#important): Request should only be stored on the leader
+      // TODO(#important): Request should only be stored on the primary
       if (request_storing_disabled)
       {
         signed_request.req.clear();
@@ -927,7 +927,7 @@ namespace ccf
       tx_count = 0;
       // TODO(#refactoring): move this to NodeState::tick
       update_raft();
-      if ((raft != nullptr) && raft->is_leader())
+      if ((raft != nullptr) && raft->is_primary())
       {
         if (elapsed < ms_to_sig)
         {

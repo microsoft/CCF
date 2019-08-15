@@ -28,8 +28,8 @@ public:
   DummyConsensus(Store* store_) : store(store_) {}
 
   bool replicate(
-    const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
-      entries) override
+    const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
+    override
   {
     if (store)
     {
@@ -39,17 +39,17 @@ public:
     return true;
   }
 
-  kv::Term get_term() override
+  View get_view() override
   {
     return 2;
   }
 
-  kv::Version get_commit_idx() override
+  SeqNo get_commit_seqno() override
   {
     return 0;
   }
 
-  kv::NodeId leader() override
+  kv::NodeId primary() override
   {
     return 1;
   }
@@ -59,57 +59,52 @@ public:
     return 0;
   }
 
-  kv::Term get_term(kv::Version version) override
+  View get_view(SeqNo seqno) override
   {
     return 2;
-  }
-
-  bool is_leader() override
-  {
-    return true;
   }
 };
 
 TEST_CASE("Check signature verification")
 {
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
-  Store leader_store;
-  leader_store.set_encryptor(encryptor);
-  auto& leader_nodes = leader_store.create<ccf::Nodes>(
+  Store primary_store;
+  primary_store.set_encryptor(encryptor);
+  auto& primary_nodes = primary_store.create<ccf::Nodes>(
     ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& leader_signatures = leader_store.create<ccf::Signatures>(
+  auto& primary_signatures = primary_store.create<ccf::Signatures>(
     ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
 
-  Store follower_store;
-  follower_store.set_encryptor(encryptor);
-  auto& follower_nodes = follower_store.create<ccf::Nodes>(
+  Store backup_store;
+  backup_store.set_encryptor(encryptor);
+  auto& backup_nodes = backup_store.create<ccf::Nodes>(
     ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& follower_signatures = follower_store.create<ccf::Signatures>(
+  auto& backup_signatures = backup_store.create<ccf::Signatures>(
     ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
 
   auto kp = tls::make_key_pair();
 
   std::shared_ptr<kv::Consensus> consensus =
-    std::make_shared<DummyConsensus>(&follower_store);
-  leader_store.set_consensus(consensus);
+    std::make_shared<DummyConsensus>(&backup_store);
+  primary_store.set_consensus(consensus);
   std::shared_ptr<kv::Consensus> null_consensus =
     std::make_shared<DummyConsensus>(nullptr);
-  follower_store.set_consensus(null_consensus);
+  backup_store.set_consensus(null_consensus);
 
-  std::shared_ptr<kv::TxHistory> leader_history =
+  std::shared_ptr<kv::TxHistory> primary_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      leader_store, 0, *kp, leader_signatures, leader_nodes);
-  leader_store.set_history(leader_history);
+      primary_store, 0, *kp, primary_signatures, primary_nodes);
+  primary_store.set_history(primary_history);
 
-  std::shared_ptr<kv::TxHistory> follower_history =
+  std::shared_ptr<kv::TxHistory> backup_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      follower_store, 1, *kp, follower_signatures, follower_nodes);
-  follower_store.set_history(follower_history);
+      backup_store, 1, *kp, backup_signatures, backup_nodes);
+  backup_store.set_history(backup_history);
 
   INFO("Write certificate");
   {
     Store::Tx txs;
-    auto tx = txs.get_view(leader_nodes);
+    auto tx = txs.get_view(primary_nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
     tx->put(0, ni);
@@ -117,17 +112,17 @@ TEST_CASE("Check signature verification")
   }
 
 #ifndef PBFT
-  INFO("Issue signature, and verify successfully on follower");
+  INFO("Issue signature, and verify successfully on backup");
   {
-    leader_history->emit_signature();
-    REQUIRE(follower_store.current_version() == 2);
+    primary_history->emit_signature();
+    REQUIRE(backup_store.current_version() == 2);
   }
 #endif
 
-  INFO("Issue a bogus signature, rejected by verification on the follower");
+  INFO("Issue a bogus signature, rejected by verification on the backup");
   {
     Store::Tx txs;
-    auto tx = txs.get_view(leader_signatures);
+    auto tx = txs.get_view(primary_signatures);
     ccf::Signature bogus(0, 0);
     bogus.sig = std::vector<uint8_t>(MBEDTLS_ECDSA_MAX_LEN, 1);
     tx->put(0, bogus);
@@ -138,43 +133,43 @@ TEST_CASE("Check signature verification")
 TEST_CASE("Check signing works across rollback")
 {
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
-  Store leader_store;
-  leader_store.set_encryptor(encryptor);
-  auto& leader_nodes = leader_store.create<ccf::Nodes>(
+  Store primary_store;
+  primary_store.set_encryptor(encryptor);
+  auto& primary_nodes = primary_store.create<ccf::Nodes>(
     ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& leader_signatures = leader_store.create<ccf::Signatures>(
+  auto& primary_signatures = primary_store.create<ccf::Signatures>(
     ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
 
-  Store follower_store;
-  follower_store.set_encryptor(encryptor);
-  auto& follower_nodes = follower_store.create<ccf::Nodes>(
+  Store backup_store;
+  backup_store.set_encryptor(encryptor);
+  auto& backup_nodes = backup_store.create<ccf::Nodes>(
     ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& follower_signatures = follower_store.create<ccf::Signatures>(
+  auto& backup_signatures = backup_store.create<ccf::Signatures>(
     ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
 
   auto kp = tls::make_key_pair();
 
   std::shared_ptr<kv::Consensus> consensus =
-    std::make_shared<DummyConsensus>(&follower_store);
-  leader_store.set_consensus(consensus);
+    std::make_shared<DummyConsensus>(&backup_store);
+  primary_store.set_consensus(consensus);
   std::shared_ptr<kv::Consensus> null_consensus =
     std::make_shared<DummyConsensus>(nullptr);
-  follower_store.set_consensus(null_consensus);
+  backup_store.set_consensus(null_consensus);
 
-  std::shared_ptr<kv::TxHistory> leader_history =
+  std::shared_ptr<kv::TxHistory> primary_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      leader_store, 0, *kp, leader_signatures, leader_nodes);
-  leader_store.set_history(leader_history);
+      primary_store, 0, *kp, primary_signatures, primary_nodes);
+  primary_store.set_history(primary_history);
 
-  std::shared_ptr<kv::TxHistory> follower_history =
+  std::shared_ptr<kv::TxHistory> backup_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      follower_store, 1, *kp, follower_signatures, follower_nodes);
-  follower_store.set_history(follower_history);
+      backup_store, 1, *kp, backup_signatures, backup_nodes);
+  backup_store.set_history(backup_history);
 
   INFO("Write certificate");
   {
     Store::Tx txs;
-    auto tx = txs.get_view(leader_nodes);
+    auto tx = txs.get_view(primary_nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
     tx->put(0, ni);
@@ -184,18 +179,18 @@ TEST_CASE("Check signing works across rollback")
   INFO("Transaction that we will roll back");
   {
     Store::Tx txs;
-    auto tx = txs.get_view(leader_nodes);
+    auto tx = txs.get_view(primary_nodes);
     ccf::NodeInfo ni;
     tx->put(1, ni);
     REQUIRE(txs.commit() == kv::CommitSuccess::OK);
   }
 
-  leader_store.rollback(1);
+  primary_store.rollback(1);
 
-  INFO("Issue signature, and verify successfully on follower");
+  INFO("Issue signature, and verify successfully on backup");
   {
-    leader_history->emit_signature();
-    REQUIRE(follower_store.current_version() == 2);
+    primary_history->emit_signature();
+    REQUIRE(backup_store.current_version() == 2);
   }
 }
 
@@ -208,8 +203,8 @@ public:
   CompactingConsensus(Store* store_) : store(store_) {}
 
   bool replicate(
-    const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
-      entries) override
+    const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
+    override
   {
     for (auto& [version, data, committable] : entries)
     {
@@ -220,17 +215,17 @@ public:
     return true;
   }
 
-  kv::Term get_term() override
+  View get_view() override
   {
     return 2;
   }
 
-  kv::Version get_commit_idx() override
+  SeqNo get_commit_seqno() override
   {
     return 0;
   }
 
-  kv::NodeId leader() override
+  kv::NodeId primary() override
   {
     return 1;
   }
@@ -240,14 +235,9 @@ public:
     return 0;
   }
 
-  kv::Term get_term(kv::Version version) override
+  View get_view(kv::Version version) override
   {
     return 2;
-  }
-
-  bool is_leader() override
-  {
-    return true;
   }
 };
 
@@ -322,8 +312,8 @@ public:
   {}
 
   bool replicate(
-    const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
-      entries) override
+    const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
+    override
   {
     for (auto& [version, data, committable] : entries)
     {
@@ -334,17 +324,17 @@ public:
     return true;
   }
 
-  kv::Term get_term() override
+  View get_view() override
   {
     return 2;
   }
 
-  kv::Version get_commit_idx() override
+  SeqNo get_commit_seqno() override
   {
     return 0;
   }
 
-  kv::NodeId leader() override
+  kv::NodeId primary() override
   {
     return 1;
   }
@@ -354,14 +344,9 @@ public:
     return 0;
   }
 
-  kv::Term get_term(kv::Version version) override
+  View get_view(SeqNo seqno) override
   {
     return 2;
-  }
-
-  bool is_leader() override
-  {
-    return true;
   }
 };
 

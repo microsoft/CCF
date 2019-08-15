@@ -12,15 +12,15 @@ def run(args):
     hosts = args.nodes or ["localhost", "localhost"]
 
     with infra.ccf.network(hosts, args.build_dir, args.debug_nodes) as network:
-        primary, followers = network.start_and_join(args)
+        primary, backups = network.start_and_join(args)
 
         LOG.info("Network started")
         LOG.info("Primary node is at {}:{}".format(primary.host, primary.rpc_port))
 
         LOG.info("Started network with the following nodes:")
         LOG.info("  Primary = {}:{}".format(primary.pubhost, primary.rpc_port))
-        for i, f in enumerate(followers):
-            LOG.info("  Follower[{}] = {}:{}".format(i, f.pubhost, f.rpc_port))
+        for i, f in enumerate(backups):
+            LOG.info("  Backup[{}] = {}:{}".format(i, f.pubhost, f.rpc_port))
 
         try:
             while True:

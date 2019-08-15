@@ -2,12 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#ifdef PBFT
-#  include "consensus/pbft/pbft.h"
-#endif
-
 #include "calltypes.h"
-#include "consensus.h"
+#include "consensustypes.h"
 #include "ds/logger.h"
 #include "enclave/rpcclient.h"
 #include "enclave/rpcsessions.h"
@@ -120,9 +116,6 @@ namespace ccf
     NetworkState& network;
 
     std::shared_ptr<kv::Consensus> consensus;
-#ifdef PBFT
-    using ConsensusPbft = pbft::Pbft<raft::LedgerEnclave, NodeToNode>;
-#endif
     std::shared_ptr<enclave::RpcMap> rpc_map;
     std::shared_ptr<NodeToNode> n2n_channels;
     enclave::RPCSessions& rpcsessions;
@@ -258,7 +251,7 @@ namespace ccf
       self = 0;
       setup_pbft();
       setup_history();
-      consensus->force_become_leader();
+      consensus->force_become_primary();
 #endif
       return Success<CreateNew::Out>({node_cert, quote});
     }
@@ -306,8 +299,8 @@ namespace ccf
         kv::DeserialiseSuccess::FAILED)
         return Fail<StartNetwork::Out>("Deserialisation of tx0 failed");
 
-      // Become the leader and force replication.
-      consensus->force_become_leader();
+      // Become the primary and force replication.
+      consensus->force_become_primary();
       consensus->replicate({{1, protected_tx0, true}});
 
       // Network signs tx0.
@@ -316,9 +309,9 @@ namespace ccf
 
       // Sets itself as trusted.
       auto nodes_view = tx.get_view(network.nodes);
-      auto leader_info = nodes_view->get(self).value();
-      leader_info.status = NodeStatus::TRUSTED;
-      nodes_view->put(self, leader_info);
+      auto primary_info = nodes_view->get(self).value();
+      primary_info.status = NodeStatus::TRUSTED;
+      nodes_view->put(self, primary_info);
 
 #ifdef GET_QUOTE
       if (!trust_own_code_id(tx, self))
@@ -351,7 +344,7 @@ namespace ccf
       auto join_client =
         rpcsessions.create_client(rpc_ctx, std::move(join_client_cert));
 
-      // Only reply to the client when the leader has responded
+      // Only reply to the client when the primary has responded
       rpc_ctx.is_pending = true;
 
       join_client->connect(
@@ -397,7 +390,7 @@ namespace ccf
           {
             // If the joining node was started in recovery, truncate the ledger
             // and reset the store as we will receive the entirety of the ledger
-            // from the leader
+            // from the primary
             LOG_INFO_FMT("Truncating entire ledger");
             log_truncate(0);
             network.tables->clear();
@@ -433,7 +426,7 @@ namespace ccf
         });
 
       // Generate fresh key to encrypt/decrypt historical network secrets sent
-      // by the leader via the kv store
+      // by the primary via the kv store
       raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
 
       // Send RPC request to remote node to join the network.
@@ -599,15 +592,15 @@ namespace ccf
       // Raft should deserialise all security domains when network is opened
       consensus->enable_all_domains();
 
-      // On followers, resume replication
-      if (!consensus->is_leader())
+      // On backups, resume replication
+      if (!consensus->is_primary())
         consensus->resume_replication();
 
       // Seal all known network secrets
       network.secrets->seal_all();
 
       accept_user_connections();
-      if (consensus->is_follower())
+      if (consensus->is_backup())
         accept_node_connections();
 
       LOG_INFO_FMT("Now part of network");
@@ -744,12 +737,12 @@ namespace ccf
         index,
         term,
         global_commit);
-      consensus->force_become_leader(index, term, term_history, index);
+      consensus->force_become_primary(index, term, term_history, index);
 
       // Sets itself as trusted
-      auto leader_info = nodes_view->get(self).value();
-      leader_info.status = NodeStatus::TRUSTED;
-      nodes_view->put(self, leader_info);
+      auto primary_info = nodes_view->get(self).value();
+      primary_info.status = NodeStatus::TRUSTED;
+      nodes_view->put(self, primary_info);
 
 #ifdef GET_QUOTE
       if (!trust_own_code_id(tx, self))
@@ -811,7 +804,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
 
-      LOG_INFO_FMT("Initiating end of recovery (leader)");
+      LOG_INFO_FMT("Initiating end of recovery (primary)");
 
       // Unseal past network secrets
       auto past_secrets_idx = network.secrets->restore(sealed_secrets);
@@ -820,14 +813,14 @@ namespace ccf
       // network
       history->emit_signature();
 
-      // Write past network secrets to followers via secrets table
+      // Write past network secrets to backups via secrets table
       auto [nodes_view, secrets_view] =
         tx.get_view(network.nodes, network.secrets_table);
-      std::map<NodeId, NodeInfo> new_followers;
+      std::map<NodeId, NodeInfo> new_backups;
       nodes_view->foreach(
-        [&new_followers, this](const NodeId& nid, const NodeInfo& ni) {
+        [&new_backups, this](const NodeId& nid, const NodeInfo& ni) {
           if (ni.status != ccf::NodeStatus::RETIRED && nid != self)
-            new_followers[nid] = ni;
+            new_backups[nid] = ni;
           return true;
         });
 
@@ -836,7 +829,7 @@ namespace ccf
       for (auto const& ns_idx : past_secrets_idx)
       {
         ccf::PastNetworkSecrets past_secrets;
-        for (auto [nid, ni] : new_followers)
+        for (auto [nid, ni] : new_backups)
         {
           ccf::SerialisedNetworkSecrets ns;
           ns.node_id = nid;
@@ -845,7 +838,7 @@ namespace ccf
           if (serial.has_value())
           {
             LOG_DEBUG_FMT(
-              "Writing network secret {} of size {} to follower {} in secrets "
+              "Writing network secret {} of size {} to backup {} in secrets "
               "table",
               ns_idx,
               serial.value().size(),
@@ -946,12 +939,12 @@ namespace ccf
     //
     // always available
     //
-    bool is_leader() const override
+    bool is_primary() const override
     {
       return (
         (sm.check(State::partOfNetwork) ||
          sm.check(State::partOfPublicNetwork)) &&
-        consensus->is_leader());
+        consensus->is_primary());
     }
 
     bool is_part_of_network() const
@@ -1050,14 +1043,14 @@ namespace ccf
       return true;
     }
 
-    void follower_finish_recovery()
+    void backup_finish_recovery()
     {
-      if (!consensus->is_follower())
+      if (!consensus->is_backup())
         return;
 
       sm.expect(State::partOfPublicNetwork);
 
-      LOG_INFO_FMT("Initiating end of recovery (follower)");
+      LOG_INFO_FMT("Initiating end of recovery (backup)");
 
       // Setup new temporary store and record current version/root
       setup_private_recovery_store();
@@ -1091,10 +1084,10 @@ namespace ccf
                                              kv::Version version,
                                              const Secrets::State& s,
                                              const Secrets::Write& w) {
-        // If in follower mode in a public network, if new secrets are written
+        // If in backup mode in a public network, if new secrets are written
         // to the secrets table for our entry, decrypt these secrets and
         // initiate end of recovery protocol
-        if (!(consensus->is_follower() && is_part_of_public_network()))
+        if (!(consensus->is_backup() && is_part_of_public_network()))
           return;
 
         bool has_secrets = false;
@@ -1135,7 +1128,7 @@ namespace ccf
         if (has_secrets)
         {
           raw_fresh_key.clear();
-          follower_finish_recovery();
+          backup_finish_recovery();
         }
       });
     }
@@ -1150,7 +1143,7 @@ namespace ccf
     {
       setup_n2n_channels();
 
-      consensus = std::make_shared<ConsensusRaft>(
+      auto raft = std::make_unique<RaftType>(
         std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(
           network.tables),
         std::make_unique<raft::LedgerEnclave>(writer_factory),
@@ -1159,6 +1152,8 @@ namespace ccf
         raft_config.requestTimeout,
         raft_config.electionTimeout,
         public_only);
+
+      consensus = std::make_shared<RaftConsensusType>(std::move(raft));
 
       network.tables->set_consensus(consensus);
 
@@ -1268,7 +1263,7 @@ namespace ccf
 #ifdef PBFT
     void setup_pbft()
     {
-      consensus = std::make_shared<ConsensusPbft>(
+      consensus = std::make_shared<PbftConsensusType>(
         n2n_channels,
         self,
         std::make_unique<raft::LedgerEnclave>(writer_factory),

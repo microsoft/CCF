@@ -25,7 +25,7 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, (follower,) = network.start_and_join(args)
+        primary, (backup,) = network.start_and_join(args)
 
         with primary.management_client() as mc:
             check_commit = infra.ccf.Checker(mc)
@@ -33,9 +33,9 @@ def run(args):
             r = mc.rpc("getQuotes", {})
             quotes = r.result["quotes"]
             assert len(quotes) == len(hosts)
-            leader_quote = quotes[0]
-            assert leader_quote["node_id"] == 0
-            mrenclave = leader_quote["mrenclave"].decode()
+            primary_quote = quotes[0]
+            assert primary_quote["node_id"] == 0
+            mrenclave = primary_quote["mrenclave"].decode()
 
             oed = subprocess.run(
                 [args.oesign, "dump", "-e", f"{args.package}.so.signed"],

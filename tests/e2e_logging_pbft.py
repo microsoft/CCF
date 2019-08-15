@@ -34,7 +34,7 @@ def run(args):
                 msg = "Hello world"
                 msg2 = "Hello there"
 
-                LOG.debug("Write/Read on leader")
+                LOG.debug("Write/Read on primary")
                 with primary.user_client(format="json") as c:
                     check_commit(
                         c.rpc("LOG_record", {"id": 42, "msg": msg}), result=True
@@ -45,7 +45,7 @@ def run(args):
                     check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
                     check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2})
 
-                LOG.debug("Write/Read large messages on leader")
+                LOG.debug("Write/Read large messages on primary")
                 with primary.user_client(format="json") as c:
                     id = 44
                     # For larger values of p, PBFT crashes since the size of the

@@ -57,14 +57,14 @@ namespace ccf
   DECLARE_JSON_TYPE(GetMetrics::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetMetrics::Out, histogram, tx_rates)
 
-  DECLARE_JSON_TYPE(GetLeaderInfo::Out)
+  DECLARE_JSON_TYPE(GetPrimaryInfo::Out)
   DECLARE_JSON_REQUIRED_FIELDS(
-    GetLeaderInfo::Out, leader_id, leader_host, leader_port)
+    GetPrimaryInfo::Out, primary_id, primary_host, primary_port)
 
   DECLARE_JSON_TYPE(GetNetworkInfo::NodeInfo)
   DECLARE_JSON_REQUIRED_FIELDS(GetNetworkInfo::NodeInfo, node_id, host, port)
   DECLARE_JSON_TYPE(GetNetworkInfo::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetNetworkInfo::Out, nodes, leader_id)
+  DECLARE_JSON_REQUIRED_FIELDS(GetNetworkInfo::Out, nodes, primary_id)
 
   DECLARE_JSON_TYPE(ListMethods::Out)
   DECLARE_JSON_REQUIRED_FIELDS(ListMethods::Out, methods)

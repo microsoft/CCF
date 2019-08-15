@@ -96,8 +96,8 @@ public:
     auto empty_function = [this](RequestArgs& args) {
       return jsonrpc::success(true);
     };
-    // Note that this a Write function so that a follower executing this command
-    // will forward it to the leader
+    // Note that this a Write function so that a backup executing this command
+    // will forward it to the primary
     install("empty_function", empty_function, Write);
   }
 };
@@ -543,15 +543,15 @@ TEST_CASE("Forwarding")
 {
   prepare_callers();
 
-  TestForwardingFrontEnd frontend_follower(*network.tables);
-  TestForwardingFrontEnd frontend_leader(*network2.tables);
+  TestForwardingFrontEnd frontend_backup(*network.tables);
+  TestForwardingFrontEnd frontend_primary(*network2.tables);
 
-  auto follower_forwarder = std::make_shared<StubForwarder>();
-  auto follower_consensus = std::make_shared<kv::FollowerStubConsensus>();
-  network.tables->set_consensus(follower_consensus);
+  auto backup_forwarder = std::make_shared<StubForwarder>();
+  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  network.tables->set_consensus(backup_consensus);
 
-  auto leader_consensus = std::make_shared<kv::LeaderStubConsensus>();
-  network2.tables->set_consensus(leader_consensus);
+  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  network2.tables->set_consensus(primary_consensus);
 
   auto write_req = create_simple_json();
   std::vector<uint8_t> serialized_call =
@@ -561,82 +561,82 @@ TEST_CASE("Forwarding")
   {
     enclave::RPCContext ctx(0, nullb);
     REQUIRE(ctx.is_pending == false);
-    REQUIRE(follower_forwarder->forwarded_cmds.empty());
-    auto serialized_response = frontend_follower.process(ctx, serialized_call);
+    REQUIRE(backup_forwarder->forwarded_cmds.empty());
+    auto serialized_response = frontend_backup.process(ctx, serialized_call);
     REQUIRE(ctx.is_pending == false);
-    REQUIRE(follower_forwarder->forwarded_cmds.size() == 0);
+    REQUIRE(backup_forwarder->forwarded_cmds.size() == 0);
 
     auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
       static_cast<jsonrpc::ErrorBaseType>(
-        jsonrpc::CCFErrorCodes::TX_NOT_LEADER));
+        jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY));
   }
 
-  frontend_follower.set_cmd_forwarder(follower_forwarder);
+  frontend_backup.set_cmd_forwarder(backup_forwarder);
 
-  INFO("Write command on follower is forwarded to leader");
+  INFO("Write command on backup is forwarded to primary");
   {
     enclave::RPCContext ctx(0, nullb);
     REQUIRE(ctx.is_pending == false);
-    REQUIRE(follower_forwarder->forwarded_cmds.empty());
-    frontend_follower.process(ctx, serialized_call);
+    REQUIRE(backup_forwarder->forwarded_cmds.empty());
+    frontend_backup.process(ctx, serialized_call);
     REQUIRE(ctx.is_pending == true);
-    REQUIRE(follower_forwarder->forwarded_cmds.size() == 1);
+    REQUIRE(backup_forwarder->forwarded_cmds.size() == 1);
 
-    auto forwarded_cmd = follower_forwarder->forwarded_cmds.back();
-    follower_forwarder->forwarded_cmds.pop_back();
+    auto forwarded_cmd = backup_forwarder->forwarded_cmds.back();
+    backup_forwarder->forwarded_cmds.pop_back();
     enclave::RPCContext fwd_ctx(0, 0, 0);
     auto serialized_response =
-      frontend_leader.process_forwarded(fwd_ctx, forwarded_cmd);
+      frontend_primary.process_forwarded(fwd_ctx, forwarded_cmd);
 
     auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(response[jsonrpc::RESULT] == true);
   }
 
-  INFO("Forwarding write command to a follower return TX_NOT_LEADER");
+  INFO("Forwarding write command to a backup return TX_NOT_PRIMARY");
   {
     enclave::RPCContext ctx(0, nullb);
     REQUIRE(ctx.is_pending == false);
-    REQUIRE(follower_forwarder->forwarded_cmds.empty());
-    frontend_follower.process(ctx, serialized_call);
+    REQUIRE(backup_forwarder->forwarded_cmds.empty());
+    frontend_backup.process(ctx, serialized_call);
     REQUIRE(ctx.is_pending == true);
-    REQUIRE(follower_forwarder->forwarded_cmds.size() == 1);
+    REQUIRE(backup_forwarder->forwarded_cmds.size() == 1);
 
-    auto forwarded_cmd = follower_forwarder->forwarded_cmds.back();
-    follower_forwarder->forwarded_cmds.pop_back();
+    auto forwarded_cmd = backup_forwarder->forwarded_cmds.back();
+    backup_forwarder->forwarded_cmds.pop_back();
     enclave::RPCContext fwd_ctx(0, 0, 0);
 
-    // Processing forwarded response by a follower frontend (here, the same
+    // Processing forwarded response by a backup frontend (here, the same
     // frontend that the command was originally issued to)
     auto serialized_response =
-      frontend_follower.process_forwarded(fwd_ctx, forwarded_cmd);
+      frontend_backup.process_forwarded(fwd_ctx, forwarded_cmd);
     auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
 
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
       static_cast<jsonrpc::ErrorBaseType>(
-        jsonrpc::CCFErrorCodes::TX_NOT_LEADER));
+        jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY));
   }
 
   INFO("Write command should not be forwarded if marked as non-forwardable");
   {
-    TestNoForwardingFrontEnd frontend_follower_no_forwarding(*network.tables);
+    TestNoForwardingFrontEnd frontend_backup_no_forwarding(*network.tables);
 
-    auto follower2_forwarder = std::make_shared<StubForwarder>();
-    auto follower2_consensus = std::make_shared<kv::FollowerStubConsensus>();
-    network.tables->set_consensus(follower_consensus);
-    frontend_follower_no_forwarding.set_cmd_forwarder(follower2_forwarder);
+    auto backup2_forwarder = std::make_shared<StubForwarder>();
+    auto backup2_consensus = std::make_shared<kv::BackupStubConsensus>();
+    network.tables->set_consensus(backup_consensus);
+    frontend_backup_no_forwarding.set_cmd_forwarder(backup2_forwarder);
 
     enclave::RPCContext ctx(0, nullb);
     REQUIRE(ctx.is_pending == false);
-    REQUIRE(follower2_forwarder->forwarded_cmds.empty());
-    frontend_follower_no_forwarding.process(ctx, serialized_call);
+    REQUIRE(backup2_forwarder->forwarded_cmds.empty());
+    frontend_backup_no_forwarding.process(ctx, serialized_call);
     REQUIRE(ctx.is_pending == false);
-    REQUIRE(follower2_forwarder->forwarded_cmds.size() == 0);
+    REQUIRE(backup2_forwarder->forwarded_cmds.size() == 0);
   }
 }
 

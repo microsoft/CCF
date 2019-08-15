@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/pbft/pbft_config.h"
+#include "consensus/pbft/pbftconfig.h"
 #include "consensus/raft/ledgerenclave.h"
 #include "ds/logger.h"
 #include "enclave/rpcmap.h"
@@ -97,7 +97,6 @@ namespace pbft
   class Pbft : public kv::Consensus
   {
   private:
-    NodeId local_id;
     std::shared_ptr<ChannelProxy> channels;
     IMessageReceiveBase* message_receiver_base = nullptr;
     char* mem;
@@ -106,8 +105,7 @@ namespace pbft
     std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
     enclave::RPCSessions& rpcsessions;
     std::unique_ptr<raft::LedgerEnclave> ledger;
-    bool isleader;
-    kv::Version global_commit_index;
+    SeqNo global_commit_seqno;
 
   public:
     Pbft(
@@ -116,12 +114,11 @@ namespace pbft
       std::unique_ptr<raft::LedgerEnclave> ledger_,
       std::shared_ptr<enclave::RpcMap> rpc_map,
       enclave::RPCSessions& rpcsessions_) :
-      local_id(id),
+      Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
       ledger(std::move(ledger_)),
-      isleader(false),
-      global_commit_index(0)
+      global_commit_seqno(0)
     {
       // configure replica
       GeneralInfo general_info;
@@ -245,43 +242,28 @@ namespace pbft
     // TODO(#PBFT): PBFT consensus should implement the following functions to
     // return meaningful information to clients (e.g. global commit, term/view)
     // https://github.com/microsoft/CCF/issues/57
-    kv::Term get_term() override
+    View get_view() override
     {
       return 2;
     }
 
-    kv::Term get_term(kv::Version version) override
+    View get_view(SeqNo seqno) override
     {
       return 2;
     }
 
-    kv::Version get_commit_idx() override
+    SeqNo get_commit_seqno() override
     {
-      return global_commit_index;
+      return global_commit_seqno;
     }
 
-    bool is_leader() override
-    {
-      return isleader;
-    }
-
-    bool is_follower() override
-    {
-      return !isleader;
-    }
-
-    kv::NodeId leader() override
+    kv::NodeId primary() override
     {
       return 0;
     }
 
-    kv::NodeId id() override
-    {
-      return local_id;
-    }
-
     void add_configuration(
-      kv::Index index,
+      SeqNo seqno,
       std::unordered_set<kv::NodeId> config,
       const NodeConf& node_conf) override
     {
@@ -310,38 +292,21 @@ namespace pbft
       LOG_INFO_FMT("PBFT added node, id: {}", info.id);
     }
 
-    void force_become_leader() override
-    {
-      isleader = true;
-    }
-
-    void force_become_leader(
-      kv::Version index,
-      kv::Term term,
-      const std::vector<kv::Version>& terms,
-      kv::Version commit_idx_) override
-    {
-      isleader = true;
-    }
-
-    void enable_all_domains() override {}
-    void resume_replication() override {}
-    void suspend_replication(kv::Version) override {}
     void periodic(std::chrono::milliseconds elapsed) override
     {
       ITimer::handle_timeouts(elapsed);
     }
 
     bool replicate(
-      const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
-        entries) override
+      const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
+      override
     {
-      for (auto&& [index, data, globally_committable] : entries)
+      for (auto&& [seqno, data, globally_committable] : entries)
       {
-        if (index != global_commit_index + 1)
+        if (seqno != global_commit_seqno + 1)
           return false;
 
-        global_commit_index = index;
+        global_commit_seqno = seqno;
       }
       return true;
     }

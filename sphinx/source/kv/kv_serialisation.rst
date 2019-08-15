@@ -1,7 +1,7 @@
 KV Serialisation
 ================
 
-Every transaction executed by the leader on its key-value store is serialised before being replicated to all followers of the CCF network and written to the ledger.
+Every transaction executed by the primary on its key-value store is serialised before being replicated to all backups of the CCF network and written to the ledger.
 
 Transactions on private :cpp:class:`kv::Map` are encrypted before being serialised while transactions on public :cpp:class:`kv::Map` are only integrity-protected and readable by anyone with access to the ledger.
 

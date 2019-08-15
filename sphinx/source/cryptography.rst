@@ -17,7 +17,7 @@ Node
 
 Each CCF node is identified by a fresh public-key certificate endorsed by a quote. 
 This certificate is used to authenticate the node when it joins the
-network, and to sign entries committed by the node to the ledger during its time as leader.
+network, and to sign entries committed by the node to the ledger during its time as primary.
 
 Node keys are also used during recovery, to share recovered network secrets between nodes.
 
@@ -37,7 +37,7 @@ Ephemeral Network Keys
 
 Each node to node pair establishes a symmetric traffic key, using an authenticated Diffie Hellman key exchange.
 This key authenticates ledger replication headers exchanged between  nodes. It is also use to encrypt forwarded
-write transactions from the followers to the leader.
+write transactions from the backups to the primary.
 
 Algorithms and Curves
 ---------------------
