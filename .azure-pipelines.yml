@@ -48,6 +48,11 @@ schedules:
 jobs:
 - job: ACC_1804_SGX_build
   pool: Ubuntu-1804-DC4s
+  container:
+    image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx:latest
+    # --publish-all enables end-to-end tests to communicate over ports
+    # --device /dev/sgx:/dev/sgx makes sgx available to the container
+    options: --publish-all --device /dev/sgx:/dev/sgx
   steps:
     - checkout: self
       clean: true
