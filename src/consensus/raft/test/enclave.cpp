@@ -44,22 +44,22 @@ TEST_CASE("Enclave put")
 
 TEST_CASE("Enclave record")
 {
-  ringbuffer::Circuit eio_primary(1024);
-  std::unique_ptr<WFactory> writer_factory_primary =
-    std::make_unique<WFactory>(eio_primary);
+  ringbuffer::Circuit eio_leader(1024);
+  std::unique_ptr<WFactory> writer_factory_leader =
+    std::make_unique<WFactory>(eio_leader);
 
-  ringbuffer::Circuit eio_backup(1024);
-  std::unique_ptr<WFactory> writer_factory_backup =
-    std::make_unique<WFactory>(eio_backup);
+  ringbuffer::Circuit eio_follower(1024);
+  std::unique_ptr<WFactory> writer_factory_follower =
+    std::make_unique<WFactory>(eio_follower);
 
-  auto primary_ledger_enclave = LedgerEnclave(*writer_factory_primary);
-  auto backup_ledger_enclave = LedgerEnclave(*writer_factory_backup);
+  auto leader_ledger_enclave = LedgerEnclave(*writer_factory_leader);
+  auto follower_ledger_enclave = LedgerEnclave(*writer_factory_follower);
 
   const std::vector<uint8_t> tx = {'a', 'b', 'c'};
-  primary_ledger_enclave.put_entry(tx);
+  leader_ledger_enclave.put_entry(tx);
   size_t num_msgs = 0;
   std::vector<uint8_t> record;
-  eio_primary.read_from_inside().read(
+  eio_leader.read_from_inside().read(
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
       {
@@ -86,11 +86,11 @@ TEST_CASE("Enclave record")
   auto size_ = msg.size();
 
   num_msgs = 0;
-  auto r = backup_ledger_enclave.record_entry(data__, size_);
+  auto r = follower_ledger_enclave.record_entry(data__, size_);
 
   REQUIRE(r.second);
   REQUIRE(r.first == tx);
-  eio_backup.read_from_inside().read(
+  eio_follower.read_from_inside().read(
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
       {
