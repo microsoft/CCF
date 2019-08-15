@@ -127,7 +127,8 @@ int main(int argc, char** argv)
   app.add_option(
     "--raft-timeout-ms", raft_timeout, "Raft timeout in milliseconds", true);
 
-  size_t raft_election_timeout = 500;
+  // TODO: CHange default here
+  size_t raft_election_timeout = 50000;
   app.add_option(
     "--raft-election-timeout-ms",
     raft_election_timeout,

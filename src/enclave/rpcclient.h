@@ -10,7 +10,7 @@ namespace enclave
   class RPCClient : public FramedTLSEndpoint
   {
     using HandleDataCallback =
-      std::function<std::pair<bool, std::vector<uint8_t>>(
+      std::function<std::optional<std::vector<uint8_t>>(
         const std::vector<uint8_t>& data)>;
 
   private:
@@ -46,9 +46,9 @@ namespace enclave
     bool handle_data(const std::vector<uint8_t>& data) override
     {
       auto res = handle_data_cb(data);
-      if (res.first)
+      if (res)
       {
-        if (rpcresponder.reply_async(rpc_ctx.client_session_id, res.second))
+        if (rpcresponder.reply_async(rpc_ctx.client_session_id, res.value()))
         {
           LOG_DEBUG_FMT(
             "RPCClient responded to session {}", rpc_ctx.client_session_id);
