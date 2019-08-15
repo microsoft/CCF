@@ -14,11 +14,12 @@
 
 namespace kv
 {
-  // monotonically increasing number indicating modifications to the kv store
+  // Version indexes modifications to the local kv store. Special value -1
+  // indicates deletion
   using Version = int64_t;
-  // monotonically increasing number indicating a change in the node performing
-  // the modifications to the kv store; in conjunction with Version indicates a
-  // unique store modification identifier
+  // Term describes an epoch of Versions. It is incremented when global kv's
+  // writer(s) changes. Term and Version combined give a unique identifier for
+  // all accepted kv modifications
   using Term = uint64_t;
   using NodeId = uint64_t;
   static const Version NoVersion = std::numeric_limits<Version>::min();
@@ -117,11 +118,11 @@ namespace kv
     NodeId local_id;
 
   public:
-    using Term = uint64_t;
-    // montonically increasing number assigned
-    // to transactions processed by the consensus protocol
+    // SeqNo indexes transactions processed by the consensus protocol providing
+    // ordering
     using SeqNo = int64_t;
-    // monotonically increasing number indicating a change in the primary node
+    // View describes an epoch of SeqNos. View is incremented when Consensus's
+    // primary changes
     using View = uint64_t;
 
     struct NodeConf
