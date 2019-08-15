@@ -72,7 +72,7 @@ Once the initial nodes are running and the initial state of the network is ready
 
     $ client --server-address=node0_ip:node0_rpcport startnetwork --ca=node0_cert_file --req=@startNetwork.json
 
-When executing the ``startNetwork.json`` RPC request, the target node deserialises the genesis transaction and immediately becomes the consensus primary of the new single-node network (current consensus protocol implemented is Raft and thus primary corresponds to leader). Business transactions can then be issued by users and will commit immediately.
+When executing the ``startNetwork.json`` RPC request, the target node deserialises the genesis transaction and immediately becomes the consensus primary of the new single-node network. Business transactions can then be issued by users and will commit immediately.
 
 Adding nodes to the network
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -89,7 +89,7 @@ Once done, each additional node (here, node 1) can join the existing network by 
 
     $ client --server-address=node1_ip:node1_rpcport --ca=node1_cert_file joinnetwork --req=@joinNetwork.json
 
-When executing the ``joinNetwork.json`` RPC, the target node initiates an enclave-to-enclave TLS connection to the network primary to retrieve the network secrets required to decrypt the serialised replicated transactions. Once the join protocol completes, the new node becomes a backup of the consensus network and starts replicating transactions executed by the primary (current consensus protocol implemented is Raft and thus backup corresponds to follower).
+When executing the ``joinNetwork.json`` RPC, the target node initiates an enclave-to-enclave TLS connection to the network primary to retrieve the network secrets required to decrypt the serialised replicated transactions. Once the join protocol completes, the new node becomes a backup of the consensus network and starts replicating transactions executed by the primary.
 
 .. note:: When starting up the network or when a node joins an existing network, the network secrets required to decrypt the ledger are sealed to disc so that the network can later be recovered. See :ref:`Catastrophic Recovery` for more details on how to recover a crashed network.
 
