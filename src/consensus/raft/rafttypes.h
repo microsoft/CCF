@@ -93,7 +93,7 @@ namespace raft
     Term term;
     Index prev_idx;
     Term prev_term;
-    Index primary_commit_idx;
+    Index leader_commit_idx;
     Term term_of_idx;
   };
 

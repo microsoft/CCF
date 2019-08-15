@@ -35,19 +35,19 @@ TEST_CASE("Single node startup" * doctest::test_suite("single"))
 
   INFO("REQUIRE Initial State");
 
-  REQUIRE(!r0.is_primary());
-  REQUIRE(r0.primary() == raft::NoNode);
-  REQUIRE(r0.get_view() == 0);
-  REQUIRE(r0.get_commit_seqno() == 0);
+  REQUIRE(!r0.is_leader());
+  REQUIRE(r0.leader() == raft::NoNode);
+  REQUIRE(r0.get_term() == 0);
+  REQUIRE(r0.get_commit_idx() == 0);
 
-  INFO("In the absence of other nodes, become primary after election timeout");
+  INFO("In the absence of other nodes, become leader after election timeout");
 
   r0.periodic(ms(0));
-  REQUIRE(!r0.is_primary());
+  REQUIRE(!r0.is_leader());
 
   r0.periodic(election_timeout * 2);
-  REQUIRE(r0.is_primary());
-  REQUIRE(r0.primary() == node_id);
+  REQUIRE(r0.is_leader());
+  REQUIRE(r0.leader() == node_id);
 }
 
 TEST_CASE("Single node commit" * doctest::test_suite("single"))
@@ -67,10 +67,10 @@ TEST_CASE("Single node commit" * doctest::test_suite("single"))
   std::unordered_set<raft::NodeId> config = {node_id};
   r0.add_configuration(0, config);
 
-  INFO("Become primary after election timeout");
+  INFO("Become leader after election timeout");
 
   r0.periodic(election_timeout * 2);
-  REQUIRE(r0.is_primary());
+  REQUIRE(r0.is_leader());
 
   INFO("Observe that data is committed on replicate immediately");
 
@@ -78,7 +78,7 @@ TEST_CASE("Single node commit" * doctest::test_suite("single"))
   {
     r0.replicate({{i, {1, 2, 3}, true}});
     REQUIRE(r0.get_last_idx() == i);
-    REQUIRE(r0.get_commit_seqno() == i);
+    REQUIRE(r0.get_commit_idx() == i);
   }
 }
 
@@ -182,9 +182,9 @@ TEST_CASE(
 
   r0.recv_message(reinterpret_cast<uint8_t*>(&rvrc), sizeof(rvrc));
 
-  INFO("Node 0 is now primary, and sends empty append entries to other nodes");
+  INFO("Node 0 is now leader, and sends empty append entries to other nodes");
 
-  REQUIRE(r0.is_primary());
+  REQUIRE(r0.is_leader());
   REQUIRE(r0.channels->sent_append_entries.size() == 2);
   r0.channels->sent_append_entries.sort(by_0);
 
@@ -196,7 +196,7 @@ TEST_CASE(
   REQUIRE(aec.term == 1);
   REQUIRE(aec.prev_idx == 0);
   REQUIRE(aec.prev_term == 0);
-  REQUIRE(aec.primary_commit_idx == 0);
+  REQUIRE(aec.leader_commit_idx == 0);
 
   ae = r0.channels->sent_append_entries.front();
   r0.channels->sent_append_entries.pop_front();
@@ -206,7 +206,7 @@ TEST_CASE(
   REQUIRE(aec.term == 1);
   REQUIRE(aec.prev_idx == 0);
   REQUIRE(aec.prev_term == 0);
-  REQUIRE(aec.primary_commit_idx == 0);
+  REQUIRE(aec.leader_commit_idx == 0);
 }
 
 template <class NodeMap, class Messages>
@@ -325,7 +325,7 @@ TEST_CASE("Multiple nodes append entries" * doctest::test_suite("multiple"))
   INFO("Try to replicate on a backup, and fail");
   REQUIRE_FALSE(r1.replicate({{1, {1, 2, 3}, true}}));
 
-  INFO("Tell the primary to replicate a message");
+  INFO("Tell the leader to replicate a message");
   std::vector<uint8_t> entry = {1, 2, 3};
   REQUIRE(r0.replicate({{1, entry, true}}));
   REQUIRE(r0.ledger->ledger.size() == 1);
@@ -344,7 +344,7 @@ TEST_CASE("Multiple nodes append entries" * doctest::test_suite("multiple"))
         REQUIRE(msg.term == 1);
         REQUIRE(msg.prev_idx == 0);
         REQUIRE(msg.prev_term == 0);
-        REQUIRE(msg.primary_commit_idx == 0);
+        REQUIRE(msg.leader_commit_idx == 0);
       }));
 
   INFO("Which they acknowledge correctly");
@@ -434,7 +434,7 @@ TEST_CASE("Multiple nodes, late join" * doctest::test_suite("multiple"))
         REQUIRE(msg.term == 1);
         REQUIRE(msg.prev_idx == 0);
         REQUIRE(msg.prev_term == 0);
-        REQUIRE(msg.primary_commit_idx == 0);
+        REQUIRE(msg.leader_commit_idx == 0);
       }));
 
   REQUIRE(
@@ -466,7 +466,7 @@ TEST_CASE("Multiple nodes, late join" * doctest::test_suite("multiple"))
         REQUIRE(msg.term == 1);
         REQUIRE(msg.prev_idx == 1);
         REQUIRE(msg.prev_term == 1);
-        REQUIRE(msg.primary_commit_idx == 1);
+        REQUIRE(msg.leader_commit_idx == 1);
       }));
 }
 
@@ -510,7 +510,7 @@ TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_request_vote));
     REQUIRE(1 == dispatch_all(nodes, r1.channels->sent_request_vote_response));
 
-    REQUIRE(r0.is_primary());
+    REQUIRE(r0.is_leader());
     REQUIRE(r0.channels->sent_append_entries.size() == 1);
     REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_append_entries));
     REQUIRE(r0.channels->sent_append_entries.size() == 0);

@@ -125,21 +125,6 @@ namespace kv
     Consensus(NodeId id) : local_id(id), state(BACKUP){};
     virtual ~Consensus() {}
 
-    virtual bool replicate(
-      const std::vector<std::tuple<kv::SeqNo, std::vector<uint8_t>, bool>>&
-        entries) = 0;
-    virtual View get_view() = 0;
-
-    virtual View get_view(SeqNo seqno) = 0;
-    virtual SeqNo get_commit_seqno() = 0;
-    virtual NodeId primary() = 0;
-
-    virtual void recv_message(const uint8_t* data, size_t size) = 0;
-    virtual void add_configuration(
-      SeqNo seqno,
-      std::unordered_set<NodeId> conf,
-      const NodeConf& node_conf = {}) = 0;
-
     virtual NodeId id()
     {
       return local_id;
@@ -164,10 +149,25 @@ namespace kv
       SeqNo seqno,
       View view,
       const std::vector<Version>& terms,
-      SeqNo commit_seqno_)
+      SeqNo commit_seqno)
     {
       state = PRIMARY;
     };
+
+    virtual bool replicate(
+      const std::vector<std::tuple<kv::SeqNo, std::vector<uint8_t>, bool>>&
+        entries) = 0;
+    virtual View get_view() = 0;
+
+    virtual View get_view(SeqNo seqno) = 0;
+    virtual SeqNo get_commit_seqno() = 0;
+    virtual NodeId primary() = 0;
+
+    virtual void recv_message(const uint8_t* data, size_t size) = 0;
+    virtual void add_configuration(
+      SeqNo seqno,
+      std::unordered_set<NodeId> conf,
+      const NodeConf& node_conf = {}) = 0;
 
     virtual bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
     {

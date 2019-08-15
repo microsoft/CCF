@@ -1,11 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
-    "primary_id": {
-      "maximum": 18446744073709551615,
-      "minimum": 0,
-      "type": "number"
-    },
     "nodes": {
       "items": {
         "properties": {
@@ -29,6 +24,11 @@
         "type": "object"
       },
       "type": "array"
+    },
+    "primary_id": {
+      "maximum": 18446744073709551615,
+      "minimum": 0,
+      "type": "number"
     }
   },
   "required": [

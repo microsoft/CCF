@@ -1150,7 +1150,7 @@ namespace ccf
     {
       setup_n2n_channels();
 
-      consensus = std::make_shared<ConsensusRaft>(
+      auto raft = std::make_unique<RaftType>(
         std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(
           network.tables),
         std::make_unique<raft::LedgerEnclave>(writer_factory),
@@ -1159,6 +1159,8 @@ namespace ccf
         raft_config.requestTimeout,
         raft_config.electionTimeout,
         public_only);
+
+      consensus = std::make_shared<RaftConsensusType>(std::move(raft));
 
       network.tables->set_consensus(consensus);
 
