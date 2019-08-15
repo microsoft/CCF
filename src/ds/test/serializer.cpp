@@ -117,7 +117,7 @@ void require_minimum_serialized_arity(Ts&&... ts)
   // Any serializer should produce at least as many sections as arguments (some
   // arguments may produce multiple sections)
   decltype(Serializer::serialize(ts...)) sections;
-  //REQUIRE_NOTHROW(sections = Serializer::serialize(std::forward<Ts>(ts)...));
+  // REQUIRE_NOTHROW(sections = Serializer::serialize(std::forward<Ts>(ts)...));
   static_assert(std::tuple_size_v<decltype(sections)> >= sizeof...(ts));
 }
 
@@ -270,7 +270,6 @@ TEST_CASE("StringifySerializer" * doctest::test_suite("serializer"))
     any_message,
     is_string(std::to_string(n) + std::to_string(c) + std::to_string(n) + s));
 }
-
 
 TEST_CASE("roundtrip" * doctest::test_suite("serializer"))
 {
