@@ -9,6 +9,10 @@
 
 namespace raft
 {
+  // This class acts as an adapter between the generic Consensus API and
+  // the Raft API, allowing for a mapping between the generic consensus
+  // terminology and the terminology that is specific to Raft
+
   template <class LedgerProxy, class ChannelProxy>
   class RaftConsensus : public kv::Consensus
   {
@@ -21,86 +25,86 @@ namespace raft
       raft(std::move(raft_))
     {}
 
-    bool is_primary()
+    bool is_primary() override
     {
       return raft->is_leader();
     }
 
-    bool is_backup()
+    bool is_backup() override
     {
       return raft->is_follower();
     }
 
-    void force_become_primary()
+    void force_become_primary() override
     {
       raft->force_become_leader();
     }
 
     void force_become_primary(
-      kv::SeqNo seqno,
-      kv::View view,
+      SeqNo seqno,
+      View view,
       const std::vector<kv::Version>& terms,
-      kv::SeqNo commit_seqno)
+      SeqNo commit_seqno) override
     {
       raft->force_become_leader(seqno, view, terms, commit_seqno);
     }
 
     bool replicate(
-      const std::vector<std::tuple<kv::SeqNo, std::vector<uint8_t>, bool>>&
-        entries)
+      const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
+      override
     {
       return raft->replicate(entries);
     }
 
-    kv::View get_view()
+    View get_view() override
     {
       return raft->get_term();
     }
 
-    kv::View get_view(kv::SeqNo seqno)
+    View get_view(SeqNo seqno) override
     {
       return raft->get_term(seqno);
     }
 
-    kv::SeqNo get_commit_seqno()
+    SeqNo get_commit_seqno() override
     {
       return raft->get_commit_idx();
     }
 
-    NodeId primary()
+    NodeId primary() override
     {
       return raft->leader();
     }
 
-    void recv_message(const uint8_t* data, size_t size)
+    void recv_message(const uint8_t* data, size_t size) override
     {
       return raft->recv_message(data, size);
     }
 
     void add_configuration(
-      kv::SeqNo seqno,
+      SeqNo seqno,
       std::unordered_set<NodeId> conf,
-      const NodeConf& node_conf = {})
+      const NodeConf& node_conf = {}) override
     {
       raft->add_configuration(seqno, conf);
     }
 
-    void periodic(std::chrono::milliseconds elapsed)
+    void periodic(std::chrono::milliseconds elapsed) override
     {
       raft->periodic(elapsed);
     }
 
-    void enable_all_domains()
+    void enable_all_domains() override
     {
       raft->enable_all_domains();
     }
 
-    void resume_replication()
+    void resume_replication() override
     {
       raft->resume_replication();
     }
 
-    void suspend_replication(kv::Version version)
+    void suspend_replication(kv::Version version) override
     {
       raft->suspend_replication(version);
     }

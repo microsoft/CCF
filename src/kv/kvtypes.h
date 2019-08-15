@@ -14,10 +14,12 @@
 
 namespace kv
 {
-  using SeqNo = int64_t;
+  // monotonically increasing number indicating modifications to the kv store
   using Version = int64_t;
+  // monotonically increasing number indicating a change in the node performing
+  // the modifications to the kv store; in conjunction with Version indicates a
+  // unique store modification identifier
   using Term = uint64_t;
-  using View = uint64_t;
   using NodeId = uint64_t;
   static const Version NoVersion = std::numeric_limits<Version>::min();
 
@@ -106,15 +108,22 @@ namespace kv
   protected:
     enum State
     {
-      PRIMARY,
-      BACKUP,
-      CANDIDATE
+      Primary,
+      Backup,
+      Candidate
     };
 
     State state;
     NodeId local_id;
 
   public:
+    using Term = uint64_t;
+    // montonically increasing number assigned
+    // to transactions processed by the consensus protocol
+    using SeqNo = int64_t;
+    // monotonically increasing number indicating a change in the primary node
+    using View = uint64_t;
+
     struct NodeConf
     {
       NodeId node_id;
@@ -122,7 +131,7 @@ namespace kv
       std::string port;
     };
 
-    Consensus(NodeId id) : local_id(id), state(BACKUP){};
+    Consensus(NodeId id) : local_id(id), state(Backup){};
     virtual ~Consensus() {}
 
     virtual NodeId id()
@@ -132,17 +141,17 @@ namespace kv
 
     virtual bool is_primary()
     {
-      return state == PRIMARY;
+      return state == Primary;
     }
 
     virtual bool is_backup()
     {
-      return state == BACKUP;
+      return state == Backup;
     }
 
     virtual void force_become_primary()
     {
-      state = PRIMARY;
+      state = Primary;
     };
 
     virtual void force_become_primary(
@@ -151,11 +160,11 @@ namespace kv
       const std::vector<Version>& terms,
       SeqNo commit_seqno)
     {
-      state = PRIMARY;
+      state = Primary;
     };
 
     virtual bool replicate(
-      const std::vector<std::tuple<kv::SeqNo, std::vector<uint8_t>, bool>>&
+      const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>&
         entries) = 0;
     virtual View get_view() = 0;
 

@@ -19,8 +19,8 @@ namespace kv
     StubConsensus() : Consensus(0), replica() {}
 
     bool replicate(
-      const std::vector<std::tuple<kv::SeqNo, std::vector<uint8_t>, bool>>&
-        entries) override
+      const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
+      override
     {
       for (auto&& [index, data, globally_committable] : entries)
       {

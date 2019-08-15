@@ -21,48 +21,50 @@ Note that even if a transaction only affects a private ``Store::Map``, unencrypt
 Ledger replication
 ------------------
 
-The replication process currently uses Raft as the consensus algorithm. As such, it relies on authenticated Append Entries (AE) headers sent from the primary to backups and which specify the start and end index of the encrypted deltas payload. When an AE header is emitted from a node's enclave for replication, the corresponding encrypted deltas are read from the ledger and appended to the AE header.
+The replication process currently uses Raft as the consensus algorithm and therefore the terminology changes slightly. Instead of primary we use the term leader and instead of backup we use the term follower. 
 
-The following diagram describes how deltas committed by the primary are written to the ledger and how they are replicated to one backup. Note that the full replication process and acknowledgment from the backup is not detailed here.
+As such, the replicated process relies on authenticated Append Entries (AE) headers sent from the leader to followers and which specify the start and end index of the encrypted deltas payload. When an AE header is emitted from a node's enclave for replication, the corresponding encrypted deltas are read from the ledger and appended to the AE header.
+
+The following diagram describes how deltas committed by the leader are written to the ledger and how they are replicated to one follower. Note that the full replication process and acknowledgment from the follower is not detailed here.
 
 .. mermaid::
 
     sequenceDiagram
-        participant Primary KV
-        participant Primary Raft
-        participant Primary Host
-        participant Primary Ledger
+        participant Leader KV
+        participant Leader Raft
+        participant Leader Host
+        participant Leader Ledger
 
-        participant Backup Ledger
-        participant Backup Host
-        participant Backup Raft
-        participant Backup KV
+        participant Follower Ledger
+        participant Follower Host
+        participant Follower Raft
+        participant Follower KV
 
-        Note left of Primary KV: tx.commit(): Serialise transaction based on maps security domain
-        Primary KV->>+Primary Raft: replicate (batch of serialised deltas)
+        Note left of Leader KV: tx.commit(): Serialise transaction based on maps security domain
+        Leader KV->>+Leader Raft: replicate (batch of serialised deltas)
 
         loop for each serialised delta in batch
-            Primary Raft->>+Primary Host: log_append (delta)
-            Primary Host->>+Primary Ledger: write(delta)
+            Leader Raft->>+Leader Host: log_append (delta)
+            Leader Host->>+Leader Ledger: write(delta)
 
-            Primary Raft->>+Primary Host: node_outbound (AE)
-            Primary Raft-->>+Primary KV: replicate success
+            Leader Raft->>+Leader Host: node_outbound (AE)
+            Leader Raft-->>+Leader KV: replicate success
 
-            Note right of Primary Host: Append Ledger entries to AE
+            Note right of Leader Host: Append Ledger entries to AE
             loop for each entry in AE
-                Primary Host->>+Primary Ledger: read(entry's index)
-                Primary Ledger-->>Primary Host: delta
+                Leader Host->>+Leader Ledger: read(entry's index)
+                Leader Ledger-->>Leader Host: delta
             end
-            Primary Host->>+Backup Host: TCP packet (AE + deltas)
+            Leader Host->>+Follower Host: TCP packet (AE + deltas)
 
-            Backup Host->>+Backup Raft: node_inbound (AE + deltas)
+            Follower Host->>+Follower Raft: node_inbound (AE + deltas)
 
-            Backup Raft->>Backup Raft: recv_authenticated (AE + deltas)
+            Follower Raft->>Follower Raft: recv_authenticated (AE + deltas)
             loop for each delta
-                Backup Raft->>Backup Host: log_append (delta)
-                Backup Host->>+Backup Ledger: write(delta)
-                Backup Raft->>Backup KV: deserialise(delta)
-                Backup KV-->>+Backup Raft: deserialise success
+                Follower Raft->>Follower Host: log_append (delta)
+                Follower Host->>+Follower Ledger: write(delta)
+                Follower Raft->>Follower KV: deserialise(delta)
+                Follower KV-->>+Follower Raft: deserialise success
             end
 
         end

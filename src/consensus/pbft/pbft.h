@@ -105,7 +105,7 @@ namespace pbft
     std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
     enclave::RPCSessions& rpcsessions;
     std::unique_ptr<raft::LedgerEnclave> ledger;
-    kv::SeqNo global_commit_seqno;
+    SeqNo global_commit_seqno;
 
   public:
     Pbft(
@@ -242,17 +242,17 @@ namespace pbft
     // TODO(#PBFT): PBFT consensus should implement the following functions to
     // return meaningful information to clients (e.g. global commit, term/view)
     // https://github.com/microsoft/CCF/issues/57
-    kv::View get_view() override
+    View get_view() override
     {
       return 2;
     }
 
-    kv::View get_view(kv::SeqNo seqno) override
+    View get_view(SeqNo seqno) override
     {
       return 2;
     }
 
-    kv::SeqNo get_commit_seqno() override
+    SeqNo get_commit_seqno() override
     {
       return global_commit_seqno;
     }
@@ -263,7 +263,7 @@ namespace pbft
     }
 
     void add_configuration(
-      kv::SeqNo seqno,
+      SeqNo seqno,
       std::unordered_set<kv::NodeId> config,
       const NodeConf& node_conf) override
     {
@@ -298,8 +298,8 @@ namespace pbft
     }
 
     bool replicate(
-      const std::vector<std::tuple<kv::SeqNo, std::vector<uint8_t>, bool>>&
-        entries) override
+      const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
+      override
     {
       for (auto&& [seqno, data, globally_committable] : entries)
       {
