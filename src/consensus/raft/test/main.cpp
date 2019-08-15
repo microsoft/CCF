@@ -322,7 +322,7 @@ TEST_CASE("Multiple nodes append entries" * doctest::test_suite("multiple"))
   REQUIRE(r1.channels->sent_msg_count() == 0);
   REQUIRE(r2.channels->sent_msg_count() == 0);
 
-  INFO("Try to replicate on a backup, and fail");
+  INFO("Try to replicate on a follower, and fail");
   REQUIRE_FALSE(r1.replicate({{1, {1, 2, 3}, true}}));
 
   INFO("Tell the leader to replicate a message");

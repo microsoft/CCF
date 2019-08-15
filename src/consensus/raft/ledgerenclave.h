@@ -25,7 +25,7 @@ namespace raft
     {}
 
     /**
-     * Put a single entry to be written the ledger, when primary.
+     * Put a single entry to be written the ledger, when leader.
      *
      * @param entry Serialised entry
      */
@@ -36,7 +36,7 @@ namespace raft
     }
 
     /**
-     * Record a single entry to the ledger, when backup.
+     * Record a single entry to the ledger, when follower.
      *
      * @param data Serialised entries
      * @param size Size of overall serialised entries
@@ -57,7 +57,7 @@ namespace raft
     }
 
     /**
-     * Skip a single entry, when backup.
+     * Skip a single entry, when follower.
      *
      * Does not write any entry to the legder.
      *

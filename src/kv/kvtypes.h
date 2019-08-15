@@ -153,7 +153,7 @@ namespace kv
     virtual void force_become_primary()
     {
       state = Primary;
-    };
+    }
 
     virtual void force_become_primary(
       SeqNo seqno,
@@ -162,7 +162,7 @@ namespace kv
       SeqNo commit_seqno)
     {
       state = Primary;
-    };
+    }
 
     virtual bool replicate(
       const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>&
@@ -185,12 +185,9 @@ namespace kv
     }
 
     virtual void periodic(std::chrono::milliseconds elapsed) {}
-
-    virtual void enable_all_domains(){};
-
-    virtual void resume_replication(){};
-
-    virtual void suspend_replication(kv::Version){};
+    virtual void enable_all_domains() {}
+    virtual void resume_replication() {}
+    virtual void suspend_replication(kv::Version) {}
   };
 
   using PendingTx = std::function<
