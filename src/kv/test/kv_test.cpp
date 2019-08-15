@@ -7,7 +7,6 @@
 #include "../kv.h"
 #include "../kvserialiser.h"
 #include "../node/history.h"
-#include "../replicator.h"
 
 #include <doctest/doctest.h>
 #include <msgpack-c/msgpack.hpp>

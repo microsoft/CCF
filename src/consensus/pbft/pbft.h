@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/pbft/pbft_config.h"
+#include "consensus/raft/ledgerenclave.h"
 #include "ds/logger.h"
 #include "enclave/rpcmap.h"
 #include "enclave/rpcsessions.h"
@@ -14,8 +16,6 @@
 #include "libbyz/receive_message_base.h"
 #include "node/nodetypes.h"
 #include "node/rpc/jsonrpc.h"
-#include "pbft/pbft_config.h"
-#include "raft/ledgerenclave.h"
 
 #include <list>
 #include <memory>
@@ -50,8 +50,8 @@ namespace pbft
       NodeId to = principal.pid();
       if (to == id)
       {
-        // If a replica sends a message to itself (e.g. if f == 0), handle the
-        // message straight away without writing it to the ringbuffer
+        // If a replica sends a message to itself (e.g. if f == 0), handle
+        // the message straight away without writing it to the ringbuffer
         assert(message_receiver_base->f() == 0);
         message_receiver_base->receive_message(
           (const uint8_t*)(msg->contents()), msg->size());
@@ -93,8 +93,8 @@ namespace pbft
     NodeId id;
   };
 
-  template <class ChannelProxy>
-  class Pbft : public kv::Replicator
+  template <class LedgerProxy, class ChannelProxy>
+  class Pbft : public kv::Consensus
   {
   private:
     NodeId local_id;
@@ -104,16 +104,10 @@ namespace pbft
     std::unique_ptr<PbftEnclaveNetwork> pbft_network;
     std::unique_ptr<AbstractPbftConfig> pbft_config;
     std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
-    kv::TxHistory::RequestCallbackHandler on_request;
     enclave::RPCSessions& rpcsessions;
     std::unique_ptr<raft::LedgerEnclave> ledger;
-
-    struct NodeConfiguration
-    {
-      NodeId node_id;
-      std::string host_name;
-      std::string port;
-    };
+    bool isleader;
+    kv::Version global_commit_index;
 
   public:
     Pbft(
@@ -125,7 +119,9 @@ namespace pbft
       local_id(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
-      ledger(std::move(ledger_))
+      ledger(std::move(ledger_)),
+      isleader(false),
+      global_commit_index(0)
     {
       // configure replica
       GeneralInfo general_info;
@@ -174,7 +170,7 @@ namespace pbft
         0,
         pbft_network.get(),
         &message_receiver_base);
-      LOG_INFO_FMT("PBFT setup for self with id: {}", local_id);
+      LOG_INFO_FMT("PBFT setup for local_id: {}", local_id);
 
       pbft_config->set_service_mem(mem + used_bytes);
       pbft_network->set_receiver(message_receiver_base);
@@ -211,79 +207,83 @@ namespace pbft
 
       message_receiver_base->register_append_ledger_entry_cb(
         append_ledger_entry_cb, ledger.get());
+    }
 
-      on_request = [&](kv::TxHistory::RequestCallbackArgs args) {
-        auto total_req_size = pbft_config->message_size() + args.request.size();
+    bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
+    {
+      auto total_req_size = pbft_config->message_size() + args.request.size();
 
-        uint8_t request_buffer[total_req_size];
-        pbft_config->fill_request(
-          request_buffer,
-          total_req_size,
-          args.request,
-          args.actor,
-          args.caller_id);
+      uint8_t request_buffer[total_req_size];
+      pbft_config->fill_request(
+        request_buffer,
+        total_req_size,
+        args.request,
+        args.actor,
+        args.caller_id);
 
-        auto rep_cb = [&](
-                        void* owner,
-                        kv::TxHistory::RequestID caller_rid,
-                        int status,
-                        uint8_t* reply,
-                        size_t len) {
-          LOG_DEBUG_FMT("PBFT reply callback for {}", caller_rid);
+      auto rep_cb = [&](
+                      void* owner,
+                      kv::TxHistory::RequestID caller_rid,
+                      int status,
+                      uint8_t* reply,
+                      size_t len) {
+        LOG_DEBUG_FMT("PBFT reply callback for {}", caller_rid);
 
-          return rpcsessions.reply_async(
-            std::get<1>(caller_rid), {reply, reply + len});
-        };
-
-        LOG_DEBUG_FMT("PBFT sending request {}", args.rid);
-        return client_proxy->send_request(
-          args.rid,
-          request_buffer,
-          sizeof(request_buffer),
-          rep_cb,
-          client_proxy.get());
+        return rpcsessions.reply_async(
+          std::get<1>(caller_rid), {reply, reply + len});
       };
+
+      LOG_DEBUG_FMT("PBFT sending request {}", args.rid);
+      return client_proxy->send_request(
+        args.rid,
+        request_buffer,
+        sizeof(request_buffer),
+        rep_cb,
+        client_proxy.get());
     }
 
     // TODO(#PBFT): PBFT consensus should implement the following functions to
     // return meaningful information to clients (e.g. global commit, term/view)
-    // instead of relying on the NullReplicator
-    NodeId leader() override
+    // https://github.com/microsoft/CCF/issues/57
+    kv::Term get_term() override
     {
-      return 0;
+      return 2;
     }
 
-    NodeId id() override
+    kv::Term get_term(kv::Version version) override
     {
-      return local_id;
+      return 2;
+    }
+
+    kv::Version get_commit_idx() override
+    {
+      return global_commit_index;
     }
 
     bool is_leader() override
     {
-      return false;
+      return isleader;
     }
 
-    Index get_commit_idx() override
+    bool is_follower() override
+    {
+      return !isleader;
+    }
+
+    kv::NodeId leader() override
     {
       return 0;
     }
 
-    Term get_term() override
+    kv::NodeId id() override
     {
-      return 0;
+      return local_id;
     }
 
-    Term get_term(Index idx) override
-    {
-      return 0;
-    }
-
-    kv::TxHistory::RequestCallbackHandler get_on_request()
-    {
-      return on_request;
-    }
-
-    void add_configuration(const NodeConfiguration& node_conf)
+    void add_configuration(
+      kv::Index index,
+      std::unordered_set<kv::NodeId> config,
+      const NodeConf& node_conf) override
     {
       // TODO(#pbft): We do not need this in the long run
       std::string privk =
@@ -310,14 +310,43 @@ namespace pbft
       LOG_INFO_FMT("PBFT added node, id: {}", info.id);
     }
 
-    bool replicate(
-      const std::vector<std::tuple<Index, std::vector<uint8_t>, bool>>& entries)
-      override
+    void force_become_leader() override
     {
+      isleader = true;
+    }
+
+    void force_become_leader(
+      kv::Version index,
+      kv::Term term,
+      const std::vector<kv::Version>& terms,
+      kv::Version commit_idx_) override
+    {
+      isleader = true;
+    }
+
+    void enable_all_domains() override {}
+    void resume_replication() override {}
+    void suspend_replication(kv::Version) override {}
+    void periodic(std::chrono::milliseconds elapsed) override
+    {
+      ITimer::handle_timeouts(elapsed);
+    }
+
+    bool replicate(
+      const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
+        entries) override
+    {
+      for (auto&& [index, data, globally_committable] : entries)
+      {
+        if (index != global_commit_index + 1)
+          return false;
+
+        global_commit_index = index;
+      }
       return true;
     }
 
-    void recv_message(const uint8_t* data, size_t size)
+    void recv_message(const uint8_t* data, size_t size) override
     {
       switch (serialized::peek<PbftMsgType>(data, size))
       {

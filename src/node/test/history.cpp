@@ -1,14 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT
-#include "../history.h"
+#include "node/history.h"
 
-#include "../../enclave/appinterface.h"
-#include "../../kv/kv.h"
-#include "../encryptor.h"
-#include "../entities.h"
-#include "../nodes.h"
-#include "../signatures.h"
+#include "enclave/appinterface.h"
+#include "kv/kv.h"
+#include "kv/test/stub_consensus.h"
+#include "node/encryptor.h"
+#include "node/entities.h"
+#include "node/nodes.h"
+#include "node/signatures.h"
 
 #include <doctest/doctest.h>
 
@@ -19,12 +20,12 @@ extern "C"
 
 using namespace ccfapp;
 
-class DummyReplicator : public kv::Replicator
+class DummyConsensus : public kv::StubConsensus
 {
 public:
   Store* store;
 
-  DummyReplicator(Store* store_) : store(store_) {}
+  DummyConsensus(Store* store_) : store(store_) {}
 
   bool replicate(
     const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
@@ -88,12 +89,12 @@ TEST_CASE("Check signature verification")
 
   auto kp = tls::make_key_pair();
 
-  std::shared_ptr<kv::Replicator> replicator =
-    std::make_shared<DummyReplicator>(&follower_store);
-  leader_store.set_replicator(replicator);
-  std::shared_ptr<kv::Replicator> null_replicator =
-    std::make_shared<DummyReplicator>(nullptr);
-  follower_store.set_replicator(null_replicator);
+  std::shared_ptr<kv::Consensus> consensus =
+    std::make_shared<DummyConsensus>(&follower_store);
+  leader_store.set_consensus(consensus);
+  std::shared_ptr<kv::Consensus> null_consensus =
+    std::make_shared<DummyConsensus>(nullptr);
+  follower_store.set_consensus(null_consensus);
 
   std::shared_ptr<kv::TxHistory> leader_history =
     std::make_shared<ccf::MerkleTxHistory>(
@@ -153,12 +154,12 @@ TEST_CASE("Check signing works across rollback")
 
   auto kp = tls::make_key_pair();
 
-  std::shared_ptr<kv::Replicator> replicator =
-    std::make_shared<DummyReplicator>(&follower_store);
-  leader_store.set_replicator(replicator);
-  std::shared_ptr<kv::Replicator> null_replicator =
-    std::make_shared<DummyReplicator>(nullptr);
-  follower_store.set_replicator(null_replicator);
+  std::shared_ptr<kv::Consensus> consensus =
+    std::make_shared<DummyConsensus>(&follower_store);
+  leader_store.set_consensus(consensus);
+  std::shared_ptr<kv::Consensus> null_consensus =
+    std::make_shared<DummyConsensus>(nullptr);
+  follower_store.set_consensus(null_consensus);
 
   std::shared_ptr<kv::TxHistory> leader_history =
     std::make_shared<ccf::MerkleTxHistory>(
@@ -198,13 +199,13 @@ TEST_CASE("Check signing works across rollback")
   }
 }
 
-class CompactingReplicator : public kv::Replicator
+class CompactingConsensus : public kv::StubConsensus
 {
 public:
   Store* store;
   size_t count = 0;
 
-  CompactingReplicator(Store* store_) : store(store_) {}
+  CompactingConsensus(Store* store_) : store(store_) {}
 
   bool replicate(
     const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
@@ -255,9 +256,9 @@ TEST_CASE(
   "halt replication")
 {
   Store store;
-  std::shared_ptr<CompactingReplicator> replicator =
-    std::make_shared<CompactingReplicator>(&store);
-  store.set_replicator(replicator);
+  std::shared_ptr<CompactingConsensus> consensus =
+    std::make_shared<CompactingConsensus>(&store);
+  store.set_consensus(consensus);
 
   auto& table =
     store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
@@ -270,7 +271,7 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 1);
+    REQUIRE(consensus->count == 1);
   }
 
   INFO("Batch of two, starting with a commitable");
@@ -281,7 +282,7 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 1);
+    REQUIRE(consensus->count == 1);
 
     store.commit(
       rv,
@@ -292,7 +293,7 @@ TEST_CASE(
         return txr.commit_reserved();
       },
       true);
-    REQUIRE(replicator->count == 3);
+    REQUIRE(consensus->count == 3);
   }
 
   INFO("Single tx");
@@ -301,11 +302,11 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 4);
+    REQUIRE(consensus->count == 4);
   }
 }
 
-class RollbackReplicator : public kv::Replicator
+class RollbackConsensus : public kv::StubConsensus
 {
 public:
   Store* store;
@@ -313,7 +314,7 @@ public:
   kv::Version rollback_at;
   kv::Version rollback_to;
 
-  RollbackReplicator(
+  RollbackConsensus(
     Store* store_, kv::Version rollback_at_, kv::Version rollback_to_) :
     store(store_),
     rollback_at(rollback_at_),
@@ -368,9 +369,9 @@ TEST_CASE(
   "Check that empty rollback during replicate does not cause replication halts")
 {
   Store store;
-  std::shared_ptr<RollbackReplicator> replicator =
-    std::make_shared<RollbackReplicator>(&store, 2, 2);
-  store.set_replicator(replicator);
+  std::shared_ptr<RollbackConsensus> consensus =
+    std::make_shared<RollbackConsensus>(&store, 2, 2);
+  store.set_consensus(consensus);
 
   auto& table =
     store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
@@ -381,7 +382,7 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 1);
+    REQUIRE(consensus->count == 1);
   }
 
   INFO("Write second tx, causing a rollback");
@@ -390,7 +391,7 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 2);
+    REQUIRE(consensus->count == 2);
   }
 
   INFO("Single tx");
@@ -399,7 +400,7 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 3);
+    REQUIRE(consensus->count == 3);
   }
 }
 
@@ -407,9 +408,9 @@ TEST_CASE(
   "Check that rollback during replicate does not cause replication halts")
 {
   Store store;
-  std::shared_ptr<RollbackReplicator> replicator =
-    std::make_shared<RollbackReplicator>(&store, 2, 1);
-  store.set_replicator(replicator);
+  std::shared_ptr<RollbackConsensus> consensus =
+    std::make_shared<RollbackConsensus>(&store, 2, 1);
+  store.set_consensus(consensus);
 
   auto& table =
     store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
@@ -420,7 +421,7 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 1);
+    REQUIRE(consensus->count == 1);
   }
 
   INFO("Write second tx, causing a rollback");
@@ -429,7 +430,7 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 2);
+    REQUIRE(consensus->count == 2);
   }
 
   INFO("Single tx");
@@ -438,7 +439,7 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 3);
+    REQUIRE(consensus->count == 3);
   }
 }
 

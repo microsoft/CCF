@@ -3,8 +3,7 @@
 #pragma once
 
 #ifdef PBFT
-#  include "pbft/nullreplicator.h"
-#  include "pbft/pbft.h"
+#  include "consensus/pbft/pbft.h"
 #endif
 
 #include "calltypes.h"
@@ -15,7 +14,6 @@
 #include "encryptor.h"
 #include "entities.h"
 #include "history.h"
-#include "kv/replicator.h"
 #include "networkstate.h"
 #include "nodetonode.h"
 #include "rpc/consts.h"
@@ -121,15 +119,9 @@ namespace ccf
 
     NetworkState& network;
 
-#ifndef PBFT
-    std::shared_ptr<ConsensusRaft> raft;
-#else
-    using ConsensusPbft = pbft::Pbft<NodeToNode>;
-
-    // TODO(#PBFT): For now, when using PBFT as consensus, replace raft with the
-    // NullReplicator
-    std::shared_ptr<pbft::NullReplicator> raft;
-    std::shared_ptr<ConsensusPbft> pbft;
+    std::shared_ptr<kv::Consensus> consensus;
+#ifdef PBFT
+    using ConsensusPbft = pbft::Pbft<raft::LedgerEnclave, NodeToNode>;
 #endif
     std::shared_ptr<enclave::RpcMap> rpc_map;
     std::shared_ptr<NodeToNode> n2n_channels;
@@ -266,8 +258,8 @@ namespace ccf
       self = 0;
       setup_pbft();
       setup_history();
+      consensus->force_become_leader();
 #endif
-
       return Success<CreateNew::Out>({node_cert, quote});
     }
 
@@ -289,13 +281,17 @@ namespace ccf
 
       accept_all_connections();
       self = args.id;
-      setup_raft();
+
 #ifndef PBFT
+      setup_raft();
       // In the case of PBFT, the history was already setup when the node was
       // created.
       // TODO(#PBFT): When/if we stop using the history to register PBFT
       // callbacks, we should be able to initialise the history as late as here.
       setup_history();
+#else
+      // n2n channels not set up yet if we are in PBFT mode
+      setup_n2n_channels();
 #endif
       setup_encryptor();
 
@@ -311,8 +307,8 @@ namespace ccf
         return Fail<StartNetwork::Out>("Deserialisation of tx0 failed");
 
       // Become the leader and force replication.
-      raft->force_become_leader();
-      raft->replicate({{1, protected_tx0, true}});
+      consensus->force_become_leader();
+      consensus->replicate({{1, protected_tx0, true}});
 
       // Network signs tx0.
       auto keys = tls::make_key_pair({network.secrets->get_current().priv_key});
@@ -411,8 +407,10 @@ namespace ccf
             // If the node was started normally, accept all connections
             accept_all_connections();
           }
+#ifndef PBFT
           setup_raft(public_only);
           setup_history();
+#endif
           setup_encryptor();
 
           if (public_only)
@@ -599,17 +597,17 @@ namespace ccf
       recovery_store.reset();
 
       // Raft should deserialise all security domains when network is opened
-      raft->enable_all_domains();
+      consensus->enable_all_domains();
 
       // On followers, resume replication
-      if (!raft->is_leader())
-        raft->resume_replication();
+      if (!consensus->is_leader())
+        consensus->resume_replication();
 
       // Seal all known network secrets
       network.secrets->seal_all();
 
       accept_user_connections();
-      if (raft->is_follower())
+      if (consensus->is_follower())
         accept_node_connections();
 
       LOG_INFO_FMT("Now part of network");
@@ -738,13 +736,15 @@ namespace ccf
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
       if (h)
         h->set_node_id(self);
+#ifndef PBFT
       setup_raft(true);
+#endif
       LOG_DEBUG_FMT(
         "Restarting Raft at index: {} term: {} commit_idx {}",
         index,
         term,
         global_commit);
-      raft->force_become_leader(index, term, term_history, index);
+      consensus->force_become_leader(index, term, term_history, index);
 
       // Sets itself as trusted
       auto leader_info = nodes_view->get(self).value();
@@ -907,11 +907,7 @@ namespace ccf
         !sm.check(State::partOfPublicNetwork))
         return;
 
-      raft->periodic(elapsed);
-
-#ifdef PBFT
-      ITimer::handle_timeouts(elapsed);
-#endif
+      consensus->periodic(elapsed);
     }
 
     void node_msg(const std::vector<uint8_t>& data)
@@ -936,12 +932,10 @@ namespace ccf
           break;
 
         case consensus_msg_pbft:
-#ifdef PBFT
-          pbft->recv_message(p, psize);
-#endif
+          consensus->recv_message(p, psize);
           break;
         case consensus_msg_raft:
-          raft->recv_message(p, psize);
+          consensus->recv_message(p, psize);
           break;
 
         default:
@@ -957,7 +951,7 @@ namespace ccf
       return (
         (sm.check(State::partOfNetwork) ||
          sm.check(State::partOfPublicNetwork)) &&
-        raft->is_leader());
+        consensus->is_leader());
     }
 
     bool is_part_of_network() const
@@ -1058,7 +1052,7 @@ namespace ccf
 
     void follower_finish_recovery()
     {
-      if (!raft->is_follower())
+      if (!consensus->is_follower())
         return;
 
       sm.expect(State::partOfPublicNetwork);
@@ -1070,7 +1064,7 @@ namespace ccf
 
       // Suspend raft replication at recovery_v + 1 since this is called from
       // commit hook
-      raft->suspend_replication(recovery_v + 1);
+      consensus->suspend_replication(recovery_v + 1);
 
       // Start reading private security domain of ledger
       ledger_idx = 0;
@@ -1079,73 +1073,8 @@ namespace ccf
       sm.advance(State::readingPrivateLedger);
     }
 
-    void setup_raft(bool public_only = false)
+    void setup_basic_hooks()
     {
-      // setup node-to-node channels, raft, pbft and store hooks
-      n2n_channels->initialize(self, {network.secrets->get_current().priv_key});
-
-#ifndef PBFT
-      raft = std::make_shared<ConsensusRaft>(
-        std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(
-          network.tables),
-        std::make_unique<raft::LedgerEnclave>(writer_factory),
-        n2n_channels,
-        self,
-        raft_config.requestTimeout,
-        raft_config.electionTimeout,
-        public_only);
-#else
-      raft = std::make_shared<pbft::NullReplicator>(n2n_channels, self);
-#endif
-      network.tables->set_replicator(raft);
-
-      // When a node is added, even locally, inform the host so that it can
-      // map the node id to a hostname and service and inform raft so that it
-      // can add a new active configuration.
-      network.nodes.set_local_hook([this](
-                                     kv::Version version,
-                                     const Nodes::State& s,
-                                     const Nodes::Write& w) {
-        auto configure = false;
-        std::unordered_set<NodeId> configuration;
-
-        // TODO(#important,#TR): Only TRUSTED nodes should be sent append
-        // entries, counted in election votes and allowed to establish
-        // node-to-node channels (section III-F).
-        for (auto& [node_id, ni] : w)
-        {
-#ifdef PBFT
-          pbft->add_configuration({node_id, ni.value.host, ni.value.nodeport});
-#endif
-          switch (ni.value.status)
-          {
-            case NodeStatus::PENDING:
-            {
-              add_node(node_id, ni.value.host, ni.value.nodeport);
-              configure = true;
-              break;
-            }
-            case NodeStatus::RETIRED:
-            {
-              configure = true;
-              break;
-            }
-            default:
-            {}
-          }
-        }
-
-        if (configure)
-        {
-          s.foreach([&](NodeId node_id, const Nodes::VersionV& v) {
-            if (v.value.status != NodeStatus::RETIRED)
-              configuration.insert(node_id);
-            return true;
-          });
-          raft->add_configuration(version, move(configuration));
-        }
-      });
-
       // When a transaction that changes the configuration commits globally,
       // inform the host of any nodes that no longer need to be tracked.
       network.nodes.set_global_hook(
@@ -1165,7 +1094,7 @@ namespace ccf
         // If in follower mode in a public network, if new secrets are written
         // to the secrets table for our entry, decrypt these secrets and
         // initiate end of recovery protocol
-        if (!(raft->is_follower() && is_part_of_public_network()))
+        if (!(consensus->is_follower() && is_part_of_public_network()))
           return;
 
         bool has_secrets = false;
@@ -1211,6 +1140,74 @@ namespace ccf
       });
     }
 
+    void setup_n2n_channels()
+    {
+      // setup node-to-node channels
+      n2n_channels->initialize(self, {network.secrets->get_current().priv_key});
+    }
+
+    void setup_raft(bool public_only = false)
+    {
+      setup_n2n_channels();
+
+      consensus = std::make_shared<ConsensusRaft>(
+        std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(
+          network.tables),
+        std::make_unique<raft::LedgerEnclave>(writer_factory),
+        n2n_channels,
+        self,
+        raft_config.requestTimeout,
+        raft_config.electionTimeout,
+        public_only);
+
+      network.tables->set_consensus(consensus);
+
+      // When a node is added, even locally, inform the host so that it can
+      // map the node id to a hostname and service and inform raft so that it
+      // can add a new active configuration.
+      network.nodes.set_local_hook(
+        [this](
+          kv::Version version, const Nodes::State& s, const Nodes::Write& w) {
+          auto configure = false;
+          std::unordered_set<NodeId> configuration;
+
+          // TODO(#important,#TR): Only TRUSTED nodes should be sent append
+          // entries, counted in election votes and allowed to establish
+          // node-to-node channels (section III-F).
+          for (auto& [node_id, ni] : w)
+          {
+            switch (ni.value.status)
+            {
+              case NodeStatus::PENDING:
+              {
+                add_node(node_id, ni.value.host, ni.value.nodeport);
+                configure = true;
+                break;
+              }
+              case NodeStatus::RETIRED:
+              {
+                configure = true;
+                break;
+              }
+              default:
+              {}
+            }
+          }
+
+          if (configure)
+          {
+            s.foreach([&](NodeId node_id, const Nodes::VersionV& v) {
+              if (v.value.status != NodeStatus::RETIRED)
+                configuration.insert(node_id);
+              return true;
+            });
+            consensus->add_configuration(version, move(configuration));
+          }
+        });
+
+      setup_basic_hooks();
+    }
+
     void setup_history()
     {
       // This function can be called once the node has started up and before it
@@ -1221,11 +1218,6 @@ namespace ccf
         *node_kp,
         network.signatures,
         network.nodes);
-
-#ifdef PBFT
-      if (pbft)
-        history->register_on_request(pbft->get_on_request());
-#endif
 
       network.tables->set_history(history);
     }
@@ -1276,12 +1268,32 @@ namespace ccf
 #ifdef PBFT
     void setup_pbft()
     {
-      pbft = std::make_shared<ConsensusPbft>(
+      consensus = std::make_shared<ConsensusPbft>(
         n2n_channels,
         self,
         std::make_unique<raft::LedgerEnclave>(writer_factory),
         rpc_map,
         rpcsessions);
+
+      network.tables->set_consensus(consensus);
+
+      // When a node is added, even locally, inform the host so that it can
+      // map the node id to a hostname and service and inform pbft
+      network.nodes.set_local_hook(
+        [this](
+          kv::Version version, const Nodes::State& s, const Nodes::Write& w) {
+          std::unordered_set<NodeId> configuration;
+          for (auto& [node_id, ni] : w)
+          {
+            add_node(node_id, ni.value.host, ni.value.nodeport);
+            consensus->add_configuration(
+              version,
+              configuration,
+              {node_id, ni.value.host, ni.value.nodeport});
+          }
+        });
+
+      setup_basic_hooks();
     }
 #endif
   };

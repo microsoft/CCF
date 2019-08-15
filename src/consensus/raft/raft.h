@@ -14,7 +14,6 @@
 #include <list>
 #include <random>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace raft
@@ -47,7 +46,7 @@ namespace raft
   };
 
   template <class LedgerProxy, class ChannelProxy>
-  class Raft : public kv::Replicator
+  class Raft : public kv::Consensus
   {
   private:
     enum State
@@ -173,12 +172,12 @@ namespace raft
       return state == Leader;
     }
 
-    bool is_follower()
+    bool is_follower() override
     {
       return state == Follower;
     }
 
-    void enable_all_domains()
+    void enable_all_domains() override
     {
       // When receiving append entries as a follower, all security domains will
       // be deserialised
@@ -186,7 +185,7 @@ namespace raft
       public_only = false;
     }
 
-    void suspend_replication(Index idx)
+    void suspend_replication(Index idx) override
     {
       // Suspend replication of append entries up to a specific version
       // Note that this should only be called when the raft lock is taken (e.g.
@@ -195,7 +194,7 @@ namespace raft
       recovery_max_index = idx;
     }
 
-    void resume_replication()
+    void resume_replication() override
     {
       // Resume replication.
       // Note that this should be called when the raft lock is not taken (e.g.
@@ -205,7 +204,12 @@ namespace raft
       recovery_max_index.reset();
     }
 
-    void force_become_leader()
+    bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
+    {
+      return true;
+    }
+
+    void force_become_leader() override
     {
       // This is unsafe and should only be called when the node is certain
       // there is no leader and no other node will attempt to force leadership.
@@ -239,7 +243,7 @@ namespace raft
       Index index,
       Term term,
       const std::vector<Index>& terms,
-      Index commit_idx_)
+      Index commit_idx_) override
     {
       // This is unsafe and should only be called when the node is certain
       // there is no leader and no other node will attempt to force leadership.
@@ -279,7 +283,10 @@ namespace raft
       return get_term_internal(idx);
     }
 
-    void add_configuration(Index idx, std::unordered_set<NodeId> conf)
+    void add_configuration(
+      kv::Index idx,
+      std::unordered_set<NodeId> conf,
+      const NodeConf& node_conf = {}) override
     {
       // This should only be called when the spin lock is held.
       configurations.push_back({idx, move(conf)});
@@ -345,7 +352,7 @@ namespace raft
       return true;
     }
 
-    void recv_message(const uint8_t* data, size_t size)
+    void recv_message(const uint8_t* data, size_t size) override
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -376,7 +383,7 @@ namespace raft
       }
     }
 
-    void periodic(std::chrono::milliseconds elapsed)
+    void periodic(std::chrono::milliseconds elapsed) override
     {
       std::lock_guard<SpinLock> guard(lock);
       timeout_elapsed += elapsed;
