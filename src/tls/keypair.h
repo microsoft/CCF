@@ -15,7 +15,9 @@
 #include <iomanip>
 #include <limits>
 #include <mbedtls/bignum.h>
-#include <mbedtls/eddsa.h>
+#ifdef MOD_MBEDTLS
+#  include <mbedtls/eddsa.h>
+#endif
 #include <memory>
 
 namespace tls
