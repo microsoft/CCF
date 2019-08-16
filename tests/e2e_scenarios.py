@@ -31,7 +31,7 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes
     ) as network:
-        primary, followers = network.start_and_join(args)
+        primary, backups = network.start_and_join(args)
         # SNIPPET_END: create_network
 
         with primary.management_client() as mc:
@@ -44,8 +44,8 @@ def run(args):
             for connection in scenario["connections"]:
                 with (
                     primary.user_client(format="json")
-                    if not connection.get("on_follower")
-                    else random.choice(followers).user_client(format="json")
+                    if not connection.get("on_backup")
+                    else random.choice(backups).user_client(format="json")
                 ) as client:
                     txs = connection.get("transactions", [])
 
@@ -75,8 +75,8 @@ def run(args):
     if args.network_only:
         LOG.info("Keeping network alive with the following nodes:")
         LOG.info("  Primary = {}:{}".format(primary.pubhost, primary.rpc_port))
-        for i, f in enumerate(followers):
-            LOG.info("  Follower[{}] = {}:{}".format(i, f.pubhost, f.rpc_port))
+        for i, f in enumerate(backups):
+            LOG.info("  Backup[{}] = {}:{}".format(i, f.pubhost, f.rpc_port))
 
         input("Press Enter to shutdown...")
 

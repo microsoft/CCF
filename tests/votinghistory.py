@@ -115,7 +115,7 @@ def run(args):
         result = network.vote(2, primary, proposal_id, True)
         assert result[0] and result[1]
 
-        ledger_filename = network.find_leader()[0].remote.ledger_path()
+        ledger_filename = network.find_primary()[0].remote.ledger_path()
 
     l = ledger.Ledger(ledger_filename)
 

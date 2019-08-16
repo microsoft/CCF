@@ -27,7 +27,7 @@
       ]
     },
     {
-      "on_follower": true,
+      "on_backup": true,
       "transactions": [
         {
           "method": "LOG_record",

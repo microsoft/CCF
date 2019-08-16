@@ -1,23 +1,23 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
-    "leader_host": {
+    "primary_host": {
       "type": "string"
     },
-    "leader_id": {
+    "primary_id": {
       "maximum": 18446744073709551615,
       "minimum": 0,
       "type": "number"
     },
-    "leader_port": {
+    "primary_port": {
       "type": "string"
     }
   },
   "required": [
-    "leader_id",
-    "leader_host",
-    "leader_port"
+    "primary_id",
+    "primary_host",
+    "primary_port"
   ],
-  "title": "getLeaderInfo/result",
+  "title": "getPrimaryInfo/result",
   "type": "object"
 }

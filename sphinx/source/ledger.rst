@@ -1,14 +1,14 @@
 Ledger
 ======
 
-The ledger is the persistent distributed append-only record of the transactions that have been executed by the network. It is written by the leader when a transaction is committed and replicated to all followers which maintain their own duplicated copy.
+The ledger is the persistent distributed append-only record of the transactions that have been executed by the network. It is written by the primary when a transaction is committed and replicated to all backups which maintain their own duplicated copy.
 
 A node writes its ledger to a file as specified by the ``--ledger-file`` command line argument.
 
 Ledger encryption
 -----------------
 
-Each entry in the ledger corresponds to a transaction (or delta) committed by the leader's key-value store.
+Each entry in the ledger corresponds to a transaction (or delta) committed by the primary's key-value store.
 
 When a transaction is committed, each affected ``Store::Map`` is serialised in different security domains (i.e. public or private), based on the policy set when the ``Store::Map`` was created (default is private). Public ``Store::Map`` are serialised and stored in the ledger as plaintext while private ``Store::Map`` are serialised and encrypted before being stored.
 
@@ -21,7 +21,9 @@ Note that even if a transaction only affects a private ``Store::Map``, unencrypt
 Ledger replication
 ------------------
 
-The replication process currently uses Raft as the consensus algorithm. As such, it relies on authenticated Append Entries (AE) headers sent from the leader to followers and which specify the start and end index of the encrypted deltas payload. When an AE header is emitted from a node's enclave for replication, the corresponding encrypted deltas are read from the ledger and appended to the AE header.
+The replication process currently uses Raft as the consensus algorithm and therefore the terminology changes slightly. Instead of primary we use the term leader and instead of backup we use the term follower. 
+
+As such, the replicated process relies on authenticated Append Entries (AE) headers sent from the leader to followers and which specify the start and end index of the encrypted deltas payload. When an AE header is emitted from a node's enclave for replication, the corresponding encrypted deltas are read from the ledger and appended to the AE header.
 
 The following diagram describes how deltas committed by the leader are written to the ledger and how they are replicated to one follower. Note that the full replication process and acknowledgment from the follower is not detailed here.
 
@@ -84,7 +86,7 @@ The ``Ledger`` class is constructed using the path of the ledger. It then expose
 ..
 
 An example of how to read and verify entries on the ledger can be found on ``votinghistory.py``, which verifies the voting history.
-Since every vote request is signed by the requesting member, verified by the leader and then stored on the ledger, the test performs the following (this sequence of operations is performed sequentially per transaction):
+Since every vote request is signed by the requesting member, verified by the primary and then stored on the ledger, the test performs the following (this sequence of operations is performed sequentially per transaction):
  1. Read and store the member certificates
  2. Read an entry from the ``votinghistory`` table (each entry on the ``votinghistory`` table contains the member id of the voting member, along with the signed request)
  3. Create a public key using the certificate of the voting member (which was stored on step 1)

@@ -426,11 +426,11 @@ TEST_CASE("pre-populated environment")
           env.error_codes.INTERNAL_ERROR,
           env.error_codes.METHOD_NOT_FOUND,
 
-          env.error_codes.TX_NOT_LEADER,
+          env.error_codes.TX_NOT_PRIMARY,
           env.error_codes.TX_FAILED_TO_REPLICATE,
           env.error_codes.SCRIPT_ERROR,
           env.error_codes.INSUFFICIENT_RIGHTS,
-          env.error_codes.TX_LEADER_UNKNOWN,
+          env.error_codes.TX_PRIMARY_UNKNOWN,
           env.error_codes.RPC_NOT_SIGNED,
           env.error_codes.INVALID_CLIENT_SIGNATURE,
           env.error_codes.INVALID_CALLER_ID,
@@ -459,11 +459,11 @@ TEST_CASE("pre-populated environment")
       expected.push_back(EBT(StdEC::INTERNAL_ERROR));
       expected.push_back(EBT(StdEC::METHOD_NOT_FOUND));
 
-      expected.push_back(EBT(CCFEC::TX_NOT_LEADER));
+      expected.push_back(EBT(CCFEC::TX_NOT_PRIMARY));
       expected.push_back(EBT(CCFEC::TX_FAILED_TO_REPLICATE));
       expected.push_back(EBT(CCFEC::SCRIPT_ERROR));
       expected.push_back(EBT(CCFEC::INSUFFICIENT_RIGHTS));
-      expected.push_back(EBT(CCFEC::TX_LEADER_UNKNOWN));
+      expected.push_back(EBT(CCFEC::TX_PRIMARY_UNKNOWN));
       expected.push_back(EBT(CCFEC::RPC_NOT_SIGNED));
       expected.push_back(EBT(CCFEC::INVALID_CLIENT_SIGNATURE));
       expected.push_back(EBT(CCFEC::INVALID_CALLER_ID));

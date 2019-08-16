@@ -117,7 +117,7 @@ namespace ccf
       serialized::write(data_, size_, data.data(), data.size());
 
       ForwardedHeader msg = {ForwardedMsg::forwarded_response,
-                             ctx.fwd->leader_id};
+                             ctx.fwd->primary_id};
 
       return n2n_channels->send_encrypted(ctx.fwd->from, plain, msg);
     }

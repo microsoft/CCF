@@ -29,3 +29,6 @@ Glossary
 
   OpenEnclave Engine
     `OpenEnclave Engine <https://github.com/Microsoft/oe-engine>`_ is a template generation tool for :term:`Azure Confidential Compute`.
+
+  Consensus Protocols
+    The term Consensus protocol refers to either Raft or PBFT. Generic Consensus terminology will use `primary` node and `backup` node to indicate node responsibility in carrying out the protocol(s). These correspond in Raft to `leader` and `follower`.

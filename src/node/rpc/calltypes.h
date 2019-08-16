@@ -39,13 +39,13 @@ namespace ccf
     };
   };
 
-  struct GetLeaderInfo
+  struct GetPrimaryInfo
   {
     struct Out
     {
-      NodeId leader_id;
-      std::string leader_host;
-      std::string leader_port;
+      NodeId primary_id;
+      std::string primary_host;
+      std::string primary_port;
     };
   };
 
@@ -61,7 +61,7 @@ namespace ccf
     struct Out
     {
       std::vector<NodeInfo> nodes = {};
-      std::optional<NodeId> leader_id = {};
+      std::optional<NodeId> primary_id = {};
     };
   };
 

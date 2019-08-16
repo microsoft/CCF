@@ -30,7 +30,7 @@ Given the above ``scenario.json`` this should create 2 nodes on the local machin
     :end-before: SNIPPET_END: create_network
     :dedent: 2
 
-Each transaction listed in the scenario is then sent to either the `primary` or a `follower` node. As the current implementation uses Raft for consensus, any ``Write`` transactions (which modify the KV) must be sent to the `primary`. Sending them to a `follower` will result in a ``TX_NOT_LEADER`` error response. ``Read`` transactions can be go to any node.
+Each transaction listed in the scenario is then sent to either the `primary` or a `backup` node. Any ``Write`` transactions (which modify the KV) must be processed by the `primary`. If a ``Write`` transaction is sent to a `backup` it will be forwarded to the `primary`.
 
 The response to each transaction is printed at the ``DEBUG`` logging level, and also compared against the expected result. For instance, given this transaction in the scenario file:
 

@@ -138,7 +138,7 @@ namespace ccf
       add_secret(v, std::move(new_secret), force_seal);
     }
 
-    // Called when a follower is given past network secrets via the store
+    // Called when a backup is given past network secrets via the store
     bool set_secret(
       kv::Version v, const std::vector<uint8_t>& serialised_secret)
     {

@@ -10,8 +10,8 @@
 namespace ccf
 {
   // Because past network secrets are encrypted with an ephemeral key passed by
-  // the followers to the leader as part of the join protocol, a given set of
-  // past network secrets is encrypted with different keys for each follower
+  // the backups to the primary as part of the join protocol, a given set of
+  // past network secrets is encrypted with different keys for each backup
   struct SerialisedNetworkSecrets
   {
     NodeId node_id;
@@ -33,7 +33,7 @@ namespace ccf
   DECLARE_JSON_TYPE(PastNetworkSecrets)
   DECLARE_JSON_REQUIRED_FIELDS(PastNetworkSecrets, secrets)
 
-  // This map is used to communicate past network secrets from the leader to the
-  // followers (e.g. during recovery)
+  // This map is used to communicate past network secrets from the primary to
+  // the backups (e.g. during recovery)
   using Secrets = Store::Map<kv::Version, PastNetworkSecrets>;
 }

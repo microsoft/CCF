@@ -107,98 +107,98 @@ TEST_CASE("Client/Server key exchange")
 
 TEST_CASE("Channel manager")
 {
-  NodeId leader_id = 1;
-  NodeId follower_id = 2;
+  NodeId primary_id = 1;
+  NodeId backup_id = 2;
   NodeId other_id = 3;
 
   auto kp = tls::make_key_pair(), kp_other = tls::make_key_pair();
   auto network_pkey = kp->private_key_pem();
   auto other_pkey = kp_other->private_key_pem();
 
-  ChannelManager leader_n2n_channel_manager(network_pkey);
-  ChannelManager follower_n2n_channel_manager(network_pkey);
+  ChannelManager primary_n2n_channel_manager(network_pkey);
+  ChannelManager backup_n2n_channel_manager(network_pkey);
   ChannelManager other_n2n_channel_manager(other_pkey);
 
   INFO("Compute shared secret");
   {
     // Retrieve own signed public
-    auto signed_leader_to_follower =
-      leader_n2n_channel_manager.get_signed_public(follower_id);
-    REQUIRE(signed_leader_to_follower.value().size() > 0);
-    auto signed_follower_to_leader =
-      follower_n2n_channel_manager.get_signed_public(leader_id);
-    REQUIRE(signed_follower_to_leader.value().size() > 0);
+    auto signed_primary_to_backup =
+      primary_n2n_channel_manager.get_signed_public(backup_id);
+    REQUIRE(signed_primary_to_backup.value().size() > 0);
+    auto signed_backup_to_primary =
+      backup_n2n_channel_manager.get_signed_public(primary_id);
+    REQUIRE(signed_backup_to_primary.value().size() > 0);
 
     // Load peer public and compute shared secret
-    REQUIRE(follower_n2n_channel_manager.load_peer_signed_public(
-      leader_id, signed_leader_to_follower.value()));
-    REQUIRE(leader_n2n_channel_manager.load_peer_signed_public(
-      follower_id, signed_follower_to_leader.value()));
+    REQUIRE(backup_n2n_channel_manager.load_peer_signed_public(
+      primary_id, signed_primary_to_backup.value()));
+    REQUIRE(primary_n2n_channel_manager.load_peer_signed_public(
+      backup_id, signed_backup_to_primary.value()));
 
     // Retrieving own signed public once channel is established should fail
     REQUIRE(
-      !follower_n2n_channel_manager.get_signed_public(leader_id).has_value());
+      !backup_n2n_channel_manager.get_signed_public(primary_id).has_value());
     REQUIRE(
-      !leader_n2n_channel_manager.get_signed_public(follower_id).has_value());
+      !primary_n2n_channel_manager.get_signed_public(backup_id).has_value());
   }
 
   INFO("Try to compute shared secret with node not in network");
   {
-    auto signed_leader_to_other =
-      leader_n2n_channel_manager.get_signed_public(other_id);
+    auto signed_primary_to_other =
+      primary_n2n_channel_manager.get_signed_public(other_id);
 
     REQUIRE_FALSE(other_n2n_channel_manager.load_peer_signed_public(
-      leader_id, signed_leader_to_other.value()));
+      primary_id, signed_primary_to_other.value()));
 
-    auto signed_other_to_leader =
-      other_n2n_channel_manager.get_signed_public(leader_id);
+    auto signed_other_to_primary =
+      other_n2n_channel_manager.get_signed_public(primary_id);
 
-    REQUIRE_FALSE(leader_n2n_channel_manager.load_peer_signed_public(
-      other_id, signed_other_to_leader.value()));
+    REQUIRE_FALSE(primary_n2n_channel_manager.load_peer_signed_public(
+      other_id, signed_other_to_primary.value()));
   }
 
-  auto& leader_channel_with_follower =
-    leader_n2n_channel_manager.get(follower_id);
-  auto& follower_channel_with_leader =
-    follower_n2n_channel_manager.get(leader_id);
+  auto& primary_channel_with_backup =
+    primary_n2n_channel_manager.get(backup_id);
+  auto& backup_channel_with_primary =
+    backup_n2n_channel_manager.get(primary_id);
 
-  INFO("Protect integrity of message (leader -> follower)");
+  INFO("Protect integrity of message (primary -> backup)");
   {
     std::vector<uint8_t> msg(128, 0x42);
     GcmHdr hdr;
-    leader_channel_with_follower.tag(hdr, msg);
-    REQUIRE(follower_channel_with_leader.verify(hdr, msg));
+    primary_channel_with_backup.tag(hdr, msg);
+    REQUIRE(backup_channel_with_primary.verify(hdr, msg));
   }
 
-  INFO("Protect integrity of message (follower -> leader)");
+  INFO("Protect integrity of message (backup -> primary)");
   {
     std::vector<uint8_t> msg(128, 0x42);
     GcmHdr hdr;
-    follower_channel_with_leader.tag(hdr, msg);
-    REQUIRE(leader_channel_with_follower.verify(hdr, msg));
+    backup_channel_with_primary.tag(hdr, msg);
+    REQUIRE(primary_channel_with_backup.verify(hdr, msg));
   }
 
-  INFO("Encrypt message (leader -> follower)");
+  INFO("Encrypt message (primary -> backup)");
   {
     std::vector<uint8_t> plain(128, 0x42);
     std::vector<uint8_t> cipher(128);
     std::vector<uint8_t> decrypted(128);
     ccf::GcmHdr hdr;
 
-    leader_channel_with_follower.encrypt(hdr, {}, plain, cipher);
-    REQUIRE(follower_channel_with_leader.decrypt(hdr, {}, cipher, decrypted));
+    primary_channel_with_backup.encrypt(hdr, {}, plain, cipher);
+    REQUIRE(backup_channel_with_primary.decrypt(hdr, {}, cipher, decrypted));
     REQUIRE(plain == decrypted);
   }
 
-  INFO("Encrypt message (follower -> leader)");
+  INFO("Encrypt message (backup -> primary)");
   {
     std::vector<uint8_t> plain(128, 0x42);
     std::vector<uint8_t> cipher(128);
     std::vector<uint8_t> decrypted(128);
     ccf::GcmHdr hdr;
 
-    follower_channel_with_leader.encrypt(hdr, {}, plain, cipher);
-    REQUIRE(leader_channel_with_follower.decrypt(hdr, {}, cipher, decrypted));
+    backup_channel_with_primary.encrypt(hdr, {}, plain, cipher);
+    REQUIRE(primary_channel_with_backup.decrypt(hdr, {}, cipher, decrypted));
     REQUIRE(plain == decrypted);
   }
 }
