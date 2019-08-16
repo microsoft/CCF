@@ -23,16 +23,16 @@
 
   tasks:
 
-  # - name: Add Python 3.7 PPA
-  #   apt_repository:
-  #     repo: ppa:deadsnakes/ppa
-  #   become: true
+  - name: Add Python 3.7 PPA
+    apt_repository:
+      repo: ppa:deadsnakes/ppa
+    become: true
 
-  # - name: Install debs
-  #   apt:
-  #     name: "{{ debs }}"
-  #     update_cache: yes
-  #   become: yes
+  - name: Install debs
+    apt:
+      name: "{{ debs }}"
+      update_cache: yes
+    become: yes
 
   - name: Download boost
     get_url:
