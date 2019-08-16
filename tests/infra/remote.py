@@ -345,12 +345,8 @@ class LocalRemote(CmdMixin):
             src_path = os.path.join(os.getcwd(), path)
             assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:
-            LOG.error("here")
-            LOG.success(path)
             dst_path = self.root
             src_path = os.path.join(os.getcwd(), path)
-            LOG.error(dst_path)
-            LOG.error(src_path)
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
 
         # Make sure relative paths include current directory. Absolute paths will be unaffected
@@ -474,6 +470,7 @@ class CCFRemote(object):
         workspace,
         label,
         target_rpc_address=None,
+        members_certs=None,
         other_quote=None,
         other_quoted_data=None,
         host_log_level="info",
@@ -484,12 +481,14 @@ class CCFRemote(object):
         election_timeout=1000,
         memory_reserve_startup=0,
         notify_server=None,
+        gov_script=None,
         ledger_file=None,
         sealed_secrets=None,
     ):
         """
         Run a ccf binary on a remote host.
         """
+        self.start_type = start_type
         self.local_node_id = local_node_id
         self.host = host
         self.pubhost = pubhost
@@ -510,6 +509,11 @@ class CCFRemote(object):
         )
 
         cmd = [self.BIN, f"--enclave-file={lib_path}"]
+
+        exe_files = [self.BIN, lib_path] + self.DEPS
+        data_files = ([self.ledger_file] if self.ledger_file else []) + (
+            [sealed_secrets] if sealed_secrets else []
+        )
 
         # If the remote needs to verify the quote, only a subset of arguments are required
         if self.verify_quote:
@@ -563,16 +567,24 @@ class CCFRemote(object):
                 ]
 
             if self.quote:
-                cmd.append(f"--quote-file={self.quote}")
+                cmd += [f"--quote-file={self.quote}"]
 
-            if start_type:
-                cmd.append("start")
-                cmd.append("--member-cert=member1_cert.pem")
-                cmd.append("--gov-script=gov.lua")
+            if start_type == StartupType.start:
+                cmd += [
+                    "start",
+                    f"--member-cert={members_certs}",
+                    f"--gov-script={os.path.basename(gov_script)}",
+                ]
+                data_files += [members_certs, os.path.basename(gov_script)]
+            elif start_type == StartupType.join:
+                cmd += [
+                    "join",
+                    "--network-cert-file=networkcert.pem",
+                    f"--target-rpc-address={target_rpc_address}",
+                ]
+                data_files += ["networkcert.pem"]
             else:
-                cmd.append("join")
-                cmd.append("--network-cert-file=networkcert.pem")
-                cmd.append(f"--target-rpc-address={target_rpc_address}")
+                raise ValueError("CCFRemote start type should be start or join")
 
         env = {}
         self.profraw = None
@@ -586,16 +598,6 @@ class CCFRemote(object):
         if oe_log_level:
             env["OE_LOG_LEVEL"] = oe_log_level
 
-        exe_files = [self.BIN, lib_path] + self.DEPS
-        data_files = ([self.ledger_file] if self.ledger_file else []) + (
-            [sealed_secrets] if sealed_secrets else []
-        )
-
-        if start_type:
-            data_files += ["member*_cert.pem", "gov.lua"]
-        else:
-            data_files += ["networkcert.pem"]
-
         self.remote = remote_class(
             local_node_id, host, exe_files, data_files, cmd, workspace, label, env
         )
@@ -606,7 +608,8 @@ class CCFRemote(object):
     def start(self):
         wait_for_termination = self.verify_quote
         self.remote.start(wait_for_termination)
-        self.remote.get("networkcert.pem")
+        if self.start_type == StartupType.start:
+            self.remote.get("networkcert.pem")
 
     def restart(self):
         self.remote.restart()
@@ -707,3 +710,9 @@ class NodeStatus(Enum):
     pending = 0
     trusted = 1
     retired = 2
+
+
+class StartupType(Enum):
+    start = 0
+    join = 1
+    recover = 2

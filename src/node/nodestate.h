@@ -27,6 +27,9 @@
 #include "tls/client.h"
 #include "tls/entropy.h"
 
+// TODO: Move this once there is a helper class for the genesisgen
+#include "runtime_config/default_whitelists.h"
+
 #include <atomic>
 #include <chrono>
 #include <fmt/format_header_only.h>
@@ -285,12 +288,14 @@ namespace ccf
          node_certs_view,
          members_view,
          member_certs_view,
+         whitelist_view,
          gov_view] =
           tx.get_view(
             network.nodes,
             network.node_certs,
             network.members,
             network.member_certs,
+            network.whitelists,
             network.gov_scripts);
 
       // Init values
@@ -322,8 +327,12 @@ namespace ccf
       // TODO: In a loop for each member
       auto member_id = get_next_id(tx.get_view(network.values), NEXT_MEMBER_ID);
       // TODO: Status can be active straight away?
-      members_view->put(member_id, {MemberStatus::ACCEPTED, {}});
+      members_view->put(member_id, {MemberStatus::ACTIVE, {}});
       member_certs_view->put({}, member_id);
+
+      // Whitelists
+      for (const auto& wl : default_whitelists)
+        whitelist_view->put(wl.first, wl.second);
 
       // Governance is not compiled
       std::map<std::string, std::string> scripts =

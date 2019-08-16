@@ -78,6 +78,7 @@ class Network:
         "election_timeout",
         "memory_reserve_startup",
         "notify_server",
+        "gov_script",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the leader to followers
@@ -122,8 +123,10 @@ class Network:
 
         LOG.info("Starting nodes on {}".format(hosts))
 
+        # TODO: Do not use genesisgenerator to create members's keys/certs
         self.add_members([1, 2, 3])
 
+        # TODO: App script should be passed by governance before the network is opened
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
         if args.gov_script:
@@ -136,10 +139,11 @@ class Network:
                 arg: dict_args[arg] for arg in Network.node_args_to_forward
             }
             try:
-                # TODO: Use the current leader of the network instead
-                leader = self.nodes[0]
+                leader, _ = self.find_leader() if i != 0 else (None, None)
                 node.start(
-                    i == 0,
+                    infra.remote.StartupType.start
+                    if i == 0
+                    else infra.remote.StartupType.join,
                     lib_name=args.package,
                     node_status=node_status[i],
                     workspace=args.workspace,
@@ -147,6 +151,7 @@ class Network:
                     target_rpc_address=f"{leader.host}:{leader.rpc_port}"
                     if leader
                     else None,
+                    members_certs="member1_cert.pem" if i == 0 else None,
                     other_quote=None,
                     other_quoted_data=None,
                     **forwarded_args,
@@ -156,17 +161,10 @@ class Network:
                 raise
         LOG.info("All remotes started")
 
-        # self.nodes_json()
-        # self.add_members([1, 2, 3])
+        # TODO: Do not use genesisgenerator to create users' keys/certs
         self.add_users([1, 2, 3])
-        # self.genesis_generator(args)
 
         primary = self.nodes[0]
-        # primary.start_network(self)
-
-        # for node in self.nodes[1:]:
-        #     node.join_network(self)
-
         primary.network_state = NodeNetworkState.joined
 
         LOG.success("All nodes joined Network")
@@ -354,6 +352,7 @@ class Network:
         infra.proc.ccall(*gen).check_returncode()
         LOG.info("Created Genesis TX")
 
+    # TODO: Delete everything that calls nodes_json
     def nodes_json(self):
         nodes_json = [node.node_json for node in self.nodes]
         with open("nodes.json", "w") as nodes_:
@@ -612,6 +611,7 @@ class Node:
         workspace,
         label,
         target_rpc_address=None,
+        members_certs=None,
         other_quote=None,
         other_quoted_data=None,
         **kwargs,
@@ -644,6 +644,7 @@ class Node:
             workspace,
             label,
             target_rpc_address,
+            members_certs,
             other_quote,
             other_quoted_data,
             **kwargs,
@@ -684,35 +685,36 @@ class Node:
     def is_joined(self):
         return self.network_state == NodeNetworkState.joined
 
-    def start_network(self, network):
-        infra.proc.ccall(
-            "./client",
-            f"--server-address={self.host}:{self.rpc_port}",
-            f"--ca={self.remote.pem}",
-            "startnetwork",
-            "--req=@startNetwork.json",
-        ).check_returncode()
-        LOG.info("Started Network")
-        with open("networkcert.pem", mode="rb") as cafile:
-            network.net_cert = list(cafile.read())
+    # TODO: Address network_state - what is it used for?
+    # def start_network(self, network):
+    #     infra.proc.ccall(
+    #         "./client",
+    #         f"--server-address={self.host}:{self.rpc_port}",
+    #         f"--ca={self.remote.pem}",
+    #         "startnetwork",
+    #         "--req=@startNetwork.json",
+    #     ).check_returncode()
+    #     LOG.info("Started Network")
+    #     with open("networkcert.pem", mode="rb") as cafile:
+    #         network.net_cert = list(cafile.read())
 
-    def complete_join_network(self):
-        LOG.info("Joining Network")
-        self.network_state = NodeNetworkState.joined
+    # def complete_join_network(self):
+    #     LOG.info("Joining Network")
+    #     self.network_state = NodeNetworkState.joined
 
-    def join_network(self, network):
-        leader, term = network.find_leader()
-        with self.management_client(format="json") as c:
-            res = c.rpc(
-                "joinNetwork",
-                {
-                    "hostname": leader.host,
-                    "service": str(leader.rpc_port),
-                    "network_cert": network.net_cert,
-                },
-            )
-            assert res.error is None
-        self.complete_join_network()
+    # def join_network(self, network):
+    #     leader, term = network.find_leader()
+    #     with self.management_client(format="json") as c:
+    #         res = c.rpc(
+    #             "joinNetwork",
+    #             {
+    #                 "hostname": leader.host,
+    #                 "service": str(leader.rpc_port),
+    #                 "network_cert": network.net_cert,
+    #             },
+    #         )
+    #         assert res.error is None
+    #     self.complete_join_network()
 
     def set_recovery(self):
         self.remote.set_recovery()
