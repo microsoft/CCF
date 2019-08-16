@@ -151,7 +151,7 @@ jobs:
     image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx:latest
     # --publish-all enables end-to-end tests to communicate over ports
     # --device /dev/sgx:/dev/sgx makes sgx available to the container
-    options: --publish-all --device /dev/sgx:/dev/sgx
+    options: --publish-all --device /dev/sgx:/dev/sgx -v /mnt/build:/__w/
   dependsOn:
     - ACC_1804_SGX_perf_build
   steps:
