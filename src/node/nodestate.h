@@ -392,7 +392,7 @@ namespace ccf
             // and reset the store as we will receive the entirety of the ledger
             // from the primary
             LOG_INFO_FMT("Truncating entire ledger");
-            log_truncate(0);
+            ledger_truncate(0);
             network.tables->clear();
           }
           else
@@ -519,7 +519,7 @@ namespace ccf
       // index and promote network secrets to this index
       auto ls_idx = last_signed_index(tx);
       network.tables->rollback(ls_idx);
-      log_truncate(ls_idx);
+      ledger_truncate(ls_idx);
       LOG_INFO_FMT("Truncating ledger to last signed index: {}", ls_idx);
 
       network.secrets->promote_secrets(0, ls_idx + 1);
@@ -1248,12 +1248,12 @@ namespace ccf
 
     void read_ledger_idx(consensus::Index idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(consensus::log_get, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_get, to_host, idx);
     }
 
-    void log_truncate(consensus::Index idx)
+    void ledger_truncate(consensus::Index idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(consensus::log_truncate, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_truncate, to_host, idx);
     }
 
 #ifdef PBFT

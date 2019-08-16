@@ -194,32 +194,34 @@ namespace asynchost
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, consensus::log_append, [this](const uint8_t* data, size_t size) {
-          write_entry(data, size);
-        });
+        disp,
+        consensus::ledger_append,
+        [this](const uint8_t* data, size_t size) { write_entry(data, size); });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
-        consensus::log_truncate,
+        consensus::ledger_truncate,
         [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
           truncate(idx);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, consensus::log_get, [&](const uint8_t* data, size_t size) {
+        disp, consensus::ledger_get, [&](const uint8_t* data, size_t size) {
           // The enclave has asked for a ledger entry.
-          auto [idx] = ringbuffer::read_message<consensus::log_get>(data, size);
+          auto [idx] =
+            ringbuffer::read_message<consensus::ledger_get>(data, size);
 
           auto& entry = read_entry(idx);
 
           if (entry.size() > 0)
           {
-            RINGBUFFER_WRITE_MESSAGE(consensus::log_entry, to_enclave, entry);
+            RINGBUFFER_WRITE_MESSAGE(
+              consensus::ledger_entry, to_enclave, entry);
           }
           else
           {
-            RINGBUFFER_WRITE_MESSAGE(consensus::log_no_entry, to_enclave);
+            RINGBUFFER_WRITE_MESSAGE(consensus::ledger_no_entry, to_enclave);
           }
         });
     }

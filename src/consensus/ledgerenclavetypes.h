@@ -11,24 +11,27 @@ namespace consensus
   enum : ringbuffer::Message
   {
     /// Request individual log entries. Enclave -> Host
-    DEFINE_RINGBUFFER_MSG_TYPE(log_get),
+    DEFINE_RINGBUFFER_MSG_TYPE(ledger_get),
 
     ///@{
     /// Respond to log_get. Host -> Enclave
-    DEFINE_RINGBUFFER_MSG_TYPE(log_entry),
-    DEFINE_RINGBUFFER_MSG_TYPE(log_no_entry),
+    DEFINE_RINGBUFFER_MSG_TYPE(ledger_entry),
+    DEFINE_RINGBUFFER_MSG_TYPE(ledger_no_entry),
     ///@}
 
     ///@{
     /// Modify the local log. Enclave -> Host
-    DEFINE_RINGBUFFER_MSG_TYPE(log_append),
-    DEFINE_RINGBUFFER_MSG_TYPE(log_truncate),
+    DEFINE_RINGBUFFER_MSG_TYPE(ledger_append),
+    DEFINE_RINGBUFFER_MSG_TYPE(ledger_truncate),
     ///@}
   };
 }
 
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::log_get, consensus::Index);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::log_entry, std::vector<uint8_t>);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::log_no_entry);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::log_append, std::vector<uint8_t>);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::log_truncate, consensus::Index);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_get, consensus::Index);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  consensus::ledger_entry, std::vector<uint8_t>);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_no_entry);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  consensus::ledger_append, std::vector<uint8_t>);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  consensus::ledger_truncate, consensus::Index);

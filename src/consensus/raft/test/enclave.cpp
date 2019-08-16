@@ -27,7 +27,7 @@ TEST_CASE("Enclave put")
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
       {
-        case consensus::log_append:
+        case consensus::ledger_append:
         {
           REQUIRE(num_msgs == 0);
           auto entry = std::vector<uint8_t>(data, data + size);
@@ -63,7 +63,7 @@ TEST_CASE("Enclave record")
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
       {
-        case consensus::log_append:
+        case consensus::ledger_append:
         {
           REQUIRE(num_msgs == 0);
           copy(data, data + size, back_inserter(record));
@@ -94,7 +94,7 @@ TEST_CASE("Enclave record")
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
       {
-        case consensus::log_append:
+        case consensus::ledger_append:
         {
           REQUIRE(num_msgs == 0);
           auto entry = std::vector<uint8_t>(data, data + size);

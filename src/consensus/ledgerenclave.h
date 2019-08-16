@@ -32,7 +32,7 @@ namespace consensus
     void put_entry(const std::vector<uint8_t>& entry)
     {
       // write the message
-      RINGBUFFER_WRITE_MESSAGE(consensus::log_append, to_host, entry);
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_append, to_host, entry);
     }
 
     /**
@@ -49,7 +49,7 @@ namespace consensus
       auto entry_len = serialized::read<uint32_t>(data, size);
       std::vector<uint8_t> entry(data, data + entry_len);
 
-      RINGBUFFER_WRITE_MESSAGE(consensus::log_append, to_host, entry);
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_append, to_host, entry);
 
       serialized::skip(data, size, entry_len);
 
@@ -77,7 +77,7 @@ namespace consensus
      */
     void truncate(Index idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(consensus::log_truncate, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_truncate, to_host, idx);
     }
   };
 }
