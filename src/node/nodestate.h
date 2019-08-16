@@ -1146,7 +1146,7 @@ namespace ccf
       auto raft = std::make_unique<RaftType>(
         std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(
           network.tables),
-        std::make_unique<raft::LedgerEnclave>(writer_factory),
+        std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         self,
         raft_config.requestTimeout,
@@ -1250,14 +1250,14 @@ namespace ccf
       }
     }
 
-    void read_ledger_idx(raft::Index idx)
+    void read_ledger_idx(SeqNo seqno)
     {
-      RINGBUFFER_WRITE_MESSAGE(raft::log_get, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(consensus::log_get, to_host, seqno);
     }
 
-    void log_truncate(raft::Index idx)
+    void log_truncate(SeqNo seqno)
     {
-      RINGBUFFER_WRITE_MESSAGE(raft::log_truncate, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(consensus::log_truncate, to_host, seqno);
     }
 
 #ifdef PBFT
@@ -1266,7 +1266,7 @@ namespace ccf
       consensus = std::make_shared<PbftConsensusType>(
         n2n_channels,
         self,
-        std::make_unique<raft::LedgerEnclave>(writer_factory),
+        std::make_unique<consensus::LedgerEnclave>(writer_factory),
         rpc_map,
         rpcsessions);
 

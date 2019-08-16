@@ -2,15 +2,35 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/ringbuffer_types.h"
 #include "ds/serialized.h"
-#include "rafttypes.h"
 
 #include <algorithm>
 #include <cassert>
 #include <sstream>
 
-namespace raft
+namespace consensus
 {
+  using SeqNo = uint64_t;
+  /// Consensus-related ringbuffer messages
+  enum : ringbuffer::Message
+  {
+    /// Request individual log entries. Enclave -> Host
+    DEFINE_RINGBUFFER_MSG_TYPE(log_get),
+
+    ///@{
+    /// Respond to log_get. Host -> Enclave
+    DEFINE_RINGBUFFER_MSG_TYPE(log_entry),
+    DEFINE_RINGBUFFER_MSG_TYPE(log_no_entry),
+    ///@}
+
+    ///@{
+    /// Modify the local log. Enclave -> Host
+    DEFINE_RINGBUFFER_MSG_TYPE(log_append),
+    DEFINE_RINGBUFFER_MSG_TYPE(log_truncate),
+    ///@}
+  };
+
   class LedgerEnclave
   {
   public:
@@ -25,18 +45,18 @@ namespace raft
     {}
 
     /**
-     * Put a single entry to be written the ledger, when leader.
+     * Put a single entry to be written the ledger, when primary.
      *
      * @param entry Serialised entry
      */
     void put_entry(const std::vector<uint8_t>& entry)
     {
       // write the message
-      RINGBUFFER_WRITE_MESSAGE(raft::log_append, to_host, entry);
+      RINGBUFFER_WRITE_MESSAGE(consensus::log_append, to_host, entry);
     }
 
     /**
-     * Record a single entry to the ledger, when follower.
+     * Record a single entry to the ledger, when backup.
      *
      * @param data Serialised entries
      * @param size Size of overall serialised entries
@@ -49,7 +69,7 @@ namespace raft
       auto entry_len = serialized::read<uint32_t>(data, size);
       std::vector<uint8_t> entry(data, data + entry_len);
 
-      RINGBUFFER_WRITE_MESSAGE(raft::log_append, to_host, entry);
+      RINGBUFFER_WRITE_MESSAGE(consensus::log_append, to_host, entry);
 
       serialized::skip(data, size, entry_len);
 
@@ -57,7 +77,7 @@ namespace raft
     }
 
     /**
-     * Skip a single entry, when follower.
+     * Skip a single entry, when backup.
      *
      * Does not write any entry to the legder.
      *
@@ -75,9 +95,15 @@ namespace raft
      *
      * @param idx Index to truncate from
      */
-    void truncate(Index idx)
+    void truncate(SeqNo idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(raft::log_truncate, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(consensus::log_truncate, to_host, idx);
     }
   };
 }
+
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::log_get, consensus::SeqNo);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::log_entry, std::vector<uint8_t>);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::log_no_entry);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::log_append, std::vector<uint8_t>);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::log_truncate, consensus::SeqNo);

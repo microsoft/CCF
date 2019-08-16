@@ -78,7 +78,7 @@ namespace ccf
     Certs* certs;
     std::optional<Handler> default_handler;
     std::unordered_map<std::string, Handler> handlers;
-    kv::Consensus* raft;
+    kv::Consensus* consensus;
     std::shared_ptr<AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
     size_t sig_max_tx = 1000;
@@ -88,11 +88,11 @@ namespace ccf
     bool request_storing_disabled = false;
     metrics::Metrics metrics;
 
-    void update_raft()
+    void update_consensus()
     {
-      if (raft != tables.get_consensus().get())
+      if (consensus != tables.get_consensus().get())
       {
-        raft = tables.get_consensus().get();
+        consensus = tables.get_consensus().get();
       }
     }
 
@@ -154,9 +154,9 @@ namespace ccf
       {
         // If this frontend is not allowed to forward or the command has already
         // been forwarded, redirect to the current primary
-        if ((nodes != nullptr) && (raft != nullptr))
+        if ((nodes != nullptr) && (consensus != nullptr))
         {
-          NodeId primary_id = raft->primary();
+          NodeId primary_id = consensus->primary();
           Store::Tx tx;
           auto nodes_view = tx.get_view(*nodes);
           auto info = nodes_view->get(primary_id);
@@ -184,7 +184,7 @@ namespace ccf
       nodes(tables.get<Nodes>(Tables::NODES)),
       client_signatures(client_sigs_),
       certs(certs_),
-      raft(nullptr),
+      consensus(nullptr),
       history(nullptr)
     {
       auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
@@ -192,11 +192,11 @@ namespace ccf
 
         kv::Version commit = in.commit.value_or(tables.commit_version());
 
-        update_raft();
+        update_consensus();
 
-        if (raft != nullptr)
+        if (consensus != nullptr)
         {
-          auto term = raft->get_view(commit);
+          auto term = consensus->get_view(commit);
           return jsonrpc::success(GetCommit::Out{term, commit});
         }
 
@@ -227,9 +227,9 @@ namespace ccf
 
       auto get_primary_info =
         [this](Store::Tx& tx, const nlohmann::json& params) {
-          if ((nodes != nullptr) && (raft != nullptr))
+          if ((nodes != nullptr) && (consensus != nullptr))
           {
-            NodeId primary_id = raft->primary();
+            NodeId primary_id = consensus->primary();
 
             auto nodes_view = tx.get_view(*nodes);
             auto info = nodes_view->get(primary_id);
@@ -251,9 +251,9 @@ namespace ccf
       auto get_network_info =
         [this](Store::Tx& tx, const nlohmann::json& params) {
           GetNetworkInfo::Out out;
-          if (raft != nullptr)
+          if (consensus != nullptr)
           {
-            out.primary_id = raft->primary();
+            out.primary_id = consensus->primary();
           }
 
           auto nodes_view = tx.get_view(*nodes);
@@ -544,10 +544,10 @@ namespace ccf
       // If necessary, forward the RPC to the current primary
       if (!rep.has_value())
       {
-        if (raft != nullptr)
+        if (consensus != nullptr)
         {
-          auto primary_id = raft->primary();
-          auto local_id = raft->id();
+          auto primary_id = consensus->primary();
+          auto local_id = consensus->id();
 
           if (
             primary_id != NoNode &&
@@ -660,8 +660,8 @@ namespace ccf
       // instead.
       CBuffer caller;
 
-      update_raft();
-      ctx.fwd->primary_id = raft->id();
+      update_consensus();
+      ctx.fwd->primary_id = consensus->id();
 
       auto pack = detect_pack(input);
       if (!pack.has_value())
@@ -761,10 +761,10 @@ namespace ccf
           jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
           method);
 
-      update_raft();
+      update_consensus();
       update_history();
 
-      bool is_primary = (raft == nullptr) || raft->is_primary();
+      bool is_primary = (consensus == nullptr) || consensus->is_primary();
 
       if (!is_primary)
       {
@@ -813,13 +813,13 @@ namespace ccf
               if (cv == kv::NoVersion)
                 cv = tables.current_version();
               result[COMMIT] = cv;
-              if (raft != nullptr)
+              if (consensus != nullptr)
               {
-                result[TERM] = raft->get_view();
-                result[GLOBAL_COMMIT] = raft->get_commit_seqno();
+                result[TERM] = consensus->get_view();
+                result[GLOBAL_COMMIT] = consensus->get_commit_seqno();
 
                 if (
-                  history && raft->is_primary() &&
+                  history && consensus->is_primary() &&
                   (cv % sig_max_tx == sig_max_tx / 2))
                   history->emit_signature();
               }
@@ -926,8 +926,8 @@ namespace ccf
       // reset tx_counter for next tick interval
       tx_count = 0;
       // TODO(#refactoring): move this to NodeState::tick
-      update_raft();
-      if ((raft != nullptr) && raft->is_primary())
+      update_consensus();
+      if ((consensus != nullptr) && consensus->is_primary())
       {
         if (elapsed < ms_to_sig)
         {
