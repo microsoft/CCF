@@ -151,7 +151,6 @@ class Network:
                     other_quoted_data=None,
                     **forwarded_args,
                 )
-                time.sleep(1)
             except Exception:
                 LOG.exception("Failed to start node {}".format(i))
                 raise

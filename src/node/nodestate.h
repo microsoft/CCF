@@ -275,6 +275,10 @@ namespace ccf
       accept_member_connections();
       accept_node_connections();
 
+      // TODO: User connections should not be accepted until the network
+      // is open
+      accept_user_connections();
+
       // Initialise store
       auto
         [nodes_view,
@@ -376,6 +380,10 @@ namespace ccf
       std::stringstream name;
       name << "CN=" << Actors::MANAGEMENT;
       node_cert = node_kp->self_sign(name.str());
+
+      // We present our self-signed certificate to the management frontend
+      rpcsessions.add_cert(
+        Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key_pem());
 
       // Generate quote over node certificate
       // TODO: https://github.com/microsoft/CCF/issues/59

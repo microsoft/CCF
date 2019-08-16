@@ -27,8 +27,6 @@ def run(args):
         ) as network:
             primary, (follower,) = network.start_and_join(args)
 
-            input("")
-
             with primary.management_client() as mc:
                 check_commit = infra.ccf.Checker(mc)
                 check = infra.ccf.Checker()
