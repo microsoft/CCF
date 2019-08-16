@@ -3,6 +3,7 @@
 #include "symmkey.h"
 
 #include "ds/logger.h"
+#include "tls/error_string.h"
 #include "error.h"
 
 #include <mbedtls/aes.h>
@@ -11,14 +12,6 @@
 
 namespace crypto
 {
-  inline std::string str_err(int err)
-  {
-    constexpr size_t len = 100;
-    char buf[len];
-    mbedtls_strerror(err, buf, len);
-    return std::string(buf);
-  }
-
   KeyAesGcm::KeyAesGcm(CBuffer rawKey)
   {
     ctx = new mbedtls_gcm_context;
@@ -51,7 +44,7 @@ namespace crypto
 
     if (rc != 0)
     {
-      LOG_FATAL_FMT(str_err(rc));
+      LOG_FATAL_FMT(tls::error_string(rc));
     }
   }
 
@@ -93,7 +86,7 @@ namespace crypto
 
     if (rc != 0)
     {
-      LOG_FATAL_FMT(str_err(rc));
+      LOG_FATAL_FMT(tls::error_string(rc));
     }
   }
 

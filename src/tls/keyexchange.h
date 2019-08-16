@@ -5,6 +5,7 @@
 #include "ds/logger.h"
 #include "tls/entropy.h"
 #include "tls/keypair.h"
+#include "tls/error_string.h"
 
 #include <everest/x25519.h>
 #include <iostream>
@@ -13,14 +14,6 @@
 
 namespace tls
 {
-  inline std::string str_err(int err)
-  {
-    constexpr size_t len = 100;
-    char buf[len];
-    mbedtls_strerror(err, buf, len);
-    return std::string(buf);
-  }
-
   class KeyExchangeContext
   {
   private:
@@ -59,7 +52,7 @@ namespace tls
 #endif
       if (rc != 0)
       {
-        throw std::logic_error(str_err(rc));
+        throw std::logic_error(error_string(rc));
       }
 
       rc = mbedtls_ecdh_make_public(
@@ -72,7 +65,7 @@ namespace tls
 
       if (rc != 0)
       {
-        throw std::logic_error(str_err(rc));
+        throw std::logic_error(error_string(rc));
       }
 
       own_public.resize(len);
@@ -102,7 +95,7 @@ namespace tls
       int rc = mbedtls_ecdh_read_public(&ctx, bytes, size);
       if (rc != 0)
       {
-        throw std::logic_error(str_err(rc));
+        throw std::logic_error(error_string(rc));
       }
     }
 
@@ -120,7 +113,7 @@ namespace tls
         entropy->get_data());
       if (rc != 0)
       {
-        throw std::logic_error(str_err(rc));
+        throw std::logic_error(error_string(rc));
       }
 
       shared_secret.resize(len);
