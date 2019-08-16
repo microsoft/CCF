@@ -6,8 +6,8 @@ RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
 RUN mkdir -p /etc/init
 
 COPY getting_started/setup_vm/ /setup_vm/
-RUN apt update
-RUN apt install -y ansible software-properties-common
+RUN apt update && apt install -y ansible software-properties-common
 RUN cd setup_vm; ansible-playbook -i local_nodriver *.yml
+
 # Necessary to publish performance data
 RUN apt install azure-cli
