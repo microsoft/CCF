@@ -558,7 +558,8 @@ class CCFRemote(object):
             if self.quote:
                 cmd.append(f"--quote-file={self.quote}")
 
-        env = {}
+        # Necessary for the az-dcap-client >=1.1 (https://github.com/microsoft/Azure-DCAP-Client/issues/84)
+        env = {"HOME": os.environ["HOME"]}
         self.profraw = None
         if enclave_type == "virtual":
             env["UBSAN_OPTIONS"] = "print_stacktrace=1"

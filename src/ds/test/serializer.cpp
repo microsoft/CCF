@@ -116,9 +116,10 @@ void require_minimum_serialized_arity(Ts&&... ts)
 {
   // Any serializer should produce at least as many sections as arguments (some
   // arguments may produce multiple sections)
-  decltype(Serializer::serialize(ts...)) sections;
-  REQUIRE_NOTHROW(sections = Serializer::serialize(std::forward<Ts>(ts)...));
-  static_assert(std::tuple_size_v<decltype(sections)> >= sizeof...(ts));
+  static_assert(
+    std::tuple_size_v<decltype(Serializer::serialize(ts...))> >= sizeof...(ts));
+  REQUIRE_NOTHROW(
+    auto sections = Serializer::serialize(std::forward<Ts>(ts)...));
 }
 
 template <typename Serializer, typename... Ts>
@@ -205,7 +206,7 @@ TEST_CASE("Deserialize" * doctest::test_suite("serializer"))
     w.write_with<CommonSerializer>(any_message, buffer.size(), buffer);
     auto deser = CommonSerializer::deserialize<std::string>(
       w.payload.data(), w.payload.size());
-    REQUIRE(std::get<0>(deser) == std::string("Hello World"));
+    REQUIRE(strcmp(std::get<0>(deser).data(), "Hello World") == 0);
 
     // As ByteRange
     ByteRange br{buffer.data(), buffer.size()};

@@ -64,7 +64,7 @@ endif()
 add_library(ccfcrypto.host STATIC
   ${CCFCRYPTO_SRC})
 target_compile_definitions(ccfcrypto.host PRIVATE )
-target_compile_options(ccfcrypto.host PRIVATE )
+target_compile_options(ccfcrypto.host PRIVATE -stdlib=libc++)
 target_include_directories(ccfcrypto.host PRIVATE ${EVERCRYPT_INC})
 target_link_libraries(ccfcrypto.host PRIVATE evercrypt.host)
 use_client_mbedtls(ccfcrypto.host)

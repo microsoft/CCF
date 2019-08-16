@@ -15,20 +15,23 @@
       - llvm-7
       - expect
       - xsltproc
-    everest_ver: "mbedtls-snapshot-7"
-    everest_src: "{{ everest_ver }}.tar.gz"
+      - git
+    mbedtls_ver: "2.16.2"
+    mbedtls_dir: "mbedtls-{{ mbedtls_ver }}"
+    mbedtls_src: "{{ mbedtls_dir }}.tar.gz"
+
 
   tasks:
 
   - name: Add Python 3.7 PPA
     apt_repository:
       repo: ppa:deadsnakes/ppa
-      update_cache: yes
     become: true
 
   - name: Install debs
     apt:
       name: "{{ debs }}"
+      update_cache: yes
     become: yes
 
   - name: Download boost
@@ -46,25 +49,25 @@
 
   - name: Download mbedtls-everest
     get_url:
-      url: https://github.com/project-everest/mbedtls/archive/{{ everest_ver }}.tar.gz
-      dest: "{{ workspace }}/{{ everest_src }}"
+      url: https://github.com/ARMmbed/mbedtls/archive/{{ mbedtls_src }}
+      dest: "{{ workspace }}/{{ mbedtls_src }}"
     become: true
 
   - name: Remove existing mbedtls checkout
     file:
-      path: "{{ workspace }}/mbedtls-{{ everest_ver }}"
+      path: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}"
       state: absent
 
-  - name: Expand mbedtls-everest
+  - name: Expand mbedtls
     unarchive:
-      src: "{{ workspace }}/{{ everest_src }}"
+      src: "{{ workspace }}/{{ mbedtls_src }}"
       dest: "{{ workspace }}"
       copy: no
-      creates: "{{ workspace }}/mbedtls-{{ everest_ver }}/CMakeLists.txt"
+      creates: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}/CMakeLists.txt"
 
   - name: Make mbedtls build dir
     file:
-      path: "{{ workspace }}/mbedtls-{{ everest_ver }}/build"
+      path: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}/build"
       state: directory
 
   - name: Build mbedtls
@@ -72,10 +75,10 @@
       cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON ..
       make -j4
     args:
-      chdir: "{{ workspace }}/mbedtls-{{ everest_ver }}/build"
+      chdir: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}/build"
 
   - name: Install mbedtls
     command: make install
     args:
-      chdir: "{{ workspace }}/mbedtls-{{ everest_ver }}/build"
+      chdir: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}/build"
     become: true

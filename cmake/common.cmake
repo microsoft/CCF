@@ -234,8 +234,13 @@ set(OE_MBEDTLS_LIBRARIES
 
 find_library(CRYPTO_LIBRARY crypto)
 
+set(OE_ENCLAVE_MBEDTLS "${OE_LIB_DIR}/enclave/libmbedtls.a")
+set(OE_ENCLAVE_MBEDX509 "${OE_LIB_DIR}/enclave/libmbedx509.a")
+set(OE_ENCLAVE_MBEDCRYPTO "${OE_LIB_DIR}/enclave/libmbedcrypto.a")
+set(OE_ENCLAVE_CRYPTOMBED "${OE_LIB_DIR}/enclave/liboecryptombed.a")
 set(OE_ENCLAVE_LIBRARY "${OE_LIB_DIR}/enclave/liboeenclave.a")
 set(OE_ENCLAVE_CORE "${OE_LIB_DIR}/enclave/liboecore.a")
+set(OE_ENCLAVE_SYSCALL "${OE_LIB_DIR}/enclave/liboesyscall.a")
 set(OE_ENCLAVE_LIBC "${OE_LIB_DIR}/enclave/liboelibc.a")
 set(OE_ENCLAVE_LIBCXX "${OE_LIB_DIR}/enclave/liboelibcxx.a")
 set(OE_HOST_LIBRARY "${OE_LIB_DIR}/host/liboehost.a")
@@ -251,9 +256,14 @@ set(ENCLAVE_LIBS
   evercrypt.enclave
   lua.enclave
   ${OE_ENCLAVE_LIBRARY}
-  ${OE_MBEDTLS_LIBRARIES}
+  ${OE_ENCLAVE_CRYPTOMBED}
+  ${OE_ENCLAVE_MBEDCRYPTO}
+  ${OE_ENCLAVE_MBEDX509}
+  ${OE_ENCLAVE_MBEDTLS}
+  ${ENCLAVE_MBEDTLS_LIBRARIES}
   ${OE_ENCLAVE_LIBCXX}
   ${OE_ENCLAVE_LIBC}
+  ${OE_ENCLAVE_SYSCALL}
   ${OE_ENCLAVE_CORE}
   secp256k1.enclave
 )
@@ -474,12 +484,16 @@ endfunction()
 function(add_unit_test name)
   add_executable(${name}
     ${ARGN})
+    target_compile_options(${name} PRIVATE -stdlib=libc++)
   target_include_directories(${name} PRIVATE
     src
     ${CCFCRYPTO_INC})
-  target_compile_options(${name} PRIVATE -fdiagnostics-color=always)
   enable_coverage(${name})
-  target_link_libraries(${name} PRIVATE ccfcrypto.host)
+  target_link_libraries(${name} PRIVATE 
+      -stdlib=libc++
+      -lc++
+      -lc++abi
+  ccfcrypto.host)
 
   use_client_mbedtls(${name})
   add_san(${name})

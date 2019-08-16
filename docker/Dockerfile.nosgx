@@ -1,0 +1,7 @@
+FROM ubuntu:18.04
+
+RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
+
+COPY getting_started/setup_vm/ /setup_vm/
+RUN apt update && apt install -y ansible software-properties-common
+RUN cd setup_vm; ansible-playbook -i local_nosgx *.yml
