@@ -4,8 +4,8 @@
 
 #include "ds/logger.h"
 #include "tls/entropy.h"
-#include "tls/keypair.h"
 #include "tls/error_string.h"
+#include "tls/keypair.h"
 
 #include <everest/x25519.h>
 #include <iostream>

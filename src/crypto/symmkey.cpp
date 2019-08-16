@@ -3,8 +3,8 @@
 #include "symmkey.h"
 
 #include "ds/logger.h"
-#include "tls/error_string.h"
 #include "error.h"
+#include "tls/error_string.h"
 
 #include <mbedtls/aes.h>
 #include <mbedtls/error.h>
