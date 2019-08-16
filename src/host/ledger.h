@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/raft/rafttypes.h" // TODO(#refactoring): Separate raft messages from ledger messages
+#include "consensus/ledgerenclavetypes.h"
 #include "ds/logger.h"
 #include "ds/messaging.h"
 
@@ -194,30 +194,34 @@ namespace asynchost
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, raft::log_append, [this](const uint8_t* data, size_t size) {
-          write_entry(data, size);
-        });
+        disp,
+        consensus::ledger_append,
+        [this](const uint8_t* data, size_t size) { write_entry(data, size); });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, raft::log_truncate, [this](const uint8_t* data, size_t size) {
-          auto idx = serialized::read<raft::Index>(data, size);
+        disp,
+        consensus::ledger_truncate,
+        [this](const uint8_t* data, size_t size) {
+          auto idx = serialized::read<consensus::Index>(data, size);
           truncate(idx);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, raft::log_get, [&](const uint8_t* data, size_t size) {
+        disp, consensus::ledger_get, [&](const uint8_t* data, size_t size) {
           // The enclave has asked for a ledger entry.
-          auto [idx] = ringbuffer::read_message<raft::log_get>(data, size);
+          auto [idx] =
+            ringbuffer::read_message<consensus::ledger_get>(data, size);
 
           auto& entry = read_entry(idx);
 
           if (entry.size() > 0)
           {
-            RINGBUFFER_WRITE_MESSAGE(raft::log_entry, to_enclave, entry);
+            RINGBUFFER_WRITE_MESSAGE(
+              consensus::ledger_entry, to_enclave, entry);
           }
           else
           {
-            RINGBUFFER_WRITE_MESSAGE(raft::log_no_entry, to_enclave);
+            RINGBUFFER_WRITE_MESSAGE(consensus::ledger_no_entry, to_enclave);
           }
         });
     }

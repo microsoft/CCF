@@ -117,29 +117,4 @@ namespace raft
     bool vote_granted;
   };
 #pragma pack(pop)
-
-  /// Raft-related ringbuffer messages
-  enum : ringbuffer::Message
-  {
-    /// Request individual log entries. Enclave -> Host
-    DEFINE_RINGBUFFER_MSG_TYPE(log_get),
-
-    ///@{
-    /// Respond to log_get. Host -> Enclave
-    DEFINE_RINGBUFFER_MSG_TYPE(log_entry),
-    DEFINE_RINGBUFFER_MSG_TYPE(log_no_entry),
-    ///@}
-
-    ///@{
-    /// Modify the local log. Enclave -> Host
-    DEFINE_RINGBUFFER_MSG_TYPE(log_append),
-    DEFINE_RINGBUFFER_MSG_TYPE(log_truncate),
-    ///@}
-  };
 }
-
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(raft::log_get, raft::Index);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(raft::log_entry, std::vector<uint8_t>);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(raft::log_no_entry);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(raft::log_append, std::vector<uint8_t>);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(raft::log_truncate, raft::Index);

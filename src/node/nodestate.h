@@ -139,7 +139,7 @@ namespace ccf
     std::vector<kv::Version> term_history;
     kv::Version last_recovered_commit_idx = 1;
 
-    raft::Index ledger_idx = 0;
+    consensus::Index ledger_idx = 0;
 
   public:
     NodeState(
@@ -392,7 +392,7 @@ namespace ccf
             // and reset the store as we will receive the entirety of the ledger
             // from the primary
             LOG_INFO_FMT("Truncating entire ledger");
-            log_truncate(0);
+            ledger_truncate(0);
             network.tables->clear();
           }
           else
@@ -519,7 +519,7 @@ namespace ccf
       // index and promote network secrets to this index
       auto ls_idx = last_signed_index(tx);
       network.tables->rollback(ls_idx);
-      log_truncate(ls_idx);
+      ledger_truncate(ls_idx);
       LOG_INFO_FMT("Truncating ledger to last signed index: {}", ls_idx);
 
       network.secrets->promote_secrets(0, ls_idx + 1);
@@ -923,11 +923,7 @@ namespace ccf
         case channel_msg:
           n2n_channels->recv_message(p, psize);
           break;
-
-        case consensus_msg_pbft:
-          consensus->recv_message(p, psize);
-          break;
-        case consensus_msg_raft:
+        case consensus_msg:
           consensus->recv_message(p, psize);
           break;
 
@@ -1055,8 +1051,8 @@ namespace ccf
       // Setup new temporary store and record current version/root
       setup_private_recovery_store();
 
-      // Suspend raft replication at recovery_v + 1 since this is called from
-      // commit hook
+      // Suspend consensus replication at recovery_v + 1 since this is called
+      // from commit hook
       consensus->suspend_replication(recovery_v + 1);
 
       // Start reading private security domain of ledger
@@ -1146,7 +1142,7 @@ namespace ccf
       auto raft = std::make_unique<RaftType>(
         std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(
           network.tables),
-        std::make_unique<raft::LedgerEnclave>(writer_factory),
+        std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         self,
         raft_config.requestTimeout,
@@ -1250,14 +1246,14 @@ namespace ccf
       }
     }
 
-    void read_ledger_idx(raft::Index idx)
+    void read_ledger_idx(consensus::Index idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(raft::log_get, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_get, to_host, idx);
     }
 
-    void log_truncate(raft::Index idx)
+    void ledger_truncate(consensus::Index idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(raft::log_truncate, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_truncate, to_host, idx);
     }
 
 #ifdef PBFT
@@ -1266,7 +1262,7 @@ namespace ccf
       consensus = std::make_shared<PbftConsensusType>(
         n2n_channels,
         self,
-        std::make_unique<raft::LedgerEnclave>(writer_factory),
+        std::make_unique<consensus::LedgerEnclave>(writer_factory),
         rpc_map,
         rpcsessions);
 

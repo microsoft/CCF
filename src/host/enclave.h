@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/raft/rafttypes.h"
 #include "crypto/hash.h"
 #include "ds/logger.h"
 #include "enclave/interface.h"

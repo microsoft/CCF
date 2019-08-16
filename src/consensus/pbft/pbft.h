@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/ledgerenclave.h"
 #include "consensus/pbft/pbftconfig.h"
-#include "consensus/raft/ledgerenclave.h"
 #include "ds/logger.h"
 #include "enclave/rpcmap.h"
 #include "enclave/rpcsessions.h"
@@ -72,7 +72,7 @@ namespace pbft
         msg->size());
 
       n2n_channels->send_authenticated(
-        ccf::NodeMsgType::consensus_msg_pbft, to, serialized_msg);
+        ccf::NodeMsgType::consensus_msg, to, serialized_msg);
       return msg->size();
     }
 
@@ -104,14 +104,14 @@ namespace pbft
     std::unique_ptr<AbstractPbftConfig> pbft_config;
     std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
     enclave::RPCSessions& rpcsessions;
-    std::unique_ptr<raft::LedgerEnclave> ledger;
+    std::unique_ptr<consensus::LedgerEnclave> ledger;
     SeqNo global_commit_seqno;
 
   public:
     Pbft(
       std::shared_ptr<ChannelProxy> channels_,
       NodeId id,
-      std::unique_ptr<raft::LedgerEnclave> ledger_,
+      std::unique_ptr<consensus::LedgerEnclave> ledger_,
       std::shared_ptr<enclave::RpcMap> rpc_map,
       enclave::RPCSessions& rpcsessions_) :
       Consensus(id),
@@ -189,10 +189,10 @@ namespace pbft
 
       auto append_ledger_entry_cb =
         [](const uint8_t* data, size_t size, void* ctx) {
-          auto ledger = static_cast<raft::LedgerEnclave*>(ctx);
+          auto ledger = static_cast<consensus::LedgerEnclave*>(ctx);
 
-          size_t tsize = size + raft::LedgerEnclave::FRAME_SIZE;
-          assert(raft::LedgerEnclave::FRAME_SIZE <= sizeof(tsize));
+          size_t tsize = size + consensus::LedgerEnclave::FRAME_SIZE;
+          assert(consensus::LedgerEnclave::FRAME_SIZE <= sizeof(tsize));
           std::vector<uint8_t> entry(tsize);
           uint8_t* tdata = entry.data();
 
