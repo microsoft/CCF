@@ -139,7 +139,7 @@ namespace ccf
     std::vector<kv::Version> term_history;
     kv::Version last_recovered_commit_idx = 1;
 
-    raft::Index ledger_idx = 0;
+    consensus::Index ledger_idx = 0;
 
   public:
     NodeState(
@@ -923,11 +923,7 @@ namespace ccf
         case channel_msg:
           n2n_channels->recv_message(p, psize);
           break;
-
-        case consensus_msg_pbft:
-          consensus->recv_message(p, psize);
-          break;
-        case consensus_msg_raft:
+        case consensus_msg:
           consensus->recv_message(p, psize);
           break;
 
@@ -1055,8 +1051,8 @@ namespace ccf
       // Setup new temporary store and record current version/root
       setup_private_recovery_store();
 
-      // Suspend raft replication at recovery_v + 1 since this is called from
-      // commit hook
+      // Suspend consensus replication at recovery_v + 1 since this is called
+      // from commit hook
       consensus->suspend_replication(recovery_v + 1);
 
       // Start reading private security domain of ledger
@@ -1250,14 +1246,14 @@ namespace ccf
       }
     }
 
-    void read_ledger_idx(SeqNo seqno)
+    void read_ledger_idx(consensus::Index idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(consensus::log_get, to_host, seqno);
+      RINGBUFFER_WRITE_MESSAGE(consensus::log_get, to_host, idx);
     }
 
-    void log_truncate(SeqNo seqno)
+    void log_truncate(consensus::Index idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(consensus::log_truncate, to_host, seqno);
+      RINGBUFFER_WRITE_MESSAGE(consensus::log_truncate, to_host, idx);
     }
 
 #ifdef PBFT

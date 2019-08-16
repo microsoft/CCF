@@ -11,7 +11,7 @@
 
 namespace consensus
 {
-  using SeqNo = uint64_t;
+  using Index = uint64_t;
   /// Consensus-related ringbuffer messages
   enum : ringbuffer::Message
   {
@@ -95,15 +95,15 @@ namespace consensus
      *
      * @param idx Index to truncate from
      */
-    void truncate(SeqNo idx)
+    void truncate(Index idx)
     {
       RINGBUFFER_WRITE_MESSAGE(consensus::log_truncate, to_host, idx);
     }
   };
 }
 
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::log_get, consensus::SeqNo);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::log_get, consensus::Index);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::log_entry, std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::log_no_entry);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::log_append, std::vector<uint8_t>);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::log_truncate, consensus::SeqNo);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::log_truncate, consensus::Index);

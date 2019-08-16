@@ -202,7 +202,7 @@ namespace asynchost
         disp,
         consensus::log_truncate,
         [this](const uint8_t* data, size_t size) {
-          auto idx = serialized::read<consensus::SeqNo>(data, size);
+          auto idx = serialized::read<consensus::Index>(data, size);
           truncate(idx);
         });
 
