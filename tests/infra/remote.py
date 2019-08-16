@@ -345,8 +345,12 @@ class LocalRemote(CmdMixin):
             src_path = os.path.join(os.getcwd(), path)
             assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:
-            dst_path = os.path.join(self.root, os.path.basename(path))
+            LOG.error("here")
+            LOG.success(path)
+            dst_path = self.root
             src_path = os.path.join(os.getcwd(), path)
+            LOG.error(dst_path)
+            LOG.error(src_path)
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
 
         # Make sure relative paths include current directory. Absolute paths will be unaffected
@@ -457,6 +461,7 @@ class CCFRemote(object):
 
     def __init__(
         self,
+        start_type,
         lib_path,
         local_node_id,
         host,
@@ -468,6 +473,7 @@ class CCFRemote(object):
         verify_quote,
         workspace,
         label,
+        target_rpc_address=None,
         other_quote=None,
         other_quoted_data=None,
         host_log_level="info",
@@ -526,6 +532,7 @@ class CCFRemote(object):
                 f"--enclave-type={enclave_type}",
                 f"--node-address={host}:{node_port}",
                 f"--rpc-address={host}:{rpc_port}",
+                f"--public-rpc-address={host}:{rpc_port}",
                 f"--ledger-file={self.ledger_file_name}",
                 f"--node-cert-file={self.pem}",
                 f"--host-log-level={host_log_level}",
@@ -558,6 +565,15 @@ class CCFRemote(object):
             if self.quote:
                 cmd.append(f"--quote-file={self.quote}")
 
+            if start_type:
+                cmd.append("start")
+                cmd.append("--member-cert=member1_cert.pem")
+                cmd.append("--gov-script=gov.lua")
+            else:
+                cmd.append("join")
+                cmd.append("--network-cert-file=networkcert.pem")
+                cmd.append(f"--target-rpc-address={target_rpc_address}")
+
         env = {}
         self.profraw = None
         if enclave_type == "virtual" and coverage_enabled(lib_path):
@@ -570,16 +586,18 @@ class CCFRemote(object):
         if oe_log_level:
             env["OE_LOG_LEVEL"] = oe_log_level
 
+        exe_files = [self.BIN, lib_path] + self.DEPS
+        data_files = ([self.ledger_file] if self.ledger_file else []) + (
+            [sealed_secrets] if sealed_secrets else []
+        )
+
+        if start_type:
+            data_files += ["member*_cert.pem", "gov.lua"]
+        else:
+            data_files += ["networkcert.pem"]
+
         self.remote = remote_class(
-            local_node_id,
-            host,
-            [self.BIN, lib_path] + self.DEPS,
-            ([self.ledger_file] if self.ledger_file else [])
-            + ([sealed_secrets] if sealed_secrets else []),
-            cmd,
-            workspace,
-            label,
-            env,
+            local_node_id, host, exe_files, data_files, cmd, workspace, label, env
         )
 
     def setup(self):
@@ -588,6 +606,7 @@ class CCFRemote(object):
     def start(self):
         wait_for_termination = self.verify_quote
         self.remote.start(wait_for_termination)
+        self.remote.get("networkcert.pem")
 
     def restart(self):
         self.remote.restart()

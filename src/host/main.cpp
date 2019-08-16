@@ -217,7 +217,7 @@ int main(int argc, char** argv)
   auto join = app.add_subcommand("join", "Join existing network");
   join
     ->add_option(
-      "--network-cert",
+      "--network-cert-file",
       network_cert_file,
       "Path to certificate of existing network to join",
       true)

@@ -256,6 +256,10 @@ namespace ccf
       name << "CN=" << Actors::MANAGEMENT;
       node_cert = node_kp->self_sign(name.str());
 
+      // We present our self-signed certificate to the management frontend
+      rpcsessions.add_cert(
+        Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key_pem());
+
       // Generate quote over node certificate
       // TODO: https://github.com/microsoft/CCF/issues/59
       std::vector<uint8_t> quote{1};
@@ -492,6 +496,8 @@ namespace ccf
 
       auto join_req =
         jsonrpc::pack(nlohmann::json(join_rpc), jsonrpc::Pack::MsgPack);
+
+      LOG_INFO_FMT("Sending join request");
 
       join_client->send(join_req);
     }

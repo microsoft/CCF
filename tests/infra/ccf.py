@@ -122,25 +122,7 @@ class Network:
 
         LOG.info("Starting nodes on {}".format(hosts))
 
-        for i, node in enumerate(self.nodes):
-            dict_args = vars(args)
-            forwarded_args = {
-                arg: dict_args[arg] for arg in Network.node_args_to_forward
-            }
-            try:
-                node.start(
-                    lib_name=args.package,
-                    node_status=node_status[i],
-                    workspace=args.workspace,
-                    label=args.label,
-                    other_quote=None,
-                    other_quoted_data=None,
-                    **forwarded_args,
-                )
-            except Exception:
-                LOG.exception("Failed to start node {}".format(i))
-                raise
-        LOG.info("All remotes started")
+        self.add_members([1, 2, 3])
 
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
@@ -148,16 +130,43 @@ class Network:
             infra.proc.ccall("cp", args.gov_script, args.build_dir).check_returncode()
         LOG.info("Lua scripts copied")
 
-        self.nodes_json()
-        self.add_members([1, 2, 3])
+        for i, node in enumerate(self.nodes):
+            dict_args = vars(args)
+            forwarded_args = {
+                arg: dict_args[arg] for arg in Network.node_args_to_forward
+            }
+            try:
+                # TODO: Use the current leader of the network instead
+                leader = self.nodes[0]
+                node.start(
+                    i == 0,
+                    lib_name=args.package,
+                    node_status=node_status[i],
+                    workspace=args.workspace,
+                    label=args.label,
+                    target_rpc_address=f"{leader.host}:{leader.rpc_port}"
+                    if leader
+                    else None,
+                    other_quote=None,
+                    other_quoted_data=None,
+                    **forwarded_args,
+                )
+                time.sleep(1)
+            except Exception:
+                LOG.exception("Failed to start node {}".format(i))
+                raise
+        LOG.info("All remotes started")
+
+        # self.nodes_json()
+        # self.add_members([1, 2, 3])
         self.add_users([1, 2, 3])
-        self.genesis_generator(args)
+        # self.genesis_generator(args)
 
         primary = self.nodes[0]
-        primary.start_network(self)
+        # primary.start_network(self)
 
-        for node in self.nodes[1:]:
-            node.join_network(self)
+        # for node in self.nodes[1:]:
+        #     node.join_network(self)
 
         primary.network_state = NodeNetworkState.joined
 
@@ -598,10 +607,12 @@ class Node:
 
     def start(
         self,
+        start_type,
         lib_name,
         enclave_type,
         workspace,
         label,
+        target_rpc_address=None,
         other_quote=None,
         other_quoted_data=None,
         **kwargs,
@@ -621,6 +632,7 @@ class Node:
         """
         lib_path = infra.path.build_lib_path(lib_name, enclave_type)
         self.remote = infra.remote.CCFRemote(
+            start_type,
             lib_path,
             str(self.local_node_id),
             self.host,
@@ -632,6 +644,7 @@ class Node:
             self.verify_quote,
             workspace,
             label,
+            target_rpc_address,
             other_quote,
             other_quoted_data,
             **kwargs,
