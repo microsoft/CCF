@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "../ledgerenclave.h"
+#include "consensus/ledgerenclave.h"
 #include "ds/ringbuffer.h"
 #include "tls/keypair.h"
 
@@ -9,7 +9,7 @@
 
 #undef FAIL
 
-using namespace raft;
+using namespace consensus;
 
 using WFactory = ringbuffer::WriterFactory;
 
@@ -27,7 +27,7 @@ TEST_CASE("Enclave put")
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
       {
-        case raft::log_append:
+        case consensus::ledger_append:
         {
           REQUIRE(num_msgs == 0);
           auto entry = std::vector<uint8_t>(data, data + size);
@@ -63,7 +63,7 @@ TEST_CASE("Enclave record")
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
       {
-        case raft::log_append:
+        case consensus::ledger_append:
         {
           REQUIRE(num_msgs == 0);
           copy(data, data + size, back_inserter(record));
@@ -94,7 +94,7 @@ TEST_CASE("Enclave record")
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
       {
-        case raft::log_append:
+        case consensus::ledger_append:
         {
           REQUIRE(num_msgs == 0);
           auto entry = std::vector<uint8_t>(data, data + size);

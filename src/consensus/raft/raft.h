@@ -478,8 +478,7 @@ namespace raft
 
       // The host will append log entries to this message when it is
       // sent to the destination node.
-      channels->send_authenticated(
-        ccf::NodeMsgType::consensus_msg_raft, to, ae);
+      channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, ae);
     }
 
     void recv_append_entries(const uint8_t* data, size_t size)
@@ -686,7 +685,7 @@ namespace raft
         raft_append_entries_response, local_id, current_term, last_idx, answer};
 
       channels->send_authenticated(
-        ccf::NodeMsgType::consensus_msg_raft, to, response);
+        ccf::NodeMsgType::consensus_msg, to, response);
     }
 
     void recv_append_entries_response(const uint8_t* data, size_t size)
@@ -773,8 +772,7 @@ namespace raft
                         last_idx,
                         get_term_internal(last_idx)};
 
-      channels->send_authenticated(
-        ccf::NodeMsgType::consensus_msg_raft, to, rv);
+      channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, rv);
     }
 
     void recv_request_vote(const uint8_t* data, size_t size)
@@ -855,7 +853,7 @@ namespace raft
         raft_request_vote_response, local_id, current_term, answer};
 
       channels->send_authenticated(
-        ccf::NodeMsgType::consensus_msg_raft, to, response);
+        ccf::NodeMsgType::consensus_msg, to, response);
     }
 
     void recv_request_vote_response(const uint8_t* data, size_t size)

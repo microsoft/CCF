@@ -2,14 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/ledgerenclavetypes.h"
 #include "ds/serialized.h"
-#include "rafttypes.h"
 
 #include <algorithm>
 #include <cassert>
 #include <sstream>
 
-namespace raft
+namespace consensus
 {
   class LedgerEnclave
   {
@@ -25,18 +25,18 @@ namespace raft
     {}
 
     /**
-     * Put a single entry to be written the ledger, when leader.
+     * Put a single entry to be written the ledger, when primary.
      *
      * @param entry Serialised entry
      */
     void put_entry(const std::vector<uint8_t>& entry)
     {
       // write the message
-      RINGBUFFER_WRITE_MESSAGE(raft::log_append, to_host, entry);
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_append, to_host, entry);
     }
 
     /**
-     * Record a single entry to the ledger, when follower.
+     * Record a single entry to the ledger, when backup.
      *
      * @param data Serialised entries
      * @param size Size of overall serialised entries
@@ -49,7 +49,7 @@ namespace raft
       auto entry_len = serialized::read<uint32_t>(data, size);
       std::vector<uint8_t> entry(data, data + entry_len);
 
-      RINGBUFFER_WRITE_MESSAGE(raft::log_append, to_host, entry);
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_append, to_host, entry);
 
       serialized::skip(data, size, entry_len);
 
@@ -57,7 +57,7 @@ namespace raft
     }
 
     /**
-     * Skip a single entry, when follower.
+     * Skip a single entry, when backup.
      *
      * Does not write any entry to the legder.
      *
@@ -77,7 +77,7 @@ namespace raft
      */
     void truncate(Index idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(raft::log_truncate, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_truncate, to_host, idx);
     }
   };
 }
