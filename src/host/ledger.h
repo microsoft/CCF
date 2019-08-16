@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/ledgerenclave.h"
+#include "consensus/ledgerenclavetypes.h"
 #include "ds/logger.h"
 #include "ds/messaging.h"
 
