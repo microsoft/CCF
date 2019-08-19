@@ -73,7 +73,6 @@ def log_errors(out_path, err_path):
             LOG.info("{} errors found, printing end of output for context:", errors)
             for line in tail_lines:
                 LOG.info(line)
-        if errors:
             try:
                 with open(err_path, "r") as lines:
                     LOG.error("contents of {}:".format(err_path))
