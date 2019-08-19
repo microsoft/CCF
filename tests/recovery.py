@@ -135,13 +135,6 @@ def run(args):
                 check_commit = infra.ccf.Checker(mc)
                 check = infra.ccf.Checker()
 
-                # TODO:
-                # 1. Find longest ledger
-                # 2. Pick that node and shutdown other nodes
-                # 3. Restart other nodes in join: the public CFTR is now started (wait until partOfPublicNetwork)
-                # 4. (DONE) Members check which nodes compose the network and vote for accept_recovery
-                # 5. (DONE) Wait for partOfNetwork
-
                 for node in network.nodes:
                     wait_for_state(node, b"partOfPublicNetwork")
                 network.wait_for_node_commit_sync()
@@ -169,6 +162,8 @@ def run(args):
                     1, primary, "accept_recovery", f"--sealed-secrets={sealed_secrets}"
                 )
                 assert result[1]["completed"]
+
+                # TODO: Change this once we have 3 members in the original consortium
                 # proposal_id = result[1]["id"]
 
                 # result = network.vote(2, primary, proposal_id, True)
