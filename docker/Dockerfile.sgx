@@ -11,3 +11,5 @@ RUN cd setup_vm; ansible-playbook -i local_nodriver *.yml
 
 # Necessary to publish performance data
 RUN apt install azure-cli
+
+RUN rm -rf /tmp/* && apt clean
