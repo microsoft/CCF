@@ -8,9 +8,9 @@
 #include "../ds/logger.h"
 #include "../ds/oversized.h"
 #include "../ds/ringbuffer_types.h"
+#include "../enclave/nodeinfonetwork.h"
 #include "../kv/kvtypes.h"
 #include "../raft/rafttypes.h"
-#include "../enclave/nodeinfonetwork.h"
 
 #include <chrono>
 

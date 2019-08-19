@@ -151,6 +151,7 @@ namespace ccf
     //
     // recovery
     //
+    NodeInfoNetwork node_info_network;
     std::shared_ptr<Store> recovery_store;
     std::shared_ptr<kv::TxHistory> recovery_history;
     std::shared_ptr<kv::AbstractTxEncryptor> recovery_encryptor;
@@ -282,6 +283,8 @@ namespace ccf
       // is open
       accept_user_connections();
 
+      /* KV INITIALISATION STARTS HERE */
+
       // Initialise store
       auto
         [nodes_view,
@@ -348,6 +351,8 @@ namespace ccf
         return Fail<CreateNew::Out>("Parsing quote of starting node failed");
 #endif
 
+        /* KV INITIALISATION ENDS HERE */
+
         // if (args.recover)
         // {
         // init_public_ledger_recovery();
@@ -371,12 +376,39 @@ namespace ccf
         return Fail<CreateNew::Out>(
           "Genesis transaction could not be committed");
 
-      // if (!args.recover)
-      {
-        sm.advance(State::partOfNetwork);
-      }
+      sm.advance(State::partOfNetwork);
 
       return Success<CreateNew::Out>(
+        {node_cert, quote, network.secrets->get_current().cert});
+    }
+
+    auto create_recover(const CreateRecover::In& args)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      sm.expect(State::initialized);
+
+      node_info_network = args.node_info;
+
+      // Generate node key pair
+      std::stringstream name;
+      name << "CN=" << Actors::MANAGEMENT;
+      node_cert = node_kp->self_sign(name.str());
+
+      // We present our self-signed certificate to the management frontend
+      rpcsessions.add_cert(
+        Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key_pem());
+
+      // Quotes should be initialised and non-empty
+      std::vector<uint8_t> quote{1};
+
+#ifdef GET_QUOTE
+      quote = get_quote();
+#endif
+
+      init_public_ledger_recovery();
+      sm.advance(State::readingPublicLedger);
+
+      return Success<CreateRecover::Out>(
         {node_cert, quote, network.secrets->get_current().cert});
     }
 
@@ -524,60 +556,68 @@ namespace ccf
     //
     auto start_network(Store::Tx& tx, const StartNetwork::In& args)
     {
-//       // TODO(#important,#TR): Service start-up protocol should be updated in
-//       // line with the paper (section IV-B) to provide more flexibility and
-//       // record in the ledger the state of the service (booting -> opening ->
-//       // open -> closed).
-//       std::lock_guard<SpinLock> guard(lock);
-//       sm.expect(State::started);
+      //       // TODO(#important,#TR): Service start-up protocol should be
+      //       updated in
+      //       // line with the paper (section IV-B) to provide more flexibility
+      //       and
+      //       // record in the ledger the state of the service (booting ->
+      //       opening ->
+      //       // open -> closed).
+      //       std::lock_guard<SpinLock> guard(lock);
+      //       sm.expect(State::started);
 
       // Create fresh network secrets and seal
       network.secrets = std::make_unique<NetworkSecrets>(
         "CN=The CA", std::make_unique<Seal>(writer_factory));
 
-//       accept_all_connections();
-//       self = args.id;
-//       setup_raft();
-// #ifndef PBFT
-//       // In the case of PBFT, the history was already setup when the node was
-//       // created.
-//       // TODO(#PBFT): When/if we stop using the history to register PBFT
-//       // callbacks, we should be able to initialise the history as late as here.
-//       setup_history();
-// #endif
-//       setup_encryptor();
+      //       accept_all_connections();
+      //       self = args.id;
+      //       setup_raft();
+      // #ifndef PBFT
+      //       // In the case of PBFT, the history was already setup when the
+      //       node was
+      //       // created.
+      //       // TODO(#PBFT): When/if we stop using the history to register
+      //       PBFT
+      //       // callbacks, we should be able to initialise the history as late
+      //       as here. setup_history();
+      // #endif
+      //       setup_encryptor();
 
-//       // Before loading the initial transaction, its integrity needs to be
-//       // protected since deserialise only accepts protected entries.
-//       StoreSerialiser s(encryptor, 1);
-//       auto protected_tx0 = s.serialise_domains(args.tx0);
+      //       // Before loading the initial transaction, its integrity needs to
+      //       be
+      //       // protected since deserialise only accepts protected entries.
+      //       StoreSerialiser s(encryptor, 1);
+      //       auto protected_tx0 = s.serialise_domains(args.tx0);
 
-//       // Load initial transaction (may affect CCF and app tables).
-//       if (
-//         network.tables->deserialise(protected_tx0) ==
-//         kv::DeserialiseSuccess::FAILED)
-//         return Fail<StartNetwork::Out>("Deserialisation of tx0 failed");
+      //       // Load initial transaction (may affect CCF and app tables).
+      //       if (
+      //         network.tables->deserialise(protected_tx0) ==
+      //         kv::DeserialiseSuccess::FAILED)
+      //         return Fail<StartNetwork::Out>("Deserialisation of tx0
+      //         failed");
 
-//       // Become the leader and force replication.
-//       raft->force_become_leader();
-//       raft->replicate({{1, protected_tx0, true}});
+      //       // Become the leader and force replication.
+      //       raft->force_become_leader();
+      //       raft->replicate({{1, protected_tx0, true}});
 
       // Network signs tx0.
       auto keys = tls::make_key_pair({network.secrets->get_current().priv_key});
       auto tx0Sig = keys->sign(args.tx0);
 
-//       // Sets itself as trusted.
-//       auto nodes_view = tx.get_view(network.nodes);
-//       auto leader_info = nodes_view->get(self).value();
-//       leader_info.status = NodeStatus::TRUSTED;
-//       nodes_view->put(self, leader_info);
+      //       // Sets itself as trusted.
+      //       auto nodes_view = tx.get_view(network.nodes);
+      //       auto leader_info = nodes_view->get(self).value();
+      //       leader_info.status = NodeStatus::TRUSTED;
+      //       nodes_view->put(self, leader_info);
 
-// #ifdef GET_QUOTE
-//       if (!trust_own_code_id(tx, self))
-//         return Fail<StartNetwork::Out>("Parsing quote of starting node failed");
-// #endif
+      // #ifdef GET_QUOTE
+      //       if (!trust_own_code_id(tx, self))
+      //         return Fail<StartNetwork::Out>("Parsing quote of starting node
+      //         failed");
+      // #endif
 
-//       sm.advance(State::partOfNetwork);
+      //       sm.advance(State::partOfNetwork);
 
       return Success<StartNetwork::Out>(
         {std::string(
@@ -784,7 +824,17 @@ namespace ccf
       LOG_INFO_FMT("Truncating ledger to last signed index: {}", ls_idx);
 
       network.secrets->promote_secrets(0, ls_idx + 1);
-      sm.advance(State::awaitingRecoveryTx);
+
+      // TODO: Start public network ()
+      // Delete existing nodes, add self
+      LOG_INFO_FMT("About to start recovered network");
+      start_recovered_network(tx);
+
+      if (tx.commit() != kv::CommitSuccess::OK)
+        throw std::logic_error(
+          "Could not commit transaction when starting recovered network");
+
+      // sm.advance(State::awaitingRecoveryTx);
     }
 
     kv::Version last_signed_index(Store::Tx& tx)
@@ -926,14 +976,13 @@ namespace ccf
     //
     // funcs in state "awaitingRecoveryTx"
     //
-    std::string replace_nodes(
-      Store::Tx& tx, const std::vector<ccf::NodeInfo>& new_nodes)
+    std::string start_recovered_network(Store::Tx& tx)
     {
-      std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::awaitingRecoveryTx);
+      // sm.expect(State::awaitingRecoveryTx);
 
-      auto [nodes_view, values_view, certs_view, sigs_view] = tx.get_view(
+      auto [nodes_view, values_view, node_certs_view, sigs_view] = tx.get_view(
         network.nodes, network.values, network.node_certs, network.signatures);
+
       std::map<NodeId, NodeInfo> nodes_to_delete;
       nodes_view->foreach(
         [&nodes_to_delete](const NodeId& nid, const NodeInfo& ni) {
@@ -942,6 +991,7 @@ namespace ccf
             nodes_to_delete[nid] = ni;
           return true;
         });
+
       for (auto [nid, ni] : nodes_to_delete)
       {
         ni.status = ccf::NodeStatus::RETIRED;
@@ -949,31 +999,55 @@ namespace ccf
       }
 
       std::vector<Cert> certs_to_delete;
-      certs_view->foreach(
+      node_certs_view->foreach(
         [&certs_to_delete](const Cert& cstr, const NodeId& _) {
           certs_to_delete.push_back(cstr);
           return true;
         });
       for (Cert& cstr : certs_to_delete)
       {
-        certs_view->remove(cstr);
+        node_certs_view->remove(cstr);
       }
 
-      for (const auto& ni : new_nodes)
-      {
-        auto nid = get_next_id(values_view, ccf::ValueIds::NEXT_NODE_ID);
-        LOG_INFO_FMT("Adding node {}", nid);
-        nodes_view->put(nid, ni);
-        if (node_cert == ni.cert)
-        {
-          self = nid;
-          LOG_INFO_FMT("Setting self to {}", self);
-        }
-        auto verifier = tls::make_verifier(ni.cert);
-        certs_view->put(verifier->raw_cert_data(), nid);
-      }
+      // for (const auto& ni : new_nodes)
+      // {
+      //   auto nid = get_next_id(values_view, ccf::ValueIds::NEXT_NODE_ID);
+      //   LOG_INFO_FMT("Adding node {}", nid);
+      //   nodes_view->put(nid, ni);
+      //   if (node_cert == ni.cert)
+      //   {
+      //     self = nid;
+      //     LOG_INFO_FMT("Setting self to {}", self);
+      //   }
+      //   auto verifier = tls::make_verifier(ni.cert);
+      //   certs_view->put(verifier->raw_cert_data(), nid);
+      // }
 
       LOG_INFO_FMT("Replaced nodes");
+
+      // Quotes should be initialised and non-empty
+      std::vector<uint8_t> quote{1};
+
+#ifdef GET_QUOTE
+      quote = get_quote();
+#endif
+
+      // TODO: Should we only become TRUSTED once the member has vetted the
+      // network?
+      self = get_next_id(tx.get_view(network.values), NEXT_NODE_ID);
+
+      nodes_view->put(
+        self,
+        {node_info_network.host,
+         node_info_network.pubhost,
+         node_info_network.nodeport,
+         node_info_network.rpcport,
+         node_cert,
+         quote,
+         NodeStatus::PENDING});
+      node_certs_view->put(node_cert, self);
+
+      LOG_INFO_FMT("Added self as {}", self);
 
       kv::Version index = 0;
       kv::Term term = 0;

@@ -74,6 +74,17 @@ extern "C"
         break;
 
       case StartType::Recover:
+        ret = e->create_recover_node(
+          *cc,
+          node_cert,
+          node_cert_size,
+          node_cert_len,
+          quote,
+          quote_size,
+          quote_len,
+          network_cert,
+          network_cert_size,
+          network_cert_len);
         break;
 
       default:

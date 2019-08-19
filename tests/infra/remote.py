@@ -77,10 +77,6 @@ def log_errors(out_path, err_path):
 
 
 class CmdMixin(object):
-    def set_recovery(self):
-        self.cmd.append("--start=recover")
-        self.cmd = list(dict.fromkeys(self.cmd))
-
     def set_perf(self):
         self.cmd = [
             "perf",
@@ -583,6 +579,11 @@ class CCFRemote(object):
                     f"--target-rpc-address={target_rpc_address}",
                 ]
                 data_files += ["networkcert.pem"]
+            elif start_type == StartupType.recover:
+                LOG.error("Starting up node in recovery")
+                cmd += ["recover"]
+                # Starting a CCF node in recover does not require any additional arguments
+                pass
             else:
                 raise ValueError("CCFRemote start type should be start or join")
 
@@ -608,7 +609,8 @@ class CCFRemote(object):
     def start(self):
         wait_for_termination = self.verify_quote
         self.remote.start(wait_for_termination)
-        if self.start_type == StartupType.start:
+        # In start or recovery
+        if self.start_type == StartupType.start or self.start_type == StartupType.recover:
             self.remote.get("networkcert.pem")
 
     def restart(self):
@@ -653,9 +655,6 @@ class CCFRemote(object):
 
     def print_and_upload_result(self, name, metrics, lines):
         self.remote.print_and_upload_result(name, metrics, lines)
-
-    def set_recovery(self):
-        self.remote.set_recovery()
 
     def set_perf(self):
         self.remote.set_perf()

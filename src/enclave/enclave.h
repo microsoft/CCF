@@ -35,8 +35,8 @@ namespace enclave
     std::shared_ptr<ccf::Forwarder> cmd_forwarder;
     ccf::Notifier notifier;
     std::shared_ptr<RpcMap> rpc_map;
-    bool recover = false;
-    std::optional<CCFConfig> ccf_config; // TODO: Delete this
+    CCFConfig ccf_config;
+    StartType start_type;
 
   public:
     Enclave(
@@ -104,7 +104,7 @@ namespace enclave
       // we pass them in because it allows us to set EDL an annotation so that
       // quote_len <= quote_size is checked by the EDL-generated wrapper
 
-      recover = false;
+      start_type = StartType::Start;
       auto r = node.create_new({ccf_config_});
       if (!r.second)
         return false;
@@ -131,6 +131,7 @@ namespace enclave
       size_t quote_size,
       size_t* quote_len)
     {
+      start_type = StartType::Join;
       ccf_config = ccf_config_;
       auto r = node.create_join();
       if (!r.second)
@@ -141,6 +142,37 @@ namespace enclave
 
       ::memcpy(quote, r.first.quote.data(), r.first.quote.size());
       *quote_len = r.first.quote.size();
+
+      return true;
+    }
+
+    bool create_recover_node(
+      const CCFConfig& ccf_config_,
+      uint8_t* node_cert,
+      size_t node_cert_size,
+      size_t* node_cert_len,
+      uint8_t* quote,
+      size_t quote_size,
+      size_t* quote_len,
+      uint8_t* network_cert,
+      size_t network_cert_size,
+      size_t* network_cert_len)
+    {
+      start_type = StartType::Recover;
+      ccf_config = ccf_config_;
+      auto r = node.create_recover({ccf_config.node_info});
+      if (!r.second)
+        return false;
+
+      ::memcpy(node_cert, r.first.node_cert.data(), r.first.node_cert.size());
+      *node_cert_len = r.first.node_cert.size();
+
+      ::memcpy(quote, r.first.quote.data(), r.first.quote.size());
+      *quote_len = r.first.quote.size();
+
+      ::memcpy(
+        network_cert, r.first.network_cert.data(), r.first.network_cert.size());
+      *network_cert_len = r.first.network_cert.size();
 
       return true;
     }
@@ -201,33 +233,31 @@ namespace enclave
             }
           });
 
-        if (recover)
-        {
-          DISPATCHER_SET_MESSAGE_HANDLER(
-            bp, raft::log_entry, [this](const uint8_t* data, size_t size) {
-              auto [body] =
-                ringbuffer::read_message<raft::log_entry>(data, size);
-              if (node.is_reading_public_ledger())
-                node.recover_public_ledger_entry(body);
-              else if (node.is_reading_private_ledger())
-                node.recover_private_ledger_entry(body);
-              else
-                LOG_FAIL_FMT("Cannot recover ledger entry: Unexpected state");
-            });
+        DISPATCHER_SET_MESSAGE_HANDLER(
+          bp, raft::log_entry, [this](const uint8_t* data, size_t size) {
+            auto [body] = ringbuffer::read_message<raft::log_entry>(data, size);
+            if (node.is_reading_public_ledger())
+              node.recover_public_ledger_entry(body);
+            else if (node.is_reading_private_ledger())
+              node.recover_private_ledger_entry(body);
+            else
+              LOG_FAIL_FMT("Cannot recover ledger entry: Unexpected state");
+          });
 
-          DISPATCHER_SET_MESSAGE_HANDLER(
-            bp, raft::log_no_entry, [this](const uint8_t* data, size_t size) {
-              ringbuffer::read_message<raft::log_no_entry>(data, size);
-              node.recover_ledger_end();
-            });
+        DISPATCHER_SET_MESSAGE_HANDLER(
+          bp, raft::log_no_entry, [this](const uint8_t* data, size_t size) {
+            ringbuffer::read_message<raft::log_no_entry>(data, size);
+            node.recover_ledger_end();
+          });
 
-          node.start_ledger_recovery();
-        }
-
-        if (ccf_config)
+        if (start_type == StartType::Join)
         {
           LOG_INFO_FMT("Node join when enclave starts running");
-          node.initiate_join({ccf_config.value()});
+          node.initiate_join({ccf_config});
+        }
+        else if (start_type == StartType::Recover)
+        {
+          node.start_ledger_recovery();
         }
 
         rpcsessions.register_message_handlers(bp.get_dispatcher());

@@ -127,7 +127,7 @@ int main(int argc, char** argv)
   app.add_option(
     "--raft-timeout-ms", raft_timeout, "Raft timeout in milliseconds", true);
 
-  // TODO: CHange default here
+  // TODO: Change default here
   size_t raft_election_timeout = 50000;
   app.add_option(
     "--raft-election-timeout-ms",
@@ -375,7 +375,7 @@ int main(int argc, char** argv)
 
   // Write the node and network certs and quote to disk.
   files::dump(node_cert, node_cert_file);
-  if (*start)
+  if (*start || *recover)
   {
     files::dump(network_cert, network_cert_file);
   }

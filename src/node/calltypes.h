@@ -27,16 +27,23 @@ namespace ccf
   {
     struct In
     {
-      // NodeInfoCreation node_info;
-      // std::vector<uint8_t> member_cert;
-      // std::string gov_script;
-
-      // std::string target_host;
-      // std::string target_port;
-      // std::vector<uint8_t> network_cert;
-
       CCFConfig config;
     };
+    struct Out
+    {
+      std::vector<uint8_t> node_cert;
+      std::vector<uint8_t> quote;
+      std::vector<uint8_t> network_cert;
+    };
+  };
+
+  struct CreateRecover
+  {
+    struct In
+    {
+      NodeInfoNetwork node_info;
+    };
+
     struct Out
     {
       std::vector<uint8_t> node_cert;

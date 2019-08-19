@@ -64,11 +64,11 @@ def check_responses(responses, result, check, check_commit):
     check_commit(responses[-1], result=result)
 
 
+# TODO: This should belong to infra.ccf.network
 def wait_for_state(node, state):
     """
     Wait for the public ledger to be read completely on a node.
     """
-    LOG.debug("Waiting until the public ledger has been read")
     for _ in range(MAX_GET_STATUS_RETRY):
         try:
             with node.management_client() as c:
@@ -126,7 +126,6 @@ def run(args):
             args.build_dir,
             args.debug_nodes,
             args.perf_nodes,
-            recovery=True,
             node_offset=(recovery_idx + 1) * len(hosts),
             pdb=args.pdb,
         ) as network:
@@ -136,15 +135,17 @@ def run(args):
                 check_commit = infra.ccf.Checker(mc)
                 check = infra.ccf.Checker()
 
-                wait_for_state(primary, b"awaitingRecovery")
-                set_recovery_nodes(network, primary, followers)
+                # TODO:
+                # 1. Find longest ledger
+                # 2. Pick that node and shutdown other nodes
+                # 3. Restart other nodes in join: the public CFTR is now started (wait until partOfPublicNetwork)
+                # 4. (DONE) Members check which nodes compose the network and vote for accept_recovery
+                # 5. (DONE) Wait for partOfNetwork
 
-                for node in followers:
-                    node.join_network(network)
-
-                LOG.success("Public CFTR started")
+                for node in network.nodes:
+                    wait_for_state(node, b"partOfPublicNetwork")
                 network.wait_for_node_commit_sync()
-                wait_for_state(primary, b"partOfPublicNetwork")
+                LOG.success("Public CFTR started")
 
                 LOG.debug(
                     "2/3 members verify that the new nodes have joined the network"
@@ -167,10 +168,10 @@ def run(args):
                 result = network.propose(
                     1, primary, "accept_recovery", f"--sealed-secrets={sealed_secrets}"
                 )
-                assert not result[1]["completed"]
-                proposal_id = result[1]["id"]
+                assert result[1]["completed"]
+                # proposal_id = result[1]["id"]
 
-                result = network.vote(2, primary, proposal_id, True)
+                # result = network.vote(2, primary, proposal_id, True)
 
                 for node in network.nodes:
                     wait_for_state(node, b"partOfNetwork")
