@@ -264,9 +264,12 @@ namespace ccf
       name << "CN=" << Actors::MANAGEMENT;
       node_cert = node_kp->self_sign(name.str());
 
-      // We present our self-signed certificate to the management frontend
+      // The node's self-signed certificate is used by clients to connect to the
+      // management frontend
       rpcsessions.add_cert(
         Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key_pem());
+
+      accept_member_connections();
 
       // Generate quote over node certificate
       // TODO: https://github.com/microsoft/CCF/issues/59
@@ -367,12 +370,12 @@ namespace ccf
             return Fail<CreateNew::Out>(
               "Genesis transaction could not be committed");
 
-          // Accept member and node connections
-          accept_member_connections();
+          // Accept node connections for other nodes to join
           accept_node_connections();
 
           // TODO: User connections should not be accepted until the network
-          // is open by the consortium
+          // is open by the consortium.
+          // https://github.com/microsoft/CCF/issues/293
           accept_user_connections();
 
           sm.advance(State::partOfNetwork);
@@ -392,7 +395,6 @@ namespace ccf
           // Create temporary network secrets but do not seal yet
           network.secrets = std::make_unique<NetworkSecrets>(
             "CN=The CA", std::make_unique<Seal>(writer_factory), false);
-          accept_member_connections();
           setup_history();
           setup_encryptor();
 
@@ -421,15 +423,12 @@ namespace ccf
       auto join_client_cert = std::make_unique<tls::Cert>(
         Actors::NODES, tls_ca, node_cert, node_kp->private_key_pem(), nullb);
 
-      // TODO: Remove this!
-      enclave::RPCContext rpc_ctx(0, nullb);
+      // TODO: The join protocol no longer needs to be synchronous
+      enclave::RPCContext rpc_ctx;
 
-      // Create and connect to endpoint
+      // Create RPC client and connect to remote node
       auto join_client =
         rpcsessions.create_client(rpc_ctx, std::move(join_client_cert));
-
-      // TODO: If the connection fails (e.g. the target node does not exist),
-      // the node should shut down
 
       join_client->connect(
         args.config.joining.target_host,
@@ -451,7 +450,7 @@ namespace ccf
           {
             LOG_FAIL_FMT(
               "An error occurred while joining the network {}", j.dump());
-            return std::nullopt;
+            return false;
           }
 
           // Set network secrets, node id and become part of network.
@@ -461,8 +460,7 @@ namespace ccf
           // the joining node can only join the public network
           bool public_only = (res.version != 0);
 
-          // In a private network, seal secrets immediately. Note that in
-          // recovery, temporary secrets are overwritten
+          // In a private network, seal secrets immediately.
           network.secrets = std::make_unique<NetworkSecrets>(
             res.version,
             res.network_secrets,
@@ -470,26 +468,16 @@ namespace ccf
             !public_only);
 
           self = res.id;
-          // TODO: This should go!
-          // if (res.version != 0 && sm.check(State::awaitingRecoveryTx))
-          // {
-          //   // If the joining node was started in recovery, truncate the
-          //   ledger
-          //   // and reset the store as we will receive the entirety of the
-          //   ledger
-          //   // from the leader
-          //   LOG_INFO_FMT("Truncating entire ledger");
-          //   log_truncate(0);
-          //   network.tables->clear();
-          // }
-          // else
+          // Do not accept user connections if the network is public only
+          if (!public_only)
           {
-            // If the node was started normally, accept all connections
-            accept_all_connections();
+            accept_user_connections();
           }
           setup_raft(public_only);
           setup_history();
           setup_encryptor();
+
+          accept_node_connections();
 
           if (public_only)
             sm.advance(State::partOfPublicNetwork);
@@ -501,7 +489,7 @@ namespace ccf
             self,
             (public_only ? "public only" : "all domains"));
 
-          return std::nullopt;
+          return true;
         });
 
       // Generate fresh key to encrypt/decrypt historical network secrets sent
