@@ -37,6 +37,7 @@ struct CCFConfig
   {
     size_t sig_max_tx;
     size_t sig_max_ms;
+    MSGPACK_DEFINE(sig_max_tx, sig_max_ms);
   };
   SignatureIntervals signature_intervals = {};
 
@@ -44,6 +45,7 @@ struct CCFConfig
   {
     std::vector<uint8_t> member_cert;
     std::string gov_script;
+    MSGPACK_DEFINE(member_cert, gov_script);
   };
   Genesis genesis = {};
 
@@ -52,8 +54,11 @@ struct CCFConfig
     std::string target_host;
     std::string target_port;
     std::vector<uint8_t> network_cert;
+    MSGPACK_DEFINE(target_host, target_port, network_cert);
   };
   Joining joining = {};
+
+  MSGPACK_DEFINE(raft_config, node_info, signature_intervals, genesis, joining);
 };
 
 /// General administrative messages

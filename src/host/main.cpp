@@ -314,13 +314,8 @@ int main(int argc, char** argv)
   enclave_config.debug_config = {memory_reserve_startup};
 #endif
 
-  raft::Config raft_config{
-    std::chrono::milliseconds(raft_timeout),
-    std::chrono::milliseconds(raft_election_timeout),
-  };
-
   CCFConfig ccf_config;
-  ccf_config.raft_config = raft_config;
+  ccf_config.raft_config = {raft_timeout, raft_election_timeout};
   ccf_config.signature_intervals = {sig_max_tx, sig_max_ms};
   ccf_config.node_info = {rpc_address.hostname,
                           public_rpc_address.hostname,
@@ -383,8 +378,9 @@ int main(int argc, char** argv)
 #ifdef GET_QUOTE
   files::dump(quote, quote_file);
 
-  if (!enclave.verify_quote(quote, node_cert))
-    LOG_FATAL_FMT("Verification of local node quote failed");
+  // TODO: Update once master is merged
+  // if (!enclave.verify_quote(quote, node_cert))
+  //   LOG_FATAL_FMT("Verification of local node quote failed");
 #endif
 
   // Start a thread which will ECall and process messages inside the enclave

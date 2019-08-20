@@ -9,20 +9,6 @@
 
 namespace ccf
 {
-  struct CreateJoin
-  {
-    struct In
-    {
-      CCFConfig config;
-    };
-
-    struct Out
-    {
-      std::vector<uint8_t> node_cert;
-      std::vector<uint8_t> quote;
-    };
-  };
-
   struct CreateNew
   {
     struct In
@@ -34,6 +20,20 @@ namespace ccf
       std::vector<uint8_t> node_cert;
       std::vector<uint8_t> quote;
       std::vector<uint8_t> network_cert;
+    };
+  };
+
+  struct CreateJoin
+  {
+    struct In
+    {
+      CCFConfig config;
+    };
+
+    struct Out
+    {
+      std::vector<uint8_t> node_cert;
+      std::vector<uint8_t> quote;
     };
   };
 

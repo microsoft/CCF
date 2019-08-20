@@ -11,7 +11,8 @@ enclave {
 
         public bool enclave_create_node(
             [user_check] void * enclave_config,
-            [user_check] void * ccf_config,
+            [user_check] char * ccf_config,
+            size_t ccf_config_size,
             [out, count=node_cert_size] uint8_t * node_cert,
             size_t node_cert_size,
             [out] size_t* node_cert_len,

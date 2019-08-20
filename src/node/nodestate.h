@@ -201,8 +201,10 @@ namespace ccf
 
       if (res != OE_OK)
       {
+        // TODO: Fix return code
         LOG_FAIL_FMT("Failed to get quote: {}", oe_result_str(res));
-        return Fail<CreateNew::Out>("oe_get_report failed");
+        // return Fail<CreateNew::Out>("oe_get_report failed");
+        return {};
       }
 
       quote.assign(report, report + report_len);
@@ -214,7 +216,9 @@ namespace ccf
       if (res != OE_OK)
       {
         LOG_FAIL_FMT("Failed to parse quote: {}", oe_result_str(res));
-        return Fail<CreateNew::Out>("oe_parse_report failed");
+        // return Fail<CreateNew::Out>("oe_parse_report failed");
+        // TODO: Fix return code
+        return {};
       }
 
       std::copy(
@@ -231,7 +235,7 @@ namespace ccf
     // funcs in state "uninitialized"
     //
     void initialize(
-      raft::Config& raft_config_,
+      const raft::Config& raft_config_,
       std::shared_ptr<NodeToNode> n2n_channels_,
       std::shared_ptr<enclave::RpcMap> rpc_map_)
     {
@@ -308,11 +312,9 @@ namespace ccf
           v->put(id_type, 0);
       }
 
-      // TODO: Should we only become TRUSTED once the member has vetted the
-      // network?
+      // TODO: Should we only become TRUSTED once the member has vetted
+      // the network?
       self = get_next_id(tx.get_view(network.values), NEXT_NODE_ID);
-
-      LOG_INFO_FMT("Setting self as {}", self);
 
       // Nodes
       nodes_view->put(
@@ -331,7 +333,7 @@ namespace ccf
       auto member_id = get_next_id(tx.get_view(network.values), NEXT_MEMBER_ID);
       // TODO: Status can be active straight away?
       members_view->put(member_id, {MemberStatus::ACTIVE, {}});
-      member_certs_view->put({}, member_id);
+      member_certs_view->put(args.config.genesis.member_cert, member_id);
 
       // Whitelists
       for (const auto& wl : default_whitelists)
@@ -446,6 +448,11 @@ namespace ccf
       auto join_client_cert = std::make_unique<tls::Cert>(
         Actors::NODES, tls_ca, node_cert, node_kp->private_key_pem(), nullb);
 
+      std::cout << "caller_cert: ";
+        for (int i = 0; i < node_cert.size(); i++)
+          std::cout << std::hex << (int)node_cert[i];
+        std::cout << std::dec << std::endl;
+
       enclave::RPCContext rpc_ctx(0, nullb);
 
       // Create and connect to endpoint
@@ -460,8 +467,6 @@ namespace ccf
         args.config.joining.target_port,
         [this](const std::vector<uint8_t>& data) {
           auto j = jsonrpc::unpack(data, jsonrpc::Pack::MsgPack);
-
-          LOG_INFO << j.dump() << std::endl;
 
           // Check that the response is valid.
           try
@@ -491,6 +496,7 @@ namespace ccf
             !public_only);
 
           self = res.id;
+          // TODO: This should go!
           if (res.version != 0 && sm.check(State::awaitingRecoveryTx))
           {
             // If the joining node was started in recovery, truncate the ledger
@@ -1417,8 +1423,8 @@ namespace ccf
         std::make_unique<raft::LedgerEnclave>(writer_factory),
         n2n_channels,
         self,
-        raft_config.requestTimeout,
-        raft_config.electionTimeout,
+        std::chrono::milliseconds(raft_config.requestTimeout),
+        std::chrono::milliseconds(raft_config.electionTimeout),
         public_only);
 #else
       raft = std::make_shared<pbft::NullReplicator>(n2n_channels, self);

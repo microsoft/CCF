@@ -5,6 +5,7 @@
 #include "enclave.h"
 
 #include <chrono>
+#include <msgpack.hpp>
 
 // the central enclave object
 static SpinLock create_lock;
@@ -17,7 +18,8 @@ extern "C"
 {
   bool enclave_create_node(
     void* enclave_config,
-    void* ccf_config,
+    char* ccf_config,
+    size_t ccf_config_size,
     uint8_t* node_cert,
     size_t node_cert_size,
     size_t* node_cert_len,
@@ -35,22 +37,38 @@ extern "C"
       return false;
 
     EnclaveConfig* ec = (EnclaveConfig*)enclave_config;
-    CCFConfig* cc = (CCFConfig*)ccf_config;
+
+    msgpack::object_handle oh = msgpack::unpack(ccf_config, ccf_config_size);
+    msgpack::object obj = oh.get();
+    CCFConfig cc;
+    obj.convert(cc);
+
+    std::cout << "Raft: " << cc.raft_config.electionTimeout << "/"
+              << cc.raft_config.electionTimeout << std::endl;
+    std::cout << "node_info: " << cc.node_info.host << "/"
+              << cc.node_info.nodeport << "/" << cc.node_info.pubhost << "/"
+              << cc.node_info.rpcport << std::endl;
+    std::cout << "Signature Intervals: " << cc.signature_intervals.sig_max_ms
+              << "/" << cc.signature_intervals.sig_max_tx << std::endl;
+    // std::cout << "Genesis: " << cc.genesis.gov_script << std::endl;
+    // std::cout << "Joining: " << cc.joining.target_host << "/"
+    //           << cc.joining.target_port << std::endl;
 
 #ifdef DEBUG_CONFIG
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];
 #endif
 
-    e = new enclave::Enclave(ec, cc->signature_intervals, cc->raft_config);
+    std::cout << "About to create enclave" << std::endl;
+    e = new enclave::Enclave(ec, cc.signature_intervals, cc.raft_config);
 
-    LOG_INFO << "Starting node in starting mode: " << start_type << std::endl;
+    std::cout << "Starting node in mode: " << start_type << std::endl;
 
     bool ret;
     switch (start_type)
     {
       case StartType::Start:
         ret = e->create_new_node(
-          *cc,
+          cc,
           node_cert,
           node_cert_size,
           node_cert_len,
@@ -64,7 +82,7 @@ extern "C"
 
       case StartType::Join:
         ret = e->create_join_node(
-          *cc,
+          cc,
           node_cert,
           node_cert_size,
           node_cert_len,
@@ -75,7 +93,7 @@ extern "C"
 
       case StartType::Recover:
         ret = e->create_recover_node(
-          *cc,
+          cc,
           node_cert,
           node_cert_size,
           node_cert_len,

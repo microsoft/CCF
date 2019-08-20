@@ -34,7 +34,7 @@ namespace ccf
     std::vector<uint8_t> quote;
     NodeStatus status = NodeStatus::PENDING;
 
-    MSGPACK_DEFINE(host, pubhost, nodeport, rpcport, cert, quote, status);
+    MSGPACK_DEFINE(MSGPACK_BASE(NodeInfoNetwork), cert, quote, status);
   };
   DECLARE_JSON_TYPE_WITH_BASE(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfo, cert, quote, status);

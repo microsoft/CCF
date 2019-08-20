@@ -26,9 +26,9 @@ namespace ccf
   private:
     static QuoteVerificationResult verify_enclave_measurement(
       Store::Tx& tx,
-      NetworkTables& network,
-      Cert& cert,
-      oe_report_t& parsed_quote)
+      const NetworkTables& network,
+      const Cert& cert,
+      const oe_report_t& parsed_quote)
     {
       // Verify enclave measurement
       auto codeid_view = tx.get_view(network.code_id);
@@ -58,7 +58,7 @@ namespace ccf
     }
 
     static bool verify_quote_oe(
-      std::vector<uint8_t> quote, oe_report_t& parsed_quote)
+      const std::vector<uint8_t>& quote, oe_report_t& parsed_quote)
     {
       // Parse quote and verify quote data
       oe_result_t result =
@@ -75,9 +75,9 @@ namespace ccf
   public:
     static QuoteVerificationResult verify_quote(
       Store::Tx& tx,
-      NetworkTables& network,
-      std::vector<uint8_t>& quote,
-      Cert& cert)
+      const NetworkTables& network,
+      const std::vector<uint8_t>& quote,
+      const Cert& cert)
     {
       // Parse quote and verify quote data
       oe_report_t parsed_quote = {0};

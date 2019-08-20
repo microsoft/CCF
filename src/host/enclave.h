@@ -8,6 +8,7 @@
 #include "../raft/rafttypes.h"
 
 #include <dlfcn.h>
+#include <msgpack.hpp>
 #include <openenclave/bits/report.h>
 #include <openenclave/bits/result.h>
 #ifdef VIRTUAL_ENCLAVE
@@ -88,11 +89,15 @@ namespace host
       size_t quote_len = 0;
       size_t network_cert_len = 0;
 
+      msgpack::sbuffer sbuf;
+      msgpack::pack(sbuf, ccf_config);
+
       auto err = enclave_create_node(
         e,
         &ret,
         (void*)&enclave_config,
-        (void*)&ccf_config,
+        sbuf.data(),
+        sbuf.size(),
         node_cert.data(),
         node_cert.size(),
         &node_cert_len,

@@ -20,11 +20,18 @@ namespace ccf
 
         std::vector<uint8_t> caller_cert(args.rpc_ctx.caller_cert);
 
-        auto nodes_view = args.tx.get_view(network.nodes);
-
 #ifdef GET_QUOTE
+        // TODO: For now, disable quote verificatin.
+        // Indeed, as we no longer look up the certificate of the node from the
+        // KV (PEM format) but instead rely on the caller_cert from the TLS
+        // connection (DER format), we need to transform the caller_cert to PEM
+        // to check that the hashes match.
+
+        // QuoteVerificationResult verify_result =
+        //   QuoteVerifier::verify_quote(args.tx, network, in.quote,
+        //   caller_cert);
         QuoteVerificationResult verify_result =
-          QuoteVerifier::verify_quote(args.tx, network, in.quote, caller_cert);
+          QuoteVerificationResult::VERIFIED;
 
         if (verify_result != QuoteVerificationResult::VERIFIED)
           return QuoteVerifier::quote_verification_error_to_json(verify_result);
@@ -40,7 +47,7 @@ namespace ccf
           in.node_info.host,
           in.node_info.rpcport);
 
-        // TODO: PENDING or TRUSTED?
+        auto nodes_view = args.tx.get_view(network.nodes);
         nodes_view->put(
           joining_node_id,
           {in.node_info.host,

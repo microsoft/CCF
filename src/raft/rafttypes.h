@@ -19,8 +19,9 @@ namespace raft
 
   struct Config
   {
-    std::chrono::milliseconds requestTimeout;
-    std::chrono::milliseconds electionTimeout;
+    size_t requestTimeout;
+    size_t electionTimeout;
+    MSGPACK_DEFINE(requestTimeout, electionTimeout);
   };
 
   template <typename S>

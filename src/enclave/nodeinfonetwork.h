@@ -6,6 +6,7 @@
 
 #include "ds/json.h"
 
+#include <msgpack.hpp>
 #include <string>
 
 struct NodeInfoNetwork
@@ -14,6 +15,8 @@ struct NodeInfoNetwork
   std::string pubhost;
   std::string nodeport;
   std::string rpcport;
+
+  MSGPACK_DEFINE(host, pubhost, nodeport, rpcport);
 };
 DECLARE_JSON_TYPE(NodeInfoNetwork);
 DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork, host, pubhost, nodeport, rpcport);

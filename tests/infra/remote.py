@@ -598,6 +598,7 @@ class CCFRemote(object):
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(host_log_level)
         if oe_log_level:
             env["OE_LOG_LEVEL"] = oe_log_level
+        env["HOME"] = os.environ["HOME"]
 
         self.remote = remote_class(
             local_node_id, host, exe_files, data_files, cmd, workspace, label, env

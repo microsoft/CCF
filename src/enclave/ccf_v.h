@@ -56,7 +56,8 @@ extern "C"
 
   using create_node_func_t = bool (*)(
     void*,
-    void*,
+    char*,
+    size_t,
     uint8_t*,
     size_t,
     size_t*,
@@ -94,7 +95,8 @@ extern "C"
     oe_enclave_t* enclave,
     bool* _retval,
     void* enclave_config,
-    void* ccf_config,
+    char* ccf_config,
+    size_t ccf_config_size,
     uint8_t* node_cert,
     size_t node_cert_size,
     size_t* node_cert_len,
@@ -114,6 +116,7 @@ extern "C"
     *_retval = create_node_func(
       enclave_config,
       ccf_config,
+      ccf_config_size,
       node_cert,
       node_cert_size,
       node_cert_len,

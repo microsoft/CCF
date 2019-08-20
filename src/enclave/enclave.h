@@ -41,8 +41,8 @@ namespace enclave
   public:
     Enclave(
       EnclaveConfig* enclave_config,
-      CCFConfig::SignatureIntervals& signature_intervals,
-      raft::Config& raft_config) :
+      const CCFConfig::SignatureIntervals& signature_intervals,
+      const raft::Config& raft_config) :
       circuit(enclave_config->circuit),
       writer_factory(circuit, enclave_config->writer_config),
       rpcsessions(writer_factory),
