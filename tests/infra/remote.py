@@ -42,7 +42,7 @@ def coverage_enabled(bin):
 
 
 def _append_logs_to_analytics(file, analytics_file):
-    with open(analytics_file, "a") as af:
+    with open(analytics_file, "aw") as af:
         with open(file, "r") as f:
             af.write(f.read())
 
