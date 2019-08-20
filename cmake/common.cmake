@@ -88,6 +88,10 @@ option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
 option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
+option(AZURE_LOG_ANALYTICS "Enable azure analytics log collection" OFF)
+if (AZURE_LOG_ANALYTICS)
+    set(LOG_PATH "--log-path" "/var/log/ccf")
+endif()
 
 option(PBFT "Enable PBFT" OFF)
 if (PBFT)
@@ -629,7 +633,7 @@ function(add_e2e_test)
         --label ${PARSED_ARGS_NAME}
         ${CCF_NETWORK_TEST_ARGS}
         ${PARSED_ARGS_ADDITIONAL_ARGS}
-        --log-path /var/log/ccf
+        ${LOG_PATH}
     )
 
     ## Make python test client framework importable
@@ -678,7 +682,7 @@ function(add_perf_test)
       ${PARSED_ARGS_ADDITIONAL_ARGS}
       --write-tx-times
       ${VERIFICATION_ARG}
-      --log-path /var/log/ccf
+      ${LOG_PATH}
   )
 
   ## Make python test client framework importable
