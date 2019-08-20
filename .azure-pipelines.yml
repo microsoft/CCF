@@ -54,7 +54,7 @@ jobs:
       submodules: true
     - template: .azure-pipelines-templates/build.yml
       parameters:
-        cmake_args: '-DBUILD_SMALLBANK=OFF'
+        cmake_args: '-DBUILD_SMALLBANK=OFF -DAZURE_LOG_ANALYTICS=ON'
     - template: .azure-pipelines-templates/publish_build.yml
       parameters:
         artifact_name: build_results
@@ -115,7 +115,7 @@ jobs:
       submodules: true
     - template: .azure-pipelines-templates/build.yml
       parameters:
-        cmake_args: '-DBUILD_SMALLBANK=ON -DSERVICE_IDENTITY_CURVE_CHOICE=secp256k1_bitcoin'
+        cmake_args: '-DBUILD_SMALLBANK=ON -DSERVICE_IDENTITY_CURVE_CHOICE=secp256k1_bitcoin -DAZURE_LOG_ANALYTICS=ON'
     - template: .azure-pipelines-templates/publish_build.yml
       parameters:
         artifact_name: perf_build_results

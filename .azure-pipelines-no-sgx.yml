@@ -78,7 +78,7 @@ jobs:
     # Actual coverage build steps starts here
     - template: .azure-pipelines-templates/build.yml
       parameters:
-        cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DCOVERAGE=ON'
+        cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DCOVERAGE=ON -DAZURE_LOG_ANALYTICS=ON'
 
     - template: .azure-pipelines-templates/test.yml
       parameters:
@@ -104,7 +104,7 @@ jobs:
 
     - template: .azure-pipelines-templates/build.yml
       parameters:
-        cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DSAN=ON'
+        cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DSAN=ON -DAZURE_LOG_ANALYTICS=ON'
 
     - template: .azure-pipelines-templates/test.yml
       parameters:
