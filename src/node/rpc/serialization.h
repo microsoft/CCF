@@ -22,9 +22,6 @@ namespace ccf
   DECLARE_JSON_TYPE(GetSignedIndex::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetSignedIndex::Out, state, signed_index)
 
-  DECLARE_JSON_TYPE(SetRecoveryNodes::In)
-  DECLARE_JSON_REQUIRED_FIELDS(SetRecoveryNodes::In, nodes)
-
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetQuotes::Quote)
   DECLARE_JSON_REQUIRED_FIELDS(GetQuotes::Quote, node_id, raw)
   DECLARE_JSON_OPTIONAL_FIELDS(GetQuotes::Quote, error, mrenclave)
@@ -36,7 +33,7 @@ namespace ccf
 
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::In)
   DECLARE_JSON_REQUIRED_FIELDS(
-    JoinNetworkNodeToNode::In, raw_fresh_key, node_info, quote)
+    JoinNetworkNodeToNode::In, raw_fresh_key, node_info_network, quote)
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(
     JoinNetworkNodeToNode::Out, id, network_secrets, version)

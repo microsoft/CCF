@@ -26,6 +26,7 @@ namespace ccf
     };
   };
 
+  // TODO: Fix this
   struct CreateJoin
   {
     struct In
@@ -40,20 +41,6 @@ namespace ccf
     };
   };
 
-  struct CreateRecover
-  {
-    struct In
-    {
-      NodeInfoNetwork node_info;
-    };
-
-    struct Out
-    {
-      std::vector<uint8_t> node_cert;
-      std::vector<uint8_t> quote;
-      std::vector<uint8_t> network_cert;
-    };
-  };
 
   // TODO: It seems that we still use this for add_node in memberfrontend.h
   struct JoinNetwork
@@ -91,16 +78,6 @@ namespace ccf
     };
   };
 
-  struct SetRecoveryNodes
-  {
-    struct In
-    {
-      std::vector<NodeInfo> nodes;
-    };
-
-    using Out = void;
-  };
-
   struct GetQuotes
   {
     using In = void;
@@ -125,7 +102,7 @@ namespace ccf
     struct In
     {
       std::vector<uint8_t> raw_fresh_key;
-      NodeInfoNetwork node_info;
+      NodeInfoNetwork node_info_network;
       std::vector<uint8_t> quote;
     };
 

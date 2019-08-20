@@ -99,6 +99,7 @@ namespace ccf
     {
       uninitialized,
       initialized,
+      started,
       partOfPublicNetwork,
       partOfNetwork,
       readingPublicLedger,
@@ -311,10 +312,10 @@ namespace ccf
           // Nodes
           nodes_view->put(
             self,
-            {args.config.node_info.host,
-             args.config.node_info.pubhost,
-             args.config.node_info.nodeport,
-             args.config.node_info.rpcport,
+            {args.config.node_info_network.host,
+             args.config.node_info_network.pubhost,
+             args.config.node_info_network.nodeport,
+             args.config.node_info_network.rpcport,
              node_cert,
              quote,
              NodeStatus::PENDING});
@@ -381,13 +382,20 @@ namespace ccf
         }
         case StartType::Join:
         {
+          sm.advance(State::started);
           return Success<CreateNew::Out>({node_cert, quote});
         }
         case StartType::Recover:
         {
-          node_info_network = args.config.node_info;
+          node_info_network = args.config.node_info_network;
 
-          init_public_ledger_recovery();
+          // Create temporary network secrets but do not seal yet
+          network.secrets = std::make_unique<NetworkSecrets>(
+            "CN=The CA", std::make_unique<Seal>(writer_factory), false);
+          accept_member_connections();
+          setup_history();
+          setup_encryptor();
+
           sm.advance(State::readingPublicLedger);
 
           return Success<CreateNew::Out>(
@@ -400,9 +408,15 @@ namespace ccf
       }
     }
 
+    //
+    // funcs in state "started"
+    //
     void initiate_join(const CreateJoin::In& args)
     {
-      // Peer certificate needs to be signed by network certificate
+      std::lock_guard<SpinLock> guard(lock);
+      sm.expect(State::started);
+
+      // Peer certificate needs to be signed by specified network certificate
       auto tls_ca = std::make_shared<tls::CA>(args.config.joining.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
         Actors::NODES, tls_ca, node_cert, node_kp->private_key_pem(), nullb);
@@ -421,6 +435,9 @@ namespace ccf
         args.config.joining.target_host,
         args.config.joining.target_port,
         [this](const std::vector<uint8_t>& data) {
+          std::lock_guard<SpinLock> guard(lock);
+          sm.expect(State::started);
+
           auto j = jsonrpc::unpack(data, jsonrpc::Pack::MsgPack);
 
           std::cout << j.dump() << std::endl;
@@ -456,8 +473,10 @@ namespace ccf
           // TODO: This should go!
           // if (res.version != 0 && sm.check(State::awaitingRecoveryTx))
           // {
-          //   // If the joining node was started in recovery, truncate the ledger
-          //   // and reset the store as we will receive the entirety of the ledger
+          //   // If the joining node was started in recovery, truncate the
+          //   ledger
+          //   // and reset the store as we will receive the entirety of the
+          //   ledger
           //   // from the leader
           //   LOG_INFO_FMT("Truncating entire ledger");
           //   log_truncate(0);
@@ -494,7 +513,7 @@ namespace ccf
       join_rpc.id = 1;
       join_rpc.method = ccf::NodeProcs::JOIN;
       join_rpc.params.raw_fresh_key = raw_fresh_key;
-      join_rpc.params.node_info = args.config.node_info;
+      join_rpc.params.node_info_network = args.config.node_info_network;
 
       // TODO: For now, regenerate the quote from before. This is okay since the
       // quote generation will change anyway and the quote will not be returned
@@ -597,9 +616,6 @@ namespace ccf
 
       network.secrets->promote_secrets(0, ls_idx + 1);
 
-      // TODO: Start public network ()
-      // Delete existing nodes, add self
-      LOG_INFO_FMT("About to start recovered network");
       start_recovered_network(tx);
 
       if (tx.commit() != kv::CommitSuccess::OK)
@@ -743,9 +759,6 @@ namespace ccf
       });
     };
 
-    //
-    // funcs in state "awaitingRecoveryTx"
-    //
     std::string start_recovered_network(Store::Tx& tx)
     {
       auto [nodes_view, values_view, node_certs_view, sigs_view] = tx.get_view(

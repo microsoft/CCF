@@ -317,10 +317,10 @@ int main(int argc, char** argv)
   CCFConfig ccf_config;
   ccf_config.raft_config = {raft_timeout, raft_election_timeout};
   ccf_config.signature_intervals = {sig_max_tx, sig_max_ms};
-  ccf_config.node_info = {rpc_address.hostname,
-                          public_rpc_address.hostname,
-                          node_address.port,
-                          rpc_address.port};
+  ccf_config.node_info_network = {rpc_address.hostname,
+                                  public_rpc_address.hostname,
+                                  node_address.port,
+                                  rpc_address.port};
 
   if (*start)
   {

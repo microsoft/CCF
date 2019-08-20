@@ -45,9 +45,10 @@ extern "C"
 
     std::cout << "Raft: " << cc.raft_config.election_timeout << "/"
               << cc.raft_config.election_timeout << std::endl;
-    std::cout << "node_info: " << cc.node_info.host << "/"
-              << cc.node_info.nodeport << "/" << cc.node_info.pubhost << "/"
-              << cc.node_info.rpcport << std::endl;
+    std::cout << "node_info: " << cc.node_info_network.host << "/"
+              << cc.node_info_network.nodeport << "/"
+              << cc.node_info_network.pubhost << "/"
+              << cc.node_info_network.rpcport << std::endl;
     std::cout << "Signature Intervals: " << cc.signature_intervals.sig_max_ms
               << "/" << cc.signature_intervals.sig_max_tx << std::endl;
     // std::cout << "Genesis: " << cc.genesis.gov_script << std::endl;

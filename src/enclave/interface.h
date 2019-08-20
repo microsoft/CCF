@@ -31,7 +31,7 @@ struct EnclaveConfig
 struct CCFConfig
 {
   raft::Config raft_config = {};
-  NodeInfoNetwork node_info = {};
+  NodeInfoNetwork node_info_network = {};
 
   struct SignatureIntervals
   {
@@ -58,7 +58,8 @@ struct CCFConfig
   };
   Joining joining = {};
 
-  MSGPACK_DEFINE(raft_config, node_info, signature_intervals, genesis, joining);
+  MSGPACK_DEFINE(
+    raft_config, node_info_network, signature_intervals, genesis, joining);
 };
 
 /// General administrative messages
