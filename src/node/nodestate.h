@@ -557,196 +557,9 @@ namespace ccf
       join_client->send(join_req);
     }
 
-    //
-    // funcs in state "started"
-    //
-    auto start_network(Store::Tx& tx, const StartNetwork::In& args)
-    {
-      //       // TODO(#important,#TR): Service start-up protocol should be
-      //       updated in
-      //       // line with the paper (section IV-B) to provide more flexibility
-      //       and
-      //       // record in the ledger the state of the service (booting ->
-      //       opening ->
-      //       // open -> closed).
-      //       std::lock_guard<SpinLock> guard(lock);
-      //       sm.expect(State::started);
 
-      // Create fresh network secrets and seal
-      network.secrets = std::make_unique<NetworkSecrets>(
-        "CN=The CA", std::make_unique<Seal>(writer_factory));
 
-      //       accept_all_connections();
-      //       self = args.id;
-      //       setup_raft();
-      // #ifndef PBFT
-      //       // In the case of PBFT, the history was already setup when the
-      //       node was
-      //       // created.
-      //       // TODO(#PBFT): When/if we stop using the history to register
-      //       PBFT
-      //       // callbacks, we should be able to initialise the history as late
-      //       as here. setup_history();
-      // #endif
-      //       setup_encryptor();
 
-      //       // Before loading the initial transaction, its integrity needs to
-      //       be
-      //       // protected since deserialise only accepts protected entries.
-      //       StoreSerialiser s(encryptor, 1);
-      //       auto protected_tx0 = s.serialise_domains(args.tx0);
-
-      //       // Load initial transaction (may affect CCF and app tables).
-      //       if (
-      //         network.tables->deserialise(protected_tx0) ==
-      //         kv::DeserialiseSuccess::FAILED)
-      //         return Fail<StartNetwork::Out>("Deserialisation of tx0
-      //         failed");
-
-      //       // Become the leader and force replication.
-      //       raft->force_become_leader();
-      //       raft->replicate({{1, protected_tx0, true}});
-
-      // Network signs tx0.
-      auto keys = tls::make_key_pair({network.secrets->get_current().priv_key});
-      auto tx0Sig = keys->sign(args.tx0);
-
-      //       // Sets itself as trusted.
-      //       auto nodes_view = tx.get_view(network.nodes);
-      //       auto leader_info = nodes_view->get(self).value();
-      //       leader_info.status = NodeStatus::TRUSTED;
-      //       nodes_view->put(self, leader_info);
-
-      // #ifdef GET_QUOTE
-      //       if (!trust_own_code_id(tx, self))
-      //         return Fail<StartNetwork::Out>("Parsing quote of starting node
-      //         failed");
-      // #endif
-
-      //       sm.advance(State::partOfNetwork);
-
-      return Success<StartNetwork::Out>(
-        {std::string(
-           network.secrets->get_current().cert.data(),
-           network.secrets->get_current().cert.data() +
-             network.secrets->get_current().cert.size()),
-         tx0Sig});
-    }
-
-    void join_network(enclave::RPCContext& rpc_ctx, const JoinNetwork::In& args)
-    {
-      std::lock_guard<SpinLock> guard(lock);
-
-      // if (!sm.check(State::started) && !sm.check(State::awaitingRecoveryTx))
-      //   throw std::logic_error("Unexpected state before joining network");
-
-      // // Peer certificate needs to be signed by network certificate
-      // auto tls_ca = std::make_shared<tls::CA>(args.network_cert);
-      // auto join_client_cert = std::make_unique<tls::Cert>(
-      //   Actors::NODES, tls_ca, node_cert, node_kp->private_key_pem(), nullb);
-
-      // // Create and connect to endpoint
-      // auto join_client =
-      //   rpcsessions.create_client(rpc_ctx, std::move(join_client_cert));
-
-      // // Only reply to the client when the leader has responded
-      // rpc_ctx.is_pending = true;
-
-      // join_client->connect(
-      //   args.hostname,
-      //   args.service,
-      //   [this, rpc_ctx](const std::vector<uint8_t>& data) {
-      //     auto j = jsonrpc::unpack(data, jsonrpc::Pack::MsgPack);
-
-      //     // Check that the response is valid.
-      //     try
-      //     {
-      //       auto resp = jsonrpc::Response<JoinNetworkNodeToNode::Out>(j);
-      //     }
-      //     catch (const std::exception& e)
-      //     {
-      //       return std::make_pair(
-      //         rpc_ctx.is_pending,
-      //         jsonrpc::pack(
-      //           jsonrpc::error_response(
-      //             rpc_ctx.req.seq_no,
-      //             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-      //             "An error occured while joining the network"),
-      //           rpc_ctx.pack.value()));
-      //     }
-
-      //     // Set network secrets, node id and become part of network.
-      //     auto res = j.at(jsonrpc::RESULT).get<JoinNetworkNodeToNode::Out>();
-
-      //     // If the current network secrets do not apply since the genesis,
-      //     the
-      //     // joining node can only join the public network
-      //     bool public_only = (res.version != 0);
-
-      //     // In a private network, seal secrets immediately. Note that in
-      //     // recovery, temporary secrets are overwritten
-      //     network.secrets = std::make_unique<NetworkSecrets>(
-      //       res.version,
-      //       res.network_secrets,
-      //       std::make_unique<Seal>(writer_factory),
-      //       !public_only);
-
-      //     self = res.id;
-      //     if (res.version != 0 && sm.check(State::awaitingRecoveryTx))
-      //     {
-      //       // If the joining node was started in recovery, truncate the
-      //       ledger
-      //       // and reset the store as we will receive the entirety of the
-      //       ledger
-      //       // from the leader
-      //       LOG_INFO_FMT("Truncating entire ledger");
-      //       log_truncate(0);
-      //       network.tables->clear();
-      //     }
-      //     else
-      //     {
-      //       // If the node was started normally, accept all connections
-      //       accept_all_connections();
-      //     }
-      //     setup_raft(public_only);
-      //     setup_history();
-      //     setup_encryptor();
-
-      //     if (public_only)
-      //       sm.advance(State::partOfPublicNetwork);
-      //     else
-      //       sm.advance(State::partOfNetwork);
-
-      //     LOG_INFO_FMT(
-      //       "Node has now joined the network as node {}: {}",
-      //       self,
-      //       (public_only ? "public only" : "all domains"));
-
-      //     jsonrpc::Response<JoinNetwork::Out> join_rpc_resp;
-      //     join_rpc_resp.id = rpc_ctx.req.seq_no;
-      //     join_rpc_resp.result.id = self;
-
-      //     return std::make_pair(
-      //       rpc_ctx.is_pending,
-      //       jsonrpc::pack(join_rpc_resp, rpc_ctx.pack.value()));
-      //   });
-
-      // // Generate fresh key to encrypt/decrypt historical network secrets
-      // sent
-      // // by the leader via the kv store
-      // raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
-
-      // // Send RPC request to remote node to join the network.
-      // jsonrpc::ProcedureCall<JoinNetworkNodeToNode::In> join_rpc;
-      // join_rpc.id = 1;
-      // join_rpc.method = ccf::NodeProcs::JOIN;
-      // join_rpc.params.raw_fresh_key = raw_fresh_key;
-
-      // auto join_req =
-      //   jsonrpc::pack(nlohmann::json(join_rpc), jsonrpc::Pack::MsgPack);
-
-      // join_client->send(join_req);
-    }
 
     // TODO(#important,#TR): Once start-up protocol is updated, the recovery
     // protocol could be refactored to be in line with start-up protocol
@@ -772,7 +585,7 @@ namespace ccf
       read_ledger_idx(++ledger_idx);
     }
 
-    void recover_public_ledger_entry(std::vector<uint8_t> ledger_entry)
+    void recover_public_ledger_entry(std::vector<uint8_t>& ledger_entry)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::readingPublicLedger);
@@ -1423,8 +1236,8 @@ namespace ccf
         std::make_unique<raft::LedgerEnclave>(writer_factory),
         n2n_channels,
         self,
-        std::chrono::milliseconds(raft_config.requestTimeout),
-        std::chrono::milliseconds(raft_config.electionTimeout),
+        std::chrono::milliseconds(raft_config.request_timeout),
+        std::chrono::milliseconds(raft_config.election_timeout),
         public_only);
 #else
       raft = std::make_shared<pbft::NullReplicator>(n2n_channels, self);

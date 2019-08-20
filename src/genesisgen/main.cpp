@@ -153,10 +153,6 @@ int main(int argc, char** argv)
     "Path to which the serialised genesis transaction will be written",
     true);
 
-  string start_json = "startNetwork.json";
-  tx_cmd->add_option(
-    "--start-json", start_json, "Start network RPC as a JSON file", true);
-
   string gov_script = "gov.lua";
   tx_cmd
     ->add_option(
@@ -172,25 +168,6 @@ int main(int argc, char** argv)
     app_script,
     "Path to Lua file that defines the contents of the app_scripts table",
     false);
-
-  // Join network RPC generation
-  auto join_rpc = app.add_subcommand("joinrpc", "Create join RPC");
-  string network_cert_file = "networkcert.pem";
-
-  join_rpc->add_option(
-    "--network-cert",
-    network_cert_file,
-    "Network certificate required for joining nodes to verify identity of "
-    "network",
-    true);
-
-  cli::ParsedAddress join_target_address;
-  auto server_addr_opt = cli::add_address_option(
-    app, join_target_address, "--target-address", "Target node address");
-
-  string join_json = "joinNetwork.json";
-  join_rpc->add_option(
-    "--join-json", join_json, "Join network RPC as a JSON file", true);
 
   CLI11_PARSE(app, argc, argv);
 
@@ -230,21 +207,7 @@ int main(int argc, char** argv)
       g.set_app_scripts(lua::Interpreter().invoke<nlohmann::json>(
         files::slurp_string(app_script)));
 
-    g.finalize(tx0_file, start_json);
-  }
-  else if (*join_rpc)
-  {
-    // Network certificate is required for joining nodes to verify the identity
-    // of the network. Also read the genesis transaction to find out about all
-    // nodes in the network.
-    auto network_cert = files::slurp(network_cert_file);
-    GenesisGenerator g;
-
-    g.create_join_rpc(
-      join_target_address.hostname,
-      join_target_address.port,
-      join_json,
-      network_cert);
+    g.finalize(tx0_file);
   }
 
   cout << "Done." << endl;

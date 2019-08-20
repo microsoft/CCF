@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cstdint>
 #include <limits>
+#include <msgpack.hpp>
 
 namespace raft
 {
@@ -19,9 +20,9 @@ namespace raft
 
   struct Config
   {
-    size_t requestTimeout;
-    size_t electionTimeout;
-    MSGPACK_DEFINE(requestTimeout, electionTimeout);
+    size_t request_timeout;
+    size_t election_timeout;
+    MSGPACK_DEFINE(request_timeout, election_timeout);
   };
 
   template <typename S>

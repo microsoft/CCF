@@ -8,11 +8,6 @@
 
 namespace ccf
 {
-  DECLARE_JSON_TYPE(StartNetwork::In)
-  DECLARE_JSON_REQUIRED_FIELDS(StartNetwork::In, tx0, id)
-  DECLARE_JSON_TYPE(StartNetwork::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(StartNetwork::Out, network_cert, tx0_sig)
-
   DECLARE_JSON_TYPE(JoinNetwork::In)
   DECLARE_JSON_REQUIRED_FIELDS(JoinNetwork::In, network_cert, hostname, service)
   DECLARE_JSON_TYPE(JoinNetwork::Out)

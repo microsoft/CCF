@@ -43,8 +43,8 @@ extern "C"
     CCFConfig cc;
     obj.convert(cc);
 
-    std::cout << "Raft: " << cc.raft_config.electionTimeout << "/"
-              << cc.raft_config.electionTimeout << std::endl;
+    std::cout << "Raft: " << cc.raft_config.election_timeout << "/"
+              << cc.raft_config.election_timeout << std::endl;
     std::cout << "node_info: " << cc.node_info.host << "/"
               << cc.node_info.nodeport << "/" << cc.node_info.pubhost << "/"
               << cc.node_info.rpcport << std::endl;

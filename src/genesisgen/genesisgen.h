@@ -60,8 +60,7 @@ public:
     return vtx0;
   }
 
-  bool finalize(
-    const std::string& tx0_file, const std::string& start_network_file)
+  bool finalize(const std::string& tx0_file)
   {
     auto vtx0 = finalize_raw();
     // write tx0
@@ -69,43 +68,7 @@ public:
     std::string sd(vtx0.begin(), vtx0.end());
     otx0.write((char*)sd.data(), sd.size());
 
-    ccf::Store::Tx tx;
-    auto nodes_view = tx.get_view(nodes);
-    // write startNetwork rpc
-    jsonrpc::ProcedureCall<ccf::StartNetwork::In> rpc;
-    rpc.id = 1;
-    rpc.method = ccf::ManagementProcs::START_NETWORK;
-    rpc.params.tx0 = vtx0;
-    ccf::NodeId start_node = ccf::INVALID_ID;
-
-    nodes_view->foreach(
-      [&start_node](const ccf::NodeId& id, const ccf::NodeInfo& v) {
-        start_node = id;
-        return false;
-      });
-
-    rpc.params.id = start_node;
-    std::ofstream ostartnet(start_network_file, std::ios::trunc);
-    ostartnet << nlohmann::json(rpc);
-
     return true;
-  }
-
-  void create_join_rpc(
-    const std::string join_host,
-    const std::string join_port,
-    const std::string& join_network_file,
-    const std::vector<uint8_t>& network_cert)
-  {
-    jsonrpc::ProcedureCall<ccf::JoinNetwork::In> rpc;
-    rpc.id = 1;
-    rpc.method = ccf::ManagementProcs::JOIN_NETWORK;
-    rpc.params.hostname = join_host;
-    rpc.params.service = join_port;
-    rpc.params.network_cert = network_cert;
-
-    std::ofstream ojoinnet(join_network_file, std::ios::trunc);
-    ojoinnet << nlohmann::json(rpc);
   }
 
   auto add_member(

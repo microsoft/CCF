@@ -697,37 +697,8 @@ class Node:
 
     def is_joined(self):
         return self.network_state == NodeNetworkState.joined
+        # TODO: Address network_state - what is it used for?
 
-    # TODO: Address network_state - what is it used for?
-    # def start_network(self, network):
-    #     infra.proc.ccall(
-    #         "./client",
-    #         f"--server-address={self.host}:{self.rpc_port}",
-    #         f"--ca={self.remote.pem}",
-    #         "startnetwork",
-    #         "--req=@startNetwork.json",
-    #     ).check_returncode()
-    #     LOG.info("Started Network")
-    #     with open("networkcert.pem", mode="rb") as cafile:
-    #         network.net_cert = list(cafile.read())
-
-    # def complete_join_network(self):
-    #     LOG.info("Joining Network")
-    #     self.network_state = NodeNetworkState.joined
-
-    # def join_network(self, network):
-    #     leader, term = network.find_leader()
-    #     with self.management_client(format="json") as c:
-    #         res = c.rpc(
-    #             "joinNetwork",
-    #             {
-    #                 "hostname": leader.host,
-    #                 "service": str(leader.rpc_port),
-    #                 "network_cert": network.net_cert,
-    #             },
-    #         )
-    #         assert res.error is None
-    #     self.complete_join_network()
 
     def restart(self):
         self.remote.restart()

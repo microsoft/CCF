@@ -52,24 +52,7 @@ namespace ccf
     };
   };
 
-  // TODO: This will need to go
-  struct StartNetwork
-  {
-    struct In
-    {
-      std::vector<uint8_t> tx0;
-      NodeId id;
-    };
-
-    struct Out
-    {
-      std::string network_cert;
-      // signed by network
-      std::vector<uint8_t> tx0_sig;
-    };
-  };
-
-  // TODO: This will need to go
+  // TODO: It seems that we still use this for add_node in memberfrontend.h
   struct JoinNetwork
   {
     struct In
