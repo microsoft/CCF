@@ -17,10 +17,6 @@ namespace ccf
         {
           result.state = GetSignedIndex::State::ReadingPublicLedger;
         }
-        else if (node.is_awaiting_recovery())
-        {
-          result.state = GetSignedIndex::State::AwaitingRecovery;
-        }
         else if (node.is_reading_private_ledger())
         {
           result.state = GetSignedIndex::State::ReadingPrivateLedger;

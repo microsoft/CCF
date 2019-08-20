@@ -31,6 +31,7 @@
 #include "runtime_config/default_whitelists.h"
 
 #include <atomic>
+#include <ccf_t.h>
 #include <chrono>
 #include <fmt/format_header_only.h>
 #include <nlohmann/json.hpp>
@@ -98,12 +99,10 @@ namespace ccf
     {
       uninitialized,
       initialized,
-      started,
       partOfPublicNetwork,
       partOfNetwork,
       readingPublicLedger,
-      readingPrivateLedger,
-      awaitingRecoveryTx
+      readingPrivateLedger
     };
 
     //
@@ -257,7 +256,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::initialized);
 
-      Store::Tx tx;
+      LOG_INFO_FMT("Creating new node in {} mode", args.start_type);
 
       // Generate node key pair
       std::stringstream name;
@@ -276,169 +275,129 @@ namespace ccf
       quote = get_quote();
 #endif
 
-      network.secrets = std::make_unique<NetworkSecrets>(
-        "CN=The CA", std::make_unique<Seal>(writer_factory));
-
-      // Accept member and node connections
-      accept_member_connections();
-      accept_node_connections();
-
-      // TODO: User connections should not be accepted until the network
-      // is open
-      accept_user_connections();
-
-      /* KV INITIALISATION STARTS HERE */
-
-      // Initialise store
-      auto
-        [nodes_view,
-         node_certs_view,
-         members_view,
-         member_certs_view,
-         whitelist_view,
-         gov_view] =
-          tx.get_view(
-            network.nodes,
-            network.node_certs,
-            network.members,
-            network.member_certs,
-            network.whitelists,
-            network.gov_scripts);
-
-      // Init values
+      switch (args.start_type)
       {
-        auto v = tx.get_view(network.values);
-        for (int id_type = 0; id_type < ccf::ValueIds::END_ID; id_type++)
-          v->put(id_type, 0);
-      }
+        case StartType::Start:
+        {
+          Store::Tx tx;
 
-      // TODO: Should we only become TRUSTED once the member has vetted
-      // the network?
-      self = get_next_id(tx.get_view(network.values), NEXT_NODE_ID);
+          // Initialise store
+          auto
+            [nodes_view,
+             node_certs_view,
+             members_view,
+             member_certs_view,
+             whitelist_view,
+             gov_view] =
+              tx.get_view(
+                network.nodes,
+                network.node_certs,
+                network.members,
+                network.member_certs,
+                network.whitelists,
+                network.gov_scripts);
 
-      // Nodes
-      nodes_view->put(
-        self,
-        {args.config.node_info.host,
-         args.config.node_info.pubhost,
-         args.config.node_info.nodeport,
-         args.config.node_info.rpcport,
-         node_cert,
-         quote,
-         NodeStatus::PENDING});
-      node_certs_view->put(node_cert, self);
+          // Init values
+          {
+            auto v = tx.get_view(network.values);
+            for (int id_type = 0; id_type < ccf::ValueIds::END_ID; id_type++)
+              v->put(id_type, 0);
+          }
 
-      // Members
-      // TODO: In a loop for each member
-      auto member_id = get_next_id(tx.get_view(network.values), NEXT_MEMBER_ID);
-      // TODO: Status can be active straight away?
-      members_view->put(member_id, {MemberStatus::ACTIVE, {}});
-      member_certs_view->put(args.config.genesis.member_cert, member_id);
+          // TODO: Should we only become TRUSTED once the member has vetted
+          // the network?
+          self = get_next_id(tx.get_view(network.values), NEXT_NODE_ID);
 
-      // Whitelists
-      for (const auto& wl : default_whitelists)
-        whitelist_view->put(wl.first, wl.second);
+          // Nodes
+          nodes_view->put(
+            self,
+            {args.config.node_info.host,
+             args.config.node_info.pubhost,
+             args.config.node_info.nodeport,
+             args.config.node_info.rpcport,
+             node_cert,
+             quote,
+             NodeStatus::PENDING});
+          node_certs_view->put(node_cert, self);
 
-      // Governance is not compiled
-      std::map<std::string, std::string> scripts =
-        lua::Interpreter().invoke<nlohmann::json>(
-          args.config.genesis.gov_script);
-      for (auto& rs : scripts)
-      {
-        gov_view->put(rs.first, rs.second);
-      }
+          // Members
+          // TODO: In a loop for each member
+          auto member_id =
+            get_next_id(tx.get_view(network.values), NEXT_MEMBER_ID);
+          // TODO: Status can be active straight away?
+          members_view->put(member_id, {MemberStatus::ACTIVE, {}});
+          member_certs_view->put(args.config.genesis.member_cert, member_id);
+
+          // Whitelists
+          for (const auto& wl : default_whitelists)
+            whitelist_view->put(wl.first, wl.second);
+
+          // Governance is not compiled
+          std::map<std::string, std::string> scripts =
+            lua::Interpreter().invoke<nlohmann::json>(
+              args.config.genesis.gov_script);
+          for (auto& rs : scripts)
+          {
+            gov_view->put(rs.first, rs.second);
+          }
 
 #ifdef GET_QUOTE
-      if (!trust_own_code_id(tx, self))
-        return Fail<CreateNew::Out>("Parsing quote of starting node failed");
+          if (!trust_own_code_id(tx, self))
+            return Fail<CreateNew::Out>(
+              "Parsing quote of starting node failed");
 #endif
 
-        /* KV INITIALISATION ENDS HERE */
+          network.secrets = std::make_unique<NetworkSecrets>(
+            "CN=The CA", std::make_unique<Seal>(writer_factory));
 
-        // if (args.recover)
-        // {
-        // init_public_ledger_recovery();
-        // sm.advance(State::readingPublicLedger);
-        // }
-
-        // Initialise history and consensus
-        // TODO: https://github.com/microsoft/CCF/issues/300
+          /* KV INITIALISATION ENDS HERE */
 #ifdef PBFT
-      setup_pbft();
+          setup_pbft();
 #endif
-      setup_history();
-      setup_raft();
-      setup_encryptor();
+          setup_history();
+          setup_raft();
+          setup_encryptor();
 
-      // Become the raft leader and force replication
-      raft->force_become_leader();
+          // Become the raft leader and force replication
+          raft->force_become_leader();
 
-      auto rc = tx.commit();
-      if (rc != kv::CommitSuccess::OK)
-        return Fail<CreateNew::Out>(
-          "Genesis transaction could not be committed");
+          auto rc = tx.commit();
+          if (rc != kv::CommitSuccess::OK)
+            return Fail<CreateNew::Out>(
+              "Genesis transaction could not be committed");
 
-      sm.advance(State::partOfNetwork);
+          // Accept member and node connections
+          accept_member_connections();
+          accept_node_connections();
 
-      return Success<CreateNew::Out>(
-        {node_cert, quote, network.secrets->get_current().cert});
-    }
+          // TODO: User connections should not be accepted until the network
+          // is open
+          accept_user_connections();
 
-    auto create_recover(const CreateRecover::In& args)
-    {
-      std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::initialized);
+          sm.advance(State::partOfNetwork);
 
-      node_info_network = args.node_info;
+          return Success<CreateNew::Out>(
+            {node_cert, quote, network.secrets->get_current().cert});
+        }
+        case StartType::Join:
+        {
+          return Success<CreateNew::Out>({node_cert, quote});
+        }
+        case StartType::Recover:
+        {
+          node_info_network = args.config.node_info;
 
-      // Generate node key pair
-      std::stringstream name;
-      name << "CN=" << Actors::MANAGEMENT;
-      node_cert = node_kp->self_sign(name.str());
+          init_public_ledger_recovery();
+          sm.advance(State::readingPublicLedger);
 
-      // We present our self-signed certificate to the management frontend
-      rpcsessions.add_cert(
-        Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key_pem());
-
-      // Quotes should be initialised and non-empty
-      std::vector<uint8_t> quote{1};
-
-#ifdef GET_QUOTE
-      quote = get_quote();
-#endif
-
-      init_public_ledger_recovery();
-      sm.advance(State::readingPublicLedger);
-
-      return Success<CreateRecover::Out>(
-        {node_cert, quote, network.secrets->get_current().cert});
-    }
-
-    auto create_join()
-    {
-      std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::initialized);
-
-      // Generate node key pair
-      std::stringstream name;
-      name << "CN=" << Actors::MANAGEMENT;
-      node_cert = node_kp->self_sign(name.str());
-
-      // We present our self-signed certificate to the management frontend
-      rpcsessions.add_cert(
-        Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key_pem());
-
-      // Generate quote over node certificate
-      // TODO: https://github.com/microsoft/CCF/issues/59
-      std::vector<uint8_t> quote{1};
-
-#ifdef GET_QUOTE
-      quote = get_quote();
-#endif
-
-      sm.advance(State::started);
-
-      return Success<CreateJoin::Out>({node_cert, quote});
+          return Success<CreateNew::Out>(
+            {node_cert, quote, network.secrets->get_current().cert});
+        }
+        default:
+        {
+          throw std::logic_error("Node was not started in known mode");
+        }
+      }
     }
 
     void initiate_join(const CreateJoin::In& args)
@@ -448,11 +407,7 @@ namespace ccf
       auto join_client_cert = std::make_unique<tls::Cert>(
         Actors::NODES, tls_ca, node_cert, node_kp->private_key_pem(), nullb);
 
-      std::cout << "caller_cert: ";
-        for (int i = 0; i < node_cert.size(); i++)
-          std::cout << std::hex << (int)node_cert[i];
-        std::cout << std::dec << std::endl;
-
+      // TODO: Remove this!
       enclave::RPCContext rpc_ctx(0, nullb);
 
       // Create and connect to endpoint
@@ -467,6 +422,8 @@ namespace ccf
         args.config.joining.target_port,
         [this](const std::vector<uint8_t>& data) {
           auto j = jsonrpc::unpack(data, jsonrpc::Pack::MsgPack);
+
+          std::cout << j.dump() << std::endl;
 
           // Check that the response is valid.
           try
@@ -497,16 +454,16 @@ namespace ccf
 
           self = res.id;
           // TODO: This should go!
-          if (res.version != 0 && sm.check(State::awaitingRecoveryTx))
-          {
-            // If the joining node was started in recovery, truncate the ledger
-            // and reset the store as we will receive the entirety of the ledger
-            // from the leader
-            LOG_INFO_FMT("Truncating entire ledger");
-            log_truncate(0);
-            network.tables->clear();
-          }
-          else
+          // if (res.version != 0 && sm.check(State::awaitingRecoveryTx))
+          // {
+          //   // If the joining node was started in recovery, truncate the ledger
+          //   // and reset the store as we will receive the entirety of the ledger
+          //   // from the leader
+          //   LOG_INFO_FMT("Truncating entire ledger");
+          //   log_truncate(0);
+          //   network.tables->clear();
+          // }
+          // else
           {
             // If the node was started normally, accept all connections
             accept_all_connections();
@@ -556,10 +513,6 @@ namespace ccf
 
       join_client->send(join_req);
     }
-
-
-
-
 
     // TODO(#important,#TR): Once start-up protocol is updated, the recovery
     // protocol could be refactored to be in line with start-up protocol
@@ -652,8 +605,6 @@ namespace ccf
       if (tx.commit() != kv::CommitSuccess::OK)
         throw std::logic_error(
           "Could not commit transaction when starting recovered network");
-
-      // sm.advance(State::awaitingRecoveryTx);
     }
 
     kv::Version last_signed_index(Store::Tx& tx)
@@ -797,8 +748,6 @@ namespace ccf
     //
     std::string start_recovered_network(Store::Tx& tx)
     {
-      // sm.expect(State::awaitingRecoveryTx);
-
       auto [nodes_view, values_view, node_certs_view, sigs_view] = tx.get_view(
         network.nodes, network.values, network.node_certs, network.signatures);
 
@@ -828,20 +777,6 @@ namespace ccf
         node_certs_view->remove(cstr);
       }
 
-      // for (const auto& ni : new_nodes)
-      // {
-      //   auto nid = get_next_id(values_view, ccf::ValueIds::NEXT_NODE_ID);
-      //   LOG_INFO_FMT("Adding node {}", nid);
-      //   nodes_view->put(nid, ni);
-      //   if (node_cert == ni.cert)
-      //   {
-      //     self = nid;
-      //     LOG_INFO_FMT("Setting self to {}", self);
-      //   }
-      //   auto verifier = tls::make_verifier(ni.cert);
-      //   certs_view->put(verifier->raw_cert_data(), nid);
-      // }
-
       LOG_INFO_FMT("Replaced nodes");
 
       // Quotes should be initialised and non-empty
@@ -866,7 +801,7 @@ namespace ccf
          NodeStatus::PENDING});
       node_certs_view->put(node_cert, self);
 
-      LOG_INFO_FMT("Added self as {}", self);
+      LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
       kv::Version index = 0;
       kv::Term term = 0;
@@ -1118,11 +1053,6 @@ namespace ccf
     bool is_reading_private_ledger() const
     {
       return sm.check(State::readingPrivateLedger);
-    }
-
-    bool is_awaiting_recovery() const
-    {
-      return sm.check(State::awaitingRecoveryTx);
     }
 
     bool is_part_of_public_network() const override

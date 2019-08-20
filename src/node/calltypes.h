@@ -7,12 +7,15 @@
 #include "networksecrets.h"
 #include "nodes.h"
 
+#include <ccf_args.h>
+
 namespace ccf
 {
   struct CreateNew
   {
     struct In
     {
+      StartType start_type;
       CCFConfig config;
     };
     struct Out

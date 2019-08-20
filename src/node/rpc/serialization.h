@@ -16,7 +16,6 @@ namespace ccf
   DECLARE_JSON_ENUM(
     GetSignedIndex::State,
     {{GetSignedIndex::State::ReadingPublicLedger, "readingPublicLedger"},
-     {GetSignedIndex::State::AwaitingRecovery, "awaitingRecovery"},
      {GetSignedIndex::State::ReadingPrivateLedger, "readingPrivateLedger"},
      {GetSignedIndex::State::PartOfNetwork, "partOfNetwork"},
      {GetSignedIndex::State::PartOfPublicNetwork, "partOfPublicNetwork"}})

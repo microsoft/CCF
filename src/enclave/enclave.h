@@ -19,8 +19,6 @@
 #include "rpcmap.h"
 #include "rpcsessions.h"
 
-#include <ccf_t.h>
-
 namespace enclave
 {
   class Enclave
@@ -89,6 +87,7 @@ namespace enclave
     }
 
     bool create_new_node(
+      StartType start_type_,
       const CCFConfig& ccf_config_,
       uint8_t* node_cert,
       size_t node_cert_size,
@@ -104,8 +103,10 @@ namespace enclave
       // we pass them in because it allows us to set EDL an annotation so that
       // quote_len <= quote_size is checked by the EDL-generated wrapper
 
-      start_type = StartType::Start;
-      auto r = node.create_new({ccf_config_});
+      start_type = start_type_;
+      ccf_config = ccf_config_;
+
+      auto r = node.create_new({start_type, ccf_config_});
       if (!r.second)
         return false;
 
@@ -116,63 +117,16 @@ namespace enclave
       ::memcpy(quote, r.first.quote.data(), r.first.quote.size());
       *quote_len = r.first.quote.size();
 
-      ::memcpy(
-        network_cert, r.first.network_cert.data(), r.first.network_cert.size());
-      *network_cert_len = r.first.network_cert.size();
-      return true;
-    }
-
-    bool create_join_node(
-      const CCFConfig& ccf_config_,
-      uint8_t* node_cert,
-      size_t node_cert_size,
-      size_t* node_cert_len,
-      uint8_t* quote,
-      size_t quote_size,
-      size_t* quote_len)
-    {
-      start_type = StartType::Join;
-      ccf_config = ccf_config_;
-      auto r = node.create_join();
-      if (!r.second)
-        return false;
-
-      ::memcpy(node_cert, r.first.node_cert.data(), r.first.node_cert.size());
-      *node_cert_len = r.first.node_cert.size();
-
-      ::memcpy(quote, r.first.quote.data(), r.first.quote.size());
-      *quote_len = r.first.quote.size();
-
-      return true;
-    }
-
-    bool create_recover_node(
-      const CCFConfig& ccf_config_,
-      uint8_t* node_cert,
-      size_t node_cert_size,
-      size_t* node_cert_len,
-      uint8_t* quote,
-      size_t quote_size,
-      size_t* quote_len,
-      uint8_t* network_cert,
-      size_t network_cert_size,
-      size_t* network_cert_len)
-    {
-      start_type = StartType::Recover;
-      ccf_config = ccf_config_;
-      auto r = node.create_recover({ccf_config.node_info});
-      if (!r.second)
-        return false;
-
-      ::memcpy(node_cert, r.first.node_cert.data(), r.first.node_cert.size());
-      *node_cert_len = r.first.node_cert.size();
-
-      ::memcpy(quote, r.first.quote.data(), r.first.quote.size());
-      *quote_len = r.first.quote.size();
-
-      ::memcpy(
-        network_cert, r.first.network_cert.data(), r.first.network_cert.size());
-      *network_cert_len = r.first.network_cert.size();
+      if (start_type == StartType::Start || start_type == StartType::Recover)
+      {
+        // When starting a node in start or recover modes, fresh network secrets
+        // are created and the associated certificate can be passed to the host
+        ::memcpy(
+          network_cert,
+          r.first.network_cert.data(),
+          r.first.network_cert.size());
+        *network_cert_len = r.first.network_cert.size();
+      }
 
       return true;
     }
