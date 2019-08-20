@@ -99,7 +99,7 @@ namespace ccf
     {
       uninitialized,
       initialized,
-      started,
+      pending, // Waiting to join the network
       partOfPublicNetwork,
       partOfNetwork,
       readingPublicLedger,
@@ -372,7 +372,7 @@ namespace ccf
           accept_node_connections();
 
           // TODO: User connections should not be accepted until the network
-          // is open
+          // is open by the consortium
           accept_user_connections();
 
           sm.advance(State::partOfNetwork);
@@ -382,7 +382,7 @@ namespace ccf
         }
         case StartType::Join:
         {
-          sm.advance(State::started);
+          sm.advance(State::pending);
           return Success<CreateNew::Out>({node_cert, quote});
         }
         case StartType::Recover:
@@ -409,12 +409,12 @@ namespace ccf
     }
 
     //
-    // funcs in state "started"
+    // funcs in state "pending"
     //
-    void initiate_join(const CreateJoin::In& args)
+    void initiate_join(const InitiateJoin::In& args)
     {
       std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::started);
+      sm.expect(State::pending);
 
       // Peer certificate needs to be signed by specified network certificate
       auto tls_ca = std::make_shared<tls::CA>(args.config.joining.network_cert);
@@ -436,7 +436,7 @@ namespace ccf
         args.config.joining.target_port,
         [this](const std::vector<uint8_t>& data) {
           std::lock_guard<SpinLock> guard(lock);
-          sm.expect(State::started);
+          sm.expect(State::pending);
 
           auto j = jsonrpc::unpack(data, jsonrpc::Pack::MsgPack);
 
@@ -533,19 +533,6 @@ namespace ccf
       join_client->send(join_req);
     }
 
-    // TODO(#important,#TR): Once start-up protocol is updated, the recovery
-    // protocol could be refactored to be in line with start-up protocol
-    // (sections IV-B, IV-G).
-    void init_public_ledger_recovery()
-    {
-      // Create temporary network secrets but do not seal yet
-      network.secrets = std::make_unique<NetworkSecrets>(
-        "CN=The CA", std::make_unique<Seal>(writer_factory), false);
-      accept_member_connections();
-      setup_history();
-      setup_encryptor();
-    }
-
     //
     // funcs in state "readingPublicLedger"
     //
@@ -621,6 +608,106 @@ namespace ccf
       if (tx.commit() != kv::CommitSuccess::OK)
         throw std::logic_error(
           "Could not commit transaction when starting recovered network");
+    }
+
+    std::string start_recovered_network(Store::Tx& tx)
+    {
+      auto [nodes_view, values_view, node_certs_view, sigs_view] = tx.get_view(
+        network.nodes, network.values, network.node_certs, network.signatures);
+
+      std::map<NodeId, NodeInfo> nodes_to_delete;
+      nodes_view->foreach(
+        [&nodes_to_delete](const NodeId& nid, const NodeInfo& ni) {
+          // Only retire nodes that have not already been retired
+          if (ni.status != ccf::NodeStatus::RETIRED)
+            nodes_to_delete[nid] = ni;
+          return true;
+        });
+
+      for (auto [nid, ni] : nodes_to_delete)
+      {
+        ni.status = ccf::NodeStatus::RETIRED;
+        nodes_view->put(nid, ni);
+      }
+
+      std::vector<Cert> certs_to_delete;
+      node_certs_view->foreach(
+        [&certs_to_delete](const Cert& cstr, const NodeId& _) {
+          certs_to_delete.push_back(cstr);
+          return true;
+        });
+      for (Cert& cstr : certs_to_delete)
+      {
+        node_certs_view->remove(cstr);
+      }
+
+      LOG_INFO_FMT("Replaced nodes");
+
+      // Quotes should be initialised and non-empty
+      std::vector<uint8_t> quote{1};
+
+#ifdef GET_QUOTE
+      quote = get_quote();
+#endif
+
+      self = get_next_id(tx.get_view(network.values), NEXT_NODE_ID);
+
+      nodes_view->put(
+        self,
+        {node_info_network.host,
+         node_info_network.pubhost,
+         node_info_network.nodeport,
+         node_info_network.rpcport,
+         node_cert,
+         quote,
+         NodeStatus::PENDING});
+      node_certs_view->put(node_cert, self);
+
+      LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
+
+      kv::Version index = 0;
+      kv::Term term = 0;
+      kv::Version global_commit = 0;
+      auto ls = sigs_view->get(0);
+      if (ls.has_value())
+      {
+        auto s = ls.value();
+        index = s.index;
+        term = s.term;
+        global_commit = s.commit;
+      }
+
+      auto h = dynamic_cast<MerkleTxHistory*>(history.get());
+      if (h)
+        h->set_node_id(self);
+      setup_raft(true);
+      LOG_DEBUG_FMT(
+        "Restarting Raft at index: {} term: {} commit_idx {}",
+        index,
+        term,
+        global_commit);
+      raft->force_become_leader(index, term, term_history, index);
+
+      // Sets itself as trusted
+      auto leader_info = nodes_view->get(self).value();
+      leader_info.status = NodeStatus::TRUSTED;
+      nodes_view->put(self, leader_info);
+
+#ifdef GET_QUOTE
+      if (!trust_own_code_id(tx, self))
+        throw std::logic_error("Parsing node of first recovery node failed");
+#endif
+
+      accept_node_connections();
+
+      LOG_INFO_FMT("Restarted network");
+
+      sm.advance(State::partOfPublicNetwork);
+
+      return std::string(
+        network.secrets->get_current().cert.data(),
+        network.secrets->get_current().cert.data() +
+          network.secrets->get_current().cert.size());
     }
 
     kv::Version last_signed_index(Store::Tx& tx)
@@ -725,140 +812,6 @@ namespace ccf
           "Cannot end ledger recovery if not reading public or private "
           "ledger");
       }
-    }
-
-    void node_quotes(Store::Tx& tx, GetQuotes::Out& result)
-    {
-      auto nodes_view = tx.get_view(network.nodes);
-
-      nodes_view->foreach([&result](const NodeId& nid, const NodeInfo& ni) {
-        if (ni.status == ccf::NodeStatus::TRUSTED)
-        {
-          GetQuotes::Quote quote;
-          quote.node_id = nid;
-          quote.raw = std::string(ni.quote.begin(), ni.quote.end());
-
-#ifdef GET_QUOTE
-          oe_report_t parsed_quote = {0};
-          auto res =
-            oe_parse_report(ni.quote.data(), ni.quote.size(), &parsed_quote);
-          if (res != OE_OK)
-          {
-            quote.error =
-              fmt::format("Failed to parse quote: {}", oe_result_str(res));
-          }
-          else
-          {
-            quote.mrenclave = fmt::format(
-              "{:02x}", fmt::join(parsed_quote.identity.unique_id, ""));
-          }
-#endif
-          result.quotes.push_back(quote);
-        }
-        return true;
-      });
-    };
-
-    std::string start_recovered_network(Store::Tx& tx)
-    {
-      auto [nodes_view, values_view, node_certs_view, sigs_view] = tx.get_view(
-        network.nodes, network.values, network.node_certs, network.signatures);
-
-      std::map<NodeId, NodeInfo> nodes_to_delete;
-      nodes_view->foreach(
-        [&nodes_to_delete](const NodeId& nid, const NodeInfo& ni) {
-          // Only retire nodes that have not already been retired
-          if (ni.status != ccf::NodeStatus::RETIRED)
-            nodes_to_delete[nid] = ni;
-          return true;
-        });
-
-      for (auto [nid, ni] : nodes_to_delete)
-      {
-        ni.status = ccf::NodeStatus::RETIRED;
-        nodes_view->put(nid, ni);
-      }
-
-      std::vector<Cert> certs_to_delete;
-      node_certs_view->foreach(
-        [&certs_to_delete](const Cert& cstr, const NodeId& _) {
-          certs_to_delete.push_back(cstr);
-          return true;
-        });
-      for (Cert& cstr : certs_to_delete)
-      {
-        node_certs_view->remove(cstr);
-      }
-
-      LOG_INFO_FMT("Replaced nodes");
-
-      // Quotes should be initialised and non-empty
-      std::vector<uint8_t> quote{1};
-
-#ifdef GET_QUOTE
-      quote = get_quote();
-#endif
-
-      // TODO: Should we only become TRUSTED once the member has vetted the
-      // network?
-      self = get_next_id(tx.get_view(network.values), NEXT_NODE_ID);
-
-      nodes_view->put(
-        self,
-        {node_info_network.host,
-         node_info_network.pubhost,
-         node_info_network.nodeport,
-         node_info_network.rpcport,
-         node_cert,
-         quote,
-         NodeStatus::PENDING});
-      node_certs_view->put(node_cert, self);
-
-      LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
-
-      kv::Version index = 0;
-      kv::Term term = 0;
-      kv::Version global_commit = 0;
-      auto ls = sigs_view->get(0);
-      if (ls.has_value())
-      {
-        auto s = ls.value();
-        index = s.index;
-        term = s.term;
-        global_commit = s.commit;
-      }
-
-      auto h = dynamic_cast<MerkleTxHistory*>(history.get());
-      if (h)
-        h->set_node_id(self);
-      setup_raft(true);
-      LOG_DEBUG_FMT(
-        "Restarting Raft at index: {} term: {} commit_idx {}",
-        index,
-        term,
-        global_commit);
-      raft->force_become_leader(index, term, term_history, index);
-
-      // Sets itself as trusted
-      auto leader_info = nodes_view->get(self).value();
-      leader_info.status = NodeStatus::TRUSTED;
-      nodes_view->put(self, leader_info);
-
-#ifdef GET_QUOTE
-      if (!trust_own_code_id(tx, self))
-        throw std::logic_error("Parsing node of first recovery node failed");
-#endif
-
-      accept_node_connections();
-
-      LOG_INFO_FMT("Restarted network");
-
-      sm.advance(State::partOfPublicNetwork);
-
-      return std::string(
-        network.secrets->get_current().cert.data(),
-        network.secrets->get_current().cert.data() +
-          network.secrets->get_current().cert.size());
     }
 
     //
@@ -1081,6 +1034,38 @@ namespace ccf
       LOG_DEBUG_FMT("Setting fresh key for joiner {}", joiner_id);
       joiners_fresh_keys.emplace(joiner_id, raw_key);
     }
+
+    void node_quotes(Store::Tx& tx, GetQuotes::Out& result)
+    {
+      auto nodes_view = tx.get_view(network.nodes);
+
+      nodes_view->foreach([&result](const NodeId& nid, const NodeInfo& ni) {
+        if (ni.status == ccf::NodeStatus::TRUSTED)
+        {
+          GetQuotes::Quote quote;
+          quote.node_id = nid;
+          quote.raw = std::string(ni.quote.begin(), ni.quote.end());
+
+#ifdef GET_QUOTE
+          oe_report_t parsed_quote = {0};
+          auto res =
+            oe_parse_report(ni.quote.data(), ni.quote.size(), &parsed_quote);
+          if (res != OE_OK)
+          {
+            quote.error =
+              fmt::format("Failed to parse quote: {}", oe_result_str(res));
+          }
+          else
+          {
+            quote.mrenclave = fmt::format(
+              "{:02x}", fmt::join(parsed_quote.identity.unique_id, ""));
+          }
+#endif
+          result.quotes.push_back(quote);
+        }
+        return true;
+      });
+    };
 
   private:
     void accept_member_connections()

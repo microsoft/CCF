@@ -204,17 +204,16 @@ namespace enclave
             node.recover_ledger_end();
           });
 
+        rpcsessions.register_message_handlers(bp.get_dispatcher());
+
         if (start_type == StartType::Join)
         {
-          LOG_INFO_FMT("Node join when enclave starts running");
           node.initiate_join({ccf_config});
         }
         else if (start_type == StartType::Recover)
         {
           node.start_ledger_recovery();
         }
-
-        rpcsessions.register_message_handlers(bp.get_dispatcher());
         bp.run(circuit->read_from_outside());
         return true;
       }

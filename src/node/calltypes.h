@@ -26,21 +26,13 @@ namespace ccf
     };
   };
 
-  // TODO: Fix this
-  struct CreateJoin
+  struct InitiateJoin
   {
     struct In
     {
       CCFConfig config;
     };
-
-    struct Out
-    {
-      std::vector<uint8_t> node_cert;
-      std::vector<uint8_t> quote;
-    };
   };
-
 
   // TODO: It seems that we still use this for add_node in memberfrontend.h
   struct JoinNetwork
