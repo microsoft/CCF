@@ -41,6 +41,12 @@ def coverage_enabled(bin):
     )
 
 
+def _append_logs_to_analytics(file, analytics_file):
+    with open(analytics_file, "a") as af:
+        with open(file, "r") as f:
+            af.write(f.read())
+
+
 @contextmanager
 def sftp_session(hostname):
     client = paramiko.SSHClient()
@@ -101,7 +107,16 @@ class CmdMixin(object):
 
 class SSHRemote(CmdMixin):
     def __init__(
-        self, name, hostname, exe_files, data_files, cmd, workspace, label, env=None
+        self,
+        name,
+        hostname,
+        exe_files,
+        data_files,
+        cmd,
+        workspace,
+        label,
+        env=None,
+        log_path=None,
     ):
         """
         Runs a command on a remote host, through an SSH connection. A temporary
@@ -128,6 +143,13 @@ class SSHRemote(CmdMixin):
         self.root = os.path.join(workspace, label + "_" + name)
         self.name = name
         self.env = env or {}
+        self.out = os.path.join(self.root, "out")
+        self.err = os.path.join(self.root, "err")
+        self.analytics_out = None
+        self.analytics_err = None
+        if log_path:
+            self.analytics_out = os.path.join(log_path, f"out_{label}_{name}")
+            self.analytics_err = os.path.join(log_path, f"err_{label}_{name}")
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
@@ -196,9 +218,8 @@ class SSHRemote(CmdMixin):
 
     def get_logs(self):
         with sftp_session(self.hostname) as session:
-            for filename in ("err", "out"):
+            for filepath in (self.err, self.out):
                 try:
-                    filepath = os.path.join(self.root, filename)
                     local_filepath = "{}_{}_{}".format(
                         self.hostname, filename, self.name
                     )
@@ -248,6 +269,10 @@ class SSHRemote(CmdMixin):
             "{}_err_{}".format(self.hostname, self.name),
         )
         self.client.close()
+        if self.analytics_out:
+            _append_logs_to_analytics(self.out, self.analytics_out)
+        if self.analytics_err:
+            _append_logs_to_analytics(self.err, self.analytics_err)
 
     def restart(self):
         self._connect()
@@ -264,10 +289,11 @@ class SSHRemote(CmdMixin):
     def _cmd(self):
         env = " ".join(f"{key}={value}" for key, value in self.env.items())
         cmd = " ".join(self.cmd)
-        return f"cd {self.root} && {env} ./{cmd} 1>out 2>err 0</dev/null"
+        return f"cd {self.root} && {env} ./{cmd} 1>{self.out} 2>{self.err} 0</dev/null"
 
     def _dbg(self):
-        return "cd {} && {} --args ./{}".format(self.root, DBG, " ".join(self.cmd))
+        cmd = " ".join(self.cmd)
+        return f"cd {self.root} && {DBG} --args ./{cmd}"
 
     def _connect_new(self):
         client = paramiko.SSHClient()
@@ -317,7 +343,16 @@ def ssh_remote(name, hostname, files, cmd):
 
 class LocalRemote(CmdMixin):
     def __init__(
-        self, name, hostname, exe_files, data_files, cmd, workspace, label, env=None
+        self,
+        name,
+        hostname,
+        exe_files,
+        data_files,
+        cmd,
+        workspace,
+        label,
+        env=None,
+        log_path=None,
     ):
         """
         Local Equivalent to the SSHRemote
@@ -332,6 +367,13 @@ class LocalRemote(CmdMixin):
         self.stderr = None
         self.env = env
         self.name = name
+        self.out = os.path.join(self.root, "out")
+        self.err = os.path.join(self.root, "err")
+        self.analytics_out = None
+        self.analytics_err = None
+        if log_path:
+            self.analytics_out = os.path.join(log_path, "out", f"{label}_{name}")
+            self.analytics_err = os.path.join(log_path, "err", f"{label}_{name}")
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
@@ -381,8 +423,8 @@ class LocalRemote(CmdMixin):
         """
         cmd = self._cmd()
         LOG.info(f"[{self.hostname}] {cmd} (env: {self.env})")
-        self.stdout = open(os.path.join(self.root, "out"), "wb")
-        self.stderr = open(os.path.join(self.root, "err"), "wb")
+        self.stdout = open(self.out, "wb")
+        self.stderr = open(self.err, "wb")
         self.proc = popen(
             self.cmd,
             cwd=self.root,
@@ -405,7 +447,11 @@ class LocalRemote(CmdMixin):
                 self.stdout.close()
             if self.stderr:
                 self.stderr.close()
-            log_errors(os.path.join(self.root, "out"), os.path.join(self.root, "err"))
+            log_errors(self.out, self.err)
+        if self.analytics_out:
+            _append_logs_to_analytics(self.out, self.analytics_out)
+        if self.analytics_err:
+            _append_logs_to_analytics(self.err, self.analytics_err)
 
     def restart(self):
         self.start()
@@ -418,14 +464,16 @@ class LocalRemote(CmdMixin):
         self._setup_files()
 
     def _cmd(self):
-        return "cd {} && {} 1>out 2>err".format(self.root, " ".join(self.cmd))
+        cmd = " ".join(self.cmd)
+        return f"cd {self.root} && {cmd} 1>{self.out} 2>{self.err}"
 
     def _dbg(self):
-        return "cd {} && {} --args {}".format(self.root, DBG, " ".join(self.cmd))
+        cmd = " ".join(self.cmd)
+        return f"cd {self.root} && {DBG} --args {cmd}"
 
     def wait_for_stdout_line(self, line, timeout):
         for _ in range(timeout):
-            with open(os.path.join(self.root, "out"), "rb") as out:
+            with open(self.out, "rb") as out:
                 for out_line in out:
                     if line.strip() in out_line.strip().decode():
                         return
@@ -435,7 +483,7 @@ class LocalRemote(CmdMixin):
         )
 
     def print_and_upload_result(self, name, metrics, line):
-        with open(os.path.join(self.root, "out"), "rb") as out:
+        with open(self.out, "rb") as out:
             lines = out.read().splitlines()
             result = lines[-line:]
             LOG.success(f"Result for {self.name}:")
@@ -480,6 +528,7 @@ class CCFRemote(object):
         notify_server=None,
         ledger_file=None,
         sealed_secrets=None,
+        log_path=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -580,6 +629,7 @@ class CCFRemote(object):
             workspace,
             label,
             env,
+            log_path,
         )
 
     def setup(self):
