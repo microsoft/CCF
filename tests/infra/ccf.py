@@ -83,12 +83,7 @@ class Network:
     replication_delay = 30
 
     def __init__(
-        self,
-        hosts,
-        dbg_nodes=None,
-        perf_nodes=None,
-        create_nodes=True,
-        node_offset=0,
+        self, hosts, dbg_nodes=None, perf_nodes=None, create_nodes=True, node_offset=0
     ):
         self.nodes = []
         self.members = []
@@ -121,6 +116,7 @@ class Network:
 
         # TODO: Do not use genesisgenerator to create members' keys/certs
         self.add_members([1, 2, 3])
+        self.add_users([1, 2, 3])
 
         # TODO: App script should be passed by governance before the network is opened
         if args.app_script:
@@ -147,7 +143,8 @@ class Network:
                     target_rpc_address=f"{leader.host}:{leader.rpc_port}"
                     if leader
                     else None,
-                    members_certs="member1_cert.pem" if i == 0 else None,
+                    members_certs="member*_cert.pem" if i == 0 else None,
+                    users_certs="user*_cert.pem" if i == 0 else None,
                     **forwarded_args,
                 )
                 node.network_state = NodeNetworkState.joined
@@ -155,9 +152,6 @@ class Network:
                 LOG.exception("Failed to start node {}".format(i))
                 raise
         LOG.info("All remotes started")
-
-        # TODO: Do not use genesisgenerator to create users' keys/certs
-        self.add_users([1, 2, 3])
 
         primary = self.nodes[0]
 
@@ -574,12 +568,7 @@ def node(
 
 class Node:
     def __init__(
-        self,
-        local_node_id,
-        host,
-        debug=False,
-        perf=False,
-        verify_quote=False,
+        self, local_node_id, host, debug=False, perf=False, verify_quote=False
     ):
         self.node_id = local_node_id
         self.local_node_id = local_node_id
@@ -627,6 +616,7 @@ class Node:
         label,
         target_rpc_address=None,
         members_certs=None,
+        users_certs=None,
         other_quote=None,
         other_quoted_data=None,
         **kwargs,
@@ -660,6 +650,7 @@ class Node:
             label,
             target_rpc_address,
             members_certs,
+            users_certs,
             other_quote,
             other_quoted_data,
             **kwargs,
@@ -698,7 +689,6 @@ class Node:
     def is_joined(self):
         return self.network_state == NodeNetworkState.joined
         # TODO: Address network_state - what is it used for?
-
 
     def restart(self):
         self.remote.restart()

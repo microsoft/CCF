@@ -14,12 +14,6 @@
 #include <optional>
 #include <string>
 
-#ifdef _WIN32
-#  include <windows.h>
-#else
-#  include <glob.h>
-#endif
-
 using namespace std;
 using namespace tls;
 using namespace ccf;
@@ -36,82 +30,6 @@ tls::Cert gen_cert(const string& name)
     .write((char*)privk.data(), privk.size());
 
   return {name, nullptr, cert, privk, nullb, tls::auth_required};
-}
-
-vector<vector<uint8_t>> slurp_certs(const string& path, bool optional = false)
-{
-  vector<vector<uint8_t>> certs;
-
-#ifdef _WIN32
-  WIN32_FIND_DATA fd;
-  auto h = FindFirstFile(path.c_str(), &fd);
-
-  if (h == INVALID_HANDLE_VALUE)
-  {
-    if (optional)
-    {
-      return {};
-    }
-    else
-    {
-      cerr << "Failed to search for cert pattern." << endl;
-      exit(-1);
-    }
-  }
-#else
-  glob_t g;
-  size_t i = 0;
-
-  if (glob(path.c_str(), GLOB_ERR, NULL, &g) || g.gl_pathc < 1)
-  {
-    if (optional)
-    {
-      return {};
-    }
-    else
-    {
-      cerr << "Failed to search for cert pattern." << endl;
-      exit(-1);
-    }
-  }
-#endif
-
-  do
-  {
-    mbedtls_x509_crt cert;
-    mbedtls_x509_crt_init(&cert);
-    string fn;
-#ifdef _WIN32
-    fn = fd.cFileName;
-#else
-    fn = g.gl_pathv[i];
-#endif
-
-    auto raw = files::slurp(fn);
-
-    if (mbedtls_x509_crt_parse(&cert, raw.data(), raw.size()))
-    {
-      cerr << "Failed to parse certificate " << fn << endl;
-      exit(-1);
-    }
-
-    certs.push_back({cert.raw.p, cert.raw.p + cert.raw.len});
-    mbedtls_x509_crt_free(&cert);
-  } while (
-#ifdef _WIN32
-    FindNextFile(h, &fd)
-#else
-    ++i < g.gl_pathc
-#endif
-  );
-
-#ifdef _WIN32
-  FindClose(h);
-#else
-  globfree(&g);
-#endif
-
-  return certs;
 }
 
 int main(int argc, char** argv)
@@ -178,8 +96,8 @@ int main(int argc, char** argv)
   }
   else if (*tx_cmd)
   {
-    auto user_certs = slurp_certs(user_certs_file);
-    auto member_certs = slurp_certs(member_certs_file);
+    auto user_certs = files::slurp_certs(user_certs_file);
+    auto member_certs = files::slurp_certs(member_certs_file);
     vector<NodeInfo> nodes = files::slurp_json(nodes_json_file);
 
     auto member_status =

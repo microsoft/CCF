@@ -3,7 +3,6 @@
 #pragma once
 #include "ds/json.h"
 #include "enclave/interface.h"
-#include "node/calltypes.h"
 #include "node/rpc/calltypes.h"
 
 namespace ccf

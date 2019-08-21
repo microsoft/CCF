@@ -2,9 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "../ds/cli_helper.h"
 #include "../ds/files.h"
-#include "../node/calltypes.h"
 #include "../node/rpc/jsonrpc.h"
-#include "../node/rpc/serialization.h"
 #include "../tls/ca.h"
 #include "../tls/cert.h"
 #include "../tls/keypair.h"

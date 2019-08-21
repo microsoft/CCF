@@ -158,15 +158,14 @@ def run(args):
                             )
 
                 LOG.debug("2/3 members vote to complete the recovery")
-                result = network.propose(
+                rc, result = network.propose(
                     1, primary, "accept_recovery", f"--sealed-secrets={sealed_secrets}"
                 )
-                assert result[1]["completed"]
+                assert rc and not result["completed"]
+                proposal_id = result["id"]
 
-                # TODO: Change this once we have 3 members in the original consortium
-                # proposal_id = result[1]["id"]
-
-                # result = network.vote(2, primary, proposal_id, True)
+                rc, result = network.vote(2, primary, proposal_id, True)
+                assert rc and result
 
                 for node in network.nodes:
                     wait_for_state(node, b"partOfNetwork")

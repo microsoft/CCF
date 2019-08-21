@@ -9,8 +9,8 @@
 #include "node/nodes.h"
 #include "node/rpc/consts.h"
 #include "node/rpc/jsonrpc.h"
-#include "node/rpc/serialization.h"
 #include "node/values.h"
+#include "tls/keypair.h"
 
 #include <algorithm>
 #include <fstream>

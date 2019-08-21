@@ -13,7 +13,7 @@ namespace ccf
   public:
     NodesCallRpcFrontend(
       Store& tables, AbstractNodeState& node, NetworkState& network) :
-      RpcFrontend(tables, nullptr, tables.get<Certs>(Tables::NODE_CERTS))
+      RpcFrontend(tables, nullptr, tables.get<Certs>(Tables::NODE_CERTS), false)
     {
       auto accept = [&node, &network](RequestArgs& args) {
         const auto in = args.params.get<JoinNetworkNodeToNode::In>();

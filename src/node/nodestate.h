@@ -99,7 +99,7 @@ namespace ccf
     {
       uninitialized,
       initialized,
-      pending, // Waiting to join the network
+      pending,
       partOfPublicNetwork,
       partOfNetwork,
       readingPublicLedger,
@@ -269,8 +269,6 @@ namespace ccf
       rpcsessions.add_cert(
         Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key_pem());
 
-      accept_member_connections();
-
       // Generate quote over node certificate
       // TODO: https://github.com/microsoft/CCF/issues/59
       std::vector<uint8_t> quote{1};
@@ -291,6 +289,7 @@ namespace ccf
              node_certs_view,
              members_view,
              member_certs_view,
+             user_certs_view,
              whitelist_view,
              gov_view] =
               tx.get_view(
@@ -298,6 +297,7 @@ namespace ccf
                 network.node_certs,
                 network.members,
                 network.member_certs,
+                network.user_certs,
                 network.whitelists,
                 network.gov_scripts);
 
@@ -325,12 +325,22 @@ namespace ccf
           node_certs_view->put(node_cert, self);
 
           // Members
-          // TODO: In a loop for each member
-          auto member_id =
-            get_next_id(tx.get_view(network.values), NEXT_MEMBER_ID);
-          // TODO: Status can be active straight away?
-          members_view->put(member_id, {MemberStatus::ACTIVE, {}});
-          member_certs_view->put(args.config.genesis.member_cert, member_id);
+          for (auto const& cert : args.config.genesis.member_certs)
+          {
+            auto member_id =
+              get_next_id(tx.get_view(network.values), NEXT_MEMBER_ID);
+            // TODO: Status can be active straight away?
+            members_view->put(member_id, {MemberStatus::ACTIVE, {}});
+            member_certs_view->put(cert, member_id);
+          }
+
+          // Users
+          for (auto const& cert : args.config.genesis.user_certs)
+          {
+            auto user_id =
+              get_next_id(tx.get_view(network.values), NEXT_USER_ID);
+            user_certs_view->put(cert, user_id);
+          }
 
           // Whitelists
           for (const auto& wl : default_whitelists)
@@ -372,6 +382,7 @@ namespace ccf
 
           // Accept node connections for other nodes to join
           accept_node_connections();
+          accept_member_connections();
 
           // TODO: User connections should not be accepted until the network
           // is open by the consortium.
@@ -398,6 +409,7 @@ namespace ccf
           setup_history();
           setup_encryptor();
 
+          accept_member_connections();
           sm.advance(State::readingPublicLedger);
 
           return Success<CreateNew::Out>(
@@ -478,6 +490,7 @@ namespace ccf
           setup_encryptor();
 
           accept_node_connections();
+          accept_member_connections();
 
           if (public_only)
             sm.advance(State::partOfPublicNetwork);
@@ -1096,13 +1109,6 @@ namespace ccf
       // Accept user connections.
       rpcsessions.add_cert(
         ccf::Actors::USERS, nullb, users_cert, users_privkey);
-    }
-
-    void accept_all_connections()
-    {
-      accept_member_connections();
-      accept_node_connections();
-      accept_user_connections();
     }
 
     bool trust_own_code_id(Store::Tx& tx, NodeId self)

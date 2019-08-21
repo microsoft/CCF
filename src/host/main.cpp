@@ -204,15 +204,21 @@ int main(int argc, char** argv)
     ->check(CLI::ExistingFile);
 
   // TODO: Support more than one member
-  std::string member_cert_file = "member1_cert.pem";
+  std::string member_cert_file = "member*_cert.pem";
   start
     ->add_option(
       "--member-cert",
       member_cert_file,
       "Path to existing member certificate",
       true)
-    ->required()
-    ->check(CLI::ExistingFile);
+    ->required();
+
+  // TODO: For now, user certificate are passed when the node starts up
+  std::string user_cert_file = "user*_cert.pem";
+  start
+    ->add_option(
+      "--user-cert", user_cert_file, "Path to existing user certificate", true)
+    ->required();
 
   auto join = app.add_subcommand("join", "Join existing network");
   join
@@ -326,7 +332,8 @@ int main(int argc, char** argv)
   {
     LOG_INFO_FMT("Starting new node - new network");
     start_type = StartType::Start;
-    ccf_config.genesis.member_cert = files::slurp(member_cert_file);
+    ccf_config.genesis.member_certs = files::slurp_certs(member_cert_file);
+    ccf_config.genesis.user_certs = files::slurp_certs(user_cert_file);
     ccf_config.genesis.gov_script = files::slurp_string(gov_script);
   }
   else if (*join)

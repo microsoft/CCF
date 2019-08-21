@@ -467,6 +467,7 @@ class CCFRemote(object):
         label,
         target_rpc_address=None,
         members_certs=None,
+        users_certs=None,
         other_quote=None,
         other_quoted_data=None,
         host_log_level="info",
@@ -569,9 +570,10 @@ class CCFRemote(object):
                 cmd += [
                     "start",
                     f"--member-cert={members_certs}",
+                    f"--user-cert={users_certs}",
                     f"--gov-script={os.path.basename(gov_script)}",
                 ]
-                data_files += [members_certs, os.path.basename(gov_script)]
+                data_files += [members_certs, users_certs, os.path.basename(gov_script)]
             elif start_type == StartupType.join:
                 cmd += [
                     "join",
@@ -611,7 +613,10 @@ class CCFRemote(object):
         wait_for_termination = self.verify_quote
         self.remote.start(wait_for_termination)
         # In start or recovery
-        if self.start_type == StartupType.start or self.start_type == StartupType.recover:
+        if (
+            self.start_type == StartupType.start
+            or self.start_type == StartupType.recover
+        ):
             self.remote.get("networkcert.pem")
 
     def restart(self):
