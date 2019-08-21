@@ -640,7 +640,6 @@ function(add_e2e_test)
   )
 
   if (BUILD_END_TO_END_TESTS)
-    message(STATUS "log path is: ${LOG_PATH}")
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
@@ -687,7 +686,6 @@ function(add_perf_test)
     unset(VERIFICATION_ARG)
   endif()
 
-  message(STATUS "log path is: ${LOG_PATH}")
   add_test(
     NAME ${PARSED_ARGS_NAME}
     COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
