@@ -89,6 +89,9 @@ option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(AZURE_LOG_ANALYTICS "Enable azure analytics log collection" OFF)
+if (AZURE_LOG_ANALYTICS)
+    set(LOG_PATH "--log-path" "/var/log/ccf")
+endif()
 
 option(PBFT "Enable PBFT" OFF)
 if (PBFT)
@@ -636,19 +639,16 @@ function(add_e2e_test)
     "ADDITIONAL_ARGS"
   )
 
-  if (AZURE_LOG_ANALYTICS)
-    set(LOG_PATH "--log-path" "/var/log/ccf")
-  endif()
-
   if (BUILD_END_TO_END_TESTS)
+    message(STATUS "log path is: ${LOG_PATH}")
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
         -b .
         --label ${PARSED_ARGS_NAME}
+        ${LOG_PATH}
         ${CCF_NETWORK_TEST_ARGS}
         ${PARSED_ARGS_ADDITIONAL_ARGS}
-        ${LOG_PATH}
     )
 
     ## Make python test client framework importable
@@ -687,21 +687,18 @@ function(add_perf_test)
     unset(VERIFICATION_ARG)
   endif()
 
-  if (AZURE_LOG_ANALYTICS)
-    set(LOG_PATH "--log-path" "/var/log/ccf")
-  endif()
-
+  message(STATUS "log path is: ${LOG_PATH}")
   add_test(
     NAME ${PARSED_ARGS_NAME}
     COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
       -b .
       -c ${PARSED_ARGS_CLIENT_BIN}
       -i ${PARSED_ARGS_ITERATIONS}
+      ${LOG_PATH}
       ${CCF_NETWORK_TEST_ARGS}
       ${PARSED_ARGS_ADDITIONAL_ARGS}
       --write-tx-times
       ${VERIFICATION_ARG}
-      ${LOG_PATH}
   )
 
   ## Make python test client framework importable
