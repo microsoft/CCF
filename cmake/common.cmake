@@ -90,6 +90,7 @@ option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(AZURE_LOG_ANALYTICS "Enable azure analytics log collection" OFF)
 if (AZURE_LOG_ANALYTICS)
+    message(STATUS "setting log path for azure log analytics to ${LOG_PATH}")
     set(LOG_PATH "--log-path" "/var/log/ccf")
 endif()
 
