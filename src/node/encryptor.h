@@ -150,8 +150,13 @@ namespace ccf
       gcm_hdr.deserialise(serialised_header);
       plain.resize(cipher.size());
 
-      return get_encryption_key(version).decrypt(
+      auto ret = get_encryption_key(version).decrypt(
         gcm_hdr.getIv(), gcm_hdr.tag, cipher, additional_data, plain.data());
+
+      if (!ret)
+        plain.resize(0);
+
+      return ret;
     }
 
     /**

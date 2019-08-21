@@ -92,8 +92,8 @@ TEST_CASE("Additional data")
   REQUIRE_FALSE(encryptor->decrypt(
     cipher, additional_data, serialised_header, decrypted_cipher2, version));
 
-  // Note that cipher is decrypted anyway
-  REQUIRE(decrypted_cipher2 == plain);
+  // mbedtls 2.16+ does not produce plain text if decryption fails
+  REQUIRE(decrypted_cipher2.empty());
 }
 
 TEST_CASE("Encryption/decryption with multiple network secrets")

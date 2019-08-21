@@ -14,6 +14,7 @@ import uuid
 import ctypes
 import signal
 import re
+from collections import deque
 
 from loguru import logger as LOG
 
@@ -66,15 +67,21 @@ def log_errors(out_path, err_path):
     error_filter = ["fail", "fatal"]
     try:
         errors = 0
+        tail_lines = deque(maxlen=15)
         with open(out_path, "r") as lines:
             for line in lines:
-                if any(x in line for x in error_filter):
-                    LOG.error("{}: {}".format(out_path, line.rstrip()))
+                stripped_line = line.rstrip()
+                tail_lines.append(stripped_line)
+                if any(x in stripped_line for x in error_filter):
+                    LOG.error("{}: {}".format(out_path, stripped_line))
                     errors += 1
         if errors:
+            LOG.info("{} errors found, printing end of output for context:", errors)
+            for line in tail_lines:
+                LOG.info(line)
             try:
                 with open(err_path, "r") as lines:
-                    LOG.error("{} contents:".format(err_path))
+                    LOG.error("contents of {}:".format(err_path))
                     LOG.error(lines.read())
             except IOError:
                 LOG.exception("Could not read err output {}".format(err_path))
@@ -607,7 +614,8 @@ class CCFRemote(object):
             if self.quote:
                 cmd.append(f"--quote-file={self.quote}")
 
-        env = {}
+        # Necessary for the az-dcap-client >=1.1 (https://github.com/microsoft/Azure-DCAP-Client/issues/84)
+        env = {"HOME": os.environ["HOME"]}
         self.profraw = None
         if enclave_type == "virtual":
             env["UBSAN_OPTIONS"] = "print_stacktrace=1"

@@ -5,7 +5,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nlohmann/json.git",
-          "commitHash": "1126c9ca74fdea22d2ce3a065ac0fcb5792cbdaf"
+          "commitHash": "53c3eefa2cf790a7130fed3e13a3be35c2f2ace2"
         }
       }
     },
@@ -23,7 +23,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/onqtam/doctest.git",
-          "commitHash": "a3ae95865eb78a2303e0028822ebac01082d9be3"
+          "commitHash": "f13a00cc27ed3c1ec4f755572ab7556c4cb01716"
         }
       }
     },
