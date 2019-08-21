@@ -46,7 +46,8 @@ struct CCFConfig
     std::vector<std::vector<uint8_t>> member_certs;
     std::vector<std::vector<uint8_t>> user_certs;
     std::string gov_script;
-    MSGPACK_DEFINE(member_certs, user_certs, gov_script);
+    std::string app_script;
+    MSGPACK_DEFINE(member_certs, user_certs, gov_script, app_script);
   };
   Genesis genesis = {};
 

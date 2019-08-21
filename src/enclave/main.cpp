@@ -43,18 +43,6 @@ extern "C"
     CCFConfig cc;
     obj.convert(cc);
 
-    std::cout << "Raft: " << cc.raft_config.election_timeout << "/"
-              << cc.raft_config.election_timeout << std::endl;
-    std::cout << "node_info: " << cc.node_info_network.host << "/"
-              << cc.node_info_network.nodeport << "/"
-              << cc.node_info_network.pubhost << "/"
-              << cc.node_info_network.rpcport << std::endl;
-    std::cout << "Signature Intervals: " << cc.signature_intervals.sig_max_ms
-              << "/" << cc.signature_intervals.sig_max_tx << std::endl;
-    // std::cout << "Genesis: " << cc.genesis.gov_script << std::endl;
-    // std::cout << "Joining: " << cc.joining.target_host << "/"
-    //           << cc.joining.target_port << std::endl;
-
 #ifdef DEBUG_CONFIG
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];
 #endif

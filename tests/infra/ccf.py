@@ -77,6 +77,7 @@ class Network:
         "memory_reserve_startup",
         "notify_server",
         "gov_script",
+        "app_script",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the leader to followers

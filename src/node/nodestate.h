@@ -291,7 +291,8 @@ namespace ccf
              member_certs_view,
              user_certs_view,
              whitelist_view,
-             gov_view] =
+             gov_view,
+             app_view] =
               tx.get_view(
                 network.nodes,
                 network.node_certs,
@@ -299,7 +300,8 @@ namespace ccf
                 network.member_certs,
                 network.user_certs,
                 network.whitelists,
-                network.gov_scripts);
+                network.gov_scripts,
+                network.app_scripts);
 
           // Init values
           {
@@ -350,9 +352,23 @@ namespace ccf
           std::map<std::string, std::string> scripts =
             lua::Interpreter().invoke<nlohmann::json>(
               args.config.genesis.gov_script);
-          for (auto& rs : scripts)
+
+          for (const auto& rs : scripts)
           {
             gov_view->put(rs.first, rs.second);
+          }
+
+          // App script is compiled
+          if (!args.config.genesis.app_script.empty())
+          {
+            std::map<std::string, std::string> app_scripts =
+              lua::Interpreter().invoke<nlohmann::json>(
+                args.config.genesis.app_script);
+
+            for (const auto& rs : app_scripts)
+            {
+              app_view->put(rs.first, ccf::lua::compile(rs.second));
+            }
           }
 
 #ifdef GET_QUOTE

@@ -201,15 +201,23 @@ int main(int argc, char** argv)
       gov_script,
       "Path to Lua file that defines the contents of the gov_scripts table",
       true)
-    ->check(CLI::ExistingFile);
+    ->check(CLI::ExistingFile)
+    ->required();
 
-  // TODO: Support more than one member
+  // TODO: For now, lua app is passed when the node starts up
+  std::string app_script;
+  const auto app_script_opt = start->add_option(
+    "--app-script",
+    app_script,
+    "Path to Lua file that defines the user business logic",
+    true);
+
   std::string member_cert_file = "member*_cert.pem";
   start
     ->add_option(
-      "--member-cert",
+      "--member-certs",
       member_cert_file,
-      "Path to existing member certificate",
+      "Globbing pattern for member certificate files",
       true)
     ->required();
 
@@ -217,7 +225,10 @@ int main(int argc, char** argv)
   std::string user_cert_file = "user*_cert.pem";
   start
     ->add_option(
-      "--user-cert", user_cert_file, "Path to existing user certificate", true)
+      "--user-certs",
+      user_cert_file,
+      "Globbing pattern for user certificate files",
+      true)
     ->required();
 
   auto join = app.add_subcommand("join", "Join existing network");
@@ -238,7 +249,6 @@ int main(int argc, char** argv)
     ->required();
 
   auto recover = app.add_subcommand("recover", "Recover crashed network");
-  // TODO: Recovery options
 
   CLI11_PARSE(app, argc, argv);
 
@@ -335,6 +345,8 @@ int main(int argc, char** argv)
     ccf_config.genesis.member_certs = files::slurp_certs(member_cert_file);
     ccf_config.genesis.user_certs = files::slurp_certs(user_cert_file);
     ccf_config.genesis.gov_script = files::slurp_string(gov_script);
+    if (*app_script_opt)
+      ccf_config.genesis.app_script = files::slurp_string(app_script);
   }
   else if (*join)
   {
