@@ -586,7 +586,6 @@ class CCFRemote(object):
                 ]
                 data_files += ["networkcert.pem"]
             elif start_type == StartupType.recover:
-                LOG.error("Starting up node in recovery")
                 cmd += ["recover"]
                 # Starting a CCF node in recover does not require any additional arguments
                 pass

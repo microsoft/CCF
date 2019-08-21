@@ -11,7 +11,7 @@ namespace ccf
   public:
     ManagementRpcFrontend(Store& tables, NodeState& node) : RpcFrontend(tables)
     {
-      auto get_signed_index = [&node](RequestArgs& args) {
+      auto get_signed_index = [&node, &tables](RequestArgs& args) {
         GetSignedIndex::Out result;
         if (node.is_reading_public_ledger())
         {
@@ -36,7 +36,14 @@ namespace ccf
             "Network is not in recovery mode");
         }
 
-        result.signed_index = node.last_signed_index(args.tx);
+        // TODO: Fix this
+        // auto sig_view =
+        //   args.tx.get_view(tables.get<Signatures>(Tables::SIGNATURES));
+
+        // auto sig = sig_view->get(0);
+        // if (!sig.has_value())
+        result.signed_index = 0;
+        // result.signed_index = sig.value().index;
         return jsonrpc::success(result);
       };
 

@@ -8,8 +8,8 @@
 #include "../ds/logger.h"
 #include "../ds/oversized.h"
 #include "../ds/ringbuffer_types.h"
-#include "../enclave/nodeinfonetwork.h"
 #include "../kv/kvtypes.h"
+#include "../node/nodeinfonetwork.h"
 #include "../raft/rafttypes.h"
 
 #include <chrono>
@@ -31,7 +31,7 @@ struct EnclaveConfig
 struct CCFConfig
 {
   raft::Config raft_config = {};
-  NodeInfoNetwork node_info_network = {};
+  ccf::NodeInfoNetwork node_info_network = {};
 
   struct SignatureIntervals
   {

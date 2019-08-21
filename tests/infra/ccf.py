@@ -115,11 +115,9 @@ class Network:
 
         LOG.info("Starting nodes on {}".format(hosts))
 
-        # TODO: Do not use genesisgenerator to create members' keys/certs
         self.add_members([1, 2, 3])
         self.add_users([1, 2, 3])
 
-        # TODO: App script should be passed by governance before the network is opened
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
         if args.gov_script:
@@ -170,7 +168,6 @@ class Network:
         if not args.package:
             raise ValueError("A package name must be specified.")
 
-        # TODO: App script should be passed by governance before the network is opened
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
         if args.gov_script:
@@ -275,14 +272,14 @@ class Network:
         members = ["member{}".format(m) for m in members]
         for m in members:
             infra.proc.ccall(
-                "./genesisgenerator", "cert", "--name={}".format(m)
+                "./keygenerator", "--name={}".format(m)
             ).check_returncode()
 
     def add_users(self, users):
         users = ["user{}".format(u) for u in users]
         for u in users:
             infra.proc.ccall(
-                "./genesisgenerator", "cert", "--name={}".format(u)
+                "./keygenerator", "--name={}".format(u)
             ).check_returncode()
 
     def member_client_rpc_as_json(self, member_id, remote_node, *args):
@@ -357,22 +354,6 @@ class Network:
         return self.propose(
             member_id, remote_node, "add_member", f"--member_cert={new_member_cert}"
         )
-
-    def genesis_generator(self, args):
-        gen = ["./genesisgenerator", "tx"]
-        if args.app_script:
-            gen.append("--app-script={}".format(args.app_script))
-        if args.gov_script:
-            gen.append("--gov-script={}".format(args.gov_script))
-        infra.proc.ccall(*gen).check_returncode()
-        LOG.info("Created Genesis TX")
-
-    # TODO: Delete everything that calls nodes_json
-    def nodes_json(self):
-        nodes_json = [node.node_json for node in self.nodes]
-        with open("nodes.json", "w") as nodes_:
-            json.dump(nodes_json, nodes_, indent=4)
-        LOG.info("Created nodes.json")
 
     def stop_all_nodes(self):
         for node in self.nodes:

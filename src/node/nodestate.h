@@ -14,10 +14,9 @@
 #include "enclave/rpcsessions.h"
 #include "encryptor.h"
 #include "entities.h"
+#include "genesisgen.h"
 #include "history.h"
 #include "kv/replicator.h"
-#include "luainterp/luainterp.h"
-#include "luainterp/luautil.h"
 #include "networkstate.h"
 #include "nodetonode.h"
 #include "rpc/consts.h"
@@ -26,9 +25,6 @@
 #include "seal.h"
 #include "tls/client.h"
 #include "tls/entropy.h"
-
-// TODO: Move this once there is a helper class for the genesisgen
-#include "runtime_config/default_whitelists.h"
 
 #include <atomic>
 #include <ccf_t.h>
@@ -184,7 +180,8 @@ namespace ccf
       std::vector<uint8_t> quote{1};
 
 #ifdef GET_QUOTE
-      crypto::Sha256Hash h{node_cert};
+      // Quote is over the DER-encoded node certificate
+      crypto::Sha256Hash h{tls::make_verifier(node_cert)->raw_cert_data()};
       uint8_t* report;
       size_t report_len = 0;
 
@@ -281,106 +278,40 @@ namespace ccf
       {
         case StartType::Start:
         {
-          Store::Tx tx;
+          GenesisGenerator g(network);
 
-          // Initialise store
-          auto
-            [nodes_view,
-             node_certs_view,
-             members_view,
-             member_certs_view,
-             user_certs_view,
-             whitelist_view,
-             gov_view,
-             app_view] =
-              tx.get_view(
-                network.nodes,
-                network.node_certs,
-                network.members,
-                network.member_certs,
-                network.user_certs,
-                network.whitelists,
-                network.gov_scripts,
-                network.app_scripts);
+          for (auto& cert : args.config.genesis.member_certs)
+            g.add_member(cert);
 
-          // Init values
-          {
-            auto v = tx.get_view(network.values);
-            for (int id_type = 0; id_type < ccf::ValueIds::END_ID; id_type++)
-              v->put(id_type, 0);
-          }
+          for (auto& cert : args.config.genesis.user_certs)
+            g.add_user(cert);
 
-          // TODO: Should we only become TRUSTED once the member has vetted
-          // the network?
-          self = get_next_id(tx.get_view(network.values), NEXT_NODE_ID);
-
-          // Nodes
-          nodes_view->put(
-            self,
-            {args.config.node_info_network.host,
-             args.config.node_info_network.pubhost,
-             args.config.node_info_network.nodeport,
-             args.config.node_info_network.rpcport,
-             node_cert,
-             quote,
-             NodeStatus::PENDING});
-          node_certs_view->put(node_cert, self);
-
-          // Members
-          for (auto const& cert : args.config.genesis.member_certs)
-          {
-            auto member_id =
-              get_next_id(tx.get_view(network.values), NEXT_MEMBER_ID);
-            // TODO: Status can be active straight away?
-            members_view->put(member_id, {MemberStatus::ACTIVE, {}});
-            member_certs_view->put(cert, member_id);
-          }
-
-          // Users
-          for (auto const& cert : args.config.genesis.user_certs)
-          {
-            auto user_id =
-              get_next_id(tx.get_view(network.values), NEXT_USER_ID);
-            user_certs_view->put(cert, user_id);
-          }
-
-          // Whitelists
-          for (const auto& wl : default_whitelists)
-            whitelist_view->put(wl.first, wl.second);
-
-          // Governance is not compiled
-          std::map<std::string, std::string> scripts =
-            lua::Interpreter().invoke<nlohmann::json>(
-              args.config.genesis.gov_script);
-
-          for (const auto& rs : scripts)
-          {
-            gov_view->put(rs.first, rs.second);
-          }
-
-          // App script is compiled
-          if (!args.config.genesis.app_script.empty())
-          {
-            std::map<std::string, std::string> app_scripts =
-              lua::Interpreter().invoke<nlohmann::json>(
-                args.config.genesis.app_script);
-
-            for (const auto& rs : app_scripts)
-            {
-              app_view->put(rs.first, ccf::lua::compile(rs.second));
-            }
-          }
+          // Add self
+          self = g.add_node({args.config.node_info_network,
+                             node_cert,
+                             quote,
+                             NodeStatus::PENDING});
 
 #ifdef GET_QUOTE
-          if (!trust_own_code_id(tx, self))
-            return Fail<CreateNew::Out>(
-              "Parsing quote of starting node failed");
+          // Trust own code id
+          g.trust_code_id(node_code_id);
 #endif
+
+          // set access whitelists
+          // TODO(#feature): this should be configurable
+          for (const auto& wl : default_whitelists)
+            g.set_whitelist(wl.first, wl.second);
+
+          g.set_gov_scripts(lua::Interpreter().invoke<nlohmann::json>(
+            args.config.genesis.gov_script));
+
+          if (!args.config.genesis.app_script.empty())
+            g.set_app_scripts(lua::Interpreter().invoke<nlohmann::json>(
+              args.config.genesis.app_script));
 
           network.secrets = std::make_unique<NetworkSecrets>(
             "CN=The CA", std::make_unique<Seal>(writer_factory));
 
-          /* KV INITIALISATION ENDS HERE */
 #ifdef PBFT
           setup_pbft();
 #endif
@@ -391,8 +322,7 @@ namespace ccf
           // Become the raft leader and force replication
           raft->force_become_leader();
 
-          auto rc = tx.commit();
-          if (rc != kv::CommitSuccess::OK)
+          if (g.finalize() != kv::CommitSuccess::OK)
             return Fail<CreateNew::Out>(
               "Genesis transaction could not be committed");
 
@@ -608,56 +538,20 @@ namespace ccf
 
     void recover_public_ledger_end_unsafe()
     {
-      Store::Tx tx;
       sm.expect(State::readingPublicLedger);
 
       // When reaching the end of the public ledger, truncate to last signed
       // index and promote network secrets to this index
-      auto ls_idx = last_signed_index(tx);
+      GenesisGenerator g(network);
+
+      auto ls_idx = g.last_signed_index();
       network.tables->rollback(ls_idx);
       log_truncate(ls_idx);
       LOG_INFO_FMT("Truncating ledger to last signed index: {}", ls_idx);
 
       network.secrets->promote_secrets(0, ls_idx + 1);
 
-      start_recovered_network(tx);
-
-      if (tx.commit() != kv::CommitSuccess::OK)
-        throw std::logic_error(
-          "Could not commit transaction when starting recovered network");
-    }
-
-    std::string start_recovered_network(Store::Tx& tx)
-    {
-      auto [nodes_view, values_view, node_certs_view, sigs_view] = tx.get_view(
-        network.nodes, network.values, network.node_certs, network.signatures);
-
-      std::map<NodeId, NodeInfo> nodes_to_delete;
-      nodes_view->foreach(
-        [&nodes_to_delete](const NodeId& nid, const NodeInfo& ni) {
-          // Only retire nodes that have not already been retired
-          if (ni.status != ccf::NodeStatus::RETIRED)
-            nodes_to_delete[nid] = ni;
-          return true;
-        });
-
-      for (auto [nid, ni] : nodes_to_delete)
-      {
-        ni.status = ccf::NodeStatus::RETIRED;
-        nodes_view->put(nid, ni);
-      }
-
-      std::vector<Cert> certs_to_delete;
-      node_certs_view->foreach(
-        [&certs_to_delete](const Cert& cstr, const NodeId& _) {
-          certs_to_delete.push_back(cstr);
-          return true;
-        });
-      for (Cert& cstr : certs_to_delete)
-      {
-        node_certs_view->remove(cstr);
-      }
-
+      g.delete_active_nodes();
       LOG_INFO_FMT("Replaced nodes");
 
       // Quotes should be initialised and non-empty
@@ -667,25 +561,16 @@ namespace ccf
       quote = get_quote();
 #endif
 
-      self = get_next_id(tx.get_view(network.values), NEXT_NODE_ID);
-
-      nodes_view->put(
-        self,
-        {node_info_network.host,
-         node_info_network.pubhost,
-         node_info_network.nodeport,
-         node_info_network.rpcport,
-         node_cert,
-         quote,
-         NodeStatus::PENDING});
-      node_certs_view->put(node_cert, self);
+      self =
+        g.add_node({node_info_network, node_cert, quote, NodeStatus::PENDING});
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
       kv::Version index = 0;
       kv::Term term = 0;
       kv::Version global_commit = 0;
-      auto ls = sigs_view->get(0);
+
+      auto ls = g.get_last_signature();
       if (ls.has_value())
       {
         auto s = ls.value();
@@ -697,7 +582,9 @@ namespace ccf
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
       if (h)
         h->set_node_id(self);
+
       setup_raft(true);
+
       LOG_DEBUG_FMT(
         "Restarting Raft at index: {} term: {} commit_idx {}",
         index,
@@ -706,37 +593,21 @@ namespace ccf
       raft->force_become_leader(index, term, term_history, index);
 
       // Sets itself as trusted
-      auto leader_info = nodes_view->get(self).value();
-      leader_info.status = NodeStatus::TRUSTED;
-      nodes_view->put(self, leader_info);
+      g.trust_node(self);
 
 #ifdef GET_QUOTE
-      if (!trust_own_code_id(tx, self))
-        throw std::logic_error("Parsing node of first recovery node failed");
+      g.trust_code_id(node_code_id);
 #endif
+
+      if (g.finalize() != kv::CommitSuccess::OK)
+        throw std::logic_error(
+          "Could not commit transaction when starting recovered network");
 
       accept_node_connections();
 
       LOG_INFO_FMT("Restarted network");
 
       sm.advance(State::partOfPublicNetwork);
-
-      return std::string(
-        network.secrets->get_current().cert.data(),
-        network.secrets->get_current().cert.data() +
-          network.secrets->get_current().cert.size());
-    }
-
-    kv::Version last_signed_index(Store::Tx& tx)
-    {
-      auto sig_tv = tx.get_view(network.signatures);
-      auto sig = sig_tv->get(0);
-      if (!sig.has_value())
-      {
-        return 0;
-      }
-      auto sig_value = sig.value();
-      return sig_value.index;
     }
 
     //
@@ -1125,18 +996,6 @@ namespace ccf
       // Accept user connections.
       rpcsessions.add_cert(
         ccf::Actors::USERS, nullb, users_cert, users_privkey);
-    }
-
-    bool trust_own_code_id(Store::Tx& tx, NodeId self)
-    {
-#ifdef GET_QUOTE
-      // Setting own code version as trusted
-      auto codeid_view = tx.get_view(network.code_id);
-      codeid_view->put(node_code_id, CodeStatus::ACCEPTED);
-#else
-      throw std::logic_error("Code version check is not implemented");
-#endif
-      return true;
     }
 
     void follower_finish_recovery()

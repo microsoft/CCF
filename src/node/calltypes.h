@@ -2,10 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "enclave/interface.h"
-#include "enclave/nodeinfonetwork.h"
-#include "entities.h"
-#include "networksecrets.h"
-#include "nodes.h"
 
 #include <ccf_args.h>
 
