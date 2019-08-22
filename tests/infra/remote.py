@@ -14,6 +14,7 @@ import uuid
 import ctypes
 import signal
 import re
+import fnmatch
 
 from loguru import logger as LOG
 
@@ -139,9 +140,12 @@ class SSHRemote(CmdMixin):
         assert self._rc("mkdir -p {}".format(self.root)) == 0
         session = self.client.open_sftp()
         for path in self.files:
-            tgt_path = os.path.join(self.root, os.path.basename(path))
-            LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, path))
-            session.put(path, tgt_path)
+            # Some files can be glob patterns
+            for f in os.listdir("."):
+                if fnmatch.fnmatch(f, os.path.basename(path)):
+                    tgt_path = os.path.join(self.root, os.path.basename(f))
+                    LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, f))
+                    session.put(f, tgt_path)
         session.close()
         executable = self.cmd[0]
         if executable.startswith("./"):
