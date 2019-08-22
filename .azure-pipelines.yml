@@ -52,6 +52,7 @@ jobs:
     image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx-no-mitigation:latest
     # --publish-all enables end-to-end tests to communicate over ports
     # --device /dev/sgx:/dev/sgx makes sgx available to the container
+    # -v /var/log/ccf:/var/log/ccf mounts the local directory to the same path in the container
     options: --publish-all --device /dev/sgx:/dev/sgx -v /var/log/ccf:/var/log/ccf
   steps:
     - checkout: self
@@ -70,6 +71,7 @@ jobs:
     image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx-no-mitigation:latest
     # --publish-all enables end-to-end tests to communicate over ports
     # --device /dev/sgx:/dev/sgx makes sgx available to the container
+    # -v /var/log/ccf:/var/log/ccf mounts the local directory to the same path in the container
     options: --publish-all --device /dev/sgx:/dev/sgx -v /var/log/ccf:/var/log/ccf
   dependsOn:
     - ACC_1804_SGX_build
@@ -91,6 +93,7 @@ jobs:
     image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx-no-mitigation:latest
     # --publish-all enables end-to-end tests to communicate over ports
     # --device /dev/sgx:/dev/sgx makes sgx available to the container
+    # -v /var/log/ccf:/var/log/ccf mounts the local directory to the same path in the container
     options: --publish-all --device /dev/sgx:/dev/sgx -v /var/log/ccf:/var/log/ccf
   dependsOn:
     - ACC_1804_SGX_build
@@ -112,6 +115,7 @@ jobs:
     image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx-no-mitigation:latest
     # --publish-all enables end-to-end tests to communicate over ports
     # --device /dev/sgx:/dev/sgx makes sgx available to the container
+    # -v /var/log/ccf:/var/log/ccf mounts the local directory to the same path in the container
     options: --publish-all --device /dev/sgx:/dev/sgx -v /var/log/ccf:/var/log/ccf
   dependsOn:
     - ACC_1804_SGX_build
@@ -133,6 +137,7 @@ jobs:
     image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx-no-mitigation:latest
     # --publish-all enables end-to-end tests to communicate over ports
     # --device /dev/sgx:/dev/sgx makes sgx available to the container
+    # -v /var/log/ccf:/var/log/ccf mounts the local directory to the same path in the container
     options: --publish-all --device /dev/sgx:/dev/sgx -v /var/log/ccf:/var/log/ccf
   steps:
     - checkout: self
@@ -151,6 +156,7 @@ jobs:
     image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx-no-mitigation:latest
     # --publish-all enables end-to-end tests to communicate over ports
     # --device /dev/sgx:/dev/sgx makes sgx available to the container
+    # -v /var/log/ccf:/var/log/ccf mounts the local directory to the same path in the container
     options: --publish-all --device /dev/sgx:/dev/sgx -v /mnt/build:/__w/ -v /var/log/ccf:/var/log/ccf
   dependsOn:
     - ACC_1804_SGX_perf_build

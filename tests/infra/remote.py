@@ -152,11 +152,12 @@ class SSHRemote(CmdMixin):
         self.env = env or {}
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
-        self.analytics_out = None
-        self.analytics_err = None
-        if log_path:
-            self.analytics_out = os.path.join(log_path, f"out_{label}_{name}")
-            self.analytics_err = os.path.join(log_path, f"err_{label}_{name}")
+        self.analytics_out = (
+            os.path.join(log_path, "out", f"{label}_{name}") if log_path else None
+        )
+        self.analytics_err = (
+            os.path.join(log_path, "err", f"{label}_{name}") if log_path else None
+        )
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
@@ -376,11 +377,12 @@ class LocalRemote(CmdMixin):
         self.name = name
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
-        self.analytics_out = None
-        self.analytics_err = None
-        if log_path:
-            self.analytics_out = os.path.join(log_path, "out", f"{label}_{name}")
-            self.analytics_err = os.path.join(log_path, "err", f"{label}_{name}")
+        self.analytics_out = (
+            os.path.join(log_path, "out", f"{label}_{name}") if log_path else None
+        )
+        self.analytics_err = (
+            os.path.join(log_path, "err", f"{label}_{name}") if log_path else None
+        )
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))

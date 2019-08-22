@@ -137,8 +137,7 @@ namespace logger
       if (len > max_len)
         data += len - max_len;
 
-      ss << fmt::format(
-        "status=[{:<5}] loc={:<36} | msg=", config::to_string(ll), data);
+      ss << fmt::format("[{:<5}] {:<36} | ", config::to_string(ll), data);
     }
 
     template <typename T>
@@ -193,8 +192,7 @@ namespace logger
       // Sample: "2019-07-19 18:53:25.690267        "
       // Padding on the right to align the rest of the message
       // with lines that contain enclave time offsets
-      std::cout << "time="
-                << fmt::format(
+      std::cout << fmt::format(
                      "{:%Y-%m-%d %H:%M:%S}.{:0<6}        ",
                      now,
                      ts.tv_nsec / 1000)
@@ -239,8 +237,7 @@ namespace logger
       // Sample: "2019-07-19 18:53:25.690183 -0.130 " where -0.130 indicates
       // that the time inside the enclave was 130 milliseconds earlier than
       // the host timestamp printed on the line
-      std::cout << "time="
-                << fmt::format(
+      std::cout << fmt::format(
                      "{:%Y-%m-%d %H:%M:%S}.{:0>6} -{}.{:0>3} ",
                      now,
                      ts.tv_nsec / 1000,

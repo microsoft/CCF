@@ -11,3 +11,8 @@ steps:
     tar -xaf artifact.tar.gz
   displayName: Uncompress build artifact
   workingDirectory: build
+
+- script: | 
+    cmake .. -L -DAZURE_LOG_ANALYTICS=ON
+  displayName: Re-generate test metadata 
+  workingDirectory: build

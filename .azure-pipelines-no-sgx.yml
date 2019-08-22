@@ -51,6 +51,7 @@ jobs:
   container:
     image: ccfciteam/ccf-ci-18.04-oe-0.6:latest
     # --publish-all enables end-to-end tests to communicate over ports
+    # -v /var/log/ccf:/var/log/ccf mounts the local directory to the same path in the container
     options: --publish-all -v /var/log/ccf:/var/log/ccf
   steps:
     - checkout: self
@@ -96,6 +97,7 @@ jobs:
     image: ccfciteam/ccf-ci-18.04-oe-0.6:latest
     # --publish-all enables end-to-end tests to communicate over ports
     # --cap-add SYS_PTRACE enables ptrace and thus LeakSanitizer
+    # -v /var/log/ccf:/var/log/ccf mounts the local directory to the same path in the container
     options: --publish-all --cap-add SYS_PTRACE -v /var/log/ccf:/var/log/ccf
   steps:
     - checkout: self
