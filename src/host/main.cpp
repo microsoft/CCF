@@ -113,15 +113,13 @@ int main(int argc, char** argv)
   app.add_option(
     "--raft-timeout-ms", raft_timeout, "Raft timeout in milliseconds", true);
 
-  // TODO: Change default here
-  size_t raft_election_timeout = 50000;
+  size_t raft_election_timeout = 500;
   app.add_option(
     "--raft-election-timeout-ms",
     raft_election_timeout,
     "Raft election timeout in milliseconds",
     true);
 
-  // TODO: Do we still need this?
   std::string node_cert_file("nodecert.pem");
   app.add_option(
     "--node-cert-file",
@@ -191,6 +189,7 @@ int main(int argc, char** argv)
     ->required();
 
   // TODO: For now, lua app is passed when the node starts up
+  // See https://github.com/microsoft/CCF/issues/293
   std::string app_script;
   const auto app_script_opt = start->add_option(
     "--app-script",
@@ -208,6 +207,7 @@ int main(int argc, char** argv)
     ->required();
 
   // TODO: For now, user certificate are passed when the node starts up
+  // See https://github.com/microsoft/CCF/issues/293
   std::string user_cert_file = "user*_cert.pem";
   start
     ->add_option(
@@ -364,9 +364,8 @@ int main(int argc, char** argv)
 #ifdef GET_QUOTE
   files::dump(quote, quote_file);
 
-  // TODO: Update once master is merged
-  // if (!enclave.verify_quote(quote, node_cert))
-  //   LOG_FATAL_FMT("Verification of local node quote failed");
+  if (!enclave.verify_quote_with_cert(quote, node_cert))
+    LOG_FATAL_FMT("Verification of local node quote failed");
 #endif
 
   // Start a thread which will ECall and process messages inside the enclave

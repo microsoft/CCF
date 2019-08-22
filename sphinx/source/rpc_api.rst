@@ -78,7 +78,7 @@ getCommit
 .. jsonschema:: schemas/getCommit_result.json
 
 getPrimaryInfo
--------------
+--------------
 
 .. jsonschema:: schemas/getPrimaryInfo_result.json
 

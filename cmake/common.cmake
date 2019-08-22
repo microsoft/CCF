@@ -492,7 +492,7 @@ function(add_unit_test name)
     src
     ${CCFCRYPTO_INC})
   enable_coverage(${name})
-  target_link_libraries(${name} PRIVATE 
+  target_link_libraries(${name} PRIVATE
       -stdlib=libc++
       -lc++
       -lc++abi
@@ -542,6 +542,7 @@ if(NOT ${TARGET} STREQUAL "virtual")
     ${CMAKE_THREAD_LIBS_INIT}
     ccfcrypto.host
     evercrypt.host
+    secp256k1.host
   )
   enable_quote_code(cchost)
 endif()

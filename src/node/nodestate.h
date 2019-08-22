@@ -331,8 +331,6 @@ namespace ccf
 
           auto j = jsonrpc::unpack(data, jsonrpc::Pack::MsgPack);
 
-          std::cout << j.dump() << std::endl;
-
           // Check that the response is valid.
           try
           {
