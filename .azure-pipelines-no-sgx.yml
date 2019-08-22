@@ -51,8 +51,8 @@ jobs:
   container:
     image: ccfciteam/ccf-ci-18.04-oe-0.6:latest
     # --publish-all enables end-to-end tests to communicate over ports
-    # -v /var/log/ccf:/var/log/ccf mounts the local directory to the same path in the container
-    options: --publish-all -v /var/log/ccf:/var/log/ccf
+    # -v $(azure.logpath):$(azure.logpath) mounts the local directory to the same path in the container
+    options: --publish-all -v $(azure.logpath):$(azure.logpath)
   steps:
     - checkout: self
       clean: true
@@ -79,7 +79,9 @@ jobs:
     # Actual coverage build steps starts here
     - template: .azure-pipelines-templates/build.yml
       parameters:
-        cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DCOVERAGE=ON -DAZURE_LOG_ANALYTICS=ON'
+        cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DCOVERAGE=ON'
+      env:
+        LOG_PATH: $(azure.logpath)
 
     - template: .azure-pipelines-templates/test.yml
       parameters:
@@ -97,8 +99,8 @@ jobs:
     image: ccfciteam/ccf-ci-18.04-oe-0.6:latest
     # --publish-all enables end-to-end tests to communicate over ports
     # --cap-add SYS_PTRACE enables ptrace and thus LeakSanitizer
-    # -v /var/log/ccf:/var/log/ccf mounts the local directory to the same path in the container
-    options: --publish-all --cap-add SYS_PTRACE -v /var/log/ccf:/var/log/ccf
+    # -v $(azure.logpath):$(azure.logpath) mounts the local directory to the same path in the container
+    options: --publish-all --cap-add SYS_PTRACE -v $(azure.logpath):$(azure.logpath)
   steps:
     - checkout: self
       clean: true
