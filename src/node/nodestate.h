@@ -174,60 +174,6 @@ namespace ccf
       ::EverCrypt_AutoConfig2_init();
     }
 
-    // TODO: To move to the right location in this file
-    std::vector<uint8_t> get_quote()
-    {
-      std::vector<uint8_t> quote{1};
-
-#ifdef GET_QUOTE
-      // Quote is over the DER-encoded node certificate
-      crypto::Sha256Hash h{tls::make_verifier(node_cert)->raw_cert_data()};
-      uint8_t* report;
-      size_t report_len = 0;
-
-      // TODO(#important,#TR): The "alpha" parameters, including the unique
-      // service identifier, should also be included in the quote.
-      oe_result_t res = oe_get_report(
-        OE_REPORT_FLAGS_REMOTE_ATTESTATION,
-        h.h,
-        h.SIZE,
-        nullptr,
-        0,
-        &report,
-        &report_len);
-
-      if (res != OE_OK)
-      {
-        // TODO: Fix return code
-        LOG_FAIL_FMT("Failed to get quote: {}", oe_result_str(res));
-        // return Fail<CreateNew::Out>("oe_get_report failed");
-        return {};
-      }
-
-      quote.assign(report, report + report_len);
-      oe_free_report(report);
-
-      // Set own code version
-      oe_report_t parsed_quote = {0};
-      res = oe_parse_report(quote.data(), quote.size(), &parsed_quote);
-      if (res != OE_OK)
-      {
-        LOG_FAIL_FMT("Failed to parse quote: {}", oe_result_str(res));
-        // return Fail<CreateNew::Out>("oe_parse_report failed");
-        // TODO: Fix return code
-        return {};
-      }
-
-      std::copy(
-        std::begin(parsed_quote.identity.unique_id),
-        std::end(parsed_quote.identity.unique_id),
-        std::begin(node_code_id));
-#else
-      throw std::logic_error("Quote retrieval is not yet implemented");
-#endif
-      return quote;
-    }
-
     //
     // funcs in state "uninitialized"
     //
@@ -269,7 +215,10 @@ namespace ccf
       std::vector<uint8_t> quote{1};
 
 #ifdef GET_QUOTE
-      quote = get_quote();
+      auto quote_opt = get_quote();
+      if (!quote_opt.has_value())
+        return Fail<CreateNew::Out>("Quote could not be retrieved");
+      quote = quote_opt.value();
 #endif
 
       switch (args.start_type)
@@ -285,11 +234,11 @@ namespace ccf
           for (auto& cert : args.config.genesis.user_certs)
             g.add_user(cert);
 
-          // Add self
+          // Add self as TRUSTED
           self = g.add_node({args.config.node_info_network,
                              node_cert,
                              quote,
-                             NodeStatus::PENDING});
+                             NodeStatus::TRUSTED});
 
 #ifdef GET_QUOTE
           // Trust own code id
@@ -461,13 +410,16 @@ namespace ccf
       join_rpc.params.raw_fresh_key = raw_fresh_key;
       join_rpc.params.node_info_network = args.config.node_info_network;
 
-      // TODO: For now, regenerate the quote from before. This is okay since the
-      // quote generation will change anyway and the quote will not be returned
-      // until here.
+      // TODO: For now, regenerate the quote from when the node started. This is
+      // okay since the quote generation will change as part of
+      // https://github.com/microsoft/CCF/issues/59
       std::vector<uint8_t> quote{1};
 
 #ifdef GET_QUOTE
-      quote = get_quote();
+      auto quote_opt = get_quote();
+      if (!quote_opt.has_value())
+        LOG_FATAL_FMT("Quote could not be retrieved");
+      quote = quote_opt.value();
 #endif
       join_rpc.params.quote = quote;
 
@@ -558,7 +510,10 @@ namespace ccf
       std::vector<uint8_t> quote{1};
 
 #ifdef GET_QUOTE
-      quote = get_quote();
+      auto quote_opt = get_quote();
+      if (!quote_opt.has_value())
+        LOG_FATAL_FMT("Quote could not be retrieved");
+      quote = quote_opt.value();
 #endif
 
       self =
@@ -915,6 +870,55 @@ namespace ccf
       return sm.check(State::partOfPublicNetwork);
     }
 
+    std::optional<std::vector<uint8_t>> get_quote()
+    {
+      std::vector<uint8_t> quote{1};
+
+#ifdef GET_QUOTE
+      // Quote is over the DER-encoded node certificate
+      crypto::Sha256Hash h{tls::make_verifier(node_cert)->raw_cert_data()};
+      uint8_t* report;
+      size_t report_len = 0;
+
+      // TODO(#important,#TR): The "alpha" parameters, including the unique
+      // service identifier, should also be included in the quote.
+      oe_result_t res = oe_get_report(
+        OE_REPORT_FLAGS_REMOTE_ATTESTATION,
+        h.h,
+        h.SIZE,
+        nullptr,
+        0,
+        &report,
+        &report_len);
+
+      if (res != OE_OK)
+      {
+        LOG_FAIL_FMT("Failed to get quote: {}", oe_result_str(res));
+        return {};
+      }
+
+      quote.assign(report, report + report_len);
+      oe_free_report(report);
+
+      // Set own code version
+      oe_report_t parsed_quote = {0};
+      res = oe_parse_report(quote.data(), quote.size(), &parsed_quote);
+      if (res != OE_OK)
+      {
+        LOG_FAIL_FMT("Failed to parse quote: {}", oe_result_str(res));
+        return {};
+      }
+
+      std::copy(
+        std::begin(parsed_quote.identity.unique_id),
+        std::end(parsed_quote.identity.unique_id),
+        std::begin(node_code_id));
+#else
+      throw std::logic_error("Quote retrieval is not yet implemented");
+#endif
+      return quote;
+    }
+
     // Used from nodefrontend.h to set the joiner's fresh key to encrypt past
     // network secrets
     void set_joiner_key(
@@ -931,6 +935,7 @@ namespace ccf
       nodes_view->foreach([&result](const NodeId& nid, const NodeInfo& ni) {
         if (ni.status == ccf::NodeStatus::TRUSTED)
         {
+          LOG_FAIL_FMT("One node is trusted! {}", nid);
           GetQuotes::Quote quote;
           quote.node_id = nid;
           quote.raw = std::string(ni.quote.begin(), ni.quote.end());
@@ -1063,6 +1068,7 @@ namespace ccf
           switch (ni.value.status)
           {
             case NodeStatus::PENDING:
+            case NodeStatus::TRUSTED:
             {
               add_node(node_id, ni.value.host, ni.value.nodeport);
               configure = true;

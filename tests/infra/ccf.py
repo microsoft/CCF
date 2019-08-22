@@ -132,9 +132,9 @@ class Network:
             try:
                 leader, _ = self.find_leader() if i != 0 else (None, None)
                 node.start(
-                    infra.remote.StartupType.start
+                    infra.remote.StartType.start
                     if i == 0
-                    else infra.remote.StartupType.join,
+                    else infra.remote.StartType.join,
                     lib_name=args.package,
                     node_status=node_status[i],
                     workspace=args.workspace,
@@ -188,7 +188,7 @@ class Network:
                 # longest ledger are stopped and restarted in "join".
                 if i == 0:
                     node.start(
-                        start_type=infra.remote.StartupType.recover,
+                        start_type=infra.remote.StartType.recover,
                         lib_name=args.package,
                         node_status=node_status[i],
                         ledger_file=ledger_file,
@@ -209,7 +209,7 @@ class Network:
                 leader = self.nodes[0]
                 node.stop()
                 node.start(
-                    infra.remote.StartupType.join,
+                    infra.remote.StartType.join,
                     lib_name=args.package,
                     node_status=node_status[i],
                     workspace=args.workspace,

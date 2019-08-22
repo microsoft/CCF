@@ -70,14 +70,6 @@ int main(int argc, char** argv)
   std::string ledger_file("ccf.ledger");
   app.add_option("--ledger-file", ledger_file, "Ledger file", true);
 
-  // std::string start("new");
-  // app.add_set(
-  //   "-s,--start",
-  //   start,
-  //   {"new", "verify", "recover"},
-  //   "Startup mode: new for a fresh network, verify to verify an enclave
-  //   quote, " "recover to start a recovery", true);
-
   std::string host_log_level("info");
   app.add_set(
     "-l,--host-log-level",
@@ -88,12 +80,6 @@ int main(int argc, char** argv)
 
   std::string quote_file("quote.bin");
   app.add_option("-q,--quote-file", quote_file, "SGX quote file", true);
-
-  // TODO: Do we still need this?
-  // Only for start = verify
-  std::string quoted_data("nodecert.pem");
-  app.add_option(
-    "-c,--quoted-data", quoted_data, "SGX quoted certificate", true);
 
   size_t sig_max_tx = 1000;
   app.add_option(
@@ -272,25 +258,6 @@ int main(int argc, char** argv)
 
   // create the enclave
   host::Enclave enclave(enclave_file, oe_flags);
-
-#ifdef GET_QUOTE
-  // if (start == "verify")
-  // {
-  //   auto q = files::slurp(quote_file);
-  //   auto d = files::slurp(quoted_data);
-
-  //   auto passed = enclave.verify_quote(q, d);
-  //   if (!passed)
-  //   {
-  //     throw std::runtime_error("Quote verification failed");
-  //   }
-  //   else
-  //   {
-  //     LOG_INFO_FMT("Quote verified");
-  //     return 0;
-  //   }
-  // }
-#endif
 
   // messaging ring buffers
   ringbuffer::Circuit circuit(1 << circuit_size_shift);

@@ -567,7 +567,7 @@ class CCFRemote(object):
             if self.quote:
                 cmd += [f"--quote-file={self.quote}"]
 
-            if start_type == StartupType.start:
+            if start_type == StartType.start:
                 cmd += [
                     "start",
                     f"--member-certs={members_certs}",
@@ -578,14 +578,14 @@ class CCFRemote(object):
                 if app_script:
                     cmd += [f"--app-script={os.path.basename(app_script)}"]
                     data_files += [os.path.basename(app_script)]
-            elif start_type == StartupType.join:
+            elif start_type == StartType.join:
                 cmd += [
                     "join",
                     "--network-cert-file=networkcert.pem",
                     f"--target-rpc-address={target_rpc_address}",
                 ]
                 data_files += ["networkcert.pem"]
-            elif start_type == StartupType.recover:
+            elif start_type == StartType.recover:
                 cmd += ["recover"]
                 # Starting a CCF node in recover does not require any additional arguments
                 pass
@@ -616,10 +616,7 @@ class CCFRemote(object):
         wait_for_termination = self.verify_quote
         self.remote.start(wait_for_termination)
         # In start or recovery
-        if (
-            self.start_type == StartupType.start
-            or self.start_type == StartupType.recover
-        ):
+        if self.start_type == StartType.start or self.start_type == StartType.recover:
             self.remote.get("networkcert.pem")
 
     def restart(self):
@@ -720,7 +717,8 @@ class NodeStatus(Enum):
     retired = 2
 
 
-class StartupType(Enum):
+class StartType(Enum):
     start = 0
     join = 1
     recover = 2
+    verify_quote = 3

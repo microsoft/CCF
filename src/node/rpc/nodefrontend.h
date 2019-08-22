@@ -42,7 +42,7 @@ namespace ccf
            in.node_info_network.rpcport,
            caller_cert,
            in.quote,
-           NodeStatus::PENDING});
+           NodeStatus::TRUSTED});
 
         // Set joiner's fresh key for encrypting past network secrets
         node.set_joiner_key(joining_node_id, args.params["raw_fresh_key"]);
