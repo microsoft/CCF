@@ -13,9 +13,8 @@ trigger:
       - 'THIRD_PARTY_NOTICES.txt'
       - 'getting_started/'
       - 'sphinx/'
-      - '.circleci/'
       - '.github/'
-      - '.vsts-gh-pages.yml'
+      - '.azure-pipelines-gh-pages.yml'
       - 'LICENSE'
 
 pr:
@@ -34,9 +33,8 @@ pr:
       - 'THIRD_PARTY_NOTICES.txt'
       - 'getting_started/'
       - 'sphinx/'
-      - '.circleci/'
       - '.github/'
-      - '.vsts-gh-pages.yml'
+      - '.azure-pipelines-gh-pages.yml'
       - 'LICENSE'
 
 schedules:
@@ -51,9 +49,10 @@ jobs:
 - job: Coverage
   pool: Ubuntu-1804-D8s_v3
   container:
-    image: ccfciteam/ccf-ci-18.04:latest
+    image: ccfciteam/ccf-ci-18.04-oe-0.6:latest
     # --publish-all enables end-to-end tests to communicate over ports
-    options: --publish-all
+    # -v $(log.path):$(log.path) mounts the local directory to the same path in the container
+    options: --publish-all -v $(log.path):$(log.path)
   steps:
     - checkout: self
       clean: true
@@ -67,7 +66,7 @@ jobs:
     - script: python3.7 notice-check.py
       displayName: 'Check copyright notices'
 
-    - script: ./check-format.sh src
+    - script: ./check-format.sh src samples
       displayName: 'Check C++ code format'
 
     - script: |
@@ -78,11 +77,11 @@ jobs:
       displayName: 'Check Python code format'
 
     # Actual coverage build steps starts here
-    - template: .vsts-ci-templates/build.yml
+    - template: .azure-pipelines-templates/build.yml
       parameters:
         cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DCOVERAGE=ON'
 
-    - template: .vsts-ci-templates/test.yml
+    - template: .azure-pipelines-templates/test.yml
       parameters:
         suite_name_suffix: 'coverage'
 
@@ -95,19 +94,20 @@ jobs:
 - job: SAN
   pool: Ubuntu-1804-D8s_v3
   container:
-    image: ccfciteam/ccf-ci-18.04:latest
+    image: ccfciteam/ccf-ci-18.04-oe-0.6:latest
     # --publish-all enables end-to-end tests to communicate over ports
     # --cap-add SYS_PTRACE enables ptrace and thus LeakSanitizer
-    options: --publish-all --cap-add SYS_PTRACE
+    # -v $(log.path):$(log.path) mounts the local directory to the same path in the container
+    options: --publish-all --cap-add SYS_PTRACE -v $(log.path):$(log.path)
   steps:
     - checkout: self
       clean: true
       submodules: true
 
-    - template: .vsts-ci-templates/build.yml
+    - template: .azure-pipelines-templates/build.yml
       parameters:
         cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DSAN=ON'
 
-    - template: .vsts-ci-templates/test.yml
+    - template: .azure-pipelines-templates/test.yml
       parameters:
         suite_name_suffix: 'san'

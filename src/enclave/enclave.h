@@ -188,8 +188,11 @@ namespace enclave
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
-          bp, raft::log_entry, [this](const uint8_t* data, size_t size) {
-            auto [body] = ringbuffer::read_message<raft::log_entry>(data, size);
+          bp,
+          consensus::ledger_entry,
+          [this](const uint8_t* data, size_t size) {
+            auto [body] =
+              ringbuffer::read_message<consensus::ledger_entry>(data, size);
             if (node.is_reading_public_ledger())
               node.recover_public_ledger_entry(body);
             else if (node.is_reading_private_ledger())
@@ -199,8 +202,10 @@ namespace enclave
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
-          bp, raft::log_no_entry, [this](const uint8_t* data, size_t size) {
-            ringbuffer::read_message<raft::log_no_entry>(data, size);
+          bp,
+          consensus::ledger_no_entry,
+          [this](const uint8_t* data, size_t size) {
+            ringbuffer::read_message<consensus::ledger_no_entry>(data, size);
             node.recover_ledger_end();
           });
 

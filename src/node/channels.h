@@ -35,8 +35,6 @@ namespace ccf
     std::atomic<SeqNo> seqNo{0};
 
   public:
-    static constexpr size_t len_public = tls::KeyExchangeContext::len_public;
-
     Channel() : status(INITIATED) {}
 
     std::optional<std::vector<uint8_t>> get_public()
@@ -144,21 +142,24 @@ namespace ccf
 
     std::optional<std::vector<uint8_t>> get_signed_public(NodeId peer_id)
     {
-      auto own_public_for_peer = get(peer_id).get_public();
-      if (!own_public_for_peer.has_value())
+      const auto own_public_for_peer_ = get(peer_id).get_public();
+      if (!own_public_for_peer_.has_value())
         return {};
 
-      auto signature = network_kp->sign(own_public_for_peer.value());
+      const auto& own_public_for_peer = own_public_for_peer_.value();
+
+      auto signature = network_kp->sign(own_public_for_peer);
 
       // Serialise channel public and network signature
-      auto space = own_public_for_peer.value().size() + signature.size();
+      // Length-prefix both
+      auto space =
+        own_public_for_peer.size() + signature.size() + 2 * sizeof(size_t);
       std::vector<uint8_t> ret(space);
       auto data_ = ret.data();
+      serialized::write(data_, space, own_public_for_peer.size());
       serialized::write(
-        data_,
-        space,
-        own_public_for_peer.value().data(),
-        own_public_for_peer.value().size());
+        data_, space, own_public_for_peer.data(), own_public_for_peer.size());
+      serialized::write(data_, space, signature.size());
       serialized::write(data_, space, signature.data(), signature.size());
 
       return ret;
@@ -172,11 +173,50 @@ namespace ccf
       // Verify signature
       auto network_pubk = tls::make_public_key(network_kp->public_key_pem());
 
+      auto data = peer_signed_public.data();
+      auto data_remaining = peer_signed_public.size();
+
+      auto peer_public_size = serialized::read<size_t>(data, data_remaining);
+      auto peer_public_start = data;
+
+      if (peer_public_size > data_remaining)
+      {
+        LOG_FAIL_FMT(
+          "Peer public key header wants {} bytes, but only {} remain",
+          peer_public_size,
+          data_remaining);
+        return false;
+      }
+
+      data += peer_public_size;
+      data_remaining -= peer_public_size;
+
+      auto signature_size = serialized::read<size_t>(data, data_remaining);
+      auto signature_start = data;
+
+      if (signature_size > data_remaining)
+      {
+        LOG_FAIL_FMT(
+          "Signature header wants {} bytes, but only {} remain",
+          signature_size,
+          data_remaining);
+        return false;
+      }
+
+      if (signature_size < data_remaining)
+      {
+        LOG_FAIL_FMT(
+          "Expected signature to use all remaining {} bytes, but only uses {}",
+          data_remaining,
+          signature_size);
+        return false;
+      }
+
       if (!network_pubk->verify(
-            peer_signed_public.data(),
-            Channel::len_public,
-            peer_signed_public.data() + Channel::len_public,
-            peer_signed_public.size() - Channel::len_public))
+            peer_public_start,
+            peer_public_size,
+            signature_start,
+            signature_size))
       {
         LOG_FAIL_FMT(
           "node2node peer signature verification failed {}", peer_id);
@@ -184,8 +224,7 @@ namespace ccf
       }
 
       // Load peer public
-      if (!channel.load_peer_public(
-            peer_signed_public.data(), Channel::len_public))
+      if (!channel.load_peer_public(peer_public_start, peer_public_size))
       {
         return false;
       }

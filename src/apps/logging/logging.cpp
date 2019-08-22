@@ -229,7 +229,8 @@ namespace ccfapp
         }
 
         return jsonrpc::error(
-          LoggerErrors::UNKNOWN_ID, fmt::format("No such record: {}", id));
+          LoggerErrors::UNKNOWN_ID,
+          fmt::format("No such record: {}", id.dump()));
       };
       // SNIPPET_END: get_public
 

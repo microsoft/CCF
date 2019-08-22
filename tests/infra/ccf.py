@@ -76,11 +76,12 @@ class Network:
         "election_timeout",
         "memory_reserve_startup",
         "notify_server",
+        "log_path",
         "gov_script",
         "app_script",
     ]
 
-    # Maximum delay (seconds) for updates to propagate from the leader to followers
+    # Maximum delay (seconds) for updates to propagate from the primary to backups
     replication_delay = 30
 
     def __init__(
@@ -130,7 +131,7 @@ class Network:
                 arg: dict_args[arg] for arg in Network.node_args_to_forward
             }
             try:
-                leader, _ = self.find_leader() if i != 0 else (None, None)
+                primary, _ = self.find_primary() if i != 0 else (None, None)
                 node.start(
                     infra.remote.StartType.start
                     if i == 0
@@ -139,8 +140,8 @@ class Network:
                     node_status=node_status[i],
                     workspace=args.workspace,
                     label=args.label,
-                    target_rpc_address=f"{leader.host}:{leader.rpc_port}"
-                    if leader
+                    target_rpc_address=f"{primary.host}:{primary.rpc_port}"
+                    if primary
                     else None,
                     members_certs="member*_cert.pem" if i == 0 else None,
                     users_certs="user*_cert.pem" if i == 0 else None,
@@ -205,8 +206,8 @@ class Network:
 
         for i, node in enumerate(self.nodes):
             if i != 0:
-                # In recovery, the leader is automatically the node that started
-                leader = self.nodes[0]
+                # In recovery, the primary is automatically the node that started
+                primary = self.nodes[0]
                 node.stop()
                 node.start(
                     infra.remote.StartType.join,
@@ -214,7 +215,7 @@ class Network:
                     node_status=node_status[i],
                     workspace=args.workspace,
                     label=args.label,
-                    target_rpc_address=f"{leader.host}:{leader.rpc_port}",
+                    target_rpc_address=f"{primary.host}:{primary.rpc_port}",
                     **forwarded_args,
                 )
                 node.network_state = NodeNetworkState.joined
@@ -234,7 +235,7 @@ class Network:
         last_node = self.nodes.pop()
 
     def add_node(self, new_node_info):
-        with self.find_leader()[0].member_client(format="json") as member_client:
+        with self.find_primary()[0].member_client(format="json") as member_client:
             j_result = member_client.rpc("add_node", new_node_info)
 
         return j_result
@@ -281,7 +282,7 @@ class Network:
 
     def member_client_rpc_as_json(self, member_id, remote_node, *args):
         if remote_node is None:
-            remote_node = self.find_leader()[0]
+            remote_node = self.find_primary()[0]
 
         result = infra.proc.ccall(
             "./memberclient",
@@ -375,32 +376,32 @@ class Network:
             (node for node in self.nodes if node.local_node_id == local_node_id), None
         )
 
-    def find_leader(self):
+    def find_primary(self):
         """
-        Find the identity of the leader in the network and return its identity and the current term.
+        Find the identity of the primary in the network and return its identity and the current term.
         """
-        leader_id = None
+        primary_id = None
         term = None
 
         for node in self.get_running_nodes():
             with node.management_client() as c:
-                id = c.request("getLeaderInfo", {})
+                id = c.request("getPrimaryInfo", {})
                 res = c.response(id)
                 if res.error is None:
-                    leader_id = res.result["leader_id"]
+                    primary_id = res.result["primary_id"]
                     term = res.term
                     break
                 else:
                     assert (
-                        res.error["code"] == infra.jsonrpc.ErrorCode.TX_LEADER_UNKNOWN
-                    ), "RPC error code is not TX_NOT_LEADER"
-        assert leader_id is not None, "No leader found"
+                        res.error["code"] == infra.jsonrpc.ErrorCode.TX_PRIMARY_UNKNOWN
+                    ), "RPC error code is not TX_NOT_PRIMARY"
+        assert primary_id is not None, "No primary found"
 
-        return (self.get_node_by_id(leader_id), term)
+        return (self.get_node_by_id(primary_id), term)
 
     def update_nodes(self):
-        leader = self.find_leader()[0]
-        with leader.management_client() as c:
+        primary = self.find_primary()[0]
+        with primary.management_client() as c:
             id = c.request("getNetworkInfo", {})
             res = c.response(id)
 

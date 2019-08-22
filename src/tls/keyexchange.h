@@ -4,9 +4,12 @@
 
 #include "ds/logger.h"
 #include "tls/entropy.h"
+#include "tls/error_string.h"
 #include "tls/keypair.h"
 
-#include <everest/x25519.h>
+#ifdef MOD_MBEDTLS
+#  include <everest/x25519.h>
+#endif
 #include <iostream>
 #include <map>
 #include <mbedtls/ecdh.h>
@@ -21,6 +24,7 @@ namespace tls
     std::vector<uint8_t> own_public;
 
   public:
+#ifdef MOD_MBEDTLS
     // Curve parameters for key exchange
     static constexpr mbedtls_ecp_group_id domain_parameter =
       MBEDTLS_ECP_DP_CURVE25519;
@@ -29,28 +33,44 @@ namespace tls
     static constexpr size_t len_public = MBEDTLS_X25519_KEY_SIZE_BYTES + 1;
     // Size of shared secret, as per mbedtls_x25519_calc_secret
     static constexpr size_t len_shared_secret = MBEDTLS_X25519_KEY_SIZE_BYTES;
+#else
+    static constexpr mbedtls_ecp_group_id domain_parameter =
+      MBEDTLS_ECP_DP_SECP384R1;
+
+    static constexpr size_t len_public = 1024 + 1;
+    static constexpr size_t len_shared_secret = 1024;
+#endif
 
     KeyExchangeContext() : own_public(len_public), entropy(create_entropy())
     {
       mbedtls_ecdh_init(&ctx);
       size_t len;
 
-      if (mbedtls_ecdh_setup(&ctx, domain_parameter) != 0)
+      int rc =
+#ifdef MOD_MBEDTLS
+        mbedtls_ecdh_setup(&ctx, domain_parameter);
+#else
+        mbedtls_ecp_group_load(&ctx.grp, domain_parameter);
+#endif
+      if (rc != 0)
       {
-        throw std::logic_error("Failed to setup context");
+        throw std::logic_error(error_string(rc));
       }
 
-      if (
-        mbedtls_ecdh_make_public(
-          &ctx,
-          &len,
-          own_public.data(),
-          len_public,
-          entropy->get_rng(),
-          entropy->get_data()) != 0)
+      rc = mbedtls_ecdh_make_public(
+        &ctx,
+        &len,
+        own_public.data(),
+        own_public.size(),
+        entropy->get_rng(),
+        entropy->get_data());
+
+      if (rc != 0)
       {
-        throw std::logic_error("Failed to generate key exchange pair");
+        throw std::logic_error(error_string(rc));
       }
+
+      own_public.resize(len);
     }
 
     void free_ctx()
@@ -74,9 +94,10 @@ namespace tls
 
     void load_peer_public(const uint8_t* bytes, size_t size)
     {
-      if (mbedtls_ecdh_read_public(&ctx, bytes, size) != 0)
+      int rc = mbedtls_ecdh_read_public(&ctx, bytes, size);
+      if (rc != 0)
       {
-        throw std::logic_error("Failed to read peer public");
+        throw std::logic_error(error_string(rc));
       }
     }
 
@@ -85,17 +106,19 @@ namespace tls
       // Should only be called once, when peer public has been loaded.
       std::vector<uint8_t> shared_secret(len_shared_secret);
       size_t len;
-      if (
-        mbedtls_ecdh_calc_secret(
-          &ctx,
-          &len,
-          shared_secret.data(),
-          len_shared_secret,
-          entropy->get_rng(),
-          entropy->get_data()) != 0)
+      int rc = mbedtls_ecdh_calc_secret(
+        &ctx,
+        &len,
+        shared_secret.data(),
+        shared_secret.size(),
+        entropy->get_rng(),
+        entropy->get_data());
+      if (rc != 0)
       {
-        throw std::logic_error("Failed to compute shared secret");
+        throw std::logic_error(error_string(rc));
       }
+
+      shared_secret.resize(len);
 
       return shared_secret;
     }

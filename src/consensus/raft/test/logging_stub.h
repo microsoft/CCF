@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "raft/raft.h"
-#include "raft/rafttypes.h"
+#include "consensus/raft/raft.h"
+#include "consensus/raft/rafttypes.h"
 
 #include <map>
 #include <vector>

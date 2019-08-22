@@ -72,12 +72,12 @@ Once the initial nodes are running and the initial state of the network is ready
 
     $ client --server-address=node0_ip:node0_rpcport startnetwork --ca=node0_cert_file --req=@startNetwork.json
 
-When executing the ``startNetwork.json`` RPC request, the target node deserialises the genesis transaction and immediately becomes the Raft leader of the new single-node network. Business transactions can then be issued by users and will commit immediately.
+When executing the ``startNetwork.json`` RPC request, the target node deserialises the genesis transaction and immediately becomes the consensus primary of the new single-node network. Business transactions can then be issued by users and will commit immediately.
 
 Adding nodes to the network
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Once a network has been started on one node, assuming that this node remains leader of the Raft network, join network RPC files can be generated for all others nodes defined in the initial state of the network (``nodes.json``):
+Once a network has been started on one node, assuming that this node remains primary of the consensus network, join network RPC files can be generated for all others nodes defined in the initial state of the network (``nodes.json``):
 
 .. code-block:: bash
 
@@ -89,7 +89,7 @@ Once done, each additional node (here, node 1) can join the existing network by 
 
     $ client --server-address=node1_ip:node1_rpcport --ca=node1_cert_file joinnetwork --req=@joinNetwork.json
 
-When executing the ``joinNetwork.json`` RPC, the target node initiates an enclave-to-enclave TLS connection to the network leader to retrieve the network secrets required to decrypt the serialised replicated transactions. Once the join protocol completes, the new node becomes a follower of the Raft network and starts replicating transactions executed by the leader.
+When executing the ``joinNetwork.json`` RPC, the target node initiates an enclave-to-enclave TLS connection to the network primary to retrieve the network secrets required to decrypt the serialised replicated transactions. Once the join protocol completes, the new node becomes a backup of the consensus network and starts replicating transactions executed by the primary.
 
 .. note:: When starting up the network or when a node joins an existing network, the network secrets required to decrypt the ledger are sealed to disc so that the network can later be recovered. See :ref:`Catastrophic Recovery` for more details on how to recover a crashed network.
 
@@ -99,27 +99,27 @@ When executing the ``joinNetwork.json`` RPC, the target node initiates an enclav
     sequenceDiagram
         participant Members
         participant Users
-        participant Leader
-        participant Follower
+        participant Primary
+        participant Backup
 
-        Members->>+Leader: start network
-        Leader->>+Leader: New network secrets
-        Leader-->>Members: start network success
+        Members->>+Primary: start network
+        Primary->>+Primary: New network secrets
+        Primary-->>Members: start network success
 
-        Note over Leader: Part of Private Network
+        Note over Primary: Part of Private Network
 
-        Members->>+Follower: join network
-        Follower->>+Leader: join network (over TLS)
-        Leader->>+Follower: Network Secrets (over TLS)
+        Members->>+Backup: join network
+        Backup->>+Primary: join network (over TLS)
+        Primary->>+Backup: Network Secrets (over TLS)
 
-        Note over Follower: Part of Private Network
+        Note over Backup: Part of Private Network
 
-        Follower-->>Members: join network response
+        Backup-->>Members: join network response
 
         loop Business transactions
-            Users->>+Leader: Tx
-            Leader-->>Users: response
-            Leader->>+Follower: Serialised Tx
+            Users->>+Primary: Tx
+            Primary-->>Users: response
+            Primary->>+Backup: Serialised Tx
         end
 
 

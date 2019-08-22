@@ -2,13 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#ifdef PBFT
-#  include "pbft/nullreplicator.h"
-#  include "pbft/pbft.h"
-#endif
-
 #include "calltypes.h"
-#include "consensus.h"
+#include "consensustypes.h"
 #include "ds/logger.h"
 #include "enclave/rpcclient.h"
 #include "enclave/rpcsessions.h"
@@ -16,7 +11,6 @@
 #include "entities.h"
 #include "genesisgen.h"
 #include "history.h"
-#include "kv/replicator.h"
 #include "networkstate.h"
 #include "nodetonode.h"
 #include "rpc/consts.h"
@@ -122,16 +116,7 @@ namespace ccf
 
     NetworkState& network;
 
-#ifndef PBFT
-    std::shared_ptr<ConsensusRaft> raft;
-#else
-    using ConsensusPbft = pbft::Pbft<NodeToNode>;
-
-    // TODO(#PBFT): For now, when using PBFT as consensus, replace raft with the
-    // NullReplicator
-    std::shared_ptr<pbft::NullReplicator> raft;
-    std::shared_ptr<ConsensusPbft> pbft;
-#endif
+    std::shared_ptr<kv::Consensus> consensus;
     std::shared_ptr<enclave::RpcMap> rpc_map;
     std::shared_ptr<NodeToNode> n2n_channels;
     enclave::RPCSessions& rpcsessions;
@@ -156,7 +141,7 @@ namespace ccf
     std::vector<kv::Version> term_history;
     kv::Version last_recovered_commit_idx = 1;
 
-    raft::Index ledger_idx = 0;
+    consensus::Index ledger_idx = 0;
 
   public:
     NodeState(
@@ -262,13 +247,14 @@ namespace ccf
 
 #ifdef PBFT
           setup_pbft();
+#else
+          setup_raft();
 #endif
           setup_history();
-          setup_raft();
           setup_encryptor();
 
-          // Become the raft leader and force replication
-          raft->force_become_leader();
+          // Become the primary and force replication.
+          consensus->force_become_primary();
 
           if (g.finalize() != kv::CommitSuccess::OK)
             return Fail<CreateNew::Out>(
@@ -379,8 +365,10 @@ namespace ccf
           {
             accept_user_connections();
           }
+#ifndef PBFT
           setup_raft(public_only);
           setup_history();
+#endif
           setup_encryptor();
 
           accept_node_connections();
@@ -400,7 +388,7 @@ namespace ccf
         });
 
       // Generate fresh key to encrypt/decrypt historical network secrets sent
-      // by the leader via the kv store
+      // by the primary via the kv store
       raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
 
       // Send RPC request to remote node to join the network.
@@ -499,7 +487,7 @@ namespace ccf
         last_index = last_sig->index;
 
       network.tables->rollback(last_index);
-      log_truncate(last_index);
+      ledger_truncate(last_index);
       LOG_INFO_FMT("Truncating ledger to last signed index: {}", last_index);
 
       network.secrets->promote_secrets(0, last_index + 1);
@@ -545,7 +533,7 @@ namespace ccf
         index,
         term,
         global_commit);
-      raft->force_become_leader(index, term, term_history, index);
+      consensus->force_become_primary(index, term, term_history, index);
 
       // Sets itself as trusted
       g.trust_node(self);
@@ -618,17 +606,17 @@ namespace ccf
       recovery_store.reset();
 
       // Raft should deserialise all security domains when network is opened
-      raft->enable_all_domains();
+      consensus->enable_all_domains();
 
-      // On followers, resume replication
-      if (!raft->is_leader())
-        raft->resume_replication();
+      // On backups, resume replication
+      if (!consensus->is_primary())
+        consensus->resume_replication();
 
       // Seal all known network secrets
       network.secrets->seal_all();
 
       accept_user_connections();
-      if (raft->is_follower())
+      if (consensus->is_backup())
         accept_node_connections();
 
       LOG_INFO_FMT("Now part of network");
@@ -701,7 +689,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
 
-      LOG_INFO_FMT("Initiating end of recovery (leader)");
+      LOG_INFO_FMT("Initiating end of recovery (primary)");
 
       // Unseal past network secrets
       auto past_secrets_idx = network.secrets->restore(sealed_secrets);
@@ -710,14 +698,14 @@ namespace ccf
       // network
       history->emit_signature();
 
-      // Write past network secrets to followers via secrets table
+      // Write past network secrets to backups via secrets table
       auto [nodes_view, secrets_view] =
         tx.get_view(network.nodes, network.secrets_table);
-      std::map<NodeId, NodeInfo> new_followers;
+      std::map<NodeId, NodeInfo> new_backups;
       nodes_view->foreach(
-        [&new_followers, this](const NodeId& nid, const NodeInfo& ni) {
+        [&new_backups, this](const NodeId& nid, const NodeInfo& ni) {
           if (ni.status != ccf::NodeStatus::RETIRED && nid != self)
-            new_followers[nid] = ni;
+            new_backups[nid] = ni;
           return true;
         });
 
@@ -726,7 +714,7 @@ namespace ccf
       for (auto const& ns_idx : past_secrets_idx)
       {
         ccf::PastNetworkSecrets past_secrets;
-        for (auto [nid, ni] : new_followers)
+        for (auto [nid, ni] : new_backups)
         {
           ccf::SerialisedNetworkSecrets ns;
           ns.node_id = nid;
@@ -735,7 +723,7 @@ namespace ccf
           if (serial.has_value())
           {
             LOG_DEBUG_FMT(
-              "Writing network secret {} of size {} to follower {} in secrets "
+              "Writing network secret {} of size {} to backup {} in secrets "
               "table",
               ns_idx,
               serial.value().size(),
@@ -797,11 +785,7 @@ namespace ccf
         !sm.check(State::partOfPublicNetwork))
         return;
 
-      raft->periodic(elapsed);
-
-#ifdef PBFT
-      ITimer::handle_timeouts(elapsed);
-#endif
+      consensus->periodic(elapsed);
     }
 
     void node_msg(const std::vector<uint8_t>& data)
@@ -824,14 +808,8 @@ namespace ccf
         case channel_msg:
           n2n_channels->recv_message(p, psize);
           break;
-
-        case consensus_msg_pbft:
-#ifdef PBFT
-          pbft->recv_message(p, psize);
-#endif
-          break;
-        case consensus_msg_raft:
-          raft->recv_message(p, psize);
+        case consensus_msg:
+          consensus->recv_message(p, psize);
           break;
 
         default:
@@ -842,12 +820,12 @@ namespace ccf
     //
     // always available
     //
-    bool is_leader() const override
+    bool is_primary() const override
     {
       return (
         (sm.check(State::partOfNetwork) ||
          sm.check(State::partOfPublicNetwork)) &&
-        raft->is_leader());
+        consensus->is_primary());
     }
 
     bool is_part_of_network() const
@@ -1004,21 +982,21 @@ namespace ccf
         ccf::Actors::USERS, nullb, users_cert, users_privkey);
     }
 
-    void follower_finish_recovery()
+    void backup_finish_recovery()
     {
-      if (!raft->is_follower())
+      if (!consensus->is_backup())
         return;
 
       sm.expect(State::partOfPublicNetwork);
 
-      LOG_INFO_FMT("Initiating end of recovery (follower)");
+      LOG_INFO_FMT("Initiating end of recovery (backup)");
 
       // Setup new temporary store and record current version/root
       setup_private_recovery_store();
 
-      // Suspend raft replication at recovery_v + 1 since this is called from
-      // commit hook
-      raft->suspend_replication(recovery_v + 1);
+      // Suspend consensus replication at recovery_v + 1 since this is called
+      // from commit hook
+      consensus->suspend_replication(recovery_v + 1);
 
       // Start reading private security domain of ledger
       ledger_idx = 0;
@@ -1027,74 +1005,8 @@ namespace ccf
       sm.advance(State::readingPrivateLedger);
     }
 
-    void setup_raft(bool public_only = false)
+    void setup_basic_hooks()
     {
-      // setup node-to-node channels, raft, pbft and store hooks
-      n2n_channels->initialize(self, {network.secrets->get_current().priv_key});
-
-#ifndef PBFT
-      raft = std::make_shared<ConsensusRaft>(
-        std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(
-          network.tables),
-        std::make_unique<raft::LedgerEnclave>(writer_factory),
-        n2n_channels,
-        self,
-        std::chrono::milliseconds(raft_config.request_timeout),
-        std::chrono::milliseconds(raft_config.election_timeout),
-        public_only);
-#else
-      raft = std::make_shared<pbft::NullReplicator>(n2n_channels, self);
-#endif
-      network.tables->set_replicator(raft);
-
-      // When a node is added, even locally, inform the host so that it can
-      // map the node id to a hostname and service and inform raft so that it
-      // can add a new active configuration.
-      network.nodes.set_local_hook([this](
-                                     kv::Version version,
-                                     const Nodes::State& s,
-                                     const Nodes::Write& w) {
-        auto configure = false;
-        std::unordered_set<NodeId> configuration;
-
-        // TODO(#important,#TR): Only TRUSTED nodes should be sent append
-        // entries, counted in election votes and allowed to establish
-        // node-to-node channels (section III-F).
-        for (auto& [node_id, ni] : w)
-        {
-#ifdef PBFT
-          pbft->add_configuration({node_id, ni.value.host, ni.value.nodeport});
-#endif
-          switch (ni.value.status)
-          {
-            case NodeStatus::PENDING:
-            case NodeStatus::TRUSTED:
-            {
-              add_node(node_id, ni.value.host, ni.value.nodeport);
-              configure = true;
-              break;
-            }
-            case NodeStatus::RETIRED:
-            {
-              configure = true;
-              break;
-            }
-            default:
-            {}
-          }
-        }
-
-        if (configure)
-        {
-          s.foreach([&](NodeId node_id, const Nodes::VersionV& v) {
-            if (v.value.status != NodeStatus::RETIRED)
-              configuration.insert(node_id);
-            return true;
-          });
-          raft->add_configuration(version, move(configuration));
-        }
-      });
-
       // When a transaction that changes the configuration commits globally,
       // inform the host of any nodes that no longer need to be tracked.
       network.nodes.set_global_hook(
@@ -1111,10 +1023,10 @@ namespace ccf
                                              kv::Version version,
                                              const Secrets::State& s,
                                              const Secrets::Write& w) {
-        // If in follower mode in a public network, if new secrets are written
+        // If in backup mode in a public network, if new secrets are written
         // to the secrets table for our entry, decrypt these secrets and
         // initiate end of recovery protocol
-        if (!(raft->is_follower() && is_part_of_public_network()))
+        if (!(consensus->is_backup() && is_part_of_public_network()))
           return;
 
         bool has_secrets = false;
@@ -1155,9 +1067,80 @@ namespace ccf
         if (has_secrets)
         {
           raw_fresh_key.clear();
-          follower_finish_recovery();
+          backup_finish_recovery();
         }
       });
+    }
+
+    void setup_n2n_channels()
+    {
+      // setup node-to-node channels
+      n2n_channels->initialize(self, {network.secrets->get_current().priv_key});
+    }
+
+    void setup_raft(bool public_only = false)
+    {
+      setup_n2n_channels();
+
+      auto raft = std::make_unique<RaftType>(
+        std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(
+          network.tables),
+        std::make_unique<consensus::LedgerEnclave>(writer_factory),
+        n2n_channels,
+        self,
+        std::chrono::milliseconds(raft_config.request_timeout),
+        std::chrono::milliseconds(raft_config.election_timeout),
+        public_only);
+
+      consensus = std::make_shared<RaftConsensusType>(std::move(raft));
+
+      network.tables->set_consensus(consensus);
+
+      // When a node is added, even locally, inform the host so that it can
+      // map the node id to a hostname and service and inform raft so that it
+      // can add a new active configuration.
+      network.nodes.set_local_hook(
+        [this](
+          kv::Version version, const Nodes::State& s, const Nodes::Write& w) {
+          auto configure = false;
+          std::unordered_set<NodeId> configuration;
+
+          // TODO(#important,#TR): Only TRUSTED nodes should be sent append
+          // entries, counted in election votes and allowed to establish
+          // node-to-node channels (section III-F).
+          for (auto& [node_id, ni] : w)
+          {
+            switch (ni.value.status)
+            {
+              case NodeStatus::TRUSTED:
+              case NodeStatus::PENDING:
+              {
+                add_node(node_id, ni.value.host, ni.value.nodeport);
+                configure = true;
+                break;
+              }
+              case NodeStatus::RETIRED:
+              {
+                configure = true;
+                break;
+              }
+              default:
+              {}
+            }
+          }
+
+          if (configure)
+          {
+            s.foreach([&](NodeId node_id, const Nodes::VersionV& v) {
+              if (v.value.status != NodeStatus::RETIRED)
+                configuration.insert(node_id);
+              return true;
+            });
+            consensus->add_configuration(version, move(configuration));
+          }
+        });
+
+      setup_basic_hooks();
     }
 
     void setup_history()
@@ -1170,11 +1153,6 @@ namespace ccf
         *node_kp,
         network.signatures,
         network.nodes);
-
-#ifdef PBFT
-      if (pbft)
-        history->register_on_request(pbft->get_on_request());
-#endif
 
       network.tables->set_history(history);
     }
@@ -1212,25 +1190,47 @@ namespace ccf
       }
     }
 
-    void read_ledger_idx(raft::Index idx)
+    void read_ledger_idx(consensus::Index idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(raft::log_get, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_get, to_host, idx);
     }
 
-    void log_truncate(raft::Index idx)
+    void ledger_truncate(consensus::Index idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(raft::log_truncate, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_truncate, to_host, idx);
     }
 
 #ifdef PBFT
     void setup_pbft()
     {
-      pbft = std::make_shared<ConsensusPbft>(
+      setup_n2n_channels();
+
+      consensus = std::make_shared<PbftConsensusType>(
         n2n_channels,
         self,
-        std::make_unique<raft::LedgerEnclave>(writer_factory),
+        std::make_unique<consensus::LedgerEnclave>(writer_factory),
         rpc_map,
         rpcsessions);
+
+      network.tables->set_consensus(consensus);
+
+      // When a node is added, even locally, inform the host so that it can
+      // map the node id to a hostname and service and inform pbft
+      network.nodes.set_local_hook(
+        [this](
+          kv::Version version, const Nodes::State& s, const Nodes::Write& w) {
+          std::unordered_set<NodeId> configuration;
+          for (auto& [node_id, ni] : w)
+          {
+            add_node(node_id, ni.value.host, ni.value.nodeport);
+            consensus->add_configuration(
+              version,
+              configuration,
+              {node_id, ni.value.host, ni.value.nodeport});
+          }
+        });
+
+      setup_basic_hooks();
     }
 #endif
   };

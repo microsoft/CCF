@@ -90,7 +90,7 @@ namespace ccf
            return true;
          }},
         // initiate end of recovery
-        // TODO(#important): for now, recovery assumes that no leader
+        // TODO(#important): for now, recovery assumes that no primary
         // change can happen between the time the public CFTR is established and
         // this function is called.
         {"accept_recovery", [this](Store::Tx& tx, const nlohmann::json& args) {
@@ -388,7 +388,7 @@ namespace ccf
         members->put(args.caller_id, *member);
         return jsonrpc::success(true);
       };
-      // ACK method cannot be forwarded and should be run on leader as it makes
+      // ACK method cannot be forwarded and should be run on primary as it makes
       // explicit use of caller certificate
       install_with_auto_schema<RawSignature, bool>(
         MemberProcs::ACK, ack, Write, Forwardable::DoNotForward);

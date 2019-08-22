@@ -37,6 +37,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         choices=("trace", "debug", "info", "fail", "fatal"),
     )
     parser.add_argument(
+        "--log-path",
+        help="Path to directory where the 'out' and 'err' files will be appended to. \
+        They will be stored under <log_path>/out/{label}_{node} and <log_path>/err/{label}_{node_id} respectively",
+        default=None,
+    )
+    parser.add_argument(
         "-g", "--gov-script", help="Path to governance script", required=True
     )
     parser.add_argument("-s", "--app-script", help="Path to app script")

@@ -48,7 +48,7 @@ namespace enclave
       const ccf::CallerId caller_id;
 
       // Changed during lifetime of forwarded context
-      ccf::NodeId leader_id = ccf::INVALID_ID;
+      ccf::NodeId primary_id = ccf::INVALID_ID;
 
       forwarded(
         size_t client_session_id_,

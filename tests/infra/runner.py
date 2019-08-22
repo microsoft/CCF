@@ -41,13 +41,13 @@ def get_command_args(args, get_command):
     return get_command(*command_args)
 
 
-def filter_nodes(primary, followers, filter_type):
+def filter_nodes(primary, backups, filter_type):
     if filter_type == "primary":
         return [primary]
-    elif filter_type == "followers":
-        return followers
+    elif filter_type == "backups":
+        return backups
     else:
-        return [primary] + followers
+        return [primary] + backups
 
 
 def configure_remote_client(args, client_id, client_host, node, command_args):
@@ -104,14 +104,14 @@ def run(build_directory, get_command, args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, followers = network.start_and_join(args)
+        primary, backups = network.start_and_join(args)
 
         command_args = get_command_args(args, get_command)
 
         if args.network_only:
             run_client(args, primary, command_args)
         else:
-            nodes = filter_nodes(primary, followers, args.send_tx_to)
+            nodes = filter_nodes(primary, backups, args.send_tx_to)
             clients = []
             client_hosts = args.client_nodes or ["localhost"]
             for client_id, client_host in enumerate(client_hosts):

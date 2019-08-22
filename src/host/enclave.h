@@ -2,10 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../crypto/hash.h"
-#include "../ds/logger.h"
-#include "../enclave/interface.h"
-#include "../raft/rafttypes.h"
+#include "crypto/hash.h"
+#include "ds/logger.h"
+#include "enclave/interface.h"
 
 #include <dlfcn.h>
 #include <msgpack.hpp>

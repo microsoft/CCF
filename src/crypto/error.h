@@ -8,6 +8,6 @@ namespace crypto
 {
   struct crypto_error : public std::runtime_error
   {
-    explicit crypto_error(const char* msg) : std::runtime_error(msg) {}
+    explicit crypto_error(const std::string& msg) : std::runtime_error(msg) {}
   };
 }

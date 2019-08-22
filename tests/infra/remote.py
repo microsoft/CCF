@@ -15,6 +15,7 @@ import ctypes
 import signal
 import re
 import fnmatch
+from collections import deque
 
 from loguru import logger as LOG
 
@@ -42,6 +43,12 @@ def coverage_enabled(bin):
     )
 
 
+def _append_logs_to_analytics(file, analytics_file):
+    with open(analytics_file, "a+") as af:
+        with open(file, "r") as f:
+            af.write(f.read())
+
+
 @contextmanager
 def sftp_session(hostname):
     client = paramiko.SSHClient()
@@ -58,18 +65,24 @@ def sftp_session(hostname):
 
 
 def log_errors(out_path, err_path):
-    error_filter = ["[fail]", "[fatal]"]
+    error_filter = ["fail", "fatal"]
     try:
         errors = 0
+        tail_lines = deque(maxlen=15)
         with open(out_path, "r") as lines:
             for line in lines:
-                if any(x in line for x in error_filter):
-                    LOG.error("{}: {}".format(out_path, line.rstrip()))
+                stripped_line = line.rstrip()
+                tail_lines.append(stripped_line)
+                if any(x in stripped_line for x in error_filter):
+                    LOG.error("{}: {}".format(out_path, stripped_line))
                     errors += 1
         if errors:
+            LOG.info("{} errors found, printing end of output for context:", errors)
+            for line in tail_lines:
+                LOG.info(line)
             try:
                 with open(err_path, "r") as lines:
-                    LOG.error("{} contents:".format(err_path))
+                    LOG.error("contents of {}:".format(err_path))
                     LOG.error(lines.read())
             except IOError:
                 LOG.exception("Could not read err output {}".format(err_path))
@@ -98,7 +111,16 @@ class CmdMixin(object):
 
 class SSHRemote(CmdMixin):
     def __init__(
-        self, name, hostname, exe_files, data_files, cmd, workspace, label, env=None
+        self,
+        name,
+        hostname,
+        exe_files,
+        data_files,
+        cmd,
+        workspace,
+        label,
+        env=None,
+        log_path=None,
     ):
         """
         Runs a command on a remote host, through an SSH connection. A temporary
@@ -125,6 +147,14 @@ class SSHRemote(CmdMixin):
         self.root = os.path.join(workspace, label + "_" + name)
         self.name = name
         self.env = env or {}
+        self.out = os.path.join(self.root, "out")
+        self.err = os.path.join(self.root, "err")
+        self.analytics_out = (
+            os.path.join(log_path, "out", f"{label}_{name}") if log_path else None
+        )
+        self.analytics_err = (
+            os.path.join(log_path, "err", f"{label}_{name}") if log_path else None
+        )
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
@@ -196,9 +226,8 @@ class SSHRemote(CmdMixin):
 
     def get_logs(self):
         with sftp_session(self.hostname) as session:
-            for filename in ("err", "out"):
+            for filepath in (self.err, self.out):
                 try:
-                    filepath = os.path.join(self.root, filename)
                     local_filepath = "{}_{}_{}".format(
                         self.hostname, filename, self.name
                     )
@@ -248,6 +277,10 @@ class SSHRemote(CmdMixin):
             "{}_err_{}".format(self.hostname, self.name),
         )
         self.client.close()
+        if self.analytics_out:
+            _append_logs_to_analytics(self.out, self.analytics_out)
+        if self.analytics_err:
+            _append_logs_to_analytics(self.err, self.analytics_err)
 
     def restart(self):
         self._connect()
@@ -264,10 +297,11 @@ class SSHRemote(CmdMixin):
     def _cmd(self):
         env = " ".join(f"{key}={value}" for key, value in self.env.items())
         cmd = " ".join(self.cmd)
-        return f"cd {self.root} && {env} ./{cmd} 1>out 2>err 0</dev/null"
+        return f"cd {self.root} && {env} ./{cmd} 1>{self.out} 2>{self.err} 0</dev/null"
 
     def _dbg(self):
-        return "cd {} && {} --args ./{}".format(self.root, DBG, " ".join(self.cmd))
+        cmd = " ".join(self.cmd)
+        return f"cd {self.root} && {DBG} --args ./{cmd}"
 
     def _connect_new(self):
         client = paramiko.SSHClient()
@@ -317,7 +351,16 @@ def ssh_remote(name, hostname, files, cmd):
 
 class LocalRemote(CmdMixin):
     def __init__(
-        self, name, hostname, exe_files, data_files, cmd, workspace, label, env=None
+        self,
+        name,
+        hostname,
+        exe_files,
+        data_files,
+        cmd,
+        workspace,
+        label,
+        env=None,
+        log_path=None,
     ):
         """
         Local Equivalent to the SSHRemote
@@ -332,6 +375,14 @@ class LocalRemote(CmdMixin):
         self.stderr = None
         self.env = env
         self.name = name
+        self.out = os.path.join(self.root, "out")
+        self.err = os.path.join(self.root, "err")
+        self.analytics_out = (
+            os.path.join(log_path, "out", f"{label}_{name}") if log_path else None
+        )
+        self.analytics_err = (
+            os.path.join(log_path, "err", f"{label}_{name}") if log_path else None
+        )
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
@@ -381,8 +432,8 @@ class LocalRemote(CmdMixin):
         """
         cmd = self._cmd()
         LOG.info(f"[{self.hostname}] {cmd} (env: {self.env})")
-        self.stdout = open(os.path.join(self.root, "out"), "wb")
-        self.stderr = open(os.path.join(self.root, "err"), "wb")
+        self.stdout = open(self.out, "wb")
+        self.stderr = open(self.err, "wb")
         self.proc = popen(
             self.cmd,
             cwd=self.root,
@@ -405,7 +456,11 @@ class LocalRemote(CmdMixin):
                 self.stdout.close()
             if self.stderr:
                 self.stderr.close()
-            log_errors(os.path.join(self.root, "out"), os.path.join(self.root, "err"))
+            log_errors(self.out, self.err)
+        if self.analytics_out:
+            _append_logs_to_analytics(self.out, self.analytics_out)
+        if self.analytics_err:
+            _append_logs_to_analytics(self.err, self.analytics_err)
 
     def restart(self):
         self.start()
@@ -418,14 +473,16 @@ class LocalRemote(CmdMixin):
         self._setup_files()
 
     def _cmd(self):
-        return "cd {} && {} 1>out 2>err".format(self.root, " ".join(self.cmd))
+        cmd = " ".join(self.cmd)
+        return f"cd {self.root} && {cmd} 1>{self.out} 2>{self.err}"
 
     def _dbg(self):
-        return "cd {} && {} --args {}".format(self.root, DBG, " ".join(self.cmd))
+        cmd = " ".join(self.cmd)
+        return f"cd {self.root} && {DBG} --args {cmd}"
 
     def wait_for_stdout_line(self, line, timeout):
         for _ in range(timeout):
-            with open(os.path.join(self.root, "out"), "rb") as out:
+            with open(self.out, "rb") as out:
                 for out_line in out:
                     if line.strip() in out_line.strip().decode():
                         return
@@ -435,7 +492,7 @@ class LocalRemote(CmdMixin):
         )
 
     def print_and_upload_result(self, name, metrics, line):
-        with open(os.path.join(self.root, "out"), "rb") as out:
+        with open(self.out, "rb") as out:
             lines = out.read().splitlines()
             result = lines[-line:]
             LOG.success(f"Result for {self.name}:")
@@ -486,6 +543,7 @@ class CCFRemote(object):
         app_script=None,
         ledger_file=None,
         sealed_secrets=None,
+        log_path=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -596,13 +654,14 @@ class CCFRemote(object):
             else:
                 raise ValueError("CCFRemote start type should be start or join")
 
-        env = {}
+        # Necessary for the az-dcap-client >=1.1 (https://github.com/microsoft/Azure-DCAP-Client/issues/84)
+        env = {"HOME": os.environ["HOME"]}
         self.profraw = None
-        if enclave_type == "virtual" and coverage_enabled(lib_path):
-            self.profraw = (
-                f"{uuid.uuid4()}-{local_node_id}_{os.path.basename(lib_path)}.profraw"
-            )
-            env["LLVM_PROFILE_FILE"] = self.profraw
+        if enclave_type == "virtual":
+            env["UBSAN_OPTIONS"] = "print_stacktrace=1"
+            if coverage_enabled(lib_path):
+                self.profraw = f"{uuid.uuid4()}-{local_node_id}_{os.path.basename(lib_path)}.profraw"
+                env["LLVM_PROFILE_FILE"] = self.profraw
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(host_log_level)
         if oe_log_level:

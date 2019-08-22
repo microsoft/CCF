@@ -90,7 +90,7 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, followers = network.start_and_join(args)
+        primary, backups = network.start_and_join(args)
         txs = Txs(args.msgs_per_recovery)
 
         with primary.management_client() as mc:
@@ -100,7 +100,7 @@ def run(args):
             rs = log_msgs(primary, txs)
             check_responses(rs, True, check, check_commit)
             network.wait_for_node_commit_sync()
-            check_nodes_have_msgs(followers, txs)
+            check_nodes_have_msgs(backups, txs)
 
             ledger = primary.remote.get_ledger()
             sealed_secrets = primary.remote.get_sealed_secrets()
@@ -114,7 +114,7 @@ def run(args):
             node_offset=(recovery_idx + 1) * len(hosts),
             pdb=args.pdb,
         ) as network:
-            primary, followers = network.start_in_recovery(args, ledger, sealed_secrets)
+            primary, backups = network.start_in_recovery(args, ledger, sealed_secrets)
 
             with primary.management_client() as mc:
                 check_commit = infra.ccf.Checker(mc)
@@ -185,7 +185,7 @@ def run(args):
                 rs = log_msgs(primary, new_txs)
                 check_responses(rs, True, check, check_commit)
                 network.wait_for_node_commit_sync()
-                check_nodes_have_msgs(followers, new_txs)
+                check_nodes_have_msgs(backups, new_txs)
 
                 ledger = primary.remote.get_ledger()
                 sealed_secrets = primary.remote.get_sealed_secrets()

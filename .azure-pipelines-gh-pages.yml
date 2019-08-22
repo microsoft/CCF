@@ -9,7 +9,7 @@ jobs:
       clean: true
       submodules: true
 
-    - script: doxygen 
+    - script: doxygen
       displayName: Doxgen
 
     - script: |

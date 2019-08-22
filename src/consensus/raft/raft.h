@@ -14,7 +14,6 @@
 #include <list>
 #include <random>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace raft
@@ -47,7 +46,7 @@ namespace raft
   };
 
   template <class LedgerProxy, class ChannelProxy>
-  class Raft : public kv::Replicator
+  class Raft
   {
   private:
     enum State
@@ -158,17 +157,17 @@ namespace raft
       rand((int)(uintptr_t)this)
     {}
 
-    NodeId leader() override
+    NodeId leader()
     {
       return leader_id;
     }
 
-    NodeId id() override
+    NodeId id()
     {
       return local_id;
     }
 
-    bool is_leader() override
+    bool is_leader()
     {
       return state == Leader;
     }
@@ -261,19 +260,19 @@ namespace raft
       return last_idx;
     }
 
-    Index get_commit_idx() override
+    Index get_commit_idx()
     {
       std::lock_guard<SpinLock> guard(lock);
       return commit_idx;
     }
 
-    Term get_term() override
+    Term get_term()
     {
       std::lock_guard<SpinLock> guard(lock);
       return current_term;
     }
 
-    Term get_term(Index idx) override
+    Term get_term(Index idx)
     {
       std::lock_guard<SpinLock> guard(lock);
       return get_term_internal(idx);
@@ -288,7 +287,6 @@ namespace raft
 
     bool replicate(
       const std::vector<std::tuple<Index, std::vector<uint8_t>, bool>>& entries)
-      override
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -480,8 +478,7 @@ namespace raft
 
       // The host will append log entries to this message when it is
       // sent to the destination node.
-      channels->send_authenticated(
-        ccf::NodeMsgType::consensus_msg_raft, to, ae);
+      channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, ae);
     }
 
     void recv_append_entries(const uint8_t* data, size_t size)
@@ -688,7 +685,7 @@ namespace raft
         raft_append_entries_response, local_id, current_term, last_idx, answer};
 
       channels->send_authenticated(
-        ccf::NodeMsgType::consensus_msg_raft, to, response);
+        ccf::NodeMsgType::consensus_msg, to, response);
     }
 
     void recv_append_entries_response(const uint8_t* data, size_t size)
@@ -775,8 +772,7 @@ namespace raft
                         last_idx,
                         get_term_internal(last_idx)};
 
-      channels->send_authenticated(
-        ccf::NodeMsgType::consensus_msg_raft, to, rv);
+      channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, rv);
     }
 
     void recv_request_vote(const uint8_t* data, size_t size)
@@ -857,7 +853,7 @@ namespace raft
         raft_request_vote_response, local_id, current_term, answer};
 
       channels->send_authenticated(
-        ccf::NodeMsgType::consensus_msg_raft, to, response);
+        ccf::NodeMsgType::consensus_msg, to, response);
     }
 
     void recv_request_vote_response(const uint8_t* data, size_t size)

@@ -47,10 +47,7 @@ extern "C"
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];
 #endif
 
-    std::cout << "About to create enclave" << std::endl;
     e = new enclave::Enclave(ec, cc.signature_intervals, cc.raft_config);
-
-    std::cout << "Starting node in mode: " << start_type << std::endl;
 
     return e->create_new_node(
       start_type,

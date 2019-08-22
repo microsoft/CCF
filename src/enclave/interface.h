@@ -4,13 +4,14 @@
  */
 #pragma once
 
-#include "../ds/buffer.h"
-#include "../ds/logger.h"
-#include "../ds/oversized.h"
-#include "../ds/ringbuffer_types.h"
-#include "../kv/kvtypes.h"
-#include "../node/nodeinfonetwork.h"
-#include "../raft/rafttypes.h"
+#include "consensus/raft/rafttypes.h"
+#include "ds/buffer.h"
+#include "ds/logger.h"
+#include "ds/oversized.h"
+#include "ds/ringbuffer_types.h"
+#include "kv/kvtypes.h"
+#include "node/nodeinfonetwork.h"
+#include "tls/tls.h"
 
 #include <chrono>
 

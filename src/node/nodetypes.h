@@ -18,8 +18,7 @@ namespace ccf
   enum NodeMsgType : uint64_t
   {
     channel_msg = 0,
-    consensus_msg_raft,
-    consensus_msg_pbft,
+    consensus_msg,
     forwarded_msg
   };
 

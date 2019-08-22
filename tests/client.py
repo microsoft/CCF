@@ -27,9 +27,9 @@ def cli_args(add=lambda x: None, accept_unknown=False):
     )
     parser.add_argument(
         "--send-tx-to",
-        choices=["primary", "followers", "all"],
+        choices=["primary", "backups", "all"],
         default="all",
-        help="Send client requests only to primary, only to followers, or to all nodes",
+        help="Send client requests only to primary, only to backups, or to all nodes",
     )
     parser.add_argument(
         "--metrics-file",
