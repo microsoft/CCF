@@ -650,7 +650,6 @@ class CCFRemote(object):
             elif start_type == StartType.recover:
                 cmd += ["recover"]
                 # Starting a CCF node in recover does not require any additional arguments
-                pass
             else:
                 raise ValueError("CCFRemote start type should be start or join")
 
