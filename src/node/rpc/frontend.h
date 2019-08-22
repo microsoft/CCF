@@ -134,14 +134,11 @@ namespace ccf
 
     std::optional<CallerId> valid_caller(Store::Tx& tx, const CBuffer& caller)
     {
-      if (certs == nullptr)
+      if (certs == nullptr || !requires_valid_caller)
         return INVALID_ID;
 
       if (!caller.p)
         return {};
-
-      if (!requires_valid_caller)
-        return 0;
 
       auto certs_view = tx.get_view(*certs);
       auto caller_id = certs_view->get(std::vector<uint8_t>(caller));

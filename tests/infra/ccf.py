@@ -150,10 +150,11 @@ class Network:
             except Exception:
                 LOG.exception("Failed to start node {}".format(i))
                 raise
+
+        self.wait_for_node_commit_sync()
         LOG.info("All remotes started")
 
         primary = self.nodes[0]
-
         LOG.success("All nodes joined network")
 
         return primary, self.nodes[1:]
@@ -201,7 +202,6 @@ class Network:
             except Exception:
                 LOG.exception("Failed to start recovery node {}".format(i))
                 raise
-        LOG.info("All remotes started in recovery")
 
         for i, node in enumerate(self.nodes):
             if i != 0:
@@ -219,6 +219,7 @@ class Network:
                 )
                 node.network_state = NodeNetworkState.joined
 
+        self.wait_for_node_commit_sync()
         LOG.success("All nodes joined recoverd public network")
 
         primary = self.nodes[0]
