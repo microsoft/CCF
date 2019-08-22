@@ -173,6 +173,7 @@ TEST_CASE("Member query/read")
   const Cert mcert = {0};
   NetworkTables network;
   GenesisGenerator gen(network);
+  gen.init_values();
   StubNodeState node;
   MemberCallRpcFrontend frontend(network, node);
   const auto mid = gen.add_member(mcert, MemberStatus::ACCEPTED);
@@ -296,6 +297,7 @@ TEST_CASE("Add new members until there are 7, then reject")
   constexpr auto max_members = 8;
   NetworkTables network;
   GenesisGenerator gen(network);
+  gen.init_values();
   StubNodeState node;
   // add three initial active members
   // the proposer
@@ -472,6 +474,7 @@ TEST_CASE("Accept node")
 {
   NetworkTables network;
   GenesisGenerator gen(network);
+  gen.init_values();
   StubNodeState node;
   auto new_kp = tls::make_key_pair();
 
@@ -631,6 +634,7 @@ TEST_CASE("Propose raw writes")
       const bool should_succeed = pro_votes > n_members / 2;
       NetworkTables network;
       GenesisGenerator gen(network);
+      gen.init_values();
       StubNodeState node;
       // manually add a member in state active (not recommended)
       const Cert mcert = {1, 2, 3};
@@ -689,6 +693,7 @@ TEST_CASE("Propose raw writes")
         {
           NetworkTables network;
           GenesisGenerator gen(network);
+          gen.init_values();
           StubNodeState node;
 
           const auto sensitive_put =
@@ -717,6 +722,7 @@ TEST_CASE("Remove proposal")
 
   NetworkTables network;
   GenesisGenerator gen(network);
+  gen.init_values();
 
   StubNodeState node;
   enclave::RPCContext rpc_ctx(0, nullb);
@@ -804,6 +810,7 @@ TEST_CASE("Complete proposal after initial rejection")
 {
   NetworkTables network;
   GenesisGenerator gen(network);
+  gen.init_values();
   StubNodeState node;
   auto frontend = init_frontend(network, gen, node, 3);
   const Cert m0 = {0}, m1 = get_cert_data(1, kp);
@@ -862,6 +869,7 @@ TEST_CASE("Add user via proposed call")
 {
   NetworkTables network;
   GenesisGenerator gen(network);
+  gen.init_values();
   StubNodeState node;
   enclave::RPCContext rpc_ctx(0, nullb);
   gen.add_member(Cert{0}, MemberStatus::ACTIVE);

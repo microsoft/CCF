@@ -28,13 +28,6 @@ namespace ccf
 
     Store::Tx tx;
 
-    void init_values()
-    {
-      auto v = tx.get_view(tables.values);
-      for (int id_type = 0; id_type < ccf::ValueIds::END_ID; id_type++)
-        v->put(id_type, 0);
-    }
-
     template <typename T>
     void set_scripts(
       std::map<std::string, std::string> scripts,
@@ -52,28 +45,24 @@ namespace ccf
     }
 
   public:
-    GenesisGenerator(NetworkTables& tables_) : tables(tables_)
-    {
-      init_values();
-    }
+    GenesisGenerator(NetworkTables& tables_) : tables(tables_) {}
 
-    virtual ~GenesisGenerator() {}
+    void init_values()
+    {
+      auto v = tx.get_view(tables.values);
+      for (int id_type = 0; id_type < ccf::ValueIds::END_ID; id_type++)
+        v->put(id_type, 0);
+    }
 
     auto finalize()
     {
       return tx.commit();
     }
 
-    kv::Version last_signed_index()
+    auto last_signature()
     {
       auto sig_view = tx.get_view(tables.signatures);
-      auto sig = sig_view->get(0);
-      if (!sig.has_value())
-      {
-        return 0;
-      }
-      auto sig_value = sig.value();
-      return sig_value.index;
+      return sig_view->get(0);
     }
 
     void delete_active_nodes()
@@ -153,9 +142,16 @@ namespace ccf
     void trust_node(NodeId node_id)
     {
       auto nodes_view = tx.get_view(tables.nodes);
-      auto leader_info = nodes_view->get(node_id).value();
-      leader_info.status = NodeStatus::TRUSTED;
-      nodes_view->put(node_id, leader_info);
+      auto node_info = nodes_view->get(node_id);
+      if (node_info.has_value())
+      {
+        node_info->status = NodeStatus::TRUSTED;
+        nodes_view->put(node_id, node_info.value());
+      }
+      else
+      {
+        LOG_FAIL_FMT("Unknown node {} could not be trusted");
+      }
     }
 
     auto get_last_signature()

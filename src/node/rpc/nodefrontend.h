@@ -33,11 +33,6 @@ namespace ccf
         NodeId joining_node_id =
           get_next_id(args.tx.get_view(network.values), NEXT_NODE_ID);
 
-        LOG_INFO_FMT(
-          "Adding node, host:{}, port:{}",
-          in.node_info_network.host,
-          in.node_info_network.rpcport);
-
         auto nodes_view = args.tx.get_view(network.nodes);
         nodes_view->put(
           joining_node_id,
@@ -51,6 +46,12 @@ namespace ccf
 
         // Set joiner's fresh key for encrypting past network secrets
         node.set_joiner_key(joining_node_id, args.params["raw_fresh_key"]);
+
+        LOG_INFO_FMT(
+          "Adding node {}:{} as node {}",
+          in.node_info_network.host,
+          in.node_info_network.rpcport,
+          joining_node_id);
 
         // Send network secrets and NodeID
         return jsonrpc::success(nlohmann::json(

@@ -154,7 +154,7 @@ class Network:
 
         primary = self.nodes[0]
 
-        LOG.success("All nodes joined Network")
+        LOG.success("All nodes joined network")
 
         return primary, self.nodes[1:]
 
@@ -182,8 +182,10 @@ class Network:
                 for arg in infra.ccf.Network.node_args_to_forward
             }
             try:
-                # TODO: For now, only start node 0. Otherwise, the networkcert.pem file
-                # will be overwritten with the networkcert.pem from node 1.
+                # Only start the first node. In practice, one might decide to
+                # start all nodes with their own ledger to find out which ledger
+                # is the longest. Then, all nodes except the ones with the
+                # longest ledger are stopped and restarted in "join".
                 if i == 0:
                     node.start(
                         start_type=infra.remote.StartupType.recover,
@@ -201,10 +203,6 @@ class Network:
                 raise
         LOG.info("All remotes started in recovery")
 
-        # TODO: Find longest ledger
-
-        # For now, kill all other nodes than 0
-
         for i, node in enumerate(self.nodes):
             if i != 0:
                 # In recovery, the leader is automatically the node that started
@@ -220,6 +218,8 @@ class Network:
                     **forwarded_args,
                 )
                 node.network_state = NodeNetworkState.joined
+
+        LOG.success("All nodes joined recoverd public network")
 
         primary = self.nodes[0]
         return primary, self.nodes[1:]
@@ -271,16 +271,12 @@ class Network:
         self.members.extend(members)
         members = ["member{}".format(m) for m in members]
         for m in members:
-            infra.proc.ccall(
-                "./keygenerator", "--name={}".format(m)
-            ).check_returncode()
+            infra.proc.ccall("./keygenerator", "--name={}".format(m)).check_returncode()
 
     def add_users(self, users):
         users = ["user{}".format(u) for u in users]
         for u in users:
-            infra.proc.ccall(
-                "./keygenerator", "--name={}".format(u)
-            ).check_returncode()
+            infra.proc.ccall("./keygenerator", "--name={}".format(u)).check_returncode()
 
     def member_client_rpc_as_json(self, member_id, remote_node, *args):
         if remote_node is None:

@@ -254,8 +254,6 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::initialized);
 
-      LOG_INFO_FMT("Creating new node in {} mode", args.start_type);
-
       // Generate node key pair
       std::stringstream name;
       name << "CN=" << Actors::MANAGEMENT;
@@ -279,6 +277,7 @@ namespace ccf
         case StartType::Start:
         {
           GenesisGenerator g(network);
+          g.init_values();
 
           for (auto& cert : args.config.genesis.member_certs)
             g.add_member(cert);
@@ -513,15 +512,13 @@ namespace ccf
       if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
       {
         network.tables->compact(ledger_idx);
-        Store::Tx tx;
-        auto sig_view = tx.get_view(network.signatures);
-        auto sig = sig_view->get(0);
-        if (sig.has_value())
+        GenesisGenerator g(network);
+        auto last_sig = g.last_signature();
+        if (last_sig.has_value())
         {
-          auto sig_value = sig.value();
           LOG_DEBUG_FMT(
-            "Read signature at {} for term {}", ledger_idx, sig_value.term);
-          for (auto i = term_history.size(); i <= sig_value.term; ++i)
+            "Read signature at {} for term {}", ledger_idx, last_sig->term);
+          for (auto i = term_history.size(); i <= last_sig->term; ++i)
           {
             term_history.push_back(last_recovered_commit_idx + 1);
           }
@@ -544,15 +541,18 @@ namespace ccf
       // index and promote network secrets to this index
       GenesisGenerator g(network);
 
-      auto ls_idx = g.last_signed_index();
-      network.tables->rollback(ls_idx);
-      log_truncate(ls_idx);
-      LOG_INFO_FMT("Truncating ledger to last signed index: {}", ls_idx);
+      auto last_sig = g.last_signature();
+      kv::Version last_index = 0;
+      if (last_sig.has_value())
+        last_index = last_sig->index;
 
-      network.secrets->promote_secrets(0, ls_idx + 1);
+      network.tables->rollback(last_index);
+      log_truncate(last_index);
+      LOG_INFO_FMT("Truncating ledger to last signed index: {}", last_index);
+
+      network.secrets->promote_secrets(0, last_index + 1);
 
       g.delete_active_nodes();
-      LOG_INFO_FMT("Replaced nodes");
 
       // Quotes should be initialised and non-empty
       std::vector<uint8_t> quote{1};
@@ -601,7 +601,8 @@ namespace ccf
 
       if (g.finalize() != kv::CommitSuccess::OK)
         throw std::logic_error(
-          "Could not commit transaction when starting recovered network");
+          "Could not commit transaction when starting recovered public "
+          "network");
 
       accept_node_connections();
 

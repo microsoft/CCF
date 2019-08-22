@@ -122,6 +122,7 @@ TEST_CASE("simple lua apps")
 {
   NetworkTables network;
   GenesisGenerator gen(network);
+  gen.init_values();
   StubNotifier notifier;
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, gen, notifier, 1, 3);
@@ -242,6 +243,7 @@ TEST_CASE("simple bank")
 {
   NetworkTables network;
   GenesisGenerator gen(network);
+  gen.init_values();
   StubNotifier notifier;
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, gen, notifier, 1, 3);
@@ -343,6 +345,7 @@ TEST_CASE("pre-populated environment")
 {
   NetworkTables network;
   GenesisGenerator gen(network);
+  gen.init_values();
   StubNotifier notifier;
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, gen, notifier, 1, 3);

@@ -46,20 +46,14 @@ namespace ccf
           QuoteVerificationResult::FAIL_VERIFY_CODE_ID_NOT_FOUND;
       }
 
-      // TODO: For now, disable measurement verification.
-      // Indeed, as we no longer look up the certificate of the node from the
-      // KV (PEM format) but instead rely on the caller_cert from the TLS
-      // connection (DER format), we need to transform the caller_cert to PEM
-      // to check that the hashes match.
-
       // Verify quote data
-      // crypto::Sha256Hash hash{cert};
-      // if (
-      //   parsed_quote.report_data_size != crypto::Sha256Hash::SIZE &&
-      //   memcmp(hash.h, parsed_quote.report_data, crypto::Sha256Hash::SIZE) != 0)
-      // {
-      //   return QuoteVerificationResult::FAIL_VERIFY_INVALID_HASH;
-      // }
+      crypto::Sha256Hash hash{cert};
+      if (
+        parsed_quote.report_data_size != crypto::Sha256Hash::SIZE &&
+        memcmp(hash.h, parsed_quote.report_data, crypto::Sha256Hash::SIZE) != 0)
+      {
+        return QuoteVerificationResult::FAIL_VERIFY_INVALID_HASH;
+      }
       return QuoteVerificationResult::VERIFIED;
     }
 

@@ -64,7 +64,6 @@ def check_responses(responses, result, check, check_commit):
     check_commit(responses[-1], result=result)
 
 
-# TODO: This should belong to infra.ccf.network
 def wait_for_state(node, state):
     """
     Wait for the public ledger to be read completely on a node.
@@ -81,20 +80,6 @@ def wait_for_state(node, state):
         time.sleep(1)
     else:
         raise TimeoutError("Timed out waiting for public ledger to be read")
-
-
-def set_recovery_nodes(network, primary, followers):
-    """
-    Create and send recovery transaction, with new network definition.
-    """
-    LOG.debug("Adding new network nodes")
-    recovery_rpc = {"nodes": [n.remote.info() for n in [primary] + followers]}
-    with primary.management_client() as c:
-        id = c.request("setRecoveryNodes", recovery_rpc)
-        r = c.response(id).result
-        network.net_cert = list(r)
-        with open("networkcert.pem", "w") as nc:
-            nc.write(r.decode())
 
 
 def run(args):
