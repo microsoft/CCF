@@ -78,6 +78,7 @@ class Network:
         "election_timeout",
         "memory_reserve_startup",
         "notify_server",
+        "log_path",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups

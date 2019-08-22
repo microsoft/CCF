@@ -88,6 +88,9 @@ option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
 option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
+if (DEFINED ENV{LOG_PATH})
+    set(LOG_PATH "--log-path" $ENV{LOG_PATH})
+endif()
 
 option(PBFT "Enable PBFT" OFF)
 if (PBFT)
@@ -641,6 +644,7 @@ function(add_e2e_test)
       COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
         -b .
         --label ${PARSED_ARGS_NAME}
+        ${LOG_PATH}
         ${CCF_NETWORK_TEST_ARGS}
         ${PARSED_ARGS_ADDITIONAL_ARGS}
     )
@@ -687,6 +691,7 @@ function(add_perf_test)
       -b .
       -c ${PARSED_ARGS_CLIENT_BIN}
       -i ${PARSED_ARGS_ITERATIONS}
+      ${LOG_PATH}
       ${CCF_NETWORK_TEST_ARGS}
       ${PARSED_ARGS_ADDITIONAL_ARGS}
       --write-tx-times
