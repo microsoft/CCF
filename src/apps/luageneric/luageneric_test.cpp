@@ -83,8 +83,7 @@ auto init_frontend(
     }
   )xxx";
 
-  gen.set_app_scripts(
-    lua::Interpreter().invoke<nlohmann::json>(env_script));
+  gen.set_app_scripts(lua::Interpreter().invoke<nlohmann::json>(env_script));
   gen.finalize();
   return get_rpc_handler(network, notifier);
 }

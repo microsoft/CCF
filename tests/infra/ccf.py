@@ -125,6 +125,7 @@ class Network:
             infra.proc.ccall("cp", args.gov_script, args.build_dir).check_returncode()
         LOG.info("Lua scripts copied")
 
+        primary = None
         for i, node in enumerate(self.nodes):
             dict_args = vars(args)
             forwarded_args = {
@@ -155,7 +156,8 @@ class Network:
         self.wait_for_node_commit_sync()
         LOG.info("All remotes started")
 
-        primary = self.nodes[0]
+        if primary is None:
+            primary = self.nodes[0]
         LOG.success("All nodes joined network")
 
         return primary, self.nodes[1:]
@@ -178,37 +180,35 @@ class Network:
 
         LOG.info("Starting nodes on {}".format(hosts))
 
-        for i, node in enumerate(self.nodes):
-            forwarded_args = {
-                arg: getattr(args, arg)
-                for arg in infra.ccf.Network.node_args_to_forward
-            }
-            try:
-                # Only start the first node. In practice, one might decide to
-                # start all nodes with their own ledger to find out which ledger
-                # is the longest. Then, all nodes except the ones with the
-                # longest ledger are stopped and restarted in "join".
-                if i == 0:
-                    node.start(
-                        start_type=infra.remote.StartType.recover,
-                        lib_name=args.package,
-                        node_status=node_status[i],
-                        ledger_file=ledger_file,
-                        sealed_secrets=sealed_secrets,
-                        workspace=args.workspace,
-                        label=args.label,
-                        **forwarded_args,
-                    )
-                    node.network_state = NodeNetworkState.joined
-            except Exception:
-                LOG.exception("Failed to start recovery node {}".format(i))
-                raise
+        forwarded_args = {
+            arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
+        }
+
+        # In recovery, the primary is automatically the node that started
+        primary = self.nodes[0]
+
+        try:
+            # Only start the first node. In practice, one might decide to
+            # start all nodes with their own ledger to find out which ledger
+            # is the longest. Then, all nodes except the ones with the
+            # longest ledger are stopped and restarted in "join".
+            self.nodes[0].start(
+                start_type=infra.remote.StartType.recover,
+                lib_name=args.package,
+                node_status=node_status[0],
+                ledger_file=ledger_file,
+                sealed_secrets=sealed_secrets,
+                workspace=args.workspace,
+                label=args.label,
+                **forwarded_args,
+            )
+            self.nodes[0].network_state = NodeNetworkState.joined
+        except Exception:
+            LOG.exception("Failed to start recovery node {}".format(i))
+            raise
 
         for i, node in enumerate(self.nodes):
-            if i != 0:
-                # In recovery, the primary is automatically the node that started
-                primary = self.nodes[0]
-                node.stop()
+            if node != primary:
                 node.start(
                     infra.remote.StartType.join,
                     lib_name=args.package,
@@ -223,7 +223,6 @@ class Network:
         self.wait_for_node_commit_sync()
         LOG.success("All nodes joined recoverd public network")
 
-        primary = self.nodes[0]
         return primary, self.nodes[1:]
 
     def create_node(self, local_node_id, host, debug=False, perf=False):

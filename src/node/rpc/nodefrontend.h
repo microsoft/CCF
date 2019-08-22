@@ -36,13 +36,7 @@ namespace ccf
         auto nodes_view = args.tx.get_view(network.nodes);
         nodes_view->put(
           joining_node_id,
-          {in.node_info_network.host,
-           in.node_info_network.pubhost,
-           in.node_info_network.nodeport,
-           in.node_info_network.rpcport,
-           caller_cert,
-           in.quote,
-           NodeStatus::TRUSTED});
+          {in.node_info_network, caller_cert, in.quote, NodeStatus::TRUSTED});
 
         // Set joiner's fresh key for encrypting past network secrets
         node.set_joiner_key(joining_node_id, args.params["raw_fresh_key"]);

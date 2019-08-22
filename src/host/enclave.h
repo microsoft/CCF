@@ -178,7 +178,6 @@ namespace host
         return false;
       }
 
-      // TODO:
       crypto::Sha256Hash hash{
         tls::make_verifier(expected_contents_cert)->raw_cert_data()};
       if (0 != memcmp(hash.h, parsed.report_data, size))

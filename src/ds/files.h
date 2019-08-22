@@ -6,6 +6,8 @@
 #  define _CRT_SECURE_NO_WARNINGS
 #endif
 
+#include "tls/cert.h"
+
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -14,8 +16,6 @@
 #include <sstream>
 #include <string>
 #include <vector>
-
-#include "tls/cert.h"
 
 #ifdef _WIN32
 #  include <windows.h>

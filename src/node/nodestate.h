@@ -451,7 +451,7 @@ namespace ccf
       {
         network.tables->compact(ledger_idx);
         GenesisGenerator g(network);
-        auto last_sig = g.last_signature();
+        auto last_sig = g.get_last_signature();
         if (last_sig.has_value())
         {
           LOG_DEBUG_FMT(
@@ -479,7 +479,7 @@ namespace ccf
       // index and promote network secrets to this index
       GenesisGenerator g(network);
 
-      auto last_sig = g.last_signature();
+      auto last_sig = g.get_last_signature();
       kv::Version last_index = 0;
       if (last_sig.has_value())
         last_index = last_sig->index;

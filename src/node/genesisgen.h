@@ -58,12 +58,6 @@ namespace ccf
       return tx.commit();
     }
 
-    auto last_signature()
-    {
-      auto sig_view = tx.get_view(tables.signatures);
-      return sig_view->get(0);
-    }
-
     void delete_active_nodes()
     {
       auto [nodes_view, node_certs_view] =
