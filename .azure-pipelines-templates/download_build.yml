@@ -13,6 +13,6 @@ steps:
   workingDirectory: build
 
 - script: | 
-    cmake .. -L -DAZURE_LOG_ANALYTICS=ON
+    cmake .. -L
   displayName: Re-generate test metadata 
   workingDirectory: build
