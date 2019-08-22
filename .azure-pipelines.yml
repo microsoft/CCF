@@ -61,8 +61,6 @@ jobs:
     - template: .azure-pipelines-templates/build.yml
       parameters:
         cmake_args: '-DBUILD_SMALLBANK=OFF'
-      env:
-        LOG_PATH: $(log.path)
     - template: .azure-pipelines-templates/publish_build.yml
       parameters:
         artifact_name: build_results

@@ -106,7 +106,7 @@ jobs:
 
     - template: .azure-pipelines-templates/build.yml
       parameters:
-        cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DSAN=ON -DAZURE_LOG_ANALYTICS=ON'
+        cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DSAN=ON'
 
     - template: .azure-pipelines-templates/test.yml
       parameters:
