@@ -100,10 +100,10 @@ namespace files
   /**
    * @brief Tries to glob files and parse them as x509 certificates
    *
-   * @param file the path to glob
-   * @param optional determines behaviour in the case where the file does not
-   * exist. If true, an empty JSON object is returned. If false, the process
-   * exits
+   * @param path the path to glob
+   * @param optional determines behaviour in the case where that no file matches
+   * the glob patter. If true, an empty vector is returned. If false, the
+   * process exits
    * @return vector<vector<uint8_t>> vector of certificates
    */
   std::vector<std::vector<uint8_t>> slurp_certs(

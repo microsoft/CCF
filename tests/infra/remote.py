@@ -14,7 +14,7 @@ import uuid
 import ctypes
 import signal
 import re
-import fnmatch
+import glob
 from collections import deque
 
 from loguru import logger as LOG
@@ -171,11 +171,10 @@ class SSHRemote(CmdMixin):
         session = self.client.open_sftp()
         for path in self.files:
             # Some files can be glob patterns
-            for f in os.listdir("."):
-                if fnmatch.fnmatch(f, os.path.basename(path)):
-                    tgt_path = os.path.join(self.root, os.path.basename(f))
-                    LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, f))
-                    session.put(f, tgt_path)
+            for f in glob.glob(os.path.basename(path)):
+                tgt_path = os.path.join(self.root, os.path.basename(f))
+                LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, f))
+                session.put(f, tgt_path)
         session.close()
         executable = self.cmd[0]
         if executable.startswith("./"):
@@ -651,7 +650,9 @@ class CCFRemote(object):
                 cmd += ["recover"]
                 # Starting a CCF node in recover does not require any additional arguments
             else:
-                raise ValueError("CCFRemote start type should be start or join")
+                raise ValueError(
+                    "CCFRemote start type should be start, join or recover"
+                )
 
         # Necessary for the az-dcap-client >=1.1 (https://github.com/microsoft/Azure-DCAP-Client/issues/84)
         env = {"HOME": os.environ["HOME"]}
@@ -676,8 +677,7 @@ class CCFRemote(object):
     def start(self):
         wait_for_termination = self.verify_quote
         self.remote.start(wait_for_termination)
-        # In start or recovery
-        if self.start_type == StartType.start or self.start_type == StartType.recover:
+        if self.start_type in {StartType.start, StartType.recover}:
             self.remote.get("networkcert.pem")
 
     def restart(self):
@@ -782,4 +782,3 @@ class StartType(Enum):
     start = 0
     join = 1
     recover = 2
-    verify_quote = 3

@@ -180,7 +180,7 @@ namespace ccf
     //
     // funcs in state "initialized"
     //
-    auto create_new(const CreateNew::In& args)
+    auto create(const CreateNew::In& args)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::initialized);
@@ -297,7 +297,9 @@ namespace ccf
         }
         default:
         {
-          throw std::logic_error("Node was not started in known mode");
+          throw std::logic_error(
+            "Node was started in unknown mode " +
+            std::to_string(args.start_type));
         }
       }
     }
@@ -358,11 +360,6 @@ namespace ccf
             !public_only);
 
           self = res.id;
-          // Do not accept user connections if the network is public only
-          if (!public_only)
-          {
-            accept_user_connections();
-          }
 #ifndef PBFT
           setup_raft(public_only);
           setup_history();
@@ -371,6 +368,12 @@ namespace ccf
 
           accept_node_connections();
           accept_member_connections();
+
+          // Do not accept user connections if the network is public only
+          if (!public_only)
+          {
+            accept_user_connections();
+          }
 
           if (public_only)
             sm.advance(State::partOfPublicNetwork);
@@ -428,7 +431,7 @@ namespace ccf
       read_ledger_idx(++ledger_idx);
     }
 
-    void recover_public_ledger_entry(std::vector<uint8_t>& ledger_entry)
+    void recover_public_ledger_entry(const std::vector<uint8_t>& ledger_entry)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::readingPublicLedger);
@@ -555,7 +558,7 @@ namespace ccf
     //
     // funcs in state "readingPrivateLedger"
     //
-    void recover_private_ledger_entry(std::vector<uint8_t> ledger_entry)
+    void recover_private_ledger_entry(const std::vector<uint8_t>& ledger_entry)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::readingPrivateLedger);

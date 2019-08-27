@@ -106,7 +106,7 @@ namespace enclave
       start_type = start_type_;
       ccf_config = ccf_config_;
 
-      auto r = node.create_new({start_type, ccf_config_});
+      auto r = node.create({start_type, ccf_config_});
       if (!r.second)
         return false;
 

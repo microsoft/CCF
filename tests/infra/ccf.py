@@ -102,6 +102,7 @@ class Network:
                 )
 
     def start_and_join(self, args):
+        # TODO: The node that starts should not necessarily be node 0
         cmd = ["rm", "-f"] + glob("member*.pem")
         infra.proc.ccall(*cmd)
 
