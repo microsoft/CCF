@@ -147,9 +147,9 @@ namespace host
      * @return Whether the quote is valid. If it fails, an explanatory error
      * message will be logged.
      */
-    bool verify_quote_with_cert(
+    bool verify_quote(
       const std::vector<uint8_t>& quote_raw,
-      const std::vector<uint8_t>& expected_contents_cert)
+      const std::vector<uint8_t>& expected_contents)
     {
       if (is_virtual_enclave)
       {
@@ -178,8 +178,7 @@ namespace host
         return false;
       }
 
-      crypto::Sha256Hash hash{
-        tls::make_verifier(expected_contents_cert)->raw_cert_data()};
+      crypto::Sha256Hash hash{expected_contents};
       if (0 != memcmp(hash.h, parsed.report_data, size))
       {
         LOG_FAIL_FMT("Quote does not contain expected data");

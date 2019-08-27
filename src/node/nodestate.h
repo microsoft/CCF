@@ -305,7 +305,7 @@ namespace ccf
     //
     // funcs in state "pending"
     //
-    void initiate_join(const InitiateJoin::In& args)
+    void join(const Join::In& args)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::pending);
@@ -852,7 +852,7 @@ namespace ccf
 
 #ifdef GET_QUOTE
       // Quote is over the DER-encoded node certificate
-      crypto::Sha256Hash h{tls::make_verifier(node_cert)->raw_cert_data()};
+      crypto::Sha256Hash h{node_cert};
       uint8_t* report;
       size_t report_len = 0;
 

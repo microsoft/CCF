@@ -542,7 +542,6 @@ if(NOT ${TARGET} STREQUAL "virtual")
     ${CMAKE_THREAD_LIBS_INIT}
     ccfcrypto.host
     evercrypt.host
-    secp256k1.host
   )
   enable_quote_code(cchost)
 endif()

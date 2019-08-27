@@ -22,7 +22,7 @@ namespace ccf
     };
   };
 
-  struct InitiateJoin
+  struct Join
   {
     struct In
     {

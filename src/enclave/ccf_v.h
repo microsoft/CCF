@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include <ccf_args.h>
 #include <dlfcn.h>
 #include <openenclave/bits/result.h>
 #include <stdlib.h>
@@ -39,13 +40,6 @@ extern "C"
 #endif
 
 #define oe_result_str(x) x
-
-  typedef enum StartType
-  {
-    Start = 1,
-    Join = 2,
-    Recover = 3
-  } StartType;
 
   typedef void (*oe_ocall_func_t)(
     const uint8_t* input_buffer,

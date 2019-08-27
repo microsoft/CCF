@@ -15,6 +15,7 @@
 #include <iomanip>
 #include <limits>
 #include <mbedtls/bignum.h>
+#include <mbedtls/pem.h>
 #ifdef MOD_MBEDTLS
 #  include <mbedtls/eddsa.h>
 #endif
@@ -53,6 +54,13 @@ namespace tls
   static constexpr size_t ecp_num_size = 100;
 
   static constexpr size_t max_pem_key_size = 2048;
+  static constexpr size_t max_pem_cert_size = 4096;
+
+  // As these are not exposed by mbedlts, define them here to allow simple
+  // conversion from DER to PEM format
+  static constexpr auto PEM_CERTIFICATE_HEADER =
+    "-----BEGIN CERTIFICATE-----\n";
+  static constexpr auto PEM_CERTIFICATE_FOOTER = "-----END CERTIFICATE-----\n";
 
   // Helper to access elliptic curve id from context
   inline mbedtls_ecp_group_id get_ec_from_context(const mbedtls_pk_context& ctx)
@@ -503,8 +511,10 @@ namespace tls
     auto ctx = std::make_unique<mbedtls_pk_context>();
     mbedtls_pk_init(ctx.get());
 
+    std::cout << "About to parse from PEM" << std::endl;
     int rc = mbedtls_pk_parse_public_key(
       ctx.get(), public_pem.data(), public_pem.size() + 1);
+    std::cout << "rc = " << error_string(rc) << std::endl;
 
     if (rc != 0)
     {
@@ -512,6 +522,46 @@ namespace tls
         "Could not parse public key PEM: {}\n\n(Key: {})",
         error_string(rc),
         public_pem.str()));
+    }
+
+    const auto curve = get_ec_from_context(*ctx);
+
+    if (curve == MBEDTLS_ECP_DP_SECP256K1 && use_bitcoin_impl)
+    {
+      return std::make_shared<PublicKey_k1Bitcoin>(std::move(ctx));
+    }
+    else
+    {
+      return std::make_shared<PublicKey>(std::move(ctx));
+    }
+  }
+
+  /**
+   * Construct PublicKey from a raw public key in DER format
+   *
+   * @param public_der Sequence of bytes containing the key in DER format
+   * @param use_bitcoin_impl If true, and the key is on secp256k1, then the
+   * bitcoin secp256k1 library will be used as the implementation rather than
+   * mbedtls
+   */
+  inline PublicKeyPtr make_public_key(
+    const std::vector<uint8_t> public_der,
+    bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
+  {
+    auto ctx = std::make_unique<mbedtls_pk_context>();
+    mbedtls_pk_init(ctx.get());
+
+    // std::string public_der_string(public_der.begin(), public_der.end());
+
+    std::cout << "About to parse public key" << std::endl;
+    int rc = mbedtls_pk_parse_public_key(
+      ctx.get(), public_der.data(), public_der.size());
+    std::cout << "rc = " << error_string(rc) << std::endl;
+
+    if (rc != 0)
+    {
+      throw std::logic_error(
+        fmt::format("Could not parse public key DER: {}", error_string(rc)));
     }
 
     const auto curve = get_ec_from_context(*ctx);
@@ -1085,6 +1135,30 @@ namespace tls
     {
       const auto crt = raw();
       return {crt->raw.p, crt->raw.p + crt->raw.len};
+    }
+
+    Pem cert_pem()
+    {
+      unsigned char buf[max_pem_cert_size];
+      size_t len;
+      const auto crt = raw();
+
+      auto rc = mbedtls_pem_write_buffer(
+        PEM_CERTIFICATE_HEADER,
+        PEM_CERTIFICATE_FOOTER,
+        crt->raw.p,
+        crt->raw.len,
+        buf,
+        max_pem_cert_size,
+        &len);
+
+      if (rc != 0)
+      {
+        throw std::logic_error(
+          "mbedtls_pem_write_buffer failed: " + error_string(rc));
+      }
+
+      return Pem({buf, len});
     }
 
     virtual ~Verifier()

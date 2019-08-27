@@ -307,7 +307,7 @@ int main(int argc, char** argv)
 
   if (*start)
   {
-    LOG_INFO_FMT("Starting new node - new network");
+    LOG_INFO_FMT("Creating new node - new network");
     start_type = StartType::Start;
     ccf_config.genesis.member_certs = files::slurp_certs(member_cert_file);
     ccf_config.genesis.user_certs = files::slurp_certs(user_cert_file);
@@ -318,7 +318,7 @@ int main(int argc, char** argv)
   else if (*join)
   {
     LOG_INFO_FMT(
-      "Starting new node - joining existing network at {}:{}",
+      "Creating new node - joining existing network at {}:{}",
       target_rpc_address.hostname,
       target_rpc_address.port);
     start_type = StartType::Join;
@@ -329,7 +329,7 @@ int main(int argc, char** argv)
   }
   else if (*recover)
   {
-    LOG_INFO_FMT("Starting new node - recover");
+    LOG_INFO_FMT("Creating new node - recover");
     start_type = StartType::Recover;
   }
 
@@ -364,7 +364,7 @@ int main(int argc, char** argv)
 #ifdef GET_QUOTE
   files::dump(quote, quote_file);
 
-  if (!enclave.verify_quote_with_cert(quote, node_cert))
+  if (!enclave.verify_quote(quote, node_cert))
     LOG_FATAL_FMT("Verification of local node quote failed");
 #endif
 

@@ -18,11 +18,17 @@ namespace ccf
       auto accept = [&node, &network](RequestArgs& args) {
         const auto in = args.params.get<JoinNetworkNodeToNode::In>();
 
-        std::vector<uint8_t> caller_cert(args.rpc_ctx.caller_cert);
+        // Convert caller cert from DER to PEM as PEM certificates are quoted
+        auto caller_pem = tls::make_verifier({args.rpc_ctx.caller_cert.p,
+                                              args.rpc_ctx.caller_cert.p +
+                                                args.rpc_ctx.caller_cert.n})
+                            ->cert_pem();
+        std::vector<uint8_t> caller_pem_raw = {caller_pem.str().begin(),
+                                               caller_pem.str().end()};
 
 #ifdef GET_QUOTE
-        QuoteVerificationResult verify_result =
-          QuoteVerifier::verify_quote(args.tx, network, in.quote, caller_cert);
+        QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
+          args.tx, network, in.quote, caller_pem_raw);
 
         if (verify_result != QuoteVerificationResult::VERIFIED)
           return QuoteVerifier::quote_verification_error_to_json(verify_result);
@@ -36,7 +42,10 @@ namespace ccf
         auto nodes_view = args.tx.get_view(network.nodes);
         nodes_view->put(
           joining_node_id,
-          {in.node_info_network, caller_cert, in.quote, NodeStatus::TRUSTED});
+          {in.node_info_network,
+           caller_pem_raw,
+           in.quote,
+           NodeStatus::TRUSTED});
 
         // Set joiner's fresh key for encrypting past network secrets
         node.set_joiner_key(joining_node_id, args.params["raw_fresh_key"]);
