@@ -153,12 +153,12 @@ class Network:
             except Exception:
                 LOG.exception("Failed to start node {}".format(i))
                 raise
-
-        self.wait_for_node_commit_sync()
         LOG.info("All remotes started")
 
         if primary is None:
             primary = self.nodes[0]
+
+        self.wait_for_all_nodes_have_joined(primary)
         LOG.success("All nodes joined network")
 
         return primary, self.nodes[1:]
@@ -221,7 +221,7 @@ class Network:
                 )
                 node.network_state = NodeNetworkState.joined
 
-        self.wait_for_node_commit_sync()
+        self.wait_for_all_nodes_have_joined(primary)
         LOG.success("All nodes joined recoverd public network")
 
         return primary, self.nodes[1:]
@@ -435,12 +435,45 @@ class Network:
                         "Correcting node id for {local_node.node_id} to be {node_id}"
                     )
 
-    def wait_for_node_commit_sync(self):
+    def wait_for_all_nodes_have_joined(self, primary, timeout=3):
+        """
+        Wait for all nodes to have joined the network and globally replicated
+        all transactions executed on the primary (including the transactions
+        which added the nodes).
+        """
+
+        with primary.management_client() as c:
+            res = c.do("getCommit", {})
+            local_commit_leader = res.result["commit"]
+            term_leader = res.result["term"]
+
+        for _ in range(timeout):
+            joined_nodes = 0
+            for node in (node for node in self.nodes if node.is_joined()):
+                with node.management_client() as c:
+                    id = c.request("getCommit", {})
+                    resp = c.response(id)
+                    assert (
+                        resp.error == None
+                    ), f"Node {node.node_id} did not joined the network successfully"
+                    if (
+                        resp.global_commit >= local_commit_leader
+                        and resp.result["term"] == term_leader
+                    ):
+                        joined_nodes += 1
+            if joined_nodes == len(self.nodes):
+                break
+            time.sleep(1)
+        assert joined_nodes == len(
+            self.nodes
+        ), f"Only {joined_nodes} (out of {len(self.nodes)}) nodes have joined the network"
+
+    def wait_for_node_commit_sync(self, timeout=3):
         """
         Wait for commit level to get in sync on all nodes. This is expected to
         happen once CFTR has been established, in the absence of new transactions.
         """
-        for _ in range(3):
+        for _ in range(timeout):
             commits = []
             for node in (node for node in self.nodes if node.is_joined()):
                 with node.management_client() as c:
