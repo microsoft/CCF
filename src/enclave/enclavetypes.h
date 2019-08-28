@@ -61,13 +61,6 @@ namespace enclave
     };
     std::optional<struct forwarded> fwd = std::nullopt;
 
-    // Invalid RPCContext
-    RPCContext() :
-      client_session_id(InvalidSessionId),
-      caller_cert(nullb),
-      actor(ccf::ActorsType::unknown)
-    {}
-
     // Constructor used for non-forwarded RPC
     RPCContext(
       size_t client_session_id_,
