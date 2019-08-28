@@ -28,7 +28,7 @@ To initiate the first phase of the recovery protocol, one or several nodes shoul
     --node-cert-file=/path/to/node_certificate --quote-file=/path/to/quote
     recover --network-cert-file=/path/to/network_certificate
 
-Each node will then immediately restore the public entries of its ledger (``--ledger-file``). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by running the ``getSignedIndex`` JSON-RPC which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically become part of the public network, allowing other nodes to join the network.
+Each node will then immediately restore the public entries of its ledger (``--ledger-file``). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by running the ``getSignedIndex`` JSON-RPC which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
 
 .. note:: If more than one node were started in ``recover`` mode, the node with the highest signed index (as per the response to the ``getSignedIndex`` JSON-RPC) should be preferred to start the new network. Other nodes should be shutdown and restarted with the ``join`` option.
 
@@ -117,6 +117,6 @@ Once the recovery of the private ledger on all the nodes that have joined the ne
 
 .. rubric:: Footnotes
 
-.. [#crash] When using Raft as consensus algorithm, CCF tolerates up to `N/2 - 1` crashed nodes (with `N` is the number of nodes constituing the network) before having to perform catastrophic recovery. For example, in a 5-node network, no more than 2 nodes are allowed to fail.
+.. [#crash] When using Raft as consensus algorithm, CCF tolerates up to `N/2 - 1` crashed nodes (where `N` is the number of nodes constituing the network) before having to perform catastrophic recovery. For example, in a 5-node network, no more than 2 nodes are allowed to fail.
 
 .. [#sealing] `Intel SGX Sealing <https://software.intel.com/en-us/blogs/2016/05/04/introduction-to-intel-sgx-sealing>`_.
