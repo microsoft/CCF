@@ -237,21 +237,7 @@ class SSHRemote(CmdMixin):
                         "Failed to download {} from {}".format(filepath, self.hostname)
                     )
 
-    def _wait_for_termination(self, stdout, timeout=10):
-        chan = stdout.channel
-        for _ in range(timeout):
-            if chan.exit_status_ready():
-                if chan.recv_exit_status() is not 0:
-                    raise RuntimeError("SSHRemote did not terminate gracefully")
-                else:
-                    LOG.success("Command finished")
-                    return
-            else:
-                LOG.error("Command not ready")
-            time.sleep(1)
-        raise TimeoutError("Timed out waiting for SSHRemote to terminate")
-
-    def start(self, wait_for_termination=False):
+    def start(self):
         """
         Start cmd on the remote host. stdout and err are captured to file locally.
 
@@ -261,9 +247,6 @@ class SSHRemote(CmdMixin):
         cmd = self._cmd()
         LOG.info("[{}] {}".format(self.hostname, cmd))
         stdin, stdout, stderr = self.client.exec_command(cmd, get_pty=True)
-
-        if wait_for_termination:
-            self._wait_for_termination(stdout)
 
     def stop(self):
         """
@@ -416,16 +399,7 @@ class LocalRemote(CmdMixin):
     def list_files(self):
         return os.listdir(self.root)
 
-    def _wait_for_termination(self, timeout=10):
-        try:
-            self.proc.wait(timeout)
-        except subprocess.TimeoutExpired:
-            raise TimeoutError("Timed out waiting for LocalRemote to terminate")
-
-        if self.proc.returncode is not 0:
-            raise RuntimeError("LocalRemote did not terminate gracefully")
-
-    def start(self, wait_for_termination=False, timeout=10):
+    def start(self, timeout=10):
         """
         Start cmd. stdout and err are captured to file locally.
         """
@@ -440,8 +414,6 @@ class LocalRemote(CmdMixin):
             stderr=self.stderr,
             env=self.env,
         )
-        if wait_for_termination:
-            self._wait_for_termination()
 
     def stop(self):
         """
@@ -522,14 +494,11 @@ class CCFRemote(object):
         rpc_port,
         remote_class,
         enclave_type,
-        verify_quote,
         workspace,
         label,
         target_rpc_address=None,
         members_certs=None,
         users_certs=None,
-        other_quote=None,
-        other_quoted_data=None,
         host_log_level="info",
         ignore_quote=False,
         sig_max_tx=1000,
@@ -556,7 +525,6 @@ class CCFRemote(object):
         self.pem = "{}.pem".format(local_node_id)
         self.quote = None
         self.node_status = node_status
-        self.verify_quote = verify_quote
         # Only expect a quote if the enclave is not virtual and quotes have
         # not been explictly ignored
         if enclave_type != "virtual" and not ignore_quote:
@@ -574,85 +542,70 @@ class CCFRemote(object):
             [sealed_secrets] if sealed_secrets else []
         )
 
-        # If the remote needs to verify the quote, only a subset of arguments are required
-        if self.verify_quote:
-            cmd += ["--start=verify"]
+        cmd = [
+            self.BIN,
+            f"--enclave-file={lib_path}",
+            f"--enclave-type={enclave_type}",
+            f"--node-address={host}:{node_port}",
+            f"--rpc-address={host}:{rpc_port}",
+            f"--public-rpc-address={host}:{rpc_port}",
+            f"--ledger-file={self.ledger_file_name}",
+            f"--node-cert-file={self.pem}",
+            f"--host-log-level={host_log_level}",
+            f"--raft-election-timeout-ms={election_timeout}",
+        ]
 
-            if not other_quote:
+        if sig_max_tx:
+            cmd += [f"--sig-max-tx={sig_max_tx}"]
+
+        if sig_max_ms:
+            cmd += [f"--sig-max-ms={sig_max_ms}"]
+
+        if memory_reserve_startup:
+            cmd += [f"--memory-reserve-startup={memory_reserve_startup}"]
+
+        if notify_server:
+            notify_server_host, *notify_server_port = notify_server.split(":")
+
+            if not notify_server_host or not (
+                notify_server_port and notify_server_port[0]
+            ):
                 raise ValueError(
-                    "Quote should be specified when starting remote in verify mode"
-                )
-            if not other_quoted_data:
-                raise ValueError(
-                    "Quoted data should be specified when starting remote in verify mode"
+                    "Notification server host:port configuration is invalid"
                 )
 
-            cmd += [f"--quote-file={other_quote}", f"--quoted-data={other_quoted_data}"]
-        else:
-            cmd = [
-                self.BIN,
-                f"--enclave-file={lib_path}",
-                f"--enclave-type={enclave_type}",
-                f"--node-address={host}:{node_port}",
-                f"--rpc-address={host}:{rpc_port}",
-                f"--public-rpc-address={host}:{rpc_port}",
-                f"--ledger-file={self.ledger_file_name}",
-                f"--node-cert-file={self.pem}",
-                f"--host-log-level={host_log_level}",
-                f"--raft-election-timeout-ms={election_timeout}",
+            cmd += [
+                f"--notify-server-address={notify_server_host}:{notify_server_port[0]}"
             ]
 
-            if sig_max_tx:
-                cmd += [f"--sig-max-tx={sig_max_tx}"]
+        if self.quote:
+            cmd += [f"--quote-file={self.quote}"]
 
-            if sig_max_ms:
-                cmd += [f"--sig-max-ms={sig_max_ms}"]
-
-            if memory_reserve_startup:
-                cmd += [f"--memory-reserve-startup={memory_reserve_startup}"]
-
-            if notify_server:
-                notify_server_host, *notify_server_port = notify_server.split(":")
-
-                if not notify_server_host or not (
-                    notify_server_port and notify_server_port[0]
-                ):
-                    raise ValueError(
-                        "Notification server host:port configuration is invalid"
-                    )
-
-                cmd += [
-                    f"--notify-server-address={notify_server_host}:{notify_server_port[0]}"
-                ]
-
-            if self.quote:
-                cmd += [f"--quote-file={self.quote}"]
-
-            if start_type == StartType.start:
-                cmd += [
-                    "start",
-                    f"--member-certs={members_certs}",
-                    f"--user-certs={users_certs}",
-                    f"--gov-script={os.path.basename(gov_script)}",
-                ]
-                data_files += [members_certs, users_certs, os.path.basename(gov_script)]
-                if app_script:
-                    cmd += [f"--app-script={os.path.basename(app_script)}"]
-                    data_files += [os.path.basename(app_script)]
-            elif start_type == StartType.join:
-                cmd += [
-                    "join",
-                    "--network-cert-file=networkcert.pem",
-                    f"--target-rpc-address={target_rpc_address}",
-                ]
-                data_files += ["networkcert.pem"]
-            elif start_type == StartType.recover:
-                cmd += ["recover"]
-                # Starting a CCF node in recover does not require any additional arguments
-            else:
-                raise ValueError(
-                    f"Unexpected CCFRemote start type {start_type}. Should be start, join or recover"
-                )
+        if start_type == StartType.start:
+            cmd += [
+                "start",
+                f"--member-certs={members_certs}",
+                f"--user-certs={users_certs}",
+                f"--gov-script={os.path.basename(gov_script)}",
+            ]
+            data_files += [members_certs, users_certs, os.path.basename(gov_script)]
+            if app_script:
+                cmd += [f"--app-script={os.path.basename(app_script)}"]
+                data_files += [os.path.basename(app_script)]
+        elif start_type == StartType.join:
+            cmd += [
+                "join",
+                "--network-cert-file=networkcert.pem",
+                f"--target-rpc-address={target_rpc_address}",
+            ]
+            data_files += ["networkcert.pem"]
+        elif start_type == StartType.recover:
+            cmd += ["recover"]
+            # Starting a CCF node in recover does not require any additional arguments
+        else:
+            raise ValueError(
+                f"Unexpected CCFRemote start type {start_type}. Should be start, join or recover"
+            )
 
         # Necessary for the az-dcap-client >=1.1 (https://github.com/microsoft/Azure-DCAP-Client/issues/84)
         env = {"HOME": os.environ["HOME"]}
@@ -675,8 +628,8 @@ class CCFRemote(object):
         self.remote.setup()
 
     def start(self):
-        wait_for_termination = self.verify_quote
-        self.remote.start(wait_for_termination)
+        self.remote.start()
+        self.remote.get(self.pem)
         if self.start_type in {StartType.start, StartType.recover}:
             self.remote.get("networkcert.pem")
 
@@ -744,14 +697,6 @@ class CCFRemote(object):
 
     def ledger_path(self):
         return os.path.join(self.remote.root, self.ledger_file_name)
-
-    def get_quote(self):
-        self.remote.get(self.quote)
-        return os.path.join(self.remote.root, self.quote)
-
-    def get_cert(self):
-        self.remote.get(self.pem)
-        return os.path.join(self.remote.root, self.pem)
 
 
 @contextmanager
