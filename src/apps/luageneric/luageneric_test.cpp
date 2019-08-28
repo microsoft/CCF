@@ -5,8 +5,8 @@
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
-#include "genesisgen/genesisgen.h"
 #include "luainterp/luainterp.h"
+#include "node/genesisgen.h"
 #include "node/rpc/jsonrpc.h"
 #include "node/rpc/test/node_stub.h"
 #include "runtime_config/default_whitelists.h"
@@ -47,26 +47,27 @@ void check_success(const vector<uint8_t>& v, const T& expected)
   CHECK(T(r.result) == expected);
 }
 
-void set_whitelists(GenesisGenerator& network)
+void set_whitelists(GenesisGenerator& gen)
 {
   for (const auto& wl : default_whitelists)
-    network.set_whitelist(wl.first, wl.second);
+    gen.set_whitelist(wl.first, wl.second);
 }
 
 auto init_frontend(
-  GenesisGenerator& network,
+  NetworkTables& network,
+  GenesisGenerator& gen,
   StubNotifier& notifier,
   const int n_users,
   const int n_members)
 {
   // create users with fake certs (no crypto here)
   for (uint8_t i = 0; i < n_users; i++)
-    network.add_user({i});
+    gen.add_user({i});
 
   for (uint8_t i = 0; i < n_members; i++)
-    network.add_member({i});
+    gen.add_member({i});
 
-  set_whitelists(network);
+  set_whitelists(gen);
 
   const auto env_script = R"xxx(
     return {
@@ -82,9 +83,8 @@ auto init_frontend(
     }
   )xxx";
 
-  network.set_app_scripts(
-    lua::Interpreter().invoke<nlohmann::json>(env_script));
-  network.finalize_raw();
+  gen.set_app_scripts(lua::Interpreter().invoke<nlohmann::json>(env_script));
+  gen.finalize();
   return get_rpc_handler(network, notifier);
 }
 
@@ -119,10 +119,12 @@ void check_store_load(F frontend, K k, V v)
 
 TEST_CASE("simple lua apps")
 {
-  GenesisGenerator network;
+  NetworkTables network;
+  GenesisGenerator gen(network);
+  gen.init_values();
   StubNotifier notifier;
   // create network with 1 user and 3 active members
-  auto frontend = init_frontend(network, notifier, 1, 3);
+  auto frontend = init_frontend(network, gen, notifier, 1, 3);
   const Cert u0 = {0};
   enclave::RPCContext rpc_ctx(0, u0);
 
@@ -238,10 +240,12 @@ TEST_CASE("simple lua apps")
 
 TEST_CASE("simple bank")
 {
-  GenesisGenerator network;
+  NetworkTables network;
+  GenesisGenerator gen(network);
+  gen.init_values();
   StubNotifier notifier;
   // create network with 1 user and 3 active members
-  auto frontend = init_frontend(network, notifier, 1, 3);
+  auto frontend = init_frontend(network, gen, notifier, 1, 3);
   const Cert u0 = {0};
   enclave::RPCContext rpc_ctx(0, u0);
 
@@ -338,10 +342,12 @@ TEST_CASE("simple bank")
 
 TEST_CASE("pre-populated environment")
 {
-  GenesisGenerator network;
+  NetworkTables network;
+  GenesisGenerator gen(network);
+  gen.init_values();
   StubNotifier notifier;
   // create network with 1 user and 3 active members
-  auto frontend = init_frontend(network, notifier, 1, 3);
+  auto frontend = init_frontend(network, gen, notifier, 1, 3);
   const Cert u0 = {0};
   enclave::RPCContext rpc_ctx(0, u0);
 

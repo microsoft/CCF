@@ -1,10 +1,18 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#pragma once
+
 #include <dlfcn.h>
 #include <openenclave/bits/result.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+
+#ifdef VIRTUAL_ENCLAVE
+#  include "start_type.h"
+#else
+#  include <ccf_args.h>
+#endif
 
 #define OE_REPORT_DATA_SIZE 64
 
@@ -47,8 +55,20 @@ extern "C"
     size_t output_buffer_size,
     size_t* output_bytes_written);
 
-  using create_node_func_t =
-    bool (*)(void*, uint8_t*, size_t, size_t*, uint8_t*, size_t, size_t*, bool);
+  using create_node_func_t = bool (*)(
+    void*,
+    char*,
+    size_t,
+    uint8_t*,
+    size_t,
+    size_t*,
+    uint8_t*,
+    size_t,
+    size_t*,
+    uint8_t*,
+    size_t,
+    size_t*,
+    StartType);
 
   using run_func_t = bool (*)();
 
@@ -75,27 +95,37 @@ extern "C"
   inline oe_result_t enclave_create_node(
     oe_enclave_t* enclave,
     bool* _retval,
-    void* config,
+    void* enclave_config,
+    char* ccf_config,
+    size_t ccf_config_size,
     uint8_t* node_cert,
     size_t node_cert_size,
     size_t* node_cert_len,
     uint8_t* quote,
     size_t quote_size,
     size_t* quote_len,
-    bool recover)
+    uint8_t* network_cert,
+    size_t network_cert_size,
+    size_t* network_cert_len,
+    StartType start_type)
   {
     static create_node_func_t create_node_func =
       get_enclave_exported_function<create_node_func_t>("enclave_create_node");
 
     *_retval = create_node_func(
-      config,
+      enclave_config,
+      ccf_config,
+      ccf_config_size,
       node_cert,
       node_cert_size,
       node_cert_len,
       quote,
       quote_size,
       quote_len,
-      recover);
+      network_cert,
+      network_cert_size,
+      network_cert_len,
+      start_type);
     return *_retval ? OE_OK : OE_FAILURE;
   }
 

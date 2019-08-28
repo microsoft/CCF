@@ -2,16 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/json.h"
-#include "node/calltypes.h"
+#include "enclave/interface.h"
 #include "node/rpc/calltypes.h"
 
 namespace ccf
 {
-  DECLARE_JSON_TYPE(StartNetwork::In)
-  DECLARE_JSON_REQUIRED_FIELDS(StartNetwork::In, tx0, id)
-  DECLARE_JSON_TYPE(StartNetwork::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(StartNetwork::Out, network_cert, tx0_sig)
-
   DECLARE_JSON_TYPE(JoinNetwork::In)
   DECLARE_JSON_REQUIRED_FIELDS(JoinNetwork::In, network_cert, hostname, service)
   DECLARE_JSON_TYPE(JoinNetwork::Out)
@@ -20,15 +15,11 @@ namespace ccf
   DECLARE_JSON_ENUM(
     GetSignedIndex::State,
     {{GetSignedIndex::State::ReadingPublicLedger, "readingPublicLedger"},
-     {GetSignedIndex::State::AwaitingRecovery, "awaitingRecovery"},
      {GetSignedIndex::State::ReadingPrivateLedger, "readingPrivateLedger"},
      {GetSignedIndex::State::PartOfNetwork, "partOfNetwork"},
      {GetSignedIndex::State::PartOfPublicNetwork, "partOfPublicNetwork"}})
   DECLARE_JSON_TYPE(GetSignedIndex::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetSignedIndex::Out, state, signed_index)
-
-  DECLARE_JSON_TYPE(SetRecoveryNodes::In)
-  DECLARE_JSON_REQUIRED_FIELDS(SetRecoveryNodes::In, nodes)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetQuotes::Quote)
   DECLARE_JSON_REQUIRED_FIELDS(GetQuotes::Quote, node_id, raw)
@@ -40,7 +31,8 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(NetworkSecrets::Secret, cert, priv_key, master)
 
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::In)
-  DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::In, raw_fresh_key)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    JoinNetworkNodeToNode::In, raw_fresh_key, node_info_network, quote)
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(
     JoinNetworkNodeToNode::Out, id, network_secrets, version)

@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "../kv/kvtypes.h"
 #include "entities.h"
-#include "rpc/jsonrpc.h"
+#include "kv/kvtypes.h"
+#include "nodeinfonetwork.h"
 
 #include <msgpack.hpp>
 #include <string>
@@ -28,21 +28,16 @@ MSGPACK_ADD_ENUM(ccf::NodeStatus);
 
 namespace ccf
 {
-  struct NodeInfo
+  struct NodeInfo : NodeInfoNetwork
   {
-    std::string host;
-    std::string pubhost;
-    std::string nodeport;
-    std::string rpcport;
     std::vector<uint8_t> cert;
     std::vector<uint8_t> quote;
     NodeStatus status = NodeStatus::PENDING;
 
-    MSGPACK_DEFINE(host, pubhost, nodeport, rpcport, cert, quote, status);
+    MSGPACK_DEFINE(MSGPACK_BASE(NodeInfoNetwork), cert, quote, status);
   };
-  DECLARE_JSON_TYPE(NodeInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    NodeInfo, host, pubhost, nodeport, rpcport, cert, quote, status);
+  DECLARE_JSON_TYPE_WITH_BASE(NodeInfo, NodeInfoNetwork);
+  DECLARE_JSON_REQUIRED_FIELDS(NodeInfo, cert, quote, status);
 
   using Nodes = Store::Map<NodeId, NodeInfo>;
 }

@@ -2,9 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "../ds/cli_helper.h"
 #include "../ds/files.h"
-#include "../node/calltypes.h"
 #include "../node/rpc/jsonrpc.h"
-#include "../node/rpc/serialization.h"
 #include "../tls/ca.h"
 #include "../tls/cert.h"
 #include "../tls/keypair.h"
@@ -190,16 +188,6 @@ int main(int argc, char** argv)
       ->excludes(nodes_opt);
   app.add_option("--ca", ca_file, "Network CA", true);
 
-  auto start_network = app.add_subcommand("startnetwork", "Start network");
-
-  std::string req_sn = "@startNetwork.json";
-  add_request_arg(start_network, req_sn);
-
-  auto join_network = app.add_subcommand("joinnetwork", "Join network");
-
-  std::string req_jn = "@joinNetwork.json";
-  add_request_arg(join_network, req_jn);
-
   auto member_rpc = app.add_subcommand("memberrpc", "Member RPC");
 
   std::string req_mem = "@memberrpc.json";
@@ -264,24 +252,6 @@ int main(int argc, char** argv)
     nlohmann::json response;
 
     cout << fmt::format("Sending RPC to {}:{}", host, port) << endl;
-
-    if (*start_network)
-    {
-      cout << "Starting network:" << endl;
-      response = make_rpc(
-        host, port, Pack::MsgPack, "management", ca_file, "", "", req_sn);
-      Response<ccf::StartNetwork::Out> start_network_out = response;
-
-      dump(start_network_out.result.network_cert, "networkcert.pem");
-      dump(start_network_out.result.tx0_sig, "tx0.sig");
-    }
-
-    if (*join_network)
-    {
-      cout << "Joining network:" << endl;
-      response = make_rpc(
-        host, port, Pack::MsgPack, "management", ca_file, "", "", req_jn);
-    }
 
     if (*member_rpc)
     {

@@ -33,7 +33,6 @@ def network(
     perf_nodes=[],
     create_nodes=True,
     node_offset=0,
-    recovery=False,
     pdb=False,
 ):
     """
@@ -53,7 +52,6 @@ def network(
             perf_nodes=perf_nodes,
             create_nodes=create_nodes,
             node_offset=node_offset,
-            recovery=recovery,
         )
         try:
             yield net
@@ -71,7 +69,7 @@ def network(
 class Network:
     node_args_to_forward = [
         "enclave_type",
-        "log_level",
+        "host_log_level",
         "ignore_quote",
         "sig_max_tx",
         "sig_max_ms",
@@ -79,19 +77,15 @@ class Network:
         "memory_reserve_startup",
         "notify_server",
         "log_path",
+        "gov_script",
+        "app_script",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
     replication_delay = 30
 
     def __init__(
-        self,
-        hosts,
-        dbg_nodes=None,
-        perf_nodes=None,
-        create_nodes=True,
-        node_offset=0,
-        recovery=False,
+        self, hosts, dbg_nodes=None, perf_nodes=None, create_nodes=True, node_offset=0
     ):
         self.nodes = []
         self.members = []
@@ -105,10 +99,10 @@ class Network:
                     host,
                     debug=str(local_node_id_) in (dbg_nodes or []),
                     perf=str(local_node_id_) in (perf_nodes or []),
-                    recovery=recovery,
                 )
 
     def start_and_join(self, args):
+        # TODO: The node that starts should not necessarily be node 0
         cmd = ["rm", "-f"] + glob("member*.pem")
         infra.proc.ccall(*cmd)
 
@@ -123,25 +117,8 @@ class Network:
 
         LOG.info("Starting nodes on {}".format(hosts))
 
-        for i, node in enumerate(self.nodes):
-            dict_args = vars(args)
-            forwarded_args = {
-                arg: dict_args[arg] for arg in Network.node_args_to_forward
-            }
-            try:
-                node.start(
-                    lib_name=args.package,
-                    node_status=node_status[i],
-                    workspace=args.workspace,
-                    label=args.label,
-                    other_quote=None,
-                    other_quoted_data=None,
-                    **forwarded_args,
-                )
-            except Exception:
-                LOG.exception("Failed to start node {}".format(i))
-                raise
-        LOG.info("All remotes started")
+        self.add_members([1, 2, 3])
+        self.add_users([1, 2, 3])
 
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
@@ -149,20 +126,40 @@ class Network:
             infra.proc.ccall("cp", args.gov_script, args.build_dir).check_returncode()
         LOG.info("Lua scripts copied")
 
-        self.nodes_json()
-        self.add_members([1, 2, 3])
-        self.add_users([1, 2, 3])
-        self.genesis_generator(args)
+        primary = None
+        for i, node in enumerate(self.nodes):
+            dict_args = vars(args)
+            forwarded_args = {
+                arg: dict_args[arg] for arg in Network.node_args_to_forward
+            }
+            try:
+                primary, _ = self.find_primary() if i != 0 else (None, None)
+                node.start(
+                    infra.remote.StartType.start
+                    if i == 0
+                    else infra.remote.StartType.join,
+                    lib_name=args.package,
+                    node_status=node_status[i],
+                    workspace=args.workspace,
+                    label=args.label,
+                    target_rpc_address=f"{primary.host}:{primary.rpc_port}"
+                    if primary
+                    else None,
+                    members_certs="member*_cert.pem" if i == 0 else None,
+                    users_certs="user*_cert.pem" if i == 0 else None,
+                    **forwarded_args,
+                )
+                node.network_state = NodeNetworkState.joined
+            except Exception:
+                LOG.exception("Failed to start node {}".format(i))
+                raise
+        LOG.info("All remotes started")
 
-        primary = self.nodes[0]
-        primary.start_network(self)
+        if primary is None:
+            primary = self.nodes[0]
 
-        for node in self.nodes[1:]:
-            node.join_network(self)
-
-        primary.network_state = NodeNetworkState.joined
-
-        LOG.success("All nodes joined Network")
+        self.wait_for_all_nodes_have_joined(primary)
+        LOG.success("All nodes joined network")
 
         return primary, self.nodes[1:]
 
@@ -176,39 +173,61 @@ class Network:
         if not args.package:
             raise ValueError("A package name must be specified.")
 
-        LOG.info("Starting nodes on {}".format(hosts))
-
-        for i, node in enumerate(self.nodes):
-            forwarded_args = {
-                arg: getattr(args, arg)
-                for arg in infra.ccf.Network.node_args_to_forward
-            }
-            try:
-                node.start(
-                    lib_name=args.package,
-                    node_status=node_status[i],
-                    ledger_file=ledger_file,
-                    sealed_secrets=sealed_secrets,
-                    workspace=args.workspace,
-                    label=args.label,
-                    **forwarded_args,
-                )
-            except Exception:
-                LOG.exception("Failed to start recovery node {}".format(i))
-                raise
-        LOG.info("All remotes started")
-
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
         if args.gov_script:
             infra.proc.ccall("cp", args.gov_script, args.build_dir).check_returncode()
         LOG.info("Lua scripts copied")
 
+        LOG.info("Starting nodes on {}".format(hosts))
+
+        forwarded_args = {
+            arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
+        }
+
+        # In recovery, the primary is automatically the node that started
         primary = self.nodes[0]
+
+        try:
+            # Only start the first node. In practice, one might decide to
+            # start all nodes with their own ledger to find out which ledger
+            # is the longest. Then, all nodes except the ones with the
+            # longest ledger are stopped and restarted in "join".
+            self.nodes[0].start(
+                start_type=infra.remote.StartType.recover,
+                lib_name=args.package,
+                node_status=node_status[0],
+                ledger_file=ledger_file,
+                sealed_secrets=sealed_secrets,
+                workspace=args.workspace,
+                label=args.label,
+                **forwarded_args,
+            )
+            self.nodes[0].network_state = NodeNetworkState.joined
+        except Exception:
+            LOG.exception("Failed to start recovery node {}".format(i))
+            raise
+
+        for i, node in enumerate(self.nodes):
+            if node != primary:
+                node.start(
+                    infra.remote.StartType.join,
+                    lib_name=args.package,
+                    node_status=node_status[i],
+                    workspace=args.workspace,
+                    label=args.label,
+                    target_rpc_address=f"{primary.host}:{primary.rpc_port}",
+                    **forwarded_args,
+                )
+                node.network_state = NodeNetworkState.joined
+
+        self.wait_for_all_nodes_have_joined(primary)
+        LOG.success("All nodes joined recoverd public network")
+
         return primary, self.nodes[1:]
 
-    def create_node(self, local_node_id, host, debug=False, perf=False, recovery=False):
-        node = Node(local_node_id, host, debug, perf, recovery)
+    def create_node(self, local_node_id, host, debug=False, perf=False):
+        node = Node(local_node_id, host, debug, perf)
         self.nodes.append(node)
         return node
 
@@ -254,16 +273,12 @@ class Network:
         self.members.extend(members)
         members = ["member{}".format(m) for m in members]
         for m in members:
-            infra.proc.ccall(
-                "./genesisgenerator", "cert", "--name={}".format(m)
-            ).check_returncode()
+            infra.proc.ccall("./keygenerator", "--name={}".format(m)).check_returncode()
 
     def add_users(self, users):
         users = ["user{}".format(u) for u in users]
         for u in users:
-            infra.proc.ccall(
-                "./genesisgenerator", "cert", "--name={}".format(u)
-            ).check_returncode()
+            infra.proc.ccall("./keygenerator", "--name={}".format(u)).check_returncode()
 
     def member_client_rpc_as_json(self, member_id, remote_node, *args):
         if remote_node is None:
@@ -337,21 +352,6 @@ class Network:
         return self.propose(
             member_id, remote_node, "add_member", f"--member_cert={new_member_cert}"
         )
-
-    def genesis_generator(self, args):
-        gen = ["./genesisgenerator", "tx"]
-        if args.app_script:
-            gen.append("--app-script={}".format(args.app_script))
-        if args.gov_script:
-            gen.append("--gov-script={}".format(args.gov_script))
-        infra.proc.ccall(*gen).check_returncode()
-        LOG.info("Created Genesis TX")
-
-    def nodes_json(self):
-        nodes_json = [node.node_json for node in self.nodes]
-        with open("nodes.json", "w") as nodes_:
-            json.dump(nodes_json, nodes_, indent=4)
-        LOG.info("Created nodes.json")
 
     def stop_all_nodes(self):
         for node in self.nodes:
@@ -435,12 +435,45 @@ class Network:
                         "Correcting node id for {local_node.node_id} to be {node_id}"
                     )
 
-    def wait_for_node_commit_sync(self):
+    def wait_for_all_nodes_have_joined(self, primary, timeout=3):
+        """
+        Wait for all nodes to have joined the network and globally replicated
+        all transactions executed on the primary (including the transactions
+        which added the nodes).
+        """
+
+        with primary.management_client() as c:
+            res = c.do("getCommit", {})
+            local_commit_leader = res.commit
+            term_leader = res.term
+
+        for _ in range(timeout):
+            joined_nodes = 0
+            for node in (node for node in self.nodes if node.is_joined()):
+                with node.management_client() as c:
+                    id = c.request("getCommit", {})
+                    resp = c.response(id)
+                    if resp.error is not None:
+                        # Node may not have joined the network yet, try again
+                        break
+                    if (
+                        resp.global_commit >= local_commit_leader
+                        and resp.result["term"] == term_leader
+                    ):
+                        joined_nodes += 1
+            if joined_nodes == len(self.nodes):
+                break
+            time.sleep(1)
+        assert joined_nodes == len(
+            self.nodes
+        ), f"Only {joined_nodes} (out of {len(self.nodes)}) nodes have joined the network"
+
+    def wait_for_node_commit_sync(self, timeout=3):
         """
         Wait for commit level to get in sync on all nodes. This is expected to
         happen once CFTR has been established, in the absence of new transactions.
         """
-        for _ in range(3):
+        for _ in range(timeout):
             commits = []
             for node in (node for node in self.nodes if node.is_joined()):
                 with node.management_client() as c:
@@ -512,7 +545,6 @@ def node(
     build_directory,
     debug=False,
     perf=False,
-    recovery=False,
     verify_quote=False,
     pdb=False,
 ):
@@ -523,7 +555,6 @@ def node(
     :param host: node's hostname
     :param debug: default: False. If set, node will not start (user is prompted to start them manually)
     :param perf: default: False. If set, node will run under perf record
-    :param recovery: default: False. If set, node will start in recovery
     :param verify_quote: default: False. If set, node will only verify a quote and shutdown immediately.
     :return: a Node instance that can be used to build a CCF network
     """
@@ -533,7 +564,6 @@ def node(
             host=host,
             debug=debug,
             perf=perf,
-            recovery=recovery,
             verify_quote=verify_quote,
         )
         try:
@@ -551,19 +581,12 @@ def node(
 
 class Node:
     def __init__(
-        self,
-        local_node_id,
-        host,
-        debug=False,
-        perf=False,
-        recovery=False,
-        verify_quote=False,
+        self, local_node_id, host, debug=False, perf=False, verify_quote=False
     ):
         self.node_id = local_node_id
         self.local_node_id = local_node_id
         self.debug = debug
         self.perf = perf
-        self.recovery = recovery
         self.verify_quote = verify_quote
         self.remote = None
         self.node_json = None
@@ -599,10 +622,14 @@ class Node:
 
     def start(
         self,
+        start_type,
         lib_name,
         enclave_type,
         workspace,
         label,
+        target_rpc_address=None,
+        members_certs=None,
+        users_certs=None,
         other_quote=None,
         other_quoted_data=None,
         **kwargs,
@@ -622,6 +649,7 @@ class Node:
         """
         lib_path = infra.path.build_lib_path(lib_name, enclave_type)
         self.remote = infra.remote.CCFRemote(
+            start_type,
             lib_path,
             str(self.local_node_id),
             self.host,
@@ -633,6 +661,9 @@ class Node:
             self.verify_quote,
             workspace,
             label,
+            target_rpc_address,
+            members_certs,
+            users_certs,
             other_quote,
             other_quoted_data,
             **kwargs,
@@ -640,8 +671,6 @@ class Node:
         self.remote.setup()
         LOG.info("Remote {} started".format(self.local_node_id))
         self.network_state = NodeNetworkState.started
-        if self.recovery:
-            self.remote.set_recovery()
         if self.debug:
             print("")
             phost = "localhost" if self.host.startswith("127.") else self.host
@@ -672,39 +701,7 @@ class Node:
 
     def is_joined(self):
         return self.network_state == NodeNetworkState.joined
-
-    def start_network(self, network):
-        infra.proc.ccall(
-            "./client",
-            f"--server-address={self.host}:{self.rpc_port}",
-            f"--ca={self.remote.pem}",
-            "startnetwork",
-            "--req=@startNetwork.json",
-        ).check_returncode()
-        LOG.info("Started Network")
-        with open("networkcert.pem", mode="rb") as cafile:
-            network.net_cert = list(cafile.read())
-
-    def complete_join_network(self):
-        LOG.info("Joining Network")
-        self.network_state = NodeNetworkState.joined
-
-    def join_network(self, network):
-        primary, term = network.find_primary()
-        with self.management_client(format="json") as c:
-            res = c.rpc(
-                "joinNetwork",
-                {
-                    "hostname": primary.host,
-                    "service": str(primary.rpc_port),
-                    "network_cert": network.net_cert,
-                },
-            )
-            assert res.error is None
-        self.complete_join_network()
-
-    def set_recovery(self):
-        self.remote.set_recovery()
+        # TODO: Address network_state - what is it used for?
 
     def restart(self):
         self.remote.restart()

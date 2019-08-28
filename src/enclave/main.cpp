@@ -4,8 +4,8 @@
 #include "../ds/spinlock.h"
 #include "enclave.h"
 
-#include <ccf_t.h>
 #include <chrono>
+#include <msgpack.hpp>
 
 // the central enclave object
 static SpinLock create_lock;
@@ -17,38 +17,50 @@ std::chrono::milliseconds logger::config::ms =
 extern "C"
 {
   bool enclave_create_node(
-    void* config,
+    void* enclave_config,
+    char* ccf_config,
+    size_t ccf_config_size,
     uint8_t* node_cert,
     size_t node_cert_size,
     size_t* node_cert_len,
     uint8_t* quote,
     size_t quote_size,
     size_t* quote_len,
-    bool recover)
+    uint8_t* network_cert,
+    size_t network_cert_size,
+    size_t* network_cert_len,
+    StartType start_type)
   {
     std::lock_guard<SpinLock> guard(create_lock);
 
     if (e != nullptr)
       return false;
 
-    EnclaveConfig* ec = (EnclaveConfig*)config;
+    EnclaveConfig* ec = (EnclaveConfig*)enclave_config;
+
+    msgpack::object_handle oh = msgpack::unpack(ccf_config, ccf_config_size);
+    msgpack::object obj = oh.get();
+    CCFConfig cc;
+    obj.convert(cc);
 
 #ifdef DEBUG_CONFIG
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];
 #endif
 
-    e = new enclave::Enclave(ec);
+    e = new enclave::Enclave(ec, cc.signature_intervals, cc.raft_config);
 
-    auto ret = e->create_node(
+    return e->create_new_node(
+      start_type,
+      cc,
       node_cert,
       node_cert_size,
       node_cert_len,
       quote,
       quote_size,
       quote_len,
-      recover);
-
-    return ret;
+      network_cert,
+      network_cert_size,
+      network_cert_len);
   }
 
   bool enclave_run()

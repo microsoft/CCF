@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/json_schema.h"
+#include "node/networksecrets.h"
 
 #include <nlohmann/json.hpp>
 
@@ -84,6 +85,77 @@ namespace ccf
     {
       ds::json::JsonSchema params_schema = {};
       ds::json::JsonSchema result_schema = {};
+    };
+  };
+
+  struct GetSignedIndex
+  {
+    using In = void;
+
+    enum class State
+    {
+      ReadingPublicLedger,
+      ReadingPrivateLedger,
+      PartOfNetwork,
+      PartOfPublicNetwork,
+    };
+
+    struct Out
+    {
+      State state;
+      kv::Version signed_index;
+    };
+  };
+
+  struct GetQuotes
+  {
+    using In = void;
+
+    struct Quote
+    {
+      NodeId node_id = {};
+      std::string raw = {};
+
+      std::string error = {};
+      std::string mrenclave = {};
+    };
+
+    struct Out
+    {
+      std::vector<Quote> quotes;
+    };
+  };
+
+  struct JoinNetworkNodeToNode
+  {
+    struct In
+    {
+      std::vector<uint8_t> raw_fresh_key;
+      NodeInfoNetwork node_info_network;
+      std::vector<uint8_t> quote;
+    };
+
+    struct Out
+    {
+      NodeId id;
+      NetworkSecrets::Secret network_secrets;
+      int64_t version; // Current version of the network secrets
+    };
+  };
+
+  // TODO: It seems that we still use this for add_node in memberfrontend.h
+  struct JoinNetwork
+  {
+    struct In
+    {
+      std::vector<uint8_t> network_cert;
+      std::string hostname;
+      std::string service;
+    };
+
+    struct Out
+    {
+      NodeId id;
     };
   };
 }

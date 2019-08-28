@@ -32,42 +32,54 @@ int main(int argc, char** argv)
 
   CLI::App app{"ccf"};
 
-  std::string enclave_file("");
+  app.require_subcommand(1, 1);
+
+  std::string enclave_file;
   app.add_option("-e,--enclave-file", enclave_file, "CCF transaction engine")
     ->required()
     ->check(CLI::ExistingFile);
 
-  std::string enclave_type("debug");
-  app.add_set(
-    "-t,--enclave-type",
-    enclave_type,
-    {"debug", "simulate", "virtual"},
-    "Enclave type",
-    true);
+  std::string enclave_type;
+  app
+    .add_set(
+      "-t,--enclave-type",
+      enclave_type,
+      {"debug", "simulate", "virtual"},
+      "Enclave type",
+      true)
+    ->required();
 
-  std::string start("new");
-  app.add_set(
-    "-s,--start",
-    start,
-    {"new", "verify", "recover"},
-    "Startup mode: new for a fresh network, verify to verify an enclave quote, "
-    "recover to start a recovery",
-    true);
+  cli::ParsedAddress node_address;
+  cli::add_address_option(
+    app, node_address, "--node-address", "Node-to-node listening address")
+    ->required();
 
-  std::string log_level("info");
+  cli::ParsedAddress rpc_address;
+  cli::add_address_option(
+    app, rpc_address, "--rpc-address", "RPC over TLS listening address")
+    ->required();
+
+  cli::ParsedAddress public_rpc_address;
+  cli::add_address_option(
+    app,
+    public_rpc_address,
+    "--public-rpc-address",
+    "Public RPC over TLS listening address")
+    ->required();
+
+  std::string ledger_file("ccf.ledger");
+  app.add_option("--ledger-file", ledger_file, "Ledger file", true);
+
+  std::string host_log_level("info");
   app.add_set(
-    "-l,--log-level",
-    log_level,
+    "-l,--host-log-level",
+    host_log_level,
     {"fatal", "fail", "info", "debug", "trace"},
-    "Only emit log messages above that level",
+    "Only emit host log messages above that level",
     true);
 
   std::string quote_file("quote.bin");
   app.add_option("-q,--quote-file", quote_file, "SGX quote file", true);
-
-  std::string quoted_data("nodecert.pem");
-  app.add_option(
-    "-c,--quoted-data", quoted_data, "SGX quoted certificate", true);
 
   size_t sig_max_tx = 1000;
   app.add_option(
@@ -90,23 +102,12 @@ int main(int argc, char** argv)
     "Size of the internal ringbuffers, as a power of 2",
     true);
 
-  cli::ParsedAddress node_address;
-  cli::add_address_option(
-    app, node_address, "--node-address", "Node-to-node listening address");
-
-  cli::ParsedAddress rpc_address;
-  cli::add_address_option(
-    app, rpc_address, "--rpc-address", "RPC over TLS listening address");
-
   cli::ParsedAddress notifications_address;
   cli::add_address_option(
     app,
     notifications_address,
     "--notify-server-address",
     "Server address to notify progress to");
-
-  std::string ledger_file("ccf.ledger");
-  app.add_option("--ledger-file", ledger_file, "Ledger file", true);
 
   size_t raft_timeout = 100;
   app.add_option(
@@ -164,6 +165,77 @@ int main(int argc, char** argv)
 #endif
     true);
 
+  // The network certificate file can either be an input or output parameter,
+  // depending on the subcommand.
+  std::string network_cert_file = "networkcert.pem";
+
+  auto start = app.add_subcommand("start", "Start new network");
+  start
+    ->add_option(
+      "--network-cert",
+      network_cert_file,
+      "Destination path to freshly created network certificate",
+      true)
+    ->check(CLI::NonexistentPath);
+
+  std::string gov_script = "gov.lua";
+  start
+    ->add_option(
+      "--gov-script",
+      gov_script,
+      "Path to Lua file that defines the contents of the gov_scripts table",
+      true)
+    ->check(CLI::ExistingFile)
+    ->required();
+
+  // TODO: For now, lua app is passed when the node starts up
+  // See https://github.com/microsoft/CCF/issues/293
+  std::string app_script;
+  const auto app_script_opt = start->add_option(
+    "--app-script",
+    app_script,
+    "Path to Lua file that defines the user business logic",
+    true);
+
+  std::string member_cert_file = "member*_cert.pem";
+  start
+    ->add_option(
+      "--member-certs",
+      member_cert_file,
+      "Globbing pattern for member certificate files",
+      true)
+    ->required();
+
+  // TODO: For now, user certificate are passed when the node starts up
+  // See https://github.com/microsoft/CCF/issues/293
+  std::string user_cert_file = "user*_cert.pem";
+  start
+    ->add_option(
+      "--user-certs",
+      user_cert_file,
+      "Globbing pattern for user certificate files",
+      true)
+    ->required();
+
+  auto join = app.add_subcommand("join", "Join existing network");
+  join
+    ->add_option(
+      "--network-cert-file",
+      network_cert_file,
+      "Path to certificate of existing network to join",
+      true)
+    ->check(CLI::ExistingFile);
+
+  cli::ParsedAddress target_rpc_address;
+  cli::add_address_option(
+    *join,
+    target_rpc_address,
+    "--target-rpc-address",
+    "RPC over TLS listening address of target network node")
+    ->required();
+
+  auto recover = app.add_subcommand("recover", "Recover crashed network");
+
   CLI11_PARSE(app, argc, argv);
 
   uint32_t oe_flags = 0;
@@ -177,34 +249,15 @@ int main(int argc, char** argv)
     throw std::logic_error("invalid enclave type: "s + enclave_type);
 
   // log level
-  auto host_log_level = logger::config::to_level(log_level.c_str());
-  if (!host_log_level)
-    throw std::logic_error("No such logging level: "s + log_level);
+  auto host_log_level_ = logger::config::to_level(host_log_level.c_str());
+  if (!host_log_level_)
+    throw std::logic_error("No such logging level: "s + host_log_level);
 
   // set the host log level
-  logger::config::level() = host_log_level.value();
+  logger::config::level() = host_log_level_.value();
 
   // create the enclave
   host::Enclave enclave(enclave_file, oe_flags);
-
-#ifdef GET_QUOTE
-  if (start == "verify")
-  {
-    auto q = files::slurp(quote_file);
-    auto d = files::slurp(quoted_data);
-
-    auto passed = enclave.verify_quote(q, d);
-    if (!passed)
-    {
-      throw std::runtime_error("Quote verification failed");
-    }
-    else
-    {
-      LOG_INFO_FMT("Quote verified");
-      return 0;
-    }
-  }
-#endif
 
   // messaging ring buffers
   ringbuffer::Circuit circuit(1 << circuit_size_shift);
@@ -230,26 +283,58 @@ int main(int argc, char** argv)
   asynchost::Sigterm sigterm(writer_factory);
 
   // Initialise the enclave and create a CCF node in it
-  const size_t node_size = 4096;
-  std::vector<uint8_t> node_cert(node_size);
+  const size_t certificate_size = 4096;
+  std::vector<uint8_t> node_cert(certificate_size);
   std::vector<uint8_t> quote(OE_MAX_REPORT_SIZE);
-  LOG_INFO_FMT(
-    "Starting new node{}", (start == "recover" ? " (recovery)" : ""));
-  raft::Config raft_config{
-    std::chrono::milliseconds(raft_timeout),
-    std::chrono::milliseconds(raft_election_timeout),
-  };
+  std::vector<uint8_t> network_cert(certificate_size);
 
-  EnclaveConfig config;
-  config.circuit = &circuit;
-  config.writer_config = writer_config;
-  config.raft_config = raft_config;
-  config.signature_intervals = {sig_max_tx, sig_max_ms};
+  StartType start_type;
+
+  EnclaveConfig enclave_config;
+  enclave_config.circuit = &circuit;
+  enclave_config.writer_config = writer_config;
 #ifdef DEBUG_CONFIG
-  config.debug_config = {memory_reserve_startup};
+  enclave_config.debug_config = {memory_reserve_startup};
 #endif
 
-  enclave.create_node(config, node_cert, quote, start == "recover");
+  CCFConfig ccf_config;
+  ccf_config.raft_config = {raft_timeout, raft_election_timeout};
+  ccf_config.signature_intervals = {sig_max_tx, sig_max_ms};
+  ccf_config.node_info_network = {rpc_address.hostname,
+                                  public_rpc_address.hostname,
+                                  node_address.port,
+                                  rpc_address.port};
+
+  if (*start)
+  {
+    LOG_INFO_FMT("Creating new node - new network");
+    start_type = StartType::Start;
+    ccf_config.genesis.member_certs = files::slurp_certs(member_cert_file);
+    ccf_config.genesis.user_certs = files::slurp_certs(user_cert_file);
+    ccf_config.genesis.gov_script = files::slurp_string(gov_script);
+    if (*app_script_opt)
+      ccf_config.genesis.app_script = files::slurp_string(app_script);
+  }
+  else if (*join)
+  {
+    LOG_INFO_FMT(
+      "Creating new node - joining existing network at {}:{}",
+      target_rpc_address.hostname,
+      target_rpc_address.port);
+    start_type = StartType::Join;
+
+    ccf_config.joining.target_host = target_rpc_address.hostname;
+    ccf_config.joining.target_port = target_rpc_address.port;
+    ccf_config.joining.network_cert = files::slurp(network_cert_file);
+  }
+  else if (*recover)
+  {
+    LOG_INFO_FMT("Creating new node - recover");
+    start_type = StartType::Recover;
+  }
+
+  enclave.create_node(
+    enclave_config, ccf_config, node_cert, quote, network_cert, start_type);
 
   LOG_INFO_FMT("Created new node");
 
@@ -269,9 +354,12 @@ int main(int argc, char** argv)
   rpc.register_message_handlers(bp.get_dispatcher());
   rpc.listen(0, rpc_address.hostname, rpc_address.port);
 
-  // Write the node cert and quote to disk. Actors can use the node cert
-  // as a CA on their end of the TLS connection.
+  // Write the node and network certs and quote to disk.
   files::dump(node_cert, node_cert_file);
+  if (*start || *recover)
+  {
+    files::dump(network_cert, network_cert_file);
+  }
 
 #ifdef GET_QUOTE
   files::dump(quote, quote_file);

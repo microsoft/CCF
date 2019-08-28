@@ -10,6 +10,7 @@
 #include "ds/oversized.h"
 #include "ds/ringbuffer_types.h"
 #include "kv/kvtypes.h"
+#include "node/nodeinfonetwork.h"
 #include "tls/tls.h"
 
 #include <chrono>
@@ -18,14 +19,6 @@ struct EnclaveConfig
 {
   ringbuffer::Circuit* circuit = nullptr;
   oversized::WriterConfig writer_config = {};
-  raft::Config raft_config = {};
-
-  struct SignatureIntervals
-  {
-    size_t sig_max_tx;
-    size_t sig_max_ms;
-  };
-  SignatureIntervals signature_intervals = {};
 
 #ifdef DEBUG_CONFIG
   struct DebugConfig
@@ -34,6 +27,42 @@ struct EnclaveConfig
   };
   DebugConfig debug_config = {};
 #endif
+};
+
+struct CCFConfig
+{
+  raft::Config raft_config = {};
+  ccf::NodeInfoNetwork node_info_network = {};
+
+  struct SignatureIntervals
+  {
+    size_t sig_max_tx;
+    size_t sig_max_ms;
+    MSGPACK_DEFINE(sig_max_tx, sig_max_ms);
+  };
+  SignatureIntervals signature_intervals = {};
+
+  struct Genesis
+  {
+    std::vector<std::vector<uint8_t>> member_certs;
+    std::vector<std::vector<uint8_t>> user_certs;
+    std::string gov_script;
+    std::string app_script;
+    MSGPACK_DEFINE(member_certs, user_certs, gov_script, app_script);
+  };
+  Genesis genesis = {};
+
+  struct Joining
+  {
+    std::string target_host;
+    std::string target_port;
+    std::vector<uint8_t> network_cert;
+    MSGPACK_DEFINE(target_host, target_port, network_cert);
+  };
+  Joining joining = {};
+
+  MSGPACK_DEFINE(
+    raft_config, node_info_network, signature_intervals, genesis, joining);
 };
 
 /// General administrative messages

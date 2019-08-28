@@ -5,12 +5,14 @@
 #include "crypto/hash.h"
 #include "ds/logger.h"
 #include "enclave/interface.h"
+#include "tls/keypair.h"
 
 #include <dlfcn.h>
+#include <msgpack.hpp>
 #include <openenclave/bits/report.h>
 #include <openenclave/bits/result.h>
 #ifdef VIRTUAL_ENCLAVE
-#  include "../enclave/ccf_v.h"
+#  include "enclave/ccf_v.h"
 #else
 #  include <ccf_u.h>
 #  include <openenclave/host.h>
@@ -75,26 +77,37 @@ namespace host
     }
 
     bool create_node(
-      const EnclaveConfig& config,
+      const EnclaveConfig& enclave_config,
+      const CCFConfig& ccf_config,
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& quote,
-      bool recover)
+      std::vector<uint8_t>& network_cert,
+      StartType start_type)
     {
       bool ret;
       size_t node_cert_len = 0;
       size_t quote_len = 0;
+      size_t network_cert_len = 0;
+
+      msgpack::sbuffer sbuf;
+      msgpack::pack(sbuf, ccf_config);
 
       auto err = enclave_create_node(
         e,
         &ret,
-        (void*)&config,
+        (void*)&enclave_config,
+        sbuf.data(),
+        sbuf.size(),
         node_cert.data(),
         node_cert.size(),
         &node_cert_len,
         quote.data(),
         quote.size(),
         &quote_len,
-        recover);
+        network_cert.data(),
+        network_cert.size(),
+        &network_cert_len,
+        start_type);
 
       if (err != OE_OK)
       {
@@ -104,6 +117,7 @@ namespace host
 
       node_cert.resize(node_cert_len);
       quote.resize(quote_len);
+      network_cert.resize(network_cert_len);
 
       return ret;
     }

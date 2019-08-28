@@ -492,7 +492,7 @@ function(add_unit_test name)
     src
     ${CCFCRYPTO_INC})
   enable_coverage(${name})
-  target_link_libraries(${name} PRIVATE 
+  target_link_libraries(${name} PRIVATE
       -stdlib=libc++
       -lc++
       -lc++abi
@@ -514,11 +514,10 @@ function(add_unit_test name)
 endfunction()
 
 # GenesisGenerator Executable
-add_executable(genesisgenerator ${CCF_DIR}/src/genesisgen/main.cpp)
-use_client_mbedtls(genesisgenerator)
-target_link_libraries(genesisgenerator PRIVATE
+add_executable(keygenerator ${CCF_DIR}/src/keygenerator/main.cpp)
+use_client_mbedtls(keygenerator)
+target_link_libraries(keygenerator PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
-  lua.host
   secp256k1.host
 )
 

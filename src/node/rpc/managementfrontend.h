@@ -8,80 +8,49 @@ namespace ccf
 {
   class ManagementRpcFrontend : public RpcFrontend
   {
+  private:
+    Signatures* signatures;
+
   public:
-    ManagementRpcFrontend(Store& tables, NodeState& node) : RpcFrontend(tables)
+    ManagementRpcFrontend(Store& tables, NodeState& node) :
+      RpcFrontend(tables),
+      signatures(tables.get<Signatures>(Tables::SIGNATURES))
     {
-      auto start = [&node](RequestArgs& args) {
-        const auto in = args.params.get<StartNetwork::In>();
-        auto result = node.start_network(args.tx, in);
-        if (result.second)
-          return jsonrpc::success(result.first);
+      auto get_signed_index =
+        [&node, &tables, signatures = this->signatures](RequestArgs& args) {
+          GetSignedIndex::Out result;
+          if (node.is_reading_public_ledger())
+          {
+            result.state = GetSignedIndex::State::ReadingPublicLedger;
+          }
+          else if (node.is_reading_private_ledger())
+          {
+            result.state = GetSignedIndex::State::ReadingPrivateLedger;
+          }
+          else if (node.is_part_of_network())
+          {
+            result.state = GetSignedIndex::State::PartOfNetwork;
+          }
+          else if (node.is_part_of_public_network())
+          {
+            result.state = GetSignedIndex::State::PartOfPublicNetwork;
+          }
+          else
+          {
+            return jsonrpc::error(
+              jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+              "Network is not in recovery mode");
+          }
 
-        return jsonrpc::error(
-          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-          "Could not start network. Does tx0 have the right format?");
-      };
+          auto sig_view = args.tx.get_view(*signatures);
+          auto sig = sig_view->get(0);
+          if (!sig.has_value())
+            result.signed_index = 0;
+          else
+            result.signed_index = sig.value().index;
 
-      auto join = [&node](RequestArgs& args) {
-        const auto in = args.params.get<JoinNetwork::In>();
-        node.join_network(args.rpc_ctx, in);
-
-        // TODO: Would be preferable to make this a jsonrpc::no_response, give
-        // the return type an enum rather than bool, make it clear that this
-        // handler is not returning a value - something else is in the future.
-        return jsonrpc::error(
-          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-          "The true response should be sent from elsewhere, this should never "
-          "be seen");
-      };
-
-      auto get_signed_index = [&node](RequestArgs& args) {
-        GetSignedIndex::Out result;
-        if (node.is_reading_public_ledger())
-        {
-          result.state = GetSignedIndex::State::ReadingPublicLedger;
-        }
-        else if (node.is_awaiting_recovery())
-        {
-          result.state = GetSignedIndex::State::AwaitingRecovery;
-        }
-        else if (node.is_reading_private_ledger())
-        {
-          result.state = GetSignedIndex::State::ReadingPrivateLedger;
-        }
-        else if (node.is_part_of_network())
-        {
-          result.state = GetSignedIndex::State::PartOfNetwork;
-        }
-        else if (node.is_part_of_public_network())
-        {
-          result.state = GetSignedIndex::State::PartOfPublicNetwork;
-        }
-        else
-        {
-          return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-            "Network is not in recovery mode");
-        }
-
-        result.signed_index = node.last_signed_index(args.tx);
-        return jsonrpc::success(result);
-      };
-
-      auto set_recovery_nodes = [&node](RequestArgs& args) {
-        if (node.is_awaiting_recovery())
-        {
-          auto in = args.params.get<SetRecoveryNodes::In>();
-          auto network_cert = node.replace_nodes(args.tx, in.nodes);
-          return jsonrpc::success(network_cert);
-        }
-        else
-        {
-          return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-            "Network is not ready to recover");
-        }
-      };
+          return jsonrpc::success(result);
+        };
 
       auto get_quotes = [&node](RequestArgs& args) {
         GetQuotes::Out result;
@@ -90,14 +59,8 @@ namespace ccf
         return jsonrpc::success(result);
       };
 
-      install_with_auto_schema<StartNetwork>(
-        ManagementProcs::START_NETWORK, start, Write);
-      install_with_auto_schema<JoinNetwork>(
-        ManagementProcs::JOIN_NETWORK, join, Read);
       install_with_auto_schema<GetSignedIndex>(
         ManagementProcs::GET_SIGNED_INDEX, get_signed_index, Read);
-      install_with_auto_schema<SetRecoveryNodes>(
-        ManagementProcs::SET_RECOVERY_NODES, set_recovery_nodes, Write);
       install_with_auto_schema<GetQuotes>(
         ManagementProcs::GET_QUOTES, get_quotes, Read);
     }

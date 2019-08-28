@@ -14,6 +14,7 @@ import uuid
 import ctypes
 import signal
 import re
+import glob
 from collections import deque
 
 from loguru import logger as LOG
@@ -64,7 +65,7 @@ def sftp_session(hostname):
 
 
 def log_errors(out_path, err_path):
-    error_filter = ["fail", "fatal"]
+    error_filter = ["[fail ]", "[fatal]"]
     try:
         errors = 0
         tail_lines = deque(maxlen=15)
@@ -90,10 +91,6 @@ def log_errors(out_path, err_path):
 
 
 class CmdMixin(object):
-    def set_recovery(self):
-        self.cmd.append("--start=recover")
-        self.cmd = list(dict.fromkeys(self.cmd))
-
     def set_perf(self):
         self.cmd = [
             "perf",
@@ -173,9 +170,11 @@ class SSHRemote(CmdMixin):
         assert self._rc("mkdir -p {}".format(self.root)) == 0
         session = self.client.open_sftp()
         for path in self.files:
-            tgt_path = os.path.join(self.root, os.path.basename(path))
-            LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, path))
-            session.put(path, tgt_path)
+            # Some files can be glob patterns
+            for f in glob.glob(os.path.basename(path)):
+                tgt_path = os.path.join(self.root, os.path.basename(f))
+                LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, f))
+                session.put(f, tgt_path)
         session.close()
         executable = self.cmd[0]
         if executable.startswith("./"):
@@ -396,7 +395,7 @@ class LocalRemote(CmdMixin):
             src_path = os.path.join(os.getcwd(), path)
             assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:
-            dst_path = os.path.join(self.root, os.path.basename(path))
+            dst_path = self.root
             src_path = os.path.join(os.getcwd(), path)
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
 
@@ -514,6 +513,7 @@ class CCFRemote(object):
 
     def __init__(
         self,
+        start_type,
         lib_path,
         local_node_id,
         host,
@@ -525,9 +525,12 @@ class CCFRemote(object):
         verify_quote,
         workspace,
         label,
+        target_rpc_address=None,
+        members_certs=None,
+        users_certs=None,
         other_quote=None,
         other_quoted_data=None,
-        log_level="info",
+        host_log_level="info",
         ignore_quote=False,
         sig_max_tx=1000,
         sig_max_ms=1000,
@@ -535,6 +538,8 @@ class CCFRemote(object):
         election_timeout=1000,
         memory_reserve_startup=0,
         notify_server=None,
+        gov_script=None,
+        app_script=None,
         ledger_file=None,
         sealed_secrets=None,
         log_path=None,
@@ -542,6 +547,7 @@ class CCFRemote(object):
         """
         Run a ccf binary on a remote host.
         """
+        self.start_type = start_type
         self.local_node_id = local_node_id
         self.host = host
         self.pubhost = pubhost
@@ -563,6 +569,11 @@ class CCFRemote(object):
 
         cmd = [self.BIN, f"--enclave-file={lib_path}"]
 
+        exe_files = [self.BIN, lib_path] + self.DEPS
+        data_files = ([self.ledger_file] if self.ledger_file else []) + (
+            [sealed_secrets] if sealed_secrets else []
+        )
+
         # If the remote needs to verify the quote, only a subset of arguments are required
         if self.verify_quote:
             cmd += ["--start=verify"]
@@ -581,13 +592,14 @@ class CCFRemote(object):
             cmd = [
                 self.BIN,
                 f"--enclave-file={lib_path}",
-                f"--raft-election-timeout-ms={election_timeout}",
+                f"--enclave-type={enclave_type}",
                 f"--node-address={host}:{node_port}",
                 f"--rpc-address={host}:{rpc_port}",
+                f"--public-rpc-address={host}:{rpc_port}",
                 f"--ledger-file={self.ledger_file_name}",
                 f"--node-cert-file={self.pem}",
-                f"--enclave-type={enclave_type}",
-                f"--log-level={log_level}",
+                f"--host-log-level={host_log_level}",
+                f"--raft-election-timeout-ms={election_timeout}",
             ]
 
             if sig_max_tx:
@@ -614,7 +626,33 @@ class CCFRemote(object):
                 ]
 
             if self.quote:
-                cmd.append(f"--quote-file={self.quote}")
+                cmd += [f"--quote-file={self.quote}"]
+
+            if start_type == StartType.start:
+                cmd += [
+                    "start",
+                    f"--member-certs={members_certs}",
+                    f"--user-certs={users_certs}",
+                    f"--gov-script={os.path.basename(gov_script)}",
+                ]
+                data_files += [members_certs, users_certs, os.path.basename(gov_script)]
+                if app_script:
+                    cmd += [f"--app-script={os.path.basename(app_script)}"]
+                    data_files += [os.path.basename(app_script)]
+            elif start_type == StartType.join:
+                cmd += [
+                    "join",
+                    "--network-cert-file=networkcert.pem",
+                    f"--target-rpc-address={target_rpc_address}",
+                ]
+                data_files += ["networkcert.pem"]
+            elif start_type == StartType.recover:
+                cmd += ["recover"]
+                # Starting a CCF node in recover does not require any additional arguments
+            else:
+                raise ValueError(
+                    f"Unexpected CCFRemote start type {start_type}. Should be start, join or recover"
+                )
 
         # Necessary for the az-dcap-client >=1.1 (https://github.com/microsoft/Azure-DCAP-Client/issues/84)
         env = {"HOME": os.environ["HOME"]}
@@ -625,21 +663,12 @@ class CCFRemote(object):
                 self.profraw = f"{uuid.uuid4()}-{local_node_id}_{os.path.basename(lib_path)}.profraw"
                 env["LLVM_PROFILE_FILE"] = self.profraw
 
-        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(log_level)
+        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(host_log_level)
         if oe_log_level:
             env["OE_LOG_LEVEL"] = oe_log_level
 
         self.remote = remote_class(
-            local_node_id,
-            host,
-            [self.BIN, lib_path] + self.DEPS,
-            ([self.ledger_file] if self.ledger_file else [])
-            + ([sealed_secrets] if sealed_secrets else []),
-            cmd,
-            workspace,
-            label,
-            env,
-            log_path,
+            local_node_id, host, exe_files, data_files, cmd, workspace, label, env
         )
 
     def setup(self):
@@ -648,6 +677,8 @@ class CCFRemote(object):
     def start(self):
         wait_for_termination = self.verify_quote
         self.remote.start(wait_for_termination)
+        if self.start_type in {StartType.start, StartType.recover}:
+            self.remote.get("networkcert.pem")
 
     def restart(self):
         self.remote.restart()
@@ -691,9 +722,6 @@ class CCFRemote(object):
 
     def print_and_upload_result(self, name, metrics, lines):
         self.remote.print_and_upload_result(name, metrics, lines)
-
-    def set_recovery(self):
-        self.remote.set_recovery()
 
     def set_perf(self):
         self.remote.set_perf()
@@ -748,3 +776,9 @@ class NodeStatus(Enum):
     pending = 0
     trusted = 1
     retired = 2
+
+
+class StartType(Enum):
+    start = 0
+    join = 1
+    recover = 2

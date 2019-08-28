@@ -78,7 +78,7 @@ getCommit
 .. jsonschema:: schemas/getCommit_result.json
 
 getPrimaryInfo
--------------
+--------------
 
 .. jsonschema:: schemas/getPrimaryInfo_result.json
 
@@ -162,21 +162,3 @@ getSignedIndex
 --------------
 
 .. jsonschema:: schemas/getSignedIndex_result.json
-
-joinNetwork
------------
-
-.. jsonschema:: schemas/joinNetwork_params.json
-.. jsonschema:: schemas/joinNetwork_result.json
-
-setRecoveryNodes
-----------------
-
-.. jsonschema:: schemas/setRecoveryNodes_params.json
-
-startNetwork
-------------
-
-.. jsonschema:: schemas/startNetwork_params.json
-.. jsonschema:: schemas/startNetwork_result.json
-

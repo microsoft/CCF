@@ -68,7 +68,6 @@ def wait_for_state(node, state):
     """
     Wait for the public ledger to be read completely on a node.
     """
-    LOG.debug("Waiting until the public ledger has been read")
     for _ in range(MAX_GET_STATUS_RETRY):
         try:
             with node.management_client() as c:
@@ -81,20 +80,6 @@ def wait_for_state(node, state):
         time.sleep(1)
     else:
         raise TimeoutError("Timed out waiting for public ledger to be read")
-
-
-def set_recovery_nodes(network, primary, backups):
-    """
-    Create and send recovery transaction, with new network definition.
-    """
-    LOG.debug("Adding new network nodes")
-    recovery_rpc = {"nodes": [n.remote.info() for n in [primary] + backups]}
-    with primary.management_client() as c:
-        id = c.request("setRecoveryNodes", recovery_rpc)
-        r = c.response(id).result
-        network.net_cert = list(r)
-        with open("networkcert.pem", "w") as nc:
-            nc.write(r.decode())
 
 
 def run(args):
@@ -126,7 +111,6 @@ def run(args):
             args.build_dir,
             args.debug_nodes,
             args.perf_nodes,
-            recovery=True,
             node_offset=(recovery_idx + 1) * len(hosts),
             pdb=args.pdb,
         ) as network:
@@ -136,15 +120,10 @@ def run(args):
                 check_commit = infra.ccf.Checker(mc)
                 check = infra.ccf.Checker()
 
-                wait_for_state(primary, b"awaitingRecovery")
-                set_recovery_nodes(network, primary, backups)
-
-                for node in backups:
-                    node.join_network(network)
-
-                LOG.success("Public CFTR started")
+                for node in network.nodes:
+                    wait_for_state(node, b"partOfPublicNetwork")
                 network.wait_for_node_commit_sync()
-                wait_for_state(primary, b"partOfPublicNetwork")
+                LOG.success("Public CFTR started")
 
                 LOG.debug(
                     "2/3 members verify that the new nodes have joined the network"
@@ -164,13 +143,14 @@ def run(args):
                             )
 
                 LOG.debug("2/3 members vote to complete the recovery")
-                result = network.propose(
+                rc, result = network.propose(
                     1, primary, "accept_recovery", f"--sealed-secrets={sealed_secrets}"
                 )
-                assert not result[1]["completed"]
-                proposal_id = result[1]["id"]
+                assert rc and not result["completed"]
+                proposal_id = result["id"]
 
-                result = network.vote(2, primary, proposal_id, True)
+                rc, result = network.vote(2, primary, proposal_id, True)
+                assert rc and result
 
                 for node in network.nodes:
                     wait_for_state(node, b"partOfNetwork")

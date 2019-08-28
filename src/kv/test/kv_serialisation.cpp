@@ -188,6 +188,7 @@ TEST_CASE("Serialise/deserialise removed keys")
 
 TEST_CASE("Serialise private map with no encryptor/Deserialise in new store")
 {
+  // TODO: Remove such behaviour https://github.com/microsoft/CCF/issues/316
   // This test mirrors the behaviour of the genesisgenerator utility which does
   // not have an encryptor and serialise all maps as if they were public.
   auto consensus = std::make_shared<kv::StubConsensus>();

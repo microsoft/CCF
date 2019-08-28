@@ -33,12 +33,16 @@ namespace enclave
     std::shared_ptr<ccf::Forwarder> cmd_forwarder;
     ccf::Notifier notifier;
     std::shared_ptr<RpcMap> rpc_map;
-    bool recover = false;
+    CCFConfig ccf_config;
+    StartType start_type;
 
   public:
-    Enclave(EnclaveConfig* config) :
-      circuit(config->circuit),
-      writer_factory(circuit, config->writer_config),
+    Enclave(
+      EnclaveConfig* enclave_config,
+      const CCFConfig::SignatureIntervals& signature_intervals,
+      const raft::Config& raft_config) :
+      circuit(enclave_config->circuit),
+      writer_factory(circuit, enclave_config->writer_config),
       rpcsessions(writer_factory),
       n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
       node(writer_factory, network, rpcsessions),
@@ -70,42 +74,60 @@ namespace enclave
       {
         auto frontend = dynamic_cast<ccf::RpcFrontend*>(r.second.get());
         frontend->set_sig_intervals(
-          config->signature_intervals.sig_max_tx,
-          config->signature_intervals.sig_max_ms);
+          signature_intervals.sig_max_tx, signature_intervals.sig_max_ms);
         frontend->set_cmd_forwarder(cmd_forwarder);
       }
 
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
 
-      node.initialize(config->raft_config, n2n_channels, rpc_map);
+      node.initialize(raft_config, n2n_channels, rpc_map);
       rpcsessions.initialize(rpc_map);
       cmd_forwarder->initialize(rpc_map);
     }
 
-    bool create_node(
+    bool create_new_node(
+      StartType start_type_,
+      const CCFConfig& ccf_config_,
       uint8_t* node_cert,
       size_t node_cert_size,
       size_t* node_cert_len,
       uint8_t* quote,
       size_t quote_size,
       size_t* quote_len,
-      bool recover_)
+      uint8_t* network_cert,
+      size_t network_cert_size,
+      size_t* network_cert_len)
     {
-      // quote_size is ignored here, but we pass it in because it allows
-      // us to set EDL an annotation so that quote_len <= quote_size is
-      // checked by the EDL-generated wrapper
-      recover = recover_;
-      auto r = node.create_new({recover});
+      // node_cert_size, quote_size and network_cert_size are ignored here, but
+      // we pass them in because it allows us to set EDL an annotation so that
+      // quote_len <= quote_size is checked by the EDL-generated wrapper
+
+      start_type = start_type_;
+      ccf_config = ccf_config_;
+
+      auto r = node.create({start_type, ccf_config_});
       if (!r.second)
         return false;
 
-      // Copy quote and node cert out
+      // Copy node, quote and network certs out
+      ::memcpy(node_cert, r.first.node_cert.data(), r.first.node_cert.size());
+      *node_cert_len = r.first.node_cert.size();
+
       ::memcpy(quote, r.first.quote.data(), r.first.quote.size());
       *quote_len = r.first.quote.size();
 
-      ::memcpy(node_cert, r.first.node_cert.data(), r.first.node_cert.size());
-      *node_cert_len = r.first.node_cert.size();
+      if (start_type == StartType::Start || start_type == StartType::Recover)
+      {
+        // When starting a node in start or recover modes, fresh network secrets
+        // are created and the associated certificate can be passed to the host
+        ::memcpy(
+          network_cert,
+          r.first.network_cert.data(),
+          r.first.network_cert.size());
+        *network_cert_len = r.first.network_cert.size();
+      }
+
       return true;
     }
 
@@ -165,34 +187,38 @@ namespace enclave
             }
           });
 
-        if (recover)
-        {
-          DISPATCHER_SET_MESSAGE_HANDLER(
-            bp,
-            consensus::ledger_entry,
-            [this](const uint8_t* data, size_t size) {
-              auto [body] =
-                ringbuffer::read_message<consensus::ledger_entry>(data, size);
-              if (node.is_reading_public_ledger())
-                node.recover_public_ledger_entry(body);
-              else if (node.is_reading_private_ledger())
-                node.recover_private_ledger_entry(body);
-              else
-                LOG_FAIL_FMT("Cannot recover ledger entry: Unexpected state");
-            });
+        DISPATCHER_SET_MESSAGE_HANDLER(
+          bp,
+          consensus::ledger_entry,
+          [this](const uint8_t* data, size_t size) {
+            auto [body] =
+              ringbuffer::read_message<consensus::ledger_entry>(data, size);
+            if (node.is_reading_public_ledger())
+              node.recover_public_ledger_entry(body);
+            else if (node.is_reading_private_ledger())
+              node.recover_private_ledger_entry(body);
+            else
+              LOG_FAIL_FMT("Cannot recover ledger entry: Unexpected state");
+          });
 
-          DISPATCHER_SET_MESSAGE_HANDLER(
-            bp,
-            consensus::ledger_no_entry,
-            [this](const uint8_t* data, size_t size) {
-              ringbuffer::read_message<consensus::ledger_no_entry>(data, size);
-              node.recover_ledger_end();
-            });
-
-          node.start_ledger_recovery();
-        }
+        DISPATCHER_SET_MESSAGE_HANDLER(
+          bp,
+          consensus::ledger_no_entry,
+          [this](const uint8_t* data, size_t size) {
+            ringbuffer::read_message<consensus::ledger_no_entry>(data, size);
+            node.recover_ledger_end();
+          });
 
         rpcsessions.register_message_handlers(bp.get_dispatcher());
+
+        if (start_type == StartType::Join)
+        {
+          node.join({ccf_config});
+        }
+        else if (start_type == StartType::Recover)
+        {
+          node.start_ledger_recovery();
+        }
         bp.run(circuit->read_from_outside());
         return true;
       }

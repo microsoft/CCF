@@ -81,6 +81,11 @@ namespace ccf
     kv::Consensus* consensus;
     std::shared_ptr<AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
+    // TODO: For now, only the node frontend does not require a valid caller
+    // since nodes only added to the store when they join. This will only be
+    // true when the service is in opening mode.
+    // https://github.com/microsoft/CCF/issues/293
+    bool requires_valid_caller;
     size_t sig_max_tx = 1000;
     size_t tx_count = 0;
     std::chrono::milliseconds sig_max_ms = std::chrono::milliseconds(1000);
@@ -129,7 +134,7 @@ namespace ccf
 
     std::optional<CallerId> valid_caller(Store::Tx& tx, const CBuffer& caller)
     {
-      if (certs == nullptr)
+      if (certs == nullptr || !requires_valid_caller)
         return INVALID_ID;
 
       if (!caller.p)
@@ -179,13 +184,19 @@ namespace ccf
   public:
     RpcFrontend(Store& tables_) : RpcFrontend(tables_, nullptr, nullptr) {}
 
-    RpcFrontend(Store& tables_, ClientSignatures* client_sigs_, Certs* certs_) :
+    RpcFrontend(
+      Store& tables_,
+      ClientSignatures* client_sigs_,
+      Certs* certs_,
+      bool requires_valid_caller_ = true) :
       tables(tables_),
       nodes(tables.get<Nodes>(Tables::NODES)),
       client_signatures(client_sigs_),
       certs(certs_),
       consensus(nullptr),
-      history(nullptr)
+      history(nullptr),
+      requires_valid_caller(requires_valid_caller_)
+
     {
       auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetCommit::In>();
@@ -202,7 +213,7 @@ namespace ccf
 
         return jsonrpc::error(
           jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-          "Failed to get commit info from Raft");
+          "Failed to get commit info from Consensus");
       };
 
       auto get_metrics = [this](Store::Tx& tx, const nlohmann::json& params) {

@@ -27,10 +27,7 @@ namespace ccf
 
   struct ManagementProcs
   {
-    static constexpr auto START_NETWORK = "startNetwork";
-    static constexpr auto JOIN_NETWORK = "joinNetwork";
     static constexpr auto GET_SIGNED_INDEX = "getSignedIndex";
-    static constexpr auto SET_RECOVERY_NODES = "setRecoveryNodes";
     static constexpr auto GET_QUOTES = "getQuotes";
   };
 

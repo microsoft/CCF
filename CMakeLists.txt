@@ -272,10 +272,12 @@ if(BUILD_TESTS)
         --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
 
     if(QUOTES_ENABLED)
-      add_e2e_test(
-        NAME quote_verification_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/quote_verification.py
-      )
+      # TODO: For now, the quote_verification_test is disabled as the join
+      # protocol tests the same behaviour. It should be removed entirely.
+      # add_e2e_test(
+      #   NAME quote_verification_test
+      #   PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/quote_verification.py
+      # )
 
       add_e2e_test(
         NAME governance_tests
@@ -284,21 +286,22 @@ if(BUILD_TESTS)
           --oesign ${OESIGN}
       )
 
-      add_e2e_test(
-        NAME add_node_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/addnode.py
-      )
+      # TODO: Re-enable these tests
+      # add_e2e_test(
+      #   NAME add_node_test
+      #   PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/addnode.py
+      # )
 
       ## Code update test
-      add_e2e_test(
-        NAME code_update_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-        ADDITIONAL_ARGS
-          --oesign ${OESIGN}
-          --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
-          --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
-          --election-timeout 1500
-      )
+      # add_e2e_test(
+      #   NAME code_update_test
+      #   PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+      #   ADDITIONAL_ARGS
+      #     --oesign ${OESIGN}
+      #     --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+      #     --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+      #     --election-timeout 1500
+      # )
     endif()
 
     add_e2e_test(

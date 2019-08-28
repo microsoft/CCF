@@ -92,7 +92,7 @@ def run(args):
 
         # propose to add a new member
         # proposal number 0
-        infra.proc.ccall("./genesisgenerator", "cert", "--name=member4")
+        infra.proc.ccall("./keygenerator", "--name=member4")
         result = network.propose_add_member(1, primary, "member4_cert.pem")
 
         # when proposal is added the proposal id and the result of running complete proposal are returned
