@@ -317,12 +317,8 @@ namespace ccf
       auto join_client_cert = std::make_unique<tls::Cert>(
         Actors::NODES, tls_ca, node_cert, node_kp->private_key_pem(), nullb);
 
-      // TODO: The join protocol no longer needs to be synchronous
-      enclave::RPCContext rpc_ctx;
-
       // Create RPC client and connect to remote node
-      auto join_client =
-        rpcsessions.create_client(rpc_ctx, std::move(join_client_cert));
+      auto join_client = rpcsessions.create_client(std::move(join_client_cert));
 
       join_client->connect(
         args.config.joining.target_host,
