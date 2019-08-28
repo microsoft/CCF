@@ -539,14 +539,7 @@ class Checker:
 
 
 @contextmanager
-def node(
-    local_node_id,
-    host,
-    build_directory,
-    debug=False,
-    perf=False,
-    pdb=False,
-):
+def node(local_node_id, host, build_directory, debug=False, perf=False, pdb=False):
     """
     Context manager for Node class.
     :param local_node_id: unique ID of node - relevant only for the python environment
@@ -557,12 +550,7 @@ def node(
     :return: a Node instance that can be used to build a CCF network
     """
     with infra.path.working_dir(build_directory):
-        node = Node(
-            local_node_id=local_node_id,
-            host=host,
-            debug=debug,
-            perf=perf,
-        )
+        node = Node(local_node_id=local_node_id, host=host, debug=debug, perf=perf)
         try:
             yield node
         except Exception:
@@ -577,9 +565,7 @@ def node(
 
 
 class Node:
-    def __init__(
-        self, local_node_id, host, debug=False, perf=False
-    ):
+    def __init__(self, local_node_id, host, debug=False, perf=False):
         self.node_id = local_node_id
         self.local_node_id = local_node_id
         self.debug = debug
