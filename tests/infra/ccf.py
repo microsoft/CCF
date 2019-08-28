@@ -453,9 +453,9 @@ class Network:
                 with node.management_client() as c:
                     id = c.request("getCommit", {})
                     resp = c.response(id)
-                    assert (
-                        resp.error == None
-                    ), f"Node {node.node_id} did not joined the network successfully"
+                    if resp.error is not None:
+                        # Node may not have joined the network yet, try again
+                        break
                     if (
                         resp.global_commit >= local_commit_leader
                         and resp.result["term"] == term_leader
