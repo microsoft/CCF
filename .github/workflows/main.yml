@@ -3,19 +3,20 @@ name: "Non SGX CI"
 on: [push]
 
 jobs:
-  container: ccfciteam/ccf-ci-18.04-oe-0.6:latest
   build:
-    runs-on: ubuntu-18.04
-    steps:
-    - uses: actions/checkout@v1
-    
-    - name: Make build directory
-      run: mkdir build
-      
-    - name: Run cmake
-      run:  cmake -L -GNinja -DTARGET=virtual -DBUILD_SMALLBANK=OFF ..
-      working-directory: build
-      
-    - name: Run ninja
-      run:  ninja
-      working-directory: build
+    container: "ccfciteam/ccf-ci-18.04-oe-0.6:latest"
+    build:
+      runs-on: ubuntu-18.04
+      steps:
+      - uses: actions/checkout@v1
+
+      - name: Make build directory
+        run: mkdir build
+
+      - name: Run cmake
+        run:  cmake -L -GNinja -DTARGET=virtual -DBUILD_SMALLBANK=OFF ..
+        working-directory: build
+
+      - name: Run ninja
+        run:  ninja
+        working-directory: build
