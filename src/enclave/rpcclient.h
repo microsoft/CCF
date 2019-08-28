@@ -14,22 +14,13 @@ namespace enclave
 
   private:
     HandleDataCallback handle_data_cb;
-    AbstractRPCResponder& rpcresponder;
-
-    // Initiating RPC context in case the result of the callback should be sent
-    // to a client
-    RPCContext rpc_ctx;
 
   public:
     RPCClient(
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx,
-      AbstractRPCResponder& rpcresponder_,
-      RPCContext& rpc_ctx_) :
-      FramedTLSEndpoint(session_id, writer_factory, move(ctx)),
-      rpcresponder(rpcresponder_),
-      rpc_ctx(rpc_ctx_)
+      std::unique_ptr<tls::Context> ctx) :
+      FramedTLSEndpoint(session_id, writer_factory, move(ctx))
     {}
 
     void connect(
@@ -45,16 +36,6 @@ namespace enclave
     bool handle_data(const std::vector<uint8_t>& data) override
     {
       auto rc = handle_data_cb(data);
-      // TODO: RPCClient no longer needs to be synchronous with an incoming RPC
-      // if (res)
-      // {
-      //   if (rpcresponder.reply_async(rpc_ctx.client_session_id, res.second))
-      //   {
-      //     LOG_DEBUG_FMT(
-      //       "RPCClient responded to session {}", rpc_ctx.client_session_id);
-      //     return true;
-      //   }
-      // }
 
       close();
       return rc;

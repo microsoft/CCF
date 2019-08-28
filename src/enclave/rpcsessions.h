@@ -102,8 +102,7 @@ namespace enclave
       sessions.erase(id);
     }
 
-    std::shared_ptr<RPCClient> create_client(
-      RPCContext& rpc_ctx, std::shared_ptr<tls::Cert> cert)
+    std::shared_ptr<RPCClient> create_client(std::shared_ptr<tls::Cert> cert)
     {
       std::lock_guard<SpinLock> guard(lock);
       auto ctx = std::make_unique<tls::Client>(cert);
@@ -111,8 +110,8 @@ namespace enclave
 
       LOG_DEBUG_FMT("Creating a new client session inside the enclave: {}", id);
 
-      auto session = std::make_shared<RPCClient>(
-        id, writer_factory, std::move(ctx), *this, rpc_ctx);
+      auto session =
+        std::make_shared<RPCClient>(id, writer_factory, std::move(ctx));
       sessions.insert(std::make_pair(id, session));
       return session;
     }
