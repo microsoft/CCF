@@ -444,8 +444,8 @@ class Network:
 
         with primary.management_client() as c:
             res = c.do("getCommit", {})
-            local_commit_leader = res.result["commit"]
-            term_leader = res.result["term"]
+            local_commit_leader = res.commit
+            term_leader = res.term
 
         for _ in range(timeout):
             joined_nodes = 0

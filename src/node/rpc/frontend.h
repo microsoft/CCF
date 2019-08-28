@@ -213,7 +213,7 @@ namespace ccf
 
         return jsonrpc::error(
           jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-          "Failed to get commit info from Raft");
+          "Failed to get commit info from Consensus");
       };
 
       auto get_metrics = [this](Store::Tx& tx, const nlohmann::json& params) {
