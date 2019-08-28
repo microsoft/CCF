@@ -44,7 +44,7 @@ int main(int argc, char** argv)
     .add_set(
       "-t,--enclave-type",
       enclave_type,
-      {"debug", "simulate", "virtual"},
+      {"debug", "virtual"},
       "Enclave type",
       true)
     ->required();
@@ -241,8 +241,6 @@ int main(int argc, char** argv)
   uint32_t oe_flags = 0;
   if (enclave_type == "debug")
     oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
-  else if (enclave_type == "simulate")
-    oe_flags |= OE_ENCLAVE_FLAG_SIMULATE;
   else if (enclave_type == "virtual")
     oe_flags = ENCLAVE_FLAG_VIRTUAL;
   else
