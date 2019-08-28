@@ -44,7 +44,7 @@ int main(int argc, char** argv)
     .add_set(
       "-t,--enclave-type",
       enclave_type,
-      {"debug", "simulate", "virtual"},
+      {"debug", "virtual"},
       "Enclave type",
       true)
     ->required();

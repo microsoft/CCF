@@ -640,7 +640,7 @@ class Node:
         If self.debug is set to True, it will not actually start up the node, but will prompt the user to do so manually
         Raises exception if failed to prepare or start the node
         :param lib_name: the enclave package to load
-        :param enclave_type: default: debug. Choices: 'simulate', 'debug', 'virtual'
+        :param enclave_type: default: debug. Choices: 'debug', 'virtual'
         :param workspace: directory where node is started
         :param label: label for this node (to differentiate nodes from different test runs)
         :param other_quote: when starting a node in verify mode, path to other node's quote
