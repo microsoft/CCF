@@ -651,7 +651,7 @@ class CCFRemote(object):
                 # Starting a CCF node in recover does not require any additional arguments
             else:
                 raise ValueError(
-                    "CCFRemote start type should be start, join or recover"
+                    f"Unexpected CCFRemote start type {start_type}. Should be start, join or recover"
                 )
 
         # Necessary for the az-dcap-client >=1.1 (https://github.com/microsoft/Azure-DCAP-Client/issues/84)

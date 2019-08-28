@@ -1,11 +1,18 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include <ccf_args.h>
+#pragma once
+
 #include <dlfcn.h>
 #include <openenclave/bits/result.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+
+#ifdef VIRTUAL_ENCLAVE
+#  include "start_type.h"
+#else
+#  include <ccf_args.h>
+#endif
 
 #define OE_REPORT_DATA_SIZE 64
 

@@ -3,7 +3,7 @@
 
 enclave {
 
-    include "edl/start_type.h"
+    include "enclave/start_type.h"
 
     trusted {
 
