@@ -272,13 +272,6 @@ if(BUILD_TESTS)
         --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
 
     if(QUOTES_ENABLED)
-      # TODO: For now, the quote_verification_test is disabled as the join
-      # protocol tests the same behaviour. It should be removed entirely.
-      # add_e2e_test(
-      #   NAME quote_verification_test
-      #   PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/quote_verification.py
-      # )
-
       add_e2e_test(
         NAME governance_tests
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
