@@ -539,15 +539,7 @@ class Checker:
 
 
 @contextmanager
-def node(
-    local_node_id,
-    host,
-    build_directory,
-    debug=False,
-    perf=False,
-    verify_quote=False,
-    pdb=False,
-):
+def node(local_node_id, host, build_directory, debug=False, perf=False, pdb=False):
     """
     Context manager for Node class.
     :param local_node_id: unique ID of node - relevant only for the python environment
@@ -555,17 +547,10 @@ def node(
     :param host: node's hostname
     :param debug: default: False. If set, node will not start (user is prompted to start them manually)
     :param perf: default: False. If set, node will run under perf record
-    :param verify_quote: default: False. If set, node will only verify a quote and shutdown immediately.
     :return: a Node instance that can be used to build a CCF network
     """
     with infra.path.working_dir(build_directory):
-        node = Node(
-            local_node_id=local_node_id,
-            host=host,
-            debug=debug,
-            perf=perf,
-            verify_quote=verify_quote,
-        )
+        node = Node(local_node_id=local_node_id, host=host, debug=debug, perf=perf)
         try:
             yield node
         except Exception:
@@ -580,16 +565,12 @@ def node(
 
 
 class Node:
-    def __init__(
-        self, local_node_id, host, debug=False, perf=False, verify_quote=False
-    ):
+    def __init__(self, local_node_id, host, debug=False, perf=False):
         self.node_id = local_node_id
         self.local_node_id = local_node_id
         self.debug = debug
         self.perf = perf
-        self.verify_quote = verify_quote
         self.remote = None
-        self.node_json = None
         self.network_state = NodeNetworkState.stopped
 
         hosts, *port = host.split(":")
@@ -630,8 +611,6 @@ class Node:
         target_rpc_address=None,
         members_certs=None,
         users_certs=None,
-        other_quote=None,
-        other_quoted_data=None,
         **kwargs,
     ):
         """
@@ -643,8 +622,6 @@ class Node:
         :param enclave_type: default: debug. Choices: 'simulate', 'debug', 'virtual'
         :param workspace: directory where node is started
         :param label: label for this node (to differentiate nodes from different test runs)
-        :param other_quote: when starting a node in verify mode, path to other node's quote
-        :param other_quoted_data: when starting a node in verify node, path to other node's quoted_data
         :return: void
         """
         lib_path = infra.path.build_lib_path(lib_name, enclave_type)
@@ -658,14 +635,11 @@ class Node:
             self.rpc_port,
             self.remote_impl,
             enclave_type,
-            self.verify_quote,
             workspace,
             label,
             target_rpc_address,
             members_certs,
             users_certs,
-            other_quote,
-            other_quoted_data,
             **kwargs,
         )
         self.remote.setup()
@@ -683,13 +657,10 @@ class Node:
             print(self.remote.debug_node_cmd())
             print("")
             input("Press Enter to continue...")
-            self.node_json = self.remote.info()
         else:
             if self.perf:
                 self.remote.set_perf()
             self.remote.start()
-            if not self.verify_quote:
-                self.node_json = self.remote.info()
 
     def stop(self):
         if self.remote:
@@ -722,6 +693,7 @@ class Node:
         )
 
     def management_client(self, **kwargs):
+        LOG.error(f"{self.local_node_id}.pem")
         return infra.jsonrpc.client(
             self.host,
             self.rpc_port,
