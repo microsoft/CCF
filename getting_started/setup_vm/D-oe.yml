@@ -8,12 +8,9 @@
 
   tasks:
 
-# TODO: revert to the upstream v0.6.x branch once playbook changes are merged
-# issue tracke on https://github.com/openenclave/openenclave/pull/2100 
-
   - name: Download OpenEnclave source
     get_url:
-      url: https://github.com/achamayou/openenclave/tarball/5096481ca0859940eba75e166b3764178f67482f
+      url: https://github.com/openenclave/openenclave/tarball/3ededfd371ba65a95b59a806f2ae3899dedcb6a5
       dest: "{{ workspace }}/{{ oe_src }}"
       force: yes
     become: true
