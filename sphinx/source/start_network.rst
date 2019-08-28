@@ -21,6 +21,8 @@ The :ref:`governance` rules are defined as a Lua script passed via the ``--gov-s
 
 The identities of members and users are specified as `glob patterns <https://en.wikipedia.org/wiki/Glob_(programming)>`_ via the ``--member-certs`` and ``--user-certs`` option, respectively. For example, if 2 members (``member1_cert.pem`` and ``member2_cert.pem``) and 3 users (``user1_cert.pem``, ``user2_cert.pem`` and ``user3_cert.pem``) should be added to CCF, operators should specify ``--member-certs=member*_cert.pem`` and ``--user-certs=user*_cert.pem``.
 
+.. note:: Once a CCF network is started, members can add other members and users via governance. See :ref:`Submitting a new proposal` for more information.
+
 When CCF is used to run a custom Lua application, the starting node should also be started with the ``--app-script=/path/to/lua/application_script`` (see the `samples folder <https://github.com/microsoft/CCF/tree/master/samples/apps>`_ for example of Lua applications).
 
 Joining an existing network
@@ -36,7 +38,7 @@ To join an existing network, other nodes should be started with the ``join`` opt
     --node-cert-file=/path/to/node_certificate --quote-file=/path/to/quote
     join --network-cert-file=/path/to/existing/network_certificate --target-rpc-address=target_rpc_ip:target_rpc_port
 
-The node takes the certificate of the existing network to join via ``--network-cert-file`` and initiates an enclave-to-enclave TLS connection to a node of the network as specified by ``--target-rpc-address``. Once the join protocol [#remote_attestation]_ completes, the joining node becomes part of the network as a backup (see :ref:`Ledger replication`).
+The node takes the certificate of the existing network to join via ``--network-cert-file`` and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by ``--target-rpc-address``. Once the join protocol [#remote_attestation]_ completes, the joining node becomes part of the network as a backup (see :ref:`Ledger replication` for more details on consensus protocols).
 
 .. note:: When starting up the network or when a node joins an existing network, the network secrets required to decrypt the ledger are sealed to disc so that the network can later be recovered. See :ref:`Catastrophic Recovery` for more details on how to recover a crashed network.
 
