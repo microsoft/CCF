@@ -631,6 +631,7 @@ class CCFRemote(object):
             if start_type == StartType.start:
                 cmd += [
                     "start",
+                    "--network-cert-file=networkcert.pem",
                     f"--member-certs={members_certs}",
                     f"--user-certs={users_certs}",
                     f"--gov-script={os.path.basename(gov_script)}",
@@ -647,8 +648,8 @@ class CCFRemote(object):
                 ]
                 data_files += ["networkcert.pem"]
             elif start_type == StartType.recover:
-                cmd += ["recover"]
-                # Starting a CCF node in recover does not require any additional arguments
+                cmd += ["recover", "--network-cert-file=networkcert.pem"]
+
             else:
                 raise ValueError(
                     f"Unexpected CCFRemote start type {start_type}. Should be start, join or recover"
