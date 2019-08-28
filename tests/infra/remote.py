@@ -601,7 +601,7 @@ class CCFRemote(object):
             ]
             data_files += ["networkcert.pem"]
         elif start_type == StartType.recover:
-             cmd += ["recover", "--network-cert-file=networkcert.pem"]
+            cmd += ["recover", "--network-cert-file=networkcert.pem"]
         else:
             raise ValueError(
                 f"Unexpected CCFRemote start type {start_type}. Should be start, join or recover"
