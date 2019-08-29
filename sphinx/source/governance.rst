@@ -89,5 +89,5 @@ At any stage during the voting process and before the proposal is completed, the
 
 .. code-block:: bash
 
-    $ memberclient --server-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem removal --id 0
+    $ memberclient --server-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem removal --proposal-id 0
     {"commit":110,"global_commit":109,"id":0,"jsonrpc":"2.0","result":true,"term":4}
