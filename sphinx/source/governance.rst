@@ -20,7 +20,7 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
 
 .. code-block:: bash
 
-    $ memberclient --server-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem add_member --member_cert member4_cert.pem
+    $ memberclient --server-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem add_member --member-cert member4_cert.pem
     {"commit":100,"global_commit":99,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
 
 In this case, a new proposal with id ``1`` has successfully been created and the proposer member has automatically accepted it. Other members can then accept or reject the proposal:
