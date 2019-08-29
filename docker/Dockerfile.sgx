@@ -7,7 +7,7 @@ RUN mkdir -p /etc/init
 
 COPY getting_started/setup_vm/ /setup_vm/
 RUN apt update && apt install -y ansible software-properties-common
-RUN cd setup_vm; ansible-playbook -i local_nodriver *.yml
+RUN cd setup_vm; ansible-playbook ccf-dependencies.yml ci-dependencies.yml
 
 # Necessary to publish performance data
 RUN apt install azure-cli
