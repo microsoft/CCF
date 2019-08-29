@@ -42,7 +42,7 @@ The response to each transaction is printed at the ``DEBUG`` logging level, and 
         "id": 42,
         "msg": "Hello world"
       },
-      "expected": True
+      "expected": true
     }
 
 There should be a corresponding entry in the Python output, similar to:
