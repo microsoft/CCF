@@ -166,12 +166,6 @@ int main(int argc, char** argv)
 
   app.require_subcommand(1, 1);
 
-  std::string nodes_file = "nodes.json";
-  size_t node_index = 0;
-  auto nodes_opt = app.add_option("--nodes", nodes_file, "Nodes file", true);
-  app.add_option(
-    "--host-node-index", node_index, "Index of host in nodes file", true);
-
   bool pretty_print = false;
   app.add_flag(
     "--pretty-print",
@@ -183,11 +177,10 @@ int main(int argc, char** argv)
 
   cli::ParsedAddress server_address;
   auto server_addr_opt = cli::add_address_option(
-                           app,
-                           server_address,
-                           "--rpc-address",
-                           "Remote node JSON-RPC server address")
-                           ->excludes(nodes_opt);
+    app,
+    server_address,
+    "--rpc-address",
+    "Remote node JSON-RPC server address");
   app.add_option("--ca", ca_file, "Network CA", true);
 
   auto member_rpc = app.add_subcommand("memberrpc", "Member RPC");
@@ -222,34 +215,8 @@ int main(int argc, char** argv)
 
   try
   {
-    // If host connection has not been set explicitly by options then load from
-    // nodes file
-    if (!*server_addr_opt)
-    {
-      const auto j_nodes = files::slurp_json(nodes_file);
-
-      if (!j_nodes.is_array())
-      {
-        throw logic_error("Expected " + nodes_file + " to contain array");
-      }
-
-      if (node_index >= j_nodes.size())
-      {
-        throw logic_error(
-          "Expected node data at index " + to_string(node_index) + ", but " +
-          nodes_file + " defines only " + to_string(j_nodes.size()) + " files");
-      }
-
-      const auto& j_node = j_nodes[node_index];
-
-      host = j_node["pubhost"];
-      port = j_node["rpcport"];
-    }
-    else
-    {
-      host = server_address.hostname;
-      port = server_address.port;
-    }
+    host = server_address.hostname;
+    port = server_address.port;
 
     nlohmann::json response;
 
