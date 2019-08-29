@@ -38,6 +38,20 @@ namespace kv
       static_cast<KotBase>(a) | static_cast<KotBase>(b));
   }
 
+  class KvSerialiserException : public std::exception
+  {
+  private:
+    std::string msg;
+
+  public:
+    KvSerialiserException(const std::string& msg_) : msg(msg_) {}
+
+    virtual const char* what() const throw()
+    {
+      return msg.c_str();
+    }
+  };
+
   template <typename K, typename V, typename Version>
   struct KeyValVersion
   {
@@ -110,10 +124,10 @@ namespace kv
     void start_map(const std::string& name, SecurityDomain domain)
     {
       if (domain == SecurityDomain::PRIVATE && !crypto_util)
-        throw std::logic_error(
-          fmt::format(
-          "Private map {0} cannot be serialied without crypto utility",
-          name));
+      {
+        throw KvSerialiserException(fmt::format(
+          "Private map {} cannot be serialised without an encryptor", name));
+      }
 
       if (domain != current_domain)
         set_current_domain(domain);

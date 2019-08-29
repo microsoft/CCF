@@ -15,56 +15,6 @@
 
 using namespace ccfapp;
 
-struct CustomClass
-{
-  int m_i;
-
-  CustomClass() : CustomClass(-1) {}
-  CustomClass(int i) : m_i(i) {}
-
-  int get() const
-  {
-    return m_i;
-  }
-  void set(std::string val)
-  {
-    m_i = std::stoi(val);
-  }
-
-  CustomClass operator()()
-  {
-    CustomClass ret;
-    return ret;
-  }
-
-  bool operator<(const CustomClass& other) const
-  {
-    return m_i < other.m_i;
-  }
-
-  bool operator==(const CustomClass& other) const
-  {
-    return !(other < *this) && !(*this < other);
-  }
-
-  MSGPACK_DEFINE(m_i);
-};
-
-namespace std
-{
-  template <>
-  struct hash<CustomClass>
-  {
-    std::size_t operator()(const CustomClass& inst) const
-    {
-      return inst.get();
-    }
-  };
-}
-
-DECLARE_JSON_TYPE(CustomClass)
-DECLARE_JSON_REQUIRED_FIELDS(CustomClass, m_i)
-
 TEST_CASE("Map creation")
 {
   Store kv_store;
@@ -461,54 +411,9 @@ TEST_CASE("Global commit hooks")
   }
 }
 
-TEST_CASE("Custom type serialisation test")
-{
-  Store kv_store;
-
-  auto& map = kv_store.create<CustomClass, CustomClass>(
-    "map", kv::SecurityDomain::PUBLIC);
-
-  CustomClass k(3);
-  CustomClass v1(33);
-
-  CustomClass k2(2);
-  CustomClass v2(22);
-
-  INFO("Serialise/Deserialise 2 kv stores");
-  {
-    Store kv_store2;
-    auto& map2 = kv_store2.create<CustomClass, CustomClass>(
-      "map", kv::SecurityDomain::PUBLIC);
-
-    Store::Tx tx(kv_store.next_version());
-    auto view = tx.get_view(map);
-    view->put(k, v1);
-    view->put(k2, v2);
-
-    auto [success, reqid, serialised] = tx.commit_reserved();
-    REQUIRE(success == kv::CommitSuccess::OK);
-    kv_store.compact(view->end_order());
-
-    REQUIRE(kv_store2.deserialise(serialised) == kv::DeserialiseSuccess::PASS);
-    Store::Tx tx2;
-    auto view2 = tx2.get_view(map2);
-    auto va = view2->get(k);
-
-    REQUIRE(va.has_value());
-    REQUIRE(va.value() == v1);
-    auto vb = view2->get(k2);
-    REQUIRE(vb.has_value());
-    REQUIRE(vb.value() == v2);
-    // we only require operator==() to be implemented, so for consistency -
-    // this is the operator we use for comparison, and not operator!=()
-    REQUIRE(!(vb.value() == v1));
-  }
-}
-
 TEST_CASE("Clone schema")
 {
-  auto secrets = ccf::NetworkSecrets("");
-  auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   Store store;
   store.set_encryptor(encryptor);
 
@@ -525,6 +430,7 @@ TEST_CASE("Clone schema")
 
   Store clone;
   clone.clone_schema(store);
+  clone.set_encryptor(encryptor);
 
   REQUIRE(clone.deserialise(serialised) == kv::DeserialiseSuccess::PASS);
 }
@@ -582,8 +488,7 @@ TEST_CASE("Deserialise return status")
 
 TEST_CASE("map swap between stores")
 {
-  auto secrets = ccf::NetworkSecrets("");
-  auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   Store s1;
   s1.set_encryptor(encryptor);
 
@@ -657,11 +562,11 @@ TEST_CASE("invalid map swaps")
 {
   {
     Store s1;
-    s1.create<size_t, size_t>("one", kv::SecurityDomain::PUBLIC);
+    s1.create<size_t, size_t>("one");
 
     Store s2;
-    s2.create<size_t, size_t>("one", kv::SecurityDomain::PUBLIC);
-    s2.create<size_t, size_t>("two", kv::SecurityDomain::PUBLIC);
+    s2.create<size_t, size_t>("one");
+    s2.create<size_t, size_t>("two");
 
     REQUIRE_THROWS_WITH(
       s2.swap_private_maps(s1),
@@ -670,11 +575,11 @@ TEST_CASE("invalid map swaps")
 
   {
     Store s1;
-    s1.create<size_t, size_t>("one", kv::SecurityDomain::PUBLIC);
-    s1.create<size_t, size_t>("two", kv::SecurityDomain::PUBLIC);
+    s1.create<size_t, size_t>("one");
+    s1.create<size_t, size_t>("two");
 
     Store s2;
-    s2.create<size_t, size_t>("one", kv::SecurityDomain::PUBLIC);
+    s2.create<size_t, size_t>("one");
 
     REQUIRE_THROWS_WITH(
       s2.swap_private_maps(s1),
@@ -684,8 +589,7 @@ TEST_CASE("invalid map swaps")
 
 TEST_CASE("private recovery map swap")
 {
-  auto secrets = ccf::NetworkSecrets("");
-  auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   Store s1;
   s1.set_encryptor(encryptor);
   auto& priv1 =
