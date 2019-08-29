@@ -35,6 +35,11 @@ namespace ccf
       return bytecode == other.bytecode && text == other.text;
     }
 
+    bool operator!=(const Script& other) const
+    {
+      return !operator==(other);
+    }
+
     MSGPACK_DEFINE(bytecode, text);
   };
 
