@@ -1,0 +1,7 @@
+- hosts: localhost
+  vars:
+    oe_playbook: scripts/ansible/oe-contributors-acc-setup.yml
+  tasks:
+    - import_role:
+        name: openenclave
+        tasks_from: install.yml
