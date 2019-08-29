@@ -19,7 +19,7 @@ When starting up, the node generates its own key pair and outputs the certificat
 
 .. note:: The network certificate should be used by users and members as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. For the ``client`` and ``memberclient`` utilities, ``--ca=/path/to/network_certificate`` should always be specified.
 
-The :ref:`governance` rules are defined as a Lua script passed via the ``--gov-script`` option. For example, a default set of `governance rules <https://github.com/microsoft/CCF/blob/master/src/runtime_config/gov.lua>`_ can be used to define a majority of members as the :term:`Quorum` of the consortium.
+The :ref:`governance` rules are defined as a Lua script passed via the ``--gov-script`` option. For example, a default set of `governance rules <https://github.com/microsoft/CCF/blob/master/src/runtime_config/gov.lua>`_ can be used to define a majority of members as the :term:`quorum` of the consortium.
 
 The identities of members and users are specified as `glob patterns <https://en.wikipedia.org/wiki/Glob_(programming)>`_ via the ``--member-certs`` and ``--user-certs`` option, respectively. For example, if 2 members (``member1_cert.pem`` and ``member2_cert.pem``) and 3 users (``user1_cert.pem``, ``user2_cert.pem`` and ``user3_cert.pem``) should be added to CCF, operators should specify ``--member-certs=member*_cert.pem`` and ``--user-certs=user*_cert.pem``.
 
