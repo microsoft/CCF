@@ -452,8 +452,8 @@ namespace client
       cli::add_address_option(
         app,
         server_address,
-        "--server-address",
-        "Remote node RPC server address where requests should be sent")
+        "--rpc-address",
+        "Remote node JSON RPC address to which requests should be sent")
         ->required(true);
 
       app.add_option("--cert", cert_file)

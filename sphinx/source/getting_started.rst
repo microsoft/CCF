@@ -13,7 +13,7 @@ Hardware
 --------
 
 Although it is possible to build and run OpenEnclave on hardware without :term:`SGX` extensions,
-and run CCF applications in simulation or virtual mode, running with full security guarantees
+and run CCF applications in virtual mode, running with full security guarantees
 requires :term:`SGX` hardware with :term:`FLC`.
 
 Azure Confidential Compute
