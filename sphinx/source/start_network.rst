@@ -17,7 +17,9 @@ To start up a network, the first node of the network should be started with the 
 
 When starting up, the node generates its own key pair and outputs the certificate associated with its public key at the location specified by ``--node-cert-file``. A quote file, required for remote attestation, is also output at the location specified by ``--quote-file``. The certificate of the freshly-created CCF network is also output at the location specified by ``--network-cert-file``.
 
-The :ref:`governance` rules are defined as a Lua script passed via the ``--gov-script`` option. For example, a default set of `governance rules <https://github.com/microsoft/CCF/blob/master/src/runtime_config/gov.lua>`_ can be used to define a majority of members as the quorum of the consortium.
+.. note:: The network certificate should be used by users and members as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. For the ``client`` and ``memberclient`` utilities, ``--ca=/path/to/network_certificate`` should always be specified.
+
+The :ref:`governance` rules are defined as a Lua script passed via the ``--gov-script`` option. For example, a default set of `governance rules <https://github.com/microsoft/CCF/blob/master/src/runtime_config/gov.lua>`_ can be used to define a majority of members as the :term:`Quorum` of the consortium.
 
 The identities of members and users are specified as `glob patterns <https://en.wikipedia.org/wiki/Glob_(programming)>`_ via the ``--member-certs`` and ``--user-certs`` option, respectively. For example, if 2 members (``member1_cert.pem`` and ``member2_cert.pem``) and 3 users (``user1_cert.pem``, ``user2_cert.pem`` and ``user3_cert.pem``) should be added to CCF, operators should specify ``--member-certs=member*_cert.pem`` and ``--user-certs=user*_cert.pem``.
 
@@ -40,7 +42,7 @@ To join an existing network, other nodes should be started with the ``join`` opt
 
 The node takes the certificate of the existing network to join via ``--network-cert-file`` and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by ``--target-rpc-address``. Once the join protocol [#remote_attestation]_ completes, the joining node becomes part of the network as a backup (see :ref:`Ledger replication` for more details on consensus protocols).
 
-.. note:: When starting up the network or when a node joins an existing network, the network secrets required to decrypt the ledger are sealed to disc so that the network can later be recovered. See :ref:`Catastrophic Recovery` for more details on how to recover a crashed network.
+.. note:: When starting up the network or when joining an existing network, the network secrets required to decrypt the ledger are sealed and written to a file so that the network can later be recovered. See :ref:`Catastrophic Recovery` for more details on how to recover a crashed network.
 
 Summary diagram
 ~~~~~~~~~~~~~~~
@@ -99,4 +101,4 @@ If the version of the code being executed needs to be updated (for example, to s
 
 .. rubric:: Footnotes
 
-.. [#remote_attestation] When a new node joins an existing network, the network performs the remote attestation protocol by verifying the joining node's quote. It also checks that the version of the code running by the joining known is trusted by the consortium.
+.. [#remote_attestation] When a new node joins an existing network, the network performs the remote attestation protocol by verifying the joining node's quote. It also checks that the version of the code running by the joining node known is trusted by the consortium.
