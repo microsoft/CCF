@@ -66,12 +66,12 @@ public:
     auto err = mbedtls_ctr_drbg_seed(
       &ctr_drbg, mbedtls_entropy_func, &entropy, nullptr, 0);
     if (err)
-      throw tls::error_string(err);
+      throw std::logic_error(tls::error_string(err));
 
     err = mbedtls_net_connect(
       &server_fd, host.c_str(), port.c_str(), MBEDTLS_NET_PROTO_TCP);
     if (err)
-      throw tls::error_string(err);
+      throw std::logic_error(tls::error_string(err));
 
     err = mbedtls_ssl_config_defaults(
       &conf,
@@ -79,7 +79,7 @@ public:
       MBEDTLS_SSL_TRANSPORT_STREAM,
       MBEDTLS_SSL_PRESET_DEFAULT);
     if (err)
-      throw tls::error_string(err);
+      throw std::logic_error(tls::error_string(err));
 
     if (cert != nullptr)
       cert->use(&ssl, &conf);
@@ -92,11 +92,11 @@ public:
 
     err = mbedtls_ssl_setup(&ssl, &conf);
     if (err)
-      throw tls::error_string(err);
+      throw std::logic_error(tls::error_string(err));
 
     err = mbedtls_ssl_set_hostname(&ssl, sni.c_str());
     if (err)
-      throw tls::error_string(err);
+      throw std::logic_error(tls::error_string(err));
 
     mbedtls_ssl_set_bio(
       &ssl, &server_fd, mbedtls_net_send, mbedtls_net_recv, nullptr);
@@ -109,7 +109,7 @@ public:
       if (
         (err != MBEDTLS_ERR_SSL_WANT_READ) &&
         (err != MBEDTLS_ERR_SSL_WANT_WRITE))
-        throw tls::error_string(err);
+        throw std::logic_error(tls::error_string(err));
     }
   }
 
@@ -135,7 +135,7 @@ public:
       if (ret > 0)
         written += ret;
       else
-        throw tls::error_string(ret);
+        throw std::logic_error(tls::error_string(ret));
     }
   }
 
@@ -149,7 +149,7 @@ public:
       else if (ret == 0)
         throw std::logic_error("Underlying transport closed");
       else
-        throw tls::error_string(ret);
+        throw std::logic_error(tls::error_string(ret));
     }
   }
 
