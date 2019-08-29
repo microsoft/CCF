@@ -157,7 +157,7 @@ jobs:
     # --publish-all enables end-to-end tests to communicate over ports
     # --device /dev/sgx:/dev/sgx makes sgx available to the container
     # -v $(log.path):$(log.path) mounts the local directory to the same path in the container
-    options: --publish-all --device /dev/sgx:/dev/sgx -v /mnt/build:/__w/ -v $(log.path):$(log.path)
+    options: --publish-all --device /dev/sgx:/dev/sgx -v $(log.path):$(log.path)
   dependsOn:
     - ACC_1804_SGX_perf_build
   steps:
