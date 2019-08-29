@@ -863,6 +863,13 @@ namespace ccf
           return jsonrpc::error_response(
             ctx.req.seq_no, jsonrpc::StandardErrorCodes::PARSE_ERROR, err);
         }
+        catch (const kv::KvSerialiserException& e)
+        {
+          // If serialising the committed transaction fails, there is no way to
+          // recover safely (https://github.com/microsoft/CCF/issues/338).
+          // Better to abort.
+          LOG_FATAL_FMT(e.what());
+        }
         catch (const std::exception& e)
         {
           return jsonrpc::error_response(

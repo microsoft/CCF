@@ -20,7 +20,7 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
 
 .. code-block:: bash
 
-    $ memberclient add_member --ca=networkcert.pem --member_cert=member4_cert.pem --cert=member1_cert.pem --privk=member1_privk.pem --host=10.1.0.4 --port=25000
+    $ memberclient --server-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem add_member --member-cert member4_cert.pem
     {"commit":100,"global_commit":99,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
 
 In this case, a new proposal with id ``1`` has successfully been created and the proposer member has automatically accepted it. Other members can then accept or reject the proposal:
@@ -30,12 +30,12 @@ In this case, a new proposal with id ``1`` has successfully been created and the
     // Proposal 1 is already created by member 1 (votes: 1/3)
 
     // Member 2 rejects the proposal (votes: 1/3)
-    $ memberclient vote --reject --id=1 --cert=member2_cert.pem --privk=member2_privk.pem --host=10.1.0.4 --port=25000 --ca=networkcert.pem --sign
+    $ memberclient --server-address 127.83.203.69:55526 --cert member2_cert.pem --privk member2_privk.pem --ca networkcert.pem vote --reject --proposal-id 1
     {"commit":104,"global_commit":103,"id":0,"jsonrpc":"2.0","result":false,"term":2}
 
     // Member 3 accepts the proposal (votes: 2/3)
     // As a quorum of members have accepted the proposal, member4 is added to the consortium
-    $ memberclient vote --accept --id=1 --cert=member3_cert.pem --privk=member3_privk.pem --host=10.1.0.4 --port=25000 --ca=networkcert.pem --sign
+    $ memberclient --server-address 127.83.203.69:55526 --cert member3_cert.pem --privk member3_privk.pem --ca networkcert.pem vote --accept --proposal-id 1
     {"commit":106,"global_commit":105,"id":0,"jsonrpc":"2.0","result":true,"term":2}
 
 As soon as ``member3`` accepts the proposal, a quorum (2 out of 3) of members has been reached and the proposal completes, successfully adding ``member4``.
@@ -44,34 +44,50 @@ As soon as ``member3`` accepts the proposal, a quorum (2 out of 3) of members ha
 
     .. code-block:: bash
 
-        $ ../build/memberclient ack --cert=member4_cert.pem --privk=member4_privk.pem --host=10.1.0.4 --port=25000 --ca=networkcert.pem --sign
+        $ memberclient --server-address 127.83.203.69:55526 --cert member4_cert.pem --privk member4_privk.pem --ca networkcert.pem ack
         {"commit":108,"global_commit":107,"id":2,"jsonrpc":"2.0","result":true,"term":2}
 
 
 Displaying proposals
 --------------------
 
-The details of pending proposals, including the proposer member ID, proposal script, parameters and votes, can be displayed with the ``proposal_display`` option of the ``memberclient`` utility. For example:
+The details of pending proposals, including the proposer member ID, proposal script, parameters and votes, can be displayed with the ``proposal_display`` sub command of the ``memberclient`` utility. For example:
 
 .. code-block:: bash
 
-    $ memberclient proposal_display --cert=member1_cert.pem --privk=member1_privk.pem --host=10.1.0.4 --port=25000 --ca=networkcert.pem
-    ------ Proposal ------
-    -- Proposal id: 1
-    -- Proposer id: 0
-    -- Script: {"text":"\n      tables, member_cert = ...\n      return Calls:call(\"new_member\", member_cert)\n    "}
-    -- Parameter: [<member_cert>]
-    -- Votes: [[1,{"text":"\n      tables, changes = ...\n      return false"}]]
-    ----------------------
+    $ memberclient --server-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem proposal_display
+    {
+      "1": {
+        "parameter": [...],
+        "proposer": 0,
+        "script": {
+          "text": "tables, member_cert = ...\n return Calls:call(\"new_member\", member_cert)"
+        },
+        "votes": [
+          [
+            0,
+            {
+              "text": "return true"
+            }
+          ],
+          [
+            1,
+            {
+              "text": "return false"
+            }
+          ]
+        ]
+      }
+    }
 
-In this case, there is one pending proposal (``id`` is 1), proposed by the first member (``member1``, ``id`` is 0) and which will call the ``new_member`` function with the new member's certificate as a parameter. Only one vote has been cast by ``member2`` (``id`` is 1) to reject the proposal while ``member1`` (proposer) has already implicitly accepted it.
+In this case, there is one pending proposal (``id`` is 1), proposed by the first member (``member1``, ``id`` is 0) and which will call the ``accept_node`` function with the new member's certificate as a parameter. Two votes have been cast: ``member1`` (proposer) has voted for the proposal, while ``member2`` (``id`` is 1) has voted against it.
 
 Removing proposals
 ------------------
 
-At any stage during the voting process and before the proposal is completed, the proposer member may decide to remove a pending proposal:
+At any stage during the voting process and before the proposal is completed, the proposing member may decide to remove a pending proposal:
 
 .. code-block:: bash
 
-    $ memberclient removal --id=1 --cert=member1_cert.pem --privk=member1_privk.pem --host=10.1.0.4 --port=25000 --ca=networkcert.pem --sign
+    $ memberclient --server-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem removal --proposal-id 0
     {"commit":110,"global_commit":109,"id":0,"jsonrpc":"2.0","result":true,"term":4}
