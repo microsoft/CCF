@@ -267,7 +267,7 @@ int main(int argc, char** argv)
   cli::ParsedAddress server_address;
   auto server_addr_opt =
     cli::add_address_option(
-      app, server_address, "--server-address", "Remote node RPC server address")
+      app, server_address, "--rpc-address", "Remote node RPC over TLS address")
       ->required();
 
   string cert_file, privk_file, ca_file;

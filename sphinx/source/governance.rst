@@ -3,7 +3,7 @@ Governance
 
 A trusted set of members is in charge of governing a given CCF network. For transparency and auditability, all governance operations are recorded in plaintext in the ledger.
 
-One member (proposer) can submit a new proposal. Once they have done this, other members can vote for the proposal using its unique proposal ID. Proposals are executed once a quorum of members have accepted it.
+One member (proposer) can submit a new proposal. Once they have done this, other members can vote for the proposal using its unique proposal ID. Proposals are executed once a :term:`quorum` of members have accepted it.
 
 The quorum is defined as a Lua script in the genesis transaction (see for example `the default quorum script`_). Common governance operations include adding a new user, member or a new version of the CCF code.
 
@@ -28,7 +28,7 @@ In this case, a new proposal with id ``1`` has successfully been created and the
 .. code-block:: bash
 
     // Proposal 1 is already created by member 1 (votes: 1/3)
-    
+
     // Member 2 rejects the proposal (votes: 1/3)
     $ memberclient --server-address 127.83.203.69:55526 --cert member2_cert.pem --privk member2_privk.pem --ca networkcert.pem vote --reject --proposal-id 1
     {"commit":104,"global_commit":103,"id":0,"jsonrpc":"2.0","result":false,"term":2}
