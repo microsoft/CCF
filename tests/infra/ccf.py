@@ -350,7 +350,7 @@ class Network:
 
     def propose_add_member(self, member_id, remote_node, new_member_cert):
         return self.propose(
-            member_id, remote_node, "add_member", f"--member_cert={new_member_cert}"
+            member_id, remote_node, "add_member", f"--member-cert={new_member_cert}"
         )
 
     def stop_all_nodes(self):

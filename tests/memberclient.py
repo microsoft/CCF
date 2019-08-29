@@ -94,7 +94,9 @@ def run(args):
         assert not result[1]["completed"]
         assert proposal_id == 2
 
-        j_result = network.member_client_rpc_as_json(4, primary, "removal", "--id=2")
+        j_result = network.member_client_rpc_as_json(
+            4, primary, "removal", "--proposal-id=2"
+        )
         assert j_result["result"]
 
         # member 4 proposes to inactivate member 1 and other members vote yes
@@ -122,7 +124,7 @@ def run(args):
         assert result[1]["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
         # member 4 proposes to add member 3 as user
-        result = network.propose(4, primary, "add_user", "--user_cert=member3_cert.pem")
+        result = network.propose(4, primary, "add_user", "--user-cert=member3_cert.pem")
         assert not result[1]["completed"]
 
 
