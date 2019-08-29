@@ -55,7 +55,7 @@ The details of pending proposals, including the proposer member ID, proposal scr
 
 .. code-block:: bash
 
-    $ memberclient --server-address 127.83.203.69:55526 --cert=member1_cert.pem --privk=member1_privk.pem --ca=networkcert.pem proposal_display
+    $ memberclient --server-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem proposal_display
     {
       "1": {
         "parameter": [...],
