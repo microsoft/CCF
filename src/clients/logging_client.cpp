@@ -99,8 +99,8 @@ int main(int argc, char** argv)
     cli::add_address_option(
       cli_app,
       server_address,
-      "--server-address",
-      "Remote node RPC server address");
+      "--rpc-address",
+      "Remote node JSON RPC server address");
 
     cli_app.add_option("--cert", cert_file)
       ->required(true)

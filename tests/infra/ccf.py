@@ -288,7 +288,7 @@ class Network:
             "./memberclient",
             f"--cert=member{member_id}_cert.pem",
             f"--privk=member{member_id}_privk.pem",
-            f"--server-address={remote_node.host}:{remote_node.rpc_port}",
+            f"--rpc-address={remote_node.host}:{remote_node.rpc_port}",
             "--ca=networkcert.pem",
             *args,
         )

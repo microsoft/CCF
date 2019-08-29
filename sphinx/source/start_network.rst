@@ -1,135 +1,104 @@
 Starting up a network
 =====================
 
-Starting up nodes
-~~~~~~~~~~~~~~~~~
+Creating a new network
+~~~~~~~~~~~~~~~~~~~~~~
 
-To start up a network, operators should start up each node separately by running:
-
-.. code-block:: bash
-
-    $ cchost --enclave-file=/path/to/application --node-address=node_ip:node_port --rpc-address=rpc_ip:rpc_public_ip
-    --ledger-file=/path/to/ledger --node-cert-file=/path/to/node_certificate --quote-file=/path/to/quote
-    2019-08-06 15:04:36.951158        [info ] ../src/host/main.cpp:240             | Starting new node
-    2019-08-06 15:04:39.355423        [info ] ../src/host/main.cpp:257             | Created new node
-    ...
-    2019-08-06 15:04:40.542079        [info ] ../src/host/enclave.h:174            | Quote verified
-    ...
-
-When starting up, each node generates its own key pair and outputs the certificate associated with the public key at the location specified by ``--node-cert``. A quote file, required for remote attestation when this node joins the network, is also output at the location specified by ``--quote-file``.
-
-Configuring the initial state of the network
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Once the initial set of nodes is running, the ``nodes.json`` file specifying the configuration of the original network should be created. For example, for a network of two nodes, the ``nodes.json`` file will be:
+To start up a network, the first node of the network should be started with the ``start`` option:
 
 .. code-block:: bash
 
-    $ cat nodes.json
-    [
-        {
-            "pubhost": "rpc_public_ip0",
-            "cert": [<output node0 cert bytes>],
-            "host": "node/rpc_ip0",
-            "quote": [<output quote0 bytes>],
-            "status": 0,
-            "nodeport": "node_port0",
-            "rpcport": "rpc_port0"
-        },
-        {
-            "pubhost": "rpc_public_ip1",
-            "cert": [<output node1 cert bytes>],
-            "host": "node/rpc_ip1",
-            "quote": [<output quote1 bytes>],
-            "status": 0,
-            "nodeport": "node_port1",
-            "rpcport": "rpc_port1"
-        }
-    ]
+    $ cchost --enclave-file=/path/to/enclave_library --enclave-type=debug
+    --node-address=node_ip:node_port --rpc-address=rpc_ip:rpc_port
+    --public-rpc-address=public_rpc_ip:public_rpc_port --ledger-file=/path/to/ledger
+    --node-cert-file=/path/to/node_certificate --quote-file=/path/to/quote
+    start --network-cert-file=/path/to/network_certificate --gov-script=/path/to/lua/governance_script
+    --member-certs=member_certificates_glob --user-certs=user_certificates_glob
 
-Then, certificates for members and users can be created to allow secure TLS communication between the clients and the enclaves of each node. For example, for two members and one user, you should run:
+When starting up, the node generates its own key pair and outputs the certificate associated with its public key at the location specified by ``--node-cert-file``. A quote file, required for remote attestation, is also output at the location specified by ``--quote-file``. The certificate of the freshly-created CCF network is also output at the location specified by ``--network-cert-file``.
 
-.. code-block:: bash
+.. note:: The network certificate should be used by users and members as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. For the ``client`` and ``memberclient`` utilities, ``--ca=/path/to/network_certificate`` should always be specified.
 
-    $ genesisgenerator cert --name=member1
-    $ genesisgenerator cert --name=member2
-    $ genesisgenerator cert --name=user1
+The :ref:`governance` rules are defined as a Lua script passed via the ``--gov-script`` option. For example, a default set of `governance rules <https://github.com/microsoft/CCF/blob/master/src/runtime_config/gov.lua>`_ can be used to define a majority of members as the :term:`quorum` of the consortium.
 
-Finally, the genesis transaction (``tx0``), containing the initial state of the network, including the initial set of nodes, users and members certificates and governance scripts, can be created:
+The identities of members and users are specified as `glob patterns <https://en.wikipedia.org/wiki/Glob_(programming)>`_ via the ``--member-certs`` and ``--user-certs`` option, respectively. For example, if 2 members (``member1_cert.pem`` and ``member2_cert.pem``) and 3 users (``user1_cert.pem``, ``user2_cert.pem`` and ``user3_cert.pem``) should be added to CCF, operators should specify ``--member-certs=member*_cert.pem`` and ``--user-certs=user*_cert.pem``.
 
-.. code-block:: bash
+.. note:: Once a CCF network is started, members can add other members and users via governance. See :ref:`Submitting a new proposal` for more information.
 
-    $ genesisgenerator tx --members=member*cert.pem --users=user*cert.pem --nodes=nodes.json --gov-script=src/runtime_config/gov.lua --tx0=tx0 --start-json=startNetwork.json
+When CCF is used to run a custom Lua application, the starting node should also be started with the ``--app-script=/path/to/lua/application_script`` (see the `samples folder <https://github.com/microsoft/CCF/tree/master/samples/apps>`_ for example of Lua applications).
 
-This command also generates the ``startNetwork.json`` RPC file required to start up the network.
-
-Starting up the network
-~~~~~~~~~~~~~~~~~~~~~~~
-
-Once the initial nodes are running and the initial state of the network is ready to deploy, the network can be started by one of the members:
-
-.. code-block:: bash
-
-    $ client --server-address=node0_ip:node0_rpcport startnetwork --ca=node0_cert_file --req=@startNetwork.json
-
-When executing the ``startNetwork.json`` RPC request, the target node deserialises the genesis transaction and immediately becomes the consensus primary of the new single-node network. Business transactions can then be issued by users and will commit immediately.
-
-Adding nodes to the network
+Joining an existing network
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Once a network has been started on one node, assuming that this node remains primary of the consensus network, join network RPC files can be generated for all others nodes defined in the initial state of the network (``nodes.json``):
+To join an existing network, other nodes should be started with the ``join`` option:
 
 .. code-block:: bash
 
-    $ genesisgenerator joinrpc --network-cert=networkcert.pem --target-address=node0_ip:node0_rpcport --join-json=joinNetwork.json
+     $ cchost --enclave-file=/path/to/enclave_library --enclave-type=debug
+    --node-address=node_ip:node_port --rpc-address=rpc_ip:rpc_port
+    --public-rpc-address=public_rpc_ip:public_rpc_port --ledger-file=/path/to/ledger
+    --node-cert-file=/path/to/node_certificate --quote-file=/path/to/quote
+    join --network-cert-file=/path/to/existing/network_certificate --target-rpc-address=target_rpc_ip:target_rpc_port
 
-Once done, each additional node (here, node 1) can join the existing network by running the following command:
+The node takes the certificate of the existing network to join via ``--network-cert-file`` and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by ``--target-rpc-address``. Once the join protocol [#remote_attestation]_ completes, the joining node becomes part of the network as a backup (see :ref:`Ledger replication` for more details on consensus protocols).
 
-.. code-block:: bash
+.. note:: When starting up the network or when joining an existing network, the network secrets required to decrypt the ledger are sealed and written to a file so that the network can later be recovered. See :ref:`Catastrophic Recovery` for more details on how to recover a crashed network.
 
-    $ client --server-address=node1_ip:node1_rpcport --ca=node1_cert_file joinnetwork --req=@joinNetwork.json
+Summary diagram
+~~~~~~~~~~~~~~~
 
-When executing the ``joinNetwork.json`` RPC, the target node initiates an enclave-to-enclave TLS connection to the network primary to retrieve the network secrets required to decrypt the serialised replicated transactions. Once the join protocol completes, the new node becomes a backup of the consensus network and starts replicating transactions executed by the primary.
+Once a node is part of the network (started with either the ``start`` or ``join`` option), members and users are authorised to issue JSON-RPC transactions to CCF.
 
-.. note:: When starting up the network or when a node joins an existing network, the network secrets required to decrypt the ledger are sealed to disc so that the network can later be recovered. See :ref:`Catastrophic Recovery` for more details on how to recover a crashed network.
-
+The following diagram summarises the steps required to bootstrap a CCF network:
 
 .. mermaid::
 
     sequenceDiagram
+        participant Operators
         participant Members
         participant Users
-        participant Primary
-        participant Backup
+        participant Node 0
+        participant Node 1
 
-        Members->>+Primary: start network
-        Primary->>+Primary: New network secrets
-        Primary-->>Members: start network success
+        Operators->>+Node 0: cchost start --rpc-address=ip0:port0
+        Node 0-->>Operators: Network Certificate
+        Note over Node 0: Part Of Network
 
-        Note over Primary: Part of Private Network
+        Operators->>+Node 1: cchost join --network-cert-file=Network Certificate --target-rpc-address=ip0:port0
 
-        Members->>+Backup: join network
-        Backup->>+Primary: join network (over TLS)
-        Primary->>+Backup: Network Secrets (over TLS)
+        Node 1->>+Node 0: Join network (over TLS)
+        Node 0-->>Node 1: Network Secrets (over TLS)
 
-        Note over Backup: Part of Private Network
+        Note over Node 1: Part Of Network
 
-        Backup-->>Members: join network response
+        loop Governance transactions
+            Members->>+Node 0: JSON-RPC Request
+            Node 0-->>Members: JSON-RPC Response
+            Members->>+Node 1: JSON-RPC Request
+            Node 1-->>Members: JSON-RPC Response
+        end
 
         loop Business transactions
-            Users->>+Primary: Tx
-            Primary-->>Users: response
-            Primary->>+Backup: Serialised Tx
+            Users->>+Node 0: JSON-RPC Request
+            Node 0-->>Users: JSON-RPC Response
+            Users->>+Node 1: JSON-RPC Request
+            Node 1-->>Users: JSON-RPC Response
         end
 
 
-Supporting code updates
-~~~~~~~~~~~~~~~~~~~~~~~
+Updating enclave code
+~~~~~~~~~~~~~~~~~~~~~
 
-The code being executed by the nodes might need to be updated from time to time.
-This can be achieved by creating a "new_code" proposal and passing the hash of the signed code. Once the proposal has been accepted, nodes running the new code may join the network. This allows stopping nodes running older versions of the code.
+.. warning:: Further details required.
+
+For new nodes to be able to join the network, the version of the code they run (as specified by the ``--enclave-file``) should be first trusted by the consortium of members.
+
+If the version of the code being executed needs to be updated (for example, to support additional JSON-RPC endpoints), memebrs can create a ``new_code`` proposal, specifying the new code version. Once the proposal has been accepted, nodes running the new code are authorised join the network. This allows stopping nodes running older versions of the code.
 
 .. note:: It is important to keep the code compatible with the previous version, since there will be a point in time in which the new code is running on at least one node, while the other version is running on a different node.
 
 .. note:: The safest way to restart or replace nodes is by stopping a single node running the old version and starting a node running the new version as a sequence of operations, in order to avoid a situation in which most nodes have been stopped, and new nodes will not be able to join since it would be impossible to reach a majority of nodes agreeing to accept new nodes (this restriction is imposed by the consensus algorithm).
 
+.. rubric:: Footnotes
+
+.. [#remote_attestation] When a new node joins an existing network, the network performs the remote attestation protocol by verifying the joining node's quote. It also checks that the version of the code running by the joining node known is trusted by the consortium.
