@@ -6,6 +6,7 @@
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
 #include "node/clientsignatures.h"
+#include "node/encryptor.h"
 #include "node/genesisgen.h"
 #include "node/rpc/jsonrpc.h"
 #include "node/rpc/memberfrontend.h"
@@ -32,6 +33,7 @@ auto kp = tls::make_key_pair();
 auto ca_mem = kp -> self_sign("CN=name_member");
 auto verifier_mem = tls::make_verifier(ca_mem);
 auto member_caller = verifier_mem -> raw_cert_data();
+auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
 
 string get_script_path(string name)
 {
@@ -970,6 +972,7 @@ TEST_CASE("Complete proposal after initial rejection")
 TEST_CASE("Add user via proposed call")
 {
   NetworkTables network;
+  network.tables->set_encryptor(encryptor);
   GenesisGenerator gen(network);
   gen.init_values();
   StubNodeState node;
