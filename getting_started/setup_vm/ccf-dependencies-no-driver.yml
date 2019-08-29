@@ -1,6 +1,7 @@
 - hosts: localhost
   vars:
     oe_playbook: scripts/ansible/oe-contributors-acc-setup-no-driver.yml
+    oe_build_opts: ""
   tasks:
     - import_role:
         name: openenclave
