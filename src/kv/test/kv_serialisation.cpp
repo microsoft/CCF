@@ -312,7 +312,7 @@ TEST_CASE("nlohmann (de)serialisation")
     auto r = std::make_shared<kv::StubConsensus>();
     using Table = Store::Map<std::vector<int>, std::string>;
     Store s0(r), s1;
-    auto& t = s0.create<Table>("t");
+    auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
     s1.create<Table>("t");
 
     Store::Tx tx;
@@ -329,7 +329,7 @@ TEST_CASE("nlohmann (de)serialisation")
     auto r = std::make_shared<kv::StubConsensus>();
     using Table = Store::Map<nlohmann::json, nlohmann::json>;
     Store s0(r), s1;
-    auto& t = s0.create<Table>("t");
+    auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
     s1.create<Table>("t");
 
     Store::Tx tx;

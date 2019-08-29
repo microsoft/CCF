@@ -255,8 +255,10 @@ TEST_CASE("Rollback and compact")
 TEST_CASE("Clear entire store")
 {
   Store kv_store;
-  auto& map1 = kv_store.create<std::string, std::string>("map1");
-  auto& map2 = kv_store.create<std::string, std::string>("map2");
+  auto& map1 = kv_store.create<std::string, std::string>(
+    "map1", kv::SecurityDomain::PUBLIC);
+  auto& map2 = kv_store.create<std::string, std::string>(
+    "map2", kv::SecurityDomain::PUBLIC);
 
   INFO("Commit a transaction over two maps");
   {
@@ -365,8 +367,9 @@ TEST_CASE("Global commit hooks")
 
   Store kv_store;
   auto& map_with_hook = kv_store.create<std::string, std::string>(
-    "map_with_hook", kv::SecurityDomain::PRIVATE, nullptr, global_hook);
-  auto& map_no_hook = kv_store.create<std::string, std::string>("map_no_hook");
+    "map_with_hook", kv::SecurityDomain::PUBLIC, nullptr, global_hook);
+  auto& map_no_hook = kv_store.create<std::string, std::string>(
+    "map_no_hook", kv::SecurityDomain::PUBLIC);
 
   INFO("Compact an empty store");
   {
@@ -462,7 +465,8 @@ TEST_CASE("Custom type serialisation test")
 {
   Store kv_store;
 
-  auto& map = kv_store.create<CustomClass, CustomClass>("map");
+  auto& map = kv_store.create<CustomClass, CustomClass>(
+    "map", kv::SecurityDomain::PUBLIC);
 
   CustomClass k(3);
   CustomClass v1(33);
@@ -473,7 +477,8 @@ TEST_CASE("Custom type serialisation test")
   INFO("Serialise/Deserialise 2 kv stores");
   {
     Store kv_store2;
-    auto& map2 = kv_store2.create<CustomClass, CustomClass>("map");
+    auto& map2 = kv_store2.create<CustomClass, CustomClass>(
+      "map", kv::SecurityDomain::PUBLIC);
 
     Store::Tx tx(kv_store.next_version());
     auto view = tx.get_view(map);
@@ -502,7 +507,10 @@ TEST_CASE("Custom type serialisation test")
 
 TEST_CASE("Clone schema")
 {
+  auto secrets = ccf::NetworkSecrets("");
+  auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
   Store store;
+  store.set_encryptor(encryptor);
 
   auto& public_map =
     store.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
@@ -524,9 +532,11 @@ TEST_CASE("Clone schema")
 TEST_CASE("Deserialise return status")
 {
   Store store;
-  auto& signatures = store.create<ccf::Signatures>("signatures");
-  auto& nodes = store.create<ccf::Nodes>("nodes");
-  auto& data = store.create<size_t, size_t>("data");
+
+  auto& signatures =
+    store.create<ccf::Signatures>("signatures", kv::SecurityDomain::PUBLIC);
+  auto& nodes = store.create<ccf::Nodes>("nodes", kv::SecurityDomain::PUBLIC);
+  auto& data = store.create<size_t, size_t>("data", kv::SecurityDomain::PUBLIC);
 
   auto kp = tls::make_key_pair();
 
@@ -572,12 +582,17 @@ TEST_CASE("Deserialise return status")
 
 TEST_CASE("map swap between stores")
 {
+  auto secrets = ccf::NetworkSecrets("");
+  auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
   Store s1;
+  s1.set_encryptor(encryptor);
+
   auto& d1 = s1.create<size_t, size_t>("data", kv::SecurityDomain::PRIVATE);
   auto& pd1 =
     s1.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
 
   Store s2;
+  s2.set_encryptor(encryptor);
   auto& d2 = s2.create<size_t, size_t>("data", kv::SecurityDomain::PRIVATE);
   auto& pd2 =
     s2.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
@@ -642,11 +657,11 @@ TEST_CASE("invalid map swaps")
 {
   {
     Store s1;
-    s1.create<size_t, size_t>("one");
+    s1.create<size_t, size_t>("one", kv::SecurityDomain::PUBLIC);
 
     Store s2;
-    s2.create<size_t, size_t>("one");
-    s2.create<size_t, size_t>("two");
+    s2.create<size_t, size_t>("one", kv::SecurityDomain::PUBLIC);
+    s2.create<size_t, size_t>("two", kv::SecurityDomain::PUBLIC);
 
     REQUIRE_THROWS_WITH(
       s2.swap_private_maps(s1),
@@ -655,11 +670,11 @@ TEST_CASE("invalid map swaps")
 
   {
     Store s1;
-    s1.create<size_t, size_t>("one");
-    s1.create<size_t, size_t>("two");
+    s1.create<size_t, size_t>("one", kv::SecurityDomain::PUBLIC);
+    s1.create<size_t, size_t>("two", kv::SecurityDomain::PUBLIC);
 
     Store s2;
-    s2.create<size_t, size_t>("one");
+    s2.create<size_t, size_t>("one", kv::SecurityDomain::PUBLIC);
 
     REQUIRE_THROWS_WITH(
       s2.swap_private_maps(s1),
@@ -669,13 +684,17 @@ TEST_CASE("invalid map swaps")
 
 TEST_CASE("private recovery map swap")
 {
+  auto secrets = ccf::NetworkSecrets("");
+  auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
   Store s1;
+  s1.set_encryptor(encryptor);
   auto& priv1 =
     s1.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE);
   auto& pub1 =
     s1.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
 
   Store s2;
+  s2.set_encryptor(encryptor);
   auto& priv2 =
     s2.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE);
   auto& pub2 =
