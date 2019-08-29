@@ -6,6 +6,7 @@
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
 #include "kv/test/stub_consensus.h"
+#include "node/encryptor.h"
 #include "node/entities.h"
 #include "node/networkstate.h"
 #include "node/rpc/jsonrpc.h"
@@ -165,6 +166,8 @@ public:
 auto kp = tls::make_key_pair();
 ccf::NetworkState network;
 ccf::NetworkState network2;
+auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+
 ccf::StubNodeState node;
 
 std::vector<uint8_t> sign_json(nlohmann::json j)
@@ -218,7 +221,7 @@ enclave::RPCContext member_rpc_ctx(0, member_caller);
 void prepare_callers()
 {
   Store::Tx txs;
-
+  network.tables->set_encryptor(encryptor);
   ccf::Certs* user_certs = &network.user_certs;
   ccf::Certs* member_certs = &network.member_certs;
   auto user_certs_view = txs.get_view(*user_certs);
