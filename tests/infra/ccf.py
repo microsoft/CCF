@@ -693,7 +693,6 @@ class Node:
         )
 
     def management_client(self, **kwargs):
-        LOG.error(f"{self.local_node_id}.pem")
         return infra.jsonrpc.client(
             self.host,
             self.rpc_port,
