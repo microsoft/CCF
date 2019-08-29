@@ -83,7 +83,7 @@ def run(args):
         result = network.vote(1, primary, proposal_id, True)
         assert result[0] and not result[1]
 
-        # result is true with just 2 votes because proposer implicit pro vote is assumed
+        # result is true with 3 votes (proposer, member 1, and member 2)
         result = network.vote(2, primary, proposal_id, True)
         assert result[0] and result[1]
 
