@@ -120,7 +120,7 @@ TEST_CASE(
     Store::Tx tx;
     auto view0 = tx.get_view(priv_map);
     view0->put("privk1", "privv1");
-    REQUIRE_THROWS_AS(tx.commit(), kv::SerialiseException);
+    REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
   }
 
   // Since a serialisation error occurred and was not recovered properly (see
