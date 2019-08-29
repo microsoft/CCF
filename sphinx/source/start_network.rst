@@ -8,24 +8,24 @@ To start up a network, the first node of the network should be started with the 
 
 .. code-block:: bash
 
-    $ cchost --enclave-file=/path/to/enclave_library --enclave-type=debug
-    --node-address=node_ip:node_port --rpc-address=rpc_ip:rpc_port
-    --public-rpc-address=public_rpc_ip:public_rpc_port --ledger-file=/path/to/ledger
-    --node-cert-file=/path/to/node_certificate --quote-file=/path/to/quote
-    start --network-cert-file=/path/to/network_certificate --gov-script=/path/to/lua/governance_script
-    --member-certs=member_certificates_glob --user-certs=user_certificates_glob
+    $ cchost --enclave-file /path/to/enclave_library --enclave-type debug
+    --node-address node_ip:node_port --rpc-address rpc_ip:rpc_port
+    --public-rpc-address public_rpc_ip:public_rpc_port --ledger-file /path/to/ledger
+    --node-cert-file /path/to/node_certificate --quote-file /path/to/quote
+    start --network-cert-file /path/to/network_certificate --gov-script /path/to/lua/governance_script
+    --member-certs member_certificates_glob --user-certs user_certificates_glob
 
 When starting up, the node generates its own key pair and outputs the certificate associated with its public key at the location specified by ``--node-cert-file``. A quote file, required for remote attestation, is also output at the location specified by ``--quote-file``. The certificate of the freshly-created CCF network is also output at the location specified by ``--network-cert-file``.
 
-.. note:: The network certificate should be used by users and members as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. For the ``client`` and ``memberclient`` utilities, ``--ca=/path/to/network_certificate`` should always be specified.
+.. note:: The network certificate should be used by users and members as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. For the ``client`` and ``memberclient`` utilities, ``--ca /path/to/network_certificate`` should always be specified.
 
 The :ref:`governance` rules are defined as a Lua script passed via the ``--gov-script`` option. For example, a default set of `governance rules <https://github.com/microsoft/CCF/blob/master/src/runtime_config/gov.lua>`_ can be used to define a majority of members as the :term:`quorum` of the consortium.
 
-The identities of members and users are specified as `glob patterns <https://en.wikipedia.org/wiki/Glob_(programming)>`_ via the ``--member-certs`` and ``--user-certs`` option, respectively. For example, if 2 members (``member1_cert.pem`` and ``member2_cert.pem``) and 3 users (``user1_cert.pem``, ``user2_cert.pem`` and ``user3_cert.pem``) should be added to CCF, operators should specify ``--member-certs=member*_cert.pem`` and ``--user-certs=user*_cert.pem``.
+The identities of members and users are specified as `glob patterns <https://en.wikipedia.org/wiki/Glob_(programming)>`_ via the ``--member-certs`` and ``--user-certs`` option, respectively. For example, if 2 members (``member1_cert.pem`` and ``member2_cert.pem``) and 3 users (``user1_cert.pem``, ``user2_cert.pem`` and ``user3_cert.pem``) should be added to CCF, operators should specify ``--member-certs member*_cert.pem`` and ``--user-certs user*_cert.pem``.
 
 .. note:: Once a CCF network is started, members can add other members and users via governance. See :ref:`Submitting a new proposal` for more information.
 
-When CCF is used to run a custom Lua application, the starting node should also be started with the ``--app-script=/path/to/lua/application_script`` (see the `samples folder <https://github.com/microsoft/CCF/tree/master/samples/apps>`_ for example of Lua applications).
+When CCF is used to run a custom Lua application, the starting node should also be started with the ``--app-script /path/to/lua/application_script`` (see the `samples folder <https://github.com/microsoft/CCF/tree/master/samples/apps>`_ for example of Lua applications).
 
 Joining an existing network
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -34,11 +34,11 @@ To join an existing network, other nodes should be started with the ``join`` opt
 
 .. code-block:: bash
 
-     $ cchost --enclave-file=/path/to/enclave_library --enclave-type=debug
-    --node-address=node_ip:node_port --rpc-address=rpc_ip:rpc_port
-    --public-rpc-address=public_rpc_ip:public_rpc_port --ledger-file=/path/to/ledger
-    --node-cert-file=/path/to/node_certificate --quote-file=/path/to/quote
-    join --network-cert-file=/path/to/existing/network_certificate --target-rpc-address=target_rpc_ip:target_rpc_port
+     $ cchost --enclave-file /path/to/enclave_library --enclave-type debug
+    --node-address node_ip:node_port --rpc-address rpc_ip:rpc_port
+    --public-rpc-address public_rpc_ip:public_rpc_port --ledger-file /path/to/ledger
+    --node-cert-file /path/to/node_certificate --quote-file /path/to/quote
+    join --network-cert-file /path/to/existing/network_certificate --target-rpc-address target_rpc_ip:target_rpc_port
 
 The node takes the certificate of the existing network to join via ``--network-cert-file`` and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by ``--target-rpc-address``. Once the join protocol [#remote_attestation]_ completes, the joining node becomes part of the network as a backup (see :ref:`Ledger replication` for more details on consensus protocols).
 

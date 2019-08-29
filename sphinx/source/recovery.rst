@@ -22,11 +22,11 @@ To initiate the first phase of the recovery protocol, one or several nodes shoul
 
 .. code-block:: bash
 
-    $ cchost --enclave-file=/path/to/enclave_library --enclave-type=debug --node-address=node_ip:node_port
-    --rpc-address=rpc_ip:rpc_port --public-rpc-address=public_rpc_ip:public_rpc_port
-    --ledger-file=/path/to/ledger/to/recover
-    --node-cert-file=/path/to/node_certificate --quote-file=/path/to/quote
-    recover --network-cert-file=/path/to/network_certificate
+    $ cchost --enclave-file /path/to/enclave_library --enclave-type debug --node-address node_ip:node_port
+    --rpc-address rpc_ip:rpc_port --public-rpc-address public_rpc_ip:public_rpc_port
+    --ledger-file /path/to/ledger/to/recover
+    --node-cert-file /path/to/node_certificate --quote-file /path/to/quote
+    recover --network-cert-file /path/to/network_certificate
 
 Each node will then immediately restore the public entries of its ledger (``--ledger-file``). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by running the ``getSignedIndex`` JSON-RPC which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
 
@@ -67,17 +67,17 @@ Once the public crash-fault tolerant network is established, members are allowed
 
 .. code-block:: bash
 
-    $ memberclient --cert=/path/to/member1/certificate --privk=/path/to/member1/private/key
-    --rpc-address=node2_rpc_ip:node2_rpc_port --ca=/path/to/new/network/certificate
-    accept_recovery --sealed-secrets=/path/to/sealed/secrets/file
+    $ memberclient --cert /path/to/member1/certificate --privk /path/to/member1/private/key
+    --rpc-address node2_rpc_ip:node2_rpc_port --ca /path/to/new/network/certificate
+    accept_recovery --sealed-secrets /path/to/sealed/secrets/file
 
 If successful, this commands returns the proposal id that can be used by other members to submit their votes:
 
 .. code-block:: bash
 
-    $ memberclient --cert=/path/to/member2/certificate --privk=/path/to/member2/private/key
-    --rpc-address=node2_rpc_ip:node2_rpc_port --ca=/path/to/new/network/certificate
-    vote --accept --proposal-id=proposal_id
+    $ memberclient --cert /path/to/member2/certificate --privk /path/to/member2/private/key
+    --rpc-address node2_rpc_ip:node2_rpc_port --ca /path/to/new/network/certificate
+    vote --accept --proposal-id proposal_id
 
 Once a :term:`quorum` of members have agreed to recover the network, the network secrets are unsealed and each node begins recovery of the private ledger entries.
 

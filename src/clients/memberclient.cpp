@@ -288,13 +288,13 @@ int main(int argc, char** argv)
   auto add_member = app.add_subcommand("add_member", "Add a new member");
   string member_cert_file;
   add_member
-    ->add_option("--member_cert", member_cert_file, "New member certificate")
+    ->add_option("--member-cert", member_cert_file, "New member certificate")
     ->required(true)
     ->check(CLI::ExistingFile);
 
   auto add_user = app.add_subcommand("add_user", "Add a new user");
   string user_cert_file;
-  add_user->add_option("--user_cert", user_cert_file, "New user certificate")
+  add_user->add_option("--user-cert", user_cert_file, "New user certificate")
     ->required(true)
     ->check(CLI::ExistingFile);
 
@@ -327,14 +327,14 @@ int main(int argc, char** argv)
   auto add_node = app.add_subcommand("add_node", "Add a node");
   add_node
     ->add_option(
-      "--nodes_to_add", nodes_file, "The file containing the nodes to be added")
+      "--nodes-to-add", nodes_file, "The file containing the nodes to be added")
     ->required(true);
 
   std::string new_code_id;
   auto add_code = app.add_subcommand("add_code", "Support executing new code");
   add_code
     ->add_option(
-      "--new_code_id",
+      "--new-code-id",
       new_code_id,
       "The new code id (a 64 character string representing a 32 byte hash "
       "value in hex format)")
@@ -361,7 +361,8 @@ int main(int argc, char** argv)
     ->check(CLI::ExistingFile);
 
   auto removal = app.add_subcommand("removal", "Remove a proposal");
-  removal->add_option("--id", proposal_id, "The proposal id")->required(true);
+  removal->add_option("--proposal-id", proposal_id, "The proposal id")
+    ->required(true);
 
   auto accept_recovery =
     app.add_subcommand("accept_recovery", "Accept to recover network");
