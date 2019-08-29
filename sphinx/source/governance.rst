@@ -3,7 +3,7 @@ Governance
 
 A trusted set of members is in charge of governing a given CCF network. For transparency and auditability, all governance operations are recorded in plaintext in the ledger.
 
-One member (proposer) can submit a new proposal. Once they have done this, other members can vote for the proposal using its unique proposal ID. Proposals are executed once a quorum of members have accepted it.
+One member (proposer) can submit a new proposal. Once they have done this, other members can vote for the proposal using its unique proposal ID. Proposals are executed once a :term:`quorum` of members have accepted it.
 
 The quorum is defined as a Lua script in the genesis transaction (see for example `the default quorum script`_). Common governance operations include adding a new user, member or a new version of the CCF code.
 
@@ -28,7 +28,7 @@ In this case, a new proposal with id ``1`` has successfully been created and the
 .. code-block:: bash
 
     // Proposal 1 is already created by member 1 (votes: 1/3)
-    
+
     // Member 2 rejects the proposal (votes: 1/3)
     $ memberclient vote --reject --id=1 --cert=member2_cert.pem --privk=member2_privk.pem --host=10.1.0.4 --port=25000 --ca=networkcert.pem --sign
     {"commit":104,"global_commit":103,"id":0,"jsonrpc":"2.0","result":false,"term":2}
@@ -64,7 +64,7 @@ The details of pending proposals, including the proposer member ID, proposal scr
     -- Votes: [[1,{"text":"\n      tables, changes = ...\n      return false"}]]
     ----------------------
 
-In this case, there is one pending proposal (``id`` is 1), proposed by the first member (``member1``, ``id`` is 0) and which will call the ``new_member`` function with the new member's certificate as a parameter. Only one vote has been cast by ``member2`` (``id`` is 1) to reject the proposal while ``member1`` (proposer) has already implicitly accepted it. 
+In this case, there is one pending proposal (``id`` is 1), proposed by the first member (``member1``, ``id`` is 0) and which will call the ``new_member`` function with the new member's certificate as a parameter. Only one vote has been cast by ``member2`` (``id`` is 1) to reject the proposal while ``member1`` (proposer) has already implicitly accepted it.
 
 Removing proposals
 ------------------

@@ -44,7 +44,7 @@ int main(int argc, char** argv)
     .add_set(
       "-t,--enclave-type",
       enclave_type,
-      {"debug", "simulate", "virtual"},
+      {"debug", "virtual"},
       "Enclave type",
       true)
     ->required();
@@ -76,6 +76,13 @@ int main(int argc, char** argv)
     host_log_level,
     {"fatal", "fail", "info", "debug", "trace"},
     "Only emit host log messages above that level",
+    true);
+
+  std::string node_cert_file("nodecert.pem");
+  app.add_option(
+    "--node-cert-file",
+    node_cert_file,
+    "Path to which the node certificate will be written",
     true);
 
   std::string quote_file("quote.bin");
@@ -118,13 +125,6 @@ int main(int argc, char** argv)
     "--raft-election-timeout-ms",
     raft_election_timeout,
     "Raft election timeout in milliseconds",
-    true);
-
-  std::string node_cert_file("nodecert.pem");
-  app.add_option(
-    "--node-cert-file",
-    node_cert_file,
-    "Path to which the node certificate will be written",
     true);
 
   size_t max_msg_size = 24;
@@ -172,7 +172,7 @@ int main(int argc, char** argv)
   auto start = app.add_subcommand("start", "Start new network");
   start
     ->add_option(
-      "--network-cert",
+      "--network-cert-file",
       network_cert_file,
       "Destination path to freshly created network certificate",
       true)
@@ -235,14 +235,19 @@ int main(int argc, char** argv)
     ->required();
 
   auto recover = app.add_subcommand("recover", "Recover crashed network");
+  recover
+    ->add_option(
+      "--network-cert-file",
+      network_cert_file,
+      "Destination path to freshly created network certificate",
+      true)
+    ->check(CLI::NonexistentPath);
 
   CLI11_PARSE(app, argc, argv);
 
   uint32_t oe_flags = 0;
   if (enclave_type == "debug")
     oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
-  else if (enclave_type == "simulate")
-    oe_flags |= OE_ENCLAVE_FLAG_SIMULATE;
   else if (enclave_type == "virtual")
     oe_flags = ENCLAVE_FLAG_VIRTUAL;
   else
