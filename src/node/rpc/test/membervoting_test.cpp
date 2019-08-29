@@ -283,6 +283,108 @@ TEST_CASE("Member query/read")
   }
 }
 
+TEST_CASE("Proposer ballot")
+{
+  NetworkTables network;
+  GenesisGenerator gen(network);
+  gen.init_values();
+
+  const auto proposer_cert = get_cert_data(0, kp);
+  const auto proposer_id = gen.add_member(proposer_cert, MemberStatus::ACTIVE);
+  const auto voter_cert = get_cert_data(1, kp);
+  const auto voter_id = gen.add_member(voter_cert, MemberStatus::ACTIVE);
+
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
+  gen.finalize();
+
+  StubNodeState node;
+  MemberCallRpcFrontend frontend(network, node);
+
+  size_t proposal_id;
+
+  const ccf::Script vote_for("return true");
+  const ccf::Script vote_against("return false");
+  {
+    INFO("Propose, initially voting against");
+
+    const auto proposed_member = get_cert_data(2, kp);
+
+    Script proposal(R"xxx(
+      tables, member_cert = ...
+      return Calls:call("new_member", member_cert)
+    )xxx");
+    const auto proposej = create_json_req(
+      Proposal::In{proposal, proposed_member, vote_against}, "propose");
+    enclave::RPCContext rpc_ctx(proposer_id, proposer_cert);
+
+    Store::Tx tx;
+    ccf::SignedReq sr(proposej);
+    Response<Proposal::Out> r =
+      frontend.process_json(rpc_ctx, tx, proposer_id, proposej, sr).value();
+
+    // the proposal should be accepted, but not succeed immediately
+    CHECK(r.result.completed == false);
+
+    proposal_id = r.result.id;
+  }
+
+  {
+    INFO("Second member votes for proposal");
+
+    const auto votej =
+      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+
+    Store::Tx tx;
+    enclave::RPCContext rpc_ctx(voter_id, voter_cert);
+    ccf::SignedReq sr(votej);
+    Response<bool> r =
+      frontend.process_json(rpc_ctx, tx, voter_id, votej["req"], sr).value();
+
+    // The vote should not yet succeed
+    CHECK(r.result == false);
+  }
+
+  {
+    INFO("Read current votes");
+
+    const auto readj = create_json_req_signed(
+      read_params(proposal_id, Tables::PROPOSALS), "read", kp);
+
+    Store::Tx tx;
+    enclave::RPCContext rpc_ctx(proposer_id, proposer_cert);
+    const Response<OpenProposal> proposal =
+      get_proposal(rpc_ctx, frontend, proposal_id, proposer_id);
+
+    const auto& votes = proposal.result.votes;
+    CHECK(votes.size() == 2);
+
+    const auto proposer_vote = votes.find(proposer_id);
+    CHECK(proposer_vote != votes.end());
+    CHECK(proposer_vote->second == vote_against);
+
+    const auto voter_vote = votes.find(voter_id);
+    CHECK(voter_vote != votes.end());
+    CHECK(voter_vote->second == vote_for);
+  }
+
+  {
+    INFO("Proposer votes for");
+
+    const auto votej =
+      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+
+    Store::Tx tx;
+    enclave::RPCContext rpc_ctx(proposer_id, proposer_cert);
+    ccf::SignedReq sr(votej);
+    Response<bool> r =
+      frontend.process_json(rpc_ctx, tx, proposer_id, votej["req"], sr).value();
+
+    // The vote should now succeed
+    CHECK(r.result == true);
+  }
+}
+
 struct NewMember
 {
   MemberId id;
