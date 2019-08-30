@@ -495,7 +495,8 @@ namespace ccf
       network.secrets->promote_secrets(0, last_index + 1);
 
       g.create_service(
-            {network.secrets->get_current().cert, ServiceStatus::OPENING}, last_index + 1);
+        {network.secrets->get_current().cert, ServiceStatus::OPENING},
+        last_index + 1);
 
       g.delete_active_nodes();
 
@@ -768,7 +769,6 @@ namespace ccf
         }
         secrets_view->put(ns_idx, past_secrets);
       }
-
 
       GenesisGenerator g(network);
       g.open_service();

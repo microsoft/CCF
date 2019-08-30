@@ -135,14 +135,16 @@ namespace ccf
     void create_service(
       const ServiceInfo& service_info, kv::Version version = 0)
     {
-      auto [service_view, values_view] = tx.get_view(tables.service, tables.values);
+      auto [service_view, values_view] =
+        tx.get_view(tables.service, tables.values);
       service_view->put(version, service_info);
       values_view->put(ValueIds::ACTIVE_SERVICE_VERSION, version);
     }
 
     void open_service()
     {
-      auto [service_view, values_view] = tx.get_view(tables.service, tables.values);
+      auto [service_view, values_view] =
+        tx.get_view(tables.service, tables.values);
 
       auto service_version = values_view->get(ValueIds::ACTIVE_SERVICE_VERSION);
       if (!service_version.has_value())
