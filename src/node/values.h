@@ -18,6 +18,7 @@ namespace ccf
     NEXT_NODE_ID = 2,
     NEXT_PROPOSAL_ID = 3,
     NEXT_CODE_ID = 4,
+    ACTIVE_SERVICE_VERSION = 5,
     // not to be used
     END_ID
   };
