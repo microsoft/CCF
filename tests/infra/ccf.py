@@ -29,7 +29,7 @@ class NodeNetworkState(Enum):
 class ServiceStatus(Enum):
     OPENING = 1
     OPEN = 2
-    CLOSED = 2
+    CLOSED = 3
 
 
 @contextmanager
