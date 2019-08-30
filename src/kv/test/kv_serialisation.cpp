@@ -14,16 +14,66 @@
 
 using namespace ccfapp;
 
-TEST_CASE("Serialise/deserialise public map only")
+struct CustomClass
 {
+  int m_i;
+
+  CustomClass() : CustomClass(-1) {}
+  CustomClass(int i) : m_i(i) {}
+
+  int get() const
+  {
+    return m_i;
+  }
+  void set(std::string val)
+  {
+    m_i = std::stoi(val);
+  }
+
+  CustomClass operator()()
+  {
+    CustomClass ret;
+    return ret;
+  }
+
+  bool operator<(const CustomClass& other) const
+  {
+    return m_i < other.m_i;
+  }
+
+  bool operator==(const CustomClass& other) const
+  {
+    return !(other < *this) && !(*this < other);
+  }
+
+  MSGPACK_DEFINE(m_i);
+};
+
+namespace std
+{
+  template <>
+  struct hash<CustomClass>
+  {
+    std::size_t operator()(const CustomClass& inst) const
+    {
+      return inst.get();
+    }
+  };
+}
+
+DECLARE_JSON_TYPE(CustomClass)
+DECLARE_JSON_REQUIRED_FIELDS(CustomClass, m_i)
+
+TEST_CASE(
+  "Serialise/deserialise public map only" *
+  doctest::test_suite("serialisation"))
+{
+  // No need for an encryptor here as all maps are public. Both serialisation
+  // and deserialisation should succeed.
   auto consensus = std::make_shared<kv::StubConsensus>();
-  auto secrets = ccf::NetworkSecrets("");
-  auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
 
   Store kv_store(consensus);
   Store kv_store_target;
-  kv_store.set_encryptor(encryptor);
-  kv_store_target.set_encryptor(encryptor);
 
   auto& pub_map = kv_store.create<std::string, std::string>(
     "pub_map", kv::SecurityDomain::PUBLIC);
@@ -50,20 +100,34 @@ TEST_CASE("Serialise/deserialise public map only")
   }
 }
 
-TEST_CASE("Serialise/deserialise private map only")
+TEST_CASE(
+  "Serialise/deserialise private map only" *
+  doctest::test_suite("serialisation"))
 {
   auto consensus = std::make_shared<kv::StubConsensus>();
-  auto secrets = ccf::NetworkSecrets("");
-  auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
 
   Store kv_store(consensus);
   Store kv_store_target;
-  kv_store.set_encryptor(encryptor);
   kv_store_target.set_encryptor(encryptor);
 
   auto& priv_map = kv_store.create<std::string, std::string>(
     "priv_map", kv::SecurityDomain::PRIVATE);
   kv_store_target.clone_schema(kv_store);
+
+  INFO("Commit a private transaction without an encryptor throws an exception");
+  {
+    Store::Tx tx;
+    auto view0 = tx.get_view(priv_map);
+    view0->put("privk1", "privv1");
+    REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
+  }
+
+  // Since a serialisation error occurred and was not recovered properly (see
+  // https://github.com/microsoft/CCF/issues/338), we need to clear the store to
+  // get a fresh version.
+  kv_store.clear();
+  kv_store.set_encryptor(encryptor);
 
   INFO("Commit to private map in source store");
   {
@@ -86,11 +150,12 @@ TEST_CASE("Serialise/deserialise private map only")
   }
 }
 
-TEST_CASE("Serialise/deserialise private and public maps")
+TEST_CASE(
+  "Serialise/deserialise private and public maps" *
+  doctest::test_suite("serialisation"))
 {
   auto consensus = std::make_shared<kv::StubConsensus>();
-  auto secrets = ccf::NetworkSecrets("");
-  auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
 
   Store kv_store(consensus);
   Store kv_store_target;
@@ -130,11 +195,11 @@ TEST_CASE("Serialise/deserialise private and public maps")
   }
 }
 
-TEST_CASE("Serialise/deserialise removed keys")
+TEST_CASE(
+  "Serialise/deserialise removed keys" * doctest::test_suite("serialisation"))
 {
   auto consensus = std::make_shared<kv::StubConsensus>();
-  auto secrets = ccf::NetworkSecrets("");
-  auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
 
   Store kv_store(consensus);
   Store kv_store_target;
@@ -186,51 +251,48 @@ TEST_CASE("Serialise/deserialise removed keys")
   }
 }
 
-TEST_CASE("Serialise private map with no encryptor/Deserialise in new store")
+TEST_CASE(
+  "Custom type serialisation test" * doctest::test_suite("serialisation"))
 {
-  // TODO: Remove such behaviour https://github.com/microsoft/CCF/issues/316
-  // This test mirrors the behaviour of the genesisgenerator utility which does
-  // not have an encryptor and serialise all maps as if they were public.
-  auto consensus = std::make_shared<kv::StubConsensus>();
-  Store kv_store(consensus);
+  Store kv_store;
 
-  auto& map = kv_store.create<std::string, std::string>("map");
+  auto& map = kv_store.create<CustomClass, CustomClass>(
+    "map", kv::SecurityDomain::PUBLIC);
 
-  constexpr auto k = "key";
-  constexpr auto k2 = "key2";
-  constexpr auto v1 = "value1";
-  constexpr auto v2 = "value2";
+  CustomClass k(3);
+  CustomClass v1(33);
 
-  INFO("Serialise single transaction");
+  CustomClass k2(2);
+  CustomClass v2(22);
+
+  INFO("Serialise/Deserialise 2 kv stores");
   {
-    Store::Tx tx;
+    Store kv_store2;
+    auto& map2 = kv_store2.create<CustomClass, CustomClass>(
+      "map", kv::SecurityDomain::PUBLIC);
+
+    Store::Tx tx(kv_store.next_version());
     auto view = tx.get_view(map);
     view->put(k, v1);
     view->put(k2, v2);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-  }
 
-  INFO("Deserialise transaction in new kv store");
-  {
-    Store kv_store2;
-    auto& map2 = kv_store2.create<std::string, std::string>("map");
+    auto [success, reqid, serialised] = tx.commit_reserved();
+    REQUIRE(success == kv::CommitSuccess::OK);
+    kv_store.compact(view->end_order());
 
-    auto serial = consensus->get_latest_data();
-    REQUIRE(consensus->number_of_replicas() == 1);
-    REQUIRE(serial.second);
-    REQUIRE(!serial.first.empty());
-
-    Store::Tx tx;
-    REQUIRE(
-      kv_store2.deserialise(serial.first) != kv::DeserialiseSuccess::FAILED);
-    auto view2 = tx.get_view(map2);
+    REQUIRE(kv_store2.deserialise(serialised) == kv::DeserialiseSuccess::PASS);
+    Store::Tx tx2;
+    auto view2 = tx2.get_view(map2);
     auto va = view2->get(k);
+
     REQUIRE(va.has_value());
     REQUIRE(va.value() == v1);
     auto vb = view2->get(k2);
     REQUIRE(vb.has_value());
     REQUIRE(vb.value() == v2);
-    consensus->flush();
+    // we only require operator==() to be implemented, so for consistency -
+    // this is the operator we use for comparison, and not operator!=()
+    REQUIRE(!(vb.value() == v1));
   }
 }
 
@@ -260,12 +322,14 @@ bool corrupt_serialised_tx(
   return false;
 }
 
-TEST_CASE("Integrity")
+TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
 {
   SUBCASE("Public and Private")
   {
     auto consensus = std::make_shared<kv::StubConsensus>();
 
+    // Here, a real encryptor is needed to protect the integrity of the
+    // transactions
     auto secrets = ccf::NetworkSecrets("");
     auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
 
@@ -299,7 +363,7 @@ TEST_CASE("Integrity")
   }
 }
 
-TEST_CASE("nlohmann (de)serialisation")
+TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
 {
   const auto k0 = "abc";
   const auto v0 = 123;
@@ -312,7 +376,7 @@ TEST_CASE("nlohmann (de)serialisation")
     auto r = std::make_shared<kv::StubConsensus>();
     using Table = Store::Map<std::vector<int>, std::string>;
     Store s0(r), s1;
-    auto& t = s0.create<Table>("t");
+    auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
     s1.create<Table>("t");
 
     Store::Tx tx;
@@ -329,7 +393,7 @@ TEST_CASE("nlohmann (de)serialisation")
     auto r = std::make_shared<kv::StubConsensus>();
     using Table = Store::Map<nlohmann::json, nlohmann::json>;
     Store s0(r), s1;
-    auto& t = s0.create<Table>("t");
+    auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
     s1.create<Table>("t");
 
     Store::Tx tx;

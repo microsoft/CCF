@@ -15,56 +15,6 @@
 
 using namespace ccfapp;
 
-struct CustomClass
-{
-  int m_i;
-
-  CustomClass() : CustomClass(-1) {}
-  CustomClass(int i) : m_i(i) {}
-
-  int get() const
-  {
-    return m_i;
-  }
-  void set(std::string val)
-  {
-    m_i = std::stoi(val);
-  }
-
-  CustomClass operator()()
-  {
-    CustomClass ret;
-    return ret;
-  }
-
-  bool operator<(const CustomClass& other) const
-  {
-    return m_i < other.m_i;
-  }
-
-  bool operator==(const CustomClass& other) const
-  {
-    return !(other < *this) && !(*this < other);
-  }
-
-  MSGPACK_DEFINE(m_i);
-};
-
-namespace std
-{
-  template <>
-  struct hash<CustomClass>
-  {
-    std::size_t operator()(const CustomClass& inst) const
-    {
-      return inst.get();
-    }
-  };
-}
-
-DECLARE_JSON_TYPE(CustomClass)
-DECLARE_JSON_REQUIRED_FIELDS(CustomClass, m_i)
-
 TEST_CASE("Map creation")
 {
   Store kv_store;
@@ -255,8 +205,10 @@ TEST_CASE("Rollback and compact")
 TEST_CASE("Clear entire store")
 {
   Store kv_store;
-  auto& map1 = kv_store.create<std::string, std::string>("map1");
-  auto& map2 = kv_store.create<std::string, std::string>("map2");
+  auto& map1 = kv_store.create<std::string, std::string>(
+    "map1", kv::SecurityDomain::PUBLIC);
+  auto& map2 = kv_store.create<std::string, std::string>(
+    "map2", kv::SecurityDomain::PUBLIC);
 
   INFO("Commit a transaction over two maps");
   {
@@ -365,8 +317,9 @@ TEST_CASE("Global commit hooks")
 
   Store kv_store;
   auto& map_with_hook = kv_store.create<std::string, std::string>(
-    "map_with_hook", kv::SecurityDomain::PRIVATE, nullptr, global_hook);
-  auto& map_no_hook = kv_store.create<std::string, std::string>("map_no_hook");
+    "map_with_hook", kv::SecurityDomain::PUBLIC, nullptr, global_hook);
+  auto& map_no_hook = kv_store.create<std::string, std::string>(
+    "map_no_hook", kv::SecurityDomain::PUBLIC);
 
   INFO("Compact an empty store");
   {
@@ -458,51 +411,11 @@ TEST_CASE("Global commit hooks")
   }
 }
 
-TEST_CASE("Custom type serialisation test")
-{
-  Store kv_store;
-
-  auto& map = kv_store.create<CustomClass, CustomClass>("map");
-
-  CustomClass k(3);
-  CustomClass v1(33);
-
-  CustomClass k2(2);
-  CustomClass v2(22);
-
-  INFO("Serialise/Deserialise 2 kv stores");
-  {
-    Store kv_store2;
-    auto& map2 = kv_store2.create<CustomClass, CustomClass>("map");
-
-    Store::Tx tx(kv_store.next_version());
-    auto view = tx.get_view(map);
-    view->put(k, v1);
-    view->put(k2, v2);
-
-    auto [success, reqid, serialised] = tx.commit_reserved();
-    REQUIRE(success == kv::CommitSuccess::OK);
-    kv_store.compact(view->end_order());
-
-    REQUIRE(kv_store2.deserialise(serialised) == kv::DeserialiseSuccess::PASS);
-    Store::Tx tx2;
-    auto view2 = tx2.get_view(map2);
-    auto va = view2->get(k);
-
-    REQUIRE(va.has_value());
-    REQUIRE(va.value() == v1);
-    auto vb = view2->get(k2);
-    REQUIRE(vb.has_value());
-    REQUIRE(vb.value() == v2);
-    // we only require operator==() to be implemented, so for consistency -
-    // this is the operator we use for comparison, and not operator!=()
-    REQUIRE(!(vb.value() == v1));
-  }
-}
-
 TEST_CASE("Clone schema")
 {
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   Store store;
+  store.set_encryptor(encryptor);
 
   auto& public_map =
     store.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
@@ -517,6 +430,7 @@ TEST_CASE("Clone schema")
 
   Store clone;
   clone.clone_schema(store);
+  clone.set_encryptor(encryptor);
 
   REQUIRE(clone.deserialise(serialised) == kv::DeserialiseSuccess::PASS);
 }
@@ -524,9 +438,11 @@ TEST_CASE("Clone schema")
 TEST_CASE("Deserialise return status")
 {
   Store store;
-  auto& signatures = store.create<ccf::Signatures>("signatures");
-  auto& nodes = store.create<ccf::Nodes>("nodes");
-  auto& data = store.create<size_t, size_t>("data");
+
+  auto& signatures =
+    store.create<ccf::Signatures>("signatures", kv::SecurityDomain::PUBLIC);
+  auto& nodes = store.create<ccf::Nodes>("nodes", kv::SecurityDomain::PUBLIC);
+  auto& data = store.create<size_t, size_t>("data", kv::SecurityDomain::PUBLIC);
 
   auto kp = tls::make_key_pair();
 
@@ -572,12 +488,16 @@ TEST_CASE("Deserialise return status")
 
 TEST_CASE("map swap between stores")
 {
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   Store s1;
+  s1.set_encryptor(encryptor);
+
   auto& d1 = s1.create<size_t, size_t>("data", kv::SecurityDomain::PRIVATE);
   auto& pd1 =
     s1.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
 
   Store s2;
+  s2.set_encryptor(encryptor);
   auto& d2 = s2.create<size_t, size_t>("data", kv::SecurityDomain::PRIVATE);
   auto& pd2 =
     s2.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
@@ -669,13 +589,16 @@ TEST_CASE("invalid map swaps")
 
 TEST_CASE("private recovery map swap")
 {
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   Store s1;
+  s1.set_encryptor(encryptor);
   auto& priv1 =
     s1.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE);
   auto& pub1 =
     s1.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
 
   Store s2;
+  s2.set_encryptor(encryptor);
   auto& priv2 =
     s2.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE);
   auto& pub2 =
