@@ -113,6 +113,7 @@ namespace ccf
         std::ref(user_client_signatures),
         std::ref(nodes),
         std::ref(node_certs),
+        std::ref(service),
         std::ref(app_scripts),
         std::ref(values),
         std::ref(signatures));

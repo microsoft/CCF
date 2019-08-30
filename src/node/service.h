@@ -29,13 +29,13 @@ namespace ccf
 {
   struct ServiceInfo
   {
-    Cert pem_cert;
+    std::vector<uint8_t> cert;
     ServiceStatus status;
 
-    MSGPACK_DEFINE(pem_cert, status);
+    MSGPACK_DEFINE(cert, status);
   };
   DECLARE_JSON_TYPE(ServiceInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(ServiceInfo, pem_cert, status);
+  DECLARE_JSON_REQUIRED_FIELDS(ServiceInfo, cert, status);
 
   using Service = Store::Map<kv::Version, ServiceInfo>;
 }
