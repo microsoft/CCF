@@ -6,6 +6,7 @@
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
 #include "luainterp/luainterp.h"
+#include "node/encryptor.h"
 #include "node/genesisgen.h"
 #include "node/rpc/jsonrpc.h"
 #include "node/rpc/test/node_stub.h"
@@ -120,6 +121,8 @@ void check_store_load(F frontend, K k, V v)
 TEST_CASE("simple lua apps")
 {
   NetworkTables network;
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
   GenesisGenerator gen(network);
   gen.init_values();
   StubNotifier notifier;
@@ -241,6 +244,8 @@ TEST_CASE("simple lua apps")
 TEST_CASE("simple bank")
 {
   NetworkTables network;
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
   GenesisGenerator gen(network);
   gen.init_values();
   StubNotifier notifier;
@@ -343,6 +348,8 @@ TEST_CASE("simple bank")
 TEST_CASE("pre-populated environment")
 {
   NetworkTables network;
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
   GenesisGenerator gen(network);
   gen.init_values();
   StubNotifier notifier;

@@ -38,6 +38,20 @@ namespace kv
       static_cast<KotBase>(a) | static_cast<KotBase>(b));
   }
 
+  class KvSerialiserException : public std::exception
+  {
+  private:
+    std::string msg;
+
+  public:
+    KvSerialiserException(const std::string& msg_) : msg(msg_) {}
+
+    virtual const char* what() const throw()
+    {
+      return msg.c_str();
+    }
+  };
+
   template <typename K, typename V, typename Version>
   struct KeyValVersion
   {
@@ -80,28 +94,8 @@ namespace kv
       public_writer.append(std::forward<T>(t));
     }
 
-    // TODO(roy|#refactoring): this hack exists since the genesis generator
-    // cannot access any crypto_util. The correct solution would be to make sure
-    // that only public tables are being serialised during startup, so that this
-    // unwanted (and potentially harmful) function can be removed
-    SecurityDomain get_domain_to_be_used(SecurityDomain domain)
-    {
-      if (domain == SecurityDomain::PUBLIC)
-        return SecurityDomain::PUBLIC;
-
-      if (domain == SecurityDomain::PRIVATE)
-      {
-        // no crypto_util - treat as public
-        return crypto_util ? SecurityDomain::PRIVATE : SecurityDomain::PUBLIC;
-      }
-
-      throw std::logic_error(
-        "Unknown Security Domain " + std::to_string(domain));
-    }
-
     void set_current_domain(SecurityDomain domain)
     {
-      domain = get_domain_to_be_used(domain);
       switch (domain)
       {
         case SecurityDomain::PRIVATE:
@@ -109,7 +103,6 @@ namespace kv
           current_domain = SecurityDomain::PRIVATE;
           break;
         case SecurityDomain::PUBLIC:
-          // either public or private with no crypto_util
           current_writer = &public_writer;
           current_domain = SecurityDomain::PUBLIC;
           break;
@@ -130,7 +123,12 @@ namespace kv
 
     void start_map(const std::string& name, SecurityDomain domain)
     {
-      domain = get_domain_to_be_used(domain);
+      if (domain == SecurityDomain::PRIVATE && !crypto_util)
+      {
+        throw KvSerialiserException(fmt::format(
+          "Private map {} cannot be serialised without an encryptor", name));
+      }
+
       if (domain != current_domain)
         set_current_domain(domain);
 
