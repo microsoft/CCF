@@ -26,7 +26,7 @@ class NodeNetworkState(Enum):
     joined = 2
 
 
-class ServiceState(Enum):
+class ServiceStatus(Enum):
     OPENING = 1
     OPEN = 2
     CLOSED = 2
@@ -230,13 +230,13 @@ class Network:
                 node.network_state = NodeNetworkState.joined
 
         self.wait_for_all_nodes_have_joined(primary)
-        self.check_for_service(primary, state=ServiceState.OPENING)
+        self.check_for_service(primary, status=ServiceStatus.OPENING)
 
         LOG.success("All nodes joined recoverd public network")
 
         return primary, self.nodes[1:]
 
-    def check_for_service(self, node, state=ServiceState.OPEN):
+    def check_for_service(self, node, status=ServiceStatus.OPEN):
         """
         Check via the member frontend of the given node that the certificate
         associated with current CCF service signing key has been recorded in
@@ -255,7 +255,7 @@ class Network:
                     return tables["service"]:get(current_service_version)"""
                 },
             )
-            current_state = rep.result["status"].decode()
+            current_status = rep.result["status"].decode()
             current_cert = array.array("B", rep.result["cert"]).tobytes()
 
             expected_cert = open("networkcert.pem", "rb").read()
@@ -263,8 +263,8 @@ class Network:
                 current_cert == expected_cert
             ), "Current service certificate did not match with networkcert.pem"
             assert (
-                current_state == state.name
-            ), f"Service is in state {current_state} (expected {state.name})"
+                current_status == status.name
+            ), f"Service is in status {current_status} (expected {status.name})"
 
     def create_node(self, local_node_id, host, debug=False, perf=False):
         node = Node(local_node_id, host, debug, perf)

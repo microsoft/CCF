@@ -141,27 +141,6 @@ namespace ccf
       values_view->put(ValueIds::ACTIVE_SERVICE_VERSION, version);
     }
 
-    void open_service()
-    {
-      auto [service_view, values_view] =
-        tx.get_view(tables.service, tables.values);
-
-      auto service_version = values_view->get(ValueIds::ACTIVE_SERVICE_VERSION);
-      if (!service_version.has_value())
-        throw std::logic_error("Failed to get active service version");
-
-      auto active_service = service_view->get(service_version.value());
-      if (!active_service.has_value())
-        throw std::logic_error("Failed to get active service");
-
-      if (active_service->status == ServiceStatus::OPEN)
-        return;
-
-      active_service->status = ServiceStatus::OPEN;
-
-      service_view->put(service_version.value(), active_service.value());
-    }
-
     void trust_node(NodeId node_id)
     {
       auto nodes_view = tx.get_view(tables.nodes);

@@ -401,7 +401,7 @@ namespace ccf
       join_rpc.params.node_info_network = args.config.node_info_network;
 
       // TODO: For now, regenerate the quote from when the node started. This
-      // is okay since the quote generation will change as part of
+      // is OK since the quote generation will change as part of
       // https://github.com/microsoft/CCF/issues/59
       std::vector<uint8_t> quote{1};
 
@@ -770,11 +770,7 @@ namespace ccf
         secrets_view->put(ns_idx, past_secrets);
       }
 
-      GenesisGenerator g(network);
-      g.open_service();
-
-      // TODO: Check return code and move things above to genesisgen
-      g.finalize();
+      open_service(tx);
 
       // Setup new temporary store and record current version/root
       setup_private_recovery_store();
@@ -907,6 +903,35 @@ namespace ccf
       throw std::logic_error("Quote retrieval is not yet implemented");
 #endif
       return quote;
+    }
+
+    void open_service(Store::Tx& tx)
+    {
+      // Search for the version at which the current service has been active
+      // from
+      auto [service_view, values_view] =
+        tx.get_view(network.service, network.values);
+
+      auto service_version = values_view->get(ValueIds::ACTIVE_SERVICE_VERSION);
+      if (!service_version.has_value())
+        throw std::logic_error("Failed to get active service version");
+
+      auto active_service = service_view->get(service_version.value());
+      if (!active_service.has_value())
+        throw std::logic_error("Failed to get active service");
+
+      if (active_service->status != ServiceStatus::OPENING)
+      {
+        LOG_FAIL_FMT(
+          "Could not open current service (active from {}): not in state "
+          "opening",
+          service_version.value());
+        return;
+      }
+
+      active_service->status = ServiceStatus::OPEN;
+
+      service_view->put(service_version.value(), active_service.value());
     }
 
     // Used from nodefrontend.h to set the joiner's fresh key to encrypt past
