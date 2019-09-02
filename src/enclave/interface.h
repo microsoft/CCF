@@ -91,7 +91,7 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   AdminMessage::log_msg,
   std::chrono::milliseconds,
   std::string,
-  int,
+  size_t,
   std::string,
   std::string,
   std::string);

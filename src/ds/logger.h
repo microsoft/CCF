@@ -137,7 +137,7 @@ namespace logger
   public:
     static void format(
       const std::string& file_name,
-      int line_number,
+      size_t line_number,
       const std::string& ll_str,
       const std::string& msg,
       const std::string& host_ts,
@@ -171,7 +171,7 @@ namespace logger
   {
   public:
     std::string file_name;
-    int line_number;
+    size_t line_number;
     std::string file_line;
     std::string ll_str;
     std::string msg;
@@ -182,7 +182,7 @@ namespace logger
     Level log_level;
 
   public:
-    LogLine(Level ll, const char* file_name, int line_number) :
+    LogLine(Level ll, const char* file_name, size_t line_number) :
       file_name(file_name),
       line_number(line_number),
       log_level(ll)
@@ -261,7 +261,7 @@ namespace logger
 
     static void write(
       const std::string& file_name,
-      int line_number,
+      size_t line_number,
       const std::string& file_line,
       const std::string& ll_str,
       const std::string& msg)
@@ -272,7 +272,7 @@ namespace logger
       std::tm now;
       ::localtime_r(&ts.tv_sec, &now);
 
-      // Sample: "2019-07-19 18:53:25.690267        "
+      // Sample: "2019-07-19 18:53:25.690267"
       // Padding on the right to align the rest of the message
       // with lines that contain enclave time offsets
       auto host_ts =
@@ -289,7 +289,7 @@ namespace logger
 
     static void write(
       const std::string& file_name,
-      int line_number,
+      size_t line_number,
       const std::string& file_line,
       const std::string& ll_str,
       const std::string& msg,

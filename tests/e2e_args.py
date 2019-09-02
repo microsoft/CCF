@@ -38,7 +38,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument(
         "--log-path",
-        help="Path to custom logger directory where the where the custom log formatter output will be sent to. \
+        help="Path to custom logger directory where the where the json log formatter output will be sent to. \
         The custom logs will be dumped into a file named <log_path>/{label}_{node_id}",
         default=os.getenv("LOG_PATH", None),
     )
