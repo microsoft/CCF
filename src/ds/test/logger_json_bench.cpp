@@ -12,7 +12,7 @@ static void log_accepted(picobench::state& s)
 
   logger::config::level() = logger::DBG;
   picobench::scope scope(s);
-  logger::config::custom_path() = "./custom_output";
+  logger::config::custom_path() = "./custom_json_logger";
 
   for (size_t i = 0; i < s.iterations(); ++i)
   {
@@ -29,7 +29,7 @@ static void log_accepted_fmt(picobench::state& s)
 
   logger::config::level() = logger::DBG;
   picobench::scope scope(s);
-  logger::config::custom_path() = "./custom_output";
+  logger::config::custom_path() = "./custom_json_logger";
 
   for (size_t i = 0; i < s.iterations(); ++i)
   {
@@ -43,7 +43,7 @@ static void log_rejected(picobench::state& s)
 {
   logger::config::level() = logger::FAIL;
   picobench::scope scope(s);
-  logger::config::custom_path() = "./custom_output";
+  logger::config::custom_path() = "./custom_json_logger";
 
   for (size_t i = 0; i < s.iterations(); ++i)
   {
@@ -55,6 +55,7 @@ static void log_rejected_fmt(picobench::state& s)
 {
   logger::config::level() = logger::FAIL;
   picobench::scope scope(s);
+  logger::config::custom_path() = "./custom_json_logger";
 
   for (size_t i = 0; i < s.iterations(); ++i)
   {

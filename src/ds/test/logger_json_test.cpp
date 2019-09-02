@@ -9,7 +9,7 @@
 
 TEST_CASE("Test custom log format")
 {
-  std::string test_log_file = "./test_custom_path.txt";
+  std::string test_log_file = "./test_json_logger.txt";
   remove(test_log_file.c_str());
   logger::config::custom_path() = test_log_file;
   logger::config::level() = logger::DBG;
