@@ -245,6 +245,11 @@ namespace ccf
           network.secrets = std::make_unique<NetworkSecrets>(
             "CN=The CA", std::make_unique<Seal>(writer_factory));
 
+          // TODO: State should be OPENING first, until members accept to open
+          // the network https://github.com/microsoft/CCF/issues/293
+          g.create_service(
+            {network.secrets->get_current().cert, ServiceStatus::OPEN});
+
 #ifdef PBFT
           setup_pbft();
 #else
@@ -395,8 +400,8 @@ namespace ccf
       join_rpc.params.raw_fresh_key = raw_fresh_key;
       join_rpc.params.node_info_network = args.config.node_info_network;
 
-      // TODO: For now, regenerate the quote from when the node started. This is
-      // okay since the quote generation will change as part of
+      // TODO: For now, regenerate the quote from when the node started. This
+      // is OK since the quote generation will change as part of
       // https://github.com/microsoft/CCF/issues/59
       std::vector<uint8_t> quote{1};
 
@@ -488,6 +493,10 @@ namespace ccf
       LOG_INFO_FMT("Truncating ledger to last signed index: {}", last_index);
 
       network.secrets->promote_secrets(0, last_index + 1);
+
+      g.create_service(
+        {network.secrets->get_current().cert, ServiceStatus::OPENING},
+        last_index + 1);
 
       g.delete_active_nodes();
 
@@ -706,8 +715,8 @@ namespace ccf
           return true;
         });
 
-      // For all nodes in the new network, write all past network secrets to the
-      // secrets table, encrypted with the respective ephemeral keys
+      // For all nodes in the new network, write all past network secrets to
+      // the secrets table, encrypted with the respective ephemeral keys
       for (auto const& ns_idx : past_secrets_idx)
       {
         ccf::PastNetworkSecrets past_secrets;
@@ -760,6 +769,8 @@ namespace ccf
         }
         secrets_view->put(ns_idx, past_secrets);
       }
+
+      open_service(tx);
 
       // Setup new temporary store and record current version/root
       setup_private_recovery_store();
@@ -892,6 +903,35 @@ namespace ccf
       throw std::logic_error("Quote retrieval is not yet implemented");
 #endif
       return quote;
+    }
+
+    void open_service(Store::Tx& tx)
+    {
+      // Search for the version at which the current service has been active
+      // from
+      auto [service_view, values_view] =
+        tx.get_view(network.service, network.values);
+
+      auto service_version = values_view->get(ValueIds::ACTIVE_SERVICE_VERSION);
+      if (!service_version.has_value())
+        throw std::logic_error("Failed to get active service version");
+
+      auto active_service = service_view->get(service_version.value());
+      if (!active_service.has_value())
+        throw std::logic_error("Failed to get active service");
+
+      if (active_service->status != ServiceStatus::OPENING)
+      {
+        LOG_FAIL_FMT(
+          "Could not open current service (active from {}): not in state "
+          "opening",
+          service_version.value());
+        return;
+      }
+
+      active_service->status = ServiceStatus::OPEN;
+
+      service_view->put(service_version.value(), active_service.value());
     }
 
     // Used from nodefrontend.h to set the joiner's fresh key to encrypt past
@@ -1142,8 +1182,8 @@ namespace ccf
 
     void setup_history()
     {
-      // This function can be called once the node has started up and before it
-      // has joined the service.
+      // This function can be called once the node has started up and before
+      // it has joined the service.
       history = std::make_shared<MerkleTxHistory>(
         *network.tables.get(),
         self,

@@ -37,7 +37,7 @@ namespace ccf
       for (auto& rs : scripts)
       {
         if (compile)
-          tx_scripts->put(rs.first, ccf::lua::compile(rs.second));
+          tx_scripts->put(rs.first, lua::compile(rs.second));
         else
           tx_scripts->put(rs.first, rs.second);
       }
@@ -49,7 +49,7 @@ namespace ccf
     void init_values()
     {
       auto v = tx.get_view(tables.values);
-      for (int id_type = 0; id_type < ccf::ValueIds::END_ID; id_type++)
+      for (int id_type = 0; id_type < ValueIds::END_ID; id_type++)
         v->put(id_type, 0);
     }
 
@@ -67,14 +67,14 @@ namespace ccf
       nodes_view->foreach(
         [&nodes_to_delete](const NodeId& nid, const NodeInfo& ni) {
           // Only retire nodes that have not already been retired
-          if (ni.status != ccf::NodeStatus::RETIRED)
+          if (ni.status != NodeStatus::RETIRED)
             nodes_to_delete[nid] = ni;
           return true;
         });
 
       for (auto [nid, ni] : nodes_to_delete)
       {
-        ni.status = ccf::NodeStatus::RETIRED;
+        ni.status = NodeStatus::RETIRED;
         nodes_view->put(nid, ni);
       }
 
@@ -92,11 +92,11 @@ namespace ccf
 
     auto add_member(
       const std::vector<uint8_t>& member_cert,
-      ccf::MemberStatus member_status = ccf::MemberStatus::ACTIVE)
+      MemberStatus member_status = MemberStatus::ACTIVE)
     {
       // generate member id and create entry in members table
       auto member_id =
-        get_next_id(tx.get_view(tables.values), ccf::ValueIds::NEXT_MEMBER_ID);
+        get_next_id(tx.get_view(tables.values), ValueIds::NEXT_MEMBER_ID);
       auto members_view = tx.get_view(tables.members);
       members_view->put(member_id, {member_status});
 
@@ -110,7 +110,7 @@ namespace ccf
     {
       // generate user id and create entry in users table
       auto user_id =
-        get_next_id(tx.get_view(tables.values), ccf::ValueIds::NEXT_USER_ID);
+        get_next_id(tx.get_view(tables.values), ValueIds::NEXT_USER_ID);
 
       // store pubk
       auto user_certs_view = tx.get_view(tables.user_certs);
@@ -118,18 +118,27 @@ namespace ccf
       return user_id;
     }
 
-    auto add_node(const ccf::NodeInfo& ni)
+    auto add_node(const NodeInfo& node_info)
     {
       auto node_id =
-        get_next_id(tx.get_view(tables.values), ccf::ValueIds::NEXT_NODE_ID);
+        get_next_id(tx.get_view(tables.values), ValueIds::NEXT_NODE_ID);
 
-      auto raw_cert = tls::make_verifier(ni.cert)->raw_cert_data();
+      auto raw_cert = tls::make_verifier(node_info.cert)->raw_cert_data();
       auto node_certs_view = tx.get_view(tables.node_certs);
       node_certs_view->put(raw_cert, node_id);
 
       auto node_view = tx.get_view(tables.nodes);
-      node_view->put(node_id, ni);
+      node_view->put(node_id, node_info);
       return node_id;
+    }
+
+    void create_service(
+      const ServiceInfo& service_info, kv::Version version = 0)
+    {
+      auto [service_view, values_view] =
+        tx.get_view(tables.service, tables.values);
+      service_view->put(version, service_info);
+      values_view->put(ValueIds::ACTIVE_SERVICE_VERSION, version);
     }
 
     void trust_node(NodeId node_id)
@@ -153,7 +162,7 @@ namespace ccf
       return sig_view->get(0);
     }
 
-    void set_whitelist(ccf::WlIds id, ccf::Whitelist wl)
+    void set_whitelist(WlIds id, Whitelist wl)
     {
       tx.get_view(tables.whitelists)->put(id, wl);
     }
