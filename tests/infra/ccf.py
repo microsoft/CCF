@@ -12,6 +12,7 @@ import infra.remote
 import infra.path
 import infra.net
 import infra.proc
+import array
 import re
 
 from loguru import logger as LOG
@@ -23,6 +24,12 @@ class NodeNetworkState(Enum):
     stopped = 0
     started = 1
     joined = 2
+
+
+class ServiceStatus(Enum):
+    OPENING = 1
+    OPEN = 2
+    CLOSED = 3
 
 
 @contextmanager
@@ -159,6 +166,7 @@ class Network:
             primary = self.nodes[0]
 
         self.wait_for_all_nodes_have_joined(primary)
+        self.check_for_service(primary)
         LOG.success("All nodes joined network")
 
         return primary, self.nodes[1:]
@@ -222,9 +230,41 @@ class Network:
                 node.network_state = NodeNetworkState.joined
 
         self.wait_for_all_nodes_have_joined(primary)
+        self.check_for_service(primary, status=ServiceStatus.OPENING)
+
         LOG.success("All nodes joined recoverd public network")
 
         return primary, self.nodes[1:]
+
+    def check_for_service(self, node, status=ServiceStatus.OPEN):
+        """
+        Check via the member frontend of the given node that the certificate
+        associated with current CCF service signing key has been recorded in
+        the KV store and in a specific state.
+        """
+
+        with node.member_client() as c:
+            rep = c.do(
+                "query",
+                {
+                    "text": """tables = ...
+                    -- The version at which the current CCF service started
+                    -- is recorded in the values table at index 5
+                    values_recovery_index = 5
+                    local current_service_version = tables["values"]:get(values_recovery_index)
+                    return tables["service"]:get(current_service_version)"""
+                },
+            )
+            current_status = rep.result["status"].decode()
+            current_cert = array.array("B", rep.result["cert"]).tobytes()
+
+            expected_cert = open("networkcert.pem", "rb").read()
+            assert (
+                current_cert == expected_cert
+            ), "Current service certificate did not match with networkcert.pem"
+            assert (
+                current_status == status.name
+            ), f"Service is in status {current_status} (expected {status.name})"
 
     def create_node(self, local_node_id, host, debug=False, perf=False):
         node = Node(local_node_id, host, debug, perf)
