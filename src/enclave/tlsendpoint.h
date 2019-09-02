@@ -29,10 +29,17 @@ namespace enclave
 
     std::vector<uint8_t> pending_write;
     std::vector<uint8_t> pending_read;
+    // Decrypted data, read through mbedtls
     std::vector<uint8_t> read_buffer;
 
     std::unique_ptr<tls::Context> ctx;
     Status status;
+
+  protected:
+    size_t pending_read_size()
+    {
+      return pending_read.size();
+    }
 
   public:
     TLSEndpoint(

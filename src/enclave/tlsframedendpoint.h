@@ -7,11 +7,19 @@
 
 namespace enclave
 {
+  static int on_request(http_parser * parser, const char * at, size_t length)
+  {
+    LOG_INFO_FMT("Received HTTP request with a body of {} bytes", length);
+    return 0;
+  }
+
   class FramedTLSEndpoint : public TLSEndpoint
   {
   protected:
     uint32_t msg_size;
     size_t count;
+    http_parser_settings settings;
+    http_parser * parser;
 
   public:
     FramedTLSEndpoint(
@@ -22,8 +30,8 @@ namespace enclave
       msg_size(-1),
       count(0)
     {
-      http_parser_settings settings;
-      http_parser *parser = static_cast<http_parser *>(malloc(sizeof(http_parser)));
+      settings.on_body = on_request;
+      parser = static_cast<http_parser *>(malloc(sizeof(http_parser)));
       http_parser_init(parser, HTTP_REQUEST);
     }
 
@@ -31,35 +39,21 @@ namespace enclave
     {
       recv_buffered(data, size);
 
-      while (true)
+      auto pr_size = pending_read_size();
+      auto len = read(pr_size, false); // do a non-consuming read instead
+
+      const uint8_t * d = len.data();
+      size_t s = len.size();
+      if (!s)
+        return;
+
+      LOG_INFO_FMT("Going to parse {} bytes", s);
+      size_t nparsed = http_parser_execute(parser, &settings, (const char *) d, s);
+
+      std::vector<uint8_t> req {};
+
+      if (nparsed > 0)
       {
-        // Read framed data.
-        if (msg_size == (uint32_t)-1)
-        {
-          auto len = read(4, true);
-          if (len.size() == 0)
-            return;
-
-          const uint8_t* data = len.data();
-          size_t size = len.size();
-          msg_size = serialized::read<uint32_t>(data, size);
-          LOG_TRACE_FMT("msg size is: {}", msg_size);
-        }
-
-        // Arbitrary limit on RPC size to stop a client from requesting
-        // a very large allocation.
-        if (msg_size > 1 << 21)
-        {
-          close();
-          return;
-        }
-
-        auto req = read(msg_size, true);
-        if (req.size() == 0)
-          return;
-
-        msg_size = -1;
-
         try
         {
           if (!handle_data(req))

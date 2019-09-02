@@ -592,6 +592,7 @@ add_library(lua.host STATIC ${LUA_SOURCES})
 target_compile_definitions(lua.host PRIVATE NO_IO)
 set_property(TARGET lua.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
+# HTTP parser
 add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
 add_enclave_library_c(http_parser.host "${HTTP_PARSER_SOURCES}")
