@@ -7,11 +7,7 @@
 
 namespace enclave
 {
-  static int on_request(http_parser * parser, const char * at, size_t length)
-  {
-    LOG_INFO_FMT("Received HTTP request with a body of {} bytes", length);
-    return 0;
-  }
+  static int on_request(http_parser * parser, const char * at, size_t length);
 
   class FramedTLSEndpoint : public TLSEndpoint
   {
@@ -33,6 +29,7 @@ namespace enclave
       settings.on_body = on_request;
       parser = static_cast<http_parser *>(malloc(sizeof(http_parser)));
       http_parser_init(parser, HTTP_REQUEST);
+      parser->data = (void *) this;
     }
 
     void recv(const uint8_t* data, size_t size)
@@ -49,11 +46,13 @@ namespace enclave
 
       LOG_INFO_FMT("Going to parse {} bytes", s);
       size_t nparsed = http_parser_execute(parser, &settings, (const char *) d, s);
+    }
 
-      std::vector<uint8_t> req {};
-
-      if (nparsed > 0)
+    void handle_body(const char * at, size_t length)
+    {
+      if (length > 0)
       {
+        std::vector<uint8_t> req {at, at + length};
         try
         {
           if (!handle_data(req))
@@ -83,4 +82,13 @@ namespace enclave
       flush();
     }
   };
+
+  static int on_request(http_parser * parser, const char * at, size_t length)
+  {
+    LOG_INFO_FMT("Received HTTP request with a body of {} bytes", length);
+    FramedTLSEndpoint * ep = reinterpret_cast<FramedTLSEndpoint *>(parser->data);
+    ep->handle_body(at, length);
+    return 0;
+  }
+
 }
