@@ -88,6 +88,9 @@ option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
 option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
+if (DEFINED ENV{LOG_PATH})
+    set(LOG_PATH "--log-path" $ENV{LOG_PATH})
+endif()
 
 option(PBFT "Enable PBFT" OFF)
 if (PBFT)
@@ -152,6 +155,7 @@ add_custom_command(
 )
 
 configure_file(${CCF_DIR}/tests/tests.sh ${CMAKE_CURRENT_BINARY_DIR}/tests.sh COPYONLY)
+configure_file(${CCF_DIR}/tests/cimetrics_env.sh ${CMAKE_CURRENT_BINARY_DIR}/cimetrics_env.sh COPYONLY)
 
 if(NOT ${TARGET} STREQUAL "virtual")
   # If OE was built with LINK_SGX=1, then we also need to link SGX
@@ -236,8 +240,13 @@ set(OE_MBEDTLS_LIBRARIES
 
 find_library(CRYPTO_LIBRARY crypto)
 
+set(OE_ENCLAVE_MBEDTLS "${OE_LIB_DIR}/enclave/libmbedtls.a")
+set(OE_ENCLAVE_MBEDX509 "${OE_LIB_DIR}/enclave/libmbedx509.a")
+set(OE_ENCLAVE_MBEDCRYPTO "${OE_LIB_DIR}/enclave/libmbedcrypto.a")
+set(OE_ENCLAVE_CRYPTOMBED "${OE_LIB_DIR}/enclave/liboecryptombed.a")
 set(OE_ENCLAVE_LIBRARY "${OE_LIB_DIR}/enclave/liboeenclave.a")
 set(OE_ENCLAVE_CORE "${OE_LIB_DIR}/enclave/liboecore.a")
+set(OE_ENCLAVE_SYSCALL "${OE_LIB_DIR}/enclave/liboesyscall.a")
 set(OE_ENCLAVE_LIBC "${OE_LIB_DIR}/enclave/liboelibc.a")
 set(OE_ENCLAVE_LIBCXX "${OE_LIB_DIR}/enclave/liboelibcxx.a")
 set(OE_HOST_LIBRARY "${OE_LIB_DIR}/host/liboehost.a")
@@ -253,9 +262,14 @@ set(ENCLAVE_LIBS
   evercrypt.enclave
   lua.enclave
   ${OE_ENCLAVE_LIBRARY}
-  ${OE_MBEDTLS_LIBRARIES}
+  ${OE_ENCLAVE_CRYPTOMBED}
+  ${OE_ENCLAVE_MBEDCRYPTO}
+  ${OE_ENCLAVE_MBEDX509}
+  ${OE_ENCLAVE_MBEDTLS}
+  ${ENCLAVE_MBEDTLS_LIBRARIES}
   ${OE_ENCLAVE_LIBCXX}
   ${OE_ENCLAVE_LIBC}
+  ${OE_ENCLAVE_SYSCALL}
   ${OE_ENCLAVE_CORE}
   secp256k1.enclave
 )
@@ -329,6 +343,7 @@ include(${CCF_DIR}/cmake/secp256k1.cmake)
 ## Build PBFT if used as consensus
 if (PBFT)
   message(STATUS "Using PBFT as consensus")
+  set(SIGN_BATCH ON)
   include(${CCF_DIR}/ePBFT/cmake/pbft.cmake)
 
   target_include_directories(libbyz.host PRIVATE
@@ -477,12 +492,16 @@ endfunction()
 function(add_unit_test name)
   add_executable(${name}
     ${ARGN})
+    target_compile_options(${name} PRIVATE -stdlib=libc++)
   target_include_directories(${name} PRIVATE
     src
     ${CCFCRYPTO_INC})
-  target_compile_options(${name} PRIVATE -fdiagnostics-color=always)
   enable_coverage(${name})
-  target_link_libraries(${name} PRIVATE ccfcrypto.host)
+  target_link_libraries(${name} PRIVATE
+      -stdlib=libc++
+      -lc++
+      -lc++abi
+  ccfcrypto.host)
 
   use_client_mbedtls(${name})
   add_san(${name})
@@ -500,11 +519,10 @@ function(add_unit_test name)
 endfunction()
 
 # GenesisGenerator Executable
-add_executable(genesisgenerator ${CCF_DIR}/src/genesisgen/main.cpp)
-use_client_mbedtls(genesisgenerator)
-target_link_libraries(genesisgenerator PRIVATE
+add_executable(keygenerator ${CCF_DIR}/src/keygenerator/main.cpp)
+use_client_mbedtls(keygenerator)
+target_link_libraries(keygenerator PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
-  lua.host
   secp256k1.host
 )
 
@@ -635,6 +653,7 @@ function(add_e2e_test)
       COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
         -b .
         --label ${PARSED_ARGS_NAME}
+        ${LOG_PATH}
         ${CCF_NETWORK_TEST_ARGS}
         ${PARSED_ARGS_ADDITIONAL_ARGS}
     )
@@ -681,6 +700,7 @@ function(add_perf_test)
       -b .
       -c ${PARSED_ARGS_CLIENT_BIN}
       -i ${PARSED_ARGS_ITERATIONS}
+      ${LOG_PATH}
       ${CCF_NETWORK_TEST_ARGS}
       ${PARSED_ARGS_ADDITIONAL_ARGS}
       --write-tx-times

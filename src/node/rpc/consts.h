@@ -19,7 +19,7 @@ namespace ccf
     static constexpr auto GET_COMMIT = "getCommit";
     static constexpr auto GET_METRICS = "getMetrics";
     static constexpr auto MK_SIGN = "mkSign";
-    static constexpr auto GET_LEADER_INFO = "getLeaderInfo";
+    static constexpr auto GET_PRIMARY_INFO = "getPrimaryInfo";
     static constexpr auto GET_NETWORK_INFO = "getNetworkInfo";
     static constexpr auto LIST_METHODS = "listMethods";
     static constexpr auto GET_SCHEMA = "getSchema";
@@ -27,10 +27,7 @@ namespace ccf
 
   struct ManagementProcs
   {
-    static constexpr auto START_NETWORK = "startNetwork";
-    static constexpr auto JOIN_NETWORK = "joinNetwork";
     static constexpr auto GET_SIGNED_INDEX = "getSignedIndex";
-    static constexpr auto SET_RECOVERY_NODES = "setRecoveryNodes";
     static constexpr auto GET_QUOTES = "getQuotes";
   };
 

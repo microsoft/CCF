@@ -103,76 +103,75 @@ void randomise(bool& b)
     } \
   };
 
-namespace ccf
+DECLARE_SIMPLE_STRUCT(manual)
+
+void to_json(nlohmann::json& j, const Simple_manual& s)
 {
-  DECLARE_SIMPLE_STRUCT(manual)
-
-  void to_json(nlohmann::json& j, const Simple_manual& s)
-  {
-    j["x"] = s.x;
-    j["y"] = s.y;
-  }
-
-  void from_json(const nlohmann::json& j, Simple_manual& s)
-  {
-    s.x = j["x"];
-    s.y = j["y"];
-  }
-
-  DECLARE_COMPLEX_STRUCT(manual)
-
-  void to_json(nlohmann::json& j, const Complex_manual::Foo& f)
-  {
-    j["n"] = f.n;
-    j["s"] = f.s;
-  }
-
-  void to_json(nlohmann::json& j, const Complex_manual::Bar& b)
-  {
-    j["a"] = b.a;
-    j["b"] = b.b;
-    j["foos"] = b.foos;
-  }
-
-  void to_json(nlohmann::json& j, const Complex_manual& c)
-  {
-    j["b"] = c.b;
-    j["i"] = c.i;
-    j["s"] = c.s;
-    j["bars"] = c.bars;
-  }
-
-  void from_json(const nlohmann::json& j, Complex_manual::Foo& f)
-  {
-    f.n = j["n"];
-    f.s = j["s"];
-  }
-
-  void from_json(const nlohmann::json& j, Complex_manual::Bar& b)
-  {
-    b.a = j["a"];
-    b.b = j["b"];
-    b.foos = j["foos"].get<decltype(b.foos)>();
-  }
-
-  void from_json(const nlohmann::json& j, Complex_manual& c)
-  {
-    c.b = j["b"];
-    c.i = j["i"];
-    c.s = j["s"];
-    c.bars = j["bars"].get<decltype(c.bars)>();
-  }
-
-  DECLARE_SIMPLE_STRUCT(macros)
-  DECLARE_REQUIRED_JSON_FIELDS(Simple_macros, x, y);
-
-  DECLARE_COMPLEX_STRUCT(macros)
-  DECLARE_REQUIRED_JSON_FIELDS(Complex_macros::Foo, n, s);
-  DECLARE_REQUIRED_JSON_FIELDS(Complex_macros::Bar, a, b, foos);
-  DECLARE_REQUIRED_JSON_FIELDS(Complex_macros, b, i, s, bars);
+  j["x"] = s.x;
+  j["y"] = s.y;
 }
 
-using namespace ccf;
+void from_json(const nlohmann::json& j, Simple_manual& s)
+{
+  s.x = j["x"];
+  s.y = j["y"];
+}
+
+DECLARE_COMPLEX_STRUCT(manual)
+
+void to_json(nlohmann::json& j, const Complex_manual::Foo& f)
+{
+  j["n"] = f.n;
+  j["s"] = f.s;
+}
+
+void to_json(nlohmann::json& j, const Complex_manual::Bar& b)
+{
+  j["a"] = b.a;
+  j["b"] = b.b;
+  j["foos"] = b.foos;
+}
+
+void to_json(nlohmann::json& j, const Complex_manual& c)
+{
+  j["b"] = c.b;
+  j["i"] = c.i;
+  j["s"] = c.s;
+  j["bars"] = c.bars;
+}
+
+void from_json(const nlohmann::json& j, Complex_manual::Foo& f)
+{
+  f.n = j["n"];
+  f.s = j["s"];
+}
+
+void from_json(const nlohmann::json& j, Complex_manual::Bar& b)
+{
+  b.a = j["a"];
+  b.b = j["b"];
+  b.foos = j["foos"].get<decltype(b.foos)>();
+}
+
+void from_json(const nlohmann::json& j, Complex_manual& c)
+{
+  c.b = j["b"];
+  c.i = j["i"];
+  c.s = j["s"];
+  c.bars = j["bars"].get<decltype(c.bars)>();
+}
+
+DECLARE_SIMPLE_STRUCT(macros)
+DECLARE_JSON_TYPE(Simple_macros);
+DECLARE_JSON_REQUIRED_FIELDS(Simple_macros, x, y);
+
+DECLARE_COMPLEX_STRUCT(macros)
+DECLARE_JSON_TYPE(Complex_macros::Foo);
+DECLARE_JSON_REQUIRED_FIELDS(Complex_macros::Foo, n, s);
+DECLARE_JSON_TYPE(Complex_macros::Bar);
+DECLARE_JSON_REQUIRED_FIELDS(Complex_macros::Bar, a, b, foos);
+DECLARE_JSON_TYPE(Complex_macros);
+DECLARE_JSON_REQUIRED_FIELDS(Complex_macros, b, i, s, bars);
 
 template <typename T, typename R = T>
 std::vector<R> build_entries(picobench::state& s)
@@ -227,7 +226,7 @@ void valjson(picobench::state& s)
 {
   std::vector<nlohmann::json> entries = build_entries<T, nlohmann::json>(s);
 
-  const auto schema_doc = ccf::build_schema<T>("Schema");
+  const auto schema_doc = ds::json::build_schema<T>("Schema");
 
   valijson::Schema schema;
   valijson::SchemaParser parser;

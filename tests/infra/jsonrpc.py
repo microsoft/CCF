@@ -28,11 +28,11 @@ class ErrorCode(IntEnum):
 
     # CCF-specific errors
     SERVER_ERROR_START = -32000
-    TX_NOT_LEADER = -32001
+    TX_NOT_PRIMARY = -32001
     TX_FAILED_TO_REPLICATE = -32002
     SCRIPT_ERROR = -32003
     INSUFFICIENT_RIGHTS = -32004
-    TX_LEADER_UNKNOWN = -32005
+    TX_PRIMARY_UNKNOWN = -32005
     RPC_NOT_SIGNED = -32006
     INVALID_CLIENT_SIGNATURE = -32007
     INVALID_CALLER_ID = -32008
@@ -263,7 +263,9 @@ class FramedTLSJSONRPCClient:
         format="msgpack",
         description=None,
     ):
-        self.client = FramedTLSClient(host, port, server_hostname, cert, key, cafile)
+        self.client = FramedTLSClient(
+            host, int(port), server_hostname, cert, key, cafile
+        )
         self.stream = Stream(version, format=format)
         self.format = format
         self.name = "[{}:{}]".format(host, port)

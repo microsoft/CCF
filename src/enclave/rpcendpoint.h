@@ -49,7 +49,7 @@ namespace enclave
       }
 
       // Create a new RPC context for each command since some may require
-      // forwarding to the leader.
+      // forwarding to the primary.
       RPCContext rpc_ctx(session_id, caller, actor);
       auto rep = handler->process(rpc_ctx, data);
 

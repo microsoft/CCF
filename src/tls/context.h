@@ -17,10 +17,15 @@ namespace tls
     EntropyPtr entropy;
 
 #ifndef NO_STRICT_TLS_CIPHERSUITES
+#  ifdef MOD_MBEDTLS
     const int ciphersuites[3] = {
       MBEDTLS_TLS_ECDHE_EDDSA_WITH_AES_128_GCM_SHA256,
       MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
       0};
+#  else
+    const int ciphersuites[2] = {
+      MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, 0};
+#  endif
 #endif
 
   public:

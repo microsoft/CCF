@@ -997,7 +997,14 @@ namespace kv
 
       const std::vector<uint8_t> data = serialise();
       if (!data.size())
+      {
+        auto h = store->get_history();
+        if (h != nullptr)
+        {
+          h->add_result(req_id, version);
+        }
         return CommitSuccess::OK;
+      }
 
       return store->commit(
         version,
@@ -1182,7 +1189,7 @@ namespace kv
     using Maps = std::map<std::string, std::unique_ptr<AbstractMap<S, D>>>;
     Maps maps;
 
-    std::shared_ptr<Replicator> replicator = nullptr;
+    std::shared_ptr<Consensus> consensus = nullptr;
     std::shared_ptr<TxHistory> history = nullptr;
     std::shared_ptr<AbstractTxEncryptor> encryptor = nullptr;
     Version version = 0;
@@ -1229,18 +1236,18 @@ namespace kv
 
     Store() {}
 
-    Store(std::shared_ptr<Replicator> replicator_) : replicator(replicator_) {}
+    Store(std::shared_ptr<Consensus> consensus_) : consensus(consensus_) {}
 
     Store(const Store& that) = delete;
 
-    std::shared_ptr<Replicator> get_replicator() override
+    std::shared_ptr<Consensus> get_consensus() override
     {
-      return replicator;
+      return consensus;
     }
 
-    void set_replicator(std::shared_ptr<Replicator> replicator_)
+    void set_consensus(std::shared_ptr<Consensus> consensus_)
     {
-      replicator = replicator_;
+      consensus = consensus_;
     }
 
     std::shared_ptr<TxHistory> get_history() override
@@ -1433,7 +1440,7 @@ namespace kv
       LOG_DEBUG_FMT("Deserialising {}", v);
 
       // Throw away any local commits that have not propagated via the
-      // replicator.
+      // consensus.
       rollback(v - 1);
 
       // Make sure this is the next transaction.
@@ -1578,7 +1585,7 @@ namespace kv
     CommitSuccess commit(
       Version version, PendingTx pending_tx, bool globally_committable) override
     {
-      auto r = get_replicator();
+      auto r = get_consensus();
       if (!r)
         return CommitSuccess::OK;
 

@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/raft/rafttypes.h"
 #include "ledger.h"
 #include "node/nodetypes.h"
-#include "raft/rafttypes.h"
 #include "tcp.h"
 
 #include <unordered_map>
@@ -214,7 +214,7 @@ namespace asynchost
           // corresponding ledger entries
           if (
             serialized::read<ccf::NodeMsgType>(data, size) ==
-              ccf::NodeMsgType::consensus_msg_raft &&
+              ccf::NodeMsgType::consensus_msg &&
             serialized::peek<raft::RaftMsgType>(data, size) ==
               raft::raft_append_entries)
           {

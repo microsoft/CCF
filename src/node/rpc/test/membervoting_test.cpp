@@ -5,8 +5,9 @@
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
-#include "genesisgen/genesisgen.h"
 #include "node/clientsignatures.h"
+#include "node/encryptor.h"
+#include "node/genesisgen.h"
 #include "node/rpc/jsonrpc.h"
 #include "node/rpc/memberfrontend.h"
 #include "node/rpc/userfrontend.h"
@@ -32,6 +33,7 @@ auto kp = tls::make_key_pair();
 auto ca_mem = kp -> self_sign("CN=name_member");
 auto verifier_mem = tls::make_verifier(ca_mem);
 auto member_caller = verifier_mem -> raw_cert_data();
+auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
 
 string get_script_path(string name)
 {
@@ -68,10 +70,10 @@ void check_success(const Response<bool> r, const bool expected = true)
   CHECK(r.result == expected);
 }
 
-void set_whitelists(GenesisGenerator& network)
+void set_whitelists(GenesisGenerator& gen)
 {
   for (const auto& wl : default_whitelists)
-    network.set_whitelist(wl.first, wl.second);
+    gen.set_whitelist(wl.first, wl.second);
 }
 
 std::vector<uint8_t> sign_json(nlohmann::json j, tls::KeyPairPtr& kp_)
@@ -152,15 +154,18 @@ std::vector<uint8_t> get_cert_data(uint64_t member_id, tls::KeyPairPtr& kp_mem)
 }
 
 auto init_frontend(
-  GenesisGenerator& network, StubNodeState& node, const int n_members)
+  NetworkTables& network,
+  GenesisGenerator& gen,
+  StubNodeState& node,
+  const int n_members)
 {
   // create members with fake certs (no crypto here)
   for (uint8_t i = 0; i < n_members; i++)
-    network.add_member({i}, MemberStatus::ACTIVE);
+    gen.add_member({i}, MemberStatus::ACTIVE);
 
-  set_whitelists(network);
-  network.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  network.finalize_raw();
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
+  gen.finalize();
   return MemberCallRpcFrontend(network, node);
 }
 
@@ -168,11 +173,13 @@ TEST_CASE("Member query/read")
 {
   // initialize the network state
   const Cert mcert = {0};
-  GenesisGenerator network;
+  NetworkTables network;
+  GenesisGenerator gen(network);
+  gen.init_values();
   StubNodeState node;
   MemberCallRpcFrontend frontend(network, node);
-  const auto mid = network.add_member(mcert, MemberStatus::ACCEPTED);
-  network.finalize_raw();
+  const auto mid = gen.add_member(mcert, MemberStatus::ACCEPTED);
+  gen.finalize();
   enclave::RPCContext rpc_ctx(0, nullb);
 
   // put value to read
@@ -278,6 +285,108 @@ TEST_CASE("Member query/read")
   }
 }
 
+TEST_CASE("Proposer ballot")
+{
+  NetworkTables network;
+  GenesisGenerator gen(network);
+  gen.init_values();
+
+  const auto proposer_cert = get_cert_data(0, kp);
+  const auto proposer_id = gen.add_member(proposer_cert, MemberStatus::ACTIVE);
+  const auto voter_cert = get_cert_data(1, kp);
+  const auto voter_id = gen.add_member(voter_cert, MemberStatus::ACTIVE);
+
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
+  gen.finalize();
+
+  StubNodeState node;
+  MemberCallRpcFrontend frontend(network, node);
+
+  size_t proposal_id;
+
+  const ccf::Script vote_for("return true");
+  const ccf::Script vote_against("return false");
+  {
+    INFO("Propose, initially voting against");
+
+    const auto proposed_member = get_cert_data(2, kp);
+
+    Script proposal(R"xxx(
+      tables, member_cert = ...
+      return Calls:call("new_member", member_cert)
+    )xxx");
+    const auto proposej = create_json_req(
+      Proposal::In{proposal, proposed_member, vote_against}, "propose");
+    enclave::RPCContext rpc_ctx(proposer_id, proposer_cert);
+
+    Store::Tx tx;
+    ccf::SignedReq sr(proposej);
+    Response<Proposal::Out> r =
+      frontend.process_json(rpc_ctx, tx, proposer_id, proposej, sr).value();
+
+    // the proposal should be accepted, but not succeed immediately
+    CHECK(r.result.completed == false);
+
+    proposal_id = r.result.id;
+  }
+
+  {
+    INFO("Second member votes for proposal");
+
+    const auto votej =
+      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+
+    Store::Tx tx;
+    enclave::RPCContext rpc_ctx(voter_id, voter_cert);
+    ccf::SignedReq sr(votej);
+    Response<bool> r =
+      frontend.process_json(rpc_ctx, tx, voter_id, votej["req"], sr).value();
+
+    // The vote should not yet succeed
+    CHECK(r.result == false);
+  }
+
+  {
+    INFO("Read current votes");
+
+    const auto readj = create_json_req_signed(
+      read_params(proposal_id, Tables::PROPOSALS), "read", kp);
+
+    Store::Tx tx;
+    enclave::RPCContext rpc_ctx(proposer_id, proposer_cert);
+    const Response<OpenProposal> proposal =
+      get_proposal(rpc_ctx, frontend, proposal_id, proposer_id);
+
+    const auto& votes = proposal.result.votes;
+    CHECK(votes.size() == 2);
+
+    const auto proposer_vote = votes.find(proposer_id);
+    CHECK(proposer_vote != votes.end());
+    CHECK(proposer_vote->second == vote_against);
+
+    const auto voter_vote = votes.find(voter_id);
+    CHECK(voter_vote != votes.end());
+    CHECK(voter_vote->second == vote_for);
+  }
+
+  {
+    INFO("Proposer votes for");
+
+    const auto votej =
+      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+
+    Store::Tx tx;
+    enclave::RPCContext rpc_ctx(proposer_id, proposer_cert);
+    ccf::SignedReq sr(votej);
+    Response<bool> r =
+      frontend.process_json(rpc_ctx, tx, proposer_id, votej["req"], sr).value();
+
+    // The vote should now succeed
+    CHECK(r.result == true);
+  }
+}
+
 struct NewMember
 {
   MemberId id;
@@ -290,20 +399,22 @@ TEST_CASE("Add new members until there are 7, then reject")
   constexpr auto initial_members = 3;
   constexpr auto n_new_members = 7;
   constexpr auto max_members = 8;
-  GenesisGenerator network;
+  NetworkTables network;
+  GenesisGenerator gen(network);
+  gen.init_values();
   StubNodeState node;
   // add three initial active members
   // the proposer
   auto proposer_id =
-    network.add_member(vector<uint8_t>(member_caller), MemberStatus::ACTIVE);
+    gen.add_member(vector<uint8_t>(member_caller), MemberStatus::ACTIVE);
 
   // the voters
-  auto voter_a = network.add_member(get_cert_data(1, kp), MemberStatus::ACTIVE);
-  auto voter_b = network.add_member(get_cert_data(2, kp), MemberStatus::ACTIVE);
+  auto voter_a = gen.add_member(get_cert_data(1, kp), MemberStatus::ACTIVE);
+  auto voter_b = gen.add_member(get_cert_data(2, kp), MemberStatus::ACTIVE);
 
-  set_whitelists(network);
-  network.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  network.finalize_raw();
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
+  gen.finalize();
   MemberCallRpcFrontend frontend(network, node);
 
   vector<NewMember> new_members(n_new_members);
@@ -465,23 +576,25 @@ TEST_CASE("Add new members until there are 7, then reject")
 
 TEST_CASE("Accept node")
 {
-  GenesisGenerator network;
+  NetworkTables network;
+  GenesisGenerator gen(network);
+  gen.init_values();
   StubNodeState node;
   auto new_kp = tls::make_key_pair();
 
   const Cert mcert0 = get_cert_data(0, new_kp), mcert1 = get_cert_data(1, kp);
-  const auto mid0 = network.add_member(mcert0, MemberStatus::ACTIVE);
-  const auto mid1 = network.add_member(mcert1, MemberStatus::ACTIVE);
+  const auto mid0 = gen.add_member(mcert0, MemberStatus::ACTIVE);
+  const auto mid1 = gen.add_member(mcert1, MemberStatus::ACTIVE);
   enclave::RPCContext rpc_ctx(0, mcert1);
 
   // node to be tested
   // new node certificate
   auto new_ca = new_kp->self_sign("CN=new node");
   NodeInfo ni = {"", "", "", "", new_ca, {}};
-  network.add_node(ni);
-  set_whitelists(network);
-  network.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  network.finalize_raw();
+  gen.add_node(ni);
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
+  gen.finalize();
   MemberCallRpcFrontend frontend(network, node);
   auto node_id = 0;
   // check node exists with status pending
@@ -539,7 +652,8 @@ TEST_CASE("Accept node")
 }
 
 bool test_raw_writes(
-  GenesisGenerator& network,
+  NetworkTables& network,
+  GenesisGenerator& gen,
   StubNodeState& node,
   Proposal::In proposal,
   const int n_members = 1,
@@ -547,7 +661,7 @@ bool test_raw_writes(
   bool explicit_proposer_vote = false)
 {
   enclave::RPCContext rpc_ctx(0, nullb);
-  auto frontend = init_frontend(network, node, n_members);
+  auto frontend = init_frontend(network, gen, node, n_members);
   // check values before
   {
     Store::Tx tx;
@@ -622,13 +736,16 @@ TEST_CASE("Propose raw writes")
     for (int pro_votes = 0; pro_votes <= n_members; pro_votes++)
     {
       const bool should_succeed = pro_votes > n_members / 2;
-      GenesisGenerator network;
+      NetworkTables network;
+      GenesisGenerator gen(network);
+      gen.init_values();
       StubNodeState node;
       // manually add a member in state active (not recommended)
       const Cert mcert = {1, 2, 3};
       CHECK(
         test_raw_writes(
           network,
+          gen,
           node,
           {R"xxx(
         local tables, cert = ...
@@ -678,7 +795,9 @@ TEST_CASE("Propose raw writes")
       {
         for (const auto& sensitive_table : sensitive_tables)
         {
-          GenesisGenerator network;
+          NetworkTables network;
+          GenesisGenerator gen(network);
+          gen.init_values();
           StubNodeState node;
 
           const auto sensitive_put =
@@ -687,6 +806,7 @@ TEST_CASE("Propose raw writes")
           CHECK(
             test_raw_writes(
               network,
+              gen,
               node,
               {sensitive_put},
               n_members,
@@ -704,14 +824,17 @@ TEST_CASE("Remove proposal")
   auto v = tls::make_verifier(caller.kp->self_sign("CN=new member"));
   caller.cert = v->raw_cert_data();
 
-  GenesisGenerator network;
+  NetworkTables network;
+  GenesisGenerator gen(network);
+  gen.init_values();
+
   StubNodeState node;
   enclave::RPCContext rpc_ctx(0, nullb);
-  network.add_member(member_caller, MemberStatus::ACTIVE);
-  network.add_member(caller.cert, MemberStatus::ACTIVE);
-  set_whitelists(network);
-  network.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  network.finalize_raw();
+  gen.add_member(member_caller, MemberStatus::ACTIVE);
+  gen.add_member(caller.cert, MemberStatus::ACTIVE);
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
+  gen.finalize();
   MemberCallRpcFrontend frontend(network, node);
   auto proposal_id = 0;
   auto wrong_proposal_id = 1;
@@ -789,9 +912,11 @@ TEST_CASE("Remove proposal")
 
 TEST_CASE("Complete proposal after initial rejection")
 {
-  GenesisGenerator network;
+  NetworkTables network;
+  GenesisGenerator gen(network);
+  gen.init_values();
   StubNodeState node;
-  auto frontend = init_frontend(network, node, 3);
+  auto frontend = init_frontend(network, gen, node, 3);
   const Cert m0 = {0}, m1 = get_cert_data(1, kp);
   enclave::RPCContext rpc_ctx(0, m1);
   // propose
@@ -846,13 +971,16 @@ TEST_CASE("Complete proposal after initial rejection")
 
 TEST_CASE("Add user via proposed call")
 {
-  GenesisGenerator network;
+  NetworkTables network;
+  network.tables->set_encryptor(encryptor);
+  GenesisGenerator gen(network);
+  gen.init_values();
   StubNodeState node;
   enclave::RPCContext rpc_ctx(0, nullb);
-  network.add_member(Cert{0}, MemberStatus::ACTIVE);
-  set_whitelists(network);
-  network.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  network.finalize_raw();
+  gen.add_member(Cert{0}, MemberStatus::ACTIVE);
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
+  gen.finalize();
   MemberCallRpcFrontend frontend(network, node);
 
   Script proposal(R"xxx(

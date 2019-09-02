@@ -25,9 +25,9 @@ def verify_recover_secp256k1_bc_native(
 ):
     # Compact
     native_rec_sig = ffi.new("secp256k1_ecdsa_recoverable_signature *")
-    raw_sig, rec_id = signature[:64], coincurve.utils.bytes_to_int(signature[64:])
+    raw_sig, recovery_id = signature[:64], coincurve.utils.bytes_to_int(signature[64:])
     lib.secp256k1_ecdsa_recoverable_signature_parse_compact(
-        context.ctx, native_rec_sig, raw_sig, rec_id
+        context.ctx, native_rec_sig, raw_sig, recovery_id
     )
 
     # Recover public key
@@ -92,7 +92,7 @@ def run(args):
 
         # propose to add a new member
         # proposal number 0
-        infra.proc.ccall("./genesisgenerator", "cert", "--name=member4")
+        infra.proc.ccall("./keygenerator", "--name=member4")
         result = network.propose_add_member(1, primary, "member4_cert.pem")
 
         # when proposal is added the proposal id and the result of running complete proposal are returned
@@ -115,7 +115,7 @@ def run(args):
         result = network.vote(2, primary, proposal_id, True)
         assert result[0] and result[1]
 
-        ledger_filename = network.find_leader()[0].remote.ledger_path()
+        ledger_filename = network.find_primary()[0].remote.ledger_path()
 
     l = ledger.Ledger(ledger_filename)
 

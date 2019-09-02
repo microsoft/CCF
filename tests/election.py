@@ -13,8 +13,8 @@ import e2e_args
 from loguru import logger as LOG
 
 # This test starts from a given number of nodes (hosts), commits
-# a transaction, stops the current leader, waits for an election and repeats
-# this process until no progress can be made (i.e. no leader can be elected
+# a transaction, stops the current primary, waits for an election and repeats
+# this process until no progress can be made (i.e. no primary can be elected
 # as F > N/2).
 
 
@@ -35,9 +35,7 @@ def wait_for_index_globally_committed(index, term, nodes):
         time.sleep(1)
     assert len(up_to_date_f) == len(
         nodes
-    ), "Only {} out of {} followers are up to date".format(
-        len(up_to_date_f), len(nodes)
-    )
+    ), "Only {} out of {} backups are up to date".format(len(up_to_date_f), len(nodes))
 
 
 def run(args):
@@ -49,7 +47,7 @@ def run(args):
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
 
-        initial_leader, _ = network.start_and_join(args)
+        initial_primary, _ = network.start_and_join(args)
         current_term = None
 
         # Time before an election completes
@@ -59,13 +57,13 @@ def run(args):
         nodes_to_stop = math.ceil(len(hosts) / 2)
 
         for _ in range(nodes_to_stop):
-            # Note that for the first iteration, the leader is known in advance anyway
-            LOG.debug("Find freshly elected leader")
-            leader, current_term = network.find_leader()
+            # Note that for the first iteration, the primary is known in advance anyway
+            LOG.debug("Find freshly elected primary")
+            primary, current_term = network.find_primary()
 
             LOG.debug("Commit new transactions")
             commit_index = None
-            with leader.user_client() as c:
+            with primary.user_client() as c:
                 res = c.do(
                     "LOG_record",
                     {
@@ -81,8 +79,8 @@ def run(args):
                 commit_index, current_term, network.get_running_nodes()
             )
 
-            LOG.debug("Stopping leader")
-            leader.stop()
+            LOG.debug("Stopping primary")
+            primary.stop()
 
             # Wait for next election to complete
             time.sleep(max_election_duration)
@@ -94,11 +92,11 @@ def run(args):
             )
         )
         try:
-            leader, current_term = network.find_leader()
-            assert False, "Leader should not be found"
+            primary, current_term = network.find_primary()
+            assert False, "Primary should not be found"
         except AssertionError:
             LOG.info(
-                "As expected, leader could not be found after election timeout. Test ended successfully."
+                "As expected, primary could not be found after election timeout. Test ended successfully."
             )
 
 

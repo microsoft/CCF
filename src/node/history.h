@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "../consensus/pbft/pbfttypes.h"
 #include "../crypto/hash.h"
 #include "../ds/logger.h"
 #include "../kv/kvtypes.h"
-#include "../pbft/pbfttypes.h"
 #include "../tls/keypair.h"
 #include "../tls/tls.h"
 #include "entities.h"
@@ -155,16 +155,24 @@ namespace ccf
       kv::Version version,
       const std::vector<uint8_t>& data) override
     {}
+    void add_result(RequestID id, kv::Version version) override {}
     void add_response(
       kv::TxHistory::RequestID id,
       const std::vector<uint8_t>& response) override
     {}
 
-    void register_on_request(CallbackHandler func) override {}
+    void register_on_result(ResultCallbackHandler func) override {}
 
-    void register_on_result(CallbackHandler func) override {}
+    void register_on_response(ResponseCallbackHandler func) override {}
 
-    void register_on_response(CallbackHandler func) override {}
+    void clear_on_result() override {}
+
+    void clear_on_response() override {}
+
+    crypto::Sha256Hash get_root() override
+    {
+      return crypto::Sha256Hash();
+    }
   };
 
   class MerkleTreeHistory
@@ -236,14 +244,13 @@ namespace ccf
     Signatures& signatures;
     Nodes& nodes;
 
-    std::shared_ptr<kv::Replicator> replicator;
+    std::shared_ptr<kv::Consensus> consensus;
 
     std::map<RequestID, std::vector<uint8_t>> requests;
     std::map<RequestID, std::pair<kv::Version, crypto::Sha256Hash>> results;
     std::map<RequestID, std::vector<uint8_t>> responses;
-    std::optional<CallbackHandler> on_request;
-    std::optional<CallbackHandler> on_result;
-    std::optional<CallbackHandler> on_response;
+    std::optional<ResultCallbackHandler> on_result;
+    std::optional<ResponseCallbackHandler> on_response;
 
   public:
     HashedTxHistory(
@@ -259,19 +266,28 @@ namespace ccf
       nodes(nodes_)
     {}
 
-    void register_on_request(CallbackHandler func) override
+    void register_on_result(ResultCallbackHandler func) override
     {
-      on_request = func;
-    }
-
-    void register_on_result(CallbackHandler func) override
-    {
+      if (on_result.has_value())
+        throw std::logic_error("on_result has already been set");
       on_result = func;
     }
 
-    void register_on_response(CallbackHandler func) override
+    void register_on_response(ResponseCallbackHandler func) override
     {
+      if (on_response.has_value())
+        throw std::logic_error("on_response has already been set");
       on_response = func;
+    }
+
+    void clear_on_result() override
+    {
+      on_result.reset();
+    }
+
+    void clear_on_response() override
+    {
+      on_response.reset();
     }
 
     void set_node_id(NodeId id_)
@@ -279,7 +295,7 @@ namespace ccf
       id = id_;
     }
 
-    crypto::Sha256Hash get_root()
+    crypto::Sha256Hash get_root() override
     {
       return tree.get_root();
     }
@@ -336,23 +352,23 @@ namespace ccf
     {
 #ifndef PBFT
       // Signatures are only emitted when Raft is used as consensus
-      auto replicator = store.get_replicator();
-      if (!replicator)
+      auto consensus = store.get_consensus();
+      if (!consensus)
         return;
 
       auto version = store.next_version();
-      auto term = replicator->get_term();
-      auto commit = replicator->get_commit_idx();
+      auto view = consensus->get_view();
+      auto commit = consensus->get_commit_seqno();
       LOG_INFO_FMT("Issuing signature at {}", version);
-      LOG_DEBUG_FMT("Signed at {} term: {} commit: {}", version, term, commit);
+      LOG_DEBUG_FMT("Signed at {} view: {} commit: {}", version, view, commit);
       store.commit(
         version,
-        [version, term, commit, this]() {
+        [version, view, commit, this]() {
           Store::Tx sig(version);
           auto sig_view = sig.get_view(signatures);
           crypto::Sha256Hash root = tree.get_root();
           Signature sig_value(
-            id, version, term, commit, kp.sign_hash(root.h, root.SIZE));
+            id, version, view, commit, kp.sign_hash(root.h, root.SIZE));
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
         },
@@ -369,10 +385,11 @@ namespace ccf
       LOG_DEBUG << fmt::format("HISTORY: add_request {0}", id) << std::endl;
       requests[id] = request;
 
-      if (!on_request.has_value())
+      auto consensus = store.get_consensus();
+      if (!consensus)
         return false;
 
-      return on_request.value()({id, request, -1, actor, caller_id});
+      return consensus->on_request({id, request, actor, caller_id});
     }
 
     void add_result(
@@ -387,6 +404,21 @@ namespace ccf
                 << std::endl;
 #ifdef PBFT
       results[id] = {version, root};
+      if (on_result.has_value())
+        on_result.value()({id, version, root});
+#endif
+    }
+
+    void add_result(kv::TxHistory::RequestID id, kv::Version version) override
+    {
+      auto root = get_root();
+      LOG_DEBUG << fmt::format(
+                     "HISTORY: add_result {0} {1} {2}", id, version, root)
+                << std::endl;
+#ifdef PBFT
+      results[id] = {version, root};
+      if (on_result.has_value())
+        on_result.value()({id, version, root});
 #endif
     }
 

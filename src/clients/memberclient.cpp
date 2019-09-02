@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "crypto/hash.h"
+#include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "node/entities.h"
 #include "node/members.h"
@@ -237,7 +238,7 @@ void display_proposals(RpcTlsClient& tls_connection)
 void submit_ack(
   RpcTlsClient& tls_connection,
   const vector<uint8_t>& raw_cert,
-  const vector<uint8_t>& raw_key)
+  const tls::Pem& key)
 {
   // member using its own certificate reads its member id
   auto verifier = tls::make_verifier(raw_cert);
@@ -250,7 +251,7 @@ void submit_ack(
     tls_connection.call("read", read_params(member_id, "memberacks")));
 
   // member signs nonce and sends ack
-  auto kp = tls::make_key_pair(raw_key);
+  auto kp = tls::make_key_pair(key);
   const auto sig = kp->sign(read_ack.result.next_nonce);
   const auto response =
     json::from_msgpack(tls_connection.call("ack", ack_params(sig)));
@@ -262,10 +263,12 @@ int main(int argc, char** argv)
   CLI::App app{"Member client"};
   app.fallthrough(true);
   app.allow_extras(true);
-  string host = "localhost";
-  app.add_option("--host", host, "Remote host")->required(true);
-  string port = "5678";
-  app.add_option("--port", port, "Remote port")->required(true);
+
+  cli::ParsedAddress server_address;
+  auto server_addr_opt =
+    cli::add_address_option(
+      app, server_address, "--rpc-address", "Remote node RPC over TLS address")
+      ->required();
 
   string cert_file, privk_file, ca_file;
   app.add_option("--cert", cert_file, "Client certificate")
@@ -285,13 +288,13 @@ int main(int argc, char** argv)
   auto add_member = app.add_subcommand("add_member", "Add a new member");
   string member_cert_file;
   add_member
-    ->add_option("--member_cert", member_cert_file, "New member certificate")
+    ->add_option("--member-cert", member_cert_file, "New member certificate")
     ->required(true)
     ->check(CLI::ExistingFile);
 
   auto add_user = app.add_subcommand("add_user", "Add a new user");
   string user_cert_file;
-  add_user->add_option("--user_cert", user_cert_file, "New user certificate")
+  add_user->add_option("--user-cert", user_cert_file, "New user certificate")
     ->required(true)
     ->check(CLI::ExistingFile);
 
@@ -324,14 +327,14 @@ int main(int argc, char** argv)
   auto add_node = app.add_subcommand("add_node", "Add a node");
   add_node
     ->add_option(
-      "--nodes_to_add", nodes_file, "The file containing the nodes to be added")
+      "--nodes-to-add", nodes_file, "The file containing the nodes to be added")
     ->required(true);
 
   std::string new_code_id;
   auto add_code = app.add_subcommand("add_code", "Support executing new code");
   add_code
     ->add_option(
-      "--new_code_id",
+      "--new-code-id",
       new_code_id,
       "The new code id (a 64 character string representing a 32 byte hash "
       "value in hex format)")
@@ -358,7 +361,8 @@ int main(int argc, char** argv)
     ->check(CLI::ExistingFile);
 
   auto removal = app.add_subcommand("removal", "Remove a proposal");
-  removal->add_option("--id", proposal_id, "The proposal id")->required(true);
+  removal->add_option("--proposal-id", proposal_id, "The proposal id")
+    ->required(true);
 
   auto accept_recovery =
     app.add_subcommand("accept_recovery", "Accept to recover network");
@@ -378,14 +382,26 @@ int main(int argc, char** argv)
   const auto raw_key = slurp(privk_file);
   const auto ca = files::slurp(ca_file);
 
+  const tls::Pem key_pem(raw_key);
+
   // create tls client
   auto tls_cert = make_shared<tls::Cert>(
-    members_sni, make_shared<tls::CA>(ca), raw_cert, raw_key, nullb);
+    members_sni, make_shared<tls::CA>(ca), raw_cert, key_pem, nullb);
 
   unique_ptr<RpcTlsClient> tls_connection = force_unsigned ?
-    make_unique<RpcTlsClient>(host, port, members_sni, nullptr, tls_cert) :
+    make_unique<RpcTlsClient>(
+      server_address.hostname,
+      server_address.port,
+      members_sni,
+      nullptr,
+      tls_cert) :
     make_unique<SigRpcTlsClient>(
-      raw_key, host, port, members_sni, nullptr, tls_cert);
+      key_pem,
+      server_address.hostname,
+      server_address.port,
+      members_sni,
+      nullptr,
+      tls_cert);
 
   try
   {
@@ -479,7 +495,7 @@ int main(int argc, char** argv)
 
     if (*ack)
     {
-      submit_ack(*tls_connection, raw_cert, raw_key);
+      submit_ack(*tls_connection, raw_cert, key_pem);
     }
 
     if (*accept_recovery)

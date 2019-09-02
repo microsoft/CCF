@@ -1,15 +1,26 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+
 enclave {
+
+    include "enclave/start_type.h"
+
     trusted {
 
         public bool enclave_create_node(
-            [user_check] void * config,
+            [user_check] void * enclave_config,
+            [user_check] char * ccf_config,
+            size_t ccf_config_size,
             [out, count=node_cert_size] uint8_t * node_cert,
             size_t node_cert_size,
             [out] size_t* node_cert_len,
             [out, count=quote_size] uint8_t * quote,
             size_t quote_size,
             [out] size_t* quote_len,
-            bool recover
+            [out, count=network_cert_size] uint8_t * network_cert,
+            size_t network_cert_size,
+            [out] size_t* network_cert_len,
+            StartType start_type
         );
 
         public bool enclave_run();

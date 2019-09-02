@@ -27,14 +27,20 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--enclave-type",
         help="Enclave type",
         default=os.getenv("TEST_ENCLAVE", "debug"),
-        choices=("simulate", "debug", "virtual"),
+        choices=("debug", "virtual"),
     )
     parser.add_argument(
         "-l",
-        "--log-level",
-        help="Runtime log level",
+        "--host-log-level",
+        help="Runtime host log level",
         default="info",
         choices=("trace", "debug", "info", "fail", "fatal"),
+    )
+    parser.add_argument(
+        "--log-path",
+        help="Path to directory where the 'out' and 'err' files will be appended to. \
+        They will be stored under <log_path>/out/{label}_{node} and <log_path>/err/{label}_{node_id} respectively",
+        default=None,
     )
     parser.add_argument(
         "-g", "--gov-script", help="Path to governance script", required=True

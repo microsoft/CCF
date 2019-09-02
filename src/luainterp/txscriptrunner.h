@@ -31,6 +31,8 @@ namespace ccf
     class TxScriptRunner
     {
     protected:
+      static constexpr auto env_table_name = "env";
+
       /** Dummy type to distinguish writable from read-only tables at compile
        * time. Used to instantiate lua::UserDataExt for writable tables.
        */
@@ -153,6 +155,59 @@ namespace ccf
           ss.str(), static_cast<int>(jsonrpc::CCFErrorCodes::SCRIPT_ERROR));
       }
 
+      static std::string get_var_string_from_args(lua_State* l)
+      {
+        size_t args = lua_gettop(l);
+        std::stringstream ss;
+        for (size_t i = 1; i <= args; ++i)
+        {
+          ss << lua_tostring(l, i);
+        }
+        return ss.str();
+      }
+
+      static int lua_log_trace(lua_State* l)
+      {
+        LOG_TRACE_FMT(get_var_string_from_args(l));
+        return 0;
+      }
+
+      static int lua_log_debug(lua_State* l)
+      {
+        LOG_DEBUG_FMT(get_var_string_from_args(l));
+        return 0;
+      }
+
+      static int lua_log_info(lua_State* l)
+      {
+        LOG_INFO_FMT(get_var_string_from_args(l));
+        return 0;
+      }
+
+      static int lua_log_fail(lua_State* l)
+      {
+        LOG_FAIL_FMT(get_var_string_from_args(l));
+        return 0;
+      }
+
+      static int lua_log_fatal(lua_State* l)
+      {
+        LOG_FATAL_FMT(get_var_string_from_args(l));
+        return 0;
+      }
+
+      virtual void setup_environment(
+        lua::Interpreter& li, const std::optional<Script>& env_script) const
+      {
+        auto l = li.get_state();
+
+        if (env_script)
+        {
+          load(li, *env_script);
+          li.invoke_raw(0);
+        }
+      }
+
       virtual void add_custom_tables(
         lua::Interpreter& li, Store::Tx& tx, int& n_registered_tables) const
       {}
@@ -185,12 +240,10 @@ namespace ccf
       T run(Store::Tx& tx, const TxScript& txs, Args&&... args) const
       {
         lua::Interpreter li;
+
         // run an optional environment script
-        if (txs.env_script)
-        {
-          load(li, *txs.env_script);
-          li.invoke_raw(0);
-        }
+        setup_environment(li, txs.env_script);
+
         load(li, txs.script);
 
         // register writable and read-only tables with respect to the given

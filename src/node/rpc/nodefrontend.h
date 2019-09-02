@@ -13,16 +13,22 @@ namespace ccf
   public:
     NodesCallRpcFrontend(
       Store& tables, AbstractNodeState& node, NetworkState& network) :
-      RpcFrontend(tables, nullptr, tables.get<Certs>(Tables::NODE_CERTS))
+      RpcFrontend(tables, nullptr, tables.get<Certs>(Tables::NODE_CERTS), false)
     {
       auto accept = [&node, &network](RequestArgs& args) {
-        // Retrieve joining node's cert and quote
-        auto nodes_view = args.tx.get_view(network.nodes);
-        auto joining_nodeinfo = nodes_view->get(args.caller_id).value();
+        const auto in = args.params.get<JoinNetworkNodeToNode::In>();
+
+        // Convert caller cert from DER to PEM as PEM certificates are quoted
+        auto caller_pem = tls::make_verifier({args.rpc_ctx.caller_cert.p,
+                                              args.rpc_ctx.caller_cert.p +
+                                                args.rpc_ctx.caller_cert.n})
+                            ->cert_pem();
+        std::vector<uint8_t> caller_pem_raw = {caller_pem.str().begin(),
+                                               caller_pem.str().end()};
 
 #ifdef GET_QUOTE
         QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
-          args.tx, network, joining_nodeinfo.quote, joining_nodeinfo.cert);
+          args.tx, network, in.quote, caller_pem_raw);
 
         if (verify_result != QuoteVerificationResult::VERIFIED)
           return QuoteVerifier::quote_verification_error_to_json(verify_result);
@@ -30,21 +36,29 @@ namespace ccf
         LOG_INFO_FMT("Skipped joining node quote verification");
 #endif
 
-        // TODO(#important,#TR): In addition to verifying the quote, we should
-        // go through a round of governance before marking the node as TRUSTED
-        // (section IV-D).
-        joining_nodeinfo.status = NodeStatus::TRUSTED;
-        nodes_view->put(args.caller_id, joining_nodeinfo);
+        NodeId joining_node_id =
+          get_next_id(args.tx.get_view(network.values), NEXT_NODE_ID);
 
-        LOG_INFO_FMT(
-          "Accepting a new node to the network as node {}", args.caller_id);
+        auto nodes_view = args.tx.get_view(network.nodes);
+        nodes_view->put(
+          joining_node_id,
+          {in.node_info_network,
+           caller_pem_raw,
+           in.quote,
+           NodeStatus::TRUSTED});
 
         // Set joiner's fresh key for encrypting past network secrets
-        node.set_joiner_key(args.caller_id, args.params["raw_fresh_key"]);
+        node.set_joiner_key(joining_node_id, args.params["raw_fresh_key"]);
+
+        LOG_INFO_FMT(
+          "Adding node {}:{} as node {}",
+          in.node_info_network.host,
+          in.node_info_network.rpcport,
+          joining_node_id);
 
         // Send network secrets and NodeID
         return jsonrpc::success(nlohmann::json(
-          JoinNetworkNodeToNode::Out{args.caller_id,
+          JoinNetworkNodeToNode::Out{joining_node_id,
                                      network.secrets->get_current(),
                                      network.secrets->get_current_version()}));
       };

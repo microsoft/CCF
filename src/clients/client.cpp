@@ -1,9 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "../ds/cli_helper.h"
 #include "../ds/files.h"
-#include "../node/calltypes.h"
 #include "../node/rpc/jsonrpc.h"
-#include "../node/rpc/serialization.h"
 #include "../tls/ca.h"
 #include "../tls/cert.h"
 #include "../tls/keypair.h"
@@ -71,10 +70,11 @@ std::vector<uint8_t> make_rpc_raw(
 
   if (!client_cert_file.empty() && !client_pk_file.empty())
   {
-    auto client_cert = files::slurp(client_cert_file);
-    auto client_pk = files::slurp(client_pk_file);
+    const auto client_cert = files::slurp(client_cert_file);
+    const auto client_pk = files::slurp(client_pk_file);
+    const tls::Pem pk_pem(client_pk);
     cert = std::make_shared<tls::Cert>(
-      sni, tls_ca, client_cert, client_pk, nullb, auth);
+      sni, tls_ca, client_cert, pk_pem, nullb, auth);
   }
 
   switch (pack)
@@ -166,12 +166,6 @@ int main(int argc, char** argv)
 
   app.require_subcommand(1, 1);
 
-  std::string nodes_file = "nodes.json";
-  size_t node_index = 0;
-  auto nodes_opt = app.add_option("--nodes", nodes_file, "Nodes file", true);
-  app.add_option(
-    "--host-node-index", node_index, "Index of host in nodes file", true);
-
   bool pretty_print = false;
   app.add_flag(
     "--pretty-print",
@@ -180,20 +174,14 @@ int main(int argc, char** argv)
 
   std::string host, port;
   std::string ca_file = "networkcert.pem";
-  auto host_opt =
-    app.add_option("--host", host, "Remote host")->excludes(nodes_opt);
-  app.add_option("--port", port, "Remote port")->needs(host_opt);
+
+  cli::ParsedAddress server_address;
+  auto server_addr_opt = cli::add_address_option(
+    app,
+    server_address,
+    "--rpc-address",
+    "Remote node JSON-RPC server address");
   app.add_option("--ca", ca_file, "Network CA", true);
-
-  auto start_network = app.add_subcommand("startnetwork", "Start network");
-
-  std::string req_sn = "@startNetwork.json";
-  add_request_arg(start_network, req_sn);
-
-  auto join_network = app.add_subcommand("joinnetwork", "Join network");
-
-  std::string req_jn = "@joinNetwork.json";
-  add_request_arg(join_network, req_jn);
 
   auto member_rpc = app.add_subcommand("memberrpc", "Member RPC");
 
@@ -227,51 +215,12 @@ int main(int argc, char** argv)
 
   try
   {
-    // If host connection has not been set explicitly by options then load from
-    // nodes file
-    if (!*host_opt)
-    {
-      const auto j_nodes = files::slurp_json(nodes_file);
-
-      if (!j_nodes.is_array())
-      {
-        throw logic_error("Expected " + nodes_file + " to contain array");
-      }
-
-      if (node_index >= j_nodes.size())
-      {
-        throw logic_error(
-          "Expected node data at index " + to_string(node_index) + ", but " +
-          nodes_file + " defines only " + to_string(j_nodes.size()) + " files");
-      }
-
-      const auto& j_node = j_nodes[node_index];
-
-      host = j_node["pubhost"];
-      port = j_node["tlsport"];
-    }
+    host = server_address.hostname;
+    port = server_address.port;
 
     nlohmann::json response;
 
     cout << fmt::format("Sending RPC to {}:{}", host, port) << endl;
-
-    if (*start_network)
-    {
-      cout << "Starting network:" << endl;
-      response = make_rpc(
-        host, port, Pack::MsgPack, "management", ca_file, "", "", req_sn);
-      Response<ccf::StartNetwork::Out> start_network_out = response;
-
-      dump(start_network_out.result.network_cert, "networkcert.pem");
-      dump(start_network_out.result.tx0_sig, "tx0.sig");
-    }
-
-    if (*join_network)
-    {
-      cout << "Joining network:" << endl;
-      response = make_rpc(
-        host, port, Pack::MsgPack, "management", ca_file, "", "", req_jn);
-    }
 
     if (*member_rpc)
     {

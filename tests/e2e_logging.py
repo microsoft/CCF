@@ -25,7 +25,7 @@ def run(args):
         with infra.ccf.network(
             hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
         ) as network:
-            primary, (follower,) = network.start_and_join(args)
+            primary, (backup,) = network.start_and_join(args)
 
             with primary.management_client() as mc:
                 check_commit = infra.ccf.Checker(mc)
@@ -34,9 +34,9 @@ def run(args):
 
                 msg = "Hello world"
                 msg2 = "Hello there"
-                follower_msg = "Msg sent to a follower"
+                backup_msg = "Msg sent to a backup"
 
-                LOG.debug("Write/Read on leader")
+                LOG.debug("Write/Read on primary")
                 with primary.user_client(format="json") as c:
                     check_commit(
                         c.rpc("LOG_record", {"id": 42, "msg": msg}), result=True
@@ -47,22 +47,21 @@ def run(args):
                     check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
                     check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2})
 
-                LOG.debug("Write on all follower frontends")
-                with follower.management_client(format="json") as c:
+                LOG.debug("Write on all backup frontends")
+                with backup.management_client(format="json") as c:
                     check_commit(c.do("mkSign", params={}), result=True)
-                with follower.member_client(format="json") as c:
+                with backup.member_client(format="json") as c:
                     check_commit(c.do("mkSign", params={}), result=True)
 
-                LOG.debug("Write/Read on follower")
-                with follower.user_client(format="json") as c:
+                LOG.debug("Write/Read on backup")
+                with backup.user_client(format="json") as c:
                     check_commit(
-                        c.rpc("LOG_record", {"id": 100, "msg": follower_msg}),
-                        result=True,
+                        c.rpc("LOG_record", {"id": 100, "msg": backup_msg}), result=True
                     )
-                    check(c.rpc("LOG_get", {"id": 100}), result={"msg": follower_msg})
+                    check(c.rpc("LOG_get", {"id": 100}), result={"msg": backup_msg})
                     check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
 
-                LOG.debug("Write/Read large messages on leader")
+                LOG.debug("Write/Read large messages on primary")
                 with primary.user_client(format="json") as c:
                     id = 44
                     for p in range(14, 20):

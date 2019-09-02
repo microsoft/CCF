@@ -1,0 +1,3 @@
+[submodule "evercrypt-msr"]
+	path = evercrypt-msr
+	url = https://github.com/project-everest/evercrypt-msr.git

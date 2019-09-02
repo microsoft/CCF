@@ -13,6 +13,7 @@ import infra.jsonrpc
 import infra.rates
 import os
 import re
+import cimetrics.upload
 
 from loguru import logger as LOG
 
@@ -40,13 +41,13 @@ def get_command_args(args, get_command):
     return get_command(*command_args)
 
 
-def filter_nodes(primary, followers, filter_type):
+def filter_nodes(primary, backups, filter_type):
     if filter_type == "primary":
         return [primary]
-    elif filter_type == "followers":
-        return followers
+    elif filter_type == "backups":
+        return backups
     else:
-        return [primary] + followers
+        return [primary] + backups
 
 
 def configure_remote_client(args, client_id, client_host, node, command_args):
@@ -61,7 +62,7 @@ def configure_remote_client(args, client_id, client_host, node, command_args):
             client_host,
             args.client,
             node.host,
-            node.tls_port,
+            node.rpc_port,
             args.workspace,
             args.label,
             args.iterations,
@@ -79,10 +80,9 @@ def configure_remote_client(args, client_id, client_host, node, command_args):
 def run_client(args, primary, command_args):
     command = [
         args.client,
-        "--host={}".format(primary.host),
-        "--port={}".format(primary.tls_port),
-        "--transactions={}".format(args.iterations),
-        "--config={}".format(args.config),
+        f"--rpc-address={primary.host}:{primary.rpc_port}",
+        f"--transactions={args.iterations}",
+        f"--config={args.config}",
     ]
     command += command_args
 
@@ -104,14 +104,14 @@ def run(build_directory, get_command, args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, followers = network.start_and_join(args)
+        primary, backups = network.start_and_join(args)
 
         command_args = get_command_args(args, get_command)
 
         if args.network_only:
             run_client(args, primary, command_args)
         else:
-            nodes = filter_nodes(primary, followers, args.send_tx_to)
+            nodes = filter_nodes(primary, backups, args.send_tx_to)
             clients = []
             client_hosts = args.client_nodes or ["localhost"]
             for client_id, client_host in enumerate(client_hosts):
@@ -125,18 +125,20 @@ def run(build_directory, get_command, args):
                 remote_client.start()
 
             try:
+                metrics = cimetrics.upload.Metrics()
                 tx_rates = infra.rates.TxRates(primary)
                 while True:
                     if not tx_rates.process_next():
                         for i, remote_client in enumerate(clients):
                             remote_client.wait()
-                            remote_client.print_result()
+                            remote_client.print_and_upload_result(args.label, metrics)
                             remote_client.stop()
                         break
                     time.sleep(1)
 
                 LOG.info(f"Rates: {tx_rates}")
                 tx_rates.save_results(args.metrics_file)
+                metrics.publish()
 
             except KeyboardInterrupt:
                 for remote_client in clients:

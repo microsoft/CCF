@@ -1,14 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT
-#include "../history.h"
+#include "node/history.h"
 
-#include "../../enclave/appinterface.h"
-#include "../../kv/kv.h"
-#include "../encryptor.h"
-#include "../entities.h"
-#include "../nodes.h"
-#include "../signatures.h"
+#include "enclave/appinterface.h"
+#include "kv/kv.h"
+#include "kv/test/stub_consensus.h"
+#include "node/encryptor.h"
+#include "node/entities.h"
+#include "node/nodes.h"
+#include "node/signatures.h"
 
 #include <doctest/doctest.h>
 
@@ -19,16 +20,16 @@ extern "C"
 
 using namespace ccfapp;
 
-class DummyReplicator : public kv::Replicator
+class DummyConsensus : public kv::StubConsensus
 {
 public:
   Store* store;
 
-  DummyReplicator(Store* store_) : store(store_) {}
+  DummyConsensus(Store* store_) : store(store_) {}
 
   bool replicate(
-    const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
-      entries) override
+    const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
+    override
   {
     if (store)
     {
@@ -38,17 +39,17 @@ public:
     return true;
   }
 
-  kv::Term get_term() override
+  View get_view() override
   {
     return 2;
   }
 
-  kv::Version get_commit_idx() override
+  SeqNo get_commit_seqno() override
   {
     return 0;
   }
 
-  kv::NodeId leader() override
+  kv::NodeId primary() override
   {
     return 1;
   }
@@ -58,57 +59,52 @@ public:
     return 0;
   }
 
-  kv::Term get_term(kv::Version version) override
+  View get_view(SeqNo seqno) override
   {
     return 2;
-  }
-
-  bool is_leader() override
-  {
-    return true;
   }
 };
 
 TEST_CASE("Check signature verification")
 {
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
-  Store leader_store;
-  leader_store.set_encryptor(encryptor);
-  auto& leader_nodes = leader_store.create<ccf::Nodes>(
+  Store primary_store;
+  primary_store.set_encryptor(encryptor);
+  auto& primary_nodes = primary_store.create<ccf::Nodes>(
     ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& leader_signatures = leader_store.create<ccf::Signatures>(
+  auto& primary_signatures = primary_store.create<ccf::Signatures>(
     ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
 
-  Store follower_store;
-  follower_store.set_encryptor(encryptor);
-  auto& follower_nodes = follower_store.create<ccf::Nodes>(
+  Store backup_store;
+  backup_store.set_encryptor(encryptor);
+  auto& backup_nodes = backup_store.create<ccf::Nodes>(
     ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& follower_signatures = follower_store.create<ccf::Signatures>(
+  auto& backup_signatures = backup_store.create<ccf::Signatures>(
     ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
 
   auto kp = tls::make_key_pair();
 
-  std::shared_ptr<kv::Replicator> replicator =
-    std::make_shared<DummyReplicator>(&follower_store);
-  leader_store.set_replicator(replicator);
-  std::shared_ptr<kv::Replicator> null_replicator =
-    std::make_shared<DummyReplicator>(nullptr);
-  follower_store.set_replicator(null_replicator);
+  std::shared_ptr<kv::Consensus> consensus =
+    std::make_shared<DummyConsensus>(&backup_store);
+  primary_store.set_consensus(consensus);
+  std::shared_ptr<kv::Consensus> null_consensus =
+    std::make_shared<DummyConsensus>(nullptr);
+  backup_store.set_consensus(null_consensus);
 
-  std::shared_ptr<kv::TxHistory> leader_history =
+  std::shared_ptr<kv::TxHistory> primary_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      leader_store, 0, *kp, leader_signatures, leader_nodes);
-  leader_store.set_history(leader_history);
+      primary_store, 0, *kp, primary_signatures, primary_nodes);
+  primary_store.set_history(primary_history);
 
-  std::shared_ptr<kv::TxHistory> follower_history =
+  std::shared_ptr<kv::TxHistory> backup_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      follower_store, 1, *kp, follower_signatures, follower_nodes);
-  follower_store.set_history(follower_history);
+      backup_store, 1, *kp, backup_signatures, backup_nodes);
+  backup_store.set_history(backup_history);
 
   INFO("Write certificate");
   {
     Store::Tx txs;
-    auto tx = txs.get_view(leader_nodes);
+    auto tx = txs.get_view(primary_nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
     tx->put(0, ni);
@@ -116,17 +112,17 @@ TEST_CASE("Check signature verification")
   }
 
 #ifndef PBFT
-  INFO("Issue signature, and verify successfully on follower");
+  INFO("Issue signature, and verify successfully on backup");
   {
-    leader_history->emit_signature();
-    REQUIRE(follower_store.current_version() == 2);
+    primary_history->emit_signature();
+    REQUIRE(backup_store.current_version() == 2);
   }
 #endif
 
-  INFO("Issue a bogus signature, rejected by verification on the follower");
+  INFO("Issue a bogus signature, rejected by verification on the backup");
   {
     Store::Tx txs;
-    auto tx = txs.get_view(leader_signatures);
+    auto tx = txs.get_view(primary_signatures);
     ccf::Signature bogus(0, 0);
     bogus.sig = std::vector<uint8_t>(MBEDTLS_ECDSA_MAX_LEN, 1);
     tx->put(0, bogus);
@@ -137,43 +133,43 @@ TEST_CASE("Check signature verification")
 TEST_CASE("Check signing works across rollback")
 {
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
-  Store leader_store;
-  leader_store.set_encryptor(encryptor);
-  auto& leader_nodes = leader_store.create<ccf::Nodes>(
+  Store primary_store;
+  primary_store.set_encryptor(encryptor);
+  auto& primary_nodes = primary_store.create<ccf::Nodes>(
     ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& leader_signatures = leader_store.create<ccf::Signatures>(
+  auto& primary_signatures = primary_store.create<ccf::Signatures>(
     ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
 
-  Store follower_store;
-  follower_store.set_encryptor(encryptor);
-  auto& follower_nodes = follower_store.create<ccf::Nodes>(
+  Store backup_store;
+  backup_store.set_encryptor(encryptor);
+  auto& backup_nodes = backup_store.create<ccf::Nodes>(
     ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& follower_signatures = follower_store.create<ccf::Signatures>(
+  auto& backup_signatures = backup_store.create<ccf::Signatures>(
     ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
 
   auto kp = tls::make_key_pair();
 
-  std::shared_ptr<kv::Replicator> replicator =
-    std::make_shared<DummyReplicator>(&follower_store);
-  leader_store.set_replicator(replicator);
-  std::shared_ptr<kv::Replicator> null_replicator =
-    std::make_shared<DummyReplicator>(nullptr);
-  follower_store.set_replicator(null_replicator);
+  std::shared_ptr<kv::Consensus> consensus =
+    std::make_shared<DummyConsensus>(&backup_store);
+  primary_store.set_consensus(consensus);
+  std::shared_ptr<kv::Consensus> null_consensus =
+    std::make_shared<DummyConsensus>(nullptr);
+  backup_store.set_consensus(null_consensus);
 
-  std::shared_ptr<kv::TxHistory> leader_history =
+  std::shared_ptr<kv::TxHistory> primary_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      leader_store, 0, *kp, leader_signatures, leader_nodes);
-  leader_store.set_history(leader_history);
+      primary_store, 0, *kp, primary_signatures, primary_nodes);
+  primary_store.set_history(primary_history);
 
-  std::shared_ptr<kv::TxHistory> follower_history =
+  std::shared_ptr<kv::TxHistory> backup_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      follower_store, 1, *kp, follower_signatures, follower_nodes);
-  follower_store.set_history(follower_history);
+      backup_store, 1, *kp, backup_signatures, backup_nodes);
+  backup_store.set_history(backup_history);
 
   INFO("Write certificate");
   {
     Store::Tx txs;
-    auto tx = txs.get_view(leader_nodes);
+    auto tx = txs.get_view(primary_nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
     tx->put(0, ni);
@@ -183,32 +179,32 @@ TEST_CASE("Check signing works across rollback")
   INFO("Transaction that we will roll back");
   {
     Store::Tx txs;
-    auto tx = txs.get_view(leader_nodes);
+    auto tx = txs.get_view(primary_nodes);
     ccf::NodeInfo ni;
     tx->put(1, ni);
     REQUIRE(txs.commit() == kv::CommitSuccess::OK);
   }
 
-  leader_store.rollback(1);
+  primary_store.rollback(1);
 
-  INFO("Issue signature, and verify successfully on follower");
+  INFO("Issue signature, and verify successfully on backup");
   {
-    leader_history->emit_signature();
-    REQUIRE(follower_store.current_version() == 2);
+    primary_history->emit_signature();
+    REQUIRE(backup_store.current_version() == 2);
   }
 }
 
-class CompactingReplicator : public kv::Replicator
+class CompactingConsensus : public kv::StubConsensus
 {
 public:
   Store* store;
   size_t count = 0;
 
-  CompactingReplicator(Store* store_) : store(store_) {}
+  CompactingConsensus(Store* store_) : store(store_) {}
 
   bool replicate(
-    const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
-      entries) override
+    const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
+    override
   {
     for (auto& [version, data, committable] : entries)
     {
@@ -219,17 +215,17 @@ public:
     return true;
   }
 
-  kv::Term get_term() override
+  View get_view() override
   {
     return 2;
   }
 
-  kv::Version get_commit_idx() override
+  SeqNo get_commit_seqno() override
   {
     return 0;
   }
 
-  kv::NodeId leader() override
+  kv::NodeId primary() override
   {
     return 1;
   }
@@ -239,14 +235,9 @@ public:
     return 0;
   }
 
-  kv::Term get_term(kv::Version version) override
+  View get_view(kv::Version version) override
   {
     return 2;
-  }
-
-  bool is_leader() override
-  {
-    return true;
   }
 };
 
@@ -255,9 +246,9 @@ TEST_CASE(
   "halt replication")
 {
   Store store;
-  std::shared_ptr<CompactingReplicator> replicator =
-    std::make_shared<CompactingReplicator>(&store);
-  store.set_replicator(replicator);
+  std::shared_ptr<CompactingConsensus> consensus =
+    std::make_shared<CompactingConsensus>(&store);
+  store.set_consensus(consensus);
 
   auto& table =
     store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
@@ -270,7 +261,7 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 1);
+    REQUIRE(consensus->count == 1);
   }
 
   INFO("Batch of two, starting with a commitable");
@@ -281,7 +272,7 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 1);
+    REQUIRE(consensus->count == 1);
 
     store.commit(
       rv,
@@ -292,7 +283,7 @@ TEST_CASE(
         return txr.commit_reserved();
       },
       true);
-    REQUIRE(replicator->count == 3);
+    REQUIRE(consensus->count == 3);
   }
 
   INFO("Single tx");
@@ -301,11 +292,11 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 4);
+    REQUIRE(consensus->count == 4);
   }
 }
 
-class RollbackReplicator : public kv::Replicator
+class RollbackConsensus : public kv::StubConsensus
 {
 public:
   Store* store;
@@ -313,7 +304,7 @@ public:
   kv::Version rollback_at;
   kv::Version rollback_to;
 
-  RollbackReplicator(
+  RollbackConsensus(
     Store* store_, kv::Version rollback_at_, kv::Version rollback_to_) :
     store(store_),
     rollback_at(rollback_at_),
@@ -321,8 +312,8 @@ public:
   {}
 
   bool replicate(
-    const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
-      entries) override
+    const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
+    override
   {
     for (auto& [version, data, committable] : entries)
     {
@@ -333,17 +324,17 @@ public:
     return true;
   }
 
-  kv::Term get_term() override
+  View get_view() override
   {
     return 2;
   }
 
-  kv::Version get_commit_idx() override
+  SeqNo get_commit_seqno() override
   {
     return 0;
   }
 
-  kv::NodeId leader() override
+  kv::NodeId primary() override
   {
     return 1;
   }
@@ -353,14 +344,9 @@ public:
     return 0;
   }
 
-  kv::Term get_term(kv::Version version) override
+  View get_view(SeqNo seqno) override
   {
     return 2;
-  }
-
-  bool is_leader() override
-  {
-    return true;
   }
 };
 
@@ -368,9 +354,9 @@ TEST_CASE(
   "Check that empty rollback during replicate does not cause replication halts")
 {
   Store store;
-  std::shared_ptr<RollbackReplicator> replicator =
-    std::make_shared<RollbackReplicator>(&store, 2, 2);
-  store.set_replicator(replicator);
+  std::shared_ptr<RollbackConsensus> consensus =
+    std::make_shared<RollbackConsensus>(&store, 2, 2);
+  store.set_consensus(consensus);
 
   auto& table =
     store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
@@ -381,7 +367,7 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 1);
+    REQUIRE(consensus->count == 1);
   }
 
   INFO("Write second tx, causing a rollback");
@@ -390,7 +376,7 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 2);
+    REQUIRE(consensus->count == 2);
   }
 
   INFO("Single tx");
@@ -399,7 +385,7 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 3);
+    REQUIRE(consensus->count == 3);
   }
 }
 
@@ -407,9 +393,9 @@ TEST_CASE(
   "Check that rollback during replicate does not cause replication halts")
 {
   Store store;
-  std::shared_ptr<RollbackReplicator> replicator =
-    std::make_shared<RollbackReplicator>(&store, 2, 1);
-  store.set_replicator(replicator);
+  std::shared_ptr<RollbackConsensus> consensus =
+    std::make_shared<RollbackConsensus>(&store, 2, 1);
+  store.set_consensus(consensus);
 
   auto& table =
     store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
@@ -420,7 +406,7 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 1);
+    REQUIRE(consensus->count == 1);
   }
 
   INFO("Write second tx, causing a rollback");
@@ -429,7 +415,7 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 2);
+    REQUIRE(consensus->count == 2);
   }
 
   INFO("Single tx");
@@ -438,7 +424,7 @@ TEST_CASE(
     auto txv = tx.get_view(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    REQUIRE(replicator->count == 3);
+    REQUIRE(consensus->count == 3);
   }
 }
 

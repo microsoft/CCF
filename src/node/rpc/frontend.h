@@ -11,7 +11,7 @@
 #include "metrics.h"
 #include "node/certs.h"
 #include "node/clientsignatures.h"
-#include "node/consensus.h"
+#include "node/consensustypes.h"
 #include "node/nodes.h"
 #include "nodeinterface.h"
 #include "rpcexception.h"
@@ -78,9 +78,14 @@ namespace ccf
     Certs* certs;
     std::optional<Handler> default_handler;
     std::unordered_map<std::string, Handler> handlers;
-    kv::Replicator* raft;
+    kv::Consensus* consensus;
     std::shared_ptr<AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
+    // TODO: For now, only the node frontend does not require a valid caller
+    // since nodes only added to the store when they join. This will only be
+    // true when the service is in opening mode.
+    // https://github.com/microsoft/CCF/issues/293
+    bool requires_valid_caller;
     size_t sig_max_tx = 1000;
     size_t tx_count = 0;
     std::chrono::milliseconds sig_max_ms = std::chrono::milliseconds(1000);
@@ -88,11 +93,11 @@ namespace ccf
     bool request_storing_disabled = false;
     metrics::Metrics metrics;
 
-    void update_raft()
+    void update_consensus()
     {
-      if (raft != tables.get_replicator().get())
+      if (consensus != tables.get_consensus().get())
       {
-        raft = tables.get_replicator().get();
+        consensus = tables.get_consensus().get();
       }
     }
 
@@ -129,7 +134,7 @@ namespace ccf
 
     std::optional<CallerId> valid_caller(Store::Tx& tx, const CBuffer& caller)
     {
-      if (certs == nullptr)
+      if (certs == nullptr || !requires_valid_caller)
         return INVALID_ID;
 
       if (!caller.p)
@@ -153,56 +158,62 @@ namespace ccf
       else
       {
         // If this frontend is not allowed to forward or the command has already
-        // been forwarded, redirect to the current leader
-        if ((nodes != nullptr) && (raft != nullptr))
+        // been forwarded, redirect to the current primary
+        if ((nodes != nullptr) && (consensus != nullptr))
         {
-          NodeId leader_id = raft->leader();
+          NodeId primary_id = consensus->primary();
           Store::Tx tx;
           auto nodes_view = tx.get_view(*nodes);
-          auto info = nodes_view->get(leader_id);
+          auto info = nodes_view->get(primary_id);
 
           if (info)
           {
             return jsonrpc::error_response(
               ctx.req.seq_no,
-              jsonrpc::CCFErrorCodes::TX_NOT_LEADER,
-              info->pubhost + ":" + info->tlsport);
+              jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
+              info->pubhost + ":" + info->rpcport);
           }
         }
         return jsonrpc::error_response(
           ctx.req.seq_no,
-          jsonrpc::CCFErrorCodes::TX_NOT_LEADER,
-          "Not leader, leader unknown.");
+          jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
+          "Not primary, primary unknown.");
       }
     }
 
   public:
     RpcFrontend(Store& tables_) : RpcFrontend(tables_, nullptr, nullptr) {}
 
-    RpcFrontend(Store& tables_, ClientSignatures* client_sigs_, Certs* certs_) :
+    RpcFrontend(
+      Store& tables_,
+      ClientSignatures* client_sigs_,
+      Certs* certs_,
+      bool requires_valid_caller_ = true) :
       tables(tables_),
       nodes(tables.get<Nodes>(Tables::NODES)),
       client_signatures(client_sigs_),
       certs(certs_),
-      raft(nullptr),
-      history(nullptr)
+      consensus(nullptr),
+      history(nullptr),
+      requires_valid_caller(requires_valid_caller_)
+
     {
       auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetCommit::In>();
 
         kv::Version commit = in.commit.value_or(tables.commit_version());
 
-        update_raft();
+        update_consensus();
 
-        if (raft != nullptr)
+        if (consensus != nullptr)
         {
-          auto term = raft->get_term(commit);
+          auto term = consensus->get_view(commit);
           return jsonrpc::success(GetCommit::Out{term, commit});
         }
 
         return jsonrpc::error(
           jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-          "Failed to get commit info from Raft");
+          "Failed to get commit info from Consensus");
       };
 
       auto get_metrics = [this](Store::Tx& tx, const nlohmann::json& params) {
@@ -225,42 +236,42 @@ namespace ccf
             "Failed to trigger signature");
         };
 
-      auto get_leader_info =
+      auto get_primary_info =
         [this](Store::Tx& tx, const nlohmann::json& params) {
-          if ((nodes != nullptr) && (raft != nullptr))
+          if ((nodes != nullptr) && (consensus != nullptr))
           {
-            NodeId leader_id = raft->leader();
+            NodeId primary_id = consensus->primary();
 
             auto nodes_view = tx.get_view(*nodes);
-            auto info = nodes_view->get(leader_id);
+            auto info = nodes_view->get(primary_id);
 
             if (info)
             {
-              GetLeaderInfo::Out out;
-              out.leader_id = leader_id;
-              out.leader_host = info->pubhost;
-              out.leader_port = info->tlsport;
+              GetPrimaryInfo::Out out;
+              out.primary_id = primary_id;
+              out.primary_host = info->pubhost;
+              out.primary_port = info->rpcport;
               return jsonrpc::success(out);
             }
           }
 
           return jsonrpc::error(
-            jsonrpc::CCFErrorCodes::TX_LEADER_UNKNOWN, "Leader unknown.");
+            jsonrpc::CCFErrorCodes::TX_PRIMARY_UNKNOWN, "Primary unknown.");
         };
 
       auto get_network_info =
         [this](Store::Tx& tx, const nlohmann::json& params) {
           GetNetworkInfo::Out out;
-          if (raft != nullptr)
+          if (consensus != nullptr)
           {
-            out.leader_id = raft->leader();
+            out.primary_id = consensus->primary();
           }
 
           auto nodes_view = tx.get_view(*nodes);
           nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
             if (ni.status == ccf::NodeStatus::TRUSTED)
             {
-              out.nodes.push_back({nid, ni.pubhost, ni.tlsport});
+              out.nodes.push_back({nid, ni.pubhost, ni.rpcport});
             }
             return true;
           });
@@ -304,8 +315,8 @@ namespace ccf
         GeneralProcs::GET_METRICS, get_metrics, Read);
       install_with_auto_schema<void, bool>(
         GeneralProcs::MK_SIGN, make_signature, Write);
-      install_with_auto_schema<void, GetLeaderInfo::Out>(
-        GeneralProcs::GET_LEADER_INFO, get_leader_info, Read);
+      install_with_auto_schema<void, GetPrimaryInfo::Out>(
+        GeneralProcs::GET_PRIMARY_INFO, get_primary_info, Read);
       install_with_auto_schema<void, GetNetworkInfo::Out>(
         GeneralProcs::GET_NETWORK_INFO, get_network_info, Read);
       install_with_auto_schema<void, ListMethods::Out>(
@@ -341,7 +352,7 @@ namespace ccf
      * @param rw Flag if method will Read, Write, MayWrite
      * @param params_schema JSON schema for params object in requests
      * @param result_schema JSON schema for result object in responses
-     * @param forwardable Allow method to be forwarded to leader
+     * @param forwardable Allow method to be forwarded to primary
      */
     void install(
       const std::string& method,
@@ -396,13 +407,13 @@ namespace ccf
       auto params_schema = nlohmann::json::object();
       if constexpr (!std::is_same_v<In, void>)
       {
-        params_schema = build_schema<In>(method + "/params");
+        params_schema = ds::json::build_schema<In>(method + "/params");
       }
 
       auto result_schema = nlohmann::json::object();
       if constexpr (!std::is_same_v<Out, void>)
       {
-        result_schema = build_schema<Out>(method + "/result");
+        result_schema = ds::json::build_schema<Out>(method + "/result");
       }
 
       install(
@@ -448,7 +459,7 @@ namespace ccf
     /** Process a serialised command with the associated RPC context
      *
      * If an RPC that requires writing to the kv store is processed on a
-     * follower, the serialised RPC is forwarded to the current network leader.
+     * backup, the serialised RPC is forwarded to the current network primary.
      *
      * @param ctx Context for this RPC
      * @param input Serialised JSON RPC
@@ -520,7 +531,7 @@ namespace ccf
           return jsonrpc::pack(
             jsonrpc::error_response(
               jsonrpc_id,
-              jsonrpc::ErrorCodes::INTERNAL_ERROR,
+              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
               "PBFT could not process request."),
             ctx.pack.value());
         }
@@ -532,7 +543,7 @@ namespace ccf
         return jsonrpc::pack(
           jsonrpc::error_response(
             jsonrpc_id,
-            jsonrpc::ErrorCodes::INTERNAL_ERROR,
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             "PBFT is not yet ready."),
           ctx.pack.value());
       }
@@ -541,21 +552,21 @@ namespace ccf
       auto rep =
         process_json(ctx, tx, caller_id.value(), unsigned_rpc, signed_request);
 
-      // If necessary, forward the RPC to the current leader
+      // If necessary, forward the RPC to the current primary
       if (!rep.has_value())
       {
-        if (raft != nullptr)
+        if (consensus != nullptr)
         {
-          auto leader_id = raft->leader();
-          auto local_id = raft->id();
+          auto primary_id = consensus->primary();
+          auto local_id = consensus->id();
 
           if (
-            leader_id != NoNode &&
+            primary_id != NoNode &&
             cmd_forwarder->forward_command(
-              ctx, local_id, leader_id, caller_id.value(), input))
+              ctx, local_id, primary_id, caller_id.value(), input))
           {
-            // Indicate that the RPC has been forwarded to leader
-            LOG_DEBUG_FMT("RPC forwarded to leader {}", leader_id);
+            // Indicate that the RPC has been forwarded to primary
+            LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
             ctx.is_pending = true;
             return {};
           }
@@ -564,7 +575,7 @@ namespace ccf
           jsonrpc::error_response(
             0,
             jsonrpc::CCFErrorCodes::RPC_NOT_FORWARDED,
-            "RPC could not be forwarded to leader."),
+            "RPC could not be forwarded to primary."),
           ctx.pack.value());
       }
 
@@ -579,24 +590,26 @@ namespace ccf
      * @param ctx Context for this RPC
      * @param input Serialised JSON RPC
      */
-    std::vector<uint8_t> process_pbft(
+    ProcessPbftResp process_pbft(
       enclave::RPCContext& ctx, const std::vector<uint8_t>& input) override
     {
       // TODO(#PBFT): Refactor this with process_forwarded().
       Store::Tx tx;
+      crypto::Sha256Hash merkle_root;
 
       auto pack = detect_pack(input);
       if (!pack.has_value())
-        return jsonrpc::pack(
-          jsonrpc::error_response(
-            0,
-            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-            "Empty PBFT request."),
-          jsonrpc::Pack::Text);
+        return {jsonrpc::pack(
+                  jsonrpc::error_response(
+                    0,
+                    jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+                    "Empty PBFT request."),
+                  jsonrpc::Pack::Text),
+                merkle_root};
 
       auto rpc = unpack_json(input, pack.value());
       if (!rpc.first)
-        return jsonrpc::pack(rpc.second, pack.value());
+        return {jsonrpc::pack(rpc.second, pack.value()), merkle_root};
 
       SignedReq signed_request;
 
@@ -608,21 +621,37 @@ namespace ccf
         rpc_ = &req;
       }
       auto& unsigned_rpc = *rpc_;
+      bool has_updated_merkle_root = false;
+
+      auto cb = [&merkle_root, &has_updated_merkle_root](
+                  kv::TxHistory::ResultCallbackArgs args) -> bool {
+        merkle_root = args.merkle_root;
+        has_updated_merkle_root = true;
+        return true;
+      };
+      history->register_on_result(cb);
 
       auto rep =
         process_json(ctx, tx, ctx.fwd->caller_id, unsigned_rpc, signed_request);
+
+      history->clear_on_result();
+
+      if (!has_updated_merkle_root)
+      {
+        merkle_root = history->get_root();
+      }
 
       // TODO(#PBFT): Add RPC response to history based on Request ID
       // if (history)
       //   history->add_response(reqid, rv);
 
-      return jsonrpc::pack(rep.value(), pack.value());
+      return {jsonrpc::pack(rep.value(), pack.value()), merkle_root};
     }
 
     /** Process a serialised input forwarded from another node
      *
      * This function assumes that ctx contains the caller_id as read by the
-     * forwarding follower.
+     * forwarding backup.
      *
      * @param ctx Context for this forwarded RPC
      * @param input Serialised JSON RPC
@@ -642,8 +671,8 @@ namespace ccf
       // instead.
       CBuffer caller;
 
-      update_raft();
-      ctx.fwd->leader_id = raft->id();
+      update_consensus();
+      ctx.fwd->primary_id = consensus->id();
 
       auto pack = detect_pack(input);
       if (!pack.has_value())
@@ -743,12 +772,12 @@ namespace ccf
           jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
           method);
 
-      update_raft();
+      update_consensus();
       update_history();
 
-      bool is_leader = (raft == nullptr) || raft->is_leader();
+      bool is_primary = (consensus == nullptr) || consensus->is_primary();
 
-      if (!is_leader)
+      if (!is_primary)
       {
         switch (handler->rw)
         {
@@ -795,13 +824,13 @@ namespace ccf
               if (cv == kv::NoVersion)
                 cv = tables.current_version();
               result[COMMIT] = cv;
-              if (raft != nullptr)
+              if (consensus != nullptr)
               {
-                result[TERM] = raft->get_term();
-                result[GLOBAL_COMMIT] = raft->get_commit_idx();
+                result[TERM] = consensus->get_view();
+                result[GLOBAL_COMMIT] = consensus->get_commit_seqno();
 
                 if (
-                  history && raft->is_leader() &&
+                  history && consensus->is_primary() &&
                   (cv % sig_max_tx == sig_max_tx / 2))
                   history->emit_signature();
               }
@@ -833,6 +862,13 @@ namespace ccf
           const auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
           return jsonrpc::error_response(
             ctx.req.seq_no, jsonrpc::StandardErrorCodes::PARSE_ERROR, err);
+        }
+        catch (const kv::KvSerialiserException& e)
+        {
+          // If serialising the committed transaction fails, there is no way to
+          // recover safely (https://github.com/microsoft/CCF/issues/338).
+          // Better to abort.
+          LOG_FATAL_FMT(e.what());
         }
         catch (const std::exception& e)
         {
@@ -870,7 +906,7 @@ namespace ccf
       signed_request = full_rpc;
 
       // If the RPC is forwarded, assume that the signature has already been
-      // verified by the follower
+      // verified by the backup
       if (!is_forwarded)
       {
         auto v = verifiers.find(caller_id);
@@ -885,7 +921,7 @@ namespace ccf
           return false;
       }
 
-      // TODO(#important): Request should only be stored on the leader
+      // TODO(#important): Request should only be stored on the primary
       if (request_storing_disabled)
       {
         signed_request.req.clear();
@@ -908,8 +944,8 @@ namespace ccf
       // reset tx_counter for next tick interval
       tx_count = 0;
       // TODO(#refactoring): move this to NodeState::tick
-      update_raft();
-      if ((raft != nullptr) && raft->is_leader())
+      update_consensus();
+      if ((consensus != nullptr) && consensus->is_primary())
       {
         if (elapsed < ms_to_sig)
         {

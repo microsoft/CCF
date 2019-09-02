@@ -7,7 +7,6 @@
       "type": "number"
     }
   },
-  "required": [],
   "title": "getCommit/params",
   "type": "object"
 }

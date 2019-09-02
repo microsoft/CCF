@@ -1,7 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define PICOBENCH_IMPLEMENT
-#include "../history.h"
+#include "kv/test/stub_consensus.h"
+#include "node/history.h"
 
 #include <cstdlib>
 #include <ctime>
@@ -14,47 +15,10 @@ extern "C"
 
 using namespace ccf;
 
-class DummyReplicator : public kv::Replicator
+class DummyConsensus : public kv::StubConsensus
 {
 public:
-  DummyReplicator() {}
-
-  bool replicate(
-    const std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>&
-      entries) override
-  {
-    return true;
-  }
-
-  kv::Term get_term() override
-  {
-    return 2;
-  }
-
-  kv::Version get_commit_idx() override
-  {
-    return 0;
-  }
-
-  NodeId leader() override
-  {
-    return 1;
-  }
-
-  NodeId id() override
-  {
-    return 0;
-  }
-
-  kv::Term get_term(kv::Version version) override
-  {
-    return 2;
-  }
-
-  bool is_leader() override
-  {
-    return true;
-  }
+  DummyConsensus() {}
 };
 
 template <class A>
@@ -169,9 +133,8 @@ static void append(picobench::state& s)
 
   auto kp = tls::make_key_pair();
 
-  std::shared_ptr<kv::Replicator> replicator =
-    std::make_shared<DummyReplicator>();
-  store.set_replicator(replicator);
+  std::shared_ptr<kv::Consensus> consensus = std::make_shared<DummyConsensus>();
+  store.set_consensus(consensus);
 
   std::shared_ptr<kv::TxHistory> history =
     std::make_shared<ccf::MerkleTxHistory>(store, 0, *kp, signatures, nodes);
@@ -210,9 +173,8 @@ static void append_compact(picobench::state& s)
 
   auto kp = tls::make_key_pair();
 
-  std::shared_ptr<kv::Replicator> replicator =
-    std::make_shared<DummyReplicator>();
-  store.set_replicator(replicator);
+  std::shared_ptr<kv::Consensus> consensus = std::make_shared<DummyConsensus>();
+  store.set_consensus(consensus);
 
   std::shared_ptr<kv::TxHistory> history =
     std::make_shared<ccf::MerkleTxHistory>(store, 0, *kp, signatures, nodes);

@@ -90,7 +90,7 @@ namespace ccf
            return true;
          }},
         // initiate end of recovery
-        // TODO(#important): for now, recovery assumes that no leader
+        // TODO(#important): for now, recovery assumes that no primary
         // change can happen between the time the public CFTR is established and
         // this function is called.
         {"accept_recovery", [this](Store::Tx& tx, const nlohmann::json& args) {
@@ -128,22 +128,14 @@ namespace ccf
         proposed_calls);
 
       /* count the votes
-       * if the proposer hasn't explicitly voted and is still active,
-       * an implicit pro vote is assumed.
        */
-      bool explicit_proposer_vote = false;
       uint64_t pro = 0, con = 0;
       const uint64_t total = proposal->votes.size();
       for (const auto& vote : proposal->votes)
       {
-        // can the proposal still succeed? If we haven't seen the proposer's
-        // vote yet, assume it to be pro.
-        if (total - con + (explicit_proposer_vote ? 0 : 1) < quorum)
+        // can the proposal still succeed?
+        if (total - con < quorum)
           return false;
-
-        // is this an explicit proposer vote?
-        if (vote.first == proposal->proposer)
-          explicit_proposer_vote = true;
 
         // valid voter
         if (!check_member_active(tx, vote.first))
@@ -161,9 +153,6 @@ namespace ccf
         else
           con++;
       }
-      if (
-        !explicit_proposer_vote && check_member_active(tx, proposal->proposer))
-        pro++;
 
       if (pro < quorum)
         return false;
@@ -284,8 +273,10 @@ namespace ccf
         const auto in = args.params.get<Proposal::In>();
         const auto proposal_id = get_next_id(
           args.tx.get_view(this->network.values), ValueIds::NEXT_PROPOSAL_ID);
-        const OpenProposal proposal(in.script, in.parameter, args.caller_id);
-        args.tx.get_view(this->network.proposals)->put(proposal_id, proposal);
+        OpenProposal proposal(in.script, in.parameter, args.caller_id);
+        auto proposals = args.tx.get_view(this->network.proposals);
+        proposal.votes[args.caller_id] = in.ballot;
+        proposals->put(proposal_id, proposal);
         const bool completed = complete_proposal(args.tx, proposal_id);
         return jsonrpc::success<Proposal::Out>({proposal_id, completed});
       };
@@ -388,7 +379,7 @@ namespace ccf
         members->put(args.caller_id, *member);
         return jsonrpc::success(true);
       };
-      // ACK method cannot be forwarded and should be run on leader as it makes
+      // ACK method cannot be forwarded and should be run on primary as it makes
       // explicit use of caller certificate
       install_with_auto_schema<RawSignature, bool>(
         MemberProcs::ACK, ack, Write, Forwardable::DoNotForward);
@@ -422,7 +413,7 @@ namespace ccf
         nodes_view->foreach([&new_node, &duplicate_node_id](
                               const NodeId& nid, const NodeInfo& ni) {
           if (
-            new_node.tlsport == ni.tlsport && new_node.host == ni.host &&
+            new_node.rpcport == ni.rpcport && new_node.host == ni.host &&
             ni.status != NodeStatus::RETIRED)
           {
             duplicate_node_id = nid;
@@ -437,7 +428,7 @@ namespace ccf
               "A node with the same host {} and port {} already exists (node "
               "id: {})",
               new_node.host,
-              new_node.tlsport,
+              new_node.rpcport,
               duplicate_node_id));
         const auto node_id = get_next_id(
           args.tx.get_view(this->network.values), ValueIds::NEXT_NODE_ID);

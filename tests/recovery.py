@@ -68,7 +68,6 @@ def wait_for_state(node, state):
     """
     Wait for the public ledger to be read completely on a node.
     """
-    LOG.debug("Waiting until the public ledger has been read")
     for _ in range(MAX_GET_STATUS_RETRY):
         try:
             with node.management_client() as c:
@@ -83,20 +82,6 @@ def wait_for_state(node, state):
         raise TimeoutError("Timed out waiting for public ledger to be read")
 
 
-def set_recovery_nodes(network, primary, followers):
-    """
-    Create and send recovery transaction, with new network definition.
-    """
-    LOG.debug("Adding new network nodes")
-    recovery_rpc = {"nodes": [n.remote.info() for n in [primary] + followers]}
-    with primary.management_client() as c:
-        id = c.request("setRecoveryNodes", recovery_rpc)
-        r = c.response(id).result
-        network.net_cert = list(r)
-        with open("networkcert.pem", "w") as nc:
-            nc.write(r.decode())
-
-
 def run(args):
     hosts = ["localhost", "localhost"]
     ledger = None
@@ -105,7 +90,7 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, followers = network.start_and_join(args)
+        primary, backups = network.start_and_join(args)
         txs = Txs(args.msgs_per_recovery)
 
         with primary.management_client() as mc:
@@ -115,7 +100,7 @@ def run(args):
             rs = log_msgs(primary, txs)
             check_responses(rs, True, check, check_commit)
             network.wait_for_node_commit_sync()
-            check_nodes_have_msgs(followers, txs)
+            check_nodes_have_msgs(backups, txs)
 
             ledger = primary.remote.get_ledger()
             sealed_secrets = primary.remote.get_sealed_secrets()
@@ -126,25 +111,19 @@ def run(args):
             args.build_dir,
             args.debug_nodes,
             args.perf_nodes,
-            recovery=True,
             node_offset=(recovery_idx + 1) * len(hosts),
             pdb=args.pdb,
         ) as network:
-            primary, followers = network.start_in_recovery(args, ledger, sealed_secrets)
+            primary, backups = network.start_in_recovery(args, ledger, sealed_secrets)
 
             with primary.management_client() as mc:
                 check_commit = infra.ccf.Checker(mc)
                 check = infra.ccf.Checker()
 
-                wait_for_state(primary, b"awaitingRecovery")
-                set_recovery_nodes(network, primary, followers)
-
-                for node in followers:
-                    node.join_network(network)
-
-                LOG.success("Public CFTR started")
+                for node in network.nodes:
+                    wait_for_state(node, b"partOfPublicNetwork")
                 network.wait_for_node_commit_sync()
-                wait_for_state(primary, b"partOfPublicNetwork")
+                LOG.success("Public CFTR started")
 
                 LOG.debug(
                     "2/3 members verify that the new nodes have joined the network"
@@ -164,13 +143,14 @@ def run(args):
                             )
 
                 LOG.debug("2/3 members vote to complete the recovery")
-                result = network.propose(
+                rc, result = network.propose(
                     1, primary, "accept_recovery", f"--sealed-secrets={sealed_secrets}"
                 )
-                assert not result[1]["completed"]
-                proposal_id = result[1]["id"]
+                assert rc and not result["completed"]
+                proposal_id = result["id"]
 
-                result = network.vote(2, primary, proposal_id, True)
+                rc, result = network.vote(2, primary, proposal_id, True)
+                assert rc and result
 
                 for node in network.nodes:
                     wait_for_state(node, b"partOfNetwork")
@@ -205,7 +185,7 @@ def run(args):
                 rs = log_msgs(primary, new_txs)
                 check_responses(rs, True, check, check_commit)
                 network.wait_for_node_commit_sync()
-                check_nodes_have_msgs(followers, new_txs)
+                check_nodes_have_msgs(backups, new_txs)
 
                 ledger = primary.remote.get_ledger()
                 sealed_secrets = primary.remote.get_sealed_secrets()

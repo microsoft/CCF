@@ -1,0 +1,22 @@
+parameters:
+  suite_name_suffix: ''
+  ctest_filter: ''
+
+steps:
+- script: |
+    ./tests.sh -VV --timeout 240 --no-compress-output -T Test ${{ parameters.ctest_filter }}
+  env:
+    METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
+  displayName: CTest
+  workingDirectory: build
+
+- script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) ${{ parameters.suite_name_suffix }}" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
+  displayName: XSLT
+  workingDirectory: build
+  condition: succeededOrFailed()
+
+- task: PublishTestResults@2
+  inputs:
+    testResultsFiles: '**/JUnit.xml'
+    publishRunAttachments: true
+  condition: succeededOrFailed()

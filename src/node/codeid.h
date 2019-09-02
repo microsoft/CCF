@@ -28,7 +28,8 @@ namespace ccf
 
 #ifdef GET_QUOTE
 
-  inline CodeDigest get_digest_from_parsed_quote(oe_report_t& parsed_quote)
+  inline CodeDigest get_digest_from_parsed_quote(
+    const oe_report_t& parsed_quote)
   {
     CodeDigest ret;
     std::copy(

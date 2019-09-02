@@ -9,7 +9,6 @@
     "state": {
       "enum": [
         "readingPublicLedger",
-        "awaitingRecovery",
         "readingPrivateLedger",
         "partOfNetwork",
         "partOfPublicNetwork"

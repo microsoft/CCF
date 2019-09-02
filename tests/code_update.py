@@ -89,11 +89,11 @@ def run(args):
             LOG.debug(f"Stopping node {node.node_id}")
             node.stop()
 
-        # wait for a new leader to be elected
+        # wait for a new primary to be elected
         time.sleep(args.election_timeout * 6 / 1000)
 
-        new_leader = network.find_leader()[0]
-        LOG.debug(f"Waited, new_leader is {new_leader.node_id}")
+        new_primary = network.find_primary()[0]
+        LOG.debug(f"Waited, new_primary is {new_primary.node_id}")
         res, new_node = network.create_and_add_node(args.patched_file_name, args)
         assert res
         new_node.join_network(network)
