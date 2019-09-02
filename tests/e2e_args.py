@@ -38,9 +38,9 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument(
         "--log-path",
-        help="Path to directory where the 'out' and 'err' files will be appended to. \
-        They will be stored under <log_path>/out/{label}_{node} and <log_path>/err/{label}_{node_id} respectively",
-        default=None,
+        help="Path to custom logger directory where the where the custom log formatter output will be sent to. \
+        The custom logs will be dumped into a file named <log_path>/{label}_{node_id}",
+        default=os.getenv("LOG_PATH", None),
     )
     parser.add_argument(
         "-g", "--gov-script", help="Path to governance script", required=True

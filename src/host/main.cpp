@@ -78,6 +78,12 @@ int main(int argc, char** argv)
     "Only emit host log messages above that level",
     true);
 
+  std::optional<std::string> custom_log_path;
+  app.add_option(
+    "--log-path",
+    custom_log_path,
+    "Path to which the custom logs will be written");
+
   std::string node_cert_file("nodecert.pem");
   app.add_option(
     "--node-cert-file",
@@ -261,6 +267,11 @@ int main(int argc, char** argv)
   // set the host log level
   logger::config::level() = host_log_level_.value();
 
+  // set the custom log formatter path
+  if (custom_log_path.has_value())
+  {
+    logger::config::custom_path() = custom_log_path.value();
+  }
   // create the enclave
   host::Enclave enclave(enclave_file, oe_flags);
 

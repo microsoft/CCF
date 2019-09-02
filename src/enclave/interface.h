@@ -88,7 +88,13 @@ enum AdminMessage : ringbuffer::Message
 };
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  AdminMessage::log_msg, std::chrono::milliseconds, std::string);
+  AdminMessage::log_msg,
+  std::chrono::milliseconds,
+  std::string,
+  int,
+  std::string,
+  std::string,
+  std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::fatal_error_msg, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   AdminMessage::sealed_secrets, kv::Version, std::vector<uint8_t>);
