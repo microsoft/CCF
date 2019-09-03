@@ -14,15 +14,15 @@ done
 llvm-profdata-7 merge -sparse -f prof_files -o coverage.profdata
 
 # Generate combined coverage report
-llvm-cov-7 show -instr-profile coverage.profdata -output-dir=coverage -format=html "${objects[@]}" -Xdemangler c++filt -Xdemangler -n -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)"
-llvm-cov-7 export -instr-profile coverage.profdata -format=text "${objects[@]}" -Xdemangler c++filt -Xdemangler -n -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)" -summary-only > coverage.json
+llvm-cov-7 show -instr-profile coverage.profdata -output-dir=coverage -format=html "${objects[@]}" -Xdemangler c++filt -Xdemangler -n -ignore-filename-regex="(openenclave|3rdparty|/test/)"
+llvm-cov-7 export -instr-profile coverage.profdata -format=text "${objects[@]}" -Xdemangler c++filt -Xdemangler -n -ignore-filename-regex="(openenclave|3rdparty|/test/)" -summary-only > coverage.json
 
 # Generate and upload combined coverage report for Codecov
-llvm-cov-7 show -instr-profile coverage.profdata "${objects[@]}" -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)" > codecov.txt
+llvm-cov-7 show -instr-profile coverage.profdata "${objects[@]}" -ignore-filename-regex="(openenclave|3rdparty|/test/)" > codecov.txt
 bash <(curl -s https://codecov.io/bash) -t "${CODECOV_TOKEN}" -f codecov.txt -F unit
 
 for e2e in *.virtual.so; do
     llvm-profdata-7 merge -sparse ./*_"$e2e".profraw -o "$e2e".profdata
-    llvm-cov-7 show -instr-profile "$e2e".profdata -object cchost.virtual -object "$e2e" -ignore-filename-regex="(boost|openenclave|3rdparty|/test/)" > "$e2e".txt
+    llvm-cov-7 show -instr-profile "$e2e".profdata -object cchost.virtual -object "$e2e" -ignore-filename-regex="(openenclave|3rdparty|/test/)" > "$e2e".txt
     bash <(curl -s https://codecov.io/bash) -t "${CODECOV_TOKEN}" -f "$e2e".txt -F "$(echo $"e2e" | cut -d. -f1)"
 done
