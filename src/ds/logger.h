@@ -35,10 +35,14 @@ namespace logger
   {
   protected:
     std::string log_path;
+    std::ofstream f;
 
   public:
     CustomLogger() = default;
-    CustomLogger(std::string log_path_) : log_path(log_path_) {}
+    CustomLogger(std::string log_path_) : log_path(log_path_)
+    {
+      f.open(log_path, std::ios_base::app);
+    }
     virtual ~CustomLogger() = default;
 
     std::string get_timestamp(const std::tm& tm, const ::timespec& ts)
@@ -58,13 +62,11 @@ namespace logger
 
     virtual void write(const std::string& log_line) = 0;
 
-    void dump(const std::string& msg, const std::string& file)
+    void dump(const std::string& msg)
     {
-      using namespace std;
-      ofstream f(file, ios_base::app);
-      f << msg << endl;
+      f << msg << std::endl;
       if (!f)
-        throw logic_error("Failed to write to file: " + file);
+        throw std::logic_error("Failed to write to file: " + log_path);
     }
   };
 
@@ -102,7 +104,7 @@ namespace logger
 
     void write(const std::string& log_line) override
     {
-      dump(log_line, log_path);
+      dump(log_line);
     }
   };
 
