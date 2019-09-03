@@ -12,19 +12,6 @@
     update_cache: yes
   become: yes
 
-- name: Download boost
-  get_url:
-    url: "https://dl.bintray.com/boostorg/release/1.67.0/source/boost_1_67_0.tar.gz"
-    dest: "{{ workspace }}/boost_1_67_0.tar.gz"
-
-- name: Expand boost
-  unarchive:
-    src: "{{ workspace }}/boost_1_67_0.tar.gz"
-    dest: "/usr/local/include"
-    copy: no
-    creates: "/usr/local/include/boost_1_67_0/bootstrap.sh"
-  become: yes
-
 - name: Download mbedtls-everest
   get_url:
     url: https://github.com/ARMmbed/mbedtls/archive/{{ mbedtls_src }}
