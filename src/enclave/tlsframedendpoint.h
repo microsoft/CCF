@@ -68,12 +68,19 @@ namespace enclave
 
     void send(const std::vector<uint8_t>& data)
     {
-      // TODO: Set a meaningful return code?
-      // TODO: investigate other headers we may want to use?
-      auto hdr = fmt::format("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", data.size());
-      std::vector<uint8_t> h(hdr.begin(), hdr.end());
-      send_buffered(h);
-      send_buffered(data);
+      if (data.size() == 0)
+      {
+        auto hdr = fmt::format("HTTP/1.1 204 No Content\r\n");
+        std::vector<uint8_t> h(hdr.begin(), hdr.end());
+        send_buffered(h);
+      }
+      else
+      {
+        auto hdr = fmt::format("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n", data.size());
+        std::vector<uint8_t> h(hdr.begin(), hdr.end());
+        send_buffered(h);
+        send_buffered(data);
+      }
       flush();
     }
   };
