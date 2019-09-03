@@ -511,10 +511,8 @@ namespace tls
     auto ctx = std::make_unique<mbedtls_pk_context>();
     mbedtls_pk_init(ctx.get());
 
-    std::cout << "About to parse from PEM" << std::endl;
     int rc = mbedtls_pk_parse_public_key(
       ctx.get(), public_pem.data(), public_pem.size() + 1);
-    std::cout << "rc = " << error_string(rc) << std::endl;
 
     if (rc != 0)
     {
@@ -551,12 +549,8 @@ namespace tls
     auto ctx = std::make_unique<mbedtls_pk_context>();
     mbedtls_pk_init(ctx.get());
 
-    // std::string public_der_string(public_der.begin(), public_der.end());
-
-    std::cout << "About to parse public key" << std::endl;
     int rc = mbedtls_pk_parse_public_key(
       ctx.get(), public_der.data(), public_der.size());
-    std::cout << "rc = " << error_string(rc) << std::endl;
 
     if (rc != 0)
     {
