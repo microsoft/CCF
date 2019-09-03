@@ -14,25 +14,21 @@ namespace enclave
     class Parser
     {
       private:
-        http_parser * parser;
+        http_parser parser;
         http_parser_settings settings;
 
       public:
         Parser(void * userdata)
         {
+          http_parser_settings_init(&settings);
           settings.on_body = on_request;
-          parser = static_cast<http_parser *>(malloc(sizeof(http_parser)));
-          http_parser_init(parser, HTTP_REQUEST);
+          http_parser_init(&parser, HTTP_REQUEST);
+          parser.data = userdata;
         }
 
         size_t execute(const uint8_t* data, size_t size)
         {
-          return http_parser_execute(parser, &settings, (const char *) data, size);
-        }
-
-        ~Parser()
-        {
-          free(parser);
+          return http_parser_execute(&parser, &settings, (const char *) data, size);
         }
     };
   }
@@ -42,7 +38,7 @@ namespace enclave
   protected:
     uint32_t msg_size;
     size_t count;
-    std::unique_ptr<http::Parser> p;
+    http::Parser p;
 
   public:
     HTTPServer(
@@ -52,7 +48,7 @@ namespace enclave
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
       msg_size(-1),
       count(0),
-      p(std::make_unique<http::Parser>(this)) {}
+      p(this) {}
 
     void recv(const uint8_t* data, size_t size)
     {
@@ -67,7 +63,7 @@ namespace enclave
         return;
 
       LOG_INFO_FMT("Going to parse {} bytes", s);
-      size_t nparsed = p->execute(d, s);
+      size_t nparsed = p.execute(d, s);
     }
 
     void handle_body(const char * at, size_t length)
