@@ -12,8 +12,6 @@ endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(Boost_ADDITIONAL_VERSIONS "1.67" "1.67.0")
-find_package(Boost 1.60.0 REQUIRED)
 find_package(Threads REQUIRED)
 
 # Azure Pipelines does not support color codes
