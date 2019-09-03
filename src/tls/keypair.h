@@ -509,7 +509,10 @@ namespace tls
     const Pem& public_pem, bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
     auto ctx = std::make_unique<mbedtls_pk_context>();
-    mbedtls_pk_init(ctx.get());
+    mbedtls_pk_init(ctx.get()); 
+
+    int rc = mbedtls_pk_parse_public_key(
+      ctx.get(), public_pem.data(), public_pem.size() + 1);
 
     if (rc != 0)
     {
@@ -545,6 +548,9 @@ namespace tls
   {
     auto ctx = std::make_unique<mbedtls_pk_context>();
     mbedtls_pk_init(ctx.get());
+
+    int rc = mbedtls_pk_parse_public_key(
+      ctx.get(), public_der.data(), public_der.size());
 
     if (rc != 0)
     {
