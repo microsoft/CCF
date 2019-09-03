@@ -68,16 +68,11 @@ namespace enclave
 
     void send(const std::vector<uint8_t>& data)
     {
-      // Write framed data.
-      if (data.size() == 0)
-        return;
-
-      std::vector<uint8_t> len(4);
-      uint8_t* p = len.data();
-      size_t size = len.size();
-      serialized::write(p, size, (uint32_t)data.size());
-
-      send_buffered(len);
+      // TODO: Set a meaningful return code?
+      // TODO: investigate other headers we may want to use?
+      auto hdr = fmt::format("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", data.size());
+      std::vector<uint8_t> h(hdr.begin(), hdr.end());
+      send_buffered(h);
       send_buffered(data);
       flush();
     }
@@ -90,5 +85,4 @@ namespace enclave
     ep->handle_body(at, length);
     return 0;
   }
-
 }
