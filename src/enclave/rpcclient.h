@@ -20,6 +20,7 @@ namespace enclave
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
+      // TODO: swich to HTTPClient if HTTP is defined
       FramedTLSEndpoint(session_id, writer_factory, move(ctx))
     {}
 

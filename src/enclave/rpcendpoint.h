@@ -4,10 +4,17 @@
 
 #include "rpcmap.h"
 #include "tlsframedendpoint.h"
+#include "httpserver.h"
+
+#ifdef HTTP
+#define ENDPOINT HTTPServer
+#else
+#define ENDPOINT FramedTLSEndpoint
+#endif
 
 namespace enclave
 {
-  class RPCEndpoint : public FramedTLSEndpoint
+  class RPCEndpoint : public ENDPOINT
   {
   private:
     std::shared_ptr<RpcMap> rpc_map;
@@ -22,7 +29,7 @@ namespace enclave
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      FramedTLSEndpoint(session_id, writer_factory, move(ctx)),
+      ENDPOINT(session_id, writer_factory, move(ctx)),
       rpc_map(rpc_map_),
       session_id(session_id)
     {}

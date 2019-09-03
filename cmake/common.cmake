@@ -84,6 +84,11 @@ if (USE_NULL_ENCRYPTOR)
   add_definitions(-DUSE_NULL_ENCRYPTOR)
 endif()
 
+option(HTTP "Enable HTTP Support" OFF)
+if (HTTP)
+  add_definitions(-DHTTP)
+endif()
+
 option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
 option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
