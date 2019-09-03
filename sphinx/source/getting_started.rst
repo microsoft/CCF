@@ -126,12 +126,10 @@ Details
 
 - OpenEnclave_
 - mbedtls_
-- boost_ (eEVM_ transaction engine only)
 - libuv_
 
 .. _OpenEnclave: https://github.com/openenclave/openenclave
 .. _mbedtls: https://tls.mbed.org/
-.. _boost: https://www.boost.org/
 .. _libuv: https://github.com/libuv/libuv
 .. _eEvm: https://github.com/Microsoft/eEVM
 
