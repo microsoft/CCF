@@ -92,8 +92,7 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   std::chrono::milliseconds,
   std::string,
   size_t,
-  std::string,
-  std::string,
+  logger::Level,
   std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::fatal_error_msg, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(

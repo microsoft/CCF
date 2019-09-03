@@ -83,7 +83,7 @@ class Network:
         "election_timeout",
         "memory_reserve_startup",
         "notify_server",
-        "log_path",
+        "json_log_path",
         "gov_script",
         "app_script",
     ]

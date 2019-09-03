@@ -11,7 +11,8 @@ TEST_CASE("Test custom log format")
 {
   std::string test_log_file = "./test_json_logger.txt";
   remove(test_log_file.c_str());
-  logger::config::custom_path() = test_log_file;
+  logger::config::loggers().emplace_back(
+    std::make_unique<logger::JsonLogger>(test_log_file));
   logger::config::level() = logger::DBG;
   std::string log_msg_dbg = "log_msg_dbg";
   std::string log_msg_fail = "log_msg_fail";

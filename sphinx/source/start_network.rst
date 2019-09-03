@@ -105,7 +105,7 @@ Node output
 
 By default node output is written to stdout and to stderr and can be handled accordingly.
 
-There is an option to further generate machine readable logs for monitoring. To enable this pass `--log-path <path_to_file>` when creating a node (in either start or join mode). The generated logs will be in JSON format as displayed below.
+There is an option to further generate machine readable logs for monitoring. To enable this pass `--json-log-path <path_to_file>` when creating a node (in either start or join mode). The generated logs will be in JSON format as displayed below.
 
 .. code-block:: json
 

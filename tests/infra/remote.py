@@ -114,7 +114,7 @@ class SSHRemote(CmdMixin):
         workspace,
         label,
         env=None,
-        log_path=None,
+        json_log_path=None,
     ):
         """
         Runs a command on a remote host, through an SSH connection. A temporary
@@ -326,7 +326,7 @@ class LocalRemote(CmdMixin):
         workspace,
         label,
         env=None,
-        log_path=None,
+        json_log_path=None,
     ):
         """
         Local Equivalent to the SSHRemote
@@ -485,7 +485,7 @@ class CCFRemote(object):
         app_script=None,
         ledger_file=None,
         sealed_secrets=None,
-        log_path=None,
+        json_log_path=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -529,9 +529,9 @@ class CCFRemote(object):
             f"--raft-election-timeout-ms={election_timeout}",
         ]
 
-        if log_path:
+        if json_log_path:
             log_file = f"{label}_{local_node_id}"
-            cmd += [f"--log-path={os.path.join(log_path, log_file)}"]
+            cmd += [f"--json-log-path={os.path.join(json_log_path, log_file)}"]
 
         if sig_max_tx:
             cmd += [f"--sig-max-tx={sig_max_tx}"]
@@ -607,7 +607,7 @@ class CCFRemote(object):
             workspace,
             label,
             env,
-            log_path,
+            json_log_path,
         )
 
     def setup(self):

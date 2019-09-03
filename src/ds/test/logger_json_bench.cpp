@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#define PICOBENCH_IMPLEMENT_WITH_MAIN
+#define PICOBENCH_IMPLEMENT
 #include "../logger.h"
 
 #include <picobench/picobench.hpp>
@@ -12,7 +12,6 @@ static void log_accepted(picobench::state& s)
 
   logger::config::level() = logger::DBG;
   picobench::scope scope(s);
-  logger::config::custom_path() = "./custom_json_logger";
 
   for (size_t i = 0; i < s.iterations(); ++i)
   {
@@ -29,7 +28,6 @@ static void log_accepted_fmt(picobench::state& s)
 
   logger::config::level() = logger::DBG;
   picobench::scope scope(s);
-  logger::config::custom_path() = "./custom_json_logger";
 
   for (size_t i = 0; i < s.iterations(); ++i)
   {
@@ -43,7 +41,6 @@ static void log_rejected(picobench::state& s)
 {
   logger::config::level() = logger::FAIL;
   picobench::scope scope(s);
-  logger::config::custom_path() = "./custom_json_logger";
 
   for (size_t i = 0; i < s.iterations(); ++i)
   {
@@ -55,7 +52,6 @@ static void log_rejected_fmt(picobench::state& s)
 {
   logger::config::level() = logger::FAIL;
   picobench::scope scope(s);
-  logger::config::custom_path() = "./custom_json_logger";
 
   for (size_t i = 0; i < s.iterations(); ++i)
   {
@@ -70,3 +66,13 @@ PICOBENCH(log_accepted).iterations(sizes).samples(10);
 PICOBENCH(log_accepted_fmt).iterations(sizes).samples(10);
 PICOBENCH(log_rejected).iterations(sizes).samples(10);
 PICOBENCH(log_rejected_fmt).iterations(sizes).samples(10);
+
+// We need an explicit main to initialize the json logger
+int main(int argc, char* argv[])
+{
+  logger::config::loggers().emplace_back(
+    std::make_unique<logger::JsonLogger>("./custom_json_logger"));
+  picobench::runner runner;
+  runner.parse_cmd_line(argc, argv);
+  return runner.run();
+}

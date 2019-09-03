@@ -30,6 +30,9 @@ int main(int argc, char** argv)
   // ignore SIGPIPE
   signal(SIGPIPE, SIG_IGN);
 
+  logger::config::loggers().emplace_back(
+    std::make_unique<logger::BasicLogger>());
+
   CLI::App app{"ccf"};
 
   app.require_subcommand(1, 1);
@@ -80,9 +83,9 @@ int main(int argc, char** argv)
 
   std::optional<std::string> json_log_path;
   app.add_option(
-    "--log-path",
+    "--json-log-path",
     json_log_path,
-    "Path to which the custom json logs will be written");
+    "Path to file where the json logs will be written");
 
   std::string node_cert_file("nodecert.pem");
   app.add_option(
@@ -270,7 +273,8 @@ int main(int argc, char** argv)
   // set the custom log formatter path
   if (json_log_path.has_value())
   {
-    logger::config::custom_path() = json_log_path.value();
+    logger::config::loggers().emplace_back(
+      std::make_unique<logger::JsonLogger>(json_log_path.value()));
   }
   // create the enclave
   host::Enclave enclave(enclave_file, oe_flags);

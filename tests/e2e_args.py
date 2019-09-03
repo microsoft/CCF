@@ -37,10 +37,10 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         choices=("trace", "debug", "info", "fail", "fatal"),
     )
     parser.add_argument(
-        "--log-path",
-        help="Path to custom logger directory where the where the json log formatter output will be sent to. \
-        The custom logs will be dumped into a file named <log_path>/{label}_{node_id}",
-        default=os.getenv("LOG_PATH", None),
+        "--json-log-path",
+        help="Path to directory where the json logger output will be sent to. \
+        The json logs will be dumped into a file named <json_log_path>/{label}_{node_id}",
+        default=os.getenv("JSON_LOG_PATH", None),
     )
     parser.add_argument(
         "-g", "--gov-script", help="Path to governance script", required=True
