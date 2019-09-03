@@ -55,6 +55,8 @@ DerivePointerAlignment: false
 DisableFormat:   false
 ExperimentalAutoDetectBinPacking: false
 FixNamespaceComments: false
+ForEachMacros:
+  - Q_FOREACH
 IncludeBlocks:   Regroup
 IncludeCategories: 
   - Regex:           '^"(llvm|llvm-c|clang|clang-c)/'
