@@ -30,9 +30,6 @@ int main(int argc, char** argv)
   // ignore SIGPIPE
   signal(SIGPIPE, SIG_IGN);
 
-  logger::config::loggers().emplace_back(
-    std::make_unique<logger::BasicLogger>());
-
   CLI::App app{"ccf"};
 
   app.require_subcommand(1, 1);

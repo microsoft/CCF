@@ -31,24 +31,24 @@ namespace logger
 
   static constexpr size_t ns_per_s = 1'000'000'000;
 
-  class CustomLogger
+  class AbstractLogger
   {
   protected:
     std::string log_path;
     std::ofstream f;
 
   public:
-    CustomLogger() = default;
-    CustomLogger(std::string log_path_) : log_path(log_path_)
+    AbstractLogger() = default;
+    AbstractLogger(std::string log_path_) : log_path(log_path_)
     {
       f.open(log_path, std::ios_base::app);
     }
-    virtual ~CustomLogger() = default;
+    virtual ~AbstractLogger() = default;
 
     std::string get_timestamp(const std::tm& tm, const ::timespec& ts)
     {
       // Sample: "2019-07-19 18:53:25.690267"
-      return fmt::format("{:%Y-%m-%d %H:%M:%S}.{:0<6}", tm, ts.tv_nsec / 1000);
+      return fmt::format("{:%Y-%m-%dT%H:%M:%S}.{:0<6}Z", tm, ts.tv_nsec / 1000);
     }
 
     virtual std::string format(
@@ -70,10 +70,10 @@ namespace logger
     }
   };
 
-  class JsonLogger : public CustomLogger
+  class JsonLogger : public AbstractLogger
   {
   public:
-    JsonLogger(std::string log_path) : CustomLogger(log_path) {}
+    JsonLogger(std::string log_path) : AbstractLogger(log_path) {}
 
     std::string format(
       const std::string& file_name,
@@ -85,21 +85,35 @@ namespace logger
       const std::optional<::timespec>& enclave_ts = std::nullopt) override
     {
       nlohmann::json j;
-      j["file"] = file_name;
-      j["number"] = line_number;
-      j["level"] = log_level;
-      j["msg"] = msg;
-      j["h_ts"] = get_timestamp(host_tm, host_ts);
+      j["m"] = msg;
+
       if (enclave_ts.has_value())
       {
         std::tm enclave_tm;
         auto enc_ts = enclave_ts.value();
         ::timespec_get(&enc_ts, TIME_UTC);
-        ::localtime_r(&enc_ts.tv_sec, &enclave_tm);
+        ::gmtime_r(&enc_ts.tv_sec, &enclave_tm);
 
-        j["e_ts"] = get_timestamp(enclave_tm, enc_ts);
+        return fmt::format(
+          "{{\"h_ts\":\"{}\",\"e_ts\":\"{}\",\"level\":\"{}\",\"file\":\"{}\","
+          "\"number\":\"{}\","
+          "\"msg\":{}}}",
+          get_timestamp(host_tm, host_ts),
+          get_timestamp(enclave_tm, enc_ts),
+          log_level,
+          file_name,
+          line_number,
+          j["m"].dump());
       }
-      return j.dump();
+
+      return fmt::format(
+        "{{\"h_ts\":\"{}\",\"level\":\"{}\",\"file\":\"{}\",\"number\":\"{}\","
+        "\"msg\":{}}}",
+        get_timestamp(host_tm, host_ts),
+        log_level,
+        file_name,
+        line_number,
+        j["m"].dump());
     }
 
     void write(const std::string& log_line) override
@@ -108,7 +122,7 @@ namespace logger
     }
   };
 
-  class BasicLogger : public CustomLogger
+  class ConsoleLogger : public AbstractLogger
   {
   public:
     std::string format(
@@ -185,9 +199,15 @@ namespace logger
       return {};
     }
 
-    static inline std::vector<std::unique_ptr<CustomLogger>>& loggers()
+    static inline std::vector<std::unique_ptr<AbstractLogger>>& loggers()
     {
-      static std::vector<std::unique_ptr<CustomLogger>> the_loggers;
+      static std::vector<std::unique_ptr<AbstractLogger>> the_loggers;
+      static bool initialized = false;
+      if (!initialized)
+      {
+        initialized = true;
+        the_loggers.emplace_back(std::make_unique<ConsoleLogger>());
+      }
       return the_loggers;
     }
 
@@ -332,7 +352,7 @@ namespace logger
       ::timespec ts;
       ::timespec_get(&ts, TIME_UTC);
       std::tm now;
-      ::localtime_r(&ts.tv_sec, &now);
+      ::gmtime_r(&ts.tv_sec, &now);
 
       for (auto const& logger : config::loggers())
       {
@@ -366,7 +386,7 @@ namespace logger
       ::timespec ts;
       ::timespec_get(&ts, TIME_UTC);
       std::tm now;
-      ::localtime_r(&ts.tv_sec, &now);
+      ::gmtime_r(&ts.tv_sec, &now);
       time_t elapsed_s = ms_offset_from_start / 1000;
       ssize_t elapsed_ns = (ms_offset_from_start % 1000) * 1000000;
 
