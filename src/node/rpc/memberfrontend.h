@@ -103,9 +103,14 @@ namespace ccf
     bool complete_proposal(Store::Tx& tx, const ObjectId id)
     {
       auto proposals = tx.get_view(this->network.proposals);
-      const auto proposal = proposals->get(id);
+      auto proposal = proposals->get(id);
       if (!proposal)
         throw std::logic_error("No proposal");
+
+      if (proposal->state != ProposalState::Open)
+        throw std::logic_error(fmt::format(
+          "Cannot complete non-open proposal - current state is {}",
+          proposal->state));
 
       // run proposal script
       const auto proposed_calls = tsr.run<nlohmann::json>(
@@ -183,8 +188,10 @@ namespace ccf
           call.args);
       }
 
-      // if the vote was successful, remove the proposal
-      proposals->remove(id);
+      // if the vote was successful, update the proposal's state
+      proposal->state = ProposalState::Accepted;
+      proposals->put(id, *proposal);
+
       return true;
     }
 
@@ -300,13 +307,50 @@ namespace ccf
         if (proposal->proposer != args.caller_id)
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-            "Proposals can only be removed by proposer.");
+            "Proposals can only be removed by proposer");
 
         proposals->remove(proposal_id);
         return jsonrpc::success(true);
       };
       install_with_auto_schema<ProposalAction, bool>(
         MemberProcs::REMOVAL, removal, Write);
+
+      auto withdraw = [this](RequestArgs& args) {
+        if (!check_member_status(
+              args.tx, args.caller_id, {MemberStatus::ACTIVE}))
+          return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+
+        const auto proposal_action = args.params.get<ProposalAction>();
+        const auto proposal_id = proposal_action.id;
+        auto proposals = args.tx.get_view(this->network.proposals);
+        auto proposal = proposals->get(proposal_id);
+
+        if (!proposal)
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            "Proposal does not exist");
+
+        if (proposal->proposer != args.caller_id)
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+            "Proposals can only be withdrawn by proposer");
+
+        if (proposal->state != ProposalState::Open)
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+            fmt::format(
+              "Only open proposals can be withdrawn. Proposal {} is currently "
+              "in state {}",
+              proposal_id,
+              proposal->state));
+
+        proposal->state = ProposalState::Withdrawn;
+        proposals->put(proposal_id, *proposal);
+
+        return jsonrpc::success(true);
+      };
+      install_with_auto_schema<ProposalAction, bool>(
+        MemberProcs::WITHDRAW, withdraw, Write);
 
       auto vote = [this](RequestArgs& args) {
         if (!check_member_active(args.tx, args.caller_id))

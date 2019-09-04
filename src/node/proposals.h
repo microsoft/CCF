@@ -164,3 +164,36 @@ namespace ccf
 }
 
 MSGPACK_ADD_ENUM(ccf::ProposalState);
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ccf::ProposalState>
+{
+  template <typename ParseContext>
+  auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const ccf::ProposalState& state, FormatContext& ctx)
+    -> decltype(ctx.out())
+  {
+    switch (state)
+    {
+      case (ccf::ProposalState::Open):
+      {
+        return format_to(ctx.out(), "open");
+      }
+      case (ccf::ProposalState::Accepted):
+      {
+        return format_to(ctx.out(), "accepted");
+      }
+      case (ccf::ProposalState::Withdrawn):
+      {
+        return format_to(ctx.out(), "withdrawn");
+      }
+    }
+  }
+};
+FMT_END_NAMESPACE
