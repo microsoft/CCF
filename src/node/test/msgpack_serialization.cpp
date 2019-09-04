@@ -68,13 +68,13 @@ TEST_CASE("nlohmann::json")
   }
 }
 
-TEST_CASE("OpenProposal")
+TEST_CASE("Proposal")
 {
   using namespace ccf;
 
   {
     INFO("Empty proposal");
-    OpenProposal proposal;
+    Proposal proposal;
     const auto converted = msgpack_roundtrip(proposal);
     CHECK(proposal == converted);
   }
@@ -84,7 +84,7 @@ TEST_CASE("OpenProposal")
     Script s("return true");
     nlohmann::json p("hello world");
     MemberId m(0);
-    OpenProposal proposal(s, p, m);
+    Proposal proposal(s, p, m);
     const auto converted = msgpack_roundtrip(proposal);
     CHECK(proposal == converted);
   }
@@ -94,7 +94,7 @@ TEST_CASE("OpenProposal")
     Script s("return true");
     nlohmann::json p("hello world");
     MemberId m(0);
-    OpenProposal proposal(s, p, m);
+    Proposal proposal(s, p, m);
     proposal.votes[1] = Script("return true");
     proposal.votes[2] = Script("return false");
     proposal.votes[3] = Script("return RoN");

@@ -88,7 +88,7 @@ namespace ccf
      {ProposalState::Accepted, "accepted"},
      {ProposalState::Withdrawn, "withdrawn"}});
 
-  struct OpenProposal
+  struct Proposal
   {
     Script script = {};
     nlohmann::json parameter = {};
@@ -96,15 +96,15 @@ namespace ccf
     ProposalState state = ProposalState::Open;
     std::unordered_map<MemberId, Script> votes = {};
 
-    OpenProposal() = default;
-    OpenProposal(const Script& s, const nlohmann::json& param, MemberId prop) :
+    Proposal() = default;
+    Proposal(const Script& s, const nlohmann::json& param, MemberId prop) :
       script(s),
       parameter(param),
       proposer(prop),
       state(ProposalState::Open)
     {}
 
-    bool operator==(const OpenProposal& o) const
+    bool operator==(const Proposal& o) const
     {
       return script == o.script && parameter == o.parameter &&
         proposer == o.proposer && state == o.state && votes == o.votes;
@@ -112,11 +112,11 @@ namespace ccf
 
     MSGPACK_DEFINE(script, parameter, proposer, state, votes);
   };
-  DECLARE_JSON_TYPE(OpenProposal)
+  DECLARE_JSON_TYPE(Proposal)
   DECLARE_JSON_REQUIRED_FIELDS(
-    OpenProposal, script, parameter, proposer, state, votes)
+    Proposal, script, parameter, proposer, state, votes)
 
-  using Proposals = Store::Map<ObjectId, OpenProposal>;
+  using Proposals = Store::Map<ObjectId, Proposal>;
 
   struct ProposalAction
   {

@@ -273,7 +273,7 @@ namespace ccf
         const auto in = args.params.get<Propose::In>();
         const auto proposal_id = get_next_id(
           args.tx.get_view(this->network.values), ValueIds::NEXT_PROPOSAL_ID);
-        OpenProposal proposal(in.script, in.parameter, args.caller_id);
+        Proposal proposal(in.script, in.parameter, args.caller_id);
         auto proposals = args.tx.get_view(this->network.proposals);
         proposal.votes[args.caller_id] = in.ballot;
         proposals->put(proposal_id, proposal);

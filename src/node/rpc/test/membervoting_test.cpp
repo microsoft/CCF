@@ -355,7 +355,7 @@ TEST_CASE("Proposer ballot")
 
     Store::Tx tx;
     enclave::RPCContext rpc_ctx(proposer_id, proposer_cert);
-    const Response<OpenProposal> proposal =
+    const Response<Proposal> proposal =
       get_proposal(rpc_ctx, frontend, proposal_id, proposer_id);
 
     const auto& votes = proposal.result.votes;
@@ -460,7 +460,7 @@ TEST_CASE("Add new members until there are 7, then reject")
     }
 
     // read initial proposal, as second member
-    const Response<OpenProposal> initial_read =
+    const Response<Proposal> initial_read =
       get_proposal(rpc_ctx, frontend, proposal_id, voter_a);
     CHECK(initial_read.result.proposer == proposer_id);
     CHECK(initial_read.result.script == proposal);
@@ -513,7 +513,7 @@ TEST_CASE("Add new members until there are 7, then reject")
           CCFErrorCodes::INVALID_CALLER_ID);
 
         // re-read proposal, as second member
-        const Response<OpenProposal> final_read =
+        const Response<Proposal> final_read =
           get_proposal(rpc_ctx, frontend, proposal_id, voter_a);
         CHECK(final_read.result.proposer == proposer_id);
         CHECK(final_read.result.script == proposal);
