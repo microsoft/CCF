@@ -872,7 +872,7 @@ TEST_CASE("Remove proposal")
     Store::Tx tx;
     json param;
     param["id"] = wrong_proposal_id;
-    json removalj = create_json_req(param, "removal");
+    json removalj = create_json_req(param, "remove");
     ccf::SignedReq sr(removalj);
 
     check_error(
@@ -884,7 +884,7 @@ TEST_CASE("Remove proposal")
     Store::Tx tx;
     json param;
     param["id"] = proposal_id;
-    json removalj = create_json_req(param, "removal");
+    json removalj = create_json_req(param, "remove");
     ccf::SignedReq sr(removalj);
 
     check_error(
@@ -896,7 +896,7 @@ TEST_CASE("Remove proposal")
     Store::Tx tx;
     json param;
     param["id"] = proposal_id;
-    json removalj = create_json_req(param, "removal");
+    json removalj = create_json_req(param, "remove");
     ccf::SignedReq sr(removalj);
 
     check_success(frontend.process_json(rpc_ctx, tx, 0, removalj, sr).value());

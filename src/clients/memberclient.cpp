@@ -204,10 +204,10 @@ void submit_raw_puts(
   cout << response << endl;
 }
 
-void submit_removal(RpcTlsClient& tls_connection, ObjectId proposal_id)
+void submit_remove(RpcTlsClient& tls_connection, ObjectId proposal_id)
 {
   const auto response = json::from_msgpack(
-    tls_connection.call("removal", ProposalAction{proposal_id}));
+    tls_connection.call("remove", ProposalAction{proposal_id}));
   cout << response << endl;
 }
 
@@ -360,8 +360,8 @@ int main(int argc, char** argv)
     ->required(true)
     ->check(CLI::ExistingFile);
 
-  auto removal = app.add_subcommand("removal", "Remove a proposal");
-  removal->add_option("--proposal-id", proposal_id, "The proposal id")
+  auto remove = app.add_subcommand("remove", "Remove a proposal");
+  remove->add_option("--proposal-id", proposal_id, "The proposal id")
     ->required(true);
 
   auto accept_recovery =
@@ -452,9 +452,9 @@ int main(int argc, char** argv)
       submit_raw_puts(*tls_connection, script, param_file);
     }
 
-    if (*removal)
+    if (*remove)
     {
-      submit_removal(*tls_connection, proposal_id);
+      submit_remove(*tls_connection, proposal_id);
     }
 
     if (*proposal_display)

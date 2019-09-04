@@ -95,7 +95,7 @@ def run(args):
         assert proposal_id == 2
 
         j_result = network.member_client_rpc_as_json(
-            4, primary, "removal", "--proposal-id=2"
+            4, primary, "remove", "--proposal-id=2"
         )
         assert j_result["result"]
 

@@ -40,7 +40,7 @@ namespace ccf
     static constexpr auto VOTE = "vote";
     static constexpr auto PROPOSE = "propose";
     static constexpr auto WITHDRAW = "withdraw";
-    static constexpr auto REMOVAL = "removal";
+    static constexpr auto REMOVE = "remove";
 
     static constexpr auto ADD_NODE = "add_node";
 

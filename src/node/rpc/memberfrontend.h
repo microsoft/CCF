@@ -289,7 +289,7 @@ namespace ccf
       };
       install_with_auto_schema<Propose>(MemberProcs::PROPOSE, propose, Write);
 
-      auto removal = [this](RequestArgs& args) {
+      auto remove = [this](RequestArgs& args) {
         if (!check_member_status(
               args.tx, args.caller_id, {MemberStatus::ACTIVE}))
           return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
@@ -313,7 +313,7 @@ namespace ccf
         return jsonrpc::success(true);
       };
       install_with_auto_schema<ProposalAction, bool>(
-        MemberProcs::REMOVAL, removal, Write);
+        MemberProcs::REMOVE, remove, Write);
 
       auto withdraw = [this](RequestArgs& args) {
         if (!check_member_status(
