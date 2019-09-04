@@ -270,7 +270,7 @@ namespace ccf
         if (!check_member_active(args.tx, args.caller_id))
           return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
 
-        const auto in = args.params.get<Proposal::In>();
+        const auto in = args.params.get<Propose::In>();
         const auto proposal_id = get_next_id(
           args.tx.get_view(this->network.values), ValueIds::NEXT_PROPOSAL_ID);
         OpenProposal proposal(in.script, in.parameter, args.caller_id);
@@ -278,9 +278,9 @@ namespace ccf
         proposal.votes[args.caller_id] = in.ballot;
         proposals->put(proposal_id, proposal);
         const bool completed = complete_proposal(args.tx, proposal_id);
-        return jsonrpc::success<Proposal::Out>({proposal_id, completed});
+        return jsonrpc::success<Propose::Out>({proposal_id, completed});
       };
-      install_with_auto_schema<Proposal>(MemberProcs::PROPOSE, propose, Write);
+      install_with_auto_schema<Propose>(MemberProcs::PROPOSE, propose, Write);
 
       auto removal = [this](RequestArgs& args) {
         if (!check_member_status(

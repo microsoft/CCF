@@ -317,12 +317,12 @@ TEST_CASE("Proposer ballot")
       return Calls:call("new_member", member_cert)
     )xxx");
     const auto proposej = create_json_req(
-      Proposal::In{proposal, proposed_member, vote_against}, "propose");
+      Propose::In{proposal, proposed_member, vote_against}, "propose");
     enclave::RPCContext rpc_ctx(proposer_id, proposer_cert);
 
     Store::Tx tx;
     ccf::SignedReq sr(proposej);
-    Response<Proposal::Out> r =
+    Response<Propose::Out> r =
       frontend.process_json(rpc_ctx, tx, proposer_id, proposej, sr).value();
 
     // the proposal should be accepted, but not succeed immediately
@@ -446,12 +446,12 @@ TEST_CASE("Add new members until there are 7, then reject")
     )xxx");
 
     const auto proposej =
-      create_json_req(Proposal::In{proposal, new_member.cert}, "propose");
+      create_json_req(Propose::In{proposal, new_member.cert}, "propose");
 
     {
       Store::Tx tx;
       ccf::SignedReq sr(proposej);
-      Response<Proposal::Out> r =
+      Response<Propose::Out> r =
         frontend.process_json(rpc_ctx, tx, proposer_id, proposej, sr).value();
 
       // the proposal should be accepted, but not succeed immediately
@@ -615,11 +615,11 @@ TEST_CASE("Accept node")
       return Calls:call("accept_node", node_id)
     )xxx");
 
-    json proposej = create_json_req(Proposal::In{proposal, node_id}, "propose");
+    json proposej = create_json_req(Propose::In{proposal, node_id}, "propose");
     ccf::SignedReq sr(proposej);
 
     Store::Tx tx;
-    Response<Proposal::Out> r =
+    Response<Propose::Out> r =
       frontend.process_json(rpc_ctx, tx, mid0, proposej, sr).value();
     CHECK(!r.result.completed);
     CHECK(r.result.id == 0);
@@ -655,7 +655,7 @@ bool test_raw_writes(
   NetworkTables& network,
   GenesisGenerator& gen,
   StubNodeState& node,
-  Proposal::In proposal,
+  Propose::In proposal,
   const int n_members = 1,
   const int pro_votes = 1,
   bool explicit_proposer_vote = false)
@@ -678,7 +678,7 @@ bool test_raw_writes(
     ccf::SignedReq sr(proposej);
 
     Store::Tx tx;
-    Response<Proposal::Out> r =
+    Response<Propose::Out> r =
       frontend.process_json(rpc_ctx, tx, proposer_id, proposej, sr).value();
     CHECK(r.result.completed == (n_members == 1));
     CHECK(r.result.id == proposal_id);
@@ -851,12 +851,11 @@ TEST_CASE("Remove proposal")
   }
 
   {
-    json proposej =
-      create_json_req(Proposal::In{proposal_script, 0}, "propose");
+    json proposej = create_json_req(Propose::In{proposal_script, 0}, "propose");
     ccf::SignedReq sr(proposej);
 
     Store::Tx tx;
-    Response<Proposal::Out> r =
+    Response<Propose::Out> r =
       frontend.process_json(rpc_ctx, tx, 0, proposej, sr).value();
     CHECK(r.result.id == proposal_id);
     CHECK(!r.result.completed);
@@ -923,11 +922,11 @@ TEST_CASE("Complete proposal after initial rejection")
   {
     const auto proposal =
       "return Calls:call('raw_puts', Puts:put('values', 999, 999))"s;
-    const auto proposej = create_json_req(Proposal::In{proposal}, "propose");
+    const auto proposej = create_json_req(Propose::In{proposal}, "propose");
     ccf::SignedReq sr(proposej);
 
     Store::Tx tx;
-    Response<Proposal::Out> r =
+    Response<Propose::Out> r =
       frontend.process_json(rpc_ctx, tx, 0, proposej, sr).value();
     CHECK(r.result.completed == false);
   }
@@ -989,11 +988,11 @@ TEST_CASE("Add user via proposed call")
     )xxx");
 
   const vector<uint8_t> user_cert = {1, 2, 3};
-  json proposej = create_json_req(Proposal::In{proposal, user_cert}, "propose");
+  json proposej = create_json_req(Propose::In{proposal, user_cert}, "propose");
   ccf::SignedReq sr(proposej);
 
   Store::Tx tx;
-  Response<Proposal::Out> r =
+  Response<Propose::Out> r =
     frontend.process_json(rpc_ctx, tx, 0, proposej, sr).value();
   CHECK(r.result.completed);
   CHECK(r.result.id == 0);

@@ -48,7 +48,7 @@ namespace ccf
    *  local tables, param = ...
    *  return Calls:call(Puts:put("table", "key", tables["values"]:get(param))
    */
-  struct Proposal
+  struct Propose
   {
     //! arguments for propose RPC
     struct In
@@ -70,11 +70,11 @@ namespace ccf
       bool completed;
     };
   };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Proposal::In)
-  DECLARE_JSON_REQUIRED_FIELDS(Proposal::In, script, parameter)
-  DECLARE_JSON_OPTIONAL_FIELDS(Proposal::In, ballot)
-  DECLARE_JSON_TYPE(Proposal::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(Proposal::Out, id, completed)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Propose::In)
+  DECLARE_JSON_REQUIRED_FIELDS(Propose::In, script, parameter)
+  DECLARE_JSON_OPTIONAL_FIELDS(Propose::In, ballot)
+  DECLARE_JSON_TYPE(Propose::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(Propose::Out, id, completed)
 
   enum class ProposalState
   {

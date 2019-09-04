@@ -75,7 +75,7 @@ static const string accept_code_proposal(R"xxx(
 template <typename T>
 json proposal_params(const string& script, const T& parameter)
 {
-  return Proposal::In{script, parameter};
+  return Propose::In{script, parameter};
 }
 
 auto query_params(const string& script)
