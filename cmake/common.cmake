@@ -12,8 +12,6 @@ endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(Boost_ADDITIONAL_VERSIONS "1.67" "1.67.0")
-find_package(Boost 1.60.0 REQUIRED)
 find_package(Threads REQUIRED)
 
 # Azure Pipelines does not support color codes
@@ -23,19 +21,8 @@ else()
   set(PYTHON unbuffer python3)
 endif()
 
-if(MSVC)
-  add_compile_options(/W3 /std:c++latest)
-else()
-  # GCC requires libatomic as well as libpthread.
-  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    set(${CMAKE_THREAD_LIBS_INIT} "$CMAKE_THREAD_LIBS_INIT} atomic")
-    separate_arguments(COVERAGE_FLAGS UNIX_COMMAND "--coverage -fprofile-arcs -ftest-coverage")
-    separate_arguments(COVERAGE_LINK UNIX_COMMAND "gcov")
-  else()
-    separate_arguments(COVERAGE_FLAGS UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
-    separate_arguments(COVERAGE_LINK UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
-  endif()
-endif()
+separate_arguments(COVERAGE_FLAGS UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
+separate_arguments(COVERAGE_LINK UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
 
 function(enable_coverage name)
   if (COVERAGE)
@@ -57,12 +44,10 @@ else ()
   message(FATAL_ERROR "Unsupported curve choice ${SERVICE_IDENTITY_CURVE_CHOICE}")
 endif ()
 
-option (COLORED_OUTPUT "Always produce ANSI-colored output (GNU/Clang only)." TRUE)
+option (COLORED_OUTPUT "Always produce ANSI-colored output (Clang only)." TRUE)
 
 if (${COLORED_OUTPUT})
-    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-       add_compile_options (-fdiagnostics-color=always)
-    elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
        add_compile_options (-fcolor-diagnostics)
     endif ()
 endif ()
@@ -418,7 +403,6 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       -nostdlib -nodefaultlibs -nostartfiles
       -Wl,--no-undefined
       -Wl,-Bstatic,-Bsymbolic,--export-dynamic,-pie
-      -lgcc
       ${PARSED_ARGS_LINK_LIBS}
       ${ENCLAVE_LIBS}
     )

@@ -54,7 +54,6 @@ if(NOT ${TARGET} STREQUAL "virtual")
     -nostdlib -nodefaultlibs -nostartfiles
     -Wl,--no-undefined
     -Wl,-Bstatic,-Bsymbolic,--export-dynamic,-pie
-    -lgcc
     evercrypt.enclave
   )
   use_oe_mbedtls(ccfcrypto.enclave)
