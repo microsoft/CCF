@@ -9,12 +9,27 @@ Operating Systems
 At the moment, CCF only builds and runs on Linux. It is primarily developed and
 tested on Ubuntu 18.04.
 
-Hardware
---------
+Hardware Requirements
+---------------------
 
-Although it is possible to build and run OpenEnclave on hardware without :term:`SGX` extensions,
-and run CCF applications in virtual mode, running with full security guarantees
-requires :term:`SGX` hardware with :term:`FLC`.
+Running CCF with full security guarantees requires :term:`SGX` hardware with :term:`FLC`.
+
+For developement purposes however, it is possible to build and run CCF applications in `virtual`
+mode, ie. without using SGX.
+
+Local Development without SGX
+-----------------------------
+
+QuickStart
+``````````
+
+To quickly get a container up and running in which you can build CCF, the fastest way to go is
+to install `Visual Studio Code`_ and install the `Remote Container`_ extension.
+
+The CCF repository provides a sample `.devcontainer/devcontainer.json` file.
+
+.. _`Visual Studio Code`: https://code.visualstudio.com/
+.. _`Remote Container`: https://code.visualstudio.com/docs/remote/containers
 
 Azure Confidential Compute
 --------------------------
@@ -37,6 +52,8 @@ To quickly get a VM up and running, you can run the following script:
 This will create a default ``ccf`` user on the VM, authenticated by ``~/.ssh/id_rsa.pub``. If you do
 not have a valid SSH key under that path, you will need to either create one, or edit
 ``vm.json`` to select a different path.
+
+`Visual Studio Code`_ also supports connecting to a VM using the `SSH Remote`_ extension.
 
 Alternatively, you can follow the instructions in the section below.
 
@@ -98,6 +115,7 @@ authenticate, but it is also possible to use a password with adminPassword_.
 .. _`Azure CLI`: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest
 .. _`Azure Cloud Shell`: https://docs.microsoft.com/en-us/azure/cloud-shell/overview
 .. _`SSH key`: https://docs.microsoft.com/en-us/azure/virtual-machines/linux/mac-create-ssh-keys
+.. _`SSH Remote`: https://code.visualstudio.com/docs/remote/ssh
 
 Dependencies
 ------------
