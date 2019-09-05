@@ -10,6 +10,8 @@ import json
 import logging
 import time
 import os
+import subprocess
+import tempfile
 from enum import IntEnum
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -340,3 +342,74 @@ def client(
         yield c
     finally:
         c.disconnect()
+
+
+class CurlClient:
+    def __init__(self, host, port, server_hostname, cert, key, cafile, version, format, description):
+        self.host = host
+        self.port = port
+        self.server_hostname = server_hostname
+        self.cert = cert
+        self.key = key
+        self.cafile = cafile
+        self.version = version
+        self.format = format
+        self.stream = Stream(version, format=format)
+        self.pending = {}
+    
+    def request(self, method, params):
+        r = self.stream.request(method, params)
+        with tempfile.NamedTemporaryFile() as nf:
+            msg = getattr(r, "to_{}".format(self.format))()
+            nf.write(msg)
+            cmd = ['curl', '-v', '-k', f'https://{self.server_hostname}:{self.port}/',
+                  '--resolve', f'{self.server_hostname}:{self.port}:{self.host}', '-d', f'@{nf.name}']
+            if self.cafile:
+                cmd.extend(['--cacert', self.cafile])
+            if self.key:
+                cmd.extend(['--key', self.key])
+            if self.cert:
+                cmd.extend(['--cert', self.cert])
+            LOG.debug(f"Running: {' '.join(cmd)}")
+            rc = subprocess.run(cmd, capture_output=True)
+            LOG.debug(f"OUT {rc.stdout}")
+            LOG.debug(f"ERR {rc.stderr}")
+            self.stream.update(rc.stdout)
+        return r.id
+
+    def response(self, id):
+        return self.stream.response(id)
+
+    def do(self, method, params, expected_result=None, expected_error_code=None):
+        id = self.request(method, params)
+        r = self.response(id)
+
+        if expected_result is not None:
+            assert expected_result == r.result
+
+        if expected_error_code is not None:
+            assert expected_error_code.value == r.error["code"]
+        return r
+
+    def rpc(self, method, params):
+        id = self.request(method, params)
+        return self.response(id)
+
+
+@contextlib.contextmanager
+def client(
+    host,
+    port,
+    server_hostname="users",
+    cert=None,
+    key=None,
+    cafile=None,
+    version="2.0",
+    format="json",
+    description=None,
+    log_file=None,
+):
+    c = CurlClient(
+        host, port, server_hostname, cert, key, cafile, version, format, description
+    )
+    yield c

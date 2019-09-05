@@ -301,6 +301,13 @@ if(BUILD_TESTS)
       # )
     endif()
 
+    if (HTTP)
+      add_e2e_test(
+        NAME end_to_end_http
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_http.py
+      )
+    endif()
+
     add_e2e_test(
       NAME end_to_end_logging
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
