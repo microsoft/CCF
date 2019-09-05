@@ -82,12 +82,15 @@ The details of pending proposals, including the proposer member ID, proposal scr
 
 In this case, there is one pending proposal (``id`` is 1), proposed by the first member (``member1``, ``id`` is 0) and which will call the ``accept_node`` function with the new member's certificate as a parameter. Two votes have been cast: ``member1`` (proposer) has voted for the proposal, while ``member2`` (``id`` is 1) has voted against it.
 
-Removing proposals
-------------------
+Withdrawing proposals
+---------------------
 
-At any stage during the voting process and before the proposal is completed, the proposing member may decide to remove a pending proposal:
+At any stage during the voting process and before the proposal is completed, the proposing member may decide to withdraw a pending proposal:
 
 .. code-block:: bash
 
-    $ memberclient --server-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem removal --proposal-id 0
+    $ memberclient --server-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem withdraw --proposal-id 0
     {"commit":110,"global_commit":109,"id":0,"jsonrpc":"2.0","result":true,"term":4}
+
+This means future votes will be ignored, and the proposal will never be accepted. However it will remain visible as a proposal so members can easily audit historic proposals.
+

@@ -24,7 +24,7 @@ namespace ccf
       const auto s = tx.get_view(network.gov_scripts)->get(name);
       if (!s)
         throw std::logic_error(
-          std::string("Could not find gov script: ") + name);
+          fmt::format("Could not find gov script: {}", name));
       return *s;
     }
 
@@ -57,11 +57,11 @@ namespace ccf
         // accept a node
         {"accept_node",
          [this](Store::Tx& tx, const nlohmann::json& args) {
-           const auto id = args;
+           const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);
            auto info = nodes->get(id);
            if (!info)
-             throw std::logic_error("Node does not exist.");
+             throw std::logic_error(fmt::format("Node {} does not exist", id));
            info->status = NodeStatus::TRUSTED;
            nodes->put(id, *info);
            return true;
@@ -69,11 +69,11 @@ namespace ccf
         // retire a node
         {"retire_node",
          [this](Store::Tx& tx, const nlohmann::json& args) {
-           const auto id = args;
+           const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);
            auto info = nodes->get(id);
            if (!info)
-             throw std::logic_error("Node does not exist.");
+             throw std::logic_error(fmt::format("Node {} does not exist", id));
            info->status = NodeStatus::RETIRED;
            nodes->put(id, *info);
            return true;
@@ -81,11 +81,13 @@ namespace ccf
         // accept new code
         {"new_code",
          [this](Store::Tx& tx, const nlohmann::json& args) {
-           const auto id = args;
+           const auto id = args.get<CodeDigest>();
            auto code_ids = tx.get_view(this->network.code_id);
            auto existing_code_id = code_ids->get(id);
            if (existing_code_id)
-             throw std::logic_error("Code signature already exists");
+             throw std::logic_error(fmt::format(
+               "Code signature already exists with digest: {:02x}",
+               fmt::join(id, "")));
            code_ids->put(id, CodeStatus::ACCEPTED);
            return true;
          }},
@@ -103,9 +105,14 @@ namespace ccf
     bool complete_proposal(Store::Tx& tx, const ObjectId id)
     {
       auto proposals = tx.get_view(this->network.proposals);
-      const auto proposal = proposals->get(id);
+      auto proposal = proposals->get(id);
       if (!proposal)
-        throw std::logic_error("No proposal");
+        throw std::logic_error(fmt::format("No proposal {}", id));
+
+      if (proposal->state != ProposalState::OPEN)
+        throw std::logic_error(fmt::format(
+          "Cannot complete non-open proposal - current state is {}",
+          proposal->state));
 
       // run proposal script
       const auto proposed_calls = tsr.run<nlohmann::json>(
@@ -183,8 +190,10 @@ namespace ccf
           call.args);
       }
 
-      // if the vote was successful, remove the proposal
-      proposals->remove(id);
+      // if the vote was successful, update the proposal's state
+      proposal->state = ProposalState::ACCEPTED;
+      proposals->put(id, *proposal);
+
       return true;
     }
 
@@ -250,7 +259,9 @@ namespace ccf
           in.key);
         if (value.empty())
           return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS, "key does not exist");
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            fmt::format(
+              "Key {} does not exist in table {}", in.key.dump(), in.table));
         return jsonrpc::success(value);
       };
       install_with_auto_schema<KVRead>(MemberProcs::READ, read, Read);
@@ -270,19 +281,19 @@ namespace ccf
         if (!check_member_active(args.tx, args.caller_id))
           return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
 
-        const auto in = args.params.get<Proposal::In>();
+        const auto in = args.params.get<Propose::In>();
         const auto proposal_id = get_next_id(
           args.tx.get_view(this->network.values), ValueIds::NEXT_PROPOSAL_ID);
-        OpenProposal proposal(in.script, in.parameter, args.caller_id);
+        Proposal proposal(in.script, in.parameter, args.caller_id);
         auto proposals = args.tx.get_view(this->network.proposals);
         proposal.votes[args.caller_id] = in.ballot;
         proposals->put(proposal_id, proposal);
         const bool completed = complete_proposal(args.tx, proposal_id);
-        return jsonrpc::success<Proposal::Out>({proposal_id, completed});
+        return jsonrpc::success<Propose::Out>({proposal_id, completed});
       };
-      install_with_auto_schema<Proposal>(MemberProcs::PROPOSE, propose, Write);
+      install_with_auto_schema<Propose>(MemberProcs::PROPOSE, propose, Write);
 
-      auto removal = [this](RequestArgs& args) {
+      auto withdraw = [this](RequestArgs& args) {
         if (!check_member_status(
               args.tx, args.caller_id, {MemberStatus::ACTIVE}))
           return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
@@ -290,23 +301,39 @@ namespace ccf
         const auto proposal_action = args.params.get<ProposalAction>();
         const auto proposal_id = proposal_action.id;
         auto proposals = args.tx.get_view(this->network.proposals);
-        const auto proposal = proposals->get(proposal_id);
+        auto proposal = proposals->get(proposal_id);
 
         if (!proposal)
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Proposal does not exist");
+            fmt::format("Proposal {} does not exist", proposal_id));
 
         if (proposal->proposer != args.caller_id)
           return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-            "Proposals can only be removed by proposer.");
+            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
+            fmt::format(
+              "Proposal {} can only be withdrawn by proposer {}, not caller {}",
+              proposal_id,
+              proposal->proposer,
+              args.caller_id));
 
-        proposals->remove(proposal_id);
+        if (proposal->state != ProposalState::OPEN)
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            fmt::format(
+              "Proposal {} is currently in state {} - only {} proposals can be "
+              "withdrawn",
+              proposal_id,
+              proposal->state,
+              ProposalState::OPEN));
+
+        proposal->state = ProposalState::WITHDRAWN;
+        proposals->put(proposal_id, *proposal);
+
         return jsonrpc::success(true);
       };
       install_with_auto_schema<ProposalAction, bool>(
-        MemberProcs::REMOVAL, removal, Write);
+        MemberProcs::WITHDRAW, withdraw, Write);
 
       auto vote = [this](RequestArgs& args) {
         if (!check_member_active(args.tx, args.caller_id))
@@ -322,7 +349,17 @@ namespace ccf
         if (!proposal)
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Proposal does not exist");
+            fmt::format("Proposal {} does not exist", vote.id));
+
+        if (proposal->state != ProposalState::OPEN)
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            fmt::format(
+              "Proposal {} is currently in state {} - only {} proposals can "
+              "receive votes",
+              vote.id,
+              proposal->state,
+              ProposalState::OPEN));
 
         // record vote
         proposal->votes[args.caller_id] = vote.ballot;
@@ -357,8 +394,8 @@ namespace ccf
         const auto last_ma = mas->get(args.caller_id);
         if (!last_ma)
           return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "No ACK record exists (1)");
+            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
+            fmt::format("No ACK record exists for caller {}", args.caller_id));
 
         auto verifier =
           tls::make_verifier(std::vector<uint8_t>(args.rpc_ctx.caller_cert));
@@ -390,8 +427,8 @@ namespace ccf
         auto ma = mas->get(args.caller_id);
         if (!ma)
           return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "No ACK record exists (2)");
+            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
+            fmt::format("No ACK record exists for caller {}", args.caller_id));
         ma->next_nonce = rng->random(SIZE_NONCE);
         mas->put(args.caller_id, *ma);
         return jsonrpc::success(true);

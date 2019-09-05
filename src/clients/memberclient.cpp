@@ -75,7 +75,7 @@ static const string accept_code_proposal(R"xxx(
 template <typename T>
 json proposal_params(const string& script, const T& parameter)
 {
-  return Proposal::In{script, parameter};
+  return Propose::In{script, parameter};
 }
 
 auto query_params(const string& script)
@@ -204,10 +204,10 @@ void submit_raw_puts(
   cout << response << endl;
 }
 
-void submit_removal(RpcTlsClient& tls_connection, ObjectId proposal_id)
+void submit_withdraw(RpcTlsClient& tls_connection, ObjectId proposal_id)
 {
   const auto response = json::from_msgpack(
-    tls_connection.call("removal", ProposalAction{proposal_id}));
+    tls_connection.call("withdraw", ProposalAction{proposal_id}));
   cout << response << endl;
 }
 
@@ -360,8 +360,8 @@ int main(int argc, char** argv)
     ->required(true)
     ->check(CLI::ExistingFile);
 
-  auto removal = app.add_subcommand("removal", "Remove a proposal");
-  removal->add_option("--proposal-id", proposal_id, "The proposal id")
+  auto withdraw = app.add_subcommand("withdraw", "Withdraw a proposal");
+  withdraw->add_option("--proposal-id", proposal_id, "The proposal id")
     ->required(true);
 
   auto accept_recovery =
@@ -452,9 +452,9 @@ int main(int argc, char** argv)
       submit_raw_puts(*tls_connection, script, param_file);
     }
 
-    if (*removal)
+    if (*withdraw)
     {
-      submit_removal(*tls_connection, proposal_id);
+      submit_withdraw(*tls_connection, proposal_id);
     }
 
     if (*proposal_display)

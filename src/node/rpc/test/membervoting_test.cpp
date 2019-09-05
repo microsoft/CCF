@@ -317,12 +317,12 @@ TEST_CASE("Proposer ballot")
       return Calls:call("new_member", member_cert)
     )xxx");
     const auto proposej = create_json_req(
-      Proposal::In{proposal, proposed_member, vote_against}, "propose");
+      Propose::In{proposal, proposed_member, vote_against}, "propose");
     enclave::RPCContext rpc_ctx(proposer_id, proposer_cert);
 
     Store::Tx tx;
     ccf::SignedReq sr(proposej);
-    Response<Proposal::Out> r =
+    Response<Propose::Out> r =
       frontend.process_json(rpc_ctx, tx, proposer_id, proposej, sr).value();
 
     // the proposal should be accepted, but not succeed immediately
@@ -355,7 +355,7 @@ TEST_CASE("Proposer ballot")
 
     Store::Tx tx;
     enclave::RPCContext rpc_ctx(proposer_id, proposer_cert);
-    const Response<OpenProposal> proposal =
+    const Response<Proposal> proposal =
       get_proposal(rpc_ctx, frontend, proposal_id, proposer_id);
 
     const auto& votes = proposal.result.votes;
@@ -446,12 +446,12 @@ TEST_CASE("Add new members until there are 7, then reject")
     )xxx");
 
     const auto proposej =
-      create_json_req(Proposal::In{proposal, new_member.cert}, "propose");
+      create_json_req(Propose::In{proposal, new_member.cert}, "propose");
 
     {
       Store::Tx tx;
       ccf::SignedReq sr(proposej);
-      Response<Proposal::Out> r =
+      Response<Propose::Out> r =
         frontend.process_json(rpc_ctx, tx, proposer_id, proposej, sr).value();
 
       // the proposal should be accepted, but not succeed immediately
@@ -460,7 +460,7 @@ TEST_CASE("Add new members until there are 7, then reject")
     }
 
     // read initial proposal, as second member
-    const Response<OpenProposal> initial_read =
+    const Response<Proposal> initial_read =
       get_proposal(rpc_ctx, frontend, proposal_id, voter_a);
     CHECK(initial_read.result.proposer == proposer_id);
     CHECK(initial_read.result.script == proposal);
@@ -513,7 +513,7 @@ TEST_CASE("Add new members until there are 7, then reject")
           CCFErrorCodes::INVALID_CALLER_ID);
 
         // re-read proposal, as second member
-        const Response<OpenProposal> final_read =
+        const Response<Proposal> final_read =
           get_proposal(rpc_ctx, frontend, proposal_id, voter_a);
         CHECK(final_read.result.proposer == proposer_id);
         CHECK(final_read.result.script == proposal);
@@ -615,11 +615,11 @@ TEST_CASE("Accept node")
       return Calls:call("accept_node", node_id)
     )xxx");
 
-    json proposej = create_json_req(Proposal::In{proposal, node_id}, "propose");
+    json proposej = create_json_req(Propose::In{proposal, node_id}, "propose");
     ccf::SignedReq sr(proposej);
 
     Store::Tx tx;
-    Response<Proposal::Out> r =
+    Response<Propose::Out> r =
       frontend.process_json(rpc_ctx, tx, mid0, proposej, sr).value();
     CHECK(!r.result.completed);
     CHECK(r.result.id == 0);
@@ -655,7 +655,7 @@ bool test_raw_writes(
   NetworkTables& network,
   GenesisGenerator& gen,
   StubNodeState& node,
-  Proposal::In proposal,
+  Propose::In proposal,
   const int n_members = 1,
   const int pro_votes = 1,
   bool explicit_proposer_vote = false)
@@ -678,7 +678,7 @@ bool test_raw_writes(
     ccf::SignedReq sr(proposej);
 
     Store::Tx tx;
-    Response<Proposal::Out> r =
+    Response<Propose::Out> r =
       frontend.process_json(rpc_ctx, tx, proposer_id, proposej, sr).value();
     CHECK(r.result.completed == (n_members == 1));
     CHECK(r.result.id == proposal_id);
@@ -719,7 +719,7 @@ bool test_raw_writes(
     }
     else
     {
-      // proposal does not exist anymore, because it completed -> invalid params
+      // proposal has been accepted - additional votes return an error
       check_error(
         frontend.process_json(mem_rpc_ctx, tx, i, votej["req"], sr).value(),
         StandardErrorCodes::INVALID_PARAMS);
@@ -851,12 +851,11 @@ TEST_CASE("Remove proposal")
   }
 
   {
-    json proposej =
-      create_json_req(Proposal::In{proposal_script, 0}, "propose");
+    json proposej = create_json_req(Propose::In{proposal_script, 0}, "propose");
     ccf::SignedReq sr(proposej);
 
     Store::Tx tx;
-    Response<Proposal::Out> r =
+    Response<Propose::Out> r =
       frontend.process_json(rpc_ctx, tx, 0, proposej, sr).value();
     CHECK(r.result.id == proposal_id);
     CHECK(!r.result.completed);
@@ -866,46 +865,48 @@ TEST_CASE("Remove proposal")
     Store::Tx tx;
     auto proposal = tx.get_view(network.proposals)->get(proposal_id);
     REQUIRE(proposal);
+    CHECK(proposal->state == ProposalState::OPEN);
     CHECK(proposal->script.text.value() == proposal_script.text.value());
   }
-  SUBCASE("Attempt remove proposal with non existing id")
+  SUBCASE("Attempt withdraw proposal with non existing id")
   {
     Store::Tx tx;
     json param;
     param["id"] = wrong_proposal_id;
-    json removalj = create_json_req(param, "removal");
-    ccf::SignedReq sr(removalj);
+    json withdrawj = create_json_req(param, "withdraw");
+    ccf::SignedReq sr(withdrawj);
 
     check_error(
-      frontend.process_json(rpc_ctx, tx, 0, removalj, sr).value(),
+      frontend.process_json(rpc_ctx, tx, 0, withdrawj, sr).value(),
       StandardErrorCodes::INVALID_PARAMS);
   }
-  SUBCASE("Attempt remove proposal that you didn't propose")
+  SUBCASE("Attempt withdraw proposal that you didn't propose")
   {
     Store::Tx tx;
     json param;
     param["id"] = proposal_id;
-    json removalj = create_json_req(param, "removal");
-    ccf::SignedReq sr(removalj);
+    json withdrawj = create_json_req(param, "withdraw");
+    ccf::SignedReq sr(withdrawj);
 
     check_error(
-      frontend.process_json(rpc_ctx, tx, 1, removalj, sr).value(),
-      StandardErrorCodes::INVALID_REQUEST);
+      frontend.process_json(rpc_ctx, tx, 1, withdrawj, sr).value(),
+      CCFErrorCodes::INVALID_CALLER_ID);
   }
-  SUBCASE("Successfully remove proposal")
+  SUBCASE("Successfully withdraw proposal")
   {
     Store::Tx tx;
     json param;
     param["id"] = proposal_id;
-    json removalj = create_json_req(param, "removal");
-    ccf::SignedReq sr(removalj);
+    json withdrawj = create_json_req(param, "withdraw");
+    ccf::SignedReq sr(withdrawj);
 
-    check_success(frontend.process_json(rpc_ctx, tx, 0, removalj, sr).value());
-    // check that the proposal doesn't exist anymore
+    check_success(frontend.process_json(rpc_ctx, tx, 0, withdrawj, sr).value());
+    // check that the proposal is now withdrawn
     {
       Store::Tx tx;
       auto proposal = tx.get_view(network.proposals)->get(proposal_id);
-      CHECK(!proposal);
+      CHECK(proposal.has_value());
+      CHECK(proposal->state == ProposalState::WITHDRAWN);
     }
   }
 }
@@ -923,11 +924,11 @@ TEST_CASE("Complete proposal after initial rejection")
   {
     const auto proposal =
       "return Calls:call('raw_puts', Puts:put('values', 999, 999))"s;
-    const auto proposej = create_json_req(Proposal::In{proposal}, "propose");
+    const auto proposej = create_json_req(Propose::In{proposal}, "propose");
     ccf::SignedReq sr(proposej);
 
     Store::Tx tx;
-    Response<Proposal::Out> r =
+    Response<Propose::Out> r =
       frontend.process_json(rpc_ctx, tx, 0, proposej, sr).value();
     CHECK(r.result.completed == false);
   }
@@ -989,11 +990,11 @@ TEST_CASE("Add user via proposed call")
     )xxx");
 
   const vector<uint8_t> user_cert = {1, 2, 3};
-  json proposej = create_json_req(Proposal::In{proposal, user_cert}, "propose");
+  json proposej = create_json_req(Propose::In{proposal, user_cert}, "propose");
   ccf::SignedReq sr(proposej);
 
   Store::Tx tx;
-  Response<Proposal::Out> r =
+  Response<Propose::Out> r =
     frontend.process_json(rpc_ctx, tx, 0, proposej, sr).value();
   CHECK(r.result.completed);
   CHECK(r.result.id == 0);
