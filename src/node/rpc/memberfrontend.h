@@ -368,6 +368,13 @@ namespace ccf
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             "Proposal does not exist");
 
+        if (proposal->state != ProposalState::Open)
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            fmt::format(
+              "Cannot vote for non-open proposal - current state is {}",
+              proposal->state));
+
         // record vote
         proposal->votes[args.caller_id] = vote.ballot;
         proposals->put(vote.id, *proposal);

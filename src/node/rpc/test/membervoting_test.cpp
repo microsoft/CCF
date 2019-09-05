@@ -719,7 +719,7 @@ bool test_raw_writes(
     }
     else
     {
-      // proposal does not exist anymore, because it completed -> invalid params
+      // proposal has been accepted - additional votes return an error
       check_error(
         frontend.process_json(mem_rpc_ctx, tx, i, votej["req"], sr).value(),
         StandardErrorCodes::INVALID_PARAMS);
