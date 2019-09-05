@@ -120,16 +120,9 @@ def run(args):
         assert not result[1]["completed"]
         assert proposal_id == 2
 
-        # other members are unable to withdraw or remove proposal 2
+        # other members are unable to withdraw proposal 2
         j_result = network.member_client_rpc_as_json(
             2, primary, "withdraw", "--proposal-id=2"
-        )
-        assert (
-            j_result["error"]["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value
-        )
-
-        j_result = network.member_client_rpc_as_json(
-            3, primary, "remove", "--proposal-id=2"
         )
         assert (
             j_result["error"]["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value
@@ -159,39 +152,6 @@ def run(args):
         assert result[1]["code"] == params_error
 
         result = network.vote(4, primary, proposal_id, False)
-        assert not result[0]
-        assert result[1]["code"] == params_error
-
-        # member 4 removes proposal number 2
-        j_result = network.member_client_rpc_as_json(
-            4, primary, "remove", "--proposal-id=2"
-        )
-        assert j_result["result"]
-
-        # check proposal is no longer visible
-        proposals = network.member_client_rpc_as_json(4, primary, "proposal_display")
-        proposal_entry = proposals.get("2")
-        assert not proposal_entry
-
-        # further withdrawal requests fail
-        j_result = network.member_client_rpc_as_json(
-            4, primary, "withdraw", "--proposal-id=2"
-        )
-        assert j_result["error"]["code"] == params_error
-
-        # further vote requests fail
-        result = network.vote(4, primary, proposal_id, True)
-        assert not result[0]
-        assert result[1]["code"] == params_error
-
-        result = network.vote(4, primary, proposal_id, False)
-        assert not result[0]
-        assert result[1]["code"] == params_error
-
-        # further removal requests fail
-        j_result = network.member_client_rpc_as_json(
-            4, primary, "remove", "--proposal-id=2"
-        )
         assert not result[0]
         assert result[1]["code"] == params_error
 

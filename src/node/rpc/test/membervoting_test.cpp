@@ -865,46 +865,48 @@ TEST_CASE("Remove proposal")
     Store::Tx tx;
     auto proposal = tx.get_view(network.proposals)->get(proposal_id);
     REQUIRE(proposal);
+    CHECK(proposal->state == ProposalState::OPEN);
     CHECK(proposal->script.text.value() == proposal_script.text.value());
   }
-  SUBCASE("Attempt remove proposal with non existing id")
+  SUBCASE("Attempt withdraw proposal with non existing id")
   {
     Store::Tx tx;
     json param;
     param["id"] = wrong_proposal_id;
-    json removalj = create_json_req(param, "remove");
-    ccf::SignedReq sr(removalj);
+    json withdrawj = create_json_req(param, "withdraw");
+    ccf::SignedReq sr(withdrawj);
 
     check_error(
-      frontend.process_json(rpc_ctx, tx, 0, removalj, sr).value(),
+      frontend.process_json(rpc_ctx, tx, 0, withdrawj, sr).value(),
       StandardErrorCodes::INVALID_PARAMS);
   }
-  SUBCASE("Attempt remove proposal that you didn't propose")
+  SUBCASE("Attempt withdraw proposal that you didn't propose")
   {
     Store::Tx tx;
     json param;
     param["id"] = proposal_id;
-    json removalj = create_json_req(param, "remove");
-    ccf::SignedReq sr(removalj);
+    json withdrawj = create_json_req(param, "withdraw");
+    ccf::SignedReq sr(withdrawj);
 
     check_error(
-      frontend.process_json(rpc_ctx, tx, 1, removalj, sr).value(),
+      frontend.process_json(rpc_ctx, tx, 1, withdrawj, sr).value(),
       CCFErrorCodes::INVALID_CALLER_ID);
   }
-  SUBCASE("Successfully remove proposal")
+  SUBCASE("Successfully withdraw proposal")
   {
     Store::Tx tx;
     json param;
     param["id"] = proposal_id;
-    json removalj = create_json_req(param, "remove");
-    ccf::SignedReq sr(removalj);
+    json withdrawj = create_json_req(param, "withdraw");
+    ccf::SignedReq sr(withdrawj);
 
-    check_success(frontend.process_json(rpc_ctx, tx, 0, removalj, sr).value());
-    // check that the proposal doesn't exist anymore
+    check_success(frontend.process_json(rpc_ctx, tx, 0, withdrawj, sr).value());
+    // check that the proposal is now withdrawn
     {
       Store::Tx tx;
       auto proposal = tx.get_view(network.proposals)->get(proposal_id);
-      CHECK(!proposal);
+      CHECK(proposal.has_value());
+      CHECK(proposal->state == ProposalState::WITHDRAWN);
     }
   }
 }

@@ -293,36 +293,6 @@ namespace ccf
       };
       install_with_auto_schema<Propose>(MemberProcs::PROPOSE, propose, Write);
 
-      auto remove = [this](RequestArgs& args) {
-        if (!check_member_status(
-              args.tx, args.caller_id, {MemberStatus::ACTIVE}))
-          return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
-
-        const auto proposal_action = args.params.get<ProposalAction>();
-        const auto proposal_id = proposal_action.id;
-        auto proposals = args.tx.get_view(this->network.proposals);
-        const auto proposal = proposals->get(proposal_id);
-
-        if (!proposal)
-          return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            fmt::format("Proposal {} does not exist", proposal_id));
-
-        if (proposal->proposer != args.caller_id)
-          return jsonrpc::error(
-            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
-            fmt::format(
-              "Proposal {} can only be removed by proposer {}, not caller {}",
-              proposal_id,
-              proposal->proposer,
-              args.caller_id));
-
-        proposals->remove(proposal_id);
-        return jsonrpc::success(true);
-      };
-      install_with_auto_schema<ProposalAction, bool>(
-        MemberProcs::REMOVE, remove, Write);
-
       auto withdraw = [this](RequestArgs& args) {
         if (!check_member_status(
               args.tx, args.caller_id, {MemberStatus::ACTIVE}))

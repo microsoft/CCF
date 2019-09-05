@@ -211,13 +211,6 @@ void submit_withdraw(RpcTlsClient& tls_connection, ObjectId proposal_id)
   cout << response << endl;
 }
 
-void submit_remove(RpcTlsClient& tls_connection, ObjectId proposal_id)
-{
-  const auto response = json::from_msgpack(
-    tls_connection.call("remove", ProposalAction{proposal_id}));
-  cout << response << endl;
-}
-
 void submit_vote(
   RpcTlsClient& tls_connection, ObjectId proposal_id, const string& vote_script)
 {
@@ -371,10 +364,6 @@ int main(int argc, char** argv)
   withdraw->add_option("--proposal-id", proposal_id, "The proposal id")
     ->required(true);
 
-  auto remove = app.add_subcommand("remove", "Remove a proposal");
-  remove->add_option("--proposal-id", proposal_id, "The proposal id")
-    ->required(true);
-
   auto accept_recovery =
     app.add_subcommand("accept_recovery", "Accept to recover network");
 
@@ -466,11 +455,6 @@ int main(int argc, char** argv)
     if (*withdraw)
     {
       submit_withdraw(*tls_connection, proposal_id);
-    }
-
-    if (*remove)
-    {
-      submit_remove(*tls_connection, proposal_id);
     }
 
     if (*proposal_display)
