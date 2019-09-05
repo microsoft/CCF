@@ -101,6 +101,7 @@ include_directories(
 include_directories(
   SYSTEM
   ${CCF_DIR}/3rdparty
+  ${CCF_DIR}/3rdparty/evercrypt-msr
   ${MSGPACK_INCLUDE_DIR}
 )
 
