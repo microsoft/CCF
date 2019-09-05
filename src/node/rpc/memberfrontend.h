@@ -310,7 +310,7 @@ namespace ccf
 
         if (proposal->proposer != args.caller_id)
           return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
             fmt::format(
               "Proposal {} can only be removed by proposer {}, not caller {}",
               proposal_id,
@@ -340,7 +340,7 @@ namespace ccf
 
         if (proposal->proposer != args.caller_id)
           return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
             fmt::format(
               "Proposal {} can only be withdrawn by proposer {}, not caller {}",
               proposal_id,
@@ -349,7 +349,7 @@ namespace ccf
 
         if (proposal->state != ProposalState::Open)
           return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             fmt::format(
               "Proposal {} is currently in state {} - only {} proposals can be "
               "withdrawn",
@@ -424,7 +424,7 @@ namespace ccf
         const auto last_ma = mas->get(args.caller_id);
         if (!last_ma)
           return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
             fmt::format("No ACK record exists for caller {}", args.caller_id));
 
         auto verifier =
@@ -457,7 +457,7 @@ namespace ccf
         auto ma = mas->get(args.caller_id);
         if (!ma)
           return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
             fmt::format("No ACK record exists for caller {}", args.caller_id));
         ma->next_nonce = rng->random(SIZE_NONCE);
         mas->put(args.caller_id, *ma);
