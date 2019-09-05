@@ -385,7 +385,7 @@ namespace ccf
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             fmt::format(
-              "Proposal {} is currently in state {} - only {} proposals can be "
+              "Proposal {} is currently in state {} - only {} proposals can "
               "receive votes",
               vote.id,
               proposal->state,
