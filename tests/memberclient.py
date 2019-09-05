@@ -55,7 +55,12 @@ def run(args):
         assert proposal_id == 0
 
         # display all proposals
-        network.member_client_rpc_as_json(1, primary, "proposal_display")
+        proposals = network.member_client_rpc_as_json(1, primary, "proposal_display")
+
+        # check proposal is present and open
+        proposal_entry = proposals.get(str(proposal_id))
+        assert proposal_entry
+        assert proposal_entry["state"] == "open"
 
         # 2 out of 3 members vote to accept the new member so that that member can send its own proposals
         result = network.vote(1, primary, proposal_id, True)
@@ -87,7 +92,7 @@ def run(args):
         result = network.vote(2, primary, proposal_id, True)
         assert result[0] and result[1]
 
-        # member 4 is makes a proposal and then removes it
+        # member 4 makes a proposal and then withdraws it
         # proposal number 2
         result = network.propose(4, primary, "accept_node", "--node-id=1")
         proposal_id = result[1]["id"]
@@ -95,9 +100,26 @@ def run(args):
         assert proposal_id == 2
 
         j_result = network.member_client_rpc_as_json(
+            4, primary, "withdraw", "--proposal-id=2"
+        )
+        assert j_result["result"]
+
+        # check proposal is still present, but withdrawn
+        proposals = network.member_client_rpc_as_json(4, primary, "proposal_display")
+        proposal_entry = proposals.get("2")
+        assert proposal_entry
+        assert proposal_entry["state"] == "withdrawn"
+
+        # member 4 removes proposal number 2
+        j_result = network.member_client_rpc_as_json(
             4, primary, "remove", "--proposal-id=2"
         )
         assert j_result["result"]
+
+        # check proposal is no longer present
+        proposals = network.member_client_rpc_as_json(4, primary, "proposal_display")
+        proposal_entry = proposals.get("2")
+        assert not proposal_entry
 
         # member 4 proposes to inactivate member 1 and other members vote yes
         # proposal number 3
