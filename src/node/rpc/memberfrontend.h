@@ -109,7 +109,7 @@ namespace ccf
       if (!proposal)
         throw std::logic_error(fmt::format("No proposal {}", id));
 
-      if (proposal->state != ProposalState::Open)
+      if (proposal->state != ProposalState::OPEN)
         throw std::logic_error(fmt::format(
           "Cannot complete non-open proposal - current state is {}",
           proposal->state));
@@ -191,7 +191,7 @@ namespace ccf
       }
 
       // if the vote was successful, update the proposal's state
-      proposal->state = ProposalState::Accepted;
+      proposal->state = ProposalState::ACCEPTED;
       proposals->put(id, *proposal);
 
       return true;
@@ -347,7 +347,7 @@ namespace ccf
               proposal->proposer,
               args.caller_id));
 
-        if (proposal->state != ProposalState::Open)
+        if (proposal->state != ProposalState::OPEN)
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             fmt::format(
@@ -355,9 +355,9 @@ namespace ccf
               "withdrawn",
               proposal_id,
               proposal->state,
-              ProposalState::Open));
+              ProposalState::OPEN));
 
-        proposal->state = ProposalState::Withdrawn;
+        proposal->state = ProposalState::WITHDRAWN;
         proposals->put(proposal_id, *proposal);
 
         return jsonrpc::success(true);
@@ -381,7 +381,7 @@ namespace ccf
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             fmt::format("Proposal {} does not exist", vote.id));
 
-        if (proposal->state != ProposalState::Open)
+        if (proposal->state != ProposalState::OPEN)
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             fmt::format(
@@ -389,7 +389,7 @@ namespace ccf
               "receive votes",
               vote.id,
               proposal->state,
-              ProposalState::Open));
+              ProposalState::OPEN));
 
         // record vote
         proposal->votes[args.caller_id] = vote.ballot;

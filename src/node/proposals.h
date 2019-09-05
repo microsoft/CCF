@@ -78,22 +78,22 @@ namespace ccf
 
   enum class ProposalState
   {
-    Open,
-    Accepted,
-    Withdrawn,
+    OPEN,
+    ACCEPTED,
+    WITHDRAWN,
   };
   DECLARE_JSON_ENUM(
     ProposalState,
-    {{ProposalState::Open, "open"},
-     {ProposalState::Accepted, "accepted"},
-     {ProposalState::Withdrawn, "withdrawn"}});
+    {{ProposalState::OPEN, "OPEN"},
+     {ProposalState::ACCEPTED, "ACCEPTED"},
+     {ProposalState::WITHDRAWN, "WITHDRAWN"}});
 
   struct Proposal
   {
     Script script = {};
     nlohmann::json parameter = {};
     MemberId proposer = {};
-    ProposalState state = ProposalState::Open;
+    ProposalState state = ProposalState::OPEN;
     std::unordered_map<MemberId, Script> votes = {};
 
     Proposal() = default;
@@ -101,7 +101,7 @@ namespace ccf
       script(s),
       parameter(param),
       proposer(prop),
-      state(ProposalState::Open)
+      state(ProposalState::OPEN)
     {}
 
     bool operator==(const Proposal& o) const
@@ -181,15 +181,15 @@ struct formatter<ccf::ProposalState>
   {
     switch (state)
     {
-      case (ccf::ProposalState::Open):
+      case (ccf::ProposalState::OPEN):
       {
         return format_to(ctx.out(), "open");
       }
-      case (ccf::ProposalState::Accepted):
+      case (ccf::ProposalState::ACCEPTED):
       {
         return format_to(ctx.out(), "accepted");
       }
-      case (ccf::ProposalState::Withdrawn):
+      case (ccf::ProposalState::WITHDRAWN):
       {
         return format_to(ctx.out(), "withdrawn");
       }

@@ -889,7 +889,7 @@ TEST_CASE("Remove proposal")
 
     check_error(
       frontend.process_json(rpc_ctx, tx, 1, removalj, sr).value(),
-      StandardErrorCodes::INVALID_REQUEST);
+      CCFErrorCodes::INVALID_CALLER_ID);
   }
   SUBCASE("Successfully remove proposal")
   {

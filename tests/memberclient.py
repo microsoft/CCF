@@ -60,7 +60,7 @@ def run(args):
         # check proposal is present and open
         proposal_entry = proposals.get(str(proposal_id))
         assert proposal_entry
-        assert proposal_entry["state"] == "open"
+        assert proposal_entry["state"] == "OPEN"
 
         # 2 out of 3 members vote to accept the new member so that that member can send its own proposals
         result = network.vote(1, primary, proposal_id, True)
@@ -145,7 +145,7 @@ def run(args):
         proposals = network.member_client_rpc_as_json(4, primary, "proposal_display")
         proposal_entry = proposals.get("2")
         assert proposal_entry
-        assert proposal_entry["state"] == "withdrawn"
+        assert proposal_entry["state"] == "WITHDRAWN"
 
         # further withdrawal requests fail
         j_result = network.member_client_rpc_as_json(
