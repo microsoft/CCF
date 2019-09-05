@@ -94,4 +94,3 @@ At any stage during the voting process and before the proposal is completed, the
 
 This means future votes will be ignored, and the proposal will never be accepted. However it will remain visible as a proposal so members can easily audit historic proposals.
 
-If a proposer wishes to remove a proposal entirely, so it is not retrievable from the live service, they may call the ``remove`` RPC. The proposal may still be retrieved from the ledger.
