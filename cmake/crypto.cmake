@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 # EverCrypt
 
-set(EVERCRYPT_PREFIX ${CCF_DIR}/3rdparty/evercrypt CACHE PATH "Prefix to the EverCrypt library")
+set(EVERCRYPT_PREFIX ${CCF_DIR}/3rdparty/evercrypt-msr/evercrypt CACHE PATH "Prefix to the EverCrypt library")
 message(STATUS "Using EverCrypt at ${EVERCRYPT_PREFIX}")
 
 set(EVERCRYPT_INC
