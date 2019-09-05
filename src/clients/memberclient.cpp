@@ -204,6 +204,13 @@ void submit_raw_puts(
   cout << response << endl;
 }
 
+void submit_withdraw(RpcTlsClient& tls_connection, ObjectId proposal_id)
+{
+  const auto response = json::from_msgpack(
+    tls_connection.call("withdraw", ProposalAction{proposal_id}));
+  cout << response << endl;
+}
+
 void submit_remove(RpcTlsClient& tls_connection, ObjectId proposal_id)
 {
   const auto response = json::from_msgpack(
@@ -360,6 +367,10 @@ int main(int argc, char** argv)
     ->required(true)
     ->check(CLI::ExistingFile);
 
+  auto withdraw = app.add_subcommand("withdraw", "Withdraw a proposal");
+  withdraw->add_option("--proposal-id", proposal_id, "The proposal id")
+    ->required(true);
+
   auto remove = app.add_subcommand("remove", "Remove a proposal");
   remove->add_option("--proposal-id", proposal_id, "The proposal id")
     ->required(true);
@@ -450,6 +461,11 @@ int main(int argc, char** argv)
     {
       const auto script = slurp_string(script_file);
       submit_raw_puts(*tls_connection, script, param_file);
+    }
+
+    if (*withdraw)
+    {
+      submit_withdraw(*tls_connection, proposal_id);
     }
 
     if (*remove)
