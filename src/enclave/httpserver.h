@@ -54,16 +54,20 @@ namespace enclave
     {
       recv_buffered(data, size);
 
-      auto pr_size = pending_read_size();
-      auto len = read(pr_size, false); // do a non-consuming read instead
-
-      const uint8_t * d = len.data();
-      size_t s = len.size();
-      if (!s)
+      auto [buf, len] = peek(size);
+      if (len == 0)
         return;
-
-      LOG_INFO_FMT("Going to parse {} bytes", s);
-      size_t nparsed = p.execute(d, s);
+      LOG_TRACE_FMT("Going to parse {} bytes", len);
+      size_t nparsed = 0;
+      while (len > 0)
+      {
+        size_t nparsed = p.execute(buf, len); //TODO: error handling
+        if (nparsed == 0)
+          return;
+        consume(nparsed);
+        buf += nparsed;
+        len -= nparsed;
+      }
     }
 
     void handle_body(const char * at, size_t length)

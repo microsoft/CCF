@@ -75,7 +75,7 @@ namespace enclave
     std::vector<uint8_t> read(size_t up_to, bool exact = false)
     {
       LOG_TRACE_FMT("Requesting {} bytes", up_to);
-      // This will return en empty vector if the connection isn't
+      // This will return an empty vector if the connection isn't
       // ready, but it will not block on the handshake.
       do_handshake();
 
@@ -164,6 +164,79 @@ namespace enclave
       }
 
       return data;
+    }
+
+    std::pair<uint8_t *, size_t> peek(size_t up_to)
+    {
+      // This will return an empty range if the connection isn't
+      // ready, but it will not block on the handshake.
+      do_handshake();
+
+      if (status != ready)
+      {
+        return {nullptr, 0};
+      }
+
+      // Send pending writes.
+      flush();
+
+      size_t offset = read_buffer.size();
+      read_buffer.resize(read_buffer.size() + up_to);
+
+      auto r = ctx->read(read_buffer.data() + offset, up_to);
+      LOG_TRACE_FMT("ctx->read returned: {}", r);
+
+      switch (r)
+      {
+        case 0:
+        case MBEDTLS_ERR_NET_CONN_RESET:
+        case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
+        {
+          LOG_TRACE_FMT("TLS {} on read: {}", session_id, tls::error_string(r));
+
+          stop(closed);
+
+          read_buffer.resize(offset);
+          return {read_buffer.data(), read_buffer.size()};
+        }
+
+        case MBEDTLS_ERR_SSL_WANT_READ:
+        case MBEDTLS_ERR_SSL_WANT_WRITE:
+        {
+          read_buffer.resize(offset);
+          return {read_buffer.data(), read_buffer.size()};
+        }
+
+        default:
+        {}
+      }
+
+      if (r < 0)
+      {
+        LOG_TRACE_FMT("TLS {} on read: {}", session_id, tls::error_string(r));
+        stop(error);
+        return {read_buffer.data(), read_buffer.size()};
+      }
+
+      auto total = offset + r;
+      read_buffer.resize(total);
+
+      // We read _some_ data but not enough, and didn't get
+      // MBEDTLS_ERR_SSL_WANT_READ. Probably hit a size limit - try again
+      if (r < up_to)
+      {
+        LOG_TRACE_FMT(
+          "Asked for exactly {}, received {}, retrying", up_to, r);
+        return peek(up_to - r);
+      }
+
+      return {read_buffer.data(), read_buffer.size()};
+    }
+
+    void consume(size_t up_to)
+    {
+      if (up_to)
+        read_buffer.erase(read_buffer.begin(), read_buffer.begin() + up_to);
     }
 
     void recv(const uint8_t* data, size_t size)
