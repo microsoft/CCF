@@ -12,8 +12,6 @@ endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(Boost_ADDITIONAL_VERSIONS "1.67" "1.67.0")
-find_package(Boost 1.60.0 REQUIRED)
 find_package(Threads REQUIRED)
 
 # Azure Pipelines does not support color codes
@@ -23,19 +21,8 @@ else()
   set(PYTHON unbuffer python3)
 endif()
 
-if(MSVC)
-  add_compile_options(/W3 /std:c++latest)
-else()
-  # GCC requires libatomic as well as libpthread.
-  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    set(${CMAKE_THREAD_LIBS_INIT} "$CMAKE_THREAD_LIBS_INIT} atomic")
-    separate_arguments(COVERAGE_FLAGS UNIX_COMMAND "--coverage -fprofile-arcs -ftest-coverage")
-    separate_arguments(COVERAGE_LINK UNIX_COMMAND "gcov")
-  else()
-    separate_arguments(COVERAGE_FLAGS UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
-    separate_arguments(COVERAGE_LINK UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
-  endif()
-endif()
+separate_arguments(COVERAGE_FLAGS UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
+separate_arguments(COVERAGE_LINK UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
 
 function(enable_coverage name)
   if (COVERAGE)
@@ -57,12 +44,10 @@ else ()
   message(FATAL_ERROR "Unsupported curve choice ${SERVICE_IDENTITY_CURVE_CHOICE}")
 endif ()
 
-option (COLORED_OUTPUT "Always produce ANSI-colored output (GNU/Clang only)." TRUE)
+option (COLORED_OUTPUT "Always produce ANSI-colored output (Clang only)." TRUE)
 
 if (${COLORED_OUTPUT})
-    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-       add_compile_options (-fdiagnostics-color=always)
-    elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
        add_compile_options (-fcolor-diagnostics)
     endif ()
 endif ()
@@ -93,9 +78,6 @@ option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
 option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
-if (DEFINED ENV{LOG_PATH})
-    set(LOG_PATH "--log-path" $ENV{LOG_PATH})
-endif()
 
 option(PBFT "Enable PBFT" OFF)
 if (PBFT)
@@ -124,6 +106,7 @@ include_directories(
 include_directories(
   SYSTEM
   ${CCF_DIR}/3rdparty
+  ${CCF_DIR}/3rdparty/evercrypt-msr
   ${MSGPACK_INCLUDE_DIR}
 )
 
@@ -429,7 +412,6 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       -nostdlib -nodefaultlibs -nostartfiles
       -Wl,--no-undefined
       -Wl,-Bstatic,-Bsymbolic,--export-dynamic,-pie
-      -lgcc
       ${PARSED_ARGS_LINK_LIBS}
       ${ENCLAVE_LIBS}
       http_parser.enclave
@@ -659,7 +641,6 @@ function(add_e2e_test)
       COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
         -b .
         --label ${PARSED_ARGS_NAME}
-        ${LOG_PATH}
         ${CCF_NETWORK_TEST_ARGS}
         ${PARSED_ARGS_ADDITIONAL_ARGS}
     )
@@ -706,7 +687,6 @@ function(add_perf_test)
       -b .
       -c ${PARSED_ARGS_CLIENT_BIN}
       -i ${PARSED_ARGS_ITERATIONS}
-      ${LOG_PATH}
       ${CCF_NETWORK_TEST_ARGS}
       ${PARSED_ARGS_ADDITIONAL_ARGS}
       --write-tx-times

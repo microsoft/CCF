@@ -9,8 +9,10 @@
 #include <ctime>
 #include <fmt/format_header_only.h>
 #include <fmt/time.h>
+#include <fstream>
 #include <iostream>
 #include <memory>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -28,6 +30,152 @@ namespace logger
   };
 
   static constexpr size_t ns_per_s = 1'000'000'000;
+
+  class AbstractLogger
+  {
+  protected:
+    std::string log_path;
+    std::ofstream f;
+
+  public:
+    AbstractLogger() = default;
+    AbstractLogger(std::string log_path_) : log_path(log_path_)
+    {
+      f.open(log_path, std::ios_base::app);
+    }
+    virtual ~AbstractLogger() = default;
+
+    std::string get_timestamp(const std::tm& tm, const ::timespec& ts)
+    {
+      // Sample: "2019-07-19 18:53:25.690267"
+      return fmt::format("{:%Y-%m-%dT%H:%M:%S}.{:0<6}Z", tm, ts.tv_nsec / 1000);
+    }
+
+    virtual std::string format(
+      const std::string& file_name,
+      size_t line_number,
+      const std::string& log_level,
+      const std::string& msg,
+      const std::tm& host_tm,
+      const ::timespec& host_ts,
+      const std::optional<::timespec>& enclave_ts = std::nullopt) = 0;
+
+    virtual void write(const std::string& log_line) = 0;
+
+    void dump(const std::string& msg)
+    {
+      f << msg << std::endl;
+      if (!f)
+        throw std::logic_error("Failed to write to file: " + log_path);
+    }
+  };
+
+  class JsonLogger : public AbstractLogger
+  {
+  public:
+    JsonLogger(std::string log_path) : AbstractLogger(log_path) {}
+
+    std::string format(
+      const std::string& file_name,
+      size_t line_number,
+      const std::string& log_level,
+      const std::string& msg,
+      const std::tm& host_tm,
+      const ::timespec& host_ts,
+      const std::optional<::timespec>& enclave_ts = std::nullopt) override
+    {
+      nlohmann::json j;
+      j["m"] = msg;
+
+      if (enclave_ts.has_value())
+      {
+        std::tm enclave_tm;
+        auto enc_ts = enclave_ts.value();
+        ::timespec_get(&enc_ts, TIME_UTC);
+        ::gmtime_r(&enc_ts.tv_sec, &enclave_tm);
+
+        return fmt::format(
+          "{{\"h_ts\":\"{}\",\"e_ts\":\"{}\",\"level\":\"{}\",\"file\":\"{}\","
+          "\"number\":\"{}\","
+          "\"msg\":{}}}",
+          get_timestamp(host_tm, host_ts),
+          get_timestamp(enclave_tm, enc_ts),
+          log_level,
+          file_name,
+          line_number,
+          j["m"].dump());
+      }
+
+      return fmt::format(
+        "{{\"h_ts\":\"{}\",\"level\":\"{}\",\"file\":\"{}\",\"number\":\"{}\","
+        "\"msg\":{}}}",
+        get_timestamp(host_tm, host_ts),
+        log_level,
+        file_name,
+        line_number,
+        j["m"].dump());
+    }
+
+    void write(const std::string& log_line) override
+    {
+      dump(log_line);
+    }
+  };
+
+  class ConsoleLogger : public AbstractLogger
+  {
+  public:
+    std::string format(
+      const std::string& file_name,
+      size_t line_number,
+      const std::string& log_level,
+      const std::string& msg,
+      const std::tm& host_tm,
+      const ::timespec& host_ts,
+      const std::optional<::timespec>& enclave_ts = std::nullopt) override
+    {
+      auto file_line = fmt::format("{}:{}", file_name, line_number);
+      auto data = file_line.data();
+
+      // Truncate to final characters - if too long, advance char*
+      constexpr auto max_len = 36u;
+
+      const auto len = file_line.size();
+      if (len > max_len)
+        data += len - max_len;
+
+      if (enclave_ts.has_value())
+      {
+        // Sample: "2019-07-19 18:53:25.690183 -0.130 " where -0.130 indicates
+        // that the time inside the enclave was 130 milliseconds earlier than
+        // the host timestamp printed on the line
+        return fmt::format(
+          "{} -{}.{:0>3} [{:<5}] {:<36} | {}",
+          get_timestamp(host_tm, host_ts),
+          enclave_ts.value().tv_sec,
+          enclave_ts.value().tv_nsec / 1000000,
+          log_level,
+          file_line,
+          msg);
+      }
+      else
+      {
+        // Padding on the right to align the rest of the message
+        // with lines that contain enclave time offsets
+        return fmt::format(
+          "{}        [{:<5}] {:<36} | {}",
+          get_timestamp(host_tm, host_ts),
+          log_level,
+          file_line,
+          msg);
+      }
+    }
+
+    void write(const std::string& log_line) override
+    {
+      std::cout << log_line << std::flush;
+    }
+  };
 
   class config
   {
@@ -49,6 +197,18 @@ namespace logger
       }
 
       return {};
+    }
+
+    static inline std::vector<std::unique_ptr<AbstractLogger>>& loggers()
+    {
+      static std::vector<std::unique_ptr<AbstractLogger>> the_loggers;
+      static bool initialized = false;
+      if (!initialized)
+      {
+        initialized = true;
+        the_loggers.emplace_back(std::make_unique<ConsoleLogger>());
+      }
+      return the_loggers;
     }
 
     static inline Level& level()
@@ -123,22 +283,17 @@ namespace logger
     friend struct Out;
     std::ostringstream ss;
     Level log_level;
+    std::string file_name;
+    size_t line_number;
+    std::string ll_str;
+    std::string msg;
 
   public:
-    LogLine(Level ll, const char* file_name, int line_number) : log_level(ll)
-    {
-      const auto file_line = fmt::format("{}:{}", file_name, line_number);
-      auto data = file_line.data();
-
-      // Truncate to final characters - if too long, advance char*
-      constexpr auto max_len = 36u;
-
-      const auto len = file_line.size();
-      if (len > max_len)
-        data += len - max_len;
-
-      ss << fmt::format("[{:<5}] {:<36} | ", config::to_string(ll), data);
-    }
+    LogLine(Level ll, const char* file_name, size_t line_number) :
+      file_name(file_name),
+      line_number(line_number),
+      log_level(ll)
+    {}
 
     template <typename T>
     LogLine& operator<<(const T& item)
@@ -152,6 +307,11 @@ namespace logger
       ss << f;
       return *this;
     }
+
+    void finalize()
+    {
+      msg = ss.str();
+    }
   };
 
 #ifdef INSIDE_ENCLAVE
@@ -159,11 +319,14 @@ namespace logger
   {
     bool operator==(LogLine& line)
     {
-      if (line.log_level == Level::FATAL)
-        throw std::logic_error("Fatal: " + line.ss.str());
-      else
-        config::writer()->write(
-          config::msg(), config::elapsed_ms(), line.ss.str());
+      line.finalize();
+      config::writer()->write(
+        config::msg(),
+        config::elapsed_ms(),
+        line.file_name,
+        line.line_number,
+        line.log_level,
+        line.msg);
 
       return true;
     }
@@ -173,33 +336,48 @@ namespace logger
   {
     bool operator==(LogLine& line)
     {
-      write(line.ss.str());
-
-      if (line.log_level == Level::FATAL)
-        throw std::logic_error("Fatal: " + line.ss.str());
+      line.finalize();
+      write(line.file_name, line.line_number, line.log_level, line.msg);
 
       return true;
     }
 
-    static void write(const std::string& s)
+    static void write(
+      const std::string& file_name,
+      size_t line_number,
+      const Level& log_level,
+      const std::string& msg)
     {
       // When logging from host code, print local time.
       ::timespec ts;
       ::timespec_get(&ts, TIME_UTC);
       std::tm now;
-      ::localtime_r(&ts.tv_sec, &now);
+      ::gmtime_r(&ts.tv_sec, &now);
 
-      // Sample: "2019-07-19 18:53:25.690267        "
-      // Padding on the right to align the rest of the message
-      // with lines that contain enclave time offsets
-      std::cout << fmt::format(
-                     "{:%Y-%m-%d %H:%M:%S}.{:0<6}        ",
-                     now,
-                     ts.tv_nsec / 1000)
-                << s << std::flush;
+      for (auto const& logger : config::loggers())
+      {
+        logger->write(logger->format(
+          file_name, line_number, config::to_string(log_level), msg, now, ts));
+      }
+
+      if (log_level == Level::FATAL)
+        throw std::logic_error(
+          "Fatal: " +
+          config::loggers().front()->format(
+            file_name,
+            line_number,
+            config::to_string(log_level),
+            msg,
+            now,
+            ts));
     }
 
-    static void write(const std::string& s, size_t ms_offset_from_start)
+    static void write(
+      const std::string& file_name,
+      size_t line_number,
+      const Level& log_level,
+      const std::string& msg,
+      size_t ms_offset_from_start)
     {
       // When logging messages received from the enclave, print local time,
       // and the offset to time inside the enclave at the time the message
@@ -208,7 +386,7 @@ namespace logger
       ::timespec ts;
       ::timespec_get(&ts, TIME_UTC);
       std::tm now;
-      ::localtime_r(&ts.tv_sec, &now);
+      ::gmtime_r(&ts.tv_sec, &now);
       time_t elapsed_s = ms_offset_from_start / 1000;
       ssize_t elapsed_ns = (ms_offset_from_start % 1000) * 1000000;
 
@@ -216,6 +394,7 @@ namespace logger
       // log inside the enclave, offsets may not always increase
       ::timespec enclave_ts{logger::config::start.tv_sec + elapsed_s,
                             logger::config::start.tv_nsec + elapsed_ns};
+
       if (enclave_ts.tv_nsec > ns_per_s)
       {
         enclave_ts.tv_sec++;
@@ -234,16 +413,29 @@ namespace logger
         enclave_ts.tv_nsec += ns_per_s;
       }
 
-      // Sample: "2019-07-19 18:53:25.690183 -0.130 " where -0.130 indicates
-      // that the time inside the enclave was 130 milliseconds earlier than
-      // the host timestamp printed on the line
-      std::cout << fmt::format(
-                     "{:%Y-%m-%d %H:%M:%S}.{:0>6} -{}.{:0>3} ",
-                     now,
-                     ts.tv_nsec / 1000,
-                     enclave_ts.tv_sec,
-                     enclave_ts.tv_nsec / 1000000)
-                << s << std::flush;
+      for (auto const& logger : config::loggers())
+      {
+        logger->write(logger->format(
+          file_name,
+          line_number,
+          config::to_string(log_level),
+          msg,
+          now,
+          ts,
+          enclave_ts));
+      }
+
+      if (log_level == Level::FATAL)
+        throw std::logic_error(
+          "Fatal: " +
+          config::loggers().front()->format(
+            file_name,
+            line_number,
+            config::to_string(log_level),
+            msg,
+            now,
+            ts,
+            enclave_ts));
     }
   };
 #endif

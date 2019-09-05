@@ -43,12 +43,6 @@ def coverage_enabled(bin):
     )
 
 
-def _append_logs_to_analytics(file, analytics_file):
-    with open(analytics_file, "a+") as af:
-        with open(file, "r") as f:
-            af.write(f.read())
-
-
 @contextmanager
 def sftp_session(hostname):
     client = paramiko.SSHClient()
@@ -120,7 +114,7 @@ class SSHRemote(CmdMixin):
         workspace,
         label,
         env=None,
-        log_path=None,
+        json_log_path=None,
     ):
         """
         Runs a command on a remote host, through an SSH connection. A temporary
@@ -149,12 +143,6 @@ class SSHRemote(CmdMixin):
         self.env = env or {}
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
-        self.analytics_out = (
-            os.path.join(log_path, "out", f"{label}_{name}") if log_path else None
-        )
-        self.analytics_err = (
-            os.path.join(log_path, "err", f"{label}_{name}") if log_path else None
-        )
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
@@ -259,10 +247,6 @@ class SSHRemote(CmdMixin):
             "{}_err_{}".format(self.hostname, self.name),
         )
         self.client.close()
-        if self.analytics_out:
-            _append_logs_to_analytics(self.out, self.analytics_out)
-        if self.analytics_err:
-            _append_logs_to_analytics(self.err, self.analytics_err)
 
     def restart(self):
         self._connect()
@@ -342,7 +326,7 @@ class LocalRemote(CmdMixin):
         workspace,
         label,
         env=None,
-        log_path=None,
+        json_log_path=None,
     ):
         """
         Local Equivalent to the SSHRemote
@@ -359,12 +343,6 @@ class LocalRemote(CmdMixin):
         self.name = name
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
-        self.analytics_out = (
-            os.path.join(log_path, "out", f"{label}_{name}") if log_path else None
-        )
-        self.analytics_err = (
-            os.path.join(log_path, "err", f"{label}_{name}") if log_path else None
-        )
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
@@ -428,10 +406,6 @@ class LocalRemote(CmdMixin):
             if self.stderr:
                 self.stderr.close()
             log_errors(self.out, self.err)
-        if self.analytics_out:
-            _append_logs_to_analytics(self.out, self.analytics_out)
-        if self.analytics_err:
-            _append_logs_to_analytics(self.err, self.analytics_err)
 
     def restart(self):
         self.start()
@@ -511,7 +485,7 @@ class CCFRemote(object):
         app_script=None,
         ledger_file=None,
         sealed_secrets=None,
-        log_path=None,
+        json_log_path=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -554,6 +528,10 @@ class CCFRemote(object):
             f"--host-log-level={host_log_level}",
             f"--raft-election-timeout-ms={election_timeout}",
         ]
+
+        if json_log_path:
+            log_file = f"{label}_{local_node_id}"
+            cmd += [f"--json-log-path={os.path.join(json_log_path, log_file)}"]
 
         if sig_max_tx:
             cmd += [f"--sig-max-tx={sig_max_tx}"]
@@ -629,7 +607,7 @@ class CCFRemote(object):
             workspace,
             label,
             env,
-            log_path,
+            json_log_path,
         )
 
     def setup(self):

@@ -19,7 +19,6 @@ namespace ccf
   using UserId = ObjectId;
   using CallerId = ObjectId;
   using Cert = std::vector<uint8_t>;
-  using CodeVersion = ObjectId;
 
   // SGX MRENCLAVE is SHA256 digest
   static constexpr size_t CODE_DIGEST_BYTES = 256 / 8;
@@ -52,9 +51,7 @@ namespace ccf
     static constexpr auto NODE_CERTS = "nodecerts";
     static constexpr auto NODES = "nodes";
     static constexpr auto VALUES = "values";
-    static constexpr auto SEQ_NOS = "seqnos";
     static constexpr auto APP = "app";
-    static constexpr auto APP_AUX = "app_aux";
     static constexpr auto APP_PUBLIC = "app_public";
     static constexpr auto SIGNATURES = "signatures";
     static constexpr auto USER_CLIENT_SIGNATURES = "userclientsignatures";
@@ -66,6 +63,7 @@ namespace ccf
     static constexpr auto SECRETS = "secrets";
     static constexpr auto CODEID = "codeid";
     static constexpr auto VOTING_HISTORY = "votinghistory";
+    static constexpr auto SERVICE = "service";
   };
 
   using StoreSerialiser = kv::KvStoreSerialiser;

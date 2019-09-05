@@ -99,6 +99,32 @@ If the version of the code being executed needs to be updated (for example, to s
 
 .. note:: The safest way to restart or replace nodes is by stopping a single node running the old version and starting a node running the new version as a sequence of operations, in order to avoid a situation in which most nodes have been stopped, and new nodes will not be able to join since it would be impossible to reach a majority of nodes agreeing to accept new nodes (this restriction is imposed by the consensus algorithm).
 
+
+Node output
+~~~~~~~~~~~
+
+By default node output is written to stdout and to stderr and can be handled accordingly.
+
+There is an option to further generate machine-readable logs for monitoring. To enable this pass `--json-log-path <path_to_file>` when creating a node (in either start or join mode). The generated logs will be in JSON format as displayed below.
+
+.. code-block:: json
+
+        {
+            "e_ts": "2019-09-02T14:47:24.589386Z",
+            "file": "../src/consensus/raft/raft.h",
+            "h_ts": "2019-09-02T14:47:24.589384Z",
+            "level": "info",
+            "msg": "Deserialising signature at 24\n",
+            "number": 651
+        }
+
+- `e_ts` is the ISO 8601 UTC timestamp of the log if logged inside the enclave (field will be missing if line was logged on the host side)
+- `h_ts` is the ISO 8601 UTC timestamp of the log when logged on the host side
+- `file` is the file the log originated from
+- `number` is the line number in the file the log originated from
+- `level` is the level of the log message [info, debug, trace, fail, fatal]
+- `msg` is the log message
+
 .. rubric:: Footnotes
 
 .. [#remote_attestation] When a new node joins an existing network, the network performs the remote attestation protocol by verifying the joining node's quote. It also checks that the version of the code running by the joining node known is trusted by the consortium.

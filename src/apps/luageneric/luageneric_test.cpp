@@ -54,6 +54,27 @@ void set_whitelists(GenesisGenerator& gen)
     gen.set_whitelist(wl.first, wl.second);
 }
 
+class LuaLogger : public logger::JsonLogger
+{
+public:
+  LuaLogger() : JsonLogger("") {}
+
+  void write(const std::string& log_line) override
+  {
+    auto j = nlohmann::json::parse(log_line);
+    REQUIRE(j.find("h_ts") != j.end());
+    REQUIRE(j.find("msg") != j.end());
+    REQUIRE(j.find("file") != j.end());
+    REQUIRE(j.find("number") != j.end());
+    REQUIRE(j.find("level") != j.end());
+  }
+};
+
+void set_lua_logger()
+{
+  logger::config::loggers().emplace_back(std::make_unique<LuaLogger>());
+}
+
 auto init_frontend(
   NetworkTables& network,
   GenesisGenerator& gen,
@@ -128,6 +149,7 @@ TEST_CASE("simple lua apps")
   StubNotifier notifier;
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, gen, notifier, 1, 3);
+  set_lua_logger();
   const Cert u0 = {0};
   enclave::RPCContext rpc_ctx(0, u0);
 
@@ -251,6 +273,7 @@ TEST_CASE("simple bank")
   StubNotifier notifier;
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, gen, notifier, 1, 3);
+  set_lua_logger();
   const Cert u0 = {0};
   enclave::RPCContext rpc_ctx(0, u0);
 
@@ -355,6 +378,7 @@ TEST_CASE("pre-populated environment")
   StubNotifier notifier;
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, gen, notifier, 1, 3);
+  set_lua_logger();
   const Cert u0 = {0};
   enclave::RPCContext rpc_ctx(0, u0);
 

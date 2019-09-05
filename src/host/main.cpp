@@ -78,6 +78,12 @@ int main(int argc, char** argv)
     "Only emit host log messages above that level",
     true);
 
+  std::optional<std::string> json_log_path;
+  app.add_option(
+    "--json-log-path",
+    json_log_path,
+    "Path to file where the json logs will be written");
+
   std::string node_cert_file("nodecert.pem");
   app.add_option(
     "--node-cert-file",
@@ -261,6 +267,12 @@ int main(int argc, char** argv)
   // set the host log level
   logger::config::level() = host_log_level_.value();
 
+  // set the custom log formatter path
+  if (json_log_path.has_value())
+  {
+    logger::config::loggers().emplace_back(
+      std::make_unique<logger::JsonLogger>(json_log_path.value()));
+  }
   // create the enclave
   host::Enclave enclave(enclave_file, oe_flags);
 

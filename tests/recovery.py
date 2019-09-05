@@ -179,6 +179,7 @@ def run(args):
                 LOG.success(
                     "Recovery #{} complete on all nodes".format(recovery_idx + 1)
                 )
+                network.check_for_service(primary)
 
                 new_txs = Txs(args.msgs_per_recovery, recovery_idx + 1)
 
