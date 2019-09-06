@@ -133,7 +133,7 @@ nlohmann::json get_proposal(
   Script read_proposal(fmt::format(
     R"xxx(
       tables = ...
-      return tables["proposals"]:get({})
+      return tables["ccf.proposals"]:get({})
     )xxx",
     proposal_id));
 
@@ -191,7 +191,7 @@ TEST_CASE("Member query/read")
 
   static constexpr auto query = R"xxx(
   local tables = ...
-  return tables["values"]:get(123)
+  return tables["ccf.values"]:get(123)
   )xxx";
 
   SUBCASE("Query: bytecode/script allowed access")
@@ -471,7 +471,7 @@ TEST_CASE("Add new members until there are 7, then reject")
       R"xxx(
         local tables, calls = ...
         local n = 0
-        tables["members"]:foreach( function(k, v) n = n + 1 end )
+        tables["ccf.members"]:foreach( function(k, v) n = n + 1 end )
         if n < {} then
           return true
         else
@@ -753,12 +753,12 @@ TEST_CASE("Propose raw writes")
         local NEXT_MEMBER_ID_VALUE = 0
         local p = Puts:new()
         -- get id
-        local member_id = tables["values"]:get(NEXT_MEMBER_ID_VALUE)
+        local member_id = tables["ccf.values"]:get(NEXT_MEMBER_ID_VALUE)
         -- increment id
-        p:put("values", NEXT_MEMBER_ID_VALUE, member_id + 1)
+        p:put("ccf.values", NEXT_MEMBER_ID_VALUE, member_id + 1)
         -- write member cert and status
-        p:put("members", member_id, {status = STATE_ACTIVE})
-        p:put("membercerts", cert, member_id)
+        p:put("ccf.members", member_id, {status = STATE_ACTIVE})
+        p:put("ccf.member_certs", cert, member_id)
         return Calls:call("raw_puts", p)
       )xxx"s,
            mcert},
@@ -923,7 +923,7 @@ TEST_CASE("Complete proposal after initial rejection")
   // propose
   {
     const auto proposal =
-      "return Calls:call('raw_puts', Puts:put('values', 999, 999))"s;
+      "return Calls:call('raw_puts', Puts:put('ccf.values', 999, 999))"s;
     const auto proposej = create_json_req(Propose::In{proposal}, "propose");
     ccf::SignedReq sr(proposej);
 
@@ -936,7 +936,7 @@ TEST_CASE("Complete proposal after initial rejection")
   {
     const Script vote(R"xxx(
     local tables = ...
-    return tables["values"]:get(123) == 123
+    return tables["ccf.values"]:get(123) == 123
     )xxx");
     const auto votej = create_json_req_signed(Vote{0, vote}, "vote", kp);
     ccf::SignedReq sr(votej);
