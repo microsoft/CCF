@@ -35,7 +35,7 @@ def run(args):
                local STATE_ACCEPTED = 0
                local member_info = {status = STATE_ACCEPTED}
                local p = Puts:new()
-               p:put("members", member_id, member_info)
+               p:put("ccf.members", member_id, member_info)
                return Calls:call("raw_puts", p)"""
             )
 

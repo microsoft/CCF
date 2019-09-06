@@ -234,7 +234,7 @@ TEST_CASE("simple lua apps")
     constexpr auto get_members = R"xxx(
       tables, gov_tables, args = ...
       local members = {}
-      gov_tables.members:foreach(
+      gov_tables["ccf.members"]:foreach(
         function(k, v) members[tostring(k)] = v end
       )
       return env.jsucc(members)
@@ -244,7 +244,7 @@ TEST_CASE("simple lua apps")
     // Not allowed to call put() on read-only gov_tables
     constexpr auto put_member = R"xxx(
       tables, gov_tables, args = ...
-      return env.jsucc(gov_tables.members:put(args.params.k, args.params.v))
+      return env.jsucc(gov_tables["ccf.members"]:put(args.params.k, args.params.v))
     )xxx";
     set_handler(network, "put_member", {put_member});
 
