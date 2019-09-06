@@ -14,7 +14,7 @@ return {
     end 
   end)
   -- check for raw_puts to sensitive tables
-  SENSITIVE_TABLES = {"whitelists", "govscripts"}
+  SENSITIVE_TABLES = {"whitelists", "gov_scripts"}
   for _,call in pairs(calls) do
     if call.func == "raw_puts" then
       for _,sensitive_table in pairs(SENSITIVE_TABLES) do
@@ -74,10 +74,10 @@ return {
 
   new_user = [[
   tables, cert = ...
-  if tables.usercerts:get(cert) then return end
+  if tables.user_certs:get(cert) then return end
   NEXT_USER_ID = 1
   user_id = tables.values:get(NEXT_USER_ID)
   tables.values:put(NEXT_USER_ID, user_id + 1)
-  tables.usercerts:put(cert, user_id)
+  tables.user_certs:put(cert, user_id)
   ]]
 }
