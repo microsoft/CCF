@@ -44,26 +44,25 @@ namespace ccf
 
   struct Tables
   {
-    static constexpr auto MEMBERS = "members";
-    static constexpr auto MEMBER_ACKS = "memberacks";
-    static constexpr auto MEMBER_CERTS = "membercerts";
-    static constexpr auto USER_CERTS = "usercerts";
-    static constexpr auto NODE_CERTS = "nodecerts";
-    static constexpr auto NODES = "nodes";
-    static constexpr auto VALUES = "values";
-    static constexpr auto APP = "app";
-    static constexpr auto APP_PUBLIC = "app_public";
-    static constexpr auto SIGNATURES = "signatures";
-    static constexpr auto USER_CLIENT_SIGNATURES = "userclientsignatures";
-    static constexpr auto MEMBER_CLIENT_SIGNATURES = "memberclientsignatures";
-    static constexpr auto WHITELISTS = "whitelists";
-    static constexpr auto PROPOSALS = "proposals";
-    static constexpr auto GOV_SCRIPTS = "govscripts";
-    static constexpr auto APP_SCRIPTS = "appscripts";
-    static constexpr auto SECRETS = "secrets";
-    static constexpr auto CODEID = "codeid";
-    static constexpr auto VOTING_HISTORY = "votinghistory";
-    static constexpr auto SERVICE = "service";
+    static constexpr auto MEMBERS = "ccf.members";
+    static constexpr auto MEMBER_ACKS = "ccf.member_acks";
+    static constexpr auto MEMBER_CERTS = "ccf.member_certs";
+    static constexpr auto USER_CERTS = "ccf.user_certs";
+    static constexpr auto NODE_CERTS = "ccf.node_certs";
+    static constexpr auto NODES = "ccf.nodes";
+    static constexpr auto VALUES = "ccf.values";
+    static constexpr auto SIGNATURES = "ccf.signatures";
+    static constexpr auto USER_CLIENT_SIGNATURES = "ccf.user_client_signatures";
+    static constexpr auto MEMBER_CLIENT_SIGNATURES =
+      "ccf.member_client_signatures";
+    static constexpr auto WHITELISTS = "ccf.whitelists";
+    static constexpr auto PROPOSALS = "ccf.proposals";
+    static constexpr auto GOV_SCRIPTS = "ccf.gov_scripts";
+    static constexpr auto APP_SCRIPTS = "ccf.app_scripts";
+    static constexpr auto SECRETS = "ccf.secrets";
+    static constexpr auto CODE_IDS = "ccf.code_ids";
+    static constexpr auto VOTING_HISTORY = "ccf.voting_history";
+    static constexpr auto SERVICE = "ccf.service";
   };
 
   using StoreSerialiser = kv::KvStoreSerialiser;

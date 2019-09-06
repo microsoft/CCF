@@ -56,7 +56,7 @@ static const string vote_ballot_reject(R"xxx(
 static const string read_proposals = R"xxx(
       tables = ...
       local proposals = {}
-      tables["proposals"]:foreach( function(k, v)
+      tables["ccf.proposals"]:foreach( function(k, v)
          proposals[tostring(k)] = v;
       end )
       return proposals;
@@ -243,12 +243,12 @@ void submit_ack(
   // member using its own certificate reads its member id
   auto verifier = tls::make_verifier(raw_cert);
   Response<ObjectId> read_id = json::from_msgpack(tls_connection.call(
-    "read", read_params(verifier->raw_cert_data(), "membercerts")));
+    "read", read_params(verifier->raw_cert_data(), Tables::MEMBER_CERTS)));
   const auto member_id = read_id.result;
 
   // member reads nonce
   Response<MemberAck> read_ack = json::from_msgpack(
-    tls_connection.call("read", read_params(member_id, "memberacks")));
+    tls_connection.call("read", read_params(member_id, Tables::MEMBER_ACKS)));
 
   // member signs nonce and sends ack
   auto kp = tls::make_key_pair(key);

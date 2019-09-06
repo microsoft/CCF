@@ -125,12 +125,12 @@ def run(args):
     verified_votes = 0
     for tr in l:
         tables = tr.get_public_domain().get_tables()
-        members_table = tables["membercerts"]
+        members_table = tables["ccf.member_certs"]
         for cert, member_id in members_table.items():
             members[member_id] = cert
 
-        if "votinghistory" in tables:
-            votinghistory_table = tables["votinghistory"]
+        if "ccf.voting_history" in tables:
+            votinghistory_table = tables["ccf.voting_history"]
             for member_id, signed_request in votinghistory_table.items():
                 # if the signed vote is stored - there has to be a member at this point
                 assert member_id in members
