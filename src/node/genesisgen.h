@@ -181,7 +181,7 @@ namespace ccf
 
     void trust_code_id(CodeDigest& node_code_id)
     {
-      auto codeid_view = tx.get_view(tables.code_id);
+      auto codeid_view = tx.get_view(tables.code_ids);
       codeid_view->put(node_code_id, CodeStatus::ACCEPTED);
     }
   };

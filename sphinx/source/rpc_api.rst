@@ -132,12 +132,6 @@ read
 .. jsonschema:: schemas/read_params.json
 .. jsonschema:: schemas/read_result.json
 
-removal
--------
-
-.. jsonschema:: schemas/removal_params.json
-.. jsonschema:: schemas/removal_result.json
-
 updateAckNonce
 --------------
 
@@ -148,6 +142,12 @@ vote
 
 .. jsonschema:: schemas/vote_params.json
 .. jsonschema:: schemas/vote_result.json
+
+withdraw
+-------
+
+.. jsonschema:: schemas/withdraw_params.json
+.. jsonschema:: schemas/withdraw_result.json
 
 
 Management methods

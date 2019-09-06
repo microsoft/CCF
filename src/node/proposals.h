@@ -35,7 +35,7 @@ namespace ccf
    * ./src/runtime_config/gov.lua.)
    *
    *  local tables, param = ...
-   *  local value = tables["values"]:get(param)
+   *  local value = tables["ccf.values"]:get(param)
    *  local c = Calls:new()
    *  local p = Puts:new()
    *  -- propose writing store["table"]["key"] = value
@@ -46,9 +46,10 @@ namespace ccf
    * Or more compact:
    *
    *  local tables, param = ...
-   *  return Calls:call(Puts:put("table", "key", tables["values"]:get(param))
+   *  return Calls:call(Puts:put("table", "key",
+   *    tables["ccf.values"]:get(param))
    */
-  struct Proposal
+  struct Propose
   {
     //! arguments for propose RPC
     struct In
@@ -70,38 +71,53 @@ namespace ccf
       bool completed;
     };
   };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Proposal::In)
-  DECLARE_JSON_REQUIRED_FIELDS(Proposal::In, script, parameter)
-  DECLARE_JSON_OPTIONAL_FIELDS(Proposal::In, ballot)
-  DECLARE_JSON_TYPE(Proposal::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(Proposal::Out, id, completed)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Propose::In)
+  DECLARE_JSON_REQUIRED_FIELDS(Propose::In, script, parameter)
+  DECLARE_JSON_OPTIONAL_FIELDS(Propose::In, ballot)
+  DECLARE_JSON_TYPE(Propose::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(Propose::Out, id, completed)
 
-  struct OpenProposal
+  enum class ProposalState
+  {
+    OPEN,
+    ACCEPTED,
+    WITHDRAWN,
+  };
+  DECLARE_JSON_ENUM(
+    ProposalState,
+    {{ProposalState::OPEN, "OPEN"},
+     {ProposalState::ACCEPTED, "ACCEPTED"},
+     {ProposalState::WITHDRAWN, "WITHDRAWN"}});
+
+  struct Proposal
   {
     Script script = {};
     nlohmann::json parameter = {};
     MemberId proposer = {};
+    ProposalState state = ProposalState::OPEN;
     std::unordered_map<MemberId, Script> votes = {};
 
-    OpenProposal() = default;
-    OpenProposal(const Script& s, const nlohmann::json& param, MemberId prop) :
+    Proposal() = default;
+    Proposal(const Script& s, const nlohmann::json& param, MemberId prop) :
       script(s),
       parameter(param),
-      proposer(prop)
+      proposer(prop),
+      state(ProposalState::OPEN)
     {}
 
-    bool operator==(const OpenProposal& o) const
+    bool operator==(const Proposal& o) const
     {
       return script == o.script && parameter == o.parameter &&
-        proposer == o.proposer && votes == o.votes;
+        proposer == o.proposer && state == o.state && votes == o.votes;
     }
 
-    MSGPACK_DEFINE(script, parameter, proposer, votes);
+    MSGPACK_DEFINE(script, parameter, proposer, state, votes);
   };
-  DECLARE_JSON_TYPE(OpenProposal)
-  DECLARE_JSON_REQUIRED_FIELDS(OpenProposal, script, parameter, proposer, votes)
+  DECLARE_JSON_TYPE(Proposal)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    Proposal, script, parameter, proposer, state, votes)
 
-  using Proposals = Store::Map<ObjectId, OpenProposal>;
+  using Proposals = Store::Map<ObjectId, Proposal>;
 
   struct ProposalAction
   {
@@ -147,3 +163,38 @@ namespace ccf
   DECLARE_JSON_TYPE(KVRead::In)
   DECLARE_JSON_REQUIRED_FIELDS(KVRead::In, table, key);
 }
+
+MSGPACK_ADD_ENUM(ccf::ProposalState);
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ccf::ProposalState>
+{
+  template <typename ParseContext>
+  auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const ccf::ProposalState& state, FormatContext& ctx)
+    -> decltype(ctx.out())
+  {
+    switch (state)
+    {
+      case (ccf::ProposalState::OPEN):
+      {
+        return format_to(ctx.out(), "open");
+      }
+      case (ccf::ProposalState::ACCEPTED):
+      {
+        return format_to(ctx.out(), "accepted");
+      }
+      case (ccf::ProposalState::WITHDRAWN):
+      {
+        return format_to(ctx.out(), "withdrawn");
+      }
+    }
+  }
+};
+FMT_END_NAMESPACE

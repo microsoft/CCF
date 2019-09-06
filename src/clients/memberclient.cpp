@@ -56,7 +56,7 @@ static const string vote_ballot_reject(R"xxx(
 static const string read_proposals = R"xxx(
       tables = ...
       local proposals = {}
-      tables["proposals"]:foreach( function(k, v)
+      tables["ccf.proposals"]:foreach( function(k, v)
          proposals[tostring(k)] = v;
       end )
       return proposals;
@@ -75,7 +75,7 @@ static const string accept_code_proposal(R"xxx(
 template <typename T>
 json proposal_params(const string& script, const T& parameter)
 {
-  return Proposal::In{script, parameter};
+  return Propose::In{script, parameter};
 }
 
 auto query_params(const string& script)
@@ -204,10 +204,10 @@ void submit_raw_puts(
   cout << response << endl;
 }
 
-void submit_removal(RpcTlsClient& tls_connection, ObjectId proposal_id)
+void submit_withdraw(RpcTlsClient& tls_connection, ObjectId proposal_id)
 {
   const auto response = json::from_msgpack(
-    tls_connection.call("removal", ProposalAction{proposal_id}));
+    tls_connection.call("withdraw", ProposalAction{proposal_id}));
   cout << response << endl;
 }
 
@@ -243,12 +243,12 @@ void submit_ack(
   // member using its own certificate reads its member id
   auto verifier = tls::make_verifier(raw_cert);
   Response<ObjectId> read_id = json::from_msgpack(tls_connection.call(
-    "read", read_params(verifier->raw_cert_data(), "membercerts")));
+    "read", read_params(verifier->raw_cert_data(), Tables::MEMBER_CERTS)));
   const auto member_id = read_id.result;
 
   // member reads nonce
   Response<MemberAck> read_ack = json::from_msgpack(
-    tls_connection.call("read", read_params(member_id, "memberacks")));
+    tls_connection.call("read", read_params(member_id, Tables::MEMBER_ACKS)));
 
   // member signs nonce and sends ack
   auto kp = tls::make_key_pair(key);
@@ -360,8 +360,8 @@ int main(int argc, char** argv)
     ->required(true)
     ->check(CLI::ExistingFile);
 
-  auto removal = app.add_subcommand("removal", "Remove a proposal");
-  removal->add_option("--proposal-id", proposal_id, "The proposal id")
+  auto withdraw = app.add_subcommand("withdraw", "Withdraw a proposal");
+  withdraw->add_option("--proposal-id", proposal_id, "The proposal id")
     ->required(true);
 
   auto accept_recovery =
@@ -452,9 +452,9 @@ int main(int argc, char** argv)
       submit_raw_puts(*tls_connection, script, param_file);
     }
 
-    if (*removal)
+    if (*withdraw)
     {
-      submit_removal(*tls_connection, proposal_id);
+      submit_withdraw(*tls_connection, proposal_id);
     }
 
     if (*proposal_display)
