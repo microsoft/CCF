@@ -82,7 +82,7 @@ namespace ccf
         {"new_code",
          [this](Store::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<CodeDigest>();
-           auto code_ids = tx.get_view(this->network.code_id);
+           auto code_ids = tx.get_view(this->network.code_ids);
            auto existing_code_id = code_ids->get(id);
            if (existing_code_id)
              throw std::logic_error(fmt::format(

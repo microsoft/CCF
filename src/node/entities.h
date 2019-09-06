@@ -62,7 +62,7 @@ namespace ccf
     static constexpr auto GOV_SCRIPTS = "ccf.gov_scripts";
     static constexpr auto APP_SCRIPTS = "ccf.app_scripts";
     static constexpr auto SECRETS = "ccf.secrets";
-    static constexpr auto CODEID = "ccf.code_id";
+    static constexpr auto CODE_IDS = "ccf.code_ids";
     static constexpr auto VOTING_HISTORY = "ccf.voting_history";
     static constexpr auto SERVICE = "ccf.service";
   };
