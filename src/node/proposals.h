@@ -47,7 +47,7 @@ namespace ccf
    *
    *  local tables, param = ...
    *  return Calls:call(Puts:put("table", "key",
-   * tables["ccf.values"]:get(param))
+   *    tables["ccf.values"]:get(param))
    */
   struct Propose
   {
