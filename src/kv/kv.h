@@ -1514,7 +1514,7 @@ namespace kv
       auto h = get_history();
       if (h)
       {
-        //TODO: the reference to the entity should be in the history
+        // TODO: the reference to the entity should be in the history
         auto search = views.find("ccf.signatures");
         if (search != views.end())
         {

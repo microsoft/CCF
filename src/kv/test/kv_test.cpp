@@ -6,8 +6,8 @@
 #include "../../node/encryptor.h"
 #include "../kv.h"
 #include "../kvserialiser.h"
-#include "../node/history.h"
 #include "../node/entities.h"
+#include "../node/history.h"
 
 #include <doctest/doctest.h>
 #include <msgpack-c/msgpack.hpp>
@@ -440,9 +440,10 @@ TEST_CASE("Deserialise return status")
 {
   Store store;
 
-  auto& signatures =
-    store.create<ccf::Signatures>(ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
-  auto& nodes = store.create<ccf::Nodes>(ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
+  auto& signatures = store.create<ccf::Signatures>(
+    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
+  auto& nodes =
+    store.create<ccf::Nodes>(ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
   auto& data = store.create<size_t, size_t>("data", kv::SecurityDomain::PUBLIC);
 
   auto kp = tls::make_key_pair();

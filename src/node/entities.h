@@ -55,7 +55,8 @@ namespace ccf
     static constexpr auto APP_PUBLIC = "ccf.app_public";
     static constexpr auto SIGNATURES = "ccf.signatures";
     static constexpr auto USER_CLIENT_SIGNATURES = "ccf.user_client_signatures";
-    static constexpr auto MEMBER_CLIENT_SIGNATURES = "ccf.member_client_signatures";
+    static constexpr auto MEMBER_CLIENT_SIGNATURES =
+      "ccf.member_client_signatures";
     static constexpr auto WHITELISTS = "ccf.whitelists";
     static constexpr auto PROPOSALS = "ccf.proposals";
     static constexpr auto GOV_SCRIPTS = "ccf.gov_scripts";
