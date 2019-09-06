@@ -51,8 +51,6 @@ namespace ccf
     static constexpr auto NODE_CERTS = "ccf.node_certs";
     static constexpr auto NODES = "ccf.nodes";
     static constexpr auto VALUES = "ccf.values";
-    static constexpr auto APP = "ccf.app";
-    static constexpr auto APP_PUBLIC = "ccf.app_public";
     static constexpr auto SIGNATURES = "ccf.signatures";
     static constexpr auto USER_CLIENT_SIGNATURES = "ccf.user_client_signatures";
     static constexpr auto MEMBER_CLIENT_SIGNATURES =
