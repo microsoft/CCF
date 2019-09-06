@@ -251,8 +251,8 @@ class Network:
                     -- The version at which the current CCF service started
                     -- is recorded in the values table at index 5
                     values_recovery_index = 5
-                    local current_service_version = tables["values"]:get(values_recovery_index)
-                    return tables["service"]:get(current_service_version)"""
+                    local current_service_version = tables["ccf.values"]:get(values_recovery_index)
+                    return tables["ccf.service"]:get(current_service_version)"""
                 },
             )
             current_status = rep.result["status"].decode()
