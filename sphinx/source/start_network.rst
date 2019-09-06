@@ -127,4 +127,4 @@ There is an option to further generate machine-readable logs for monitoring. To 
 
 .. rubric:: Footnotes
 
-.. [#remote_attestation] When a new node joins an existing network, the network performs the remote attestation protocol by verifying the joining node's quote. It also checks that the version of the code running by the joining node known is trusted by the consortium.
+.. [#remote_attestation] When a new node joins an existing network, the network performs the remote attestation protocol by verifying the joining node's quote. It also checks that the version of the code running by the joining node is trusted by the consortium.

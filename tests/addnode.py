@@ -20,29 +20,26 @@ def run(args):
     ) as network:
         primary, others = network.start_and_join(args)
 
-        # add a valid node
-        res = network.create_and_add_node("libloggingenc", args)
-        assert res[0]
-        new_node = res[1]
+        # TODO: For now, node is added straight away, without validation by
+        # the consortium. See https://github.com/microsoft/CCF/issues/293
+        LOG.debug("Add a valid node")
+        new_node = network.create_and_add_node("libloggingenc", args)
 
-        # attempt to add a node having the host and port fields
-        # similar to a the ones of an existing node
+        with primary.management_client() as mc:
+            check_commit = infra.ccf.Checker(mc)
+
+            with new_node.user_client(format="json") as c:
+                check_commit(
+                    c.rpc("LOG_record", {"id": 42, "msg": "Hello world"}), result=True
+                )
+
+        LOG.debug("Add an invalid node (code id not known)")
         assert (
-            network.add_node(new_node.remote.info()).error["code"]
-            == infra.jsonrpc.ErrorCode.INVALID_PARAMS
-        )
+            network.create_and_add_node("libluagenericenc", args) == None
+        ), "Adding node with unknown code id should fail"
 
-        # add an invalid node
-        assert network.create_and_add_node("libluagenericenc", args, False) == (
-            False,
-            infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND,
-        )
-
-        new_node.join_network(network)
-        network.wait_for_node_commit_sync()
-
-        # retire a node
-        network.retire_node(1, primary, new_node.node_id)
+        LOG.debug("Retire node")
+        network.retire_node(primary, 0)
 
 
 if __name__ == "__main__":

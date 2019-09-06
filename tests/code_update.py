@@ -25,11 +25,11 @@ def get_code_id(lib_path):
     return lines[0].split("=")[1]
 
 
-def add_new_code(network, primary, new_code_id):
-    LOG.debug(f"New code id: {new_code_id}")
+def add_new_code(network, new_code_id):
+    LOG.debug(f"Adding new code id: {new_code_id}")
 
-    # first propose adding the new code id
-    result = network.propose(1, primary, "add_code", f"--new_code_id={new_code_id}")
+    primary, _ = network.find_primary()
+    result = network.propose(1, primary, "add_code", f"--new-code-id={new_code_id}")
 
     network.vote_using_majority(primary, result[1]["id"], True)
 
@@ -50,53 +50,46 @@ def run(args):
     ) as network:
         primary, others = network.start_and_join(args)
 
-        forwarded_args = {
-            arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
-        }
-
-        res, new_node = network.create_and_add_node(args.package, args, True)
-        assert res
-        new_node.join_network(network)
+        new_node = network.create_and_add_node(args.package, args)
+        assert new_node
 
         new_code_id = get_code_id(f"{args.patched_file_name}.so.signed")
 
-        # try to add a node using unsupported code
-        assert network.create_and_add_node(args.patched_file_name, args, False) == (
-            False,
-            infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND,
-        )
+        LOG.debug(f"Adding a node with unsupported code id {new_code_id}")
+        assert (
+            network.create_and_add_node(args.patched_file_name, args) == None
+        ), "Adding node with unsupported code id should fail"
 
-        add_new_code(network, primary, new_code_id)
+        add_new_code(network, new_code_id)
 
+        LOG.debug("Replacing all nodes with previous code version with new code")
         new_nodes = set()
         old_nodes_count = len(network.nodes)
-        # add nodes using the same code id that failed earlier
-        for i in range(0, old_nodes_count + 1):
-            LOG.debug(f"Adding node using new code")
-            res, new_node = network.create_and_add_node(args.patched_file_name, args)
-            assert res
-            new_node.join_network(network)
-            new_nodes.add(new_node)
 
-        network.wait_for_node_commit_sync()
+        LOG.debug("Adding more new nodes than originally existed")
+        for _ in range(0, old_nodes_count + 1):
+            new_node = network.create_and_add_node(args.patched_file_name, args)
+            assert new_node
+            new_nodes.add(new_node)
 
         for node in new_nodes:
             new_primary = node
             break
 
+        LOG.debug("Stopping all original nodes")
         old_nodes = set(network.nodes).difference(new_nodes)
         for node in old_nodes:
             LOG.debug(f"Stopping node {node.node_id}")
             node.stop()
 
-        # wait for a new primary to be elected
+        LOG.debug("Waiting for a new primary to be elected...")
         time.sleep(args.election_timeout * 6 / 1000)
 
-        new_primary = network.find_primary()[0]
+        new_primary, _ = network.find_primary()
         LOG.debug(f"Waited, new_primary is {new_primary.node_id}")
-        res, new_node = network.create_and_add_node(args.patched_file_name, args)
-        assert res
-        new_node.join_network(network)
+
+        new_node = network.create_and_add_node(args.patched_file_name, args)
+        assert new_node
         network.wait_for_node_commit_sync()
 
 

@@ -20,7 +20,7 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
 
 .. code-block:: bash
 
-    $ memberclient --server-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem add_member --member-cert member4_cert.pem
+    $ memberclient --rpc-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem add_member --member-cert member4_cert.pem
     {"commit":100,"global_commit":99,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
 
 In this case, a new proposal with id ``1`` has successfully been created and the proposer member has automatically accepted it. Other members can then accept or reject the proposal:
@@ -30,12 +30,12 @@ In this case, a new proposal with id ``1`` has successfully been created and the
     // Proposal 1 is already created by member 1 (votes: 1/3)
 
     // Member 2 rejects the proposal (votes: 1/3)
-    $ memberclient --server-address 127.83.203.69:55526 --cert member2_cert.pem --privk member2_privk.pem --ca networkcert.pem vote --reject --proposal-id 1
+    $ memberclient --rpc-address 127.83.203.69:55526 --cert member2_cert.pem --privk member2_privk.pem --ca networkcert.pem vote --reject --proposal-id 1
     {"commit":104,"global_commit":103,"id":0,"jsonrpc":"2.0","result":false,"term":2}
 
     // Member 3 accepts the proposal (votes: 2/3)
     // As a quorum of members have accepted the proposal, member4 is added to the consortium
-    $ memberclient --server-address 127.83.203.69:55526 --cert member3_cert.pem --privk member3_privk.pem --ca networkcert.pem vote --accept --proposal-id 1
+    $ memberclient --rpc-address 127.83.203.69:55526 --cert member3_cert.pem --privk member3_privk.pem --ca networkcert.pem vote --accept --proposal-id 1
     {"commit":106,"global_commit":105,"id":0,"jsonrpc":"2.0","result":true,"term":2}
 
 As soon as ``member3`` accepts the proposal, a quorum (2 out of 3) of members has been reached and the proposal completes, successfully adding ``member4``.
@@ -44,7 +44,7 @@ As soon as ``member3`` accepts the proposal, a quorum (2 out of 3) of members ha
 
     .. code-block:: bash
 
-        $ memberclient --server-address 127.83.203.69:55526 --cert member4_cert.pem --privk member4_privk.pem --ca networkcert.pem ack
+        $ memberclient --rpc-address 127.83.203.69:55526 --cert member4_cert.pem --privk member4_privk.pem --ca networkcert.pem ack
         {"commit":108,"global_commit":107,"id":2,"jsonrpc":"2.0","result":true,"term":2}
 
 
@@ -55,7 +55,7 @@ The details of pending proposals, including the proposer member ID, proposal scr
 
 .. code-block:: bash
 
-    $ memberclient --server-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem proposal_display
+    $ memberclient --rpc-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem proposal_display
     {
       "1": {
         "parameter": [...],
@@ -89,7 +89,7 @@ At any stage during the voting process and before the proposal is completed, the
 
 .. code-block:: bash
 
-    $ memberclient --server-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem withdraw --proposal-id 0
+    $ memberclient --rpc-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem withdraw --proposal-id 0
     {"commit":110,"global_commit":109,"id":0,"jsonrpc":"2.0","result":true,"term":4}
 
 This means future votes will be ignored, and the proposal will never be accepted. However it will remain visible as a proposal so members can easily audit historic proposals.
