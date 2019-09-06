@@ -56,7 +56,7 @@ static const string vote_ballot_reject(R"xxx(
 static const string read_proposals = R"xxx(
       tables = ...
       local proposals = {}
-      tables["proposals"]:foreach( function(k, v)
+      tables["ccf.proposals"]:foreach( function(k, v)
          proposals[tostring(k)] = v;
       end )
       return proposals;
