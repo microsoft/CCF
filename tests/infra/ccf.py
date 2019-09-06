@@ -165,8 +165,8 @@ class Network:
         if primary is None:
             primary = self.nodes[0]
 
-        #self.wait_for_all_nodes_have_joined(primary)
-        #self.check_for_service(primary)
+        self.wait_for_all_nodes_have_joined(primary)
+        self.check_for_service(primary)
         LOG.success("All nodes joined network")
 
         return primary, self.nodes[1:]
