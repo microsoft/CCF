@@ -276,12 +276,6 @@ class Network:
     def remove_last_node(self):
         last_node = self.nodes.pop()
 
-    def add_node(self, new_node_info):
-        with self.find_primary()[0].member_client(format="json") as member_client:
-            j_result = member_client.rpc("add_node", new_node_info)
-
-        return j_result
-
     def create_and_add_node(self, lib_name, args):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
