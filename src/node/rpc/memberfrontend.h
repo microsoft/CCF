@@ -435,5 +435,6 @@ namespace ccf
       };
       install_with_auto_schema<void, bool>(
         MemberProcs::UPDATE_ACK_NONCE, update_ack_nonce, Write);
-    };
-  } // namespace ccf
+    }
+  };
+} // namespace ccf
