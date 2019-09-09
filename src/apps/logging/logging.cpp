@@ -138,10 +138,9 @@ namespace ccfapp
     // SNIPPET_START: constructor
     Logger(NetworkTables& nwt, AbstractNotifier& notifier) :
       UserRpcFrontend(*nwt.tables),
-      records(
-        tables.create<Table>(ccf::Tables::APP, kv::SecurityDomain::PRIVATE)),
-      public_records(tables.create<Table>(
-        ccf::Tables::APP_PUBLIC, kv::SecurityDomain::PUBLIC)),
+      records(tables.create<Table>("records", kv::SecurityDomain::PRIVATE)),
+      public_records(
+        tables.create<Table>("public_records", kv::SecurityDomain::PUBLIC)),
       // SNIPPET_END: constructor
       record_public_params_schema(nlohmann::json::parse(j_record_public_in)),
       record_public_result_schema(nlohmann::json::parse(j_record_public_out)),

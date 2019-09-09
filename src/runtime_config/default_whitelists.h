@@ -24,7 +24,6 @@ namespace ccf
       Tables::PROPOSALS,
       Tables::GOV_SCRIPTS,
       Tables::APP_SCRIPTS,
-      Tables::APP_PUBLIC,
       Tables::SERVICE}},
 
     {MEMBER_CAN_PROPOSE,
@@ -45,7 +44,5 @@ namespace ccf
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,
       Tables::APP_SCRIPTS,
-      Tables::VOTING_HISTORY}},
-
-    {USER_APP_CAN_WRITE, {Tables::APP_PUBLIC, Tables::APP}}};
+      Tables::VOTING_HISTORY}}};
 }

@@ -31,7 +31,7 @@ namespace ccf
     Scripts& gov_scripts;
     Proposals& proposals;
     Whitelists& whitelists;
-    CodeIDs& code_id;
+    CodeIDs& code_ids;
     MemberAcks& member_acks;
     VotingHistoryTable& voting_history;
     ClientSignatures& member_client_signatures;
@@ -65,8 +65,8 @@ namespace ccf
         Tables::PROPOSALS, kv::SecurityDomain::PUBLIC)),
       whitelists(tables->create<Whitelists>(
         Tables::WHITELISTS, kv::SecurityDomain::PUBLIC)),
-      code_id(
-        tables->create<CodeIDs>(Tables::CODEID, kv::SecurityDomain::PUBLIC)),
+      code_ids(
+        tables->create<CodeIDs>(Tables::CODE_IDS, kv::SecurityDomain::PUBLIC)),
       member_acks(tables->create<MemberAcks>(
         Tables::MEMBER_ACKS, kv::SecurityDomain::PUBLIC)),
       voting_history(tables->create<VotingHistoryTable>(
@@ -103,7 +103,7 @@ namespace ccf
         std::ref(gov_scripts),
         std::ref(proposals),
         std::ref(whitelists),
-        std::ref(code_id),
+        std::ref(code_ids),
         std::ref(member_acks),
         std::ref(voting_history),
         std::ref(member_client_signatures),

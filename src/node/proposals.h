@@ -35,7 +35,7 @@ namespace ccf
    * ./src/runtime_config/gov.lua.)
    *
    *  local tables, param = ...
-   *  local value = tables["values"]:get(param)
+   *  local value = tables["ccf.values"]:get(param)
    *  local c = Calls:new()
    *  local p = Puts:new()
    *  -- propose writing store["table"]["key"] = value
@@ -46,7 +46,8 @@ namespace ccf
    * Or more compact:
    *
    *  local tables, param = ...
-   *  return Calls:call(Puts:put("table", "key", tables["values"]:get(param))
+   *  return Calls:call(Puts:put("table", "key",
+   *    tables["ccf.values"]:get(param))
    */
   struct Propose
   {
