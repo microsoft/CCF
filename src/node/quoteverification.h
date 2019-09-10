@@ -31,7 +31,7 @@ namespace ccf
       const oe_report_t& parsed_quote)
     {
       // Verify enclave measurement
-      auto codeid_view = tx.get_view(network.code_id);
+      auto codeid_view = tx.get_view(network.code_ids);
       CodeStatus code_id_status = CodeStatus::UNKNOWN;
 
       auto code_digest = get_digest_from_parsed_quote(parsed_quote);

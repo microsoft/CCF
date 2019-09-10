@@ -661,8 +661,8 @@ namespace ccf
       recovery_store = std::make_shared<Store>();
       recovery_store->clone_schema(*network.tables);
       Signatures* recovery_signature_map =
-        recovery_store->get<Signatures>("signatures");
-      Nodes* recovery_nodes_map = recovery_store->get<Nodes>("nodes");
+        recovery_store->get<Signatures>(Tables::SIGNATURES);
+      Nodes* recovery_nodes_map = recovery_store->get<Nodes>(Tables::NODES);
 
       recovery_history = std::make_shared<MerkleTxHistory>(
         *recovery_store.get(),
