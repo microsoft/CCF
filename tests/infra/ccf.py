@@ -371,7 +371,7 @@ class Network:
         result = self.vote_using_majority(remote_node, proposal_id, True)
 
         with remote_node.member_client() as c:
-            id = c.request("read", {"table": "nodes", "key": node_id})
+            id = c.request("read", {"table": "ccf.nodes", "key": node_id})
             assert c.response(id).result["status"].decode() == "RETIRED"
 
     def propose_add_member(self, member_id, remote_node, new_member_cert):

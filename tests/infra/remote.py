@@ -128,7 +128,6 @@ class SSHRemote(CmdMixin):
         setup() connects, creates the directory and ships over the files
         start() runs the specified command
         stop()  disconnects, which shuts down the command via SIGHUP
-        restart() reconnects and reruns the specified command
         """
         self.hostname = hostname
         # For SSHRemote, both executable files (host and enclave) and data
@@ -247,10 +246,6 @@ class SSHRemote(CmdMixin):
             "{}_err_{}".format(self.hostname, self.name),
         )
         self.client.close()
-
-    def restart(self):
-        self._connect()
-        self.start()
 
     def setup(self):
         """
@@ -406,9 +401,6 @@ class LocalRemote(CmdMixin):
             if self.stderr:
                 self.stderr.close()
             log_errors(self.out, self.err)
-
-    def restart(self):
-        self.start()
 
     def setup(self):
         """
@@ -616,9 +608,6 @@ class CCFRemote(object):
         self.remote.get(self.pem)
         if self.start_type in {StartType.new, StartType.recover}:
             self.remote.get("networkcert.pem")
-
-    def restart(self):
-        self.remote.restart()
 
     def debug_node_cmd(self):
         return self.remote._dbg()

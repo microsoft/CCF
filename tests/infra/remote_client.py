@@ -71,9 +71,6 @@ class CCFRemoteClient(object):
     def start(self):
         self.remote.start()
 
-    def restart(self):
-        self.remote.restart()
-
     def debug_node_cmd(self):
         return self.remote._dbg()
 
