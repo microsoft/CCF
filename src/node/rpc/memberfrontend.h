@@ -435,53 +435,6 @@ namespace ccf
       };
       install_with_auto_schema<void, bool>(
         MemberProcs::UPDATE_ACK_NONCE, update_ack_nonce, Write);
-
-      // Add a new node
-      auto add_node = [this](RequestArgs& args) {
-        NodeInfo new_node = args.params;
-#ifdef GET_QUOTE
-        QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
-          args.tx, this->network, new_node.quote, new_node.cert);
-        if (verify_result != QuoteVerificationResult::VERIFIED)
-          return QuoteVerifier::quote_verification_error_to_json(verify_result);
-#endif
-        auto nodes_view = args.tx.get_view(this->network.nodes);
-        NodeId duplicate_node_id = NoNode;
-        nodes_view->foreach([&new_node, &duplicate_node_id](
-                              const NodeId& nid, const NodeInfo& ni) {
-          if (
-            new_node.rpcport == ni.rpcport && new_node.host == ni.host &&
-            ni.status != NodeStatus::RETIRED)
-          {
-            duplicate_node_id = nid;
-            return false;
-          }
-          return true;
-        });
-        if (duplicate_node_id != NoNode)
-          return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            fmt::format(
-              "A node with the same host {} and port {} already exists (node "
-              "id: {})",
-              new_node.host,
-              new_node.rpcport,
-              duplicate_node_id));
-        const auto node_id = get_next_id(
-          args.tx.get_view(this->network.values), ValueIds::NEXT_NODE_ID);
-        new_node.status = NodeStatus::PENDING;
-        nodes_view->put(node_id, new_node);
-
-        // TODO: We don't use verifier here, is it needed? Perhaps it is
-        // canonicalising the cert?
-        auto verifier = tls::make_verifier(new_node.cert);
-        args.tx.get_view(this->network.node_certs)
-          ->put(verifier->raw_cert_data(), node_id);
-
-        return jsonrpc::success(nlohmann::json(JoinNetwork::Out{node_id}));
-      };
-      install_with_auto_schema<NodeInfo, JoinNetwork::Out>(
-        MemberProcs::ADD_NODE, add_node, Write);
     }
   };
 } // namespace ccf

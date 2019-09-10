@@ -157,24 +157,6 @@ void submit_retire_node(RpcTlsClient& tls_connection, NodeId node_id)
   cout << response.dump() << endl;
 }
 
-NodeId submit_add_node(RpcTlsClient& tls_connection, NodeInfo& node_info)
-{
-  const auto response =
-    json::from_msgpack(tls_connection.call("add_node", node_info));
-
-  cout << response.dump() << endl;
-
-  auto result = response.find("result");
-  if (result == response.end())
-    return INVALID_NODE_ID;
-
-  auto ret_id = result->find("id");
-  if (ret_id == result->end())
-    return INVALID_NODE_ID;
-
-  return *ret_id;
-}
-
 void submit_accept_recovery(
   RpcTlsClient& tls_connection, const string& sealed_secrets_file)
 {
@@ -323,13 +305,6 @@ int main(int argc, char** argv)
   auto ack =
     app.add_subcommand("ack", "Acknowledge self added into the network");
 
-  std::string nodes_file;
-  auto add_node = app.add_subcommand("add_node", "Add a node");
-  add_node
-    ->add_option(
-      "--nodes-to-add", nodes_file, "The file containing the nodes to be added")
-    ->required(true);
-
   std::string new_code_id;
   auto add_code = app.add_subcommand("add_code", "Support executing new code");
   add_code
@@ -413,22 +388,6 @@ int main(int argc, char** argv)
     if (*add_user)
     {
       add_new(*tls_connection, user_cert_file, add_user_proposal);
-    }
-
-    if (*add_node)
-    {
-      const auto j_nodes = files::slurp_json(nodes_file);
-
-      if (!j_nodes.is_array())
-      {
-        throw logic_error("Expected " + nodes_file + " to contain array");
-      }
-
-      for (auto node : j_nodes)
-      {
-        NodeInfo node_info = node;
-        submit_add_node(*tls_connection, node_info);
-      }
     }
 
     if (*add_code)

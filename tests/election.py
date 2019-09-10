@@ -82,7 +82,7 @@ def run(args):
             LOG.debug("Stopping primary")
             primary.stop()
 
-            # Wait for next election to complete
+            LOG.debug("Waiting for a new primary to be elected...")
             time.sleep(max_election_duration)
 
         # More than F nodes have been stopped, trying to commit any message

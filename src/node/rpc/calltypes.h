@@ -142,20 +142,4 @@ namespace ccf
       int64_t version; // Current version of the network secrets
     };
   };
-
-  // TODO: It seems that we still use this for add_node in memberfrontend.h
-  struct JoinNetwork
-  {
-    struct In
-    {
-      std::vector<uint8_t> network_cert;
-      std::string hostname;
-      std::string service;
-    };
-
-    struct Out
-    {
-      NodeId id;
-    };
-  };
 }

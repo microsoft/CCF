@@ -89,11 +89,15 @@ The following diagram summarises the steps required to bootstrap a CCF network:
 Updating enclave code
 ~~~~~~~~~~~~~~~~~~~~~
 
-.. warning:: Further details required.
-
 For new nodes to be able to join the network, the version of the code they run (as specified by the ``--enclave-file``) should be first trusted by the consortium of members.
 
-If the version of the code being executed needs to be updated (for example, to support additional JSON-RPC endpoints), memebrs can create a ``new_code`` proposal, specifying the new code version. Once the proposal has been accepted, nodes running the new code are authorised join the network. This allows stopping nodes running older versions of the code.
+If the version of the code being executed needs to be updated (for example, to support additional JSON-RPC endpoints), members can create a ``new_code`` proposal, specifying the new code version (e.g. ``3175971c02d00c1a8f9dd23ca89e64955c5caa94e24f4a3a0579dcfb2e6aebf9``):
+
+.. code-block:: bash
+
+    memberclient --cert member_cert --privk member_privk --rpc-address node_ip:node_port --ca network_cert add_code --new-code-id code_version
+
+Once the proposal has been accepted, nodes running the new code are authorised join the network. This allows stopping nodes running older versions of the code.
 
 .. note:: It is important to keep the code compatible with the previous version, since there will be a point in time in which the new code is running on at least one node, while the other version is running on a different node.
 
@@ -127,4 +131,4 @@ There is an option to further generate machine-readable logs for monitoring. To 
 
 .. rubric:: Footnotes
 
-.. [#remote_attestation] When a new node joins an existing network, the network performs the remote attestation protocol by verifying the joining node's quote. It also checks that the version of the code running by the joining node known is trusted by the consortium.
+.. [#remote_attestation] When a new node joins an existing network, the network performs the remote attestation protocol by verifying the joining node's quote. It also checks that the version of the code running by the joining node is trusted by the consortium.

@@ -208,7 +208,7 @@ namespace ccf
 
       switch (args.start_type)
       {
-        case StartType::Start:
+        case StartType::New:
         {
           GenesisGenerator g(network);
           g.init_values();
