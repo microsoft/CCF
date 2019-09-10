@@ -477,7 +477,6 @@ class CCFRemote(object):
         ignore_quote=False,
         sig_max_tx=1000,
         sig_max_ms=1000,
-        node_status="pending",
         election_timeout=1000,
         memory_reserve_startup=0,
         notify_server=None,
@@ -498,7 +497,6 @@ class CCFRemote(object):
         self.rpc_port = rpc_port
         self.pem = "{}.pem".format(local_node_id)
         self.quote = None
-        self.node_status = node_status
         # Only expect a quote if the enclave is not virtual and quotes have
         # not been explictly ignored
         if enclave_type != "virtual" and not ignore_quote:
@@ -559,7 +557,7 @@ class CCFRemote(object):
         if self.quote:
             cmd += [f"--quote-file={self.quote}"]
 
-        if start_type == StartType.start:
+        if start_type == StartType.new:
             cmd += [
                 "start",
                 "--network-cert-file=networkcert.pem",
@@ -616,31 +614,11 @@ class CCFRemote(object):
     def start(self):
         self.remote.start()
         self.remote.get(self.pem)
-        if self.start_type in {StartType.start, StartType.recover}:
+        if self.start_type in {StartType.new, StartType.recover}:
             self.remote.get("networkcert.pem")
 
     def restart(self):
         self.remote.restart()
-
-    def info(self):
-        self.remote.get(self.pem)
-        quote_bytes = []
-        if self.quote:
-            self.remote.get(self.quote)
-            quote_bytes = infra.path.quote_bytes(self.quote)
-
-        return {
-            "host": self.host,
-            "nodeport": str(self.node_port),
-            "pubhost": self.pubhost,
-            "rpcport": str(self.rpc_port),
-            "cert": infra.path.cert_bytes(self.pem),
-            "quote": quote_bytes,
-            "status": NodeStatus[self.node_status].value,
-        }
-
-    def node_cmd(self):
-        return self.remote._cmd()
 
     def debug_node_cmd(self):
         return self.remote._dbg()
@@ -710,6 +688,6 @@ class NodeStatus(Enum):
 
 
 class StartType(Enum):
-    start = 0
+    new = 0
     join = 1
     recover = 2

@@ -115,10 +115,6 @@ class Network:
 
         hosts = self.hosts or ["localhost"] * number_of_local_nodes()
 
-        node_status = args.node_status or ["pending"] * len(hosts)
-        if len(node_status) != len(hosts):
-            raise ValueError("Node statuses are not equal to number of nodes.")
-
         if not args.package:
             raise ValueError("A package name must be specified.")
 
@@ -140,22 +136,24 @@ class Network:
                 arg: dict_args[arg] for arg in Network.node_args_to_forward
             }
             try:
-                primary, _ = self.find_primary() if i != 0 else (None, None)
-                node.start(
-                    infra.remote.StartType.start
-                    if i == 0
-                    else infra.remote.StartType.join,
-                    lib_name=args.package,
-                    node_status=node_status[i],
-                    workspace=args.workspace,
-                    label=args.label,
-                    target_rpc_address=f"{primary.host}:{primary.rpc_port}"
-                    if primary
-                    else None,
-                    members_certs="member*_cert.pem" if i == 0 else None,
-                    users_certs="user*_cert.pem" if i == 0 else None,
-                    **forwarded_args,
-                )
+                if i == 0:
+                    node.start(
+                        lib_name=args.package,
+                        workspace=args.workspace,
+                        label=args.label,
+                        members_certs="member*_cert.pem",
+                        users_certs="user*_cert.pem",
+                        **forwarded_args,
+                    )
+                else:
+                    primary, _ = self.find_primary()
+                    node.join(
+                        lib_name=args.package,
+                        workspace=args.workspace,
+                        label=args.label,
+                        target_rpc_address=f"{primary.host}:{primary.rpc_port}",
+                        **forwarded_args,
+                    )
                 node.wait_for_node_to_join()
                 node.network_state = NodeNetworkState.joined
             except Exception:
@@ -174,10 +172,6 @@ class Network:
 
     def start_in_recovery(self, args, ledger_file, sealed_secrets):
         hosts = self.hosts or ["localhost"] * number_of_local_nodes()
-
-        node_status = args.node_status or ["pending"] * len(hosts)
-        if len(node_status) != len(hosts):
-            raise ValueError("Node statuses are not equal to number of nodes.")
 
         if not args.package:
             raise ValueError("A package name must be specified.")
@@ -202,10 +196,8 @@ class Network:
             # start all nodes with their own ledger to find out which ledger
             # is the longest. Then, all nodes except the ones with the
             # longest ledger are stopped and restarted in "join".
-            self.nodes[0].start(
-                start_type=infra.remote.StartType.recover,
+            self.nodes[0].recover(
                 lib_name=args.package,
-                node_status=node_status[0],
                 ledger_file=ledger_file,
                 sealed_secrets=sealed_secrets,
                 workspace=args.workspace,
@@ -217,12 +209,10 @@ class Network:
             LOG.exception("Failed to start recovery node {}".format(i))
             raise
 
-        for i, node in enumerate(self.nodes):
+        for node in self.nodes:
             if node != primary:
-                node.start(
-                    infra.remote.StartType.join,
+                node.join(
                     lib_name=args.package,
-                    node_status=node_status[i],
                     workspace=args.workspace,
                     label=args.label,
                     target_rpc_address=f"{primary.host}:{primary.rpc_port}",
@@ -281,14 +271,11 @@ class Network:
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
         local_node_id = self.get_next_local_node_id()
-        node_status = args.node_status or "pending"
         new_node = self.create_node(local_node_id, "localhost")
 
         primary, _ = self.find_primary()
-        new_node.start(
-            start_type=infra.remote.StartType.join,
+        new_node.join(
             lib_name=lib_name,
-            node_status=node_status,
             workspace=args.workspace,
             label=args.label,
             target_rpc_address=f"{primary.host}:{primary.rpc_port}",
@@ -297,7 +284,7 @@ class Network:
 
         try:
             new_node.wait_for_node_to_join()
-        except RuntimeError as e:
+        except RuntimeError:
             LOG.error(f"New node {local_node_id} failed to join the network")
             self.nodes.remove(new_node)
             return None
@@ -606,6 +593,51 @@ class Node:
 
     def start(
         self,
+        lib_name,
+        enclave_type,
+        workspace,
+        label,
+        members_certs,
+        users_certs,
+        **kwargs,
+    ):
+        self._start(
+            infra.remote.StartType.new,
+            lib_name,
+            enclave_type,
+            workspace,
+            label,
+            None,
+            members_certs,
+            users_certs,
+            **kwargs,
+        )
+
+    def join(
+        self, lib_name, enclave_type, workspace, label, target_rpc_address, **kwargs
+    ):
+        self._start(
+            infra.remote.StartType.join,
+            lib_name,
+            enclave_type,
+            workspace,
+            label,
+            target_rpc_address,
+            **kwargs,
+        )
+
+    def recover(self, lib_name, enclave_type, workspace, label, **kwargs):
+        self._start(
+            infra.remote.StartType.recover,
+            lib_name,
+            enclave_type,
+            workspace,
+            label,
+            **kwargs,
+        )
+
+    def _start(
+        self,
         start_type,
         lib_name,
         enclave_type,
@@ -688,9 +720,6 @@ class Node:
                     return
             time.sleep(1)
         raise RuntimeError(f"Node {self.node_id} failed to join the network")
-
-    def restart(self):
-        self.remote.restart()
 
     def get_sealed_secrets(self):
         return self.remote.get_sealed_secrets()

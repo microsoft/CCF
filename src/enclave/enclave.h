@@ -117,7 +117,7 @@ namespace enclave
       ::memcpy(quote, r.first.quote.data(), r.first.quote.size());
       *quote_len = r.first.quote.size();
 
-      if (start_type == StartType::Start || start_type == StartType::Recover)
+      if (start_type == StartType::New || start_type == StartType::Recover)
       {
         // When starting a node in start or recover modes, fresh network secrets
         // are created and the associated certificate can be passed to the host

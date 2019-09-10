@@ -325,7 +325,7 @@ int main(int argc, char** argv)
   if (*start)
   {
     LOG_INFO_FMT("Creating new node - new network");
-    start_type = StartType::Start;
+    start_type = StartType::New;
     ccf_config.genesis.member_certs = files::slurp_certs(member_cert_file);
     ccf_config.genesis.user_certs = files::slurp_certs(user_cert_file);
     ccf_config.genesis.gov_script = files::slurp_string(gov_script);
