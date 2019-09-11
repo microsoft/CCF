@@ -605,6 +605,8 @@ class CCFRemote(object):
 
     def start(self):
         self.remote.start()
+
+    def get_startup_files(self):
         self.remote.get(self.pem)
         if self.start_type in {StartType.new, StartType.recover}:
             self.remote.get("networkcert.pem")
