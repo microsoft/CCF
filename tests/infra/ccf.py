@@ -451,7 +451,7 @@ class Network:
                         and resp.result["term"] == term_leader
                     ):
                         joined_nodes += 1
-            if joined_nodes == self.get_running_nodes():
+            if joined_nodes == len(self.get_running_nodes()):
                 break
             time.sleep(1)
         assert joined_nodes == len(
@@ -696,6 +696,7 @@ class Node:
             if self.perf:
                 self.remote.set_perf()
             self.remote.start()
+        self.remote.get_startup_files()
 
     def stop(self):
         if self.remote:
