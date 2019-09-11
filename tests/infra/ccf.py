@@ -165,8 +165,24 @@ class Network:
             primary = self.nodes[0]
 
         self.wait_for_all_nodes_to_catch_up(primary)
-        self.check_for_service(primary)
+        self.check_for_service(
+            primary
+        )  # TODO: Instead, check that the service is OPENING
         LOG.success("All nodes joined network")
+
+
+
+
+        # TODO:
+        # 1. Create a proposal to open the network
+        self.propose(1, primary, "open_network")
+        self.member_client_rpc_as_json(1, primary, "proposal_display")
+
+        # 2. Have a majority of members vote for it
+        self.vote_using_majority(primary, 0, True)
+
+        # 3. Check that the network is in state OPEN
+        LOG.success("Network is now open")
 
         return primary, self.nodes[1:]
 
@@ -451,7 +467,7 @@ class Network:
                         and resp.result["term"] == term_leader
                     ):
                         joined_nodes += 1
-            if joined_nodes == self.get_running_nodes():
+            if joined_nodes == len(self.get_running_nodes()):
                 break
             time.sleep(1)
         assert joined_nodes == len(

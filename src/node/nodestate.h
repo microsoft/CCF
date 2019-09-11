@@ -621,6 +621,8 @@ namespace ccf
       // Seal all known network secrets
       network.secrets->seal_all();
 
+      // TODO: The network should only be opened here
+
       accept_user_connections();
       if (consensus->is_backup())
         accept_node_connections();
@@ -770,7 +772,10 @@ namespace ccf
         secrets_view->put(ns_idx, past_secrets);
       }
 
-      open_service(tx);
+      // TODO: Move this to end of private ledger recovery
+      if (!open_network(tx))
+        throw std::logic_error(
+          "Network could not be open when initiating end of recovery");
 
       // Setup new temporary store and record current version/root
       setup_private_recovery_store();
@@ -905,20 +910,28 @@ namespace ccf
       return quote;
     }
 
-    void open_service(Store::Tx& tx)
+    bool open_network(Store::Tx& tx) override
     {
       // Search for the version at which the current service has been active
       // from
       auto [service_view, values_view] =
         tx.get_view(network.service, network.values);
 
+      LOG_FAIL_FMT("OPENING NETWORK");
+
       auto service_version = values_view->get(ValueIds::ACTIVE_SERVICE_VERSION);
       if (!service_version.has_value())
-        throw std::logic_error("Failed to get active service version");
+      {
+        LOG_FAIL_FMT("Failed to get active service version");
+        return false;
+      }
 
       auto active_service = service_view->get(service_version.value());
       if (!active_service.has_value())
-        throw std::logic_error("Failed to get active service");
+      {
+        LOG_FAIL_FMT("Failed to get active service");
+        return false;
+      }
 
       if (active_service->status != ServiceStatus::OPENING)
       {
@@ -926,12 +939,13 @@ namespace ccf
           "Could not open current service (active from {}): not in state "
           "opening",
           service_version.value());
-        return;
+        return false;
       }
 
       active_service->status = ServiceStatus::OPEN;
 
       service_view->put(service_version.value(), active_service.value());
+      return true;
     }
 
     // Used from nodefrontend.h to set the joiner's fresh key to encrypt past

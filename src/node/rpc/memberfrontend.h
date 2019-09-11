@@ -95,12 +95,18 @@ namespace ccf
         // TODO(#important): for now, recovery assumes that no primary
         // change can happen between the time the public CFTR is established and
         // this function is called.
-        {"accept_recovery", [this](Store::Tx& tx, const nlohmann::json& args) {
+        {"accept_recovery",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
            if (node.is_part_of_public_network())
              return node.finish_recovery(tx, args);
            else
              return false;
-         }}};
+         }},
+        {"open_network",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
+           return node.open_network(tx);
+         }},
+      };
 
     bool complete_proposal(Store::Tx& tx, const ObjectId id)
     {
