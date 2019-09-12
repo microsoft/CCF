@@ -142,8 +142,9 @@ namespace ccf
     //! the corresponding arguments
     nlohmann::json args;
   };
-  DECLARE_JSON_TYPE(ProposedCall)
-  DECLARE_JSON_REQUIRED_FIELDS(ProposedCall, func, args)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ProposedCall)
+  DECLARE_JSON_REQUIRED_FIELDS(ProposedCall, func)
+  DECLARE_JSON_OPTIONAL_FIELDS(ProposedCall, args)
 
   /** A list of calls proposed (and returned) by a proposal script
    * Every proposal script must return a compatible data structure.

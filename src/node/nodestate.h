@@ -245,10 +245,7 @@ namespace ccf
           network.secrets = std::make_unique<NetworkSecrets>(
             "CN=The CA", std::make_unique<Seal>(writer_factory));
 
-          // TODO: State should be OPENING first, until members accept to open
-          // the network https://github.com/microsoft/CCF/issues/293
-          g.create_service(
-            {network.secrets->get_current().cert, ServiceStatus::OPEN});
+          g.create_service(network.secrets->get_current().cert);
 
 #ifdef PBFT
           setup_pbft();
@@ -267,12 +264,10 @@ namespace ccf
 
           // Accept node connections for other nodes to join
           accept_node_connections();
-          accept_member_connections();
 
-          // TODO: User connections should not be accepted until the network
-          // is open by the consortium.
-          // https://github.com/microsoft/CCF/issues/293
-          accept_user_connections();
+          // Accept members connections for members to configure and open the
+          // network
+          accept_member_connections();
 
           sm.advance(State::partOfNetwork);
 
@@ -294,6 +289,8 @@ namespace ccf
           setup_history();
           setup_encryptor();
 
+          // Accept members connections for members to finish recovery once the
+          // public ledger has been read
           accept_member_connections();
           sm.advance(State::readingPublicLedger);
 
@@ -370,6 +367,7 @@ namespace ccf
           accept_node_connections();
           accept_member_connections();
 
+          // TODO: Address recovery for network opening
           // Do not accept user connections if the network is public only
           if (!public_only)
           {
@@ -494,9 +492,7 @@ namespace ccf
 
       network.secrets->promote_secrets(0, last_index + 1);
 
-      g.create_service(
-        {network.secrets->get_current().cert, ServiceStatus::OPENING},
-        last_index + 1);
+      g.create_service(network.secrets->get_current().cert, last_index + 1);
 
       g.delete_active_nodes();
 
@@ -912,21 +908,9 @@ namespace ccf
 
     bool open_network(Store::Tx& tx) override
     {
-      // Search for the version at which the current service has been active
-      // from
-      auto [service_view, values_view] =
-        tx.get_view(network.service, network.values);
+      auto service_view = tx.get_view(network.service);
 
-      LOG_FAIL_FMT("OPENING NETWORK");
-
-      auto service_version = values_view->get(ValueIds::ACTIVE_SERVICE_VERSION);
-      if (!service_version.has_value())
-      {
-        LOG_FAIL_FMT("Failed to get active service version");
-        return false;
-      }
-
-      auto active_service = service_view->get(service_version.value());
+      auto active_service = service_view->get(0);
       if (!active_service.has_value())
       {
         LOG_FAIL_FMT("Failed to get active service");
@@ -935,16 +919,13 @@ namespace ccf
 
       if (active_service->status != ServiceStatus::OPENING)
       {
-        LOG_FAIL_FMT(
-          "Could not open current service (active from {}): not in state "
-          "opening",
-          service_version.value());
+        LOG_FAIL_FMT("Could not open current service: not in state opening");
         return false;
       }
 
       active_service->status = ServiceStatus::OPEN;
+      service_view->put(0, active_service.value());
 
-      service_view->put(service_version.value(), active_service.value());
       return true;
     }
 
@@ -1069,6 +1050,21 @@ namespace ccf
               remove_node(node_id);
           }
         });
+
+      network.service.set_global_hook([this](
+                                        kv::Version version,
+                                        const Service::State& s,
+                                        const Service::Write& w) {
+        if (w.size() > 0)
+        {
+          if (w.at(0).value.status == ServiceStatus::OPEN)
+          {
+            accept_user_connections();
+
+            LOG_INFO_FMT("Network is now open");
+          }
+        }
+      });
 
       network.secrets_table.set_local_hook([this](
                                              kv::Version version,

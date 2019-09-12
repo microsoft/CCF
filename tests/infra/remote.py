@@ -62,7 +62,7 @@ def log_errors(out_path, err_path):
     error_filter = ["[fail ]", "[fatal]"]
     try:
         errors = 0
-        tail_lines = deque(maxlen=15)
+        tail_lines = deque(maxlen=10)
         with open(out_path, "r") as lines:
             for line in lines:
                 stripped_line = line.rstrip()
@@ -605,6 +605,8 @@ class CCFRemote(object):
 
     def start(self):
         self.remote.start()
+
+    def get_startup_files(self):
         self.remote.get(self.pem)
         if self.start_type in {StartType.new, StartType.recover}:
             self.remote.get("networkcert.pem")

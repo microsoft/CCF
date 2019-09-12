@@ -73,6 +73,24 @@ def network(
             net.stop_all_nodes()
 
 
+# TODO: This function should only be part of the Checker class once the
+# memberclient is no longer used.
+def wait_for_global_commit(management_client, commit_index, term, timeout=2):
+    """
+    Given a client to a CCF network and a commit_index/term pair, this function
+    waits for this specific commit index to be globally committed by the
+    network in this term.
+    A TimeoutError exception is raised if the commit index is not globally
+    committed within the given timeout.
+    """
+    for i in range(timeout * 10):
+        r = management_client.rpc("getCommit", {"commit": commit_index})
+        if r.global_commit >= commit_index and r.result["term"] == term:
+            return
+        time.sleep(0.1)
+    raise TimeoutError("Timed out waiting for commit")
+
+
 class Network:
     node_args_to_forward = [
         "enclave_type",
@@ -165,23 +183,9 @@ class Network:
             primary = self.nodes[0]
 
         self.wait_for_all_nodes_to_catch_up(primary)
-        self.check_for_service(
-            primary
-        )  # TODO: Instead, check that the service is OPENING
         LOG.success("All nodes joined network")
 
-
-
-
-        # TODO:
-        # 1. Create a proposal to open the network
-        self.propose(1, primary, "open_network")
-        self.member_client_rpc_as_json(1, primary, "proposal_display")
-
-        # 2. Have a majority of members vote for it
-        self.vote_using_majority(primary, 0, True)
-
-        # 3. Check that the network is in state OPEN
+        self.open_network(primary)
         LOG.success("Network is now open")
 
         return primary, self.nodes[1:]
@@ -248,19 +252,14 @@ class Network:
         """
         Check via the member frontend of the given node that the certificate
         associated with current CCF service signing key has been recorded in
-        the KV store and in a specific state.
+        the KV store with the appropriate status.
         """
-
         with node.member_client() as c:
             rep = c.do(
                 "query",
                 {
                     "text": """tables = ...
-                    -- The version at which the current CCF service started
-                    -- is recorded in the values table at index 5
-                    values_recovery_index = 5
-                    local current_service_version = tables["ccf.values"]:get(values_recovery_index)
-                    return tables["ccf.service"]:get(current_service_version)"""
+                    return tables["ccf.service"]:get(0)"""
                 },
             )
             current_status = rep.result["status"].decode()
@@ -272,7 +271,7 @@ class Network:
             ), "Current service certificate did not match with networkcert.pem"
             assert (
                 current_status == status.name
-            ), f"Service is in status {current_status} (expected {status.name})"
+            ), f"Service status {current_status} (expected {status.name})"
 
     def create_node(self, local_node_id, host, debug=False, perf=False):
         node = Node(local_node_id, host, debug, perf)
@@ -321,6 +320,8 @@ class Network:
         for u in users:
             infra.proc.ccall("./keygenerator", "--name={}".format(u)).check_returncode()
 
+    # TODO: The following governance functions should be moved to their own class
+    # See https://github.com/microsoft/CCF/issues/364
     def member_client_rpc_as_json(self, member_id, remote_node, *args):
         if remote_node is None:
             remote_node = self.find_primary()[0]
@@ -347,7 +348,7 @@ class Network:
 
         return (True, j_result["result"])
 
-    def vote_using_majority(self, remote_node, proposal_id, accept):
+    def vote_using_majority(self, remote_node, proposal_id):
         # There is no need to stop after n / 2 + 1 members have voted,
         # but this could prove to be useful in detecting errors
         # related to the voting mechanism
@@ -355,7 +356,7 @@ class Network:
         for i, member in enumerate(self.members):
             if i >= member_count:
                 break
-            res = self.vote(member, remote_node, proposal_id, accept)
+            res = self.vote(member, remote_node, proposal_id, True)
             assert res[0]
             if res[1]:
                 break
@@ -373,6 +374,12 @@ class Network:
         )
         if j_result.get("error") is not None:
             return (False, j_result["error"])
+
+        # If the proposal was accepted, wait for it to be globally committed
+        if j_result["result"] == True:
+            with remote_node.management_client() as mc:
+                wait_for_global_commit(mc, j_result["commit"], j_result["term"])
+
         return (True, j_result["result"])
 
     def propose_retire_node(self, member_id, remote_node, node_id):
@@ -384,7 +391,7 @@ class Network:
         member_id = 1
         result = self.propose_retire_node(member_id, remote_node, node_id)
         proposal_id = result[1]["id"]
-        result = self.vote_using_majority(remote_node, proposal_id, True)
+        result = self.vote_using_majority(remote_node, proposal_id)
 
         with remote_node.member_client() as c:
             id = c.request("read", {"table": "ccf.nodes", "key": node_id})
@@ -395,14 +402,20 @@ class Network:
             member_id, remote_node, "add_member", f"--member-cert={new_member_cert}"
         )
 
+    def open_network(self, node):
+        """
+        Assuming a network in state OPENING, this functions creates a new
+        proposal and make members vote to transition the network to state
+        OPEN.
+        """
+        result = self.propose(1, node, "open_network")
+        self.vote_using_majority(node, result[1]["id"])
+        self.check_for_service(node)
+
     def stop_all_nodes(self):
         for node in self.nodes:
             node.stop()
         LOG.info("All remotes stopped...")
-
-    def all_nodes_debug(self):
-        for node in self.nodes:
-            node.debug = True
 
     def get_members(self):
         return self.members
@@ -412,11 +425,6 @@ class Network:
 
     def get_node_by_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
-
-    def get_node_by_local_id(self, local_node_id):
-        return next(
-            (node for node in self.nodes if node.local_node_id == local_node_id), None
-        )
 
     def find_primary(self):
         """
@@ -490,9 +498,6 @@ class Network:
             time.sleep(1)
         assert [commits[0]] * len(commits) == commits, "All nodes at the same commit"
 
-    def get_primary(self):
-        return self.nodes[0]
-
     def get_next_local_node_id(self):
         if len(self.nodes):
             return self.nodes[-1].local_node_id + 1
@@ -523,17 +528,9 @@ class Checker:
                 )
 
             if self.management_client:
-                for i in range(timeout * 10):
-                    r = self.management_client.rpc(
-                        "getCommit", {"commit": rpc_result.commit}
-                    )
-                    if (
-                        r.global_commit >= rpc_result.commit
-                        and r.result["term"] == rpc_result.term
-                    ):
-                        return
-                    time.sleep(0.1)
-                raise TimeoutError("Timed out waiting for commit")
+                wait_for_global_commit(
+                    self.management_client, rpc_result.commit, rpc_result.term
+                )
 
             if self.notification_queue:
                 for i in range(timeout * 10):
@@ -712,6 +709,7 @@ class Node:
             if self.perf:
                 self.remote.set_perf()
             self.remote.start()
+        self.remote.get_startup_files()
 
     def stop(self):
         if self.remote:

@@ -133,12 +133,10 @@ namespace ccf
     }
 
     void create_service(
-      const ServiceInfo& service_info, kv::Version version = 0)
+      const std::vector<uint8_t>& network_cert, kv::Version version = 1)
     {
-      auto [service_view, values_view] =
-        tx.get_view(tables.service, tables.values);
-      service_view->put(version, service_info);
-      values_view->put(ValueIds::ACTIVE_SERVICE_VERSION, version);
+      auto service_view = tx.get_view(tables.service);
+      service_view->put(0, {version, network_cert, ServiceStatus::OPENING});
     }
 
     void trust_node(NodeId node_id)
