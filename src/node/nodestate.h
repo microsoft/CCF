@@ -292,6 +292,7 @@ namespace ccf
           // Accept members connections for members to finish recovery once the
           // public ledger has been read
           accept_member_connections();
+
           sm.advance(State::readingPublicLedger);
 
           return Success<CreateNew::Out>(
@@ -610,16 +611,21 @@ namespace ccf
       // Seal all known network secrets
       network.secrets->seal_all();
 
-      // GenesisGenerator g(network);
-      // g.open_service();
-      // if (g.finalize() != kv::CommitSuccess::OK)
-      //   throw std::logic_error(
-      //     "Could not commit transaction when finishing network recovery");
+      // Open the service
+      if (consensus->is_primary())
+      {
+        GenesisGenerator g(network);
+        if (!g.open_service())
+          throw std::logic_error("Service could not be opened");
+
+        if (g.finalize() != kv::CommitSuccess::OK)
+          throw std::logic_error(
+            "Could not commit transaction when finishing network recovery");
+      }
 
       if (consensus->is_backup())
         accept_node_connections();
 
-      LOG_INFO_FMT("Now part of network");
       sm.advance(State::partOfNetwork);
     }
 
@@ -763,11 +769,6 @@ namespace ccf
         }
         secrets_view->put(ns_idx, past_secrets);
       }
-
-      // TODO: This should happen later
-      if (!open_network(tx))
-        throw std::logic_error(
-          "Network could not be open when initiating end of recovery");
 
       // Setup new temporary store and record current version/root
       setup_private_recovery_store();
@@ -1056,7 +1057,7 @@ namespace ccf
           if (w.at(0).value.status == ServiceStatus::OPEN)
           {
             accept_user_connections();
-            LOG_INFO_FMT("Network is now open");
+            LOG_INFO_FMT("Now accepting user transactions");
           }
         }
       });

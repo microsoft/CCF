@@ -139,6 +139,29 @@ namespace ccf
       service_view->put(0, {version, network_cert, ServiceStatus::OPENING});
     }
 
+    bool open_service()
+    {
+      auto service_view = tx.get_view(tables.service);
+
+      auto active_service = service_view->get(0);
+      if (!active_service.has_value())
+      {
+        LOG_FAIL_FMT("Failed to get active service");
+        return false;
+      }
+
+      if (active_service->status != ServiceStatus::OPENING)
+      {
+        LOG_FAIL_FMT("Could not open current service: status is not OPENING");
+        return false;
+      }
+
+      active_service->status = ServiceStatus::OPEN;
+      service_view->put(0, active_service.value());
+
+      return true;
+    }
+
     void trust_node(NodeId node_id)
     {
       auto nodes_view = tx.get_view(tables.nodes);
