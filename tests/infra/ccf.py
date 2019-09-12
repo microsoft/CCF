@@ -370,7 +370,7 @@ class Network:
             "vote",
             f"--proposal-id={proposal_id}",
             "--accept" if accept else "--reject",
-            "--sign" if not force_unsigned else "--force-unsigned",
+            "--force-unsigned" if force_unsigned else "",
         )
         if j_result.get("error") is not None:
             return (False, j_result["error"])
