@@ -244,7 +244,7 @@ class Network:
         self.wait_for_all_nodes_to_catch_up(primary)
         self.check_for_service(primary, status=ServiceStatus.OPENING)
 
-        LOG.success("All nodes joined recoverd public network")
+        LOG.success("All nodes joined recovered public network")
 
         return primary, self.nodes[1:]
 

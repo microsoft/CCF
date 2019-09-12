@@ -17,7 +17,7 @@ namespace ccf
   {
     OPENING = 1,
     OPEN = 2,
-    CLOSED = 3
+    CLOSED = 3 // For now, unused
   };
 
   DECLARE_JSON_ENUM(
@@ -33,7 +33,7 @@ namespace ccf
 {
   struct ServiceInfo
   {
-    // Version at which the service is applicable from.
+    // Version at which the service is applicable from
     kv::Version version;
 
     std::vector<uint8_t> cert;

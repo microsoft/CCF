@@ -367,13 +367,6 @@ namespace ccf
           accept_node_connections();
           accept_member_connections();
 
-          // TODO: Address recovery for network opening
-          // Do not accept user connections if the network is public only
-          if (!public_only)
-          {
-            accept_user_connections();
-          }
-
           if (public_only)
             sm.advance(State::partOfPublicNetwork);
           else
@@ -617,9 +610,12 @@ namespace ccf
       // Seal all known network secrets
       network.secrets->seal_all();
 
-      // TODO: The network should only be opened here
+      // GenesisGenerator g(network);
+      // g.open_service();
+      // if (g.finalize() != kv::CommitSuccess::OK)
+      //   throw std::logic_error(
+      //     "Could not commit transaction when finishing network recovery");
 
-      accept_user_connections();
       if (consensus->is_backup())
         accept_node_connections();
 
@@ -768,7 +764,7 @@ namespace ccf
         secrets_view->put(ns_idx, past_secrets);
       }
 
-      // TODO: Move this to end of private ledger recovery
+      // TODO: This should happen later
       if (!open_network(tx))
         throw std::logic_error(
           "Network could not be open when initiating end of recovery");
@@ -919,7 +915,7 @@ namespace ccf
 
       if (active_service->status != ServiceStatus::OPENING)
       {
-        LOG_FAIL_FMT("Could not open current service: not in state opening");
+        LOG_FAIL_FMT("Could not open current service: status is not OPENING");
         return false;
       }
 
@@ -1060,7 +1056,6 @@ namespace ccf
           if (w.at(0).value.status == ServiceStatus::OPEN)
           {
             accept_user_connections();
-
             LOG_INFO_FMT("Network is now open");
           }
         }
