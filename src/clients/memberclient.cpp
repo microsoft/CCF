@@ -77,6 +77,11 @@ static const string accept_code_proposal(R"xxx(
       return Calls:call("new_code", code_digest)
     )xxx");
 
+json proposal_params(const string& script)
+{
+  return Propose::In{script};
+}
+
 template <typename T>
 json proposal_params(const string& script, const T& parameter)
 {
@@ -175,7 +180,7 @@ void submit_accept_recovery(
 
 void submit_open_network(RpcTlsClient& tls_connection)
 {
-  const auto params = proposal_params<json>(open_network_proposal, "");
+  const auto params = proposal_params(open_network_proposal);
   const auto response =
     json::from_msgpack(tls_connection.call("propose", params));
   cout << response.dump() << std::endl;
