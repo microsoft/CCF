@@ -310,16 +310,16 @@ TEST_CASE("Global commit hooks")
 {
   using State = Store::Map<std::string, std::string>::State;
   using Write = Store::Map<std::string, std::string>::Write;
-  struct global_hook_input
+  struct GlobalHookInput
   {
     kv::Version version;
     Write writes;
   };
 
-  std::vector<global_hook_input> global_writes;
+  std::vector<GlobalHookInput> global_writes;
 
   auto global_hook = [&](kv::Version v, const State& s, const Write& w) {
-    global_writes.push_back({v, w});
+    global_writes.emplace_back(GlobalHookInput({v, w}));
   };
 
   Store kv_store;
