@@ -133,12 +133,37 @@ namespace ccf
     }
 
     void create_service(
-      const ServiceInfo& service_info, kv::Version version = 0)
+      const std::vector<uint8_t>& network_cert, kv::Version version = 1)
     {
-      auto [service_view, values_view] =
-        tx.get_view(tables.service, tables.values);
-      service_view->put(version, service_info);
-      values_view->put(ValueIds::ACTIVE_SERVICE_VERSION, version);
+      auto service_view = tx.get_view(tables.service);
+      service_view->put(0, {version, network_cert, ServiceStatus::OPENING});
+    }
+
+    // TODO: This function is very similar to open_network() in nodestate.h
+    // Change this as part of https://github.com/microsoft/CCF/issues/320 so
+    // that this class can either take an existing Store::Tx or create a new
+    // one
+    bool open_service()
+    {
+      auto service_view = tx.get_view(tables.service);
+
+      auto active_service = service_view->get(0);
+      if (!active_service.has_value())
+      {
+        LOG_FAIL_FMT("Failed to get active service");
+        return false;
+      }
+
+      if (active_service->status != ServiceStatus::OPENING)
+      {
+        LOG_FAIL_FMT("Could not open current service: status is not OPENING");
+        return false;
+      }
+
+      active_service->status = ServiceStatus::OPEN;
+      service_view->put(0, active_service.value());
+
+      return true;
     }
 
     void trust_node(NodeId node_id)

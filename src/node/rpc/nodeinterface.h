@@ -11,6 +11,7 @@ namespace ccf
   public:
     virtual ~AbstractNodeState() {}
     virtual bool finish_recovery(Store::Tx& tx, const nlohmann::json& args) = 0;
+    virtual bool open_network(Store::Tx& tx) = 0;
     virtual bool is_part_of_public_network() const = 0;
     virtual bool is_primary() const = 0;
     virtual void set_joiner_key(

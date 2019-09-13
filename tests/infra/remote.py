@@ -62,7 +62,7 @@ def log_errors(out_path, err_path):
     error_filter = ["[fail ]", "[fatal]"]
     try:
         errors = 0
-        tail_lines = deque(maxlen=15)
+        tail_lines = deque(maxlen=10)
         with open(out_path, "r") as lines:
             for line in lines:
                 stripped_line = line.rstrip()

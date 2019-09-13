@@ -31,7 +31,7 @@ def add_new_code(network, new_code_id):
     primary, _ = network.find_primary()
     result = network.propose(1, primary, "add_code", f"--new-code-id={new_code_id}")
 
-    network.vote_using_majority(primary, result[1]["id"], True)
+    network.vote_using_majority(primary, result[1]["id"])
 
 
 def create_node_using_new_code(network, args):

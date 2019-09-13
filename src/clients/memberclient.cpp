@@ -67,10 +67,20 @@ static const string accept_recovery_proposal(R"xxx(
       return Calls:call("accept_recovery", sealed_secrets)
     )xxx");
 
+static const string open_network_proposal(R"xxx(
+      tables = ...
+      return Calls:call("open_network")
+    )xxx");
+
 static const string accept_code_proposal(R"xxx(
       tables, code_digest = ...
       return Calls:call("new_code", code_digest)
     )xxx");
+
+json proposal_params(const string& script)
+{
+  return Propose::In{script};
+}
 
 template <typename T>
 json proposal_params(const string& script, const T& parameter)
@@ -163,6 +173,14 @@ void submit_accept_recovery(
   const auto sealed_secrets = slurp_json(sealed_secrets_file);
   const auto params =
     proposal_params<json>(accept_recovery_proposal, sealed_secrets);
+  const auto response =
+    json::from_msgpack(tls_connection.call("propose", params));
+  cout << response.dump() << std::endl;
+}
+
+void submit_open_network(RpcTlsClient& tls_connection)
+{
+  const auto params = proposal_params(open_network_proposal);
   const auto response =
     json::from_msgpack(tls_connection.call("propose", params));
   cout << response.dump() << std::endl;
@@ -339,6 +357,10 @@ int main(int argc, char** argv)
   withdraw->add_option("--proposal-id", proposal_id, "The proposal id")
     ->required(true);
 
+  auto open_network = app.add_subcommand(
+    "open_network",
+    "Open the network for users to issue business transactions");
+
   auto accept_recovery =
     app.add_subcommand("accept_recovery", "Accept to recover network");
 
@@ -460,6 +482,11 @@ int main(int argc, char** argv)
     if (*accept_recovery)
     {
       submit_accept_recovery(*tls_connection, sealed_secrets_file);
+    }
+
+    if (*open_network)
+    {
+      submit_open_network(*tls_connection);
     }
   }
   catch (const exception& ex)
