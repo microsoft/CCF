@@ -44,6 +44,7 @@ string get_script_path(string name)
   return ss.str();
 }
 const auto gov_script_file = files::slurp_string(get_script_path("gov.lua"));
+const auto operator_gov_script_file = files::slurp_string(get_script_path("operator_gov.lua"));
 
 template <typename T>
 auto mpack(T&& a)
@@ -1006,6 +1007,192 @@ TEST_CASE("Add user via proposed call")
   const auto uid1 = tx1.get_view(network.user_certs)->get(user_cert);
   REQUIRE(uid1);
   CHECK(*uid1 == 0);
+}
+
+TEST_CASE("Passing members ballot with operator")
+{
+  NetworkTables network;
+  GenesisGenerator gen(network);
+  gen.init_values();
+
+  // Operating member, as set in operator_gov.lua
+  const auto operator_cert = get_cert_data(0, kp);
+  const auto operator_id = gen.add_member(operator_cert, MemberStatus::ACTIVE);
+
+  // Non-operating members
+  std::map<size_t, ccf::Cert> members;
+  for (size_t i = 1; i < 4; i++)
+  {
+    auto cert = get_cert_data(i, kp);
+    members[gen.add_member(cert, MemberStatus::ACTIVE)] = cert;
+  }
+
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(operator_gov_script_file));
+  gen.finalize();
+
+  StubNodeState node;
+  MemberCallRpcFrontend frontend(network, node);
+
+  size_t proposal_id;
+
+  const ccf::Script vote_for("return true");
+  const ccf::Script vote_against("return false");
+  {
+    INFO("Propose and vote for");
+
+    const auto proposed_member = get_cert_data(4, kp);
+
+    Script proposal(R"xxx(
+      tables, member_cert = ...
+      return Calls:call("new_member", member_cert)
+    )xxx");
+    const auto proposej = create_json_req(
+      Propose::In{proposal, proposed_member, vote_for}, "propose");
+    enclave::RPCContext rpc_ctx(1, members[1]);
+
+    Store::Tx tx;
+    ccf::SignedReq sr(proposej);
+    Response<Propose::Out> r =
+      frontend.process_json(rpc_ctx, tx, 1, proposej, sr).value();
+
+    // the proposal should be accepted, but not succeed
+    CHECK(r.result.completed == false);
+
+    proposal_id = r.result.id;
+  }
+
+  {
+    INFO("Second member votes for proposal");
+
+    const auto votej =
+      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+
+    Store::Tx tx;
+    enclave::RPCContext rpc_ctx(2, members[2]);
+    ccf::SignedReq sr(votej);
+    Response<bool> r =
+      frontend.process_json(rpc_ctx, tx, 2, votej["req"], sr).value();
+
+    // The vote should succeed because the operator is not part of the quorum
+    CHECK(r.result == true);
+  }
+
+  {
+    INFO("Read current votes");
+
+    const auto readj = create_json_req_signed(
+      read_params(proposal_id, Tables::PROPOSALS), "read", kp);
+
+    Store::Tx tx;
+    enclave::RPCContext rpc_ctx(1, members[1]);
+    const Response<Proposal> proposal =
+      get_proposal(rpc_ctx, frontend, proposal_id, 1);
+
+    const auto& votes = proposal.result.votes;
+    CHECK(votes.size() == 2);
+
+    const auto proposer_vote = votes.find(1);
+    CHECK(proposer_vote != votes.end());
+    CHECK(proposer_vote->second == vote_for);
+
+    const auto voter_vote = votes.find(2);
+    CHECK(voter_vote != votes.end());
+    CHECK(voter_vote->second == vote_for);
+  }
+}
+
+TEST_CASE("Failing members ballot with operator")
+{
+  NetworkTables network;
+  GenesisGenerator gen(network);
+  gen.init_values();
+
+  // Operating member, as set in operator_gov.lua
+  const auto operator_cert = get_cert_data(0, kp);
+  const auto operator_id = gen.add_member(operator_cert, MemberStatus::ACTIVE);
+
+  // Non-operating members
+  std::map<size_t, ccf::Cert> members;
+  for (size_t i = 1; i < 4; i++)
+  {
+    auto cert = get_cert_data(i, kp);
+    members[gen.add_member(cert, MemberStatus::ACTIVE)] = cert;
+  }
+
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(operator_gov_script_file));
+  gen.finalize();
+
+  StubNodeState node;
+  MemberCallRpcFrontend frontend(network, node);
+
+  size_t proposal_id;
+
+  const ccf::Script vote_for("return true");
+  const ccf::Script vote_against("return false");
+  {
+    INFO("Propose and vote for");
+
+    const auto proposed_member = get_cert_data(4, kp);
+
+    Script proposal(R"xxx(
+      tables, member_cert = ...
+      return Calls:call("new_member", member_cert)
+    )xxx");
+    const auto proposej = create_json_req(
+      Propose::In{proposal, proposed_member, vote_for}, "propose");
+    enclave::RPCContext rpc_ctx(1, members[1]);
+
+    Store::Tx tx;
+    ccf::SignedReq sr(proposej);
+    Response<Propose::Out> r =
+      frontend.process_json(rpc_ctx, tx, 1, proposej, sr).value();
+
+    // the proposal should be accepted, but not succeed
+    CHECK(r.result.completed == false);
+
+    proposal_id = r.result.id;
+  }
+
+  {
+    INFO("Operator votes for proposal");
+
+    const auto votej =
+      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+
+    Store::Tx tx;
+    enclave::RPCContext rpc_ctx(operator_id, operator_cert);
+    ccf::SignedReq sr(votej);
+    Response<bool> r =
+      frontend.process_json(rpc_ctx, tx, operator_id, votej["req"], sr).value();
+
+    // The vote should not succeed because the operator is not part of the quorum
+    CHECK(r.result == false);
+  }
+
+  {
+    INFO("Read current votes");
+
+    const auto readj = create_json_req_signed(
+      read_params(proposal_id, Tables::PROPOSALS), "read", kp);
+
+    Store::Tx tx;
+    enclave::RPCContext rpc_ctx(1, members[1]);
+    const Response<Proposal> proposal =
+      get_proposal(rpc_ctx, frontend, proposal_id, 1);
+
+    const auto& votes = proposal.result.votes;
+    CHECK(votes.size() == 2);
+
+    const auto proposer_vote = votes.find(1);
+    CHECK(proposer_vote != votes.end());
+    CHECK(proposer_vote->second == vote_for);
+
+    const auto voter_vote = votes.find(operator_id);
+    CHECK(voter_vote != votes.end());
+    CHECK(voter_vote->second == vote_for);
+  }
 }
 
 // We need an explicit main to initialize kremlib and EverCrypt
