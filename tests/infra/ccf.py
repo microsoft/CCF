@@ -362,6 +362,7 @@ class Network:
                 break
 
         assert res
+        return res[1]
 
     def vote(self, member_id, remote_node, proposal_id, accept, force_unsigned=False):
         j_result = self.member_client_rpc_as_json(
