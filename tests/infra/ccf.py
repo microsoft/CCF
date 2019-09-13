@@ -376,7 +376,9 @@ class Network:
             return (False, j_result["error"])
 
         # If the proposal was accepted, wait for it to be globally committed
-        if j_result["result"] == True:
+        # This is particularly useful for the open network proposal to wait
+        # until the global hook on the SERVICE table is triggered
+        if j_result["result"]:
             with remote_node.management_client() as mc:
                 wait_for_global_commit(mc, j_result["commit"], j_result["term"])
 
