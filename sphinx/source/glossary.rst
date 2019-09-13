@@ -13,7 +13,7 @@ Glossary
     `Flexible Launch Control <https://github.com/intel/linux-sgx/blob/master/psw/ae/ref_le/ref_le.md#flexible-launch-control>`_ is a feature of the Intel :term:`SGX` architecture.
 
   JSON-RPC
-    `JSON-RPC <https://en.wikipedia.org/wiki/JSON-RPC>`_ is a remote procedure call protocol encoded in JSON.
+    `JSON-RPC <https://en.wikipedia.org/wiki/JSON-RPC>`_ is a remote procedure call protocol encoded in JSON. It is the format used by clients (i.e. members, users and operators) to interact with CCF.
 
   Microsoft Azure
     `Microsoft Azure <https://azure.microsoft.com>`_ is a cloud computing service created by Microsoft for building, testing, deploying, and managing applications and services through Microsoft-managed data centers.

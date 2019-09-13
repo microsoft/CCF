@@ -737,7 +737,7 @@ namespace kv
         }
 
         // Discardable, so move to commit_deltas.
-        if (global_hook)
+        if (global_hook && !r->writes.empty())
           std::move(r, std::next(r), std::back_inserter(commit_deltas));
 
         // Stop if the next state may be rolled back or is the only state.

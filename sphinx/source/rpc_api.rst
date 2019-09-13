@@ -144,7 +144,7 @@ vote
 .. jsonschema:: schemas/vote_result.json
 
 withdraw
--------
+--------
 
 .. jsonschema:: schemas/withdraw_params.json
 .. jsonschema:: schemas/withdraw_result.json
