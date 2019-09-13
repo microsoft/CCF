@@ -1,6 +1,10 @@
 Starting up a network
 =====================
 
+Once CCF has been built from source (see :ref:`Building CCF`), operators and members can bootstrap a new CCF network by following the steps below.
+
+.. note:: All required artefacts (e.g. ``cchost``, enclave libraries such as ``libloggingenc.so.signed``) can be found in the ``build`` directory created before running `cmake`.
+
 Creating a new network
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -34,7 +38,7 @@ To join an existing network, other nodes should be started with the ``join`` opt
 
 .. code-block:: bash
 
-     $ cchost --enclave-file /path/to/enclave_library --enclave-type debug
+    $ cchost --enclave-file /path/to/enclave_library --enclave-type debug
     --node-address node_ip:node_port --rpc-address rpc_ip:rpc_port
     --public-rpc-address public_rpc_ip:public_rpc_port --ledger-file /path/to/ledger
     --node-cert-file /path/to/node_certificate --quote-file /path/to/quote
@@ -44,10 +48,33 @@ The node takes the certificate of the existing network to join via ``--network-c
 
 .. note:: When starting up the network or when joining an existing network, the network secrets required to decrypt the ledger are sealed and written to a file so that the network can later be recovered. See :ref:`Catastrophic Recovery` for more details on how to recover a crashed network.
 
+Opening a network
+~~~~~~~~~~~~~~~~~
+
+Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to users. Users will then be able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).
+
+For example, the first member may decide to make a proposal to open the network:
+
+.. code-block:: bash
+
+    $ memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert open_network
+    {"commit":4,"global_commit":3,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":0},"term":2}
+
+Other members are then allowed to vote for the proposal, using the proposal ID returned to the proposer member (here ``0``, as per ``"result":{"completed":false,"id":0}``).
+
+.. code-block:: bash
+
+    memberclient --cert member2_cert --privk member2_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 0 --accept
+    {"commit":6,"global_commit":3,"id":0,"jsonrpc":"2.0","result":true,"term":2}
+
+Once a :term:`quorum` of members have approved the network opening (``"result":true``), the network is opened to users (see :ref:`Example App` for a simple business logic and :term:`JSON-RPC` transactions).
+
 Summary diagram
 ~~~~~~~~~~~~~~~
 
-Once a node is part of the network (started with either the ``start`` or ``join`` option), members and users are authorised to issue JSON-RPC transactions to CCF.
+Once a node is part of the network (started with either the ``start`` or ``join`` option), members are authorised to issue governance transactions and eventually open the network. Only then are users authorised to issue JSON-RPC transactions to CCF.
+
+.. note:: After the network is open to users, members can still issue governance transactions to CCF. See :ref:`Governance` for more information about member governance.
 
 The following diagram summarises the steps required to bootstrap a CCF network:
 
@@ -72,17 +99,18 @@ The following diagram summarises the steps required to bootstrap a CCF network:
         Note over Node 1: Part Of Network
 
         loop Governance transactions
-            Members->>+Node 0: JSON-RPC Request
-            Node 0-->>Members: JSON-RPC Response
-            Members->>+Node 1: JSON-RPC Request
-            Node 1-->>Members: JSON-RPC Response
+            Members->>+Node 0: JSON-RPC Request (any node)
+            Node 0-->>Members: JSON-RPC Response (any node)
         end
 
+        Members->>+Node 0: Propose to open network (any node)
+        Members->>+Node 0: Vote to open network (any node)
+        Note over Node 0, Node 1: Proposal accepted, CCF open to users
+
+
         loop Business transactions
-            Users->>+Node 0: JSON-RPC Request
-            Node 0-->>Users: JSON-RPC Response
-            Users->>+Node 1: JSON-RPC Request
-            Node 1-->>Users: JSON-RPC Response
+            Users->>+Node 0: JSON-RPC Request (any node)
+            Node 0-->>Users: JSON-RPC Response (any node)
         end
 
 
