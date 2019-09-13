@@ -138,8 +138,9 @@ class Network:
 
         LOG.info("Starting nodes on {}".format(hosts))
 
-        self.add_members([1, 2, 3])
-        self.add_users([1, 2, 3])
+        self.create_members([1, 2, 3])
+        initial_users = [1, 2, 3]
+        self.create_users(initial_users)
 
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
@@ -160,7 +161,6 @@ class Network:
                         workspace=args.workspace,
                         label=args.label,
                         members_certs="member*_cert.pem",
-                        users_certs="user*_cert.pem",
                         **forwarded_args,
                     )
                 else:
@@ -185,8 +185,11 @@ class Network:
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
 
+        self.add_users(primary, initial_users)
+        LOG.info("Initial set of users added")
+
         self.open_network(primary)
-        LOG.success("Network is now open")
+        LOG.success("***** Network is now open *****")
 
         return primary, self.nodes[1:]
 
@@ -309,13 +312,13 @@ class Network:
         LOG.success(f"New node {local_node_id} joined the network")
         return new_node
 
-    def add_members(self, members):
+    def create_members(self, members):
         self.members.extend(members)
         members = ["member{}".format(m) for m in members]
         for m in members:
             infra.proc.ccall("./keygenerator", "--name={}".format(m)).check_returncode()
 
-    def add_users(self, users):
+    def create_users(self, users):
         users = ["user{}".format(u) for u in users]
         for u in users:
             infra.proc.ccall("./keygenerator", "--name={}".format(u)).check_returncode()
@@ -393,8 +396,7 @@ class Network:
     def retire_node(self, remote_node, node_id):
         member_id = 1
         result = self.propose_retire_node(member_id, remote_node, node_id)
-        proposal_id = result[1]["id"]
-        result = self.vote_using_majority(remote_node, proposal_id)
+        result = self.vote_using_majority(remote_node, result[1]["id"])
 
         with remote_node.member_client() as c:
             id = c.request("read", {"table": "ccf.nodes", "key": node_id})
@@ -414,6 +416,11 @@ class Network:
         result = self.propose(1, node, "open_network")
         self.vote_using_majority(node, result[1]["id"])
         self.check_for_service(node)
+
+    def add_users(self, node, users):
+        for u in users:
+            result = self.propose(1, node, "add_user", f"--user-cert=user{u}_cert.pem")
+            result = self.vote_using_majority(node, result[1]["id"])
 
     def stop_all_nodes(self):
         for node in self.nodes:
@@ -614,7 +621,6 @@ class Node:
         workspace,
         label,
         members_certs,
-        users_certs,
         **kwargs,
     ):
         self._start(
@@ -625,7 +631,6 @@ class Node:
             label,
             None,
             members_certs,
-            users_certs,
             **kwargs,
         )
 
@@ -661,7 +666,6 @@ class Node:
         label,
         target_rpc_address=None,
         members_certs=None,
-        users_certs=None,
         **kwargs,
     ):
         """
@@ -690,7 +694,6 @@ class Node:
             label,
             target_rpc_address,
             members_certs,
-            users_certs,
             **kwargs,
         )
         self.remote.setup()

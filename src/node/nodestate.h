@@ -216,9 +216,6 @@ namespace ccf
           for (auto& cert : args.config.genesis.member_certs)
             g.add_member(cert);
 
-          for (auto& cert : args.config.genesis.user_certs)
-            g.add_user(cert);
-
           // Add self as TRUSTED
           self = g.add_node({args.config.node_info_network,
                              node_cert,
