@@ -614,15 +614,7 @@ class Node:
         else:
             self.node_port = probably_free_function(self.host)
 
-    def start(
-        self,
-        lib_name,
-        enclave_type,
-        workspace,
-        label,
-        members_certs,
-        **kwargs,
-    ):
+    def start(self, lib_name, enclave_type, workspace, label, members_certs, **kwargs):
         self._start(
             infra.remote.StartType.new,
             lib_name,
