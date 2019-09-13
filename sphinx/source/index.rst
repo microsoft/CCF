@@ -9,7 +9,7 @@ Welcome to CCF's documentation
    getting_started
    start_network
    ledger
-   governance
+   governance/index.rst
    kv/index.rst
    recovery
    cryptography
