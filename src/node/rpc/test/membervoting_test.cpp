@@ -44,7 +44,8 @@ string get_script_path(string name)
   return ss.str();
 }
 const auto gov_script_file = files::slurp_string(get_script_path("gov.lua"));
-const auto operator_gov_script_file = files::slurp_string(get_script_path("operator_gov.lua"));
+const auto operator_gov_script_file =
+  files::slurp_string(get_script_path("operator_gov.lua"));
 
 template <typename T>
 auto mpack(T&& a)
@@ -1028,7 +1029,8 @@ TEST_CASE("Passing members ballot with operator")
   }
 
   set_whitelists(gen);
-  gen.set_gov_scripts(lua::Interpreter().invoke<json>(operator_gov_script_file));
+  gen.set_gov_scripts(
+    lua::Interpreter().invoke<json>(operator_gov_script_file));
   gen.finalize();
 
   StubNodeState node;
@@ -1121,7 +1123,8 @@ TEST_CASE("Failing members ballot with operator")
   }
 
   set_whitelists(gen);
-  gen.set_gov_scripts(lua::Interpreter().invoke<json>(operator_gov_script_file));
+  gen.set_gov_scripts(
+    lua::Interpreter().invoke<json>(operator_gov_script_file));
   gen.finalize();
 
   StubNodeState node;
@@ -1167,7 +1170,8 @@ TEST_CASE("Failing members ballot with operator")
     Response<bool> r =
       frontend.process_json(rpc_ctx, tx, operator_id, votej["req"], sr).value();
 
-    // The vote should not succeed because the operator is not part of the quorum
+    // The vote should not succeed because the operator is not part of the
+    // quorum
     CHECK(r.result == false);
   }
 

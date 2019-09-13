@@ -140,12 +140,12 @@ namespace ccf
 
         // does the voter agree?
         votes[std::to_string(vote.first)] = tsr.run<bool>(
-              tx,
-              {vote.second,
-               {}, // can't write
-               WlIds::MEMBER_CAN_READ,
-               {}},
-              proposed_calls);
+          tx,
+          {vote.second,
+           {}, // can't write
+           WlIds::MEMBER_CAN_READ,
+           {}},
+          proposed_calls);
       }
 
       const auto pass = tsr.run<bool>(
