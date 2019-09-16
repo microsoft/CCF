@@ -1125,6 +1125,8 @@ TEST_CASE("Passing members ballot with operator")
 
 TEST_CASE("Passing operator vote")
 {
+  // Operator issues a proposal that only requires its own vote
+  // and gets it through without member votes
   NetworkTables network;
   GenesisGenerator gen(network);
   gen.init_values();
@@ -1192,7 +1194,7 @@ TEST_CASE("Passing operator vote")
   }
 
   {
-    INFO("Read current votes");
+    INFO("Validate vote tally");
 
     const auto readj = create_json_req_signed(
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
@@ -1207,14 +1209,15 @@ TEST_CASE("Passing operator vote")
 
     const auto proposer_vote = votes.find(operator_id);
     CHECK(proposer_vote != votes.end());
-    // TODO: find out why this doesn't work
-    //CHECK(proposer_vote->second == vote_for);
+    CHECK(proposer_vote->second == vote_for);
   }
 }
 
 
 TEST_CASE("Members passing an operator vote")
 {
+  // Operator proposes a vote, but does not vote for it
+  // A majority of members pass the vote
   NetworkTables network;
   GenesisGenerator gen(network);
   gen.init_values();
@@ -1263,7 +1266,7 @@ TEST_CASE("Members passing an operator vote")
   }
 
   {
-    INFO("Operator proposes and votes for node");
+    INFO("Operator proposes and votes against adding node");
     Script proposal(R"xxx(
       local tables, node_id = ...
       return Calls:call("accept_node", node_id)
