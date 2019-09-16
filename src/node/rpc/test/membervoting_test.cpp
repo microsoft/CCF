@@ -1188,7 +1188,7 @@ TEST_CASE("Passing operator vote")
       frontend.process_json(rpc_ctx, tx, operator_id, proposej, sr).value();
 
     CHECK(r.result.completed);
-    CHECK(r.result.id == 0);
+    proposal_id = r.result.id;
   }
 
   {
@@ -1212,6 +1212,105 @@ TEST_CASE("Passing operator vote")
   }
 }
 
+
+TEST_CASE("Members passing an operator vote")
+{
+  NetworkTables network;
+  GenesisGenerator gen(network);
+  gen.init_values();
+  auto new_kp = tls::make_key_pair();
+  auto new_ca = new_kp->self_sign("CN=new node");
+  NodeInfo ni = {"", "", "", "", new_ca, {}};
+  gen.add_node(ni);
+
+  // Operating member, as set in operator_gov.lua
+  const auto operator_cert = get_cert_data(0, kp);
+  const auto operator_id = gen.add_member(operator_cert, MemberStatus::ACTIVE);
+
+  // Non-operating members
+  std::map<size_t, ccf::Cert> members;
+  for (size_t i = 1; i < 4; i++)
+  {
+    auto cert = get_cert_data(i, kp);
+    members[gen.add_member(cert, MemberStatus::ACTIVE)] = cert;
+  }
+
+  set_whitelists(gen);
+  gen.set_gov_scripts(
+    lua::Interpreter().invoke<json>(operator_gov_script_file));
+  gen.finalize();
+
+  StubNodeState node;
+  MemberCallRpcFrontend frontend(network, node);
+
+  size_t proposal_id;
+
+  const ccf::Script vote_for("return true");
+  const ccf::Script vote_against("return false");
+
+  auto node_id = 0;
+  {
+    INFO("Check node exists with status pending");
+    Store::Tx tx;
+    auto read_values_j =
+      create_json_req(read_params<int>(node_id, Tables::NODES), "read");
+    ccf::SignedReq sr(read_values_j);
+
+    enclave::RPCContext rpc_ctx(operator_id, operator_cert);
+    Response<NodeInfo> r =
+      frontend.process_json(rpc_ctx, tx, operator_id, read_values_j, sr).value();
+    CHECK(r.result.status == NodeStatus::PENDING);
+  }
+
+  {
+    INFO("Operator proposes and votes for node");
+    Script proposal(R"xxx(
+      local tables, node_id = ...
+      return Calls:call("accept_node", node_id)
+    )xxx");
+
+    json proposej = create_json_req(Propose::In{proposal, node_id, vote_against}, "propose");
+    ccf::SignedReq sr(proposej);
+
+    Store::Tx tx;
+    enclave::RPCContext rpc_ctx(operator_id, operator_cert);
+    Response<Propose::Out> r =
+      frontend.process_json(rpc_ctx, tx, operator_id, proposej, sr).value();
+
+    CHECK(!r.result.completed);
+    proposal_id = r.result.id;
+  }
+
+  {
+    INFO("First member votes for proposal");
+
+    const auto votej =
+      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+
+    Store::Tx tx;
+    enclave::RPCContext rpc_ctx(1, members[1]);
+    ccf::SignedReq sr(votej);
+    Response<bool> r =
+      frontend.process_json(rpc_ctx, tx, 1, votej["req"], sr).value();
+
+    CHECK(r.result == false);
+  }
+
+  {
+    INFO("Second member votes for proposal");
+
+    const auto votej =
+      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+
+    Store::Tx tx;
+    enclave::RPCContext rpc_ctx(2, members[2]);
+    ccf::SignedReq sr(votej);
+    Response<bool> r =
+      frontend.process_json(rpc_ctx, tx, 2, votej["req"], sr).value();
+
+    CHECK(r.result == true);
+  }   
+}
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
