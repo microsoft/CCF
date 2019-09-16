@@ -212,17 +212,6 @@ int main(int argc, char** argv)
       true)
     ->required();
 
-  // TODO: For now, user certificate are passed when the node starts up
-  // See https://github.com/microsoft/CCF/issues/293
-  std::string user_cert_file = "user*_cert.pem";
-  start
-    ->add_option(
-      "--user-certs",
-      user_cert_file,
-      "Globbing pattern for user certificate files",
-      true)
-    ->required();
-
   auto join = app.add_subcommand("join", "Join existing network");
   join
     ->add_option(
@@ -327,7 +316,6 @@ int main(int argc, char** argv)
     LOG_INFO_FMT("Creating new node - new network");
     start_type = StartType::New;
     ccf_config.genesis.member_certs = files::slurp_certs(member_cert_file);
-    ccf_config.genesis.user_certs = files::slurp_certs(user_cert_file);
     ccf_config.genesis.gov_script = files::slurp_string(gov_script);
     if (*app_script_opt)
       ccf_config.genesis.app_script = files::slurp_string(app_script);

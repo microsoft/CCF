@@ -464,7 +464,6 @@ class CCFRemote(object):
         label,
         target_rpc_address=None,
         members_certs=None,
-        users_certs=None,
         host_log_level="info",
         ignore_quote=False,
         sig_max_tx=1000,
@@ -554,10 +553,9 @@ class CCFRemote(object):
                 "start",
                 "--network-cert-file=networkcert.pem",
                 f"--member-certs={members_certs}",
-                f"--user-certs={users_certs}",
                 f"--gov-script={os.path.basename(gov_script)}",
             ]
-            data_files += [members_certs, users_certs, os.path.basename(gov_script)]
+            data_files += [members_certs, os.path.basename(gov_script)]
             if app_script:
                 cmd += [f"--app-script={os.path.basename(app_script)}"]
                 data_files += [os.path.basename(app_script)]
