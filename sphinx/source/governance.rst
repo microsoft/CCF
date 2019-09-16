@@ -1,15 +1,29 @@
 Governance
 ==========
 
-A trusted set of members is in charge of governing a given CCF network. For transparency and auditability, all governance operations are recorded in plaintext in the ledger.
+A trusted set of members is in charge of governing a given CCF network. For transparency and auditability, all governance operations are recorded in plaintext in the ledger and members are required to sign their requests.
 
 One member (proposer) can submit a new proposal. Once they have done this, other members can vote for the proposal using its unique proposal ID. Proposals are executed once a :term:`quorum` of members have accepted it.
 
-The quorum is defined as a Lua script in the genesis transaction (see for example `the default quorum script`_). Common governance operations include adding a new user, member or a new version of the CCF code.
+The quorum is defined as a Lua script in the genesis transaction (see for example `the default quorum script`_).
 
 .. note:: A proposal can be a Lua script defined by the proposer member or a static function defined by CCF (e.g. ``new_member``).
 
 .. _`the default quorum script`: https://github.com/microsoft/CCF/blob/master/src/runtime_config/gov.lua
+
+
+Common governance operations
+----------------------------
+
+Common member governance operations include:
+
+- :ref:`Adding users`
+- :ref:`Opening a network`
+- Adding members
+- :ref:`Updating trusted enclave code versions`
+- Accepting a new node to the network
+- Retiring an existing node
+- Accepting :ref:`catastrophic recovery`
 
 Submitting a new proposal
 -------------------------
@@ -94,3 +108,19 @@ At any stage during the voting process and before the proposal is completed, the
 
 This means future votes will be ignored, and the proposal will never be accepted. However it will remain visible as a proposal so members can easily audit historic proposals.
 
+Updating trusted enclave code versions
+--------------------------------------
+
+For new nodes to be able to join the network, the version of the code they run (as specified by the ``--enclave-file``) should be first trusted by the consortium of members.
+
+If the version of the code being executed needs to be updated (for example, to support additional endpoints), members can create a ``new_code`` proposal, specifying the new code version (e.g. ``3175971c02d00c1a8f9dd23ca89e64955c5caa94e24f4a3a0579dcfb2e6aebf9``):
+
+.. code-block:: bash
+
+    memberclient --cert member_cert --privk member_privk --rpc-address node_ip:node_port --ca network_cert add_code --new-code-id code_version
+
+Once the proposal has been accepted, nodes running the new code are authorised join the network. Nodes running older versions of the code can then be retired and stopped.
+
+.. note:: It is important to keep the code compatible with the previous version, since there will be a point in time in which the new code is running on at least one node, while the other version is running on a different node.
+
+.. note:: The safest way to restart or replace nodes is by stopping a single node running the old version and starting a node running the new version as a sequence of operations, in order to avoid a situation in which most nodes have been stopped, and new nodes will not be able to join since it would be impossible to reach a majority of nodes agreeing to accept new nodes (this restriction is imposed by the consensus algorithm).

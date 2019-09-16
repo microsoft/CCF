@@ -611,10 +611,9 @@ namespace ccf
       if (!rpc.first)
         return {jsonrpc::pack(rpc.second, pack.value()), merkle_root};
 
-      SignedReq signed_request;
-
       // Strip signature
       auto rpc_ = &rpc.second;
+      SignedReq signed_request(rpc.second);
       if (rpc_->find(jsonrpc::SIG) != rpc_->end())
       {
         auto& req = rpc_->at(jsonrpc::REQ);

@@ -75,7 +75,9 @@ def network(
 
 # TODO: This function should only be part of the Checker class once the
 # memberclient is no longer used.
-def wait_for_global_commit(management_client, commit_index, term, timeout=2):
+def wait_for_global_commit(
+    management_client, commit_index, term, mksign=False, timeout=2
+):
     """
     Given a client to a CCF network and a commit_index/term pair, this function
     waits for this specific commit index to be globally committed by the
@@ -83,6 +85,13 @@ def wait_for_global_commit(management_client, commit_index, term, timeout=2):
     A TimeoutError exception is raised if the commit index is not globally
     committed within the given timeout.
     """
+    # Waiting for a global commit can significantly slow down tests as
+    # signatures take some time to be emitted and globally committed.
+    # Forcing a signature accelerates this process for common operations
+    # (e.g. governance proposals)
+    if mksign:
+        management_client.rpc("mkSign", params={})
+
     for i in range(timeout * 10):
         r = management_client.rpc("getCommit", {"commit": commit_index})
         if r.global_commit >= commit_index and r.result["term"] == term:
@@ -138,8 +147,9 @@ class Network:
 
         LOG.info("Starting nodes on {}".format(hosts))
 
-        self.add_members([1, 2, 3])
-        self.add_users([1, 2, 3])
+        self.create_members([1, 2, 3])
+        initial_users = [1, 2, 3]
+        self.create_users(initial_users)
 
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
@@ -160,7 +170,6 @@ class Network:
                         workspace=args.workspace,
                         label=args.label,
                         members_certs="member*_cert.pem",
-                        users_certs="user*_cert.pem",
                         **forwarded_args,
                     )
                 else:
@@ -185,8 +194,11 @@ class Network:
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
 
+        self.add_users(primary, initial_users)
+        LOG.info("Initial set of users added")
+
         self.open_network(primary)
-        LOG.success("Network is now open")
+        LOG.success("***** Network is now open *****")
 
         return primary, self.nodes[1:]
 
@@ -309,13 +321,13 @@ class Network:
         LOG.success(f"New node {local_node_id} joined the network")
         return new_node
 
-    def add_members(self, members):
+    def create_members(self, members):
         self.members.extend(members)
         members = ["member{}".format(m) for m in members]
         for m in members:
             infra.proc.ccall("./keygenerator", "--name={}".format(m)).check_returncode()
 
-    def add_users(self, users):
+    def create_users(self, users):
         users = ["user{}".format(u) for u in users]
         for u in users:
             infra.proc.ccall("./keygenerator", "--name={}".format(u)).check_returncode()
@@ -381,7 +393,7 @@ class Network:
         # until the global hook on the SERVICE table is triggered
         if j_result["result"]:
             with remote_node.management_client() as mc:
-                wait_for_global_commit(mc, j_result["commit"], j_result["term"])
+                wait_for_global_commit(mc, j_result["commit"], j_result["term"], True)
 
         return (True, j_result["result"])
 
@@ -393,8 +405,7 @@ class Network:
     def retire_node(self, remote_node, node_id):
         member_id = 1
         result = self.propose_retire_node(member_id, remote_node, node_id)
-        proposal_id = result[1]["id"]
-        result = self.vote_using_majority(remote_node, proposal_id)
+        result = self.vote_using_majority(remote_node, result[1]["id"])
 
         with remote_node.member_client() as c:
             id = c.request("read", {"table": "ccf.nodes", "key": node_id})
@@ -414,6 +425,11 @@ class Network:
         result = self.propose(1, node, "open_network")
         self.vote_using_majority(node, result[1]["id"])
         self.check_for_service(node)
+
+    def add_users(self, node, users):
+        for u in users:
+            result = self.propose(1, node, "add_user", f"--user-cert=user{u}_cert.pem")
+            result = self.vote_using_majority(node, result[1]["id"])
 
     def stop_all_nodes(self):
         for node in self.nodes:
@@ -607,16 +623,7 @@ class Node:
         else:
             self.node_port = probably_free_function(self.host)
 
-    def start(
-        self,
-        lib_name,
-        enclave_type,
-        workspace,
-        label,
-        members_certs,
-        users_certs,
-        **kwargs,
-    ):
+    def start(self, lib_name, enclave_type, workspace, label, members_certs, **kwargs):
         self._start(
             infra.remote.StartType.new,
             lib_name,
@@ -625,7 +632,6 @@ class Node:
             label,
             None,
             members_certs,
-            users_certs,
             **kwargs,
         )
 
@@ -661,7 +667,6 @@ class Node:
         label,
         target_rpc_address=None,
         members_certs=None,
-        users_certs=None,
         **kwargs,
     ):
         """
@@ -690,7 +695,6 @@ class Node:
             label,
             target_rpc_address,
             members_certs,
-            users_certs,
             **kwargs,
         )
         self.remote.setup()

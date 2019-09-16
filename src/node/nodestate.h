@@ -216,9 +216,6 @@ namespace ccf
           for (auto& cert : args.config.genesis.member_certs)
             g.add_member(cert);
 
-          for (auto& cert : args.config.genesis.user_certs)
-            g.add_user(cert);
-
           // Add self as TRUSTED
           self = g.add_node({args.config.node_info_network,
                              node_cert,
@@ -1052,13 +1049,10 @@ namespace ccf
                                         kv::Version version,
                                         const Service::State& s,
                                         const Service::Write& w) {
-        if (w.size() > 0)
+        if (w.at(0).value.status == ServiceStatus::OPEN)
         {
-          if (w.at(0).value.status == ServiceStatus::OPEN)
-          {
-            accept_user_connections();
-            LOG_INFO_FMT("Now accepting user transactions");
-          }
+          accept_user_connections();
+          LOG_INFO_FMT("Now accepting user transactions");
         }
       });
 
@@ -1247,6 +1241,11 @@ namespace ccf
     void setup_pbft()
     {
       setup_n2n_channels();
+
+      // Since global hooks are not yet called when running CCF with ePBFT,
+      // opening the network to users is hardcoded here for now. See
+      // https://github.com/microsoft/CCF/issues/373
+      accept_user_connections();
 
       consensus = std::make_shared<PbftConsensusType>(
         n2n_channels,
