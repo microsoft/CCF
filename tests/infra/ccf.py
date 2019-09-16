@@ -301,8 +301,6 @@ class Network:
             return False
 
         node.network_state = NodeNetworkState.joined
-        # self.wait_for_all_nodes_to_catch_up(primary)
-        # LOG.success(f"New node {node.local_node_id} joined the network")
         return True
 
     def create_and_add_node(self, lib_name, host, args):

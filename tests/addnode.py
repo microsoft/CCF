@@ -13,7 +13,7 @@ from loguru import logger as LOG
 
 
 def run(args):
-    hosts = ["localhost", "localhost", "localhost"]
+    hosts = ["localhost", "localhost"]
 
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
