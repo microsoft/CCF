@@ -75,7 +75,7 @@ def network(
 
 # TODO: This function should only be part of the Checker class once the
 # memberclient is no longer used.
-def wait_for_global_commit(management_client, commit_index, term, timeout=2):
+def wait_for_global_commit(management_client, commit_index, term, mksign=False, timeout=2):
     """
     Given a client to a CCF network and a commit_index/term pair, this function
     waits for this specific commit index to be globally committed by the
@@ -83,6 +83,13 @@ def wait_for_global_commit(management_client, commit_index, term, timeout=2):
     A TimeoutError exception is raised if the commit index is not globally
     committed within the given timeout.
     """
+    # Waiting for a global commit can significantly slow down tests as
+    # signatures take some time to be emitted and globally committed.
+    # Forcing a signature accelerates this process for common operations
+    # (e.g. governance proposals)
+    if mksign:
+        management_client.rpc("mkSign", params={})
+
     for i in range(timeout * 10):
         r = management_client.rpc("getCommit", {"commit": commit_index})
         if r.global_commit >= commit_index and r.result["term"] == term:
@@ -384,7 +391,7 @@ class Network:
         # until the global hook on the SERVICE table is triggered
         if j_result["result"]:
             with remote_node.management_client() as mc:
-                wait_for_global_commit(mc, j_result["commit"], j_result["term"])
+                wait_for_global_commit(mc, j_result["commit"], j_result["term"], True)
 
         return (True, j_result["result"])
 
