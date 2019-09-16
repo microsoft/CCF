@@ -307,9 +307,10 @@ class Network:
         local_node_id = self.get_next_local_node_id()
         new_node = self.create_node(local_node_id, host)
 
-        if self.add_node(new_node, lib_name, args) is False:
+        if self.add_node(new_node, lib_name, None, args) is False:
             return None
 
+        primary, _ = self.find_primary()
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success(f"New node {local_node_id} joined the network")
 
