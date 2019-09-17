@@ -14,7 +14,7 @@ return {
     end
   end
 
-  -- count active members, excluding operators
+  -- count active members
   members_active = 0
   STATE_ACTIVE = 1
 
