@@ -1039,6 +1039,8 @@ TEST_CASE("Passing members ballot with operator")
   MemberCallRpcFrontend frontend(network, node);
 
   size_t proposal_id;
+  size_t proposer_id = 1;
+  size_t voter_id = 2;
 
   const ccf::Script vote_for("return true");
   const ccf::Script vote_against("return false");
@@ -1053,12 +1055,12 @@ TEST_CASE("Passing members ballot with operator")
     )xxx");
     const auto proposej = create_json_req(
       Propose::In{proposal, proposed_member, vote_for}, "propose");
-    enclave::RPCContext rpc_ctx(1, members[1]);
+    enclave::RPCContext rpc_ctx(proposer_id, members[proposer_id]);
 
     Store::Tx tx;
     ccf::SignedReq sr(proposej);
     Response<Propose::Out> r =
-      frontend.process_json(rpc_ctx, tx, 1, proposej, sr).value();
+      frontend.process_json(rpc_ctx, tx, proposer_id, proposej, sr).value();
 
     CHECK(r.result.completed == false);
 
@@ -1087,10 +1089,10 @@ TEST_CASE("Passing members ballot with operator")
       create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
 
     Store::Tx tx;
-    enclave::RPCContext rpc_ctx(2, members[2]);
+    enclave::RPCContext rpc_ctx(voter_id, members[voter_id]);
     ccf::SignedReq sr(votej);
     Response<bool> r =
-      frontend.process_json(rpc_ctx, tx, 2, votej["req"], sr).value();
+      frontend.process_json(rpc_ctx, tx, voter_id, votej["req"], sr).value();
 
     CHECK(r.result == true);
   }
@@ -1102,9 +1104,9 @@ TEST_CASE("Passing members ballot with operator")
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
 
     Store::Tx tx;
-    enclave::RPCContext rpc_ctx(1, members[1]);
+    enclave::RPCContext rpc_ctx(proposer_id, members[proposer_id]);
     const Response<Proposal> proposal =
-      get_proposal(rpc_ctx, frontend, proposal_id, 1);
+      get_proposal(rpc_ctx, frontend, proposal_id, proposer_id);
 
     const auto& votes = proposal.result.votes;
     CHECK(votes.size() == 3);
@@ -1113,11 +1115,11 @@ TEST_CASE("Passing members ballot with operator")
     CHECK(operator_vote != votes.end());
     CHECK(operator_vote->second == vote_for);
 
-    const auto proposer_vote = votes.find(1);
+    const auto proposer_vote = votes.find(proposer_id);
     CHECK(proposer_vote != votes.end());
     CHECK(proposer_vote->second == vote_for);
 
-    const auto voter_vote = votes.find(2);
+    const auto voter_vote = votes.find(voter_id);
     CHECK(voter_vote != votes.end());
     CHECK(voter_vote->second == vote_for);
   }
@@ -1200,7 +1202,7 @@ TEST_CASE("Passing operator vote")
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
 
     Store::Tx tx;
-    enclave::RPCContext rpc_ctx(1, members[1]);
+    enclave::RPCContext rpc_ctx(operator_id, operator_cert);
     const Response<Proposal> proposal =
       get_proposal(rpc_ctx, frontend, proposal_id, 1);
 
@@ -1284,6 +1286,9 @@ TEST_CASE("Members passing an operator vote")
     proposal_id = r.result.id;
   }
 
+  size_t first_voter_id = 1;
+  size_t second_voter_id = 2;
+
   {
     INFO("First member votes for proposal");
 
@@ -1291,10 +1296,10 @@ TEST_CASE("Members passing an operator vote")
       create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
 
     Store::Tx tx;
-    enclave::RPCContext rpc_ctx(1, members[1]);
+    enclave::RPCContext rpc_ctx(first_voter_id, members[first_voter_id]);
     ccf::SignedReq sr(votej);
     Response<bool> r =
-      frontend.process_json(rpc_ctx, tx, 1, votej["req"], sr).value();
+      frontend.process_json(rpc_ctx, tx, first_voter_id, votej["req"], sr).value();
 
     CHECK(r.result == false);
   }
@@ -1306,13 +1311,40 @@ TEST_CASE("Members passing an operator vote")
       create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
 
     Store::Tx tx;
-    enclave::RPCContext rpc_ctx(2, members[2]);
+    enclave::RPCContext rpc_ctx(second_voter_id, members[second_voter_id]);
     ccf::SignedReq sr(votej);
     Response<bool> r =
-      frontend.process_json(rpc_ctx, tx, 2, votej["req"], sr).value();
+      frontend.process_json(rpc_ctx, tx, second_voter_id, votej["req"], sr).value();
 
     CHECK(r.result == true);
-  }   
+  }
+
+  {
+    INFO("Validate vote tally");
+
+    const auto readj = create_json_req_signed(
+      read_params(proposal_id, Tables::PROPOSALS), "read", kp);
+
+    Store::Tx tx;
+    enclave::RPCContext rpc_ctx(operator_id, operator_cert);
+    const Response<Proposal> proposal =
+      get_proposal(rpc_ctx, frontend, proposal_id, 1);
+
+    const auto& votes = proposal.result.votes;
+    CHECK(votes.size() == 3);
+
+    const auto proposer_vote = votes.find(operator_id);
+    CHECK(proposer_vote != votes.end());
+    CHECK(proposer_vote->second == vote_against);
+
+    const auto first_vote = votes.find(first_voter_id);
+    CHECK(first_vote != votes.end());
+    CHECK(first_vote->second == vote_for);
+
+    const auto second_vote = votes.find(second_voter_id);
+    CHECK(second_vote != votes.end());
+    CHECK(second_vote->second == vote_for);
+  }
 }
 
 // We need an explicit main to initialize kremlib and EverCrypt
