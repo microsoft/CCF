@@ -5,6 +5,8 @@
 #include "ds/messaging.h"
 #include "tcp.h"
 
+#include <curl/curl.h>
+
 namespace asynchost
 {
   class NotifyConnections
@@ -74,6 +76,24 @@ namespace asynchost
 
           if (is_setup)
             notify_client->write(msg.size(), msg.data());
+
+          CURL* curl = curl_easy_init();
+          CURLcode res;
+          if (curl)
+          {
+            curl_easy_setopt(curl, CURLOPT_URL, "0.0.0.0:4242");
+            curl_easy_setopt(curl, CURLOPT_POST, 1L);
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
+
+            res = curl_easy_perform(curl);
+            /* Check for errors */
+            if (res != CURLE_OK)
+              LOG_FAIL_FMT(
+                "curl_easy_perform() failed: {}", curl_easy_strerror(res));
+
+            /* always cleanup */
+            curl_easy_cleanup(curl);
+          }
         });
     }
   };

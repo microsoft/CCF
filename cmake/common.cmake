@@ -524,6 +524,7 @@ if(NOT ${TARGET} STREQUAL "virtual")
     ${CMAKE_THREAD_LIBS_INIT}
     ccfcrypto.host
     evercrypt.host
+    curl
   )
   enable_quote_code(cchost)
 endif()
@@ -551,6 +552,7 @@ if(${TARGET} STREQUAL "virtual" OR ${TARGET} STREQUAL "all")
     -stdlib=libc++
     ccfcrypto.host
     evercrypt.host
+    curl
   )
 endif()
 
