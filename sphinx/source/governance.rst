@@ -6,25 +6,22 @@ A trusted set of members is in charge of governing a given CCF network. For tran
 Any member (proposer) can submit a new proposal. Other members can then vote on this proposal using its unique proposal ID. Votes for the proposal are evaluated by the constitution's `pass` function.
 If the `pass` function returns true, the vote is passed, and its consequences are applied to the KV in a transaction.
 
-This `simple constitution` implements a "one-member, one-vote" constitution, with a majority rule. Votes on so-called sensitive tables, such as the one containing the constitution itself, require unanimity.
+This `simple constitution`_ implements a "one-member, one-vote" constitution, with a majority rule. Votes on so-called sensitive tables, such as the one containing the constitution itself, require unanimity.
 
 .. note:: A proposal can be a Lua script defined by the proposer member or a static function defined by CCF (e.g. ``new_member``).
 
-Common governance operations
-----------------------------
-
-Common member governance operations include:
+Operations
+----------
 
 - :ref:`Adding users`
-- :ref:`Opening a network`
 - Adding members
-- :ref:`Updating trusted enclave code versions`
+- :ref:`Opening a network`
+- :ref:`Updating code`
 - Accepting a new node to the network
-- Retiring an existing node
-- Accepting :ref:`catastrophic recovery`
+- Accept :ref:`Catastrophic Recovery`
 
-Submit a new proposal
-`````````````````````
+Submitting a new proposal
+`````````````````````````
 
 Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using the ``memberclient`` command-line utility (see :ref:`Member methods` for equivalent JSON-RPC API).
 
@@ -60,8 +57,8 @@ As soon as ``member3`` accepts the proposal, a majority (2 out of 3) of members 
         {"commit":108,"global_commit":107,"id":2,"jsonrpc":"2.0","result":true,"term":2}
 
 
-Display proposals
-`````````````````
+Displaying proposals
+````````````````````
 
 The details of pending proposals, including the proposer member ID, proposal script, parameters and votes, can be displayed with the ``proposal_display`` sub command of the ``memberclient`` utility. For example:
 
@@ -94,8 +91,8 @@ The details of pending proposals, including the proposer member ID, proposal scr
 
 In this case, there is one pending proposal (``id`` is 1), proposed by the first member (``member1``, ``id`` is 0) and which will call the ``new_member`` function with the new member's certificate as a parameter. Two votes have been cast: ``member1`` (proposer) has voted for the proposal, while ``member2`` (``id`` is 1) has voted against it.
 
-Withdraw a proposal
-```````````````````
+Withdrawing a proposal
+``````````````````````
 
 At any stage during the voting process and before the proposal is completed, the proposing member may decide to withdraw a pending proposal:
 
@@ -106,8 +103,8 @@ At any stage during the voting process and before the proposal is completed, the
 
 This means future votes will be ignored, and the proposal will never be accepted. However it will remain visible as a proposal so members can easily audit historic proposals.
 
-Update code
-```````````
+Updating code
+`````````````
 
 For new nodes to be able to join the network, the version of the code they run (as specified by the ``--enclave-file``) should be first trusted by the consortium of members.
 
@@ -124,13 +121,13 @@ Once the proposal has been accepted, nodes running the new code are authorised j
 .. note:: The safest way to restart or replace nodes is by stopping a single node running the old version and starting a node running the new version as a sequence of operations, in order to avoid a situation in which most nodes have been stopped, and new nodes will not be able to join since it would be impossible to reach a majority of nodes agreeing to accept new nodes (this restriction is imposed by the consensus algorithm).
 
 
-Hosted CCF
-----------
+Models
+------
 
 The entities operating a CCF network do not necessarily overlap with the members of that network. Although the scriptability of the governance model effectively allows a large number of possible arrangements, the following two schemes seem most likely:
 
 Non-member operators
-~~~~~~~~~~~~~~~~~~~~
+````````````````````
 
 It is possible for a set of operators to host a CCF network without being members. These operators could:
 
@@ -151,7 +148,7 @@ Operators would not be able to add or remove members or users to the service. Th
 This model keeps operators out of the trust boundary for the service.
 
 Operating members
-~~~~~~~~~~~~~~~~~
+`````````````````
 
 If network operators are made members, they could have the ability to:
 
@@ -167,8 +164,8 @@ The constitution can limit or remove the operating members' ability to:
 
 .. note:: These limits are weakened by the operators' ability to update the code. A code update could contain changes that allow the operator to bypass constitution restrictions. Work is in progress to propose a service that would effectively mitigate this problem. In the absence of code updates however, other members of the service could trust that the operating members have not added or removed members and users, and have not executed a recovery.
 
-This `operating member constitution` shows how some members can be made operators. 
+This `operating member constitution`_ shows how some members can be made operators. 
 
-.. _`simple constitution`: https://github.com/microsoft/CCF/blob/master/src/runtime_config/gov.lua
+.. _`simple constitution`_: https://github.com/microsoft/CCF/blob/master/src/runtime_config/gov.lua
 
-.. _`operating member constitution`: https://github.com/microsoft/CCF/blob/master/src/runtime_config/operator_gov.lua
+.. _`operating member constitution`_: https://github.com/microsoft/CCF/blob/master/src/runtime_config/operator_gov.lua
