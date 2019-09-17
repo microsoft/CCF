@@ -344,13 +344,21 @@ namespace ccf
           // Set network secrets, node id and become part of network.
           auto res = j.at(jsonrpc::RESULT).get<JoinNetworkNodeToNode::Out>();
 
+          if (res.version.has_value())
+            LOG_FAIL_FMT("Node added in state TRUSTED");
+          else
+          {
+            LOG_FAIL_FMT("Node added in state PENDING");
+          }
+
+
           // If the current network secrets do not apply since the genesis,
           // the joining node can only join the public network
           bool public_only = (res.version != 0);
 
           // In a private network, seal secrets immediately.
           network.secrets = std::make_unique<NetworkSecrets>(
-            res.version,
+            res.version.value(),
             res.network_secrets,
             std::make_unique<Seal>(writer_factory),
             !public_only);

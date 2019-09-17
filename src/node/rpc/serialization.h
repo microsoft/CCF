@@ -28,9 +28,10 @@ namespace ccf
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::In)
   DECLARE_JSON_REQUIRED_FIELDS(
     JoinNetworkNodeToNode::In, raw_fresh_key, node_info_network, quote)
-  DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    JoinNetworkNodeToNode::Out, id, network_secrets, version)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, id, network_secrets)
+  // TODO: network_secrets should also be optional?
+  DECLARE_JSON_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out, version)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetCommit::In)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::In)

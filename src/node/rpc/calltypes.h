@@ -139,7 +139,8 @@ namespace ccf
     {
       NodeId id;
       NetworkSecrets::Secret network_secrets;
-      int64_t version; // Current version of the network secrets
+      std::optional<int64_t> version =
+        std::nullopt; // Current version of the network secrets
     };
   };
 }

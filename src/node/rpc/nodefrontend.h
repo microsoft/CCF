@@ -18,6 +18,13 @@ namespace ccf
       auto accept = [&node, &network](RequestArgs& args) {
         const auto in = args.params.get<JoinNetworkNodeToNode::In>();
 
+        auto [nodes_view, service_view] =
+          args.tx.get_view(network.nodes, network.service);
+
+        auto active_service = service_view->get(0);
+        if (!active_service.has_value())
+          throw std::logic_error("No active service to accept new node");
+
         // Convert caller cert from DER to PEM as PEM certificates are quoted
         auto caller_pem = tls::make_verifier({args.rpc_ctx.caller_cert.p,
                                               args.rpc_ctx.caller_cert.p +
@@ -25,8 +32,6 @@ namespace ccf
                             ->cert_pem();
         std::vector<uint8_t> caller_pem_raw = {caller_pem.str().begin(),
                                                caller_pem.str().end()};
-
-        auto nodes_view = args.tx.get_view(network.nodes);
 
         // Check that an active node with the same network info does not already
         // exist
@@ -69,27 +74,44 @@ namespace ccf
         NodeId joining_node_id =
           get_next_id(args.tx.get_view(network.values), NEXT_NODE_ID);
 
+        // Set joiner's fresh key for encrypting past network secrets
+        node.set_joiner_key(joining_node_id, args.params["raw_fresh_key"]);
+
+        // If the network is OPENING, new nodes can directly be TRUSTED and
+        // given network identity and ledger secrets. Otherwise, new nodes are
+        // added as PENDING and must be first trusted via member governance
+        NodeStatus joining_node_status = NodeStatus::PENDING;
+        if (active_service->status == ServiceStatus::OPENING)
+          joining_node_status = NodeStatus::TRUSTED;
+
         nodes_view->put(
           joining_node_id,
           {in.node_info_network,
            caller_pem_raw,
            in.quote,
-           NodeStatus::TRUSTED});
-
-        // Set joiner's fresh key for encrypting past network secrets
-        node.set_joiner_key(joining_node_id, args.params["raw_fresh_key"]);
+           joining_node_status});
 
         LOG_INFO_FMT(
-          "Adding node {}:{} as node {}",
+          "Adding node {}:{} as node {} with status {}",
           in.node_info_network.host,
           in.node_info_network.rpcport,
-          joining_node_id);
+          joining_node_id,
+          joining_node_status);
 
-        // Send network secrets and NodeID
-        return jsonrpc::success(nlohmann::json(
-          JoinNetworkNodeToNode::Out{joining_node_id,
-                                     network.secrets->get_current(),
-                                     network.secrets->get_current_version()}));
+        if (active_service->status == ServiceStatus::OPENING)
+        {
+          // Send network secrets and NodeID
+          return jsonrpc::success(nlohmann::json(JoinNetworkNodeToNode::Out{
+            joining_node_id,
+            network.secrets->get_current(),
+            network.secrets->get_current_version()}));
+        }
+        else
+        {
+          // Only send NodeID
+          return jsonrpc::success(
+            nlohmann::json(JoinNetworkNodeToNode::Out{joining_node_id}));
+        }
       };
 
       install(NodeProcs::JOIN, accept, Write);
