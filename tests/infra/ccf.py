@@ -172,17 +172,9 @@ class Network:
                         members_certs="member*_cert.pem",
                         **forwarded_args,
                     )
+                    node.network_state = NodeNetworkState.joined
                 else:
-                    primary, _ = self.find_primary()
-                    node.join(
-                        lib_name=args.package,
-                        workspace=args.workspace,
-                        label=args.label,
-                        target_rpc_address=f"{primary.host}:{primary.rpc_port}",
-                        **forwarded_args,
-                    )
-                node.wait_for_node_to_join()
-                node.network_state = NodeNetworkState.joined
+                    self.add_node(node, args.package, None, args)
             except Exception:
                 LOG.exception("Failed to start node {}".format(i))
                 raise
@@ -243,15 +235,7 @@ class Network:
 
         for node in self.nodes:
             if node != primary:
-                node.join(
-                    lib_name=args.package,
-                    workspace=args.workspace,
-                    label=args.label,
-                    target_rpc_address=f"{primary.host}:{primary.rpc_port}",
-                    **forwarded_args,
-                )
-                node.wait_for_node_to_join()
-                node.network_state = NodeNetworkState.joined
+                self.add_node(node, args.package, primary, args)
 
         self.wait_for_all_nodes_to_catch_up(primary)
         self.check_for_service(primary, status=ServiceStatus.OPENING)
@@ -293,15 +277,15 @@ class Network:
     def remove_last_node(self):
         last_node = self.nodes.pop()
 
-    def create_and_add_node(self, lib_name, args):
+    def add_node(self, node, lib_name, primary, args):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
-        local_node_id = self.get_next_local_node_id()
-        new_node = self.create_node(local_node_id, "localhost")
 
-        primary, _ = self.find_primary()
-        new_node.join(
+        if primary is None:
+            primary, _ = self.find_primary()
+
+        node.join(
             lib_name=lib_name,
             workspace=args.workspace,
             label=args.label,
@@ -310,15 +294,26 @@ class Network:
         )
 
         try:
-            new_node.wait_for_node_to_join()
-        except RuntimeError:
-            LOG.error(f"New node {local_node_id} failed to join the network")
-            self.nodes.remove(new_node)
+            node.wait_for_node_to_join()
+        except TimeoutError:
+            LOG.error(f"New node {node.local_node_id} failed to join the network")
+            self.nodes.remove(node)
+            return False
+
+        node.network_state = NodeNetworkState.joined
+        return True
+
+    def create_and_add_node(self, lib_name, host, args):
+        local_node_id = self.get_next_local_node_id()
+        new_node = self.create_node(local_node_id, host)
+
+        if self.add_node(new_node, lib_name, None, args) is False:
             return None
 
-        new_node.network_state = NodeNetworkState.joined
+        primary, _ = self.find_primary()
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success(f"New node {local_node_id} joined the network")
+
         return new_node
 
     def create_members(self, members):
@@ -740,7 +735,7 @@ class Node:
                 if rep.error == None and rep.result is not None:
                     return
             time.sleep(1)
-        raise RuntimeError(f"Node {self.node_id} failed to join the network")
+        raise TimeoutError(f"Node {self.node_id} failed to join the network")
 
     def get_sealed_secrets(self):
         return self.remote.get_sealed_secrets()
