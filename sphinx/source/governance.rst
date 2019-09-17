@@ -6,12 +6,9 @@ A trusted set of members is in charge of governing a given CCF network. For tran
 Any member (proposer) can submit a new proposal. Other members can then vote on this proposal using its unique proposal ID. Votes for the proposal are evaluated by the constitution's `pass` function.
 If the `pass` function returns true, the vote is passed, and its consequences are applied to the KV in a transaction.
 
-This `sample script` implements a "one-member, one-vote" constitution, with a majority rule. Votes on so-called sensitive tables, such as the one containing the constitution itself, require unanimity.
+This `simple constitution` implements a "one-member, one-vote" constitution, with a majority rule. Votes on so-called sensitive tables, such as the one containing the constitution itself, require unanimity.
 
 .. note:: A proposal can be a Lua script defined by the proposer member or a static function defined by CCF (e.g. ``new_member``).
-
-.. _`sample script`: https://github.com/microsoft/CCF/blob/master/src/runtime_config/gov.lua
-
 
 Common governance operations
 ----------------------------
@@ -168,6 +165,10 @@ The constitution can limit or remove the operating members' ability to:
 -	Add and remove members and users
 -	Complete a recovery
 
-These limits are weakened by the operators' ability to update the code however. A code update could contain changes that allow the operator to bypass constitution restrictions.
+.. note:: These limits are weakened by the operators' ability to update the code. A code update could contain changes that allow the operator to bypass constitution restrictions. Work is in progress to propose a service that would effectively mitigate this problem. In the absence of code updates however, other members of the service could trust that the operating members have not added or removed members and users, and have not executed a recovery.
 
-Work is in progress to propose a service that would effectively mitigate this problem. In the absence of code updates however, other members of the service could trust that the operating members have not added or removed members and users, and have not executed a recovery.
+This `operating member constitution` shows how some members can be made operators. 
+
+.. _`simple constitution`: https://github.com/microsoft/CCF/blob/master/src/runtime_config/gov.lua
+
+.. _`operating member constitution`: https://github.com/microsoft/CCF/blob/master/src/runtime_config/operator_gov.lua
