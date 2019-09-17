@@ -125,6 +125,7 @@ namespace pbft
       general_info.num_replicas = 1;
       general_info.num_clients = 1;
       general_info.max_faulty = 0;
+      general_info.should_mac_message = false;
       general_info.service_name = "generic";
       general_info.auth_timeout = 1800000;
       general_info.view_timeout = 5000;
