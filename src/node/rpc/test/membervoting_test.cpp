@@ -592,7 +592,8 @@ TEST_CASE("Accept node")
   // node to be tested
   // new node certificate
   auto new_ca = new_kp->self_sign("CN=new node");
-  NodeInfo ni = {"", "", "", "", new_ca, {}};
+  NodeInfo ni;
+  ni.cert = new_ca;
   gen.add_node(ni);
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
@@ -1134,7 +1135,8 @@ TEST_CASE("Passing operator vote")
   gen.init_values();
   auto new_kp = tls::make_key_pair();
   auto new_ca = new_kp->self_sign("CN=new node");
-  NodeInfo ni = {"", "", "", "", new_ca, {}};
+  NodeInfo ni;
+  ni.cert = new_ca;
   gen.add_node(ni);
 
   // Operating member, as set in operator_gov.lua
@@ -1225,7 +1227,8 @@ TEST_CASE("Members passing an operator vote")
   gen.init_values();
   auto new_kp = tls::make_key_pair();
   auto new_ca = new_kp->self_sign("CN=new node");
-  NodeInfo ni = {"", "", "", "", new_ca, {}};
+  NodeInfo ni;
+  ni.cert = new_ca;
   gen.add_node(ni);
 
   // Operating member, as set in operator_gov.lua
