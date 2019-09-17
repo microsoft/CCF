@@ -113,7 +113,7 @@ namespace ccf
       auto proposals = tx.get_view(this->network.proposals);
       auto proposal = proposals->get(id);
       if (!proposal)
-        throw std::logic_error(fmt::format("No proposal {}", id));
+        throw std::logic_error(fmt::format("No such proposal: {}", id));
 
       if (proposal->state != ProposalState::OPEN)
         throw std::logic_error(fmt::format(
@@ -130,44 +130,35 @@ namespace ccf
         // vvv arguments to script vvv
         proposal->parameter);
 
-      // pass the effects to the quorum script
-      const auto quorum = tsr.run<int>(
-        tx,
-        {get_script(tx, GovScriptIds::QUORUM),
-         {}, // can't write
-         WlIds::MEMBER_CAN_READ,
-         {}},
-        // vvv arguments to script vvv
-        proposed_calls);
-
-      /* count the votes
-       */
-      uint64_t pro = 0, con = 0;
-      const uint64_t total = proposal->votes.size();
+      nlohmann::json votes;
+      // Collect all member votes
       for (const auto& vote : proposal->votes)
       {
-        // can the proposal still succeed?
-        if (total - con < quorum)
-          return false;
-
         // valid voter
         if (!check_member_active(tx, vote.first))
           continue;
 
         // does the voter agree?
-        if (tsr.run<bool>(
-              tx,
-              {vote.second,
-               {}, // can't write
-               WlIds::MEMBER_CAN_READ,
-               {}},
-              proposed_calls))
-          pro++;
-        else
-          con++;
+        votes[std::to_string(vote.first)] = tsr.run<bool>(
+          tx,
+          {vote.second,
+           {}, // can't write
+           WlIds::MEMBER_CAN_READ,
+           {}},
+          proposed_calls);
       }
 
-      if (pro < quorum)
+      const auto pass = tsr.run<bool>(
+        tx,
+        {get_script(tx, GovScriptIds::PASS),
+         {}, // can't write
+         WlIds::MEMBER_CAN_READ,
+         {}},
+        // vvv arguments to script vvv
+        proposed_calls,
+        votes);
+
+      if (!pass)
         return false;
 
       // execute proposed calls
