@@ -1174,7 +1174,8 @@ TEST_CASE("Passing operator vote")
 
     enclave::RPCContext rpc_ctx(operator_id, operator_cert);
     Response<NodeInfo> r =
-      frontend.process_json(rpc_ctx, tx, operator_id, read_values_j, sr).value();
+      frontend.process_json(rpc_ctx, tx, operator_id, read_values_j, sr)
+        .value();
     CHECK(r.result.status == NodeStatus::PENDING);
   }
 
@@ -1185,7 +1186,8 @@ TEST_CASE("Passing operator vote")
       return Calls:call("accept_node", node_id)
     )xxx");
 
-    json proposej = create_json_req(Propose::In{proposal, node_id, vote_for}, "propose");
+    json proposej =
+      create_json_req(Propose::In{proposal, node_id, vote_for}, "propose");
     ccf::SignedReq sr(proposej);
 
     Store::Tx tx;
@@ -1216,7 +1218,6 @@ TEST_CASE("Passing operator vote")
     CHECK(proposer_vote->second == vote_for);
   }
 }
-
 
 TEST_CASE("Members passing an operator vote")
 {
@@ -1266,7 +1267,8 @@ TEST_CASE("Members passing an operator vote")
 
     enclave::RPCContext rpc_ctx(operator_id, operator_cert);
     Response<NodeInfo> r =
-      frontend.process_json(rpc_ctx, tx, operator_id, read_values_j, sr).value();
+      frontend.process_json(rpc_ctx, tx, operator_id, read_values_j, sr)
+        .value();
     CHECK(r.result.status == NodeStatus::PENDING);
   }
 
@@ -1277,7 +1279,8 @@ TEST_CASE("Members passing an operator vote")
       return Calls:call("accept_node", node_id)
     )xxx");
 
-    json proposej = create_json_req(Propose::In{proposal, node_id, vote_against}, "propose");
+    json proposej =
+      create_json_req(Propose::In{proposal, node_id, vote_against}, "propose");
     ccf::SignedReq sr(proposej);
 
     Store::Tx tx;
@@ -1302,7 +1305,8 @@ TEST_CASE("Members passing an operator vote")
     enclave::RPCContext rpc_ctx(first_voter_id, members[first_voter_id]);
     ccf::SignedReq sr(votej);
     Response<bool> r =
-      frontend.process_json(rpc_ctx, tx, first_voter_id, votej["req"], sr).value();
+      frontend.process_json(rpc_ctx, tx, first_voter_id, votej["req"], sr)
+        .value();
 
     CHECK(r.result == false);
   }
@@ -1317,7 +1321,8 @@ TEST_CASE("Members passing an operator vote")
     enclave::RPCContext rpc_ctx(second_voter_id, members[second_voter_id]);
     ccf::SignedReq sr(votej);
     Response<bool> r =
-      frontend.process_json(rpc_ctx, tx, second_voter_id, votej["req"], sr).value();
+      frontend.process_json(rpc_ctx, tx, second_voter_id, votej["req"], sr)
+        .value();
 
     CHECK(r.result == true);
   }
