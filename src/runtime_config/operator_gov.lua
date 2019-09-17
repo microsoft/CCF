@@ -55,7 +55,7 @@ return {
   end
 
   -- a vote is an operator vote if it's only making operator calls
-  operator_vote = true;
+  operator_vote = true
   for _, call in pairs(calls) do
     if not operator_calls[call.func] then
       operator_vote = false
