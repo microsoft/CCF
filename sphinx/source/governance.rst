@@ -124,7 +124,7 @@ Once the proposal has been accepted, nodes running the new code are authorised j
 Models
 ------
 
-The entities operating a CCF network do not necessarily overlap with the members of that network. Although the scriptability of the governance model effectively allows a large number of possible arrangements, the following two schemes seem most likely:
+The operators of a CCF network do not necessarily overlap with the members of that network. Although the scriptability of the governance model effectively allows a large number of possible arrangements, the following two schemes seem most likely:
 
 Non-member operators
 ````````````````````
@@ -132,12 +132,12 @@ Non-member operators
 It is possible for a set of operators to host a CCF network without being members. These operators could:
 
 - Start the network
-- Hand it over to the members for them to Open (TR, Section IV B)
+- Hand it over to the members for them to Open (see :ref:`Opening a network`)
 
 In case of catastrophic failure, operators could also:
 
 - Start a network in recovery mode from the ledger
-- Hand it over to the members for them to Open (TR, Section IV G)
+- Hand it over to the members for them to Open (see :ref:`Catastrophic Recovery`)
 
 Finally, operators could:
 -	Propose new nodes (TR, Section IV D)
