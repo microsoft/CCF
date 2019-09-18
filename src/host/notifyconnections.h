@@ -58,6 +58,8 @@ namespace asynchost
         notify_destination = fmt::format("{}:{}", host, service);
 
         multi_handle = curl_multi_init();
+
+        headers = curl_slist_append(headers, "Content-Type: application/json");
       }
 
       register_message_handlers(disp);
