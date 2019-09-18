@@ -352,8 +352,9 @@ int main(int argc, char** argv)
   node.register_message_handlers(bp.get_dispatcher());
 
   asynchost::NotifyConnections report(
-    notifications_address.hostname, notifications_address.port);
-  report.register_message_handlers(bp.get_dispatcher());
+    bp.get_dispatcher(),
+    notifications_address.hostname,
+    notifications_address.port);
 
   asynchost::RPCConnections rpc(writer_factory);
   rpc.register_message_handlers(bp.get_dispatcher());

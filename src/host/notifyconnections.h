@@ -3,24 +3,66 @@
 #pragma once
 
 #include "ds/messaging.h"
+#include "everyio.h"
 #include "tcp.h"
 
 #include <curl/curl.h>
 
 namespace asynchost
 {
-  class NotifyConnections
+  class NotifyConnectionsImpl
   {
   private:
-    std::string listen_address;
+    CURLM* multi_handle = nullptr;
+    curl_slist* headers = nullptr;
+
+    std::string notify_destination = {};
+
+    void send_notification(const std::vector<uint8_t>& body)
+    {
+      if (multi_handle)
+      {
+        CURL* curl = curl_easy_init();
+
+        curl_multi_add_handle(multi_handle, curl);
+
+        curl_easy_setopt(curl, CURLOPT_URL, notify_destination.c_str());
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, body.size());
+        curl_easy_setopt(curl, CURLOPT_COPYPOSTFIELDS, body.data());
+
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+      }
+    };
 
   public:
-    NotifyConnections(const std::string& host, const std::string& service)
+    NotifyConnectionsImpl(
+      messaging::Dispatcher<ringbuffer::Message>& disp,
+      const std::string& host,
+      const std::string& service)
     {
       if (!host.empty())
       {
-        listen_address = fmt::format("{}:{}", host, service);
+        notify_destination = fmt::format("{}:{}", host, service);
+
+        multi_handle = curl_multi_init();
       }
+
+      register_message_handlers(disp);
+    }
+
+    ~NotifyConnectionsImpl()
+    {
+      // TODO: Remove and cleanup all remaining handles,
+      curl_multi_cleanup(multi_handle);
+    }
+
+    void every()
+    {
+      int still_running = 0;
+      curl_multi_perform(multi_handle, &still_running);
+
+      // TODO: Get info on remaining handles, remove those which are done
     }
 
     void register_message_handlers(
@@ -33,36 +75,10 @@ namespace asynchost
           auto [msg] =
             ringbuffer::read_message<AdminMessage::notification>(data, size);
 
-          CURL* curl = curl_easy_init();
-          CURLcode res;
-          if (curl)
-          {
-            std::string s((char const*)data, size);
-            curl_easy_setopt(curl, CURLOPT_URL, listen_address.c_str());
-            curl_easy_setopt(curl, CURLOPT_POST, 1L);
-            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, s.c_str());
-
-            curl_slist* headers = nullptr;
-            headers =
-              curl_slist_append(headers, "Content-Type: application/json");
-            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-            res = curl_easy_perform(curl);
-            /* Check for errors */
-            if (res != CURLE_OK)
-            {
-              LOG_FAIL_FMT(
-                "curl_easy_perform() failed: {}", curl_easy_strerror(res));
-            }
-
-            /* always cleanup */
-            curl_easy_cleanup(curl);
-          }
-          else
-          {
-            LOG_FAIL_FMT("curl_easy_init failed");
-          }
+          send_notification(msg);
         });
     }
   };
+
+  using NotifyConnections = proxy_ptr<EveryIO<NotifyConnectionsImpl>>;
 }
