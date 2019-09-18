@@ -42,6 +42,11 @@ namespace asynchost
             curl_easy_setopt(curl, CURLOPT_POST, 1L);
             curl_easy_setopt(curl, CURLOPT_POSTFIELDS, s.c_str());
 
+            curl_slist* headers = nullptr;
+            headers =
+              curl_slist_append(headers, "Content-Type: application/json");
+            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
             res = curl_easy_perform(curl);
             /* Check for errors */
             if (res != CURLE_OK)
