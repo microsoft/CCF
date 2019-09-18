@@ -58,6 +58,10 @@ namespace asynchost
         notify_destination = fmt::format("{}:{}", host, service);
 
         multi_handle = curl_multi_init();
+        if (multi_handle == nullptr)
+        {
+          LOG_FAIL_FMT("Failed to initialised curl multi handle");
+        }
 
         headers = curl_slist_append(headers, "Content-Type: application/json");
       }
@@ -67,7 +71,6 @@ namespace asynchost
 
     ~NotifyConnectionsImpl()
     {
-      // TODO: Remove and cleanup all remaining handles
       for (auto easy_handle : easy_handles)
       {
         curl_multi_remove_handle(multi_handle, easy_handle);
