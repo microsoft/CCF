@@ -345,43 +345,43 @@ namespace ccf
           auto res = j.at(jsonrpc::RESULT).get<JoinNetworkNodeToNode::Out>();
 
           if (res.version.has_value())
+          {
             LOG_FAIL_FMT("Node added in state TRUSTED");
+            // If the current network secrets do not apply since the genesis,
+            // the joining node can only join the public network
+            bool public_only = (res.version != 0);
+
+            // In a private network, seal secrets immediately.
+            network.secrets = std::make_unique<NetworkSecrets>(
+              res.version.value(),
+              res.network_secrets,
+              std::make_unique<Seal>(writer_factory),
+              !public_only);
+
+            self = res.id;
+#ifndef PBFT
+            setup_raft(public_only);
+            setup_history();
+#endif
+
+            setup_encryptor();
+
+            accept_node_connections();
+            accept_member_connections();
+            if (public_only)
+              sm.advance(State::partOfPublicNetwork);
+            else
+              sm.advance(State::partOfNetwork);
+
+            LOG_INFO_FMT(
+              "Node has now joined the network as node {}: {}",
+              self,
+              (public_only ? "public only" : "all domains"));
+          }
           else
           {
             LOG_FAIL_FMT("Node added in state PENDING");
           }
-
-
-          // If the current network secrets do not apply since the genesis,
-          // the joining node can only join the public network
-          bool public_only = (res.version != 0);
-
-          // In a private network, seal secrets immediately.
-          network.secrets = std::make_unique<NetworkSecrets>(
-            res.version.value(),
-            res.network_secrets,
-            std::make_unique<Seal>(writer_factory),
-            !public_only);
-
-          self = res.id;
-#ifndef PBFT
-          setup_raft(public_only);
-          setup_history();
-#endif
-          setup_encryptor();
-
-          accept_node_connections();
-          accept_member_connections();
-
-          if (public_only)
-            sm.advance(State::partOfPublicNetwork);
-          else
-            sm.advance(State::partOfNetwork);
-
-          LOG_INFO_FMT(
-            "Node has now joined the network as node {}: {}",
-            self,
-            (public_only ? "public only" : "all domains"));
 
           return true;
         });

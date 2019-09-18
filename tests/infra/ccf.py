@@ -174,7 +174,7 @@ class Network:
                     )
                     node.network_state = NodeNetworkState.joined
                 else:
-                    self.add_node(node, args.package, None, args)
+                    self.add_node(node, args.package, None, False, args)
             except Exception:
                 LOG.exception("Failed to start node {}".format(i))
                 raise
@@ -235,7 +235,7 @@ class Network:
 
         for node in self.nodes:
             if node != primary:
-                self.add_node(node, args.package, primary, args)
+                self.add_node(node, args.package, primary, False, args)
 
         self.wait_for_all_nodes_to_catch_up(primary)
         self.check_for_service(primary, status=ServiceStatus.OPENING)
@@ -277,7 +277,9 @@ class Network:
     def remove_last_node(self):
         last_node = self.nodes.pop()
 
-    def add_node(self, node, lib_name, primary, args):
+    # TODO: Delete network_open argument when raft is created as
+    # soon as a node joins, no matter if PENDING or TRUSTED
+    def add_node(self, node, lib_name, primary, network_open, args):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
@@ -293,12 +295,14 @@ class Network:
             **forwarded_args,
         )
 
-        try:
-            node.wait_for_node_to_join()
-        except TimeoutError:
-            LOG.error(f"New node {node.local_node_id} failed to join the network")
-            self.nodes.remove(node)
-            return False
+        # If the network is not already open, node should always join straight away
+        if not network_open:
+            try:
+                node.wait_for_node_to_join()
+            except TimeoutError:
+                LOG.error(f"New node {node.local_node_id} failed to join the network")
+                self.nodes.remove(node)
+                return False
 
         node.network_state = NodeNetworkState.joined
         return True
@@ -307,10 +311,18 @@ class Network:
         local_node_id = self.get_next_local_node_id()
         new_node = self.create_node(local_node_id, host)
 
-        if self.add_node(new_node, lib_name, None, args) is False:
+        network_open = True
+        if self.add_node(new_node, lib_name, None, network_open, args) is False:
             return None
 
+        # If the network is already open, members should vote for the node to be added
+        # TODO:
+        # 1. Find node id in KV store via a read
+        # 2.
         primary, _ = self.find_primary()
+        self.trust_node(primary, local_node_id)
+
+
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success(f"New node {local_node_id} joined the network")
 
@@ -405,6 +417,25 @@ class Network:
         with remote_node.member_client() as c:
             id = c.request("read", {"table": "ccf.nodes", "key": node_id})
             assert c.response(id).result["status"].decode() == "RETIRED"
+
+    def propose_trust_node(self, member_id, remote_node, node_id):
+        return self.propose(
+            member_id, remote_node, "accept_node", f"--node-id={node_id}"
+        )
+
+    def trust_node(self, remote_node, node_id):
+        # First, check that the node to trust is PENDING
+        with remote_node.member_client() as c:
+            id = c.request("read", {"table": "ccf.nodes", "key": node_id})
+            assert c.response(id).result["status"].decode() == "PENDING"
+
+        member_id = 1
+        result = self.propose_trust_node(member_id, remote_node, node_id)
+        result = self.vote_using_majority(remote_node, result[1]["id"])
+
+        with remote_node.member_client() as c:
+            id = c.request("read", {"table": "ccf.nodes", "key": node_id})
+            assert c.response(id).result["status"].decode() == "TRUSTED"
 
     def propose_add_member(self, member_id, remote_node, new_member_cert):
         return self.propose(
