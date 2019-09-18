@@ -3,7 +3,7 @@
 
 import os
 import threading
-import socketserver
+import http.server
 import queue
 import json
 from contextlib import contextmanager
@@ -11,37 +11,38 @@ from contextlib import contextmanager
 from loguru import logger as LOG
 
 
-class NotificationServer(socketserver.BaseRequestHandler):
+class PostQueueRequestHandler(http.server.BaseHTTPRequestHandler):
     def __init__(self, request, client_address, server):
         self.queue = server.queue
         self.error_queue = server.error_queue
         self.checker = server.checker
-        socketserver.BaseRequestHandler.__init__(self, request, client_address, server)
+        super(PostQueueRequestHandler, self).__init__(request, client_address, server)
 
-    def handle(self):
-        data = self.request.recv(1024).strip()
-        if data:
-            if callable(self.checker):
-                if not self.checker(data):
-                    LOG.error("Notification is not in expect format: {}".format(data))
-                    self.error_queue.put(data)
-            self.queue.put(data)
+    def do_POST(self):
+        self.send_response(201)
+        self.end_headers()
+        content_length = int(self.headers["Content-Length"])
+        body = self.rfile.read(content_length)
+        if callable(self.checker) and not self.checker(body):
+            LOG.error(f"Notification is not in expected format: {body}")
+            self.error_queue.put(body)
         else:
-            LOG.info("Notification client disconnected")
+            self.queue.put(body)
+
+    def log_message(self, format, *args):
+        pass
 
 
-class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    def __init__(
-        self, server_address, RequestHandlerClass, bind_and_activate=True, checker=None
-    ):
+class ThreadingPostQueueServer(http.server.ThreadingHTTPServer):
+    def __init__(self, server_address, RequestHandlerClass, checker=None):
+        assert (
+            RequestHandlerClass is PostQueueRequestHandler
+        ), "Should be initialised with PostQueueRequestHandler"
         self.queue = queue.Queue()
         self.error_queue = queue.Queue()
         self.checker = checker
-        socketserver.TCPServer.__init__(
-            self,
-            server_address,
-            RequestHandlerClass,
-            bind_and_activate=bind_and_activate,
+        super(ThreadingPostQueueServer, self).__init__(
+            server_address, PostQueueRequestHandler
         )
 
     def get_queue(self):
@@ -64,9 +65,8 @@ def notification_server(server_info, checker=None):
     else:
         raise ValueError("Notification server host:port configuration is invalid")
 
-    ThreadedTCPServer.allow_reuse_address = True
-    with ThreadedTCPServer(
-        (host, int(port[0])), NotificationServer, True, checker
+    with ThreadingPostQueueServer(
+        (host, int(port[0])), PostQueueRequestHandler, checker
     ) as server:
 
         server_thread = threading.Thread(target=server.serve_forever)
