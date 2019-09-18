@@ -81,9 +81,10 @@ namespace asynchost
           CURLcode res;
           if (curl)
           {
+            std::string s((char const*)data, size);
             curl_easy_setopt(curl, CURLOPT_URL, "0.0.0.0:4242");
             curl_easy_setopt(curl, CURLOPT_POST, 1L);
-            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, s.c_str());
 
             res = curl_easy_perform(curl);
             /* Check for errors */
