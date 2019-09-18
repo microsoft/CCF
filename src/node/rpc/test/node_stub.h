@@ -15,6 +15,11 @@ namespace ccf
       return true;
     }
 
+    bool open_network(Store::Tx& tx) override
+    {
+      return true;
+    }
+
     bool is_part_of_public_network() const override
     {
       return true;

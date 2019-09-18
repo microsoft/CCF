@@ -74,9 +74,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         action="store_true",
     )
     parser.add_argument(
-        "--node-status", help="pending, trusted, retired", type=str, action="append"
-    )
-    parser.add_argument(
         "--election-timeout",
         help="Maximum election timeout for each node in the network",
         type=int,

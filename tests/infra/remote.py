@@ -62,7 +62,7 @@ def log_errors(out_path, err_path):
     error_filter = ["[fail ]", "[fatal]"]
     try:
         errors = 0
-        tail_lines = deque(maxlen=15)
+        tail_lines = deque(maxlen=10)
         with open(out_path, "r") as lines:
             for line in lines:
                 stripped_line = line.rstrip()
@@ -128,7 +128,6 @@ class SSHRemote(CmdMixin):
         setup() connects, creates the directory and ships over the files
         start() runs the specified command
         stop()  disconnects, which shuts down the command via SIGHUP
-        restart() reconnects and reruns the specified command
         """
         self.hostname = hostname
         # For SSHRemote, both executable files (host and enclave) and data
@@ -247,10 +246,6 @@ class SSHRemote(CmdMixin):
             "{}_err_{}".format(self.hostname, self.name),
         )
         self.client.close()
-
-    def restart(self):
-        self._connect()
-        self.start()
 
     def setup(self):
         """
@@ -407,9 +402,6 @@ class LocalRemote(CmdMixin):
                 self.stderr.close()
             log_errors(self.out, self.err)
 
-    def restart(self):
-        self.start()
-
     def setup(self):
         """
         Empty the temporary directory if it exists,
@@ -472,12 +464,10 @@ class CCFRemote(object):
         label,
         target_rpc_address=None,
         members_certs=None,
-        users_certs=None,
         host_log_level="info",
         ignore_quote=False,
         sig_max_tx=1000,
         sig_max_ms=1000,
-        node_status="pending",
         election_timeout=1000,
         memory_reserve_startup=0,
         notify_server=None,
@@ -498,7 +488,6 @@ class CCFRemote(object):
         self.rpc_port = rpc_port
         self.pem = "{}.pem".format(local_node_id)
         self.quote = None
-        self.node_status = node_status
         # Only expect a quote if the enclave is not virtual and quotes have
         # not been explictly ignored
         if enclave_type != "virtual" and not ignore_quote:
@@ -559,15 +548,14 @@ class CCFRemote(object):
         if self.quote:
             cmd += [f"--quote-file={self.quote}"]
 
-        if start_type == StartType.start:
+        if start_type == StartType.new:
             cmd += [
                 "start",
                 "--network-cert-file=networkcert.pem",
                 f"--member-certs={members_certs}",
-                f"--user-certs={users_certs}",
                 f"--gov-script={os.path.basename(gov_script)}",
             ]
-            data_files += [members_certs, users_certs, os.path.basename(gov_script)]
+            data_files += [members_certs, os.path.basename(gov_script)]
             if app_script:
                 cmd += [f"--app-script={os.path.basename(app_script)}"]
                 data_files += [os.path.basename(app_script)]
@@ -615,32 +603,11 @@ class CCFRemote(object):
 
     def start(self):
         self.remote.start()
+
+    def get_startup_files(self):
         self.remote.get(self.pem)
-        if self.start_type in {StartType.start, StartType.recover}:
+        if self.start_type in {StartType.new, StartType.recover}:
             self.remote.get("networkcert.pem")
-
-    def restart(self):
-        self.remote.restart()
-
-    def info(self):
-        self.remote.get(self.pem)
-        quote_bytes = []
-        if self.quote:
-            self.remote.get(self.quote)
-            quote_bytes = infra.path.quote_bytes(self.quote)
-
-        return {
-            "host": self.host,
-            "nodeport": str(self.node_port),
-            "pubhost": self.pubhost,
-            "rpcport": str(self.rpc_port),
-            "cert": infra.path.cert_bytes(self.pem),
-            "quote": quote_bytes,
-            "status": NodeStatus[self.node_status].value,
-        }
-
-    def node_cmd(self):
-        return self.remote._cmd()
 
     def debug_node_cmd(self):
         return self.remote._dbg()
@@ -710,6 +677,6 @@ class NodeStatus(Enum):
 
 
 class StartType(Enum):
-    start = 0
+    new = 0
     join = 1
     recover = 2

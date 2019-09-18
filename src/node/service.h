@@ -9,11 +9,15 @@
 
 namespace ccf
 {
+  // ServiceId is used at the key of the SERVICE table. As there is only one
+  // service active at a given time, this key is always 0.
+  using ServiceId = uint64_t;
+
   enum class ServiceStatus
   {
     OPENING = 1,
     OPEN = 2,
-    CLOSED = 3
+    CLOSED = 3 // For now, unused
   };
 
   DECLARE_JSON_ENUM(
@@ -29,13 +33,16 @@ namespace ccf
 {
   struct ServiceInfo
   {
+    // Version at which the service is applicable from
+    kv::Version version;
+
     std::vector<uint8_t> cert;
     ServiceStatus status;
 
-    MSGPACK_DEFINE(cert, status);
+    MSGPACK_DEFINE(version, cert, status);
   };
   DECLARE_JSON_TYPE(ServiceInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(ServiceInfo, cert, status);
+  DECLARE_JSON_REQUIRED_FIELDS(ServiceInfo, version, cert, status);
 
-  using Service = Store::Map<kv::Version, ServiceInfo>;
+  using Service = Store::Map<ServiceId, ServiceInfo>;
 }

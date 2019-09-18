@@ -27,7 +27,13 @@ def run(args):
     ) as network:
         primary, others = network.start_and_join(args)
 
-        # create a lua query file to change a member state to accepted
+        LOG.debug("Network should not be able to be opened twice")
+        result = network.propose(1, primary, "open_network")
+        assert not network.vote_using_majority(
+            primary, result[1]["id"]
+        ), "Network should not be opened twice"
+
+        # Create a lua query file to change a member state to accepted
         with open("query.lua", "w") as qfile:
             qfile.write(
                 """local tables, param = ...
@@ -39,37 +45,37 @@ def run(args):
                return Calls:call("raw_puts", p)"""
             )
 
-        # create json file to be passed as the argument to the query.lua file
-        # it is passing a member id
+        # Create json file to be passed as the argument to the query.lua file
+        # It is passing a member id
         with open("param.json", "w") as pfile:
             pfile.write("""{"p": 0}""")
 
-        # propose to add a new member
-        # proposal number 0
+        LOG.info("Proposal to add a new member")
         infra.proc.ccall("./keygenerator", "--name=member4")
         result = network.propose_add_member(1, primary, "member4_cert.pem")
 
-        # when proposal is added the proposal id and the result of running complete proposal are returned
+        # When proposal is added the proposal id and the result of running complete proposal are returned
         proposal_id = result[1]["id"]
         assert not result[1]["completed"]
-        assert proposal_id == 0
 
-        # display all proposals
+        # Display all proposals
         proposals = network.member_client_rpc_as_json(1, primary, "proposal_display")
 
-        # check proposal is present and open
+        # Check proposal is present and open
         proposal_entry = proposals.get(str(proposal_id))
         assert proposal_entry
         assert proposal_entry["state"] == "OPEN"
 
-        # 2 out of 3 members vote to accept the new member so that that member can send its own proposals
+        LOG.debug("2/3 members vote to accept the new member")
         result = network.vote(1, primary, proposal_id, True)
         assert result[0] and not result[1]
 
         result = network.vote(2, primary, proposal_id, True)
         assert result[0] and result[1]
 
-        # further vote requests fail - the proposal has already been accepted
+        LOG.debug(
+            "Further vote requests fail as the proposal has already been accepted"
+        )
         params_error = infra.jsonrpc.ErrorCode.INVALID_PARAMS.value
         assert network.vote(1, primary, proposal_id, True)[1]["code"] == params_error
         assert network.vote(1, primary, proposal_id, False)[1]["code"] == params_error
@@ -78,75 +84,70 @@ def run(args):
         assert network.vote(3, primary, proposal_id, True)[1]["code"] == params_error
         assert network.vote(3, primary, proposal_id, False)[1]["code"] == params_error
 
-        # accepted proposal cannot be withdrawn
-        j_result = network.member_client_rpc_as_json(
-            1, primary, "withdraw", "--proposal-id=0"
+        LOG.debug("Accepted proposal cannot be withdrawn")
+        result = network.member_client_rpc_as_json(
+            1, primary, "withdraw", f"--proposal-id={proposal_id}"
         )
-        assert j_result["error"]["code"] == params_error
-        j_result = network.member_client_rpc_as_json(
-            2, primary, "withdraw", "--proposal-id=0"
+        assert result["error"]["code"] == params_error
+        result = network.member_client_rpc_as_json(
+            2, primary, "withdraw", f"--proposal-id={proposal_id}"
         )
         assert (
-            j_result["error"]["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value
+            result["error"]["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value
         )
 
-        # member 4 try to make a proposal without having been accepted should get insufficient rights response
+        LOG.info("New non-accepted member should get insufficient rights response")
         result = network.propose(4, primary, "accept_node", "--node-id=0")
         assert result[1]["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
-        # member 4 ack
-        j_result = network.member_client_rpc_as_json(4, primary, "ack")
-        assert j_result["result"]
+        LOG.debug("New member ACK")
+        result = network.member_client_rpc_as_json(4, primary, "ack")
+        assert result["result"]
 
-        # member 4 is now active and sends an accept node proposal
-        # proposal number 1
+        LOG.info("New member is now active and send an accept node proposal")
         result = network.propose(4, primary, "accept_node", "--node-id=0")
         assert not result[1]["completed"]
         proposal_id = result[1]["id"]
-        assert proposal_id == 1
 
-        # members vote to accept the node proposal
+        LOG.debug("Members vote to accept the accept node proposal")
         result = network.vote(1, primary, proposal_id, True)
         assert result[0] and not result[1]
 
-        # result is true with 3 votes (proposer, member 1, and member 2)
+        # Result is true with 3 votes (proposer, member 1, and member 2)
         result = network.vote(2, primary, proposal_id, True)
         assert result[0] and result[1]
 
-        # member 4 makes a proposal
-        # proposal number 2
+        LOG.info("New member makes a new proposal")
         result = network.propose(4, primary, "accept_node", "--node-id=1")
         proposal_id = result[1]["id"]
         assert not result[1]["completed"]
-        assert proposal_id == 2
 
-        # other members are unable to withdraw proposal 2
-        j_result = network.member_client_rpc_as_json(
-            2, primary, "withdraw", "--proposal-id=2"
+        LOG.debug("Other members (non proposer) are unable to withdraw new proposal")
+        result = network.member_client_rpc_as_json(
+            2, primary, "withdraw", f"--proposal-id={proposal_id}"
         )
         assert (
-            j_result["error"]["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value
+            result["error"]["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value
         )
 
-        # member 4 withdraws proposal 2
-        j_result = network.member_client_rpc_as_json(
-            4, primary, "withdraw", "--proposal-id=2"
+        LOG.debug("Proposer withdraws their proposal")
+        result = network.member_client_rpc_as_json(
+            4, primary, "withdraw", f"--proposal-id={proposal_id}"
         )
-        assert j_result["result"]
+        assert result["result"]
 
-        # check proposal is still present, but withdrawn
         proposals = network.member_client_rpc_as_json(4, primary, "proposal_display")
-        proposal_entry = proposals.get("2")
+        proposal_entry = proposals.get(f"{proposal_id}")
         assert proposal_entry
         assert proposal_entry["state"] == "WITHDRAWN"
 
-        # further withdrawal requests fail
-        j_result = network.member_client_rpc_as_json(
-            4, primary, "withdraw", "--proposal-id=2"
+        LOG.debug("Further withdraw proposals fail")
+        result = network.member_client_rpc_as_json(
+            4, primary, "withdraw", f"--proposal-id={proposal_id}"
         )
-        assert j_result["error"]["code"] == params_error
+        assert result["error"]["code"] == params_error
 
-        # further vote requests fail
+        LOG.debug("Further votes fail")
         result = network.vote(4, primary, proposal_id, True)
         assert not result[0]
         assert result[1]["code"] == params_error
@@ -155,9 +156,8 @@ def run(args):
         assert not result[0]
         assert result[1]["code"] == params_error
 
-        # member 4 proposes to inactivate member 1 and other members vote yes
-        # proposal number 3
-        j_result = network.member_client_rpc_as_json(
+        LOG.debug("New member proposes to deactivate member 1")
+        result = network.member_client_rpc_as_json(
             4,
             primary,
             "raw_puts",
@@ -165,21 +165,21 @@ def run(args):
             "--script=query.lua",
             "--param=param.json",
         )
-        assert not j_result["result"]["completed"]
-        assert j_result["result"]["id"] == 3
+        assert not result["result"]["completed"]
+        proposal_id = result["result"]["id"]
 
-        result = network.vote(3, primary, 3, True)
+        LOG.debug("Other members accept the proposal")
+        result = network.vote(3, primary, proposal_id, True)
         assert result[0] and not result[1]
 
-        result = network.vote(2, primary, 3, True)
+        result = network.vote(2, primary, proposal_id, True)
         assert result[0] and result[1]
 
-        # member 1 attempts to accept a proposal but should get insufficient rights
-        # proposal number 4
+        LOG.debug("Deactivated member cannot make a new proposal")
         result = network.propose(1, primary, "accept_node", "--node-id=0")
         assert result[1]["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
-        # member 4 proposes to add member 3 as user
+        LOG.debug("New member should still be able to make a new proposal")
         result = network.propose(4, primary, "add_user", "--user-cert=member3_cert.pem")
         assert not result[1]["completed"]
 

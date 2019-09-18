@@ -15,6 +15,8 @@ import cryptography.x509
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.backends import default_backend
 
+from loguru import logger as LOG
+
 # This function calls the native API and does not rely on the
 # imported library's implementation. Though not being used by
 # the current test, it might still be helpful to have this
@@ -90,22 +92,22 @@ def run(args):
     ) as network:
         primary, others = network.start_and_join(args)
 
-        # propose to add a new member
-        # proposal number 0
+        LOG.debug("Propose to add a new member")
         infra.proc.ccall("./keygenerator", "--name=member4")
         result = network.propose_add_member(1, primary, "member4_cert.pem")
 
-        # when proposal is added the proposal id and the result of running complete proposal are returned
-        # j_result = json.loads(result.stdout)
+        # When proposal is added the proposal id and the result of running
+        # complete proposal are returned
         assert not result[1]["completed"]
         proposal_id = result[1]["id"]
-        assert proposal_id == 0
 
-        # 2 out of 3 members vote to accept the new member so that that member can send its own proposals
+        # 2 out of 3 members vote to accept the new member so that
+        # that member can send its own proposals
+        LOG.debug("2/3 members accept the proposal")
         result = network.vote(1, primary, proposal_id, True)
         assert result[0] and not result[1]
 
-        # this request should fail, as it is not signed
+        LOG.debug("Failed vote as unsigned")
         result = network.vote(2, primary, proposal_id, True, True)
         assert (
             not result[0]
@@ -117,6 +119,7 @@ def run(args):
 
         ledger_filename = network.find_primary()[0].remote.ledger_path()
 
+    LOG.debug("Audit the ledger file for member votes")
     l = ledger.Ledger(ledger_filename)
 
     # this maps a member_id to a cert object, and is updated when we iterate the transactions,

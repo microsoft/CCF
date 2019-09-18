@@ -7,11 +7,6 @@
 
 namespace ccf
 {
-  DECLARE_JSON_TYPE(JoinNetwork::In)
-  DECLARE_JSON_REQUIRED_FIELDS(JoinNetwork::In, network_cert, hostname, service)
-  DECLARE_JSON_TYPE(JoinNetwork::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(JoinNetwork::Out, id)
-
   DECLARE_JSON_ENUM(
     GetSignedIndex::State,
     {{GetSignedIndex::State::ReadingPublicLedger, "readingPublicLedger"},

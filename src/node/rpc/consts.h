@@ -41,8 +41,6 @@ namespace ccf
     static constexpr auto PROPOSE = "propose";
     static constexpr auto WITHDRAW = "withdraw";
 
-    static constexpr auto ADD_NODE = "add_node";
-
     static constexpr auto ACK = "ack";
     static constexpr auto UPDATE_ACK_NONCE = "updateAckNonce";
   };

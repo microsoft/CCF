@@ -4,7 +4,7 @@
 
 enum StartType
 {
-  Start = 1,
+  New = 1,
   Join = 2,
   Recover = 3
 };

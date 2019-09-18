@@ -73,6 +73,33 @@ def network(
             net.stop_all_nodes()
 
 
+# TODO: This function should only be part of the Checker class once the
+# memberclient is no longer used.
+def wait_for_global_commit(
+    management_client, commit_index, term, mksign=False, timeout=2
+):
+    """
+    Given a client to a CCF network and a commit_index/term pair, this function
+    waits for this specific commit index to be globally committed by the
+    network in this term.
+    A TimeoutError exception is raised if the commit index is not globally
+    committed within the given timeout.
+    """
+    # Waiting for a global commit can significantly slow down tests as
+    # signatures take some time to be emitted and globally committed.
+    # Forcing a signature accelerates this process for common operations
+    # (e.g. governance proposals)
+    if mksign:
+        management_client.rpc("mkSign", params={})
+
+    for i in range(timeout * 10):
+        r = management_client.rpc("getCommit", {"commit": commit_index})
+        if r.global_commit >= commit_index and r.result["term"] == term:
+            return
+        time.sleep(0.1)
+    raise TimeoutError("Timed out waiting for commit")
+
+
 class Network:
     node_args_to_forward = [
         "enclave_type",
@@ -115,17 +142,14 @@ class Network:
 
         hosts = self.hosts or ["localhost"] * number_of_local_nodes()
 
-        node_status = args.node_status or ["pending"] * len(hosts)
-        if len(node_status) != len(hosts):
-            raise ValueError("Node statuses are not equal to number of nodes.")
-
         if not args.package:
             raise ValueError("A package name must be specified.")
 
         LOG.info("Starting nodes on {}".format(hosts))
 
-        self.add_members([1, 2, 3])
-        self.add_users([1, 2, 3])
+        self.create_members([1, 2, 3])
+        initial_users = [1, 2, 3]
+        self.create_users(initial_users)
 
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
@@ -140,23 +164,17 @@ class Network:
                 arg: dict_args[arg] for arg in Network.node_args_to_forward
             }
             try:
-                primary, _ = self.find_primary() if i != 0 else (None, None)
-                node.start(
-                    infra.remote.StartType.start
-                    if i == 0
-                    else infra.remote.StartType.join,
-                    lib_name=args.package,
-                    node_status=node_status[i],
-                    workspace=args.workspace,
-                    label=args.label,
-                    target_rpc_address=f"{primary.host}:{primary.rpc_port}"
-                    if primary
-                    else None,
-                    members_certs="member*_cert.pem" if i == 0 else None,
-                    users_certs="user*_cert.pem" if i == 0 else None,
-                    **forwarded_args,
-                )
-                node.network_state = NodeNetworkState.joined
+                if i == 0:
+                    node.start(
+                        lib_name=args.package,
+                        workspace=args.workspace,
+                        label=args.label,
+                        members_certs="member*_cert.pem",
+                        **forwarded_args,
+                    )
+                    node.network_state = NodeNetworkState.joined
+                else:
+                    self.add_node(node, args.package, None, args)
             except Exception:
                 LOG.exception("Failed to start node {}".format(i))
                 raise
@@ -165,18 +183,19 @@ class Network:
         if primary is None:
             primary = self.nodes[0]
 
-        self.wait_for_all_nodes_have_joined(primary)
-        self.check_for_service(primary)
+        self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
+
+        self.add_users(primary, initial_users)
+        LOG.info("Initial set of users added")
+
+        self.open_network(primary)
+        LOG.success("***** Network is now open *****")
 
         return primary, self.nodes[1:]
 
     def start_in_recovery(self, args, ledger_file, sealed_secrets):
         hosts = self.hosts or ["localhost"] * number_of_local_nodes()
-
-        node_status = args.node_status or ["pending"] * len(hosts)
-        if len(node_status) != len(hosts):
-            raise ValueError("Node statuses are not equal to number of nodes.")
 
         if not args.package:
             raise ValueError("A package name must be specified.")
@@ -201,10 +220,8 @@ class Network:
             # start all nodes with their own ledger to find out which ledger
             # is the longest. Then, all nodes except the ones with the
             # longest ledger are stopped and restarted in "join".
-            self.nodes[0].start(
-                start_type=infra.remote.StartType.recover,
+            self.nodes[0].recover(
                 lib_name=args.package,
-                node_status=node_status[0],
                 ledger_file=ledger_file,
                 sealed_secrets=sealed_secrets,
                 workspace=args.workspace,
@@ -216,23 +233,14 @@ class Network:
             LOG.exception("Failed to start recovery node {}".format(i))
             raise
 
-        for i, node in enumerate(self.nodes):
+        for node in self.nodes:
             if node != primary:
-                node.start(
-                    infra.remote.StartType.join,
-                    lib_name=args.package,
-                    node_status=node_status[i],
-                    workspace=args.workspace,
-                    label=args.label,
-                    target_rpc_address=f"{primary.host}:{primary.rpc_port}",
-                    **forwarded_args,
-                )
-                node.network_state = NodeNetworkState.joined
+                self.add_node(node, args.package, primary, args)
 
-        self.wait_for_all_nodes_have_joined(primary)
+        self.wait_for_all_nodes_to_catch_up(primary)
         self.check_for_service(primary, status=ServiceStatus.OPENING)
 
-        LOG.success("All nodes joined recoverd public network")
+        LOG.success("All nodes joined recovered public network")
 
         return primary, self.nodes[1:]
 
@@ -240,19 +248,14 @@ class Network:
         """
         Check via the member frontend of the given node that the certificate
         associated with current CCF service signing key has been recorded in
-        the KV store and in a specific state.
+        the KV store with the appropriate status.
         """
-
         with node.member_client() as c:
             rep = c.do(
                 "query",
                 {
                     "text": """tables = ...
-                    -- The version at which the current CCF service started
-                    -- is recorded in the values table at index 5
-                    values_recovery_index = 5
-                    local current_service_version = tables["ccf.values"]:get(values_recovery_index)
-                    return tables["ccf.service"]:get(current_service_version)"""
+                    return tables["ccf.service"]:get(0)"""
                 },
             )
             current_status = rep.result["status"].decode()
@@ -264,7 +267,7 @@ class Network:
             ), "Current service certificate did not match with networkcert.pem"
             assert (
                 current_status == status.name
-            ), f"Service is in status {current_status} (expected {status.name})"
+            ), f"Service status {current_status} (expected {status.name})"
 
     def create_node(self, local_node_id, host, debug=False, perf=False):
         node = Node(local_node_id, host, debug, perf)
@@ -274,52 +277,58 @@ class Network:
     def remove_last_node(self):
         last_node = self.nodes.pop()
 
-    def add_node(self, new_node_info):
-        with self.find_primary()[0].member_client(format="json") as member_client:
-            j_result = member_client.rpc("add_node", new_node_info)
-
-        return j_result
-
-    def create_and_add_node(
-        self, lib_name, args, should_succeed=True, local_node_id=None
-    ):
+    def add_node(self, node, lib_name, primary, args):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
-        if local_node_id is None:
-            local_node_id = self.get_next_local_node_id()
-        node_status = args.node_status or "pending"
-        new_node = self.create_node(local_node_id, "localhost")
-        new_node.start(
+
+        if primary is None:
+            primary, _ = self.find_primary()
+
+        node.join(
             lib_name=lib_name,
-            node_status=node_status,
             workspace=args.workspace,
             label=args.label,
+            target_rpc_address=f"{primary.host}:{primary.rpc_port}",
             **forwarded_args,
         )
-        new_node_info = new_node.remote.info()
 
-        j_result = self.add_node(new_node_info)
+        try:
+            node.wait_for_node_to_join()
+        except TimeoutError:
+            LOG.error(f"New node {node.local_node_id} failed to join the network")
+            self.nodes.remove(node)
+            return False
 
-        if j_result.error is not None:
-            self.remove_last_node()
-            return (False, j_result.error["code"])
+        node.network_state = NodeNetworkState.joined
+        return True
 
-        new_node.node_id = j_result.result["id"]
+    def create_and_add_node(self, lib_name, host, args):
+        local_node_id = self.get_next_local_node_id()
+        new_node = self.create_node(local_node_id, host)
 
-        return (True, new_node)
+        if self.add_node(new_node, lib_name, None, args) is False:
+            return None
 
-    def add_members(self, members):
+        primary, _ = self.find_primary()
+        self.wait_for_all_nodes_to_catch_up(primary)
+        LOG.success(f"New node {local_node_id} joined the network")
+
+        return new_node
+
+    def create_members(self, members):
         self.members.extend(members)
         members = ["member{}".format(m) for m in members]
         for m in members:
             infra.proc.ccall("./keygenerator", "--name={}".format(m)).check_returncode()
 
-    def add_users(self, users):
+    def create_users(self, users):
         users = ["user{}".format(u) for u in users]
         for u in users:
             infra.proc.ccall("./keygenerator", "--name={}".format(u)).check_returncode()
 
+    # TODO: The following governance functions should be moved to their own class
+    # See https://github.com/microsoft/CCF/issues/364
     def member_client_rpc_as_json(self, member_id, remote_node, *args):
         if remote_node is None:
             remote_node = self.find_primary()[0]
@@ -346,7 +355,7 @@ class Network:
 
         return (True, j_result["result"])
 
-    def vote_using_majority(self, remote_node, proposal_id, accept):
+    def vote_using_majority(self, remote_node, proposal_id):
         # There is no need to stop after n / 2 + 1 members have voted,
         # but this could prove to be useful in detecting errors
         # related to the voting mechanism
@@ -354,12 +363,13 @@ class Network:
         for i, member in enumerate(self.members):
             if i >= member_count:
                 break
-            res = self.vote(member, remote_node, proposal_id, accept)
+            res = self.vote(member, remote_node, proposal_id, True)
             assert res[0]
             if res[1]:
                 break
 
         assert res
+        return res[1]
 
     def vote(self, member_id, remote_node, proposal_id, accept, force_unsigned=False):
         j_result = self.member_client_rpc_as_json(
@@ -368,10 +378,18 @@ class Network:
             "vote",
             f"--proposal-id={proposal_id}",
             "--accept" if accept else "--reject",
-            "--sign" if not force_unsigned else "--force-unsigned",
+            "--force-unsigned" if force_unsigned else "",
         )
         if j_result.get("error") is not None:
             return (False, j_result["error"])
+
+        # If the proposal was accepted, wait for it to be globally committed
+        # This is particularly useful for the open network proposal to wait
+        # until the global hook on the SERVICE table is triggered
+        if j_result["result"]:
+            with remote_node.management_client() as mc:
+                wait_for_global_commit(mc, j_result["commit"], j_result["term"], True)
+
         return (True, j_result["result"])
 
     def propose_retire_node(self, member_id, remote_node, node_id):
@@ -379,13 +397,13 @@ class Network:
             member_id, remote_node, "retire_node", f"--node-id={node_id}"
         )
 
-    def retire_node(self, member_id, remote_node, node_id):
+    def retire_node(self, remote_node, node_id):
+        member_id = 1
         result = self.propose_retire_node(member_id, remote_node, node_id)
-        proposal_id = result[1]["id"]
-        result = self.vote_using_majority(remote_node, proposal_id, True)
+        result = self.vote_using_majority(remote_node, result[1]["id"])
 
         with remote_node.member_client() as c:
-            id = c.request("read", {"table": "nodes", "key": node_id})
+            id = c.request("read", {"table": "ccf.nodes", "key": node_id})
             assert c.response(id).result["status"].decode() == "RETIRED"
 
     def propose_add_member(self, member_id, remote_node, new_member_cert):
@@ -393,14 +411,25 @@ class Network:
             member_id, remote_node, "add_member", f"--member-cert={new_member_cert}"
         )
 
+    def open_network(self, node):
+        """
+        Assuming a network in state OPENING, this functions creates a new
+        proposal and make members vote to transition the network to state
+        OPEN.
+        """
+        result = self.propose(1, node, "open_network")
+        self.vote_using_majority(node, result[1]["id"])
+        self.check_for_service(node)
+
+    def add_users(self, node, users):
+        for u in users:
+            result = self.propose(1, node, "add_user", f"--user-cert=user{u}_cert.pem")
+            result = self.vote_using_majority(node, result[1]["id"])
+
     def stop_all_nodes(self):
         for node in self.nodes:
             node.stop()
         LOG.info("All remotes stopped...")
-
-    def all_nodes_debug(self):
-        for node in self.nodes:
-            node.debug = True
 
     def get_members(self):
         return self.members
@@ -411,14 +440,10 @@ class Network:
     def get_node_by_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
-    def get_node_by_local_id(self, local_node_id):
-        return next(
-            (node for node in self.nodes if node.local_node_id == local_node_id), None
-        )
-
     def find_primary(self):
         """
-        Find the identity of the primary in the network and return its identity and the current term.
+        Find the identity of the primary in the network and return its identity
+        and the current term.
         """
         primary_id = None
         term = None
@@ -439,49 +464,12 @@ class Network:
 
         return (self.get_node_by_id(primary_id), term)
 
-    def update_nodes(self):
-        primary = self.find_primary()[0]
-        with primary.management_client() as c:
-            id = c.request("getNetworkInfo", {})
-            res = c.response(id)
-
-            # this is a json array of all the nodes in TRUSTED state
-            active_nodes = res.result["nodes"]
-
-            active_local_nodes = list(filter(lambda node: node.is_joined(), self.nodes))
-            assert len(active_nodes) == len(
-                active_local_nodes
-            ), f"active node count ({len(active_nodes)}) does not match active local nodes ({len(active_local_nodes)})"
-
-            for node in active_nodes:
-                port = int(node["port"].decode())
-                local_node = next(
-                    (
-                        local_node
-                        for local_node in active_local_nodes
-                        if local_node.rpc_port == port
-                    ),
-                    None,
-                )
-                # make sure we know all the nodes
-                assert (
-                    local_node
-                ), f"The node {str(node['host'])}:{port} is not known to the local network environment"
-
-                node_id = int(node["node_id"])
-                if local_node.node_id != node_id:
-                    local_node.node_id = node_id
-                    LOG.info(
-                        "Correcting node id for {local_node.node_id} to be {node_id}"
-                    )
-
-    def wait_for_all_nodes_have_joined(self, primary, timeout=3):
+    def wait_for_all_nodes_to_catch_up(self, primary, timeout=3):
         """
         Wait for all nodes to have joined the network and globally replicated
         all transactions executed on the primary (including the transactions
         which added the nodes).
         """
-
         with primary.management_client() as c:
             res = c.do("getCommit", {})
             local_commit_leader = res.commit
@@ -489,7 +477,7 @@ class Network:
 
         for _ in range(timeout):
             joined_nodes = 0
-            for node in (node for node in self.nodes if node.is_joined()):
+            for node in self.get_running_nodes():
                 with node.management_client() as c:
                     id = c.request("getCommit", {})
                     resp = c.response(id)
@@ -501,12 +489,12 @@ class Network:
                         and resp.result["term"] == term_leader
                     ):
                         joined_nodes += 1
-            if joined_nodes == len(self.nodes):
+            if joined_nodes == len(self.get_running_nodes()):
                 break
             time.sleep(1)
         assert joined_nodes == len(
-            self.nodes
-        ), f"Only {joined_nodes} (out of {len(self.nodes)}) nodes have joined the network"
+            self.get_running_nodes()
+        ), f"Only {joined_nodes} (out of {self.get_running_nodes()}) nodes have joined the network"
 
     def wait_for_node_commit_sync(self, timeout=3):
         """
@@ -523,9 +511,6 @@ class Network:
                 break
             time.sleep(1)
         assert [commits[0]] * len(commits) == commits, "All nodes at the same commit"
-
-    def get_primary(self):
-        return self.nodes[0]
 
     def get_next_local_node_id(self):
         if len(self.nodes):
@@ -557,17 +542,9 @@ class Checker:
                 )
 
             if self.management_client:
-                for i in range(timeout * 10):
-                    r = self.management_client.rpc(
-                        "getCommit", {"commit": rpc_result.commit}
-                    )
-                    if (
-                        r.global_commit >= rpc_result.commit
-                        and r.result["term"] == rpc_result.term
-                    ):
-                        return
-                    time.sleep(0.1)
-                raise TimeoutError("Timed out waiting for commit")
+                wait_for_global_commit(
+                    self.management_client, rpc_result.commit, rpc_result.term
+                )
 
             if self.notification_queue:
                 for i in range(timeout * 10):
@@ -641,7 +618,42 @@ class Node:
         else:
             self.node_port = probably_free_function(self.host)
 
-    def start(
+    def start(self, lib_name, enclave_type, workspace, label, members_certs, **kwargs):
+        self._start(
+            infra.remote.StartType.new,
+            lib_name,
+            enclave_type,
+            workspace,
+            label,
+            None,
+            members_certs,
+            **kwargs,
+        )
+
+    def join(
+        self, lib_name, enclave_type, workspace, label, target_rpc_address, **kwargs
+    ):
+        self._start(
+            infra.remote.StartType.join,
+            lib_name,
+            enclave_type,
+            workspace,
+            label,
+            target_rpc_address,
+            **kwargs,
+        )
+
+    def recover(self, lib_name, enclave_type, workspace, label, **kwargs):
+        self._start(
+            infra.remote.StartType.recover,
+            lib_name,
+            enclave_type,
+            workspace,
+            label,
+            **kwargs,
+        )
+
+    def _start(
         self,
         start_type,
         lib_name,
@@ -650,7 +662,6 @@ class Node:
         label,
         target_rpc_address=None,
         members_certs=None,
-        users_certs=None,
         **kwargs,
     ):
         """
@@ -679,7 +690,6 @@ class Node:
             label,
             target_rpc_address,
             members_certs,
-            users_certs,
             **kwargs,
         )
         self.remote.setup()
@@ -701,6 +711,7 @@ class Node:
             if self.perf:
                 self.remote.set_perf()
             self.remote.start()
+        self.remote.get_startup_files()
 
     def stop(self):
         if self.remote:
@@ -712,10 +723,19 @@ class Node:
 
     def is_joined(self):
         return self.network_state == NodeNetworkState.joined
-        # TODO: Address network_state - what is it used for?
 
-    def restart(self):
-        self.remote.restart()
+    def wait_for_node_to_join(self, timeout=3):
+        """
+        This function can be used to check that a node has successfully
+        joined a network and that it is part of the consensus.
+        """
+        for _ in range(timeout):
+            with self.management_client() as mc:
+                rep = mc.do("getCommit", {})
+                if rep.error == None and rep.result is not None:
+                    return
+            time.sleep(1)
+        raise TimeoutError(f"Node {self.node_id} failed to join the network")
 
     def get_sealed_secrets(self):
         return self.remote.get_sealed_secrets()

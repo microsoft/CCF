@@ -95,19 +95,25 @@ namespace ccf
         // TODO(#important): for now, recovery assumes that no primary
         // change can happen between the time the public CFTR is established and
         // this function is called.
-        {"accept_recovery", [this](Store::Tx& tx, const nlohmann::json& args) {
+        {"accept_recovery",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
            if (node.is_part_of_public_network())
              return node.finish_recovery(tx, args);
            else
              return false;
-         }}};
+         }},
+        {"open_network",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
+           return node.open_network(tx);
+         }},
+      };
 
     bool complete_proposal(Store::Tx& tx, const ObjectId id)
     {
       auto proposals = tx.get_view(this->network.proposals);
       auto proposal = proposals->get(id);
       if (!proposal)
-        throw std::logic_error(fmt::format("No proposal {}", id));
+        throw std::logic_error(fmt::format("No such proposal: {}", id));
 
       if (proposal->state != ProposalState::OPEN)
         throw std::logic_error(fmt::format(
@@ -124,44 +130,35 @@ namespace ccf
         // vvv arguments to script vvv
         proposal->parameter);
 
-      // pass the effects to the quorum script
-      const auto quorum = tsr.run<int>(
-        tx,
-        {get_script(tx, GovScriptIds::QUORUM),
-         {}, // can't write
-         WlIds::MEMBER_CAN_READ,
-         {}},
-        // vvv arguments to script vvv
-        proposed_calls);
-
-      /* count the votes
-       */
-      uint64_t pro = 0, con = 0;
-      const uint64_t total = proposal->votes.size();
+      nlohmann::json votes;
+      // Collect all member votes
       for (const auto& vote : proposal->votes)
       {
-        // can the proposal still succeed?
-        if (total - con < quorum)
-          return false;
-
         // valid voter
         if (!check_member_active(tx, vote.first))
           continue;
 
         // does the voter agree?
-        if (tsr.run<bool>(
-              tx,
-              {vote.second,
-               {}, // can't write
-               WlIds::MEMBER_CAN_READ,
-               {}},
-              proposed_calls))
-          pro++;
-        else
-          con++;
+        votes[std::to_string(vote.first)] = tsr.run<bool>(
+          tx,
+          {vote.second,
+           {}, // can't write
+           WlIds::MEMBER_CAN_READ,
+           {}},
+          proposed_calls);
       }
 
-      if (pro < quorum)
+      const auto pass = tsr.run<bool>(
+        tx,
+        {get_script(tx, GovScriptIds::PASS),
+         {}, // can't write
+         WlIds::MEMBER_CAN_READ,
+         {}},
+        // vvv arguments to script vvv
+        proposed_calls,
+        votes);
+
+      if (!pass)
         return false;
 
       // execute proposed calls
@@ -435,53 +432,6 @@ namespace ccf
       };
       install_with_auto_schema<void, bool>(
         MemberProcs::UPDATE_ACK_NONCE, update_ack_nonce, Write);
-
-      // Add a new node
-      auto add_node = [this](RequestArgs& args) {
-        NodeInfo new_node = args.params;
-#ifdef GET_QUOTE
-        QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
-          args.tx, this->network, new_node.quote, new_node.cert);
-        if (verify_result != QuoteVerificationResult::VERIFIED)
-          return QuoteVerifier::quote_verification_error_to_json(verify_result);
-#endif
-        auto nodes_view = args.tx.get_view(this->network.nodes);
-        NodeId duplicate_node_id = NoNode;
-        nodes_view->foreach([&new_node, &duplicate_node_id](
-                              const NodeId& nid, const NodeInfo& ni) {
-          if (
-            new_node.rpcport == ni.rpcport && new_node.host == ni.host &&
-            ni.status != NodeStatus::RETIRED)
-          {
-            duplicate_node_id = nid;
-            return false;
-          }
-          return true;
-        });
-        if (duplicate_node_id != NoNode)
-          return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            fmt::format(
-              "A node with the same host {} and port {} already exists (node "
-              "id: {})",
-              new_node.host,
-              new_node.rpcport,
-              duplicate_node_id));
-        const auto node_id = get_next_id(
-          args.tx.get_view(this->network.values), ValueIds::NEXT_NODE_ID);
-        new_node.status = NodeStatus::PENDING;
-        nodes_view->put(node_id, new_node);
-
-        // TODO: We don't use verifier here, is it needed? Perhaps it is
-        // canonicalising the cert?
-        auto verifier = tls::make_verifier(new_node.cert);
-        args.tx.get_view(this->network.node_certs)
-          ->put(verifier->raw_cert_data(), node_id);
-
-        return jsonrpc::success(nlohmann::json(JoinNetwork::Out{node_id}));
-      };
-      install_with_auto_schema<NodeInfo, JoinNetwork::Out>(
-        MemberProcs::ADD_NODE, add_node, Write);
     }
   };
 } // namespace ccf

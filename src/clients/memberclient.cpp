@@ -67,10 +67,20 @@ static const string accept_recovery_proposal(R"xxx(
       return Calls:call("accept_recovery", sealed_secrets)
     )xxx");
 
+static const string open_network_proposal(R"xxx(
+      tables = ...
+      return Calls:call("open_network")
+    )xxx");
+
 static const string accept_code_proposal(R"xxx(
       tables, code_digest = ...
       return Calls:call("new_code", code_digest)
     )xxx");
+
+json proposal_params(const string& script)
+{
+  return Propose::In{script};
+}
 
 template <typename T>
 json proposal_params(const string& script, const T& parameter)
@@ -157,30 +167,20 @@ void submit_retire_node(RpcTlsClient& tls_connection, NodeId node_id)
   cout << response.dump() << endl;
 }
 
-NodeId submit_add_node(RpcTlsClient& tls_connection, NodeInfo& node_info)
-{
-  const auto response =
-    json::from_msgpack(tls_connection.call("add_node", node_info));
-
-  cout << response.dump() << endl;
-
-  auto result = response.find("result");
-  if (result == response.end())
-    return INVALID_NODE_ID;
-
-  auto ret_id = result->find("id");
-  if (ret_id == result->end())
-    return INVALID_NODE_ID;
-
-  return *ret_id;
-}
-
 void submit_accept_recovery(
   RpcTlsClient& tls_connection, const string& sealed_secrets_file)
 {
   const auto sealed_secrets = slurp_json(sealed_secrets_file);
   const auto params =
     proposal_params<json>(accept_recovery_proposal, sealed_secrets);
+  const auto response =
+    json::from_msgpack(tls_connection.call("propose", params));
+  cout << response.dump() << std::endl;
+}
+
+void submit_open_network(RpcTlsClient& tls_connection)
+{
+  const auto params = proposal_params(open_network_proposal);
   const auto response =
     json::from_msgpack(tls_connection.call("propose", params));
   cout << response.dump() << std::endl;
@@ -265,10 +265,9 @@ int main(int argc, char** argv)
   app.allow_extras(true);
 
   cli::ParsedAddress server_address;
-  auto server_addr_opt =
-    cli::add_address_option(
-      app, server_address, "--rpc-address", "Remote node RPC over TLS address")
-      ->required();
+  cli::add_address_option(
+    app, server_address, "--rpc-address", "Remote node RPC over TLS address")
+    ->required();
 
   string cert_file, privk_file, ca_file;
   app.add_option("--cert", cert_file, "Client certificate")
@@ -323,13 +322,6 @@ int main(int argc, char** argv)
   auto ack =
     app.add_subcommand("ack", "Acknowledge self added into the network");
 
-  std::string nodes_file;
-  auto add_node = app.add_subcommand("add_node", "Add a node");
-  add_node
-    ->add_option(
-      "--nodes-to-add", nodes_file, "The file containing the nodes to be added")
-    ->required(true);
-
   std::string new_code_id;
   auto add_code = app.add_subcommand("add_code", "Support executing new code");
   add_code
@@ -363,6 +355,10 @@ int main(int argc, char** argv)
   auto withdraw = app.add_subcommand("withdraw", "Withdraw a proposal");
   withdraw->add_option("--proposal-id", proposal_id, "The proposal id")
     ->required(true);
+
+  auto open_network = app.add_subcommand(
+    "open_network",
+    "Open the network for users to issue business transactions");
 
   auto accept_recovery =
     app.add_subcommand("accept_recovery", "Accept to recover network");
@@ -413,22 +409,6 @@ int main(int argc, char** argv)
     if (*add_user)
     {
       add_new(*tls_connection, user_cert_file, add_user_proposal);
-    }
-
-    if (*add_node)
-    {
-      const auto j_nodes = files::slurp_json(nodes_file);
-
-      if (!j_nodes.is_array())
-      {
-        throw logic_error("Expected " + nodes_file + " to contain array");
-      }
-
-      for (auto node : j_nodes)
-      {
-        NodeInfo node_info = node;
-        submit_add_node(*tls_connection, node_info);
-      }
     }
 
     if (*add_code)
@@ -501,6 +481,11 @@ int main(int argc, char** argv)
     if (*accept_recovery)
     {
       submit_accept_recovery(*tls_connection, sealed_secrets_file);
+    }
+
+    if (*open_network)
+    {
+      submit_open_network(*tls_connection);
     }
   }
   catch (const exception& ex)

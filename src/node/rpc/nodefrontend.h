@@ -26,6 +26,36 @@ namespace ccf
         std::vector<uint8_t> caller_pem_raw = {caller_pem.str().begin(),
                                                caller_pem.str().end()};
 
+        auto nodes_view = args.tx.get_view(network.nodes);
+
+        // Check that an active node with the same network info does not already
+        // exist
+        NodeId duplicate_node_id = NoNode;
+        nodes_view->foreach(
+          [&in, &duplicate_node_id](const NodeId& nid, const NodeInfo& ni) {
+            if (
+              in.node_info_network.nodeport == ni.nodeport &&
+              in.node_info_network.host == ni.host &&
+              ni.status != NodeStatus::RETIRED)
+            {
+              duplicate_node_id = nid;
+              return false;
+            }
+            return true;
+          });
+
+        if (duplicate_node_id != NoNode)
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            fmt::format(
+              "A node with the same node host {} and port {} already exists "
+              "(node id: {})",
+              in.node_info_network.host,
+              in.node_info_network.nodeport,
+              duplicate_node_id));
+        }
+
 #ifdef GET_QUOTE
         QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
           args.tx, network, in.quote, caller_pem_raw);
@@ -39,7 +69,6 @@ namespace ccf
         NodeId joining_node_id =
           get_next_id(args.tx.get_view(network.values), NEXT_NODE_ID);
 
-        auto nodes_view = args.tx.get_view(network.nodes);
         nodes_view->put(
           joining_node_id,
           {in.node_info_network,
