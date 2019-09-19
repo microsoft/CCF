@@ -11,29 +11,81 @@ namespace enclave
 
   namespace http
   {
+    class MsgProcessor
+    {
+      virtual void msg(std::vector<uint8_t> m) = 0;
+    };
+
+    enum State
+    {
+      DONE,
+      IN_MESSAGE
+    };
+
+    static int on_msg(http_parser * parser);
+    static int on_msg_end(http_parser * parser);
+    static int on_req(http_parser * parser, const char * at, size_t length);
+
     class Parser
     {
       private:
         http_parser parser;
         http_parser_settings settings;
+        MsgProcessor& proc;
+        State state;
 
       public:
-        Parser(decltype(on_request) * on_req, void * userdata)
+        Parser(MsgProcessor& caller)
         {
           http_parser_settings_init(&settings);
           settings.on_body = on_req;
+          settings.on_message_begin = on_msg;
+          settings.on_message_complete = on_msg_end;
           http_parser_init(&parser, HTTP_REQUEST);
-          parser.data = userdata;
+          parser.data = this;
         }
 
         size_t execute(const uint8_t* data, size_t size)
         {
           return http_parser_execute(&parser, &settings, (const char *) data, size);
         }
+
+        void new_message()
+        {
+          if (p->state == DONE)
+            p->state == IN_MESSAGE;
+          else
+            throw std::runtime_error("Entering new message when previous message isn't complete");
+        }
+
+        void end_message()
+        {
+          if (p->state == IN_MESSAGE)
+          {
+            proc.msg({});
+            p->state = DONE;
+          }
+          else
+            throw std::runtime_error("Ending message, but not in a message");
+        }
     };
+
+    static int on_msg(http_parser * parser)
+    {
+      Parser * p = reinterpret_cast<Parser *>(parser->data);
+      p->new_message();
+      return 0;
+    }
+
+    static int on_msg_end(http_parser * parser)
+    {
+      Parser * p = reinterpret_cast<Parser *>(parser->data);
+      p->end_message();
+      return 0;      
+    }
   }
 
-  class HTTPServer : public TLSEndpoint
+  class HTTPServer : public TLSEndpoint, public http::MsgProcessor
   {
   protected:
     uint32_t msg_size;
