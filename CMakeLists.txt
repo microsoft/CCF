@@ -125,6 +125,12 @@ if(BUILD_TESTS)
   use_client_mbedtls(channels_test)
   target_link_libraries(channels_test PRIVATE secp256k1.host)
 
+  if (HTTP)
+    add_unit_test(http_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/test/http.cpp)
+    target_link_libraries(http_test PRIVATE http_parser.host)
+  endif()
+
   if(NOT PBFT)
     add_unit_test(frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp)

@@ -18,10 +18,10 @@ namespace enclave
         http_parser_settings settings;
 
       public:
-        Parser(void * userdata)
+        Parser(decltype(on_request) * on_req, void * userdata)
         {
           http_parser_settings_init(&settings);
-          settings.on_body = on_request;
+          settings.on_body = on_req;
           http_parser_init(&parser, HTTP_REQUEST);
           parser.data = userdata;
         }
@@ -48,7 +48,7 @@ namespace enclave
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
       msg_size(-1),
       count(0),
-      p(this) {}
+      p(on_request, this) {}
 
     void recv(const uint8_t* data, size_t size)
     {
