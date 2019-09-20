@@ -30,9 +30,7 @@ def run(args):
             with primary.management_client() as mc:
                 check_commit = infra.ccf.Checker(mc)
                 check = infra.ccf.Checker()
-                # TODO: Notifications are disabled until
-                # https://github.com/microsoft/CCF/issues/272 is implemented
-                # check_notification = infra.ccf.Checker(None, notifications.get_queue())
+                check_notification = infra.ccf.Checker(None, notifications.get_queue())
 
                 msg = "Hello world"
                 msg2 = "Hello there"
@@ -43,11 +41,11 @@ def run(args):
                     check_commit(
                         c.rpc("LOG_record", {"id": 42, "msg": msg}), result=True
                     )
-                    # check_notification(
-                    #     c.rpc("LOG_record", {"id": 43, "msg": msg2}), result=True
-                    # )
+                    check_notification(
+                        c.rpc("LOG_record", {"id": 43, "msg": msg2}), result=True
+                    )
                     check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
-                    # check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2})
+                    check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2})
 
                 LOG.debug("Write on all backup frontends")
                 with backup.management_client(format="json") as c:

@@ -328,6 +328,8 @@ endfunction()
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/secp256k1.cmake)
 
+find_package(CURL REQUIRED)
+
 ## Build PBFT if used as consensus
 if (PBFT)
   message(STATUS "Using PBFT as consensus")
@@ -534,6 +536,7 @@ if(NOT ${TARGET} STREQUAL "virtual")
     ${CMAKE_THREAD_LIBS_INIT}
     ccfcrypto.host
     evercrypt.host
+    CURL::libcurl
   )
   enable_quote_code(cchost)
 endif()
@@ -561,6 +564,7 @@ if(${TARGET} STREQUAL "virtual" OR ${TARGET} STREQUAL "all")
     -stdlib=libc++
     ccfcrypto.host
     evercrypt.host
+    CURL::libcurl
   )
 endif()
 

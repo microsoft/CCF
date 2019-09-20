@@ -145,11 +145,12 @@ Details
 - OpenEnclave_
 - mbedtls_
 - libuv_
+- libcurl_
 
 .. _OpenEnclave: https://github.com/openenclave/openenclave
 .. _mbedtls: https://tls.mbed.org/
 .. _libuv: https://github.com/libuv/libuv
-.. _eEvm: https://github.com/Microsoft/eEVM
+.. _libcurl: https://curl.haxx.se/libcurl/
 
 Building CCF
 -------------
