@@ -6,54 +6,54 @@
 
 #include <chrono>
 #include <functional>
-#include <unordered_map>
+#include <list>
 
 namespace ccf
 {
-  using TimerId = uint64_t;
+  using TimerCallback = std::function<void()>;
 
   // TODO: Should this move to inside Timers?
 
   // TODO: Support expiry of timers
-  template <typename T>
   class Timer
   {
-    using TimerCallback = std::function<T>;
-
   private:
     SpinLock lock;
     std::chrono::milliseconds period;
-    std::chrono::milliseconds tick;
+    std::chrono::milliseconds tick_;
     TimerCallback cb;
 
   public:
     Timer(std::chrono::milliseconds period_, TimerCallback cb_) :
       period(period_),
       cb(cb_)
-    {}
+    {
+      // TODO: Call callback straight away?
+    }
 
     void tick(std::chrono::milliseconds elapsed)
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      tick += elapsed;
-      if (tick >= period)
+      tick_ += elapsed;
+      if (tick_ >= period)
       {
         cb();
         using namespace std::chrono_literals;
-        tick = 0ms;
+        tick_ = 0ms;
       }
     }
   };
 
-  template <typename T>
   class Timers
   {
   private:
     SpinLock lock;
 
     // TODO: The type of this should probably change
-    std::unordered_map<TimerId, Timer<T>> timers;
+    // std::unordered_map<TimerId, Timer> timers;
+    // using TimerList = std::list<Timer>;
+    std::list<Timer> timers;
 
   public:
     Timers() {}
@@ -63,7 +63,14 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
 
       for (auto& t : timers)
-        t.second.tick(elapsed);
+        t.tick(elapsed);
+    }
+
+    const Timer& new_timer(std::chrono::milliseconds period, TimerCallback
+    cb)
+    {
+      timers.emplace_back(Timer(period, cb));
+      return timers.back();
     }
   };
 }

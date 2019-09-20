@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../kv/kvtypes.h"
-#include "../tls/keypair.h"
+#include "kv/kvtypes.h"
+#include "tls/keypair.h"
 
 #include <algorithm>
 #include <nlohmann/json.hpp>
@@ -30,6 +30,12 @@ namespace ccf
       std::vector<uint8_t> cert;
       std::vector<uint8_t> priv_key;
       std::vector<uint8_t> master;
+
+      bool operator==(const Secret& other) const
+      {
+        return cert == other.cert && priv_key == other.priv_key &&
+          master == other.master;
+      }
 
       Secret(
         std::vector<uint8_t> cert_ = {},

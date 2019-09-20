@@ -17,6 +17,7 @@
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "seal.h"
+#include "timer.h"
 #include "tls/client.h"
 #include "tls/entropy.h"
 
@@ -120,6 +121,8 @@ namespace ccf
     std::shared_ptr<enclave::RpcMap> rpc_map;
     std::shared_ptr<NodeToNode> n2n_channels;
     enclave::RPCSessions& rpcsessions;
+    Timers& timers;
+
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
@@ -147,14 +150,16 @@ namespace ccf
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
-      enclave::RPCSessions& rpcsessions) :
+      enclave::RPCSessions& rpcsessions,
+      Timers& timers_) :
       sm(State::uninitialized),
       self(INVALID_ID),
       node_kp(tls::make_key_pair()),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
-      rpcsessions(rpcsessions)
+      rpcsessions(rpcsessions),
+      timers(timers_)
     {
       ::EverCrypt_AutoConfig2_init();
     }
@@ -312,6 +317,10 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::pending);
 
+      // TODO: Experiment with timer:
+      using namespace std::chrono_literals;
+      timers.new_timer(1s, []() { LOG_INFO_FMT("Timer triggered"); });
+
       // Peer certificate needs to be signed by specified network certificate
       auto tls_ca = std::make_shared<tls::CA>(args.config.joining.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
@@ -358,7 +367,7 @@ namespace ccf
               std::make_unique<Seal>(writer_factory),
               !public_only);
 
-            self = res.id;
+            self = res.node_id;
 #ifndef PBFT
             setup_raft(public_only);
             setup_history();
