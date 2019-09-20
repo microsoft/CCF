@@ -166,7 +166,7 @@ namespace enclave
       return data;
     }
 
-    std::pair<uint8_t *, size_t> peek(size_t up_to)
+    std::pair<uint8_t*, size_t> peek(size_t up_to)
     {
       // This will return an empty range if the connection isn't
       // ready, but it will not block on the handshake.
@@ -225,8 +225,7 @@ namespace enclave
       // MBEDTLS_ERR_SSL_WANT_READ. Probably hit a size limit - try again
       if (r < up_to)
       {
-        LOG_TRACE_FMT(
-          "Asked for exactly {}, received {}, retrying", up_to, r);
+        LOG_TRACE_FMT("Asked for exactly {}, received {}, retrying", up_to, r);
         return peek(up_to - r);
       }
 

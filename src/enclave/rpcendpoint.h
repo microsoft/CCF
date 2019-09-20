@@ -2,14 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "httpserver.h"
 #include "rpcmap.h"
 #include "tlsframedendpoint.h"
-#include "httpserver.h"
 
 #ifdef HTTP
-#define ENDPOINT HTTPServer
+#  define ENDPOINT HTTPServer
 #else
-#define ENDPOINT FramedTLSEndpoint
+#  define ENDPOINT FramedTLSEndpoint
 #endif
 
 namespace enclave

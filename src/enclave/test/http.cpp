@@ -4,8 +4,8 @@
 #include "../httpserver.h"
 
 #include <doctest/doctest.h>
-#include <string>
 #include <queue>
+#include <string>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
@@ -15,64 +15,85 @@ std::vector<uint8_t> post(const std::string& body)
     "POST / HTTP/1.1\r\n"
     "Content-Type: application/json\r\n"
     "Content-Length: {}\r\n\r\n{}",
-    body.size(), body
-  );
+    body.size(),
+    body);
   return std::vector<uint8_t>(req.begin(), req.end());
 }
 
-std::queue<std::string> chunks;
-
-int on_req(http_parser * parser, const char * at, size_t length)
+class StubProc : public enclave::http::MsgProcessor
 {
-  //std::cout << "Parsed: " << std::string(at, length) << std::endl;
-  chunks.emplace(at, length);
-  return 0;
-}
+  std::queue<std::vector<uint8_t>> chunks;
+
+public:
+  virtual void msg(std::vector<uint8_t> m)
+  {
+    chunks.emplace(m);
+  }
+
+  void expect(std::vector<std::string> msgs)
+  {
+    for (auto s : msgs)
+    {
+      if (!chunks.empty())
+      {
+        CHECK(std::string(chunks.front().begin(), chunks.front().end()) == s);
+        chunks.pop();
+      }
+      else
+      {
+        CHECK_MESSAGE(false, fmt::format("Did not contain: {}", s));
+      }
+    }
+    CHECK(chunks.size() == 0);
+  }
+};
 
 TEST_CASE("Complete request")
 {
   std::string r("{}");
-  enclave::http::Parser p(on_req, nullptr);
+
+  StubProc sp;
+  enclave::http::Parser p(sp);
+
   auto req = post(r);
   auto parsed = p.execute(req.data(), req.size());
-  CHECK(parsed == req.size());
-  CHECK(chunks.size() == 1);
-  CHECK(chunks.front() == "{}");
-  chunks.pop();
+
+  sp.expect({r});
 }
 
 TEST_CASE("Partial request")
 {
   std::string r("{}");
-  enclave::http::Parser p(on_req, nullptr);
+
+  StubProc sp;
+  enclave::http::Parser p(sp);
+
   auto req = post(r);
   size_t offset = 10;
+
   auto parsed = p.execute(req.data(), req.size() - offset);
   CHECK(parsed == req.size() - offset);
-
   parsed = p.execute(req.data() + req.size() - offset, offset);
   CHECK(parsed == offset);
 
-  CHECK(chunks.size() == 1);
-  CHECK(chunks.front() == r);
-  chunks.pop();
+  sp.expect({r});
 }
 
 TEST_CASE("Partial body")
 {
   std::string r("{\"a_json_key\": \"a_json_value\"}");
-  enclave::http::Parser p(on_req, nullptr);
+
+  StubProc sp;
+  enclave::http::Parser p(sp);
+
   auto req = post(r);
   size_t offset = 10;
+
   auto parsed = p.execute(req.data(), req.size() - offset);
   CHECK(parsed == req.size() - offset);
 
   parsed = p.execute(req.data() + req.size() - offset, offset);
   CHECK(parsed == offset);
 
-  CHECK(chunks.size() == 2);
-  CHECK(chunks.front() == "{\"a_json_key\": \"a_js");
-  chunks.pop();
-  CHECK(chunks.front() == "on_value\"}");
-  chunks.pop();
+  sp.expect({r});
 }
