@@ -361,9 +361,11 @@ class CurlClient:
         r = self.stream.request(method, params)
         with tempfile.NamedTemporaryFile() as nf:
             msg = getattr(r, "to_{}".format(self.format))()
+            LOG.debug("Going to send {}".format(msg))
             nf.write(msg)
-            cmd = ['curl', '-v', '-k', f'https://{self.server_hostname}:{self.port}/',
-                  '--resolve', f'{self.server_hostname}:{self.port}:{self.host}', '-d', f'@{nf.name}']
+            nf.flush()
+            cmd = ['curl', '-k', f'https://{self.server_hostname}:{self.port}/', '-H', 'Content-Type: application/json',
+                  '--resolve', f'{self.server_hostname}:{self.port}:{self.host}', '--data-binary', f'@{nf.name}']
             if self.cafile:
                 cmd.extend(['--cacert', self.cafile])
             if self.key:
@@ -372,8 +374,9 @@ class CurlClient:
                 cmd.extend(['--cert', self.cert])
             LOG.debug(f"Running: {' '.join(cmd)}")
             rc = subprocess.run(cmd, capture_output=True)
-            LOG.debug(f"OUT {rc.stdout}")
-            LOG.debug(f"ERR {rc.stderr}")
+            LOG.debug(f"Received {rc.stdout.decode()}")
+            if rc.returncode != 0:
+                LOG.debug(f"ERR {rc.stderr.decode()}")
             self.stream.update(rc.stdout)
         return r.id
 
