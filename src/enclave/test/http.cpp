@@ -53,7 +53,7 @@ TEST_CASE("Complete request")
   std::string r("{}");
 
   StubProc sp;
-  enclave::http::Parser p(sp);
+  enclave::http::Parser p(HTTP_REQUEST, sp);
 
   auto req = post(r);
   auto parsed = p.execute(req.data(), req.size());
@@ -66,14 +66,11 @@ TEST_CASE("Parsing error")
   std::string r("{}");
 
   StubProc sp;
-  enclave::http::Parser p(sp);
+  enclave::http::Parser p(HTTP_REQUEST, sp);
 
   auto req = post(r);
   req[6] = '\n';
-  CHECK_THROWS_WITH(
-    p.execute(req.data(), req.size()),
-    "HTTP parsing failed: HPE_INVALID_HEADER_TOKEN: invalid character in "
-    "header");
+  CHECK_THROWS_WITH(p.execute(req.data(), req.size()), "HTTP parsing failed: HPE_INVALID_HEADER_TOKEN: invalid character in header");
   sp.expect({});
 }
 
@@ -82,7 +79,7 @@ TEST_CASE("Partial request")
   std::string r("{}");
 
   StubProc sp;
-  enclave::http::Parser p(sp);
+  enclave::http::Parser p(HTTP_REQUEST, sp);
 
   auto req = post(r);
   size_t offset = 10;
@@ -100,7 +97,7 @@ TEST_CASE("Partial body")
   std::string r("{\"a_json_key\": \"a_json_value\"}");
 
   StubProc sp;
-  enclave::http::Parser p(sp);
+  enclave::http::Parser p(HTTP_REQUEST, sp);
 
   auto req = post(r);
   size_t offset = 10;
@@ -120,7 +117,7 @@ TEST_CASE("Multiple requests")
   std::string r1("{\"another_json_key\": \"another_json_value\"}");
 
   StubProc sp;
-  enclave::http::Parser p(sp);
+  enclave::http::Parser p(HTTP_REQUEST, sp);
 
   auto req = post(r0);
   auto req1 = post(r1);

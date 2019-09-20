@@ -400,7 +400,7 @@ class LocalRemote(CmdMixin):
                 self.stdout.close()
             if self.stderr:
                 self.stderr.close()
-            #og_errors(self.out, self.err)
+            log_errors(self.out, self.err)
 
     def setup(self):
         """

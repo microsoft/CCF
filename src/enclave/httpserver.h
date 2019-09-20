@@ -47,13 +47,13 @@ namespace enclave
       std::vector<uint8_t> buf;
 
     public:
-      Parser(MsgProcessor& caller) : proc(caller)
+      Parser(http_parser_type type, MsgProcessor& caller) : proc(caller)
       {
         http_parser_settings_init(&settings);
         settings.on_body = on_req;
         settings.on_message_begin = on_msg;
         settings.on_message_complete = on_msg_end;
-        http_parser_init(&parser, HTTP_REQUEST);
+        http_parser_init(&parser, type);
         parser.data = this;
       }
 
@@ -141,7 +141,7 @@ namespace enclave
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-      p(*this)
+      p(HTTP_REQUEST, *this)
     {}
 
     void recv(const uint8_t* data, size_t size)
@@ -210,7 +210,7 @@ namespace enclave
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-      p(*this)
+      p(HTTP_RESPONSE, *this)
     {}
 
     void recv(const uint8_t* data, size_t size)
@@ -248,6 +248,7 @@ namespace enclave
     void send(const std::vector<uint8_t>& data)
     {
       auto req = http::post(std::string(data.begin(), data.end()));
+      LOG_TRACE_FMT("Going to send [{}]", std::string(req.begin(), req.end()));
       send_buffered(req);
       flush();
     }
