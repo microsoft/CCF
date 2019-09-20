@@ -41,6 +41,11 @@ namespace enclave
       return pending_read.size();
     }
 
+    size_t read_size()
+    {
+      return read_buffer.size();
+    }
+
   public:
     TLSEndpoint(
       size_t session_id_,
@@ -203,13 +208,19 @@ namespace enclave
         case MBEDTLS_ERR_SSL_WANT_READ:
         case MBEDTLS_ERR_SSL_WANT_WRITE:
         {
+          LOG_TRACE_FMT("TLS {} on read: WANT", session_id);
+
           read_buffer.resize(offset);
           return {read_buffer.data(), read_buffer.size()};
         }
 
         default:
-        {}
+        {
+          LOG_TRACE_FMT("DEFAULT");
+        }
       }
+
+      LOG_TRACE_FMT("HERE");
 
       if (r < 0)
       {
@@ -217,6 +228,8 @@ namespace enclave
         stop(error);
         return {read_buffer.data(), read_buffer.size()};
       }
+
+      LOG_TRACE_FMT("THERE");
 
       auto total = offset + r;
       read_buffer.resize(total);

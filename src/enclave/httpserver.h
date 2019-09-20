@@ -148,7 +148,8 @@ namespace enclave
     {
       recv_buffered(data, size);
 
-      auto buf = read(size, false);
+      LOG_TRACE_FMT("recv called with {} bytes, pending {}", size, pending_read_size());
+      auto buf = read(pending_read_size(), false);
       if (buf.size() == 0)
         return;
       LOG_TRACE_FMT("Going to parse {} bytes", buf.size());
@@ -217,15 +218,19 @@ namespace enclave
     {
       recv_buffered(data, size);
 
-      auto buf = read(size, false);
-      if (buf.size() == 0)
+      auto pending = pending_read_size();
+      LOG_TRACE_FMT("recv called with {} bytes, pending {}", size, pending);
+      auto [buf, len] = peek(4096); // TODO: Keep count
+      LOG_TRACE_FMT("peek found {}", len);
+      if (len == 0)
         return;
-      LOG_TRACE_FMT("Going to parse {} bytes", buf.size());
-      LOG_TRACE_FMT("Going to parse [{}]", std::string(buf.begin(), buf.end()));
+      LOG_TRACE_FMT("Going to parse {} bytes", len);
+      LOG_TRACE_FMT("Going to parse [{}]", std::string(buf, buf + len));
 
-      size_t nparsed = p.execute(buf.data(), buf.size());
+      size_t nparsed = p.execute(buf, len);
       if (nparsed == 0)
         return;
+      consume(len);
     }
 
     virtual void msg(std::vector<uint8_t> m)
