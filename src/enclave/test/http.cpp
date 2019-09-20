@@ -70,7 +70,10 @@ TEST_CASE("Parsing error")
 
   auto req = post(r);
   req[6] = '\n';
-  CHECK_THROWS_WITH(p.execute(req.data(), req.size()), "HTTP parsing failed: HPE_INVALID_HEADER_TOKEN: invalid character in header");
+  CHECK_THROWS_WITH(
+    p.execute(req.data(), req.size()),
+    "HTTP parsing failed: HPE_INVALID_HEADER_TOKEN: invalid character in "
+    "header");
   sp.expect({});
 }
 

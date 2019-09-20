@@ -48,10 +48,14 @@ namespace enclave
 
       size_t execute(const uint8_t* data, size_t size)
       {
-        auto parsed = http_parser_execute(&parser, &settings, (const char*)data, size);
+        auto parsed =
+          http_parser_execute(&parser, &settings, (const char*)data, size);
         auto err = HTTP_PARSER_ERRNO(&parser);
         if (err)
-          throw std::runtime_error(fmt::format("HTTP parsing failed: {}: {}", http_errno_name(err), http_errno_description(err)));
+          throw std::runtime_error(fmt::format(
+            "HTTP parsing failed: {}: {}",
+            http_errno_name(err),
+            http_errno_description(err)));
         return parsed;
       }
 
