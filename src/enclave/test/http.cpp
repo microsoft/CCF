@@ -97,3 +97,21 @@ TEST_CASE("Partial body")
 
   sp.expect({r});
 }
+
+TEST_CASE("Multiple requests")
+{
+  std::string r0("{\"a_json_key\": \"a_json_value\"}");
+  std::string r1("{\"another_json_key\": \"another_json_value\"}");
+
+  StubProc sp;
+  enclave::http::Parser p(sp);
+
+  auto req = post(r0);
+  auto req1 = post(r1);
+  std::copy(req1.begin(), req1.end(), std::back_inserter(req));
+
+  auto parsed = p.execute(req.data(), req.size());
+  CHECK(parsed == req.size());
+
+  sp.expect({r0, r1});
+}
