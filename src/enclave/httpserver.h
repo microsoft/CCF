@@ -50,19 +50,24 @@ namespace enclave
       {
         auto parsed =
           http_parser_execute(&parser, &settings, (const char*)data, size);
+        LOG_TRACE_FMT("Parsed {} bytes", parsed);
         auto err = HTTP_PARSER_ERRNO(&parser);
         if (err)
           throw std::runtime_error(fmt::format(
             "HTTP parsing failed: {}: {}",
             http_errno_name(err),
             http_errno_description(err)));
+        // TODO: check for http->upgrade
         return parsed;
       }
 
       void append(const char* at, size_t length)
       {
         if (state == IN_MESSAGE)
+        {
+          LOG_TRACE_FMT("Appending chunk [{}]", std::string(at, at + length));
           std::copy(at, at + length, std::back_inserter(buf));
+        }
         else
           throw std::runtime_error("Receiving content outside of message");
       }
@@ -70,7 +75,10 @@ namespace enclave
       void new_message()
       {
         if (state == DONE)
+        {
+          LOG_TRACE_FMT("Entering new message");
           state = IN_MESSAGE;
+        }
         else
           throw std::runtime_error(
             "Entering new message when previous message isn't complete");
@@ -80,6 +88,7 @@ namespace enclave
       {
         if (state == IN_MESSAGE)
         {
+          LOG_TRACE_FMT("Done with message");
           proc.msg(std::move(buf));
           state = DONE;
         }
@@ -132,20 +141,15 @@ namespace enclave
     {
       recv_buffered(data, size);
 
-      auto [buf, len] = peek(size);
-      if (len == 0)
+      auto buf = read(size, false);
+      if (buf.size() == 0)
         return;
-      LOG_TRACE_FMT("Going to parse {} bytes", len);
-      size_t nparsed = 0;
-      while (len > 0)
-      {
-        size_t nparsed = p.execute(buf, len); // TODO: error handling
-        if (nparsed == 0)
-          return;
-        consume(nparsed);
-        buf += nparsed;
-        len -= nparsed;
-      }
+      LOG_TRACE_FMT("Going to parse {} bytes", buf.size());
+      LOG_TRACE_FMT("Going to parse [{}]", std::string(buf.begin(), buf.end()));
+
+      size_t nparsed = p.execute(buf.data(), buf.size());
+      if (nparsed == 0)
+        return;
     }
 
     virtual void msg(std::vector<uint8_t> m)
