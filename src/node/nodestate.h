@@ -327,7 +327,7 @@ namespace ccf
           std::lock_guard<SpinLock> guard(lock);
           sm.expect(State::pending);
 
-          auto j = jsonrpc::unpack(data, jsonrpc::Pack::MsgPack);
+          auto j = jsonrpc::unpack(data, jsonrpc::Pack::Text);
 
           // Check that the response is valid.
           try
@@ -403,7 +403,7 @@ namespace ccf
       join_rpc.params.quote = quote;
 
       auto join_req =
-        jsonrpc::pack(nlohmann::json(join_rpc), jsonrpc::Pack::MsgPack);
+        jsonrpc::pack(nlohmann::json(join_rpc), jsonrpc::Pack::Text);
 
       LOG_INFO_FMT("Sending join request");
 

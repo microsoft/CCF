@@ -2,12 +2,19 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "httpserver.h"
 #include "enclavetypes.h"
 #include "tlsframedendpoint.h"
 
+#ifdef HTTP
+#  define CLIENT_ENDPOINT HTTPClient
+#else
+#  define CLIENT_ENDPOINT FramedTLSEndpoint
+#endif
+
 namespace enclave
 {
-  class RPCClient : public FramedTLSEndpoint
+  class RPCClient : public CLIENT_ENDPOINT
   {
     using HandleDataCallback =
       std::function<bool(const std::vector<uint8_t>& data)>;
@@ -20,8 +27,7 @@ namespace enclave
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      // TODO: swich to HTTPClient if HTTP is defined
-      FramedTLSEndpoint(session_id, writer_factory, move(ctx))
+      CLIENT_ENDPOINT(session_id, writer_factory, move(ctx))
     {}
 
     void connect(

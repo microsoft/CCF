@@ -10,6 +10,17 @@ namespace enclave
 {
   namespace http
   {
+    std::vector<uint8_t> post(const std::string& body)
+    {
+      auto req = fmt::format(
+        "POST / HTTP/1.1\r\n"
+        "Content-Type: application/json\r\n"
+        "Content-Length: {}\r\n\r\n{}",
+        body.size(),
+        body);
+      return std::vector<uint8_t>(req.begin(), req.end());
+    }
+
     class MsgProcessor
     {
     public:
@@ -122,8 +133,6 @@ namespace enclave
   class HTTPServer : public TLSEndpoint, public http::MsgProcessor
   {
   protected:
-    uint32_t msg_size;
-    size_t count;
     http::Parser p;
 
   public:
@@ -132,8 +141,6 @@ namespace enclave
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-      msg_size(-1),
-      count(0),
       p(*this)
     {}
 
@@ -187,6 +194,61 @@ namespace enclave
         send_buffered(h);
         send_buffered(data);
       }
+      flush();
+    }
+  };
+
+  // TODO: NAMING
+  class HTTPClient : public TLSEndpoint, public http::MsgProcessor
+  {
+  protected:
+    http::Parser p;
+
+  public:
+    HTTPClient(
+      size_t session_id,
+      ringbuffer::AbstractWriterFactory& writer_factory,
+      std::unique_ptr<tls::Context> ctx) :
+      TLSEndpoint(session_id, writer_factory, std::move(ctx)),
+      p(*this)
+    {}
+
+    void recv(const uint8_t* data, size_t size)
+    {
+      recv_buffered(data, size);
+
+      auto buf = read(size, false);
+      if (buf.size() == 0)
+        return;
+      LOG_TRACE_FMT("Going to parse {} bytes", buf.size());
+      LOG_TRACE_FMT("Going to parse [{}]", std::string(buf.begin(), buf.end()));
+
+      size_t nparsed = p.execute(buf.data(), buf.size());
+      if (nparsed == 0)
+        return;
+    }
+
+    virtual void msg(std::vector<uint8_t> m)
+    {
+      if (m.size() > 0)
+      {
+        try
+        {
+          if (!handle_data(m))
+            close();
+        }
+        catch (...)
+        {
+          // On any exception, close the connection.
+          close();
+        }
+      }
+    }
+
+    void send(const std::vector<uint8_t>& data)
+    {
+      auto req = http::post(std::string(data.begin(), data.end()));
+      send_buffered(req);
       flush();
     }
   };
