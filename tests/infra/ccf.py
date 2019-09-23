@@ -522,6 +522,7 @@ class Checker:
     def __init__(self, management_client=None, notification_queue=None):
         self.management_client = management_client
         self.notification_queue = notification_queue
+        self.notified_commit = 0
 
     def __call__(self, rpc_result, result=None, error=None, timeout=2):
         if error is not None:
@@ -548,8 +549,14 @@ class Checker:
 
             if self.notification_queue:
                 for i in range(timeout * 10):
-                    for q in list(self.notification_queue.queue):
-                        if json.loads(q)["commit"] >= rpc_result.commit:
+                    while self.notification_queue.not_empty:
+                        notification = self.notification_queue.get()
+                        n = json.loads(notification)["commit"]
+                        assert (
+                            n > self.notified_commit
+                        ), f"Received notification of commit {n} after commit {self.notified_commit}"
+                        self.notified_commit = n
+                        if n >= rpc_result.commit:
                             return
                     time.sleep(0.5)
                 raise TimeoutError("Timed out waiting for notification")
