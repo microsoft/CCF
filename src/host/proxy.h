@@ -54,6 +54,11 @@ namespace asynchost
     }
 
     proxy_ptr<T>& operator=(const proxy_ptr<T>& that) = default;
+
+    bool is_null()
+    {
+      return internal == nullptr;
+    }
   };
 
   template <typename handle_type>

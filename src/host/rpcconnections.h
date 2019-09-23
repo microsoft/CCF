@@ -168,13 +168,16 @@ namespace asynchost
         return false;
       }
 
+      if (s->second.is_null())
+        return false;
+
       return s->second->write(len, data);
     }
 
     bool stop(int64_t id)
     {
-      // Invalidating the TCP socket will result in the handle being close. No
-      // more messages will be read from or written to the enclave.
+      // Invalidating the TCP socket will result in the handle being closed. No
+      // more messages will be read from or written to the TCP socket.
       sockets[id] = nullptr;
       RINGBUFFER_WRITE_MESSAGE(tls::tls_close, to_enclave, (size_t)id);
 
