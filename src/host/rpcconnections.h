@@ -176,6 +176,7 @@ namespace asynchost
       // Invalidating the TCP socket will result in the handle being close. No
       // more messages will be read from or written to the enclave.
       sockets[id] = nullptr;
+      RINGBUFFER_WRITE_MESSAGE(tls::tls_close, to_enclave, (size_t)id);
 
       return true;
     }
@@ -219,8 +220,7 @@ namespace asynchost
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, tls::tls_stop, [this](const uint8_t* data, size_t size) {
-          auto [id, msg] =
-            ringbuffer::read_message<tls::tls_stop>(data, size);
+          auto [id, msg] = ringbuffer::read_message<tls::tls_stop>(data, size);
 
           LOG_DEBUG_FMT("rpc stop from enclave {}, {}", id, msg);
           stop(id);

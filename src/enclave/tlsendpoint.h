@@ -384,10 +384,7 @@ namespace enclave
         case closed:
         {
           RINGBUFFER_WRITE_MESSAGE(
-            tls::tls_stop,
-            to_host,
-            session_id,
-            std::string("Session closed"));
+            tls::tls_stop, to_host, session_id, std::string("Session closed"));
           break;
         }
 
