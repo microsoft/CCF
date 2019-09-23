@@ -13,9 +13,9 @@
 #include "history.h"
 #include "networkstate.h"
 #include "nodetonode.h"
+#include "notifier.h"
 #include "rpc/consts.h"
 #include "rpc/frontend.h"
-#include "notifier.h"
 #include "rpc/serialization.h"
 #include "seal.h"
 #include "tls/client.h"
@@ -149,7 +149,8 @@ namespace ccf
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
-      enclave::RPCSessions& rpcsessions, ccf::Notifier& notifier) :
+      enclave::RPCSessions& rpcsessions,
+      ccf::Notifier& notifier) :
       sm(State::uninitialized),
       self(INVALID_ID),
       node_kp(tls::make_key_pair()),
