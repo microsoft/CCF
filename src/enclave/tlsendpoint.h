@@ -32,18 +32,15 @@ namespace enclave
     // Decrypted data, read through mbedtls
     std::vector<uint8_t> read_buffer;
 
+    size_t _to_consume = 0;
+
     std::unique_ptr<tls::Context> ctx;
     Status status;
 
   protected:
-    size_t pending_read_size()
+    size_t to_consume()
     {
-      return pending_read.size();
-    }
-
-    size_t read_size()
-    {
-      return read_buffer.size();
+      return _to_consume;
     }
 
   public:
@@ -107,7 +104,10 @@ namespace enclave
           read_buffer.clear();
 
         if (offset == up_to)
+        {
+          _to_consume -= data.size();
           return data;
+        }
       }
 
       auto r = ctx->read(data.data() + offset, up_to - offset);
@@ -126,6 +126,7 @@ namespace enclave
           if (!exact)
           {
             data.resize(offset);
+            _to_consume -= data.size();
             return data;
           }
 
@@ -138,7 +139,10 @@ namespace enclave
           data.resize(offset);
 
           if (!exact)
+          {
+            _to_consume -= data.size();
             return data;
+          }
 
           read_buffer = move(data);
           return {};
@@ -168,6 +172,7 @@ namespace enclave
         return read(up_to, exact);
       }
 
+      _to_consume -= data.size();
       return data;
     }
 
@@ -226,6 +231,7 @@ namespace enclave
       {
         LOG_TRACE_FMT("TLS {} on read: {}", session_id, tls::error_string(r));
         stop(error);
+        read_buffer.resize(offset);
         return {read_buffer.data(), read_buffer.size()};
       }
 
@@ -247,12 +253,17 @@ namespace enclave
 
     void consume(size_t up_to)
     {
+      // TODO: check
+      _to_consume -= up_to;
+
       if (up_to)
         read_buffer.erase(read_buffer.begin(), read_buffer.begin() + up_to);
     }
 
     void recv(const uint8_t* data, size_t size)
     {
+      _to_consume += size;
+
       pending_read.insert(pending_read.end(), data, data + size);
       do_handshake();
 
@@ -263,6 +274,8 @@ namespace enclave
 
     void recv_buffered(const uint8_t* data, size_t size)
     {
+      _to_consume += size;
+
       pending_read.insert(pending_read.end(), data, data + size);
       do_handshake();
     }

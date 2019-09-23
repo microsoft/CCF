@@ -21,6 +21,16 @@ namespace enclave
       return std::vector<uint8_t>(req.begin(), req.end());
     }
 
+    std::vector<uint8_t> post_header(const std::vector<uint8_t>& body)
+    {
+      auto req = fmt::format(
+        "POST / HTTP/1.1\r\n"
+        "Content-Type: application/json\r\n"
+        "Content-Length: {}\r\n\r\n{}",
+        body.size());
+      return std::vector<uint8_t>(req.begin(), req.end());
+    }
+
     class MsgProcessor
     {
     public:
@@ -65,9 +75,10 @@ namespace enclave
         auto err = HTTP_PARSER_ERRNO(&parser);
         if (err)
           throw std::runtime_error(fmt::format(
-            "HTTP parsing failed: {}: {}",
+            "HTTP parsing failed: {}: {}: [{}]",
             http_errno_name(err),
-            http_errno_description(err)));
+            http_errno_description(err),
+            std::string(data, data+size)));
         // TODO: check for http->upgrade
         return parsed;
       }
@@ -108,6 +119,36 @@ namespace enclave
       }
     };
 
+    class ResponseHeaderEmitter
+    {
+      public:
+      static std::vector<uint8_t> emit(const std::vector<uint8_t> data)
+      {
+        if (data.size() == 0)
+        {
+          auto hdr = fmt::format("HTTP/1.1 204 No Content\r\n");
+          return std::vector<uint8_t>(hdr.begin(), hdr.end());
+        }
+        else
+        {
+          auto hdr = fmt::format(
+            "HTTP/1.1 200 OK\r\nContent-Type: "
+            "application/json\r\nContent-Length: {}\r\n\r\n",
+            data.size());
+          return std::vector<uint8_t>(hdr.begin(), hdr.end());
+        }
+      }
+    };
+
+    class RequestHeaderEmitter
+    {
+      public:
+      static std::vector<uint8_t> emit(const std::vector<uint8_t> data)
+      {
+        return http::post_header(data);
+      }
+    };
+
     static int on_msg(http_parser* parser)
     {
       Parser* p = reinterpret_cast<Parser*>(parser->data);
@@ -130,6 +171,87 @@ namespace enclave
     }
   }
 
+  template <class E>
+  class HTTPEndpoint : public TLSEndpoint, public http::MsgProcessor
+  {
+  protected:
+    http::Parser p;
+
+  public:
+    HTTPEndpoint(
+      size_t session_id,
+      ringbuffer::AbstractWriterFactory& writer_factory,
+      std::unique_ptr<tls::Context> ctx)
+    {
+      LOG_FAIL_FMT("FAIL");
+      assert(false);
+    }
+
+    void recv(const uint8_t* data, size_t size)
+    {
+      recv_buffered(data, size);
+
+      LOG_TRACE_FMT("recv called with {} bytes", size);
+      auto buf = read(4096, false); //TODO: make sure this is always bigger than the message
+      //auto [buf, len] = peek(4096);
+      LOG_TRACE_FMT("read got {}", buf.size());
+      if (buf.size() == 0)
+        return;
+      LOG_TRACE_FMT("Going to parse {} bytes", buf.size());
+      //LOG_TRACE_FMT("Going to parse [{}]", buf);
+
+      size_t nparsed = p.execute(buf.data(), buf.size());
+      if (nparsed == 0)
+        return;
+      //consume(len);
+    }
+
+    virtual void msg(std::vector<uint8_t> m)
+    {
+      if (m.size() > 0)
+      {
+        try
+        {
+          if (!handle_data(m))
+            close();
+        }
+        catch (...)
+        {
+          // On any exception, close the connection.
+          close();
+        }
+      }
+    }
+
+    void send(const std::vector<uint8_t>& data)
+    {
+      auto h = E::emit(data);
+      LOG_TRACE_FMT("Going to send header [{}]", std::string(h.begin(), h.end()));
+      LOG_TRACE_FMT("Going to send body [{}]", std::string(data.begin(), data.end()));
+
+      send_buffered(E::emit(data));
+      if (data.size() > 0)
+        send_buffered(data);
+      flush();
+    }
+  };
+
+  template<> HTTPEndpoint<http::RequestHeaderEmitter>::HTTPEndpoint(
+      size_t session_id,
+      ringbuffer::AbstractWriterFactory& writer_factory,
+      std::unique_ptr<tls::Context> ctx) :
+      TLSEndpoint(session_id, writer_factory, std::move(ctx)),
+      p(HTTP_RESPONSE, *this)
+    {}
+
+  template<> HTTPEndpoint<http::ResponseHeaderEmitter>::HTTPEndpoint(
+      size_t session_id,
+      ringbuffer::AbstractWriterFactory& writer_factory,
+      std::unique_ptr<tls::Context> ctx) :
+      TLSEndpoint(session_id, writer_factory, std::move(ctx)),
+    p(HTTP_REQUEST, *this)
+    {}
+
   class HTTPServer : public TLSEndpoint, public http::MsgProcessor
   {
   protected:
@@ -148,16 +270,18 @@ namespace enclave
     {
       recv_buffered(data, size);
 
-      LOG_TRACE_FMT("recv called with {} bytes, pending {}", size, pending_read_size());
-      auto buf = read(pending_read_size(), false);
-      if (buf.size() == 0)
+      LOG_TRACE_FMT("recv called with {} bytes, to consume {}", size, to_consume());
+      auto [buf, len] = peek(to_consume());
+      LOG_TRACE_FMT("peek found {}", len);
+      if (len == 0)
         return;
-      LOG_TRACE_FMT("Going to parse {} bytes", buf.size());
-      LOG_TRACE_FMT("Going to parse [{}]", std::string(buf.begin(), buf.end()));
+      LOG_TRACE_FMT("Going to parse {} bytes", len);
+      LOG_TRACE_FMT("Going to parse [{}]", std::string(buf, buf + len));
 
-      size_t nparsed = p.execute(buf.data(), buf.size());
+      size_t nparsed = p.execute(buf, len);
       if (nparsed == 0)
         return;
+      consume(len);
     }
 
     virtual void msg(std::vector<uint8_t> m)
@@ -218,9 +342,8 @@ namespace enclave
     {
       recv_buffered(data, size);
 
-      auto pending = pending_read_size();
-      LOG_TRACE_FMT("recv called with {} bytes, pending {}", size, pending);
-      auto [buf, len] = peek(4096); // TODO: Keep count
+      LOG_TRACE_FMT("recv called with {} bytes, to consume {}", size, to_consume());
+      auto [buf, len] = peek(to_consume());
       LOG_TRACE_FMT("peek found {}", len);
       if (len == 0)
         return;

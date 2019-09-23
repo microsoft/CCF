@@ -6,15 +6,15 @@
 #include "enclavetypes.h"
 #include "tlsframedendpoint.h"
 
-#ifdef HTTP
-#  define CLIENT_ENDPOINT HTTPClient
-#else
-#  define CLIENT_ENDPOINT FramedTLSEndpoint
-#endif
-
 namespace enclave
 {
-  class RPCClient : public CLIENT_ENDPOINT
+#ifdef HTTP
+using ClientEnpoint = HTTPEndpoint<http::RequestHeaderEmitter>;
+#else
+using ClientEnpoint = FramedTLSEndpoint;
+#endif
+
+  class RPCClient : public ClientEnpoint
   {
     using HandleDataCallback =
       std::function<bool(const std::vector<uint8_t>& data)>;
@@ -27,7 +27,7 @@ namespace enclave
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      CLIENT_ENDPOINT(session_id, writer_factory, move(ctx))
+      ClientEnpoint(session_id, writer_factory, move(ctx))
     {}
 
     void connect(
