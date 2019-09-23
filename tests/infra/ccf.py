@@ -553,7 +553,7 @@ class Checker:
                         notification = self.notification_queue.get()
                         n = json.loads(notification)["commit"]
                         assert (
-                            n >= self.notified_commit
+                            n > self.notified_commit
                         ), f"Received notification of commit {n} after commit {self.notified_commit}"
                         self.notified_commit = n
                         if n >= rpc_result.commit:
