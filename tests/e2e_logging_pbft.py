@@ -34,12 +34,8 @@ def run(args):
 
             LOG.debug("Write/Read on primary")
             with primary.user_client(format="json") as c:
-                check_commit(
-                    c.rpc("LOG_record", {"id": 42, "msg": msg}), result=True
-                )
-                check_commit(
-                    c.rpc("LOG_record", {"id": 43, "msg": msg2}), result=True
-                )
+                check_commit(c.rpc("LOG_record", {"id": 42, "msg": msg}), result=True)
+                check_commit(c.rpc("LOG_record", {"id": 43, "msg": msg2}), result=True)
                 check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
                 check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2})
 
@@ -52,8 +48,7 @@ def run(args):
                 for p in range(10, 13):
                     long_msg = "X" * (2 ** p)
                     check_commit(
-                        c.rpc("LOG_record", {"id": id, "msg": long_msg}),
-                        result=True,
+                        c.rpc("LOG_record", {"id": id, "msg": long_msg}), result=True
                     )
                     check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg})
                 id += 1
