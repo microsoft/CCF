@@ -28,9 +28,8 @@ def run(args):
             primary, (backup,) = network.start_and_join(args)
 
             with primary.management_client() as mc:
-                check_commit = infra.ccf.Checker(mc)
+                check_commit = infra.ccf.Checker(mc, notifications.get_queue())
                 check = infra.ccf.Checker()
-                check_notification = infra.ccf.Checker(None, notifications.get_queue())
 
                 msg = "Hello world"
                 msg2 = "Hello there"
@@ -41,7 +40,7 @@ def run(args):
                     check_commit(
                         c.rpc("LOG_record", {"id": 42, "msg": msg}), result=True
                     )
-                    check_notification(
+                    check_commit(
                         c.rpc("LOG_record", {"id": 43, "msg": msg2}), result=True
                     )
                     check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
