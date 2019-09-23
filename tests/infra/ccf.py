@@ -174,6 +174,7 @@ class Network:
                     )
                     node.network_state = NodeNetworkState.joined
                 else:
+                    # TODO: Make sure this fails if node does not join the network!!!
                     self.add_node(node, args.package, None, False, args)
             except Exception:
                 LOG.exception("Failed to start node {}".format(i))
