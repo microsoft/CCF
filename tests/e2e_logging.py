@@ -71,7 +71,7 @@ def run(args):
                         )
                         check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg})
                     id += 1
-                
+
 
 if __name__ == "__main__":
 
