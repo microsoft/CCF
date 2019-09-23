@@ -54,8 +54,7 @@ namespace asynchost
 
       void cleanup()
       {
-        parent.sockets.erase(id);
-        RINGBUFFER_WRITE_MESSAGE(tls::tls_stop, parent.to_enclave, (size_t)id);
+        RINGBUFFER_WRITE_MESSAGE(tls::tls_close, parent.to_enclave, (size_t)id);
       }
     };
 
@@ -172,6 +171,15 @@ namespace asynchost
       return s->second->write(len, data);
     }
 
+    bool stop(int64_t id)
+    {
+      // Invalidating the TCP socket will result in the handle being close. No
+      // more messages will be read from or written to the enclave.
+      sockets[id] = nullptr;
+
+      return true;
+    }
+
     bool close(int64_t id)
     {
       if (sockets.erase(id) < 1)
@@ -210,18 +218,19 @@ namespace asynchost
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
+        disp, tls::tls_stop, [this](const uint8_t* data, size_t size) {
+          auto [id, msg] =
+            ringbuffer::read_message<tls::tls_stop>(data, size);
+
+          LOG_DEBUG_FMT("rpc stop from enclave {}, {}", id, msg);
+          stop(id);
+        });
+
+      DISPATCHER_SET_MESSAGE_HANDLER(
         disp, tls::tls_closed, [this](const uint8_t* data, size_t size) {
           auto [id] = ringbuffer::read_message<tls::tls_closed>(data, size);
 
           LOG_DEBUG_FMT("rpc closed from enclave {}", id);
-          close(id);
-        });
-
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, tls::tls_error, [this](const uint8_t* data, size_t size) {
-          auto [id] = ringbuffer::read_message<tls::tls_error>(data, size);
-
-          LOG_DEBUG_FMT("rpc error from enclave {}", id);
           close(id);
         });
     }

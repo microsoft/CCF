@@ -115,6 +115,9 @@ public:
 
   void disconnect()
   {
+    // Signal the end of the connection
+    mbedtls_ssl_close_notify(&ssl);
+
     mbedtls_net_free(&server_fd);
     mbedtls_ssl_free(&ssl);
     mbedtls_ssl_config_free(&conf);

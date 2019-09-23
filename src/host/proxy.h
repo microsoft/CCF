@@ -41,6 +41,7 @@ namespace asynchost
     proxy_ptr(proxy_ptr<T>& that) : internal(that.internal) {}
     proxy_ptr(const proxy_ptr<T>& that) : internal(that.internal) {}
     proxy_ptr(proxy_ptr<T>&& that) : internal(std::move(that.internal)) {}
+    proxy_ptr(std::nullptr_t that) : internal(that) {}
 
     template <typename... Args>
     proxy_ptr(Args&&... args) :
@@ -51,6 +52,8 @@ namespace asynchost
     {
       return internal.get()->raw;
     }
+
+    proxy_ptr<T>& operator=(const proxy_ptr<T>& that) = default;
   };
 
   template <typename handle_type>
