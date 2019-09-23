@@ -98,7 +98,7 @@ namespace enclave
     void remove_session(size_t id)
     {
       std::lock_guard<SpinLock> guard(lock);
-      LOG_DEBUG_FMT("Stopping a session inside the enclave: {}", id);
+      LOG_DEBUG_FMT("Closing a session inside the enclave: {}", id);
       sessions.erase(id);
     }
 
@@ -141,8 +141,8 @@ namespace enclave
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, tls::tls_stop, [this](const uint8_t* data, size_t size) {
-          auto [id] = ringbuffer::read_message<tls::tls_stop>(data, size);
+        disp, tls::tls_close, [this](const uint8_t* data, size_t size) {
+          auto [id] = ringbuffer::read_message<tls::tls_close>(data, size);
           remove_session(id);
         });
     }
