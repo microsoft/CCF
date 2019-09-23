@@ -140,16 +140,16 @@ namespace ccf
     {
       NodeStatus node_status; // TODO: Might not actually be necessary as
                               // network_info is optional anyway
+      NodeId node_id;
+
       struct NetworkInfo
       {
-        NodeId node_id;
         NetworkSecrets::Secret network_secrets;
         int64_t version; // Current version of the network secrets
 
         bool operator==(const NetworkInfo& other) const
         {
-          return node_id == other.node_id &&
-            network_secrets == other.network_secrets &&
+          return network_secrets == other.network_secrets &&
             version == other.version;
         }
 

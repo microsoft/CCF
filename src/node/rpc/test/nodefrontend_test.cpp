@@ -56,6 +56,9 @@ const json frontend_process(
   enclave::RPCContext rpc_ctx(0, caller);
   auto serialised_response = frontend.process(rpc_ctx, serialise_request);
 
+  auto json = unpack(serialised_response, Pack::MsgPack);
+  std::cout << json.dump() << std::endl;
+
   return unpack(serialised_response, Pack::MsgPack);
 }
 
@@ -91,7 +94,7 @@ TEST_CASE("Add a node to an opening service")
     CHECK(response->node_status == NodeStatus::TRUSTED);
 
     Store::Tx tx;
-    const NodeId node_id = response->network_info.node_id;
+    const NodeId node_id = response->node_id;
     auto nodes_view = tx.get_view(network.nodes);
     auto node_info = nodes_view->get(node_id);
 
@@ -133,56 +136,59 @@ TEST_CASE("Add a node to an opening service")
   }
 }
 
-// TEST_CASE("Add a node in an open service")
-// {
-//   NetworkState network;
-//   GenesisGenerator gen(network);
-//   gen.init_values();
+TEST_CASE("Add a node in an open service")
+{
+  NetworkState network;
+  GenesisGenerator gen(network);
+  gen.init_values();
 
-//   StubNodeState node;
-//   NodeCallRpcFrontend frontend(network, node);
+  StubNodeState node;
+  NodeCallRpcFrontend frontend(network, node);
 
-//   network.secrets = std::make_unique<NetworkSecrets>("CN=The CA");
+  network.secrets = std::make_unique<NetworkSecrets>("CN=The CA");
 
-//   gen.create_service({});
-//   gen.open_service();
-//   gen.finalize();
+  gen.create_service({});
+  gen.open_service();
+  gen.finalize();
 
-//   INFO("Add node once service is open");
-//   {
-//     tls::KeyPairPtr kp = tls::make_key_pair();
-//     auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
-//     Cert caller = v->raw_cert_data();
+  INFO("Add node once service is open");
+  {
+    tls::KeyPairPtr kp = tls::make_key_pair();
+    auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
+    Cert caller = v->raw_cert_data();
 
-//     JoinNetworkNodeToNode::In join_input;
+    JoinNetworkNodeToNode::In join_input;
 
-//     auto response = jsonrpc::Response<JoinNetworkNodeToNode::Out>(
-//       frontend_process(frontend, join_input, NodeProcs::JOIN, caller));
+    auto response_j =
+      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
 
-//     // TODO:
-//     // 1. Check that no secrets have been given
-//     // 2. Check that node has been added as pending in the KV
+    CHECK(response_j[RESULT]["network_info"].is_null());
+    auto response = jsonrpc::Response<JoinNetworkNodeToNode::Out>(response_j);
 
-//     Store::Tx tx;
-//     const NodeId node_id = response->node_id;
-//     auto nodes_view = tx.get_view(network.nodes);
-//     auto node_info = nodes_view->get(node_id);
-//     CHECK(node_info.has_value());
-//     CHECK(node_info->status == NodeStatus::PENDING);
-//     CHECK(
-//       v->cert_pem().str() ==
-//       std::string({node_info->cert.data(),
-//                    node_info->cert.data() + node_info->cert.size()}));
+    Store::Tx tx;
+    auto node_id = response->node_id;
+    CHECK(response->network_info == JoinNetworkNodeToNode::Out::NetworkInfo());
 
-//     // TODO: Add node as TRUSTED with a kv write
-//     node_info->status = NodeStatus::TRUSTED;
-//     nodes_view->put(0, node_info.value());
+    auto nodes_view = tx.get_view(network.nodes);
+    auto node_info = nodes_view->get(node_id);
+    CHECK(node_info.has_value());
+    CHECK(node_info->status == NodeStatus::PENDING);
+    CHECK(
+      v->cert_pem().str() ==
+      std::string({node_info->cert.data(),
+                   node_info->cert.data() + node_info->cert.size()}));
 
-//     // TODO: Try to join again
-//     // 1. Network secrets should be given, along with version and node_id
+    // In a real scenario, this normally happens via member governance.
+    node_info->status = NodeStatus::TRUSTED;
+    nodes_view->put(0, node_info.value());
+    CHECK(tx.commit() == kv::CommitSuccess::OK);
 
-//   }
-// }
+    // TODO: Try to join again
+    // 1. Network secrets should be given, along with version and node_id
+    response = jsonrpc::Response<JoinNetworkNodeToNode::Out>(
+      frontend_process(frontend, join_input, NodeProcs::JOIN, caller));
+  }
+}
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
