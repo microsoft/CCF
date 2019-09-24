@@ -339,9 +339,10 @@ namespace ccf
           auto j = jsonrpc::unpack(data, jsonrpc::Pack::MsgPack);
 
           // Check that the response is valid.
+          jsonrpc::Response<JoinNetworkNodeToNode::Out> resp;
           try
           {
-            auto resp = jsonrpc::Response<JoinNetworkNodeToNode::Out>(j);
+            resp = jsonrpc::Response<JoinNetworkNodeToNode::Out>(j);
           }
           catch (const std::exception& e)
           {
@@ -350,24 +351,24 @@ namespace ccf
             return false;
           }
 
-          // Set network secrets, node id and become part of network.
-          auto res = j.at(jsonrpc::RESULT).get<JoinNetworkNodeToNode::Out>();
+          // LOG_FAIL_FMT("Node joined the network: {}", j.dump());
 
-          if (res.version.has_value())
+          // Set network secrets, node id and become part of network.
+
+          if (resp->node_status == NodeStatus::TRUSTED)
           {
-            LOG_FAIL_FMT("Node added in state TRUSTED");
             // If the current network secrets do not apply since the genesis,
             // the joining node can only join the public network
-            bool public_only = (res.version != 0);
+            bool public_only = (resp->network_info.version != 0);
 
             // In a private network, seal secrets immediately.
             network.secrets = std::make_unique<NetworkSecrets>(
-              res.version.value(),
-              res.network_secrets,
+              resp->network_info.version,
+              resp->network_info.network_secrets,
               std::make_unique<Seal>(writer_factory),
               !public_only);
 
-            self = res.node_id;
+            self = resp->node_id;
 #ifndef PBFT
             setup_raft(public_only);
             setup_history();
