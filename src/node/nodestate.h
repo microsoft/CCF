@@ -13,6 +13,7 @@
 #include "history.h"
 #include "networkstate.h"
 #include "nodetonode.h"
+#include "notifier.h"
 #include "rpc/consts.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
@@ -120,6 +121,7 @@ namespace ccf
     std::shared_ptr<enclave::RpcMap> rpc_map;
     std::shared_ptr<NodeToNode> n2n_channels;
     enclave::RPCSessions& rpcsessions;
+    ccf::Notifier& notifier;
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
@@ -147,14 +149,16 @@ namespace ccf
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
-      enclave::RPCSessions& rpcsessions) :
+      enclave::RPCSessions& rpcsessions,
+      ccf::Notifier& notifier) :
       sm(State::uninitialized),
       self(INVALID_ID),
       node_kp(tls::make_key_pair()),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
-      rpcsessions(rpcsessions)
+      rpcsessions(rpcsessions),
+      notifier(notifier)
     {
       ::EverCrypt_AutoConfig2_init();
     }
@@ -1133,6 +1137,8 @@ namespace ccf
 
       network.tables->set_consensus(consensus);
 
+      notifier.set_consensus(consensus);
+
       // When a node is added, even locally, inform the host so that it can
       // map the node id to a hostname and service and inform raft so that it
       // can add a new active configuration.
@@ -1255,6 +1261,8 @@ namespace ccf
         rpcsessions);
 
       network.tables->set_consensus(consensus);
+
+      notifier.set_consensus(consensus);
 
       // When a node is added, even locally, inform the host so that it can
       // map the node id to a hostname and service and inform pbft

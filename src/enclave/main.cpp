@@ -4,6 +4,10 @@
 #include "../ds/spinlock.h"
 #include "enclave.h"
 
+#ifdef PBFT
+#  include "../src/consensus/pbft/pbftglobals.h"
+#endif
+
 #include <chrono>
 #include <msgpack.hpp>
 

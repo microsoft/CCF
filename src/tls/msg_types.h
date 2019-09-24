@@ -25,16 +25,17 @@ namespace tls
     /// Data sent from the enclave, to be written to socket. Enclave -> Host
     DEFINE_RINGBUFFER_MSG_TYPE(tls_outbound),
 
-    /// While processing data, the enclave decided this connection is closed.
+    /// While processing data, the enclave decided this connection is stopped.
     /// Enclave -> Host
-    DEFINE_RINGBUFFER_MSG_TYPE(tls_closed),
-
-    /// While processing data, the enclave encountered an error. Enclave -> Host
-    DEFINE_RINGBUFFER_MSG_TYPE(tls_error),
-
-    /// Connection has been removed. No more messages will be sent regarding
-    /// this connection. Host -> Enclave
     DEFINE_RINGBUFFER_MSG_TYPE(tls_stop),
+
+    /// Connection has been invalidated. No more messages will be sent regarding
+    /// this connection. Host -> Enclave
+    DEFINE_RINGBUFFER_MSG_TYPE(tls_close),
+
+    /// Enclave session has been deleted. Host can now safely remove the
+    /// corresponding connection. Enclave -> Host
+    DEFINE_RINGBUFFER_MSG_TYPE(tls_closed),
   };
 }
 
@@ -45,6 +46,6 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   tls::tls_inbound, tls::ConnID, serializer::ByteRange);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   tls::tls_outbound, tls::ConnID, serializer::ByteRange);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(tls::tls_stop, tls::ConnID, std::string);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(tls::tls_close, tls::ConnID);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(tls::tls_closed, tls::ConnID);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(tls::tls_error, tls::ConnID);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(tls::tls_stop, tls::ConnID);

@@ -2,8 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/logger.h"
 #include "ds/ringbuffer_types.h"
 #include "enclave/interface.h"
+#include "kv/kvtypes.h"
 #include "rpc/frontend.h"
 
 namespace ccf
@@ -12,6 +14,7 @@ namespace ccf
   {
   private:
     std::unique_ptr<ringbuffer::AbstractWriter> to_host;
+    std::shared_ptr<kv::Consensus> consensus = nullptr;
 
   public:
     Notifier(ringbuffer::AbstractWriterFactory& writer_factory_) :
@@ -20,7 +23,26 @@ namespace ccf
 
     void notify(const std::vector<uint8_t>& data) override
     {
-      RINGBUFFER_WRITE_MESSAGE(AdminMessage::notification, to_host, data);
+      if (consensus == nullptr)
+      {
+        LOG_FAIL_FMT("Unable to send notification - no consensus has been set");
+        return;
+      }
+
+      if (consensus->is_primary())
+      {
+        LOG_DEBUG_FMT("Sending notification");
+        RINGBUFFER_WRITE_MESSAGE(AdminMessage::notification, to_host, data);
+      }
+      else
+      {
+        LOG_DEBUG_FMT("Ignoring notification - not leader");
+      }
+    }
+
+    void set_consensus(const std::shared_ptr<kv::Consensus>& c)
+    {
+      consensus = c;
     }
   };
 }
