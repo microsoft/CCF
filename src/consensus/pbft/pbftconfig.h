@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#pragma once
 #include "enclave/rpcmap.h"
 #include "libbyz/libbyz.h"
 #include "libbyz/pbft_assert.h"
@@ -22,8 +23,6 @@ namespace pbft
       uint64_t actor,
       uint64_t caller_id) = 0;
   };
-
-  char* AbstractPbftConfig::service_mem = 0;
 
   class PbftConfigCcf : public AbstractPbftConfig
   {

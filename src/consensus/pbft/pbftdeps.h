@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#pragma once
 #include "libbyz/Cycle_counter.h"
 #include "libbyz/ITimer.h"
 #include "libbyz/Message.h"
@@ -10,10 +11,6 @@
 #include "pbfttypes.h"
 
 #include <signal.h>
-
-std::vector<ITimer*> ITimer::timers;
-Time ITimer::min_deadline = Long_max;
-Time ITimer::_relative_current_time = 0;
 
 ITimer::ITimer(int t, handler_cb h_, void* owner_)
 {
@@ -138,8 +135,6 @@ Time ITimer::length_10_ms()
   return ITimer::length_100_ms() / 10;
 }
 
-long long clock_mhz = 1;
-
 void init_clock_mhz() {}
 
 Time zero_time()
@@ -156,8 +151,6 @@ bool less_than_time(Time t1, Time t2)
 {
   return t1 < t2;
 }
-
-Statistics stats;
 
 Statistics::Statistics() : rec_stats(20) {}
 

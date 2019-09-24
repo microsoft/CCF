@@ -6,20 +6,37 @@ return {
   pass = [[
   tables, calls, votes = ...
 
+  -- defines which of the members are operators
+  function is_operator(member)
+    return member == "0"
+  end
+
+  -- defines calls that can be passed with sole operator input
+  operator_calls = {
+    accept_node=true,
+    retire_node=true,
+    new_code=true
+  }
+
+  operator_votes = 0
   member_votes = 0
 
   for member, vote in pairs(votes) do
     if vote then
-      member_votes = member_votes + 1
+      if is_operator(member) then
+        operator_votes = operator_votes + 1
+      else
+        member_votes = member_votes + 1
+      end
     end
   end
 
-  -- count active members
+  -- count active members, excluding operators
   members_active = 0
   STATE_ACTIVE = 1
 
   tables["ccf.members"]:foreach(function(member, details) 
-    if details["status"] == STATE_ACTIVE then
+    if details["status"] == STATE_ACTIVE and not is_operator(tostring(member)) then
       members_active = members_active + 1 
     end 
   end)
@@ -30,16 +47,30 @@ return {
     if call.func == "raw_puts" then
       for _, sensitive_table in pairs(SENSITIVE_TABLES) do
         if call.args[sensitive_table] then
-          -- require unanimity
+          -- require unanimity of non-operating members
           return member_votes == members_active 
         end
       end
     end
   end
 
-  -- a majority of members can pass votes
+  -- a vote is an operator vote if it's only making operator calls
+  operator_vote = true
+  for _, call in pairs(calls) do
+    if not operator_calls[call.func] then
+      operator_vote = false
+      break
+    end
+  end
+
+  -- a majority of members can always pass votes
   if member_votes > math.floor(members_active / 2) then
     return true
+  end
+
+  -- a single operator can pass an operator vote
+  if operator_vote then
+    return operator_votes > 0
   end
 
   return false]],

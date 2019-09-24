@@ -11,12 +11,12 @@ namespace ccf
 
   struct GovScriptIds
   {
-    //! script that decides if the required quorum for a proposal
-    static auto constexpr QUORUM = "quorum";
     //! script that applies an accepted "raw puts" proposal
     static auto constexpr RAW_PUTS = "raw_puts";
     //! script that sets the environment for a proposal script
     static auto constexpr ENV_PROPOSAL = "environment_proposal";
+    //! script that decides if a proposal has been accepted
+    static auto constexpr PASS = "pass";
   };
 
   struct UserScriptIds

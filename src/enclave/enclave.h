@@ -48,7 +48,7 @@ namespace enclave
       writer_factory(circuit, enclave_config->writer_config),
       rpcsessions(writer_factory),
       n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
-      node(writer_factory, network, rpcsessions, timers),
+      node(writer_factory, network, rpcsessions, notifier, timers),
       notifier(writer_factory),
       cmd_forwarder(
         std::make_shared<ccf::Forwarder>(rpcsessions, n2n_channels)),
