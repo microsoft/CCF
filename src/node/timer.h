@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/logger.h"
 #include "ds/spinlock.h"
 
 #include <chrono>
@@ -24,11 +25,13 @@ namespace ccf
     TimerCallback cb;
 
   public:
-    Timer(std::chrono::milliseconds period_, TimerCallback cb_) :
+    Timer(std::chrono::milliseconds period_, bool fire_first, TimerCallback cb_) :
       period(period_),
+      tick_(0),
       cb(cb_)
     {
-      // TODO: Call callback straight away?
+      if (fire_first)
+        cb();
     }
 
     void tick(std::chrono::milliseconds elapsed)
@@ -38,6 +41,7 @@ namespace ccf
       tick_ += elapsed;
       if (tick_ >= period)
       {
+        LOG_FAIL_FMT("Tick {} > Period {}", tick_.count(), period.count());
         cb();
         using namespace std::chrono_literals;
         tick_ = 0ms;
@@ -66,9 +70,10 @@ namespace ccf
         t.tick(elapsed);
     }
 
-    const Timer& new_timer(std::chrono::milliseconds period, TimerCallback cb)
+    const Timer& new_timer(
+      std::chrono::milliseconds period, bool fire_first, TimerCallback cb)
     {
-      timers.emplace_back(Timer(period, cb));
+      timers.emplace_back(Timer(period, fire_first, cb));
       return timers.back();
     }
   };

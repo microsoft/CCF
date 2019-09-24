@@ -323,7 +323,6 @@ class Network:
         primary, _ = self.find_primary()
         self.trust_node(primary, local_node_id)
 
-
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success(f"New node {local_node_id} joined the network")
 
@@ -496,7 +495,7 @@ class Network:
 
         return (self.get_node_by_id(primary_id), term)
 
-    def wait_for_all_nodes_to_catch_up(self, primary, timeout=3):
+    def wait_for_all_nodes_to_catch_up(self, primary, timeout=30):
         """
         Wait for all nodes to have joined the network and globally replicated
         all transactions executed on the primary (including the transactions
@@ -526,7 +525,7 @@ class Network:
             time.sleep(1)
         assert joined_nodes == len(
             self.get_running_nodes()
-        ), f"Only {joined_nodes} (out of {self.get_running_nodes()}) nodes have joined the network"
+        ), f"Only {joined_nodes} (out of {len(self.get_running_nodes())}) nodes have joined the network"
 
     def wait_for_node_commit_sync(self, timeout=3):
         """

@@ -173,6 +173,7 @@ namespace ccf
             }
             else if (node_status == NodeStatus::TRUSTED)
             {
+              LOG_FAIL_FMT("Service open, node is already trusted");
               return jsonrpc::success<JoinNetworkNodeToNode::Out>(
                 {NodeStatus::TRUSTED,
                  existing_node_id.value(),

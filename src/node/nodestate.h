@@ -319,113 +319,116 @@ namespace ccf
 
       // TODO: Experiment with timer:
       using namespace std::chrono_literals;
-      timers.new_timer(1s, []() { LOG_INFO_FMT("Timer triggered"); });
+      timers.new_timer(1s, true, [args, this]() {
+        LOG_INFO_FMT("Timer triggered");
+        // Peer certificate needs to be signed by specified network certificate
+        auto tls_ca =
+          std::make_shared<tls::CA>(args.config.joining.network_cert);
+        auto join_client_cert = std::make_unique<tls::Cert>(
+          Actors::NODES, tls_ca, node_cert, node_kp->private_key_pem(), nullb);
 
-      // Peer certificate needs to be signed by specified network certificate
-      auto tls_ca = std::make_shared<tls::CA>(args.config.joining.network_cert);
-      auto join_client_cert = std::make_unique<tls::Cert>(
-        Actors::NODES, tls_ca, node_cert, node_kp->private_key_pem(), nullb);
+        // Create RPC client and connect to remote node
+        auto join_client =
+          this->rpcsessions.create_client(std::move(join_client_cert));
 
-      // Create RPC client and connect to remote node
-      auto join_client = rpcsessions.create_client(std::move(join_client_cert));
+        join_client->connect(
+          args.config.joining.target_host,
+          args.config.joining.target_port,
+          [this](const std::vector<uint8_t>& data) {
+            std::lock_guard<SpinLock> guard(lock);
+            sm.expect(State::pending);
 
-      join_client->connect(
-        args.config.joining.target_host,
-        args.config.joining.target_port,
-        [this](const std::vector<uint8_t>& data) {
-          std::lock_guard<SpinLock> guard(lock);
-          sm.expect(State::pending);
+            auto j = jsonrpc::unpack(data, jsonrpc::Pack::MsgPack);
 
-          auto j = jsonrpc::unpack(data, jsonrpc::Pack::MsgPack);
+            // Check that the response is valid.
+            jsonrpc::Response<JoinNetworkNodeToNode::Out> resp;
+            try
+            {
+              resp = jsonrpc::Response<JoinNetworkNodeToNode::Out>(j);
+            }
+            catch (const std::exception& e)
+            {
+              LOG_FAIL_FMT(
+                "An error occurred while joining the network {}", j.dump());
+              return false;
+            }
 
-          // Check that the response is valid.
-          jsonrpc::Response<JoinNetworkNodeToNode::Out> resp;
-          try
-          {
-            resp = jsonrpc::Response<JoinNetworkNodeToNode::Out>(j);
-          }
-          catch (const std::exception& e)
-          {
-            LOG_FAIL_FMT(
-              "An error occurred while joining the network {}", j.dump());
-            return false;
-          }
+            LOG_FAIL_FMT("Node joined the network: {}", j.dump());
 
-          // LOG_FAIL_FMT("Node joined the network: {}", j.dump());
+            // Set network secrets, node id and become part of network.
 
-          // Set network secrets, node id and become part of network.
+            if (resp->node_status == NodeStatus::TRUSTED)
+            {
+              // If the current network secrets do not apply since the genesis,
+              // the joining node can only join the public network
+              bool public_only = (resp->network_info.version != 0);
 
-          if (resp->node_status == NodeStatus::TRUSTED)
-          {
-            // If the current network secrets do not apply since the genesis,
-            // the joining node can only join the public network
-            bool public_only = (resp->network_info.version != 0);
+              // In a private network, seal secrets immediately.
+              network.secrets = std::make_unique<NetworkSecrets>(
+                resp->network_info.version,
+                resp->network_info.network_secrets,
+                std::make_unique<Seal>(writer_factory),
+                !public_only);
 
-            // In a private network, seal secrets immediately.
-            network.secrets = std::make_unique<NetworkSecrets>(
-              resp->network_info.version,
-              resp->network_info.network_secrets,
-              std::make_unique<Seal>(writer_factory),
-              !public_only);
-
-            self = resp->node_id;
+              self = resp->node_id;
 #ifndef PBFT
-            setup_raft(public_only);
-            setup_history();
+              setup_raft(public_only);
+              setup_history();
 #endif
 
-            setup_encryptor();
+              setup_encryptor();
 
-            accept_node_connections();
-            accept_member_connections();
-            if (public_only)
-              sm.advance(State::partOfPublicNetwork);
+              accept_node_connections();
+              accept_member_connections();
+              if (public_only)
+                sm.advance(State::partOfPublicNetwork);
+              else
+                sm.advance(State::partOfNetwork);
+
+              LOG_INFO_FMT(
+                "Node has now joined the network as node {}: {}",
+                self,
+                (public_only ? "public only" : "all domains"));
+            }
             else
-              sm.advance(State::partOfNetwork);
+            {
+              LOG_FAIL_FMT("Node added in state PENDING");
+            }
 
-            LOG_INFO_FMT(
-              "Node has now joined the network as node {}: {}",
-              self,
-              (public_only ? "public only" : "all domains"));
-          }
-          else
-          {
-            LOG_FAIL_FMT("Node added in state PENDING");
-          }
+            return true;
+          });
 
-          return true;
-        });
+        // Generate fresh key to encrypt/decrypt historical network secrets sent
+        // by the primary via the kv store
+        raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
 
-      // Generate fresh key to encrypt/decrypt historical network secrets sent
-      // by the primary via the kv store
-      raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
+        // Send RPC request to remote node to join the network.
+        jsonrpc::ProcedureCall<JoinNetworkNodeToNode::In> join_rpc;
+        join_rpc.id = 1;
+        join_rpc.method = ccf::NodeProcs::JOIN;
+        join_rpc.params.raw_fresh_key = raw_fresh_key;
+        join_rpc.params.node_info_network = args.config.node_info_network;
 
-      // Send RPC request to remote node to join the network.
-      jsonrpc::ProcedureCall<JoinNetworkNodeToNode::In> join_rpc;
-      join_rpc.id = 1;
-      join_rpc.method = ccf::NodeProcs::JOIN;
-      join_rpc.params.raw_fresh_key = raw_fresh_key;
-      join_rpc.params.node_info_network = args.config.node_info_network;
-
-      // TODO: For now, regenerate the quote from when the node started. This
-      // is OK since the quote generation will change as part of
-      // https://github.com/microsoft/CCF/issues/59
-      std::vector<uint8_t> quote{1};
+        // TODO: For now, regenerate the quote from when the node started. This
+        // is OK since the quote generation will change as part of
+        // https://github.com/microsoft/CCF/issues/59
+        std::vector<uint8_t> quote{1};
 
 #ifdef GET_QUOTE
-      auto quote_opt = get_quote();
-      if (!quote_opt.has_value())
-        LOG_FATAL_FMT("Quote could not be retrieved");
-      quote = quote_opt.value();
+        auto quote_opt = get_quote();
+        if (!quote_opt.has_value())
+          LOG_FATAL_FMT("Quote could not be retrieved");
+        quote = quote_opt.value();
 #endif
-      join_rpc.params.quote = quote;
+        join_rpc.params.quote = quote;
 
-      auto join_req =
-        jsonrpc::pack(nlohmann::json(join_rpc), jsonrpc::Pack::MsgPack);
+        auto join_req =
+          jsonrpc::pack(nlohmann::json(join_rpc), jsonrpc::Pack::MsgPack);
 
-      LOG_INFO_FMT("Sending join request");
+        LOG_INFO_FMT("Sending join request");
 
-      join_client->send(join_req);
+        join_client->send(join_req);
+      });
     }
 
     //

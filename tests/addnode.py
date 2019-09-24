@@ -38,6 +38,7 @@ def run(args):
         LOG.debug("Add a valid node")
         new_node = network.create_and_add_node(args.package, "localhost", args)
         assert new_node
+        time.sleep(10)
 
         # with primary.management_client() as mc:
         #     check_commit = infra.ccf.Checker(mc)
