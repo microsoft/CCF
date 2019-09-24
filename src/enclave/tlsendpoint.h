@@ -47,6 +47,11 @@ namespace enclave
       ctx->set_bio(this, send_callback, recv_callback, dbg_callback);
     }
 
+    ~TLSEndpoint()
+    {
+      RINGBUFFER_WRITE_MESSAGE(tls::tls_closed, to_host, session_id);
+    }
+
     std::string hostname()
     {
       if (status != ready)
@@ -378,14 +383,23 @@ namespace enclave
       {
         case closed:
         {
-          RINGBUFFER_WRITE_MESSAGE(tls::tls_closed, to_host, session_id);
+          RINGBUFFER_WRITE_MESSAGE(
+            tls::tls_stop, to_host, session_id, std::string("Session closed"));
           break;
         }
 
         case authfail:
+        {
+          RINGBUFFER_WRITE_MESSAGE(
+            tls::tls_stop,
+            to_host,
+            session_id,
+            std::string("Authentication failed"));
+        }
         case error:
         {
-          RINGBUFFER_WRITE_MESSAGE(tls::tls_error, to_host, session_id);
+          RINGBUFFER_WRITE_MESSAGE(
+            tls::tls_stop, to_host, session_id, std::string("Error"));
           break;
         }
 
