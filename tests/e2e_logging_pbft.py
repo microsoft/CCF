@@ -25,6 +25,17 @@ def run(args):
     ) as network:
         primary, _ = network.start_and_join(args)
 
+        LOG.info("before sleep")
+        time.sleep(5) # 1 minute
+        LOG.info("after sleep")
+
+        new_node = network.create_and_add_node(args.package, "localhost", args)
+        LOG.info("after joing")
+
+        time.sleep(5) # 1 minute
+        LOG.info("after 2nd sleep")
+
+
         with primary.management_client() as mc:
             check_commit = infra.ccf.Checker(mc)
             check = infra.ccf.Checker()

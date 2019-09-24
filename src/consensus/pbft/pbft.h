@@ -209,16 +209,21 @@ namespace pbft
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
+
+      LOG_INFO << "TTTTT:" << (uint64_t)args.caller_cert.p << std::endl;
+      //auto total_req_size = pbft_config->message_size() + args.request.size() + args.caller_cert.rawSize() + sizeof(uint32_t);
       auto total_req_size = pbft_config->message_size() + args.request.size();
 
       uint8_t request_buffer[total_req_size];
-      pbft_config->fill_request(
+      pbft_config->fill_request( // add here
         request_buffer,
         total_req_size,
         args.request,
         args.actor,
-        args.caller_id);
+        args.caller_id,
+        args.caller_cert);
 
+      LOG_INFO << "TTTTT" << std::endl;
       auto rep_cb = [&](
                       void* owner,
                       kv::TxHistory::RequestID caller_rid,
@@ -227,6 +232,7 @@ namespace pbft
                       size_t len) {
         LOG_DEBUG_FMT("PBFT reply callback for {}", caller_rid);
 
+      LOG_INFO << "TTTTT" << std::endl;
         return rpcsessions.reply_async(
           std::get<1>(caller_rid), {reply, reply + len});
       };
@@ -268,6 +274,7 @@ namespace pbft
       std::unordered_set<kv::NodeId> config,
       const NodeConf& node_conf) override
     {
+      LOG_INFO << "AAAAAA adding node:" << node_conf.node_id << std::endl;
       // TODO(#pbft): We do not need this in the long run
       std::string privk =
         "0045c65ec31179652c57ae97f50de77e177a939dce74e39d7db51740663afb69";
@@ -276,10 +283,12 @@ namespace pbft
       std::string pubk_enc =
         "893d4101c5b225c2bdc8633bb322c0ef9861e0c899014536e11196808ffc0d17";
 
+      LOG_INFO << "AAAAAA adding node:" << node_conf.node_id << std::endl;
       if (node_conf.node_id == local_id)
       {
         return;
       }
+      LOG_INFO << "AAAAAA adding node:" << node_conf.node_id << std::endl;
 
       PrincipalInfo info;
       info.id = node_conf.node_id;
