@@ -198,7 +198,7 @@ namespace enclave
       if (buf.size() == 0)
         return;
       LOG_TRACE_FMT("Going to parse {} bytes", buf.size());
-      //LOG_TRACE_FMT("Going to parse [{}]", buf);
+      LOG_TRACE_FMT("Going to parse [{}]", std::string(buf.begin(), buf.end()));
 
       size_t nparsed = p.execute(buf.data(), buf.size());
       if (nparsed == 0)
