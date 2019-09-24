@@ -73,13 +73,23 @@ TEST_CASE("Add a node to an opening service")
 
   network.secrets = std::make_unique<NetworkSecrets>("CN=The CA");
 
-  gen.create_service({});
-  gen.finalize();
-
   // Node certificate
   tls::KeyPairPtr kp = tls::make_key_pair();
   auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
   Cert caller = v->raw_cert_data();
+
+  INFO("Add first node before a service exists");
+  {
+    JoinNetworkNodeToNode::In join_input;
+    auto response_j =
+      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+
+    check_error(response_j, StandardErrorCodes::INTERNAL_ERROR);
+    check_error_message(response_j, "No service is available to add new node");
+  }
+
+  gen.create_service({});
+  gen.finalize();
 
   INFO("Add first node which should be trusted straight away");
   {
@@ -129,10 +139,11 @@ TEST_CASE("Add a node to an opening service")
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;
 
-    auto resp = frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+    auto response_j =
+      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
 
-    check_error(resp, StandardErrorCodes::INVALID_PARAMS);
-    check_error_message(resp, "A node with the same node host");
+    check_error(response_j, StandardErrorCodes::INVALID_PARAMS);
+    check_error_message(response_j, "A node with the same node host");
   }
 }
 
@@ -151,42 +162,77 @@ TEST_CASE("Add a node in an open service")
   gen.open_service();
   gen.finalize();
 
+  // Node certificate
+  tls::KeyPairPtr kp = tls::make_key_pair();
+  auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
+  Cert caller = v->raw_cert_data();
+
+  std::optional<NodeInfo> node_info;
+  Store::Tx tx;
+
+  JoinNetworkNodeToNode::In join_input;
+
   INFO("Add node once service is open");
   {
-    tls::KeyPairPtr kp = tls::make_key_pair();
-    auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
-    Cert caller = v->raw_cert_data();
-
-    JoinNetworkNodeToNode::In join_input;
-
     auto response_j =
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
 
-    CHECK(response_j[RESULT]["network_info"].is_null());
+    CHECK(response_j[RESULT].find("network_info") == response_j[RESULT].end());
     auto response = jsonrpc::Response<JoinNetworkNodeToNode::Out>(response_j);
 
-    Store::Tx tx;
     auto node_id = response->node_id;
-    CHECK(response->network_info == JoinNetworkNodeToNode::Out::NetworkInfo());
 
     auto nodes_view = tx.get_view(network.nodes);
-    auto node_info = nodes_view->get(node_id);
+    node_info = nodes_view->get(node_id);
     CHECK(node_info.has_value());
     CHECK(node_info->status == NodeStatus::PENDING);
     CHECK(
       v->cert_pem().str() ==
       std::string({node_info->cert.data(),
                    node_info->cert.data() + node_info->cert.size()}));
+  }
 
-    // In a real scenario, this normally happens via member governance.
+  INFO(
+    "Adding a different node with the same node network details should fail");
+  {
+    tls::KeyPairPtr kp = tls::make_key_pair();
+    auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
+    Cert caller = v->raw_cert_data();
+
+    // Network node info is empty (same as before)
+    JoinNetworkNodeToNode::In join_input;
+
+    auto response_j =
+      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+
+    check_error(response_j, StandardErrorCodes::INVALID_PARAMS);
+    check_error_message(response_j, "A node with the same node host");
+  }
+
+  INFO("Try to join again without being trusted");
+  {
+    auto response_j =
+      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+
+    // The network secrets are still not available to the joining node
+    CHECK(response_j[RESULT].find("network_info") == response_j[RESULT].end());
+  }
+
+  INFO("Trust node and attempt to join");
+  {
+    // In a real scenario, nodes are trusted via member governance.
     node_info->status = NodeStatus::TRUSTED;
+    auto nodes_view = tx.get_view(network.nodes);
     nodes_view->put(0, node_info.value());
     CHECK(tx.commit() == kv::CommitSuccess::OK);
 
-    // TODO: Try to join again
-    // 1. Network secrets should be given, along with version and node_id
-    response = jsonrpc::Response<JoinNetworkNodeToNode::Out>(
+    auto response = jsonrpc::Response<JoinNetworkNodeToNode::Out>(
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller));
+
+    CHECK(
+      response->network_info.network_secrets == network.secrets->get_current());
+    CHECK(response->network_info.version == 0);
+    CHECK(response->node_status == NodeStatus::TRUSTED);
   }
 }
 

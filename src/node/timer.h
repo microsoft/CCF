@@ -66,8 +66,7 @@ namespace ccf
         t.tick(elapsed);
     }
 
-    const Timer& new_timer(std::chrono::milliseconds period, TimerCallback
-    cb)
+    const Timer& new_timer(std::chrono::milliseconds period, TimerCallback cb)
     {
       timers.emplace_back(Timer(period, cb));
       return timers.back();
