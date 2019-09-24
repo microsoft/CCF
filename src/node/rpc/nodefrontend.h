@@ -88,7 +88,7 @@ namespace ccf
         // TODO: Only verify the quote if the node is not known?
 #ifdef GET_QUOTE
         QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
-          args.tx, network, in.quote, caller_pem_raw);
+          args.tx, this->network, in.quote, caller_pem_raw);
 
         if (verify_result != QuoteVerificationResult::VERIFIED)
           return QuoteVerifier::quote_verification_error_to_json(verify_result);
@@ -156,7 +156,8 @@ namespace ccf
              {this->network.secrets->get_current(),
               this->network.secrets->get_current_version()}});
         }
-        else if (active_service->status == ServiceStatus::OPEN)
+        else // TODO: Fix this
+        // else if (active_service->status == ServiceStatus::OPEN)
         {
           // Check if the node already exists
           auto existing_node_id = check_node_exists(args.tx, caller_pem_raw);
@@ -215,6 +216,11 @@ namespace ccf
             return jsonrpc::success<JoinNetworkNodeToNode::Out>(
               {NodeStatus::PENDING, joining_node_id});
           }
+
+          // TODO: Remove when this is refactored, only here to remove clang
+          // warning
+          return jsonrpc::success<JoinNetworkNodeToNode::Out>(
+            {NodeStatus::PENDING, 0});
         }
       };
 
