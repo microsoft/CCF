@@ -441,7 +441,7 @@ class Network:
                     tables, changes = ...
                     return true
                     '''
-                    r = mc.rpc("vote", {"ballot": {"script": {"text": script}}})
+                    r = mc.rpc("vote", {"ballot": {"script": {"text": script}}}, signed=True)
                 #self.vote_using_majority(node, r.result["id"])
                 #result = self.propose(1, node, "add_user", f"--user-cert=user{u}_cert.pem")
                 #result = self.vote_using_majority(node, result[1]["id"])

@@ -356,7 +356,39 @@ class CurlClient:
         self.format = format
         self.stream = Stream(version, format=format)
         self.pending = {}
-    
+
+    def signed_request(self, method, params):
+        r = self.stream.request(method, params)
+        with tempfile.NamedTemporaryFile() as nf:
+            msg = getattr(r, "to_{}".format(self.format))()
+            LOG.debug("Going to send {}".format(msg))
+            nf.write(msg)
+            nf.flush()
+            subprocess.run(['openssl', 'dgst', '-sha256', '-out', 'sig', '-sign', 'user1_privk.pem', nf.name], check=True)
+            nf.seek(0)
+            sig = []
+            with open("sig", "rb") as s:
+                sig = [int(c) for c in s.read()]
+            nf.write(json.dumps({"req": r.to_dict(), "sig": sig}).encode())
+            nf.flush()
+            subprocess.run(['cat', nf.name], check=True)
+
+            cmd = ['curl', '-k', f'https://{self.server_hostname}:{self.port}/', '-H', 'Content-Type: application/json',
+                  '--resolve', f'{self.server_hostname}:{self.port}:{self.host}', '--data-binary', f'@{nf.name}']
+            if self.cafile:
+                cmd.extend(['--cacert', self.cafile])
+            if self.key:
+                cmd.extend(['--key', self.key])
+            if self.cert:
+                cmd.extend(['--cert', self.cert])
+            LOG.debug(f"Running: {' '.join(cmd)}")
+            rc = subprocess.run(cmd, capture_output=True)
+            LOG.debug(f"Received {rc.stdout.decode()}")
+            if rc.returncode != 0:
+                LOG.debug(f"ERR {rc.stderr.decode()}")
+            self.stream.update(rc.stdout)
+        return r.id
+
     def request(self, method, params):
         r = self.stream.request(method, params)
         with tempfile.NamedTemporaryFile() as nf:
@@ -394,10 +426,13 @@ class CurlClient:
             assert expected_error_code.value == r.error["code"]
         return r
 
-    def rpc(self, method, params):
-        id = self.request(method, params)
-        return self.response(id)
-
+    def rpc(self, method, params, signed=False):
+        if signed:
+            id = self.signed_request(method, params)
+            return self.response(id)
+        else:
+            id = self.request(method, params)
+            return self.response(id)
 
 @contextlib.contextmanager
 def client(
