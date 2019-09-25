@@ -211,8 +211,8 @@ namespace pbft
     {
 
       LOG_INFO << "TTTTT:" << (uint64_t)args.caller_cert.p << std::endl;
-      //auto total_req_size = pbft_config->message_size() + args.request.size() + args.caller_cert.rawSize() + sizeof(uint32_t);
-      auto total_req_size = pbft_config->message_size() + args.request.size();
+      //auto total_req_size = pbft_config->message_size() + args.request.size();
+      auto total_req_size = pbft_config->message_size() + args.request.size() + args.caller_cert.rawSize();
 
       uint8_t request_buffer[total_req_size];
       pbft_config->fill_request( // add here
@@ -300,6 +300,8 @@ namespace pbft
       info.is_replica = true;
       Byz_add_principal(info);
       LOG_INFO_FMT("PBFT added node, id: {}", info.id);
+
+      LOG_INFO << "AAAAAA adding node:" << node_conf.node_id << std::endl;
     }
 
     void periodic(std::chrono::milliseconds elapsed) override

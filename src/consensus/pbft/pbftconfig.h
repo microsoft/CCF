@@ -22,7 +22,7 @@ namespace pbft
       const std::vector<uint8_t>& data,
       uint64_t actor,
       uint64_t caller_id,
-      CBuffer caller_cert) = 0;
+      const CBuffer& caller_cert) = 0;
   };
 
   class PbftConfigCcf : public AbstractPbftConfig
@@ -54,7 +54,7 @@ namespace pbft
       const std::vector<uint8_t>& data,
       uint64_t actor,
       uint64_t caller_id,
-      CBuffer caller_cert) override
+      const CBuffer& caller_cert) override
     {
 
       LOG_INFO << "NNNNNN" << std::endl;
@@ -62,12 +62,13 @@ namespace pbft
       LOG_INFO << "NNNNNN" << std::endl;
       serialized::write(buffer, total_req_size, caller_id);
       LOG_INFO << "NNNNNN" << std::endl;
-      //serialized::write(buffer, total_req_size, (uint32_t)caller_cert.rawSize());
+      uint32_t cert_size = caller_cert.rawSize();
+      serialized::write(buffer, total_req_size, cert_size);
       LOG_INFO << "NNNNNN:" << (uint64_t)caller_cert.p << std::endl;
       if (caller_cert.p != nullptr)
       {
-      //  serialized::write(
-      //    buffer, total_req_size, caller_cert.p, caller_cert.rawSize());
+        serialized::write(
+          buffer, total_req_size, caller_cert.p, caller_cert.rawSize());
       }
       LOG_INFO << "NNNNNN" << std::endl;
       serialized::write(buffer, total_req_size, data.data(), data.size());
@@ -79,6 +80,7 @@ namespace pbft
 
     // NOTE: we should be deserializing properly
     // use serialized.read
+    #pragma pack(push, 1)
     struct ccf_req
     {
       ccf::ActorsType actor;
@@ -104,6 +106,7 @@ namespace pbft
         return total_size - (sizeof(ccf_req) + cert_size);
       }
     };
+    #pragma pack(pop)
 
     ExecCommand exec_command = [this](
                                  Byz_req* inb,
@@ -125,10 +128,13 @@ namespace pbft
 
       auto frontend = handler.value();
 
+      std::string cert((char *)request->cert(), request->cert_size);
+      LOG_INFO << "VVVVVVV " << cert << std::endl;
+
       // TODO: For now, re-use the RPCContext for forwarded commands.
       // Eventually, the two process_() commands will be refactored accordingly.
-      enclave::RPCContext ctx(0, 0, request->caller_id); // add the pointer and size
-      //enclave::RPCContext ctx(0, 0, request->caller_id, CBuffer(request->cert(), request->cert_size)); // add the pointer and size
+      //enclave::RPCContext ctx(0, 0, request->caller_id); // add the pointer and size
+      enclave::RPCContext ctx(0, 0, request->caller_id, CBuffer(request->cert(), request->cert_size)); // add the pointer and size
 
       auto rep = frontend->process_pbft(
         ctx,
