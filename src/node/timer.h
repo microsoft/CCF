@@ -13,35 +13,63 @@ namespace ccf
 {
   using TimerCallback = std::function<void()>;
 
-  // TODO: Should this move to inside Timers?
-
-  // TODO: Support expiry of timers
   class Timer
   {
   private:
+    enum TimerState
+    {
+      STOPPED = 0,
+      STARTED,
+      EXPIRED
+    };
+
     SpinLock lock;
     std::chrono::milliseconds period;
     std::chrono::milliseconds tick_;
     TimerCallback cb;
+    TimerState state;
 
   public:
-    Timer(std::chrono::milliseconds period_, bool fire_first, TimerCallback cb_) :
+    Timer(std::chrono::milliseconds period_, TimerCallback cb_) :
       period(period_),
       tick_(0),
-      cb(cb_)
+      cb(cb_),
+      state(TimerState::STOPPED)
+    {}
+
+    ~Timer()
     {
-      if (fire_first)
-        cb();
+      LOG_FAIL_FMT("Timer destroyed");
+    }
+
+    void start()
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      state = TimerState::STARTED;
+    }
+
+    void restart()
+    {
+      start();
+    }
+
+    void stop()
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      state = TimerState::STOPPED;
     }
 
     void tick(std::chrono::milliseconds elapsed)
     {
       std::lock_guard<SpinLock> guard(lock);
 
+      if (state != TimerState::STARTED)
+        return;
+
       tick_ += elapsed;
       if (tick_ >= period)
       {
-        LOG_FAIL_FMT("Tick {} > Period {}", tick_.count(), period.count());
+        state = TimerState::EXPIRED;
         cb();
         using namespace std::chrono_literals;
         tick_ = 0ms;
@@ -54,10 +82,7 @@ namespace ccf
   private:
     SpinLock lock;
 
-    // TODO: The type of this should probably change
-    // std::unordered_map<TimerId, Timer> timers;
-    // using TimerList = std::list<Timer>;
-    std::list<Timer> timers;
+    std::list<std::shared_ptr<Timer>> timers;
 
   public:
     Timers() {}
@@ -67,14 +92,27 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
 
       for (auto& t : timers)
-        t.tick(elapsed);
+        t->tick(elapsed);
     }
 
-    const Timer& new_timer(
-      std::chrono::milliseconds period, bool fire_first, TimerCallback cb)
+    std::shared_ptr<Timer> new_timer(
+      std::chrono::milliseconds period, TimerCallback cb_)
     {
-      timers.emplace_back(Timer(period, fire_first, cb));
+      std::lock_guard<SpinLock> guard(lock);
+
+      timers.emplace_back(std::make_shared<Timer>(period, cb_));
       return timers.back();
+    }
+
+    void remove_timer(std::shared_ptr<Timer>& timer)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      timers.remove(timer);
+      // for (auto& t: timers)
+      // {
+      //   if (t == timer)
+      //     timers.erase(t);
+      // }
     }
   };
 }
