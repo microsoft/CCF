@@ -56,23 +56,16 @@ namespace pbft
       uint64_t caller_id,
       const CBuffer& caller_cert) override
     {
-
-      LOG_INFO << "NNNNNN" << std::endl;
       serialized::write(buffer, total_req_size, actor);
-      LOG_INFO << "NNNNNN" << std::endl;
       serialized::write(buffer, total_req_size, caller_id);
-      LOG_INFO << "NNNNNN" << std::endl;
       uint32_t cert_size = caller_cert.rawSize();
       serialized::write(buffer, total_req_size, cert_size);
-      LOG_INFO << "NNNNNN:" << (uint64_t)caller_cert.p << std::endl;
       if (caller_cert.p != nullptr)
       {
         serialized::write(
           buffer, total_req_size, caller_cert.p, caller_cert.rawSize());
       }
-      LOG_INFO << "NNNNNN" << std::endl;
       serialized::write(buffer, total_req_size, data.data(), data.size());
-      LOG_INFO << "NNNNNN" << std::endl;
     }
 
   private:
@@ -129,7 +122,6 @@ namespace pbft
       auto frontend = handler.value();
 
       std::string cert((char *)request->cert(), request->cert_size);
-      LOG_INFO << "VVVVVVV " << cert << std::endl;
 
       // TODO: For now, re-use the RPCContext for forwarded commands.
       // Eventually, the two process_() commands will be refactored accordingly.

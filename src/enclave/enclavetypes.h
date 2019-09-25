@@ -19,7 +19,7 @@ namespace enclave
     //
 
     const size_t client_session_id = InvalidSessionId;
-    CBuffer caller_cert; // need this
+    CBuffer caller_cert;
     // Actor type to route to appropriate frontend
     const ccf::ActorsType actor;
 

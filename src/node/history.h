@@ -391,8 +391,7 @@ namespace ccf
       if (!consensus)
         return false;
 
-      LOG_INFO << "TTTTT:" << (uint64_t)caller_cert.p << std::endl;
-      return consensus->on_request({id, request, actor, caller_id, caller_cert}); // pass here
+      return consensus->on_request({id, request, actor, caller_id, caller_cert});
     }
 
     void add_result(

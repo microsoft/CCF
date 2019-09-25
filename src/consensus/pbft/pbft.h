@@ -209,13 +209,10 @@ namespace pbft
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
-
-      LOG_INFO << "TTTTT:" << (uint64_t)args.caller_cert.p << std::endl;
-      //auto total_req_size = pbft_config->message_size() + args.request.size();
       auto total_req_size = pbft_config->message_size() + args.request.size() + args.caller_cert.rawSize();
 
       uint8_t request_buffer[total_req_size];
-      pbft_config->fill_request( // add here
+      pbft_config->fill_request(
         request_buffer,
         total_req_size,
         args.request,
@@ -223,7 +220,6 @@ namespace pbft
         args.caller_id,
         args.caller_cert);
 
-      LOG_INFO << "TTTTT" << std::endl;
       auto rep_cb = [&](
                       void* owner,
                       kv::TxHistory::RequestID caller_rid,
@@ -232,7 +228,6 @@ namespace pbft
                       size_t len) {
         LOG_DEBUG_FMT("PBFT reply callback for {}", caller_rid);
 
-      LOG_INFO << "TTTTT" << std::endl;
         return rpcsessions.reply_async(
           std::get<1>(caller_rid), {reply, reply + len});
       };
@@ -283,13 +278,10 @@ namespace pbft
       std::string pubk_enc =
         "893d4101c5b225c2bdc8633bb322c0ef9861e0c899014536e11196808ffc0d17";
 
-      LOG_INFO << "AAAAAA adding node:" << node_conf.node_id << std::endl;
       if (node_conf.node_id == local_id)
       {
         return;
       }
-      LOG_INFO << "AAAAAA adding node:" << node_conf.node_id << std::endl;
-
       PrincipalInfo info;
       info.id = node_conf.node_id;
       info.port = short(atoi(node_conf.port.c_str()));
@@ -300,8 +292,6 @@ namespace pbft
       info.is_replica = true;
       Byz_add_principal(info);
       LOG_INFO_FMT("PBFT added node, id: {}", info.id);
-
-      LOG_INFO << "AAAAAA adding node:" << node_conf.node_id << std::endl;
     }
 
     void periodic(std::chrono::milliseconds elapsed) override
