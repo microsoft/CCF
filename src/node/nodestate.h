@@ -360,10 +360,10 @@ namespace ccf
             !public_only);
 
           self = res.id;
-#ifndef PBFT
-          setup_raft(public_only);
-#else
+#ifdef PBFT
           setup_pbft();
+#else
+          setup_raft(public_only);
 #endif
           setup_history();
           setup_encryptor();

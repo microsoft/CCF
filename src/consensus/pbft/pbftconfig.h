@@ -119,8 +119,6 @@ namespace pbft
 
       auto frontend = handler.value();
 
-      std::string cert((char*)request->cert(), request->cert_size);
-
       // TODO: For now, re-use the RPCContext for forwarded commands.
       // Eventually, the two process_() commands will be refactored accordingly.
       enclave::RPCContext ctx(

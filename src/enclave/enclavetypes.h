@@ -71,7 +71,7 @@ namespace enclave
       actor(actor_)
     {}
 
-    // Constructor used for forwarded RPC
+    // Constructor used for forwarded RPC and the the caller_cert
     RPCContext(
       size_t fwd_session_id_,
       ccf::NodeId from_,
