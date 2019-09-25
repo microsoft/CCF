@@ -21,7 +21,8 @@ namespace pbft
       size_t total_req_size,
       const std::vector<uint8_t>& data,
       uint64_t actor,
-      uint64_t caller_id) = 0;
+      uint64_t caller_id,
+      const CBuffer& caller_cert) = 0;
   };
 
   class PbftConfigCcf : public AbstractPbftConfig
@@ -52,35 +53,51 @@ namespace pbft
       size_t total_req_size,
       const std::vector<uint8_t>& data,
       uint64_t actor,
-      uint64_t caller_id) override
+      uint64_t caller_id,
+      const CBuffer& caller_cert) override
     {
       serialized::write(buffer, total_req_size, actor);
       serialized::write(buffer, total_req_size, caller_id);
+      uint32_t cert_size = caller_cert.rawSize();
+      serialized::write(buffer, total_req_size, cert_size);
+      if (caller_cert.p != nullptr)
+      {
+        serialized::write(
+          buffer, total_req_size, caller_cert.p, caller_cert.rawSize());
+      }
       serialized::write(buffer, total_req_size, data.data(), data.size());
     }
 
   private:
     std::shared_ptr<enclave::RpcMap> rpc_map;
 
+#pragma pack(push, 1)
     struct ccf_req
     {
       ccf::ActorsType actor;
       uint64_t caller_id;
+      uint32_t cert_size;
 
-      uint8_t* get_data()
+      uint8_t* cert()
       {
         return (uint8_t*)((uintptr_t)this + sizeof(ccf_req));
       }
 
+      uint8_t* get_data()
+      {
+        return (uint8_t*)((uintptr_t)this + sizeof(ccf_req) + cert_size);
+      }
+
       size_t get_size(size_t total_size)
       {
-        if (total_size < sizeof(ccf_req))
+        if (total_size < (sizeof(ccf_req) + cert_size))
         {
           return 0;
         }
-        return total_size - sizeof(ccf_req);
+        return total_size - (sizeof(ccf_req) + cert_size);
       }
     };
+#pragma pack(pop)
 
     ExecCommand exec_command = [this](
                                  Byz_req* inb,
@@ -90,7 +107,7 @@ namespace pbft
                                  bool ro,
                                  Seqno total_requests_executed,
                                  ByzInfo& info) {
-      auto request = new (inb->contents) ccf_req;
+      auto request = reinterpret_cast<ccf_req*>(inb->contents);
 
       LOG_DEBUG_FMT("PBFT exec_command() for frontend {}", request->actor);
 
@@ -104,7 +121,12 @@ namespace pbft
 
       // TODO: For now, re-use the RPCContext for forwarded commands.
       // Eventually, the two process_() commands will be refactored accordingly.
-      enclave::RPCContext ctx(0, 0, request->caller_id);
+      enclave::RPCContext ctx(
+        0,
+        0,
+        request->caller_id,
+        CBuffer(
+          request->cert(), request->cert_size)); // add the pointer and size
 
       auto rep = frontend->process_pbft(
         ctx,
