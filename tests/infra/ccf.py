@@ -125,13 +125,14 @@ class Network:
         self.members = []
         self.hosts = hosts
         self.net_cert = []
+        self.dbg_nodes = dbg_nodes or []
         if create_nodes:
             for local_node_id, host in enumerate(hosts):
                 local_node_id_ = local_node_id + node_offset
                 self.create_node(
                     local_node_id_,
                     host,
-                    debug=str(local_node_id_) in (dbg_nodes or []),
+                    debug=str(local_node_id_) in self.dbg_nodes,
                     perf=str(local_node_id_) in (perf_nodes or []),
                 )
 
@@ -305,7 +306,10 @@ class Network:
 
     def create_and_add_node(self, lib_name, host, args):
         local_node_id = self.get_next_local_node_id()
-        new_node = self.create_node(local_node_id, host)
+
+        new_node = self.create_node(
+            local_node_id, host, debug=str(local_node_id) in self.dbg_nodes
+        )
 
         if self.add_node(new_node, lib_name, None, args) is False:
             return None
