@@ -391,7 +391,8 @@ namespace ccf
       if (!consensus)
         return false;
 
-      return consensus->on_request({id, request, actor, caller_id, caller_cert});
+      return consensus->on_request(
+        {id, request, actor, caller_id, caller_cert});
     }
 
     void add_result(

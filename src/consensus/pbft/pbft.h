@@ -209,7 +209,8 @@ namespace pbft
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
-      auto total_req_size = pbft_config->message_size() + args.request.size() + args.caller_cert.rawSize();
+      auto total_req_size = pbft_config->message_size() + args.request.size() +
+        args.caller_cert.rawSize();
 
       uint8_t request_buffer[total_req_size];
       pbft_config->fill_request(

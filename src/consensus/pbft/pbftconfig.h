@@ -71,16 +71,14 @@ namespace pbft
   private:
     std::shared_ptr<enclave::RpcMap> rpc_map;
 
-    // NOTE: we should be deserializing properly
-    // use serialized.read
-    #pragma pack(push, 1)
+#pragma pack(push, 1)
     struct ccf_req
     {
       ccf::ActorsType actor;
       uint64_t caller_id;
       uint32_t cert_size;
 
-      uint8_t* cert() 
+      uint8_t* cert()
       {
         return (uint8_t*)((uintptr_t)this + sizeof(ccf_req));
       }
@@ -99,7 +97,7 @@ namespace pbft
         return total_size - (sizeof(ccf_req) + cert_size);
       }
     };
-    #pragma pack(pop)
+#pragma pack(pop)
 
     ExecCommand exec_command = [this](
                                  Byz_req* inb,
@@ -121,11 +119,16 @@ namespace pbft
 
       auto frontend = handler.value();
 
-      std::string cert((char *)request->cert(), request->cert_size);
+      std::string cert((char*)request->cert(), request->cert_size);
 
       // TODO: For now, re-use the RPCContext for forwarded commands.
       // Eventually, the two process_() commands will be refactored accordingly.
-      enclave::RPCContext ctx(0, 0, request->caller_id, CBuffer(request->cert(), request->cert_size)); // add the pointer and size
+      enclave::RPCContext ctx(
+        0,
+        0,
+        request->caller_id,
+        CBuffer(
+          request->cert(), request->cert_size)); // add the pointer and size
 
       auto rep = frontend->process_pbft(
         ctx,
