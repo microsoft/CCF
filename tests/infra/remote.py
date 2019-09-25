@@ -400,7 +400,7 @@ class LocalRemote(CmdMixin):
                 self.stdout.close()
             if self.stderr:
                 self.stderr.close()
-            log_errors(self.out, self.err)
+            # log_errors(self.out, self.err)
 
     def setup(self):
         """
@@ -671,9 +671,9 @@ def ccf_remote(
 
 
 class NodeStatus(Enum):
-    pending = 0
-    trusted = 1
-    retired = 2
+    PENDING = 0
+    TRUSTED = 1
+    RETIRED = 2
 
 
 class StartType(Enum):

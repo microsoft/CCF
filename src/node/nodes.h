@@ -60,15 +60,15 @@ struct formatter<ccf::NodeStatus>
     {
       case (ccf::NodeStatus::PENDING):
       {
-        return format_to(ctx.out(), "pending");
+        return format_to(ctx.out(), "PENDING");
       }
       case (ccf::NodeStatus::TRUSTED):
       {
-        return format_to(ctx.out(), "trusted");
+        return format_to(ctx.out(), "TRUSTED");
       }
       case (ccf::NodeStatus::RETIRED):
       {
-        return format_to(ctx.out(), "retired");
+        return format_to(ctx.out(), "RETIRED");
       }
     }
   }

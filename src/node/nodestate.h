@@ -418,12 +418,12 @@ namespace ccf
 #endif
       join_rpc.params.quote = quote;
 
-      auto join_req =
-        jsonrpc::pack(nlohmann::json(join_rpc), jsonrpc::Pack::MsgPack);
+      LOG_DEBUG_FMT(
+        "Sending join request to {}:{}",
+        args.config.joining.target_host,
+        args.config.joining.target_port);
 
-      LOG_INFO_FMT("Sending join request");
-
-      join_client->send(join_req);
+      join_client->send(jsonrpc::pack(join_rpc, jsonrpc::Pack::MsgPack));
     }
 
     void join(const Join::In& args)
@@ -435,24 +435,14 @@ namespace ccf
 
       using namespace std::chrono_literals;
       join_timer = timers.new_timer(1s, [this, args]() {
-        LOG_FAIL_FMT("Timer expired");
-        if (!check_if_joined())
+        if (is_pending())
         {
-          LOG_FAIL_FMT("Node has not joined yet, restarting");
           initiate_join(args);
-          join_timer->restart();
+          return true;
         }
-        else
-        {
-          LOG_FAIL_FMT("Node has joined, timer not starting again");
-        }
+        return false;
       });
       join_timer->start();
-    }
-
-    bool check_if_joined()
-    {
-      return !sm.check(State::pending);
     }
 
     //
@@ -894,6 +884,11 @@ namespace ccf
     bool is_part_of_public_network() const override
     {
       return sm.check(State::partOfPublicNetwork);
+    }
+
+    bool is_pending()
+    {
+      return sm.check(State::pending);
     }
 
     std::optional<std::vector<uint8_t>> get_quote()
