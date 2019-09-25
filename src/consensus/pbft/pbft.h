@@ -269,7 +269,6 @@ namespace pbft
       std::unordered_set<kv::NodeId> config,
       const NodeConf& node_conf) override
     {
-      LOG_INFO << "AAAAAA adding node:" << node_conf.node_id << std::endl;
       // TODO(#pbft): We do not need this in the long run
       std::string privk =
         "0045c65ec31179652c57ae97f50de77e177a939dce74e39d7db51740663afb69";

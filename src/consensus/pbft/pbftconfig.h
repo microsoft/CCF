@@ -125,7 +125,6 @@ namespace pbft
 
       // TODO: For now, re-use the RPCContext for forwarded commands.
       // Eventually, the two process_() commands will be refactored accordingly.
-      //enclave::RPCContext ctx(0, 0, request->caller_id); // add the pointer and size
       enclave::RPCContext ctx(0, 0, request->caller_id, CBuffer(request->cert(), request->cert_size)); // add the pointer and size
 
       auto rep = frontend->process_pbft(
