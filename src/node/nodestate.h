@@ -362,8 +362,10 @@ namespace ccf
           self = res.id;
 #ifndef PBFT
           setup_raft(public_only);
-          setup_history();
+#else
+          setup_pbft();
 #endif
+          setup_history();
           setup_encryptor();
 
           accept_node_connections();
