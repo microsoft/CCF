@@ -75,10 +75,9 @@ namespace enclave
         auto err = HTTP_PARSER_ERRNO(&parser);
         if (err)
           throw std::runtime_error(fmt::format(
-            "HTTP parsing failed: {}: {}: [{}]",
+            "HTTP parsing failed: {}: {}",
             http_errno_name(err),
-            http_errno_description(err),
-            std::string(data, data+size)));
+            http_errno_description(err)));
         // TODO: check for http->upgrade
         return parsed;
       }

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "httpserver.h"
+#include "http.h"
 #include "rpcmap.h"
 #include "tlsframedendpoint.h"
 
