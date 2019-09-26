@@ -14,7 +14,6 @@ from loguru import logger as LOG
 
 def run(args):
     hosts = ["localhost", "localhost"]
-    # hosts = ["localhost"] # TODO: Test with one node
 
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -22,7 +21,7 @@ def run(args):
         primary, others = network.start_and_join(args)
 
         LOG.debug("Add a valid node")
-        new_node = network.create_and_add_node(args.package, "localhost", args)
+        new_node = network.create_and_trust_node(args.package, "localhost", args)
         assert new_node
 
         with primary.management_client() as mc:
@@ -36,7 +35,7 @@ def run(args):
         if args.enclave_type == "debug":
             LOG.debug("Add an invalid node (unknown code id)")
             assert (
-                network.create_and_add_node("libluagenericenc", "localhost", args)
+                network.create_and_trust_node("libluagenericenc", "localhost", args)
                 == None
             ), "Adding node with unknown code id should fail"
         else:
@@ -46,7 +45,7 @@ def run(args):
         network.retire_node(primary, 0)
 
         LOG.debug("Add a valid node")
-        new_node = network.create_and_add_node(args.package, "localhost", args)
+        new_node = network.create_and_trust_node(args.package, "localhost", args)
         assert new_node
 
 

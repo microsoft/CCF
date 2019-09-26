@@ -35,14 +35,6 @@ def add_new_code(network, new_code_id):
     network.vote_using_majority(primary, result[1]["id"])
 
 
-def create_node_using_new_code(network, args):
-    # add a node using unsupported code
-    assert network.create_and_add_node(args.patched_file_name, "localhost", args) == (
-        False,
-        infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND,
-    )
-
-
 def run(args):
     hosts = ["localhost", "localhost"]
 
@@ -52,14 +44,14 @@ def run(args):
         primary, others = network.start_and_join(args)
 
         LOG.debug("Adding a new node")
-        new_node = network.create_and_add_node(args.package, "localhost", args)
+        new_node = network.create_and_trust_node(args.package, "localhost", args)
         assert new_node
 
         new_code_id = get_code_id(f"{args.patched_file_name}.so.signed")
 
         LOG.debug(f"Adding a node with unsupported code id {new_code_id}")
         assert (
-            network.create_and_add_node(args.patched_file_name, "localhost", args)
+            network.create_and_trust_node(args.patched_file_name, "localhost", args)
             == None
         ), "Adding node with unsupported code id should fail"
 
@@ -71,7 +63,7 @@ def run(args):
 
         LOG.debug("Adding more new nodes than originally existed")
         for _ in range(0, old_nodes_count + 1):
-            new_node = network.create_and_add_node(
+            new_node = network.create_and_trust_node(
                 args.patched_file_name, "localhost", args
             )
             assert new_node
@@ -93,7 +85,7 @@ def run(args):
         new_primary, _ = network.find_primary()
         LOG.debug(f"Waited, new_primary is {new_primary.node_id}")
 
-        new_node = network.create_and_add_node(
+        new_node = network.create_and_trust_node(
             args.patched_file_name, "localhost", args
         )
         assert new_node

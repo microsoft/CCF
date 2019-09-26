@@ -177,7 +177,7 @@ class Network:
                         )
                     node.network_state = NodeNetworkState.joined
                 else:
-                    self._add_node(node, args.package, None, args)
+                    self._add_node(node, args.package, args)
             except Exception:
                 LOG.exception("Failed to start node {}".format(i))
                 raise
@@ -233,14 +233,12 @@ class Network:
     def remove_last_node(self):
         last_node = self.nodes.pop()
 
-    def _add_node(self, node, lib_name, primary, args):
+    def _add_node(self, node, lib_name, args):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
 
-        if primary is None:
-            primary, _ = self.find_primary()
-
+        primary, _ = self.find_primary()
         node.join(
             lib_name=lib_name,
             workspace=args.workspace,
@@ -268,32 +266,28 @@ class Network:
                 break
             time.sleep(1)
         if not exists:
-            raise TimeoutError(f"Node {node_id} has not yet been recorded in the join protocol")
+            raise TimeoutError(f"Node {node_id} has not yet been recorded in the store")
 
-    def create_and_add_node(self, lib_name, host, args):
+    def create_and_trust_node(self, lib_name, host, args):
+        if self.status != ServiceStatus.OPEN:
+            LOG.error(
+                "Service should be open to trust node - otherwise, new nodes are automatically trusted"
+            )
+
         new_node = self.create_node(host)
-
         try:
-            self._add_node(new_node, lib_name, None, args)
+            self._add_node(new_node, lib_name, args)
             primary, _ = self.find_primary()
             self._wait_for_node_to_exist_in_store(primary, new_node.node_id)
             self.trust_node(primary, new_node.node_id)
+            new_node.wait_for_node_to_join()
         except (ValueError, TimeoutError):
+            LOG.error(f"New node {new_node.node_id} failed to join the network")
             new_node.stop()
             self.nodes.remove(new_node)
             return None
 
-        # TODO: We do not need the check for open here as we can assume that the network is already open!
-        if self.status == ServiceStatus.OPEN:
-            try:
-                new_node.wait_for_node_to_join()
-            except TimeoutError:
-                LOG.error(f"New node {new_node.node_id} failed to join the network")
-                new_node.stop()
-                self.nodes.remove(new_node)
-                return None
-            new_node.network_state = NodeNetworkState.joined
-
+        new_node.network_state = NodeNetworkState.joined
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success(f"New node {new_node.node_id} joined the network")
 
@@ -449,7 +443,6 @@ class Network:
             remote_node, node_id, infra.remote.NodeStatus.TRUSTED
         ):
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
-
 
     def propose_add_member(self, member_id, remote_node, new_member_cert):
         return self.propose(

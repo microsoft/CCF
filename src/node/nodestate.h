@@ -351,8 +351,6 @@ namespace ccf
             return false;
           }
 
-          LOG_FAIL_FMT("Node joined the network: {}", j.dump());
-
           // Set network secrets, node id and become part of network.
           if (resp->node_status == NodeStatus::TRUSTED)
           {
@@ -390,7 +388,7 @@ namespace ccf
           else if (resp->node_status == NodeStatus::PENDING)
           {
             LOG_INFO_FMT(
-              "Node {} is waiting for members vote to be trusted",
+              "Node {} is waiting for votes of members to be trusted",
               resp->node_id);
           }
 

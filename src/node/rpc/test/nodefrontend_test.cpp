@@ -84,7 +84,8 @@ TEST_CASE("Add a node to an opening service")
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
 
     check_error(response_j, StandardErrorCodes::INTERNAL_ERROR);
-    check_error_message(response_j, "No service is available to accept new node");
+    check_error_message(
+      response_j, "No service is available to accept new node");
   }
 
   gen.create_service({});
