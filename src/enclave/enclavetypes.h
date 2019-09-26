@@ -71,6 +71,19 @@ namespace enclave
       actor(actor_)
     {}
 
+    // Constructor used for forwarded RPC and the the caller_cert
+    RPCContext(
+      size_t fwd_session_id_,
+      ccf::NodeId from_,
+      ccf::CallerId caller_id_,
+      CBuffer caller_cert_,
+      ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
+      fwd(std::make_optional<struct forwarded>(
+        fwd_session_id_, from_, caller_id_)),
+      caller_cert(caller_cert_),
+      actor(actor_)
+    {}
+
     // Constructor used for forwarded RPC
     RPCContext(
       size_t fwd_session_id_,

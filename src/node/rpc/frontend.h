@@ -525,7 +525,8 @@ namespace ccf
       reqid = {caller_id.value(), ctx.client_session_id, jsonrpc_id};
       if (history)
       {
-        if (!history->add_request(reqid, ctx.actor, caller_id.value(), input))
+        if (!history->add_request(
+              reqid, ctx.actor, caller_id.value(), ctx.caller_cert, input))
         {
           LOG_FAIL_FMT("Adding request {} failed", jsonrpc_id);
           return jsonrpc::pack(

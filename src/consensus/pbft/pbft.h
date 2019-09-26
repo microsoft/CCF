@@ -209,7 +209,8 @@ namespace pbft
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
-      auto total_req_size = pbft_config->message_size() + args.request.size();
+      auto total_req_size = pbft_config->message_size() + args.request.size() +
+        args.caller_cert.rawSize();
 
       uint8_t request_buffer[total_req_size];
       pbft_config->fill_request(
@@ -217,7 +218,8 @@ namespace pbft
         total_req_size,
         args.request,
         args.actor,
-        args.caller_id);
+        args.caller_id,
+        args.caller_cert);
 
       auto rep_cb = [&](
                       void* owner,
@@ -280,7 +282,6 @@ namespace pbft
       {
         return;
       }
-
       PrincipalInfo info;
       info.id = node_conf.node_id;
       info.port = short(atoi(node_conf.port.c_str()));
