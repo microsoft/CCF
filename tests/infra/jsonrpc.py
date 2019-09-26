@@ -364,7 +364,7 @@ class CurlClient:
             LOG.debug("Going to send {}".format(msg))
             nf.write(msg)
             nf.flush()
-            subprocess.run(['openssl', 'dgst', '-sha256', '-out', 'sig', '-sign', 'user1_privk.pem', nf.name], check=True)
+            subprocess.run(['openssl', 'dgst', '-sha256', '-out', 'sig', '-sign', 'member1_privk.pem', nf.name], check=True)
             nf.seek(0)
             sig = []
             with open("sig", "rb") as s:
