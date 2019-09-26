@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import time
 from infra.ccf import NodeNetworkState
 from loguru import logger as LOG
@@ -122,6 +123,10 @@ if __name__ == "__main__":
         )
 
     args = e2e_args.cli_args(add)
+    if args.enclave_type != "debug":
+        LOG.warning("Skipping code update test with virtual enclave")
+        sys.exit()
+
     args.package = args.app_script and "libluagenericenc" or "libloggingenc"
     args.patched_file_name = "{}.patched".format(args.package)
     run(args)

@@ -279,14 +279,17 @@ class Network:
             self._wait_for_node_to_exist_in_store(primary, new_node.node_id)
             self.trust_node(primary, new_node.node_id)
         except (ValueError, TimeoutError):
+            new_node.stop()
             self.nodes.remove(new_node)
             return None
 
+        # TODO: We do not need the check for open here as we can assume that the network is already open!
         if self.status == ServiceStatus.OPEN:
             try:
                 new_node.wait_for_node_to_join()
             except TimeoutError:
                 LOG.error(f"New node {new_node.node_id} failed to join the network")
+                new_node.stop()
                 self.nodes.remove(new_node)
                 return None
             new_node.network_state = NodeNetworkState.joined

@@ -57,7 +57,6 @@ const json frontend_process(
   auto serialised_response = frontend.process(rpc_ctx, serialise_request);
 
   auto json = unpack(serialised_response, Pack::MsgPack);
-  std::cout << json.dump() << std::endl;
 
   return unpack(serialised_response, Pack::MsgPack);
 }
@@ -85,7 +84,7 @@ TEST_CASE("Add a node to an opening service")
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
 
     check_error(response_j, StandardErrorCodes::INTERNAL_ERROR);
-    check_error_message(response_j, "No service is available to add new node");
+    check_error_message(response_j, "No service is available to accept new node");
   }
 
   gen.create_service({});
@@ -147,7 +146,7 @@ TEST_CASE("Add a node to an opening service")
   }
 }
 
-TEST_CASE("Add a node in an open service")
+TEST_CASE("Add a node to an open service")
 {
   NetworkState network;
   GenesisGenerator gen(network);

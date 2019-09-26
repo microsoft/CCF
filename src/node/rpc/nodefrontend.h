@@ -58,6 +58,65 @@ namespace ccf
       return duplicate_node_id;
     }
 
+    auto add_node(
+      Store::Tx& tx,
+      std::vector<uint8_t>& caller_pem_raw,
+      const JoinNetworkNodeToNode::In& in,
+      NodeStatus node_status)
+    {
+      auto nodes_view = tx.get_view(network.nodes);
+
+      auto conflicting_node_id =
+        check_conflicting_node_network(tx, in.node_info_network);
+      if (conflicting_node_id.has_value())
+      {
+        return jsonrpc::error(
+          jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+          fmt::format(
+            "A node with the same node host {} and port {} already "
+            "exists "
+            "(node id: {})",
+            in.node_info_network.host,
+            in.node_info_network.nodeport,
+            conflicting_node_id.value()));
+      }
+
+#ifdef GET_QUOTE
+      QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
+        tx, this->network, in.quote, caller_pem_raw);
+
+      if (verify_result != QuoteVerificationResult::VERIFIED)
+        return QuoteVerifier::quote_verification_error_to_json(verify_result);
+#else
+      LOG_INFO_FMT("Skipped joining node quote verification");
+#endif
+
+      NodeId joining_node_id =
+        get_next_id(tx.get_view(this->network.values), NEXT_NODE_ID);
+
+      nodes_view->put(
+        joining_node_id,
+        {in.node_info_network, caller_pem_raw, in.quote, node_status});
+
+      this->node.set_joiner_key(joining_node_id, in.raw_fresh_key);
+
+      LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
+
+      if (node_status == NodeStatus::TRUSTED)
+      {
+        return jsonrpc::success<JoinNetworkNodeToNode::Out>(
+          {node_status,
+           joining_node_id,
+           {this->network.secrets->get_current(),
+            this->network.secrets->get_current_version()}});
+      }
+      else
+      {
+        return jsonrpc::success<JoinNetworkNodeToNode::Out>(
+          {node_status, joining_node_id});
+      }
+    }
+
   public:
     NodeCallRpcFrontend(NetworkState& network, AbstractNodeState& node) :
       RpcFrontend(*network.tables, nullptr, &network.node_certs, false),
@@ -74,7 +133,7 @@ namespace ccf
         if (!active_service.has_value())
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            "No service is available to add new node");
+            "No service is available to accept new node");
 
         // Convert caller cert from DER to PEM as PEM certificates
         // are quoted
@@ -85,143 +144,62 @@ namespace ccf
         std::vector<uint8_t> caller_pem_raw = {caller_pem.str().begin(),
                                                caller_pem.str().end()};
 
-        // TODO: Only verify the quote if the node is not known?
-#ifdef GET_QUOTE
-        QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
-          args.tx, this->network, in.quote, caller_pem_raw);
-
-        if (verify_result != QuoteVerificationResult::VERIFIED)
-          return QuoteVerifier::quote_verification_error_to_json(verify_result);
-#else
-        LOG_INFO_FMT("Skipped joining node quote verification");
-#endif
-
-        // TODO:
-        // 1. If service is opening, trust straight away
-        // 2. If service is open
-        //    i.   If node is not known in KV, add as PENDING
-        //    ii.  If node is known in state PENDING, return still PENDING
-        //    iii. If node is known in state TRUSTED, return NS and node id
-
         if (active_service->status == ServiceStatus::OPENING)
         {
-          // If the node is already trusted, return network secrets straight
-          // away.
+          // If the service is opening, new nodes are trusted straight away
+          NodeStatus joining_node_status = NodeStatus::TRUSTED;
+
+          // If the node is already trusted, return network secrets
           auto existing_node_id =
-            check_node_exists(args.tx, caller_pem_raw, NodeStatus::TRUSTED);
+            check_node_exists(args.tx, caller_pem_raw, joining_node_status);
           if (existing_node_id.has_value())
             return jsonrpc::success<JoinNetworkNodeToNode::Out>(
-              {NodeStatus::TRUSTED,
+              {joining_node_status,
                existing_node_id.value(),
                {this->network.secrets->get_current(),
                 this->network.secrets->get_current_version()}});
 
-          // Check that an active node with the same network info does not
-          // already exist
-          auto conflicting_node_id =
-            check_conflicting_node_network(args.tx, in.node_info_network);
-          if (conflicting_node_id.has_value())
-          {
-            return jsonrpc::error(
-              jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-              fmt::format(
-                "A node with the same node host {} and port {} already "
-                "exists "
-                "(node id: {})",
-                in.node_info_network.host,
-                in.node_info_network.nodeport,
-                conflicting_node_id.value()));
-          }
-
-          // Assign joining node a new NodeId
-          NodeId joining_node_id =
-            get_next_id(args.tx.get_view(this->network.values), NEXT_NODE_ID);
-
-          // Add as TRUSTED
-          nodes_view->put(
-            joining_node_id,
-            {in.node_info_network,
-             caller_pem_raw,
-             in.quote,
-             NodeStatus::TRUSTED});
-
-          // Set joiner's fresh key for encrypting past network
-          // secrets
-          this->node.set_joiner_key(
-            joining_node_id, args.params["raw_fresh_key"]);
-
-          return jsonrpc::success<JoinNetworkNodeToNode::Out>(
-            {NodeStatus::TRUSTED,
-             joining_node_id,
-             {this->network.secrets->get_current(),
-              this->network.secrets->get_current_version()}});
+          return add_node(args.tx, caller_pem_raw, in, joining_node_status);
         }
-        else // TODO: Fix this
-        // else if (active_service->status == ServiceStatus::OPEN)
-        {
-          // Check if the node already exists
-          auto existing_node_id = check_node_exists(args.tx, caller_pem_raw);
-          if (existing_node_id.has_value())
-          {
-            auto node_status =
-              nodes_view->get(existing_node_id.value())->status;
 
-            if (node_status == NodeStatus::PENDING)
-            {
-              return jsonrpc::success<JoinNetworkNodeToNode::Out>(
-                {NodeStatus::PENDING, existing_node_id.value()});
-            }
-            else if (node_status == NodeStatus::TRUSTED)
-            {
-              LOG_FAIL_FMT("Service open, node is already trusted");
-              return jsonrpc::success<JoinNetworkNodeToNode::Out>(
-                {NodeStatus::TRUSTED,
-                 existing_node_id.value(),
-                 {this->network.secrets->get_current(),
-                  this->network.secrets->get_current_version()}});
-            }
+        // If the service is open, new nodes are first added as pending and
+        // then only trusted via member governance. It is expected that a new
+        // node polls the network to retrieve the network secrets until it is
+        // trusted
+
+        auto existing_node_id = check_node_exists(args.tx, caller_pem_raw);
+        if (existing_node_id.has_value())
+        {
+          // If the node already exists, return network secrets if is already
+          // trusted. Otherwise, only return its node id
+          auto node_status = nodes_view->get(existing_node_id.value())->status;
+          if (node_status == NodeStatus::TRUSTED)
+          {
+            return jsonrpc::success<JoinNetworkNodeToNode::Out>(
+              {node_status,
+               existing_node_id.value(),
+               {this->network.secrets->get_current(),
+                this->network.secrets->get_current_version()}});
+          }
+          else if (node_status == NodeStatus::PENDING)
+          {
+            return jsonrpc::success<JoinNetworkNodeToNode::Out>(
+              {node_status, existing_node_id.value()});
           }
           else
           {
-            // Check that an active node with the same network info does not
-            // already exist
-            auto conflicting_node_id =
-              check_conflicting_node_network(args.tx, in.node_info_network);
-            if (conflicting_node_id.has_value())
-            {
-              return jsonrpc::error(
-                jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-                fmt::format(
-                  "A node with the same node host {} and port {} already "
-                  "exists "
-                  "(node id: {})",
-                  in.node_info_network.host,
-                  in.node_info_network.nodeport,
-                  conflicting_node_id.value()));
-            }
-            // Assign joining node a new NodeId
-            NodeId joining_node_id =
-              get_next_id(args.tx.get_view(this->network.values), NEXT_NODE_ID);
-            // Add as PENDING
-            nodes_view->put(
-              joining_node_id,
-              {in.node_info_network,
-               caller_pem_raw,
-               in.quote,
-               NodeStatus::PENDING});
-            // Set joiner's fresh key for encrypting past network
-            // secrets
-            this->node.set_joiner_key(
-              joining_node_id, args.params["raw_fresh_key"]);
-
-            return jsonrpc::success<JoinNetworkNodeToNode::Out>(
-              {NodeStatus::PENDING, joining_node_id});
+            return jsonrpc::error(
+              jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+              "Joining node is not in expected state");
           }
+        }
+        else
+        {
+          // If the node does not exist, add it to the KV in state pending
 
-          // TODO: Remove when this is refactored, only here to remove clang
-          // warning
-          return jsonrpc::success<JoinNetworkNodeToNode::Out>(
-            {NodeStatus::PENDING, 0});
+          // TODO: We should also automatically stage a vote for members to
+          // accept the new node as trusted
+          return add_node(args.tx, caller_pem_raw, in, NodeStatus::PENDING);
         }
       };
 

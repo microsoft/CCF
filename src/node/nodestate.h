@@ -133,6 +133,7 @@ namespace ccf
     //
     std::vector<uint8_t> raw_fresh_key;
     std::map<NodeId, std::vector<uint8_t>> joiners_fresh_keys;
+    jsonrpc::SeqNo join_seq_no = 1;
     std::shared_ptr<Timer> join_timer;
 
     //
@@ -332,7 +333,8 @@ namespace ccf
         args.config.joining.target_port,
         [this](const std::vector<uint8_t>& data) {
           std::lock_guard<SpinLock> guard(lock);
-          sm.expect(State::pending);
+          if (!sm.check(State::pending))
+            return false;
 
           auto j = jsonrpc::unpack(data, jsonrpc::Pack::MsgPack);
 
@@ -352,7 +354,6 @@ namespace ccf
           LOG_FAIL_FMT("Node joined the network: {}", j.dump());
 
           // Set network secrets, node id and become part of network.
-
           if (resp->node_status == NodeStatus::TRUSTED)
           {
             // If the current network secrets do not apply since the genesis,
@@ -386,9 +387,11 @@ namespace ccf
               self,
               (public_only ? "public only" : "all domains"));
           }
-          else
+          else if (resp->node_status == NodeStatus::PENDING)
           {
-            LOG_FAIL_FMT("Node added in state PENDING");
+            LOG_INFO_FMT(
+              "Node {} is waiting for members vote to be trusted",
+              resp->node_id);
           }
 
           return true;
@@ -400,7 +403,7 @@ namespace ccf
 
       // Send RPC request to remote node to join the network.
       jsonrpc::ProcedureCall<JoinNetworkNodeToNode::In> join_rpc;
-      join_rpc.id = 1;
+      join_rpc.id = join_seq_no++;
       join_rpc.method = ccf::NodeProcs::JOIN;
       join_rpc.params.raw_fresh_key = raw_fresh_key;
       join_rpc.params.node_info_network = args.config.node_info_network;

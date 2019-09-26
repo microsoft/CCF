@@ -138,8 +138,7 @@ namespace ccf
 
     struct Out
     {
-      NodeStatus node_status; // TODO: Might not actually be necessary as
-                              // network_info is optional anyway
+      NodeStatus node_status;
       NodeId node_id;
 
       struct NetworkInfo
