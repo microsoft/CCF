@@ -13,6 +13,20 @@ namespace ccf
 {
   using TimerCallback = std::function<bool()>;
 
+  class TickingTimer
+  {
+  public:
+    virtual ~TickingTimer() {}
+    virtual void tick(std::chrono::milliseconds elapsed_) = 0;
+  };
+
+  class Timer
+  {
+  public:
+    virtual ~Timer() {}
+    virtual void start() = 0;
+  };
+
   /**
    * A timer class to trigger actions periodically.
    *
@@ -26,7 +40,8 @@ namespace ccf
    * ticked, the callback is only called once per period.
    *
    **/
-  class Timer
+
+  class TimerImpl : public TickingTimer, public Timer
   {
   private:
     enum TimerState
@@ -43,7 +58,7 @@ namespace ccf
     TimerState state;
 
   public:
-    Timer(std::chrono::milliseconds period_, TimerCallback cb_) :
+    TimerImpl(std::chrono::milliseconds period_, TimerCallback cb_) :
       period(period_),
       elapsed(0),
       cb(cb_),
@@ -80,7 +95,9 @@ namespace ccf
   {
   private:
     SpinLock lock;
-    std::set<std::weak_ptr<Timer>, std::owner_less<std::weak_ptr<Timer>>>
+    std::set<
+      std::weak_ptr<TickingTimer>,
+      std::owner_less<std::weak_ptr<TickingTimer>>>
       timers;
 
   public:
@@ -111,9 +128,11 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      auto timer = std::make_shared<Timer>(period, cb_);
-      timers.emplace(std::weak_ptr<Timer>(timer));
-      return timer;
+      auto timer = std::make_shared<TimerImpl>(period, cb_);
+      timers.emplace(std::weak_ptr<TickingTimer>(
+        std::static_pointer_cast<TickingTimer>(timer)));
+
+      return std::static_pointer_cast<Timer>(timer);
     }
   };
 }
