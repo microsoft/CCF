@@ -32,16 +32,8 @@ namespace enclave
     // Decrypted data, read through mbedtls
     std::vector<uint8_t> read_buffer;
 
-    size_t _to_consume = 0;
-
     std::unique_ptr<tls::Context> ctx;
     Status status;
-
-  protected:
-    size_t to_consume()
-    {
-      return _to_consume;
-    }
 
   public:
     TLSEndpoint(
@@ -109,10 +101,7 @@ namespace enclave
           read_buffer.clear();
 
         if (offset == up_to)
-        {
-          _to_consume -= data.size();
           return data;
-        }
       }
 
       auto r = ctx->read(data.data() + offset, up_to - offset);
@@ -131,7 +120,6 @@ namespace enclave
           if (!exact)
           {
             data.resize(offset);
-            _to_consume -= data.size();
             return data;
           }
 
@@ -145,7 +133,6 @@ namespace enclave
 
           if (!exact)
           {
-            _to_consume -= data.size();
             return data;
           }
 
@@ -177,98 +164,11 @@ namespace enclave
         return read(up_to, exact);
       }
 
-      _to_consume -= data.size();
       return data;
-    }
-
-    std::pair<uint8_t*, size_t> peek(size_t up_to)
-    {
-      // This will return an empty range if the connection isn't
-      // ready, but it will not block on the handshake.
-      do_handshake();
-
-      if (status != ready)
-      {
-        return {nullptr, 0};
-      }
-
-      // Send pending writes.
-      flush();
-
-      size_t offset = read_buffer.size();
-      read_buffer.resize(read_buffer.size() + up_to);
-
-      auto r = ctx->read(read_buffer.data() + offset, up_to);
-      LOG_TRACE_FMT("ctx->read returned: {}", r);
-
-      switch (r)
-      {
-        case 0:
-        case MBEDTLS_ERR_NET_CONN_RESET:
-        case MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY:
-        {
-          LOG_TRACE_FMT("TLS {} on read: {}", session_id, tls::error_string(r));
-
-          stop(closed);
-
-          read_buffer.resize(offset);
-          return {read_buffer.data(), read_buffer.size()};
-        }
-
-        case MBEDTLS_ERR_SSL_WANT_READ:
-        case MBEDTLS_ERR_SSL_WANT_WRITE:
-        {
-          LOG_TRACE_FMT("TLS {} on read: WANT", session_id);
-
-          read_buffer.resize(offset);
-          return {read_buffer.data(), read_buffer.size()};
-        }
-
-        default:
-        {
-          LOG_TRACE_FMT("DEFAULT");
-        }
-      }
-
-      LOG_TRACE_FMT("HERE");
-
-      if (r < 0)
-      {
-        LOG_TRACE_FMT("TLS {} on read: {}", session_id, tls::error_string(r));
-        stop(error);
-        read_buffer.resize(offset);
-        return {read_buffer.data(), read_buffer.size()};
-      }
-
-      LOG_TRACE_FMT("THERE");
-
-      auto total = offset + r;
-      read_buffer.resize(total);
-
-      // We read _some_ data but not enough, and didn't get
-      // MBEDTLS_ERR_SSL_WANT_READ. Probably hit a size limit - try again
-      if (r < up_to)
-      {
-        LOG_TRACE_FMT("Asked for exactly {}, received {}, retrying", up_to, r);
-        return peek(up_to - r);
-      }
-
-      return {read_buffer.data(), read_buffer.size()};
-    }
-
-    void consume(size_t up_to)
-    {
-      // TODO: check
-      _to_consume -= up_to;
-
-      if (up_to)
-        read_buffer.erase(read_buffer.begin(), read_buffer.begin() + up_to);
     }
 
     void recv(const uint8_t* data, size_t size)
     {
-      _to_consume += size;
-
       pending_read.insert(pending_read.end(), data, data + size);
       do_handshake();
 
@@ -279,8 +179,6 @@ namespace enclave
 
     void recv_buffered(const uint8_t* data, size_t size)
     {
-      _to_consume += size;
-
       pending_read.insert(pending_read.end(), data, data + size);
       do_handshake();
     }
