@@ -228,7 +228,7 @@ class Network:
         if node_id is None:
             node_id = self.get_next_local_node_id()
         if not debug:
-            debug=str(node_id) in self.dbg_nodes
+            debug = str(node_id) in self.dbg_nodes
         node = Node(node_id, host, debug, perf)
         self.nodes.append(node)
         return node
