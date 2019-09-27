@@ -432,20 +432,28 @@ class Network:
                     user_cert = []
                     with open(f"user{u}_cert.pem") as cert:
                         user_cert = [ord(c) for c in cert.read()]
-                    script = '''
+                    script = """
                     tables, user_cert = ...
                     return Calls:call("new_user", user_cert)
-                    '''
-                    r = mc.rpc("propose", {"parameter": user_cert, "script": {"text": script}})
+                    """
+                    r = mc.rpc(
+                        "propose", {"parameter": user_cert, "script": {"text": script}}
+                    )
                     with node.member_client(2) as mc2:
-                        script = '''
+                        script = """
                         tables, changes = ...
                         return true
-                        '''
-                        r = mc.rpc("vote", {"ballot": {"script": {"text": script}}}, signed=True)
+                        """
+                        r = mc.rpc(
+                            "vote",
+                            {"ballot": {"script": {"text": script}}},
+                            signed=True,
+                        )
         else:
             for u in users:
-                result = self.propose(1, node, "add_user", f"--user-cert=user{u}_cert.pem")
+                result = self.propose(
+                    1, node, "add_user", f"--user-cert=user{u}_cert.pem"
+                )
                 result = self.vote_using_majority(node, result[1]["id"])
 
     def stop_all_nodes(self):

@@ -316,8 +316,20 @@ class FramedTLSJSONRPCClient:
         id = self.request(method, params)
         return self.response(id)
 
+
 class CurlClient:
-    def __init__(self, host, port, server_hostname, cert, key, cafile, version, format, description):
+    def __init__(
+        self,
+        host,
+        port,
+        server_hostname,
+        cert,
+        key,
+        cafile,
+        version,
+        format,
+        description,
+    ):
         self.host = host
         self.port = port
         self.server_hostname = server_hostname
@@ -336,23 +348,44 @@ class CurlClient:
             LOG.debug("Going to send {}".format(msg))
             nf.write(msg)
             nf.flush()
-            subprocess.run(['openssl', 'dgst', '-sha256', '-out', 'sig', '-sign', 'member1_privk.pem', nf.name], check=True)
+            subprocess.run(
+                [
+                    "openssl",
+                    "dgst",
+                    "-sha256",
+                    "-out",
+                    "sig",
+                    "-sign",
+                    "member1_privk.pem",
+                    nf.name,
+                ],
+                check=True,
+            )
             nf.seek(0)
             sig = []
             with open("sig", "rb") as s:
                 sig = [int(c) for c in s.read()]
             nf.write(json.dumps({"req": r.to_dict(), "sig": sig}).encode())
             nf.flush()
-            subprocess.run(['cat', nf.name], check=True)
+            subprocess.run(["cat", nf.name], check=True)
 
-            cmd = ['curl', '-k', f'https://{self.server_hostname}:{self.port}/', '-H', 'Content-Type: application/json',
-                  '--resolve', f'{self.server_hostname}:{self.port}:{self.host}', '--data-binary', f'@{nf.name}']
+            cmd = [
+                "curl",
+                "-k",
+                f"https://{self.server_hostname}:{self.port}/",
+                "-H",
+                "Content-Type: application/json",
+                "--resolve",
+                f"{self.server_hostname}:{self.port}:{self.host}",
+                "--data-binary",
+                f"@{nf.name}",
+            ]
             if self.cafile:
-                cmd.extend(['--cacert', self.cafile])
+                cmd.extend(["--cacert", self.cafile])
             if self.key:
-                cmd.extend(['--key', self.key])
+                cmd.extend(["--key", self.key])
             if self.cert:
-                cmd.extend(['--cert', self.cert])
+                cmd.extend(["--cert", self.cert])
             LOG.debug(f"Running: {' '.join(cmd)}")
             rc = subprocess.run(cmd, capture_output=True)
             LOG.debug(f"Received {rc.stdout.decode()}")
@@ -368,14 +401,23 @@ class CurlClient:
             LOG.debug("Going to send {}".format(msg))
             nf.write(msg)
             nf.flush()
-            cmd = ['curl', '-k', f'https://{self.server_hostname}:{self.port}/', '-H', 'Content-Type: application/json',
-                  '--resolve', f'{self.server_hostname}:{self.port}:{self.host}', '--data-binary', f'@{nf.name}']
+            cmd = [
+                "curl",
+                "-k",
+                f"https://{self.server_hostname}:{self.port}/",
+                "-H",
+                "Content-Type: application/json",
+                "--resolve",
+                f"{self.server_hostname}:{self.port}:{self.host}",
+                "--data-binary",
+                f"@{nf.name}",
+            ]
             if self.cafile:
-                cmd.extend(['--cacert', self.cafile])
+                cmd.extend(["--cacert", self.cafile])
             if self.key:
-                cmd.extend(['--key', self.key])
+                cmd.extend(["--key", self.key])
             if self.cert:
-                cmd.extend(['--cert', self.cert])
+                cmd.extend(["--cert", self.cert])
             LOG.debug(f"Running: {' '.join(cmd)}")
             rc = subprocess.run(cmd, capture_output=True)
             LOG.debug(f"Received {rc.stdout.decode()}")
@@ -405,6 +447,7 @@ class CurlClient:
         else:
             id = self.request(method, params)
             return self.response(id)
+
 
 @contextlib.contextmanager
 def client(
