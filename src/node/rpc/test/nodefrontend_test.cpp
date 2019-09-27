@@ -56,8 +56,6 @@ const json frontend_process(
   enclave::RPCContext rpc_ctx(0, caller);
   auto serialised_response = frontend.process(rpc_ctx, serialise_request);
 
-  auto json = unpack(serialised_response, Pack::MsgPack);
-
   return unpack(serialised_response, Pack::MsgPack);
 }
 

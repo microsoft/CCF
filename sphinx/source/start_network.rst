@@ -112,7 +112,7 @@ As opposed to an opening network in which nodes are trusted automatically (see :
 
 .. code-block:: bash
 
-    $ memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert accept_node --node-id new_node_id
+    $ memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert trust_node --node-id new_node_id
     {"commit":13,"global_commit":12,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":2},"term":2}
 
     $ memberclient --cert member2_cert --privk member2_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 2 --accept

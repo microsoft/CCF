@@ -325,8 +325,7 @@ namespace ccf
         Actors::NODES, tls_ca, node_cert, node_kp->private_key_pem(), nullb);
 
       // Create RPC client and connect to remote node
-      auto join_client =
-        this->rpcsessions.create_client(std::move(join_client_cert));
+      auto join_client = rpcsessions.create_client(std::move(join_client_cert));
 
       join_client->connect(
         args.config.joining.target_host,
@@ -380,6 +379,8 @@ namespace ccf
               sm.advance(State::partOfPublicNetwork);
             else
               sm.advance(State::partOfNetwork);
+
+            join_timer.reset();
 
             LOG_INFO_FMT(
               "Node has now joined the network as node {}: {}",

@@ -97,7 +97,7 @@ def run(args):
         )
 
         LOG.info("New non-accepted member should get insufficient rights response")
-        result = network.propose(4, primary, "accept_node", "--node-id=0")
+        result = network.propose(4, primary, "trust_node", "--node-id=0")
         assert result[1]["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
         LOG.debug("New member ACK")
@@ -105,7 +105,7 @@ def run(args):
         assert result["result"]
 
         LOG.info("New member is now active and send an accept node proposal")
-        result = network.propose(4, primary, "accept_node", "--node-id=0")
+        result = network.propose(4, primary, "trust_node", "--node-id=0")
         assert not result[1]["completed"]
         proposal_id = result[1]["id"]
 
@@ -118,7 +118,7 @@ def run(args):
         assert result[0] and result[1]
 
         LOG.info("New member makes a new proposal")
-        result = network.propose(4, primary, "accept_node", "--node-id=1")
+        result = network.propose(4, primary, "trust_node", "--node-id=1")
         proposal_id = result[1]["id"]
         assert not result[1]["completed"]
 
@@ -176,7 +176,7 @@ def run(args):
         assert result[0] and result[1]
 
         LOG.debug("Deactivated member cannot make a new proposal")
-        result = network.propose(1, primary, "accept_node", "--node-id=0")
+        result = network.propose(1, primary, "trust_node", "--node-id=0")
         assert result[1]["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
         LOG.debug("New member should still be able to make a new proposal")

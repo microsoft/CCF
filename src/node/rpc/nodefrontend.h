@@ -73,8 +73,7 @@ namespace ccf
         return jsonrpc::error(
           jsonrpc::StandardErrorCodes::INVALID_PARAMS,
           fmt::format(
-            "A node with the same node host {} and port {} already "
-            "exists "
+            "A node with the same node host {} and port {} already exists "
             "(node id: {})",
             in.node_info_network.host,
             in.node_info_network.nodeport,

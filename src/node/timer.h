@@ -7,7 +7,7 @@
 
 #include <chrono>
 #include <functional>
-#include <list>
+#include <set>
 
 namespace ccf
 {
@@ -20,7 +20,10 @@ namespace ccf
    * The timer is only active when it is started (start()) and marked as expired
    * when the callback is triggered. If the callback returns true, the timer
    * continues ticking. Otherwise, the timer expires and will tick again only
-   * when it is explicitely re-started (start()).
+   * when it is explicitly re-started (start()).
+   *
+   * Note that if the timer's period is smaller than the period at which it is
+   * ticked, the callback is only called once per period.
    *
    **/
   class Timer
@@ -35,14 +38,14 @@ namespace ccf
 
     SpinLock lock;
     std::chrono::milliseconds period;
-    std::chrono::milliseconds tick_;
+    std::chrono::milliseconds elapsed;
     TimerCallback cb;
     TimerState state;
 
   public:
     Timer(std::chrono::milliseconds period_, TimerCallback cb_) :
       period(period_),
-      tick_(0),
+      elapsed(0),
       cb(cb_),
       state(TimerState::STOPPED)
     {}
@@ -53,22 +56,22 @@ namespace ccf
       state = TimerState::STARTED;
     }
 
-    void tick(std::chrono::milliseconds elapsed)
+    void tick(std::chrono::milliseconds elapsed_)
     {
       std::lock_guard<SpinLock> guard(lock);
 
       if (state != TimerState::STARTED)
         return;
 
-      tick_ += elapsed;
-      if (tick_ >= period)
+      elapsed += elapsed_;
+      if (elapsed >= period)
       {
         state = TimerState::EXPIRED;
         if (cb())
           state = TimerState::STARTED;
 
         using namespace std::chrono_literals;
-        tick_ = 0ms;
+        elapsed = 0ms;
       }
     }
   };
@@ -77,7 +80,8 @@ namespace ccf
   {
   private:
     SpinLock lock;
-    std::list<std::shared_ptr<Timer>> timers;
+    std::set<std::weak_ptr<Timer>, std::owner_less<std::weak_ptr<Timer>>>
+      timers;
 
   public:
     Timers() {}
@@ -86,8 +90,20 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      for (auto& t : timers)
-        t->tick(elapsed);
+      auto it = timers.begin();
+      while (it != timers.end())
+      {
+        auto t = it->lock();
+        if (t)
+        {
+          t->tick(elapsed);
+          it++;
+        }
+        else
+        {
+          it = timers.erase(it);
+        }
+      }
     }
 
     std::shared_ptr<Timer> new_timer(
@@ -95,8 +111,9 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      timers.emplace_back(std::make_shared<Timer>(period, cb_));
-      return timers.back();
+      auto timer = std::make_shared<Timer>(period, cb_);
+      timers.emplace(std::weak_ptr<Timer>(timer));
+      return timer;
     }
   };
 }

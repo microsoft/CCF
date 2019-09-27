@@ -227,6 +227,8 @@ class Network:
     def create_node(self, host, node_id=None, debug=False, perf=False):
         if node_id is None:
             node_id = self.get_next_local_node_id()
+        if not debug:
+            debug=str(node_id) in self.dbg_nodes
         node = Node(node_id, host, debug, perf)
         self.nodes.append(node)
         return node
@@ -415,7 +417,7 @@ class Network:
 
     def propose_trust_node(self, member_id, remote_node, node_id):
         return self.propose(
-            member_id, remote_node, "accept_node", f"--node-id={node_id}"
+            member_id, remote_node, "trust_node", f"--node-id={node_id}"
         )
 
     def check_node_exists(self, remote_node, node_id, expected_node_status=None):
