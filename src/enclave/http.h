@@ -223,12 +223,6 @@ namespace enclave
 
     void send(const std::vector<uint8_t>& data)
     {
-      auto h = E::emit(data);
-      LOG_TRACE_FMT(
-        "Going to send header [{}]", std::string(h.begin(), h.end()));
-      LOG_TRACE_FMT(
-        "Going to send body [{}]", std::string(data.begin(), data.end()));
-
       send_buffered(E::emit(data));
       if (data.size() > 0)
         send_buffered(data);
