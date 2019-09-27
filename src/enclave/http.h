@@ -191,18 +191,14 @@ namespace enclave
       recv_buffered(data, size);
 
       LOG_TRACE_FMT("recv called with {} bytes", size);
-      auto buf = read(4096, false); //TODO: make sure this is always bigger than the message
-      //auto [buf, len] = peek(4096);
+      auto buf = read(4096, false); //TODO: retry if more was pending
       LOG_TRACE_FMT("read got {}", buf.size());
       if (buf.size() == 0)
         return;
-      LOG_TRACE_FMT("Going to parse {} bytes", buf.size());
-      LOG_TRACE_FMT("Going to parse [{}]", std::string(buf.begin(), buf.end()));
+      LOG_TRACE_FMT("Going to parse {} bytes: [{}]", buf.size(), std::string(buf.begin(), buf.end()));
 
-      size_t nparsed = p.execute(buf.data(), buf.size());
-      if (nparsed == 0)
+      if (p.execute(buf.data(), buf.size()) == 0)
         return;
-      //consume(len);
     }
 
     virtual void msg(std::vector<uint8_t> m)
@@ -250,134 +246,4 @@ namespace enclave
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
     p(HTTP_REQUEST, *this)
     {}
-
-  class HTTPServer : public TLSEndpoint, public http::MsgProcessor
-  {
-  protected:
-    http::Parser p;
-
-  public:
-    HTTPServer(
-      size_t session_id,
-      ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx) :
-      TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-      p(HTTP_REQUEST, *this)
-    {}
-
-    void recv(const uint8_t* data, size_t size)
-    {
-      recv_buffered(data, size);
-
-      LOG_TRACE_FMT("recv called with {} bytes, to consume {}", size, to_consume());
-      auto [buf, len] = peek(to_consume());
-      LOG_TRACE_FMT("peek found {}", len);
-      if (len == 0)
-        return;
-      LOG_TRACE_FMT("Going to parse {} bytes", len);
-      LOG_TRACE_FMT("Going to parse [{}]", std::string(buf, buf + len));
-
-      size_t nparsed = p.execute(buf, len);
-      if (nparsed == 0)
-        return;
-      consume(len);
-    }
-
-    virtual void msg(std::vector<uint8_t> m)
-    {
-      if (m.size() > 0)
-      {
-        try
-        {
-          if (!handle_data(m))
-            close();
-        }
-        catch (...)
-        {
-          // On any exception, close the connection.
-          close();
-        }
-      }
-    }
-
-    void send(const std::vector<uint8_t>& data)
-    {
-      if (data.size() == 0)
-      {
-        auto hdr = fmt::format("HTTP/1.1 204 No Content\r\n");
-        std::vector<uint8_t> h(hdr.begin(), hdr.end());
-        send_buffered(h);
-      }
-      else
-      {
-        auto hdr = fmt::format(
-          "HTTP/1.1 200 OK\r\nContent-Type: "
-          "application/json\r\nContent-Length: {}\r\n\r\n",
-          data.size());
-        std::vector<uint8_t> h(hdr.begin(), hdr.end());
-        send_buffered(h);
-        send_buffered(data);
-      }
-      flush();
-    }
-  };
-
-  // TODO: NAMING
-  class HTTPClient : public TLSEndpoint, public http::MsgProcessor
-  {
-  protected:
-    http::Parser p;
-
-  public:
-    HTTPClient(
-      size_t session_id,
-      ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx) :
-      TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-      p(HTTP_RESPONSE, *this)
-    {}
-
-    void recv(const uint8_t* data, size_t size)
-    {
-      recv_buffered(data, size);
-
-      LOG_TRACE_FMT("recv called with {} bytes, to consume {}", size, to_consume());
-      auto [buf, len] = peek(to_consume());
-      LOG_TRACE_FMT("peek found {}", len);
-      if (len == 0)
-        return;
-      LOG_TRACE_FMT("Going to parse {} bytes", len);
-      LOG_TRACE_FMT("Going to parse [{}]", std::string(buf, buf + len));
-
-      size_t nparsed = p.execute(buf, len);
-      if (nparsed == 0)
-        return;
-      consume(len);
-    }
-
-    virtual void msg(std::vector<uint8_t> m)
-    {
-      if (m.size() > 0)
-      {
-        try
-        {
-          if (!handle_data(m))
-            close();
-        }
-        catch (...)
-        {
-          // On any exception, close the connection.
-          close();
-        }
-      }
-    }
-
-    void send(const std::vector<uint8_t>& data)
-    {
-      auto req = http::post(std::string(data.begin(), data.end()));
-      LOG_TRACE_FMT("Going to send [{}]", std::string(req.begin(), req.end()));
-      send_buffered(req);
-      flush();
-    }
-  };
 }
