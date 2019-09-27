@@ -350,18 +350,11 @@ class CurlClient:
             nf.write(msg)
             nf.flush()
             dgst = subprocess.run(
-                [
-                    "openssl",
-                    "dgst",
-                    "-sha256",
-                    "-sign",
-                    "member1_privk.pem",
-                    nf.name,
-                ],
+                ["openssl", "dgst", "-sha256", "-sign", "member1_privk.pem", nf.name],
                 check=True,
-                capture_output=True
+                capture_output=True,
             )
-            subprocess.run(['cat', nf.name], check=True)
+            subprocess.run(["cat", nf.name], check=True)
             cmd = [
                 "curl",
                 "-v",

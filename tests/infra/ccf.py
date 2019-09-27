@@ -427,9 +427,7 @@ class Network:
                 tables = ...
                 return Calls:call("open_network")
                 """
-                r = mc.rpc(
-                    "propose", {"parameter": None, "script": {"text": script}}
-                )
+                r = mc.rpc("propose", {"parameter": None, "script": {"text": script}})
                 with node.member_client(2) as mc2:
                     script = """
                     tables, changes = ...

@@ -900,9 +900,9 @@ namespace ccf
       bool is_forwarded,
       SignedReq& signed_request)
     {
-      #ifdef HTTP
+#ifdef HTTP
       return true; // TODO: use Authorize header
-      #endif
+#endif
 
       if (!client_signatures)
         return false;
