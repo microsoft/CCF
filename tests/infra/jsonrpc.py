@@ -12,6 +12,7 @@ import time
 import os
 import subprocess
 import tempfile
+import base64
 from enum import IntEnum
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -348,33 +349,28 @@ class CurlClient:
             LOG.debug("Going to send {}".format(msg))
             nf.write(msg)
             nf.flush()
-            subprocess.run(
+            dgst = subprocess.run(
                 [
                     "openssl",
                     "dgst",
                     "-sha256",
-                    "-out",
-                    "sig",
                     "-sign",
                     "member1_privk.pem",
                     nf.name,
                 ],
                 check=True,
+                capture_output=True
             )
-            nf.seek(0)
-            sig = []
-            with open("sig", "rb") as s:
-                sig = [int(c) for c in s.read()]
-            nf.write(json.dumps({"req": r.to_dict(), "sig": sig}).encode())
-            nf.flush()
-            subprocess.run(["cat", nf.name], check=True)
-
+            subprocess.run(['cat', nf.name], check=True)
             cmd = [
                 "curl",
+                "-v",
                 "-k",
                 f"https://{self.server_hostname}:{self.port}/",
                 "-H",
                 "Content-Type: application/json",
+                "-H",
+                f"Authorize: {base64.b64encode(dgst.stdout).decode()}",
                 "--resolve",
                 f"{self.server_hostname}:{self.port}:{self.host}",
                 "--data-binary",
@@ -458,7 +454,7 @@ def client(
     key=None,
     cafile=None,
     version="2.0",
-    format="msgpack",
+    format="json" if os.getenv("HTTP") else "msgpack",
     description=None,
     log_file=None,
 ):

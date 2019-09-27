@@ -82,6 +82,7 @@ public:
   std::vector<uint8_t> call(
     const std::string& method, const nlohmann::json& params)
   {
+    std::cout << "XXXX " << params.dump() << std::endl;
     return call_raw(gen_rpc(method, params).encoded);
   }
 

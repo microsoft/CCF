@@ -421,9 +421,30 @@ class Network:
         proposal and make members vote to transition the network to state
         OPEN.
         """
-        result = self.propose(1, node, "open_network")
-        self.vote_using_majority(node, result[1]["id"])
-        self.check_for_service(node)
+        if os.getenv("HTTP"):
+            with node.member_client() as mc:
+                script = """
+                tables = ...
+                return Calls:call("open_network")
+                """
+                r = mc.rpc(
+                    "propose", {"parameter": None, "script": {"text": script}}
+                )
+                with node.member_client(2) as mc2:
+                    script = """
+                    tables, changes = ...
+                    return true
+                    """
+                    r = mc2.rpc(
+                        "vote",
+                        {"ballot": {"text": script}, "id": r.result["id"]},
+                        signed=True,
+                    )
+            time.sleep(3)
+        else:
+            result = self.propose(1, node, "open_network")
+            self.vote_using_majority(node, result[1]["id"])
+            self.check_for_service(node)
 
     def add_users(self, node, users):
         if os.getenv("HTTP"):
@@ -444,9 +465,9 @@ class Network:
                         tables, changes = ...
                         return true
                         """
-                        r = mc.rpc(
+                        r = mc2.rpc(
                             "vote",
-                            {"ballot": {"script": {"text": script}}},
+                            {"ballot": {"text": script}, "id": r.result["id"]},
                             signed=True,
                         )
         else:
