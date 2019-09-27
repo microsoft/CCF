@@ -146,6 +146,7 @@ namespace ccf
       kv::TxHistory::RequestID id,
       uint64_t actor,
       CallerId caller_id,
+      CBuffer& caller_cert,
       const std::vector<uint8_t>& request) override
     {
       return true;
@@ -380,6 +381,7 @@ namespace ccf
       kv::TxHistory::RequestID id,
       uint64_t actor,
       CallerId caller_id,
+      CBuffer& caller_cert,
       const std::vector<uint8_t>& request) override
     {
       LOG_DEBUG << fmt::format("HISTORY: add_request {0}", id) << std::endl;
@@ -389,7 +391,8 @@ namespace ccf
       if (!consensus)
         return false;
 
-      return consensus->on_request({id, request, actor, caller_id});
+      return consensus->on_request(
+        {id, request, actor, caller_id, caller_cert});
     }
 
     void add_result(

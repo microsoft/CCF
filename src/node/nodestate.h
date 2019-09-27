@@ -156,7 +156,7 @@ namespace ccf
       NetworkState& network,
       enclave::RPCSessions& rpcsessions,
       ccf::Notifier& notifier,
-      Timers& timers_) :
+      Timers& timers) :
       sm(State::uninitialized),
       self(INVALID_ID),
       node_kp(tls::make_key_pair()),
@@ -165,7 +165,7 @@ namespace ccf
       network(network),
       rpcsessions(rpcsessions),
       notifier(notifier),
-      timers(timers_)
+      timers(timers)
     {
       ::EverCrypt_AutoConfig2_init();
     }
@@ -366,11 +366,12 @@ namespace ccf
               !public_only);
 
             self = resp->node_id;
-#ifndef PBFT
+#ifdef PBFT
+            setup_pbft();
+#else
             setup_raft(public_only);
-            setup_history();
 #endif
-
+            setup_history();
             setup_encryptor();
 
             accept_node_connections();
@@ -436,7 +437,7 @@ namespace ccf
 
       using namespace std::chrono_literals;
       join_timer = timers.new_timer(1s, [this, args]() {
-        if (is_pending())
+        if (sm.check(State::pending))
         {
           initiate_join(args);
           return true;
@@ -885,11 +886,6 @@ namespace ccf
     bool is_part_of_public_network() const override
     {
       return sm.check(State::partOfPublicNetwork);
-    }
-
-    bool is_pending()
-    {
-      return sm.check(State::pending);
     }
 
     std::optional<std::vector<uint8_t>> get_quote()

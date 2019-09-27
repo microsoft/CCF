@@ -126,13 +126,14 @@ class Network:
         self.hosts = hosts
         self.net_cert = []
         self.status = ServiceStatus.OPENING
+        self.dbg_nodes = dbg_nodes or []
         if create_nodes:
             for node_id, host in enumerate(hosts):
                 node_id_ = node_id + node_offset
                 self.create_node(
                     host,
                     node_id_,
-                    debug=str(node_id_) in (dbg_nodes or []),
+                    debug=str(node_id_) in self.dbg_nodes,
                     perf=str(node_id_) in (perf_nodes or []),
                 )
 
@@ -478,7 +479,7 @@ class Network:
     def get_node_by_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
-    def find_primary(self):
+    def find_primary(self, timeout=3):
         """
         Find the identity of the primary in the network and return its identity
         and the current term.
@@ -486,23 +487,28 @@ class Network:
         primary_id = None
         term = None
 
-        for node in self.get_running_nodes():
-            with node.management_client() as c:
-                id = c.request("getPrimaryInfo", {})
-                res = c.response(id)
-                if res.error is None:
-                    primary_id = res.result["primary_id"]
-                    term = res.term
-                    break
-                else:
-                    assert (
-                        res.error["code"] == infra.jsonrpc.ErrorCode.TX_PRIMARY_UNKNOWN
-                    ), "RPC error code is not TX_NOT_PRIMARY"
-        assert primary_id is not None, "No primary found"
+        for _ in range(timeout):
+            for node in self.get_running_nodes():
+                with node.management_client() as c:
+                    id = c.request("getPrimaryInfo", {})
+                    res = c.response(id)
+                    if res.error is None:
+                        primary_id = res.result["primary_id"]
+                        term = res.term
+                        break
+                    else:
+                        assert (
+                            res.error["code"]
+                            == infra.jsonrpc.ErrorCode.TX_PRIMARY_UNKNOWN
+                        ), "RPC error code is not TX_NOT_PRIMARY"
+            if primary_id is not None:
+                break
+            time.sleep(1)
 
+        assert primary_id is not None, "No primary found"
         return (self.get_node_by_id(primary_id), term)
 
-    def wait_for_all_nodes_to_catch_up(self, primary, timeout=30):
+    def wait_for_all_nodes_to_catch_up(self, primary, timeout=3):
         """
         Wait for all nodes to have joined the network and globally replicated
         all transactions executed on the primary (including the transactions
@@ -604,7 +610,7 @@ class Checker:
 def node(node_id, host, build_directory, debug=False, perf=False, pdb=False):
     """
     Context manager for Node class.
-    :param node_id: unique ID of node - relevant only for the python environment
+    :param node_id: unique ID of node
     :param build_directory: the build directory
     :param host: node's hostname
     :param debug: default: False. If set, node will not start (user is prompted to start them manually)
@@ -737,7 +743,6 @@ class Node:
             **kwargs,
         )
         self.remote.setup()
-        LOG.info("Remote {} started".format(self.node_id))
         self.network_state = NodeNetworkState.started
         if self.debug:
             print("")
@@ -756,6 +761,7 @@ class Node:
                 self.remote.set_perf()
             self.remote.start()
         self.remote.get_startup_files()
+        LOG.info("Remote {} started".format(self.node_id))
 
     def stop(self):
         if self.remote:
