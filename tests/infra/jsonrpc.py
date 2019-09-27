@@ -318,6 +318,11 @@ class FramedTLSJSONRPCClient:
         return self.response(id)
 
 
+# We use curl for now because we still use SNI to route to frontends
+# and that's difficult to force in Python clients, whereas curl conveniently
+# exposes --resolver
+# We probably will keep this around in a limited fashion later still, because
+# the resulting logs nicely illustrate manual usage in a way using requests doesn't
 class CurlClient:
     def __init__(
         self,
