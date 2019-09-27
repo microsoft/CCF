@@ -521,7 +521,7 @@ namespace ccf
 
       g.create_service(network.secrets->get_current().cert, last_index + 1);
 
-      g.delete_active_nodes();
+      g.retire_active_nodes();
 
       // Quotes should be initialised and non-empty
       std::vector<uint8_t> quote{1};

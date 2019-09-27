@@ -58,10 +58,9 @@ namespace ccf
       return tx.commit();
     }
 
-    void delete_active_nodes()
+    void retire_active_nodes()
     {
-      auto [nodes_view, node_certs_view] =
-        tx.get_view(tables.nodes, tables.node_certs);
+      auto nodes_view = tx.get_view(tables.nodes);
 
       std::map<NodeId, NodeInfo> nodes_to_delete;
       nodes_view->foreach(
@@ -76,17 +75,6 @@ namespace ccf
       {
         ni.status = NodeStatus::RETIRED;
         nodes_view->put(nid, ni);
-      }
-
-      std::vector<Cert> certs_to_delete;
-      node_certs_view->foreach(
-        [&certs_to_delete](const Cert& cstr, const NodeId& _) {
-          certs_to_delete.push_back(cstr);
-          return true;
-        });
-      for (Cert& cstr : certs_to_delete)
-      {
-        node_certs_view->remove(cstr);
       }
     }
 
@@ -124,8 +112,6 @@ namespace ccf
         get_next_id(tx.get_view(tables.values), ValueIds::NEXT_NODE_ID);
 
       auto raw_cert = tls::make_verifier(node_info.cert)->raw_cert_data();
-      auto node_certs_view = tx.get_view(tables.node_certs);
-      node_certs_view->put(raw_cert, node_id);
 
       auto node_view = tx.get_view(tables.nodes);
       node_view->put(node_id, node_info);

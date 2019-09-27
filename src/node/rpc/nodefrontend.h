@@ -119,7 +119,7 @@ namespace ccf
 
   public:
     NodeCallRpcFrontend(NetworkState& network, AbstractNodeState& node) :
-      RpcFrontend(*network.tables, nullptr, &network.node_certs, false),
+      RpcFrontend(*network.tables),
       network(network),
       node(node)
     {
