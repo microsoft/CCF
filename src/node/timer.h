@@ -84,6 +84,8 @@ namespace ccf
 
     void tick(std::chrono::milliseconds elapsed)
     {
+      std::lock_guard<SpinLock> guard(lock);
+
       for (auto& t : timers)
         t->tick(elapsed);
     }
