@@ -120,7 +120,7 @@ namespace enclave
 
     class ResponseHeaderEmitter
     {
-      public:
+    public:
       static std::vector<uint8_t> emit(const std::vector<uint8_t> data)
       {
         if (data.size() == 0)
@@ -141,7 +141,7 @@ namespace enclave
 
     class RequestHeaderEmitter
     {
-      public:
+    public:
       static std::vector<uint8_t> emit(const std::vector<uint8_t> data)
       {
         return http::post_header(data);
@@ -191,11 +191,14 @@ namespace enclave
       recv_buffered(data, size);
 
       LOG_TRACE_FMT("recv called with {} bytes", size);
-      auto buf = read(4096, false); //TODO: retry if more was pending
+      auto buf = read(4096, false); // TODO: retry if more was pending
       LOG_TRACE_FMT("read got {}", buf.size());
       if (buf.size() == 0)
         return;
-      LOG_TRACE_FMT("Going to parse {} bytes: [{}]", buf.size(), std::string(buf.begin(), buf.end()));
+      LOG_TRACE_FMT(
+        "Going to parse {} bytes: [{}]",
+        buf.size(),
+        std::string(buf.begin(), buf.end()));
 
       if (p.execute(buf.data(), buf.size()) == 0)
         return;
@@ -221,8 +224,10 @@ namespace enclave
     void send(const std::vector<uint8_t>& data)
     {
       auto h = E::emit(data);
-      LOG_TRACE_FMT("Going to send header [{}]", std::string(h.begin(), h.end()));
-      LOG_TRACE_FMT("Going to send body [{}]", std::string(data.begin(), data.end()));
+      LOG_TRACE_FMT(
+        "Going to send header [{}]", std::string(h.begin(), h.end()));
+      LOG_TRACE_FMT(
+        "Going to send body [{}]", std::string(data.begin(), data.end()));
 
       send_buffered(E::emit(data));
       if (data.size() > 0)
@@ -231,19 +236,21 @@ namespace enclave
     }
   };
 
-  template<> HTTPEndpoint<http::RequestHeaderEmitter>::HTTPEndpoint(
-      size_t session_id,
-      ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx) :
-      TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-      p(HTTP_RESPONSE, *this)
-    {}
+  template <>
+  HTTPEndpoint<http::RequestHeaderEmitter>::HTTPEndpoint(
+    size_t session_id,
+    ringbuffer::AbstractWriterFactory& writer_factory,
+    std::unique_ptr<tls::Context> ctx) :
+    TLSEndpoint(session_id, writer_factory, std::move(ctx)),
+    p(HTTP_RESPONSE, *this)
+  {}
 
-  template<> HTTPEndpoint<http::ResponseHeaderEmitter>::HTTPEndpoint(
-      size_t session_id,
-      ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx) :
-      TLSEndpoint(session_id, writer_factory, std::move(ctx)),
+  template <>
+  HTTPEndpoint<http::ResponseHeaderEmitter>::HTTPEndpoint(
+    size_t session_id,
+    ringbuffer::AbstractWriterFactory& writer_factory,
+    std::unique_ptr<tls::Context> ctx) :
+    TLSEndpoint(session_id, writer_factory, std::move(ctx)),
     p(HTTP_REQUEST, *this)
-    {}
+  {}
 }

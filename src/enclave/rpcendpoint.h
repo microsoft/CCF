@@ -9,9 +9,9 @@
 namespace enclave
 {
 #ifdef HTTP
-using ServerEndpoint = HTTPEndpoint<http::ResponseHeaderEmitter>;
+  using ServerEndpoint = HTTPEndpoint<http::ResponseHeaderEmitter>;
 #else
-using ServerEndpoint = FramedTLSEndpoint;
+  using ServerEndpoint = FramedTLSEndpoint;
 #endif
 
   class RPCEndpoint : public ServerEndpoint

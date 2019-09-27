@@ -2,16 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "http.h"
 #include "enclavetypes.h"
+#include "http.h"
 #include "tlsframedendpoint.h"
 
 namespace enclave
 {
 #ifdef HTTP
-using ClientEnpoint = HTTPEndpoint<http::RequestHeaderEmitter>;
+  using ClientEnpoint = HTTPEndpoint<http::RequestHeaderEmitter>;
 #else
-using ClientEnpoint = FramedTLSEndpoint;
+  using ClientEnpoint = FramedTLSEndpoint;
 #endif
 
   class RPCClient : public ClientEnpoint
