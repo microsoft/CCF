@@ -662,6 +662,14 @@ function(add_e2e_test)
       PROPERTY
         LABELS end_to_end
     )
+    if (HTTP)
+      set_property(
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY
+          ENVIRONMENT "HTTP=ON"
+      )
+    endif()
   endif()
 endfunction()
 

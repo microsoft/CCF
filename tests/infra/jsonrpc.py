@@ -316,34 +316,6 @@ class FramedTLSJSONRPCClient:
         id = self.request(method, params)
         return self.response(id)
 
-
-@contextlib.contextmanager
-def client(
-    host,
-    port,
-    server_hostname="users",
-    cert=None,
-    key=None,
-    cafile=None,
-    version="2.0",
-    format="msgpack",
-    description=None,
-    log_file=None,
-):
-    c = FramedTLSJSONRPCClient(
-        host, port, server_hostname, cert, key, cafile, version, format, description
-    )
-
-    if log_file is not None:
-        c.rpc_loggers += (RPCFileLogger(log_file),)
-
-    c.connect()
-    try:
-        yield c
-    finally:
-        c.disconnect()
-
-
 class CurlClient:
     def __init__(self, host, port, server_hostname, cert, key, cafile, version, format, description):
         self.host = host
@@ -443,11 +415,25 @@ def client(
     key=None,
     cafile=None,
     version="2.0",
-    format="json",
+    format="msgpack",
     description=None,
     log_file=None,
 ):
-    c = CurlClient(
-        host, port, server_hostname, cert, key, cafile, version, format, description
-    )
-    yield c
+    if os.getenv("HTTP"):
+        c = CurlClient(
+            host, port, server_hostname, cert, key, cafile, version, format, description
+        )
+        yield c
+    else:
+        c = FramedTLSJSONRPCClient(
+            host, port, server_hostname, cert, key, cafile, version, format, description
+        )
+
+        if log_file is not None:
+            c.rpc_loggers += (RPCFileLogger(log_file),)
+
+        c.connect()
+        try:
+            yield c
+        finally:
+            c.disconnect()

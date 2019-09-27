@@ -426,28 +426,27 @@ class Network:
         self.check_for_service(node)
 
     def add_users(self, node, users):
-        with node.member_client() as mc:
-            for u in users:
-                user_cert = []
-                with open(f"user{u}_cert.pem") as cert:
-                    user_cert = [ord(c) for c in cert.read()]
-                script = '''
-                tables, user_cert = ...
-                return Calls:call("new_user", user_cert)
-                '''
-                r = mc.rpc("propose", {"parameter": user_cert, "script": {"text": script}})
-                with node.member_client(2) as mc2:
+        if os.getenv("HTTP"):
+            with node.member_client() as mc:
+                for u in users:
+                    user_cert = []
+                    with open(f"user{u}_cert.pem") as cert:
+                        user_cert = [ord(c) for c in cert.read()]
                     script = '''
-                    tables, changes = ...
-                    return true
+                    tables, user_cert = ...
+                    return Calls:call("new_user", user_cert)
                     '''
-                    r = mc.rpc("vote", {"ballot": {"script": {"text": script}}}, signed=True)
-                #self.vote_using_majority(node, r.result["id"])
-                #result = self.propose(1, node, "add_user", f"--user-cert=user{u}_cert.pem")
-                #result = self.vote_using_majority(node, result[1]["id"])
-        #for u in users:
-        #    result = self.propose(1, node, "add_user", f"--user-cert=user{u}_cert.pem")
-        #    result = self.vote_using_majority(node, result[1]["id"])
+                    r = mc.rpc("propose", {"parameter": user_cert, "script": {"text": script}})
+                    with node.member_client(2) as mc2:
+                        script = '''
+                        tables, changes = ...
+                        return true
+                        '''
+                        r = mc.rpc("vote", {"ballot": {"script": {"text": script}}}, signed=True)
+        else:
+            for u in users:
+                result = self.propose(1, node, "add_user", f"--user-cert=user{u}_cert.pem")
+                result = self.vote_using_majority(node, result[1]["id"])
 
     def stop_all_nodes(self):
         for node in self.nodes:
