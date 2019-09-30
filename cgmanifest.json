@@ -80,6 +80,15 @@
           "commitHash": "60e35eb58a0700fd3e0e973c07d3e4b38a8f9502"
         }
       }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/nodejs/http-parser",
+          "commitHash": "5c17dad400e45c5a442a63f250fff2638d144682"
+        }
+      }
     }
   ],
   "Version": 1

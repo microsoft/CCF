@@ -10,6 +10,7 @@ namespace enclave
 {
   namespace http
   {
+    // TODO: Split into a request formatter class
     std::vector<uint8_t> post(const std::string& body)
     {
       auto req = fmt::format(
@@ -57,7 +58,7 @@ namespace enclave
       std::vector<uint8_t> buf;
 
     public:
-      Parser(http_parser_type type, MsgProcessor& caller) : proc(caller)
+      Parser(http_parser_type type, MsgProcessor& proc_) : proc(proc_)
       {
         http_parser_settings_init(&settings);
         settings.on_body = on_req;
