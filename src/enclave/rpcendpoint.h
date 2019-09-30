@@ -2,12 +2,19 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "http.h"
 #include "rpcmap.h"
 #include "tlsframedendpoint.h"
 
 namespace enclave
 {
-  class RPCEndpoint : public FramedTLSEndpoint
+#ifdef HTTP
+  using ServerEndpoint = HTTPEndpoint<http::ResponseHeaderEmitter>;
+#else
+  using ServerEndpoint = FramedTLSEndpoint;
+#endif
+
+  class RPCEndpoint : public ServerEndpoint
   {
   private:
     std::shared_ptr<RpcMap> rpc_map;
@@ -22,7 +29,7 @@ namespace enclave
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      FramedTLSEndpoint(session_id, writer_factory, move(ctx)),
+      ServerEndpoint(session_id, writer_factory, move(ctx)),
       rpc_map(rpc_map_),
       session_id(session_id)
     {}

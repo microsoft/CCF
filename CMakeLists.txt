@@ -125,6 +125,10 @@ if(BUILD_TESTS)
   use_client_mbedtls(channels_test)
   target_link_libraries(channels_test PRIVATE secp256k1.host)
 
+  add_unit_test(http_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/test/http.cpp)
+  target_link_libraries(http_test PRIVATE http_parser.host)
+
   if(NOT PBFT)
     add_unit_test(frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp)
@@ -236,105 +240,113 @@ if(BUILD_TESTS)
           ${CMAKE_SOURCE_DIR}/tests/raft_scenarios ${CMAKE_SOURCE_DIR})
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
-    ## Member client end to end tests
-    add_e2e_test(
-      NAME member_client_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
-    )
-
-    ## Logging client end to end test
-    add_e2e_test(
-      NAME logging_client_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
-    )
-
-    if (NOT SAN)
+    if (NOT HTTP)
+      ## Member client end to end tests
       add_e2e_test(
-        NAME connections
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+        NAME member_client_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
       )
-    endif()
 
-    ## Storing signed votes test
-    add_e2e_test(
-      NAME voting_history_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
-
-    ## Lua Logging client end to end test
-    add_e2e_test(
-      NAME lua_logging_client_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
-      ADDITIONAL_ARGS
-        --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua)
-
-    ## Lua sample app (tx regulator) end to end test
-    add_e2e_test(
-      NAME lua_txregulator_test
-      PYTHON_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
-      ADDITIONAL_ARGS
-        --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
-        --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
-
-    if(QUOTES_ENABLED)
+      ## Logging client end to end test
       add_e2e_test(
-        NAME governance_tests
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+        NAME logging_client_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
+      )
+
+      if (NOT SAN)
+        add_e2e_test(
+          NAME connections
+          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+        )
+      endif()
+
+      ## Storing signed votes test
+      add_e2e_test(
+        NAME voting_history_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
+
+      ## Lua Logging client end to end test
+      add_e2e_test(
+        NAME lua_logging_client_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
         ADDITIONAL_ARGS
-          --oesign ${OESIGN}
-      )
+          --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua)
 
+      ## Lua sample app (tx regulator) end to end test
       add_e2e_test(
-        NAME add_node_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/addnode.py
-      )
-
-      add_e2e_test(
-        NAME code_update_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+        NAME lua_txregulator_test
+        PYTHON_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
         ADDITIONAL_ARGS
-          --oesign ${OESIGN}
-          --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
-          --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
-          --election-timeout 1500
-      )
-    endif()
+          --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
+          --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
 
-    add_e2e_test(
-      NAME end_to_end_logging
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    )
+      if(QUOTES_ENABLED)
+        add_e2e_test(
+          NAME governance_tests
+          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+          ADDITIONAL_ARGS
+            --oesign ${OESIGN}
+        )
 
-    add_e2e_test(
-      NAME end_to_end_scenario
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
-      ADDITIONAL_ARGS
-        --scenario ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
-    )
+        add_e2e_test(
+          NAME add_node_test
+          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/addnode.py
+        )
 
-    add_e2e_test(
-      NAME election_tests
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-      ADDITIONAL_ARGS
-        --election-timeout 2000
-    )
+        add_e2e_test(
+          NAME code_update_test
+          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+          ADDITIONAL_ARGS
+            --oesign ${OESIGN}
+            --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+            --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+            --election-timeout 1500
+        )
+      endif()
 
-    add_e2e_test(
-      NAME recovery_tests
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-      ADDITIONAL_ARGS
-        ${RECOVERY_ARGS}
-    )
-
-    add_e2e_test(
-      NAME schema_tests
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
-      ADDITIONAL_ARGS
-      -p libloggingenc
-      --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
+      add_e2e_test(
+        NAME end_to_end_logging
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       )
 
-    if (BUILD_SMALLBANK)
-      include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
+      add_e2e_test(
+        NAME end_to_end_scenario
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
+        ADDITIONAL_ARGS
+          --scenario ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
+      )
+
+      add_e2e_test(
+        NAME election_tests
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+        ADDITIONAL_ARGS
+          --election-timeout 2000
+      )
+
+      add_e2e_test(
+        NAME recovery_tests
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+        ADDITIONAL_ARGS
+          ${RECOVERY_ARGS}
+      )
+
+      add_e2e_test(
+        NAME schema_tests
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+        ADDITIONAL_ARGS
+        -p libloggingenc
+        --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
+        )
+
+      if (BUILD_SMALLBANK)
+        include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
+      endif()
+
+    else()
+      add_e2e_test(
+        NAME end_to_end_http
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_http.py
+      )
     endif()
 
   else()
