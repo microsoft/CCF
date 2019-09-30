@@ -129,8 +129,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
 
       auto timer = std::make_shared<TimerImpl>(period, cb_);
-      timers.emplace(std::weak_ptr<TickingTimer>(
-        std::static_pointer_cast<TickingTimer>(timer)));
+      timers.emplace(timer);
 
       return std::static_pointer_cast<Timer>(timer);
     }
