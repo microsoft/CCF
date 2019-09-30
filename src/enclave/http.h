@@ -79,7 +79,7 @@ namespace enclave
             "HTTP parsing failed: {}: {}",
             http_errno_name(err),
             http_errno_description(err)));
-        // TODO: check for http->upgrade
+        // TODO: check for http->upgrade to support websockets
         return parsed;
       }
 
