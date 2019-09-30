@@ -383,7 +383,7 @@ namespace raft
       {
         if (timeout_elapsed >= request_timeout)
         {
-          LOG_DEBUG_FMT("Sending periodic updates to followers");
+          LOG_TRACE_FMT("Sending periodic updates to followers");
           using namespace std::chrono_literals;
           timeout_elapsed = 0ms;
 

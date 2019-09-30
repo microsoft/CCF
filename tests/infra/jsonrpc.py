@@ -10,6 +10,9 @@ import json
 import logging
 import time
 import os
+import subprocess
+import tempfile
+import base64
 from enum import IntEnum
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -315,6 +318,131 @@ class FramedTLSJSONRPCClient:
         return self.response(id)
 
 
+# We use curl for now because we still use SNI to route to frontends
+# and that's difficult to force in Python clients, whereas curl conveniently
+# exposes --resolver
+# We probably will keep this around in a limited fashion later still, because
+# the resulting logs nicely illustrate manual usage in a way using requests doesn't
+class CurlClient:
+    def __init__(
+        self,
+        host,
+        port,
+        server_hostname,
+        cert,
+        key,
+        cafile,
+        version,
+        format,
+        description,
+    ):
+        self.host = host
+        self.port = port
+        self.server_hostname = server_hostname
+        self.cert = cert
+        self.key = key
+        self.cafile = cafile
+        self.version = version
+        self.format = format
+        self.stream = Stream(version, format=format)
+        self.pending = {}
+
+    def signed_request(self, method, params):
+        r = self.stream.request(method, params)
+        with tempfile.NamedTemporaryFile() as nf:
+            msg = getattr(r, "to_{}".format(self.format))()
+            LOG.debug("Going to send {}".format(msg))
+            nf.write(msg)
+            nf.flush()
+            dgst = subprocess.run(
+                ["openssl", "dgst", "-sha256", "-sign", "member1_privk.pem", nf.name],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(["cat", nf.name], check=True)
+            cmd = [
+                "curl",
+                "-v",
+                "-k",
+                f"https://{self.server_hostname}:{self.port}/",
+                "-H",
+                "Content-Type: application/json",
+                "-H",
+                f"Authorize: {base64.b64encode(dgst.stdout).decode()}",
+                "--resolve",
+                f"{self.server_hostname}:{self.port}:{self.host}",
+                "--data-binary",
+                f"@{nf.name}",
+            ]
+            if self.cafile:
+                cmd.extend(["--cacert", self.cafile])
+            if self.key:
+                cmd.extend(["--key", self.key])
+            if self.cert:
+                cmd.extend(["--cert", self.cert])
+            LOG.debug(f"Running: {' '.join(cmd)}")
+            rc = subprocess.run(cmd, capture_output=True)
+            LOG.debug(f"Received {rc.stdout.decode()}")
+            if rc.returncode != 0:
+                LOG.debug(f"ERR {rc.stderr.decode()}")
+            self.stream.update(rc.stdout)
+        return r.id
+
+    def request(self, method, params):
+        r = self.stream.request(method, params)
+        with tempfile.NamedTemporaryFile() as nf:
+            msg = getattr(r, "to_{}".format(self.format))()
+            LOG.debug("Going to send {}".format(msg))
+            nf.write(msg)
+            nf.flush()
+            cmd = [
+                "curl",
+                "-k",
+                f"https://{self.server_hostname}:{self.port}/",
+                "-H",
+                "Content-Type: application/json",
+                "--resolve",
+                f"{self.server_hostname}:{self.port}:{self.host}",
+                "--data-binary",
+                f"@{nf.name}",
+            ]
+            if self.cafile:
+                cmd.extend(["--cacert", self.cafile])
+            if self.key:
+                cmd.extend(["--key", self.key])
+            if self.cert:
+                cmd.extend(["--cert", self.cert])
+            LOG.debug(f"Running: {' '.join(cmd)}")
+            rc = subprocess.run(cmd, capture_output=True)
+            LOG.debug(f"Received {rc.stdout.decode()}")
+            if rc.returncode != 0:
+                LOG.debug(f"ERR {rc.stderr.decode()}")
+            self.stream.update(rc.stdout)
+        return r.id
+
+    def response(self, id):
+        return self.stream.response(id)
+
+    def do(self, method, params, expected_result=None, expected_error_code=None):
+        id = self.request(method, params)
+        r = self.response(id)
+
+        if expected_result is not None:
+            assert expected_result == r.result
+
+        if expected_error_code is not None:
+            assert expected_error_code.value == r.error["code"]
+        return r
+
+    def rpc(self, method, params, signed=False):
+        if signed:
+            id = self.signed_request(method, params)
+            return self.response(id)
+        else:
+            id = self.request(method, params)
+            return self.response(id)
+
+
 @contextlib.contextmanager
 def client(
     host,
@@ -324,19 +452,25 @@ def client(
     key=None,
     cafile=None,
     version="2.0",
-    format="msgpack",
+    format="json" if os.getenv("HTTP") else "msgpack",
     description=None,
     log_file=None,
 ):
-    c = FramedTLSJSONRPCClient(
-        host, port, server_hostname, cert, key, cafile, version, format, description
-    )
-
-    if log_file is not None:
-        c.rpc_loggers += (RPCFileLogger(log_file),)
-
-    c.connect()
-    try:
+    if os.getenv("HTTP"):
+        c = CurlClient(
+            host, port, server_hostname, cert, key, cafile, version, format, description
+        )
         yield c
-    finally:
-        c.disconnect()
+    else:
+        c = FramedTLSJSONRPCClient(
+            host, port, server_hostname, cert, key, cafile, version, format, description
+        )
+
+        if log_file is not None:
+            c.rpc_loggers += (RPCFileLogger(log_file),)
+
+        c.connect()
+        try:
+            yield c
+        finally:
+            c.disconnect()

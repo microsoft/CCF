@@ -336,9 +336,11 @@ namespace ccf
         if (!check_member_active(args.tx, args.caller_id))
           return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
 
+#ifndef HTTP
         if (args.signed_request.sig.empty())
           return jsonrpc::error(
             jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED, "Votes must be signed");
+#endif
 
         const auto vote = args.params.get<Vote>();
         auto proposals = args.tx.get_view(this->network.proposals);

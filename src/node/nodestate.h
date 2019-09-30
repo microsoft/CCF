@@ -335,7 +335,7 @@ namespace ccf
           if (!sm.check(State::pending))
             return false;
 
-          auto j = jsonrpc::unpack(data, jsonrpc::Pack::MsgPack);
+          auto j = jsonrpc::unpack(data, jsonrpc::Pack::Text);
 
           // Check that the response is valid.
           jsonrpc::Response<JoinNetworkNodeToNode::Out> resp;
@@ -426,7 +426,7 @@ namespace ccf
         args.config.joining.target_host,
         args.config.joining.target_port);
 
-      join_client->send(jsonrpc::pack(join_rpc, jsonrpc::Pack::MsgPack));
+      join_client->send(jsonrpc::pack(join_rpc, jsonrpc::Pack::Text));
     }
 
     void join(const Join::In& args)

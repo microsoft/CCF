@@ -69,6 +69,11 @@ if (USE_NULL_ENCRYPTOR)
   add_definitions(-DUSE_NULL_ENCRYPTOR)
 endif()
 
+option(HTTP "Enable HTTP Support" OFF)
+if (HTTP)
+  add_definitions(-DHTTP)
+endif()
+
 option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
 option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
@@ -211,6 +216,9 @@ set(LUA_SOURCES
   ${LUA_DIR}/lutf8lib.c
   ${LUA_DIR}/lvm.c
   ${LUA_DIR}/lzio.c)
+
+set(HTTP_PARSER_SOURCES
+  ${CCF_DIR}/3rdparty/http-parser/http_parser.c)
 
 set(OE_MBEDTLS_LIBRARIES
   "${OE_LIB_DIR}/enclave/libmbedtls.a"
@@ -408,6 +416,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       -Wl,-Bstatic,-Bsymbolic,--export-dynamic,-pie
       ${PARSED_ARGS_LINK_LIBS}
       ${ENCLAVE_LIBS}
+      http_parser.enclave
     )
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
     sign_app_library(${name} ${app_oe_conf_path} ${enclave_sign_key_path})
@@ -460,6 +469,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       lua.host
       ${CMAKE_THREAD_LIBS_INIT}
       secp256k1.host
+      http_parser.host
     )
     enable_coverage(${virt_name})
     use_client_mbedtls(${virt_name})
@@ -573,6 +583,12 @@ add_library(lua.host STATIC ${LUA_SOURCES})
 target_compile_definitions(lua.host PRIVATE NO_IO)
 set_property(TARGET lua.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
+# HTTP parser
+add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
+set_property(TARGET http_parser.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_enclave_library_c(http_parser.host "${HTTP_PARSER_SOURCES}")
+set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
+
 # Common test args for Python scripts starting up CCF networks
 set(CCF_NETWORK_TEST_ARGS
   ${TEST_IGNORE_QUOTE}
@@ -646,6 +662,14 @@ function(add_e2e_test)
       PROPERTY
         LABELS end_to_end
     )
+    if (HTTP)
+      set_property(
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY
+          ENVIRONMENT "HTTP=ON"
+      )
+    endif()
   endif()
 endfunction()
 
