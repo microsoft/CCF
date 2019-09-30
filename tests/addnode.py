@@ -36,7 +36,7 @@ def run(args):
         # TODO: For now, node is added straight away, without validation by
         # the consortium. See https://github.com/microsoft/CCF/issues/293
         LOG.debug("Add a valid node")
-        new_node = network.create_and_add_node(args.package, "localhost", args)
+        new_node = network.create_and_add_node(args.package, "localhost", args, True)
 
         with primary.management_client() as mc:
             check_commit = infra.ccf.Checker(mc)
@@ -49,7 +49,7 @@ def run(args):
         if args.enclave_type == "debug":
             LOG.debug("Add an invalid node (unknown code id)")
             assert (
-                network.create_and_add_node("libluagenericenc", "localhost", args)
+                network.create_and_add_node("libluagenericenc", "localhost", args, True)
                 == None
             ), "Adding node with unknown code id should fail"
         else:

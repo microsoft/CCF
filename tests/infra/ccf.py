@@ -136,7 +136,7 @@ class Network:
                     perf=str(local_node_id_) in (perf_nodes or []),
                 )
 
-    def start_and_join(self, args):
+    def start_and_join(self, args, open_network=True):
         # TODO: The node that starts should not necessarily be node 0
         cmd = ["rm", "-f"] + glob("member*.pem")
         infra.proc.ccall(*cmd)
@@ -149,8 +149,8 @@ class Network:
         LOG.info("Starting nodes on {}".format(hosts))
 
         self.create_members([1, 2, 3])
-        initial_users = [1, 2, 3]
-        self.create_users(initial_users)
+        self.initial_users = [1, 2, 3]
+        self.create_users(self.initial_users)
 
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
@@ -184,10 +184,13 @@ class Network:
         if primary is None:
             primary = self.nodes[0]
 
+        if not open_network:
+            return primary, self.nodes[1:]
+
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
 
-        self.add_users(primary, initial_users)
+        self.add_users(primary, self.initial_users)
         LOG.info("Initial set of users added")
 
         self.open_network(primary)
@@ -278,7 +281,7 @@ class Network:
     def remove_last_node(self):
         last_node = self.nodes.pop()
 
-    def add_node(self, node, lib_name, primary, args):
+    def add_node(self, node, lib_name, primary, args, should_wait=True):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
@@ -295,7 +298,8 @@ class Network:
         )
 
         try:
-            node.wait_for_node_to_join()
+            if should_wait:
+                node.wait_for_node_to_join()
         except TimeoutError:
             LOG.error(f"New node {node.local_node_id} failed to join the network")
             self.nodes.remove(node)
@@ -304,20 +308,21 @@ class Network:
         node.network_state = NodeNetworkState.joined
         return True
 
-    def create_and_add_node(self, lib_name, host, args):
+    def create_and_add_node(self, lib_name, host, args, should_wait):
         local_node_id = self.get_next_local_node_id()
 
         new_node = self.create_node(
             local_node_id, host, debug=str(local_node_id) in self.dbg_nodes
         )
 
-        if self.add_node(new_node, lib_name, None, args) is False:
+        if self.add_node(new_node, lib_name, None, args, should_wait) is False:
             return None
 
         primary, _ = self.find_primary()
-        self.wait_for_all_nodes_to_catch_up(primary)
-        LOG.success(f"New node {local_node_id} joined the network")
+        if should_wait:
+            self.wait_for_all_nodes_to_catch_up(primary)
 
+        LOG.success(f"New node {local_node_id} joined the network")
         return new_node
 
     def create_members(self, members):
