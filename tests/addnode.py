@@ -49,7 +49,7 @@ def run(args):
         if args.enclave_type == "debug":
             LOG.debug("Add an invalid node (unknown code id)")
             assert (
-                network.create_and_add_node("libluagenericenc", "localhost", args)
+                network.create_and_add_node("libluagenericenc", "localhost", args, True)
                 == None
             ), "Adding node with unknown code id should fail"
         else:
