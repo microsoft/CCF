@@ -66,7 +66,7 @@ TEST_CASE("Add a node to an opening service")
   gen.init_values();
 
   StubNodeState node;
-  NodeCallRpcFrontend frontend(network, node);
+  NodeRpcFrontend frontend(network, node);
 
   network.secrets = std::make_unique<NetworkSecrets>("CN=The CA");
 
@@ -152,7 +152,7 @@ TEST_CASE("Add a node to an open service")
   gen.init_values();
 
   StubNodeState node;
-  NodeCallRpcFrontend frontend(network, node);
+  NodeRpcFrontend frontend(network, node);
 
   network.secrets = std::make_unique<NetworkSecrets>("CN=The CA");
 

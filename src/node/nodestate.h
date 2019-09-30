@@ -869,17 +869,17 @@ namespace ccf
         consensus->is_primary());
     }
 
-    bool is_part_of_network() const
+    bool is_part_of_network() const override
     {
       return sm.check(State::partOfNetwork);
     }
 
-    bool is_reading_public_ledger() const
+    bool is_reading_public_ledger() const override
     {
       return sm.check(State::readingPublicLedger);
     }
 
-    bool is_reading_private_ledger() const
+    bool is_reading_private_ledger() const override
     {
       return sm.check(State::readingPrivateLedger);
     }
@@ -970,7 +970,7 @@ namespace ccf
       joiners_fresh_keys.emplace(joiner_id, raw_key);
     }
 
-    void node_quotes(Store::Tx& tx, GetQuotes::Out& result)
+    void node_quotes(Store::Tx& tx, GetQuotes::Out& result) override
     {
       auto nodes_view = tx.get_view(network.nodes);
 
