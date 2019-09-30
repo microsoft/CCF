@@ -25,7 +25,7 @@ def run(args):
     ) as network:
         primary, _ = network.start_and_join(args, False)
 
-        for i in range(1,4):
+        for i in range(1, 4):
             LOG.info(f"Adding node {i}")
             network.create_and_add_node(args.package, "localhost", args, False)
 

@@ -281,7 +281,7 @@ class Network:
     def remove_last_node(self):
         last_node = self.nodes.pop()
 
-    def add_node(self, node, lib_name, primary, args, should_wait = True):
+    def add_node(self, node, lib_name, primary, args, should_wait=True):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
