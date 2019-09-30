@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import time
 from infra.ccf import NodeNetworkState
 from loguru import logger as LOG
@@ -34,13 +35,6 @@ def add_new_code(network, new_code_id):
     network.vote_using_majority(primary, result[1]["id"])
 
 
-def create_node_using_new_code(network, args):
-    # add a node using unsupported code
-    assert network.create_and_add_node(
-        args.patched_file_name, "localhost", args, True
-    ) == (False, infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND)
-
-
 def run(args):
     hosts = ["localhost", "localhost"]
 
@@ -50,14 +44,16 @@ def run(args):
         primary, others = network.start_and_join(args)
 
         LOG.debug("Adding a new node")
-        new_node = network.create_and_add_node(args.package, "localhost", args, True)
+        new_node = network.create_and_trust_node(args.package, "localhost", args, True)
         assert new_node
 
         new_code_id = get_code_id(f"{args.patched_file_name}.so.signed")
 
         LOG.debug(f"Adding a node with unsupported code id {new_code_id}")
         assert (
-            network.create_and_add_node(args.patched_file_name, "localhost", args, True)
+            network.create_and_trust_node(
+                args.patched_file_name, "localhost", args, True
+            )
             == None
         ), "Adding node with unsupported code id should fail"
 
@@ -69,7 +65,7 @@ def run(args):
 
         LOG.debug("Adding more new nodes than originally existed")
         for _ in range(0, old_nodes_count + 1):
-            new_node = network.create_and_add_node(
+            new_node = network.create_and_trust_node(
                 args.patched_file_name, "localhost", args, True
             )
             assert new_node
@@ -91,7 +87,7 @@ def run(args):
         new_primary, _ = network.find_primary()
         LOG.debug(f"Waited, new_primary is {new_primary.node_id}")
 
-        new_node = network.create_and_add_node(
+        new_node = network.create_and_trust_node(
             args.patched_file_name, "localhost", args, True
         )
         assert new_node
@@ -121,6 +117,10 @@ if __name__ == "__main__":
         )
 
     args = e2e_args.cli_args(add)
+    if args.enclave_type != "debug":
+        LOG.warning("Skipping code update test with virtual enclave")
+        sys.exit()
+
     args.package = args.app_script and "libluagenericenc" or "libloggingenc"
     args.patched_file_name = "{}.patched".format(args.package)
     run(args)

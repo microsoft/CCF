@@ -615,7 +615,7 @@ TEST_CASE("Accept node")
   {
     Script proposal(R"xxx(
       local tables, node_id = ...
-      return Calls:call("accept_node", node_id)
+      return Calls:call("trust_node", node_id)
     )xxx");
 
     json proposej = create_json_req(Propose::In{proposal, node_id}, "propose");
@@ -631,7 +631,7 @@ TEST_CASE("Accept node")
   {
     Script vote_ballot(R"xxx(
         local tables, calls = ...
-        return #calls == 1 and calls[1].func == "accept_node"
+        return #calls == 1 and calls[1].func == "trust_node"
        )xxx");
 
     json votej = create_json_req_signed(Vote{0, vote_ballot}, "vote", kp);
@@ -1183,7 +1183,7 @@ TEST_CASE("Passing operator vote")
     INFO("Operator proposes and votes for node");
     Script proposal(R"xxx(
       local tables, node_id = ...
-      return Calls:call("accept_node", node_id)
+      return Calls:call("trust_node", node_id)
     )xxx");
 
     json proposej =
@@ -1276,7 +1276,7 @@ TEST_CASE("Members passing an operator vote")
     INFO("Operator proposes and votes against adding node");
     Script proposal(R"xxx(
       local tables, node_id = ...
-      return Calls:call("accept_node", node_id)
+      return Calls:call("trust_node", node_id)
     )xxx");
 
     json proposej =

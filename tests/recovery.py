@@ -139,7 +139,7 @@ def run(args):
                             )
                             assert (
                                 infra.remote.NodeStatus(c.response(id).result["status"])
-                                == infra.remote.NodeStatus.trusted
+                                == infra.remote.NodeStatus.TRUSTED
                             )
 
                 LOG.debug("2/3 members vote to complete the recovery")

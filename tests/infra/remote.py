@@ -671,9 +671,9 @@ def ccf_remote(
 
 
 class NodeStatus(Enum):
-    pending = 0
-    trusted = 1
-    retired = 2
+    PENDING = 0
+    TRUSTED = 1
+    RETIRED = 2
 
 
 class StartType(Enum):

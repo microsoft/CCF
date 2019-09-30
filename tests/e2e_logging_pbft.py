@@ -23,11 +23,11 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, _ = network.start_and_join(args, False)
+        primary, _ = network.start_and_join(args, open_network=False)
 
         for i in range(1, 4):
             LOG.info(f"Adding node {i}")
-            network.create_and_add_node(args.package, "localhost", args, False)
+            assert network.create_and_trust_node(args.package, "localhost", args, False)
 
         network.add_users(primary, network.initial_users)
         LOG.info("Initial set of users added")

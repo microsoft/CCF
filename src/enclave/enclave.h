@@ -15,6 +15,7 @@
 #include "node/rpc/managementfrontend.h"
 #include "node/rpc/memberfrontend.h"
 #include "node/rpc/nodefrontend.h"
+#include "node/timer.h"
 #include "rpcclient.h"
 #include "rpcmap.h"
 #include "rpcsessions.h"
@@ -32,6 +33,8 @@ namespace enclave
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
     std::shared_ptr<ccf::Forwarder> cmd_forwarder;
     ccf::Notifier notifier;
+    ccf::Timers timers;
+
     std::shared_ptr<RpcMap> rpc_map;
     CCFConfig ccf_config;
     StartType start_type;
@@ -45,7 +48,7 @@ namespace enclave
       writer_factory(circuit, enclave_config->writer_config),
       rpcsessions(writer_factory),
       n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
-      node(writer_factory, network, rpcsessions, notifier),
+      node(writer_factory, network, rpcsessions, notifier, timers),
       notifier(writer_factory),
       cmd_forwarder(
         std::make_shared<ccf::Forwarder>(rpcsessions, n2n_channels)),
@@ -67,8 +70,7 @@ namespace enclave
       REGISTER_FRONTEND(
         rpc_map,
         nodes,
-        std::make_unique<ccf::NodesCallRpcFrontend>(
-          *network.tables, node, network));
+        std::make_unique<ccf::NodeCallRpcFrontend>(network, node));
 
       for (auto& r : rpc_map->get_map())
       {
@@ -157,6 +159,7 @@ namespace enclave
               std::chrono::milliseconds elapsed_ms(ms_count);
               logger::config::tick(elapsed_ms);
               node.tick(elapsed_ms);
+              timers.tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // ledger is being read
               if (!node.is_reading_public_ledger())

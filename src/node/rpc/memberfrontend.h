@@ -55,7 +55,7 @@ namespace ccf
            return true;
          }},
         // accept a node
-        {"accept_node",
+        {"trust_node",
          [this](Store::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);

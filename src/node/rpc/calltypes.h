@@ -3,6 +3,7 @@
 #pragma once
 #include "ds/json_schema.h"
 #include "node/networksecrets.h"
+#include "node/nodes.h"
 
 #include <nlohmann/json.hpp>
 
@@ -137,9 +138,26 @@ namespace ccf
 
     struct Out
     {
-      NodeId id;
-      NetworkSecrets::Secret network_secrets;
-      int64_t version; // Current version of the network secrets
+      NodeStatus node_status;
+      NodeId node_id;
+
+      struct NetworkInfo
+      {
+        NetworkSecrets::Secret network_secrets;
+        int64_t version; // Current version of the network secrets
+
+        bool operator==(const NetworkInfo& other) const
+        {
+          return network_secrets == other.network_secrets &&
+            version == other.version;
+        }
+
+        bool operator!=(const NetworkInfo& other) const
+        {
+          return !(*this == other);
+        }
+      };
+      NetworkInfo network_info;
     };
   };
 }

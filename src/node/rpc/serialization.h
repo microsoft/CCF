@@ -24,13 +24,16 @@ namespace ccf
 
   DECLARE_JSON_TYPE(NetworkSecrets::Secret)
   DECLARE_JSON_REQUIRED_FIELDS(NetworkSecrets::Secret, cert, priv_key, master)
+  DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out::NetworkInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    JoinNetworkNodeToNode::Out::NetworkInfo, network_secrets, version)
 
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::In)
   DECLARE_JSON_REQUIRED_FIELDS(
     JoinNetworkNodeToNode::In, raw_fresh_key, node_info_network, quote)
-  DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    JoinNetworkNodeToNode::Out, id, network_secrets, version)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status, node_id)
+  DECLARE_JSON_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out, network_info)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetCommit::In)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::In)
