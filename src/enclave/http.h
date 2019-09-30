@@ -91,7 +91,9 @@ namespace enclave
           std::copy(at, at + length, std::back_inserter(buf));
         }
         else
+        {
           throw std::runtime_error("Receiving content outside of message");
+        }
       }
 
       void new_message()
@@ -102,8 +104,10 @@ namespace enclave
           state = IN_MESSAGE;
         }
         else
+        {
           throw std::runtime_error(
             "Entering new message when previous message isn't complete");
+        }
       }
 
       void end_message()
@@ -115,7 +119,9 @@ namespace enclave
           state = DONE;
         }
         else
+        {
           throw std::runtime_error("Ending message, but not in a message");
+        }
       }
     };
 
@@ -194,8 +200,10 @@ namespace enclave
       LOG_TRACE_FMT("recv called with {} bytes", size);
       auto buf = read(4096, false); // TODO: retry if more was pending
       LOG_TRACE_FMT("read got {}", buf.size());
+
       if (buf.size() == 0)
         return;
+
       LOG_TRACE_FMT(
         "Going to parse {} bytes: [{}]",
         buf.size(),
