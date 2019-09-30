@@ -36,10 +36,9 @@ def add_new_code(network, new_code_id):
 
 def create_node_using_new_code(network, args):
     # add a node using unsupported code
-    assert network.create_and_add_node(args.patched_file_name, "localhost", args, True) == (
-        False,
-        infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND,
-    )
+    assert network.create_and_add_node(
+        args.patched_file_name, "localhost", args, True
+    ) == (False, infra.jsonrpc.ErrorCode.CODE_ID_NOT_FOUND)
 
 
 def run(args):
