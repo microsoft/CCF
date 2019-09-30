@@ -93,7 +93,7 @@ def run(args):
         LOG.debug(f"Waited, new_primary is {new_primary.node_id}")
 
         new_node = network.create_and_add_node(
-            args.patched_file_name, "localhost", args
+            args.patched_file_name, "localhost", args, True
         )
         assert new_node
         network.wait_for_node_commit_sync()
