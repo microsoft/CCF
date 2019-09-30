@@ -146,7 +146,8 @@ class Network:
         if not args.package:
             raise ValueError("A package name must be specified.")
 
-        LOG.info("Starting nodes on {}".format(hosts))
+        self.status = ServiceStatus.OPENING
+        LOG.info("Opening CCF service on {}".format(hosts))
 
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
@@ -185,18 +186,22 @@ class Network:
         LOG.info("All remotes started")
 
         primary, _ = self.find_primary()
-        self.wait_for_all_nodes_to_catch_up(primary)
         self.check_for_service(primary, status=ServiceStatus.OPENING)
         return primary
 
-    def start_and_join(self, args):
+    def start_and_join(self, args, open_network=True):
+        """
+        Starts a CCF network.
+        :param args: command line arguments to configure the CCF nodes.
+        :param open_network: If false, only the nodes are started.
+        """
         # TODO: The node that starts should not necessarily be node 0
         cmd = ["rm", "-f"] + glob("member*.pem")
         infra.proc.ccall(*cmd)
 
         self.create_members([1, 2, 3])
-        initial_users = [1, 2, 3]
-        self.create_users(initial_users)
+        self.initial_users = [1, 2, 3]
+        self.create_users(self.initial_users)
 
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
@@ -206,9 +211,13 @@ class Network:
 
         primary = self._start_all_nodes(args)
 
+        if not open_network:
+            return primary, self.nodes[1:]
+
+        self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
 
-        self.add_users(primary, initial_users)
+        self.add_users(primary, self.initial_users)
         LOG.info("Initial set of users added")
 
         self.open_network(primary)
@@ -220,6 +229,7 @@ class Network:
         primary = self._start_all_nodes(
             args, recovery=True, ledger_file=ledger_file, sealed_secrets=sealed_secrets
         )
+        self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined recovered public network")
 
         return primary, self.nodes[1:]
@@ -236,7 +246,7 @@ class Network:
     def remove_last_node(self):
         last_node = self.nodes.pop()
 
-    def _add_node(self, node, lib_name, args):
+    def _add_node(self, node, lib_name, args, should_wait=True):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
@@ -251,15 +261,13 @@ class Network:
         )
 
         # If the network is opening, node are trusted without consortium approval
-        if self.status == ServiceStatus.OPENING:
+        if self.status == ServiceStatus.OPENING and not should_wait:
             try:
                 node.wait_for_node_to_join()
             except TimeoutError:
                 LOG.error(f"New node {node.node_id} failed to join the network")
                 raise
             node.network_state = NodeNetworkState.joined
-
-        return True
 
     def _wait_for_node_to_exist_in_store(self, remote_node, node_id, timeout=3):
         exists = False
@@ -271,19 +279,17 @@ class Network:
         if not exists:
             raise TimeoutError(f"Node {node_id} has not yet been recorded in the store")
 
-    def create_and_trust_node(self, lib_name, host, args):
-        if self.status != ServiceStatus.OPEN:
-            LOG.error(
-                "Service should be open to trust node - otherwise, new nodes are automatically trusted"
-            )
-
+    # TODO: should_wait should disappear once nodes can join a network and catch up in PBFT
+    def create_and_trust_node(self, lib_name, host, args, should_wait=True):
         new_node = self.create_node(host)
         try:
             self._add_node(new_node, lib_name, args)
             primary, _ = self.find_primary()
             self._wait_for_node_to_exist_in_store(primary, new_node.node_id)
-            self.trust_node(primary, new_node.node_id)
-            new_node.wait_for_node_to_join()
+            if self.status is ServiceStatus.OPEN:
+                self.trust_node(primary, new_node.node_id)
+            if should_wait:
+                new_node.wait_for_node_to_join()
         except (ValueError, TimeoutError):
             LOG.error(f"New node {new_node.node_id} failed to join the network")
             new_node.stop()
@@ -291,7 +297,8 @@ class Network:
             return None
 
         new_node.network_state = NodeNetworkState.joined
-        self.wait_for_all_nodes_to_catch_up(primary)
+        if should_wait:
+            self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success(f"New node {new_node.node_id} joined the network")
 
         return new_node
@@ -333,7 +340,6 @@ class Network:
             assert (
                 current_status == status.name
             ), f"Service status {current_status} (expected {status.name})"
-        self.status = ServiceStatus.OPEN
 
     def member_client_rpc_as_json(self, member_id, remote_node, *args):
         if remote_node is None:
@@ -461,6 +467,7 @@ class Network:
         result = self.propose(1, node, "open_network")
         self.vote_using_majority(node, result[1]["id"])
         self.check_for_service(node)
+        self.status = ServiceStatus.OPEN
 
     def add_users(self, node, users):
         for u in users:

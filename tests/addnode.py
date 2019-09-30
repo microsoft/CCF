@@ -21,7 +21,7 @@ def run(args):
         primary, others = network.start_and_join(args)
 
         LOG.debug("Add a valid node")
-        new_node = network.create_and_trust_node(args.package, "localhost", args)
+        new_node = network.create_and_trust_node(args.package, "localhost", args, True)
         assert new_node
 
         with primary.management_client() as mc:
@@ -35,7 +35,9 @@ def run(args):
         if args.enclave_type == "debug":
             LOG.debug("Add an invalid node (unknown code id)")
             assert (
-                network.create_and_trust_node("libluagenericenc", "localhost", args)
+                network.create_and_trust_node(
+                    "libluagenericenc", "localhost", args, True
+                )
                 == None
             ), "Adding node with unknown code id should fail"
         else:
