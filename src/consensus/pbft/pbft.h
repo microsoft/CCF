@@ -112,12 +112,12 @@ namespace pbft
 
   public:
     Pbft(
+      std::unique_ptr<pbft::Store> store_,
       std::shared_ptr<ChannelProxy> channels_,
       NodeId id,
       std::unique_ptr<consensus::LedgerEnclave> ledger_,
       std::shared_ptr<enclave::RpcMap> rpc_map,
-      enclave::RPCSessions& rpcsessions_,
-      std::unique_ptr<pbft::Store> store_) :
+      enclave::RPCSessions& rpcsessions_) :
       Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
@@ -209,6 +209,10 @@ namespace pbft
         };
 
       auto global_commit_cb = [](kv::Version version, void* ctx) {
+        if (version == kv::NoVersion) {
+          return;
+        }
+
         auto store = static_cast<pbft::Store*>(ctx);
         store->compact(version);
       };
