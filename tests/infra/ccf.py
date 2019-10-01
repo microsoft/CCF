@@ -862,7 +862,7 @@ class Node:
             cert=None,
             key=None,
             cafile="networkcert.pem",
-            description="node {} (mgmt)".format(self.node_id),
+            description="node {} (node)".format(self.node_id),
             **kwargs,
         )
 

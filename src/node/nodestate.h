@@ -198,7 +198,7 @@ namespace ccf
 
       // Generate node key pair
       std::stringstream name;
-      name << "CN=" << Actors::MANAGEMENT;
+      name << "CN=" << Actors::NODES;
       node_cert = node_kp->self_sign(name.str());
 
       // Generate quote over node certificate
