@@ -287,7 +287,7 @@ class Network:
         if not exists:
             raise TimeoutError(
                 f"Node {node_id} has not yet been recorded in the store"
-                + (f" with status {node_status.name}" if node_status else "")
+                + getattr(node_status, f" with status {node_status.name}", "")
             )
 
     def create_and_add_pending_node(self, lib_name, host, args, should_wait=True):
@@ -308,9 +308,9 @@ class Network:
                     else NodeStatus.TRUSTED
                 ),
             )
-        except (TimeoutError):
+        except TimeoutError:
             # The node can be safely discarded since it has not been
-            # attrituted a unique node_id by CCF
+            # attributed a unique node_id by CCF
             LOG.error(f"New pending node {new_node.node_id} failed to join the network")
             new_node.stop()
             self.nodes.remove(new_node)
