@@ -150,8 +150,8 @@ withdraw
 .. jsonschema:: schemas/withdraw_result.json
 
 
-Management methods
-``````````````````
+Node methods
+````````````
 
 getQuotes
 ---------
