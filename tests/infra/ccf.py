@@ -26,6 +26,12 @@ class NodeNetworkState(Enum):
     joined = 2
 
 
+class NodeStatus(Enum):
+    PENDING = 0
+    TRUSTED = 1
+    RETIRED = 2
+
+
 class ServiceStatus(Enum):
     OPENING = 1
     OPEN = 2
@@ -175,7 +181,6 @@ class Network:
                             label=args.label,
                             **forwarded_args,
                         )
-                    node.network_state = NodeNetworkState.joined
                 else:
                     self._add_node(node, args.package, args)
             except Exception:
@@ -210,6 +215,7 @@ class Network:
         primary = self._start_all_nodes(args)
 
         if not open_network:
+            LOG.warning("Network still needs to be opened")
             return primary, self.nodes[1:]
 
         self.wait_for_all_nodes_to_catch_up(primary)
@@ -259,7 +265,7 @@ class Network:
         )
 
         # If the network is opening, node are trusted without consortium approval
-        if self.status == ServiceStatus.OPENING and not should_wait:
+        if self.status == ServiceStatus.OPENING and should_wait:
             try:
                 node.wait_for_node_to_join()
             except TimeoutError:
@@ -267,37 +273,73 @@ class Network:
                 raise
             node.network_state = NodeNetworkState.joined
 
-    def _wait_for_node_to_exist_in_store(self, remote_node, node_id, timeout=3):
+    def _wait_for_node_to_exist_in_store(
+        self, remote_node, node_id, node_status=None, timeout=3
+    ):
         exists = False
         for _ in range(timeout):
-            if self.check_node_exists(remote_node, node_id):
+            if self._check_node_exists(remote_node, node_id, node_status):
                 exists = True
                 break
             time.sleep(1)
         if not exists:
-            raise TimeoutError(f"Node {node_id} has not yet been recorded in the store")
+            raise TimeoutError(
+                f"Node {node_id} has not yet been recorded in the store"
+                + getattr(node_status, f" with status {node_status.name}", "")
+            )
+
+    def create_and_add_pending_node(self, lib_name, host, args, should_wait=True):
+        """
+        Create a new node and add it to the network. Note that the new node
+        still needs to be trusted by members to complete the join protocol.
+        """
+        new_node = self.create_node(host)
+        self._add_node(new_node, lib_name, args, should_wait)
+        primary, _ = self.find_primary()
+        try:
+            self._wait_for_node_to_exist_in_store(
+                primary,
+                new_node.node_id,
+                (
+                    NodeStatus.PENDING
+                    if self.status == ServiceStatus.OPEN
+                    else NodeStatus.TRUSTED
+                ),
+            )
+        except TimeoutError:
+            # The node can be safely discarded since it has not been
+            # attributed a unique node_id by CCF
+            LOG.error(f"New pending node {new_node.node_id} failed to join the network")
+            new_node.stop()
+            self.nodes.remove(new_node)
+            return None
+
+        return new_node
 
     # TODO: should_wait should disappear once nodes can join a network and catch up in PBFT
     def create_and_trust_node(self, lib_name, host, args, should_wait=True):
-        new_node = self.create_node(host)
+        """
+        Create a new node, add it to the network and let members vote to trust
+        it so that it becomes part of the consensus protocol.
+        """
+        new_node = self.create_and_add_pending_node(lib_name, host, args, should_wait)
+        if new_node is None:
+            return None
+
+        primary, _ = self.find_primary()
         try:
-            self._add_node(new_node, lib_name, args)
-            primary, _ = self.find_primary()
-            self._wait_for_node_to_exist_in_store(primary, new_node.node_id)
             if self.status is ServiceStatus.OPEN:
                 self.trust_node(primary, new_node.node_id)
             if should_wait:
                 new_node.wait_for_node_to_join()
         except (ValueError, TimeoutError):
-            LOG.error(f"New node {new_node.node_id} failed to join the network")
+            LOG.error(f"New trusted node {new_node.node_id} failed to join the network")
             new_node.stop()
-            self.nodes.remove(new_node)
             return None
 
-        new_node.network_state = NodeNetworkState.joined
         if should_wait:
             self.wait_for_all_nodes_to_catch_up(primary)
-        LOG.success(f"New node {new_node.node_id} joined the network")
+        new_node.network_state = NodeNetworkState.joined
 
         return new_node
 
@@ -414,41 +456,33 @@ class Network:
 
         with remote_node.member_client() as c:
             id = c.request("read", {"table": "ccf.nodes", "key": node_id})
-            assert (
-                c.response(id).result["status"].decode()
-                == infra.remote.NodeStatus.RETIRED.name
-            )
+            assert c.response(id).result["status"].decode() == NodeStatus.RETIRED.name
 
     def propose_trust_node(self, member_id, remote_node, node_id):
         return self.propose(
             member_id, remote_node, "trust_node", f"--node-id={node_id}"
         )
 
-    def check_node_exists(self, remote_node, node_id, expected_node_status=None):
+    def _check_node_exists(self, remote_node, node_id, node_status=None):
         with remote_node.member_client() as c:
             rep = c.do("read", {"table": "ccf.nodes", "key": node_id})
 
             if rep.error is not None or (
-                expected_node_status
-                and rep.result["status"].decode() != expected_node_status.name
+                node_status and rep.result["status"].decode() != node_status.name
             ):
                 return False
 
         return True
 
     def trust_node(self, remote_node, node_id):
-        if not self.check_node_exists(
-            remote_node, node_id, infra.remote.NodeStatus.PENDING
-        ):
+        if not self._check_node_exists(remote_node, node_id, NodeStatus.PENDING):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
         member_id = 1
         result = self.propose_trust_node(member_id, remote_node, node_id)
         result = self.vote_using_majority(remote_node, result[1]["id"])
 
-        if not self.check_node_exists(
-            remote_node, node_id, infra.remote.NodeStatus.TRUSTED
-        ):
+        if not self._check_node_exists(remote_node, node_id, NodeStatus.TRUSTED):
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
     def propose_add_member(self, member_id, remote_node, new_member_cert):
@@ -525,8 +559,8 @@ class Network:
     def get_members(self):
         return self.members
 
-    def get_running_nodes(self):
-        return [node for node in self.nodes if node.is_stopped() is not True]
+    def get_joined_nodes(self):
+        return [node for node in self.nodes if node.is_joined()]
 
     def get_node_by_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
@@ -540,7 +574,7 @@ class Network:
         term = None
 
         for _ in range(timeout):
-            for node in self.get_running_nodes():
+            for node in self.get_joined_nodes():
                 with node.node_client() as c:
                     id = c.request("getPrimaryInfo", {})
                     res = c.response(id)
@@ -573,7 +607,7 @@ class Network:
 
         for _ in range(timeout):
             joined_nodes = 0
-            for node in self.get_running_nodes():
+            for node in self.get_joined_nodes():
                 with node.node_client() as c:
                     id = c.request("getCommit", {})
                     resp = c.response(id)
@@ -585,12 +619,12 @@ class Network:
                         and resp.result["term"] == term_leader
                     ):
                         joined_nodes += 1
-            if joined_nodes == len(self.get_running_nodes()):
+            if joined_nodes == len(self.get_joined_nodes()):
                 break
             time.sleep(1)
         assert joined_nodes == len(
-            self.get_running_nodes()
-        ), f"Only {joined_nodes} (out of {len(self.get_running_nodes())}) nodes have joined the network"
+            self.get_joined_nodes()
+        ), f"Only {joined_nodes} (out of {len(self.get_joined_nodes())}) nodes have joined the network"
 
     def wait_for_node_commit_sync(self, timeout=3):
         """
@@ -599,7 +633,7 @@ class Network:
         """
         for _ in range(timeout):
             commits = []
-            for node in (node for node in self.nodes if node.is_joined()):
+            for node in self.get_joined_nodes():
                 with node.node_client() as c:
                     id = c.request("getCommit", {})
                     commits.append(c.response(id).commit)
@@ -731,6 +765,7 @@ class Node:
             members_certs,
             **kwargs,
         )
+        self.network_state = NodeNetworkState.joined
 
     def join(
         self, lib_name, enclave_type, workspace, label, target_rpc_address, **kwargs
@@ -754,6 +789,7 @@ class Node:
             label,
             **kwargs,
         )
+        self.network_state = NodeNetworkState.joined
 
     def _start(
         self,

@@ -12,6 +12,13 @@ import time
 from loguru import logger as LOG
 
 
+def check_can_progress(node):
+    with node.node_client() as mc:
+        check_commit = infra.ccf.Checker(mc)
+        with node.user_client() as c:
+            check_commit(c.rpc("LOG_record", {"id": 42, "msg": "Hello"}), result=True)
+
+
 def run(args):
     hosts = ["localhost", "localhost"]
 
@@ -20,20 +27,24 @@ def run(args):
     ) as network:
         primary, others = network.start_and_join(args)
 
-        LOG.debug("Add a valid node")
+        # Adding as many pending nodes as initial (trusted) nodes should not
+        # change the raft consensus rules (i.e. majority)
+        number_new_nodes = len(hosts)
+        LOG.info(
+            f"Adding {number_new_nodes} pending nodes - consensus rules should not change"
+        )
+
+        for _ in range(number_new_nodes):
+            network.create_and_add_pending_node(args.package, "localhost", args)
+        check_can_progress(primary)
+
+        LOG.info("Add a valid node")
         new_node = network.create_and_trust_node(args.package, "localhost", args, True)
         assert new_node
-
-        with primary.node_client() as mc:
-            check_commit = infra.ccf.Checker(mc)
-
-            with new_node.user_client(format="json") as c:
-                check_commit(
-                    c.rpc("LOG_record", {"id": 42, "msg": "Hello world"}), result=True
-                )
+        check_can_progress(primary)
 
         if args.enclave_type == "debug":
-            LOG.debug("Add an invalid node (unknown code id)")
+            LOG.info("Add an invalid node (unknown code id)")
             assert (
                 network.create_and_trust_node(
                     "libluagenericenc", "localhost", args, True
@@ -43,10 +54,10 @@ def run(args):
         else:
             LOG.warning("Skipping unknown code id test with virtual enclave")
 
-        LOG.debug("Retire node")
+        LOG.info("Retire node")
         network.retire_node(primary, 0)
 
-        LOG.debug("Add a valid node")
+        LOG.info("Add a valid node")
         new_node = network.create_and_trust_node(args.package, "localhost", args)
         assert new_node
 

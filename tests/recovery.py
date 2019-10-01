@@ -113,16 +113,18 @@ def run(args):
             args.perf_nodes,
             node_offset=(recovery_idx + 1) * len(hosts),
             pdb=args.pdb,
-        ) as network:
-            primary, backups = network.start_in_recovery(args, ledger, sealed_secrets)
+        ) as recovered_network:
+            primary, backups = recovered_network.start_in_recovery(
+                args, ledger, sealed_secrets
+            )
 
             with primary.node_client() as mc:
                 check_commit = infra.ccf.Checker(mc)
                 check = infra.ccf.Checker()
 
-                for node in network.nodes:
+                for node in recovered_network.nodes:
                     wait_for_state(node, b"partOfPublicNetwork")
-                network.wait_for_node_commit_sync()
+                recovered_network.wait_for_node_commit_sync()
                 LOG.success("Public CFTR started")
 
                 LOG.debug(
@@ -135,24 +137,24 @@ def run(args):
                             new_node_ids_offsets, new_node_ids_offsets + len(hosts)
                         ):
                             id = c.request(
-                                "read", {"table": "nodes", "key": new_node_id}
+                                "read", {"table": "ccf.nodes", "key": new_node_id}
                             )
                             assert (
-                                infra.remote.NodeStatus(c.response(id).result["status"])
-                                == infra.remote.NodeStatus.TRUSTED
+                                c.response(id).result["status"].decode()
+                                == infra.ccf.NodeStatus.TRUSTED.name
                             )
 
                 LOG.debug("2/3 members vote to complete the recovery")
-                rc, result = network.propose(
+                rc, result = recovered_network.propose(
                     1, primary, "accept_recovery", f"--sealed-secrets={sealed_secrets}"
                 )
                 assert rc and not result["completed"]
                 proposal_id = result["id"]
 
-                rc, result = network.vote(2, primary, proposal_id, True)
+                rc, result = recovered_network.vote(2, primary, proposal_id, True)
                 assert rc and result
 
-                for node in network.nodes:
+                for node in recovered_network.nodes:
                     wait_for_state(node, b"partOfNetwork")
                 LOG.success("All nodes part of network")
 
@@ -175,17 +177,17 @@ def run(args):
                 old_txs = Txs(args.msgs_per_recovery, recovery_idx)
 
                 for recovery_cnt in range(args.recovery):
-                    check_nodes_have_msgs(network.nodes, old_txs)
+                    check_nodes_have_msgs(recovered_network.nodes, old_txs)
                 LOG.success(
                     "Recovery #{} complete on all nodes".format(recovery_idx + 1)
                 )
-                network.check_for_service(primary)
+                recovered_network.check_for_service(primary)
 
                 new_txs = Txs(args.msgs_per_recovery, recovery_idx + 1)
 
                 rs = log_msgs(primary, new_txs)
                 check_responses(rs, True, check, check_commit)
-                network.wait_for_node_commit_sync()
+                recovered_network.wait_for_node_commit_sync()
                 check_nodes_have_msgs(backups, new_txs)
 
                 ledger = primary.remote.get_ledger()

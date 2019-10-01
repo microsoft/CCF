@@ -670,12 +670,6 @@ def ccf_remote(
         remote.stop()
 
 
-class NodeStatus(Enum):
-    PENDING = 0
-    TRUSTED = 1
-    RETIRED = 2
-
-
 class StartType(Enum):
     new = 0
     join = 1
