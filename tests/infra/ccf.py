@@ -280,7 +280,7 @@ class Network:
     ):
         exists = False
         for _ in range(timeout):
-            if self.check_node_exists(remote_node, node_id, node_status):
+            if self._check_node_exists(remote_node, node_id, node_status):
                 exists = True
                 break
             time.sleep(1)
@@ -465,7 +465,7 @@ class Network:
             member_id, remote_node, "trust_node", f"--node-id={node_id}"
         )
 
-    def check_node_exists(self, remote_node, node_id, node_status=None):
+    def _check_node_exists(self, remote_node, node_id, node_status=None):
         with remote_node.member_client() as c:
             rep = c.do("read", {"table": "ccf.nodes", "key": node_id})
 
@@ -477,14 +477,14 @@ class Network:
         return True
 
     def trust_node(self, remote_node, node_id):
-        if not self.check_node_exists(remote_node, node_id, NodeStatus.PENDING):
+        if not self._check_node_exists(remote_node, node_id, NodeStatus.PENDING):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
         member_id = 1
         result = self.propose_trust_node(member_id, remote_node, node_id)
         result = self.vote_using_majority(remote_node, result[1]["id"])
 
-        if not self.check_node_exists(remote_node, node_id, NodeStatus.TRUSTED):
+        if not self._check_node_exists(remote_node, node_id, NodeStatus.TRUSTED):
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
     def propose_add_member(self, member_id, remote_node, new_member_cert):
