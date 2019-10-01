@@ -74,7 +74,7 @@ def run(args):
             fetch_schema(user_client)
 
         with primary.node_client(format="json") as node_client:
-            LOG.info("management frontend")
+            LOG.info("node frontend")
             fetch_schema(node_client)
 
         with primary.member_client(format="json") as member_client:
