@@ -11,8 +11,8 @@
 #include "ds/ringbuffer_types.h"
 #include "kv/kvtypes.h"
 #include "node/nodeinfonetwork.h"
-#include "tls/tls.h"
 #include "start_type.h"
+#include "tls/tls.h"
 
 #include <chrono>
 

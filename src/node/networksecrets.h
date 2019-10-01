@@ -3,8 +3,8 @@
 #pragma once
 
 #include "kv/kvtypes.h"
-#include "tls/keypair.h"
 #include "secret.h"
+#include "tls/keypair.h"
 
 #include <algorithm>
 #include <nlohmann/json.hpp>

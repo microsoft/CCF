@@ -62,9 +62,7 @@ namespace enclave
         rpc_map, users, ccfapp::get_rpc_handler(network, notifier));
 
       REGISTER_FRONTEND(
-        rpc_map,
-        nodes,
-        std::make_unique<ccf::NodeRpcFrontend>(network, node));
+        rpc_map, nodes, std::make_unique<ccf::NodeRpcFrontend>(network, node));
 
       for (auto& r : rpc_map->get_map())
       {
