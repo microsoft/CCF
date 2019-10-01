@@ -19,7 +19,6 @@ def check_can_progress(node):
             check_commit(c.rpc("LOG_record", {"id": 42, "msg": "Hello"}), result=True)
 
 
-# TODO: Rename this test to reconfiguration
 def run(args):
     hosts = ["localhost", "localhost"]
 

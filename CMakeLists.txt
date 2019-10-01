@@ -297,8 +297,8 @@ if(BUILD_TESTS)
         )
 
         add_e2e_test(
-          NAME add_node_test
-          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/addnode.py
+          NAME reconfiguration_test
+          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
         )
 
         add_e2e_test(
