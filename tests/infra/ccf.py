@@ -75,9 +75,7 @@ def network(
 
 # TODO: This function should only be part of the Checker class once the
 # memberclient is no longer used.
-def wait_for_global_commit(
-    node_client, commit_index, term, mksign=False, timeout=2
-):
+def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeout=2):
     """
     Given a client to a CCF network and a commit_index/term pair, this function
     waits for this specific commit index to be globally committed by the

@@ -201,11 +201,6 @@ namespace ccf
       name << "CN=" << Actors::MANAGEMENT;
       node_cert = node_kp->self_sign(name.str());
 
-      // The node's self-signed certificate is used by clients to connect to the
-      // management frontend
-      rpcsessions.add_cert(
-        Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key_pem());
-
       // Generate quote over node certificate
       // TODO: https://github.com/microsoft/CCF/issues/59
       std::vector<uint8_t> quote{1};
