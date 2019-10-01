@@ -24,7 +24,7 @@ def run(args):
         new_node = network.create_and_trust_node(args.package, "localhost", args, True)
         assert new_node
 
-        with primary.management_client() as mc:
+        with primary.node_client() as mc:
             check_commit = infra.ccf.Checker(mc)
 
             with new_node.user_client(format="json") as c:

@@ -22,8 +22,8 @@ namespace ccf
   DECLARE_JSON_TYPE(GetQuotes::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetQuotes::Out, quotes)
 
-  DECLARE_JSON_TYPE(NetworkSecrets::Secret)
-  DECLARE_JSON_REQUIRED_FIELDS(NetworkSecrets::Secret, cert, priv_key, master)
+  DECLARE_JSON_TYPE(Secret)
+  DECLARE_JSON_REQUIRED_FIELDS(Secret, cert, priv_key, master)
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out::NetworkInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
     JoinNetworkNodeToNode::Out::NetworkInfo, network_secrets, version)

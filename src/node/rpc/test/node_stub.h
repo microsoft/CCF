@@ -30,6 +30,23 @@ namespace ccf
       return true;
     }
 
+    bool is_reading_public_ledger() const override
+    {
+      return false;
+    }
+
+    bool is_reading_private_ledger() const override
+    {
+      return false;
+    }
+
+    bool is_part_of_network() const override
+    {
+      return true;
+    }
+
+    void node_quotes(Store::Tx& tx, GetQuotes::Out& result) override {}
+
     void set_joiner_key(
       NodeId joiner_id, const std::vector<uint8_t>& raw_key) override
     {

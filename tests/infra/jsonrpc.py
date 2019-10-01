@@ -455,6 +455,7 @@ def client(
     format="json" if os.getenv("HTTP") else "msgpack",
     description=None,
     log_file=None,
+    connection_timeout=3,
 ):
     if os.getenv("HTTP"):
         c = CurlClient(
@@ -469,7 +470,15 @@ def client(
         if log_file is not None:
             c.rpc_loggers += (RPCFileLogger(log_file),)
 
-        c.connect()
+        while connection_timeout >= 0:
+            try:
+                c.connect()
+                break
+            except ssl.SSLError:
+                if connection_timeout < 0:
+                    raise
+            connection_timeout -= 0.1
+            time.sleep(0.1)
         try:
             yield c
         finally:

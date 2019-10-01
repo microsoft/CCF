@@ -198,13 +198,8 @@ namespace ccf
 
       // Generate node key pair
       std::stringstream name;
-      name << "CN=" << Actors::MANAGEMENT;
+      name << "CN=" << Actors::NODES;
       node_cert = node_kp->self_sign(name.str());
-
-      // The node's self-signed certificate is used by clients to connect to the
-      // management frontend
-      rpcsessions.add_cert(
-        Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key_pem());
 
       // Generate quote over node certificate
       // TODO: https://github.com/microsoft/CCF/issues/59
@@ -869,17 +864,17 @@ namespace ccf
         consensus->is_primary());
     }
 
-    bool is_part_of_network() const
+    bool is_part_of_network() const override
     {
       return sm.check(State::partOfNetwork);
     }
 
-    bool is_reading_public_ledger() const
+    bool is_reading_public_ledger() const override
     {
       return sm.check(State::readingPublicLedger);
     }
 
-    bool is_reading_private_ledger() const
+    bool is_reading_private_ledger() const override
     {
       return sm.check(State::readingPrivateLedger);
     }
@@ -970,7 +965,7 @@ namespace ccf
       joiners_fresh_keys.emplace(joiner_id, raw_key);
     }
 
-    void node_quotes(Store::Tx& tx, GetQuotes::Out& result)
+    void node_quotes(Store::Tx& tx, GetQuotes::Out& result) override
     {
       auto nodes_view = tx.get_view(network.nodes);
 

@@ -25,12 +25,6 @@ namespace ccf
     static constexpr auto GET_SCHEMA = "getSchema";
   };
 
-  struct ManagementProcs
-  {
-    static constexpr auto GET_SIGNED_INDEX = "getSignedIndex";
-    static constexpr auto GET_QUOTES = "getQuotes";
-  };
-
   struct MemberProcs
   {
     static constexpr auto READ = "read";
@@ -48,5 +42,7 @@ namespace ccf
   struct NodeProcs
   {
     static constexpr auto JOIN = "join";
+    static constexpr auto GET_SIGNED_INDEX = "getSignedIndex";
+    static constexpr auto GET_QUOTES = "getQuotes";
   };
 }

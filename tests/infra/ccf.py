@@ -13,7 +13,7 @@ import infra.path
 import infra.net
 import infra.proc
 import array
-import re
+import ssl
 
 from loguru import logger as LOG
 
@@ -75,9 +75,7 @@ def network(
 
 # TODO: This function should only be part of the Checker class once the
 # memberclient is no longer used.
-def wait_for_global_commit(
-    management_client, commit_index, term, mksign=False, timeout=2
-):
+def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeout=2):
     """
     Given a client to a CCF network and a commit_index/term pair, this function
     waits for this specific commit index to be globally committed by the
@@ -90,10 +88,10 @@ def wait_for_global_commit(
     # Forcing a signature accelerates this process for common operations
     # (e.g. governance proposals)
     if mksign:
-        management_client.rpc("mkSign", params={})
+        node_client.rpc("mkSign", params={})
 
     for i in range(timeout * 10):
-        r = management_client.rpc("getCommit", {"commit": commit_index})
+        r = node_client.rpc("getCommit", {"commit": commit_index})
         if r.global_commit >= commit_index and r.result["term"] == term:
             return
         time.sleep(0.1)
@@ -399,7 +397,7 @@ class Network:
         # This is particularly useful for the open network proposal to wait
         # until the global hook on the SERVICE table is triggered
         if j_result["result"]:
-            with remote_node.management_client() as mc:
+            with remote_node.node_client() as mc:
                 wait_for_global_commit(mc, j_result["commit"], j_result["term"], True)
 
         return (True, j_result["result"])
@@ -543,7 +541,7 @@ class Network:
 
         for _ in range(timeout):
             for node in self.get_running_nodes():
-                with node.management_client() as c:
+                with node.node_client() as c:
                     id = c.request("getPrimaryInfo", {})
                     res = c.response(id)
                     if res.error is None:
@@ -568,7 +566,7 @@ class Network:
         all transactions executed on the primary (including the transactions
         which added the nodes).
         """
-        with primary.management_client() as c:
+        with primary.node_client() as c:
             res = c.do("getCommit", {})
             local_commit_leader = res.commit
             term_leader = res.term
@@ -576,7 +574,7 @@ class Network:
         for _ in range(timeout):
             joined_nodes = 0
             for node in self.get_running_nodes():
-                with node.management_client() as c:
+                with node.node_client() as c:
                     id = c.request("getCommit", {})
                     resp = c.response(id)
                     if resp.error is not None:
@@ -602,7 +600,7 @@ class Network:
         for _ in range(timeout):
             commits = []
             for node in (node for node in self.nodes if node.is_joined()):
-                with node.management_client() as c:
+                with node.node_client() as c:
                     id = c.request("getCommit", {})
                     commits.append(c.response(id).commit)
             if [commits[0]] * len(commits) == commits:
@@ -617,8 +615,8 @@ class Network:
 
 
 class Checker:
-    def __init__(self, management_client=None, notification_queue=None):
-        self.management_client = management_client
+    def __init__(self, node_client=None, notification_queue=None):
+        self.node_client = node_client
         self.notification_queue = notification_queue
         self.notified_commit = 0
 
@@ -640,9 +638,9 @@ class Checker:
                     result, rpc_result.result
                 )
 
-            if self.management_client:
+            if self.node_client:
                 wait_for_global_commit(
-                    self.management_client, rpc_result.commit, rpc_result.term
+                    self.node_client, rpc_result.commit, rpc_result.term
                 )
 
             if self.notification_queue:
@@ -834,7 +832,7 @@ class Node:
         joined a network and that it is part of the consensus.
         """
         for _ in range(timeout):
-            with self.management_client() as mc:
+            with self.node_client() as mc:
                 rep = mc.do("getCommit", {})
                 if rep.error == None and rep.result is not None:
                     return
@@ -856,15 +854,15 @@ class Node:
             **kwargs,
         )
 
-    def management_client(self, **kwargs):
+    def node_client(self, timeout=3, **kwargs):
         return infra.jsonrpc.client(
             self.host,
             self.rpc_port,
-            "management",
+            "nodes",
             cert=None,
             key=None,
-            cafile="{}.pem".format(self.node_id),
-            description="node {} (mgmt)".format(self.node_id),
+            cafile="networkcert.pem",
+            description="node {} (node)".format(self.node_id),
             **kwargs,
         )
 
