@@ -70,7 +70,7 @@ def wait_for_state(node, state):
     """
     for _ in range(MAX_GET_STATUS_RETRY):
         try:
-            with node.management_client() as c:
+            with node.node_client() as c:
                 id = c.request("getSignedIndex", {})
                 r = c.response(id).result
                 if r["state"] == state:
@@ -93,7 +93,7 @@ def run(args):
         primary, backups = network.start_and_join(args)
         txs = Txs(args.msgs_per_recovery)
 
-        with primary.management_client() as mc:
+        with primary.node_client() as mc:
             check_commit = infra.ccf.Checker(mc)
             check = infra.ccf.Checker()
 
@@ -116,7 +116,7 @@ def run(args):
         ) as network:
             primary, backups = network.start_in_recovery(args, ledger, sealed_secrets)
 
-            with primary.management_client() as mc:
+            with primary.node_client() as mc:
                 check_commit = infra.ccf.Checker(mc)
                 check = infra.ccf.Checker()
 
@@ -158,7 +158,7 @@ def run(args):
 
                 for _ in range(MAX_GET_STATUS_RETRY):
                     try:
-                        with primary.management_client() as c:
+                        with primary.node_client() as c:
                             id = c.request("getSignedIndex", {})
                             r = c.response(id).result
                             if r.get("state") == b"partOfNetwork":

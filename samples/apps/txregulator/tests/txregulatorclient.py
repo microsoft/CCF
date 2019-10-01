@@ -46,7 +46,7 @@ def run(args):
                 }
                 transactions.append(json_tx)
 
-        with primary.management_client() as mc:
+        with primary.node_client() as mc:
             with primary.user_client(format="msgpack", user_id=regulator[0] + 1) as c:
                 check_commit = infra.ccf.Checker(mc)
                 check = infra.ccf.Checker()
@@ -172,7 +172,7 @@ def run(args):
                 )
 
         # regulator poll for transactions that are flagged
-        with primary.management_client() as mc:
+        with primary.node_client() as mc:
             with primary.user_client(format="msgpack", user_id=regulator[0] + 1) as c:
                 # assert that the flagged txs that we poll for are correct
                 resp = c.rpc("REG_poll_flagged", {})
