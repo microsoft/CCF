@@ -286,8 +286,8 @@ class Network:
             time.sleep(1)
         if not exists:
             raise TimeoutError(
-                f"Node {node_id} has not yet been recorded in the store "
-                + (f"with status {node_status.name}" if node_status else "")
+                f"Node {node_id} has not yet been recorded in the store"
+                + (f" with status {node_status.name}" if node_status else "")
             )
 
     def create_and_add_pending_node(self, lib_name, host, args, should_wait=True):
