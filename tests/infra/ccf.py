@@ -217,6 +217,7 @@ class Network:
         primary = self._start_all_nodes(args)
 
         if not open_network:
+            LOG.warning("Network still needs to be opened")
             return primary, self.nodes[1:]
 
         self.wait_for_all_nodes_to_catch_up(primary)
@@ -289,17 +290,46 @@ class Network:
                 + (f"with status {node_status.name}" if node_status else "")
             )
 
+    def create_and_add_pending_node(self, lib_name, host, args, should_wait=True):
+        """
+        Create a new node and add it to the network. Note that the new node
+        still needs to be trusted by members to complete the join protocol.
+        """
+        new_node = self.create_node(host)
+        self._add_node(new_node, lib_name, args, should_wait)
+        primary, _ = self.find_primary()
+        try:
+            self._wait_for_node_to_exist_in_store(
+                primary,
+                new_node.node_id,
+                (
+                    NodeStatus.PENDING
+                    if self.status == ServiceStatus.OPEN
+                    else NodeStatus.TRUSTED
+                ),
+            )
+        except (TimeoutError):
+            # The node can be safely discarded since it has not been
+            # attrituted a unique node_id by CCF
+            LOG.error(f"New pending node {new_node.node_id} failed to join the network")
+            new_node.stop()
+            self.nodes.remove(new_node)
+            return None
+
+        return new_node
+
     # TODO: should_wait should disappear once nodes can join a network and catch up in PBFT
     def create_and_trust_node(self, lib_name, host, args, should_wait=True):
         """
         Create a new node, add it to the network and let members vote to trust
         it so that it becomes part of the consensus protocol.
         """
-        new_node = self.create_node(host)
-        self._add_node(new_node, lib_name, args)
+        new_node = self.create_and_add_pending_node(lib_name, host, args, should_wait)
+        if new_node is None:
+            return None
+
         primary, _ = self.find_primary()
         try:
-            self._wait_for_node_to_exist_in_store(primary, new_node.node_id)
             if self.status is ServiceStatus.OPEN:
                 self.trust_node(primary, new_node.node_id)
             if should_wait:
@@ -307,30 +337,11 @@ class Network:
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {new_node.node_id} failed to join the network")
             new_node.stop()
-            self.nodes.remove(new_node)
             return None
 
         if should_wait:
             self.wait_for_all_nodes_to_catch_up(primary)
         new_node.network_state = NodeNetworkState.joined
-
-        return new_node
-
-    def create_and_add_pending_node(self, lib_name, host, args):
-        """
-        Create a new node and add it to the network. Note that the new node
-        still needs to be trusted by members to complete the join protocol.
-        """
-        new_node = self.create_node("localhost")
-        self._add_node(new_node, lib_name, args)
-        primary, _ = self.find_primary()
-        try:
-            self._wait_for_node_to_exist_in_store(
-                primary, new_node.node_id, infra.ccf.NodeStatus.PENDING
-            )
-        except (TimeoutError):
-            LOG.error(f"New pending node {new_node.node_id} failed to join the network")
-            return None
 
         return new_node
 
