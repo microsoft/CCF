@@ -1290,7 +1290,8 @@ namespace ccf
         self,
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         rpc_map,
-        rpcsessions);
+        rpcsessions,
+        std::make_unique<pbft::Adaptor<Store>>(network.tables));
 
       network.tables->set_consensus(consensus);
 

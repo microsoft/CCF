@@ -4,6 +4,7 @@
 
 #include "consensus/ledgerenclave.h"
 #include "consensus/pbft/pbftconfig.h"
+#include "consensus/pbft/pbfttypes.h"
 #include "ds/logger.h"
 #include "enclave/rpcmap.h"
 #include "enclave/rpcsessions.h"
@@ -14,6 +15,7 @@
 #include "libbyz/libbyz.h"
 #include "libbyz/network.h"
 #include "libbyz/receive_message_base.h"
+#include "node/consensustypes.h"
 #include "node/nodetypes.h"
 #include "node/rpc/jsonrpc.h"
 
@@ -106,6 +108,7 @@ namespace pbft
     enclave::RPCSessions& rpcsessions;
     std::unique_ptr<consensus::LedgerEnclave> ledger;
     SeqNo global_commit_seqno;
+    std::unique_ptr<pbft::Store> store;
 
   public:
     Pbft(
@@ -113,12 +116,14 @@ namespace pbft
       NodeId id,
       std::unique_ptr<consensus::LedgerEnclave> ledger_,
       std::shared_ptr<enclave::RpcMap> rpc_map,
-      enclave::RPCSessions& rpcsessions_) :
+      enclave::RPCSessions& rpcsessions_,
+      std::unique_ptr<pbft::Store> store_) :
       Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
       ledger(std::move(ledger_)),
-      global_commit_seqno(0)
+      global_commit_seqno(0),
+      store(std::move(store_))
     {
       // configure replica
       GeneralInfo general_info;
@@ -203,8 +208,16 @@ namespace pbft
           ledger->put_entry(entry);
         };
 
+      auto global_commit_cb = [](kv::Version version, void* ctx) {
+        auto store = static_cast<pbft::Store*>(ctx);
+        store->compact(version);
+      };
+
       message_receiver_base->register_append_ledger_entry_cb(
         append_ledger_entry_cb, ledger.get());
+
+      message_receiver_base->register_global_commit(
+        global_commit_cb, store.get());
     }
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override

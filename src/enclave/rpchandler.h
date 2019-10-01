@@ -23,6 +23,7 @@ namespace enclave
     {
       std::vector<uint8_t> result;
       crypto::Sha256Hash merkle_root;
+      kv::Version version;
     };
 
     virtual ProcessPbftResp process_pbft(

@@ -1001,7 +1001,7 @@ namespace kv
         auto h = store->get_history();
         if (h != nullptr)
         {
-          h->add_result(req_id, version);
+          h->add_result(req_id, NoVersion);
         }
         return CommitSuccess::OK;
       }

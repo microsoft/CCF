@@ -588,6 +588,7 @@ namespace ccf
       // TODO(#PBFT): Refactor this with process_forwarded().
       Store::Tx tx;
       crypto::Sha256Hash merkle_root;
+      kv::Version version = kv::NoVersion;
 
       auto pack = detect_pack(input);
       if (!pack.has_value())
@@ -614,9 +615,13 @@ namespace ccf
       auto& unsigned_rpc = *rpc_;
       bool has_updated_merkle_root = false;
 
-      auto cb = [&merkle_root, &has_updated_merkle_root](
+      auto cb = [&merkle_root, &version, &has_updated_merkle_root](
                   kv::TxHistory::ResultCallbackArgs args) -> bool {
         merkle_root = args.merkle_root;
+        if (args.version != kv::NoVersion)
+        {
+          version = args.version;
+        }
         has_updated_merkle_root = true;
         return true;
       };
@@ -636,7 +641,7 @@ namespace ccf
       // if (history)
       //   history->add_response(reqid, rv);
 
-      return {jsonrpc::pack(rep.value(), pack.value()), merkle_root};
+      return {jsonrpc::pack(rep.value(), pack.value()), merkle_root, version};
     }
 
     /** Process a serialised input forwarded from another node
