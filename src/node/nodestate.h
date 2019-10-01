@@ -284,6 +284,11 @@ namespace ccf
         }
         case StartType::Join:
         {
+          // Generate fresh key to encrypt/decrypt historical network secrets
+          // sent
+          // by the primary via the kv store
+          raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
+
           sm.advance(State::pending);
           return Success<CreateNew::Out>({node_cert, quote});
         }
@@ -396,10 +401,6 @@ namespace ccf
 
           return true;
         });
-
-      // Generate fresh key to encrypt/decrypt historical network secrets sent
-      // by the primary via the kv store
-      raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
 
       // Send RPC request to remote node to join the network.
       jsonrpc::ProcedureCall<JoinNetworkNodeToNode::In> join_rpc;
