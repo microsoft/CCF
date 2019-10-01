@@ -13,7 +13,7 @@ import infra.path
 import infra.net
 import infra.proc
 import array
-import re
+import ssl
 
 from loguru import logger as LOG
 
@@ -854,7 +854,7 @@ class Node:
             **kwargs,
         )
 
-    def node_client(self, **kwargs):
+    def node_client(self, timeout=3, **kwargs):
         return infra.jsonrpc.client(
             self.host,
             self.rpc_port,
