@@ -64,6 +64,7 @@ namespace ccf
              throw std::logic_error(fmt::format("Node {} does not exist", id));
            info->status = NodeStatus::TRUSTED;
            nodes->put(id, *info);
+           LOG_INFO_FMT("Node {} is now {}", id, info->status);
            return true;
          }},
         // retire a node
@@ -97,6 +98,7 @@ namespace ccf
         // this function is called.
         {"accept_recovery",
          [this](Store::Tx& tx, const nlohmann::json& args) {
+           // TODO: Check type of args here
            if (node.is_part_of_public_network())
              return node.finish_recovery(tx, args);
            else

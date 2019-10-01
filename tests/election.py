@@ -76,7 +76,7 @@ def run(args):
 
             LOG.debug("Waiting for transaction to be committed by all nodes")
             wait_for_index_globally_committed(
-                commit_index, current_term, network.get_running_nodes()
+                commit_index, current_term, network.get_joined_nodes()
             )
 
             LOG.debug("Stopping primary")

@@ -1182,15 +1182,17 @@ namespace ccf
           auto configure = false;
           std::unordered_set<NodeId> configuration;
 
-          // TODO(#important,#TR): Only TRUSTED nodes should be sent append
-          // entries, counted in election votes and allowed to establish
-          // node-to-node channels (section III-F).
           for (auto& [node_id, ni] : w)
           {
             switch (ni.value.status)
             {
-              case NodeStatus::TRUSTED:
               case NodeStatus::PENDING:
+              {
+                // Pending nodes are not added to consensus until they are
+                // trusted
+                break;
+              }
+              case NodeStatus::TRUSTED:
               {
                 add_node(node_id, ni.value.host, ni.value.nodeport);
                 configure = true;
@@ -1209,7 +1211,7 @@ namespace ccf
           if (configure)
           {
             s.foreach([&](NodeId node_id, const Nodes::VersionV& v) {
-              if (v.value.status != NodeStatus::RETIRED)
+              if (v.value.status == NodeStatus::TRUSTED)
                 configuration.insert(node_id);
               return true;
             });
