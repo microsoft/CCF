@@ -20,7 +20,7 @@ ccf::NetworkSecrets create_network_secrets()
   // a lot slower with legacy curves, we use a dummy encryption key for this
   // benchmarks
   auto secrets = ccf::NetworkSecrets();
-  auto new_secret = std::make_unique<ccf::NetworkSecrets::Secret>(
+  auto new_secret = std::make_unique<ccf::Secret>(
     std::vector<uint8_t>(),
     std::vector<uint8_t>(),
     std::vector<uint8_t>(16, 0x1));

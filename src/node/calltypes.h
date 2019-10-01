@@ -3,8 +3,6 @@
 #pragma once
 #include "enclave/interface.h"
 
-#include <ccf_args.h>
-
 namespace ccf
 {
   struct CreateNew

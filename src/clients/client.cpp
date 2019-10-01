@@ -202,15 +202,6 @@ int main(int argc, char** argv)
   user_rpc->add_option("--cert", user_cert_file, "User's certificate", true);
   user_rpc->add_option("--pk", user_pk_file, "User's private key", true);
 
-  auto mgmt_rpc = app.add_subcommand("mgmtrpc", "Management RPC");
-
-  std::string req_mgmt = "@mgmt.json";
-  std::string mgmt_cert_file;
-  std::string mgmt_pk_file;
-  add_request_arg(mgmt_rpc, req_mgmt);
-  mgmt_rpc->add_option("--cert", mgmt_cert_file, "Manager's certificate", true);
-  mgmt_rpc->add_option("--pk", mgmt_pk_file, "Manager's private key", true);
-
   CLI11_PARSE(app, argc, argv);
 
   try
@@ -248,20 +239,6 @@ int main(int argc, char** argv)
         user_cert_file,
         user_pk_file,
         req_user);
-    }
-
-    if (*mgmt_rpc)
-    {
-      cout << "Doing management RPC:" << endl;
-      response = make_rpc(
-        host,
-        port,
-        Pack::MsgPack,
-        "management",
-        ca_file,
-        mgmt_cert_file,
-        mgmt_pk_file,
-        req_mgmt);
     }
 
     if (pretty_print)

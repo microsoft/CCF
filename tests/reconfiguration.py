@@ -13,7 +13,7 @@ from loguru import logger as LOG
 
 
 def check_can_progress(node):
-    with node.management_client() as mc:
+    with node.node_client() as mc:
         check_commit = infra.ccf.Checker(mc)
         with node.user_client() as c:
             check_commit(c.rpc("LOG_record", {"id": 42, "msg": "Hello"}), result=True)

@@ -34,7 +34,7 @@ def run(args):
         primary, backups = network.start_and_join(args)
         # SNIPPET_END: create_network
 
-        with primary.management_client() as mc:
+        with primary.node_client() as mc:
 
             check = infra.ccf.Checker()
             check_commit = infra.ccf.Checker(mc)

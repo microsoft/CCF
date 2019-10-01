@@ -12,7 +12,6 @@
 #include "node/nodetypes.h"
 #include "node/notifier.h"
 #include "node/rpc/forwarder.h"
-#include "node/rpc/managementfrontend.h"
 #include "node/rpc/memberfrontend.h"
 #include "node/rpc/nodefrontend.h"
 #include "node/timer.h"
@@ -60,17 +59,10 @@ namespace enclave
         std::make_unique<ccf::MemberCallRpcFrontend>(network, node));
 
       REGISTER_FRONTEND(
-        rpc_map,
-        management,
-        std::make_unique<ccf::ManagementRpcFrontend>(*network.tables, node));
-
-      REGISTER_FRONTEND(
         rpc_map, users, ccfapp::get_rpc_handler(network, notifier));
 
       REGISTER_FRONTEND(
-        rpc_map,
-        nodes,
-        std::make_unique<ccf::NodeCallRpcFrontend>(network, node));
+        rpc_map, nodes, std::make_unique<ccf::NodeRpcFrontend>(network, node));
 
       for (auto& r : rpc_map->get_map())
       {

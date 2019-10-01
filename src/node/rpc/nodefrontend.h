@@ -8,11 +8,12 @@
 
 namespace ccf
 {
-  class NodeCallRpcFrontend : public RpcFrontend
+  class NodeRpcFrontend : public RpcFrontend
   {
   private:
     NetworkState& network;
     AbstractNodeState& node;
+    Signatures* signatures;
 
     std::optional<NodeId> check_node_exists(
       Store::Tx& tx,
@@ -117,10 +118,11 @@ namespace ccf
     }
 
   public:
-    NodeCallRpcFrontend(NetworkState& network, AbstractNodeState& node) :
+    NodeRpcFrontend(NetworkState& network, AbstractNodeState& node) :
       RpcFrontend(*network.tables),
       network(network),
-      node(node)
+      node(node),
+      signatures(tables.get<Signatures>(Tables::SIGNATURES))
     {
       auto accept = [this](RequestArgs& args) {
         const auto in = args.params.get<JoinNetworkNodeToNode::In>();
@@ -202,7 +204,54 @@ namespace ccf
         }
       };
 
+      auto get_signed_index = [this](RequestArgs& args) {
+        GetSignedIndex::Out result;
+        if (this->node.is_reading_public_ledger())
+        {
+          result.state = GetSignedIndex::State::ReadingPublicLedger;
+        }
+        else if (this->node.is_reading_private_ledger())
+        {
+          result.state = GetSignedIndex::State::ReadingPrivateLedger;
+        }
+        else if (this->node.is_part_of_network())
+        {
+          result.state = GetSignedIndex::State::PartOfNetwork;
+        }
+        else if (this->node.is_part_of_public_network())
+        {
+          result.state = GetSignedIndex::State::PartOfPublicNetwork;
+        }
+        else
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+            "Network is not in recovery mode");
+        }
+
+        auto sig_view = args.tx.get_view(*signatures);
+        auto sig = sig_view->get(0);
+        if (!sig.has_value())
+          result.signed_index = 0;
+        else
+          result.signed_index = sig.value().index;
+
+        return jsonrpc::success(result);
+      };
+
+      // TODO: Should this be a GeneralProc?
+      auto get_quotes = [this](RequestArgs& args) {
+        GetQuotes::Out result;
+        this->node.node_quotes(args.tx, result);
+
+        return jsonrpc::success(result);
+      };
+
       install(NodeProcs::JOIN, accept, Write);
+      install_with_auto_schema<GetSignedIndex>(
+        NodeProcs::GET_SIGNED_INDEX, get_signed_index, Read);
+      install_with_auto_schema<GetQuotes>(
+        NodeProcs::GET_QUOTES, get_quotes, Read);
     }
   };
 }
