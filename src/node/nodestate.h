@@ -241,10 +241,6 @@ namespace ccf
           g.set_gov_scripts(lua::Interpreter().invoke<nlohmann::json>(
             args.config.genesis.gov_script));
 
-          if (!args.config.genesis.app_script.empty())
-            g.set_app_scripts(lua::Interpreter().invoke<nlohmann::json>(
-              args.config.genesis.app_script));
-
           network.secrets = std::make_unique<NetworkSecrets>(
             "CN=The CA", std::make_unique<Seal>(writer_factory));
 

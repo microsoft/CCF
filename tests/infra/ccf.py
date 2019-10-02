@@ -116,7 +116,6 @@ class Network:
         "notify_server",
         "json_log_path",
         "gov_script",
-        "app_script",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -206,8 +205,6 @@ class Network:
         self.initial_users = [1, 2, 3]
         self.create_users(self.initial_users)
 
-        if args.app_script:
-            infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
         if args.gov_script:
             infra.proc.ccall("cp", args.gov_script, args.build_dir).check_returncode()
         LOG.info("Lua scripts copied")
@@ -220,6 +217,12 @@ class Network:
 
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
+
+        if args.app_script:
+            LOG.error("Adding lua app")
+            infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
+            self.update_lua_app(primary, args.app_script)
+            LOG.success("Lua app added")
 
         self.add_users(primary, self.initial_users)
         LOG.info("Initial set of users added")
@@ -550,6 +553,13 @@ class Network:
                     1, node, "add_user", f"--user-cert=user{u}_cert.pem"
                 )
                 result = self.vote_using_majority(node, result[1]["id"])
+
+    # TODO: Test with HTTP
+    def update_lua_app(self, node, app_script):
+        # Note that the previous lua endpoints that are not updated will still
+        # be available after app update
+        result = self.propose(1, node, "update_lua_app", f"--lua-app-file={app_script}")
+        result = self.vote_using_majority(node, result[1]["id"])
 
     def stop_all_nodes(self):
         for node in self.nodes:

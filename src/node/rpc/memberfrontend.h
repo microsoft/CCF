@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "../../luainterp/txscriptrunner.h"
-#include "../../tls/entropy.h"
-#include "../../tls/keypair.h"
-#include "../quoteverification.h"
 #include "frontend.h"
+#include "luainterp/txscriptrunner.h"
+#include "node/quoteverification.h"
+#include "tls/entropy.h"
+#include "tls/keypair.h"
 
 #include <exception>
 #include <initializer_list>
@@ -28,11 +28,29 @@ namespace ccf
       return *s;
     }
 
+    void set_app_scripts(
+      Store::Tx& tx, std::map<std::string, std::string> scripts)
+    {
+      auto tx_scripts = tx.get_view(network.app_scripts);
+      for (auto& rs : scripts)
+      {
+        tx_scripts->put(rs.first, lua::compile(rs.second));
+      }
+    }
+
     //! Table of functions that proposal scripts can propose to invoke
     const std::unordered_map<
       std::string,
       std::function<bool(Store::Tx&, const nlohmann::json&)>>
       hardcoded_funcs = {
+        // update the lua application script
+        {"update_lua_app",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
+           const std::string app = args;
+           set_app_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
+
+           return true;
+         }},
         // add a new member
         {"new_member",
          [this](Store::Tx& tx, const nlohmann::json& args) {
