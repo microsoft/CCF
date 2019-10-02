@@ -5,6 +5,7 @@
 #include "http.h"
 #include "rpcmap.h"
 #include "tlsframedendpoint.h"
+#include "../node/rpc/jsonrpc.h"
 
 namespace enclave
 {
@@ -34,6 +35,104 @@ namespace enclave
       session_id(session_id)
     {}
 
+    std::optional<jsonrpc::Pack> detect_pack(const std::vector<uint8_t>& input)
+    {
+      if (input.empty())
+        return {};
+
+      if (input[0] == '{')
+        return jsonrpc::Pack::Text;
+      else
+        return jsonrpc::Pack::MsgPack;
+    }
+
+    std::pair<bool, nlohmann::json> unpack_json(
+      const std::vector<uint8_t>& input, jsonrpc::Pack pack)
+    {
+      nlohmann::json rpc;
+      try
+      {
+        rpc = jsonrpc::unpack(input, pack);
+        if (!rpc.is_object())
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+            fmt::format("RPC payload is a not a valid object: {}", rpc.dump()));
+      }
+      catch (const std::exception& e)
+      {
+        return jsonrpc::error(
+          jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+          fmt::format("Exception during unpack: {}", e.what()));
+      }
+
+      return {true, rpc};
+    }
+
+    std::optional<std::string> get_method(const nlohmann::json& j)
+    {
+      if (j.find(jsonrpc::SIG) != j.end())
+      {
+        return j.at(jsonrpc::REQ).at(jsonrpc::METHOD).get<std::string>();
+      }
+      else
+      {
+        return j.at(jsonrpc::METHOD).get<std::string>();
+      }
+    }
+
+    std::string get_actor(const std::string& method)
+    {
+      return method.substr(0, method.find_last_of('/'));
+    }
+
+    bool handle_data(const std::vector<uint8_t>& data)
+    {
+      auto pack = detect_pack(data);
+      if (!pack.has_value())
+        send(jsonrpc::pack(
+          jsonrpc::error_response(
+            0, jsonrpc::StandardErrorCodes::INVALID_REQUEST, "Empty request."),
+          jsonrpc::Pack::Text)); return true;
+
+      auto [deserialised, rpc] = unpack_json(data, pack.value());
+
+      if (!deserialised)
+        send(jsonrpc::pack(rpc, pack.value())); return true;
+
+      auto method = get_method(rpc);
+      if (!method.has_value())
+        send(jsonrpc::pack(
+          jsonrpc::error_response(
+            0, jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND, "Method not found."),
+          jsonrpc::Pack::Text)); return true;
+
+      std::string actor_prefix = get_actor(method.value());
+
+      auto actor = rpc_map->resolve(actor_prefix);
+      if (actor == ccf::ActorsType::unknown)
+        send(jsonrpc::pack(
+          jsonrpc::error_response(
+            0, jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND, fmt::format("Invalid actor prefix: {}", actor_prefix)),
+          jsonrpc::Pack::Text)); return true;
+
+      RPCContext rpc_ctx(session_id, peer_cert(), actor);
+      auto rep = handler->process(rpc_ctx, data);
+
+      if (rpc_ctx.is_pending)
+      {
+        // If the RPC has been forwarded, hold the connection.
+        return true;
+      }
+      else
+      {
+        // Otherwise, reply to the client synchronously.
+        send(rep);
+      }
+
+      return true;
+    }
+
+/*
     bool handle_data(const std::vector<uint8_t>& data)
     {
       if (!handler)
@@ -73,5 +172,6 @@ namespace enclave
 
       return true;
     }
+*/  
   };
 }
