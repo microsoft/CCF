@@ -371,7 +371,6 @@ class Network:
                     return tables["ccf.service"]:get(0)"""
                 },
             )
-            current_status =
             if os.getenv("HTTP"):
                 current_status = rep.result["status"]
             else:
