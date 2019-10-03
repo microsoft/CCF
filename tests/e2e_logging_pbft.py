@@ -23,9 +23,21 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, _ = network.start_and_join(args)
+        primary, _ = network.start_and_join(args, open_network=False)
 
-        with primary.management_client() as mc:
+        for i in range(1, 4):
+            LOG.info(f"Adding node {i}")
+            assert network.create_and_trust_node(
+                args.package, "localhost", args, should_wait=False
+            )
+
+        network.add_users(primary, network.initial_users)
+        LOG.info("Initial set of users added")
+
+        network.open_network(primary)
+        LOG.info("***** Network is now open *****")
+
+        with primary.node_client() as mc:
             check_commit = infra.ccf.Checker(mc)
             check = infra.ccf.Checker()
 

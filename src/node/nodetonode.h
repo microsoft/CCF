@@ -18,7 +18,7 @@ namespace ccf
     std::unique_ptr<ChannelManager> channels;
     std::unique_ptr<ringbuffer::AbstractWriter> to_host;
 
-    void established_channel(NodeId to)
+    void establish_channel(NodeId to)
     {
       // If the channel is not yet established, replace all sent messages with
       // a key exchange message. In the case of raft, this is acceptable since
@@ -56,7 +56,7 @@ namespace ccf
       auto& n2n_channel = channels->get(to);
       if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
       {
-        established_channel(to);
+        establish_channel(to);
         return;
       }
 
@@ -87,7 +87,7 @@ namespace ccf
       auto& n2n_channel = channels->get(to);
       if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
       {
-        established_channel(to);
+        establish_channel(to);
         return false;
       }
 

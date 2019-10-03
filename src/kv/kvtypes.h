@@ -64,6 +64,7 @@ namespace kv
       std::vector<uint8_t> request;
       uint64_t actor;
       uint64_t caller_id;
+      CBuffer caller_cert;
     };
 
     struct ResultCallbackArgs
@@ -92,6 +93,7 @@ namespace kv
       kv::TxHistory::RequestID id,
       uint64_t actor,
       uint64_t caller_id,
+      CBuffer& caller_cert,
       const std::vector<uint8_t>& request) = 0;
     virtual void add_result(
       RequestID id, kv::Version version, const std::vector<uint8_t>& data) = 0;

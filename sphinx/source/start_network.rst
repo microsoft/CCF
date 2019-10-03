@@ -1,12 +1,12 @@
 Starting up a network
 =====================
 
-This page describes how operators and the members of the consortium can bootstrap a fresh CCF network.
+This page describes how operators and the members of the consortium can bootstrap a new CCF network.
 
 .. note:: When building CCF from source, all required artefacts (e.g. ``cchost``, enclave libraries such as ``libloggingenc.so.signed``) can be found in the ``build`` directory created before running `cmake`.
 
-Creating a new network
-----------------------
+Create a new network
+--------------------
 
 To start up a network, the first node of the network should be started with the ``start`` option:
 
@@ -31,10 +31,10 @@ The identities of members are specified as a `glob pattern <https://en.wikipedia
 
 When CCF is used to run a custom Lua application, the starting node should also be started with the ``--app-script /path/to/lua/application_script`` (see the `samples folder <https://github.com/microsoft/CCF/tree/master/samples/apps>`_ for example of Lua applications).
 
-Joining an existing network
----------------------------
+Add a new node to an opening network
+------------------------------------
 
-To join an existing network, other nodes should be started with the ``join`` option:
+To add a new node to an existing opening network, other nodes should be started with the ``join`` option:
 
 .. code-block:: bash
 
@@ -48,11 +48,11 @@ The joining node takes the certificate of the existing network to join via ``--n
 
 .. note:: When starting up the network or when joining an existing network, the network secrets required to decrypt the ledger are sealed and written to a file so that the network can later be recovered. See :ref:`Catastrophic Recovery` for more details on how to recover a crashed network.
 
-Opening a network to users
---------------------------
+Open a network to users
+-----------------------
 
-Adding users
-~~~~~~~~~~~~
+Add users
+~~~~~~~~~
 
 Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to users. First, the certificates of trusted users should be registered in CCF via the member governance interface. For example, the first member may decide to make a proposal to add a new user (here, ``user_cert`` is the PEM certificate of the user -- see :ref:`Cryptography` for a list of supported algorithms):
 
@@ -73,10 +73,10 @@ Other members are then allowed to vote for the proposal, using the proposal ID r
 
 The user is successfully added once a :term:`quorum` of members have accepted the proposal (``"result":true"``).
 
-Opening a network
-~~~~~~~~~~~~~~~~~
+Open a network
+~~~~~~~~~~~~~~
 
-Once users are added to the network, members should decide to make a proposal to open the network:
+Once users are added to the opening network, members should decide to make a proposal to open the network:
 
 .. code-block:: bash
 
@@ -94,6 +94,34 @@ Other members are then allowed to vote for the proposal, using the proposal ID r
     {"commit":11,"global_commit":10,"id":0,"jsonrpc":"2.0","result":true,"term":2}
 
 Once a quorum of members have approved the network opening (``"result":true``), the network is opened to users (see :ref:`Example App` for a simple business logic and :term:`JSON-RPC` transactions). It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).
+
+Add new nodes to an open network
+--------------------------------
+
+Once the network has been opened by members, it is possible to add new nodes to the network (e.g. to replace a retired node or add a new version of the code). The new node should be started with the ``join`` option:
+
+.. code-block:: bash
+
+    $ cchost --enclave-file /path/to/enclave_library --enclave-type debug
+    --node-address node_ip:node_port --rpc-address rpc_ip:rpc_port
+    --public-rpc-address public_rpc_ip:public_rpc_port --ledger-file /path/to/ledger
+    --node-cert-file /path/to/node_certificate --quote-file /path/to/quote
+    join --network-cert-file /path/to/existing/network_certificate --target-rpc-address target_rpc_ip:target_rpc_port
+
+As opposed to an opening network in which nodes are trusted automatically (see :ref:`Add a new node to an opening network`), new nodes added to an open network should be trusted by a quorum of members before becoming part of the network. When a new node joins an open network, it is assigned a unique node id and is recorded in state `PENDING`. Then, members can vote to accept the new node:
+
+.. code-block:: bash
+
+    $ memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert trust_node --node-id new_node_id
+    {"commit":13,"global_commit":12,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":2},"term":2}
+
+    $ memberclient --cert member2_cert --privk member2_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 2 --accept
+    {"commit":15,"global_commit":14,"id":0,"jsonrpc":"2.0","result":false,"term":2}
+
+    $ memberclient --cert member3_cert --privk member3_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 2 --accept
+    {"commit":17,"global_commit":16,"id":0,"jsonrpc":"2.0","result":true,"term":2}
+
+Once the proposal successfully completes, the new node automatically becomes part of the network.
 
 Summary diagram
 ---------------

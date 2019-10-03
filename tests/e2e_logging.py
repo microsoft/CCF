@@ -27,7 +27,7 @@ def run(args):
         ) as network:
             primary, (backup,) = network.start_and_join(args)
 
-            with primary.management_client() as mc:
+            with primary.node_client() as mc:
                 check_commit = infra.ccf.Checker(mc, notifications.get_queue())
                 check = infra.ccf.Checker()
 
@@ -47,7 +47,7 @@ def run(args):
                     check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2})
 
                 LOG.debug("Write on all backup frontends")
-                with backup.management_client(format="json") as c:
+                with backup.node_client(format="json") as c:
                     check_commit(c.do("mkSign", params={}), result=True)
                 with backup.member_client(format="json") as c:
                     check_commit(c.do("mkSign", params={}), result=True)

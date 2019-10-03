@@ -2,7 +2,7 @@
 -- Licensed under the Apache 2.0 License.
 
 -- This file defines the default initial contents (ie, Lua scripts) of the gov_scipts table.
-return {  
+return {
   pass = [[
   tables, calls, votes = ...
 
@@ -13,7 +13,7 @@ return {
 
   -- defines calls that can be passed with sole operator input
   operator_calls = {
-    accept_node=true,
+    trust_node=true,
     retire_node=true,
     new_code=true
   }
@@ -35,10 +35,10 @@ return {
   members_active = 0
   STATE_ACTIVE = 1
 
-  tables["ccf.members"]:foreach(function(member, details) 
+  tables["ccf.members"]:foreach(function(member, details)
     if details["status"] == STATE_ACTIVE and not is_operator(tostring(member)) then
-      members_active = members_active + 1 
-    end 
+      members_active = members_active + 1
+    end
   end)
 
   -- check for raw_puts to sensitive tables
@@ -48,7 +48,7 @@ return {
       for _, sensitive_table in pairs(SENSITIVE_TABLES) do
         if call.args[sensitive_table] then
           -- require unanimity of non-operating members
-          return member_votes == members_active 
+          return member_votes == members_active
         end
       end
     end
@@ -91,7 +91,7 @@ return {
   end
   -- create a frontend for __Puts that hides function entries
   Puts = setmetatable({}, {__index = __Puts})
-  
+
   __Calls = {}
   function __Calls:new(o)
     o = o or {}

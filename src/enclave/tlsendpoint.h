@@ -29,6 +29,7 @@ namespace enclave
 
     std::vector<uint8_t> pending_write;
     std::vector<uint8_t> pending_read;
+    // Decrypted data, read through mbedtls
     std::vector<uint8_t> read_buffer;
 
     std::unique_ptr<tls::Context> ctx;
@@ -73,7 +74,7 @@ namespace enclave
     std::vector<uint8_t> read(size_t up_to, bool exact = false)
     {
       LOG_TRACE_FMT("Requesting {} bytes", up_to);
-      // This will return en empty vector if the connection isn't
+      // This will return an empty vector if the connection isn't
       // ready, but it will not block on the handshake.
       do_handshake();
 
@@ -131,7 +132,9 @@ namespace enclave
           data.resize(offset);
 
           if (!exact)
+          {
             return data;
+          }
 
           read_buffer = move(data);
           return {};

@@ -37,7 +37,7 @@ static const string add_user_proposal(R"xxx(
 
 static const string accept_node_proposal(R"xxx(
       tables, node_id = ...
-      return Calls:call("accept_node", node_id)
+      return Calls:call("trust_node", node_id)
     )xxx");
 
 static const string retire_node_proposal(R"xxx(
@@ -333,8 +333,8 @@ int main(int argc, char** argv)
     ->required(true);
 
   NodeId node_id;
-  auto accept_node = app.add_subcommand("accept_node", "Make a node trusted");
-  accept_node->add_option("--node-id", node_id, "The node id")->required(true);
+  auto trust_node = app.add_subcommand("trust_node", "Make a node trusted");
+  trust_node->add_option("--node-id", node_id, "The node id")->required(true);
 
   auto retire_node = app.add_subcommand("retire_node", "Make a node retired");
   retire_node->add_option("--node-id", node_id, "The node id")->required(true);
@@ -416,7 +416,7 @@ int main(int argc, char** argv)
       submit_accept_code(*tls_connection, new_code_id);
     }
 
-    if (*accept_node)
+    if (*trust_node)
     {
       submit_accept_node(*tls_connection, node_id);
     }

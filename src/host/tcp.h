@@ -162,6 +162,12 @@ namespace asynchost
         case CONNECTED:
           return send_write(req, len);
 
+        case DISCONNECTED:
+        {
+          LOG_DEBUG_FMT("Disconnected: Ignoring write of size {}", len);
+          break;
+        }
+
         default:
         {
           LOG_FATAL_FMT("Unexpected status during write: {}", status);

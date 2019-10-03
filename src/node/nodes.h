@@ -41,3 +41,36 @@ namespace ccf
 
   using Nodes = Store::Map<NodeId, NodeInfo>;
 }
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ccf::NodeStatus>
+{
+  template <typename ParseContext>
+  auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(const ccf::NodeStatus& state, FormatContext& ctx)
+    -> decltype(ctx.out())
+  {
+    switch (state)
+    {
+      case (ccf::NodeStatus::PENDING):
+      {
+        return format_to(ctx.out(), "PENDING");
+      }
+      case (ccf::NodeStatus::TRUSTED):
+      {
+        return format_to(ctx.out(), "TRUSTED");
+      }
+      case (ccf::NodeStatus::RETIRED):
+      {
+        return format_to(ctx.out(), "RETIRED");
+      }
+    }
+  }
+};
+FMT_END_NAMESPACE

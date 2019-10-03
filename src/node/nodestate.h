@@ -18,6 +18,7 @@
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "seal.h"
+#include "timer.h"
 #include "tls/client.h"
 #include "tls/entropy.h"
 
@@ -122,6 +123,8 @@ namespace ccf
     std::shared_ptr<NodeToNode> n2n_channels;
     enclave::RPCSessions& rpcsessions;
     ccf::Notifier& notifier;
+    Timers& timers;
+
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
@@ -130,6 +133,8 @@ namespace ccf
     //
     std::vector<uint8_t> raw_fresh_key;
     std::map<NodeId, std::vector<uint8_t>> joiners_fresh_keys;
+    jsonrpc::SeqNo join_seq_no = 1;
+    std::shared_ptr<Timer> join_timer;
 
     //
     // recovery
@@ -150,7 +155,8 @@ namespace ccf
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
       enclave::RPCSessions& rpcsessions,
-      ccf::Notifier& notifier) :
+      ccf::Notifier& notifier,
+      Timers& timers) :
       sm(State::uninitialized),
       self(INVALID_ID),
       node_kp(tls::make_key_pair()),
@@ -158,7 +164,8 @@ namespace ccf
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
       rpcsessions(rpcsessions),
-      notifier(notifier)
+      notifier(notifier),
+      timers(timers)
     {
       ::EverCrypt_AutoConfig2_init();
     }
@@ -191,13 +198,8 @@ namespace ccf
 
       // Generate node key pair
       std::stringstream name;
-      name << "CN=" << Actors::MANAGEMENT;
+      name << "CN=" << Actors::NODES;
       node_cert = node_kp->self_sign(name.str());
-
-      // The node's self-signed certificate is used by clients to connect to the
-      // management frontend
-      rpcsessions.add_cert(
-        Actors::MANAGEMENT, nullb, node_cert, node_kp->private_key_pem());
 
       // Generate quote over node certificate
       // TODO: https://github.com/microsoft/CCF/issues/59
@@ -277,6 +279,11 @@ namespace ccf
         }
         case StartType::Join:
         {
+          // Generate fresh key to encrypt/decrypt historical network secrets
+          // sent
+          // by the primary via the kv store
+          raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
+
           sm.advance(State::pending);
           return Success<CreateNew::Out>({node_cert, quote});
         }
@@ -311,12 +318,8 @@ namespace ccf
     //
     // funcs in state "pending"
     //
-    void join(const Join::In& args)
+    void initiate_join(const Join::In& args)
     {
-      std::lock_guard<SpinLock> guard(lock);
-      sm.expect(State::pending);
-
-      // Peer certificate needs to be signed by specified network certificate
       auto tls_ca = std::make_shared<tls::CA>(args.config.joining.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
         Actors::NODES, tls_ca, node_cert, node_kp->private_key_pem(), nullb);
@@ -329,14 +332,16 @@ namespace ccf
         args.config.joining.target_port,
         [this](const std::vector<uint8_t>& data) {
           std::lock_guard<SpinLock> guard(lock);
-          sm.expect(State::pending);
+          if (!sm.check(State::pending))
+            return false;
 
-          auto j = jsonrpc::unpack(data, jsonrpc::Pack::MsgPack);
+          auto j = jsonrpc::unpack(data, jsonrpc::Pack::Text);
 
           // Check that the response is valid.
+          jsonrpc::Response<JoinNetworkNodeToNode::Out> resp;
           try
           {
-            auto resp = jsonrpc::Response<JoinNetworkNodeToNode::Out>(j);
+            resp = jsonrpc::Response<JoinNetworkNodeToNode::Out>(j);
           }
           catch (const std::exception& e)
           {
@@ -346,49 +351,55 @@ namespace ccf
           }
 
           // Set network secrets, node id and become part of network.
-          auto res = j.at(jsonrpc::RESULT).get<JoinNetworkNodeToNode::Out>();
+          if (resp->node_status == NodeStatus::TRUSTED)
+          {
+            // If the current network secrets do not apply since the genesis,
+            // the joining node can only join the public network
+            bool public_only = (resp->network_info.version != 0);
 
-          // If the current network secrets do not apply since the genesis,
-          // the joining node can only join the public network
-          bool public_only = (res.version != 0);
+            // In a private network, seal secrets immediately.
+            network.secrets = std::make_unique<NetworkSecrets>(
+              resp->network_info.version,
+              resp->network_info.network_secrets,
+              std::make_unique<Seal>(writer_factory),
+              !public_only);
 
-          // In a private network, seal secrets immediately.
-          network.secrets = std::make_unique<NetworkSecrets>(
-            res.version,
-            res.network_secrets,
-            std::make_unique<Seal>(writer_factory),
-            !public_only);
-
-          self = res.id;
-#ifndef PBFT
-          setup_raft(public_only);
-          setup_history();
+            self = resp->node_id;
+#ifdef PBFT
+            setup_pbft();
+#else
+            setup_raft(public_only);
 #endif
-          setup_encryptor();
+            setup_history();
+            setup_encryptor();
 
-          accept_node_connections();
-          accept_member_connections();
+            accept_node_connections();
+            accept_member_connections();
+            if (public_only)
+              sm.advance(State::partOfPublicNetwork);
+            else
+              sm.advance(State::partOfNetwork);
 
-          if (public_only)
-            sm.advance(State::partOfPublicNetwork);
-          else
-            sm.advance(State::partOfNetwork);
+            join_timer.reset();
 
-          LOG_INFO_FMT(
-            "Node has now joined the network as node {}: {}",
-            self,
-            (public_only ? "public only" : "all domains"));
+            LOG_INFO_FMT(
+              "Node has now joined the network as node {}: {}",
+              self,
+              (public_only ? "public only" : "all domains"));
+          }
+          else if (resp->node_status == NodeStatus::PENDING)
+          {
+            LOG_INFO_FMT(
+              "Node {} is waiting for votes of members to be trusted",
+              resp->node_id);
+          }
 
           return true;
         });
 
-      // Generate fresh key to encrypt/decrypt historical network secrets sent
-      // by the primary via the kv store
-      raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
-
       // Send RPC request to remote node to join the network.
       jsonrpc::ProcedureCall<JoinNetworkNodeToNode::In> join_rpc;
-      join_rpc.id = 1;
+      join_rpc.id = join_seq_no++;
       join_rpc.method = ccf::NodeProcs::JOIN;
       join_rpc.params.raw_fresh_key = raw_fresh_key;
       join_rpc.params.node_info_network = args.config.node_info_network;
@@ -406,12 +417,31 @@ namespace ccf
 #endif
       join_rpc.params.quote = quote;
 
-      auto join_req =
-        jsonrpc::pack(nlohmann::json(join_rpc), jsonrpc::Pack::MsgPack);
+      LOG_DEBUG_FMT(
+        "Sending join request to {}:{}",
+        args.config.joining.target_host,
+        args.config.joining.target_port);
 
-      LOG_INFO_FMT("Sending join request");
+      join_client->send(jsonrpc::pack(join_rpc, jsonrpc::Pack::Text));
+    }
 
-      join_client->send(join_req);
+    void join(const Join::In& args)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      sm.expect(State::pending);
+
+      initiate_join(args);
+
+      using namespace std::chrono_literals;
+      join_timer = timers.new_timer(1s, [this, args]() {
+        if (sm.check(State::pending))
+        {
+          initiate_join(args);
+          return true;
+        }
+        return false;
+      });
+      join_timer->start();
     }
 
     //
@@ -489,7 +519,7 @@ namespace ccf
 
       g.create_service(network.secrets->get_current().cert, last_index + 1);
 
-      g.delete_active_nodes();
+      g.retire_active_nodes();
 
       // Quotes should be initialised and non-empty
       std::vector<uint8_t> quote{1};
@@ -835,17 +865,17 @@ namespace ccf
         consensus->is_primary());
     }
 
-    bool is_part_of_network() const
+    bool is_part_of_network() const override
     {
       return sm.check(State::partOfNetwork);
     }
 
-    bool is_reading_public_ledger() const
+    bool is_reading_public_ledger() const override
     {
       return sm.check(State::readingPublicLedger);
     }
 
-    bool is_reading_private_ledger() const
+    bool is_reading_private_ledger() const override
     {
       return sm.check(State::readingPrivateLedger);
     }
@@ -936,7 +966,7 @@ namespace ccf
       joiners_fresh_keys.emplace(joiner_id, raw_key);
     }
 
-    void node_quotes(Store::Tx& tx, GetQuotes::Out& result)
+    void node_quotes(Store::Tx& tx, GetQuotes::Out& result) override
     {
       auto nodes_view = tx.get_view(network.nodes);
 
@@ -1148,15 +1178,17 @@ namespace ccf
           auto configure = false;
           std::unordered_set<NodeId> configuration;
 
-          // TODO(#important,#TR): Only TRUSTED nodes should be sent append
-          // entries, counted in election votes and allowed to establish
-          // node-to-node channels (section III-F).
           for (auto& [node_id, ni] : w)
           {
             switch (ni.value.status)
             {
-              case NodeStatus::TRUSTED:
               case NodeStatus::PENDING:
+              {
+                // Pending nodes are not added to consensus until they are
+                // trusted
+                break;
+              }
+              case NodeStatus::TRUSTED:
               {
                 add_node(node_id, ni.value.host, ni.value.nodeport);
                 configure = true;
@@ -1175,7 +1207,7 @@ namespace ccf
           if (configure)
           {
             s.foreach([&](NodeId node_id, const Nodes::VersionV& v) {
-              if (v.value.status != NodeStatus::RETIRED)
+              if (v.value.status == NodeStatus::TRUSTED)
                 configuration.insert(node_id);
               return true;
             });

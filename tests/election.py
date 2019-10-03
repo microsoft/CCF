@@ -25,7 +25,7 @@ def wait_for_index_globally_committed(index, term, nodes):
     for _ in range(infra.ccf.Network.replication_delay):
         up_to_date_f = []
         for f in nodes:
-            with f.management_client() as c:
+            with f.node_client() as c:
                 id = c.request("getCommit", {"commit": index})
                 res = c.response(id)
                 if res.result["term"] == term and res.global_commit > index:
@@ -76,7 +76,7 @@ def run(args):
 
             LOG.debug("Waiting for transaction to be committed by all nodes")
             wait_for_index_globally_committed(
-                commit_index, current_term, network.get_running_nodes()
+                commit_index, current_term, network.get_joined_nodes()
             )
 
             LOG.debug("Stopping primary")

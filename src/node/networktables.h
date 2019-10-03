@@ -40,9 +40,8 @@ namespace ccf
     Certs& user_certs;
     ClientSignatures& user_client_signatures;
 
-    // Node tables
+    // Node table
     Nodes& nodes;
-    Certs& node_certs;
 
     // Lua application table
     Scripts& app_scripts;
@@ -77,8 +76,6 @@ namespace ccf
       user_client_signatures(
         tables->create<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
       nodes(tables->create<Nodes>(Tables::NODES, kv::SecurityDomain::PUBLIC)),
-      node_certs(
-        tables->create<Certs>(Tables::NODE_CERTS, kv::SecurityDomain::PUBLIC)),
       app_scripts(tables->create<Scripts>(
         Tables::APP_SCRIPTS, kv::SecurityDomain::PUBLIC)),
       service(
@@ -110,7 +107,6 @@ namespace ccf
         std::ref(user_certs),
         std::ref(user_client_signatures),
         std::ref(nodes),
-        std::ref(node_certs),
         std::ref(service),
         std::ref(app_scripts),
         std::ref(values),

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "node/entities.h"
+#include "nodecalltypes.h"
 
 namespace ccf
 {
@@ -16,6 +17,10 @@ namespace ccf
     virtual bool is_primary() const = 0;
     virtual void set_joiner_key(
       NodeId joiner_id, const std::vector<uint8_t>& raw_key) = 0;
+    virtual bool is_reading_public_ledger() const = 0;
+    virtual bool is_reading_private_ledger() const = 0;
+    virtual bool is_part_of_network() const = 0;
+    virtual void node_quotes(Store::Tx& tx, GetQuotes::Out& result) = 0;
   };
 
   class AbstractNotifier

@@ -27,7 +27,7 @@ def run(args):
     ) as network:
         primary, (backup,) = network.start_and_join(args)
 
-        with primary.management_client() as mc:
+        with primary.node_client() as mc:
             check_commit = infra.ccf.Checker(mc)
             check = infra.ccf.Checker()
             r = mc.rpc("getQuotes", {})

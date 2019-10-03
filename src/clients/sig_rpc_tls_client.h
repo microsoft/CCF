@@ -38,6 +38,7 @@ public:
     nlohmann::json sj;
     sj["req"] = j;
     sj["sig"] = sig_contents;
+
     return gen_rpc_raw(sj, {j["id"]});
   }
 };

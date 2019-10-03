@@ -102,7 +102,7 @@ TEST_CASE("Encryption/decryption with multiple network secrets")
   uint64_t node_id = 0;
   auto secrets = ccf::NetworkSecrets(
     "CN=The CA"); // Create default secrets valid from version 0
-  auto new_secret = std::make_unique<ccf::NetworkSecrets::Secret>(
+  auto new_secret = std::make_unique<ccf::Secret>(
     std::vector<uint8_t>(),
     std::vector<uint8_t>(),
     std::vector<uint8_t>(16, 0x1));
