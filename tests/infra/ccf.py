@@ -552,7 +552,6 @@ class Network:
                 )
                 result = self.vote_using_majority(node, result[1]["id"])
 
-    # TODO: Test with HTTP
     def update_lua_app(self, node, app_script):
         # Note that the previous lua endpoints that are not updated will still
         # be available after app update
