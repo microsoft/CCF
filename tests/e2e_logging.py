@@ -65,18 +65,9 @@ def run(args):
 
                 LOG.debug("Write/Read on backup")
 
-                if args.package == "libluagenericenc":
-                    LOG.success("Hint is write")
-                    readonly_hint = False
-
                 with backup.user_client(format="json") as c:
                     check_commit(
-                        c.rpc(
-                            "LOG_record",
-                            {"id": 100, "msg": backup_msg},
-                            readonly_hint=readonly_hint,
-                        ),
-                        result=True,
+                        c.rpc("LOG_record", {"id": 100, "msg": backup_msg}), result=True
                     )
                     check(
                         c.rpc("LOG_get", {"id": 100}), result=log_get_string(backup_msg)

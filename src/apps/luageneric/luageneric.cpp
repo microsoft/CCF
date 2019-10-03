@@ -164,7 +164,7 @@ namespace ccfapp
       };
 
       // TODO: https://github.com/microsoft/CCF/issues/409
-      set_default(default_handler, MayWrite);
+      set_default(default_handler, Write);
     }
   };
 
