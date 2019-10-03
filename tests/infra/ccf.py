@@ -219,10 +219,8 @@ class Network:
         LOG.success("All nodes joined network")
 
         if args.app_script:
-            LOG.error("Adding lua app")
             infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
             self.update_lua_app(primary, args.app_script)
-            LOG.success("Lua app added")
 
         self.add_users(primary, self.initial_users)
         LOG.info("Initial set of users added")

@@ -54,19 +54,23 @@ def truncate(string, max_len=256):
 
 
 class Request:
-    def __init__(self, id, method, params, jsonrpc="2.0"):
+    def __init__(self, id, method, params, readonly_hint=None, jsonrpc="2.0"):
         self.id = id
         self.method = method
         self.params = params
         self.jsonrpc = jsonrpc
+        self.readonly_hint = readonly_hint
 
     def to_dict(self):
-        return {
+        rpc = {
             "id": self.id,
             "method": self.method,
             "jsonrpc": self.jsonrpc,
             "params": self.params,
         }
+        if self.readonly_hint is not None:
+            rpc["readonly"] = self.readonly_hint
+        return rpc
 
     def to_msgpack(self):
         return msgpack.packb(self.to_dict(), use_bin_type=True)
@@ -197,8 +201,8 @@ class Stream:
         self.pending = {}
         self.format = format
 
-    def request(self, method, params):
-        r = Request(self.seqno, method, params, self.jsonrpc)
+    def request(self, method, params, readonly_hint=None):
+        r = Request(self.seqno, method, params, readonly_hint, self.jsonrpc)
         self.seqno += 1
         return r
 
@@ -215,9 +219,13 @@ class RPCLogger:
     def log_request(self, request, name, description):
         LOG.info(
             truncate(
-                "{} #{} {} {}{}".format(
-                    name, request.id, request.method, request.params, description
+                f"{name} #{request.id} {request.method} {request.params}"
+                + (
+                    f" (RO hint: {request.readonly_hint})"
+                    if request.readonly_hint is not None
+                    else ""
                 )
+                + f"{description}"
             )
         )
 
@@ -281,8 +289,8 @@ class FramedTLSJSONRPCClient:
     def disconnect(self):
         return self.client.disconnect()
 
-    def request(self, method, params):
-        r = self.stream.request(method, params)
+    def request(self, method, params, readonly_hint=None):
+        r = self.stream.request(method, params, readonly_hint)
         self.client.send(getattr(r, "to_{}".format(self.format))())
         description = ""
         if self.description:
@@ -302,8 +310,15 @@ class FramedTLSJSONRPCClient:
             logger.log_response(r)
         return r
 
-    def do(self, method, params, expected_result=None, expected_error_code=None):
-        id = self.request(method, params)
+    def do(
+        self,
+        method,
+        params,
+        readonly_hint=None,
+        expected_result=None,
+        expected_error_code=None,
+    ):
+        id = self.request(method, params, readonly_hint)
         r = self.response(id)
 
         if expected_result is not None:
@@ -313,8 +328,8 @@ class FramedTLSJSONRPCClient:
             assert expected_error_code.value == r.error["code"]
         return r
 
-    def rpc(self, method, params):
-        id = self.request(method, params)
+    def rpc(self, method, params, readonly_hint=None):
+        id = self.request(method, params, readonly_hint)
         return self.response(id)
 
 
@@ -347,8 +362,8 @@ class CurlClient:
         self.stream = Stream(version, format=format)
         self.pending = {}
 
-    def signed_request(self, method, params):
-        r = self.stream.request(method, params)
+    def signed_request(self, method, params, readonly_hint=None):
+        r = self.stream.request(method, params, readonly_hint)
         with tempfile.NamedTemporaryFile() as nf:
             msg = getattr(r, "to_{}".format(self.format))()
             LOG.debug("Going to send {}".format(msg))
@@ -388,8 +403,8 @@ class CurlClient:
             self.stream.update(rc.stdout)
         return r.id
 
-    def request(self, method, params):
-        r = self.stream.request(method, params)
+    def request(self, method, params, readonly_hint=None):
+        r = self.stream.request(method, params, readonly_hint)
         with tempfile.NamedTemporaryFile() as nf:
             msg = getattr(r, "to_{}".format(self.format))()
             LOG.debug("Going to send {}".format(msg))
@@ -423,8 +438,15 @@ class CurlClient:
     def response(self, id):
         return self.stream.response(id)
 
-    def do(self, method, params, expected_result=None, expected_error_code=None):
-        id = self.request(method, params)
+    def do(
+        self,
+        method,
+        params,
+        readonly_hint=None,
+        expected_result=None,
+        expected_error_code=None,
+    ):
+        id = self.request(method, params, readonly_hint)
         r = self.response(id)
 
         if expected_result is not None:
@@ -434,12 +456,12 @@ class CurlClient:
             assert expected_error_code.value == r.error["code"]
         return r
 
-    def rpc(self, method, params, signed=False):
+    def rpc(self, method, params, readonly_hint=None, signed=False):
         if signed:
-            id = self.signed_request(method, params)
+            id = self.signed_request(method, params, readonly_hint)
             return self.response(id)
         else:
-            id = self.request(method, params)
+            id = self.request(method, params, readonly_hint)
             return self.response(id)
 
 

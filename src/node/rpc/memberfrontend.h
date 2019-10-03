@@ -28,6 +28,8 @@ namespace ccf
       return *s;
     }
 
+    // TODO: This function is very similar to set_app_scripts() in genesisgen.h
+    // Change this as part of https://github.com/microsoft/CCF/issues/320
     void set_app_scripts(
       Store::Tx& tx, std::map<std::string, std::string> scripts)
     {
