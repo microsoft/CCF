@@ -38,7 +38,7 @@ namespace enclave
     std::optional<jsonrpc::Pack> detect_pack(const std::vector<uint8_t>& input)
     {
       if (input.empty())
-        return {};
+        return std::nullopt;
 
       if (input[0] == '{')
         return jsonrpc::Pack::Text;
@@ -61,7 +61,7 @@ namespace enclave
       catch (const std::exception& e)
       {
         return jsonrpc::error(
-          jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+          jsonrpc::StandardErrorCodes::INVALID_REQUEST, 
           fmt::format("Exception during unpack: {}", e.what()));
       }
 
@@ -87,36 +87,53 @@ namespace enclave
 
     bool handle_data(const std::vector<uint8_t>& data)
     {
+      LOG_TRACE_FMT("Entered handle_data {} {}", data.size(), data.empty());
       auto pack = detect_pack(data);
       if (!pack.has_value())
+      {
+        LOG_TRACE_FMT("NO PACK");
         send(jsonrpc::pack(
           jsonrpc::error_response(
             0, jsonrpc::StandardErrorCodes::INVALID_REQUEST, "Empty request."),
           jsonrpc::Pack::Text)); return true;
+      }
 
+      LOG_TRACE_FMT("Detected");
       auto [deserialised, rpc] = unpack_json(data, pack.value());
 
       if (!deserialised)
+      {
         send(jsonrpc::pack(rpc, pack.value())); return true;
+      }
+      LOG_TRACE_FMT("Deserialised");
 
       auto method = get_method(rpc);
       if (!method.has_value())
+      {
         send(jsonrpc::pack(
           jsonrpc::error_response(
             0, jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND, "Method not found."),
-          jsonrpc::Pack::Text)); return true;
+          pack.value())); return true;
+      }
+      LOG_TRACE_FMT("Got method");
 
       std::string actor_prefix = get_actor(method.value());
 
       auto actor = rpc_map->resolve(actor_prefix);
       if (actor == ccf::ActorsType::unknown)
+      {
         send(jsonrpc::pack(
           jsonrpc::error_response(
             0, jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND, fmt::format("Invalid actor prefix: {}", actor_prefix)),
-          jsonrpc::Pack::Text)); return true;
+          pack.value())); return true;
+      }
+
+        auto search = rpc_map->find(actor);
+        if (!search.has_value())
+          return false;
 
       RPCContext rpc_ctx(session_id, peer_cert(), actor);
-      auto rep = handler->process(rpc_ctx, data);
+      auto rep = search.value()->process(rpc_ctx, data);
 
       if (rpc_ctx.is_pending)
       {

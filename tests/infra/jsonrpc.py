@@ -265,6 +265,7 @@ class FramedTLSJSONRPCClient:
         version="2.0",
         format="msgpack",
         description=None,
+        prefix=None
     ):
         self.client = FramedTLSClient(
             host, int(port), server_hostname, cert, key, cafile
@@ -274,6 +275,7 @@ class FramedTLSJSONRPCClient:
         self.name = "[{}:{}]".format(host, port)
         self.description = description
         self.rpc_loggers = (RPCLogger(),)
+        self.prefix = prefix
 
     def connect(self):
         return self.client.connect()
@@ -282,7 +284,7 @@ class FramedTLSJSONRPCClient:
         return self.client.disconnect()
 
     def request(self, method, params):
-        r = self.stream.request(method, params)
+        r = self.stream.request(f"{self.prefix}/{method}", params)
         self.client.send(getattr(r, "to_{}".format(self.format))())
         description = ""
         if self.description:
@@ -335,6 +337,7 @@ class CurlClient:
         version,
         format,
         description,
+        prefix
     ):
         self.host = host
         self.port = port
@@ -456,15 +459,16 @@ def client(
     description=None,
     log_file=None,
     connection_timeout=3,
+    prefix=None
 ):
     if os.getenv("HTTP"):
         c = CurlClient(
-            host, port, server_hostname, cert, key, cafile, version, format, description
+            host, port, server_hostname, cert, key, cafile, version, format, description, prefix
         )
         yield c
     else:
         c = FramedTLSJSONRPCClient(
-            host, port, server_hostname, cert, key, cafile, version, format, description
+            host, port, server_hostname, cert, key, cafile, version, format, description, prefix
         )
 
         if log_file is not None:
