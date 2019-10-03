@@ -713,6 +713,11 @@ namespace ccf
       return jsonrpc::pack(rep.value(), pack.value());
     }
 
+    std::string get_method(const std::string& method)
+    {
+      return method.substr(method.find_last_of('/') + 1, method.size());
+    }
+
     std::optional<nlohmann::json> process_json(
       enclave::RPCContext& ctx,
       Store::Tx& tx,
@@ -720,7 +725,7 @@ namespace ccf
       const nlohmann::json& rpc,
       const SignedReq& signed_request)
     {
-      std::string method = rpc.at(jsonrpc::METHOD);
+      std::string method = get_method(rpc.at(jsonrpc::METHOD));
       ctx.req.seq_no = rpc.at(jsonrpc::ID);
 
       const auto rpc_version = rpc.at(jsonrpc::JSON_RPC);
