@@ -57,11 +57,11 @@ def run(args):
                     check(c.rpc("LOG_get", {"id": 42}), result=log_get_string(msg))
                     check(c.rpc("LOG_get", {"id": 43}), result=log_get_string(msg2))
 
-                    LOG.debug("Write on all backup frontends")
-                    with backup.node_client(format="json") as c:
-                        check_commit(c.do("mkSign", params={}), result=True)
-                    with backup.member_client(format="json") as c:
-                        check_commit(c.do("mkSign", params={}), result=True)
+                LOG.debug("Write on all backup frontends")
+                with backup.node_client(format="json") as c:
+                    check_commit(c.do("mkSign", params={}), result=True)
+                with backup.member_client(format="json") as c:
+                    check_commit(c.do("mkSign", params={}), result=True)
 
                 LOG.debug("Write/Read on backup")
 
