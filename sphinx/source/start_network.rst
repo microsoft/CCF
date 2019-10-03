@@ -85,6 +85,8 @@ Before opening the CCF network to users, members should vote to register the Lua
     $ memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert update_lua_app --lua-app-file /path/to/lua/app_script
     {"commit":9,"global_commit":8,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
 
+Other members are then allowed to vote for the proposal, using the proposal ID returned to the proposer member (here ``1``, as per ``"result":{"completed":false,"id":1}``).
+
 .. code-block::
 
     $ memberclient --cert member2_cert --privk member2_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 1 --accept
