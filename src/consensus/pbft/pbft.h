@@ -110,6 +110,12 @@ namespace pbft
     SeqNo global_commit_seqno;
     std::unique_ptr<pbft::Store> store;
 
+    struct register_global_commit_info
+    {
+      pbft::Store* store;
+      SeqNo* global_commit_seqno;
+    } register_global_commit_ctx;
+
   public:
     Pbft(
       std::unique_ptr<pbft::Store> store_,
@@ -122,7 +128,7 @@ namespace pbft
       channels(channels_),
       rpcsessions(rpcsessions_),
       ledger(std::move(ledger_)),
-      global_commit_seqno(0),
+      global_commit_seqno(1),
       store(std::move(store_))
     {
       // configure replica
@@ -209,19 +215,23 @@ namespace pbft
         };
 
       auto global_commit_cb = [](kv::Version version, void* ctx) {
-        if (version == kv::NoVersion) {
+        auto p = static_cast<register_global_commit_info*>(ctx);
+        if (version == kv::NoVersion || version < *p->global_commit_seqno)
+        {
           return;
         }
-
-        auto store = static_cast<pbft::Store*>(ctx);
-        store->compact(version);
+        *p->global_commit_seqno = version;
+        p->store->compact(version);
       };
 
       message_receiver_base->register_append_ledger_entry_cb(
         append_ledger_entry_cb, ledger.get());
 
+      register_global_commit_ctx.store = store.get();
+      register_global_commit_ctx.global_commit_seqno = &global_commit_seqno;
+
       message_receiver_base->register_global_commit(
-        global_commit_cb, store.get());
+        global_commit_cb, &register_global_commit_ctx);
     }
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
@@ -320,13 +330,6 @@ namespace pbft
       const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
       override
     {
-      for (auto&& [seqno, data, globally_committable] : entries)
-      {
-        if (seqno != global_commit_seqno + 1)
-          return false;
-
-        global_commit_seqno = seqno;
-      }
       return true;
     }
 
