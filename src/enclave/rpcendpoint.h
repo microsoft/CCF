@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "../node/rpc/jsonrpc.h"
 #include "http.h"
 #include "rpcmap.h"
 #include "tlsframedendpoint.h"
-#include "../node/rpc/jsonrpc.h"
 
 namespace enclave
 {
@@ -61,7 +61,7 @@ namespace enclave
       catch (const std::exception& e)
       {
         return jsonrpc::error(
-          jsonrpc::StandardErrorCodes::INVALID_REQUEST, 
+          jsonrpc::StandardErrorCodes::INVALID_REQUEST,
           fmt::format("Exception during unpack: {}", e.what()));
       }
 
@@ -95,7 +95,8 @@ namespace enclave
         send(jsonrpc::pack(
           jsonrpc::error_response(
             0, jsonrpc::StandardErrorCodes::INVALID_REQUEST, "Empty request."),
-          jsonrpc::Pack::Text)); return true;
+          jsonrpc::Pack::Text));
+        return true;
       }
 
       LOG_TRACE_FMT("Detected");
@@ -103,7 +104,8 @@ namespace enclave
 
       if (!deserialised)
       {
-        send(jsonrpc::pack(rpc, pack.value())); return true;
+        send(jsonrpc::pack(rpc, pack.value()));
+        return true;
       }
       LOG_TRACE_FMT("Deserialised");
 
@@ -112,8 +114,11 @@ namespace enclave
       {
         send(jsonrpc::pack(
           jsonrpc::error_response(
-            0, jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND, "Method not found."),
-          pack.value())); return true;
+            0,
+            jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
+            "Method not found."),
+          pack.value()));
+        return true;
       }
       LOG_TRACE_FMT("Got method");
 
@@ -124,13 +129,16 @@ namespace enclave
       {
         send(jsonrpc::pack(
           jsonrpc::error_response(
-            0, jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND, fmt::format("Invalid actor prefix: {}", actor_prefix)),
-          pack.value())); return true;
+            0,
+            jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
+            fmt::format("Invalid actor prefix: {}", actor_prefix)),
+          pack.value()));
+        return true;
       }
 
-        auto search = rpc_map->find(actor);
-        if (!search.has_value())
-          return false;
+      auto search = rpc_map->find(actor);
+      if (!search.has_value())
+        return false;
 
       RPCContext rpc_ctx(session_id, peer_cert(), actor);
       auto rep = search.value()->process(rpc_ctx, data);
@@ -149,46 +157,46 @@ namespace enclave
       return true;
     }
 
-/*
-    bool handle_data(const std::vector<uint8_t>& data)
-    {
-      if (!handler)
-      {
-        // The hostname indicates the rpc class.
-        auto host = hostname();
+    /*
+        bool handle_data(const std::vector<uint8_t>& data)
+        {
+          if (!handler)
+          {
+            // The hostname indicates the rpc class.
+            auto host = hostname();
 
-        actor = rpc_map->resolve(host);
-        if (actor == ccf::ActorsType::unknown)
-          return false;
+            actor = rpc_map->resolve(host);
+            if (actor == ccf::ActorsType::unknown)
+              return false;
 
-        auto search = rpc_map->find(actor);
-        if (!search.has_value())
-          return false;
+            auto search = rpc_map->find(actor);
+            if (!search.has_value())
+              return false;
 
-        // If there is a client cert, pass it to the rpc handler.
-        LOG_DEBUG_FMT("RPC endpoint {}: {}", session_id, host);
-        handler = search.value();
-        caller = peer_cert();
-      }
+            // If there is a client cert, pass it to the rpc handler.
+            LOG_DEBUG_FMT("RPC endpoint {}: {}", session_id, host);
+            handler = search.value();
+            caller = peer_cert();
+          }
 
-      // Create a new RPC context for each command since some may require
-      // forwarding to the primary.
-      RPCContext rpc_ctx(session_id, caller, actor);
-      auto rep = handler->process(rpc_ctx, data);
+          // Create a new RPC context for each command since some may require
+          // forwarding to the primary.
+          RPCContext rpc_ctx(session_id, caller, actor);
+          auto rep = handler->process(rpc_ctx, data);
 
-      if (rpc_ctx.is_pending)
-      {
-        // If the RPC has been forwarded, hold the connection.
-        return true;
-      }
-      else
-      {
-        // Otherwise, reply to the client synchronously.
-        send(rep);
-      }
+          if (rpc_ctx.is_pending)
+          {
+            // If the RPC has been forwarded, hold the connection.
+            return true;
+          }
+          else
+          {
+            // Otherwise, reply to the client synchronously.
+            send(rep);
+          }
 
-      return true;
-    }
-*/  
+          return true;
+        }
+    */
   };
 }

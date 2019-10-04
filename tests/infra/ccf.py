@@ -19,6 +19,7 @@ from loguru import logger as LOG
 
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 
+
 class NodeNetworkState(Enum):
     stopped = 0
     started = 1
