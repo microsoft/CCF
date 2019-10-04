@@ -1286,6 +1286,7 @@ namespace ccf
       accept_user_connections();
 
       consensus = std::make_shared<PbftConsensusType>(
+        std::make_unique<pbft::Adaptor<Store>>(network.tables),
         n2n_channels,
         self,
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
