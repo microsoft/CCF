@@ -133,7 +133,7 @@ void add_new(
   auto verifier = tls::make_verifier(cert);
   const auto params = proposal_params(proposal, verifier->raw_cert_data());
   const auto response =
-    json::from_msgpack(tls_connection.call("propose", params));
+    json::from_msgpack(tls_connection.call("members/propose", params));
   cout << response.dump() << endl;
 }
 
@@ -141,7 +141,7 @@ void submit_accept_node(RpcTlsClient& tls_connection, NodeId node_id)
 {
   auto params = proposal_params<NodeId>(accept_node_proposal, node_id);
   const auto response =
-    json::from_msgpack(tls_connection.call("propose", params));
+    json::from_msgpack(tls_connection.call("members/propose", params));
   cout << response.dump() << endl;
 }
 
@@ -155,7 +155,7 @@ void submit_accept_code(RpcTlsClient& tls_connection, std::string& new_code_id)
 
   auto params = proposal_params<CodeDigest>(accept_code_proposal, digest);
   const auto response =
-    json::from_msgpack(tls_connection.call("propose", params));
+    json::from_msgpack(tls_connection.call("members/propose", params));
   cout << response.dump() << endl;
 }
 
@@ -163,7 +163,7 @@ void submit_retire_node(RpcTlsClient& tls_connection, NodeId node_id)
 {
   auto params = proposal_params<NodeId>(retire_node_proposal, node_id);
   const auto response =
-    json::from_msgpack(tls_connection.call("propose", params));
+    json::from_msgpack(tls_connection.call("members/propose", params));
   cout << response.dump() << endl;
 }
 
@@ -174,7 +174,7 @@ void submit_accept_recovery(
   const auto params =
     proposal_params<json>(accept_recovery_proposal, sealed_secrets);
   const auto response =
-    json::from_msgpack(tls_connection.call("propose", params));
+    json::from_msgpack(tls_connection.call("members/propose", params));
   cout << response.dump() << std::endl;
 }
 
@@ -182,7 +182,7 @@ void submit_open_network(RpcTlsClient& tls_connection)
 {
   const auto params = proposal_params(open_network_proposal);
   const auto response =
-    json::from_msgpack(tls_connection.call("propose", params));
+    json::from_msgpack(tls_connection.call("members/propose", params));
   cout << response.dump() << std::endl;
 }
 
@@ -200,14 +200,14 @@ void submit_raw_puts(
     param = json::parse(v.begin(), v.end());
   }
   const auto response = json::from_msgpack(
-    tls_connection.call("propose", proposal_params(script, param["p"])));
+    tls_connection.call("members/propose", proposal_params(script, param["p"])));
   cout << response << endl;
 }
 
 void submit_withdraw(RpcTlsClient& tls_connection, ObjectId proposal_id)
 {
   const auto response = json::from_msgpack(
-    tls_connection.call("withdraw", ProposalAction{proposal_id}));
+    tls_connection.call("members/withdraw", ProposalAction{proposal_id}));
   cout << response << endl;
 }
 
@@ -215,14 +215,14 @@ void submit_vote(
   RpcTlsClient& tls_connection, ObjectId proposal_id, const string& vote_script)
 {
   const auto response = json::from_msgpack(
-    tls_connection.call("vote", Vote{proposal_id, vote_script}));
+    tls_connection.call("members/vote", Vote{proposal_id, vote_script}));
   cout << response.dump() << endl;
 }
 
 void submit_query(RpcTlsClient& tls_connection, const string& query_script)
 {
   const auto response = json::from_msgpack(
-    tls_connection.call("query", query_params(query_script)));
+    tls_connection.call("members/query", query_params(query_script)));
   cout << response.dump() << endl;
 }
 
@@ -230,7 +230,7 @@ void display_proposals(RpcTlsClient& tls_connection)
 {
   auto params = query_params(read_proposals);
   Response<json> response =
-    json::from_msgpack(tls_connection.call("query", params));
+    json::from_msgpack(tls_connection.call("members/query", params));
   cout << endl;
   cout << response.result;
 }
@@ -243,18 +243,18 @@ void submit_ack(
   // member using its own certificate reads its member id
   auto verifier = tls::make_verifier(raw_cert);
   Response<ObjectId> read_id = json::from_msgpack(tls_connection.call(
-    "read", read_params(verifier->raw_cert_data(), Tables::MEMBER_CERTS)));
+    "members/read", read_params(verifier->raw_cert_data(), Tables::MEMBER_CERTS)));
   const auto member_id = read_id.result;
 
   // member reads nonce
   Response<MemberAck> read_ack = json::from_msgpack(
-    tls_connection.call("read", read_params(member_id, Tables::MEMBER_ACKS)));
+    tls_connection.call("members/read", read_params(member_id, Tables::MEMBER_ACKS)));
 
   // member signs nonce and sends ack
   auto kp = tls::make_key_pair(key);
   const auto sig = kp->sign(read_ack.result.next_nonce);
   const auto response =
-    json::from_msgpack(tls_connection.call("ack", ack_params(sig)));
+    json::from_msgpack(tls_connection.call("members/ack", ack_params(sig)));
   cout << response << endl;
 }
 

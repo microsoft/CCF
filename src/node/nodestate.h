@@ -400,7 +400,9 @@ namespace ccf
       // Send RPC request to remote node to join the network.
       jsonrpc::ProcedureCall<JoinNetworkNodeToNode::In> join_rpc;
       join_rpc.id = join_seq_no++;
-      join_rpc.method = "nodes/" + ccf::NodeProcs::JOIN;
+      std::stringstream ss;
+      ss << "nodes/" << ccf::NodeProcs::JOIN;
+      join_rpc.method = ss.str();
       join_rpc.params.raw_fresh_key = raw_fresh_key;
       join_rpc.params.node_info_network = args.config.node_info_network;
 
