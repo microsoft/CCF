@@ -28,7 +28,7 @@ def run(args):
         primary, others = network.start_and_join(args)
 
         LOG.debug("Network should not be able to be opened twice")
-        result = network.propose(1, primary, "open_network")
+        result = network.propose(1, primary, None, None, "open_network")
         assert not network.vote_using_majority(
             primary, result[1]["id"]
         ), "Network should not be opened twice"

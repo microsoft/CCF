@@ -400,17 +400,13 @@ class Network:
         j_result = json.loads(result.stdout)
         return j_result
 
-    def propose(
-        self, member_id, remote_node, proposal, script=None, params=None, *args
-    ):
+    def propose(self, member_id, remote_node, script=None, params=None, *args):
         if os.getenv("HTTP"):
             with remote_node.member_client() as mc:
                 r = mc.rpc("propose", {"parameter": params, "script": {"text": script}})
                 return (True, r.result)
         else:
-            j_result = self.member_client_rpc_as_json(
-                member_id, remote_node, proposal, *args
-            )
+            j_result = self.member_client_rpc_as_json(member_id, remote_node, *args)
 
             if j_result.get("error") is not None:
                 self.remove_last_node()
@@ -468,7 +464,7 @@ class Network:
 
     def propose_retire_node(self, member_id, remote_node, node_id):
         return self.propose(
-            member_id, remote_node, "retire_node", None, None, f"--node-id={node_id}"
+            member_id, remote_node, None, None, "retire_node", f"--node-id={node_id}"
         )
 
     def retire_node(self, remote_node, node_id):
@@ -482,7 +478,7 @@ class Network:
 
     def propose_trust_node(self, member_id, remote_node, node_id):
         return self.propose(
-            member_id, remote_node, "trust_node", None, None, f"--node-id={node_id}"
+            member_id, remote_node, None, None, "trust_node", f"--node-id={node_id}"
         )
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
@@ -511,9 +507,9 @@ class Network:
         return self.propose(
             member_id,
             remote_node,
+            None,
+            None,
             "add_member",
-            None,
-            None,
             f"--member-cert={new_member_cert}",
         )
 
@@ -529,7 +525,7 @@ class Network:
             tables = ...
             return Calls:call("open_network")
             """
-        result = self.propose(1, node, "open_network", script)
+        result = self.propose(1, node, script, None, "open_network")
         self.vote_using_majority(node, result[1]["id"])
         self.check_for_service(node)
         self.status = ServiceStatus.OPEN
@@ -561,7 +557,7 @@ class Network:
         else:
             for u in users:
                 result = self.propose(
-                    1, node, "add_user", None, None, f"--user-cert=user{u}_cert.pem"
+                    1, node, None, None, "add_user", f"--user-cert=user{u}_cert.pem"
                 )
                 self.vote_using_majority(node, result[1]["id"])
 
@@ -569,7 +565,7 @@ class Network:
         # Note that the previous lua endpoints that are not updated will still
         # be available after app update
         result = self.propose(
-            1, node, "set_lua_app", None, None, f"--lua-app-file={app_script}"
+            1, node, None, None, "set_lua_app", f"--lua-app-file={app_script}"
         )
         self.vote_using_majority(node, result[1]["id"])
 
