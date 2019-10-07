@@ -156,7 +156,12 @@ def run(args):
 
                 LOG.debug("2/3 members vote to complete the recovery")
                 rc, result = recovered_network.propose(
-                    1, primary, "accept_recovery", f"--sealed-secrets={sealed_secrets}"
+                    1,
+                    primary,
+                    None,
+                    None,
+                    "accept_recovery",
+                    f"--sealed-secrets={sealed_secrets}",
                 )
                 assert rc and not result["completed"]
                 proposal_id = result["id"]
