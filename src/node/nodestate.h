@@ -1276,11 +1276,6 @@ namespace ccf
     {
       setup_n2n_channels();
 
-      // Since global hooks are not yet called when running CCF with ePBFT,
-      // opening the network to users is hardcoded here for now. See
-      // https://github.com/microsoft/CCF/issues/373
-      accept_user_connections();
-
       consensus = std::make_shared<PbftConsensusType>(
         std::make_unique<pbft::Adaptor<Store>>(network.tables),
         n2n_channels,
