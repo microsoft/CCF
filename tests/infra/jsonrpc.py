@@ -349,9 +349,10 @@ class CurlClient:
         self.format = format
         self.stream = Stream(version, format=format)
         self.pending = {}
+        self.prefix = prefix
 
     def signed_request(self, method, params):
-        r = self.stream.request(method, params)
+        r = self.stream.request(f"{self.prefix}/{method}", params)
         with tempfile.NamedTemporaryFile() as nf:
             msg = getattr(r, "to_{}".format(self.format))()
             LOG.debug("Going to send {}".format(msg))
@@ -392,7 +393,7 @@ class CurlClient:
         return r.id
 
     def request(self, method, params):
-        r = self.stream.request(method, params)
+        r = self.stream.request(f"{self.prefix}/{method}", params)
         with tempfile.NamedTemporaryFile() as nf:
             msg = getattr(r, "to_{}".format(self.format))()
             LOG.debug("Going to send {}".format(msg))
