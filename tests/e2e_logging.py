@@ -46,7 +46,7 @@ def run(args):
                 msg2 = "Hello there"
                 backup_msg = "Msg sent to a backup"
 
-                LOG.debug("Write/Read on primary")
+                LOG.info("Write/Read on primary")
                 with primary.user_client(format="json") as c:
                     check_commit(
                         c.rpc("LOG_record", {"id": 42, "msg": msg}), result=True
@@ -57,13 +57,13 @@ def run(args):
                     check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
                     check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2})
 
-                LOG.debug("Write on all backup frontends")
+                LOG.info("Write on all backup frontends")
                 with backup.node_client(format="json") as c:
                     check_commit(c.do("mkSign", params={}), result=True)
                 with backup.member_client(format="json") as c:
                     check_commit(c.do("mkSign", params={}), result=True)
 
-                LOG.debug("Write/Read on backup")
+                LOG.info("Write/Read on backup")
 
                 with backup.user_client(format="json") as c:
                     check_commit(
@@ -72,7 +72,7 @@ def run(args):
                     check(c.rpc("LOG_get", {"id": 100}), result={"msg": backup_msg})
                     check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
 
-                LOG.debug("Write/Read large messages on primary")
+                LOG.info("Write/Read large messages on primary")
                 with primary.user_client(format="json") as c:
                     id = 44
                     for p in range(14, 20):
@@ -81,11 +81,43 @@ def run(args):
                             c.rpc("LOG_record", {"id": id, "msg": long_msg}),
                             result=True,
                         )
-                        check(
-                            c.rpc("LOG_get", {"id": id}),
-                            result={"msg": long_msg},
-                        )
+                        check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg})
                     id += 1
+
+                if args.package == "libluagenericenc":
+                    LOG.info("Setting new lua application")
+
+                    # Create a new lua application file (minimal app)
+                    # TODO: Writing to file will not be required when memberclient is deprecated
+                    new_app_file = "new_lua_app.lua"
+                    with open(new_app_file, "w") as qfile:
+                        qfile.write(
+                            """
+                            return {
+                            ping = [[
+                                tables, args = ...
+                                return {result = "pong"}
+                            ]],
+                            }"""
+                        )
+
+                    network.set_lua_app(primary, new_app_file)
+                    with primary.user_client(format="json") as c:
+                        check(c.rpc("ping", params={}), result="pong")
+
+                        LOG.debug("Check that former endpoints no longer exists")
+                        for endpoint in [
+                            "LOG_record",
+                            "LOG_record_pub",
+                            "LOG_get",
+                            "LOG_get_pub",
+                        ]:
+                            check(
+                                c.rpc(endpoint, params={}),
+                                error=lambda e: e is not None
+                                and e["code"]
+                                == infra.jsonrpc.ErrorCode.METHOD_NOT_FOUND.value,
+                            )
 
 
 if __name__ == "__main__":

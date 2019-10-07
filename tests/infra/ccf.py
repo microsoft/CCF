@@ -220,7 +220,7 @@ class Network:
 
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
-            self.update_lua_app(primary, args.app_script)
+            self.set_lua_app(primary, args.app_script)
 
         self.add_users(primary, self.initial_users)
         LOG.info("Initial set of users added")
@@ -405,7 +405,7 @@ class Network:
     ):
         if os.getenv("HTTP"):
             with remote_node.member_client() as mc:
-                r = mc.rpc("propose", {"parameter": None, "script": {"text": script}})
+                r = mc.rpc("propose", {"parameter": params, "script": {"text": script}})
                 return (True, r.result)
         else:
             j_result = self.member_client_rpc_as_json(
@@ -474,7 +474,7 @@ class Network:
     def retire_node(self, remote_node, node_id):
         member_id = 1
         result = self.propose_retire_node(member_id, remote_node, node_id)
-        result = self.vote_using_majority(remote_node, result[1]["id"])
+        self.vote_using_majority(remote_node, result[1]["id"])
 
         with remote_node.member_client() as c:
             id = c.request("read", {"table": "ccf.nodes", "key": node_id})
@@ -502,7 +502,7 @@ class Network:
 
         member_id = 1
         result = self.propose_trust_node(member_id, remote_node, node_id)
-        result = self.vote_using_majority(remote_node, result[1]["id"])
+        self.vote_using_majority(remote_node, result[1]["id"])
 
         if not self._check_node_exists(remote_node, node_id, NodeStatus.TRUSTED):
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
@@ -563,15 +563,15 @@ class Network:
                 result = self.propose(
                     1, node, "add_user", None, None, f"--user-cert=user{u}_cert.pem"
                 )
-                result = self.vote_using_majority(node, result[1]["id"])
+                self.vote_using_majority(node, result[1]["id"])
 
-    def update_lua_app(self, node, app_script):
+    def set_lua_app(self, node, app_script):
         # Note that the previous lua endpoints that are not updated will still
         # be available after app update
         result = self.propose(
-            1, node, "update_lua_app", None, None, f"--lua-app-file={app_script}"
+            1, node, "set_lua_app", None, None, f"--lua-app-file={app_script}"
         )
-        result = self.vote_using_majority(node, result[1]["id"])
+        self.vote_using_majority(node, result[1]["id"])
 
     def stop_all_nodes(self):
         for node in self.nodes:

@@ -82,7 +82,7 @@ Before opening the CCF network to users, members should vote to register the Lua
 
 .. code-block:: bash
 
-    $ memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert update_lua_app --lua-app-file /path/to/lua/app_script
+    $ memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert set_lua_app --lua-app-file /path/to/lua/app_script
     {"commit":9,"global_commit":8,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
 
 Other members are then allowed to vote for the proposal, using the proposal ID returned to the proposer member (here ``1``, as per ``"result":{"completed":false,"id":1}``).
@@ -96,8 +96,6 @@ Other members are then allowed to vote for the proposal, using the proposal ID r
     {"commit":13,"global_commit":12,"id":0,"jsonrpc":"2.0","result":{"completed":true,"id":1},"term":2}
 
 The Lua application is successfully registered once a :term:`quorum` of members have accepted the proposal (``"result":true"``).
-
-.. warning:: Once the network is open, it is still possible for members to update the Lua application using the same command. Note that the previous RPC handlers that are not explicitly updated in the new version of the application will still be available.
 
 Open a network
 ~~~~~~~~~~~~~~
@@ -154,7 +152,7 @@ Summary diagram
 
 Once a node is part of the network (started with either the ``start`` or ``join`` option), members are authorised to issue governance transactions and eventually open the network. Only then are users authorised to issue JSON-RPC transactions to CCF.
 
-.. note:: After the network is open to users, members can still issue governance transactions to CCF (for example, adding new users or additional members to the consortium). See :ref:`Governance` for more information about member governance.
+.. note:: After the network is open to users, members can still issue governance transactions to CCF (for example, adding new users or additional members to the consortium or updating the Lua app, when applicable). See :ref:`Governance` for more information about member governance.
 
 The following diagram summarises the steps required to bootstrap a CCF network:
 
