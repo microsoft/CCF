@@ -289,8 +289,8 @@ class FramedTLSJSONRPCClient:
     def disconnect(self):
         return self.client.disconnect()
 
-    def request(self, method, params, readonly_hint=None):
-        r = self.stream.request(method, params, readonly_hint)
+    def request(self, *args, **kwargs):
+        r = self.stream.request(*args, **kwargs)
         self.client.send(getattr(r, "to_{}".format(self.format))())
         description = ""
         if self.description:
@@ -310,26 +310,26 @@ class FramedTLSJSONRPCClient:
             logger.log_response(r)
         return r
 
-    def do(
-        self,
-        method,
-        params,
-        readonly_hint=None,
-        expected_result=None,
-        expected_error_code=None,
-    ):
-        id = self.request(method, params, readonly_hint)
+    def do(self, *args, **kwargs):
+        expected_result = None
+        expected_error_code = None
+        if "expected_result" in kwargs:
+            expected_result = kwargs.pop("expected_result")
+        if "expected_error_code" in kwargs:
+            expected_error_code = kwargs.pop("expected_error_code")
+
+        id = self.request(*args, **kwargs)
         r = self.response(id)
 
         if expected_result is not None:
             assert expected_result == r.result
 
         if expected_error_code is not None:
-            assert expected_error_code.value == r.error["code"]
+            assert expected_error_code== r.error["code"]
         return r
 
-    def rpc(self, method, params, readonly_hint=None):
-        id = self.request(method, params, readonly_hint)
+    def rpc(self, *args, **kwargs):
+        id = self.request(*args, **kwargs)
         return self.response(id)
 
 
@@ -362,8 +362,8 @@ class CurlClient:
         self.stream = Stream(version, format=format)
         self.pending = {}
 
-    def signed_request(self, method, params, readonly_hint=None):
-        r = self.stream.request(method, params, readonly_hint)
+    def signed_request(self, *args, **kwargs):
+        r = self.stream.request(*args, **kwargs)
         with tempfile.NamedTemporaryFile() as nf:
             msg = getattr(r, "to_{}".format(self.format))()
             LOG.debug("Going to send {}".format(msg))
@@ -403,8 +403,8 @@ class CurlClient:
             self.stream.update(rc.stdout)
         return r.id
 
-    def request(self, method, params, readonly_hint=None):
-        r = self.stream.request(method, params, readonly_hint)
+    def request(self, *args, **kwargs):
+        r = self.stream.request(*args, **kwargs)
         with tempfile.NamedTemporaryFile() as nf:
             msg = getattr(r, "to_{}".format(self.format))()
             LOG.debug("Going to send {}".format(msg))
@@ -438,30 +438,30 @@ class CurlClient:
     def response(self, id):
         return self.stream.response(id)
 
-    def do(
-        self,
-        method,
-        params,
-        readonly_hint=None,
-        expected_result=None,
-        expected_error_code=None,
-    ):
-        id = self.request(method, params, readonly_hint)
+    def do(self, *args, **kwargs):
+        expected_result = None
+        expected_error_code = None
+        if "expected_result" in kwargs:
+            expected_result = kwargs.pop("expected_result")
+        if "expected_error_code" in kwargs:
+            expected_error_code = kwargs.pop("expected_error_code")
+
+        id = self.request(*args, **kwargs)
         r = self.response(id)
 
         if expected_result is not None:
             assert expected_result == r.result
 
         if expected_error_code is not None:
-            assert expected_error_code.value == r.error["code"]
+            assert expected_error_code== r.error["code"]
         return r
 
-    def rpc(self, method, params, readonly_hint=None, signed=False):
-        if signed:
-            id = self.signed_request(method, params, readonly_hint)
+    def rpc(self, *args, **kwargs):
+        if "signed" in kwargs and kwargs.pop("signed"):
+            id = self.signed_request(*args, **kwargs)
             return self.response(id)
         else:
-            id = self.request(method, params, readonly_hint)
+            id = self.request(*args, **kwargs)
             return self.response(id)
 
 
