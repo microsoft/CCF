@@ -29,6 +29,7 @@ def run(args):
 
     with infra.notification.notification_server(args.notify_server) as notifications:
         # Lua apps do not support notifications
+        # https://github.com/microsoft/CCF/issues/415
         notifications_queue = (
             notifications.get_queue() if args.package == "libloggingenc" else None
         )

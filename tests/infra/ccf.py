@@ -363,7 +363,7 @@ class Network:
         associated with current CCF service signing key has been recorded in
         the KV store with the appropriate status.
         """
-        with node.member_client() as c:
+        with node.member_client(format="json") as c:
             rep = c.do(
                 "query",
                 {
@@ -371,10 +371,7 @@ class Network:
                     return tables["ccf.service"]:get(0)"""
                 },
             )
-            if os.getenv("HTTP"):
-                current_status = rep.result["status"]
-            else:
-                current_status = rep.result["status"].decode()
+            current_status = rep.result["status"]
             current_cert = array.array("B", rep.result["cert"]).tobytes()
 
             expected_cert = open("networkcert.pem", "rb").read()

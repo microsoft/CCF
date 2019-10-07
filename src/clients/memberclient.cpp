@@ -23,7 +23,6 @@ using namespace std;
 using namespace nlohmann;
 
 constexpr auto members_sni = "members";
-constexpr NodeId INVALID_NODE_ID = std::numeric_limits<NodeId>::max();
 
 static const string add_member_proposal(R"xxx(
       tables, member_cert = ...
