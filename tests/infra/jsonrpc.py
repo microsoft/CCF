@@ -325,7 +325,7 @@ class FramedTLSJSONRPCClient:
             assert expected_result == r.result
 
         if expected_error_code is not None:
-            assert expected_error_code== r.error["code"]
+            assert expected_error_code == r.error["code"]
         return r
 
     def rpc(self, *args, **kwargs):
@@ -453,7 +453,7 @@ class CurlClient:
             assert expected_result == r.result
 
         if expected_error_code is not None:
-            assert expected_error_code== r.error["code"]
+            assert expected_error_code == r.error["code"]
         return r
 
     def rpc(self, *args, **kwargs):
