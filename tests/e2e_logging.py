@@ -17,13 +17,6 @@ import e2e_args
 from loguru import logger as LOG
 
 
-def log_get_string(msg):
-    if args.package == "libloggingenc":
-        return {"msg": msg}
-    else:
-        return msg
-
-
 def run(args):
     hosts = ["localhost", "localhost"]
 

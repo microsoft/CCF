@@ -559,8 +559,6 @@ class Network:
                 self.vote_using_majority(node, result[1]["id"])
 
     def set_lua_app(self, node, app_script):
-        # Note that the previous lua endpoints that are not updated will still
-        # be available after app update
         result = self.propose(
             1, node, None, None, "set_lua_app", f"--lua-app-file={app_script}"
         )
