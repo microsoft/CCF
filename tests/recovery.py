@@ -39,9 +39,19 @@ def check_nodes_have_msgs(nodes, txs):
     for node in nodes:
         with node.user_client() as c:
             for n, msg in txs.priv.items():
-                c.do("LOG_get", {"id": n}, {"msg": msg.encode()})
+                c.do(
+                    "LOG_get",
+                    {"id": n},
+                    readonly_hint=None,
+                    expected_result={"msg": msg.encode()},
+                )
             for n, msg in txs.pub.items():
-                c.do("LOG_get_pub", {"id": n}, {"msg": msg.encode()})
+                c.do(
+                    "LOG_get_pub",
+                    {"id": n},
+                    readonly_hint=None,
+                    expected_result={"msg": msg.encode()},
+                )
 
 
 def log_msgs(primary, txs):
@@ -146,7 +156,12 @@ def run(args):
 
                 LOG.debug("2/3 members vote to complete the recovery")
                 rc, result = recovered_network.propose(
-                    1, primary, "accept_recovery", f"--sealed-secrets={sealed_secrets}"
+                    1,
+                    primary,
+                    None,
+                    None,
+                    "accept_recovery",
+                    f"--sealed-secrets={sealed_secrets}",
                 )
                 assert rc and not result["completed"]
                 proposal_id = result["id"]

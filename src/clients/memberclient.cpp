@@ -23,7 +23,6 @@ using namespace std;
 using namespace nlohmann;
 
 constexpr auto members_sni = "members";
-constexpr NodeId INVALID_NODE_ID = std::numeric_limits<NodeId>::max();
 
 static const string add_member_proposal(R"xxx(
       tables, member_cert = ...
@@ -75,6 +74,11 @@ static const string open_network_proposal(R"xxx(
 static const string accept_code_proposal(R"xxx(
       tables, code_digest = ...
       return Calls:call("new_code", code_digest)
+    )xxx");
+
+static const string set_lua_app(R"xxx(
+      tables, app = ...
+      return Calls:call("set_lua_app", app)
     )xxx");
 
 json proposal_params(const string& script)
@@ -181,6 +185,14 @@ void submit_accept_recovery(
 void submit_open_network(RpcTlsClient& tls_connection)
 {
   const auto params = proposal_params(open_network_proposal);
+  const auto response =
+    json::from_msgpack(tls_connection.call("propose", params));
+  cout << response.dump() << std::endl;
+}
+
+void submit_set_lua_app(RpcTlsClient& tls_connection, const std::string& app)
+{
+  const auto params = proposal_params<json>(set_lua_app, app);
   const auto response =
     json::from_msgpack(tls_connection.call("propose", params));
   cout << response.dump() << std::endl;
@@ -363,6 +375,14 @@ int main(int argc, char** argv)
   auto accept_recovery =
     app.add_subcommand("accept_recovery", "Accept to recover network");
 
+  auto set_lua_app =
+    app.add_subcommand("set_lua_app", "Update lua application");
+  string lua_app_file;
+  set_lua_app
+    ->add_option("--lua-app-file", lua_app_file, "Lua application file")
+    ->required(true)
+    ->check(CLI::ExistingFile);
+
   string sealed_secrets_file;
   accept_recovery
     ->add_option(
@@ -486,6 +506,11 @@ int main(int argc, char** argv)
     if (*open_network)
     {
       submit_open_network(*tls_connection);
+    }
+
+    if (*set_lua_app)
+    {
+      submit_set_lua_app(*tls_connection, slurp_string(lua_app_file));
     }
   }
   catch (const exception& ex)

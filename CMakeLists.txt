@@ -273,13 +273,6 @@ if(BUILD_TESTS)
         NAME voting_history_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
 
-      ## Lua Logging client end to end test
-      add_e2e_test(
-        NAME lua_logging_client_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
-        ADDITIONAL_ARGS
-          --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua)
-
       ## Lua sample app (tx regulator) end to end test
       add_e2e_test(
         NAME lua_txregulator_test
@@ -316,6 +309,12 @@ if(BUILD_TESTS)
         NAME end_to_end_logging
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       )
+
+      add_e2e_test(
+        NAME lua_end_to_end_logging
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+        ADDITIONAL_ARGS
+          --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua)
 
       add_e2e_test(
         NAME end_to_end_scenario
