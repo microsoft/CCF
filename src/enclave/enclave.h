@@ -53,6 +53,9 @@ namespace enclave
         std::make_shared<ccf::Forwarder>(rpcsessions, n2n_channels)),
       rpc_map(std::make_shared<RpcMap>())
     {
+      logger::config::msg() = AdminMessage::log_msg;
+      logger::config::writer() = writer_factory.create_writer_to_outside();
+
       REGISTER_FRONTEND(
         rpc_map,
         members,
@@ -71,9 +74,6 @@ namespace enclave
           signature_intervals.sig_max_tx, signature_intervals.sig_max_ms);
         frontend->set_cmd_forwarder(cmd_forwarder);
       }
-
-      logger::config::msg() = AdminMessage::log_msg;
-      logger::config::writer() = writer_factory.create_writer_to_outside();
 
       node.initialize(raft_config, n2n_channels, rpc_map);
       rpcsessions.initialize(rpc_map);
