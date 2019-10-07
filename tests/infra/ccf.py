@@ -116,7 +116,6 @@ class Network:
         "notify_server",
         "json_log_path",
         "gov_script",
-        "app_script",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -206,8 +205,6 @@ class Network:
         self.initial_users = [1, 2, 3]
         self.create_users(self.initial_users)
 
-        if args.app_script:
-            infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
         if args.gov_script:
             infra.proc.ccall("cp", args.gov_script, args.build_dir).check_returncode()
         LOG.info("Lua scripts copied")
@@ -220,6 +217,10 @@ class Network:
 
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
+
+        if args.app_script:
+            infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
+            self.set_lua_app(primary, args.app_script)
 
         self.add_users(primary, self.initial_users)
         LOG.info("Initial set of users added")
@@ -362,7 +363,7 @@ class Network:
         associated with current CCF service signing key has been recorded in
         the KV store with the appropriate status.
         """
-        with node.member_client() as c:
+        with node.member_client(format="json") as c:
             rep = c.do(
                 "query",
                 {
@@ -370,7 +371,7 @@ class Network:
                     return tables["ccf.service"]:get(0)"""
                 },
             )
-            current_status = rep.result["status"].decode()
+            current_status = rep.result["status"]
             current_cert = array.array("B", rep.result["cert"]).tobytes()
 
             expected_cert = open("networkcert.pem", "rb").read()
@@ -396,24 +397,27 @@ class Network:
         j_result = json.loads(result.stdout)
         return j_result
 
-    def propose(self, member_id, remote_node, proposal, *args):
-        j_result = self.member_client_rpc_as_json(
-            member_id, remote_node, proposal, *args
-        )
+    def propose(self, member_id, remote_node, script=None, params=None, *args):
+        if os.getenv("HTTP"):
+            with remote_node.member_client() as mc:
+                r = mc.rpc("propose", {"parameter": params, "script": {"text": script}})
+                return (True, r.result)
+        else:
+            j_result = self.member_client_rpc_as_json(member_id, remote_node, *args)
 
-        if j_result.get("error") is not None:
-            self.remove_last_node()
-            return (False, j_result["error"])
+            if j_result.get("error") is not None:
+                self.remove_last_node()
+                return (False, j_result["error"])
 
-        return (True, j_result["result"])
+            return (True, j_result["result"])
 
     def vote_using_majority(self, remote_node, proposal_id):
         # There is no need to stop after n / 2 + 1 members have voted,
         # but this could prove to be useful in detecting errors
         # related to the voting mechanism
-        member_count = int(len(self.members) / 2 + 1)
+        majority_count = int(len(self.members) / 2 + 1)
         for i, member in enumerate(self.members):
-            if i >= member_count:
+            if i >= majority_count:
                 break
             res = self.vote(member, remote_node, proposal_id, True)
             assert res[0]
@@ -424,35 +428,46 @@ class Network:
         return res[1]
 
     def vote(self, member_id, remote_node, proposal_id, accept, force_unsigned=False):
-        j_result = self.member_client_rpc_as_json(
-            member_id,
-            remote_node,
-            "vote",
-            f"--proposal-id={proposal_id}",
-            "--accept" if accept else "--reject",
-            "--force-unsigned" if force_unsigned else "",
-        )
-        if j_result.get("error") is not None:
-            return (False, j_result["error"])
+        if os.getenv("HTTP"):
+            script = """
+            tables, changes = ...
+            return true
+            """
+            with remote_node.member_client(member_id) as mc:
+                r = mc.rpc(
+                    "vote", {"ballot": {"text": script}, "id": proposal_id}, signed=True
+                )
+            return (True, r.result)
+        else:
+            j_result = self.member_client_rpc_as_json(
+                member_id,
+                remote_node,
+                "vote",
+                f"--proposal-id={proposal_id}",
+                "--accept" if accept else "--reject",
+                "--force-unsigned" if force_unsigned else "",
+            )
+            if j_result.get("error") is not None:
+                return (False, j_result["error"])
 
         # If the proposal was accepted, wait for it to be globally committed
         # This is particularly useful for the open network proposal to wait
         # until the global hook on the SERVICE table is triggered
         if j_result["result"]:
-            with remote_node.node_client() as mc:
+            with remote_node.node_client(member_id) as mc:
                 wait_for_global_commit(mc, j_result["commit"], j_result["term"], True)
 
         return (True, j_result["result"])
 
     def propose_retire_node(self, member_id, remote_node, node_id):
         return self.propose(
-            member_id, remote_node, "retire_node", f"--node-id={node_id}"
+            member_id, remote_node, None, None, "retire_node", f"--node-id={node_id}"
         )
 
     def retire_node(self, remote_node, node_id):
         member_id = 1
         result = self.propose_retire_node(member_id, remote_node, node_id)
-        result = self.vote_using_majority(remote_node, result[1]["id"])
+        self.vote_using_majority(remote_node, result[1]["id"])
 
         with remote_node.member_client() as c:
             id = c.request("read", {"table": "ccf.nodes", "key": node_id})
@@ -460,7 +475,7 @@ class Network:
 
     def propose_trust_node(self, member_id, remote_node, node_id):
         return self.propose(
-            member_id, remote_node, "trust_node", f"--node-id={node_id}"
+            member_id, remote_node, None, None, "trust_node", f"--node-id={node_id}"
         )
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
@@ -480,14 +495,19 @@ class Network:
 
         member_id = 1
         result = self.propose_trust_node(member_id, remote_node, node_id)
-        result = self.vote_using_majority(remote_node, result[1]["id"])
+        self.vote_using_majority(remote_node, result[1]["id"])
 
         if not self._check_node_exists(remote_node, node_id, NodeStatus.TRUSTED):
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
     def propose_add_member(self, member_id, remote_node, new_member_cert):
         return self.propose(
-            member_id, remote_node, "add_member", f"--member-cert={new_member_cert}"
+            member_id,
+            remote_node,
+            None,
+            None,
+            "add_member",
+            f"--member-cert={new_member_cert}",
         )
 
     def open_network(self, node):
@@ -496,28 +516,15 @@ class Network:
         proposal and make members vote to transition the network to state
         OPEN.
         """
+        script = None
         if os.getenv("HTTP"):
-            with node.member_client() as mc:
-                script = """
-                tables = ...
-                return Calls:call("open_network")
-                """
-                r = mc.rpc("propose", {"parameter": None, "script": {"text": script}})
-                with node.member_client(2) as mc2:
-                    script = """
-                    tables, changes = ...
-                    return true
-                    """
-                    r = mc2.rpc(
-                        "vote",
-                        {"ballot": {"text": script}, "id": r.result["id"]},
-                        signed=True,
-                    )
-            time.sleep(3)
-        else:
-            result = self.propose(1, node, "open_network")
-            self.vote_using_majority(node, result[1]["id"])
-            self.check_for_service(node)
+            script = """
+            tables = ...
+            return Calls:call("open_network")
+            """
+        result = self.propose(1, node, script, None, "open_network")
+        self.vote_using_majority(node, result[1]["id"])
+        self.check_for_service(node)
         self.status = ServiceStatus.OPEN
 
     def add_users(self, node, users):
@@ -547,9 +554,15 @@ class Network:
         else:
             for u in users:
                 result = self.propose(
-                    1, node, "add_user", f"--user-cert=user{u}_cert.pem"
+                    1, node, None, None, "add_user", f"--user-cert=user{u}_cert.pem"
                 )
-                result = self.vote_using_majority(node, result[1]["id"])
+                self.vote_using_majority(node, result[1]["id"])
+
+    def set_lua_app(self, node, app_script):
+        result = self.propose(
+            1, node, None, None, "set_lua_app", f"--lua-app-file={app_script}"
+        )
+        self.vote_using_majority(node, result[1]["id"])
 
     def stop_all_nodes(self):
         for node in self.nodes:

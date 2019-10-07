@@ -138,6 +138,7 @@ namespace pbft
         std::begin(rep.merkle_root.h),
         std::end(rep.merkle_root.h),
         std::begin(info.merkle_root));
+      info.ctx = rep.version;
 
       outb->size = rep.result.size();
       auto outb_ptr = (uint8_t*)outb->contents;

@@ -26,6 +26,9 @@ def run(args):
             hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
         ) as network:
             primary, _ = network.start_and_join(args)
+
+            time.sleep(3)
+
             with primary.user_client(format="json") as c:
                 c.rpc("LOG_record", {"id": 42, "msg": "Hello"})
 

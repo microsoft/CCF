@@ -194,15 +194,6 @@ int main(int argc, char** argv)
     ->check(CLI::ExistingFile)
     ->required();
 
-  // TODO: For now, lua app is passed when the node starts up
-  // See https://github.com/microsoft/CCF/issues/293
-  std::string app_script;
-  const auto app_script_opt = start->add_option(
-    "--app-script",
-    app_script,
-    "Path to Lua file that defines the user business logic",
-    true);
-
   std::string member_cert_file = "member*_cert.pem";
   start
     ->add_option(
@@ -317,8 +308,6 @@ int main(int argc, char** argv)
     start_type = StartType::New;
     ccf_config.genesis.member_certs = files::slurp_certs(member_cert_file);
     ccf_config.genesis.gov_script = files::slurp_string(gov_script);
-    if (*app_script_opt)
-      ccf_config.genesis.app_script = files::slurp_string(app_script);
   }
   else if (*join)
   {

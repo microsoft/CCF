@@ -24,4 +24,36 @@ namespace pbft
     NodeId from_node;
   };
 #pragma pack(pop)
+
+  class Store
+  {
+  public:
+    virtual ~Store() {}
+    virtual void compact(Index v) = 0;
+    virtual void rollback(Index v) = 0;
+  };
+
+  template <typename T>
+  class Adaptor : public pbft::Store
+  {
+  private:
+    std::weak_ptr<T> x;
+
+  public:
+    Adaptor(std::shared_ptr<T> x) : x(x) {}
+
+    void compact(Index v)
+    {
+      auto p = x.lock();
+      if (p)
+        p->compact(v);
+    }
+
+    void rollback(Index v)
+    {
+      auto p = x.lock();
+      if (p)
+        p->rollback(v);
+    }
+  };
 }

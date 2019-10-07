@@ -472,7 +472,6 @@ class CCFRemote(object):
         memory_reserve_startup=0,
         notify_server=None,
         gov_script=None,
-        app_script=None,
         ledger_file=None,
         sealed_secrets=None,
         json_log_path=None,
@@ -556,9 +555,6 @@ class CCFRemote(object):
                 f"--gov-script={os.path.basename(gov_script)}",
             ]
             data_files += [members_certs, os.path.basename(gov_script)]
-            if app_script:
-                cmd += [f"--app-script={os.path.basename(app_script)}"]
-                data_files += [os.path.basename(app_script)]
         elif start_type == StartType.join:
             cmd += [
                 "join",

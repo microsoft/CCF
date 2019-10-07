@@ -70,7 +70,8 @@ def run(args):
                         "id": current_term,
                         "msg": "This log is committed in term {}".format(current_term),
                     },
-                    True,
+                    readonly_hint=None,
+                    expected_result=True,
                 )
                 commit_index = res.commit
 

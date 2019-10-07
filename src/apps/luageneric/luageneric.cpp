@@ -162,7 +162,9 @@ namespace ccfapp
           return make_pair(false, *err_it);
         }
       };
-      set_default(default_handler, MayWrite);
+
+      // TODO: https://github.com/microsoft/CCF/issues/409
+      set_default(default_handler, Write);
     }
   };
 

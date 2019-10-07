@@ -73,6 +73,30 @@ Other members are then allowed to vote for the proposal, using the proposal ID r
 
 The user is successfully added once a :term:`quorum` of members have accepted the proposal (``"result":true"``).
 
+Register the Lua application
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. note:: This section only applies when deploying Lua applications (i.e. using the ``libluageneric.so.signed`` enclave library). For C++ applications, this step should be skipped.
+
+Before opening the CCF network to users, members should vote to register the Lua application defining the user-specific business logic (see for example :ref:`Logging (Lua)`):
+
+.. code-block:: bash
+
+    $ memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert set_lua_app --lua-app-file /path/to/lua/app_script
+    {"commit":9,"global_commit":8,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
+
+Other members are then allowed to vote for the proposal, using the proposal ID returned to the proposer member (here ``1``, as per ``"result":{"completed":false,"id":1}``).
+
+.. code-block::
+
+    $ memberclient --cert member2_cert --privk member2_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 1 --accept
+    {"commit":11,"global_commit":10,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
+
+    $ memberclient --cert member3_cert --privk member3_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 1 --accept
+    {"commit":13,"global_commit":12,"id":0,"jsonrpc":"2.0","result":{"completed":true,"id":1},"term":2}
+
+The Lua application is successfully registered once a :term:`quorum` of members have accepted the proposal (``"result":true"``).
+
 Open a network
 ~~~~~~~~~~~~~~
 
@@ -81,17 +105,17 @@ Once users are added to the opening network, members should decide to make a pro
 .. code-block:: bash
 
     $ memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert open_network
-    {"commit":4,"global_commit":3,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
+    {"commit":15,"global_commit":14,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":2},"term":2}
 
-Other members are then allowed to vote for the proposal, using the proposal ID returned to the proposer member (here ``1``, as per ``"result":{"completed":false,"id":1}``).
+Other members are then allowed to vote for the proposal, using the proposal ID returned to the proposer member (here ``2``, as per ``"result":{"completed":false,"id":2}``).
 
 .. code-block:: bash
 
-    $ memberclient --cert member2_cert --privk member2_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 1 --accept
-    {"commit":9,"global_commit":8,"id":0,"jsonrpc":"2.0","result":false,"term":2}
+    $ memberclient --cert member2_cert --privk member2_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 2 --accept
+    {"commit":17,"global_commit":16,"id":0,"jsonrpc":"2.0","result":false,"term":2}
 
-    $ memberclient --cert member3_cert --privk member3_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 1 --accept
-    {"commit":11,"global_commit":10,"id":0,"jsonrpc":"2.0","result":true,"term":2}
+    $ memberclient --cert member3_cert --privk member3_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 2 --accept
+    {"commit":19,"global_commit":18,"id":0,"jsonrpc":"2.0","result":true,"term":2}
 
 Once a quorum of members have approved the network opening (``"result":true``), the network is opened to users (see :ref:`Example App` for a simple business logic and :term:`JSON-RPC` transactions). It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).
 
@@ -128,7 +152,7 @@ Summary diagram
 
 Once a node is part of the network (started with either the ``start`` or ``join`` option), members are authorised to issue governance transactions and eventually open the network. Only then are users authorised to issue JSON-RPC transactions to CCF.
 
-.. note:: After the network is open to users, members can still issue governance transactions to CCF (for example, adding new users or additional members to the consortium). See :ref:`Governance` for more information about member governance.
+.. note:: After the network is open to users, members can still issue governance transactions to CCF (for example, adding new users or additional members to the consortium or updating the Lua app, when applicable). See :ref:`Governance` for more information about member governance.
 
 The following diagram summarises the steps required to bootstrap a CCF network:
 
