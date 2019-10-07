@@ -18,14 +18,14 @@ return {
     function env.get(table)
       msg = table:get(args.params.id)
       if not msg then
-        return env.jerr(env.error_codes.UNKNOWN_ID, "No such record: " .. args.params.id) 
+        return env.jerr(env.error_codes.UNKNOWN_ID, "No such record: " .. args.params.id)
       end
-      return env.jsucc(msg)
+      return env.jsucc({msg = msg})
     end
-    
+
     function env.record(table)
       if string.len(args.params.msg) == 0 then
-        return env.jerr(env.error_codes.MESSAGE_EMPTY, "Cannot record an empty log message") 
+        return env.jerr(env.error_codes.MESSAGE_EMPTY, "Cannot record an empty log message")
       end
       table:put(args.params.id, args.params.msg)
       return env.jsucc(true)

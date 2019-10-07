@@ -54,8 +54,8 @@ def run(args):
                     check_commit(
                         c.rpc("LOG_record", {"id": 43, "msg": msg2}), result=True
                     )
-                    check(c.rpc("LOG_get", {"id": 42}), result=log_get_string(msg))
-                    check(c.rpc("LOG_get", {"id": 43}), result=log_get_string(msg2))
+                    check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
+                    check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2})
 
                 LOG.debug("Write on all backup frontends")
                 with backup.node_client(format="json") as c:
@@ -69,10 +69,8 @@ def run(args):
                     check_commit(
                         c.rpc("LOG_record", {"id": 100, "msg": backup_msg}), result=True
                     )
-                    check(
-                        c.rpc("LOG_get", {"id": 100}), result=log_get_string(backup_msg)
-                    )
-                    check(c.rpc("LOG_get", {"id": 42}), result=log_get_string(msg))
+                    check(c.rpc("LOG_get", {"id": 100}), result={"msg": backup_msg})
+                    check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
 
                 LOG.debug("Write/Read large messages on primary")
                 with primary.user_client(format="json") as c:
@@ -85,7 +83,7 @@ def run(args):
                         )
                         check(
                             c.rpc("LOG_get", {"id": id}),
-                            result=log_get_string(long_msg),
+                            result={"msg": long_msg},
                         )
                     id += 1
 
