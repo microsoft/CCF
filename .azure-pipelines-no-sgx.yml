@@ -116,3 +116,51 @@ jobs:
     - template: .azure-pipelines-templates/test.yml
       parameters:
         suite_name_suffix: 'san'
+
+- job: ePBFT
+  pool: Ubuntu-1804-SGX-Azure
+  container:
+    image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx-no-mitigation:latest
+    options: --publish-all --device /dev/sgx:/dev/sgx
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
+
+    # - script: |
+    #     cd ..
+    #     mv s s.ePBFT
+    #     mkdir s
+    #     cd s
+    #     echo "CCF repo is $(ccf_repo)"
+    #     echo "CCF branch is $(ccf_branch)"
+    #     git clone --recursive -b $(ccf_branch) --single-branch $(ccf_repo)
+    #     mv ../s.ePBFT CCF/ePBFT
+    #   displayName: Source directory setup
+
+    - script: mkdir build
+      displayName: 'Make a build directory'
+      workingDirectory: CCF
+
+    - script: cmake -GNinja -DPBFT=ON -DBUILD_SMALLBANK=OFF ..
+      displayName: cmake
+      workingDirectory: CCF/build
+
+    - script: ninja
+      displayName: Ninja
+      workingDirectory: CCF/build
+
+    - script: |
+        ./tests.sh -VV --timeout 240 --no-compress-output -T Test
+      displayName: CTest
+      workingDirectory: CCF/build
+    - script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) SGX" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
+      displayName: XSLT
+      workingDirectory: CCF/build
+      condition: succeededOrFailed()
+
+    - task: PublishTestResults@2
+      inputs:
+        testResultsFiles: '**/JUnit.xml'
+        publishRunAttachments: true
+      condition: succeededOrFailed()
