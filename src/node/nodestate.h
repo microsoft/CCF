@@ -191,17 +191,6 @@ namespace ccf
       sm.advance(State::initialized);
     }
 
-    void init_endorsed_node_cert()
-    {
-      auto p = tls::make_key_pair({network.secrets->get_current().priv_key});
-
-      endorsed_node_cert =
-        p->sign_csr(node_kp->create_csr("CN=node"), "CN=The CA");
-      
-      endorsed_node_cert_ = std::make_shared<tls::Cert>("", nullptr, endorsed_node_cert, node_kp->private_key_pem(), nullb, tls::auth_optional);
-      LOG_INFO_FMT("Initialised node certificate, signed by network secrets");
-    }
-
     //
     // funcs in state "initialized"
     //
@@ -257,8 +246,6 @@ namespace ccf
 
           network.secrets = std::make_unique<NetworkSecrets>(
             "CN=The CA", std::make_unique<Seal>(writer_factory));
-
-          init_endorsed_node_cert();
 
           g.create_service(network.secrets->get_current().cert);
 
@@ -1016,20 +1003,44 @@ namespace ccf
   private:
     void accept_member_connections()
     {
+      auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
+      auto members_keypair = tls::make_key_pair();
+
+      auto members_privkey = members_keypair->private_key_pem();
+      auto members_cert =
+        nw->sign_csr(members_keypair->create_csr("CN=members"), "CN=The CA");
+
       // Accept member connections.
-      rpcsessions.add(endorsed_node_cert_);
+      rpcsessions.add_cert(
+        ccf::Actors::MEMBERS, nullb, members_cert, members_privkey);
     }
 
     void accept_node_connections()
     {
+      auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
+      auto nodes_keypair = tls::make_key_pair();
+
+      auto nodes_privkey = nodes_keypair->private_key_pem();
+      auto nodes_cert =
+        nw->sign_csr(nodes_keypair->create_csr("CN=nodes"), "CN=The CA");
+
       // Accept node connections.
-      rpcsessions.add(endorsed_node_cert_);
+      rpcsessions.add_cert(
+        ccf::Actors::NODES, nullb, nodes_cert, nodes_privkey);
     }
 
     void accept_user_connections()
     {
+      auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
+      auto users_keypair = tls::make_key_pair();
+
+      auto users_privkey = users_keypair->private_key_pem();
+      auto users_cert =
+        nw->sign_csr(users_keypair->create_csr("CN=users"), "CN=The CA");
+
       // Accept user connections.
-      rpcsessions.add(endorsed_node_cert_);
+      rpcsessions.add_cert(
+        ccf::Actors::USERS, nullb, users_cert, users_privkey);
     }
 
     void backup_finish_recovery()
