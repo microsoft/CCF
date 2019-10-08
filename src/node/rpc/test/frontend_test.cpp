@@ -196,6 +196,13 @@ auto create_signed_json()
   return sj;
 }
 
+std::optional<SignedReq> get_signed_req(CallerId caller_id)
+{
+  Store::Tx tx;
+  auto client_sig_view = tx.get_view(network.user_client_signatures);
+  return client_sig_view->get(caller_id);
+}
+
 // caller used throughout
 auto ca = kp -> self_sign("CN=name");
 auto verifier = tls::make_verifier(ca);
@@ -220,18 +227,18 @@ enclave::RPCContext member_rpc_ctx(0, member_caller);
 
 void prepare_callers()
 {
-  Store::Tx txs;
+  Store::Tx tx;
   network.tables->set_encryptor(encryptor);
   ccf::Certs* user_certs = &network.user_certs;
   ccf::Certs* member_certs = &network.member_certs;
-  auto user_certs_view = txs.get_view(*user_certs);
+  auto user_certs_view = tx.get_view(*user_certs);
   user_certs_view->put(user_caller, 0);
   user_certs_view->put(invalid_caller, 1);
   user_certs_view->put(nos_caller, 2);
-  auto member_certs_view = txs.get_view(*member_certs);
+  auto member_certs_view = tx.get_view(*member_certs);
   member_certs_view->put(member_caller, 0);
   member_certs_view->put(invalid_caller, 0);
-  REQUIRE(txs.commit() == kv::CommitSuccess::OK);
+  REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 }
 
 TEST_CASE("SignedReq to and from json")
@@ -253,14 +260,14 @@ TEST_CASE("Verify signature on Member Frontend")
   TestMemberFrontend frontend(*network.tables, network, node);
   CallerId caller_id(0);
   CallerId inval_caller_id(1);
-  Store::Tx txs;
+  Store::Tx tx;
 
   SUBCASE("with signature")
   {
     SignedReq signed_request;
     auto signed_call = create_signed_json();
     CHECK(frontend.verify_client_signature(
-      txs, member_caller, caller_id, signed_call, false, signed_request));
+      member_caller, caller_id, signed_call, false, signed_request));
   }
 
   SUBCASE("signature not verified")
@@ -268,12 +275,7 @@ TEST_CASE("Verify signature on Member Frontend")
     SignedReq signed_request;
     auto signed_call = create_signed_json();
     CHECK(!frontend.verify_client_signature(
-      txs,
-      invalid_caller,
-      inval_caller_id,
-      signed_call,
-      false,
-      signed_request));
+      invalid_caller, inval_caller_id, signed_call, false, signed_request));
   }
 }
 
@@ -283,14 +285,13 @@ TEST_CASE("Verify signature")
   TestUserFrontend frontend(*network.tables);
   CallerId caller_id(0);
   CallerId inval_caller_id(1);
-  Store::Tx txs;
 
   SUBCASE("with signature")
   {
     SignedReq signed_request;
     auto signed_call = create_signed_json();
     CHECK(frontend.verify_client_signature(
-      txs, user_caller, caller_id, signed_call, false, signed_request));
+      user_caller, caller_id, signed_call, false, signed_request));
   }
 
   SUBCASE("signature not verified")
@@ -298,12 +299,7 @@ TEST_CASE("Verify signature")
     SignedReq signed_request;
     auto signed_call = create_signed_json();
     CHECK(!frontend.verify_client_signature(
-      txs,
-      invalid_caller,
-      inval_caller_id,
-      signed_call,
-      false,
-      signed_request));
+      invalid_caller, inval_caller_id, signed_call, false, signed_request));
   }
 }
 
@@ -315,7 +311,7 @@ TEST_CASE("get_signed_req")
   CallerId caller_id(0);
   CallerId inval_caller_id(1);
   CallerId nos_caller_id(2);
-  Store::Tx txs;
+  Store::Tx tx;
 
   SUBCASE("request with no signature")
   {
@@ -323,7 +319,7 @@ TEST_CASE("get_signed_req")
       jsonrpc::pack(simple_call, jsonrpc::Pack::MsgPack);
 
     frontend.process(rpc_ctx, serialized_call);
-    auto signed_resp = frontend.get_signed_req(caller_id);
+    auto signed_resp = get_signed_req(caller_id);
     CHECK(!signed_resp.has_value());
   }
   SUBCASE("request with signature")
@@ -333,7 +329,7 @@ TEST_CASE("get_signed_req")
       jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
 
     frontend.process(rpc_ctx, serialized_call);
-    auto signed_resp = frontend.get_signed_req(caller_id);
+    auto signed_resp = get_signed_req(caller_id);
     CHECK(signed_resp.has_value());
     auto value = signed_resp.value();
     ccf::SignedReq signed_req(signed_call);
@@ -348,7 +344,7 @@ TEST_CASE("get_signed_req")
       jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
 
     frontend_nostore.process(rpc_ctx, serialized_call);
-    auto signed_resp = frontend_nostore.get_signed_req(caller_id);
+    auto signed_resp = get_signed_req(caller_id);
 
     CHECK(signed_resp.has_value());
     auto value = signed_resp.value();
@@ -362,7 +358,7 @@ TEST_CASE("get_signed_req")
       jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
 
     frontend.process(rpc_ctx, serialized_call);
-    auto signed_resp = frontend.get_signed_req(inval_caller_id);
+    auto signed_resp = get_signed_req(inval_caller_id);
     CHECK(!signed_resp.has_value());
   }
 }
@@ -377,10 +373,10 @@ TEST_CASE("MinimalHandleFuction")
                                 {"other", "Another string"}};
   ccf::SignedReq sr(echo_call);
   CallerId caller_id(0);
-  Store::Tx txs;
+  Store::Tx tx;
 
   auto response =
-    frontend.process_json(rpc_ctx, txs, caller_id, echo_call, sr).value();
+    frontend.process_json(rpc_ctx, tx, caller_id, echo_call, sr).value();
   CHECK(response[jsonrpc::RESULT] == echo_call[jsonrpc::PARAMS]);
 }
 
@@ -392,11 +388,11 @@ TEST_CASE("process_json")
   CallerId caller_id(0);
   CallerId inval_caller_id(1);
 
-  Store::Tx txs;
+  Store::Tx tx;
 
   ccf::SignedReq sr(simple_call);
   auto response =
-    frontend.process_json(rpc_ctx, txs, caller_id, simple_call, sr).value();
+    frontend.process_json(rpc_ctx, tx, caller_id, simple_call, sr).value();
   CHECK(response[jsonrpc::RESULT] == true);
 }
 

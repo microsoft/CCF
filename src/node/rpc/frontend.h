@@ -114,9 +114,11 @@ namespace ccf
       {
         rpc = jsonrpc::unpack(input, pack);
         if (!rpc.is_object())
+        {
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INVALID_REQUEST,
             fmt::format("RPC payload is a not a valid object: {}", rpc.dump()));
+        }
       }
       catch (const std::exception& e)
       {
@@ -131,10 +133,14 @@ namespace ccf
     std::optional<CallerId> valid_caller(Store::Tx& tx, const CBuffer& caller)
     {
       if (certs == nullptr)
+      {
         return INVALID_ID;
+      }
 
       if (!caller.p)
+      {
         return {};
+      }
 
       auto certs_view = tx.get_view(*certs);
       auto caller_id = certs_view->get(std::vector<uint8_t>(caller));
@@ -439,12 +445,18 @@ namespace ccf
     std::optional<jsonrpc::Pack> detect_pack(const std::vector<uint8_t>& input)
     {
       if (input.size() == 0)
+      {
         return {};
+      }
 
       if (input[0] == '{')
+      {
         return jsonrpc::Pack::Text;
+      }
       else
+      {
         return jsonrpc::Pack::MsgPack;
+      }
     }
 
     /** Process a serialised command with the associated RPC context
@@ -462,10 +474,12 @@ namespace ccf
 
       ctx.pack = detect_pack(input);
       if (!ctx.pack.has_value())
+      {
         return jsonrpc::pack(
           jsonrpc::error_response(
             0, jsonrpc::StandardErrorCodes::INVALID_REQUEST, "Empty request."),
           jsonrpc::Pack::Text);
+      }
 
       // Retrieve id of caller
       auto caller_id = valid_caller(tx, ctx.caller_cert);
@@ -481,16 +495,17 @@ namespace ccf
       auto rpc = unpack_json(input, ctx.pack.value());
 
       if (!rpc.first)
+      {
         return jsonrpc::pack(rpc.second, ctx.pack.value());
+      }
 
       auto rpc_ = &rpc.second;
-      SignedReq signed_request(rpc.second);
+      SignedReq signed_request;
       if (rpc_->find(jsonrpc::SIG) != rpc_->end())
       {
         auto& req = rpc_->at(jsonrpc::REQ);
 
         if (!verify_client_signature(
-              tx,
               ctx.caller_cert,
               caller_id.value(),
               *rpc_,
@@ -504,6 +519,13 @@ namespace ccf
               "Failed to verify client signature."),
             ctx.pack.value());
         }
+
+        // Client signature is only recorded on the primary
+        if (consensus == nullptr || consensus->is_primary())
+        {
+          record_client_signature(tx, caller_id.value(), signed_request);
+        }
+
         rpc_ = &req;
       }
       auto& unsigned_rpc = *rpc_;
@@ -592,6 +614,7 @@ namespace ccf
 
       auto pack = detect_pack(input);
       if (!pack.has_value())
+      {
         return {jsonrpc::pack(
                   jsonrpc::error_response(
                     0,
@@ -599,10 +622,13 @@ namespace ccf
                     "Empty PBFT request."),
                   jsonrpc::Pack::Text),
                 merkle_root};
+      }
 
       auto rpc = unpack_json(input, pack.value());
       if (!rpc.first)
+      {
         return {jsonrpc::pack(rpc.second, pack.value()), merkle_root};
+      }
 
       // Strip signature
       auto rpc_ = &rpc.second;
@@ -658,8 +684,10 @@ namespace ccf
       enclave::RPCContext& ctx, const std::vector<uint8_t>& input) override
     {
       if (!ctx.fwd.has_value())
+      {
         throw std::logic_error(
           "Processing forwarded command with unitialised forwarded context");
+      }
 
       Store::Tx tx;
 
@@ -672,12 +700,14 @@ namespace ccf
 
       auto pack = detect_pack(input);
       if (!pack.has_value())
+      {
         return jsonrpc::pack(
           jsonrpc::error_response(
             0,
             jsonrpc::StandardErrorCodes::INVALID_REQUEST,
             "Empty forwarded request."),
           jsonrpc::Pack::Text);
+      }
 
       // If the RPC was forwarded, assume that the caller has already been
       // verified
@@ -693,7 +723,9 @@ namespace ccf
 
       auto rpc = unpack_json(input, pack.value());
       if (!rpc.first)
+      {
         return jsonrpc::pack(rpc.second, pack.value());
+      }
 
       // Unwrap signed request if necessary
       auto rpc_ = &rpc.second;
@@ -759,14 +791,20 @@ namespace ccf
       Handler* handler = nullptr;
       auto search = handlers.find(method);
       if (search != handlers.end())
+      {
         handler = &search->second;
+      }
       else if (default_handler)
-        handler = &*default_handler;
+      {
+        handler = &default_handler.value();
+      }
       else
+      {
         return jsonrpc::error_response(
           ctx.req.seq_no,
           jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
           method);
+      }
 
       update_consensus();
       update_history();
@@ -778,17 +816,25 @@ namespace ccf
         switch (handler->rw)
         {
           case Read:
+          {
             break;
+          }
 
           case Write:
+          {
             return forward_or_redirect_json(ctx, handler->forwardable);
             break;
+          }
 
           case MayWrite:
+          {
             bool readonly = rpc.value(jsonrpc::READONLY, true);
             if (!readonly)
+            {
               return forward_or_redirect_json(ctx, handler->forwardable);
+            }
             break;
+          }
         }
       }
 
@@ -805,7 +851,9 @@ namespace ccf
           auto tx_result = func(args);
 
           if (!tx_result.first)
+          {
             return jsonrpc::error_response(ctx.req.seq_no, tx_result.second);
+          }
 
           switch (tx.commit())
           {
@@ -835,14 +883,17 @@ namespace ccf
             }
 
             case kv::CommitSuccess::CONFLICT:
+            {
               break;
+            }
 
             case kv::CommitSuccess::NO_REPLICATE:
+            {
               return jsonrpc::error_response(
                 ctx.req.seq_no,
                 jsonrpc::CCFErrorCodes::TX_FAILED_TO_REPLICATE,
                 "Transaction failed to replicate.");
-              break;
+            }
           }
         }
         catch (const RpcException& e)
@@ -876,10 +927,20 @@ namespace ccf
       }
     }
 
+    void record_client_signature(
+      Store::Tx& tx, CallerId caller_id, SignedReq& signed_request)
+    {
+      if (request_storing_disabled)
+      {
+        signed_request.req.clear();
+      }
+      auto client_sig_view = tx.get_view(*client_signatures);
+      client_sig_view->put(caller_id, signed_request);
+    }
+
     bool verify_client_signature(
-      Store::Tx& tx,
       const CBuffer& caller,
-      const CallerId& caller_id,
+      const CallerId caller_id,
       const nlohmann::json& full_rpc,
       bool is_forwarded,
       SignedReq& signed_request)
@@ -889,7 +950,9 @@ namespace ccf
 #endif
 
       if (!client_signatures)
+      {
         return false;
+      }
 
       signed_request = full_rpc;
 
@@ -906,26 +969,12 @@ namespace ccf
         }
         if (!verifiers[caller_id]->verify(
               signed_request.req, signed_request.sig))
-          return false;
-      }
-
-      if (consensus == nullptr || consensus->is_primary())
-      {
-        if (request_storing_disabled)
         {
-          signed_request.req.clear();
+          return false;
         }
-        auto client_sig_view = tx.get_view(*client_signatures);
-        client_sig_view->put(caller_id, signed_request);
       }
-      return true;
-    }
 
-    std::optional<SignedReq> get_signed_req(const CallerId& caller_id)
-    {
-      Store::Tx tx;
-      auto client_sig_view = tx.get_view(*client_signatures);
-      return client_sig_view->get(caller_id);
+      return true;
     }
 
     void tick(std::chrono::milliseconds elapsed) override
@@ -945,7 +994,9 @@ namespace ccf
 
         ms_to_sig = sig_max_ms;
         if (history && tables.commit_gap() > 0)
+        {
           history->emit_signature();
+        }
       }
     }
   };
