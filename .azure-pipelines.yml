@@ -172,3 +172,45 @@ jobs:
         suite_name_suffix: ' SGX Performance'
         ctest_filter: '-L perf'
     - template: .azure-pipelines-templates/push_perf_data.yml
+
+- job: ePBFT
+  pool: Ubuntu-1804-DC4s
+  container:
+    image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx-no-mitigation:latest
+    # --publish-all enables end-to-end tests to communicate over ports
+    # --device /dev/sgx:/dev/sgx makes sgx available to the container
+    # -v $(log.path):$(log.path) mounts the local directory to the same path in the container
+    options: --publish-all --device /dev/sgx:/dev/sgx -v $(log.path):$(log.path)
+  dependsOn:
+    - ACC_1804_SGX_build
+
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
+
+    - script: mkdir build
+      displayName: 'Make a build directory'
+
+    - script: cmake -GNinja -DPBFT=ON -DBUILD_SMALLBANK=OFF ..
+      displayName: cmake
+      workingDirectory: build
+
+    - script: ninja
+      displayName: Ninja
+      workingDirectory: build
+
+    - script: |
+        ./tests.sh -VV --timeout 240 --no-compress-output -T Test
+      displayName: CTest
+      workingDirectory: build
+    - script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) SGX" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
+      displayName: XSLT
+      workingDirectory: build
+      condition: succeededOrFailed()
+
+    - task: PublishTestResults@2
+      inputs:
+        testResultsFiles: '**/JUnit.xml'
+        publishRunAttachments: true
+      condition: succeededOrFailed()

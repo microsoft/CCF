@@ -131,17 +131,6 @@ jobs:
       clean: true
       submodules: true
 
-    # - script: |
-    #     cd ..
-    #     mv s s.ePBFT
-    #     mkdir s
-    #     cd s
-    #     echo "CCF repo is $(ccf_repo)"
-    #     echo "CCF branch is $(ccf_branch)"
-    #     git clone --recursive -b $(ccf_branch) --single-branch $(ccf_repo)
-    #     mv ../s.ePBFT CCF/ePBFT
-    #   displayName: Source directory setup
-
     - script: mkdir build
       displayName: 'Make a build directory'
 
