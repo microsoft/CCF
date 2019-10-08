@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "doctest/doctest.h"

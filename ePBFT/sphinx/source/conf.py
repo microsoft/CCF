@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT license.
 # -*- coding: utf-8 -*-
 #
 # Configuration file for the Sphinx documentation builder.

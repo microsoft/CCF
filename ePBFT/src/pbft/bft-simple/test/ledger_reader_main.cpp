@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
 #include "Digest.h"
 #include "Prepared_cert.h"
 #include "cstdio"

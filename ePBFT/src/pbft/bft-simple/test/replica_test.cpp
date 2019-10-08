@@ -1,3 +1,7 @@
+// Copyright (c) Microsoft Corporation.
+// Copyright (c) 1999 Miguel Castro, Barbara Liskov.
+// Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
+// Licensed under the MIT license.
 
 #include <CLI11/CLI11.hpp>
 #include <iostream>

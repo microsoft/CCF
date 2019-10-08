@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
 #include "LedgerReader.h"
 
 #include "ds/logger.h"
