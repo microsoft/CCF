@@ -39,8 +39,8 @@ class TxRates:
 
         format_title("Histogram")
         buckets_list = self.histogram_data["buckets"]
-        out_list.append(f"({len(buckets_list)} samples)")
         buckets = {tuple(e[0]): e[1] for e in buckets_list}
+        out_list.append(f"({sum(buckets.values())} samples in {len(buckets)} buckets)")
         max_count = max(buckets.values())
         for k, count in sorted(buckets.items()):
             out_list.append(
