@@ -120,8 +120,12 @@ jobs:
 - job: ePBFT
   pool: Ubuntu-1804-D8s_v3
   container:
-    image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx-no-mitigation:latest
-    options: --publish-all --device /dev/sgx:/dev/sgx
+    image: ccfciteam/ccf-ci-18.04-oe-0.6:latest
+    # --publish-all enables end-to-end tests to communicate over ports
+    # --cap-add SYS_PTRACE enables ptrace and thus LeakSanitizer
+    # -v $(log.path):$(log.path) mounts the local directory to the same path in the container
+    options: --publish-all --cap-add SYS_PTRACE -v $(log.path):$(log.path)
+
   steps:
     - checkout: self
       clean: true
