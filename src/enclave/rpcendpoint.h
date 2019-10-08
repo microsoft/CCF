@@ -114,9 +114,9 @@ namespace enclave
       {
         send(jsonrpc::pack(
           jsonrpc::error_response(
-            0,
+            rpc.value(jsonrpc::ID, 0),
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-            "Method not found."),
+            "No method specified"),
           pack.value()));
         return true;
       }
@@ -129,9 +129,9 @@ namespace enclave
       {
         send(jsonrpc::pack(
           jsonrpc::error_response(
-            0,
+            rpc.value(jsonrpc::ID, 0),
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-            fmt::format("Invalid actor prefix: {}", actor_prefix)),
+            fmt::format("No such prefix: {}", actor_prefix)),
           pack.value()));
         return true;
       }
@@ -156,47 +156,5 @@ namespace enclave
 
       return true;
     }
-
-    /*
-        bool handle_data(const std::vector<uint8_t>& data)
-        {
-          if (!handler)
-          {
-            // The hostname indicates the rpc class.
-            auto host = hostname();
-
-            actor = rpc_map->resolve(host);
-            if (actor == ccf::ActorsType::unknown)
-              return false;
-
-            auto search = rpc_map->find(actor);
-            if (!search.has_value())
-              return false;
-
-            // If there is a client cert, pass it to the rpc handler.
-            LOG_DEBUG_FMT("RPC endpoint {}: {}", session_id, host);
-            handler = search.value();
-            caller = peer_cert();
-          }
-
-          // Create a new RPC context for each command since some may require
-          // forwarding to the primary.
-          RPCContext rpc_ctx(session_id, caller, actor);
-          auto rep = handler->process(rpc_ctx, data);
-
-          if (rpc_ctx.is_pending)
-          {
-            // If the RPC has been forwarded, hold the connection.
-            return true;
-          }
-          else
-          {
-            // Otherwise, reply to the client synchronously.
-            send(rep);
-          }
-
-          return true;
-        }
-    */
   };
 }
