@@ -89,10 +89,10 @@ public:
   }
 };
 
-class TestForwardingFrontEnd : public ccf::RpcFrontend
+class TestForwardingFrontEnd : public ccf::UserRpcFrontend
 {
 public:
-  TestForwardingFrontEnd(Store& tables) : RpcFrontend(tables)
+  TestForwardingFrontEnd(Store& tables) : UserRpcFrontend(tables)
   {
     auto empty_function = [this](RequestArgs& args) {
       return jsonrpc::success(true);
@@ -229,13 +229,13 @@ void prepare_callers()
 {
   Store::Tx tx;
   network.tables->set_encryptor(encryptor);
-  ccf::Certs* user_certs = &network.user_certs;
-  ccf::Certs* member_certs = &network.member_certs;
-  auto user_certs_view = tx.get_view(*user_certs);
+  network2.tables->set_encryptor(encryptor);
+
+  auto [user_certs_view, member_certs_view] =
+    tx.get_view(network.user_certs, network.member_certs);
   user_certs_view->put(user_caller, 0);
   user_certs_view->put(invalid_caller, 1);
   user_certs_view->put(nos_caller, 2);
-  auto member_certs_view = tx.get_view(*member_certs);
   member_certs_view->put(member_caller, 0);
   member_certs_view->put(invalid_caller, 0);
   REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -516,18 +516,6 @@ TEST_CASE("No certs table")
   CHECK(response[jsonrpc::RESULT] == true);
 }
 
-// We need an explicit main to initialize kremlib and EverCrypt
-int main(int argc, char** argv)
-{
-  doctest::Context context;
-  context.applyCommandLine(argc, argv);
-  ::EverCrypt_AutoConfig2_init();
-  int res = context.run();
-  if (context.shouldExit())
-    return res;
-  return res;
-}
-
 class StubForwarder : public AbstractForwarder
 {
 public:
@@ -567,12 +555,11 @@ TEST_CASE("Forwarding")
   network2.tables->set_consensus(primary_consensus);
 
   auto write_req = create_simple_json();
-  std::vector<uint8_t> serialized_call =
-    jsonrpc::pack(write_req, jsonrpc::Pack::MsgPack);
+  auto serialized_call = jsonrpc::pack(write_req, jsonrpc::Pack::MsgPack);
 
   INFO("Frontend without forwarder does not forward");
   {
-    enclave::RPCContext ctx(0, nullb);
+    enclave::RPCContext ctx(0, user_caller);
     REQUIRE(ctx.is_pending == false);
     REQUIRE(backup_forwarder->forwarded_cmds.empty());
     auto serialized_response = frontend_backup.process(ctx, serialized_call);
@@ -589,9 +576,14 @@ TEST_CASE("Forwarding")
 
   frontend_backup.set_cmd_forwarder(backup_forwarder);
 
+  INFO("Read command is not forwarded to primary");
+  {
+    // TODO:
+  }
+
   INFO("Write command on backup is forwarded to primary");
   {
-    enclave::RPCContext ctx(0, nullb);
+    enclave::RPCContext ctx(0, user_caller);
     REQUIRE(ctx.is_pending == false);
     REQUIRE(backup_forwarder->forwarded_cmds.empty());
     frontend_backup.process(ctx, serialized_call);
@@ -611,7 +603,7 @@ TEST_CASE("Forwarding")
 
   INFO("Forwarding write command to a backup return TX_NOT_PRIMARY");
   {
-    enclave::RPCContext ctx(0, nullb);
+    enclave::RPCContext ctx(0, user_caller);
     REQUIRE(ctx.is_pending == false);
     REQUIRE(backup_forwarder->forwarded_cmds.empty());
     frontend_backup.process(ctx, serialized_call);
@@ -633,6 +625,33 @@ TEST_CASE("Forwarding")
       response[jsonrpc::ERR][jsonrpc::CODE] ==
       static_cast<jsonrpc::ErrorBaseType>(
         jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY));
+  }
+
+  INFO("Client signature on forwarded RPC is recorded by primary");
+  {
+    enclave::RPCContext ctx(0, user_caller);
+    Store::Tx tx;
+
+    REQUIRE(ctx.is_pending == false);
+    REQUIRE(backup_forwarder->forwarded_cmds.empty());
+    auto signed_call = create_signed_json();
+    auto serialized_signed_call =
+      jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
+    frontend_backup.process(ctx, serialized_signed_call);
+    REQUIRE(ctx.is_pending == true);
+    REQUIRE(backup_forwarder->forwarded_cmds.size() == 1);
+
+    auto forwarded_cmd = backup_forwarder->forwarded_cmds.back();
+    backup_forwarder->forwarded_cmds.pop_back();
+
+    CallerId user_caller_id = 0;
+    enclave::RPCContext fwd_ctx(0, 0, user_caller_id);
+    frontend_primary.process_forwarded(fwd_ctx, forwarded_cmd);
+
+    auto client_sig_view = tx.get_view(network2.user_client_signatures);
+    auto client_sig = client_sig_view->get(user_caller_id);
+    REQUIRE(client_sig.has_value());
+    REQUIRE(SignedReq(client_sig.value()) == SignedReq(signed_call));
   }
 
   INFO("Write command should not be forwarded if marked as non-forwardable");
@@ -701,4 +720,16 @@ TEST_CASE("App-defined errors")
     CHECK(msg.find("BAR") != std::string::npos);
     CHECK(msg.find(TestAppErrorFrontEnd::bar_msg) != std::string::npos);
   }
+}
+
+// We need an explicit main to initialize kremlib and EverCrypt
+int main(int argc, char** argv)
+{
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  ::EverCrypt_AutoConfig2_init();
+  int res = context.run();
+  if (context.shouldExit())
+    return res;
+  return res;
 }
