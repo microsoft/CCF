@@ -145,7 +145,7 @@ jobs:
     - script: mkdir build
       displayName: 'Make a build directory'
 
-    - script: cmake -GNinja -DPBFT=ON -DBUILD_SMALLBANK=OFF ..
+    - script: cmake -DTARGET=virtual -GNinja -DPBFT=ON -DBUILD_SMALLBANK=OFF ..
       displayName: cmake
       workingDirectory: build
 
