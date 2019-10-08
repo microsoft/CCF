@@ -66,8 +66,8 @@ jobs:
     - script: python3.7 notice-check.py
       displayName: 'Check CCF copyright notices'
 
-    - workingDirectory: ePBFT/
-      script: python3.7 ePBFT/notice-check.py
+    - script: python3.7 ePBFT/notice-check.py
+      workingDirectory: ePBFT
       displayName: 'Check ePBFT copyright notices'
 
     - script: ./check-format.sh src samples ePBFT/src
