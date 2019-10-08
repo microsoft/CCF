@@ -881,18 +881,6 @@ namespace ccf
       const CBuffer& caller,
       const CallerId& caller_id,
       const nlohmann::json& full_rpc,
-      bool is_forwarded)
-    {
-      SignedReq signed_request;
-      return verify_client_signature(
-        tx, caller, caller_id, full_rpc, is_forwarded, signed_request);
-    }
-
-    bool verify_client_signature(
-      Store::Tx& tx,
-      const CBuffer& caller,
-      const CallerId& caller_id,
-      const nlohmann::json& full_rpc,
       bool is_forwarded,
       SignedReq& signed_request)
     {
@@ -921,13 +909,15 @@ namespace ccf
           return false;
       }
 
-      // TODO(#important): Request should only be stored on the primary
-      if (request_storing_disabled)
+      if (consensus == nullptr || consensus->is_primary())
       {
-        signed_request.req.clear();
+        if (request_storing_disabled)
+        {
+          signed_request.req.clear();
+        }
+        auto client_sig_view = tx.get_view(*client_signatures);
+        client_sig_view->put(caller_id, signed_request);
       }
-      auto client_sig_view = tx.get_view(*client_signatures);
-      client_sig_view->put(caller_id, signed_request);
       return true;
     }
 
