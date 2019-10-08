@@ -68,7 +68,6 @@ static void benchmark_verify(picobench::state& s)
   const auto contents = make_contents<NContents>();
 
   auto signature = kp->sign(contents);
-  auto public_key = kp->public_key_pem();
 
   s.start_timer();
   for (auto _ : s)
