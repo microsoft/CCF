@@ -44,33 +44,20 @@ set(PBFT_SRC
   ${CMAKE_CURRENT_LIST_DIR}/../src/pbft/libbyz/New_principal.cpp
 )
 
-#if(SIGN_BATCH)
-  add_definitions(-DSIGN_BATCH)
-#endif()
+add_definitions(-DSIGN_BATCH)
 
-#if(DEFINED PBFT_BUILD_ENCLAVE)
-  add_library(libbyz.enclave STATIC ${PBFT_SRC})
-  target_compile_options(libbyz.enclave PRIVATE
-    -nostdinc
-    -U__linux__)
-  target_compile_definitions(libbyz.enclave PRIVATE INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD __USE_SYSTEM_ENDIAN_H__ )
-  set_property(TARGET libbyz.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
-  target_include_directories(libbyz.enclave PRIVATE SYSTEM ${EVERCRYPT_INC})
-#endif()
+add_library(libbyz.enclave STATIC ${PBFT_SRC})
+target_compile_options(libbyz.enclave PRIVATE
+  -nostdinc
+  -U__linux__)
+target_compile_definitions(libbyz.enclave PRIVATE INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD __USE_SYSTEM_ENDIAN_H__ )
+set_property(TARGET libbyz.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
+target_include_directories(libbyz.enclave PRIVATE SYSTEM ${EVERCRYPT_INC})
 
-#if(DEFINED PBFT_BUILD_HOST)
-  add_library(libbyz.host STATIC ${PBFT_SRC})
-  target_compile_options(libbyz.host PRIVATE)
-  set_property(TARGET libbyz.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-  target_include_directories(libbyz.host PRIVATE SYSTEM ${EVERCRYPT_INC})
+add_library(libbyz.host STATIC ${PBFT_SRC})
+target_compile_options(libbyz.host PRIVATE -stdlib=libc++)
+set_property(TARGET libbyz.host PROPERTY POSITION_INDEPENDENT_CODE ON)
+target_include_directories(libbyz.host PRIVATE SYSTEM ${EVERCRYPT_INC})
 
-  #if(DEFINED PBFT_USE_LIBC)
-   target_compile_options(libbyz.host PRIVATE -stdlib=libc++)
-  #endif()
-#endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-# target_include_directories(libbyz.host PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../src/pbft/)
-
-

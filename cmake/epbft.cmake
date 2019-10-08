@@ -24,8 +24,8 @@ find_library(ZeroMQ_LIBRARY
         PATHS ${PC_ZeroMQ_LIBRARY_DIRS}
         )
 
-# set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
-# add_subdirectory(${CMAKE_SOURCE_DIR}/3rdparty/snmalloc EXCLUDE_FROM_ALL)
+set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
+add_subdirectory(${CMAKE_SOURCE_DIR}/3rdparty/snmalloc EXCLUDE_FROM_ALL)
 
 add_library(libcommon STATIC
   ${CMAKE_SOURCE_DIR}/ePBFT/src/pbft/libcommon/network_udp.cpp
@@ -34,17 +34,17 @@ add_library(libcommon STATIC
   ${CMAKE_SOURCE_DIR}/ePBFT/src/pbft/libcommon/ITimer.cpp
   ${CMAKE_SOURCE_DIR}/ePBFT/src/pbft/libcommon/Time.cpp
   ${CMAKE_SOURCE_DIR}/ePBFT/src/pbft/libcommon/Statistics.cpp
-  # ${CMAKE_SOURCE_DIR}/ePBFT/src/pbft/libcommon/snmalloc.cpp
+  ${CMAKE_SOURCE_DIR}/ePBFT/src/pbft/libcommon/snmalloc.cpp
 )
-   target_compile_options(libcommon PRIVATE -stdlib=libc++)
-# target_link_libraries(libcommon PRIVATE snmalloc_lib)
+target_compile_options(libcommon PRIVATE -stdlib=libc++)
+target_link_libraries(libcommon PRIVATE snmalloc_lib)
 
 target_include_directories(libcommon PRIVATE
   ${CMAKE_SOURCE_DIR}/ePBFT/src/pbft/libbyz
   ${CMAKE_SOURCE_DIR}/3rdparty
   ${EVERCRYPT_INC}
 )
-  target_compile_options(libcommon PRIVATE -stdlib=libc++)
+target_compile_options(libcommon PRIVATE -stdlib=libc++)
 
 function(use_libbyz name)
 

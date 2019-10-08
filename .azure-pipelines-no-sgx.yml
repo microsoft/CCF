@@ -64,10 +64,15 @@ jobs:
       displayName: 'Shell Check'
 
     - script: python3.7 notice-check.py
-      displayName: 'Check copyright notices'
+      displayName: 'Check CCF copyright notices'
+
+    - workingDirectory: ePBFT/
+      script: python3.7 ePBFT/notice-check.py
+      displayName: 'Check ePBFT copyright notices'
 
     - script: ./check-format.sh src samples ePBFT/src
       displayName: 'Check C++ code format'
+
 
     - script: |
         python3.7 -m venv env
