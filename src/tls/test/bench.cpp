@@ -66,8 +66,6 @@ static void benchmark_verify(picobench::state& s)
 
   auto signature = kp->sign(contents);
   auto public_key = kp->public_key_pem();
-  auto pubk = tls::make_public_key(
-    public_key, Curve == tls::CurveImpl::secp256k1_bitcoin);
 
   s.start_timer();
   for (auto _ : s)
