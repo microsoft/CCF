@@ -38,8 +38,15 @@ class TxRates:
         format("min", min(self.tx_rates_data))
 
         format_title("Histogram")
+        buckets_list = self.histogram_data["buckets"]
+        out_list.append(f"({len(buckets_list)} samples)")
+        buckets = {tuple(e[0]): e[1] for e in buckets_list}
+        max_count = max(buckets.values())
+        for k, count in sorted(buckets.items()):
+            out_list.append(
+                "{:>12}: {}".format(f"{k[0]}-{k[1]}", "*" * (60 * count // max_count))
+            )
 
-        out_list.append(json.dumps(self.histogram_data, indent=4))
         return "\n".join(out_list)
 
     def save_results(self, output_file):
