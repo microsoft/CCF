@@ -183,6 +183,64 @@ namespace ccf
       }
     }
 
+    void record_client_signature(
+      Store::Tx& tx, CallerId caller_id, SignedReq& signed_request)
+    {
+      if (request_storing_disabled)
+      {
+        signed_request.req.clear();
+      }
+      auto client_sig_view = tx.get_view(*client_signatures);
+      client_sig_view->put(caller_id, signed_request);
+    }
+
+    bool verify_client_signature(
+      const CBuffer& caller,
+      const CallerId caller_id,
+      const nlohmann::json& full_rpc,
+      SignedReq& signed_request)
+    {
+#ifdef HTTP
+      return true; // TODO: use Authorize header
+#endif
+
+      if (!client_signatures)
+      {
+        return false;
+      }
+
+      auto v = verifiers.find(caller_id);
+      if (v == verifiers.end())
+      {
+        CallerKey caller_cert(caller);
+        verifiers.emplace(
+          std::make_pair(caller_id, tls::make_verifier(caller_cert)));
+      }
+      if (!verifiers[caller_id]->verify(signed_request.req, signed_request.sig))
+      {
+        return false;
+      }
+
+      return true;
+    }
+
+    std::optional<jsonrpc::Pack> detect_pack(const std::vector<uint8_t>& input)
+    {
+      if (input.size() == 0)
+      {
+        return {};
+      }
+
+      if (input[0] == '{')
+      {
+        return jsonrpc::Pack::Text;
+      }
+      else
+      {
+        return jsonrpc::Pack::MsgPack;
+      }
+    }
+
   public:
     RpcFrontend(Store& tables_) : RpcFrontend(tables_, nullptr, nullptr) {}
 
@@ -440,23 +498,6 @@ namespace ccf
     void set_default(HandleFunction f, ReadWrite rw)
     {
       default_handler = {f, rw};
-    }
-
-    std::optional<jsonrpc::Pack> detect_pack(const std::vector<uint8_t>& input)
-    {
-      if (input.size() == 0)
-      {
-        return {};
-      }
-
-      if (input[0] == '{')
-      {
-        return jsonrpc::Pack::Text;
-      }
-      else
-      {
-        return jsonrpc::Pack::MsgPack;
-      }
     }
 
     /** Process a serialised command with the associated RPC context
@@ -924,47 +965,6 @@ namespace ccf
             e.what());
         }
       }
-    }
-
-    void record_client_signature(
-      Store::Tx& tx, CallerId caller_id, SignedReq& signed_request)
-    {
-      if (request_storing_disabled)
-      {
-        signed_request.req.clear();
-      }
-      auto client_sig_view = tx.get_view(*client_signatures);
-      client_sig_view->put(caller_id, signed_request);
-    }
-
-    bool verify_client_signature(
-      const CBuffer& caller,
-      const CallerId caller_id,
-      const nlohmann::json& full_rpc,
-      SignedReq& signed_request)
-    {
-#ifdef HTTP
-      return true; // TODO: use Authorize header
-#endif
-
-      if (!client_signatures)
-      {
-        return false;
-      }
-
-      auto v = verifiers.find(caller_id);
-      if (v == verifiers.end())
-      {
-        CallerKey caller_cert(caller);
-        verifiers.emplace(
-          std::make_pair(caller_id, tls::make_verifier(caller_cert)));
-      }
-      if (!verifiers[caller_id]->verify(signed_request.req, signed_request.sig))
-      {
-        return false;
-      }
-
-      return true;
     }
 
     void tick(std::chrono::milliseconds elapsed) override

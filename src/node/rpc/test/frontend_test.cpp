@@ -260,55 +260,6 @@ TEST_CASE("SignedReq to and from json")
   REQUIRE(sr.req.empty());
 }
 
-TEST_CASE("Verify signature on Member Frontend")
-{
-  prepare_callers();
-  TestMemberFrontend frontend(*network.tables, network, node);
-  CallerId caller_id(0);
-  CallerId inval_caller_id(1);
-  Store::Tx tx;
-
-  SUBCASE("with signature")
-  {
-    auto signed_call = create_signed_json();
-    SignedReq signed_request(signed_call);
-    CHECK(frontend.verify_client_signature(
-      member_caller, caller_id, signed_call, signed_request));
-  }
-
-  SUBCASE("signature not verified")
-  {
-    auto signed_call = create_signed_json();
-    SignedReq signed_request(signed_call);
-    CHECK(!frontend.verify_client_signature(
-      invalid_caller, inval_caller_id, signed_call, signed_request));
-  }
-}
-
-TEST_CASE("Verify signature")
-{
-  prepare_callers();
-  TestUserFrontend frontend(*network.tables);
-  CallerId caller_id(0);
-  CallerId inval_caller_id(1);
-
-  SUBCASE("with signature")
-  {
-    auto signed_call = create_signed_json();
-    SignedReq signed_request(signed_call);
-    CHECK(frontend.verify_client_signature(
-      user_caller, caller_id, signed_call, signed_request));
-  }
-
-  SUBCASE("signature not verified")
-  {
-    auto signed_call = create_signed_json();
-    SignedReq signed_request(signed_call);
-    CHECK(!frontend.verify_client_signature(
-      invalid_caller, inval_caller_id, signed_call, signed_request));
-  }
-}
-
 TEST_CASE("get_signed_req")
 {
   prepare_callers();
