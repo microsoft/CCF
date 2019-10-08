@@ -499,6 +499,7 @@ namespace ccf
         return jsonrpc::pack(rpc.second, ctx.pack.value());
       }
 
+      update_consensus();
       auto rpc_ = &rpc.second;
       SignedReq signed_request(rpc.second);
       if (rpc_->find(jsonrpc::SIG) != rpc_->end())
@@ -805,7 +806,6 @@ namespace ccf
           method);
       }
 
-      update_consensus();
       update_history();
 
       bool is_primary = (consensus == nullptr) || consensus->is_primary();

@@ -227,6 +227,12 @@ enclave::RPCContext member_rpc_ctx(0, member_caller);
 
 void prepare_callers()
 {
+  // It is necessary to set a consensus before committing the first transaction,
+  // so that the KV batching done before calling into replicate() stays in
+  // order.
+  auto backup_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  network.tables->set_consensus(backup_consensus);
+
   Store::Tx tx;
   network.tables->set_encryptor(encryptor);
   network2.tables->set_encryptor(encryptor);
@@ -516,6 +522,24 @@ TEST_CASE("No certs table")
   CHECK(response[jsonrpc::RESULT] == true);
 }
 
+TEST_CASE("Signed read requests can be executed on backup")
+{
+  prepare_callers();
+
+  TestUserFrontend frontend(*network.tables);
+
+  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  network.tables->set_consensus(backup_consensus);
+
+  auto signed_call = create_signed_json();
+  auto serialized_signed_call =
+    jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
+  auto response = jsonrpc::unpack(
+    frontend.process(rpc_ctx, serialized_signed_call), jsonrpc::Pack::MsgPack);
+
+  CHECK(response[jsonrpc::RESULT] == true);
+}
+
 class StubForwarder : public AbstractForwarder
 {
 public:
@@ -578,7 +602,18 @@ TEST_CASE("Forwarding")
 
   INFO("Read command is not forwarded to primary");
   {
-    // TODO:
+    TestUserFrontend frontend_backup_read(*network.tables);
+    enclave::RPCContext ctx(0, user_caller);
+    REQUIRE(ctx.is_pending == false);
+    REQUIRE(backup_forwarder->forwarded_cmds.empty());
+
+    auto response = jsonrpc::unpack(
+      frontend_backup_read.process(ctx, serialized_call),
+      jsonrpc::Pack::MsgPack);
+    REQUIRE(ctx.is_pending == false);
+    REQUIRE(backup_forwarder->forwarded_cmds.size() == 0);
+
+    CHECK(response[jsonrpc::RESULT] == true);
   }
 
   INFO("Write command on backup is forwarded to primary");
