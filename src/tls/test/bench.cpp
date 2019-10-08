@@ -7,7 +7,6 @@
 
 using namespace std;
 
-static constexpr size_t SHA256_BYTES = 256 / 8;
 static const string lorem_ipsum =
   "Lorem ipsum dolor sit amet, consectetur adipiscing "
   "elit, sed do eiusmod tempor incididunt ut labore et"
@@ -68,6 +67,10 @@ static void benchmark_verify(picobench::state& s)
   const auto contents = make_contents<NContents>();
 
   auto signature = kp->sign(contents);
+
+  const auto public_key = kp->public_key_pem();
+  auto pubk = tls::make_public_key(
+    public_key, Curve == tls::CurveImpl::secp256k1_bitcoin);
 
   s.start_timer();
   for (auto _ : s)
