@@ -118,7 +118,7 @@ jobs:
         suite_name_suffix: 'san'
 
 - job: ePBFT
-  pool: Ubuntu-1804-SGX-Azure
+  pool: Ubuntu-1804-D8s_v3
   container:
     image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx-no-mitigation:latest
     options: --publish-all --device /dev/sgx:/dev/sgx
