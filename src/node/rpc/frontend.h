@@ -500,17 +500,13 @@ namespace ccf
       }
 
       auto rpc_ = &rpc.second;
-      SignedReq signed_request;
+      SignedReq signed_request(rpc.second);
       if (rpc_->find(jsonrpc::SIG) != rpc_->end())
       {
         auto& req = rpc_->at(jsonrpc::REQ);
 
         if (!verify_client_signature(
-              ctx.caller_cert,
-              caller_id.value(),
-              *rpc_,
-              ctx.fwd.has_value(),
-              signed_request))
+              ctx.caller_cert, caller_id.value(), *rpc_, signed_request))
         {
           return jsonrpc::pack(
             jsonrpc::error_response(
@@ -727,13 +723,16 @@ namespace ccf
         return jsonrpc::pack(rpc.second, pack.value());
       }
 
-      // Unwrap signed request if necessary
+      // Unwrap signed request if necessary and store client signature. It is
+      // assumed that the forwarder node has already verified the client
+      // signature.
       auto rpc_ = &rpc.second;
       SignedReq signed_request(rpc.second);
 
       if (rpc_->find(jsonrpc::SIG) != rpc_->end())
       {
         auto& req = rpc_->at(jsonrpc::REQ);
+        record_client_signature(tx, ctx.fwd->caller_id, signed_request);
         rpc_ = &req;
       }
       auto& unsigned_rpc = *rpc_;
@@ -942,7 +941,6 @@ namespace ccf
       const CBuffer& caller,
       const CallerId caller_id,
       const nlohmann::json& full_rpc,
-      bool is_forwarded,
       SignedReq& signed_request)
     {
 #ifdef HTTP
@@ -954,24 +952,16 @@ namespace ccf
         return false;
       }
 
-      signed_request = full_rpc;
-
-      // If the RPC is forwarded, assume that the signature has already been
-      // verified by the backup
-      if (!is_forwarded)
+      auto v = verifiers.find(caller_id);
+      if (v == verifiers.end())
       {
-        auto v = verifiers.find(caller_id);
-        if (v == verifiers.end())
-        {
-          CallerKey caller_cert(caller);
-          verifiers.emplace(
-            std::make_pair(caller_id, tls::make_verifier(caller_cert)));
-        }
-        if (!verifiers[caller_id]->verify(
-              signed_request.req, signed_request.sig))
-        {
-          return false;
-        }
+        CallerKey caller_cert(caller);
+        verifiers.emplace(
+          std::make_pair(caller_id, tls::make_verifier(caller_cert)));
+      }
+      if (!verifiers[caller_id]->verify(signed_request.req, signed_request.sig))
+      {
+        return false;
       }
 
       return true;

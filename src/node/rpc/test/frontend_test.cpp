@@ -264,18 +264,18 @@ TEST_CASE("Verify signature on Member Frontend")
 
   SUBCASE("with signature")
   {
-    SignedReq signed_request;
     auto signed_call = create_signed_json();
+    SignedReq signed_request(signed_call);
     CHECK(frontend.verify_client_signature(
-      member_caller, caller_id, signed_call, false, signed_request));
+      member_caller, caller_id, signed_call, signed_request));
   }
 
   SUBCASE("signature not verified")
   {
-    SignedReq signed_request;
     auto signed_call = create_signed_json();
+    SignedReq signed_request(signed_call);
     CHECK(!frontend.verify_client_signature(
-      invalid_caller, inval_caller_id, signed_call, false, signed_request));
+      invalid_caller, inval_caller_id, signed_call, signed_request));
   }
 }
 
@@ -288,18 +288,18 @@ TEST_CASE("Verify signature")
 
   SUBCASE("with signature")
   {
-    SignedReq signed_request;
     auto signed_call = create_signed_json();
+    SignedReq signed_request(signed_call);
     CHECK(frontend.verify_client_signature(
-      user_caller, caller_id, signed_call, false, signed_request));
+      user_caller, caller_id, signed_call, signed_request));
   }
 
   SUBCASE("signature not verified")
   {
-    SignedReq signed_request;
     auto signed_call = create_signed_json();
+    SignedReq signed_request(signed_call);
     CHECK(!frontend.verify_client_signature(
-      invalid_caller, inval_caller_id, signed_call, false, signed_request));
+      invalid_caller, inval_caller_id, signed_call, signed_request));
   }
 }
 
