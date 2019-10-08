@@ -44,7 +44,9 @@ class TxRates:
         max_count = max(buckets.values())
         for k, count in sorted(buckets.items()):
             out_list.append(
-                "{:>12}: {}".format(f"{k[0]}-{k[1]}", "*" * (60 * count // max_count))
+                "{:>12}: {}".format(
+                    f"{k[0]}-{k[1]}", "*" * min(count, (60 * count // max_count))
+                )
             )
 
         return "\n".join(out_list)
