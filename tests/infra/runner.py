@@ -136,7 +136,7 @@ def run(build_directory, get_command, args):
                         break
                     time.sleep(1)
 
-                LOG.info(f"Rates: {tx_rates}")
+                LOG.info(f"Rates:\n{tx_rates}")
                 tx_rates.save_results(args.metrics_file)
                 metrics.publish()
 

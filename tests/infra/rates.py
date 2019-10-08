@@ -21,7 +21,7 @@ class TxRates:
         self.commit = 0
 
     def __str__(self):
-        out_list = [""]
+        out_list = []
 
         def format_title(s):
             out_list.append(f"{s:-^42}")
