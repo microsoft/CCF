@@ -67,7 +67,12 @@ to embed one of several language runtimes on top of its key-value store. Clients
 
 ## Getting Started on Azure Confidential Computing
 
-Under `getting_started/`:
+First, if you are checking out the CCF repository, run `git clone` with the `--recursive` option:
+```bash
+git clone --recursive https://github.com/microsoft/CCF.git
+```
+
+Then, under `CCF/getting_started/`:
  * `create_vm/` contains scripts to create an ACC VM (`make_vm.sh`).
    This script expects a valid Azure subscription name to be set, eg: `export SUBSCRIPTION=sub_name`.
  * `setup_vm/` contains ansible playbooks that need to be run on the VM once created, for it to be able to build CCF.
@@ -76,6 +81,7 @@ Under `getting_started/`:
 ## Build and Test
 
 ```bash
+cd CCF
 mkdir build
 cd build
 cmake -GNinja ..
