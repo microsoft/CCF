@@ -7,7 +7,7 @@ from statistics import mean, harmonic_mean, median, pstdev
 
 from loguru import logger as LOG
 
-COMMIT_COUNT_CUTOFF = 10
+COMMIT_COUNT_CUTOFF = 15
 
 
 class TxRates:

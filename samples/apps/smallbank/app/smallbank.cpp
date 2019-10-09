@@ -331,7 +331,7 @@ namespace ccfapp
 
       install(Procs::SMALL_BANKING_CREATE, create, Write);
       install(Procs::SMALL_BANKING_CREATE_BATCH, create_batch, Write);
-      install(Procs::SMALL_BANKING_BALANCE, balance, Write);
+      install(Procs::SMALL_BANKING_BALANCE, balance, Read);
       install(Procs::SMALL_BANKING_TRANSACT_SAVINGS, transact_savings, Write);
       install(Procs::SMALL_BANKING_DEPOSIT_CHECKING, deposit_checking, Write);
       install(Procs::SMALL_BANKING_AMALGAMATE, amalgamate, Write);
