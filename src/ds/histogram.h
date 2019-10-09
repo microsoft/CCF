@@ -222,17 +222,14 @@ namespace histogram
       }
     }
 
-    std::map<std::string, size_t> get_range_count()
+    std::map<std::pair<size_t, size_t>, size_t> get_range_count()
     {
-      std::map<std::string, size_t> range_counts;
+      std::map<std::pair<size_t, size_t>, size_t> range_counts;
 
       for (size_t i = 0; i < BUCKETS; i++)
       {
         auto r = get_range(i);
-        std::string range(
-          std::to_string(std::get<0>(r)) + ".." +
-          std::to_string(std::get<1>(r)));
-        range_counts.insert({range, count[i]});
+        range_counts.insert({{std::get<0>(r), std::get<1>(r)}, count[i]});
       }
       return range_counts;
     }

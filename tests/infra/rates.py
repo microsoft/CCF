@@ -21,19 +21,34 @@ class TxRates:
         self.commit = 0
 
     def __str__(self):
-        out_list = ["----------- tx rates -----------"]
-        out_list.append("----- mean ----: " + str(mean(self.tx_rates_data)))
-        out_list.append(
-            "----- harmonic mean ----: " + str(harmonic_mean(self.tx_rates_data))
-        )
-        out_list.append(
-            "---- standard deviation ----: " + str(pstdev(self.tx_rates_data))
-        )
-        out_list.append("----- median ----: " + str(median(self.tx_rates_data)))
-        out_list.append("---- max ----: " + str(max(self.tx_rates_data)))
-        out_list.append("---- min ----: " + str(min(self.tx_rates_data)))
-        out_list.append("----------- tx rates histogram -----------")
-        out_list.append(json.dumps(self.histogram_data, indent=4))
+        out_list = []
+
+        def format_title(s):
+            out_list.append(f"{s:-^42}")
+
+        def format(s, n):
+            out_list.append(f"--- {s:>20}: {n:>12.2f} ---")
+
+        format_title("Summary")
+        format("mean", mean(self.tx_rates_data))
+        format("harmonic mean", harmonic_mean(self.tx_rates_data))
+        format("standard deviation", pstdev(self.tx_rates_data))
+        format("median", median(self.tx_rates_data))
+        format("max", max(self.tx_rates_data))
+        format("min", min(self.tx_rates_data))
+
+        format_title("Histogram")
+        buckets_list = self.histogram_data["buckets"]
+        buckets = {tuple(e[0]): e[1] for e in buckets_list}
+        out_list.append(f"({sum(buckets.values())} samples in {len(buckets)} buckets)")
+        max_count = max(buckets.values())
+        for k, count in sorted(buckets.items()):
+            out_list.append(
+                "{:>12}: {}".format(
+                    f"{k[0]}-{k[1]}", "*" * min(count, (60 * count // max_count))
+                )
+            )
+
         return "\n".join(out_list)
 
     def save_results(self, output_file):
@@ -52,7 +67,7 @@ class TxRates:
 
             self.commit = next_commit
 
-        if self.same_commit_count > COMMIT_COUNT_CUTOFF:
+        if self.same_commit_count >= COMMIT_COUNT_CUTOFF:
             self._get_metrics()
             return False
         return True
@@ -79,27 +94,4 @@ class TxRates:
             if histogram is None:
                 LOG.info("No histogram metrics found...")
             else:
-                histogram_buckets = histogram["buckets"]
-
-                LOG.info("Filtering histogram results...")
-                hist_data = {}
-
-                for key in histogram_buckets:
-                    if histogram_buckets[key] > 0:
-                        range_1, range_2 = key.split("..")
-                        hist_data[int(range_1)] = (range_2, histogram_buckets[key])
-
-                self.histogram_data["histogram"] = {}
-                buckets = []
-                rates = []
-                for key, value_tuple in sorted(hist_data.items(), key=lambda x: x[0]):
-                    self.histogram_data["histogram"][
-                        str(key) + ".." + value_tuple[0]
-                    ] = value_tuple[1]
-                    buckets.append(str(key) + ".." + value_tuple[0])
-                    rates.append(value_tuple[1])
-
-                self.histogram_data["low"] = histogram["low"]
-                self.histogram_data["high"] = histogram["high"]
-                self.histogram_data["underflow"] = histogram["underflow"]
-                self.histogram_data["overflow"] = histogram["overflow"]
+                self.histogram_data = histogram
