@@ -8,6 +8,8 @@ This page describes how operators and the members of the consortium can bootstra
 Create a new network
 --------------------
 
+.. note:: Before creating a new CCF network, the identity of the initial member(s) of the consortium must be created. For example, using the ``keygenerator`` utility: :code:`$ keygenerator --name member1`, generates the ``member1_cert.pem`` certificate and associated ``member1_privk.pem`` private key.
+
 To start up a network, the first node of the network should be started with the ``start`` option:
 
 .. code-block:: bash
