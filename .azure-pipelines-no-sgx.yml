@@ -18,34 +18,34 @@ trigger:
       - 'LICENSE'
 
 pr:
-#  autoCancel: true
-#  branches:
-#    include:
-#      - master
-#  paths:
-#    include:
-#      - '*'
-#    exclude:
-#      - 'README.md'
-#      - 'CCF-TECHNICAL-REPORT.pdf'
-#      - 'Dockerfile'
-#      - 'Doxyfile'
-#      - 'THIRD_PARTY_NOTICES.txt'
-#      - 'getting_started/'
-#      - 'sphinx/'
-#      - '.github/'
-#      - '.azure-pipelines-gh-pages.yml'
-#      - 'LICENSE'
-#
-#schedules:
-#- cron: "0 3 * * Mon-Fri"
-#  displayName: Daily morning build
-#  branches:
-#    include:
-#    - master
-#  always: true
-#
-#jobs:
+  autoCancel: true
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - '*'
+    exclude:
+      - 'README.md'
+      - 'CCF-TECHNICAL-REPORT.pdf'
+      - 'Dockerfile'
+      - 'Doxyfile'
+      - 'THIRD_PARTY_NOTICES.txt'
+      - 'getting_started/'
+      - 'sphinx/'
+      - '.github/'
+      - '.azure-pipelines-gh-pages.yml'
+      - 'LICENSE'
+
+schedules:
+- cron: "0 3 * * Mon-Fri"
+  displayName: Daily morning build
+  branches:
+    include:
+    - master
+  always: true
+
+jobs:
 #- job: Coverage
 #  pool: Ubuntu-1804-D8s_v3
 #  container:
