@@ -12,10 +12,16 @@ namespace ccf
 {
   struct SignedReq
   {
-    // the encoded json-rpc signed by the clients private key
+    // the signature of the msgpack-encoded json-rpc (via the client's private
+    // key)
     std::vector<uint8_t> sig = {};
     // the encoded json-rpc sent by the client
     std::vector<uint8_t> req = {};
+
+    bool operator==(const SignedReq& other) const
+    {
+      return (sig == other.sig) && (req == other.req);
+    }
 
     MSGPACK_DEFINE(sig, req);
   };

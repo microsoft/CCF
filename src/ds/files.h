@@ -2,26 +2,15 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#ifdef _WIN32
-#  define _CRT_SECURE_NO_WARNINGS
-#endif
-
-#include "tls/cert.h"
-
 #include <cstring>
 #include <fstream>
+#include <glob.h>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
-
-#ifdef _WIN32
-#  include <windows.h>
-#else
-#  include <glob.h>
-#endif
 
 namespace files
 {
@@ -95,92 +84,6 @@ namespace files
       return nlohmann::json();
 
     return nlohmann::json::parse(v.begin(), v.end());
-  }
-
-  /**
-   * @brief Tries to glob files and parse them as x509 certificates
-   *
-   * @param path the path to glob
-   * @param optional determines behaviour in the case where that no file matches
-   * the glob patter. If true, an empty vector is returned. If false, the
-   * process exits
-   * @return vector<vector<uint8_t>> vector of certificates
-   */
-  std::vector<std::vector<uint8_t>> slurp_certs(
-    const std::string& path, bool optional = false)
-  {
-    std::vector<std::vector<uint8_t>> certs;
-
-#ifdef _WIN32
-    WIN32_FIND_DATA fd;
-    auto h = FindFirstFile(path.c_str(), &fd);
-
-    if (h == INVALID_HANDLE_VALUE)
-    {
-      if (optional)
-      {
-        return {};
-      }
-      else
-      {
-        std::cerr << "Failed to search for cert pattern." << std::endl;
-        exit(-1);
-      }
-    }
-#else
-    glob_t g;
-    size_t i = 0;
-
-    if (glob(path.c_str(), GLOB_ERR, NULL, &g) || g.gl_pathc < 1)
-    {
-      if (optional)
-      {
-        return {};
-      }
-      else
-      {
-        std::cerr << "Failed to search for cert pattern." << std::endl;
-        exit(-1);
-      }
-    }
-#endif
-
-    do
-    {
-      mbedtls_x509_crt cert;
-      mbedtls_x509_crt_init(&cert);
-      std::string fn;
-#ifdef _WIN32
-      fn = fd.cFileName;
-#else
-      fn = g.gl_pathv[i];
-#endif
-
-      auto raw = slurp(fn);
-
-      if (mbedtls_x509_crt_parse(&cert, raw.data(), raw.size()))
-      {
-        std::cerr << "Failed to parse certificate " << fn << std::endl;
-        exit(-1);
-      }
-
-      certs.push_back({cert.raw.p, cert.raw.p + cert.raw.len});
-      mbedtls_x509_crt_free(&cert);
-    } while (
-#ifdef _WIN32
-      FindNextFile(h, &fd)
-#else
-      ++i < g.gl_pathc
-#endif
-    );
-
-#ifdef _WIN32
-    FindClose(h);
-#else
-    globfree(&g);
-#endif
-
-    return certs;
   }
 
   /**
