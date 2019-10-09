@@ -134,7 +134,7 @@ jobs:
     - script: mkdir build
       displayName: 'Make a build directory'
 
-    - script: cmake -DTARGET=virtual -GNinja -DPBFT=ON -DBUILD_SMALLBANK=OFF ..
+    - script: cmake -DTARGET=virtual -GNinja -DPBFT=ON -DBUILD_SMALLBANK=OFF .. 
       displayName: cmake
       workingDirectory: build
 
@@ -143,7 +143,7 @@ jobs:
       workingDirectory: build
 
     - script: |
-        ./tests.sh -VV --timeout 240 --no-compress-output -T Test -R test_TCP_with_delay --repeat-until-fail 500
+        ./tests.sh -VV --timeout 240 --no-compress-output -T Test -R test_TCP_with_delay --repeat-until-fail 500 
       displayName: CTest
       workingDirectory: build
     - script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) SGX" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
