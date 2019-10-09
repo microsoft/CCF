@@ -143,7 +143,7 @@ jobs:
       workingDirectory: build
 
     - script: |
-        ./tests.sh -VV --timeout 240 --no-compress-output -T Test -R test_TCP_with_delay
+        ./tests.sh -VV --timeout 240 --no-compress-output -T Test -R test_TCP_with_delay 
       displayName: CTest
       workingDirectory: build
     - script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) SGX" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
