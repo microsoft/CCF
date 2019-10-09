@@ -142,6 +142,8 @@ jobs:
       displayName: Ninja
       workingDirectory: build
 
+    # TODO: The -E argument should be removed once this test passes consistently.
+    # Current investigation is in PR #424
     - script: |
         ./tests.sh -VV --timeout 240 --no-compress-output -T Test -E test_TCP_with_delay
       displayName: CTest
