@@ -88,6 +88,13 @@ namespace kv
     {
       return false;
     }
+
+    bool replicate(
+      const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
+      override
+    {
+      return false;
+    }
   };
 
   class PrimaryStubConsensus : public StubConsensus
