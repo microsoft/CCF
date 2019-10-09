@@ -44,7 +44,7 @@ def submodules():
 
 if __name__ == "__main__":
     missing = []
-    excluded = ["3rdparty", ".git"] + submodules()
+    excluded = ["3rdparty", ".git", "ePBFT", "build"] + submodules()
     for root, dirs, files in os.walk("."):
         for edir in excluded:
             if edir in dirs:
