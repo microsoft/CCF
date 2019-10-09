@@ -64,10 +64,15 @@ jobs:
       displayName: 'Shell Check'
 
     - script: python3.7 notice-check.py
-      displayName: 'Check copyright notices'
+      displayName: 'Check CCF copyright notices'
 
-    - script: ./check-format.sh src samples
+    - script: python3.7 notice-check.py
+      workingDirectory: ePBFT
+      displayName: 'Check ePBFT copyright notices'
+
+    - script: ./check-format.sh src samples ePBFT/src
       displayName: 'Check C++ code format'
+
 
     - script: |
         python3.7 -m venv env
@@ -111,3 +116,43 @@ jobs:
     - template: .azure-pipelines-templates/test.yml
       parameters:
         suite_name_suffix: 'san'
+
+- job: ePBFT
+  pool: Ubuntu-1804-D8s_v3
+  container:
+    image: ccfciteam/ccf-ci-18.04-oe-0.6:latest
+    # --publish-all enables end-to-end tests to communicate over ports
+    # --cap-add SYS_PTRACE enables ptrace and thus LeakSanitizer
+    # -v $(log.path):$(log.path) mounts the local directory to the same path in the container
+    options: --publish-all --cap-add SYS_PTRACE -v $(log.path):$(log.path)
+
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
+
+    - script: mkdir build
+      displayName: 'Make a build directory'
+
+    - script: cmake -DTARGET=virtual -GNinja -DPBFT=ON -DBUILD_SMALLBANK=OFF ..
+      displayName: cmake
+      workingDirectory: build
+
+    - script: ninja
+      displayName: Ninja
+      workingDirectory: build
+
+    - script: |
+        ./tests.sh -VV --timeout 240 --no-compress-output -T Test
+      displayName: CTest
+      workingDirectory: build
+    - script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) SGX" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
+      displayName: XSLT
+      workingDirectory: build
+      condition: succeededOrFailed()
+
+    - task: PublishTestResults@2
+      inputs:
+        testResultsFiles: '**/JUnit.xml'
+        publishRunAttachments: true
+      condition: succeededOrFailed()
