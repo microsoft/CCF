@@ -336,11 +336,6 @@ if (PBFT)
   set(SIGN_BATCH ON)
   include(${CCF_DIR}/ePBFT/cmake/pbft.cmake)
 
-  target_include_directories(libbyz.host PRIVATE
-    ${CCF_DIR}/src/ds
-    ${EVERCRYPT_INC}
-  )
-
   target_include_directories(libbyz.enclave PRIVATE
     ${CCF_DIR}/src/ds
     ${OE_INCLUDE_DIR}
@@ -490,7 +485,7 @@ function(add_unit_test name)
       -stdlib=libc++
       -lc++
       -lc++abi
-  ccfcrypto.host)
+      ccfcrypto.host)
 
   use_client_mbedtls(${name})
   add_san(${name})

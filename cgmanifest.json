@@ -89,6 +89,25 @@
           "commitHash": "5c17dad400e45c5a442a63f250fff2638d144682"
         }
       }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/microsoft/snmalloc",
+          "commitHash": "9ca436c951d635bface96a0b9d73262ab4cb088e"
+        }
+      }
+    },
+    {
+      "Component": {
+        "Type": "other",
+        "Other": {
+          "Name": "PBFT",
+          "Version": "na",
+          "DownloadUrl": "http://www.pmg.csail.mit.edu/bft/bft.tar.gz"
+        }
+      }
     }
   ],
   "Version": 1
