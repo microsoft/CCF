@@ -44,7 +44,7 @@ schedules:
   always: true
 
 jobs:
-- job: Static checks
+- job: Checks
   pool: Ubuntu-1804-D8s_v3
   container:
     image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-nosgx:latest
