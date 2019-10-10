@@ -39,6 +39,7 @@ public:
 
   size_t num_of_replicas() const;
   size_t f() const;
+  void set_f(uint32_t f);
   size_t num_correct_replicas() const;
 
   int id() const;

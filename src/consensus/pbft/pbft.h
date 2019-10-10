@@ -345,5 +345,10 @@ namespace pbft
         {}
       }
     }
+
+    void set_f(uint32_t f) override
+    {
+      message_receiver_base->set_f(f);
+    }
   };
 }

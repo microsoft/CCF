@@ -1081,6 +1081,7 @@ namespace ccf
                                         const Service::Write& w) {
         if (w.at(0).value.status == ServiceStatus::OPEN)
         {
+          this->consensus->set_f(1); // TODO: we should make f come from a KV table
           accept_user_connections();
           LOG_INFO_FMT("Now accepting user transactions");
         }

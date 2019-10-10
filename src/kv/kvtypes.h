@@ -191,6 +191,8 @@ namespace kv
     virtual void enable_all_domains() {}
     virtual void resume_replication() {}
     virtual void suspend_replication(kv::Version) {}
+
+    virtual void set_f(uint32_t f) = 0;
   };
 
   using PendingTx = std::function<

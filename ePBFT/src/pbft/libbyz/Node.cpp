@@ -368,3 +368,10 @@ void Node::send_to_replicas(Message* m)
     }
   }
 }
+
+void Node::set_f(uint32_t f)
+{
+  LOG_INFO << "***** setting f to " << f << "*****" << std::endl;
+  max_faulty = f;
+  send_only_to_self = (f == 0);
+}
