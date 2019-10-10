@@ -1,0 +1,35 @@
+parameters:
+  consensus: ['CFT', 'BFT']
+  target: ['NoSGX', 'SGX']
+
+  env:
+    NoSGX:
+      container:
+        image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-nosgx:latest
+        options: --publish-all
+      pool: Ubuntu-1804-D8s_v3
+    SGX:
+      container:
+        image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
+        options: --publish-all --device /dev/sgx:/dev/sgx
+      pool: Ubuntu-1804-DC4s
+
+  build:
+    NoSGX:
+      cmake_args: '-DTARGET=virtual'
+    SGX:
+      cmake_args: ''
+    BFT:
+      cmake_args: '-DPBFT=ON'
+    CFT:
+      cmake_args: ''
+
+jobs:
+  - $[ each target in variables.target }}:
+    - ${{ each consensus in variables.consensus }}:
+      - job: Build_${{ target }}_${{ consensus }}
+
+        steps:
+          - checkout: self
+            clean: true
+            submodules: true
