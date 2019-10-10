@@ -10,7 +10,7 @@ jobs:
     - template: build.yml
       parameters:
         cmake_args: '${{ parameters.cmake_args }} -DBUILD_SMALLBANK=OFF'
-    - template: .azure-pipelines-templates/publish_build.yml
+    - template: publish_build.yml
       parameters:
         artifact_name: build_results_${{ parameters.target }}_${{ parameters.consensus }}
 
