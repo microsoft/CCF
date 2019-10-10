@@ -25,7 +25,7 @@ parameters:
       cmake_args: ''
 
 jobs:
-  - $[ each target in variables.target }}:
+  - ${{ each target in variables.target }}:
     - ${{ each consensus in variables.consensus }}:
       - job: Build_${{ target }}_${{ consensus }}
 
