@@ -16,7 +16,7 @@ parameters:
 
   build:
     NoSGX:
-      cmake_args: '-DTARGET=virtual'
+      cmake_args: '-DTARGET=virtual -DCOVERAGE=ON'
     SGX:
       cmake_args: ''
     BFT:
