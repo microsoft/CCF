@@ -37,6 +37,7 @@ namespace ccf
     ClientSignatures& member_client_signatures;
 
     // User tables
+    // TODO: Add User table the other way around
     Certs& user_certs;
     ClientSignatures& user_client_signatures;
 

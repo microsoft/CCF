@@ -26,15 +26,15 @@ namespace enclave
   private:
     ringbuffer::Circuit* circuit;
     oversized::WriterFactory writer_factory;
-    RPCSessions rpcsessions;
     ccf::NetworkState network;
-    ccf::NodeState node;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
-    std::shared_ptr<ccf::Forwarder> cmd_forwarder;
     ccf::Notifier notifier;
     ccf::Timers timers;
+    std::shared_ptr<RPCMap> rpc_map;
+    std::shared_ptr<RPCSessions> rpcsessions;
+    ccf::NodeState node;
+    std::shared_ptr<ccf::Forwarder> cmd_forwarder;
 
-    std::shared_ptr<RpcMap> rpc_map;
     CCFConfig ccf_config;
     StartType start_type;
 
@@ -45,13 +45,13 @@ namespace enclave
       const raft::Config& raft_config) :
       circuit(enclave_config->circuit),
       writer_factory(circuit, enclave_config->writer_config),
-      rpcsessions(writer_factory),
       n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
-      node(writer_factory, network, rpcsessions, notifier, timers),
       notifier(writer_factory),
+      rpc_map(std::make_shared<RPCMap>()),
+      rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
+      node(writer_factory, network, rpcsessions, notifier, timers),
       cmd_forwarder(
-        std::make_shared<ccf::Forwarder>(rpcsessions, n2n_channels)),
-      rpc_map(std::make_shared<RpcMap>())
+        std::make_shared<ccf::Forwarder>(rpcsessions, n2n_channels, rpc_map))
     {
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
@@ -75,9 +75,7 @@ namespace enclave
         frontend->set_cmd_forwarder(cmd_forwarder);
       }
 
-      node.initialize(raft_config, n2n_channels, rpc_map);
-      rpcsessions.initialize(rpc_map);
-      cmd_forwarder->initialize(rpc_map);
+      node.initialize(raft_config, n2n_channels, rpc_map, cmd_forwarder);
     }
 
     bool create_new_node(
@@ -204,7 +202,7 @@ namespace enclave
             node.recover_ledger_end();
           });
 
-        rpcsessions.register_message_handlers(bp.get_dispatcher());
+        rpcsessions->register_message_handlers(bp.get_dispatcher());
 
         if (start_type == StartType::Join)
         {

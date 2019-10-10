@@ -38,12 +38,12 @@ struct Array
   Array(const Array<U>& b) : p(b.p), n(b.n)
   {}
 
-  bool operator==(const Array<T>& that)
+  bool operator==(const Array<T>& that) const
   {
     return (that.n == n) && (that.p == p);
   }
 
-  bool operator!=(const Array<T>& that)
+  bool operator!=(const Array<T>& that) const
   {
     return !(*this == that);
   }

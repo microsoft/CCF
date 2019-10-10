@@ -612,10 +612,17 @@ namespace ccf
           auto primary_id = consensus->primary();
           auto local_id = consensus->id();
 
+          CBuffer forwarded_caller = certs == nullptr ? ctx.caller_cert : nullb;
+
           if (
             primary_id != NoNode &&
             cmd_forwarder->forward_command(
-              ctx, local_id, primary_id, caller_id.value(), input))
+              ctx,
+              local_id,
+              primary_id,
+              caller_id.value(),
+              input,
+              forwarded_caller))
           {
             // Indicate that the RPC has been forwarded to primary
             LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
@@ -729,12 +736,18 @@ namespace ccf
 
       Store::Tx tx;
 
-      // For forwarded command, caller is empty and caller_id should be used
-      // instead.
-      CBuffer caller;
-
-      update_consensus();
-      ctx.fwd->primary_id = consensus->id();
+      // TODO: Caller should be retrieved from ctx
+      // If there's no caller, then it should be looked up from the cert table
+      if (ctx.fwd->caller.has_value())
+      {
+        ctx.caller_cert = ctx.fwd->caller.value();
+      }
+      else
+      {
+        // auto cert_view = tx.get_view(*certs);
+        // ctx.caller_cert = cert_view->get();
+        // TODO: We need to lookup the cert from the caller id here!
+      }
 
       auto pack = detect_pack(input);
       if (!pack.has_value())
@@ -747,6 +760,7 @@ namespace ccf
           jsonrpc::Pack::Text);
       }
 
+      // TODO: Verify the caller here
       // If the RPC was forwarded, assume that the caller has already been
       // verified
       if (certs && ctx.fwd->caller_id == INVALID_ID)
@@ -768,6 +782,7 @@ namespace ccf
       // Unwrap signed request if necessary and store client signature. It is
       // assumed that the forwarder node has already verified the client
       // signature.
+      update_consensus();
       auto rpc_ = &rpc.second;
       SignedReq signed_request(rpc.second);
 

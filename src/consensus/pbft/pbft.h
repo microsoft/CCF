@@ -105,7 +105,7 @@ namespace pbft
     std::unique_ptr<PbftEnclaveNetwork> pbft_network;
     std::unique_ptr<AbstractPbftConfig> pbft_config;
     std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
-    enclave::RPCSessions& rpcsessions;
+    std::shared_ptr<enclave::RPCSessions> rpcsessions;
     std::unique_ptr<consensus::LedgerEnclave> ledger;
     SeqNo global_commit_seqno;
     std::unique_ptr<pbft::Store> store;
@@ -122,8 +122,8 @@ namespace pbft
       std::shared_ptr<ChannelProxy> channels_,
       NodeId id,
       std::unique_ptr<consensus::LedgerEnclave> ledger_,
-      std::shared_ptr<enclave::RpcMap> rpc_map,
-      enclave::RPCSessions& rpcsessions_) :
+      std::shared_ptr<enclave::RPCMap> rpc_map,
+      std::shared_ptr<enclave::RPCSessions> rpcsessions_) :
       Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
@@ -256,7 +256,7 @@ namespace pbft
                       size_t len) {
         LOG_DEBUG_FMT("PBFT reply callback for {}", caller_rid);
 
-        return rpcsessions.reply_async(
+        return rpcsessions->reply_async(
           std::get<1>(caller_rid), {reply, reply + len});
       };
 

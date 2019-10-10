@@ -19,7 +19,7 @@ namespace enclave
     //
 
     const size_t client_session_id = InvalidSessionId;
-    CBuffer caller_cert;
+    CBuffer caller_cert; // TODO: Change this!
     // Actor type to route to appropriate frontend
     const ccf::ActorsType actor;
 
@@ -44,19 +44,27 @@ namespace enclave
     {
       // Initialised when forwarded context is created
       const size_t client_session_id;
-      const ccf::NodeId from;
       const ccf::CallerId caller_id;
+      const std::optional<std::vector<uint8_t>> caller =
+        {}; // TODO: To merge with caller in other parent struct
 
-      // Changed during lifetime of forwarded context
-      ccf::NodeId primary_id = ccf::INVALID_ID;
+      // forwarded(
+      //   size_t client_session_id_,
+      //   ccf::NodeId from_,
+      //   ccf::CallerId caller_id_) :
+      //   client_session_id(client_session_id_),
+      //   from(from_),
+      //   caller_id(caller_id_)
+      // {}
 
+      // TODO: Merge with other constructor
       forwarded(
         size_t client_session_id_,
-        ccf::NodeId from_,
-        ccf::CallerId caller_id_) :
+        ccf::CallerId caller_id_,
+        std::optional<std::vector<uint8_t>> caller_ = {}) :
         client_session_id(client_session_id_),
-        from(from_),
-        caller_id(caller_id_)
+        caller_id(caller_id_),
+        caller(caller_)
       {}
     };
     std::optional<struct forwarded> fwd = std::nullopt;
@@ -74,26 +82,35 @@ namespace enclave
     // Constructor used for forwarded RPC and the the caller_cert
     RPCContext(
       size_t fwd_session_id_,
-      ccf::NodeId from_,
       ccf::CallerId caller_id_,
       CBuffer caller_cert_,
       ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
-      fwd(std::make_optional<struct forwarded>(
-        fwd_session_id_, from_, caller_id_)),
+      fwd(std::make_optional<struct forwarded>(fwd_session_id_, caller_id_)),
       caller_cert(caller_cert_),
       actor(actor_)
     {}
 
-    // Constructor used for forwarded RPC
+    // TODO: Merge this with the other constructor above
     RPCContext(
       size_t fwd_session_id_,
-      ccf::NodeId from_,
       ccf::CallerId caller_id_,
+      std::optional<std::vector<uint8_t>> caller_cert_ = {},
       ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
       fwd(std::make_optional<struct forwarded>(
-        fwd_session_id_, from_, caller_id_)),
+        fwd_session_id_, caller_id_, caller_cert_)),
       actor(actor_)
     {}
+
+    // // Constructor used for forwarded RPC
+    // RPCContext(
+    //   size_t fwd_session_id_,
+    //   ccf::NodeId from_,
+    //   ccf::CallerId caller_id_,
+    //   ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
+    //   fwd(std::make_optional<struct forwarded>(
+    //     fwd_session_id_, from_, caller_id_)),
+    //   actor(actor_)
+    // {}
   };
 
   class AbstractRPCResponder

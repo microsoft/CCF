@@ -28,7 +28,7 @@ namespace pbft
   class PbftConfigCcf : public AbstractPbftConfig
   {
   public:
-    PbftConfigCcf(std::shared_ptr<enclave::RpcMap> rpc_map_) : rpc_map(rpc_map_)
+    PbftConfigCcf(std::shared_ptr<enclave::RPCMap> rpc_map_) : rpc_map(rpc_map_)
     {}
 
     ~PbftConfigCcf() = default;
@@ -69,7 +69,7 @@ namespace pbft
     }
 
   private:
-    std::shared_ptr<enclave::RpcMap> rpc_map;
+    std::shared_ptr<enclave::RPCMap> rpc_map;
 
 #pragma pack(push, 1)
     struct ccf_req
