@@ -1,4 +1,4 @@
-job:
+jobs:
 - job: Build_${{ target }}_${{ consensus }}
 
   steps:
