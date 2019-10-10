@@ -43,6 +43,32 @@ schedules:
     - master
   always: true
 
+parameters:
+  consensus: ['CFT', 'BFT']
+  target: ['NoSGX', 'SGX']
+
+  env:
+    NoSGX:
+      container:
+        image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-nosgx:latest
+        options: --publish-all
+      pool: Ubuntu-1804-D8s_v3
+    SGX:
+      container:
+        image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
+        options: --publish-all --device /dev/sgx:/dev/sgx
+      pool: Ubuntu-1804-DC4s
+
+  build:
+    NoSGX:
+      cmake_args: '-DTARGET=virtual'
+    SGX:
+      cmake_args: ''
+    BFT:
+      cmake_args: '-DPBFT=ON'
+    CFT:
+      cmake_args: ''
+
 jobs:
 - job: Checks
   pool: Ubuntu-1804-D8s_v3
@@ -73,59 +99,30 @@ jobs:
         black --check sphinx/ tests/ notice-check.py
       displayName: 'Check Python code format'
 
-- job: Build
-  strategy:
-    matrix:
-      No_SGX_CFT:
-        cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DCOVERAGE=ON'
-        image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-nosgx:latest
-        options: --publish-all
-        pool: Ubuntu-1804-D8s_v3
-        name: No_SGX_CFT
-      SGX_CFT:
-        cmake_args: '-DBUILD_SMALLBANK=OFF'
-        image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
-        options: --publish-all --device /dev/sgx:/dev/sgx
-        pool: Ubuntu-1804-DC4s
-        name: SGX_CFT
-      No_SGX_BFT:
-        cmake_args: '-DTARGET=virtual -DPBFT=ON -DBUILD_SMALLBANK=OFF'
-        image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-nosgx:latest
-        options: --publish-all
-        pool: Ubuntu-1804-D8s_v3
-        name: No_SGX_BFT
-      SGX_BFT:
-        cmake_args: '-DPBFT=ON -DBUILD_SMALLBANK=OFF'
-        image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
-        options: --publish-all --device /dev/sgx:/dev/sgx
-        pool: Ubuntu-1804-DC4s
-        name: SGX_BFT
+  - ${{ each target in parameters.target }}:
+    - ${{ each consensus in parameters.consensus }}:
+      - job: Build_${{ target }}_${{ consensus }}
 
-  container: $[ variables['image'] ]
-  # container:
-  #   image: $[ variables['image'] ]
-  #   options: $[ variables['options'] ]
-  pool: $[ variables['pool'] ]
+        steps:
+          - checkout: self
+            clean: true
+            submodules: true
 
-  steps:
-    - checkout: self
-      clean: true
-      submodules: true
-    - template: .azure-pipelines-templates/build.yml
-      parameters:
-        cmake_args: '$(cmake_args)'
-    - template: .azure-pipelines-templates/test.yml
-      parameters:
-        ctest_filter: '-LE "perf|end_to_end"'
-        suite_name_suffix: '$(name) quick tests'
-    - template: .azure-pipelines-templates/test.yml
-      parameters:
-        ctest_filter: '-L end_to_end -I 0,,2'
-        suite_name_suffix: '$(name) SGX end to end tests A'
-    - template: .azure-pipelines-templates/test.yml
-      parameters:
-        ctest_filter: '-L end_to_end -I 1,,2'
-        suite_name_suffix: '$(name) SGX end to end tests B'
+    # - template: .azure-pipelines-templates/build.yml
+    #   parameters:
+    #     cmake_args: '$(cmake_args)'
+    # - template: .azure-pipelines-templates/test.yml
+    #   parameters:
+    #     ctest_filter: '-LE "perf|end_to_end"'
+    #     suite_name_suffix: '$(name) quick tests'
+    # - template: .azure-pipelines-templates/test.yml
+    #   parameters:
+    #     ctest_filter: '-L end_to_end -I 0,,2'
+    #     suite_name_suffix: '$(name) SGX end to end tests A'
+    # - template: .azure-pipelines-templates/test.yml
+    #   parameters:
+    #     ctest_filter: '-L end_to_end -I 1,,2'
+    #     suite_name_suffix: '$(name) SGX end to end tests B'
 
 # - job: ACC_1804_SGX_build
 #   pool: Ubuntu-1804-DC4s
