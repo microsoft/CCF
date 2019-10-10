@@ -35,3 +35,5 @@ jobs:
         parameters:
           target: ${{ target }}
           consensus: ${{ consensus }}
+          env: ${{ parameters.env[target] }}
+          cmake_args: '${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
