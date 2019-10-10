@@ -46,43 +46,6 @@ schedules:
 jobs:
 - template: .azure-pipelines-templates/matrix.yml
 
-# - job: Checks
-#   pool: Ubuntu-1804-D8s_v3
-#   container:
-#     image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-nosgx:latest
-#   steps:
-#     - checkout: self
-#       clean: true
-#       submodules: true
-
-#     - script: find . -regex ".*\.sh$" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091
-#       displayName: 'Shell Check'
-
-#     - script: python3.7 notice-check.py
-#       displayName: 'Check CCF copyright notices'
-
-#     - script: python3.7 notice-check.py
-#       workingDirectory: ePBFT
-#       displayName: 'Check ePBFT copyright notices'
-
-#     - script: ./check-format.sh src samples ePBFT/src
-#       displayName: 'Check C++ code format'
-
-#     - script: |
-#         python3.7 -m venv env
-#         source env/bin/activate
-#         pip install black
-#         black --check sphinx/ tests/ notice-check.py
-#       displayName: 'Check Python code format'
-
-#   - $[ each target in variables.target }}:
-#     - ${{ each consensus in variables.consensus }}:
-#       - job: Build_${{ target }}_${{ consensus }}
-
-#         steps:
-#           - checkout: self
-#             clean: true
-#             submodules: true
 
     # - template: .azure-pipelines-templates/build.yml
     #   parameters:
