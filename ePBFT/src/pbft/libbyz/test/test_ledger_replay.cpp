@@ -12,6 +12,8 @@
 
 #include <doctest/doctest.h>
 
+static constexpr size_t TOTAL_REQUESTS = 1050;
+
 class ExecutionMock
 {
 public:
@@ -111,7 +113,7 @@ TEST_CASE("Test Ledger Replay")
     LedgerWriter ledger_writer(append_ledger_entry_cb, ledger_ofs.get());
 
     Req_queue rqueue;
-    for (size_t i = 1; i < 1050; i++)
+    for (size_t i = 1; i < TOTAL_REQUESTS; i++)
     {
       Byz_req req;
       Byz_alloc_request(&req, sizeof(ExecutionMock::fake_req));
@@ -141,7 +143,7 @@ TEST_CASE("Test Ledger Replay")
       ledger_writer.write_pre_prepare(pp.get());
     }
     // remove the requests that were not processed, only written to the ledger
-    replica->big_reqs()->mark_stable(1050);
+    replica->big_reqs()->mark_stable(TOTAL_REQUESTS);
   }
 
   // Replay ledger
