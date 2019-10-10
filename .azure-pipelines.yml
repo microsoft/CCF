@@ -60,15 +60,15 @@ jobs:
         cmake_args: '-DPBFT=ON -DBUILD_SMALLBANK=OFF'
         image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
 
-    container: $[ variables['image'] ]
+  container: $[ variables['image'] ]
 
-    steps:
-      - checkout: self
-        clean: true
-        submodules: true
-      - template: .azure-pipelines-templates/build.yml
-        parameters:
-          cmake_args: '$(cmake_args)'
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
+    - template: .azure-pipelines-templates/build.yml
+      parameters:
+        cmake_args: '$(cmake_args)'
 
 
 # - job: ACC_1804_SGX_build
