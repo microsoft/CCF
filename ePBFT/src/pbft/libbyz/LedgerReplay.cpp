@@ -76,7 +76,6 @@ std::unique_ptr<Pre_prepare> LedgerReplay::apply_data(
     }
   }
 
-  // TODO process requests here
   auto pre_prepare = latest_pre_prepare.get();
 
   Pre_prepare::Requests_iter iter(pre_prepare);

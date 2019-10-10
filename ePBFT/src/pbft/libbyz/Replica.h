@@ -152,6 +152,8 @@ public:
   // Effects: Use when messages are passed to Replica rather than replica
   // polling
 
+  bool compare_execution_results(const ByzInfo& info, Pre_prepare* pre_prepare);
+
   size_t ledger_cursor() const;
 
   bool apply_ledger_data(const std::vector<uint8_t>& data);

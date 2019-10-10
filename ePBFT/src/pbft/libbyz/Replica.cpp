@@ -229,6 +229,29 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
   }
 }
 
+bool Replica::compare_execution_results(
+  const ByzInfo& info, Pre_prepare* pre_prepare)
+{
+  auto& pp_root = pre_prepare->get_merkle_root();
+  if (!std::equal(
+        std::begin(pp_root), std::end(pp_root), std::begin(info.merkle_root)))
+  {
+    LOG_FAIL << "Merkle root between execution and the pre_prepare message "
+                "does not match, seqno:"
+             << pre_prepare->seqno() << std::endl;
+    return false;
+  }
+
+  auto tx_ctx = pre_prepare->get_ctx();
+  if (tx_ctx != info.ctx)
+  {
+    LOG_FAIL << "User ctx between execution and the pre_prepare message "
+                "does not match, seqno:"
+             << pre_prepare->seqno() << std::endl;
+    return false;
+  }
+}
+
 size_t Replica::ledger_cursor() const
 {
   return ledger_replay->cursor();
@@ -250,33 +273,19 @@ bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
     ByzInfo info;
     if (execute_tentative(pre_prepare, info))
     {
-      // TODO refactor into a separate method
-      auto& pp_root = pre_prepare->get_merkle_root();
-      if (!std::equal(
-            std::begin(pp_root),
-            std::end(pp_root),
-            std::begin(info.merkle_root)))
+      auto merkle_info_match = compare_execution_results(info, pre_prepare);
+      if (!merkle_info_match)
       {
-        LOG_FAIL << "Merkle root between execution and the pre_prepare message "
-                    "does not match, seqno:"
-                 << seqno << std::endl;
-        return false;
-      }
-
-      auto tx_ctx = pre_prepare->get_ctx();
-      if (tx_ctx != info.ctx)
-      {
-        LOG_FAIL << "User ctx between execution and the pre_prepare message "
-                    "does not match, seqno:"
-                 << seqno << std::endl;
         return false;
       }
 
       next_pp_seqno = seqno;
+
       if (ledger_writer)
       {
         ledger_writer->write_pre_prepare(pre_prepare);
       }
+
       if (seqno > last_prepared)
       {
         last_prepared = seqno;
@@ -286,8 +295,9 @@ bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
       {
         global_commit_cb(pre_prepare->get_ctx(), global_commit_ctx);
       }
+
       last_executed++;
-      // Send and log Checkpoint message for the new state if needed.
+
       if (last_executed % checkpoint_interval == 0)
       {
         mark_stable(last_executed, true);
@@ -760,24 +770,9 @@ void Replica::send_prepare(Seqno seqno)
         break;
       }
 
-      auto& pp_root = pp->get_merkle_root();
-      if (!std::equal(
-            std::begin(pp_root),
-            std::end(pp_root),
-            std::begin(info.merkle_root)))
+      auto merkle_info_match = compare_execution_results(info, pp);
+      if (!merkle_info_match)
       {
-        LOG_FAIL << "Merkle root between execution and the pre_prepare message "
-                    "does not match, seqno:"
-                 << seqno << std::endl;
-        break;
-      }
-
-      auto tx_ctx = pp->get_ctx();
-      if (tx_ctx != info.ctx)
-      {
-        LOG_FAIL << "User ctx between execution and the pre_prepare message "
-                    "does not match, seqno:"
-                 << seqno << std::endl;
         break;
       }
 
