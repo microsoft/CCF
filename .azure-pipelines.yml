@@ -49,7 +49,7 @@ jobs:
 - job: ACC_1804_SGX_build
   pool: Ubuntu-1804-DC4s
   container:
-    image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx-no-mitigation:latest
+    image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
     # --publish-all enables end-to-end tests to communicate over ports
     # --device /dev/sgx:/dev/sgx makes sgx available to the container
     # -v $(log.path):$(log.path) mounts the local directory to the same path in the container
@@ -68,7 +68,7 @@ jobs:
 - job: ACC_1804_SGX_quick_tests
   pool: Ubuntu-1804-DC4s
   container:
-    image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx-no-mitigation:latest
+    image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
     # --publish-all enables end-to-end tests to communicate over ports
     # --device /dev/sgx:/dev/sgx makes sgx available to the container
     # -v $(log.path):$(log.path) mounts the local directory to the same path in the container
@@ -90,7 +90,7 @@ jobs:
 - job: ACC_1804_SGX_e2e_tests_A
   pool: Ubuntu-1804-DC4s
   container:
-    image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx-no-mitigation:latest
+    image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
     # --publish-all enables end-to-end tests to communicate over ports
     # --device /dev/sgx:/dev/sgx makes sgx available to the container
     # -v $(log.path):$(log.path) mounts the local directory to the same path in the container
@@ -112,7 +112,7 @@ jobs:
 - job: ACC_1804_SGX_e2e_tests_B
   pool: Ubuntu-1804-DC4s
   container:
-    image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx-no-mitigation:latest
+    image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
     # --publish-all enables end-to-end tests to communicate over ports
     # --device /dev/sgx:/dev/sgx makes sgx available to the container
     # -v $(log.path):$(log.path) mounts the local directory to the same path in the container
@@ -134,7 +134,7 @@ jobs:
 - job: ACC_1804_SGX_perf_build
   pool: Ubuntu-1804-DC4s
   container:
-    image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx-no-mitigation:latest
+    image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
     # --publish-all enables end-to-end tests to communicate over ports
     # --device /dev/sgx:/dev/sgx makes sgx available to the container
     # -v $(log.path):$(log.path) mounts the local directory to the same path in the container
@@ -153,7 +153,7 @@ jobs:
 - job: ACC_1804_SGX_perf_tests
   pool: Ubuntu-1804-DC4s
   container:
-    image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx-no-mitigation:latest
+    image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
     # --publish-all enables end-to-end tests to communicate over ports
     # --device /dev/sgx:/dev/sgx makes sgx available to the container
     # -v $(log.path):$(log.path) mounts the local directory to the same path in the container
@@ -176,7 +176,7 @@ jobs:
 - job: ePBFT
   pool: Ubuntu-1804-DC4s
   container:
-    image: ccfciteam/ccf-ci-18.04-oe-0.6-sgx-no-mitigation:latest
+    image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
     # --publish-all enables end-to-end tests to communicate over ports
     # --device /dev/sgx:/dev/sgx makes sgx available to the container
     # -v $(log.path):$(log.path) mounts the local directory to the same path in the container
