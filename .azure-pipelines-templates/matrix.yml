@@ -25,8 +25,8 @@ parameters:
       cmake_args: ''
 
 jobs:
-  - ${{ each target in variables.target }}:
-    - ${{ each consensus in variables.consensus }}:
+  - ${{ each target in parameters.target }}:
+    - ${{ each consensus in parameters.consensus }}:
       - template: common.yml
         parameters:
           target: ${{ target }}
