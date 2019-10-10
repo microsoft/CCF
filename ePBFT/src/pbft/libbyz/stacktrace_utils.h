@@ -93,7 +93,7 @@ namespace logger
   {
     std::cout << "Error: signal " << sig << ":" << std::endl;
     print_stacktrace();
-    std::cout << std::flush;
+    std::cout << std::flush; 
     exit(1);
   }
 
