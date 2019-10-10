@@ -16,7 +16,7 @@ jobs:
         artifact_name: build_results_${{ parameters.target }}_${{ parameters.consensus }}
 
 - job: Tests_${{ parameters.target }}_${{ parameters.consensus }}
-  displayName: 'UnitTests ${{ parameters.target }} ${{ parameters.consensus }}'
+  displayName: 'Tests ${{ parameters.target }} ${{ parameters.consensus }}'
 
   ${{ insert }}: ${{ parameters.env }}
 
