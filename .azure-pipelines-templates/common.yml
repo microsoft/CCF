@@ -1,0 +1,7 @@
+job:
+- job: Build_${{ target }}_${{ consensus }}
+
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true

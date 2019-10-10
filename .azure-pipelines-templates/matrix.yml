@@ -27,9 +27,7 @@ parameters:
 jobs:
   - ${{ each target in variables.target }}:
     - ${{ each consensus in variables.consensus }}:
-      - job: Build_${{ target }}_${{ consensus }}
-
-        steps:
-          - checkout: self
-            clean: true
-            submodules: true
+      - template: common.yml
+        parameters:
+          target: ${{ target }}
+          consensus: ${{ consensus }}
