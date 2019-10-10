@@ -78,34 +78,32 @@ jobs:
     matrix:
       No_SGX_CFT:
         cmake_args: '-DTARGET=virtual -DBUILD_SMALLBANK=OFF -DCOVERAGE=ON'
-        container:
-          image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-nosgx:latest
-          options: --publish-all
+        image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-nosgx:latest
+        options: --publish-all
         pool: Ubuntu-1804-D8s_v3
         name: No_SGX_CFT
       SGX_CFT:
         cmake_args: '-DBUILD_SMALLBANK=OFF'
-        container:
-          image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
-          options: --publish-all --device /dev/sgx:/dev/sgx
+        image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
+        options: --publish-all --device /dev/sgx:/dev/sgx
         pool: Ubuntu-1804-DC4s
         name: SGX_CFT
       No_SGX_BFT:
         cmake_args: '-DTARGET=virtual -DPBFT=ON -DBUILD_SMALLBANK=OFF'
-        container:
-          image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-nosgx:latest
-          options: --publish-all
+        image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-nosgx:latest
+        options: --publish-all
         pool: Ubuntu-1804-D8s_v3
         name: No_SGX_BFT
       SGX_BFT:
         cmake_args: '-DPBFT=ON -DBUILD_SMALLBANK=OFF'
-        container:
-          image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
-          options: --publish-all --device /dev/sgx:/dev/sgx
+        image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
+        options: --publish-all --device /dev/sgx:/dev/sgx
         pool: Ubuntu-1804-DC4s
         name: SGX_BFT
 
-  container: $[ variables['container'] ]
+  container:
+    image: $[ variables['image'] ]
+    options: $[ variables['options'] ]
   pool: $[ variables['pool'] ]
 
   steps:
