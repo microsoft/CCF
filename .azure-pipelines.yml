@@ -44,6 +44,35 @@ schedules:
   always: true
 
 jobs:
+- job: Static checks
+  pool: Ubuntu-1804-D8s_v3
+  container:
+    image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-nosgx:latest
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
+
+    - script: find . -regex ".*\.sh$" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091
+      displayName: 'Shell Check'
+
+    - script: python3.7 notice-check.py
+      displayName: 'Check CCF copyright notices'
+
+    - script: python3.7 notice-check.py
+      workingDirectory: ePBFT
+      displayName: 'Check ePBFT copyright notices'
+
+    - script: ./check-format.sh src samples ePBFT/src
+      displayName: 'Check C++ code format'
+
+    - script: |
+        python3.7 -m venv env
+        source env/bin/activate
+        pip install black
+        black --check sphinx/ tests/ notice-check.py
+      displayName: 'Check Python code format'
+
 - job: Build
   strategy:
     matrix:
@@ -68,7 +97,9 @@ jobs:
         pool: Ubuntu-1804-DC4s
         name: SGX_BFT
 
-  container: $[ variables['image'] ]
+  container:
+    image: $[ variables['image'] ]
+    options: --publish-all
   pool: $[ variables['pool'] ]
 
   steps:
@@ -82,7 +113,14 @@ jobs:
       parameters:
         ctest_filter: '-LE "perf|end_to_end"'
         suite_name_suffix: '$(name) quick tests'
-
+    - template: .azure-pipelines-templates/test.yml
+      parameters:
+        ctest_filter: '-L end_to_end -I 0,,2'
+        suite_name_suffix: ' SGX end to end tests A'
+    - template: .azure-pipelines-templates/test.yml
+      parameters:
+        ctest_filter: '-L end_to_end -I 1,,2'
+        suite_name_suffix: ' SGX end to end tests B'
 
 # - job: ACC_1804_SGX_build
 #   pool: Ubuntu-1804-DC4s
