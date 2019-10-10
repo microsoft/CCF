@@ -25,6 +25,10 @@ parameters:
       cmake_args: ''
 
 jobs:
+  - template: checks.yml
+    parameters:
+      env: ${{ parameters.env.NoSGX }}
+
   - ${{ each target in parameters.target }}:
     - ${{ each consensus in parameters.consensus }}:
       - template: common.yml
