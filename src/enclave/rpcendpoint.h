@@ -141,7 +141,7 @@ namespace enclave
         return false;
 
       RPCContext rpc_ctx(session_id, peer_cert(), actor);
-      auto rep = search.value()->process(rpc_ctx, data);
+      auto rep = search.value()->process(rpc_ctx, rpc, data);
 
       if (rpc_ctx.is_pending)
       {

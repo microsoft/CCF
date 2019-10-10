@@ -456,16 +456,9 @@ namespace ccf
      * @param input Serialised JSON RPC
      */
     std::vector<uint8_t> process(
-      enclave::RPCContext& ctx, const std::vector<uint8_t>& input) override
+      enclave::RPCContext& ctx, const nlohmann::json& rpc, const std::vector<uint8_t>& input) override
     {
       Store::Tx tx;
-
-      ctx.pack = detect_pack(input);
-      if (!ctx.pack.has_value())
-        return jsonrpc::pack(
-          jsonrpc::error_response(
-            0, jsonrpc::StandardErrorCodes::INVALID_REQUEST, "Empty request."),
-          jsonrpc::Pack::Text);
 
       // Retrieve id of caller
       auto caller_id = valid_caller(tx, ctx.caller_cert);
@@ -478,13 +471,9 @@ namespace ccf
             "No corresponding caller entry exists."),
           ctx.pack.value());
       }
-      auto rpc = unpack_json(input, ctx.pack.value());
 
-      if (!rpc.first)
-        return jsonrpc::pack(rpc.second, ctx.pack.value());
-
-      auto rpc_ = &rpc.second;
-      SignedReq signed_request(rpc.second);
+      auto rpc_ = &rpc;
+      SignedReq signed_request(rpc);
       if (rpc_->find(jsonrpc::SIG) != rpc_->end())
       {
         auto& req = rpc_->at(jsonrpc::REQ);
