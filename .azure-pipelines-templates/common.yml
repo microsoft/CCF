@@ -1,6 +1,6 @@
 jobs:
-- job: Build_${{ parameters.target }}_${{ parameters.consensus }}
-  displayName: 'Build ${{ parameters.target }} ${{ parameters.consensus }}'
+- job: Build_${{ parameters.target }}_${{ parameters.consensus }}_${{suffix}}
+  displayName: 'Build ${{ parameters.target }} ${{ parameters.consensus }} ${{suffix}}'
 
   ${{ insert }}: ${{ parameters.env }}
 
@@ -10,18 +10,18 @@ jobs:
       submodules: true
     - template: build.yml
       parameters:
-        cmake_args: '${{ parameters.cmake_args }} -DBUILD_SMALLBANK=OFF'
+        cmake_args: '${{ parameters.cmake_args }}'
     - template: publish_build.yml
       parameters:
-        artifact_name: build_results_${{ parameters.target }}_${{ parameters.consensus }}
+        artifact_name: build_results_${{ parameters.target }}_${{ parameters.consensus }}_${{suffix}}
 
-- job: Tests_${{ parameters.target }}_${{ parameters.consensus }}
-  displayName: 'Tests ${{ parameters.target }} ${{ parameters.consensus }}'
+- job: Tests_${{ parameters.target }}_${{ parameters.consensus }}_${{suffix}}
+  displayName: 'Tests ${{ parameters.target }} ${{ parameters.consensus }} ${{suffix}}'
 
   ${{ insert }}: ${{ parameters.env }}
 
   dependsOn:
-    - Build_${{ parameters.target }}_${{ parameters.consensus }}
+    - Build_${{ parameters.target }}_${{ parameters.consensus }}_${{suffix}}
 
   steps:
     - checkout: self
@@ -29,8 +29,8 @@ jobs:
       submodules: true
     - template: download_build.yml
       parameters:
-        artifact_name: build_results_${{ parameters.target }}_${{ parameters.consensus }}
+        artifact_name: build_results_${{ parameters.target }}_${{ parameters.consensus }}_${{suffix}}
     - template: test.yml
       parameters:
-        ctest_filter: '-LE "benchmark|perf"'
-        suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} tests'
+        ctest_filter: ${{ parameters.ctest_filter }}
+        suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} ${{suffix}} tests'

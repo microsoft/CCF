@@ -36,4 +36,16 @@ jobs:
           target: ${{ target }}
           consensus: ${{ consensus }}
           env: ${{ parameters.env[target] }}
-          cmake_args: '${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
+          cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DBUILD_SMALLBANK=OFF ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
+          ctest_filter: '-LE "benchmark|perf"'
+          suffix: ''
+
+  - ${{ each consensus in parameters.consensus }}:
+    - template: common.yml
+      parameters:
+        target: ${{ target }}
+        consensus: ${{ consensus }}
+        env: ${{ parameters.env.SGX }}
+        cmake_args: '-DBUILD_SMALLBANK=ON -DSERVICE_IDENTITY_CURVE_CHOICE=secp256k1_bitcoin ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
+        ctest_filter: '-L benchmark|perf'
+        suffix: 'Perf'
