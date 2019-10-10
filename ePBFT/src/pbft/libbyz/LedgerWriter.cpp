@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
 #include "LedgerWriter.h"
 
 #include "Request.h"
@@ -71,8 +73,7 @@ void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
     ledger_cb_ctx);
 
   Merkle_root_ctx ctx = pp->get_ctx();
-  ledger_entry_cb(
-    (const uint8_t*)&ctx, sizeof(Merkle_root_ctx), ledger_cb_ctx);
+  ledger_entry_cb((const uint8_t*)&ctx, sizeof(Merkle_root_ctx), ledger_cb_ctx);
 
   if (pp->num_big_reqs() > 0)
   {
