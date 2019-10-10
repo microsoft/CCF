@@ -55,10 +55,11 @@ std::unique_ptr<Pre_prepare> LedgerReplay::apply_data(
 
     serialized::skip(entry_data, data_size, header.message_size);
 
-    // auto mt_root = serialized::read(entry_data, data_size, MERKLE_ROOT_SIZE);
     std::array<uint8_t, MERKLE_ROOT_SIZE> mt_array;
     std::copy_n(entry_data, MERKLE_ROOT_SIZE, mt_array.begin());
+
     serialized::skip(entry_data, data_size, MERKLE_ROOT_SIZE);
+
     auto mt_ctx = serialized::overlay<Merkle_root_ctx>(entry_data, data_size);
     latest_pre_prepare->set_merkle_root_and_ctx(mt_array, mt_ctx);
   }
