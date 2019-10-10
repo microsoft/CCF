@@ -1,5 +1,5 @@
 jobs:
-- job: Build_${{ target }}_${{ consensus }}
+- job: Build_${{ parameters.target }}_${{ parameters.consensus }}
 
   steps:
     - checkout: self
