@@ -54,3 +54,23 @@ jobs:
       parameters:
         ctest_filter: '-L end_to_end -I 0,,2'
         suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} end to end tests A'
+
+- job: EndToEndTestsB_${{ parameters.target }}_${{ parameters.consensus }}
+  displayName: 'End to End Tests B ${{ parameters.target }} ${{ parameters.consensus }}'
+
+  ${{ insert }}: ${{ parameters.env }}
+
+  dependsOn:
+    - EndToEndTestsA_${{ parameters.target }}_${{ parameters.consensus }}
+
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
+    - template: download_build.yml
+      parameters:
+        artifact_name: build_results_${{ parameters.target }}_${{ parameters.consensus }}
+    - template: test.yml
+      parameters:
+        ctest_filter: '-L end_to_end -I 1,,2'
+        suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} end to end tests B'
