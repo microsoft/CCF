@@ -18,7 +18,7 @@ Welcome to CCF's documentation
    rpc_api
    api
    glossary
-   work_in_progress/index.rst
+   design/index.rst
 
 Index
 =====
