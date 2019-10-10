@@ -119,4 +119,18 @@ namespace enclave
     virtual ~AbstractRPCResponder() {}
     virtual bool reply_async(size_t id, const std::vector<uint8_t>& data) = 0;
   };
+
+  class AbstractForwarder
+  {
+  public:
+    virtual ~AbstractForwarder() {}
+
+    virtual bool forward_command(
+      enclave::RPCContext& rpc_ctx,
+      ccf::NodeId from,
+      ccf::NodeId to,
+      ccf::CallerId caller_id,
+      const std::vector<uint8_t>& data,
+      const CBuffer& caller = nullb) = 0;
+  };
 }

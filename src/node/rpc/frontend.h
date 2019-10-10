@@ -23,6 +23,7 @@
 
 namespace ccf
 {
+  template <typename CT = void>
   class RpcFrontend : public enclave::RpcHandler, public ForwardedRpcHandler
   {
   public:
@@ -76,10 +77,11 @@ namespace ccf
     Nodes* nodes;
     ClientSignatures* client_signatures;
     Certs* certs;
+    CT* callers;
     std::optional<Handler> default_handler;
     std::unordered_map<std::string, Handler> handlers;
     kv::Consensus* consensus;
-    std::shared_ptr<AbstractForwarder> cmd_forwarder;
+    std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
 
     size_t sig_max_tx = 1000;
@@ -242,13 +244,20 @@ namespace ccf
     }
 
   public:
-    RpcFrontend(Store& tables_) : RpcFrontend(tables_, nullptr, nullptr) {}
+    RpcFrontend(Store& tables_) :
+      RpcFrontend(tables_, nullptr, nullptr, nullptr)
+    {}
 
-    RpcFrontend(Store& tables_, ClientSignatures* client_sigs_, Certs* certs_) :
+    RpcFrontend(
+      Store& tables_,
+      ClientSignatures* client_sigs_,
+      Certs* certs_,
+      CT* callers_) :
       tables(tables_),
       nodes(tables.get<Nodes>(Tables::NODES)),
       client_signatures(client_sigs_),
       certs(certs_),
+      callers(callers_),
       consensus(nullptr),
       history(nullptr)
 
@@ -385,14 +394,15 @@ namespace ccf
       request_storing_disabled = true;
     }
 
-    void set_sig_intervals(size_t sig_max_tx_, size_t sig_max_ms_)
+    void set_sig_intervals(size_t sig_max_tx_, size_t sig_max_ms_) override
     {
       sig_max_tx = sig_max_tx_;
       sig_max_ms = std::chrono::milliseconds(sig_max_ms_);
       ms_to_sig = sig_max_ms;
     }
 
-    void set_cmd_forwarder(std::shared_ptr<AbstractForwarder> cmd_forwarder_)
+    void set_cmd_forwarder(
+      std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder_) override
     {
       cmd_forwarder = cmd_forwarder_;
     }

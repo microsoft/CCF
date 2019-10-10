@@ -8,7 +8,7 @@
 
 namespace ccf
 {
-  class NodeRpcFrontend : public RpcFrontend
+  class NodeRpcFrontend : public RpcFrontend<Nodes>
   {
   private:
     NetworkState& network;
@@ -119,7 +119,7 @@ namespace ccf
 
   public:
     NodeRpcFrontend(NetworkState& network, AbstractNodeState& node) :
-      RpcFrontend(*network.tables),
+      RpcFrontend<Nodes>(*network.tables, nullptr, nullptr, &network.nodes),
       network(network),
       node(node),
       signatures(tables.get<Signatures>(Tables::SIGNATURES))

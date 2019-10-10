@@ -12,6 +12,7 @@
 #include "secrets.h"
 #include "service.h"
 #include "signatures.h"
+#include "users.h"
 #include "values.h"
 #include "votinghistory.h"
 #include "whitelists.h"
@@ -37,7 +38,7 @@ namespace ccf
     ClientSignatures& member_client_signatures;
 
     // User tables
-    // TODO: Add User table the other way around
+    Users& users;
     Certs& user_certs;
     ClientSignatures& user_client_signatures;
 
@@ -73,6 +74,7 @@ namespace ccf
         Tables::VOTING_HISTORY, kv::SecurityDomain::PUBLIC)),
       member_client_signatures(
         tables->create<ClientSignatures>(Tables::MEMBER_CLIENT_SIGNATURES)),
+      users(tables->create<Users>(Tables::USERS)),
       user_certs(tables->create<Certs>(Tables::USER_CERTS)),
       user_client_signatures(
         tables->create<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
@@ -105,6 +107,7 @@ namespace ccf
         std::ref(member_acks),
         std::ref(voting_history),
         std::ref(member_client_signatures),
+        std::ref(users),
         std::ref(user_certs),
         std::ref(user_client_signatures),
         std::ref(nodes),

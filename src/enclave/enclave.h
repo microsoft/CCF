@@ -67,12 +67,11 @@ namespace enclave
       REGISTER_FRONTEND(
         rpc_map, nodes, std::make_unique<ccf::NodeRpcFrontend>(network, node));
 
-      for (auto& r : rpc_map->get_map())
+      for (auto& [actor, fe] : rpc_map->get_map())
       {
-        auto frontend = dynamic_cast<ccf::RpcFrontend*>(r.second.get());
-        frontend->set_sig_intervals(
+        fe->set_sig_intervals(
           signature_intervals.sig_max_tx, signature_intervals.sig_max_ms);
-        frontend->set_cmd_forwarder(cmd_forwarder);
+        fe->set_cmd_forwarder(cmd_forwarder);
       }
 
       node.initialize(raft_config, n2n_channels, rpc_map, cmd_forwarder);

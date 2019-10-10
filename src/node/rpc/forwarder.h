@@ -17,21 +17,7 @@ namespace ccf
       enclave::RPCContext& fwd_ctx, const std::vector<uint8_t>& input) = 0;
   };
 
-  class AbstractForwarder
-  {
-  public:
-    virtual ~AbstractForwarder() {}
-
-    virtual bool forward_command(
-      enclave::RPCContext& rpc_ctx,
-      NodeId from,
-      NodeId to,
-      CallerId caller_id,
-      const std::vector<uint8_t>& data,
-      const CBuffer& caller = nullb) = 0;
-  };
-
-  class Forwarder : public AbstractForwarder
+  class Forwarder : public enclave::AbstractForwarder
   {
   private:
     std::shared_ptr<enclave::AbstractRPCResponder> rpcresponder;

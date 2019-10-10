@@ -22,17 +22,20 @@ MSGPACK_ADD_ENUM(ccf::MemberStatus);
 
 namespace ccf
 {
+  // TODO: Make sure to store the certs as well when adding members
   struct MemberInfo
   {
+    std::vector<uint8_t> cert;
     MemberStatus status;
     std::vector<uint8_t> keyshare;
 
-    MSGPACK_DEFINE(status, keyshare);
+    MSGPACK_DEFINE(cert, status, keyshare);
   };
   using Members = Store::Map<MemberId, MemberInfo>;
 
   inline void to_json(nlohmann::json& j, const MemberInfo& mi)
   {
+    j["cert"] = mi.cert;
     j["status"] = mi.status;
     if (!mi.keyshare.empty())
     {
@@ -42,6 +45,7 @@ namespace ccf
 
   inline void from_json(const nlohmann::json& j, MemberInfo& mi)
   {
+    assign_j(mi.cert, j["cert"]);
     mi.status = j["status"];
     auto keyshare = j.find("keyshare");
     if (keyshare != j.end())
