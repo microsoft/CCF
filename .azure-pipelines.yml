@@ -101,9 +101,10 @@ jobs:
         pool: Ubuntu-1804-DC4s
         name: SGX_BFT
 
-  container:
-    image: $[ variables['image'] ]
-    options: $[ variables['options'] ]
+  container: $[ variables['image'] ]
+  # container:
+  #   image: $[ variables['image'] ]
+  #   options: $[ variables['options'] ]
   pool: $[ variables['pool'] ]
 
   steps:
@@ -120,11 +121,11 @@ jobs:
     - template: .azure-pipelines-templates/test.yml
       parameters:
         ctest_filter: '-L end_to_end -I 0,,2'
-        suite_name_suffix: ' SGX end to end tests A'
+        suite_name_suffix: '$(name) SGX end to end tests A'
     - template: .azure-pipelines-templates/test.yml
       parameters:
         ctest_filter: '-L end_to_end -I 1,,2'
-        suite_name_suffix: ' SGX end to end tests B'
+        suite_name_suffix: '$(name) SGX end to end tests B'
 
 # - job: ACC_1804_SGX_build
 #   pool: Ubuntu-1804-DC4s
