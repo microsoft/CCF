@@ -1,7 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Copyright (c) 1999 Miguel Castro, Barbara Liskov.
-// Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
-// Licensed under the MIT license.
 
 #ifndef INSIDE_ENCLAVE
 #  include <stdio.h>
@@ -229,13 +225,90 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
   }
 }
 
+size_t Replica::ledger_cursor() const
+{
+  return ledger_replay->cursor();
+}
+
+bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
+{
+  PBFT_ASSERT(
+    !data.empty(), "apply ledger data should not receive empty vector");
+
+  auto executable_pp =
+    ledger_replay->apply_data(data, rqueue, brt, ledger_writer.get());
+
+  if (executable_pp)
+  {
+    auto pre_prepare = executable_pp.get();
+    auto seqno = pre_prepare->seqno();
+
+    ByzInfo info;
+    if (execute_tentative(pre_prepare, info))
+    {
+      // TODO refactor into a separate method
+      auto& pp_root = pre_prepare->get_merkle_root();
+      if (!std::equal(
+            std::begin(pp_root),
+            std::end(pp_root),
+            std::begin(info.merkle_root)))
+      {
+        LOG_FAIL << "Merkle root between execution and the pre_prepare message "
+                    "does not match, seqno:"
+                 << seqno << std::endl;
+        return false;
+      }
+
+      auto tx_ctx = pre_prepare->get_ctx();
+      if (tx_ctx != info.ctx)
+      {
+        LOG_FAIL << "User ctx between execution and the pre_prepare message "
+                    "does not match, seqno:"
+                 << seqno << std::endl;
+        return false;
+      }
+
+      next_pp_seqno = seqno;
+      if (ledger_writer)
+      {
+        ledger_writer->write_pre_prepare(pre_prepare);
+      }
+      if (seqno > last_prepared)
+      {
+        last_prepared = seqno;
+      }
+
+      if (global_commit_cb != nullptr)
+      {
+        global_commit_cb(pre_prepare->get_ctx(), global_commit_ctx);
+      }
+      last_executed++;
+      // Send and log Checkpoint message for the new state if needed.
+      if (last_executed % checkpoint_interval == 0)
+      {
+        mark_stable(last_executed, true);
+      }
+    }
+    else
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+void Replica::init_state()
+{
+  // Compute digest of initial state and first checkpoint.
+  state.compute_full_digest();
+}
+
 void Replica::recv_start()
 {
   // Compute session keys and send initial new-key message.
   Node::send_new_key();
 
-  // Compute digest of initial state and first checkpoint.
-  state.compute_full_digest();
+  init_state();
 
   // Start status and authentication freshness timers
   stimer->start();
@@ -1730,7 +1803,7 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
     !state.in_check_state() && has_complete_new_view())
   {
     last_tentative_execute = last_tentative_execute + 1;
-    LOG_TRACE << "in execute tenative with last_tentative_execute: "
+    LOG_TRACE << "in execute tentative with last_tentative_execute: "
               << last_tentative_execute
               << " and last_executed: " << last_executed << std::endl;
 

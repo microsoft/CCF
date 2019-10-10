@@ -1,7 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Copyright (c) 1999 Miguel Castro, Barbara Liskov.
-// Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
-// Licensed under the MIT license.
 
 #pragma once
 
@@ -152,6 +148,11 @@ public:
   // Effects: Use when messages are passed to Replica rather than replica
   // polling
 
+  size_t ledger_cursor() const;
+
+  bool apply_ledger_data(const std::vector<uint8_t>& data);
+
+  void init_state();
   void recv_start();
 
   static bool pre_verify(Message* m);

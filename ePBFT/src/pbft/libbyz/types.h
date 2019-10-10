@@ -1,7 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Copyright (c) 1999 Miguel Castro, Barbara Liskov.
-// Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
-// Licensed under the MIT license.
 
 #pragma once
 
@@ -42,11 +38,13 @@ typedef struct _Byz_buffer Byz_buffer;
 typedef struct _Byz_buffer Byz_req;
 typedef struct _Byz_buffer Byz_rep;
 
+using Merkle_root_ctx = int64_t;
+
 static const uint32_t MERKLE_ROOT_SIZE = 32;
 struct ByzInfo
 {
   std::array<uint8_t, MERKLE_ROOT_SIZE> merkle_root;
-  int64_t ctx;
+  Merkle_root_ctx ctx;
 };
 
 using ExecCommand = std::function<int(

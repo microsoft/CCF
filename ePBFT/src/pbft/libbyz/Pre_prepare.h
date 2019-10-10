@@ -1,7 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Copyright (c) 1999 Miguel Castro, Barbara Liskov.
-// Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
-// Licensed under the MIT license.
 
 #pragma once
 
@@ -93,11 +89,12 @@ public:
   // Effects: Fetches the digest from the message.
 
   void set_merkle_root_and_ctx(
-    std::array<uint8_t, MERKLE_ROOT_SIZE>& merkle_root, int64_t ctx);
+    const std::array<uint8_t, MERKLE_ROOT_SIZE>& merkle_root,
+    Merkle_root_ctx ctx);
 
   const std::array<uint8_t, MERKLE_ROOT_SIZE>& get_merkle_root() const;
 
-  int64_t get_ctx() const;
+  Merkle_root_ctx get_ctx() const;
 
   class Requests_iter
   {

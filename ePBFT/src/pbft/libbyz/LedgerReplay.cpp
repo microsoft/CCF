@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT license.
 #include "LedgerReplay.h"
 
 #include "Request.h"
@@ -27,7 +25,7 @@ size_t LedgerReplay::cursor() const
   return total_ledger_len;
 }
 
-void LedgerReplay::apply_data(
+std::unique_ptr<Pre_prepare> LedgerReplay::apply_data(
   const std::vector<uint8_t>& data,
   Req_queue& rqueue,
   Big_req_table& brt,
@@ -51,18 +49,24 @@ void LedgerReplay::apply_data(
   {
     auto header =
       serialized::overlay<Pre_prepare_ledger_header>(entry_data, data_size);
-    LOG_INFO << "Received Pre prepare header: " << header.sequence_num
-             << std::endl;
     latest_pre_prepare = create_message<Pre_prepare>(entry_data, data_size);
+
+    serialized::skip(entry_data, data_size, header.message_size);
+
+    auto mt_root = serialized::read(entry_data, data_size, MERKLE_ROOT_SIZE);
+    std::array<uint8_t, MERKLE_ROOT_SIZE> mt_array;
+    std::copy_n(mt_root.begin(), MERKLE_ROOT_SIZE, mt_array.begin());
+
+    auto mt_ctx = serialized::overlay<Merkle_root_ctx>(entry_data, data_size);
+    latest_pre_prepare->set_merkle_root_and_ctx(mt_array, mt_ctx);
   }
   else if (type == Ledger_header_type::Pre_prepare_ledger_large_message_header)
   {
     auto header = serialized::overlay<Pre_prepare_ledger_large_message_header>(
       entry_data, data_size);
-    LOG_INFO << "Received large message header: " << header.message_size
-             << std::endl;
 
-    auto req = create_message<Request>(entry_data, data_size).release();
+    auto req =
+      create_message<Request>(entry_data, header.message_size).release();
 
     if (!(req->size() > Request::big_req_thresh && brt.add_request(req)))
     {
@@ -71,7 +75,9 @@ void LedgerReplay::apply_data(
   }
 
   // TODO process requests here
-  Pre_prepare::Requests_iter iter(latest_pre_prepare.get());
+  auto pre_prepare = latest_pre_prepare.get();
+
+  Pre_prepare::Requests_iter iter(pre_prepare);
   // check that all big requests are present
   Request request;
   bool is_request_present = false;
@@ -79,12 +85,13 @@ void LedgerReplay::apply_data(
   {
     if (!is_request_present)
     {
-      return;
+      return nullptr;
     }
   }
 
-  if (ledger_writer)
+  if (!is_request_present && rqueue.size() == 0)
   {
-    ledger_writer->write_pre_prepare(latest_pre_prepare.get());
+    return nullptr;
   }
+  return std::move(latest_pre_prepare);
 }
