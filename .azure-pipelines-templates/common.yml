@@ -14,7 +14,6 @@ jobs:
       parameters:
         artifact_name: build_results_${{ parameters.target }}_${{ parameters.consensus }}
 
-jobs:
 - job: UnitTests_${{ parameters.target }}_${{ parameters.consensus }}
 
   ${{ insert }}: ${{ parameters.env }}
