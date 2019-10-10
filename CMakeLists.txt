@@ -203,7 +203,8 @@ if(BUILD_TESTS)
 
     add_test(
       NAME ${name}
-      COMMAND ${name} --samples=1000)
+      COMMAND bash -c "$<TARGET_FILE:${name}> --samples=1000 --out-fmt=csv --output=${name}.csv && cat ${name}.csv"
+    )
 
     use_client_mbedtls(${name})
 
