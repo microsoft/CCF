@@ -34,13 +34,13 @@ def run(args):
         network.add_users(primary, network.initial_users)
         LOG.info("Initial set of users added")
 
-        #network.open_network(primary)
+        # network.open_network(primary)
         script = None
         result = network.propose(1, primary, script, None, "open_network")
         network.vote_using_majority(primary, result[1]["id"], False)
         LOG.info("***** Network is now open *****")
 
-        #with primary.node_client() as mc:
+        # with primary.node_client() as mc:
         #    check_commit = infra.ccf.Checker(mc)
         #    check = infra.ccf.Checker()
 

@@ -411,7 +411,9 @@ class Network:
 
             return (True, j_result["result"])
 
-    def vote_using_majority(self, remote_node, proposal_id, should_wait_for_global_commit=True):
+    def vote_using_majority(
+        self, remote_node, proposal_id, should_wait_for_global_commit=True
+    ):
         # There is no need to stop after n / 2 + 1 members have voted,
         # but this could prove to be useful in detecting errors
         # related to the voting mechanism
@@ -419,7 +421,14 @@ class Network:
         for i, member in enumerate(self.members):
             if i >= majority_count:
                 break
-            res = self.vote(member, remote_node, proposal_id, True, False, should_wait_for_global_commit)
+            res = self.vote(
+                member,
+                remote_node,
+                proposal_id,
+                True,
+                False,
+                should_wait_for_global_commit,
+            )
             assert res[0]
             if res[1]:
                 break
@@ -427,7 +436,15 @@ class Network:
         assert res
         return res[1]
 
-    def vote(self, member_id, remote_node, proposal_id, accept, force_unsigned=False, should_wait_for_global_commit=True):
+    def vote(
+        self,
+        member_id,
+        remote_node,
+        proposal_id,
+        accept,
+        force_unsigned=False,
+        should_wait_for_global_commit=True,
+    ):
         if os.getenv("HTTP"):
             script = """
             tables, changes = ...
