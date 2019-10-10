@@ -250,6 +250,7 @@ bool Replica::compare_execution_results(
              << pre_prepare->seqno() << std::endl;
     return false;
   }
+  return true;
 }
 
 size_t Replica::ledger_cursor() const
