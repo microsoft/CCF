@@ -6,7 +6,7 @@ parameters:
     NoSGX:
       container:
         image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-nosgx:latest
-        options: --publish-all
+        options: --publish-all --cap-add SYS_PTRACE
       pool: Ubuntu-1804-D8s_v3
     SGX:
       container:
@@ -16,7 +16,7 @@ parameters:
 
   build:
     NoSGX:
-      cmake_args: '-DTARGET=virtual -DCOVERAGE=ON'
+      cmake_args: '-DTARGET=virtual -DCOVERAGE=ON -DSAN=ON'
     SGX:
       cmake_args: ''
     BFT:
