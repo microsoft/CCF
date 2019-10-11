@@ -4,6 +4,7 @@
 // Licensed under the MIT license.
 #pragma once
 
+#include "../src/consensus/consensustypes.h"
 #include "ITimer.h"
 #include "Message.h"
 #include "Message_tags.h"
@@ -39,6 +40,7 @@ public:
 
   size_t num_of_replicas() const;
   size_t f() const;
+  void set_f(ccf::NodeId f);
   size_t num_correct_replicas() const;
 
   int id() const;

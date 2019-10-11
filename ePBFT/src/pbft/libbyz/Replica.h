@@ -126,6 +126,7 @@ public:
 
   size_t num_correct_replicas() const;
   size_t f() const;
+  void set_f(ccf::NodeId f);
   View view() const;
   bool is_primary() const;
   int primary() const;

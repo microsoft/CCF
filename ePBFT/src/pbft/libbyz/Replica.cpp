@@ -952,6 +952,11 @@ size_t Replica::f() const
   return Node::f();
 }
 
+void Replica::set_f(ccf::NodeId f)
+{
+  Node::set_f(f);
+}
+
 View Replica::view() const
 {
   return Node::view();
@@ -1659,11 +1664,6 @@ void Replica::execute_prepared(bool committed)
 
   if (pp && pp->view() == view())
   {
-    if (global_commit_cb != nullptr)
-    {
-      global_commit_cb(pp->get_ctx(), global_commit_ctx);
-    }
-
     // Iterate over the requests in the message, sending replies
     // for each of them
     Pre_prepare::Requests_iter iter(pp);
@@ -1718,6 +1718,11 @@ void Replica::execute_prepared(bool committed)
 #endif
         }
       }
+    }
+
+    if (global_commit_cb != nullptr)
+    {
+      global_commit_cb(pp->get_ctx(), global_commit_ctx);
     }
   }
 }
