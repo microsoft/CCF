@@ -15,7 +15,6 @@
 #include "libbyz/libbyz.h"
 #include "libbyz/network.h"
 #include "libbyz/receive_message_base.h"
-#include "node/consensustypes.h"
 #include "node/nodetypes.h"
 #include "node/rpc/jsonrpc.h"
 
@@ -344,6 +343,11 @@ namespace pbft
         default:
         {}
       }
+    }
+
+    void set_f(ccf::NodeId f) override
+    {
+      message_receiver_base->set_f(f);
     }
   };
 }
