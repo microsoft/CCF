@@ -51,10 +51,10 @@ jobs:
   - ${{ each consensus in parameters.consensus }}:
     - template: common.yml
       parameters:
-        target: SGX
+        target: NoSGX
         consensus: ${{ consensus }}
-        env: ${{ parameters.env.SGX }}
-        cmake_args: '${{ parameters.build.san.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
+        env: ${{ parameters.env.NoSGX }}
+        cmake_args: '${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
         ctest_filter: '-LE ${{ parameters.perf_test_filter }}'
         suffix: 'SAN'
 
