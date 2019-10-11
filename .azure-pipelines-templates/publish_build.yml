@@ -4,7 +4,7 @@ parameters:
 
 steps:
 - script: |
-    tar -cavf artifact.tar.gz `find . -maxdepth 1 -type f`
+    tar -cavf artifact.tar.gz `find . -maxdepth 1 -type f | grep -v CMakeCache.txt`
   displayName: Compress build artifact
   workingDirectory: build
 
