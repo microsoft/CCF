@@ -3,7 +3,6 @@ trigger:
   branches:
     include:
       - "master"
-      - "ci/*"
   paths:
     exclude:
       - 'README.md'
