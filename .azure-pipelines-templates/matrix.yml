@@ -43,7 +43,7 @@ jobs:
   - ${{ each consensus in parameters.consensus }}:
     - template: common.yml
       parameters:
-        target: ${{ target }}
+        target: SGX
         consensus: ${{ consensus }}
         env: ${{ parameters.env.SGX }}
         cmake_args: '-DBUILD_SMALLBANK=ON -DSERVICE_IDENTITY_CURVE_CHOICE=secp256k1_bitcoin ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
