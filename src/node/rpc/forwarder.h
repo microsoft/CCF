@@ -17,11 +17,12 @@ namespace ccf
       enclave::RPCContext& fwd_ctx, const std::vector<uint8_t>& input) = 0;
   };
 
+  template <typename ChannelProxy>
   class Forwarder : public enclave::AbstractForwarder
   {
   private:
     std::shared_ptr<enclave::AbstractRPCResponder> rpcresponder;
-    std::shared_ptr<NodeToNode> n2n_channels;
+    std::shared_ptr<ChannelProxy> n2n_channels;
     std::shared_ptr<enclave::RPCMap> rpc_map;
     NodeId self;
 
@@ -30,7 +31,7 @@ namespace ccf
   public:
     Forwarder(
       std::shared_ptr<enclave::AbstractRPCResponder> rpcresponder,
-      std::shared_ptr<NodeToNode> n2n_channels,
+      std::shared_ptr<ChannelProxy> n2n_channels,
       std::shared_ptr<enclave::RPCMap> rpc_map_) :
       rpcresponder(rpcresponder),
       n2n_channels(n2n_channels),
@@ -81,17 +82,10 @@ namespace ccf
     std::optional<std::tuple<enclave::RPCContext, NodeId, std::vector<uint8_t>>>
     recv_forwarded_command(const uint8_t* data, size_t size)
     {
-      const auto& msg = serialized::overlay<ForwardedHeader>(data, size);
-      if (msg.msg != ForwardedMsg::forwarded_cmd)
-      {
-        LOG_FAIL_FMT("Invalid forwarded message");
-        return {};
-      }
-
-      std::vector<uint8_t> plain;
+      std::pair<ForwardedHeader, std::vector<uint8_t>> r;
       try
       {
-        plain = n2n_channels->recv_encrypted(msg, data, size);
+        r = n2n_channels->template recv_encrypted<ForwardedHeader>(data, size);
       }
       catch (const std::logic_error& err)
       {
@@ -100,7 +94,7 @@ namespace ccf
       }
 
       CBuffer caller_cert = nullb;
-      const auto& plain_ = plain;
+      const auto& plain_ = r.second;
       auto data_ = plain_.data();
       auto size_ = plain_.size();
       auto caller_id = serialized::read<CallerId>(data_, size_);
@@ -118,7 +112,7 @@ namespace ccf
 
       return std::make_tuple(
         enclave::RPCContext(client_session_id, caller_id, actor, caller_cert),
-        msg.from_node,
+        r.first.from_node,
         std::move(rpc));
     }
 
@@ -141,17 +135,10 @@ namespace ccf
     std::optional<std::pair<size_t, std::vector<uint8_t>>>
     recv_forwarded_response(const uint8_t* data, size_t size)
     {
-      const auto& msg = serialized::overlay<ForwardedHeader>(data, size);
-      if (msg.msg != ForwardedMsg::forwarded_response)
-      {
-        LOG_FAIL_FMT("Invalid forwarded response message");
-        return {};
-      }
-
-      std::vector<uint8_t> plain;
+      std::pair<ForwardedHeader, std::vector<uint8_t>> r;
       try
       {
-        plain = n2n_channels->recv_encrypted(msg, data, size);
+        r = n2n_channels->template recv_encrypted<ForwardedHeader>(data, size);
       }
       catch (const std::logic_error& err)
       {
@@ -159,7 +146,7 @@ namespace ccf
         return {};
       }
 
-      const auto& plain_ = plain;
+      const auto& plain_ = r.second;
       auto data_ = plain_.data();
       auto size_ = plain_.size();
       auto client_session_id = serialized::read<size_t>(data_, size_);

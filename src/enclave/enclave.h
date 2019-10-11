@@ -33,7 +33,7 @@ namespace enclave
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCSessions> rpcsessions;
     ccf::NodeState node;
-    std::shared_ptr<ccf::Forwarder> cmd_forwarder;
+    std::shared_ptr<ccf::Forwarder<ccf::NodeToNode>> cmd_forwarder;
 
     CCFConfig ccf_config;
     StartType start_type;
@@ -50,8 +50,8 @@ namespace enclave
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
       node(writer_factory, network, rpcsessions, notifier, timers),
-      cmd_forwarder(
-        std::make_shared<ccf::Forwarder>(rpcsessions, n2n_channels, rpc_map))
+      cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
+        rpcsessions, n2n_channels, rpc_map))
     {
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();

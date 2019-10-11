@@ -121,7 +121,7 @@ namespace ccf
     std::shared_ptr<kv::Consensus> consensus;
     std::shared_ptr<enclave::RPCMap> rpc_map;
     std::shared_ptr<NodeToNode> n2n_channels;
-    std::shared_ptr<Forwarder> cmd_forwarder;
+    std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
     ccf::Notifier& notifier;
     Timers& timers;
@@ -178,7 +178,7 @@ namespace ccf
       const raft::Config& raft_config_,
       std::shared_ptr<NodeToNode> n2n_channels_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
-      std::shared_ptr<Forwarder> cmd_forwarder_)
+      std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder_)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::uninitialized);
@@ -324,7 +324,8 @@ namespace ccf
         Actors::NODES, tls_ca, node_cert, node_kp->private_key_pem(), nullb);
 
       // Create RPC client and connect to remote node
-      auto join_client = rpcsessions->create_client(std::move(join_client_cert));
+      auto join_client =
+        rpcsessions->create_client(std::move(join_client_cert));
 
       join_client->connect(
         args.config.joining.target_host,
