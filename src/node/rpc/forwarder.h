@@ -99,7 +99,7 @@ namespace ccf
         return {};
       }
 
-      std::optional<std::vector<uint8_t>> caller = std::nullopt;
+      CBuffer caller_cert = nullb;
       const auto& plain_ = plain;
       auto data_ = plain_.data();
       auto size_ = plain_.size();
@@ -110,13 +110,14 @@ namespace ccf
       if (includes_caller)
       {
         auto caller_size = serialized::read<size_t>(data_, size_);
-        caller = serialized::read(data_, size_, caller_size);
+        caller_cert = {data_, caller_size};
+        serialized::skip(data_, size_, caller_size);
       }
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
       LOG_FAIL_FMT("Left to read: {}", size_);
 
       return std::make_tuple(
-        enclave::RPCContext(client_session_id, caller_id, caller, actor),
+        enclave::RPCContext(client_session_id, caller_id, actor, caller_cert),
         msg.from_node,
         std::move(rpc));
     }

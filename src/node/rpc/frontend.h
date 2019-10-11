@@ -23,6 +23,16 @@
 
 namespace ccf
 {
+  struct RequestArgs
+  {
+    enclave::RPCContext& rpc_ctx;
+    Store::Tx& tx;
+    CallerId caller_id;
+    const std::string& method;
+    const nlohmann::json& params;
+    const SignedReq& signed_request;
+  };
+
   template <typename CT = void>
   class RpcFrontend : public enclave::RpcHandler, public ForwardedRpcHandler
   {
@@ -38,16 +48,6 @@ namespace ccf
     {
       CanForward,
       DoNotForward
-    };
-
-    struct RequestArgs
-    {
-      enclave::RPCContext& rpc_ctx;
-      Store::Tx& tx;
-      CallerId caller_id;
-      const std::string& method;
-      const nlohmann::json& params;
-      const SignedReq& signed_request;
     };
 
   protected:
@@ -260,7 +260,6 @@ namespace ccf
       callers(callers_),
       consensus(nullptr),
       history(nullptr)
-
     {
       auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetCommit::In>();
@@ -622,17 +621,20 @@ namespace ccf
           auto primary_id = consensus->primary();
           auto local_id = consensus->id();
 
-          CBuffer forwarded_caller = certs == nullptr ? ctx.caller_cert : nullb;
+          // Only forward caller certificate if frontend cannot retrieve caller
+          // cert from caller id
+          CBuffer forwarded_caller_cert =
+            callers == nullptr ? ctx.caller_cert : nullb;
 
           if (
-            primary_id != NoNode &&
+            primary_id != NoNode && cmd_forwarder &&
             cmd_forwarder->forward_command(
               ctx,
               local_id,
               primary_id,
               caller_id.value(),
               input,
-              forwarded_caller))
+              forwarded_caller_cert))
           {
             // Indicate that the RPC has been forwarded to primary
             LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
@@ -746,21 +748,8 @@ namespace ccf
 
       Store::Tx tx;
 
-      // TODO: Caller should be retrieved from ctx
-      // If there's no caller, then it should be looked up from the cert table
-      if (ctx.fwd->caller.has_value())
-      {
-        ctx.caller_cert = ctx.fwd->caller.value();
-      }
-      else
-      {
-        // auto cert_view = tx.get_view(*certs);
-        // ctx.caller_cert = cert_view->get();
-        // TODO: We need to lookup the cert from the caller id here!
-      }
-
-      auto pack = detect_pack(input);
-      if (!pack.has_value())
+      ctx.pack = detect_pack(input);
+      if (!ctx.pack.has_value())
       {
         return jsonrpc::pack(
           jsonrpc::error_response(
@@ -770,23 +759,32 @@ namespace ccf
           jsonrpc::Pack::Text);
       }
 
-      // TODO: Verify the caller here
-      // If the RPC was forwarded, assume that the caller has already been
-      // verified
-      if (certs && ctx.fwd->caller_id == INVALID_ID)
+      LOG_FAIL_FMT("Forwarded caller id is: {}", ctx.fwd->caller_id);
+
+      // Only available in user/memberfrontend
+      if constexpr (!std::is_same_v<CT, void>)
       {
-        return jsonrpc::pack(
-          jsonrpc::error_response(
-            0,
-            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
-            "No corresponding caller entry exists (forwarded)."),
-          pack.value());
+        auto callers_view = tx.get_view(*callers);
+        auto caller = callers_view->get(ctx.fwd->caller_id);
+        if (!caller.has_value())
+        {
+          return jsonrpc::pack(
+            jsonrpc::error_response(
+              0,
+              jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
+              "No corresponding caller entry exists."),
+            ctx.pack.value());
+        }
+        // FU: ctx.caller_cert is a CBuffer :( It will disappear as soon as
+        // caller goes out of scope
+        // TODO: caller_cert should be a vector from now on
+        ctx.caller_cert = caller.value().cert;
       }
 
-      auto rpc = unpack_json(input, pack.value());
+      auto rpc = unpack_json(input, ctx.pack.value());
       if (!rpc.first)
       {
-        return jsonrpc::pack(rpc.second, pack.value());
+        return jsonrpc::pack(rpc.second, ctx.pack.value());
       }
 
       // Unwrap signed request if necessary and store client signature. It is
@@ -813,7 +811,7 @@ namespace ccf
         throw std::logic_error("Forwarded RPC cannot be forwarded");
       }
 
-      return jsonrpc::pack(rep.value(), pack.value());
+      return jsonrpc::pack(rep.value(), ctx.pack.value());
     }
 
     std::optional<nlohmann::json> process_json(

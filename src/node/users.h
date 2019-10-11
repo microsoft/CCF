@@ -6,5 +6,14 @@
 
 namespace ccf
 {
-  using Users = Store::Map<UserId, Cert>;
+  struct UserInfo
+  {
+    std::vector<uint8_t> cert;
+
+    MSGPACK_DEFINE(cert);
+  };
+  DECLARE_JSON_TYPE(UserInfo);
+  DECLARE_JSON_REQUIRED_FIELDS(UserInfo, cert);
+
+  using Users = Store::Map<UserId, UserInfo>;
 }
