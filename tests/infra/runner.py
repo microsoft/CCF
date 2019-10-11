@@ -133,8 +133,9 @@ def run(build_directory, get_command, args):
                         for i, remote_client in enumerate(clients):
                             done = remote_client.check_done()
                             # all the clients need to be done
-                            completed = "completed" if done else "not completed"
-                            LOG.info(f"Client {i} has {completed} running")
+                            LOG.info(
+                                f"Client {i} has {'completed' if done else 'not completed'} running"
+                            )
                             stop_waiting = stop_waiting and done
                         if stop_waiting:
                             break

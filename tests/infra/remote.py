@@ -283,17 +283,13 @@ class SSHRemote(CmdMixin):
             client.close()
 
     def check_for_stdout_line(self, line, timeout):
-        try:
-            client = self._connect_new()
-            for _ in range(timeout):
-                _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.out}")
-                if stdout.channel.recv_exit_status() == 0:
-                    return True
-                time.sleep(1)
-            return False
-        except Exception:
-            client.close()
-            raise RuntimeError(f"Error occured when trying to check for {line}")
+        client = self._connect_new()
+        for _ in range(timeout):
+            _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.out}")
+            if stdout.channel.recv_exit_status() == 0:
+                return True
+            time.sleep(1)
+        return False
 
     def print_and_upload_result(self, name, metrics, lines):
         client = self._connect_new()
@@ -432,7 +428,7 @@ class LocalRemote(CmdMixin):
         for _ in range(timeout):
             with open(self.out, "rb") as out:
                 for out_line in out:
-                    if line.strip() in out_line.strip().decode():
+                    if line in out_line.decode():
                         return
             time.sleep(1)
         raise ValueError(
@@ -443,7 +439,7 @@ class LocalRemote(CmdMixin):
         for _ in range(timeout):
             with open(self.out, "rb") as out:
                 for out_line in out:
-                    if line.strip() in out_line.strip().decode():
+                    if line in out_line.decode():
                         return True
             time.sleep(1)
         return False
