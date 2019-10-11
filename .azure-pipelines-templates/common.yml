@@ -1,6 +1,6 @@
 jobs:
-- job: Build_${{ parameters.target }}_${{ parameters.consensus }}_${{suffix}}
-  displayName: 'Build ${{ parameters.target }} ${{ parameters.consensus }} ${{suffix}}'
+- job: Build_${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.suffix }}
+  displayName: 'Build ${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }}'
 
   ${{ insert }}: ${{ parameters.env }}
 
@@ -13,15 +13,15 @@ jobs:
         cmake_args: '${{ parameters.cmake_args }}'
     - template: publish_build.yml
       parameters:
-        artifact_name: build_results_${{ parameters.target }}_${{ parameters.consensus }}_${{suffix}}
+        artifact_name: build_results_${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.suffix }}
 
-- job: Tests_${{ parameters.target }}_${{ parameters.consensus }}_${{suffix}}
-  displayName: 'Tests ${{ parameters.target }} ${{ parameters.consensus }} ${{suffix}}'
+- job: Tests_${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.suffix }}
+  displayName: 'Tests ${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }}'
 
   ${{ insert }}: ${{ parameters.env }}
 
   dependsOn:
-    - Build_${{ parameters.target }}_${{ parameters.consensus }}_${{suffix}}
+    - Build_${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.suffix }}
 
   steps:
     - checkout: self
@@ -29,8 +29,8 @@ jobs:
       submodules: true
     - template: download_build.yml
       parameters:
-        artifact_name: build_results_${{ parameters.target }}_${{ parameters.consensus }}_${{suffix}}
+        artifact_name: build_results_${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.suffix }}
     - template: test.yml
       parameters:
         ctest_filter: ${{ parameters.ctest_filter }}
-        suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} ${{suffix}} tests'
+        suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }} tests'
