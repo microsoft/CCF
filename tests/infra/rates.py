@@ -7,8 +7,6 @@ from statistics import mean, harmonic_mean, median, pstdev
 
 from loguru import logger as LOG
 
-COMMIT_COUNT_CUTOFF = 15
-
 
 class TxRates:
     def __init__(self, primary):
@@ -60,19 +58,12 @@ class TxRates:
             rv = client.rpc("getCommit", {})
             result = rv.to_dict()
             next_commit = result["result"]["commit"]
-            if self.commit == next_commit:
-                self.same_commit_count += 1
-            else:
-                self.same_commit_count = 0
-
+            more_to_process = self.commit != next_commit
             self.commit = next_commit
 
-        if self.same_commit_count >= COMMIT_COUNT_CUTOFF:
-            self._get_metrics()
-            return False
-        return True
+            return more_to_process
 
-    def _get_metrics(self):
+    def get_metrics(self):
         with self.primary.user_client(format="json") as client:
             rv = client.rpc("getMetrics", {})
             result = rv.to_dict()
