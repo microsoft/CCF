@@ -80,7 +80,7 @@ namespace kv
       const NodeConf& node_conf) override
     {}
 
-    void set_f(uint32_t) override
+    void set_f(ccf::NodeId) override
     {
       return;
     }

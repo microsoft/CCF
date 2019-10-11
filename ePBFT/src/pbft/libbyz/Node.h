@@ -15,6 +15,7 @@
 #include "pbft_assert.h"
 #include "request_id_gen.h"
 #include "types.h"
+#include "../src/consensus/consensustypes.h"
 
 #include <atomic>
 #include <stdio.h>
@@ -39,7 +40,7 @@ public:
 
   size_t num_of_replicas() const;
   size_t f() const;
-  void set_f(uint32_t f);
+  void set_f(ccf::NodeId f);
   size_t num_correct_replicas() const;
 
   int id() const;

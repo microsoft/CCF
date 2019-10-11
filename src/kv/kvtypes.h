@@ -3,6 +3,7 @@
 #pragma once
 
 #include "crypto/hash.h"
+#include "consensus/consensustypes.h"
 
 #include <array>
 #include <chrono>
@@ -192,7 +193,7 @@ namespace kv
     virtual void resume_replication() {}
     virtual void suspend_replication(kv::Version) {}
 
-    virtual void set_f(uint32_t f) = 0;
+    virtual void set_f(ccf::NodeId f) = 0;
   };
 
   using PendingTx = std::function<

@@ -3,6 +3,7 @@
 #pragma once
 #include "kv/kv.h"
 #include "kv/kvserialiser.h"
+#include "consensus/consensustypes.h"
 
 #include <limits>
 #include <map>
@@ -11,11 +12,9 @@
 
 namespace ccf
 {
-  using ObjectId = uint64_t;
   constexpr ObjectId INVALID_ID = (std::numeric_limits<ObjectId>::max)();
 
   using MemberId = ObjectId;
-  using NodeId = ObjectId;
   using UserId = ObjectId;
   using CallerId = ObjectId;
   using Cert = std::vector<uint8_t>;

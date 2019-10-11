@@ -952,7 +952,7 @@ size_t Replica::f() const
   return Node::f();
 }
 
-void Replica::set_f(uint32_t f)
+void Replica::set_f(ccf::NodeId f)
 {
   Node::set_f(f);
 }

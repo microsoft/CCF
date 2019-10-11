@@ -369,7 +369,7 @@ void Node::send_to_replicas(Message* m)
   }
 }
 
-void Node::set_f(uint32_t f)
+void Node::set_f(ccf::NodeId f)
 {
   LOG_INFO << "***** setting f to " << f << "*****" << std::endl;
   max_faulty = f;

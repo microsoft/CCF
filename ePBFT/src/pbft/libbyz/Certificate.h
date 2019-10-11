@@ -9,6 +9,7 @@
 #include "Node.h"
 #include "Time.h"
 #include "ds/logger.h"
+#include "../src/consensus/consensustypes.h"
 #include "parameters.h"
 #include "types.h"
 
@@ -176,7 +177,7 @@ private:
   T* mym; // my message in this or null if I have no message in this
   Time t_sent; // time at which mym was last sent
 
-  uint32_t f; // the value of f when starting to run
+  ccf::NodeId f; // the value of f when starting to run
 
   // The implementation assumes:
   // correct > 0 and complete > correct
