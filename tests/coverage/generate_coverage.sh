@@ -21,10 +21,10 @@ llvm-cov-7 export -instr-profile coverage.profdata -format=text "${objects[@]}" 
 
 # Generate and upload combined coverage report for Codecov
 llvm-cov-7 show -instr-profile coverage.profdata "${objects[@]}" -ignore-filename-regex="(openenclave|3rdparty|/test/)" > codecov.txt
-bash <(curl -s https://codecov.io/bash) -t "${CODECOV_TOKEN}" -f codecov.txt -F "unit ${suffix}"
+bash <(curl -s https://codecov.io/bash) -t "${CODECOV_TOKEN}" -f codecov.txt -F "unit_${suffix}"
 
 for e2e in *.virtual.so; do
     llvm-profdata-7 merge -sparse ./*_"$e2e".profraw -o "$e2e".profdata
     llvm-cov-7 show -instr-profile "$e2e".profdata -object cchost.virtual -object "$e2e" -ignore-filename-regex="(openenclave|3rdparty|/test/)" > "$e2e".txt
-    bash <(curl -s https://codecov.io/bash) -t "${CODECOV_TOKEN}" -f "$e2e".txt -F "$(echo $"e2e" | cut -d. -f1) $suffix"
+    bash <(curl -s https://codecov.io/bash) -t "${CODECOV_TOKEN}" -f "$e2e".txt -F "$(echo $"e2e" | cut -d. -f1)_$suffix"
 done
