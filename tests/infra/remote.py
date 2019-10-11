@@ -158,7 +158,7 @@ class SSHRemote(CmdMixin):
         session = self.client.open_sftp()
         for path in self.files:
             # Some files can be glob patterns
-            for f in glob.glob(os.path.basename(path)):
+            for f in glob.glob(path):
                 tgt_path = os.path.join(self.root, os.path.basename(f))
                 LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, f))
                 session.put(f, tgt_path)
@@ -215,7 +215,7 @@ class SSHRemote(CmdMixin):
             for filepath in (self.err, self.out):
                 try:
                     local_filepath = "{}_{}_{}".format(
-                        self.hostname, filename, self.name
+                        self.hostname, os.path.basename(filepath), self.name
                     )
                     session.get(filepath, local_filepath)
                     LOG.info("Downloaded {}".format(local_filepath))
@@ -283,6 +283,15 @@ class SSHRemote(CmdMixin):
             )
         finally:
             client.close()
+
+    def check_for_stdout_line(self, line, timeout):
+        client = self._connect_new()
+        for _ in range(timeout):
+            _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.root}/out")
+            if stdout.channel.recv_exit_status() == 0:
+                return True
+            time.sleep(1)
+        return False
 
     def print_and_upload_result(self, name, metrics, lines):
         client = self._connect_new()
@@ -427,6 +436,15 @@ class LocalRemote(CmdMixin):
         raise ValueError(
             "{} not found in stdout after {} seconds".format(line, timeout)
         )
+
+    def check_for_stdout_line(self, line, timeout):
+        for _ in range(timeout):
+            with open(self.out, "rb") as out:
+                for out_line in out:
+                    if line.strip() in out_line.strip().decode():
+                        return True
+            time.sleep(1)
+        return False
 
     def print_and_upload_result(self, name, metrics, line):
         with open(self.out, "rb") as out:
