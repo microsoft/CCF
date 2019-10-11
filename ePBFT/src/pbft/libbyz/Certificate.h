@@ -177,7 +177,7 @@ private:
   T* mym; // my message in this or null if I have no message in this
   Time t_sent; // time at which mym was last sent
 
-  ccf::NodeId f; // the value of f when starting to run
+  const ccf::NodeId f; // the value of f when starting to run
 
   // The implementation assumes:
   // correct > 0 and complete > correct
@@ -271,9 +271,8 @@ inline bool Certificate<T>::Val_iter::get(T*& m, int& count)
 }
 
 template <class T>
-Certificate<T>::Certificate(int comp)
+Certificate<T>::Certificate(int comp) : f(node->f())
 {
-  f = node->f();
   max_size = f + 1;
   vals = new Message_val[max_size];
   cur_size = 0;
