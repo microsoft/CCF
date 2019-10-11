@@ -93,12 +93,11 @@ public:
   // Effects: Fetches the digest from the message.
 
   void set_merkle_root_and_ctx(
-    const std::array<uint8_t, MERKLE_ROOT_SIZE>& merkle_root,
-    Merkle_root_ctx ctx);
+    const std::array<uint8_t, MERKLE_ROOT_SIZE>& merkle_root, int64_t ctx);
 
   const std::array<uint8_t, MERKLE_ROOT_SIZE>& get_merkle_root() const;
 
-  Merkle_root_ctx get_ctx() const;
+  int64_t get_ctx() const;
 
   class Requests_iter
   {

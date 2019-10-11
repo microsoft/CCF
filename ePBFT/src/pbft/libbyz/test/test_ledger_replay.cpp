@@ -119,8 +119,8 @@ TEST_CASE("Test Ledger Replay")
       Byz_alloc_request(&req, sizeof(ExecutionMock::fake_req));
 
       auto fr = reinterpret_cast<ExecutionMock::fake_req*>(req.contents);
-      fr->rt = (uint8_t)i;
-      fr->ctx = (int64_t)i;
+      fr->rt = i;
+      fr->ctx = i;
 
       Request* request = (Request*)req.opaque;
       request->request_id() = i;

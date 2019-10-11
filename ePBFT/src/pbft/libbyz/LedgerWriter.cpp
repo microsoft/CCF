@@ -58,8 +58,7 @@ void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
 #endif
   );
 
-  size_t entry_size = sizeof(Pre_prepare_ledger_header) + pp->size() +
-    MERKLE_ROOT_SIZE + sizeof(Merkle_root_ctx);
+  size_t entry_size = sizeof(Pre_prepare_ledger_header) + pp->size();
   // write total entry size
   ledger_entry_cb((const uint8_t*)&entry_size, sizeof(size_t), ledger_cb_ctx);
   // write the actual entry
@@ -67,14 +66,6 @@ void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
   ledger_entry_cb(
     (uint8_t*)&header, sizeof(Pre_prepare_ledger_header), ledger_cb_ctx);
   ledger_entry_cb((const uint8_t*)pp->contents(), pp->size(), ledger_cb_ctx);
-  ledger_entry_cb(
-    (const uint8_t*)&pp->get_merkle_root().data()[0],
-    MERKLE_ROOT_SIZE,
-    ledger_cb_ctx);
-
-  Merkle_root_ctx ctx = pp->get_ctx();
-  ledger_entry_cb((const uint8_t*)&ctx, sizeof(Merkle_root_ctx), ledger_cb_ctx);
-
   if (pp->num_big_reqs() > 0)
   {
     Pre_prepare::Requests_iter iter(pp);

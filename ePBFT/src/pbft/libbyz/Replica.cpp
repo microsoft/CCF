@@ -264,18 +264,17 @@ bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
     !data.empty(), "apply ledger data should not receive empty vector");
 
   auto executable_pp =
-    ledger_replay->apply_data(data, rqueue, brt, ledger_writer.get());
+    ledger_replay->process_data(data, rqueue, brt, ledger_writer.get());
 
   if (executable_pp)
   {
-    auto pre_prepare = executable_pp.get();
-    auto seqno = pre_prepare->seqno();
+    auto seqno = executable_pp->seqno();
 
     ByzInfo info;
-    if (execute_tentative(pre_prepare, info))
+    if (execute_tentative(executable_pp.get(), info))
     {
-      auto merkle_info_match = compare_execution_results(info, pre_prepare);
-      if (!merkle_info_match)
+      auto batch_info = compare_execution_results(info, executable_pp.get());
+      if (!batch_info)
       {
         return false;
       }
@@ -284,7 +283,7 @@ bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
 
       if (ledger_writer)
       {
-        ledger_writer->write_pre_prepare(pre_prepare);
+        ledger_writer->write_pre_prepare(executable_pp.get());
       }
 
       if (seqno > last_prepared)
@@ -294,7 +293,7 @@ bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
 
       if (global_commit_cb != nullptr)
       {
-        global_commit_cb(pre_prepare->get_ctx(), global_commit_ctx);
+        global_commit_cb(executable_pp->get_ctx(), global_commit_ctx);
       }
 
       last_executed++;
@@ -771,8 +770,8 @@ void Replica::send_prepare(Seqno seqno)
         break;
       }
 
-      auto merkle_info_match = compare_execution_results(info, pp);
-      if (!merkle_info_match)
+      auto batch_info = compare_execution_results(info, pp);
+      if (!batch_info)
       {
         break;
       }

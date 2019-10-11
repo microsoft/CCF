@@ -97,8 +97,6 @@ int main(int argc, char** argv)
                     << std::endl;
         }
         file.seekg(header.message_size, file.cur);
-        file.seekg(MERKLE_ROOT_SIZE, file.cur);
-        file.seekg(sizeof(Merkle_root_ctx), file.cur);
       }
       else if (
         type == Ledger_header_type::Pre_prepare_ledger_large_message_header)

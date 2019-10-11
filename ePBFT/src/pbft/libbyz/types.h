@@ -42,13 +42,11 @@ typedef struct _Byz_buffer Byz_buffer;
 typedef struct _Byz_buffer Byz_req;
 typedef struct _Byz_buffer Byz_rep;
 
-using Merkle_root_ctx = int64_t;
-
 static const uint32_t MERKLE_ROOT_SIZE = 32;
 struct ByzInfo
 {
   std::array<uint8_t, MERKLE_ROOT_SIZE> merkle_root;
-  Merkle_root_ctx ctx;
+  int64_t ctx;
 };
 
 using ExecCommand = std::function<int(
