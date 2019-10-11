@@ -149,6 +149,6 @@ def run(build_directory, get_command, args):
                 tx_rates.save_results(args.metrics_file)
                 metrics.publish()
 
-            except KeyboardInterrupt:
+            except Exception:
                 for remote_client in clients:
                     remote_client.stop()

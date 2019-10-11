@@ -278,20 +278,22 @@ class SSHRemote(CmdMixin):
                 if stdout.channel.recv_exit_status() == 0:
                     return
                 time.sleep(1)
-            raise ValueError(
-                "{} not found in stdout after {} seconds".format(line, timeout)
-            )
+            raise ValueError(f"{line} not found in stdout after {timeout} seconds")
         finally:
             client.close()
 
     def check_for_stdout_line(self, line, timeout):
-        client = self._connect_new()
-        for _ in range(timeout):
-            _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.root}/out")
-            if stdout.channel.recv_exit_status() == 0:
-                return True
-            time.sleep(1)
-        return False
+        try:
+            client = self._connect_new()
+            for _ in range(timeout):
+                _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.root}/out")
+                if stdout.channel.recv_exit_status() == 0:
+                    return True
+                time.sleep(1)
+            return False
+        except Exception:
+            client.close()
+            raise RuntimeError(f"Error occured when trying to check for {line}")
 
     def print_and_upload_result(self, name, metrics, lines):
         client = self._connect_new()
