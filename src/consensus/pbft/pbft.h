@@ -15,7 +15,6 @@
 #include "libbyz/libbyz.h"
 #include "libbyz/network.h"
 #include "libbyz/receive_message_base.h"
-#include "node/consensustypes.h"
 #include "node/nodetypes.h"
 #include "node/rpc/jsonrpc.h"
 
