@@ -47,5 +47,5 @@ jobs:
         consensus: ${{ consensus }}
         env: ${{ parameters.env.SGX }}
         cmake_args: '-DBUILD_SMALLBANK=ON -DSERVICE_IDENTITY_CURVE_CHOICE=secp256k1_bitcoin ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-        ctest_filter: '-L benchmark|perf'
+        ctest_filter: '-L "benchmark|perf"'
         suffix: 'Perf'
