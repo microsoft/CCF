@@ -17,5 +17,9 @@ jobs:
         suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }} tests'
     - ${{ if eq(parameters.target, 'NoSGX') }}:
       - template: coverage.yml
+        parameters:
+          consensus: ${{ parameters.consensus }}
     - ${{ if and(eq(parameters.suffix, 'Perf'), eq(parameters.consensus, 'CFT')) }}:
       - template: push_perf_data.yml
+        parameters:
+          consensus: ${{ parameters.consensus }}
