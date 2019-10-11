@@ -99,5 +99,8 @@ class CCFRemoteClient(object):
             LOG.exception("Failed to wait on client {}".format(self.name))
             raise
 
+    def check_done(self):
+        return self.remote.check_for_stdout_line(line="Global commit", timeout=5)
+
     def print_and_upload_result(self, name, metrics):
         self.remote.print_and_upload_result(name, metrics, self.LINES_RESULT_FROM_END)
