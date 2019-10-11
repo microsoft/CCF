@@ -86,6 +86,11 @@ jobs:
       parameters:
         ctest_filter: '-LE "perf|end_to_end"'
         suite_name_suffix: ' SGX quick tests'
+    - script: ./cimetrics_env.sh python upload_pico_metrics.py
+      env:
+        METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
+      workingDirectory: build
+      displayName: 'Upload picobench metrics'
 
 - job: ACC_1804_SGX_e2e_tests_A
   pool: Ubuntu-1804-DC4s
