@@ -1,8 +1,0 @@
-breathe
-sphinx
-sphinx_rtd_theme
-pygments-style-solarized
-bottle
-sphinx-autobuild
-sphinxcontrib-mermaid
-sphinx-jsonschema
