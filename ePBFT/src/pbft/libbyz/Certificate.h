@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "../src/consensus/consensustypes.h"
 #include "Message.h"
 #include "Node.h"
 #include "Time.h"
@@ -176,6 +177,8 @@ private:
   T* mym; // my message in this or null if I have no message in this
   Time t_sent; // time at which mym was last sent
 
+  const ccf::NodeId f; // the value of f when starting to run
+
   // The implementation assumes:
   // correct > 0 and complete > correct
 };
@@ -268,12 +271,12 @@ inline bool Certificate<T>::Val_iter::get(T*& m, int& count)
 }
 
 template <class T>
-Certificate<T>::Certificate(int comp)
+Certificate<T>::Certificate(int comp) : f(node->f())
 {
-  max_size = node->f() + 1;
+  max_size = f + 1;
   vals = new Message_val[max_size];
   cur_size = 0;
-  correct = node->f() + 1;
+  correct = f + 1;
   complete = (comp == 0) ? node->num_correct_replicas() : comp;
   c = 0;
   mym = 0;
@@ -291,7 +294,7 @@ bool Certificate<T>::add(T* m)
 {
   const int id = m->id();
 
-  if (node->f() == 0)
+  if (f == 0)
   {
     bmap.set(id);
     Message_val& val = vals[0];
@@ -539,7 +542,7 @@ bool Certificate<T>::decode(FILE* in)
   }
 
   sz += fread(&complete, sizeof(int), 1, in);
-  correct = node->f() + 1;
+  correct = f + 1;
 
   int cindex;
   sz += fread(&cindex, sizeof(int), 1, in);

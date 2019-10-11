@@ -3,7 +3,8 @@
 #pragma once
 
 #include "calltypes.h"
-#include "consensustypes.h"
+#include "consensus/ledgerenclave.h"
+#include "consensus/raft/raftconsensus.h"
 #include "ds/logger.h"
 #include "enclave/rpcclient.h"
 #include "enclave/rpcsessions.h"
@@ -12,6 +13,7 @@
 #include "genesisgen.h"
 #include "history.h"
 #include "networkstate.h"
+#include "node/nodetonode.h"
 #include "nodetonode.h"
 #include "notifier.h"
 #include "rpc/consts.h"
@@ -21,6 +23,10 @@
 #include "timer.h"
 #include "tls/client.h"
 #include "tls/entropy.h"
+
+#ifdef PBFT
+#  include "consensus/pbft/pbft.h"
+#endif
 
 #include <atomic>
 #include <ccf_t.h>
@@ -38,6 +44,14 @@ extern "C"
 
 namespace ccf
 {
+  using RaftConsensusType =
+    raft::RaftConsensus<consensus::LedgerEnclave, NodeToNode>;
+  using RaftType = raft::Raft<consensus::LedgerEnclave, NodeToNode>;
+
+#ifdef PBFT
+  using PbftConsensusType = pbft::Pbft<consensus::LedgerEnclave, NodeToNode>;
+#endif
+
   template <typename T>
   class StateMachine
   {
@@ -1081,6 +1095,8 @@ namespace ccf
                                         const Service::Write& w) {
         if (w.at(0).value.status == ServiceStatus::OPEN)
         {
+          this->consensus->set_f(
+            1); // TODO: we should make f come from a KV table
           accept_user_connections();
           LOG_INFO_FMT("Now accepting user transactions");
         }
