@@ -23,6 +23,7 @@ public:
     LedgerWriter::append_ledger_entry_cb append_ledger_entry, void* ctx) = 0;
   virtual size_t num_correct_replicas() const = 0;
   virtual size_t f() const = 0;
+  virtual void set_f(ccf::NodeId f) = 0;
   virtual View view() const = 0;
   virtual bool is_primary() const = 0;
   virtual int primary() const = 0;
