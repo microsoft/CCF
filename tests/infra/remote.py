@@ -274,7 +274,7 @@ class SSHRemote(CmdMixin):
         client = self._connect_new()
         try:
             for _ in range(timeout):
-                _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.root}/out")
+                _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.out}")
                 if stdout.channel.recv_exit_status() == 0:
                     return
                 time.sleep(1)
@@ -286,7 +286,7 @@ class SSHRemote(CmdMixin):
         try:
             client = self._connect_new()
             for _ in range(timeout):
-                _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.root}/out")
+                _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.out}")
                 if stdout.channel.recv_exit_status() == 0:
                     return True
                 time.sleep(1)
@@ -298,7 +298,7 @@ class SSHRemote(CmdMixin):
     def print_and_upload_result(self, name, metrics, lines):
         client = self._connect_new()
         try:
-            _, stdout, _ = client.exec_command(f"tail -{lines} {self.root}/out")
+            _, stdout, _ = client.exec_command(f"tail -{lines} {self.out}")
             if stdout.channel.recv_exit_status() == 0:
                 LOG.success(f"Result for {self.name}:")
                 self._print_upload_perf(name, metrics, stdout.read().splitlines())

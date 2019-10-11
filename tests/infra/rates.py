@@ -58,11 +58,9 @@ class TxRates:
             rv = client.rpc("getCommit", {})
             result = rv.to_dict()
             next_commit = result["result"]["commit"]
-            more_to_process = False
-            if self.commit != next_commit:
-                more_to_process = True
-
+            more_to_process = self.commit != next_commit
             self.commit = next_commit
+
             return more_to_process
 
     def get_metrics(self):
