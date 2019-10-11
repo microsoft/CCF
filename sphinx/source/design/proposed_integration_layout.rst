@@ -1,9 +1,7 @@
 Proposed integration layout
 ===========================
 
-
-Primary
-~~~~~~~
+`Primary`
 
 .. mermaid::
 
@@ -45,8 +43,7 @@ Primary
 
 
 
-Replica
-~~~~~~~
+`Replica`
 
 .. mermaid::
 
