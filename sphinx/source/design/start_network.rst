@@ -2,7 +2,6 @@ Starting up a network
 =====================
 
 Proposed diagram for creating a new network when running with CCF
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. mermaid::
 

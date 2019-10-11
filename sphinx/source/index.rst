@@ -18,6 +18,7 @@ Welcome to CCF's documentation
    rpc_api
    api
    glossary
+   design/index.rst
 
 Index
 =====
