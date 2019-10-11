@@ -71,7 +71,7 @@ if(BUILD_TESTS)
   add_unit_test(ledger_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp)
 
-  if (not PBFT)
+  if (NOT PBFT)
     add_unit_test(raft_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/main.cpp)
     target_link_libraries(raft_test PRIVATE
