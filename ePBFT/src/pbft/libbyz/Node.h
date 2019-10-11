@@ -4,6 +4,7 @@
 // Licensed under the MIT license.
 #pragma once
 
+#include "../src/consensus/consensustypes.h"
 #include "ITimer.h"
 #include "Message.h"
 #include "Message_tags.h"
@@ -15,7 +16,6 @@
 #include "pbft_assert.h"
 #include "request_id_gen.h"
 #include "types.h"
-#include "../src/consensus/consensustypes.h"
 
 #include <atomic>
 #include <stdio.h>

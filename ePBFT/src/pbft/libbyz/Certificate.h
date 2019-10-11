@@ -5,11 +5,11 @@
 
 #pragma once
 
+#include "../src/consensus/consensustypes.h"
 #include "Message.h"
 #include "Node.h"
 #include "Time.h"
 #include "ds/logger.h"
-#include "../src/consensus/consensustypes.h"
 #include "parameters.h"
 #include "types.h"
 

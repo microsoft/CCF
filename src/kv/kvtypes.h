@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/hash.h"
 #include "consensus/consensustypes.h"
+#include "crypto/hash.h"
 
 #include <array>
 #include <chrono>

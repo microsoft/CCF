@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "consensus/consensustypes.h"
 #include "kv/kv.h"
 #include "kv/kvserialiser.h"
-#include "consensus/consensustypes.h"
 
 #include <limits>
 #include <map>
