@@ -16,13 +16,19 @@ parameters:
 
   build:
     NoSGX:
-      cmake_args: '-DTARGET=virtual -DCOVERAGE=ON -DSAN=ON'
+      cmake_args: '-DTARGET=virtual -DCOVERAGE=ON'
     SGX:
       cmake_args: ''
     BFT:
       cmake_args: '-DPBFT=ON'
     CFT:
       cmake_args: ''
+    debug:
+      cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DBUILD_SMALLBANK=OFF'
+    perf:
+      cmake_args: '-DBUILD_SMALLBANK=ON -DSERVICE_IDENTITY_CURVE_CHOICE=secp256k1_bitcoin'
+
+  perf_test_filter: '"benchmark|perf"'
 
 jobs:
   - template: checks.yml
@@ -36,8 +42,8 @@ jobs:
           target: ${{ target }}
           consensus: ${{ consensus }}
           env: ${{ parameters.env[target] }}
-          cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DBUILD_SMALLBANK=OFF ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-          ctest_filter: '-LE "benchmark|perf"'
+          cmake_args: '${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
+          ctest_filter: '-LE ${{ parameters.perf_test_filter }}'
           suffix: ''
 
   - ${{ each consensus in parameters.consensus }}:
@@ -46,6 +52,6 @@ jobs:
         target: SGX
         consensus: ${{ consensus }}
         env: ${{ parameters.env.SGX }}
-        cmake_args: '-DBUILD_SMALLBANK=ON -DSERVICE_IDENTITY_CURVE_CHOICE=secp256k1_bitcoin ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-        ctest_filter: '-L "benchmark|perf"'
+        cmake_args: '${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
+        ctest_filter: '-L ${{ parameters.perf_test_filter }}'
         suffix: 'Perf'
