@@ -1,0 +1,69 @@
+parameters:
+  consensus: ['CFT', 'BFT']
+  target: ['NoSGX', 'SGX']
+
+  env:
+    NoSGX:
+      container:
+        image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-nosgx:latest
+        options: --publish-all --cap-add SYS_PTRACE
+      pool: Ubuntu-1804-D8s_v3
+    SGX:
+      container:
+        image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
+        options: --publish-all --device /dev/sgx:/dev/sgx
+      pool: Ubuntu-1804-DC4s
+
+  build:
+    NoSGX:
+      cmake_args: '-DTARGET=virtual -DCOVERAGE=ON'
+    SGX:
+      cmake_args: ''
+    BFT:
+      cmake_args: '-DPBFT=ON'
+    CFT:
+      cmake_args: ''
+    debug:
+      cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DBUILD_SMALLBANK=OFF'
+    perf:
+      cmake_args: '-DSERVICE_IDENTITY_CURVE_CHOICE=secp256k1_bitcoin'
+    san:
+      cmake_args: '-DSAN=ON'
+
+  perf_test_filter: '"benchmark|perf"'
+
+jobs:
+  - template: checks.yml
+    parameters:
+      env: ${{ parameters.env.NoSGX }}
+
+  - ${{ each target in parameters.target }}:
+    - ${{ each consensus in parameters.consensus }}:
+      - template: common.yml
+        parameters:
+          target: ${{ target }}
+          consensus: ${{ consensus }}
+          env: ${{ parameters.env[target] }}
+          cmake_args: '${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
+          ctest_filter: '-LE ${{ parameters.perf_test_filter }}'
+          suffix: ''
+
+  - ${{ each consensus in parameters.consensus }}:
+    - template: common.yml
+      parameters:
+        target: NoSGX
+        consensus: ${{ consensus }}
+        env: ${{ parameters.env.NoSGX }}
+        cmake_args: '${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
+        ctest_filter: '-LE ${{ parameters.perf_test_filter }}'
+        suffix: 'SAN'
+
+  - ${{ each consensus in parameters.consensus }}:
+    - template: common.yml
+      parameters:
+        target: SGX
+        consensus: ${{ consensus }}
+        env: ${{ parameters.env.SGX }}
+        cmake_args: '${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
+        ctest_filter: '-L ${{ parameters.perf_test_filter }}'
+        suffix: 'Perf'
