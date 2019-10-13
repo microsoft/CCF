@@ -68,21 +68,23 @@ if(BUILD_TESTS)
   target_link_libraries(ds_test PRIVATE
     ${CMAKE_THREAD_LIBS_INIT})
 
-  add_unit_test(raft_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/main.cpp)
-  target_link_libraries(raft_test PRIVATE
-    ${CRYPTO_LIBRARY})
-
   add_unit_test(ledger_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp)
 
-  add_unit_test(raft_enclave_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/enclave.cpp)
-  target_include_directories(raft_enclave_test PRIVATE
-    ${CCFCRYPTO_INC})
-  target_link_libraries(raft_enclave_test PRIVATE
-    ${CRYPTO_LIBRARY}
-    secp256k1.host)
+  if (NOT PBFT)
+    add_unit_test(raft_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/main.cpp)
+    target_link_libraries(raft_test PRIVATE
+      ${CRYPTO_LIBRARY})
+
+    add_unit_test(raft_enclave_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/enclave.cpp)
+    target_include_directories(raft_enclave_test PRIVATE
+      ${CCFCRYPTO_INC})
+    target_link_libraries(raft_enclave_test PRIVATE
+      ${CRYPTO_LIBRARY}
+      secp256k1.host)
+  endif()
 
   add_unit_test(crypto_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp)
