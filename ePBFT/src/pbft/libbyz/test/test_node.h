@@ -4,7 +4,7 @@
 #pragma once
 #include "Message.h"
 #include "Node.h"
-#include "network_mock_tcp.h"
+#include "network_mock.h"
 
 TEST_CASE("Test Node")
 {
@@ -39,7 +39,7 @@ TEST_CASE("Test Node")
     gi};
 
   Node node_0(node_info_0);
-  node_0.init_network(std::unique_ptr<INetwork>(Create_Mock_TCP_Network()));
+  node_0.init_network(std::unique_ptr<INetwork>(Create_Mock_Network()));
 
   for (auto& pi : gi.principal_info)
   {
@@ -52,7 +52,7 @@ TEST_CASE("Test Node")
   (node_0.*&NodeExposer::send_new_key)();
 
   Node node_1(node_info_1);
-  node_1.init_network(std::unique_ptr<INetwork>(Create_Mock_TCP_Network()));
+  node_1.init_network(std::unique_ptr<INetwork>(Create_Mock_Network()));
 
   for (auto& pi : gi.principal_info)
   {

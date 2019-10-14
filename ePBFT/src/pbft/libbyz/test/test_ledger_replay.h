@@ -7,7 +7,7 @@
 #include "Node.h"
 #include "Replica.h"
 #include "Request.h"
-#include "network_mock_tcp.h"
+#include "network_mock.h"
 
 struct fake_req
 {
@@ -53,10 +53,7 @@ void init_replica(std::vector<char>& service_mem)
   auto node_info = get_node_info();
 
   replica = new Replica(
-    node_info,
-    service_mem.data(),
-    service_mem.size(),
-    Create_Mock_TCP_Network());
+    node_info, service_mem.data(), service_mem.size(), Create_Mock_Network());
   for (auto& pi : node_info.general_info.principal_info)
   {
     if (pi.id != node_info.own_info.id)
