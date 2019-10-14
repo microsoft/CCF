@@ -182,7 +182,7 @@ TEST_CASE("Member query/read")
   MemberRpcFrontend frontend(network, node);
   const auto mid = gen.add_member(mcert, MemberStatus::ACCEPTED);
   gen.finalize();
-  enclave::RPCContext rpc_ctx(0, nullb);
+  enclave::RPCContext rpc_ctx(0, {});
 
   // put value to read
   constexpr auto key = 123;
@@ -663,7 +663,7 @@ bool test_raw_writes(
   const int pro_votes = 1,
   bool explicit_proposer_vote = false)
 {
-  enclave::RPCContext rpc_ctx(0, nullb);
+  enclave::RPCContext rpc_ctx(0, {});
   auto frontend = init_frontend(network, gen, node, n_members);
   // check values before
   {
@@ -832,7 +832,7 @@ TEST_CASE("Remove proposal")
   gen.init_values();
 
   StubNodeState node;
-  enclave::RPCContext rpc_ctx(0, nullb);
+  enclave::RPCContext rpc_ctx(0, {});
   gen.add_member(member_caller, MemberStatus::ACTIVE);
   gen.add_member(caller.cert, MemberStatus::ACTIVE);
   set_whitelists(gen);
@@ -980,7 +980,7 @@ TEST_CASE("Add user via proposed call")
   GenesisGenerator gen(network);
   gen.init_values();
   StubNodeState node;
-  enclave::RPCContext rpc_ctx(0, nullb);
+  enclave::RPCContext rpc_ctx(0, {});
   gen.add_member(Cert{0}, MemberStatus::ACTIVE);
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));

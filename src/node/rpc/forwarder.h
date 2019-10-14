@@ -49,14 +49,14 @@ namespace ccf
       NodeId to,
       CallerId caller_id,
       const std::vector<uint8_t>& data,
-      const CBuffer& caller = nullb)
+      const std::vector<uint8_t>& caller_cert)
     {
       IsCallerCertForwarded include_caller = false;
       size_t size = sizeof(caller_id) + sizeof(rpc_ctx.client_session_id) +
         sizeof(rpc_ctx.actor) + sizeof(IsCallerCertForwarded) + data.size();
-      if (caller != nullb)
+      if (!caller_cert.empty())
       {
-        size += sizeof(caller.n) + caller.n;
+        size += sizeof(size_t) + caller_cert.size();
         include_caller = true;
       }
 
@@ -69,8 +69,8 @@ namespace ccf
       serialized::write(data_, size_, include_caller);
       if (include_caller)
       {
-        serialized::write(data_, size_, caller.n);
-        serialized::write(data_, size_, caller.p, caller.n);
+        serialized::write(data_, size_, caller_cert.size());
+        serialized::write(data_, size_, caller_cert.data(), caller_cert.size());
       }
       serialized::write(data_, size_, data.data(), data.size());
 
@@ -93,7 +93,7 @@ namespace ccf
         return {};
       }
 
-      CBuffer caller_cert = nullb;
+      std::vector<uint8_t> caller_cert;
       const auto& plain_ = r.second;
       auto data_ = plain_.data();
       auto size_ = plain_.size();
@@ -105,8 +105,7 @@ namespace ccf
       if (includes_caller)
       {
         auto caller_size = serialized::read<size_t>(data_, size_);
-        caller_cert = {data_, caller_size};
-        serialized::skip(data_, size_, caller_size);
+        caller_cert = serialized::read(data_, size_, caller_size);
       }
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
 

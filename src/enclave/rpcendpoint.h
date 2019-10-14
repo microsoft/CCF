@@ -55,9 +55,7 @@ namespace enclave
         caller = peer_cert();
       }
 
-      // Create a new RPC context for each command since some may require
-      // forwarding to the primary.
-      RPCContext rpc_ctx(session_id, caller, actor);
+      RPCContext rpc_ctx(session_id, std::vector<uint8_t>(caller), actor);
       auto rep = handler->process(rpc_ctx, data);
 
       if (rpc_ctx.is_pending)

@@ -235,17 +235,9 @@ namespace pbft
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
-      auto total_req_size = pbft_config->message_size() + args.request.size() +
-        args.caller_cert.rawSize();
-
-      uint8_t request_buffer[total_req_size];
-      pbft_config->fill_request(
-        request_buffer,
-        total_req_size,
-        args.request,
-        args.actor,
-        args.caller_id,
-        args.caller_cert);
+      ccf_req request = {
+        args.actor, args.caller_id, args.caller_cert, args.request};
+      auto serialized_req = request.serialise();
 
       auto rep_cb = [&](
                       void* owner,
@@ -262,8 +254,8 @@ namespace pbft
       LOG_DEBUG_FMT("PBFT sending request {}", args.rid);
       return client_proxy->send_request(
         args.rid,
-        request_buffer,
-        sizeof(request_buffer),
+        serialized_req.data(),
+        serialized_req.size(),
         rep_cb,
         client_proxy.get());
     }

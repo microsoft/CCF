@@ -29,7 +29,7 @@ namespace ccf
       const uint8_t* data, size_t size)
     {
       T msg;
-      return std::make_pair(msg, std::vector(data, data + size));
+      return std::make_pair(msg, std::vector<uint8_t>(data, data + size));
     }
 
     std::vector<uint8_t> get_pop_back()

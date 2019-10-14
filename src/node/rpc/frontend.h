@@ -59,8 +59,6 @@ namespace ccf
     using MinimalHandleFunction = std::function<std::pair<bool, nlohmann::json>(
       Store::Tx& tx, const nlohmann::json& params)>;
 
-    using CallerKey = std::vector<uint8_t>;
-
     // TODO: replace with an lru map
     std::map<CallerId, tls::VerifierPtr> verifiers;
 
@@ -131,20 +129,21 @@ namespace ccf
       return {true, rpc};
     }
 
-    std::optional<CallerId> valid_caller(Store::Tx& tx, const CBuffer& caller)
+    std::optional<CallerId> valid_caller(
+      Store::Tx& tx, const std::vector<uint8_t>& caller)
     {
       if (certs == nullptr)
       {
         return INVALID_ID;
       }
 
-      if (!caller.p)
+      if (caller.empty())
       {
         return {};
       }
 
       auto certs_view = tx.get_view(*certs);
-      auto caller_id = certs_view->get(std::vector<uint8_t>(caller));
+      auto caller_id = certs_view->get(caller);
 
       return caller_id;
     }
@@ -196,7 +195,7 @@ namespace ccf
     }
 
     bool verify_client_signature(
-      const CBuffer& caller,
+      const std::vector<uint8_t>& caller,
       const CallerId caller_id,
       const nlohmann::json& full_rpc,
       SignedReq& signed_request)
@@ -213,7 +212,7 @@ namespace ccf
       auto v = verifiers.find(caller_id);
       if (v == verifiers.end())
       {
-        CallerKey caller_cert(caller);
+        std::vector<uint8_t> caller_cert(caller);
         verifiers.emplace(
           std::make_pair(caller_id, tls::make_verifier(caller_cert)));
       }
@@ -622,8 +621,11 @@ namespace ccf
 
           // Only forward caller certificate if frontend cannot retrieve caller
           // cert from caller id
-          CBuffer forwarded_caller_cert =
-            callers == nullptr ? ctx.caller_cert : nullb;
+          std::vector<uint8_t> forwarded_caller_cert;
+          if constexpr (std::is_same_v<CT, void>)
+          {
+            forwarded_caller_cert = ctx.caller_cert;
+          }
 
           if (
             primary_id != NoNode && cmd_forwarder &&
@@ -758,7 +760,6 @@ namespace ccf
           jsonrpc::Pack::Text);
       }
 
-      std::vector<uint8_t> caller_cert;
       if constexpr (!std::is_same_v<CT, void>)
       {
         // For frontends with valid callers (user and member frontends), lookup
@@ -774,8 +775,7 @@ namespace ccf
               "No corresponding caller entry exists."),
             ctx.pack.value());
         }
-        caller_cert = caller.value().cert;
-        ctx.caller_cert = caller_cert;
+        ctx.caller_cert = caller.value().cert;;
       }
 
       auto rpc = unpack_json(input, ctx.pack.value());

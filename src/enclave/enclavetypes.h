@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/buffer.h"
 #include "node/entities.h"
 #include "node/rpc/jsonrpc.h"
 
@@ -18,7 +17,7 @@ namespace enclave
     // In parameters (initialised when context is created)
     //
     const size_t client_session_id = InvalidSessionId;
-    CBuffer caller_cert;
+    std::vector<uint8_t> caller_cert;
     // Actor type to dispatch to appropriate frontend
     const ccf::ActorsType actor;
 
@@ -54,7 +53,7 @@ namespace enclave
     // Constructor used for non-forwarded RPC
     RPCContext(
       size_t client_session_id_,
-      CBuffer caller_cert_,
+      const std::vector<uint8_t>& caller_cert_,
       ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
       client_session_id(client_session_id_),
       caller_cert(caller_cert_),
@@ -66,7 +65,7 @@ namespace enclave
       size_t fwd_session_id_,
       ccf::CallerId caller_id_,
       ccf::ActorsType actor_ = ccf::ActorsType::unknown,
-      CBuffer caller_cert_ = nullb) :
+      const std::vector<uint8_t>& caller_cert_ = {}) :
       fwd(std::make_optional<struct forwarded>(fwd_session_id_, caller_id_)),
       actor(actor_),
       caller_cert(caller_cert_)
@@ -91,6 +90,6 @@ namespace enclave
       ccf::NodeId to,
       ccf::CallerId caller_id,
       const std::vector<uint8_t>& data,
-      const CBuffer& caller = nullb) = 0;
+      const std::vector<uint8_t>& caller_cert) = 0;
   };
 }
