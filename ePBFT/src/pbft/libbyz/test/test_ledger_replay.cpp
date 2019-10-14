@@ -71,6 +71,7 @@ void init_replica(std::vector<char>& service_mem)
   auto node_info = get_node_info();
   replica = new Replica(
     node_info, service_mem.data(), service_mem.size(), Create_Mock_Network());
+  replica->init_state();
   for (auto& pi : node_info.general_info.principal_info)
   {
     if (pi.id != node_info.own_info.id)
