@@ -41,7 +41,7 @@ jobs:
     - ${{ each consensus in parameters.consensus }}:
       - template: common.yml
         dependsOn:
-            - Formatting_and_License_Checks
+          - Formatting_and_License_Checks
         parameters:
           target: ${{ target }}
           consensus: ${{ consensus }}
