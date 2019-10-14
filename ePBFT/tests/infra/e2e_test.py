@@ -285,9 +285,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--transport",
-        help="type of transport (UDP_MT | TCP_ZMQ | UDP)",
+        help="type of transport (UDP_MT | UDP)",
         default="UDP",
-        choices=["UDP", "UDP_MT", "TCP_ZMQ"],
+        choices=["UDP", "UDP_MT"],
     )
     parser.add_argument("--run-time", help="run time in seconds", default=100, type=int)
     parser.add_argument(

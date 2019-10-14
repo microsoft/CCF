@@ -4,7 +4,6 @@ debs:
   - libuv1-dev
   - libc++-7-dev
   - libc++abi-7-dev
-  - libzmq3-dev
   - python3.7-dev
   - python3.7-venv
   - llvm-7

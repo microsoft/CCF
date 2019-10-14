@@ -273,9 +273,9 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--transport",
-        help="transport options UDP_MT or TCP_ZMQ",
+        help="transport options UDP_MT",
         default="UDP_MT",
-        choices=("UDP_MT", "TCP_ZMQ"),
+        choices=("UDP_MT"),
     )
     parser.add_argument(
         "--num-clients", help="number of client applications", required=True

@@ -11,14 +11,14 @@
 
 #include <unordered_map>
 
-class MockTCPNetwork : public INetwork
+class MockNetwork : public INetwork
 {
 public:
-  virtual ~MockTCPNetwork() = default;
+  virtual ~MockNetwork() = default;
 
   virtual bool Initialize(in_port_t port)
   {
-    std::string conn_string("tcp://*:");
+    std::string conn_string("");
     conn_string.append(std::to_string(htons(port)));
     LOG_INFO << "Test network binding to " << conn_string << std::endl;
     return true;
@@ -38,7 +38,7 @@ public:
     if (it == _connections.end())
     {
       auto state = std::make_unique<ConnectionState>();
-      state->conn_string = std::string("tcp://");
+      state->conn_string = std::string("");
       state->conn_string.append(std::to_string(to->sin_addr.s_addr));
       state->conn_string.append(":");
       state->conn_string.append(std::to_string(to->sin_port));
@@ -176,4 +176,4 @@ private:
   std::unordered_map<uint64_t, std::unique_ptr<ConnectionState>> _connections;
 };
 
-INetwork* Create_Mock_TCP_Network();
+INetwork* Create_Mock_Network();
