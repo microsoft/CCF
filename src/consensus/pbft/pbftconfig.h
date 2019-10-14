@@ -119,12 +119,10 @@ namespace pbft
 
       auto frontend = handler.value();
 
-      // TODO: For now, re-use the RPCContext for forwarded commands.
-      // Eventually, the two process_() commands will be refactored accordingly.
       enclave::RPCContext ctx(
-        0,
-        0,
+        enclave::InvalidSessionId,
         request->caller_id,
+        request->actor,
         CBuffer(
           request->cert(), request->cert_size)); // add the pointer and size
 
