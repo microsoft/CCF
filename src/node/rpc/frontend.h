@@ -775,7 +775,7 @@ namespace ccf
               "No corresponding caller entry exists."),
             ctx.pack.value());
         }
-        ctx.caller_cert = caller.value().cert;;
+        ctx.caller_cert = caller.value().cert;
       }
 
       auto rpc = unpack_json(input, ctx.pack.value());
