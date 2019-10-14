@@ -17,6 +17,12 @@ steps:
       az storage blob upload-batch -d tx-times/$AGENT_NAME/${BUILD_SOURCEBRANCHNAME}_${BUILD_BUILDNUMBER} -s. --pattern "client_*_recv.csv.gz" --account-name ccfperf --subscription $(subscription)
       az storage blob upload-batch -d metrics/$AGENT_NAME/${BUILD_SOURCEBRANCHNAME}_${BUILD_BUILDNUMBER} -s. --pattern "*_metrics.json.gz" --account-name ccfperf --subscription $(subscription)
     workingDirectory: build
+    
+- script: ./cimetrics_env.sh python upload_pico_metrics.py
+  env:
+    METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
+  workingDirectory: build
+  displayName: 'Upload picobench metrics'
 
 # cimetrics related tasks: render and publish results for Pull Requests build
 - script: ./cimetrics_env.sh python -m cimetrics.plot
@@ -29,8 +35,8 @@ steps:
 - script: ./cimetrics_env.sh python -m cimetrics.github_pr
   env:
     GITHUB_TOKEN: $(GITHUB_TOKEN)
-  displayName: 'Post cimetrics graphs as PR comment'
   workingDirectory: build
+  displayName: 'Post cimetrics graphs as PR comment'
   condition: eq(variables['Build.Reason'], 'PullRequest')
 
 - task: PublishBuildArtifacts@1
@@ -39,3 +45,4 @@ steps:
     artifactName: cimetrics
   displayName: 'Publish cimetrics graphs as build artifact'
   condition: eq(variables['Build.Reason'], 'PullRequest')
+ 

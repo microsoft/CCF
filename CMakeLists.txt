@@ -180,49 +180,72 @@ if(BUILD_TESTS)
 
   ## Picobench wrapper
   function(add_picobench name)
+    cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS
+      ""
+      ""
+      "SRCS;INCLUDE_DIRS;LINK_LIBS"
+    )
+
     add_executable(${name}
-      ${ARGN})
-    target_include_directories(${name} PRIVATE src)
-    # -Wall -Werror catches a number of warnings in picobench
-    target_include_directories(${name} SYSTEM PRIVATE 3rdparty)
-    add_test(
-      NAME ${name}
-      COMMAND ${name} --samples=1000)
-    use_client_mbedtls(${name})
+      ${PARSED_ARGS_SRCS}
+    )
+
+    target_include_directories(${name} PRIVATE
+      src
+      ${PARSED_ARGS_INCLUDE_DIRS}
+    )
+
     target_link_libraries(${name} PRIVATE
       ${CMAKE_THREAD_LIBS_INIT}
+      ${PARSED_ARGS_LINK_LIBS}
     )
+
+    # -Wall -Werror catches a number of warnings in picobench
+    target_include_directories(${name} SYSTEM PRIVATE 3rdparty)
+
+    add_test(
+      NAME ${name}
+      COMMAND bash -c "$<TARGET_FILE:${name}> --samples=1000 --out-fmt=csv --output=${name}.csv && cat ${name}.csv"
+    )
+
+    use_client_mbedtls(${name})
+
     set_property(TEST ${name} PROPERTY LABELS benchmark)
   endfunction()
 
   ## Picobench benchmarks
-  add_picobench(map_bench src/ds/test/map_bench.cpp)
-  add_picobench(logger_bench src/ds/test/logger_bench.cpp)
-  add_picobench(logger_json_bench src/ds/test/logger_json_bench.cpp)
-  add_picobench(json_bench src/ds/test/json_bench.cpp)
-  add_picobench(ringbuffer_bench src/ds/test/ringbuffer_bench.cpp)
-  target_link_libraries(ringbuffer_bench PRIVATE
-    ${CMAKE_THREAD_LIBS_INIT})
-  add_picobench(tls_bench src/tls/test/bench.cpp)
-  target_link_libraries(tls_bench PRIVATE
-    ${CMAKE_THREAD_LIBS_INIT}
-    secp256k1.host)
-  add_picobench(merkle_bench src/node/test/merkle_bench.cpp)
-  target_link_libraries(merkle_bench PRIVATE
-    ccfcrypto.host
-    evercrypt.host
-    secp256k1.host)
-  target_include_directories(merkle_bench PRIVATE
-    ${EVERCRYPT_INC})
-  add_picobench(history_bench src/node/test/history_bench.cpp)
-  target_link_libraries(history_bench PRIVATE
-    ccfcrypto.host
-    evercrypt.host
-    secp256k1.host)
-  target_include_directories(history_bench PRIVATE
-    ${EVERCRYPT_INC})
-  add_picobench(kv_bench src/kv/test/kv_bench.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmkey.cpp)
+  add_picobench(map_bench
+    SRCS src/ds/test/map_bench.cpp
+  )
+  add_picobench(logger_bench 
+    SRCS src/ds/test/logger_bench.cpp
+  )
+  add_picobench(logger_json_bench
+    SRCS src/ds/test/logger_json_bench.cpp
+  )
+  add_picobench(json_bench
+    SRCS src/ds/test/json_bench.cpp
+  )
+  add_picobench(ringbuffer_bench
+    SRCS src/ds/test/ringbuffer_bench.cpp
+  )
+  add_picobench(tls_bench
+    SRCS src/tls/test/bench.cpp
+    LINK_LIBS secp256k1.host
+  )
+  add_picobench(merkle_bench
+    SRCS src/node/test/merkle_bench.cpp
+    LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
+    INCLUDE_DIRS ${EVERCRYPT_INC}
+  )
+  add_picobench(history_bench
+    SRCS src/node/test/history_bench.cpp
+    LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
+    INCLUDE_DIRS ${EVERCRYPT_INC}
+  )
+  add_picobench(kv_bench
+    SRCS src/kv/test/kv_bench.cpp src/crypto/symmkey.cpp
+  )
 
   # Merkle Tree memory test
   add_executable(merkle_mem src/node/test/merkle_mem.cpp)
