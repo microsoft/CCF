@@ -40,8 +40,6 @@ jobs:
   - ${{ each target in parameters.target }}:
     - ${{ each consensus in parameters.consensus }}:
       - template: common.yml
-        dependsOn:
-          - Formatting_and_License_Checks
         parameters:
           target: ${{ target }}
           consensus: ${{ consensus }}
@@ -49,6 +47,8 @@ jobs:
           cmake_args: '${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
           ctest_filter: '-LE ${{ parameters.perf_test_filter }}'
           suffix: ''
+        dependsOn:
+          - Formatting_and_License_Checks
 
   - ${{ each consensus in parameters.consensus }}:
     - template: common.yml
