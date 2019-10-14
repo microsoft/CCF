@@ -201,24 +201,28 @@ if __name__ == "__main__":
             for x in range(x + 1, row_len):
                 axes[y, x].axis("off")
 
-    time_legend = {k: vs[0] for (k, vs) in times.items()}
-    ax.legend(
-        time_legend.values(),
-        time_legend.keys(),
-        loc="center left",
-        bbox_to_anchor=(1.1, 0.5),
+    time_values = {k: vs[0] for (k, vs) in times.items()}
+    time_legend = figure.legend(
+        time_values.values(),
+        time_values.keys(),
+        loc="upper left",
+        bbox_to_anchor=(0.1, 0.95),
     )
 
-    commit_legend = {k: vs[0] for (k, vs) in commits.items()}
-    figure.legend(
-        commit_legend.values(), commit_legend.keys(), loc="upper right", numpoints=2
+    commit_values = {k: vs[0] for (k, vs) in commits.items()}
+    commit_legend = figure.legend(
+        commit_values.values(),
+        commit_values.keys(),
+        loc="upper left",
+        bbox_to_anchor=(0.25, 0.95),
     )
 
     plt.tight_layout()
+    figure.add_artist(time_legend)
 
     if args.save_to is not None:
         print("Writing image to {}".format(args.save_to))
-        plt.savefig(args.save_to)
+        plt.savefig(args.save_to, bbox_inches="tight")
     else:
         print("Displaying")
         plt.show()
