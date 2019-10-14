@@ -47,7 +47,7 @@ jobs:
           cmake_args: '${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
           ctest_filter: '-LE ${{ parameters.perf_test_filter }}'
           suffix: ''
-        dependsOn: Formatting_and_License_Checks
+      dependsOn: Formatting_and_License_Checks
 
   - ${{ each consensus in parameters.consensus }}:
     - template: common.yml
@@ -58,7 +58,7 @@ jobs:
         cmake_args: '${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
         ctest_filter: '-LE ${{ parameters.perf_test_filter }}'
         suffix: 'SAN'
-      dependsOn: Formatting_and_License_Checks
+    dependsOn: Formatting_and_License_Checks
 
   - ${{ each consensus in parameters.consensus }}:
     - template: common.yml
@@ -69,4 +69,4 @@ jobs:
         cmake_args: '${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
         ctest_filter: '-L ${{ parameters.perf_test_filter }}'
         suffix: 'Perf'
-      dependsOn: Formatting_and_License_Checks
+    dependsOn: Formatting_and_License_Checks
