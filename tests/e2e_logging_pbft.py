@@ -34,36 +34,39 @@ def run(args):
         network.add_users(primary, network.initial_users)
         LOG.info("Initial set of users added")
 
-        network.open_network(primary)
+        # network.open_network(primary)
+        script = None
+        result = network.propose(1, primary, script, None, "open_network")
+        network.vote_using_majority(primary, result[1]["id"], False)
         LOG.info("***** Network is now open *****")
 
-        with primary.node_client() as mc:
-            check_commit = infra.ccf.Checker(mc)
-            check = infra.ccf.Checker()
+        # with primary.node_client() as mc:
+        #    check_commit = infra.ccf.Checker(mc)
+        #    check = infra.ccf.Checker()
 
-            msg = "Hello world"
-            msg2 = "Hello there"
+        #   msg = "Hello world"
+        #   msg2 = "Hello there"
 
-            LOG.debug("Write/Read on primary")
-            with primary.user_client(format="json") as c:
-                check_commit(c.rpc("LOG_record", {"id": 42, "msg": msg}), result=True)
-                check_commit(c.rpc("LOG_record", {"id": 43, "msg": msg2}), result=True)
-                check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
-                check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2})
+        #   LOG.debug("Write/Read on primary")
+        #   with primary.user_client(format="json") as c:
+        #       check_commit(c.rpc("LOG_record", {"id": 42, "msg": msg}), result=True)
+        #       check_commit(c.rpc("LOG_record", {"id": 43, "msg": msg2}), result=True)
+        #       check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
+        #       check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2})
 
-            LOG.debug("Write/Read large messages on primary")
-            with primary.user_client(format="json") as c:
-                id = 44
-                # For larger values of p, PBFT crashes since the size of the
-                # request is bigger than the max size supported by PBFT
-                # (Max_message_size)
-                for p in range(10, 13):
-                    long_msg = "X" * (2 ** p)
-                    check_commit(
-                        c.rpc("LOG_record", {"id": id, "msg": long_msg}), result=True
-                    )
-                    check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg})
-                id += 1
+        #   LOG.debug("Write/Read large messages on primary")
+        #   with primary.user_client(format="json") as c:
+        #       id = 44
+        #       # For larger values of p, PBFT crashes since the size of the
+        #       # request is bigger than the max size supported by PBFT
+        #       # (Max_message_size)
+        #       for p in range(10, 13):
+        #           long_msg = "X" * (2 ** p)
+        #           check_commit(
+        #               c.rpc("LOG_record", {"id": id, "msg": long_msg}), result=True
+        #           )
+        #           check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg})
+        #       id += 1
 
 
 if __name__ == "__main__":

@@ -280,7 +280,7 @@ int main(int argc, char** argv)
 
   std::string transport_layer = "UDP";
   app.add_option(
-    "--transport", transport_layer, "Transport layer [UDP || TCP_ZMQ]");
+    "--transport", transport_layer, "Transport layer [UDP || UDP_MT]");
 
   app.add_option(
     "--timer-order",
@@ -353,12 +353,7 @@ int main(int argc, char** argv)
   srand48(getpid());
 
   INetwork* network = nullptr;
-  if (transport_layer == "TCP_ZMQ")
-  {
-    network = Create_ZMQ_TCP_Network().release();
-    LOG_INFO << "Transport: TCP_ZMQ" << std::endl;
-  }
-  else if (transport_layer == "UDP")
+  if (transport_layer == "UDP")
   {
     network = Create_UDP_Network().release();
     LOG_INFO << "Transport: UDP" << std::endl;
@@ -371,7 +366,7 @@ int main(int argc, char** argv)
   }
   else
   {
-    LOG_FATAL << "--transport {UDP || TCP_ZMQ || UDP_MT}" << std::endl;
+    LOG_FATAL << "--transport {UDP || UDP_MT}" << std::endl;
   }
 
   IMessageReceiveBase* message_receive_base;

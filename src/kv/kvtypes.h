@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/consensustypes.h"
 #include "crypto/hash.h"
 
 #include <array>
@@ -191,6 +192,8 @@ namespace kv
     virtual void enable_all_domains() {}
     virtual void resume_replication() {}
     virtual void suspend_replication(kv::Version) {}
+
+    virtual void set_f(ccf::NodeId f) = 0;
   };
 
   using PendingTx = std::function<

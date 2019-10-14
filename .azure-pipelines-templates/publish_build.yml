@@ -1,9 +1,10 @@
+
 parameters:
   artifact_name: ''
 
 steps:
 - script: |
-    tar -cavf artifact.tar.gz cchost CTestTestfile.cmake json_schema keygenerator merkle_mem raft_driver tests.sh *_test *_bench *client *.so.signed
+    tar -cavf artifact.tar.gz `find . -maxdepth 1 -type f | grep -v CMakeCache.txt`
   displayName: Compress build artifact
   workingDirectory: build
 
