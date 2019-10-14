@@ -6,6 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 from collections import defaultdict
+from cycler import cycler
 
 
 def compute_linear_regression(x, y):
@@ -13,7 +14,7 @@ def compute_linear_regression(x, y):
     return model.coef_[0]
 
 
-def plot_timeseries(sent, received, ax, title):
+def plot_timeseries(sent, received, ax, title, combine_methods=False):
     commit_lines = defaultdict(list)
     tx_time_lines = defaultdict(list)
 
@@ -25,7 +26,7 @@ def plot_timeseries(sent, received, ax, title):
     test_df = sent.merge(received, on=["idx", "cumcount"]).drop("cumcount", 1)
     test_df["request_time"] = test_df["recv_sec"] - test_df["sent_sec"]
 
-    # Print performance global throughput in dedicated box
+    # # Print performance global throughput in dedicated box
     # successful_global_commit_rate = compute_linear_regression(
     #     test_df["sent_sec"].values.reshape((-1, 1)), test_df["global_commit"]
     # )
@@ -65,6 +66,15 @@ def plot_timeseries(sent, received, ax, title):
     else:
         commit_ax.set_yticks([])
 
+    if combine_methods:
+        test_df["method"] = test_df["method"].apply(lambda s: s.split("_")[0])
+
+    colours = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    used_colours = len(commit_lines)
+    colours = colours[used_colours:] + colours[:used_colours]
+
+    ax.set_prop_cycle(cycler(color=colours))
+
     # Plot transaction times, by method
     for method, grp in test_df.groupby("method"):
         tx_time_lines[method] += ax.plot(
@@ -92,6 +102,11 @@ if __name__ == "__main__":
         "--height", help="Total height of plotted figure", default=8, type=int
     )
     parser.add_argument("--save-to", help="Path to saved resulting plot", type=str)
+    parser.add_argument(
+        "--combine-methods",
+        help="Only keep method name up to first underscore, combining similar",
+        action="store_true",
+    )
 
     subparsers = parser.add_subparsers(
         title="subcommands", dest="command", required=True
@@ -118,14 +133,20 @@ if __name__ == "__main__":
 
     figsize = (args.width, args.height)
 
+    commit_lines = {}
+    time_lines = {}
+
     if args.command == "single":
         figure = plt.figure(figsize=figsize)
         sent_df = pd.read_csv(args.sent)
         received_df = pd.read_csv(args.received)
 
         ax = plt.axes()
-        plot_timeseries(sent_df, received_df, ax, args.title)
-        #plt.tight_layout()
+        commits, times = plot_timeseries(
+            sent_df, received_df, ax, args.title, combine_methods=args.combine_methods
+        )
+        commit_lines.update(commits)
+        time_lines.update(times)
 
     elif args.command == "compare":
         variants = json.load(open(args.variants))
@@ -166,11 +187,34 @@ if __name__ == "__main__":
                 # Load and plotresults
                 sent_df = pd.read_csv(variant["sent"])
                 received_df = pd.read_csv(variant["received"])
-                plot_timeseries(sent_df, received_df, ax, variant["subtitle"])
+                commits, times = plot_timeseries(
+                    sent_df,
+                    received_df,
+                    ax,
+                    variant["subtitle"],
+                    combine_methods=args.combine_methods,
+                )
+                commit_lines.update(commits)
+                time_lines.update(times)
 
             # Hide empty axes after short rows
             for x in range(x + 1, row_len):
                 axes[y, x].axis("off")
+
+    time_legend = {k: vs[0] for (k, vs) in times.items()}
+    ax.legend(
+        time_legend.values(),
+        time_legend.keys(),
+        loc="center left",
+        bbox_to_anchor=(1.1, 0.5),
+    )
+
+    commit_legend = {k: vs[0] for (k, vs) in commits.items()}
+    figure.legend(
+        commit_legend.values(), commit_legend.keys(), loc="upper right", numpoints=2
+    )
+
+    plt.tight_layout()
 
     if args.save_to is not None:
         print("Writing image to {}".format(args.save_to))
