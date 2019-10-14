@@ -1,5 +1,6 @@
 workspace: "/tmp/"
 debs:
+  - apt-transport-https
   - ninja-build
   - libuv1-dev
   - libc++-8-dev
