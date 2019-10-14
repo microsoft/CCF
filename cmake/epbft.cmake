@@ -36,7 +36,7 @@ if(${TARGET} STREQUAL "virtual")
   target_compile_options(libcommon PRIVATE -stdlib=libc++)
 
   add_library(libcommon.mock STATIC
-    ${PBFT_DIR}/src/pbft/libcommon/mocks/network_mock_tcp.cpp)
+    ${PBFT_DIR}/src/pbft/libcommon/mocks/network_mock.cpp)
   target_link_libraries(libcommon.mock PRIVATE libcommon)
   target_include_directories(libcommon.mock PRIVATE
     ${PBFT_DIR}/src/pbft/libbyz
