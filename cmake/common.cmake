@@ -2,9 +2,9 @@
 # Licensed under the Apache 2.0 License.
 
 function(check_submodule_not_empty path)
-  file(GLOB RESULT ${path})
-  list(LENGTH ${RESULT} LEN)
-  if(${LEN} EQUAL 0)
+  file(GLOB submodule_files "${path}/*")
+  list(LENGTH submodule_files number)
+  if(${number} EQUAL 0)
     message(FATAL_ERROR "Submodule ${path} is empty. You can initialise submodules now with 'git submodule update --recursive --init', or during 'git clone' by passing '--recursive'.")
   endif()
 endfunction()
