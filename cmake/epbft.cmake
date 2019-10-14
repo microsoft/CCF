@@ -14,25 +14,12 @@ add_e2e_test(
 
 if(${TARGET} STREQUAL "virtual")
 
-  ## use the hint from above to find where 'zmq.hpp' is located
-  find_path(ZeroMQ_INCLUDE_DIR
-          NAMES zmq.hpp
-          PATHS ${PC_ZeroMQ_INCLUDE_DIRS}
-          )
-
-  ## use the hint from about to find the location of libzmq
-  find_library(ZeroMQ_LIBRARY
-          NAMES zmq
-          PATHS ${PC_ZeroMQ_LIBRARY_DIRS}
-          )
-
   set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
   add_subdirectory(${CMAKE_SOURCE_DIR}/3rdparty/snmalloc EXCLUDE_FROM_ALL)
 
   add_library(libcommon STATIC
     ${CMAKE_SOURCE_DIR}/ePBFT/src/pbft/libcommon/network_udp.cpp
     ${CMAKE_SOURCE_DIR}/ePBFT/src/pbft/libcommon/network_udp_mt.cpp
-    ${CMAKE_SOURCE_DIR}/ePBFT/src/pbft/libcommon/network_zmq_tcp.cpp
     ${CMAKE_SOURCE_DIR}/ePBFT/src/pbft/libcommon/ITimer.cpp
     ${CMAKE_SOURCE_DIR}/ePBFT/src/pbft/libcommon/Time.cpp
     ${CMAKE_SOURCE_DIR}/ePBFT/src/pbft/libcommon/Statistics.cpp
@@ -48,6 +35,16 @@ if(${TARGET} STREQUAL "virtual")
   )
   target_compile_options(libcommon PRIVATE -stdlib=libc++)
 
+  add_library(libcommon.mock STATIC
+    ${PBFT_DIR}/src/pbft/libcommon/mocks/network_mock.cpp)
+  target_link_libraries(libcommon.mock PRIVATE libcommon)
+  target_include_directories(libcommon.mock PRIVATE
+    ${PBFT_DIR}/src/pbft/libbyz
+    ${PBFT_DIR}/src/pbft/libcommon
+    ${EVERCRYPT_INC}
+  )
+  target_compile_options(libcommon.mock PRIVATE -stdlib=libc++)
+
   function(use_libbyz name)
 
     target_include_directories(${name} PRIVATE
@@ -57,7 +54,7 @@ if(${TARGET} STREQUAL "virtual")
       ${CMAKE_SOURCE_DIR}/ePBFT/src/pbft/crypto
       ${EVERCRYPT_INC}
     )
-    target_link_libraries(${name} PRIVATE libbyz.host libcommon ${ZeroMQ_LIBRARY} evercrypt.host ${PLATFORM_SPECIFIC_TEST_LIBS})
+    target_link_libraries(${name} PRIVATE libbyz.host libcommon evercrypt.host ${PLATFORM_SPECIFIC_TEST_LIBS})
 
   endfunction()
 
@@ -102,6 +99,15 @@ if(${TARGET} STREQUAL "virtual")
   )
   pbft_add_executable(client-test)
 
+  ## Unit tests
+  add_unit_test(test_ledger_replay
+      ${PBFT_DIR}/src/pbft/libbyz/test/test_ledger_replay.cpp)
+  target_include_directories(test_ledger_replay PRIVATE ${PBFT_DIR}/src/pbft/libcommon/mocks)
+  target_link_libraries(test_ledger_replay PRIVATE libcommon.mock)
+  use_libbyz(test_ledger_replay)
+  add_san(test_ledger_replay)
+
+  ## end to end tests
   add_test(
     NAME test_UDP
     COMMAND
@@ -126,12 +132,6 @@ if(${TARGET} STREQUAL "virtual")
     NAME test_UDP_with_delay
     COMMAND
       python3 ${PBFT_DIR}/tests/infra/e2e_test.py --ip 127.0.0.1 --servers 4 --clients 2 --test-config ${PBFT_DIR}/tests/test_config --with-delays
-  )
-
-  add_test(
-    NAME test_TCP_with_delay
-    COMMAND
-      python3 ${PBFT_DIR}/tests/infra/e2e_test.py --ip 127.0.0.1 --servers 4 --clients 2 --test-config ${PBFT_DIR}/tests/test_config --transport TCP_ZMQ --with-delays
   )
 
   add_test(

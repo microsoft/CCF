@@ -66,7 +66,6 @@ void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
   ledger_entry_cb(
     (uint8_t*)&header, sizeof(Pre_prepare_ledger_header), ledger_cb_ctx);
   ledger_entry_cb((const uint8_t*)pp->contents(), pp->size(), ledger_cb_ctx);
-
   if (pp->num_big_reqs() > 0)
   {
     Pre_prepare::Requests_iter iter(pp);

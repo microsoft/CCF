@@ -58,9 +58,7 @@ int main(int argc, char** argv)
 
   std::string transport_layer = "UDP";
   app.add_option(
-    "--transport",
-    transport_layer,
-    "Transport layer [UDP || TCP_ZMQ || UDP_MT]");
+    "--transport", transport_layer, "Transport layer [UDP || UDP_MT]");
 
   int num_iter = 1000;
   app.add_option("--iterations", num_iter, "Number of iterations");
@@ -132,12 +130,7 @@ int main(int argc, char** argv)
   EverCrypt_AutoConfig2_init();
 
   INetwork* network = nullptr;
-  if (transport_layer == "TCP_ZMQ")
-  {
-    network = Create_ZMQ_TCP_Network().release();
-    LOG_INFO << "Transport: TCP_ZMQ" << std::endl;
-  }
-  else if (transport_layer == "UDP")
+  if (transport_layer == "UDP")
   {
     network = Create_UDP_Network().release();
     LOG_INFO << "Transport: UDP" << std::endl;
@@ -152,7 +145,7 @@ int main(int argc, char** argv)
   }
   else
   {
-    LOG_FATAL << "--transport {UDP || TCP_ZMQ || UDP_MT}" << std::endl;
+    LOG_FATAL << "--transport {UDP || UDP_MT}" << std::endl;
   }
 
   // signal handler to dump stats.
