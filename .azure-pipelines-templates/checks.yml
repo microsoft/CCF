@@ -1,7 +1,6 @@
 jobs:
 - job: Formatting_and_License_Checks
   displayName: 'Formatting and License Checks'
-  dependsOn: Formatting_and_License_Checks
 
   ${{ insert }}: ${{ parameters.env }}
 
