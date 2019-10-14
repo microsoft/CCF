@@ -26,10 +26,19 @@ QuickStart
 To quickly get a container up and running in which you can build CCF, the fastest way to go is
 to install `Visual Studio Code`_ and install the `Remote Container`_ extension.
 
-The CCF repository provides a sample `.devcontainer/devcontainer.json` file.
+First, clone the CCF repository using the ``--recursive`` option:
+
+.. code-block:: bash
+
+    git clone --recursive https://github.com/microsoft/CCF.git
+
+.. note:: The ``--recursive`` option is required to retrieve some third-party dependencies of CCF. It is not possible to build CCF without these dependencies.
+
+The CCF repository provides a sample `devcontainer.json`_ file.
 
 .. _`Visual Studio Code`: https://code.visualstudio.com/
 .. _`Remote Container`: https://code.visualstudio.com/docs/remote/containers
+.. _`devcontainer.json`: https://github.com/microsoft/CCF/blob/master/.devcontainer/devcontainer.json
 
 Azure Confidential Compute
 --------------------------
@@ -46,7 +55,7 @@ To quickly get a VM up and running, you can run the following script:
 
 .. code-block:: bash
 
-    cd ccf/getting_started/create_vm
+    cd CCF/getting_started/create_vm
     SUBSCRIPTION=$AZURE_SUBSCRIPTION_NAME ./make_vm.sh
 
 This will create a default ``ccf`` user on the VM, authenticated by ``~/.ssh/id_rsa.pub``. If you do
@@ -127,7 +136,7 @@ To quickly set up the dependencies necessary to build CCF, simply run:
 
 .. code-block:: bash
 
-    cd ccf/getting_started/setup_vm
+    cd CCF/getting_started/setup_vm
     ./setup.sh
 
 Once this is complete, you can proceed to `Building CCF`_.
@@ -136,7 +145,7 @@ On a machine without SGX, you can instead use:
 
 .. code-block:: bash
 
-    cd ccf/getting_started/setup_vm
+    cd CCF/getting_started/setup_vm
     ./setup_nosgx.sh
 
 Details
@@ -157,6 +166,7 @@ Building CCF
 
 .. code-block:: bash
 
+    cd CCF
     mkdir build
     cd build
     cmake -GNinja ..
@@ -186,8 +196,6 @@ The full list of build switches can be obtained by running:
 * **SAN**: Boolean. Build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
 * **TARGET**: String, one of ``all``, ``sgx``, ``virtual``. Defaults to ``all``, which builds both "virtual" enclaves and actual SGX enclaves.
 * **VERBOSE_LOGGING**: Boolean. Enable all logging levels. Default to OFF.
-
-
 
 Tests
 -----
@@ -227,6 +235,7 @@ profiling, code coverage, sanitizers etc.
 
 .. code-block:: bash
 
+    cd CCF
     mkdir build
     cd build
     cmake -GNinja -DTARGET=virtual ..

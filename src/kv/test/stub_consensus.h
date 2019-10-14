@@ -79,6 +79,11 @@ namespace kv
       std::unordered_set<NodeId> conf,
       const NodeConf& node_conf) override
     {}
+
+    void set_f(ccf::NodeId) override
+    {
+      return;
+    }
   };
 
   class BackupStubConsensus : public StubConsensus

@@ -1,8 +1,7 @@
 | | Link |
 |- |- |
 | Community Chat | [![Gitter](https://badges.gitter.im/MSRC-CCF/community.svg)](https://gitter.im/MSRC-CCF/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) |
-| SGX CI | [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20Github%20CI?branchName=master)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=3&branchName=master) |
-| Non-SGX CI | [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20Github%20CI%20-%20No%20SGX?branchName=master)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=2&branchName=master) |
+| Continuous Integration | [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20Github%20CI?branchName=master)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=3&branchName=master) |
 | Code coverage | [![codecov](https://codecov.io/gh/microsoft/CCF/branch/master/graph/badge.svg)](https://codecov.io/gh/microsoft/CCF) |
 | Documentation | [![docs](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20GitHub%20Pages?branchName=master)](https://microsoft.github.io/CCF/) |
 
@@ -67,7 +66,12 @@ to embed one of several language runtimes on top of its key-value store. Clients
 
 ## Getting Started on Azure Confidential Computing
 
-Under `getting_started/`:
+First, if you are checking out the CCF repository, run `git clone` with the `--recursive` option:
+```bash
+git clone --recursive https://github.com/microsoft/CCF.git
+```
+
+Then, under `CCF/getting_started/`:
  * `create_vm/` contains scripts to create an ACC VM (`make_vm.sh`).
    This script expects a valid Azure subscription name to be set, eg: `export SUBSCRIPTION=sub_name`.
  * `setup_vm/` contains ansible playbooks that need to be run on the VM once created, for it to be able to build CCF.
@@ -76,6 +80,7 @@ Under `getting_started/`:
 ## Build and Test
 
 ```bash
+cd CCF
 mkdir build
 cd build
 cmake -GNinja ..
