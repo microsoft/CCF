@@ -22,7 +22,6 @@ MSGPACK_ADD_ENUM(ccf::MemberStatus);
 
 namespace ccf
 {
-  // TODO: Make sure to store the certs as well when adding members
   struct MemberInfo
   {
     std::vector<uint8_t> cert;

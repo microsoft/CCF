@@ -26,7 +26,7 @@ namespace ccf
     std::shared_ptr<enclave::RPCMap> rpc_map;
     NodeId self;
 
-    using IsCallerForwarded = bool;
+    using IsCallerCertForwarded = bool;
 
   public:
     Forwarder(
@@ -51,12 +51,12 @@ namespace ccf
       const std::vector<uint8_t>& data,
       const CBuffer& caller = nullb)
     {
-      IsCallerForwarded include_caller = false;
+      IsCallerCertForwarded include_caller = false;
       size_t size = sizeof(caller_id) + sizeof(rpc_ctx.client_session_id) +
-        sizeof(rpc_ctx.actor) + sizeof(IsCallerForwarded) + data.size();
+        sizeof(rpc_ctx.actor) + sizeof(IsCallerCertForwarded) + data.size();
       if (caller != nullb)
       {
-        size += sizeof(IsCallerForwarded) + sizeof(caller.n) + caller.n;
+        size += sizeof(caller.n) + caller.n;
         include_caller = true;
       }
 
@@ -100,7 +100,7 @@ namespace ccf
       auto caller_id = serialized::read<CallerId>(data_, size_);
       auto client_session_id = serialized::read<size_t>(data_, size_);
       auto actor = serialized::read<ActorsType>(data_, size_);
-      auto includes_caller = serialized::read<IsCallerForwarded>(data_, size_);
+      auto includes_caller = serialized::read<IsCallerCertForwarded>(data_, size_);
       if (includes_caller)
       {
         auto caller_size = serialized::read<size_t>(data_, size_);
@@ -108,7 +108,6 @@ namespace ccf
         serialized::skip(data_, size_, caller_size);
       }
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
-      LOG_FAIL_FMT("Left to read: {}", size_);
 
       return std::make_tuple(
         enclave::RPCContext(client_session_id, caller_id, actor, caller_cert),

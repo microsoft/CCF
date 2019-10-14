@@ -759,11 +759,11 @@ namespace ccf
           jsonrpc::Pack::Text);
       }
 
-      LOG_FAIL_FMT("Forwarded caller id is: {}", ctx.fwd->caller_id);
-
-      // Only available in user/memberfrontend
+      std::vector<uint8_t> caller_cert;
       if constexpr (!std::is_same_v<CT, void>)
       {
+        // For frontends with valid callers (user and member frontends), lookup
+        // the caller certificate from the forwarded caller id
         auto callers_view = tx.get_view(*callers);
         auto caller = callers_view->get(ctx.fwd->caller_id);
         if (!caller.has_value())
@@ -775,10 +775,8 @@ namespace ccf
               "No corresponding caller entry exists."),
             ctx.pack.value());
         }
-        // FU: ctx.caller_cert is a CBuffer :( It will disappear as soon as
-        // caller goes out of scope
-        // TODO: caller_cert should be a vector from now on
-        ctx.caller_cert = caller.value().cert;
+        caller_cert = caller.value().cert;
+        ctx.caller_cert = caller_cert;
       }
 
       auto rpc = unpack_json(input, ctx.pack.value());

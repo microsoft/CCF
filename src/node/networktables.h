@@ -26,9 +26,13 @@ namespace ccf
   {
     std::shared_ptr<Store> tables;
 
+    //
     // Governance tables
+    //
+    // members and member_certs tables should always be in sync
     Members& members;
     Certs& member_certs;
+
     Scripts& gov_scripts;
     Proposals& proposals;
     Whitelists& whitelists;
@@ -37,18 +41,28 @@ namespace ccf
     VotingHistoryTable& voting_history;
     ClientSignatures& member_client_signatures;
 
+    //
     // User tables
+    //
+    // users and user_certs tables should always be in sync
     Users& users;
     Certs& user_certs;
+
     ClientSignatures& user_client_signatures;
 
+    //
     // Node table
+    //
     Nodes& nodes;
 
+    //
     // Lua application table
+    //
     Scripts& app_scripts;
 
+    //
     // Internal CCF tables
+    //
     Service& service;
     Values& values;
     Secrets& secrets_table;

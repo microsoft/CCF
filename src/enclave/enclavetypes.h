@@ -17,7 +17,6 @@ namespace enclave
     //
     // In parameters (initialised when context is created)
     //
-
     const size_t client_session_id = InvalidSessionId;
     CBuffer caller_cert;
     // Actor type to dispatch to appropriate frontend
@@ -26,7 +25,6 @@ namespace enclave
     //
     // Out parameters (changed during lifetime of context)
     //
-
     // If true, the RPC does not reply to the client synchronously
     bool is_pending = false;
     std::optional<jsonrpc::Pack> pack = std::nullopt;
@@ -43,22 +41,9 @@ namespace enclave
     struct forwarded
     {
       // Initialised when forwarded context is created
-      const size_t
-        client_session_id; // TODO: Can't we not use the parent's session id?
+      const size_t client_session_id;
       const ccf::CallerId caller_id;
-      // const std::optional<std::vector<uint8_t>> caller =
-      //   {}; // TODO: To merge with caller in other parent struct
 
-      // forwarded(
-      //   size_t client_session_id_,
-      //   ccf::NodeId from_,
-      //   ccf::CallerId caller_id_) :
-      //   client_session_id(client_session_id_),
-      //   from(from_),
-      //   caller_id(caller_id_)
-      // {}
-
-      // TODO: Merge with other constructor
       forwarded(size_t client_session_id_, ccf::CallerId caller_id_) :
         client_session_id(client_session_id_),
         caller_id(caller_id_)
@@ -76,7 +61,7 @@ namespace enclave
       actor(actor_)
     {}
 
-    // Constructor used for forwarded RPC and the the caller_cert
+    // Constructor used for forwarded and PBFT RPC
     RPCContext(
       size_t fwd_session_id_,
       ccf::CallerId caller_id_,
@@ -86,28 +71,6 @@ namespace enclave
       actor(actor_),
       caller_cert(caller_cert_)
     {}
-
-    // // TODO: Merge this with the other constructor above
-    // RPCContext(
-    //   size_t fwd_session_id_,
-    //   ccf::CallerId caller_id_,
-    //   std::optional<std::vector<uint8_t>> caller_cert_ = {},
-    //   ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
-    //   fwd(std::make_optional<struct forwarded>(
-    //     fwd_session_id_, caller_id_, caller_cert_)),
-    //   actor(actor_)
-    // {}
-
-    // // Constructor used for forwarded RPC
-    // RPCContext(
-    //   size_t fwd_session_id_,
-    //   ccf::NodeId from_,
-    //   ccf::CallerId caller_id_,
-    //   ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
-    //   fwd(std::make_optional<struct forwarded>(
-    //     fwd_session_id_, from_, caller_id_)),
-    //   actor(actor_)
-    // {}
   };
 
   class AbstractRPCResponder

@@ -16,7 +16,7 @@
 
 namespace ccf
 {
-  class MemberCallRpcFrontend : public RpcFrontend<Members>
+  class MemberRpcFrontend : public RpcFrontend<Members>
   {
   private:
     Script get_script(Store::Tx& tx, std::string name)
@@ -255,7 +255,7 @@ namespace ccf
     static constexpr auto SIZE_NONCE = 16;
 
   public:
-    MemberCallRpcFrontend(NetworkTables& network, AbstractNodeState& node) :
+    MemberRpcFrontend(NetworkTables& network, AbstractNodeState& node) :
       RpcFrontend(
         *network.tables,
         &network.member_client_signatures,
