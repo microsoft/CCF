@@ -205,16 +205,16 @@ if __name__ == "__main__":
     time_legend = figure.legend(
         time_values.values(),
         time_values.keys(),
-        loc="upper left",
-        bbox_to_anchor=(0.1, 0.95),
+        loc="center right",
+        bbox_to_anchor=(1.1, 0.9),
     )
 
     commit_values = {k: vs[0] for (k, vs) in commits.items()}
     commit_legend = figure.legend(
         commit_values.values(),
         commit_values.keys(),
-        loc="upper left",
-        bbox_to_anchor=(0.25, 0.95),
+        loc="center right",
+        bbox_to_anchor=(1.1, 1.0),
     )
 
     plt.tight_layout()
