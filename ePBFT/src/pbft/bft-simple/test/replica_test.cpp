@@ -89,7 +89,7 @@ void delayed_start_delay_time(void* owner)
     usleep(delay);
   }
 
-  auto timeout_time = test_timer_order * (lrand48() % 100);
+  auto timeout_time = test_timer_order * ((lrand48() % 100) + 1);
   LOG_INFO << "Init timer with milliseconds " << timeout_time << std::endl;
   test_timer = new ITimer(timeout_time, test_timer_handler, nullptr);
   test_timer->start();

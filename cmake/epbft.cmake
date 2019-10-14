@@ -35,6 +35,16 @@ if(${TARGET} STREQUAL "virtual")
   )
   target_compile_options(libcommon PRIVATE -stdlib=libc++)
 
+  add_library(libcommon.mock STATIC
+    ${PBFT_DIR}/src/pbft/libcommon/mocks/network_mock.cpp)
+  target_link_libraries(libcommon.mock PRIVATE libcommon)
+  target_include_directories(libcommon.mock PRIVATE
+    ${PBFT_DIR}/src/pbft/libbyz
+    ${PBFT_DIR}/src/pbft/libcommon
+    ${EVERCRYPT_INC}
+  )
+  target_compile_options(libcommon.mock PRIVATE -stdlib=libc++)
+
   function(use_libbyz name)
 
     target_include_directories(${name} PRIVATE
@@ -89,6 +99,15 @@ if(${TARGET} STREQUAL "virtual")
   )
   pbft_add_executable(client-test)
 
+  ## Unit tests
+  add_unit_test(test_ledger_replay
+      ${PBFT_DIR}/src/pbft/libbyz/test/test_ledger_replay.cpp)
+  target_include_directories(test_ledger_replay PRIVATE ${PBFT_DIR}/src/pbft/libcommon/mocks)
+  target_link_libraries(test_ledger_replay PRIVATE libcommon.mock)
+  use_libbyz(test_ledger_replay)
+  add_san(test_ledger_replay)
+
+  ## end to end tests
   add_test(
     NAME test_UDP
     COMMAND
