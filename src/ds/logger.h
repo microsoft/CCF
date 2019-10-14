@@ -214,7 +214,7 @@ namespace logger
     static inline Level& level()
     {
       static Level the_level =
-#if !defined(NDEBUG) || defined(VERBOSE_LOGGING)
+#ifdef VERBOSE_LOGGING
         Level::TRACE
 #else
         Level::INFO
