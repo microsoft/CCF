@@ -772,7 +772,7 @@ namespace ccf
 
       if (rpc_->find(jsonrpc::SIG) != rpc_->end())
       {
-        auto& req = rpc_->at(jsonrpc::REQ);
+                     auto& req = rpc_->at(jsonrpc::REQ);
         record_client_signature(tx, ctx.fwd->caller_id, signed_request);
         rpc_ = &req;
       }
