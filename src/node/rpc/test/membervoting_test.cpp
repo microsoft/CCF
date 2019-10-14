@@ -760,7 +760,7 @@ TEST_CASE("Propose raw writes")
         -- increment id
         p:put("ccf.values", NEXT_MEMBER_ID_VALUE, member_id + 1)
         -- write member cert and status
-        p:put("ccf.members", member_id, {status = STATE_ACTIVE})
+        p:put("ccf.members", member_id, {cert = cert, status = STATE_ACTIVE})
         p:put("ccf.member_certs", cert, member_id)
         return Calls:call("raw_puts", p)
       )xxx"s,

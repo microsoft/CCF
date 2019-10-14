@@ -868,8 +868,8 @@ TEST_CASE("App-defined errors")
 
     CHECK(foo_response[jsonrpc::ERR] != nullptr);
     CHECK(
-      foo_response[jsonrpc::ERR][jsonrpc::CODE].get<jsonrpc::ErrorBaseType>()
-      == static_cast<jsonrpc::ErrorBaseType>(userapp::AppError::Foo));
+      foo_response[jsonrpc::ERR][jsonrpc::CODE].get<jsonrpc::ErrorBaseType>() ==
+      static_cast<jsonrpc::ErrorBaseType>(userapp::AppError::Foo));
 
     const auto msg =
       foo_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
@@ -889,8 +889,8 @@ TEST_CASE("App-defined errors")
 
     CHECK(bar_response[jsonrpc::ERR] != nullptr);
     CHECK(
-      bar_response[jsonrpc::ERR][jsonrpc::CODE].get<jsonrpc::ErrorBaseType>()
-      == static_cast<jsonrpc::ErrorBaseType>(userapp::AppError::Bar));
+      bar_response[jsonrpc::ERR][jsonrpc::CODE].get<jsonrpc::ErrorBaseType>() ==
+      static_cast<jsonrpc::ErrorBaseType>(userapp::AppError::Bar));
 
     const auto msg =
       bar_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
