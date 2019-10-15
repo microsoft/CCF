@@ -31,10 +31,12 @@ parameters:
       cmake_args: '-DSAN=ON'
 
   perf_test_filter: '"benchmark|perf"'
+  static_check_job_name: 'Formatting_and_License_Checks'
 
 jobs:
   - template: checks.yml
     parameters:
+      job_name: ${{ parameters.static_check_job_name }}
       env: ${{ parameters.env.NoSGX }}
 
   - ${{ each target in parameters.target }}:
@@ -47,6 +49,7 @@ jobs:
           cmake_args: '${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
           ctest_filter: '-LE ${{ parameters.perf_test_filter }}'
           suffix: ''
+          depends_on: ${{ parameters.static_check_job_name }}
 
   - ${{ each consensus in parameters.consensus }}:
     - template: common.yml
@@ -57,6 +60,7 @@ jobs:
         cmake_args: '${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
         ctest_filter: '-LE ${{ parameters.perf_test_filter }}'
         suffix: 'SAN'
+        depends_on: ${{ parameters.static_check_job_name }}
 
   - ${{ each consensus in parameters.consensus }}:
     - template: common.yml
@@ -67,3 +71,4 @@ jobs:
         cmake_args: '${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
         ctest_filter: '-L ${{ parameters.perf_test_filter }}'
         suffix: 'Perf'
+        depends_on: ${{ parameters.static_check_job_name }}
