@@ -617,7 +617,6 @@ namespace ccf
         if (consensus != nullptr)
         {
           auto primary_id = consensus->primary();
-          auto local_id = consensus->id();
 
           // Only forward caller certificate if frontend cannot retrieve caller
           // cert from caller id
@@ -631,7 +630,6 @@ namespace ccf
             primary_id != NoNode && cmd_forwarder &&
             cmd_forwarder->forward_command(
               ctx,
-              local_id,
               primary_id,
               caller_id.value(),
               input,

@@ -40,12 +40,12 @@ namespace ccf
 
     void initialize(NodeId self_)
     {
+      LOG_FAIL_FMT("Forwarder initialised to {}", self);
       self = self_;
     }
 
     bool forward_command(
       enclave::RPCContext& rpc_ctx,
-      NodeId from,
       NodeId to,
       CallerId caller_id,
       const std::vector<uint8_t>& data,
@@ -74,7 +74,7 @@ namespace ccf
       }
       serialized::write(data_, size_, data.data(), data.size());
 
-      ForwardedHeader msg = {ForwardedMsg::forwarded_cmd, from};
+      ForwardedHeader msg = {ForwardedMsg::forwarded_cmd, self};
 
       return n2n_channels->send_encrypted(to, plain, msg);
     }

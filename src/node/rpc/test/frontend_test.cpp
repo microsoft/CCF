@@ -764,8 +764,8 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
     node_frontend_primary.process_forwarded(fwd_ctx, forwarded_cmd),
     jsonrpc::Pack::MsgPack);
 
-  // CHECK(node_frontend_primary.last_caller_cert == node_caller);
-  // CHECK(node_frontend_primary.last_caller_id == INVALID_ID);
+  CHECK(node_frontend_primary.last_caller_cert == node_caller);
+  CHECK(node_frontend_primary.last_caller_id == INVALID_ID);
 }
 
 TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
