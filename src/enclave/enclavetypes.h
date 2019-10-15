@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/buffer.h"
 #include "node/entities.h"
 #include "node/rpc/jsonrpc.h"
 
@@ -17,16 +16,14 @@ namespace enclave
     //
     // In parameters (initialised when context is created)
     //
-
     const size_t client_session_id = InvalidSessionId;
-    CBuffer caller_cert;
-    // Actor type to route to appropriate frontend
+    std::vector<uint8_t> caller_cert;
+    // Actor type to dispatch to appropriate frontend
     const ccf::ActorsType actor;
 
     //
     // Out parameters (changed during lifetime of context)
     //
-
     // If true, the RPC does not reply to the client synchronously
     bool is_pending = false;
     std::optional<jsonrpc::Pack> pack = std::nullopt;
@@ -44,18 +41,10 @@ namespace enclave
     {
       // Initialised when forwarded context is created
       const size_t client_session_id;
-      const ccf::NodeId from;
       const ccf::CallerId caller_id;
 
-      // Changed during lifetime of forwarded context
-      ccf::NodeId primary_id = ccf::INVALID_ID;
-
-      forwarded(
-        size_t client_session_id_,
-        ccf::NodeId from_,
-        ccf::CallerId caller_id_) :
+      forwarded(size_t client_session_id_, ccf::CallerId caller_id_) :
         client_session_id(client_session_id_),
-        from(from_),
         caller_id(caller_id_)
       {}
     };
@@ -64,35 +53,22 @@ namespace enclave
     // Constructor used for non-forwarded RPC
     RPCContext(
       size_t client_session_id_,
-      CBuffer caller_cert_,
+      const std::vector<uint8_t>& caller_cert_,
       ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
       client_session_id(client_session_id_),
       caller_cert(caller_cert_),
       actor(actor_)
     {}
 
-    // Constructor used for forwarded RPC and the the caller_cert
+    // Constructor used for forwarded and PBFT RPC
     RPCContext(
       size_t fwd_session_id_,
-      ccf::NodeId from_,
       ccf::CallerId caller_id_,
-      CBuffer caller_cert_,
-      ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
-      fwd(std::make_optional<struct forwarded>(
-        fwd_session_id_, from_, caller_id_)),
-      caller_cert(caller_cert_),
-      actor(actor_)
-    {}
-
-    // Constructor used for forwarded RPC
-    RPCContext(
-      size_t fwd_session_id_,
-      ccf::NodeId from_,
-      ccf::CallerId caller_id_,
-      ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
-      fwd(std::make_optional<struct forwarded>(
-        fwd_session_id_, from_, caller_id_)),
-      actor(actor_)
+      ccf::ActorsType actor_ = ccf::ActorsType::unknown,
+      const std::vector<uint8_t>& caller_cert_ = {}) :
+      fwd(std::make_optional<struct forwarded>(fwd_session_id_, caller_id_)),
+      actor(actor_),
+      caller_cert(caller_cert_)
     {}
   };
 
@@ -101,5 +77,18 @@ namespace enclave
   public:
     virtual ~AbstractRPCResponder() {}
     virtual bool reply_async(size_t id, const std::vector<uint8_t>& data) = 0;
+  };
+
+  class AbstractForwarder
+  {
+  public:
+    virtual ~AbstractForwarder() {}
+
+    virtual bool forward_command(
+      enclave::RPCContext& rpc_ctx,
+      ccf::NodeId to,
+      ccf::CallerId caller_id,
+      const std::vector<uint8_t>& data,
+      const std::vector<uint8_t>& caller_cert) = 0;
   };
 }

@@ -22,6 +22,17 @@
 
 namespace ccf
 {
+  struct RequestArgs
+  {
+    enclave::RPCContext& rpc_ctx;
+    Store::Tx& tx;
+    CallerId caller_id;
+    const std::string& method;
+    const nlohmann::json& params;
+    const SignedReq& signed_request;
+  };
+
+  template <typename CT = void>
   class RpcFrontend : public enclave::RpcHandler, public ForwardedRpcHandler
   {
   public:
@@ -38,16 +49,6 @@ namespace ccf
       DoNotForward
     };
 
-    struct RequestArgs
-    {
-      enclave::RPCContext& rpc_ctx;
-      Store::Tx& tx;
-      CallerId caller_id;
-      const std::string& method;
-      const nlohmann::json& params;
-      const SignedReq& signed_request;
-    };
-
   protected:
     Store& tables;
 
@@ -57,8 +58,6 @@ namespace ccf
 
     using MinimalHandleFunction = std::function<std::pair<bool, nlohmann::json>(
       Store::Tx& tx, const nlohmann::json& params)>;
-
-    using CallerKey = std::vector<uint8_t>;
 
     // TODO: replace with an lru map
     std::map<CallerId, tls::VerifierPtr> verifiers;
@@ -75,10 +74,11 @@ namespace ccf
     Nodes* nodes;
     ClientSignatures* client_signatures;
     Certs* certs;
+    CT* callers;
     std::optional<Handler> default_handler;
     std::unordered_map<std::string, Handler> handlers;
     kv::Consensus* consensus;
-    std::shared_ptr<AbstractForwarder> cmd_forwarder;
+    std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
 
     size_t sig_max_tx = 1000;
@@ -129,20 +129,21 @@ namespace ccf
       return {true, rpc};
     }
 
-    std::optional<CallerId> valid_caller(Store::Tx& tx, const CBuffer& caller)
+    std::optional<CallerId> valid_caller(
+      Store::Tx& tx, const std::vector<uint8_t>& caller)
     {
       if (certs == nullptr)
       {
         return INVALID_ID;
       }
 
-      if (!caller.p)
+      if (caller.empty())
       {
         return {};
       }
 
       auto certs_view = tx.get_view(*certs);
-      auto caller_id = certs_view->get(std::vector<uint8_t>(caller));
+      auto caller_id = certs_view->get(caller);
 
       return caller_id;
     }
@@ -194,7 +195,7 @@ namespace ccf
     }
 
     bool verify_client_signature(
-      const CBuffer& caller,
+      const std::vector<uint8_t>& caller,
       const CallerId caller_id,
       const nlohmann::json& full_rpc,
       SignedReq& signed_request)
@@ -211,7 +212,7 @@ namespace ccf
       auto v = verifiers.find(caller_id);
       if (v == verifiers.end())
       {
-        CallerKey caller_cert(caller);
+        std::vector<uint8_t> caller_cert(caller);
         verifiers.emplace(
           std::make_pair(caller_id, tls::make_verifier(caller_cert)));
       }
@@ -241,16 +242,22 @@ namespace ccf
     }
 
   public:
-    RpcFrontend(Store& tables_) : RpcFrontend(tables_, nullptr, nullptr) {}
+    RpcFrontend(Store& tables_) :
+      RpcFrontend(tables_, nullptr, nullptr, nullptr)
+    {}
 
-    RpcFrontend(Store& tables_, ClientSignatures* client_sigs_, Certs* certs_) :
+    RpcFrontend(
+      Store& tables_,
+      ClientSignatures* client_sigs_,
+      Certs* certs_,
+      CT* callers_) :
       tables(tables_),
       nodes(tables.get<Nodes>(Tables::NODES)),
       client_signatures(client_sigs_),
       certs(certs_),
+      callers(callers_),
       consensus(nullptr),
       history(nullptr)
-
     {
       auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetCommit::In>();
@@ -384,14 +391,15 @@ namespace ccf
       request_storing_disabled = true;
     }
 
-    void set_sig_intervals(size_t sig_max_tx_, size_t sig_max_ms_)
+    void set_sig_intervals(size_t sig_max_tx_, size_t sig_max_ms_) override
     {
       sig_max_tx = sig_max_tx_;
       sig_max_ms = std::chrono::milliseconds(sig_max_ms_);
       ms_to_sig = sig_max_ms;
     }
 
-    void set_cmd_forwarder(std::shared_ptr<AbstractForwarder> cmd_forwarder_)
+    void set_cmd_forwarder(
+      std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder_) override
     {
       cmd_forwarder = cmd_forwarder_;
     }
@@ -609,12 +617,19 @@ namespace ccf
         if (consensus != nullptr)
         {
           auto primary_id = consensus->primary();
-          auto local_id = consensus->id();
+
+          // Only forward caller certificate if frontend cannot retrieve caller
+          // cert from caller id
+          std::vector<uint8_t> forwarded_caller_cert;
+          if constexpr (std::is_same_v<CT, void>)
+          {
+            forwarded_caller_cert = ctx.caller_cert;
+          }
 
           if (
-            primary_id != NoNode &&
+            primary_id != NoNode && cmd_forwarder &&
             cmd_forwarder->forward_command(
-              ctx, local_id, primary_id, caller_id.value(), input))
+              ctx, primary_id, caller_id.value(), input, forwarded_caller_cert))
           {
             // Indicate that the RPC has been forwarded to primary
             LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
@@ -728,15 +743,8 @@ namespace ccf
 
       Store::Tx tx;
 
-      // For forwarded command, caller is empty and caller_id should be used
-      // instead.
-      CBuffer caller;
-
-      update_consensus();
-      ctx.fwd->primary_id = consensus->id();
-
-      auto pack = detect_pack(input);
-      if (!pack.has_value())
+      ctx.pack = detect_pack(input);
+      if (!ctx.pack.has_value())
       {
         return jsonrpc::pack(
           jsonrpc::error_response(
@@ -746,27 +754,34 @@ namespace ccf
           jsonrpc::Pack::Text);
       }
 
-      // If the RPC was forwarded, assume that the caller has already been
-      // verified
-      if (certs && ctx.fwd->caller_id == INVALID_ID)
+      if constexpr (!std::is_same_v<CT, void>)
       {
-        return jsonrpc::pack(
-          jsonrpc::error_response(
-            0,
-            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
-            "No corresponding caller entry exists (forwarded)."),
-          pack.value());
+        // For frontends with valid callers (user and member frontends), lookup
+        // the caller certificate from the forwarded caller id
+        auto callers_view = tx.get_view(*callers);
+        auto caller = callers_view->get(ctx.fwd->caller_id);
+        if (!caller.has_value())
+        {
+          return jsonrpc::pack(
+            jsonrpc::error_response(
+              0,
+              jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
+              "No corresponding caller entry exists."),
+            ctx.pack.value());
+        }
+        ctx.caller_cert = caller.value().cert;
       }
 
-      auto rpc = unpack_json(input, pack.value());
+      auto rpc = unpack_json(input, ctx.pack.value());
       if (!rpc.first)
       {
-        return jsonrpc::pack(rpc.second, pack.value());
+        return jsonrpc::pack(rpc.second, ctx.pack.value());
       }
 
       // Unwrap signed request if necessary and store client signature. It is
       // assumed that the forwarder node has already verified the client
       // signature.
+      update_consensus();
       auto rpc_ = &rpc.second;
       SignedReq signed_request(rpc.second);
 
@@ -787,7 +802,7 @@ namespace ccf
         throw std::logic_error("Forwarded RPC cannot be forwarded");
       }
 
-      return jsonrpc::pack(rep.value(), pack.value());
+      return jsonrpc::pack(rep.value(), ctx.pack.value());
     }
 
     std::optional<nlohmann::json> process_json(

@@ -16,19 +16,63 @@ namespace pbft
     virtual void set_service_mem(char* sm) = 0;
     virtual ExecCommand get_exec_command() = 0;
     virtual size_t message_size() = 0;
-    virtual void fill_request(
-      uint8_t* buffer,
-      size_t total_req_size,
-      const std::vector<uint8_t>& data,
-      uint64_t actor,
-      uint64_t caller_id,
-      const CBuffer& caller_cert) = 0;
+  };
+
+  struct ccf_req
+  {
+    uint64_t actor;
+    uint64_t caller_id;
+    std::vector<uint8_t> caller_cert;
+    std::vector<uint8_t> request;
+
+    std::vector<uint8_t> serialise()
+    {
+      bool include_caller = false;
+      size_t size =
+        sizeof(actor) + sizeof(caller_id) + sizeof(bool) + request.size();
+      if (!caller_cert.empty())
+      {
+        size += sizeof(size_t) + caller_cert.size();
+        include_caller = true;
+      }
+
+      std::vector<uint8_t> serialized_req(size);
+      auto data_ = serialized_req.data();
+      auto size_ = serialized_req.size();
+      serialized::write(data_, size_, actor);
+      serialized::write(data_, size_, caller_id);
+      serialized::write(data_, size_, include_caller);
+      if (include_caller)
+      {
+        serialized::write(data_, size_, caller_cert.size());
+        serialized::write(data_, size_, caller_cert.data(), caller_cert.size());
+      }
+      serialized::write(data_, size_, request.data(), request.size());
+
+      return serialized_req;
+    }
+
+    void deserialise(const std::vector<uint8_t>& serialized_req)
+    {
+      auto data_ = serialized_req.data();
+      auto size_ = serialized_req.size();
+
+      actor = serialized::read<uint64_t>(data_, size_);
+      caller_id = serialized::read<uint64_t>(data_, size_);
+      auto includes_caller = serialized::read<bool>(data_, size_);
+      if (includes_caller)
+      {
+        auto caller_size = serialized::read<size_t>(data_, size_);
+        caller_cert = serialized::read(data_, size_, caller_size);
+      }
+      request = serialized::read(data_, size_, size_);
+    }
   };
 
   class PbftConfigCcf : public AbstractPbftConfig
   {
   public:
-    PbftConfigCcf(std::shared_ptr<enclave::RpcMap> rpc_map_) : rpc_map(rpc_map_)
+    PbftConfigCcf(std::shared_ptr<enclave::RPCMap> rpc_map_) : rpc_map(rpc_map_)
     {}
 
     ~PbftConfigCcf() = default;
@@ -48,56 +92,8 @@ namespace pbft
       return sizeof(ccf_req);
     }
 
-    void fill_request(
-      uint8_t* buffer,
-      size_t total_req_size,
-      const std::vector<uint8_t>& data,
-      uint64_t actor,
-      uint64_t caller_id,
-      const CBuffer& caller_cert) override
-    {
-      serialized::write(buffer, total_req_size, actor);
-      serialized::write(buffer, total_req_size, caller_id);
-      uint32_t cert_size = caller_cert.rawSize();
-      serialized::write(buffer, total_req_size, cert_size);
-      if (caller_cert.p != nullptr)
-      {
-        serialized::write(
-          buffer, total_req_size, caller_cert.p, caller_cert.rawSize());
-      }
-      serialized::write(buffer, total_req_size, data.data(), data.size());
-    }
-
   private:
-    std::shared_ptr<enclave::RpcMap> rpc_map;
-
-#pragma pack(push, 1)
-    struct ccf_req
-    {
-      ccf::ActorsType actor;
-      uint64_t caller_id;
-      uint32_t cert_size;
-
-      uint8_t* cert()
-      {
-        return (uint8_t*)((uintptr_t)this + sizeof(ccf_req));
-      }
-
-      uint8_t* get_data()
-      {
-        return (uint8_t*)((uintptr_t)this + sizeof(ccf_req) + cert_size);
-      }
-
-      size_t get_size(size_t total_size)
-      {
-        if (total_size < (sizeof(ccf_req) + cert_size))
-        {
-          return 0;
-        }
-        return total_size - (sizeof(ccf_req) + cert_size);
-      }
-    };
-#pragma pack(pop)
+    std::shared_ptr<enclave::RPCMap> rpc_map;
 
     ExecCommand exec_command = [this](
                                  Byz_req* inb,
@@ -107,31 +103,25 @@ namespace pbft
                                  bool ro,
                                  Seqno total_requests_executed,
                                  ByzInfo& info) {
-      auto request = reinterpret_cast<ccf_req*>(inb->contents);
+      ccf_req request;
+      request.deserialise({inb->contents, inb->contents + inb->size});
 
-      LOG_DEBUG_FMT("PBFT exec_command() for frontend {}", request->actor);
+      LOG_DEBUG_FMT("PBFT exec_command() for frontend {}", request.actor);
 
-      auto handler = this->rpc_map->find(request->actor);
+      auto handler = this->rpc_map->find(ccf::ActorsType(request.actor));
       if (!handler.has_value())
         throw std::logic_error(
-          "No frontend associated with actor " +
-          std::to_string(request->actor));
+          "No frontend associated with actor " + std::to_string(request.actor));
 
       auto frontend = handler.value();
 
-      // TODO: For now, re-use the RPCContext for forwarded commands.
-      // Eventually, the two process_() commands will be refactored accordingly.
       enclave::RPCContext ctx(
-        0,
-        0,
-        request->caller_id,
-        CBuffer(
-          request->cert(), request->cert_size)); // add the pointer and size
+        enclave::InvalidSessionId,
+        request.caller_id,
+        ccf::ActorsType(request.actor),
+        request.caller_cert);
 
-      auto rep = frontend->process_pbft(
-        ctx,
-        {request->get_data(),
-         request->get_data() + request->get_size(inb->size)});
+      auto rep = frontend->process_pbft(ctx, request.request);
 
       static_assert(sizeof(info.merkle_root) == sizeof(crypto::Sha256Hash));
       std::copy(

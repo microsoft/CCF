@@ -8,10 +8,13 @@
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
 #include "node/entities.h"
+#include "node/genesisgen.h"
 #include "node/networkstate.h"
 #include "node/rpc/jsonrpc.h"
 #include "node/rpc/memberfrontend.h"
+#include "node/rpc/nodefrontend.h"
 #include "node/rpc/userfrontend.h"
+#include "node/test/channel_stub.h"
 #include "node_stub.h"
 
 #include <iostream>
@@ -63,12 +66,12 @@ public:
   }
 };
 
-class TestMemberFrontend : public ccf::MemberCallRpcFrontend
+class TestMemberFrontend : public ccf::MemberRpcFrontend
 {
 public:
   TestMemberFrontend(
     Store& tables, ccf::NetworkState& network, ccf::StubNodeState& node) :
-    MemberCallRpcFrontend(network, node)
+    MemberRpcFrontend(network, node)
   {
     auto empty_function = [this](RequestArgs& args) {
       return jsonrpc::success(true);
@@ -77,7 +80,7 @@ public:
   }
 };
 
-class TestNoCertsFrontend : public ccf::RpcFrontend
+class TestNoCertsFrontend : public ccf::RpcFrontend<Users>
 {
 public:
   TestNoCertsFrontend(Store& tables) : RpcFrontend(tables)
@@ -89,12 +92,50 @@ public:
   }
 };
 
-class TestForwardingFrontEnd : public ccf::UserRpcFrontend
+//
+// User, Node and Member frontends used for forwarding tests
+//
+
+class RpcContextRecorder
 {
 public:
-  TestForwardingFrontEnd(Store& tables) : UserRpcFrontend(tables)
+  std::vector<uint8_t> last_caller_cert;
+  CallerId last_caller_id;
+
+  void record_ctx(RequestArgs& args)
+  {
+    last_caller_cert = std::vector<uint8_t>(args.rpc_ctx.caller_cert);
+    last_caller_id = args.caller_id;
+  }
+};
+
+class TestForwardingUserFrontEnd : public ccf::UserRpcFrontend,
+                                   public RpcContextRecorder
+{
+public:
+  TestForwardingUserFrontEnd(Store& tables) : UserRpcFrontend(tables)
   {
     auto empty_function = [this](RequestArgs& args) {
+      record_ctx(args);
+      return jsonrpc::success(true);
+    };
+
+    // Note that this a Write function so that a backup executing this command
+    // will forward it to the primary
+    install("empty_function", empty_function, Write);
+  }
+};
+
+class TestForwardingNodeFrontEnd : public ccf::NodeRpcFrontend,
+                                   public RpcContextRecorder
+{
+public:
+  TestForwardingNodeFrontEnd(
+    ccf::NetworkState& network, ccf::StubNodeState& node) :
+    NodeRpcFrontend(network, node)
+  {
+    auto empty_function = [this](RequestArgs& args) {
+      record_ctx(args);
       return jsonrpc::success(true);
     };
     // Note that this a Write function so that a backup executing this command
@@ -103,7 +144,25 @@ public:
   }
 };
 
-class TestNoForwardingFrontEnd : public ccf::RpcFrontend
+class TestForwardingMemberFrontEnd : public ccf::MemberRpcFrontend,
+                                     public RpcContextRecorder
+{
+public:
+  TestForwardingMemberFrontEnd(
+    Store& tables, ccf::NetworkState& network, ccf::StubNodeState& node) :
+    MemberRpcFrontend(network, node)
+  {
+    auto empty_function = [this](RequestArgs& args) {
+      record_ctx(args);
+      return jsonrpc::success(true);
+    };
+    // Note that this a Write function so that a backup executing this command
+    // will forward it to the primary
+    install("empty_function", empty_function, Write);
+  }
+};
+
+class TestNoForwardingFrontEnd : public ccf::RpcFrontend<Users>
 {
 public:
   TestNoForwardingFrontEnd(Store& tables) : RpcFrontend(tables)
@@ -143,7 +202,7 @@ namespace userapp
   }
 }
 
-class TestAppErrorFrontEnd : public ccf::RpcFrontend
+class TestAppErrorFrontEnd : public ccf::RpcFrontend<Users>
 {
 public:
   static constexpr auto bar_msg = "Bar is broken";
@@ -212,6 +271,10 @@ auto ca_mem = kp -> self_sign("CN=name_member");
 auto verifier_mem = tls::make_verifier(ca_mem);
 auto member_caller = verifier_mem -> raw_cert_data();
 
+auto ca_node = kp -> self_sign("CN=node");
+auto verifier_node = tls::make_verifier(ca_node);
+auto node_caller = verifier_node -> raw_cert_data();
+
 auto ca_nos = kp -> self_sign("CN=nostore_user");
 auto verifier_nos = tls::make_verifier(ca_nos);
 auto nos_caller = verifier_nos -> raw_cert_data();
@@ -221,9 +284,9 @@ auto ca_inv = kp_other -> self_sign("CN=name");
 auto verifier_inv = tls::make_verifier(ca_inv);
 auto invalid_caller = verifier_inv -> raw_cert_data();
 
-enclave::RPCContext rpc_ctx(0, user_caller);
-enclave::RPCContext invalid_rpc_ctx(0, invalid_caller);
-enclave::RPCContext member_rpc_ctx(0, member_caller);
+enclave::RPCContext rpc_ctx(enclave::InvalidSessionId, user_caller);
+enclave::RPCContext invalid_rpc_ctx(enclave::InvalidSessionId, invalid_caller);
+enclave::RPCContext member_rpc_ctx(enclave::InvalidSessionId, member_caller);
 
 void prepare_callers()
 {
@@ -237,14 +300,23 @@ void prepare_callers()
   network.tables->set_encryptor(encryptor);
   network2.tables->set_encryptor(encryptor);
 
-  auto [user_certs_view, member_certs_view] =
-    tx.get_view(network.user_certs, network.member_certs);
-  user_certs_view->put(user_caller, 0);
-  user_certs_view->put(invalid_caller, 1);
-  user_certs_view->put(nos_caller, 2);
-  member_certs_view->put(member_caller, 0);
-  member_certs_view->put(invalid_caller, 0);
-  REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  GenesisGenerator g(network);
+  g.init_values();
+  g.add_user(user_caller);
+  g.add_user(invalid_caller);
+  g.add_user(nos_caller);
+  g.add_member(member_caller);
+  g.add_member(invalid_caller);
+  CHECK(g.finalize() == kv::CommitSuccess::OK);
+}
+
+void add_callers_primary_store()
+{
+  GenesisGenerator g(network2);
+  g.init_values();
+  g.add_user(user_caller);
+  g.add_member(member_caller);
+  CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 
 TEST_CASE("SignedReq to and from json")
@@ -491,38 +563,16 @@ TEST_CASE("Signed read requests can be executed on backup")
   CHECK(response[jsonrpc::RESULT] == true);
 }
 
-class StubForwarder : public AbstractForwarder
-{
-public:
-  std::vector<std::vector<uint8_t>> forwarded_cmds;
-
-  StubForwarder() {}
-
-  bool forward_command(
-    enclave::RPCContext& ctx,
-    NodeId from,
-    NodeId to,
-    CallerId caller_id,
-    const std::vector<uint8_t>& data) override
-  {
-    forwarded_cmds.push_back(data);
-    return true;
-  }
-
-  void clear()
-  {
-    forwarded_cmds.clear();
-  }
-};
-
-TEST_CASE("Forwarding")
+TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 {
   prepare_callers();
 
-  TestForwardingFrontEnd frontend_backup(*network.tables);
-  TestForwardingFrontEnd frontend_primary(*network2.tables);
+  TestForwardingUserFrontEnd user_frontend_backup(*network.tables);
+  TestForwardingUserFrontEnd user_frontend_primary(*network2.tables);
 
-  auto backup_forwarder = std::make_shared<StubForwarder>();
+  auto channel_stub = std::make_shared<ChannelStubProxy>();
+  auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
+    nullptr, channel_stub, nullptr);
   auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
   network.tables->set_consensus(backup_consensus);
 
@@ -532,80 +582,97 @@ TEST_CASE("Forwarding")
   auto write_req = create_simple_json();
   auto serialized_call = jsonrpc::pack(write_req, jsonrpc::Pack::MsgPack);
 
-  INFO("Frontend without forwarder does not forward");
+  INFO("Backup frontend without forwarder does not forward");
   {
-    enclave::RPCContext ctx(0, user_caller);
+    enclave::RPCContext ctx(enclave::InvalidSessionId, user_caller);
     REQUIRE(ctx.is_pending == false);
-    REQUIRE(backup_forwarder->forwarded_cmds.empty());
-    auto serialized_response = frontend_backup.process(ctx, serialized_call);
-    REQUIRE(ctx.is_pending == false);
-    REQUIRE(backup_forwarder->forwarded_cmds.size() == 0);
+    REQUIRE(channel_stub->is_empty());
 
-    auto response =
-      jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
+    auto response = jsonrpc::unpack(
+      user_frontend_backup.process(ctx, serialized_call),
+      jsonrpc::Pack::MsgPack);
+    REQUIRE(ctx.is_pending == false);
+    REQUIRE(channel_stub->is_empty());
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
       static_cast<jsonrpc::ErrorBaseType>(
         jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY));
   }
 
-  frontend_backup.set_cmd_forwarder(backup_forwarder);
+  user_frontend_backup.set_cmd_forwarder(backup_forwarder);
 
   INFO("Read command is not forwarded to primary");
   {
-    TestUserFrontend frontend_backup_read(*network.tables);
-    enclave::RPCContext ctx(0, user_caller);
+    TestUserFrontend user_frontend_backup_read(*network.tables);
+    enclave::RPCContext ctx(enclave::InvalidSessionId, user_caller);
     REQUIRE(ctx.is_pending == false);
-    REQUIRE(backup_forwarder->forwarded_cmds.empty());
+    REQUIRE(channel_stub->is_empty());
 
     auto response = jsonrpc::unpack(
-      frontend_backup_read.process(ctx, serialized_call),
+      user_frontend_backup_read.process(ctx, serialized_call),
       jsonrpc::Pack::MsgPack);
     REQUIRE(ctx.is_pending == false);
-    REQUIRE(backup_forwarder->forwarded_cmds.size() == 0);
+    REQUIRE(channel_stub->is_empty());
 
     CHECK(response[jsonrpc::RESULT] == true);
   }
 
   INFO("Write command on backup is forwarded to primary");
   {
-    enclave::RPCContext ctx(0, user_caller);
+    enclave::RPCContext ctx(enclave::InvalidSessionId, user_caller);
     REQUIRE(ctx.is_pending == false);
-    REQUIRE(backup_forwarder->forwarded_cmds.empty());
-    frontend_backup.process(ctx, serialized_call);
+    REQUIRE(channel_stub->is_empty());
+    user_frontend_backup.process(ctx, serialized_call);
     REQUIRE(ctx.is_pending == true);
-    REQUIRE(backup_forwarder->forwarded_cmds.size() == 1);
+    REQUIRE(channel_stub->size() == 1);
 
-    auto forwarded_cmd = backup_forwarder->forwarded_cmds.back();
-    backup_forwarder->forwarded_cmds.pop_back();
-    enclave::RPCContext fwd_ctx(0, 0, 0);
-    auto serialized_response =
-      frontend_primary.process_forwarded(fwd_ctx, forwarded_cmd);
+    auto forwarded_msg = channel_stub->get_pop_back();
+    auto [fwd_ctx, node_id, forwarded_cmd] =
+      backup_forwarder
+        ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
+        .value();
 
-    auto response =
-      jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
-    CHECK(response[jsonrpc::RESULT] == true);
+    INFO("Invalid caller");
+    {
+      auto response = jsonrpc::unpack(
+        user_frontend_primary.process_forwarded(fwd_ctx, forwarded_cmd),
+        jsonrpc::Pack::MsgPack);
+      CHECK(
+        response[jsonrpc::ERR][jsonrpc::CODE] ==
+        static_cast<jsonrpc::ErrorBaseType>(
+          jsonrpc::CCFErrorCodes::INVALID_CALLER_ID));
+    };
+
+    INFO("Valid caller");
+    {
+      add_callers_primary_store();
+      auto response = jsonrpc::unpack(
+        user_frontend_primary.process_forwarded(fwd_ctx, forwarded_cmd),
+        jsonrpc::Pack::MsgPack);
+      CHECK(response[jsonrpc::RESULT] == true);
+    }
   }
 
   INFO("Forwarding write command to a backup return TX_NOT_PRIMARY");
   {
-    enclave::RPCContext ctx(0, user_caller);
+    enclave::RPCContext ctx(enclave::InvalidSessionId, user_caller);
     REQUIRE(ctx.is_pending == false);
-    REQUIRE(backup_forwarder->forwarded_cmds.empty());
-    frontend_backup.process(ctx, serialized_call);
+    REQUIRE(channel_stub->is_empty());
+    user_frontend_backup.process(ctx, serialized_call);
     REQUIRE(ctx.is_pending == true);
-    REQUIRE(backup_forwarder->forwarded_cmds.size() == 1);
+    REQUIRE(channel_stub->size() == 1);
 
-    auto forwarded_cmd = backup_forwarder->forwarded_cmds.back();
-    backup_forwarder->forwarded_cmds.pop_back();
-    enclave::RPCContext fwd_ctx(0, 0, 0);
+    auto forwarded_msg = channel_stub->get_pop_back();
+    auto [fwd_ctx, node_id, forwarded_cmd] =
+      backup_forwarder
+        ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
+        .value();
 
     // Processing forwarded response by a backup frontend (here, the same
     // frontend that the command was originally issued to)
-    auto serialized_response =
-      frontend_backup.process_forwarded(fwd_ctx, forwarded_cmd);
-    auto response =
-      jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
+    auto response = jsonrpc::unpack(
+      user_frontend_backup.process_forwarded(fwd_ctx, forwarded_cmd),
+      jsonrpc::Pack::MsgPack);
 
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
@@ -615,25 +682,27 @@ TEST_CASE("Forwarding")
 
   INFO("Client signature on forwarded RPC is recorded by primary");
   {
-    enclave::RPCContext ctx(0, user_caller);
+    enclave::RPCContext ctx(enclave::InvalidSessionId, user_caller);
     Store::Tx tx;
 
     REQUIRE(ctx.is_pending == false);
-    REQUIRE(backup_forwarder->forwarded_cmds.empty());
+    REQUIRE(channel_stub->is_empty());
     auto signed_call = create_signed_json();
     auto serialized_signed_call =
       jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
-    frontend_backup.process(ctx, serialized_signed_call);
+    user_frontend_backup.process(ctx, serialized_signed_call);
     REQUIRE(ctx.is_pending == true);
-    REQUIRE(backup_forwarder->forwarded_cmds.size() == 1);
+    REQUIRE(channel_stub->size() == 1);
 
-    auto forwarded_cmd = backup_forwarder->forwarded_cmds.back();
-    backup_forwarder->forwarded_cmds.pop_back();
+    auto forwarded_msg = channel_stub->get_pop_back();
+    auto [fwd_ctx, node_id, forwarded_cmd] =
+      backup_forwarder
+        ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
+        .value();
+
+    user_frontend_primary.process_forwarded(fwd_ctx, forwarded_cmd);
 
     CallerId user_caller_id = 0;
-    enclave::RPCContext fwd_ctx(0, 0, user_caller_id);
-    frontend_primary.process_forwarded(fwd_ctx, forwarded_cmd);
-
     auto client_sig_view = tx.get_view(network2.user_client_signatures);
     auto client_sig = client_sig_view->get(user_caller_id);
     REQUIRE(client_sig.has_value());
@@ -642,20 +711,143 @@ TEST_CASE("Forwarding")
 
   INFO("Write command should not be forwarded if marked as non-forwardable");
   {
-    TestNoForwardingFrontEnd frontend_backup_no_forwarding(*network.tables);
+    TestNoForwardingFrontEnd user_frontend_backup_no_forwarding(
+      *network.tables);
 
-    auto backup2_forwarder = std::make_shared<StubForwarder>();
+    auto backup2_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
+      nullptr, channel_stub, nullptr);
     auto backup2_consensus = std::make_shared<kv::BackupStubConsensus>();
     network.tables->set_consensus(backup_consensus);
-    frontend_backup_no_forwarding.set_cmd_forwarder(backup2_forwarder);
+    user_frontend_backup_no_forwarding.set_cmd_forwarder(backup2_forwarder);
 
-    enclave::RPCContext ctx(0, nullb);
+    enclave::RPCContext ctx(enclave::InvalidSessionId, {});
     REQUIRE(ctx.is_pending == false);
-    REQUIRE(backup2_forwarder->forwarded_cmds.empty());
-    frontend_backup_no_forwarding.process(ctx, serialized_call);
+    REQUIRE(channel_stub->is_empty());
+    user_frontend_backup_no_forwarding.process(ctx, serialized_call);
     REQUIRE(ctx.is_pending == false);
-    REQUIRE(backup2_forwarder->forwarded_cmds.size() == 0);
+    REQUIRE(channel_stub->size() == 0);
   }
+}
+
+TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
+{
+  prepare_callers();
+
+  TestForwardingNodeFrontEnd node_frontend_backup(network, node);
+  TestForwardingNodeFrontEnd node_frontend_primary(network2, node);
+  auto channel_stub = std::make_shared<ChannelStubProxy>();
+
+  auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
+    nullptr, channel_stub, nullptr);
+  node_frontend_backup.set_cmd_forwarder(backup_forwarder);
+  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  network.tables->set_consensus(backup_consensus);
+
+  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  network2.tables->set_consensus(primary_consensus);
+
+  auto write_req = create_simple_json();
+  auto serialized_call = jsonrpc::pack(write_req, jsonrpc::Pack::MsgPack);
+
+  enclave::RPCContext ctx(enclave::InvalidSessionId, node_caller);
+  node_frontend_backup.process(ctx, serialized_call);
+  REQUIRE(ctx.is_pending == true);
+  REQUIRE(channel_stub->size() == 1);
+
+  auto forwarded_msg = channel_stub->get_pop_back();
+  auto [fwd_ctx, node_id, forwarded_cmd] =
+    backup_forwarder
+      ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
+      .value();
+
+  auto response = jsonrpc::unpack(
+    node_frontend_primary.process_forwarded(fwd_ctx, forwarded_cmd),
+    jsonrpc::Pack::MsgPack);
+
+  CHECK(node_frontend_primary.last_caller_cert == node_caller);
+  CHECK(node_frontend_primary.last_caller_id == INVALID_ID);
+}
+
+TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
+{
+  prepare_callers();
+  add_callers_primary_store();
+
+  TestForwardingUserFrontEnd user_frontend_backup(*network.tables);
+  TestForwardingUserFrontEnd user_frontend_primary(*network2.tables);
+  auto channel_stub = std::make_shared<ChannelStubProxy>();
+
+  auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
+    nullptr, channel_stub, nullptr);
+  user_frontend_backup.set_cmd_forwarder(backup_forwarder);
+  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  network.tables->set_consensus(backup_consensus);
+
+  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  network2.tables->set_consensus(primary_consensus);
+
+  auto write_req = create_simple_json();
+  auto serialized_call = jsonrpc::pack(write_req, jsonrpc::Pack::MsgPack);
+
+  enclave::RPCContext ctx(enclave::InvalidSessionId, user_caller);
+  user_frontend_backup.process(ctx, serialized_call);
+  REQUIRE(ctx.is_pending == true);
+  REQUIRE(channel_stub->size() == 1);
+
+  auto forwarded_msg = channel_stub->get_pop_back();
+  auto [fwd_ctx, node_id, forwarded_cmd] =
+    backup_forwarder
+      ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
+      .value();
+
+  auto response = jsonrpc::unpack(
+    user_frontend_primary.process_forwarded(fwd_ctx, forwarded_cmd),
+    jsonrpc::Pack::MsgPack);
+
+  CHECK(user_frontend_primary.last_caller_cert == user_caller);
+  CHECK(user_frontend_primary.last_caller_id == 0);
+}
+
+TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
+{
+  prepare_callers();
+  add_callers_primary_store();
+
+  TestForwardingMemberFrontEnd member_frontend_backup(
+    *network.tables, network, node);
+  TestForwardingMemberFrontEnd member_frontend_primary(
+    *network2.tables, network2, node);
+  auto channel_stub = std::make_shared<ChannelStubProxy>();
+
+  auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
+    nullptr, channel_stub, nullptr);
+  member_frontend_backup.set_cmd_forwarder(backup_forwarder);
+  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  network.tables->set_consensus(backup_consensus);
+
+  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  network2.tables->set_consensus(primary_consensus);
+
+  auto write_req = create_simple_json();
+  auto serialized_call = jsonrpc::pack(write_req, jsonrpc::Pack::MsgPack);
+
+  enclave::RPCContext ctx(enclave::InvalidSessionId, member_caller);
+  member_frontend_backup.process(ctx, serialized_call);
+  REQUIRE(ctx.is_pending == true);
+  REQUIRE(channel_stub->size() == 1);
+
+  auto forwarded_msg = channel_stub->get_pop_back();
+  auto [fwd_ctx, node_id, forwarded_cmd] =
+    backup_forwarder
+      ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
+      .value();
+
+  auto response = jsonrpc::unpack(
+    member_frontend_primary.process_forwarded(fwd_ctx, forwarded_cmd),
+    jsonrpc::Pack::MsgPack);
+
+  CHECK(member_frontend_primary.last_caller_cert == member_caller);
+  CHECK(member_frontend_primary.last_caller_id == 0);
 }
 
 TEST_CASE("App-defined errors")
@@ -663,7 +855,6 @@ TEST_CASE("App-defined errors")
   prepare_callers();
 
   TestAppErrorFrontEnd frontend(*network.tables);
-
   {
     auto foo_call = create_simple_json();
     foo_call[jsonrpc::METHOD] = "foo";

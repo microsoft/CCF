@@ -38,12 +38,12 @@ struct Array
   Array(const Array<U>& b) : p(b.p), n(b.n)
   {}
 
-  bool operator==(const Array<T>& that)
+  bool operator==(const Array<T>& that) const
   {
     return (that.n == n) && (that.p == p);
   }
 
-  bool operator!=(const Array<T>& that)
+  bool operator!=(const Array<T>& that) const
   {
     return !(*this == that);
   }
@@ -59,22 +59,6 @@ using CArray = Array<const T>;
 using Buffer = Array<uint8_t>;
 using CBuffer = Array<const uint8_t>;
 constexpr CBuffer nullb;
-
-template <typename T>
-struct UntrustedArray : public Array<T>
-{
-  using Array<T>::Array;
-  Array<T> load()
-  {
-    return *this;
-  }
-
-  template <typename U, typename V = void>
-  using ENABLE_CTOR = std::enable_if_t<std::is_convertible<U*, T*>::value, V>;
-  template <typename U, typename = ENABLE_CTOR<U>>
-  UntrustedArray(const Array<U>& b) : Array<T>(b)
-  {}
-};
 
 template <typename T>
 CBuffer asCb(const T& o)

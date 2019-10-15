@@ -2,7 +2,7 @@
 -- Licensed under the Apache 2.0 License.
 
 -- This file defines the default initial contents (ie, Lua scripts) of the gov_scipts table.
-return {  
+return {
   pass = [[
   tables, calls, votes = ...
 
@@ -18,10 +18,10 @@ return {
   members_active = 0
   STATE_ACTIVE = 1
 
-  tables["ccf.members"]:foreach(function(member, details) 
+  tables["ccf.members"]:foreach(function(member, details)
     if details["status"] == STATE_ACTIVE then
-      members_active = members_active + 1 
-    end 
+      members_active = members_active + 1
+    end
   end)
 
   -- check for raw_puts to sensitive tables
@@ -31,7 +31,7 @@ return {
       for _, sensitive_table in pairs(SENSITIVE_TABLES) do
         if call.args[sensitive_table] then
           -- require unanimity
-          return member_votes == members_active 
+          return member_votes == members_active
         end
       end
     end
@@ -60,7 +60,7 @@ return {
   end
   -- create a frontend for __Puts that hides function entries
   Puts = setmetatable({}, {__index = __Puts})
-  
+
   __Calls = {}
   function __Calls:new(o)
     o = o or {}
@@ -94,6 +94,7 @@ return {
   NEXT_USER_ID = 1
   user_id = tables["ccf.values"]:get(NEXT_USER_ID)
   tables["ccf.values"]:put(NEXT_USER_ID, user_id + 1)
+  tables["ccf.users"]:put(user_id, {cert=cert})
   tables["ccf.user_certs"]:put(cert, user_id)
   ]]
 }

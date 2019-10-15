@@ -28,7 +28,7 @@ def run(args):
         for i in range(1, 4):
             LOG.info(f"Adding node {i}")
             assert network.create_and_trust_node(
-                args.package, "localhost", args, should_wait=False
+                args.package, "localhost", args, target_node=None, should_wait=False
             )
 
         network.add_users(primary, network.initial_users)

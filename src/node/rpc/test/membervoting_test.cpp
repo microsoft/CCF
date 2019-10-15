@@ -128,7 +128,7 @@ auto read_params(const T& key, const string& table_name)
 
 nlohmann::json get_proposal(
   enclave::RPCContext& rpc_ctx,
-  RpcFrontend& frontend,
+  MemberRpcFrontend& frontend,
   size_t proposal_id,
   CallerId as_member)
 {
@@ -168,7 +168,7 @@ auto init_frontend(
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
-  return MemberCallRpcFrontend(network, node);
+  return MemberRpcFrontend(network, node);
 }
 
 TEST_CASE("Member query/read")
@@ -179,10 +179,10 @@ TEST_CASE("Member query/read")
   GenesisGenerator gen(network);
   gen.init_values();
   StubNodeState node;
-  MemberCallRpcFrontend frontend(network, node);
+  MemberRpcFrontend frontend(network, node);
   const auto mid = gen.add_member(mcert, MemberStatus::ACCEPTED);
   gen.finalize();
-  enclave::RPCContext rpc_ctx(0, nullb);
+  enclave::RPCContext rpc_ctx(0, {});
 
   // put value to read
   constexpr auto key = 123;
@@ -303,7 +303,7 @@ TEST_CASE("Proposer ballot")
   gen.finalize();
 
   StubNodeState node;
-  MemberCallRpcFrontend frontend(network, node);
+  MemberRpcFrontend frontend(network, node);
 
   size_t proposal_id;
 
@@ -417,7 +417,7 @@ TEST_CASE("Add new members until there are 7, then reject")
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
-  MemberCallRpcFrontend frontend(network, node);
+  MemberRpcFrontend frontend(network, node);
 
   vector<NewMember> new_members(n_new_members);
 
@@ -598,7 +598,7 @@ TEST_CASE("Accept node")
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
-  MemberCallRpcFrontend frontend(network, node);
+  MemberRpcFrontend frontend(network, node);
   auto node_id = 0;
   // check node exists with status pending
   {
@@ -663,7 +663,7 @@ bool test_raw_writes(
   const int pro_votes = 1,
   bool explicit_proposer_vote = false)
 {
-  enclave::RPCContext rpc_ctx(0, nullb);
+  enclave::RPCContext rpc_ctx(0, {});
   auto frontend = init_frontend(network, gen, node, n_members);
   // check values before
   {
@@ -760,7 +760,7 @@ TEST_CASE("Propose raw writes")
         -- increment id
         p:put("ccf.values", NEXT_MEMBER_ID_VALUE, member_id + 1)
         -- write member cert and status
-        p:put("ccf.members", member_id, {status = STATE_ACTIVE})
+        p:put("ccf.members", member_id, {cert = cert, status = STATE_ACTIVE})
         p:put("ccf.member_certs", cert, member_id)
         return Calls:call("raw_puts", p)
       )xxx"s,
@@ -832,13 +832,13 @@ TEST_CASE("Remove proposal")
   gen.init_values();
 
   StubNodeState node;
-  enclave::RPCContext rpc_ctx(0, nullb);
+  enclave::RPCContext rpc_ctx(0, {});
   gen.add_member(member_caller, MemberStatus::ACTIVE);
   gen.add_member(caller.cert, MemberStatus::ACTIVE);
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
-  MemberCallRpcFrontend frontend(network, node);
+  MemberRpcFrontend frontend(network, node);
   auto proposal_id = 0;
   auto wrong_proposal_id = 1;
   ccf::Script proposal_script(R"xxx(
@@ -980,12 +980,12 @@ TEST_CASE("Add user via proposed call")
   GenesisGenerator gen(network);
   gen.init_values();
   StubNodeState node;
-  enclave::RPCContext rpc_ctx(0, nullb);
+  enclave::RPCContext rpc_ctx(0, {});
   gen.add_member(Cert{0}, MemberStatus::ACTIVE);
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
-  MemberCallRpcFrontend frontend(network, node);
+  MemberRpcFrontend frontend(network, node);
 
   Script proposal(R"xxx(
     tables, user_cert = ...
@@ -1037,7 +1037,7 @@ TEST_CASE("Passing members ballot with operator")
   gen.finalize();
 
   StubNodeState node;
-  MemberCallRpcFrontend frontend(network, node);
+  MemberRpcFrontend frontend(network, node);
 
   size_t proposal_id;
   size_t proposer_id = 1;
@@ -1157,7 +1157,7 @@ TEST_CASE("Passing operator vote")
   gen.finalize();
 
   StubNodeState node;
-  MemberCallRpcFrontend frontend(network, node);
+  MemberRpcFrontend frontend(network, node);
 
   size_t proposal_id;
 
@@ -1250,7 +1250,7 @@ TEST_CASE("Members passing an operator vote")
   gen.finalize();
 
   StubNodeState node;
-  MemberCallRpcFrontend frontend(network, node);
+  MemberRpcFrontend frontend(network, node);
 
   size_t proposal_id;
 

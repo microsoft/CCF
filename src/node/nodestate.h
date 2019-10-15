@@ -133,9 +133,10 @@ namespace ccf
     NetworkState& network;
 
     std::shared_ptr<kv::Consensus> consensus;
-    std::shared_ptr<enclave::RpcMap> rpc_map;
+    std::shared_ptr<enclave::RPCMap> rpc_map;
     std::shared_ptr<NodeToNode> n2n_channels;
-    enclave::RPCSessions& rpcsessions;
+    std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
+    std::shared_ptr<enclave::RPCSessions> rpcsessions;
     ccf::Notifier& notifier;
     Timers& timers;
 
@@ -168,7 +169,7 @@ namespace ccf
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
-      enclave::RPCSessions& rpcsessions,
+      std::shared_ptr<enclave::RPCSessions> rpcsessions,
       ccf::Notifier& notifier,
       Timers& timers) :
       sm(State::uninitialized),
@@ -190,7 +191,8 @@ namespace ccf
     void initialize(
       const raft::Config& raft_config_,
       std::shared_ptr<NodeToNode> n2n_channels_,
-      std::shared_ptr<enclave::RpcMap> rpc_map_)
+      std::shared_ptr<enclave::RPCMap> rpc_map_,
+      std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder_)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::uninitialized);
@@ -199,6 +201,7 @@ namespace ccf
       n2n_channels = n2n_channels_;
       // Capture rpc_map to pass to pbft for frontend execution
       rpc_map = rpc_map_;
+      cmd_forwarder = cmd_forwarder_;
       sm.advance(State::initialized);
     }
 
@@ -335,7 +338,8 @@ namespace ccf
         Actors::NODES, tls_ca, node_cert, node_kp->private_key_pem(), nullb);
 
       // Create RPC client and connect to remote node
-      auto join_client = rpcsessions.create_client(std::move(join_client_cert));
+      auto join_client =
+        rpcsessions->create_client(std::move(join_client_cert));
 
       join_client->connect(
         args.config.joining.target_host,
@@ -983,7 +987,6 @@ namespace ccf
       nodes_view->foreach([&result](const NodeId& nid, const NodeInfo& ni) {
         if (ni.status == ccf::NodeStatus::TRUSTED)
         {
-          LOG_FAIL_FMT("One node is trusted! {}", nid);
           GetQuotes::Quote quote;
           quote.node_id = nid;
           quote.raw = std::string(ni.quote.begin(), ni.quote.end());
@@ -1020,7 +1023,7 @@ namespace ccf
         nw->sign_csr(members_keypair->create_csr("CN=members"), "CN=The CA");
 
       // Accept member connections.
-      rpcsessions.add_cert(
+      rpcsessions->add_cert(
         ccf::Actors::MEMBERS, nullb, members_cert, members_privkey);
     }
 
@@ -1034,7 +1037,7 @@ namespace ccf
         nw->sign_csr(nodes_keypair->create_csr("CN=nodes"), "CN=The CA");
 
       // Accept node connections.
-      rpcsessions.add_cert(
+      rpcsessions->add_cert(
         ccf::Actors::NODES, nullb, nodes_cert, nodes_privkey);
     }
 
@@ -1048,7 +1051,7 @@ namespace ccf
         nw->sign_csr(users_keypair->create_csr("CN=users"), "CN=The CA");
 
       // Accept user connections.
-      rpcsessions.add_cert(
+      rpcsessions->add_cert(
         ccf::Actors::USERS, nullb, users_cert, users_privkey);
     }
 
@@ -1157,13 +1160,18 @@ namespace ccf
 
     void setup_n2n_channels()
     {
-      // setup node-to-node channels
       n2n_channels->initialize(self, {network.secrets->get_current().priv_key});
+    }
+
+    void setup_cmd_forwarder()
+    {
+      cmd_forwarder->initialize(self);
     }
 
     void setup_raft(bool public_only = false)
     {
       setup_n2n_channels();
+      setup_cmd_forwarder();
 
       auto raft = std::make_unique<RaftType>(
         std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(
