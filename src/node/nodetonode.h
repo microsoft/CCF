@@ -103,10 +103,10 @@ namespace ccf
     }
 
     template <class T>
-    std::pair<const T&, std::vector<uint8_t>> recv_encrypted(
-      const uint8_t* data, size_t size)
+    std::pair<T, std::vector<uint8_t>>
+    recv_encrypted(const uint8_t* data, size_t size)
     {
-      const auto& t = serialized::overlay<T>(data, size);
+      auto t = serialized::read<T>(data, size);
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
       std::vector<uint8_t> plain(size);
 

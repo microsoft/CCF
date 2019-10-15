@@ -111,6 +111,8 @@ namespace ccf
       }
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
 
+      LOG_FAIL_FMT("recv forwarded cmd: {}", r.first.from_node);
+
       return std::make_tuple(
         enclave::RPCContext(client_session_id, caller_id, actor, caller_cert),
         r.first.from_node,
