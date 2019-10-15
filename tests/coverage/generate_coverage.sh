@@ -6,7 +6,7 @@ set -ex
 
 suffix=$1
 
-LLVM_VER=7
+LLVM_VER=8
 LLVM_COV=llvm-cov-${LLVM_VER}
 LLVM_PROFDATA=llvm-profdata-${LLVM_VER}
 
