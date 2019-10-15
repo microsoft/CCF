@@ -40,8 +40,6 @@ def run(args):
         network.vote_using_majority(primary, result[1]["id"], False)
         LOG.info("***** Network is now open *****")
 
-        time.sleep(5)
-
         # with primary.node_client() as mc:
         #    check_commit = infra.ccf.Checker(mc)
         #    check = infra.ccf.Checker()
