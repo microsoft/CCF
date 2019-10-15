@@ -41,7 +41,6 @@ namespace ccf
     void initialize(NodeId self_)
     {
       self = self_;
-      LOG_FAIL_FMT("Forwarder initialised to {}", self);
     }
 
     bool forward_command(
@@ -76,8 +75,6 @@ namespace ccf
 
       ForwardedHeader msg = {ForwardedMsg::forwarded_cmd, self};
 
-      LOG_FAIL_FMT("Forwarding command to {} from {}", to, self);
-
       return n2n_channels->send_encrypted(to, plain, msg);
     }
 
@@ -110,8 +107,6 @@ namespace ccf
         caller_cert = serialized::read(data_, size_, caller_size);
       }
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
-
-      LOG_FAIL_FMT("recv forwarded cmd: {}", r.first.from_node);
 
       return std::make_tuple(
         enclave::RPCContext(client_session_id, caller_id, actor, caller_cert),
@@ -175,8 +170,6 @@ namespace ccf
               return;
 
             auto [ctx, from_node, request] = r.value();
-
-            LOG_FAIL_FMT("Received fwd command from {}", from_node);
 
             auto handler = rpc_map->find(ctx.actor);
             if (!handler.has_value())

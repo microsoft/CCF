@@ -244,7 +244,6 @@ namespace ccf
                              node_cert,
                              quote,
                              NodeStatus::TRUSTED});
-          LOG_FAIL_FMT("[new] self is {}", self);
 
 #ifdef GET_QUOTE
           // Trust own code id
@@ -380,7 +379,6 @@ namespace ccf
               !public_only);
 
             self = resp->node_id;
-            LOG_FAIL_FMT("[join] self is {}", self);
 #ifdef PBFT
             setup_pbft();
 #else
@@ -989,7 +987,6 @@ namespace ccf
       nodes_view->foreach([&result](const NodeId& nid, const NodeInfo& ni) {
         if (ni.status == ccf::NodeStatus::TRUSTED)
         {
-          LOG_FAIL_FMT("One node is trusted! {}", nid);
           GetQuotes::Quote quote;
           quote.node_id = nid;
           quote.raw = std::string(ni.quote.begin(), ni.quote.end());
