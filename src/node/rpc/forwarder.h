@@ -172,6 +172,8 @@ namespace ccf
 
             auto [ctx, from_node, request] = r.value();
 
+            LOG_FAIL_FMT("Received fwd command from {}", from_node);
+
             auto handler = rpc_map->find(ctx.actor);
             if (!handler.has_value())
               return;

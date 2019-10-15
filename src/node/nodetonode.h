@@ -87,6 +87,7 @@ namespace ccf
       auto& n2n_channel = channels->get(to);
       if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
       {
+        LOG_FAIL_FMT("Channel with {} is not established", to);
         establish_channel(to);
         return false;
       }
