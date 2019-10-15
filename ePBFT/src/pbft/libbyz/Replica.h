@@ -212,8 +212,8 @@ private:
 
   void send_prepare(Seqno seqno, std::optional<ByzInfo> info = std::nullopt);
   // Effects: Sends a prepare message if appropriate.
-  // No need to execute since execution has already happened
-  // and relative information relies in ByzInfo
+  // If ByzInfo is provided there is no need to execute since execution has
+  // already happened and relative information relies in info
 
   void send_commit(Seqno s);
 
