@@ -229,13 +229,100 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
   }
 }
 
+bool Replica::compare_execution_results(
+  const ByzInfo& info, Pre_prepare* pre_prepare)
+{
+  auto& pp_root = pre_prepare->get_merkle_root();
+  if (!std::equal(
+        std::begin(pp_root), std::end(pp_root), std::begin(info.merkle_root)))
+  {
+    LOG_FAIL << "Merkle root between execution and the pre_prepare message "
+                "does not match, seqno:"
+             << pre_prepare->seqno() << std::endl;
+    return false;
+  }
+
+  auto tx_ctx = pre_prepare->get_ctx();
+  if (tx_ctx != info.ctx)
+  {
+    LOG_FAIL << "User ctx between execution and the pre_prepare message "
+                "does not match, seqno:"
+             << pre_prepare->seqno() << std::endl;
+    return false;
+  }
+  return true;
+}
+
+size_t Replica::ledger_cursor() const
+{
+  return ledger_replay->cursor();
+}
+
+bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
+{
+  PBFT_ASSERT(
+    !data.empty(), "apply ledger data should not receive empty vector");
+
+  auto executable_pp =
+    ledger_replay->process_data(data, rqueue, brt, ledger_writer.get());
+
+  if (executable_pp)
+  {
+    auto seqno = executable_pp->seqno();
+
+    ByzInfo info;
+    if (execute_tentative(executable_pp.get(), info))
+    {
+      auto batch_info = compare_execution_results(info, executable_pp.get());
+      if (!batch_info)
+      {
+        return false;
+      }
+
+      next_pp_seqno = seqno;
+
+      if (ledger_writer)
+      {
+        ledger_writer->write_pre_prepare(executable_pp.get());
+      }
+
+      if (seqno > last_prepared)
+      {
+        last_prepared = seqno;
+      }
+
+      if (global_commit_cb != nullptr)
+      {
+        global_commit_cb(executable_pp->get_ctx(), global_commit_ctx);
+      }
+
+      last_executed++;
+
+      if (last_executed % checkpoint_interval == 0)
+      {
+        mark_stable(last_executed, true);
+      }
+    }
+    else
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+void Replica::init_state()
+{
+  // Compute digest of initial state and first checkpoint.
+  state.compute_full_digest();
+}
+
 void Replica::recv_start()
 {
   // Compute session keys and send initial new-key message.
   Node::send_new_key();
 
-  // Compute digest of initial state and first checkpoint.
-  state.compute_full_digest();
+  init_state();
 
   // Start status and authentication freshness timers
   stimer->start();
@@ -683,24 +770,9 @@ void Replica::send_prepare(Seqno seqno)
         break;
       }
 
-      auto& pp_root = pp->get_merkle_root();
-      if (!std::equal(
-            std::begin(pp_root),
-            std::end(pp_root),
-            std::begin(info.merkle_root)))
+      auto batch_info = compare_execution_results(info, pp);
+      if (!batch_info)
       {
-        LOG_FAIL << "Merkle root between execution and the pre_prepare message "
-                    "does not match, seqno:"
-                 << seqno << std::endl;
-        break;
-      }
-
-      auto tx_ctx = pp->get_ctx();
-      if (tx_ctx != info.ctx)
-      {
-        LOG_FAIL << "User ctx between execution and the pre_prepare message "
-                    "does not match, seqno:"
-                 << seqno << std::endl;
         break;
       }
 
@@ -1735,7 +1807,7 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
     !state.in_check_state() && has_complete_new_view())
   {
     last_tentative_execute = last_tentative_execute + 1;
-    LOG_TRACE << "in execute tenative with last_tentative_execute: "
+    LOG_TRACE << "in execute tentative with last_tentative_execute: "
               << last_tentative_execute
               << " and last_executed: " << last_executed << std::endl;
 

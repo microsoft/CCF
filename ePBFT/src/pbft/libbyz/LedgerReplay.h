@@ -24,7 +24,7 @@ public:
   std::unique_ptr<T> create_message(
     const uint8_t* message_data, size_t data_size);
   size_t cursor() const;
-  void apply_data(
+  std::unique_ptr<Pre_prepare> process_data(
     const std::vector<uint8_t>& data,
     Req_queue& rqueue,
     Big_req_table& brt,
