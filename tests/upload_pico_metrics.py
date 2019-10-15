@@ -84,3 +84,4 @@ if __name__ == "__main__":
             upload_name = f"{name}_{i}" if many_results else name
             LOG.debug(f"Uploading metric: {upload_name} = {result}")
             metrics.put(upload_name, result)
+    metrics.publish()
