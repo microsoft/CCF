@@ -5,14 +5,15 @@
 
 namespace ccf
 {
-  class UserRpcFrontend : public RpcFrontend
+  class UserRpcFrontend : public RpcFrontend<Users>
   {
   public:
     UserRpcFrontend(Store& tables_) :
-      RpcFrontend(
+      RpcFrontend<Users>(
         tables_,
         tables_.get<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES),
-        tables_.get<Certs>(Tables::USER_CERTS))
+        tables_.get<Certs>(Tables::USER_CERTS),
+        tables_.get<Users>(Tables::USERS))
     {}
   };
 }

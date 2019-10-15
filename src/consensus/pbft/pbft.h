@@ -104,7 +104,7 @@ namespace pbft
     std::unique_ptr<PbftEnclaveNetwork> pbft_network;
     std::unique_ptr<AbstractPbftConfig> pbft_config;
     std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
-    enclave::RPCSessions& rpcsessions;
+    std::shared_ptr<enclave::RPCSessions> rpcsessions;
     std::unique_ptr<consensus::LedgerEnclave> ledger;
     SeqNo global_commit_seqno;
     std::unique_ptr<pbft::Store> store;
@@ -121,8 +121,8 @@ namespace pbft
       std::shared_ptr<ChannelProxy> channels_,
       NodeId id,
       std::unique_ptr<consensus::LedgerEnclave> ledger_,
-      std::shared_ptr<enclave::RpcMap> rpc_map,
-      enclave::RPCSessions& rpcsessions_) :
+      std::shared_ptr<enclave::RPCMap> rpc_map,
+      std::shared_ptr<enclave::RPCSessions> rpcsessions_) :
       Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
@@ -235,17 +235,9 @@ namespace pbft
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
-      auto total_req_size = pbft_config->message_size() + args.request.size() +
-        args.caller_cert.rawSize();
-
-      uint8_t request_buffer[total_req_size];
-      pbft_config->fill_request(
-        request_buffer,
-        total_req_size,
-        args.request,
-        args.actor,
-        args.caller_id,
-        args.caller_cert);
+      ccf_req request = {
+        args.actor, args.caller_id, args.caller_cert, args.request};
+      auto serialized_req = request.serialise();
 
       auto rep_cb = [&](
                       void* owner,
@@ -255,15 +247,15 @@ namespace pbft
                       size_t len) {
         LOG_DEBUG_FMT("PBFT reply callback for {}", caller_rid);
 
-        return rpcsessions.reply_async(
+        return rpcsessions->reply_async(
           std::get<1>(caller_rid), {reply, reply + len});
       };
 
       LOG_DEBUG_FMT("PBFT sending request {}", args.rid);
       return client_proxy->send_request(
         args.rid,
-        request_buffer,
-        sizeof(request_buffer),
+        serialized_req.data(),
+        serialized_req.size(),
         rep_cb,
         client_proxy.get());
     }

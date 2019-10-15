@@ -75,7 +75,7 @@ if __name__ == "__main__":
                         ops_per_sec = dimension * (1000000000.0 / total_time)
                         LOG.trace(f"Calculated {ops_per_sec:.2f} ops/sec")
                         name = spec.get("_name") or spec.get("Suite") or "UNNAMED"
-                        found_metrics[name].append(ops_per_sec)
+                        found_metrics[name].append(float(format(ops_per_sec, ".2f")))
 
     metrics = cimetrics.upload.Metrics()
     for name, results in found_metrics.items():

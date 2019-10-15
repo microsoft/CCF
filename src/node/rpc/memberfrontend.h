@@ -16,7 +16,7 @@
 
 namespace ccf
 {
-  class MemberCallRpcFrontend : public RpcFrontend
+  class MemberRpcFrontend : public RpcFrontend<Members>
   {
   private:
     Script get_script(Store::Tx& tx, std::string name)
@@ -76,7 +76,7 @@ namespace ccf
            mc->put(cert, id);
            // set state to ACCEPTED
            tx.get_view(this->network.members)
-             ->put(id, {MemberStatus::ACCEPTED});
+             ->put(id, {cert, MemberStatus::ACCEPTED});
            // create nonce for ACK
            tx.get_view(this->network.member_acks)
              ->put(id, {rng->random(SIZE_NONCE)});
@@ -255,11 +255,12 @@ namespace ccf
     static constexpr auto SIZE_NONCE = 16;
 
   public:
-    MemberCallRpcFrontend(NetworkTables& network, AbstractNodeState& node) :
+    MemberRpcFrontend(NetworkTables& network, AbstractNodeState& node) :
       RpcFrontend(
         *network.tables,
         &network.member_client_signatures,
-        &network.member_certs),
+        &network.member_certs,
+        &network.members),
       network(network),
       node(node),
       tsr(network),

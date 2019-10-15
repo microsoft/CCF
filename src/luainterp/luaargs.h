@@ -33,7 +33,7 @@ namespace ccf
      * which should be accessible to lua RPC handlers.
      */
     template <>
-    inline void push_raw(lua_State* l, const RpcFrontend::RequestArgs& args)
+    inline void push_raw(lua_State* l, const RequestArgs& args)
     {
       lua_createtable(l, 0, 3);
 

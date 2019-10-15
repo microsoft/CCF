@@ -102,17 +102,18 @@ namespace ccf
     }
 
     template <class T>
-    std::vector<uint8_t> recv_encrypted(
-      const T& msg, const uint8_t* data, size_t size)
+    std::pair<T, std::vector<uint8_t>> recv_encrypted(
+      const uint8_t* data, size_t size)
     {
+      auto t = serialized::read<T>(data, size);
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
       std::vector<uint8_t> plain(size);
 
-      auto& n2n_channel = channels->get(msg.from_node);
-      if (!n2n_channel.decrypt(hdr, asCb(msg), {data, size}, plain))
+      auto& n2n_channel = channels->get(t.from_node);
+      if (!n2n_channel.decrypt(hdr, asCb(t), {data, size}, plain))
         throw std::logic_error("Invalid encrypted node2node message");
 
-      return plain;
+      return std::make_pair(t, plain);
     }
 
     void process_key_exchange(const uint8_t* data, size_t size)

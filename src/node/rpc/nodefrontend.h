@@ -8,7 +8,7 @@
 
 namespace ccf
 {
-  class NodeRpcFrontend : public RpcFrontend
+  class NodeRpcFrontend : public RpcFrontend<>
   {
   private:
     NetworkState& network;
@@ -119,7 +119,7 @@ namespace ccf
 
   public:
     NodeRpcFrontend(NetworkState& network, AbstractNodeState& node) :
-      RpcFrontend(*network.tables),
+      RpcFrontend<>(*network.tables),
       network(network),
       node(node),
       signatures(tables.get<Signatures>(Tables::SIGNATURES))
@@ -138,10 +138,9 @@ namespace ccf
 
         // Convert caller cert from DER to PEM as PEM certificates
         // are quoted
-        auto caller_pem = tls::make_verifier({args.rpc_ctx.caller_cert.p,
-                                              args.rpc_ctx.caller_cert.p +
-                                                args.rpc_ctx.caller_cert.n})
-                            ->cert_pem();
+        auto caller_pem =
+          tls::make_verifier(std::vector<uint8_t>(args.rpc_ctx.caller_cert))
+            ->cert_pem();
         std::vector<uint8_t> caller_pem_raw = {caller_pem.str().begin(),
                                                caller_pem.str().end()};
 

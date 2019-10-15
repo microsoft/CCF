@@ -22,7 +22,7 @@ namespace enclave
   class RPCSessions : public AbstractRPCResponder
   {
   private:
-    std::shared_ptr<RpcMap> rpc_map;
+    std::shared_ptr<RPCMap> rpc_map;
     std::vector<std::shared_ptr<tls::Cert>> certs;
 
     SpinLock lock;
@@ -36,15 +36,12 @@ namespace enclave
     ringbuffer::AbstractWriterFactory& writer_factory;
 
   public:
-    RPCSessions(ringbuffer::AbstractWriterFactory& writer_factory) :
-      writer_factory(writer_factory)
+    RPCSessions(
+      ringbuffer::AbstractWriterFactory& writer_factory,
+      std::shared_ptr<RPCMap> rpc_map_) :
+      writer_factory(writer_factory),
+      rpc_map(rpc_map_)
     {}
-
-    void initialize(std::shared_ptr<RpcMap> rpc_map_)
-    {
-      std::lock_guard<SpinLock> guard(lock);
-      rpc_map = rpc_map_;
-    }
 
     void add_cert(
       const std::string& sni, CBuffer ca_cert, CBuffer cert, const tls::Pem& pk)

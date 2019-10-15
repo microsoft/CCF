@@ -1,5 +1,5 @@
 jobs:
-- job: Formatting_and_License_Checks
+- job: ${{ parameters.job_name }}
   displayName: 'Formatting and License Checks'
 
   ${{ insert }}: ${{ parameters.env }}
