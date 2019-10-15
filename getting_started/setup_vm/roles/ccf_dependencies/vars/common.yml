@@ -1,12 +1,14 @@
 workspace: "/tmp/"
 debs:
+  - apt-transport-https
   - ninja-build
   - libuv1-dev
-  - libc++-7-dev
-  - libc++abi-7-dev
+  - libc++-8-dev
+  - libc++abi-8-dev
   - python3.7-dev
   - python3.7-venv
-  - llvm-7
+  - llvm-8
+  - clang-8
   - expect
   - xsltproc
   - git
