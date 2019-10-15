@@ -111,6 +111,7 @@ namespace ccf
       std::vector<uint8_t> plain(size);
 
       auto& n2n_channel = channels->get(t.from_node);
+      LOG_FAIL_FMT("recv_encrypted t.from_node: {}", t.from_node);
       if (!n2n_channel.decrypt(hdr, asCb(t), {data, size}, plain))
         throw std::logic_error("Invalid encrypted node2node message");
 
