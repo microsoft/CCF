@@ -4,13 +4,13 @@ parameters:
 
   env:
     NoSGX:
-      containerResource: nosgx
+      container: nosgx
       pool: Ubuntu-1804-D8s_v3
     SGX:
-      containerResource: sgx
+      container: sgx
       pool: Ubuntu-1804-DC4s
     NoSGX_SAN:
-      containerResource: nosgx
+      container: nosgx
       pool: Ubuntu-1804-D16s_v3
 
   build:
