@@ -629,11 +629,7 @@ namespace ccf
           if (
             primary_id != NoNode && cmd_forwarder &&
             cmd_forwarder->forward_command(
-              ctx,
-              primary_id,
-              caller_id.value(),
-              input,
-              forwarded_caller_cert))
+              ctx, primary_id, caller_id.value(), input, forwarded_caller_cert))
           {
             // Indicate that the RPC has been forwarded to primary
             LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
