@@ -155,8 +155,6 @@ public:
 
   bool compare_execution_results(const ByzInfo& info, Pre_prepare* pre_prepare);
 
-  size_t ledger_cursor() const;
-
   bool apply_ledger_data(const std::vector<uint8_t>& data);
 
   void init_state();
@@ -212,8 +210,10 @@ private:
   void send_pre_prepare(bool do_not_wait_for_batch_size = false);
   // Effects: Sends a Pre_prepare message
 
-  void send_prepare(Seqno seqno);
+  void send_prepare(Seqno seqno, std::optional<ByzInfo> info = std::nullopt);
   // Effects: Sends a prepare message if appropriate.
+  // No need to execute since execution has already happened
+  // and relative information relies in ByzInfo
 
   void send_commit(Seqno s);
 

@@ -316,6 +316,18 @@ Request* Big_req_table::lookup(Digest& rd)
   return 0;
 }
 
+void Big_req_table::clear()
+{
+  for (auto it = breqs.begin(); it != breqs.end();)
+  {
+    auto bre = it->second;
+
+    remove_unmatched(bre);
+    delete bre;
+    it = breqs.erase(it);
+  }
+}
+
 void Big_req_table::mark_stable(Seqno ls)
 {
   last_stable = ls;
