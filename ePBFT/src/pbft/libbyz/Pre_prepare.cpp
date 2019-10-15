@@ -365,8 +365,9 @@ bool Pre_prepare::convert(Message* m1, Pre_prepare*& m2)
   m2->trim();
   return true;
 }
+
 void Pre_prepare::set_merkle_root_and_ctx(
-  std::array<uint8_t, MERKLE_ROOT_SIZE>& merkle_root, int64_t ctx)
+  const std::array<uint8_t, MERKLE_ROOT_SIZE>& merkle_root, int64_t ctx)
 {
   std::copy(
     std::begin(merkle_root),

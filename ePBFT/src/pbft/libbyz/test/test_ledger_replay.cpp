@@ -1,7 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-#pragma once
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+
 #include "LedgerReader.h"
 #include "Message.h"
 #include "Node.h"
@@ -9,19 +10,36 @@
 #include "Request.h"
 #include "network_mock.h"
 
-struct fake_req
-{
-  size_t counter;
-};
+#include <doctest/doctest.h>
 
-ExecCommand exec_command = [](
-                             Byz_req* inb,
-                             Byz_rep* outb,
-                             _Byz_buffer* non_det,
-                             int client,
-                             bool ro,
-                             Seqno total_requests_executed,
-                             ByzInfo& info) { return 0; };
+static constexpr size_t TOTAL_REQUESTS = 1050;
+
+class ExecutionMock
+{
+public:
+  ExecutionMock(size_t init_counter_) : command_counter(init_counter_) {}
+  size_t command_counter;
+  struct fake_req
+  {
+    uint8_t rt;
+    int64_t ctx;
+  };
+
+  ExecCommand exec_command = [](
+                               Byz_req* inb,
+                               Byz_rep* outb,
+                               _Byz_buffer* non_det,
+                               int client,
+                               bool ro,
+                               Seqno total_requests_executed,
+                               ByzInfo& info) {
+    auto request = reinterpret_cast<fake_req*>(inb->contents);
+    info.ctx = request->ctx;
+    info.merkle_root.fill(0);
+    info.merkle_root.data()[0] = request->rt;
+    return 0;
+  };
+};
 
 NodeInfo get_node_info()
 {
@@ -51,9 +69,9 @@ NodeInfo get_node_info()
 void init_replica(std::vector<char>& service_mem)
 {
   auto node_info = get_node_info();
-
   replica = new Replica(
     node_info, service_mem.data(), service_mem.size(), Create_Mock_Network());
+  replica->init_state();
   for (auto& pi : node_info.general_info.principal_info)
   {
     if (pi.id != node_info.own_info.id)
@@ -66,11 +84,14 @@ void init_replica(std::vector<char>& service_mem)
 TEST_CASE("Test Ledger Replay")
 {
   int mem_size = 400 * 8192;
+  std::vector<char> service_mem(mem_size, 0);
+  ExecutionMock exec_mock(0);
+  init_replica(service_mem);
+  replica->register_exec(exec_mock.exec_command);
+
   std::string initial_ledger = "initial.ledger";
   std::string replay_ledger = "replay.ledger";
   {
-    std::vector<char> service_mem(mem_size, 0);
-    init_replica(service_mem);
     // Create ledger
     auto ledger_ofs = std::make_unique<std::ofstream>();
 
@@ -88,33 +109,42 @@ TEST_CASE("Test Ledger Replay")
 
     LedgerWriter ledger_writer(append_ledger_entry_cb, ledger_ofs.get());
 
-    for (int i = 0; i < 10; i += 2)
+    Req_queue rqueue;
+    for (size_t i = 1; i < TOTAL_REQUESTS; i++)
     {
-      Req_queue rqueue;
       Byz_req req;
-      Byz_alloc_request(&req, sizeof(fake_req));
+      Byz_alloc_request(&req, sizeof(ExecutionMock::fake_req));
 
-      auto fr = reinterpret_cast<fake_req*>(req.contents);
-      fr->counter = 5;
+      auto fr = reinterpret_cast<ExecutionMock::fake_req*>(req.contents);
+      fr->rt = i;
+      fr->ctx = i;
 
       Request* request = (Request*)req.opaque;
       request->request_id() = i;
       request->authenticate(req.size, false);
       request->mark_verified();
       request->trim();
+
       rqueue.append(request);
       size_t num_requests = 1;
       auto pp = std::make_unique<Pre_prepare>(1, i, rqueue, num_requests);
+
+      // imitate exec command
+      ByzInfo info;
+      info.ctx = fr->ctx;
+      info.merkle_root.fill(0);
+      info.merkle_root.data()[0] = fr->rt;
+
+      pp->set_merkle_root_and_ctx(info.merkle_root, info.ctx);
+
       ledger_writer.write_pre_prepare(pp.get());
     }
-    delete replica;
+    // remove the requests that were not processed, only written to the ledger
+    replica->big_reqs()->mark_stable(TOTAL_REQUESTS);
   }
 
   // Replay ledger
   {
-    std::vector<char> service_mem(mem_size, 0);
-    init_replica(service_mem);
-
     auto ledger_ofs = std::make_unique<std::ofstream>();
 
     std::string ledger_name(replay_ledger);
@@ -129,52 +159,46 @@ TEST_CASE("Test Ledger Replay")
         ledger_ofs->flush();
       };
 
-    LedgerWriter ledger_writer(append_ledger_entry_cb, ledger_ofs.get());
-    LedgerReplay ledger_replay(0);
     LedgerReader ledger_reader(initial_ledger);
-
-    Req_queue rqueue;
+    replica->register_append_ledger_entry_cb(
+      append_ledger_entry_cb, ledger_ofs.get());
 
     while (true)
     {
-      auto ledger_position = ledger_replay.cursor();
-
+      auto ledger_position = replica->ledger_cursor();
       auto entry = ledger_reader.read_next_entry(ledger_position);
       if (entry.empty())
       {
         break;
       }
 
-      ledger_replay.apply_data(
-        entry, rqueue, *replica->big_reqs(), &ledger_writer);
+      CHECK(replica->apply_ledger_data(entry));
     }
-
-    FILE* file1;
-    file1 = fopen(initial_ledger.c_str(), "r");
-    REQUIRE(file1 != nullptr);
-    fseeko(file1, 0, SEEK_END);
-    auto file_size1 = ftello(file1);
-    REQUIRE(file_size1 != 1);
-    fseeko(file1, 0, SEEK_SET);
-
-    FILE* file2;
-    file2 = fopen(replay_ledger.c_str(), "r");
-    REQUIRE(file2 != nullptr);
-    fseeko(file2, 0, SEEK_END);
-    auto file_size2 = ftello(file2);
-    REQUIRE(file_size2 != 1);
-    fseeko(file2, 0, SEEK_SET);
-
-    CHECK(file_size1 == file_size2);
-
-    std::vector<uint8_t> file1_data(file_size1);
-    std::vector<uint8_t> file2_data(file_size2);
-
-    CHECK(fread(file1_data.data(), file_size1, 1, file1) == 1);
-    CHECK(fread(file2_data.data(), file_size2, 1, file2) == 1);
-
-    CHECK(memcmp(file1_data.data(), file2_data.data(), file_size1));
-
-    delete replica;
   }
+
+  FILE* file1;
+  file1 = fopen(initial_ledger.c_str(), "r");
+  REQUIRE(file1 != nullptr);
+  fseeko(file1, 0, SEEK_END);
+  auto file_size1 = ftello(file1);
+  REQUIRE(file_size1 != 1);
+  fseeko(file1, 0, SEEK_SET);
+
+  FILE* file2;
+  file2 = fopen(replay_ledger.c_str(), "r");
+  REQUIRE(file2 != nullptr);
+  fseeko(file2, 0, SEEK_END);
+  auto file_size2 = ftello(file2);
+  REQUIRE(file_size2 != 1);
+  fseeko(file2, 0, SEEK_SET);
+
+  CHECK(file_size1 == file_size2);
+
+  std::vector<uint8_t> file1_data(file_size1);
+  std::vector<uint8_t> file2_data(file_size2);
+
+  CHECK(fread(file1_data.data(), file_size1, 1, file1) == 1);
+  CHECK(fread(file2_data.data(), file_size2, 1, file2) == 1);
+
+  CHECK(memcmp(file1_data.data(), file2_data.data(), file_size1));
 }
