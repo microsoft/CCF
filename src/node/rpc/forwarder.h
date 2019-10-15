@@ -40,8 +40,8 @@ namespace ccf
 
     void initialize(NodeId self_)
     {
-      LOG_FAIL_FMT("Forwarder initialised to {}", self);
       self = self_;
+      LOG_FAIL_FMT("Forwarder initialised to {}", self);
     }
 
     bool forward_command(
@@ -75,6 +75,8 @@ namespace ccf
       serialized::write(data_, size_, data.data(), data.size());
 
       ForwardedHeader msg = {ForwardedMsg::forwarded_cmd, self};
+
+      LOG_FAIL_FMT("Forwarding command to {} from {}", to, self);
 
       return n2n_channels->send_encrypted(to, plain, msg);
     }

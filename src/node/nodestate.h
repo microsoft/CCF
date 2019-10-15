@@ -244,6 +244,7 @@ namespace ccf
                              node_cert,
                              quote,
                              NodeStatus::TRUSTED});
+          LOG_FAIL_FMT("[new] self is {}", self);
 
 #ifdef GET_QUOTE
           // Trust own code id
@@ -379,6 +380,7 @@ namespace ccf
               !public_only);
 
             self = resp->node_id;
+            LOG_FAIL_FMT("[join] self is {}", self);
 #ifdef PBFT
             setup_pbft();
 #else
