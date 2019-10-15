@@ -45,7 +45,7 @@ void check_error_message(const nlohmann::json& j, const std::string& msg)
 }
 
 const json frontend_process(
-  RpcFrontend& frontend,
+  NodeRpcFrontend& frontend,
   const json& json_params,
   const std::string& method,
   const Cert& caller)
