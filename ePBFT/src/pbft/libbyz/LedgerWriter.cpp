@@ -3,7 +3,6 @@
 #include "LedgerWriter.h"
 
 #include "Request.h"
-#include "host/ledgerio.h"
 
 LedgerWriter::LedgerWriter(
   append_ledger_entry_cb ledger_entry_cb_, void* ledger_cb_ctx_) :

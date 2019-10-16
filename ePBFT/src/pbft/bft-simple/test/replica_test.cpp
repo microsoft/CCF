@@ -24,7 +24,7 @@ extern "C"
 #include "Statistics.h"
 #include "Timer.h"
 #include "ds/files.h"
-#include "host/ledgerio.h"
+#include "host/ledger.h"
 #include "libbyz.h"
 #include "network_impl.h"
 #include "nodeinfo.h"
@@ -388,11 +388,13 @@ int main(int argc, char** argv)
     ledger_name.append(".txt");
     std::remove(ledger_name.c_str());
 
-    auto ledger = new asynchost::LedgerIO(ledger_name);
+    ringbuffer::Circuit eio(2);
+    auto wf = ringbuffer::WriterFactory(eio);
+    auto ledger = new asynchost::Ledger(ledger_name, wf);
 
     auto append_ledger_entry_cb =
       [](const uint8_t* data, size_t size, void* ctx) {
-        auto ledger = static_cast<asynchost::LedgerIO*>(ctx);
+        auto ledger = static_cast<asynchost::Ledger*>(ctx);
         ledger->write_entry(data, size);
       };
 

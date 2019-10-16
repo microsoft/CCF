@@ -5,7 +5,7 @@
 #include "cstdio"
 #include "ds/serialized.h"
 #include "fstream"
-#include "host/ledgerio.h"
+#include "host/ledger.h"
 #include "keypair.h"
 #include "ledger.h"
 #include "types.h"
@@ -19,6 +19,7 @@ int main(int argc, char** argv)
 
   std::string ledger_path;
   app.add_option("--path", ledger_path, "path to the ledger file", false)
+    ->required()
     ->check(CLI::ExistingFile);
 
   bool skip_pre_prepare = false;
@@ -47,7 +48,9 @@ int main(int argc, char** argv)
 
   CLI11_PARSE(app, argc, argv);
 
-  auto ledger_io = std::make_unique<asynchost::LedgerIO>(ledger_path);
+  ringbuffer::Circuit eio(2);
+  auto wf = ringbuffer::WriterFactory(eio);
+  auto ledger_io = std::make_unique<asynchost::Ledger>(ledger_path, wf);
   size_t entries_read = 1;
   while (true)
   {

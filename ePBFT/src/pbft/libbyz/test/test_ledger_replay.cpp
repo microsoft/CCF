@@ -7,7 +7,7 @@
 #include "Node.h"
 #include "Replica.h"
 #include "Request.h"
-#include "host/ledgerio.h"
+#include "host/ledger.h"
 #include "network_mock.h"
 
 #include <cstdio>
@@ -84,6 +84,9 @@ void init_replica(std::vector<char>& service_mem)
 
 TEST_CASE("Test Ledger Replay")
 {
+  ringbuffer::Circuit eio(2);
+  auto wf = ringbuffer::WriterFactory(eio);
+
   std::string initial_ledger = "initial.ledger";
   std::string replay_ledger = "replay.ledger";
   std::remove(initial_ledger.c_str());
@@ -95,13 +98,14 @@ TEST_CASE("Test Ledger Replay")
   init_replica(service_mem);
   replica->register_exec(exec_mock.exec_command);
 
+  INFO("Create dummy pre-prepares and write them to ledger file");
   {
     auto initial_ledger_io =
-      std::make_unique<asynchost::LedgerIO>(initial_ledger);
+      std::make_unique<asynchost::Ledger>(initial_ledger, wf);
 
     auto append_ledger_entry_cb =
       [](const uint8_t* data, size_t size, void* ctx) {
-        auto ledger = static_cast<asynchost::LedgerIO*>(ctx);
+        auto ledger = static_cast<asynchost::Ledger*>(ctx);
         ledger->write_entry(data, size);
       };
 
@@ -141,13 +145,14 @@ TEST_CASE("Test Ledger Replay")
     replica->big_reqs()->clear();
   }
 
+  INFO("Read the ledger file and replay it out of order and in order");
   {
     auto replay_ledger_io =
-      std::make_unique<asynchost::LedgerIO>(replay_ledger);
+      std::make_unique<asynchost::Ledger>(replay_ledger, wf);
 
     auto append_ledger_entry_cb =
       [](const uint8_t* data, size_t size, void* ctx) {
-        auto ledger = static_cast<asynchost::LedgerIO*>(ctx);
+        auto ledger = static_cast<asynchost::Ledger*>(ctx);
         ledger->write_entry(data, size);
       };
 
@@ -155,7 +160,7 @@ TEST_CASE("Test Ledger Replay")
       append_ledger_entry_cb, replay_ledger_io.get());
 
     auto initial_ledger_io =
-      std::make_unique<asynchost::LedgerIO>(initial_ledger);
+      std::make_unique<asynchost::Ledger>(initial_ledger, wf);
 
     // check that nothing gets executed out of order
 
@@ -180,6 +185,7 @@ TEST_CASE("Test Ledger Replay")
     }
   }
 
+  INFO("Check that the two ledger files are identical");
   FILE* file1;
   file1 = fopen(initial_ledger.c_str(), "r");
   REQUIRE(file1 != nullptr);

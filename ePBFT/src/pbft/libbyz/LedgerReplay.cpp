@@ -7,6 +7,8 @@
 #include "ds/serialized.h"
 #include "ledger.h"
 
+// TODO (#pbft) add replay for prepares and view changes
+
 template <class T>
 std::unique_ptr<T> LedgerReplay::create_message(
   const uint8_t* message_data, size_t data_size)
@@ -24,9 +26,6 @@ std::vector<std::unique_ptr<Pre_prepare>> LedgerReplay::process_data(
   Big_req_table& brt,
   LedgerWriter* ledger_writer)
 {
-  PBFT_ASSERT(
-    !data.empty(), "apply ledger data should not receive empty vector");
-
   auto entry_data = data.data();
   auto data_size = data.size();
 
@@ -36,8 +35,7 @@ std::vector<std::unique_ptr<Pre_prepare>> LedgerReplay::process_data(
   {
     serialized::skip(entry_data, data_size, sizeof(uint32_t));
     // peek at header type
-    Ledger_header_type type =
-      *reinterpret_cast<Ledger_header_type*>(const_cast<uint8_t*>(entry_data));
+    auto type = serialized::peek<Ledger_header_type>(entry_data, data_size);
 
     if (type == Ledger_header_type::Pre_prepare_ledger_header)
     {

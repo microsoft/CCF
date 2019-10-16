@@ -63,6 +63,7 @@ public:
   // there is no such request.
 
   void clear();
+  // Effects: Discards (deletes) all stored entries
 
   void mark_stable(Seqno ls);
   // Effects: Discards entries that were only referred to by

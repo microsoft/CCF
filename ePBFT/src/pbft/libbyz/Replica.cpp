@@ -255,8 +255,11 @@ bool Replica::compare_execution_results(
 
 bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
 {
-  PBFT_ASSERT(
-    !data.empty(), "apply ledger data should not receive empty vector");
+  if (data.empty())
+  {
+    LOG_DEBUG << "Received empty entries" << std::endl;
+    return false;
+  }
 
   auto executable_pps =
     ledger_replay->process_data(data, rqueue, brt, ledger_writer.get());
@@ -300,6 +303,8 @@ bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
     }
     else
     {
+      LOG_DEBUG << "Received entries could not be processed. Received seqno: "
+                << seqno << std::endl;
       ledger_replay->clear_requests(rqueue, brt);
       return false;
     }
