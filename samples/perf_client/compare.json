@@ -42,7 +42,8 @@
         "1k_signed",
         "--max-writes-ahead",
         "1",
-        "--write-tx-times"
+        "--write-tx-times",
+        "--sign"
       ],
       "subtitle": "1k signed",
       "sent": "client_0_1k_signed_sent.csv",
@@ -92,7 +93,8 @@
         "10k_signed",
         "--max-writes-ahead",
         "1",
-        "--write-tx-times"
+        "--write-tx-times",
+        "--sign"
       ],
       "subtitle": "10k signed",
       "sent": "client_0_10k_signed_sent.csv",

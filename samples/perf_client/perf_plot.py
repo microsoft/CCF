@@ -93,8 +93,10 @@ def plot_timeseries(sent, received, ax, title, combine_methods=False):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--title", help="Title for plot", default="")
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument("--title", help="Title for plot", type=str)
     parser.add_argument(
         "--width", help="Total width of plotted figure", default=12, type=int
     )
@@ -176,13 +178,16 @@ if __name__ == "__main__":
                     continue
 
                 # Run command
-                cmd = variant["command"]
-                if isinstance(cmd, list):
-                    cmd = " ".join(cmd)
-                print("  Executing:")
-                print("   {}".format(cmd))
-                result = subprocess.run(cmd, shell=True, capture_output=True)
-                print("  Done, plotting")
+                cmd = variant.get("command")
+                if cmd is not None:
+                    if isinstance(cmd, list):
+                        cmd = " ".join(cmd)
+                    print("  Executing:")
+                    print("   {}".format(cmd))
+                    result = subprocess.run(cmd, shell=True, capture_output=True)
+                    print("  Done, plotting")
+                else:
+                    print("  No command to execute")
 
                 # Load and plotresults
                 sent_df = pd.read_csv(variant["sent"])
