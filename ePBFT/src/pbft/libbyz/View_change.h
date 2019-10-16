@@ -188,7 +188,6 @@ private:
 
 inline View_change_rep& View_change::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((View_change_rep*)msg);
 }
 

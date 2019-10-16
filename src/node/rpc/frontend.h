@@ -703,6 +703,11 @@ namespace ccf
         has_updated_merkle_root = true;
         return true;
       };
+
+      if (history == nullptr) {
+        update_history();
+      }
+
       history->register_on_result(cb);
 
       auto rep =
