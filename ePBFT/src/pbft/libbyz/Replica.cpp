@@ -765,13 +765,13 @@ void Replica::send_prepare(Seqno seqno)
       // Send prepare to all replicas and log it.
       ByzInfo info;
       Pre_prepare* pp = pc.pre_prepare();
-      //LOG_INFO << "$$$$$$$$$$$$$ about to execute pp, seqno:" << pp->seqno() << std::endl;
       if (!execute_tentative(pp, info))
       {
         break;
       }
 
       // TODO: fix this check
+      // https://github.com/microsoft/CCF/issues/357
       if (!compare_execution_results(info, pp))
       {
         //break;

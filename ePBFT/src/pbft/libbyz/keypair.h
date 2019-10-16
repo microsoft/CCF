@@ -269,8 +269,8 @@ public:
     {
       // This will be fully removed as part of https://github.com/microsoft/CCF/issues/453
       // don't throw because we cannot let malicious principals crash us
-      //LOG_FAIL << "decryption or tag validation failed" << std::endl;
-      //return false;
+      LOG_FAIL << "decryption or tag validation failed" << std::endl;
+      return false;
     }
 
     return true;
