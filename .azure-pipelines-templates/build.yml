@@ -16,3 +16,5 @@ steps:
 - script: ninja
   displayName: Ninja
   workingDirectory: build
+  env:
+    CCACHE_DIR: /mnt/build/ccache
