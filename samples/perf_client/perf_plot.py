@@ -206,7 +206,7 @@ if __name__ == "__main__":
         time_values.values(),
         time_values.keys(),
         loc="center right",
-        bbox_to_anchor=(1.1, 0.9),
+        bbox_to_anchor=(1.1, 0.85),
     )
 
     commit_values = {k: vs[0] for (k, vs) in commits.items()}
@@ -214,7 +214,7 @@ if __name__ == "__main__":
         commit_values.values(),
         commit_values.keys(),
         loc="center right",
-        bbox_to_anchor=(1.1, 1.0),
+        bbox_to_anchor=(1.1, 0.95),
     )
 
     plt.tight_layout()
