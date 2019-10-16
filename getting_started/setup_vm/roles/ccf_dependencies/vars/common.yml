@@ -13,6 +13,7 @@ debs:
   - xsltproc
   - git
   - libcurl4-openssl-dev
+  - ccache
 mbedtls_ver: "2.16.2"
 mbedtls_dir: "mbedtls-{{ mbedtls_ver }}"
 mbedtls_src: "{{ mbedtls_dir }}.tar.gz"

@@ -6,15 +6,17 @@ parameters:
     NoSGX:
       container:
         image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-nosgx:latest
-        options: --publish-all --cap-add SYS_PTRACE
+        options: --publish-all --cap-add SYS_PTRACE -v /mnt/build/ccache:/mnt/build/ccache
       pool: Ubuntu-1804-D8s_v3
     SGX:
       container:
         image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
-        options: --publish-all --device /dev/sgx:/dev/sgx
+        options: --publish-all --device /dev/sgx:/dev/sgx -v /mnt/build/ccache:/mnt/build/ccache
       pool: Ubuntu-1804-DC4s
 
   build:
+    common:
+      cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"'
     NoSGX:
       cmake_args: '-DTARGET=virtual -DCOVERAGE=ON'
     SGX:
@@ -33,12 +35,16 @@ parameters:
   perf_test_filter: '"benchmark|perf"'
   static_check_job_name: 'Formatting_and_License_Checks'
 
+  san_target: 'NoSGX'
+  checks_target: 'NoSGX'
+
 jobs:
   - template: checks.yml
     parameters:
+      env: ${{ parameters.env[parameters.checks_target] }}
       job_name: ${{ parameters.static_check_job_name }}
-      env: ${{ parameters.env.NoSGX }}
 
+  # Debug builds with code coverage, run all tests except performance
   - ${{ each target in parameters.target }}:
     - ${{ each consensus in parameters.consensus }}:
       - template: common.yml
@@ -46,29 +52,31 @@ jobs:
           target: ${{ target }}
           consensus: ${{ consensus }}
           env: ${{ parameters.env[target] }}
-          cmake_args: '${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
+          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
           ctest_filter: '-LE ${{ parameters.perf_test_filter }}'
           suffix: ''
           depends_on: ${{ parameters.static_check_job_name }}
 
+  # SAN builds (ASAN & UBSAN), run all tests except performance
   - ${{ each consensus in parameters.consensus }}:
     - template: common.yml
       parameters:
-        target: NoSGX
+        target: ${{ parameters.san_target }}
         consensus: ${{ consensus }}
-        env: ${{ parameters.env.NoSGX }}
-        cmake_args: '${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
+        env: ${{ parameters.env[parameters.san_target] }}
+        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build[parameters.san_target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
         ctest_filter: '-LE ${{ parameters.perf_test_filter }}'
         suffix: 'SAN'
         depends_on: ${{ parameters.static_check_job_name }}
 
+  # Optimised builds, only run performance tests
   - ${{ each consensus in parameters.consensus }}:
     - template: common.yml
       parameters:
         target: SGX
         consensus: ${{ consensus }}
         env: ${{ parameters.env.SGX }}
-        cmake_args: '${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
+        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
         ctest_filter: '-L ${{ parameters.perf_test_filter }}'
         suffix: 'Perf'
         depends_on: ${{ parameters.static_check_job_name }}
