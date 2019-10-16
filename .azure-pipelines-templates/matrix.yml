@@ -6,12 +6,12 @@ parameters:
     NoSGX:
       container:
         image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-nosgx:latest
-        options: --publish-all --cap-add SYS_PTRACE -v /mnt/build/ccache:/mnt/build/ccache
+        options: --publish-all --cap-add SYS_PTRACE -v /dev/shm:/ccache
       pool: Ubuntu-1804-D8s_v3
     SGX:
       container:
         image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
-        options: --publish-all --device /dev/sgx:/dev/sgx -v /mnt/build/ccache:/mnt/build/ccache
+        options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/ccache
       pool: Ubuntu-1804-DC4s
 
   build:
