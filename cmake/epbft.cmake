@@ -122,13 +122,6 @@ if(${TARGET} STREQUAL "virtual")
   )
 
   add_test(
-    NAME test_client_proxy_f_0
-    COMMAND
-      python3 ${PBFT_DIR}/tests/infra/e2e_test.py --ip 127.0.0.1 --servers 4 --clients 0 --test-config ${PBFT_DIR}/tests/test_config --test-client-proxy
-      --run-time 60 --f 0
-  )
-
-  add_test(
     NAME test_UDP_with_delay
     COMMAND
       python3 ${PBFT_DIR}/tests/infra/e2e_test.py --ip 127.0.0.1 --servers 4 --clients 2 --test-config ${PBFT_DIR}/tests/test_config --with-delays

@@ -160,6 +160,11 @@ void Node::add_principal(const PrincipalInfo& principal_info)
   {
     replica_count++;
   }
+
+  if (principal_info.id != node_id)
+  {	
+    node->send_new_key();	
+  }
 }
 
 void Node::configure_principals()

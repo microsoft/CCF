@@ -128,7 +128,7 @@ Replica::Replica(
 
   // Create timers and randomize times to avoid collisions.
 
-  vtimer = new ITimer(vt * 1000 + (uint64_t)id() % 100, vtimer_handler, this);
+  vtimer = new ITimer(vt + (uint64_t)id() % 100, vtimer_handler, this);
   stimer = new ITimer(st + (uint64_t)id() % 100, stimer_handler, this);
   btimer =
     new ITimer(max_pre_prepare_request_batch_wait_ms, btimer_handler, this);
@@ -765,7 +765,7 @@ void Replica::send_prepare(Seqno seqno)
       // Send prepare to all replicas and log it.
       ByzInfo info;
       Pre_prepare* pp = pc.pre_prepare();
-      LOG_INFO << "$$$$$$$$$$$$$ about to execute pp, seqno:" << pp->seqno() << std::endl;
+      //LOG_INFO << "$$$$$$$$$$$$$ about to execute pp, seqno:" << pp->seqno() << std::endl;
       if (!execute_tentative(pp, info))
       {
         break;
