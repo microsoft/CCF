@@ -4,15 +4,14 @@ parameters:
 
   env:
     NoSGX:
-      container:
-        image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-nosgx:latest
-        options: --publish-all --cap-add SYS_PTRACE -v /dev/shm:/ccache
+      container: nosgx
       pool: Ubuntu-1804-D8s_v3
     SGX:
-      container:
-        image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
-        options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/ccache
+      container: sgx
       pool: Ubuntu-1804-DC4s
+    NoSGX_SAN:
+      container: nosgx
+      pool: Ubuntu-1804-D16s_v3
 
   build:
     common:
@@ -63,7 +62,7 @@ jobs:
       parameters:
         target: ${{ parameters.san_target }}
         consensus: ${{ consensus }}
-        env: ${{ parameters.env[parameters.san_target] }}
+        env: '${{ parameters.env.NoSGX_SAN }}'
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build[parameters.san_target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
         ctest_filter: '-LE ${{ parameters.perf_test_filter }}'
         suffix: 'SAN'
