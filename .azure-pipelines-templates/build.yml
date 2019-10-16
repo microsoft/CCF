@@ -17,4 +17,4 @@ steps:
   displayName: Ninja
   workingDirectory: build
   env:
-    CCACHE_DIR: /mnt/build/ccache
+    CCACHE_DIR: /ccache
