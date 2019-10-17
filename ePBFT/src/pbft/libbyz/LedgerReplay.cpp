@@ -8,6 +8,7 @@
 #include "ledger.h"
 
 // TODO (#pbft) add replay for prepares and view changes
+// https://github.com/microsoft/CCF/issues/459
 
 template <class T>
 std::unique_ptr<T> LedgerReplay::create_message(
@@ -68,6 +69,7 @@ std::vector<std::unique_ptr<Pre_prepare>> LedgerReplay::process_data(
 
     Pre_prepare::Requests_iter iter(pre_prepare);
     // check that all big requests are present
+    // TODO remove looping over requests again here
     Request request;
     bool is_request_present = false;
     while (iter.get_big_request(request, is_request_present))

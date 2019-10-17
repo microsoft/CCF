@@ -257,7 +257,7 @@ bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
 {
   if (data.empty())
   {
-    LOG_DEBUG << "Received empty entries" << std::endl;
+    LOG_FAIL << "Received empty entries" << std::endl;
     return false;
   }
 
