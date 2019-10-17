@@ -206,20 +206,20 @@ if __name__ == "__main__":
             for x in range(x + 1, row_len):
                 axes[y, x].axis("off")
 
-    time_values = {k: vs[0] for (k, vs) in times.items()}
-    time_legend = figure.legend(
-        time_values.values(),
-        time_values.keys(),
-        loc="center right",
-        bbox_to_anchor=(1.1, 0.85),
-    )
-
     commit_values = {k: vs[0] for (k, vs) in commits.items()}
     commit_legend = figure.legend(
         commit_values.values(),
         commit_values.keys(),
-        loc="center right",
+        loc="upper right",
         bbox_to_anchor=(1.1, 0.95),
+    )
+
+    time_values = {k: vs[0] for (k, vs) in times.items()}
+    time_legend = figure.legend(
+        time_values.values(),
+        time_values.keys(),
+        loc="upper right",
+        bbox_to_anchor=(1.1, 0.85),
     )
 
     plt.tight_layout()
