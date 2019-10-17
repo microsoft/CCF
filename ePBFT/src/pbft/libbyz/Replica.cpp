@@ -778,10 +778,11 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
         }
       }
 
-      auto batch_info = compare_execution_results(info, pp);
-      if (!batch_info)
+      // TODO: fix this check
+      // https://github.com/microsoft/CCF/issues/357
+      if (!compare_execution_results(info, pp))
       {
-        break;
+        // break;
       }
 
       if (ledger_writer && !is_primary())
@@ -2895,7 +2896,8 @@ void Replica::vtimer_handler(void* owner)
 
 void Replica::stimer_handler(void* owner)
 {
-  if (node->f() != 0)
+  auto principals = ((Replica*)owner)->get_principals();
+  if (principals->size() > 1)
   {
     ((Replica*)owner)->send_status();
   }
