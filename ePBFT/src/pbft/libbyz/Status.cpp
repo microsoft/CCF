@@ -64,6 +64,32 @@ bool Status::pre_verify()
 {
   if (!node->is_replica(id()) || id() == node->id() || view() < 0)
   {
+    std::shared_ptr<Principal> sender =
+      node->get_principal(id()); // the one who sent the message
+
+    if (sender == nullptr)
+    {
+      // Received message from unknown sender
+      LOG_INFO << "Request from unknown pricipal, id:" << id() << std::endl;
+
+      std::string pubk_sig =
+        "aad14ecb5d7ca8caf5ee68d2762721a3d4fdb09b1ae4a699daf74985193b7d42";
+      std::string pubk_enc =
+        "893d4101c5b225c2bdc8633bb322c0ef9861e0c899014536e11196808ffc0d17";
+
+      PrincipalInfo info;
+      info.id = id();
+      info.port = 0;
+      info.ip = "256.256.256.256"; // Invalid
+      info.pubk_sig = pubk_sig;
+      info.pubk_enc = pubk_enc;
+      info.host_name = "host_name";
+      info.is_replica = true;
+
+      node->add_principal(info);
+      return true;
+    }
+
     return false;
   }
 

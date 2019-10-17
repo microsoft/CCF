@@ -81,6 +81,12 @@ void Prepare::re_authenticate(Principal* p)
 
 bool Prepare::pre_verify()
 {
+  // special case for f == 0
+  if (replica->f() == 0)
+  {
+    return true;
+  }
+
   // This type of message should only be sent by a replica other than me
   // and different from the primary
   if (!node->is_replica(id()) || id() == node->id())

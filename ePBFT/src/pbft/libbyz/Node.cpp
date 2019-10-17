@@ -113,7 +113,7 @@ Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
   last_new_key = 0;
   atimer = new ITimer(at, atimer_handler, this);
 
-  send_only_to_self = ((f() == 0 && primary() == id() && is_replica(id())));
+  send_only_to_self = ((f() == 0 && is_replica(id())));
 }
 
 Node::~Node()
@@ -351,7 +351,7 @@ void Node::send_to_replicas(Message* m)
             << ", num_replicas:" << num_replicas << " m:" << m->tag()
             << std::endl;
 
-  if (send_only_to_self && m->tag() != New_key_tag)
+  if (send_only_to_self && m->tag() != Status_tag)
   {
     LOG_TRACE << "Only sending to self" << std::endl;
     send(m, node_id);
