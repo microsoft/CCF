@@ -40,7 +40,8 @@ bool Commit::verify()
 bool Commit::pre_verify()
 {
   // special case for f == 0
-  if (replica->f() == 0) {
+  if (replica->f() == 0)
+  {
     return true;
   }
 

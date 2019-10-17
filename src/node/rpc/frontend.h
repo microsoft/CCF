@@ -704,7 +704,8 @@ namespace ccf
         return true;
       };
 
-      if (history == nullptr) {
+      if (history == nullptr)
+      {
         update_history();
       }
 

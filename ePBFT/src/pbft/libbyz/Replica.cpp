@@ -774,7 +774,7 @@ void Replica::send_prepare(Seqno seqno)
       // https://github.com/microsoft/CCF/issues/357
       if (!compare_execution_results(info, pp))
       {
-        //break;
+        // break;
       }
 
       if (ledger_writer && !is_primary())
