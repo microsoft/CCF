@@ -14,7 +14,7 @@ def compute_linear_regression(x, y):
     return model.coef_[0]
 
 
-def plot_timeseries(sent, received, ax, title, combine_methods=False):
+def plot_timeseries(sent, received, ax, title, args):
     commit_lines = defaultdict(list)
     tx_time_lines = defaultdict(list)
 
@@ -24,24 +24,27 @@ def plot_timeseries(sent, received, ax, title, combine_methods=False):
 
     # Join DataFrames
     test_df = sent.merge(received, on=["idx", "cumcount"]).drop("cumcount", 1)
-    test_df["request_time"] = test_df["recv_sec"] - test_df["sent_sec"]
+    test_df["recv_msec"] = test_df["recv_sec"] * 1000
+    test_df["sent_msec"] = test_df["sent_sec"] * 1000
+    test_df["request_time"] = test_df["recv_msec"] - test_df["sent_msec"]
 
-    # # Print performance global throughput in dedicated box
-    # successful_global_commit_rate = compute_linear_regression(
-    #     test_df["sent_sec"].values.reshape((-1, 1)), test_df["global_commit"]
-    # )
-    # global_rate_string = f"""global commit throughput (successful txs only):
-    #                         {int(successful_global_commit_rate)} tx/s"""
-    # props = dict(boxstyle="round", facecolor="wheat", alpha=0.5)
-    # ax.text(
-    #     0.5,
-    #     0.20,
-    #     global_rate_string,
-    #     transform=ax.transAxes,
-    #     fontsize=12,
-    #     verticalalignment="top",
-    #     bbox=props,
-    # )
+    if not args.no_throughput:
+        # Print performance global throughput in dedicated box
+        successful_global_commit_rate = compute_linear_regression(
+            test_df["sent_sec"].values.reshape((-1, 1)), test_df["global_commit"]
+        )
+        global_rate_string = f"""global commit throughput (successful txs only):
+                                {int(successful_global_commit_rate)} tx/s"""
+        props = dict(boxstyle="round", facecolor="wheat", alpha=0.5)
+        ax.text(
+            0.5,
+            0.20,
+            global_rate_string,
+            transform=ax.transAxes,
+            fontsize=12,
+            verticalalignment="top",
+            bbox=props,
+        )
 
     # Remove error values
     test_df["commit"].replace(0, np.nan, inplace=True)
@@ -56,7 +59,7 @@ def plot_timeseries(sent, received, ax, title, combine_methods=False):
     commit_ax = ax.twinx()
     for column in ("commit", "global_commit"):
         commit_lines[column] += commit_ax.plot(
-            test_df["sent_sec"], test_df[column], label=column
+            test_df["sent_msec"], test_df[column], label=column
         )
     commit_ax.set_ylim(bottom=0, auto=True)
 
@@ -66,7 +69,7 @@ def plot_timeseries(sent, received, ax, title, combine_methods=False):
     else:
         commit_ax.set_yticks([])
 
-    if combine_methods:
+    if args.combine_methods:
         test_df["method"] = test_df["method"].apply(lambda s: s.split("_")[0])
 
     colours = plt.rcParams["axes.prop_cycle"].by_key()["color"]
@@ -75,17 +78,19 @@ def plot_timeseries(sent, received, ax, title, combine_methods=False):
 
     ax.set_prop_cycle(cycler(color=colours))
 
+    print(test_df.sort_values(by=["request_time"], ascending=False).head(5))
+
     # Plot transaction times, by method
     for method, grp in test_df.groupby("method"):
         tx_time_lines[method] += ax.plot(
-            grp["sent_sec"], grp["request_time"], ".", label=method
+            grp["sent_msec"], grp["request_time"], ".", label=method
         )
     ax.set_ylim(bottom=0, auto=True)
-    ax.set(xlabel="Sent time (s)")
+    ax.set(xlabel="Sent time (ms)")
 
     # Based on label_outer, but keeping x labels for all
     if commit_ax.is_first_col():
-        ax.set_ylabel("Response delay (s)")
+        ax.set_ylabel("Response delay (ms)")
 
     ax.grid(axis="y")
 
@@ -107,6 +112,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--combine-methods",
         help="Only keep method name up to first underscore, combining similar",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--no-legend", help="Do not display legends", action="store_true"
+    )
+    parser.add_argument(
+        "--no-throughput",
+        help="Do not display average throughput overlay",
         action="store_true",
     )
 
@@ -144,9 +157,7 @@ if __name__ == "__main__":
         received_df = pd.read_csv(args.received)
 
         ax = plt.axes()
-        commits, times = plot_timeseries(
-            sent_df, received_df, ax, args.title, combine_methods=args.combine_methods
-        )
+        commits, times = plot_timeseries(sent_df, received_df, ax, args.title, args)
         commit_lines.update(commits)
         time_lines.update(times)
 
@@ -193,11 +204,7 @@ if __name__ == "__main__":
                 sent_df = pd.read_csv(variant["sent"])
                 received_df = pd.read_csv(variant["received"])
                 commits, times = plot_timeseries(
-                    sent_df,
-                    received_df,
-                    ax,
-                    variant["subtitle"],
-                    combine_methods=args.combine_methods,
+                    sent_df, received_df, ax, variant["subtitle"], args
                 )
                 commit_lines.update(commits)
                 time_lines.update(times)
@@ -206,24 +213,26 @@ if __name__ == "__main__":
             for x in range(x + 1, row_len):
                 axes[y, x].axis("off")
 
-    commit_values = {k: vs[0] for (k, vs) in commits.items()}
-    commit_legend = figure.legend(
-        commit_values.values(),
-        commit_values.keys(),
-        loc="upper right",
-        bbox_to_anchor=(1.1, 0.95),
-    )
+    if not args.no_legend:
+        commit_values = {k: vs[0] for (k, vs) in commits.items()}
+        commit_legend = figure.legend(
+            commit_values.values(),
+            commit_values.keys(),
+            loc="upper right",
+            bbox_to_anchor=(1.1, 0.95),
+        )
 
-    time_values = {k: vs[0] for (k, vs) in times.items()}
-    time_legend = figure.legend(
-        time_values.values(),
-        time_values.keys(),
-        loc="upper right",
-        bbox_to_anchor=(1.1, 0.85),
-    )
+        time_values = {k: vs[0] for (k, vs) in times.items()}
+        time_legend = figure.legend(
+            time_values.values(),
+            time_values.keys(),
+            loc="upper right",
+            bbox_to_anchor=(1.1, 0.85),
+        )
+
+        figure.add_artist(commit_legend)
 
     plt.tight_layout()
-    figure.add_artist(time_legend)
 
     if args.save_to is not None:
         print("Writing image to {}".format(args.save_to))
