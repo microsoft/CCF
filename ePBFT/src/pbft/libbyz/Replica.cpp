@@ -319,7 +319,8 @@ void Replica::init_state()
 
 void Replica::recv_start()
 {
-  if (node_info.general_info.should_mac_message) {
+  if (node_info.general_info.should_mac_message)
+  {
     // Compute session keys and send initial new-key message.
     Node::send_new_key();
   }
@@ -1875,8 +1876,8 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
       // Finish constructing the reply.
       LOG_DEBUG << "Executed from tentative exec: " << pp->seqno()
                 << " from client: " << client_id
-                << " rid: " << request.request_id()
-                << " ctx" << info.ctx << std::endl;
+                << " rid: " << request.request_id() << " ctx" << info.ctx
+                << std::endl;
 
 #ifdef ENFORCE_EXACTLY_ONCE
       replies.end_reply(client_id, request.request_id(), outb.size);
