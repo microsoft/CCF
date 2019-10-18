@@ -13,7 +13,7 @@ These endpoints mutate the state of a unique :ref:`Key-Value Store` that represe
   :maxdepth: 2
   :caption: Contents:
 
-  api
   kv/index.rst
   example
   demo
+  api

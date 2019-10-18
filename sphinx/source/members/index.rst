@@ -3,7 +3,7 @@ Member Governance
 
 This section describes how a consortium of trusted :term:`members` governs an existing CCF network. It explains how members can submit proposals to CCF and how these proposals are accepted based on the rules defined in the :term:`constitution`.
 
-Before creating a new CCF network (see :ref:`Starting a New Network`), the identity of the initial member(s) of the consortium must be generated.
+Before creating a new CCF network, the identity of the initial member(s) of the consortium must be generated.
 
 The ``keygenerator`` utility can be used to generate the member's certificate and associated private key. For example, to generate the first member's certificate and private key:
 

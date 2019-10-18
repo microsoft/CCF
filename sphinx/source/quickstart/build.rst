@@ -1,12 +1,12 @@
 Building CCF
 ============
 
-Once you have cloned the CCF repository, that you have setup your VM and installed all dependencies (see :ref:`Requirements`), you will be able to successfully build and run all tests that will deploy a local CCF network.
+Once you have cloned the CCF repository, setup your VM and installed all dependencies (see :ref:`Requirements`), you will be able to successfully build and run the CCF test suite that will deploy a local CCF network.
 
-Building from sources
+Building from Sources
 ---------------------
 
-To build CCF from sources on a SGX-enabled, run the following:
+To build CCF from sources on a SGX-enabled machine, run the following:
 
 .. code-block:: bash
 
@@ -71,17 +71,5 @@ Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end 
         $ TEST_ENCLAVE=virtual ./tests.sh -VV
 
     Tests that require enclave attestation will be skipped.
-
-
-Sanitizers
-~~~~~~~~~~
-
-To build and run the tests with the Address and Undefined behaviour sanitizers, run:
-
-.. code-block:: bash
-
-    $ cmake -GNinja -DSAN=ON ..
-    $ ninja
-    $ ./tests.sh -VV
 
 

@@ -11,7 +11,7 @@ Hardware Requirements
 
 Running CCF with full security guarantees requires :term:`SGX` hardware with :term:`FLC`.
 
-For developement purposes however, it is possible to build and run CCF applications in `virtual` mode, i.e. without using SGX. The `virtual` mode does not provide any security guarantees but can be useful to quickly prototype applications or make changes to CCF itself before deploying it to a SGX-based network.
+For development purposes however, it is possible to build and run CCF applications in `virtual` mode, i.e. without using SGX. The `virtual` mode does not provide any security guarantees but can be useful to quickly prototype applications or make changes to CCF itself before deploying it to a SGX-based network.
 
 Setting Up a CCF VM
 -------------------
@@ -34,7 +34,7 @@ Local Development without SGX (virtual)
 
 To quickly get a container up and running in which you can build CCF, the fastest way to go is to install `Visual Studio Code`_ and install the `Remote Container`_ extension.
 
-The CCF repository also provides a sample `devcontainer.json`_ file.
+The CCF repository also provides a sample `devcontainer.json`_ file which will build and launch a container with all necessary CCF dependencies. It can be used to develop on non-SGX machines, as long as CCF nodes are always started in `virtual` mode.
 
 .. _`Visual Studio Code`: https://code.visualstudio.com/
 .. _`Remote Container`: https://code.visualstudio.com/docs/remote/containers
@@ -43,7 +43,7 @@ The CCF repository also provides a sample `devcontainer.json`_ file.
 Azure Confidential Compute
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Alternatively, :term:`Azure Confidential Compute` (ACC) offers CCF-compatible VMs, which can be deployed either through a `Marketplace App`_, or through the :term:`OpenEnclave Engine`.
+:term:`Azure Confidential Compute` (ACC) offers DC-series VMs using SGX hardware, which can be deployed either through a `Marketplace App`_, or through the :term:`OpenEnclave Engine`.
 
 .. _`Marketplace App`: https://aka.ms/ccvm
 
@@ -56,14 +56,12 @@ To quickly get a VM up and running, you can run the following script:
 
 This will create a default ``ccf`` user on the VM, authenticated by ``~/.ssh/id_rsa.pub``. If you do not have a valid SSH key under that path, you will need to either create one, or edit ``vm.json`` to select a different path.
 
-`Visual Studio Code`_ also supports connecting to a VM using the `SSH Remote`_ extension.
-
-Alternatively, you can follow the instructions in the section below.
+The `SSH Remote`_ extension to `Visual Studio Code`_ makes it possible to develop your application directly on this VM.
 
 OE Engine Walkthrough
 `````````````````````
 
-OE Engine offers detailed `deployment instructions`_, but this is a very condensed summary to get a CCF-ready VM up and running in 5 minutes. You can either execute those steps on a machine with the `Azure CLI`_ installed, or use `Azure Cloud Shell`_.
+:term:`OpenEnclave Engine` (OE Engine) offers detailed `deployment instructions`_, but this is a very condensed summary to get a CCF-ready VM up and running in 5 minutes. You can either execute these steps on a machine with the `Azure CLI`_ installed, or use `Azure Cloud Shell`_.
 
 1. Download the `oe-engine binary`_ for your platform.
 2. Create a definition file as ``vm.json``:

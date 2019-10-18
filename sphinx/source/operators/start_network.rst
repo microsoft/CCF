@@ -35,8 +35,6 @@ The identities of members are specified as a `glob pattern <https://en.wikipedia
 
 The :term:`constitution`, as defined by the initial members, should be passed via the ``--gov-script`` option.
 
-When CCF is used to run a custom Lua application, the starting node should also be started with the ``--app-script /path/to/lua/application_script`` (see the `samples folder <https://github.com/microsoft/CCF/tree/master/samples/apps>`_ for example of Lua applications).
-
 The network is now in its opening state and any new nodes can join the network without being trusted by members.
 
 .. note:: Once a CCF network is started, members can add other members and users via governance. See :ref:`Opening a Network`.
