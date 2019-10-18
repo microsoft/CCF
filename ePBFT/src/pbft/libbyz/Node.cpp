@@ -161,12 +161,9 @@ void Node::add_principal(const PrincipalInfo& principal_info)
     replica_count++;
   }
 
-  if (node_info.general_info.should_mac_message)
+  if (node_info.general_info.should_mac_message && principal_info.id != node_id)
   {
-    if (principal_info.id != node_id)
-    {
-      node->send_new_key();
-    }
+    node->send_new_key();
   }
 }
 

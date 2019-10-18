@@ -1876,7 +1876,7 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
       // Finish constructing the reply.
       LOG_DEBUG << "Executed from tentative exec: " << pp->seqno()
                 << " from client: " << client_id
-                << " rid: " << request.request_id() << " ctx" << info.ctx
+                << " rid: " << request.request_id() << " ctx: " << info.ctx
                 << std::endl;
 
 #ifdef ENFORCE_EXACTLY_ONCE
