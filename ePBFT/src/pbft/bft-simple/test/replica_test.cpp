@@ -24,6 +24,7 @@ extern "C"
 #include "Statistics.h"
 #include "Timer.h"
 #include "ds/files.h"
+#include "host/ledger.h"
 #include "libbyz.h"
 #include "network_impl.h"
 #include "nodeinfo.h"
@@ -382,24 +383,23 @@ int main(int argc, char** argv)
 
   if (write_to_ledger)
   {
-    std::ofstream* ledger_ofs = new std::ofstream();
-
     std::string ledger_name("ledger_");
     ledger_name.append(std::to_string(port));
     ledger_name.append(".txt");
+    std::remove(ledger_name.c_str());
 
-    ledger_ofs->open(
-      ledger_name.c_str(), std::ofstream::out | std::ofstream::trunc);
+    ringbuffer::Circuit eio(2);
+    auto wf = ringbuffer::WriterFactory(eio);
+    auto ledger = new asynchost::Ledger(ledger_name, wf);
 
     auto append_ledger_entry_cb =
       [](const uint8_t* data, size_t size, void* ctx) {
-        std::ofstream* ledger_ofs = static_cast<std::ofstream*>(ctx);
-        ledger_ofs->write((const char*)data, size);
-        ledger_ofs->flush();
+        auto ledger = static_cast<asynchost::Ledger*>(ctx);
+        ledger->write_entry(data, size);
       };
 
     message_receive_base->register_append_ledger_entry_cb(
-      append_ledger_entry_cb, ledger_ofs);
+      append_ledger_entry_cb, ledger);
   }
 
   Byz_start_replica();

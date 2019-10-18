@@ -37,7 +37,6 @@ set(PBFT_SRC
   ${CMAKE_CURRENT_LIST_DIR}/../src/pbft/libbyz/Pre_prepare_info.cpp
   ${CMAKE_CURRENT_LIST_DIR}/../src/pbft/libbyz/LedgerWriter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/../src/pbft/libbyz/LedgerReplay.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/../src/pbft/libbyz/LedgerReader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/../src/pbft/libbyz/aes_gcm.cpp
   ${CMAKE_CURRENT_LIST_DIR}/../src/pbft/libbyz/key_format.cpp
   ${CMAKE_CURRENT_LIST_DIR}/../src/pbft/libbyz/request_id_gen.cpp
