@@ -60,20 +60,20 @@
         "-c",
         "./small_bank_client",
         "-i",
-        "10000",
+        "200000",
         "-l",
         "info",
         "-g",
         "/data/src/CCF/src/runtime_config/gov.lua",
         "--label",
-        "10k_unsigned",
+        "200k_unsigned",
         "--max-writes-ahead",
         "1",
         "--write-tx-times"
       ],
-      "subtitle": "10k unsigned",
-      "sent": "client_0_10k_unsigned_sent.csv",
-      "received": "client_0_10k_unsigned_recv.csv"
+      "subtitle": "200k unsigned",
+      "sent": "client_0_200k_unsigned_sent.csv",
+      "received": "client_0_200k_unsigned_recv.csv"
     },
     {
       "command": [
@@ -90,15 +90,15 @@
         "-g",
         "/data/src/CCF/src/runtime_config/gov.lua",
         "--label",
-        "10k_signed",
+        "200k_signed",
         "--max-writes-ahead",
         "1",
         "--write-tx-times",
         "--sign"
       ],
-      "subtitle": "10k signed",
-      "sent": "client_0_10k_signed_sent.csv",
-      "received": "client_0_10k_signed_recv.csv"
+      "subtitle": "200k signed",
+      "sent": "client_0_200k_signed_sent.csv",
+      "received": "client_0_200k_signed_recv.csv"
     }
   ]
 ]
