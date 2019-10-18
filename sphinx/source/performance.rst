@@ -4,14 +4,14 @@ Performance
 Overview
 --------
 
-While CCF maintains confidentiality over the state and execution of the hosted app, it also offers extremely high performance versus comparable systems. CCF can sustain both high transaction throughputs and low-latency global commit.
+While CCF pairs strong confidentiality guarantees with extremely high performance. CCF can sustain high transaction throughputs while achieving global commits with low latency.
 
-There are several performance tests in the CI test suite, including micro-benchmarks of critical systems and end-to-end tests measuring transaction rates on a temporary service. These are run against every PR and commit to the master branch. You can also run these locally to test the configuration of your own machines, and use them as a basis for creating performance tests of your own CCF application.
+There are several performance metrics in the CI test suite to ensure this, including micro-benchmarks of critical systems and end-to-end tests measuring peak throughput. These are run against every PR and commit to the master branch. You can also run these locally to test the configuration of your machines, and use them as a basis for creating performance tests of your own CCF application.
 
 Micro-benchmarks
 ----------------
 
-The micro-benchmark tests can be run locally by navigating to the CCF build directory:
+The micro-benchmark tests can be run from the CCF build directory:
 
 .. code-block:: bash
 
@@ -64,12 +64,12 @@ These test performance-critical features of CCF such as certificate verification
        hash_256k1_bitc_100k * |       1 |     0.340 |  340400 |425.500 |     2937.7
     ===============================================================================
 
-This compares the signing, verification, and hashing performance of different cryptographic curve implementations in CCF. The bitcoin implementation of secp256k1 is significantly faster than other supported curves, particularly for workloads with heavy use of verification.
+This compares the signing, verification, and hashing performance of different cryptographic curve implementations in CCF. The `bitcoin-core implementation <bitcoin_256k1>`_ of elliptic curve secp256k1 is significantly faster than other supported curves, particularly when verification becomes a bottleneck.
 
 End-to-end performance tests
 ----------------------------
 
-The service performance tests can be run locally by navigating to the CCF build directory:
+The end-to-end service performance tests can also be from the CCF build directory:
 
 .. code-block:: bash
 
@@ -77,7 +77,7 @@ The service performance tests can be run locally by navigating to the CCF build 
 
 Each of these tests creates a temporary CCF service on the local machine, then sends a high volume of transactions to measure peak and average throughput. The python test wrappers will print summary statistics including a transaction rate histogram when the test completes. These statistics can be retrieved from any CCF service via the ``getMetrics`` RPC.
 
-For a finer grained view of performance these tests can also dump the precise times each transaction was sent and its response received, for later analysis. The ``samples`` folder contains a ``perf_plot`` Python script demonstrating how this data may be plotted. The following plot was produced by this script, showing 1,000 transactions sent to the SmallBank sample application:
+For a finer grained view of performance the clients in these tests can also dump the precise times each transaction was sent and its response received, for later analysis. The ``samples`` folder contains a ``perf_plot`` Python script demonstrating how this data may be plotted. The following plot was produced by this script, showing 1,000 transactions sent to the :ref:`SmallBank sample application<Example App>`:
 
 .. image:: img/1k_unsigned.png
 
@@ -86,15 +86,17 @@ For a finer grained view of performance these tests can also dump the precise ti
 * blue line shows the receiving node's local commit id
 * orange line shows the service's global commit id
 
-This shows a healthy service, with minimal latency responses to each request, write transactions causing an increment to the local commit id, and only a few relatively slow transactions around global commit changes.
+This shows a healthy service, with minimal latency responses to each request, write transactions causing an increment to the local commit id, and only a few slower transactions around global commit changes.
 
-Note that this is an idealised test; the client is sending one transaction at a time to measure minimum latency, the app is simple, the client is communicating with a local node. This is used to establish an upper limit on possible performance. This gives a simple A/B comparison of various changes. For example, if each request is signed from the client:
+Note that this is an idealised test; the client is sending one transaction at a time to measure minimum latency, the transaction logic is simple, the client is communicating with a local node. This is used to establish an upper limit on possible performance. This can give a direct A/B comparison of various changes. For example, if each request is signed from the client:
 
 .. image:: img/1k_signed.png
 
-Since CCF now verifies the signature on every transaction. the per-request time has increased by approximately 3X (verification is very expensive relative to the simple business logic in SmallBank). These signatures are over the secp256k1 curve, verified by the fast Bitcoin implementation mentioned above - a slower curve or implementation would cause a corresponding reduction in the maximum possible throughput.
+Since CCF verifies the signature on every transaction, the per-request time has increased by approximately 3X (verification is very expensive relative to the simple business logic in SmallBank). These signatures are over the secp256k1 curve, verified by the fast `bitcoin <bitcoin_256k1>`_ implementation - a slower curve or implementation would cause a corresponding reduction in the maximum possible throughput.
 
 These plots can also be used over longer tests to gauge outlier severity and frequency, and ensure global commit never lags significantly behind local commit. If the number of requests is increased to 200,000:
 
 .. image:: img/200k_unsigned.png
 .. image:: img/200k_signed.png
+
+.. _bitcoin_256k1: https://github.com/bitcoin-core/secp256k1
