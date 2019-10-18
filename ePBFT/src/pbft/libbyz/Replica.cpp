@@ -161,7 +161,7 @@ Replica::Replica(
 
   exec_command = nullptr;
   non_det_choices = 0;
-  ledger_replay = std::make_unique<LedgerReplay>(0);
+  ledger_replay = std::make_unique<LedgerReplay>();
 }
 
 void Replica::register_exec(ExecCommand e)
@@ -253,20 +253,18 @@ bool Replica::compare_execution_results(
   return true;
 }
 
-size_t Replica::ledger_cursor() const
-{
-  return ledger_replay->cursor();
-}
-
 bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
 {
-  PBFT_ASSERT(
-    !data.empty(), "apply ledger data should not receive empty vector");
+  if (data.empty())
+  {
+    LOG_FAIL << "Received empty entries" << std::endl;
+    return false;
+  }
 
-  auto executable_pp =
+  auto executable_pps =
     ledger_replay->process_data(data, rqueue, brt, ledger_writer.get());
 
-  if (executable_pp)
+  for (auto& executable_pp : executable_pps)
   {
     auto seqno = executable_pp->seqno();
 
@@ -305,6 +303,9 @@ bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
     }
     else
     {
+      LOG_DEBUG << "Received entries could not be processed. Received seqno: "
+                << seqno << std::endl;
+      ledger_replay->clear_requests(rqueue, brt);
       return false;
     }
   }
@@ -651,7 +652,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       }
       else
       {
-        send_prepare(next_pp_seqno);
+        send_prepare(next_pp_seqno, info);
       }
     }
     else
@@ -754,7 +755,7 @@ void Replica::handle(Pre_prepare* m)
   delete m;
 }
 
-void Replica::send_prepare(Seqno seqno)
+void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 {
   while (plog.within_range(seqno))
   {
@@ -763,11 +764,18 @@ void Replica::send_prepare(Seqno seqno)
     if (pc.my_prepare() == 0 && pc.is_pp_complete())
     {
       // Send prepare to all replicas and log it.
-      ByzInfo info;
       Pre_prepare* pp = pc.pre_prepare();
-      if (!execute_tentative(pp, info))
+      ByzInfo info;
+      if (byz_info.has_value())
       {
-        break;
+        info = byz_info.value();
+      }
+      else
+      {
+        if (!execute_tentative(pp, info))
+        {
+          break;
+        }
       }
 
       // TODO: fix this check
@@ -1887,16 +1895,6 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
     {
       state.checkpoint(last_tentative_execute);
     }
-    return true;
-  }
-  else if (node->f() == 0)
-  {
-    std::copy(
-      std::begin(pp->get_merkle_root()),
-      std::end(pp->get_merkle_root()),
-      std::begin(info.merkle_root));
-    info.ctx = pp->get_ctx();
-    // we have tentatively executed already as there is only one node
     return true;
   }
   return false;

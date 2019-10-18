@@ -31,19 +31,21 @@ void LedgerWriter::write_prepare(
 
   entry_size += sizeof(Prepared_cert::PrePrepareProof) * proof.size();
 
-  // write total entry size
-  ledger_entry_cb((const uint8_t*)&entry_size, sizeof(size_t), ledger_cb_ctx);
+  std::vector<uint8_t> entry(entry_size);
+  auto data = entry.data();
 
-  // now write the actual entry
-  ledger_entry_cb((const uint8_t*)&header, sizeof(header), ledger_cb_ctx);
+  serialized::write(data, entry_size, (uint8_t*)&header, sizeof(header));
 
   for (const auto& p : proof)
   {
-    ledger_entry_cb(
-      (const uint8_t*)&(p.second),
-      sizeof(Prepared_cert::PrePrepareProof),
-      ledger_cb_ctx);
+    serialized::write(
+      data,
+      entry_size,
+      (uint8_t*)&(p.second),
+      sizeof(Prepared_cert::PrePrepareProof));
   }
+
+  ledger_entry_cb(entry.data(), entry.size(), ledger_cb_ctx);
 }
 
 void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
@@ -58,14 +60,32 @@ void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
 #endif
   );
 
-  size_t entry_size = sizeof(Pre_prepare_ledger_header) + pp->size();
-  // write total entry size
-  ledger_entry_cb((const uint8_t*)&entry_size, sizeof(size_t), ledger_cb_ctx);
-  // write the actual entry
+  // big requests total size
+  Pre_prepare::Requests_iter iter(pp);
+  Request request;
+  bool is_request_present;
+  size_t brq_total_size = 0;
+  while (iter.get_big_request(request, is_request_present))
+  {
+    if (is_request_present)
+    {
+      brq_total_size += request.size();
+    }
+  }
+
+  // entry size for pre-prepare including its big requests
+  size_t entry_size = sizeof(Pre_prepare_ledger_header) + pp->size() +
+    (pp->num_big_reqs() * sizeof(Pre_prepare_ledger_large_message_header)) +
+    brq_total_size;
+
+  std::vector<uint8_t> entry(entry_size);
+  auto data = entry.data();
+
   // TODO: This needs to be encrypted
-  ledger_entry_cb(
-    (uint8_t*)&header, sizeof(Pre_prepare_ledger_header), ledger_cb_ctx);
-  ledger_entry_cb((const uint8_t*)pp->contents(), pp->size(), ledger_cb_ctx);
+  serialized::write(data, entry_size, (uint8_t*)&header, sizeof(header));
+  serialized::write(
+    data, entry_size, (const uint8_t*)pp->contents(), pp->size());
+
   if (pp->num_big_reqs() > 0)
   {
     Pre_prepare::Requests_iter iter(pp);
@@ -74,39 +94,22 @@ void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
 
     while (iter.get_big_request(request, is_request_present))
     {
-      entry_size = sizeof(Pre_prepare_ledger_large_message_header);
       if (is_request_present)
       {
         // TODO: This needs to be encrypted
         Pre_prepare_ledger_large_message_header header(request.size());
 
-        entry_size += request.size();
-
-        // write total entry size
-        ledger_entry_cb(
-          (const uint8_t*)&entry_size, sizeof(size_t), ledger_cb_ctx);
-        // write the actual entry
-        ledger_entry_cb(
-          (uint8_t*)&header,
-          sizeof(Pre_prepare_ledger_large_message_header),
-          ledger_cb_ctx);
-
-        ledger_entry_cb(
-          (uint8_t*)request.contents(), request.size(), ledger_cb_ctx);
+        serialized::write(data, entry_size, (uint8_t*)&header, sizeof(header));
+        serialized::write(
+          data, entry_size, (uint8_t*)request.contents(), request.size());
       }
       else
       {
-        // write total entry size
-        ledger_entry_cb(
-          (const uint8_t*)&entry_size, sizeof(size_t), ledger_cb_ctx);
         Pre_prepare_ledger_large_message_header header(0);
-        ledger_entry_cb(
-          (uint8_t*)&header,
-          sizeof(Pre_prepare_ledger_large_message_header),
-          ledger_cb_ctx);
-
-        ledger_entry_cb(nullptr, 0, ledger_cb_ctx);
+        serialized::write(data, entry_size, (uint8_t*)&header, sizeof(header));
       }
+
+      ledger_entry_cb(entry.data(), entry.size(), ledger_cb_ctx);
     }
   }
 }
@@ -123,11 +126,6 @@ void LedgerWriter::write_view_change(View_change* vc)
     vc->signature()
 #endif
   );
-
-  size_t entry_size = sizeof(View_change_ledger_header);
-  // write total entry size
-  ledger_entry_cb((const uint8_t*)&entry_size, sizeof(size_t), ledger_cb_ctx);
-  // write actual entry
   ledger_entry_cb(
     (uint8_t*)&header, sizeof(View_change_ledger_header), ledger_cb_ctx);
 }

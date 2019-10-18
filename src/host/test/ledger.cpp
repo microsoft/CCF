@@ -31,7 +31,7 @@ TEST_CASE("Read/Write test")
 
 TEST_CASE("Entry sizes")
 {
-  ringbuffer::Circuit eio(1024);
+  ringbuffer::Circuit eio(2);
   auto wf = ringbuffer::WriterFactory(eio);
 
   const std::vector<uint8_t> e1 = {1, 2, 3};

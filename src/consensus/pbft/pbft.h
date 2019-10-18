@@ -200,16 +200,10 @@ namespace pbft
       auto append_ledger_entry_cb =
         [](const uint8_t* data, size_t size, void* ctx) {
           auto ledger = static_cast<consensus::LedgerEnclave*>(ctx);
-
-          size_t tsize = size + consensus::LedgerEnclave::FRAME_SIZE;
-          assert(consensus::LedgerEnclave::FRAME_SIZE <= sizeof(tsize));
-          std::vector<uint8_t> entry(tsize);
-          uint8_t* tdata = entry.data();
-
-          serialized::write<uint32_t>(tdata, tsize, tsize);
-          serialized::write(tdata, tsize, data, size);
-
-          ledger->put_entry(entry);
+          std::vector<uint8_t> tentry(size);
+          uint8_t* tdata = tentry.data();
+          serialized::write(tdata, size, data, size);
+          ledger->put_entry(tentry);
         };
 
       auto global_commit_cb = [](kv::Version version, void* ctx) {
