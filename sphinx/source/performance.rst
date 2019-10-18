@@ -77,7 +77,7 @@ The end-to-end service performance tests can also be from the CCF build director
 
 Each of these tests creates a temporary CCF service on the local machine, then sends a high volume of transactions to measure peak and average throughput. The python test wrappers will print summary statistics including a transaction rate histogram when the test completes. These statistics can be retrieved from any CCF service via the ``getMetrics`` RPC.
 
-For a finer grained view of performance the clients in these tests can also dump the precise times each transaction was sent and its response received, for later analysis. The ``samples`` folder contains a ``plot_tx_times`` Python script demonstrating how this data may be plotted. The following plot was produced by this script, showing 1,000 transactions sent to the :ref:`SmallBank sample application<Example App>`:
+For a finer grained view of performance the clients in these tests can also dump the precise times each transaction was sent and its response received, for later analysis. The ``samples`` folder contains a ``plot_tx_times`` Python script demonstrating how this data may be plotted. The following plot was produced by this script, showing 1,000 transactions sent to the `SmallBank`_ sample application:
 
 .. image:: img/1k_unsigned.png
 
@@ -100,3 +100,4 @@ These plots can also be used over longer tests to gauge outlier severity and fre
 .. image:: img/200k_signed.png
 
 .. _bitcoin_256k1: https://github.com/bitcoin-core/secp256k1
+.. _SmallBank: https://github.com/microsoft/CCF/tree/master/samples/apps/smallbank
