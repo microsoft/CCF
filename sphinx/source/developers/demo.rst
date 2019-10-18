@@ -5,18 +5,18 @@ This document explains how the Python testing infrastructure is used to run a co
 
 The script ``tests/e2e_scenarios.py`` reads a test scenario from json. This json file can specify which app the network should run, how many nodes it should create, and the list of transactions to run. ``tests/simple_logging_scenario.json`` is an example scenario file showing the expected format:
 
-.. literalinclude:: ../../tests/simple_logging_scenario.json
+.. literalinclude:: ../../../tests/simple_logging_scenario.json
     :language: json
 
-To execute this scenario first follow the instructions in :ref:`getting_started` and then, from the ``build`` directory, run:
+To execute this scenario first follow the instructions in :ref:`Start Here` and then, from the ``build`` directory, run:
 
 .. code-block:: bash
 
-    python ../tests/e2e_scenarios.py --scenario ../tests/simple_logging_scenario.json
+    $ python ../tests/e2e_scenarios.py --scenario ../tests/simple_logging_scenario.json
 
 This first loads the scenario from the given json file, extracting initial fields:
 
-.. literalinclude:: ../../tests/e2e_scenarios.py
+.. literalinclude:: ../../../tests/e2e_scenarios.py
     :language: python
     :start-after: SNIPPET_START: parsing
     :end-before: SNIPPET_END: parsing
@@ -24,7 +24,7 @@ This first loads the scenario from the given json file, extracting initial field
 
 Given the above ``scenario.json`` this should create 2 nodes on the local machine running the ``logging`` example app. The script then creates the requested CCF network:
 
-.. literalinclude:: ../../tests/e2e_scenarios.py
+.. literalinclude:: ../../../tests/e2e_scenarios.py
     :language: python
     :start-after: SNIPPET_START: create_network
     :end-before: SNIPPET_END: create_network

@@ -2,23 +2,18 @@ Welcome to CCF's documentation
 ===============================
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+    :maxdepth: 2
+    :caption: Contents:
 
-   introduction
-   getting_started
-   start_network
-   ledger
-   governance
-   kv/index.rst
-   recovery
-   cryptography
-   example
-   demo
-   rpc_api
-   api
-   glossary
-   design/index.rst
+    introduction
+    quickstart/index.rst
+    operators/index.rst
+    members/index.rst
+    users/index.rst
+    developers/index.rst
+
+    glossary
+    design/index.rst
 
 Index
 =====
