@@ -9,8 +9,8 @@ Welcome to CCF's documentation
     quickstart/index.rst
     operators/index.rst
     members/index.rst
-    users/index.rst
     developers/index.rst
+    users/index.rst
 
     glossary
     design/index.rst
