@@ -320,8 +320,11 @@ void Replica::init_state()
 
 void Replica::recv_start()
 {
-  // Compute session keys and send initial new-key message.
-  Node::send_new_key();
+  if (node_info.general_info.should_mac_message)
+  {
+    // Compute session keys and send initial new-key message.
+    Node::send_new_key();
+  }
 
   init_state();
 
@@ -1881,7 +1884,8 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
       // Finish constructing the reply.
       LOG_DEBUG << "Executed from tentative exec: " << pp->seqno()
                 << " from client: " << client_id
-                << " rid: " << request.request_id() << std::endl;
+                << " rid: " << request.request_id() << " ctx: " << info.ctx
+                << std::endl;
 
 #ifdef ENFORCE_EXACTLY_ONCE
       replies.end_reply(client_id, request.request_id(), outb.size);
@@ -2876,7 +2880,7 @@ void Replica::vtimer_handler(void* owner)
 {
   PBFT_ASSERT(replica, "replica is not initialized\n");
 
-  if (!replica->delay_vc())
+  if (!replica->delay_vc() && replica->f() > 0)
   {
     if (replica->rqueue.size() > 0)
     {

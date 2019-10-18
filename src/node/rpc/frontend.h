@@ -869,6 +869,7 @@ namespace ccf
 
       update_history();
 
+#ifndef PBFT
       bool is_primary = (consensus == nullptr) || consensus->is_primary();
 
       if (!is_primary)
@@ -897,6 +898,7 @@ namespace ccf
           }
         }
       }
+#endif
 
       auto func = handler->func;
       auto args =
