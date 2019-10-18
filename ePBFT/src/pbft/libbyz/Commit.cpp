@@ -39,6 +39,12 @@ bool Commit::verify()
 
 bool Commit::pre_verify()
 {
+  // special case for f == 0
+  if (replica->f() == 0)
+  {
+    return true;
+  }
+
   // Commits must be sent by replicas.
   if (!node->is_replica(id()) || id() == node->id())
   {

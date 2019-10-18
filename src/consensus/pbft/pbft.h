@@ -53,7 +53,6 @@ namespace pbft
       {
         // If a replica sends a message to itself (e.g. if f == 0), handle
         // the message straight away without writing it to the ringbuffer
-        assert(message_receiver_base->f() == 0);
         message_receiver_base->receive_message(
           (const uint8_t*)(msg->contents()), msg->size());
         return msg->size();
