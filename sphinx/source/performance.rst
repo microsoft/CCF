@@ -4,7 +4,7 @@ Performance
 Overview
 --------
 
-While CCF pairs strong confidentiality guarantees with extremely high performance. CCF can sustain high transaction throughputs while achieving global commits with low latency.
+CCF pairs strong confidentiality guarantees with extremely high performance. CCF can sustain high transaction throughputs while achieving global commits with low latency.
 
 There are several performance metrics in the CI test suite to ensure this, including micro-benchmarks of critical systems and end-to-end tests measuring peak throughput. These are run against every PR and commit to the master branch. You can also run these locally to test the configuration of your machines, and use them as a basis for creating performance tests of your own CCF application.
 
