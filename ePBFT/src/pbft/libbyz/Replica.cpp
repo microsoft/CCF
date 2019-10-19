@@ -167,7 +167,10 @@ Replica::Replica(
   non_det_choices = 0;
 
   ledger_replay = std::make_unique<LedgerReplay>();
-  ledger_writer = std::make_unique<LedgerWriter>(std::move(ledger));
+  if (ledger)
+  {
+    ledger_writer = std::make_unique<LedgerWriter>(std::move(ledger));
+  }
 }
 
 void Replica::register_exec(ExecCommand e)
