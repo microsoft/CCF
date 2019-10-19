@@ -7,13 +7,14 @@
 #include "Node.h"
 #include "Replica.h"
 #include "Request.h"
+#include "consensus/ledgerenclave.h"
 #include "host/ledger.h"
 #include "network_mock.h"
 
 #include <cstdio>
 #include <doctest/doctest.h>
 
-static constexpr size_t TOTAL_REQUESTS = 1050;
+static constexpr size_t TOTAL_REQUESTS = 30;
 
 class ExecutionMock
 {
@@ -67,11 +68,18 @@ NodeInfo get_node_info()
   return node_info;
 }
 
-void init_replica(std::vector<char>& service_mem)
+void init_replica(
+  std::vector<char>& service_mem,
+  std::unique_ptr<consensus::LedgerEnclave> ledger)
 {
   auto node_info = get_node_info();
+
   replica = new Replica(
-    node_info, service_mem.data(), service_mem.size(), Create_Mock_Network());
+    node_info,
+    service_mem.data(),
+    service_mem.size(),
+    Create_Mock_Network(),
+    std::move(ledger));
   replica->init_state();
   for (auto& pi : node_info.general_info.principal_info)
   {
@@ -84,32 +92,27 @@ void init_replica(std::vector<char>& service_mem)
 
 TEST_CASE("Test Ledger Replay")
 {
-  ringbuffer::Circuit eio(2);
-  auto wf = ringbuffer::WriterFactory(eio);
-
-  std::string initial_ledger = "initial.ledger";
-  std::string replay_ledger = "replay.ledger";
-  std::remove(initial_ledger.c_str());
-  std::remove(replay_ledger.c_str());
+  size_t circuit_size_shift = 22;
+  ringbuffer::Circuit init_circuit(1 << circuit_size_shift);
+  auto wf = ringbuffer::WriterFactory(init_circuit);
+  auto initial_ledger_io = std::make_unique<consensus::LedgerEnclave>(wf);
 
   int mem_size = 400 * 8192;
   std::vector<char> service_mem(mem_size, 0);
   ExecutionMock exec_mock(0);
-  init_replica(service_mem);
+
+  // initiate replica with ledger enclave
+  ringbuffer::Circuit replay_circuit(1 << circuit_size_shift);
+  auto wf_rplay = ringbuffer::WriterFactory(replay_circuit);
+
+  auto replay_ledger_io = std::make_unique<consensus::LedgerEnclave>(wf_rplay);
+
+  init_replica(service_mem, std::move(replay_ledger_io));
   replica->register_exec(exec_mock.exec_command);
 
   INFO("Create dummy pre-prepares and write them to ledger file");
   {
-    auto initial_ledger_io =
-      std::make_unique<asynchost::Ledger>(initial_ledger, wf);
-
-    auto append_ledger_entry_cb =
-      [](const uint8_t* data, size_t size, void* ctx) {
-        auto ledger = static_cast<asynchost::Ledger*>(ctx);
-        ledger->write_entry(data, size);
-      };
-
-    LedgerWriter ledger_writer(append_ledger_entry_cb, initial_ledger_io.get());
+    LedgerWriter ledger_writer(std::move(initial_ledger_io));
 
     Req_queue rqueue;
     for (size_t i = 1; i < TOTAL_REQUESTS; i++)
@@ -147,68 +150,113 @@ TEST_CASE("Test Ledger Replay")
 
   INFO("Read the ledger file and replay it out of order and in order");
   {
-    auto replay_ledger_io =
-      std::make_unique<asynchost::Ledger>(replay_ledger, wf);
-
-    auto append_ledger_entry_cb =
-      [](const uint8_t* data, size_t size, void* ctx) {
-        auto ledger = static_cast<asynchost::Ledger*>(ctx);
-        ledger->write_entry(data, size);
-      };
-
-    replica->register_append_ledger_entry_cb(
-      append_ledger_entry_cb, replay_ledger_io.get());
-
-    auto initial_ledger_io =
-      std::make_unique<asynchost::Ledger>(initial_ledger, wf);
-
+    std::vector<uint8_t> initial_ledger;
+    std::vector<size_t> positions;
+    size_t total_len = 0;
+    size_t num_msgs = 0;
+    // all entries will have the same size in this test
+    size_t entry_size;
+    init_circuit.read_from_inside().read(
+      -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
+        switch (m)
+        {
+          case consensus::ledger_append:
+          {
+            positions.push_back(total_len);
+            size_t framed_entry_size = size + sizeof(uint32_t);
+            total_len += framed_entry_size;
+            initial_ledger.reserve(total_len);
+            uint32_t s = (uint32_t)size;
+            entry_size = size + sizeof(uint32_t);
+            initial_ledger.insert(
+              end(initial_ledger),
+              (uint8_t*)&s,
+              (uint8_t*)&s + sizeof(uint32_t));
+            initial_ledger.insert(end(initial_ledger), data, data + size);
+          }
+          break;
+          default:
+            REQUIRE(false);
+        }
+        ++num_msgs;
+      });
+    REQUIRE(num_msgs == (TOTAL_REQUESTS - 1));
     // check that nothing gets executed out of order
 
-    auto resp = initial_ledger_io->read_framed_entries(5, 9);
-    CHECK(!replica->apply_ledger_data(resp));
+    // read from entries 5 till 9
+    auto first = initial_ledger.begin() + positions.at(4);
+    auto last = initial_ledger.end();
+    std::vector<uint8_t> vec_5_9(first, last);
+    CHECK(!replica->apply_ledger_data(vec_5_9));
 
-    resp = initial_ledger_io->read_framed_entries(1, 3);
-    CHECK(replica->apply_ledger_data(resp));
+    // read entries 1 till 3
+    first = initial_ledger.begin();
+    last = initial_ledger.begin() + positions.at(3);
+    std::vector<uint8_t> vec_1_3(first, last);
+    CHECK(replica->apply_ledger_data(vec_1_3));
 
-    resp = initial_ledger_io->read_framed_entries(1, 3);
-    CHECK(!replica->apply_ledger_data(resp));
+    // try 2 till 3 and expect replay to not execute
+    first = initial_ledger.begin() + positions.at(1);
+    last = initial_ledger.begin() + positions.at(3);
+    std::vector<uint8_t> vec_2_3(first, last);
+    CHECK(!replica->apply_ledger_data(vec_2_3));
 
-    resp = initial_ledger_io->read_framed_entries(2, 3);
-    CHECK(!replica->apply_ledger_data(resp));
-
-    // execute the rest of the pre-prepares in batches of 4
-    for (size_t i = 4; i < TOTAL_REQUESTS; i += 4)
+    // execute the rest of the pre-prepares in batches of 3
+    for (size_t i = 3; i < TOTAL_REQUESTS; i += 4)
     {
-      auto until = std::min(TOTAL_REQUESTS - 1, i + 3);
-      resp = initial_ledger_io->read_framed_entries(i, until);
-      CHECK(replica->apply_ledger_data(resp));
+      auto until = i + 4;
+      first = initial_ledger.begin() + positions.at(i);
+      if (until >= positions.size())
+      {
+        last = initial_ledger.end();
+      }
+      else
+      {
+        last = initial_ledger.begin() + positions.at(until);
+      }
+      std::vector<uint8_t> vec(first, last);
+      CHECK(replica->apply_ledger_data(vec));
     }
+
+    std::vector<uint8_t> replay_ledger;
+    std::vector<size_t> positions_replay;
+    size_t total_len_replay = 0;
+    replay_circuit.read_from_inside().read(
+      -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
+        switch (m)
+        {
+          case consensus::ledger_append:
+          {
+            positions_replay.push_back(total_len_replay);
+            size_t framed_entry_size = size + sizeof(uint32_t);
+            total_len_replay += framed_entry_size;
+            replay_ledger.reserve(total_len_replay);
+
+            uint32_t s = (uint32_t)size;
+            entry_size = size + sizeof(uint32_t);
+            replay_ledger.insert(
+              end(replay_ledger),
+              (uint8_t*)&s,
+              (uint8_t*)&s + sizeof(uint32_t));
+            replay_ledger.insert(end(replay_ledger), data, data + size);
+          }
+          break;
+          case consensus::ledger_truncate:
+          {
+            auto last_idx = serialized::read<size_t>(data, size);
+            total_len_replay = positions_replay.at(last_idx);
+            positions_replay.resize(last_idx);
+
+            replay_ledger.resize(total_len_replay);
+
+            break;
+          }
+          default:
+            REQUIRE(false);
+        }
+      });
+
+    CHECK(std::equal(
+      initial_ledger.begin(), initial_ledger.end(), replay_ledger.begin()));
   }
-
-  INFO("Check that the two ledger files are identical");
-  FILE* file1;
-  file1 = fopen(initial_ledger.c_str(), "r");
-  REQUIRE(file1 != nullptr);
-  fseeko(file1, 0, SEEK_END);
-  auto file_size1 = ftello(file1);
-  REQUIRE(file_size1 != 1);
-  fseeko(file1, 0, SEEK_SET);
-
-  FILE* file2;
-  file2 = fopen(replay_ledger.c_str(), "r");
-  REQUIRE(file2 != nullptr);
-  fseeko(file2, 0, SEEK_END);
-  auto file_size2 = ftello(file2);
-  REQUIRE(file_size2 != 1);
-  fseeko(file2, 0, SEEK_SET);
-
-  CHECK(file_size1 == file_size2);
-
-  std::vector<uint8_t> file1_data(file_size1);
-  std::vector<uint8_t> file2_data(file_size2);
-
-  CHECK(fread(file1_data.data(), file_size1, 1, file1) == 1);
-  CHECK(fread(file2_data.data(), file_size2, 1, file2) == 1);
-
-  CHECK(memcmp(file1_data.data(), file2_data.data(), file_size1));
 }

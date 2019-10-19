@@ -56,7 +56,11 @@ class Replica : public Node, public IMessageReceiveBase
 {
 public:
   Replica(
-    const NodeInfo& node_info, char* mem, size_t nbytes, INetwork* network);
+    const NodeInfo& node_info,
+    char* mem,
+    size_t nbytes,
+    INetwork* network,
+    std::unique_ptr<consensus::LedgerEnclave> ledger = nullptr);
   // Requires: "mem" is vm page aligned and nbytes is a multiple of the
   // vm page size.
   // Effects: Create a new server replica using the information in
@@ -116,10 +120,6 @@ public:
 
   void register_reply_handler(reply_handler_cb cb, void* ctx);
   // Effects: Registers a handler that takes reply messages
-
-  void register_append_ledger_entry_cb(
-    LedgerWriter::append_ledger_entry_cb cb, void* ctx);
-  // Effects: Registers a handler that writes to a ledger
 
   void register_global_commit(global_commit_handler_cb cb, void* ctx);
   // Effects:: Registers a handler that is called when a batch is committed

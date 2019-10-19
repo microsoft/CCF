@@ -176,6 +176,7 @@ namespace pbft
         0,
         0,
         pbft_network.get(),
+        std::move(ledger),
         &message_receiver_base);
       LOG_INFO_FMT("PBFT setup for local_id: {}", local_id);
 
@@ -197,15 +198,6 @@ namespace pbft
       message_receiver_base->register_reply_handler(
         reply_handler_cb, client_proxy.get());
 
-      auto append_ledger_entry_cb =
-        [](const uint8_t* data, size_t size, void* ctx) {
-          auto ledger = static_cast<consensus::LedgerEnclave*>(ctx);
-          std::vector<uint8_t> tentry(size);
-          uint8_t* tdata = tentry.data();
-          serialized::write(tdata, size, data, size);
-          ledger->put_entry(tentry);
-        };
-
       auto global_commit_cb = [](kv::Version version, void* ctx) {
         auto p = static_cast<register_global_commit_info*>(ctx);
         if (version == kv::NoVersion || version < *p->global_commit_seqno)
@@ -215,9 +207,6 @@ namespace pbft
         *p->global_commit_seqno = version;
         p->store->compact(version);
       };
-
-      message_receiver_base->register_append_ledger_entry_cb(
-        append_ledger_entry_cb, ledger.get());
 
       register_global_commit_ctx.store = store.get();
       register_global_commit_ctx.global_commit_seqno = &global_commit_seqno;
