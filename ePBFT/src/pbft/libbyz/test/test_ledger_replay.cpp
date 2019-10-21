@@ -3,13 +3,14 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
-#include "LedgerReader.h"
 #include "Message.h"
 #include "Node.h"
 #include "Replica.h"
 #include "Request.h"
+#include "host/ledger.h"
 #include "network_mock.h"
 
+#include <cstdio>
 #include <doctest/doctest.h>
 
 static constexpr size_t TOTAL_REQUESTS = 1050;
@@ -56,7 +57,7 @@ NodeInfo get_node_info()
   principal_info.emplace_back(pi);
 
   GeneralInfo gi = {
-    1, 0, 0, true, "generic", 1800000, 5000, 100, 9999250000, principal_info};
+    2, 0, 0, true, "generic", 1800000, 5000, 100, 9999250000, principal_info};
 
   NodeInfo node_info = {
     gi.principal_info[0],
@@ -83,31 +84,32 @@ void init_replica(std::vector<char>& service_mem)
 
 TEST_CASE("Test Ledger Replay")
 {
+  ringbuffer::Circuit eio(2);
+  auto wf = ringbuffer::WriterFactory(eio);
+
+  std::string initial_ledger = "initial.ledger";
+  std::string replay_ledger = "replay.ledger";
+  std::remove(initial_ledger.c_str());
+  std::remove(replay_ledger.c_str());
+
   int mem_size = 400 * 8192;
   std::vector<char> service_mem(mem_size, 0);
   ExecutionMock exec_mock(0);
   init_replica(service_mem);
   replica->register_exec(exec_mock.exec_command);
 
-  std::string initial_ledger = "initial.ledger";
-  std::string replay_ledger = "replay.ledger";
+  INFO("Create dummy pre-prepares and write them to ledger file");
   {
-    // Create ledger
-    auto ledger_ofs = std::make_unique<std::ofstream>();
-
-    std::string ledger_name(initial_ledger);
-
-    ledger_ofs->open(
-      ledger_name.c_str(), std::ofstream::out | std::ofstream::trunc);
+    auto initial_ledger_io =
+      std::make_unique<asynchost::Ledger>(initial_ledger, wf);
 
     auto append_ledger_entry_cb =
       [](const uint8_t* data, size_t size, void* ctx) {
-        std::ofstream* ledger_ofs = static_cast<std::ofstream*>(ctx);
-        ledger_ofs->write((const char*)data, size);
-        ledger_ofs->flush();
+        auto ledger = static_cast<asynchost::Ledger*>(ctx);
+        ledger->write_entry(data, size);
       };
 
-    LedgerWriter ledger_writer(append_ledger_entry_cb, ledger_ofs.get());
+    LedgerWriter ledger_writer(append_ledger_entry_cb, initial_ledger_io.get());
 
     Req_queue rqueue;
     for (size_t i = 1; i < TOTAL_REQUESTS; i++)
@@ -140,42 +142,50 @@ TEST_CASE("Test Ledger Replay")
       ledger_writer.write_pre_prepare(pp.get());
     }
     // remove the requests that were not processed, only written to the ledger
-    replica->big_reqs()->mark_stable(TOTAL_REQUESTS);
+    replica->big_reqs()->clear();
   }
 
-  // Replay ledger
+  INFO("Read the ledger file and replay it out of order and in order");
   {
-    auto ledger_ofs = std::make_unique<std::ofstream>();
-
-    std::string ledger_name(replay_ledger);
-
-    ledger_ofs->open(
-      ledger_name.c_str(), std::ofstream::out | std::ofstream::trunc);
+    auto replay_ledger_io =
+      std::make_unique<asynchost::Ledger>(replay_ledger, wf);
 
     auto append_ledger_entry_cb =
       [](const uint8_t* data, size_t size, void* ctx) {
-        std::ofstream* ledger_ofs = static_cast<std::ofstream*>(ctx);
-        ledger_ofs->write((const char*)data, size);
-        ledger_ofs->flush();
+        auto ledger = static_cast<asynchost::Ledger*>(ctx);
+        ledger->write_entry(data, size);
       };
 
-    LedgerReader ledger_reader(initial_ledger);
     replica->register_append_ledger_entry_cb(
-      append_ledger_entry_cb, ledger_ofs.get());
+      append_ledger_entry_cb, replay_ledger_io.get());
 
-    while (true)
+    auto initial_ledger_io =
+      std::make_unique<asynchost::Ledger>(initial_ledger, wf);
+
+    // check that nothing gets executed out of order
+
+    auto resp = initial_ledger_io->read_framed_entries(5, 9);
+    CHECK(!replica->apply_ledger_data(resp));
+
+    resp = initial_ledger_io->read_framed_entries(1, 3);
+    CHECK(replica->apply_ledger_data(resp));
+
+    resp = initial_ledger_io->read_framed_entries(1, 3);
+    CHECK(!replica->apply_ledger_data(resp));
+
+    resp = initial_ledger_io->read_framed_entries(2, 3);
+    CHECK(!replica->apply_ledger_data(resp));
+
+    // execute the rest of the pre-prepares in batches of 4
+    for (size_t i = 4; i < TOTAL_REQUESTS; i += 4)
     {
-      auto ledger_position = replica->ledger_cursor();
-      auto entry = ledger_reader.read_next_entry(ledger_position);
-      if (entry.empty())
-      {
-        break;
-      }
-
-      CHECK(replica->apply_ledger_data(entry));
+      auto until = std::min(TOTAL_REQUESTS - 1, i + 3);
+      resp = initial_ledger_io->read_framed_entries(i, until);
+      CHECK(replica->apply_ledger_data(resp));
     }
   }
 
+  INFO("Check that the two ledger files are identical");
   FILE* file1;
   file1 = fopen(initial_ledger.c_str(), "r");
   REQUIRE(file1 != nullptr);

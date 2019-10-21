@@ -154,10 +154,12 @@ public:
   // polling
 
   bool compare_execution_results(const ByzInfo& info, Pre_prepare* pre_prepare);
-
-  size_t ledger_cursor() const;
+  // Compare the merkle root and batch ctx between the pre-prepare and the
+  // the corresponding fields in info after execution
 
   bool apply_ledger_data(const std::vector<uint8_t>& data);
+  // Effects: Entries are deserialized and requests are executed if they are
+  // able to If not any requests are cleared from the request queues
 
   void init_state();
   void recv_start();
@@ -212,8 +214,10 @@ private:
   void send_pre_prepare(bool do_not_wait_for_batch_size = false);
   // Effects: Sends a Pre_prepare message
 
-  void send_prepare(Seqno seqno);
+  void send_prepare(Seqno seqno, std::optional<ByzInfo> info = std::nullopt);
   // Effects: Sends a prepare message if appropriate.
+  // If ByzInfo is provided there is no need to execute since execution has
+  // already happened and relative information resides in info
 
   void send_commit(Seqno s);
 

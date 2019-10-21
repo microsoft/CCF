@@ -703,6 +703,12 @@ namespace ccf
         has_updated_merkle_root = true;
         return true;
       };
+
+      if (history == nullptr)
+      {
+        update_history();
+      }
+
       history->register_on_result(cb);
 
       auto rep =
@@ -863,6 +869,7 @@ namespace ccf
 
       update_history();
 
+#ifndef PBFT
       bool is_primary = (consensus == nullptr) || consensus->is_primary();
 
       if (!is_primary)
@@ -891,6 +898,7 @@ namespace ccf
           }
         }
       }
+#endif
 
       auto func = handler->func;
       auto args =

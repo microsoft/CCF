@@ -84,11 +84,6 @@ if(${TARGET} STREQUAL "virtual")
   )
   pbft_add_executable(replica-test)
 
-  add_executable(ledger-reader
-    ${PBFT_DIR}/src/pbft/bft-simple/test/ledger_reader_main.cpp
-  )
-  pbft_add_executable(ledger-reader)
-
   add_executable(test-controller
     ${PBFT_DIR}/src/pbft/bft-simple/test/test_controller_main.cpp
   )
@@ -122,22 +117,8 @@ if(${TARGET} STREQUAL "virtual")
   )
 
   add_test(
-    NAME test_client_proxy_f_0
-    COMMAND
-      python3 ${PBFT_DIR}/tests/infra/e2e_test.py --ip 127.0.0.1 --servers 4 --clients 0 --test-config ${PBFT_DIR}/tests/test_config --test-client-proxy
-      --run-time 60 --f 0
-  )
-
-  add_test(
     NAME test_UDP_with_delay
     COMMAND
       python3 ${PBFT_DIR}/tests/infra/e2e_test.py --ip 127.0.0.1 --servers 4 --clients 2 --test-config ${PBFT_DIR}/tests/test_config --with-delays
   )
-
-  add_test(
-    NAME test_UDP_with_delay_and_ledger
-    COMMAND
-      python3 ${PBFT_DIR}/tests/infra/e2e_test.py --ip 127.0.0.1 --servers 4 --clients 2 --test-config ${PBFT_DIR}/tests/test_config --with-delays --ledger
-    )
-
 endif()
