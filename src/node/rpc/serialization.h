@@ -5,6 +5,7 @@
 #include "enclave/interface.h"
 #include "node/rpc/calltypes.h"
 
+// schema packing here
 namespace ccf
 {
   DECLARE_JSON_ENUM(
@@ -34,6 +35,12 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status, node_id)
   DECLARE_JSON_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out, network_info)
+
+  DECLARE_JSON_TYPE(CreateNetworkNodeToNode::In::NodeInfoNetwork)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    CreateNetworkNodeToNode::In::NodeInfoNetwork, host, pubhost, nodeport, rpcport)
+  DECLARE_JSON_TYPE(CreateNetworkNodeToNode::In)
+  DECLARE_JSON_REQUIRED_FIELDS(CreateNetworkNodeToNode::In, foo, member_cert, gov_script, node_info_network)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetCommit::In)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::In)

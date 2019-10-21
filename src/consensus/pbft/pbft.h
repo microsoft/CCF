@@ -215,6 +215,7 @@ namespace pbft
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
+      // send a pbft request
       ccf_req request = {
         args.actor, args.caller_id, args.caller_cert, args.request};
       auto serialized_req = request.serialise();
@@ -301,6 +302,7 @@ namespace pbft
       const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
       override
     {
+      // TODO: pbft send request from here
       return true;
     }
 

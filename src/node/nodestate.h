@@ -205,9 +205,104 @@ namespace ccf
       sm.advance(State::initialized);
     }
 
+    std::vector<uint8_t> SerializeGenesis(const CreateNew::In& args)
+    {
+      jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> create_rpc;
+
+      create_rpc.id = 0;
+      create_rpc.method = ccf::NodeProcs::CREATE;
+
+      create_rpc.params.foo = std::string("foo");
+
+      for (auto& cert : args.config.genesis.member_certs)
+      {
+        create_rpc.params.member_cert.push_back(cert);
+      }
+
+      create_rpc.params.gov_script = args.config.genesis.gov_script;
+      create_rpc.params.node_info_network.host = args.config.node_info_network.host;
+      create_rpc.params.node_info_network.pubhost = args.config.node_info_network.pubhost;
+      create_rpc.params.node_info_network.nodeport = args.config.node_info_network.nodeport;
+      create_rpc.params.node_info_network.rpcport = args.config.node_info_network.rpcport;
+
+      return jsonrpc::pack(create_rpc, jsonrpc::Pack::Text);
+    }
+
+    void DeserializeGenesis(std::vector<uint8_t> packed)
+    {
+
+    }
+
+    bool ApplyGenesisTx(const CreateNew::In& args, std::vector<uint8_t>& quote)
+    {
+          auto foo = SerializeGenesis(args);
+          //foo.empty();
+          LOG_INFO << "AAAAAAAAA: " << std::string((const char*)foo.data(), foo.size()).c_str() << std::endl;
+
+          GenesisGenerator g(network);
+          g.init_values();
+
+          for (auto& cert : args.config.genesis.member_certs) {
+            g.add_member(cert);
+          }
+
+          // Add self as TRUSTED
+          self = g.add_node({args.config.node_info_network,
+                             node_cert,
+                             quote,
+                             NodeStatus::TRUSTED});
+
+#ifdef GET_QUOTE
+          // Trust own code id
+          g.trust_code_id(node_code_id);
+#endif
+
+          // set access whitelists
+          // TODO(#feature): this should be configurable
+          for (const auto& wl : default_whitelists) {
+            g.set_whitelist(wl.first, wl.second);
+          }
+
+          g.set_gov_scripts(lua::Interpreter().invoke<nlohmann::json>(
+            args.config.genesis.gov_script));
+
+          //network.secrets = std::make_unique<NetworkSecrets>(
+          //  "CN=The CA", std::make_unique<Seal>(writer_factory));
+
+          g.create_service(network.secrets->get_current().cert);
+
+          // Become the primary and force replication.
+          consensus->force_become_primary();
+
+          if (g.finalize() != kv::CommitSuccess::OK) {
+            return false;
+          }
+
+          // Accept node connections for other nodes to join
+          accept_node_connections();
+
+          // Accept members connections for members to configure and open the
+          // network
+          accept_member_connections();
+
+          sm.advance(State::partOfNetwork);
+
+          return true;
+
+/*
+          if (g.finalize() != kv::CommitSuccess::OK) {
+            return Fail<CreateNew::Out>(
+              "Genesis transaction could not be committed");
+          }
+          */
+         
+         //return (g.finalize() == kv::CommitSuccess::OK);
+    }
+
     //
     // funcs in state "initialized"
     //
+    // TODO: entry point here
     auto create(const CreateNew::In& args)
     {
       std::lock_guard<SpinLock> guard(lock);
@@ -233,6 +328,33 @@ namespace ccf
       {
         case StartType::New:
         {
+
+/*
+          */
+
+
+///*
+
+          network.secrets = std::make_unique<NetworkSecrets>(
+            "CN=The CA", std::make_unique<Seal>(writer_factory));
+
+          self = 0;
+
+
+#ifdef PBFT
+          setup_pbft();
+#else
+          setup_raft();
+#endif
+          setup_history();
+          setup_encryptor();
+
+          if (!ApplyGenesisTx(args, quote)){
+            return Fail<CreateNew::Out>(
+              "Genesis transaction could not be committed");
+          }
+
+/*
           GenesisGenerator g(network);
           g.init_values();
 
@@ -258,18 +380,8 @@ namespace ccf
           g.set_gov_scripts(lua::Interpreter().invoke<nlohmann::json>(
             args.config.genesis.gov_script));
 
-          network.secrets = std::make_unique<NetworkSecrets>(
-            "CN=The CA", std::make_unique<Seal>(writer_factory));
-
           g.create_service(network.secrets->get_current().cert);
 
-#ifdef PBFT
-          setup_pbft();
-#else
-          setup_raft();
-#endif
-          setup_history();
-          setup_encryptor();
 
           // Become the primary and force replication.
           consensus->force_become_primary();
@@ -286,6 +398,7 @@ namespace ccf
           accept_member_connections();
 
           sm.advance(State::partOfNetwork);
+          */
 
           return Success<CreateNew::Out>(
             {node_cert, quote, network.secrets->get_current().cert});
@@ -411,6 +524,7 @@ namespace ccf
           return true;
         });
 
+      // example of serialization
       // Send RPC request to remote node to join the network.
       jsonrpc::ProcedureCall<JoinNetworkNodeToNode::In> join_rpc;
       join_rpc.id = join_seq_no++;
@@ -436,6 +550,7 @@ namespace ccf
         args.config.joining.target_host,
         args.config.joining.target_port);
 
+      // the pack thing is how we serialize
       join_client->send(jsonrpc::pack(join_rpc, jsonrpc::Pack::Text));
     }
 

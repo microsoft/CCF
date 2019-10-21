@@ -46,6 +46,32 @@ namespace ccf
     };
   };
 
+  struct CreateNetworkNodeToNode
+  {
+    struct In
+    {
+      std::string foo;
+      std::vector<std::vector<uint8_t>> member_cert;
+      std::string gov_script;
+
+      struct NodeInfoNetwork
+      {
+        std::string host;
+        std::string pubhost;
+        std::string nodeport;
+        std::string rpcport;
+
+      };
+      NodeInfoNetwork node_info_network;
+    };
+
+    struct Out
+    {
+      std::string bar;
+    };
+
+  };
+
   struct JoinNetworkNodeToNode
   {
     struct In

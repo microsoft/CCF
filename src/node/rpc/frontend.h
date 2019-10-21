@@ -299,6 +299,7 @@ namespace ccf
 
       auto get_primary_info =
         [this](Store::Tx& tx, const nlohmann::json& params) {
+          LOG_INFO_FMT("BBBBB: {}, {}", (nodes !=nullptr ? "true": "false"),(consensus !=nullptr ? "true": "false"));
           if ((nodes != nullptr) && (consensus != nullptr))
           {
             NodeId primary_id = consensus->primary();
@@ -515,6 +516,7 @@ namespace ccf
      * @param ctx Context for this RPC
      * @param input Serialised JSON RPC
      */
+    // Called from create in nodestate
     std::vector<uint8_t> process(
       enclave::RPCContext& ctx, const std::vector<uint8_t>& input) override
     {
@@ -683,6 +685,7 @@ namespace ccf
       }
 
       // Strip signature
+      update_consensus();
       auto rpc_ = &rpc.second;
       SignedReq signed_request(rpc.second);
       if (rpc_->find(jsonrpc::SIG) != rpc_->end())
@@ -914,8 +917,10 @@ namespace ccf
 
           if (!tx_result.first)
           {
+            LOG_INFO_FMT("AAAAA: {}, {}", method, tx_result.second.dump());
             return jsonrpc::error_response(ctx.req.seq_no, tx_result.second);
           }
+          LOG_INFO_FMT("AAAAAA:{}", method);
 
           switch (tx.commit())
           {

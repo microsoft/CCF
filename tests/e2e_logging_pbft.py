@@ -39,6 +39,8 @@ def run(args):
         result = network.propose(1, primary, script, None, "open_network")
         network.vote_using_majority(primary, result[1]["id"], False)
         LOG.info("***** Network is now open *****")
+        
+        time.sleep(30)
 
         # with primary.node_client() as mc:
         #    check_commit = infra.ccf.Checker(mc)

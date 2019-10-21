@@ -33,6 +33,8 @@ namespace enclave
       return search->second;
     }
 
+    // note: use to call the frontend cb for create
+    //
     std::optional<std::shared_ptr<RpcHandler>> find(ccf::ActorsType index)
     {
       auto search = map.find(index);

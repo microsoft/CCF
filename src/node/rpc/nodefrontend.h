@@ -6,6 +6,7 @@
 #include "node/networkstate.h"
 #include "node/quoteverification.h"
 
+// add handler in this file
 namespace ccf
 {
   class NodeRpcFrontend : public RpcFrontend<>

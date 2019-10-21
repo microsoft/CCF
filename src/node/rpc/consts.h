@@ -41,6 +41,7 @@ namespace ccf
 
   struct NodeProcs
   {
+    static constexpr auto CREATE = "create";
     static constexpr auto JOIN = "join";
     static constexpr auto GET_SIGNED_INDEX = "getSignedIndex";
     static constexpr auto GET_QUOTES = "getQuotes";

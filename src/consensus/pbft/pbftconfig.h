@@ -108,6 +108,7 @@ namespace pbft
 
       LOG_DEBUG_FMT("PBFT exec_command() for frontend {}", request.actor);
 
+      // how we call a front end 
       auto handler = this->rpc_map->find(ccf::ActorsType(request.actor));
       if (!handler.has_value())
         throw std::logic_error(

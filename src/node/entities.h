@@ -31,12 +31,13 @@ namespace ccf
     static constexpr auto MANAGEMENT = "management";
   };
 
+
+  // use nodes
   enum ActorsType : uint64_t
   {
     members = 0,
     users,
     nodes,
-    management,
     // not to be used
     unknown
   };
