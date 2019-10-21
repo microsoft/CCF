@@ -3,8 +3,8 @@ Starting a New Network
 
 .. note:: Before creating a new network:
 
-    - The identity of the initial members of the consortium must be created. See :ref:`Member Governance`.
-    - The constitution should have been agreed by the initial members. See :ref:`Constitution`.
+    - The :ref:`identity of the initial members of the consortium must be created <Member Governance>`.
+    - The :ref:`constitution should have been agreed by the initial members <Constitution>`.
 
 Starting the First Node
 -----------------------
@@ -37,7 +37,7 @@ The :term:`constitution`, as defined by the initial members, should be passed vi
 
 The network is now in its opening state and any new nodes can join the network without being trusted by members.
 
-.. note:: Once a CCF network is started, members can add other members and users via governance. See :ref:`Opening a Network`.
+.. note:: Once a CCF network is started, :ref:`members can add other members and users via governance <Opening a Network>`.
 
 Adding a New Node to the Network
 --------------------------------
@@ -70,7 +70,7 @@ If the network has already been opened to users, members need to trust the joini
 Opening a Network to Users
 --------------------------
 
-Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to :term:`users` via governance. See :ref:`Opening a Network` for how members open the networks to users.
+Once a CCF network is successfully started and an acceptable number of nodes have joined, :ref:`members should vote to open the network <Opening a Network>` to :term:`users` via governance.
 
 Summary diagram
 ---------------

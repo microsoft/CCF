@@ -1,9 +1,6 @@
 Logging (C++)
 =============
 
-Overview
---------
-
 A C++ transaction engine exposes itself to CCF by implementing:
 
 .. literalinclude:: ../../../src/enclave/appinterface.h

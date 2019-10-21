@@ -9,7 +9,7 @@ Network
 
 A CCF network has a master secret, which is used to derive keys for multiple purposes:
 
- * A network identity public-key certificate, used for :term:~TLS~ server authentication.
+ * A network identity public-key certificate, used for :term:`TLS` server authentication.
  * Symmetric data-encryption keys, used to encrypt entries in the ledger.
 
 Node

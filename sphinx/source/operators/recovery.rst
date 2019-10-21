@@ -65,7 +65,7 @@ Similarly to the normal join protocol (see :ref:`Adding a New Node to the Networ
 
         Note over Node 3: Part of Public Network
 
-Once operators have established a recovered public network, the existing members of the consortium must vote to accept the recovery of the network. See :ref:`Accepting Recovery`.
+Once operators have established a recovered public network, the existing members of the consortium :ref:`must vote to accept the recovery of the network <Accepting Recovery>`.
 
 .. warning:: After recovery, the identity of the network has changed. The new network certificate ``networkcert.pem`` must be distributed to all existing and new users.
 

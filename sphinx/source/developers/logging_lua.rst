@@ -1,9 +1,6 @@
 Logging (Lua)
 =============
 
-Overview
---------
-
 CCF comes with a generic application for running Lua scripts called *luageneric*, implemented in [CCF]/src/apps/luageneric/luageneric.cpp. At runtime, *luageneric* dispatches incoming RPCs to Lua scripts stored in the table *APP_SCRIPTS*. The RPC method name is used as the key, and if a script exists at this key it is called with the RPC arguments.
 
 The script at key ``__environment`` is special. If set, the corresponding script is invoked before any actual handler script to initialize the Lua environment.
@@ -82,7 +79,6 @@ CCF must be started with *luageneric* as enclave file:
 
     ./cchost --enclave-file libluageneric.signed.so [args]
 
-Then, members should register the Lua application. See :ref:`Registering the Lua Application`.
-
+Then, members should :ref:`register the Lua application <Registering the Lua Application>`.
 
 

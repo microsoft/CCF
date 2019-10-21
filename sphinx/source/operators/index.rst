@@ -9,7 +9,5 @@ This section describes how :term:`operators` manage the different nodes constitu
 
     start_network
     recovery
-    ledger
-    cryptography
     node_output
     operator_rpc_api

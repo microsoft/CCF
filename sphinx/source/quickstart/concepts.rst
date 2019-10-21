@@ -3,9 +3,9 @@ CCF Concepts
 
 This page provides a broad overview of the key concepts and components of CCF.
 
-The following diagram shows a CCF network made of 3 nodes, running the same application inside an enclave. The effects of user and member transactions are eventually committed to a replicated encrypted ledger. A consortium of members follow is in charge of governing the network.
+The following diagram shows a CCF network made of 3 nodes, running the same application inside an enclave. The effects of user and member transactions are eventually committed to a replicated encrypted ledger. A consortium of members is in charge of governing the network.
 
-.. image:: ccf_concept.svg
+.. image:: ccf_concepts.svg
 
 Network and nodes
 -----------------
