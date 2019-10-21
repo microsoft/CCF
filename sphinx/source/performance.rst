@@ -81,12 +81,19 @@ For a finer grained view of performance the clients in these tests can also dump
 
 .. image:: img/1k_unsigned.png
 
-* green points are SmallBank business transactions
-* red points are generic ``getCommit`` requests used to poll for global commit synchronisation
-* blue line shows the receiving node's local commit id
-* orange line shows the service's global commit id
+This displays several things:
 
-This shows a healthy service, with minimal latency responses to each request, write transactions causing an increment to the local commit id, and only a few slower transactions around global commit changes.
+    * The latency of each request (on the left y-axis), ie the delay between a request being sent and the corresponding response received, distinguishing
+
+        * the business transactions sent to SmallBank application (green dots) 
+        * the generic ``getCommit`` requests used to poll for global commit synchronisation (red dots)
+
+    * The progress of the CCF commit version (on the right axis), showing both
+
+        * the receiving node's locally committed version (blue line)
+        * the highest version agreed by the global consensus across the service (orange line)
+
+This shows a healthy service. Response latencies are stable, the local version increases steadily, and the global commit correctly catches up shortly afterwards. Note that the node's local version increments with each processed write transaction but the global commit only changes after longer intervals, increasing in larger steps. The additional delay is from the roundtrip communications required by the consensus protocol, while the step-size is due to the consensus working over `batches` of transactions rather than executing for each transaction individually - in this case the service has batched the first 500 transactions, incrementing the global version to 500.
 
 Note that this is an idealised test; the client is sending one transaction at a time to measure minimum latency, the transaction logic is simple, the client is communicating with a local node. This is used to establish an upper limit on possible performance. This can give a direct A/B comparison of various changes. For example, if each request is signed from the client:
 

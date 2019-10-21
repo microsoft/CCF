@@ -54,7 +54,6 @@ def plot_timeseries(sent, received, ax, title, args):
 
     # Set axis properties
     ax.title.set_text(title)
-    ax.set_xlim(left=0, auto=True)
 
     # Plot second axis of commit versions
     # (Plotted first so it gets consistent colors)
@@ -80,14 +79,13 @@ def plot_timeseries(sent, received, ax, title, args):
 
     ax.set_prop_cycle(cycler(color=colours))
 
-    print(test_df.sort_values(by=["request_time"], ascending=False).head(5))
-
     # Plot transaction times, by method
     for method, grp in test_df.groupby("method"):
         tx_time_lines[method] += ax.plot(
             grp["sent_msec"], grp["request_time"], ".", label=method
         )
     ax.set_ylim(bottom=0, auto=True)
+    ax.set_xlim(auto=True)
     ax.set(xlabel="Sent time (ms)")
 
     # Based on label_outer, but keeping x labels for all
