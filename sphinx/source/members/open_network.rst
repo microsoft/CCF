@@ -6,13 +6,7 @@ This sections assumes that a set of nodes has already been started by :term:`ope
 Adding Users
 ------------
 
-Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to :term:`users`. First, the certificate and private key of trusted users should be generated. For example, for one user:
-
-.. code-block:: bash
-
-    $ keygenerator --name user1
-    $ ls user1*
-    user1_cert.pem user1_privk.pem
+Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to :term:`users`. See :ref:`User identity` to generate the identity of users.
 
 Then, the certificates of trusted users should be registered in CCF via the member governance interface. For example, the first member may decide to make a proposal to add a new user (here, ``user_cert`` is the PEM certificate of the user -- see :ref:`Cryptography` for a list of supported algorithms):
 

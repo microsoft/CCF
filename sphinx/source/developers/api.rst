@@ -13,10 +13,3 @@ Application Handler
 .. doxygenclass:: ccf::RpcFrontend
    :project: CCF
    :members:
-
-Client
-------
-
-.. doxygenclass:: RpcTlsClient
-   :project: CCF
-   :members:

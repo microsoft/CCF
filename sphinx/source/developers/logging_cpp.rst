@@ -1,8 +1,8 @@
 Logging (C++)
--------------
+=============
 
 Overview
-````````
+--------
 
 A C++ transaction engine exposes itself to CCF by implementing:
 
@@ -42,7 +42,7 @@ The Logging application simply has:
         :dedent: 4
 
 RPC Handler
-```````````
+-----------
 
 The handler returned by :cpp:func:`ccfapp::getRpcHandler()` needs to subclass :cpp:class:`ccf::UserRpcFrontend`:
 
@@ -75,7 +75,7 @@ A handler can either be installed as:
 - ``MayWrite``: the execution of this handler on a specific node depends on the value of the ``"readonly"`` paramater in the JSON-RPC command.
 
 App-defined errors
-..................
+~~~~~~~~~~~~~~~~~~
 
 Applications can define their own error codes. These should be between ``-32050`` and ``-32099`` to avoid conflicting with CCF's error codes. The Logging application returns errors if the user tries to get an id which has not been logged, or tries to log an empty message. These error codes should be given their own ``enum class``, and a ``get_error_prefix`` function should be defined in the same namespace to help users distinguish error messages:
 
@@ -86,7 +86,7 @@ Applications can define their own error codes. These should be between ``-32050`
     :dedent: 2
 
 API Schema
-..........
+~~~~~~~~~~
 
 These handlers also demonstrate two different ways of defining schema for RPCs, and validating incoming requests against them. The record/get methods operating on public tables have manually defined schema and use [#valijson]_ for validation, returning an error if the input is not compliant with the schema:
 
@@ -117,7 +117,7 @@ This produces validation error messages with a lower performance overhead, and e
 Both approaches register their RPC's params and result schema, allowing them to be retrieved at runtime with calls to the getSchema RPC.
 
 Build
-`````
+-----
 
 Once an application is complete, it needs be built into a shared object, and signed:
 
@@ -132,7 +132,7 @@ be placed under the same directory as the source files for the application.
 .. literalinclude:: ../../../src/apps/logging/oe_sign.conf
 
 Running
-```````
+-------
 
 This produces the enclave library ``libloggingenc.so.signed`` which can be loaded by the cchost application:
 
