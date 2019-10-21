@@ -171,22 +171,6 @@ def replica_checks(
             if f == 0:
                 assert reply_callback
 
-        if has_ledger and f != 0:
-            # check if a ledger should have been created
-            logger.info(f"Checking Ledger id: {node.id} port: {node.port}")
-            ledger_file = f"ledger_{node.port}.txt"
-            assert os.path.isfile(ledger_file)
-
-            args = ["./ledger-reader", "--path", f"{ledger_file}"]
-            result = run(args, stdout=PIPE)
-
-            assert result.stdout.decode().find("Pre Prepare") is not -1
-
-            has_view_change = result.stdout.decode().find("View Change") is not -1
-            assert (with_delays and has_view_change) or (
-                not has_view_change and not with_delays
-            )
-
     if not with_delays or f == 0:
         # if view changes not forced or running with f == 0 we shouldn't see any
         assert not send_view_change
@@ -285,9 +269,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--transport",
-        help="type of transport (UDP_MT | TCP_ZMQ | UDP)",
+        help="type of transport (UDP_MT | UDP)",
         default="UDP",
-        choices=["UDP", "UDP_MT", "TCP_ZMQ"],
+        choices=["UDP", "UDP_MT"],
     )
     parser.add_argument("--run-time", help="run time in seconds", default=100, type=int)
     parser.add_argument(

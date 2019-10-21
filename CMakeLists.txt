@@ -40,7 +40,7 @@ if(BUILD_TESTS)
   # Tests
   enable_testing()
 
-  ## Unit tests
+  # Unit tests
   add_unit_test(map_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
@@ -217,7 +217,7 @@ if(BUILD_TESTS)
   add_picobench(map_bench
     SRCS src/ds/test/map_bench.cpp
   )
-  add_picobench(logger_bench 
+  add_picobench(logger_bench
     SRCS src/ds/test/logger_bench.cpp
   )
   add_picobench(logger_json_bench
@@ -274,7 +274,7 @@ if(BUILD_TESTS)
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
     if (NOT HTTP)
-      ## Member client end to end tests
+      # Member client end to end tests
       add_e2e_test(
         NAME member_client_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py

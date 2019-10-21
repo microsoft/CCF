@@ -7,8 +7,8 @@
 # If we cannot find both a suitable clang and a suitable clang++, the usual CMake selection logic applies
 if ((NOT CMAKE_C_COMPILER) AND (NOT CMAKE_CXX_COMPILER)
     AND "$ENV{CC}" STREQUAL "" AND "$ENV{CXX}" STREQUAL "")
-  find_program(FOUND_CMAKE_C_COMPILER NAMES clang-7.0 clang-7 clang-8)
-  find_program(FOUND_CMAKE_CXX_COMPILER NAMES clang++-7.0 clang++-7 clang++-8)
+  find_program(FOUND_CMAKE_C_COMPILER NAMES clang-8 clang-7.0 clang-7)
+  find_program(FOUND_CMAKE_CXX_COMPILER NAMES clang++-8 clang++-7.0 clang++-7)
   if (NOT (FOUND_CMAKE_C_COMPILER AND FOUND_CMAKE_CXX_COMPILER))
     message(WARNING "Clang >= 7 not found, will use default compiler. "
       "Override the compiler by setting CC and CXX environment variables.")

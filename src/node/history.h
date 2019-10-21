@@ -146,7 +146,7 @@ namespace ccf
       kv::TxHistory::RequestID id,
       uint64_t actor,
       CallerId caller_id,
-      CBuffer& caller_cert,
+      const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request) override
     {
       return true;
@@ -381,7 +381,7 @@ namespace ccf
       kv::TxHistory::RequestID id,
       uint64_t actor,
       CallerId caller_id,
-      CBuffer& caller_cert,
+      const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request) override
     {
       LOG_DEBUG << fmt::format("HISTORY: add_request {0}", id) << std::endl;

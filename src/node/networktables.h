@@ -12,6 +12,7 @@
 #include "secrets.h"
 #include "service.h"
 #include "signatures.h"
+#include "users.h"
 #include "values.h"
 #include "votinghistory.h"
 #include "whitelists.h"
@@ -25,9 +26,13 @@ namespace ccf
   {
     std::shared_ptr<Store> tables;
 
+    //
     // Governance tables
+    //
+    // members and member_certs tables should always be in sync
     Members& members;
     Certs& member_certs;
+
     Scripts& gov_scripts;
     Proposals& proposals;
     Whitelists& whitelists;
@@ -36,17 +41,28 @@ namespace ccf
     VotingHistoryTable& voting_history;
     ClientSignatures& member_client_signatures;
 
+    //
     // User tables
+    //
+    // users and user_certs tables should always be in sync
+    Users& users;
     Certs& user_certs;
+
     ClientSignatures& user_client_signatures;
 
+    //
     // Node table
+    //
     Nodes& nodes;
 
+    //
     // Lua application table
+    //
     Scripts& app_scripts;
 
+    //
     // Internal CCF tables
+    //
     Service& service;
     Values& values;
     Secrets& secrets_table;
@@ -72,6 +88,7 @@ namespace ccf
         Tables::VOTING_HISTORY, kv::SecurityDomain::PUBLIC)),
       member_client_signatures(
         tables->create<ClientSignatures>(Tables::MEMBER_CLIENT_SIGNATURES)),
+      users(tables->create<Users>(Tables::USERS)),
       user_certs(tables->create<Certs>(Tables::USER_CERTS)),
       user_client_signatures(
         tables->create<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
@@ -104,6 +121,7 @@ namespace ccf
         std::ref(member_acks),
         std::ref(voting_history),
         std::ref(member_client_signatures),
+        std::ref(users),
         std::ref(user_certs),
         std::ref(user_client_signatures),
         std::ref(nodes),

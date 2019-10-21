@@ -161,7 +161,7 @@ Replica::Replica(
 
   exec_command = nullptr;
   non_det_choices = 0;
-  ledger_replay = std::make_unique<LedgerReplay>(0);
+  ledger_replay = std::make_unique<LedgerReplay>();
 }
 
 void Replica::register_exec(ExecCommand e)
@@ -229,13 +229,104 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
   }
 }
 
-void Replica::recv_start()
+bool Replica::compare_execution_results(
+  const ByzInfo& info, Pre_prepare* pre_prepare)
 {
-  // Compute session keys and send initial new-key message.
-  Node::send_new_key();
+  auto& pp_root = pre_prepare->get_merkle_root();
+  if (!std::equal(
+        std::begin(pp_root), std::end(pp_root), std::begin(info.merkle_root)))
+  {
+    LOG_FAIL << "Merkle root between execution and the pre_prepare message "
+                "does not match, seqno:"
+             << pre_prepare->seqno() << std::endl;
+    return false;
+  }
 
+  auto tx_ctx = pre_prepare->get_ctx();
+  if (tx_ctx != info.ctx)
+  {
+    LOG_FAIL << "User ctx between execution and the pre_prepare message "
+                "does not match, seqno:"
+             << pre_prepare->seqno() << std::endl;
+    return false;
+  }
+  return true;
+}
+
+bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
+{
+  if (data.empty())
+  {
+    LOG_FAIL << "Received empty entries" << std::endl;
+    return false;
+  }
+
+  auto executable_pps =
+    ledger_replay->process_data(data, rqueue, brt, ledger_writer.get());
+
+  for (auto& executable_pp : executable_pps)
+  {
+    auto seqno = executable_pp->seqno();
+
+    ByzInfo info;
+    if (execute_tentative(executable_pp.get(), info))
+    {
+      auto batch_info = compare_execution_results(info, executable_pp.get());
+      if (!batch_info)
+      {
+        return false;
+      }
+
+      next_pp_seqno = seqno;
+
+      if (ledger_writer)
+      {
+        ledger_writer->write_pre_prepare(executable_pp.get());
+      }
+
+      if (seqno > last_prepared)
+      {
+        last_prepared = seqno;
+      }
+
+      if (global_commit_cb != nullptr)
+      {
+        global_commit_cb(executable_pp->get_ctx(), global_commit_ctx);
+      }
+
+      last_executed++;
+
+      if (last_executed % checkpoint_interval == 0)
+      {
+        mark_stable(last_executed, true);
+      }
+    }
+    else
+    {
+      LOG_DEBUG << "Received entries could not be processed. Received seqno: "
+                << seqno << std::endl;
+      ledger_replay->clear_requests(rqueue, brt);
+      return false;
+    }
+  }
+  return true;
+}
+
+void Replica::init_state()
+{
   // Compute digest of initial state and first checkpoint.
   state.compute_full_digest();
+}
+
+void Replica::recv_start()
+{
+  if (node_info.general_info.should_mac_message)
+  {
+    // Compute session keys and send initial new-key message.
+    Node::send_new_key();
+  }
+
+  init_state();
 
   // Start status and authentication freshness timers
   stimer->start();
@@ -564,7 +655,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       }
       else
       {
-        send_prepare(next_pp_seqno);
+        send_prepare(next_pp_seqno, info);
       }
     }
     else
@@ -667,7 +758,7 @@ void Replica::handle(Pre_prepare* m)
   delete m;
 }
 
-void Replica::send_prepare(Seqno seqno)
+void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 {
   while (plog.within_range(seqno))
   {
@@ -676,32 +767,25 @@ void Replica::send_prepare(Seqno seqno)
     if (pc.my_prepare() == 0 && pc.is_pp_complete())
     {
       // Send prepare to all replicas and log it.
-      ByzInfo info;
       Pre_prepare* pp = pc.pre_prepare();
-      if (!execute_tentative(pp, info))
+      ByzInfo info;
+      if (byz_info.has_value())
       {
-        break;
+        info = byz_info.value();
+      }
+      else
+      {
+        if (!execute_tentative(pp, info))
+        {
+          break;
+        }
       }
 
-      auto& pp_root = pp->get_merkle_root();
-      if (!std::equal(
-            std::begin(pp_root),
-            std::end(pp_root),
-            std::begin(info.merkle_root)))
+      // TODO: fix this check
+      // https://github.com/microsoft/CCF/issues/357
+      if (!compare_execution_results(info, pp))
       {
-        LOG_FAIL << "Merkle root between execution and the pre_prepare message "
-                    "does not match, seqno:"
-                 << seqno << std::endl;
-        break;
-      }
-
-      auto tx_ctx = pp->get_ctx();
-      if (tx_ctx != info.ctx)
-      {
-        LOG_FAIL << "User ctx between execution and the pre_prepare message "
-                    "does not match, seqno:"
-                 << seqno << std::endl;
-        break;
+        // break;
       }
 
       if (ledger_writer && !is_primary())
@@ -1735,7 +1819,7 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
     !state.in_check_state() && has_complete_new_view())
   {
     last_tentative_execute = last_tentative_execute + 1;
-    LOG_TRACE << "in execute tenative with last_tentative_execute: "
+    LOG_TRACE << "in execute tentative with last_tentative_execute: "
               << last_tentative_execute
               << " and last_executed: " << last_executed << std::endl;
 
@@ -1800,7 +1884,8 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
       // Finish constructing the reply.
       LOG_DEBUG << "Executed from tentative exec: " << pp->seqno()
                 << " from client: " << client_id
-                << " rid: " << request.request_id() << std::endl;
+                << " rid: " << request.request_id() << " ctx: " << info.ctx
+                << std::endl;
 
 #ifdef ENFORCE_EXACTLY_ONCE
       replies.end_reply(client_id, request.request_id(), outb.size);
@@ -1814,16 +1899,6 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
     {
       state.checkpoint(last_tentative_execute);
     }
-    return true;
-  }
-  else if (node->f() == 0)
-  {
-    std::copy(
-      std::begin(pp->get_merkle_root()),
-      std::end(pp->get_merkle_root()),
-      std::begin(info.merkle_root));
-    info.ctx = pp->get_ctx();
-    // we have tentatively executed already as there is only one node
     return true;
   }
   return false;
@@ -2805,7 +2880,7 @@ void Replica::vtimer_handler(void* owner)
 {
   PBFT_ASSERT(replica, "replica is not initialized\n");
 
-  if (!replica->delay_vc())
+  if (!replica->delay_vc() && replica->f() > 0)
   {
     if (replica->rqueue.size() > 0)
     {
@@ -2825,7 +2900,8 @@ void Replica::vtimer_handler(void* owner)
 
 void Replica::stimer_handler(void* owner)
 {
-  if (node->f() != 0)
+  auto principals = ((Replica*)owner)->get_principals();
+  if (principals->size() > 1)
   {
     ((Replica*)owner)->send_status();
   }
