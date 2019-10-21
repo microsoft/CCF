@@ -4,9 +4,11 @@ Performance
 Overview
 --------
 
-CCF pairs strong confidentiality guarantees with extremely high performance. CCF can sustain high transaction throughputs while achieving global commits with low latency.
+CCF pairs strong confidentiality guarantees with `very high performance <TR_>`_. CCF can sustain high transaction throughput, while also reaching consensus over global commits with low latency.
 
-There are several performance metrics in the CI test suite to ensure this, including micro-benchmarks of critical systems and end-to-end tests measuring peak throughput. These are run against every PR and commit to the master branch. You can also run these locally to test the configuration of your machines, and use them as a basis for creating performance tests of your own CCF application.
+.. _TR: https://github.com/microsoft/CCF/blob/master/CCF-TECHNICAL-REPORT.pdf
+
+There are several performance metrics in the CI test suite to ensure this, ranging from micro-benchmarks of critical systems to end-to-end tests measuring peak throughput. These are run against every PR and commit to the master branch. You can also run these locally to test the configuration of your machines, and use them as a basis for creating performance tests of your own CCF application.
 
 Micro-benchmarks
 ----------------
@@ -17,7 +19,7 @@ The micro-benchmark tests can be run from the CCF build directory:
 
     ./tests.sh -VV -L "bench"
 
-These test performance-critical features of CCF such as certificate verification and KV-alterations. Here is the sample output of the ``tls_bench`` test:
+These test performance-critical features of CCF such as certificate verification and KV-alterations. As an example, here is sample output of ``tls_bench``:
 
 .. code-block:: bash
 
@@ -64,7 +66,7 @@ These test performance-critical features of CCF such as certificate verification
        hash_256k1_bitc_100k * |       1 |     0.340 |  340400 |425.500 |     2937.7
     ===============================================================================
 
-This compares the signing, verification, and hashing performance of different cryptographic curve implementations in CCF. The `bitcoin-core implementation <bitcoin_256k1>`_ of elliptic curve secp256k1 is significantly faster than other supported curves, particularly when verification becomes a bottleneck.
+This compares the signing, verification, and hashing performance of different cryptographic curve implementations in CCF. The `bitcoin-core implementation <bitcoin_256k1_>`_ of elliptic curve secp256k1 is significantly faster than other supported curves, particularly when verification becomes a bottleneck.
 
 End-to-end performance tests
 ----------------------------
