@@ -400,6 +400,23 @@ namespace ccf
 
         return jsonrpc::success(complete_proposal(args.tx, vote.id));
       };
+
+      auto create = [this](RequestArgs& args) {
+        LOG_INFO << "FFFFFFFF - received create message" << std::endl;
+
+        const auto in = args.params.get<CreateNetworkNodeToNode::In>();
+
+        LOG_INFO << "FFFFFFFF - received create message:" << in.foo.c_str() << std::endl;
+
+        CreateNetworkNodeToNode::Out result;
+        result.result = true;
+
+        return jsonrpc::success(result);
+      };
+
+
+      install(MemberProcs::CREATE, create, Write);
+
       install_with_auto_schema<Vote, bool>(MemberProcs::VOTE, vote, Write);
 
       auto complete = [this](RequestArgs& args) {

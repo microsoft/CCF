@@ -30,6 +30,7 @@ public:
   PreparedRpc gen_rpc(
     const std::string& method, const nlohmann::json& params) override
   {
+    // TODO: this is the signing
     nlohmann::json j = RpcTlsClient::json_rpc(method, params);
 
     auto contents = nlohmann::json::to_msgpack(j);

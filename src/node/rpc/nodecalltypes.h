@@ -67,7 +67,7 @@ namespace ccf
 
     struct Out
     {
-      std::string bar;
+      bool result;
     };
 
   };

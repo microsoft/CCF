@@ -210,9 +210,9 @@ namespace ccf
       jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> create_rpc;
 
       create_rpc.id = 0;
-      create_rpc.method = ccf::NodeProcs::CREATE;
+      create_rpc.method = ccf::MemberProcs::CREATE;
 
-      create_rpc.params.foo = std::string("foo");
+      create_rpc.params.foo = std::string("foo123");
 
       for (auto& cert : args.config.genesis.member_certs)
       {
@@ -225,19 +225,75 @@ namespace ccf
       create_rpc.params.node_info_network.nodeport = args.config.node_info_network.nodeport;
       create_rpc.params.node_info_network.rpcport = args.config.node_info_network.rpcport;
 
-      return jsonrpc::pack(create_rpc, jsonrpc::Pack::Text);
+      nlohmann::json j = create_rpc;
+      auto contents = nlohmann::json::to_msgpack(j);
+
+      auto sig_contents = node_kp->sign(contents);
+
+      nlohmann::json sj;
+      sj["req"] = j;
+      sj["sig"] = sig_contents;
+
+      return jsonrpc::pack(sj, jsonrpc::Pack::Text);
     }
 
-    void DeserializeGenesis(std::vector<uint8_t> packed)
+    // NOTE: this is not needed
+    void DeserializeGenesis(std::vector<uint8_t>& packed)
     {
 
+          auto j = jsonrpc::unpack(packed, jsonrpc::Pack::Text);
+
+          // Check that the response is valid.
+          jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> args;
+          try
+          {
+            args = jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In>(j);
+          }
+          catch (const std::exception& e)
+          {
+            LOG_FAIL_FMT(
+              "TTTTTTTTTTTTTTT {} An error occurred while joining the network {}", e.what(), j.dump());
+          }
+          //LOG_INFO << "TTTTTTTT:" << args->foo.c_str() << std::endl;
+
+    }
+
+    void SendRequest(std::vector<uint8_t>& packed)
+    {
+      auto handler = this->rpc_map->find(ccf::ActorsType::members);
+      if (!handler.has_value()) {
+        LOG_INFO << "CCCCCC handler has no value" << std::endl;
+        return;
+      }
+      LOG_INFO << "CCCCCC handler:" << (uint64_t)handler.value().get() << std::endl;
+
+      auto frontend = handler.value();
+
+      // fillout ctx
+      enclave::RPCContext ctx(
+        enclave::InvalidSessionId,
+        node_cert,
+        ccf::ActorsType::nodes);
+      ctx.is_create_request = true;
+
+#ifdef PBFT
+      frontend->process_pbft(ctx, packed);
+#else
+      frontend->process(ctx, packed);
+#endif
     }
 
     bool ApplyGenesisTx(const CreateNew::In& args, std::vector<uint8_t>& quote)
     {
           auto foo = SerializeGenesis(args);
+          //DeserializeGenesis(foo);
           //foo.empty();
           LOG_INFO << "AAAAAAAAA: " << std::string((const char*)foo.data(), foo.size()).c_str() << std::endl;
+
+          SendRequest(foo); 
+
+          LOG_INFO << "AAAAAAA after send request" << std::endl;
+          
 
           GenesisGenerator g(network);
           g.init_values();
