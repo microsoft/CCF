@@ -273,7 +273,7 @@ bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
   }
 
   auto executable_pps = ledger_replay->process_data(
-    data, rqueue, brt, ledger_writer.get(), last_executed);
+    data, rqueue, brt, *ledger_writer.get(), last_executed);
 
   for (auto& executable_pp : executable_pps)
   {

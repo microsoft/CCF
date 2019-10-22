@@ -25,7 +25,7 @@ std::vector<std::unique_ptr<Pre_prepare>> LedgerReplay::process_data(
   const std::vector<uint8_t>& data,
   Req_queue& rqueue,
   Big_req_table& brt,
-  LedgerWriter* ledger_writer,
+  LedgerWriter& ledger_writer,
   Seqno last_executed)
 {
   auto entry_data = data.data();
@@ -35,7 +35,7 @@ std::vector<std::unique_ptr<Pre_prepare>> LedgerReplay::process_data(
 
   while (data_size > 0)
   {
-    auto ret = ledger_writer->record_entry(entry_data, data_size);
+    auto ret = ledger_writer.record_entry(entry_data, data_size);
 
     if (!ret.second)
     {
@@ -47,7 +47,7 @@ std::vector<std::unique_ptr<Pre_prepare>> LedgerReplay::process_data(
       // the log and reply false.
       LOG_FAIL << "record entry failed, truncating to last executed: "
                << last_executed << std::endl;
-      ledger_writer->truncate(last_executed);
+      ledger_writer.truncate(last_executed);
       return {};
     }
 
