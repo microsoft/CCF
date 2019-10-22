@@ -104,7 +104,6 @@ namespace pbft
     std::unique_ptr<AbstractPbftConfig> pbft_config;
     std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
-    std::unique_ptr<consensus::LedgerEnclave> ledger;
     SeqNo global_commit_seqno;
     std::unique_ptr<pbft::Store> store;
 
@@ -119,13 +118,12 @@ namespace pbft
       std::unique_ptr<pbft::Store> store_,
       std::shared_ptr<ChannelProxy> channels_,
       NodeId id,
-      std::unique_ptr<consensus::LedgerEnclave> ledger_,
+      std::unique_ptr<consensus::LedgerEnclave> ledger,
       std::shared_ptr<enclave::RPCMap> rpc_map,
       std::shared_ptr<enclave::RPCSessions> rpcsessions_) :
       Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
-      ledger(std::move(ledger_)),
       global_commit_seqno(1),
       store(std::move(store_))
     {
@@ -176,6 +174,7 @@ namespace pbft
         0,
         0,
         pbft_network.get(),
+        std::move(ledger),
         &message_receiver_base);
       LOG_INFO_FMT("PBFT setup for local_id: {}", local_id);
 
@@ -197,15 +196,6 @@ namespace pbft
       message_receiver_base->register_reply_handler(
         reply_handler_cb, client_proxy.get());
 
-      auto append_ledger_entry_cb =
-        [](const uint8_t* data, size_t size, void* ctx) {
-          auto ledger = static_cast<consensus::LedgerEnclave*>(ctx);
-          std::vector<uint8_t> tentry(size);
-          uint8_t* tdata = tentry.data();
-          serialized::write(tdata, size, data, size);
-          ledger->put_entry(tentry);
-        };
-
       auto global_commit_cb = [](kv::Version version, void* ctx) {
         auto p = static_cast<register_global_commit_info*>(ctx);
         if (version == kv::NoVersion || version < *p->global_commit_seqno)
@@ -215,9 +205,6 @@ namespace pbft
         *p->global_commit_seqno = version;
         p->store->compact(version);
       };
-
-      message_receiver_base->register_append_ledger_entry_cb(
-        append_ledger_entry_cb, ledger.get());
 
       register_global_commit_ctx.store = store.get();
       register_global_commit_ctx.global_commit_seqno = &global_commit_seqno;
