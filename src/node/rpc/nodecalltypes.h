@@ -50,12 +50,12 @@ namespace ccf
   {
     struct In
     {
-      std::string foo;
       std::vector<std::vector<uint8_t>> member_cert;
       std::string gov_script;
       std::vector<uint8_t> node_cert;
       Cert network_cert;
       std::vector<uint8_t> quote;
+      std::vector<uint8_t> code_digest;
 
       struct NodeInfoNetwork
       {
@@ -70,7 +70,6 @@ namespace ccf
 
     struct Out
     {
-      bool result;
     };
 
   };

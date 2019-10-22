@@ -212,8 +212,6 @@ namespace ccf
       create_rpc.id = 0;
       create_rpc.method = ccf::MemberProcs::CREATE;
 
-      create_rpc.params.foo = std::string("foo123");
-
       for (auto& cert : args.config.genesis.member_certs)
       {
         create_rpc.params.member_cert.push_back(cert);
@@ -223,6 +221,7 @@ namespace ccf
       create_rpc.params.node_cert = node_cert;
       create_rpc.params.network_cert = network.secrets->get_current().cert;
       create_rpc.params.quote = quote;
+      create_rpc.params.code_digest = std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
       create_rpc.params.node_info_network.host = args.config.node_info_network.host;
       create_rpc.params.node_info_network.pubhost = args.config.node_info_network.pubhost;
       create_rpc.params.node_info_network.nodeport = args.config.node_info_network.nodeport;
@@ -285,7 +284,6 @@ namespace ccf
     //
     // funcs in state "initialized"
     //
-    // TODO: entry point here
     auto create(const CreateNew::In& args)
     {
       std::lock_guard<SpinLock> guard(lock);
@@ -315,7 +313,6 @@ namespace ccf
           network.secrets = std::make_unique<NetworkSecrets>(
             "CN=The CA", std::make_unique<Seal>(writer_factory));
           self = 0;
-
 
 #ifdef PBFT
           setup_pbft();

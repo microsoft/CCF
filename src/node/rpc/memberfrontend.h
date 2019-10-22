@@ -404,12 +404,8 @@ namespace ccf
       };
 
       auto create = [this](RequestArgs& args) {
-        LOG_INFO << "FFFFFFFF - received create message" << std::endl;
-
         const auto in = args.params.get<CreateNetworkNodeToNode::In>();
         CreateNetworkNodeToNode::Out result;
-
-        LOG_INFO << "FFFFFFFF - received create message:" << in.foo.c_str() << std::endl;
 
         GenesisGenerator g(this->network, args.tx);
         g.init_values();
@@ -432,7 +428,6 @@ namespace ccf
                                   NodeStatus::TRUSTED});
         
         if (self != 0) {
-          result.result = false;
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             fmt::format(
@@ -442,7 +437,8 @@ namespace ccf
         }
 
 #ifdef GET_QUOTE
-        // Trust own code id
+        CodeDigest node_code_id;
+        std::copy_n(std::begin(in.code_digest), CODE_DIGEST_BYTES, std::begin(node_code_id));
         g.trust_code_id(node_code_id);
 #endif
 
@@ -458,13 +454,6 @@ namespace ccf
 
           g.create_service(in.network_cert);
 
-
-
-
-
-
-
-        result.result = true;
         return jsonrpc::success(result);
       };
 
