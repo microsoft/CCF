@@ -70,7 +70,11 @@ void Replica::retransmit(T* m, Time cur, Time tsent, Principal* p)
 }
 
 Replica::Replica(
-  const NodeInfo& node_info, char* mem, size_t nbytes, INetwork* network) :
+  const NodeInfo& node_info,
+  char* mem,
+  size_t nbytes,
+  INetwork* network,
+  std::unique_ptr<consensus::LedgerEnclave> ledger) :
   Node(node_info),
   rqueue(),
   ro_rqueue(),
@@ -161,7 +165,12 @@ Replica::Replica(
 
   exec_command = nullptr;
   non_det_choices = 0;
-  ledger_replay = std::make_unique<LedgerReplay>();
+
+  if (ledger)
+  {
+    ledger_replay = std::make_unique<LedgerReplay>();
+    ledger_writer = std::make_unique<LedgerWriter>(std::move(ledger));
+  }
 }
 
 void Replica::register_exec(ExecCommand e)
@@ -255,14 +264,16 @@ bool Replica::compare_execution_results(
 
 bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
 {
+  PBFT_ASSERT(ledger_replay, "ledger_replay should be initialized");
+
   if (data.empty())
   {
     LOG_FAIL << "Received empty entries" << std::endl;
     return false;
   }
 
-  auto executable_pps =
-    ledger_replay->process_data(data, rqueue, brt, ledger_writer.get());
+  auto executable_pps = ledger_replay->process_data(
+    data, rqueue, brt, *ledger_writer.get(), last_executed);
 
   for (auto& executable_pp : executable_pps)
   {
@@ -278,11 +289,6 @@ bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
       }
 
       next_pp_seqno = seqno;
-
-      if (ledger_writer)
-      {
-        ledger_writer->write_pre_prepare(executable_pp.get());
-      }
 
       if (seqno > last_prepared)
       {
@@ -304,8 +310,11 @@ bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
     else
     {
       LOG_DEBUG << "Received entries could not be processed. Received seqno: "
-                << seqno << std::endl;
+                << seqno
+                << ". Truncating ledger to last executed: " << last_executed
+                << std::endl;
       ledger_replay->clear_requests(rqueue, brt);
+      ledger_writer->truncate(last_executed);
       return false;
     }
   }
@@ -1002,12 +1011,6 @@ void Replica::register_reply_handler(reply_handler_cb cb, void* ctx)
 {
   rep_cb = cb;
   rep_cb_ctx = ctx;
-}
-
-void Replica::register_append_ledger_entry_cb(
-  LedgerWriter::append_ledger_entry_cb cb, void* ctx)
-{
-  ledger_writer = std::make_unique<LedgerWriter>(cb, ctx);
 }
 
 void Replica::register_global_commit(global_commit_handler_cb cb, void* ctx)
