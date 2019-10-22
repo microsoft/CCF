@@ -55,6 +55,7 @@ namespace ccf
       std::string gov_script;
       std::vector<uint8_t> node_cert;
       Cert network_cert;
+      std::vector<uint8_t> quote;
 
       struct NodeInfoNetwork
       {

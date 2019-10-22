@@ -426,11 +426,9 @@ namespace ccf
 
         // Generate quote over node certificate
         // TODO: https://github.com/microsoft/CCF/issues/59
-        std::vector<uint8_t> quote{1};
-
         size_t self = g.add_node({node_info_network,
                                   in.node_cert,
-                                  quote,
+                                  in.quote,
                                   NodeStatus::TRUSTED});
         
         if (self != 0) {

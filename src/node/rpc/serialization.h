@@ -39,7 +39,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     CreateNetworkNodeToNode::In::NodeInfoNetwork, host, pubhost, nodeport, rpcport)
   DECLARE_JSON_TYPE(CreateNetworkNodeToNode::In)
-  DECLARE_JSON_REQUIRED_FIELDS(CreateNetworkNodeToNode::In, foo, member_cert, gov_script, node_cert, network_cert, node_info_network)
+  DECLARE_JSON_REQUIRED_FIELDS(CreateNetworkNodeToNode::In, foo, member_cert, gov_script, node_cert, network_cert, quote, node_info_network)
 
   DECLARE_JSON_TYPE(CreateNetworkNodeToNode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(CreateNetworkNodeToNode::Out, result)

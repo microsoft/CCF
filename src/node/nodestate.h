@@ -205,7 +205,7 @@ namespace ccf
       sm.advance(State::initialized);
     }
 
-    std::vector<uint8_t> SerializeGenesis(const CreateNew::In& args)
+    std::vector<uint8_t> SerializeGenesis(const CreateNew::In& args, std::vector<uint8_t>& quote)
     {
       jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> create_rpc;
 
@@ -222,6 +222,7 @@ namespace ccf
       create_rpc.params.gov_script = args.config.genesis.gov_script;
       create_rpc.params.node_cert = node_cert;
       create_rpc.params.network_cert = network.secrets->get_current().cert;
+      create_rpc.params.quote = quote;
       create_rpc.params.node_info_network.host = args.config.node_info_network.host;
       create_rpc.params.node_info_network.pubhost = args.config.node_info_network.pubhost;
       create_rpc.params.node_info_network.nodeport = args.config.node_info_network.nodeport;
@@ -248,7 +249,6 @@ namespace ccf
       }
       auto frontend = handler.value();
 
-      // fillout ctx
       enclave::RPCContext ctx(
         enclave::InvalidSessionId,
         node_cert,
@@ -264,11 +264,11 @@ namespace ccf
 
     bool ApplyGenesisTx(const CreateNew::In& args, std::vector<uint8_t>& quote)
     {
-          auto foo = SerializeGenesis(args);
+          auto rpc = SerializeGenesis(args, quote);
           // Become the primary and force replication.
           consensus->force_become_primary();
 
-          SendRequest(foo); 
+          SendRequest(rpc); 
 
           // Accept node connections for other nodes to join
           accept_node_connections();
@@ -312,15 +312,8 @@ namespace ccf
         case StartType::New:
         {
 
-/*
-          */
-
-
-///*
-
           network.secrets = std::make_unique<NetworkSecrets>(
             "CN=The CA", std::make_unique<Seal>(writer_factory));
-
           self = 0;
 
 
@@ -336,52 +329,6 @@ namespace ccf
             return Fail<CreateNew::Out>(
               "Genesis transaction could not be committed");
           }
-
-/*
-          GenesisGenerator g(network);
-          g.init_values();
-
-          for (auto& cert : args.config.genesis.member_certs)
-            g.add_member(cert);
-
-          // Add self as TRUSTED
-          self = g.add_node({args.config.node_info_network,
-                             node_cert,
-                             quote,
-                             NodeStatus::TRUSTED});
-
-#ifdef GET_QUOTE
-          // Trust own code id
-          g.trust_code_id(node_code_id);
-#endif
-
-          // set access whitelists
-          // TODO(#feature): this should be configurable
-          for (const auto& wl : default_whitelists)
-            g.set_whitelist(wl.first, wl.second);
-
-          g.set_gov_scripts(lua::Interpreter().invoke<nlohmann::json>(
-            args.config.genesis.gov_script));
-
-          g.create_service(network.secrets->get_current().cert);
-
-
-          // Become the primary and force replication.
-          consensus->force_become_primary();
-
-          if (g.finalize() != kv::CommitSuccess::OK)
-            return Fail<CreateNew::Out>(
-              "Genesis transaction could not be committed");
-
-          // Accept node connections for other nodes to join
-          accept_node_connections();
-
-          // Accept members connections for members to configure and open the
-          // network
-          accept_member_connections();
-
-          sm.advance(State::partOfNetwork);
-          */
 
           return Success<CreateNew::Out>(
             {node_cert, quote, network.secrets->get_current().cert});
