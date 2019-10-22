@@ -14,7 +14,13 @@
 #include <cstdio>
 #include <doctest/doctest.h>
 
-static constexpr size_t TOTAL_REQUESTS = 30;
+// power of 2 since ringbuffer circuit size depends on total_requests
+static constexpr size_t total_requests = 32;
+// circuit shift calculated based on the size of the entries, which is the
+// same for this test
+static constexpr size_t circuit_size_shift = 16;
+static constexpr size_t circuit_size =
+  (1 << circuit_size_shift) * total_requests;
 
 class ExecutionMock
 {
@@ -96,9 +102,8 @@ TEST_CASE("Test Ledger Replay")
   std::vector<char> service_mem(mem_size, 0);
   ExecutionMock exec_mock(0);
 
-  size_t circuit_size_shift = 22;
   // initiate replica with ledger enclave to be used on replay
-  ringbuffer::Circuit replay_circuit(1 << circuit_size_shift);
+  ringbuffer::Circuit replay_circuit(circuit_size);
   auto wf_rplay = ringbuffer::WriterFactory(replay_circuit);
 
   auto replay_ledger_io = std::make_unique<consensus::LedgerEnclave>(wf_rplay);
@@ -108,7 +113,7 @@ TEST_CASE("Test Ledger Replay")
 
   // initial ledger enclave is used by the LedgerWriter to simulate writting
   // entries to the ledger
-  ringbuffer::Circuit init_circuit(1 << circuit_size_shift);
+  ringbuffer::Circuit init_circuit(circuit_size);
   auto wf = ringbuffer::WriterFactory(init_circuit);
   auto initial_ledger_io = std::make_unique<consensus::LedgerEnclave>(wf);
 
@@ -117,7 +122,7 @@ TEST_CASE("Test Ledger Replay")
     LedgerWriter ledger_writer(std::move(initial_ledger_io));
 
     Req_queue rqueue;
-    for (size_t i = 1; i < TOTAL_REQUESTS; i++)
+    for (size_t i = 1; i < total_requests; i++)
     {
       Byz_req req;
       Byz_alloc_request(&req, sizeof(ExecutionMock::fake_req));
@@ -187,7 +192,7 @@ TEST_CASE("Test Ledger Replay")
         }
         ++num_msgs;
       });
-    REQUIRE(num_msgs == (TOTAL_REQUESTS - 1));
+    REQUIRE(num_msgs == (total_requests - 1));
 
     // check that nothing gets executed out of order
     INFO("replay entries 5 till 9 should fail");
@@ -208,8 +213,8 @@ TEST_CASE("Test Ledger Replay")
     std::vector<uint8_t> vec_2_3(first, last);
     CHECK(!replica->apply_ledger_data(vec_2_3));
 
-    INFO("replay the rest of the pre-prepares in batches of 3");
-    for (size_t i = 3; i < TOTAL_REQUESTS; i += 4)
+    INFO("replay the rest of the pre-prepares in batches of 4");
+    for (size_t i = 3; i < total_requests - 1; i += 4)
     {
       auto until = i + 4;
       first = initial_ledger.begin() + positions.at(i);
