@@ -80,7 +80,7 @@ TEST_CASE("Add a node to an opening service")
   {
     JoinNetworkNodeToNode::In join_input;
     auto response_j =
-      frontend_process(frontend, join_input, NodeProcs::JOIN, caller); // look here for packing
+      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
 
     check_error(response_j, StandardErrorCodes::INTERNAL_ERROR);
     check_error_message(

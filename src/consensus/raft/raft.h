@@ -635,7 +635,6 @@ namespace raft
           return;
         }
 
-        // this puts it in the KV, public false
         Term sig_term = 0;
         auto deserialise_success =
           store->deserialise(ret.first, public_only, &sig_term);

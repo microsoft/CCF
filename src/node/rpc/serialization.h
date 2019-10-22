@@ -5,7 +5,6 @@
 #include "enclave/interface.h"
 #include "node/rpc/calltypes.h"
 
-// schema packing here
 namespace ccf
 {
   DECLARE_JSON_ENUM(
