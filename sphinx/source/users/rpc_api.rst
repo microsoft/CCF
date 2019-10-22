@@ -7,7 +7,7 @@ The API can also be retrieved from a running service using the `listMethods`_ an
 
 .. code-block:: bash
 
-    $ ./client --pretty-print --rpc-address 127.99.16.14:36785 --ca networkcert.pem userrpc --req @listMethods.json --cert user1_cert.pem --pk user1_privk.pem
+    $ client --pretty-print --rpc-address 127.99.16.14:36785 --ca networkcert.pem userrpc --req @listMethods.json --cert user1_cert.pem --pk user1_privk.pem
     Doing user RPC:
     {
       "commit": 4,
@@ -31,7 +31,7 @@ The API can also be retrieved from a running service using the `listMethods`_ an
       "term": 2
     }
 
-    $ ./client --pretty-print --rpc-address 127.99.16.14:36785 --ca networkcert.pem userrpc --req @getSchema.json --cert user1_cert.pem --pk user1_privk.pem
+    $ client --pretty-print --rpc-address 127.99.16.14:36785 --ca networkcert.pem userrpc --req @getSchema.json --cert user1_cert.pem --pk user1_privk.pem
     Doing user RPC:
     {
       "commit": 4,
@@ -68,97 +68,32 @@ The API can also be retrieved from a running service using the `listMethods`_ an
     }
 
 
-Common methods
-``````````````
+Common Methods
+--------------
 
 getCommit
----------
+~~~~~~~~~
 
-.. jsonschema:: schemas/getCommit_params.json
-.. jsonschema:: schemas/getCommit_result.json
+.. jsonschema:: ../schemas/getCommit_params.json
+.. jsonschema:: ../schemas/getCommit_result.json
 
 getPrimaryInfo
---------------
+~~~~~~~~~~~~~~
 
-.. jsonschema:: schemas/getPrimaryInfo_result.json
+.. jsonschema:: ../schemas/getPrimaryInfo_result.json
 
 getMetrics
-----------
+~~~~~~~~~~
 
-.. jsonschema:: schemas/getMetrics_result.json
+.. jsonschema:: ../schemas/getMetrics_result.json
 
 getSchema
----------
+~~~~~~~~~
 
-.. jsonschema:: schemas/getSchema_params.json
-.. jsonschema:: schemas/getSchema_result.json
+.. jsonschema:: ../schemas/getSchema_params.json
+.. jsonschema:: ../schemas/getSchema_result.json
 
 listMethods
------------
+~~~~~~~~~~~
 
-.. jsonschema:: schemas/listMethods_result.json
-
-
-Member methods
-``````````````
-
-ack
----
-
-.. jsonschema:: schemas/ack_params.json
-.. jsonschema:: schemas/ack_result.json
-
-complete
---------
-
-.. jsonschema:: schemas/complete_params.json
-.. jsonschema:: schemas/complete_result.json
-
-propose
--------
-
-.. jsonschema:: schemas/propose_params.json
-.. jsonschema:: schemas/propose_result.json
-
-query
------
-
-.. jsonschema:: schemas/query_params.json
-.. jsonschema:: schemas/query_result.json
-
-read
-----
-
-.. jsonschema:: schemas/read_params.json
-.. jsonschema:: schemas/read_result.json
-
-updateAckNonce
---------------
-
-.. jsonschema:: schemas/updateAckNonce_result.json
-
-vote
-----
-
-.. jsonschema:: schemas/vote_params.json
-.. jsonschema:: schemas/vote_result.json
-
-withdraw
---------
-
-.. jsonschema:: schemas/withdraw_params.json
-.. jsonschema:: schemas/withdraw_result.json
-
-
-Node methods
-````````````
-
-getQuotes
----------
-
-.. jsonschema:: schemas/getQuotes_result.json
-
-getSignedIndex
---------------
-
-.. jsonschema:: schemas/getSignedIndex_result.json
+.. jsonschema:: ../schemas/listMethods_result.json
