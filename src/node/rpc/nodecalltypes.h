@@ -63,15 +63,12 @@ namespace ccf
         std::string pubhost;
         std::string nodeport;
         std::string rpcport;
-
       };
       NodeInfoNetwork node_info_network;
     };
 
     struct Out
-    {
-    };
-
+    {};
   };
 
   struct JoinNetworkNodeToNode

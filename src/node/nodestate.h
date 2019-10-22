@@ -205,7 +205,8 @@ namespace ccf
       sm.advance(State::initialized);
     }
 
-    std::vector<uint8_t> SerializeGenesis(const CreateNew::In& args, std::vector<uint8_t>& quote)
+    std::vector<uint8_t> SerializeGenesis(
+      const CreateNew::In& args, std::vector<uint8_t>& quote)
     {
       jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> create_rpc;
 
@@ -221,11 +222,16 @@ namespace ccf
       create_rpc.params.node_cert = node_cert;
       create_rpc.params.network_cert = network.secrets->get_current().cert;
       create_rpc.params.quote = quote;
-      create_rpc.params.code_digest = std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
-      create_rpc.params.node_info_network.host = args.config.node_info_network.host;
-      create_rpc.params.node_info_network.pubhost = args.config.node_info_network.pubhost;
-      create_rpc.params.node_info_network.nodeport = args.config.node_info_network.nodeport;
-      create_rpc.params.node_info_network.rpcport = args.config.node_info_network.rpcport;
+      create_rpc.params.code_digest =
+        std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
+      create_rpc.params.node_info_network.host =
+        args.config.node_info_network.host;
+      create_rpc.params.node_info_network.pubhost =
+        args.config.node_info_network.pubhost;
+      create_rpc.params.node_info_network.nodeport =
+        args.config.node_info_network.nodeport;
+      create_rpc.params.node_info_network.rpcport =
+        args.config.node_info_network.rpcport;
 
       nlohmann::json j = create_rpc;
       auto contents = nlohmann::json::to_msgpack(j);
@@ -242,16 +248,15 @@ namespace ccf
     void SendRequest(std::vector<uint8_t>& packed)
     {
       auto handler = this->rpc_map->find(ccf::ActorsType::members);
-      if (!handler.has_value()) {
+      if (!handler.has_value())
+      {
         LOG_INFO << "handler has no value" << std::endl;
         return;
       }
       auto frontend = handler.value();
 
       enclave::RPCContext ctx(
-        enclave::InvalidSessionId,
-        node_cert,
-        ccf::ActorsType::nodes);
+        enclave::InvalidSessionId, node_cert, ccf::ActorsType::nodes);
       ctx.is_create_request = true;
 
 #ifdef PBFT
@@ -263,22 +268,22 @@ namespace ccf
 
     bool ApplyGenesisTx(const CreateNew::In& args, std::vector<uint8_t>& quote)
     {
-          auto rpc = SerializeGenesis(args, quote);
-          // Become the primary and force replication.
-          consensus->force_become_primary();
+      auto rpc = SerializeGenesis(args, quote);
+      // Become the primary and force replication.
+      consensus->force_become_primary();
 
-          SendRequest(rpc); 
+      SendRequest(rpc);
 
-          // Accept node connections for other nodes to join
-          accept_node_connections();
+      // Accept node connections for other nodes to join
+      accept_node_connections();
 
-          // Accept members connections for members to configure and open the
-          // network
-          accept_member_connections();
+      // Accept members connections for members to configure and open the
+      // network
+      accept_member_connections();
 
-          sm.advance(State::partOfNetwork);
+      sm.advance(State::partOfNetwork);
 
-          return true;
+      return true;
     }
 
     //
@@ -309,7 +314,6 @@ namespace ccf
       {
         case StartType::New:
         {
-
           network.secrets = std::make_unique<NetworkSecrets>(
             "CN=The CA", std::make_unique<Seal>(writer_factory));
           self = 0;
@@ -322,7 +326,8 @@ namespace ccf
           setup_history();
           setup_encryptor();
 
-          if (!ApplyGenesisTx(args, quote)){
+          if (!ApplyGenesisTx(args, quote))
+          {
             return Fail<CreateNew::Out>(
               "Genesis transaction could not be committed");
           }

@@ -44,7 +44,10 @@ namespace ccf
     }
 
   public:
-    GenesisGenerator(NetworkTables& tables_, Store::Tx& tx_) : tables(tables_), tx(tx_) {}
+    GenesisGenerator(NetworkTables& tables_, Store::Tx& tx_) :
+      tables(tables_),
+      tx(tx_)
+    {}
 
     void init_values()
     {

@@ -4,8 +4,8 @@
 #include "frontend.h"
 #include "luainterp/txscriptrunner.h"
 #include "node/genesisgen.h"
-#include "node/quoteverification.h"
 #include "node/nodes.h"
+#include "node/quoteverification.h"
 #include "tls/entropy.h"
 #include "tls/keypair.h"
 
@@ -409,36 +409,34 @@ namespace ccf
 
         GenesisGenerator g(this->network, args.tx);
         g.init_values();
-        for (auto& cert : in.member_cert) {
+        for (auto& cert : in.member_cert)
+        {
           g.add_member(cert);
         }
 
-        ccf::NodeInfoNetwork node_info_network{
-            in.node_info_network.host,
-            in.node_info_network.pubhost,
-            in.node_info_network.nodeport,
-            in.node_info_network.rpcport
-        };
+        ccf::NodeInfoNetwork node_info_network{in.node_info_network.host,
+                                               in.node_info_network.pubhost,
+                                               in.node_info_network.nodeport,
+                                               in.node_info_network.rpcport};
 
         // Generate quote over node certificate
         // TODO: https://github.com/microsoft/CCF/issues/59
-        size_t self = g.add_node({node_info_network,
-                                  in.node_cert,
-                                  in.quote,
-                                  NodeStatus::TRUSTED});
-        
-        if (self != 0) {
+        size_t self = g.add_node(
+          {node_info_network, in.node_cert, in.quote, NodeStatus::TRUSTED});
+
+        if (self != 0)
+        {
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            fmt::format(
-              "My node is was set to {}",
-              self));
-
+            fmt::format("My node is was set to {}", self));
         }
 
 #ifdef GET_QUOTE
         CodeDigest node_code_id;
-        std::copy_n(std::begin(in.code_digest), CODE_DIGEST_BYTES, std::begin(node_code_id));
+        std::copy_n(
+          std::begin(in.code_digest),
+          CODE_DIGEST_BYTES,
+          std::begin(node_code_id));
         g.trust_code_id(node_code_id);
 #endif
 
@@ -449,14 +447,13 @@ namespace ccf
           g.set_whitelist(wl.first, wl.second);
         }
 
-          g.set_gov_scripts(lua::Interpreter().invoke<nlohmann::json>(
-            in.gov_script));
+        g.set_gov_scripts(
+          lua::Interpreter().invoke<nlohmann::json>(in.gov_script));
 
-          g.create_service(in.network_cert);
+        g.create_service(in.network_cert);
 
         return jsonrpc::success(result);
       };
-
 
       install(MemberProcs::CREATE, create, Write);
 
