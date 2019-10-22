@@ -128,9 +128,9 @@ public:
    */
   std::vector<uint8_t> sign(unsigned char* d, size_t d_size) const
   {
-    std::vector<uint8_t> sig(max_sig_size);
-    sign(d, d_size, &sig[0]);
-    return std::move(sig);
+    uint8_t sig[max_sig_size];
+    sign(d, d_size, sig);
+    return {sig, sig + signature_size};
   }
 
   /**

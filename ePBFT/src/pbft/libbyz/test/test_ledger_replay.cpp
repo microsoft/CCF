@@ -180,6 +180,9 @@ TEST_CASE("Test Ledger Replay")
           }
           break;
           default:
+            INFO(
+              "We should only encounter ledger_append or ledger_truncate "
+              "messages");
             REQUIRE(false);
         }
         ++num_msgs;
@@ -259,6 +262,9 @@ TEST_CASE("Test Ledger Replay")
             break;
           }
           default:
+            INFO(
+              "We should only encounter ledger_append or ledger_truncate "
+              "messages");
             REQUIRE(false);
         }
       });
