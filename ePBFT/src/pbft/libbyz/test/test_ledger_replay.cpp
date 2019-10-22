@@ -7,13 +7,20 @@
 #include "Node.h"
 #include "Replica.h"
 #include "Request.h"
+#include "consensus/ledgerenclave.h"
 #include "host/ledger.h"
 #include "network_mock.h"
 
 #include <cstdio>
 #include <doctest/doctest.h>
 
-static constexpr size_t TOTAL_REQUESTS = 1050;
+// power of 2 since ringbuffer circuit size depends on total_requests
+static constexpr size_t total_requests = 32;
+// circuit shift calculated based on the size of the entries, which is the
+// same for this test
+static constexpr size_t circuit_size_shift = 16;
+static constexpr size_t circuit_size =
+  (1 << circuit_size_shift) * total_requests;
 
 class ExecutionMock
 {
@@ -67,11 +74,18 @@ NodeInfo get_node_info()
   return node_info;
 }
 
-void init_replica(std::vector<char>& service_mem)
+void create_replica(
+  std::vector<char>& service_mem,
+  std::unique_ptr<consensus::LedgerEnclave> ledger)
 {
   auto node_info = get_node_info();
+
   replica = new Replica(
-    node_info, service_mem.data(), service_mem.size(), Create_Mock_Network());
+    node_info,
+    service_mem.data(),
+    service_mem.size(),
+    Create_Mock_Network(),
+    std::move(ledger));
   replica->init_state();
   for (auto& pi : node_info.general_info.principal_info)
   {
@@ -84,35 +98,31 @@ void init_replica(std::vector<char>& service_mem)
 
 TEST_CASE("Test Ledger Replay")
 {
-  ringbuffer::Circuit eio(2);
-  auto wf = ringbuffer::WriterFactory(eio);
-
-  std::string initial_ledger = "initial.ledger";
-  std::string replay_ledger = "replay.ledger";
-  std::remove(initial_ledger.c_str());
-  std::remove(replay_ledger.c_str());
-
   int mem_size = 400 * 8192;
   std::vector<char> service_mem(mem_size, 0);
   ExecutionMock exec_mock(0);
-  init_replica(service_mem);
+
+  // initiate replica with ledger enclave to be used on replay
+  ringbuffer::Circuit replay_circuit(circuit_size);
+  auto wf_rplay = ringbuffer::WriterFactory(replay_circuit);
+
+  auto replay_ledger_io = std::make_unique<consensus::LedgerEnclave>(wf_rplay);
+
+  create_replica(service_mem, std::move(replay_ledger_io));
   replica->register_exec(exec_mock.exec_command);
 
-  INFO("Create dummy pre-prepares and write them to ledger file");
+  // initial ledger enclave is used by the LedgerWriter to simulate writting
+  // entries to the ledger
+  ringbuffer::Circuit init_circuit(circuit_size);
+  auto wf = ringbuffer::WriterFactory(init_circuit);
+  auto initial_ledger_io = std::make_unique<consensus::LedgerEnclave>(wf);
+
+  INFO("Create dummy pre-prepares and write them to ledger");
   {
-    auto initial_ledger_io =
-      std::make_unique<asynchost::Ledger>(initial_ledger, wf);
-
-    auto append_ledger_entry_cb =
-      [](const uint8_t* data, size_t size, void* ctx) {
-        auto ledger = static_cast<asynchost::Ledger*>(ctx);
-        ledger->write_entry(data, size);
-      };
-
-    LedgerWriter ledger_writer(append_ledger_entry_cb, initial_ledger_io.get());
+    LedgerWriter ledger_writer(std::move(initial_ledger_io));
 
     Req_queue rqueue;
-    for (size_t i = 1; i < TOTAL_REQUESTS; i++)
+    for (size_t i = 1; i < total_requests; i++)
     {
       Byz_req req;
       Byz_alloc_request(&req, sizeof(ExecutionMock::fake_req));
@@ -145,70 +155,126 @@ TEST_CASE("Test Ledger Replay")
     replica->big_reqs()->clear();
   }
 
-  INFO("Read the ledger file and replay it out of order and in order");
+  INFO("Read the ledger entries and replay them out of order and in order");
   {
-    auto replay_ledger_io =
-      std::make_unique<asynchost::Ledger>(replay_ledger, wf);
+    std::vector<uint8_t> initial_ledger;
+    std::vector<size_t> positions;
+    size_t total_len = 0;
+    size_t num_msgs = 0;
+    // We can get the entries that would have been written to the ledger file
+    // from the circuit and put them in initial_ledger for them to be replayed.
+    // Replay expects the entries to be preceeded by the entry frame indicating
+    // the size of the entry that follows, and that is simulated here.
+    init_circuit.read_from_inside().read(
+      -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
+        switch (m)
+        {
+          case consensus::ledger_append:
+          {
+            positions.push_back(total_len);
+            size_t framed_entry_size = size + sizeof(uint32_t);
+            total_len += framed_entry_size;
+            initial_ledger.reserve(total_len);
+            uint32_t s = (uint32_t)size;
 
-    auto append_ledger_entry_cb =
-      [](const uint8_t* data, size_t size, void* ctx) {
-        auto ledger = static_cast<asynchost::Ledger*>(ctx);
-        ledger->write_entry(data, size);
-      };
-
-    replica->register_append_ledger_entry_cb(
-      append_ledger_entry_cb, replay_ledger_io.get());
-
-    auto initial_ledger_io =
-      std::make_unique<asynchost::Ledger>(initial_ledger, wf);
+            initial_ledger.insert(
+              end(initial_ledger),
+              (uint8_t*)&s,
+              (uint8_t*)&s + sizeof(uint32_t));
+            initial_ledger.insert(end(initial_ledger), data, data + size);
+          }
+          break;
+          default:
+            INFO(
+              "We should only encounter ledger_append or ledger_truncate "
+              "messages");
+            REQUIRE(false);
+        }
+        ++num_msgs;
+      });
+    REQUIRE(num_msgs == (total_requests - 1));
 
     // check that nothing gets executed out of order
+    INFO("replay entries 5 till 9 should fail");
+    auto first = initial_ledger.begin() + positions.at(4);
+    auto last = initial_ledger.end();
+    std::vector<uint8_t> vec_5_9(first, last);
+    CHECK(!replica->apply_ledger_data(vec_5_9));
 
-    auto resp = initial_ledger_io->read_framed_entries(5, 9);
-    CHECK(!replica->apply_ledger_data(resp));
+    INFO("replay entries 1 till 3");
+    first = initial_ledger.begin();
+    last = initial_ledger.begin() + positions.at(3);
+    std::vector<uint8_t> vec_1_3(first, last);
+    CHECK(replica->apply_ledger_data(vec_1_3));
 
-    resp = initial_ledger_io->read_framed_entries(1, 3);
-    CHECK(replica->apply_ledger_data(resp));
+    INFO("replay entries 2 till 3 should fail");
+    first = initial_ledger.begin() + positions.at(1);
+    last = initial_ledger.begin() + positions.at(3);
+    std::vector<uint8_t> vec_2_3(first, last);
+    CHECK(!replica->apply_ledger_data(vec_2_3));
 
-    resp = initial_ledger_io->read_framed_entries(1, 3);
-    CHECK(!replica->apply_ledger_data(resp));
-
-    resp = initial_ledger_io->read_framed_entries(2, 3);
-    CHECK(!replica->apply_ledger_data(resp));
-
-    // execute the rest of the pre-prepares in batches of 4
-    for (size_t i = 4; i < TOTAL_REQUESTS; i += 4)
+    INFO("replay the rest of the pre-prepares in batches of 4");
+    for (size_t i = 3; i < total_requests - 1; i += 4)
     {
-      auto until = std::min(TOTAL_REQUESTS - 1, i + 3);
-      resp = initial_ledger_io->read_framed_entries(i, until);
-      CHECK(replica->apply_ledger_data(resp));
+      auto until = i + 4;
+      first = initial_ledger.begin() + positions.at(i);
+      if (until >= positions.size())
+      {
+        last = initial_ledger.end();
+      }
+      else
+      {
+        last = initial_ledger.begin() + positions.at(until);
+      }
+      std::vector<uint8_t> vec(first, last);
+      CHECK(replica->apply_ledger_data(vec));
     }
+
+    std::vector<uint8_t> replay_ledger;
+    std::vector<size_t> positions_replay;
+    size_t total_len_replay = 0;
+    // Same as above we get the entries that would have been written to the
+    // ledger on replay. We also take into account the fact that truncate will
+    // have been called when the entries were played out of order
+    replay_circuit.read_from_inside().read(
+      -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
+        switch (m)
+        {
+          case consensus::ledger_append:
+          {
+            positions_replay.push_back(total_len_replay);
+            size_t framed_entry_size = size + sizeof(uint32_t);
+            total_len_replay += framed_entry_size;
+            replay_ledger.reserve(total_len_replay);
+
+            uint32_t s = (uint32_t)size;
+
+            replay_ledger.insert(
+              end(replay_ledger),
+              (uint8_t*)&s,
+              (uint8_t*)&s + sizeof(uint32_t));
+            replay_ledger.insert(end(replay_ledger), data, data + size);
+          }
+          break;
+          case consensus::ledger_truncate:
+          {
+            auto last_idx = serialized::read<size_t>(data, size);
+            total_len_replay = positions_replay.at(last_idx);
+            positions_replay.resize(last_idx);
+
+            replay_ledger.resize(total_len_replay);
+
+            break;
+          }
+          default:
+            INFO(
+              "We should only encounter ledger_append or ledger_truncate "
+              "messages");
+            REQUIRE(false);
+        }
+      });
+
+    CHECK(std::equal(
+      initial_ledger.begin(), initial_ledger.end(), replay_ledger.begin()));
   }
-
-  INFO("Check that the two ledger files are identical");
-  FILE* file1;
-  file1 = fopen(initial_ledger.c_str(), "r");
-  REQUIRE(file1 != nullptr);
-  fseeko(file1, 0, SEEK_END);
-  auto file_size1 = ftello(file1);
-  REQUIRE(file_size1 != 1);
-  fseeko(file1, 0, SEEK_SET);
-
-  FILE* file2;
-  file2 = fopen(replay_ledger.c_str(), "r");
-  REQUIRE(file2 != nullptr);
-  fseeko(file2, 0, SEEK_END);
-  auto file_size2 = ftello(file2);
-  REQUIRE(file_size2 != 1);
-  fseeko(file2, 0, SEEK_SET);
-
-  CHECK(file_size1 == file_size2);
-
-  std::vector<uint8_t> file1_data(file_size1);
-  std::vector<uint8_t> file2_data(file_size2);
-
-  CHECK(fread(file1_data.data(), file_size1, 1, file1) == 1);
-  CHECK(fread(file2_data.data(), file_size2, 1, file2) == 1);
-
-  CHECK(memcmp(file1_data.data(), file2_data.data(), file_size1));
 }

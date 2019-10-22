@@ -1,10 +1,7 @@
 Logging (Lua)
--------------
+=============
 
-Overview
-````````
-
-CCF comes with a generic application for running Lua scripts called *luageneric*, implemented in [CCF]/src/apps/luageneric/luageneric.cpp. At runtime, *luageneric* dispatches incoming RPCs to Lua scripts stored in the table *APP_SCRIPTS*. The RPC method name is used as the key, and if a script exists at this key it is called with the RPC arguments. The initial contents of the table (i.e., at "genesis") are set by a Lua script passed to the *genesisgenerator* via the ``--app-script`` parameter. 
+CCF comes with a generic application for running Lua scripts called *luageneric*, implemented in [CCF]/src/apps/luageneric/luageneric.cpp. At runtime, *luageneric* dispatches incoming RPCs to Lua scripts stored in the table *APP_SCRIPTS*. The RPC method name is used as the key, and if a script exists at this key it is called with the RPC arguments.
 
 The script at key ``__environment`` is special. If set, the corresponding script is invoked before any actual handler script to initialize the Lua environment.
 
@@ -16,21 +13,21 @@ Some global values are pre-populated in the Lua environment, to be used by both 
 
 
 RPC Handler
-```````````
+-----------
 
 The following shows an implementation of the Logging application, where each RPC method handler (e.g., ``LOG_get``) is a separate entry in *APP_SCRIPTS*:
 
-.. literalinclude:: ../../src/apps/logging/logging.lua
+.. literalinclude:: ../../../src/apps/logging/logging.lua
     :language: lua
 
 Here, functionality shared between the handlers (e.g., ``env.jsucc()``) and app-specific error codes (e.g., ``MESSAGE_EMPTY``) are defined in the ``__environment`` script.
 
 Interface
-`````````
+---------
 
 The interface between Lua RPC handlers and the rest of CCF is simple. A fixed set of parameters is passed to a Lua RPC handler on invocation:
 
-.. literalinclude:: ../../src/apps/logging/logging.lua
+.. literalinclude:: ../../../src/apps/logging/logging.lua
     :language: lua
     :start-after: SNIPPET_START: lua_params
     :end-before: SNIPPET_END: lua_params
@@ -47,14 +44,14 @@ The interface between Lua RPC handlers and the rest of CCF is simple. A fixed se
 
     * ``params``: the RPC's ``params``, converted from JSON to a Lua table. If the JSON params were an object, this will be an object-like table with named string keys. If the JSON params were an array, this will be an array-like table with consecutive numbered keys.
 
-The Lua value returned by an RPC handler is translated to JSON and returned to the client. To indicate an error, return a table with a key named ``error``. The value at this key will be used as the JSON error object in the response. 
+The Lua value returned by an RPC handler is translated to JSON and returned to the client. To indicate an error, return a table with a key named ``error``. The value at this key will be used as the JSON error object in the response.
 
 Accessing Tables
 ~~~~~~~~~~~~~~~~
 
 The tables passed to a Lua handler in ``tables`` and ``gov_tables`` can be accessed through a set of methods. These are:
 
-* ``get(key)``: returns the value stored at ``key``. If no such entry exists, returns nil. Example: 
+* ``get(key)``: returns the value stored at ``key``. If no such entry exists, returns nil. Example:
 
 .. code-block:: lua
 
@@ -75,19 +72,13 @@ The tables passed to a Lua handler in ``tables`` and ``gov_tables`` can be acces
 
 
 Running
-```````
-
-First, the Lua application is written to the initial state using the *genesisgenerator*:
-
-.. code-block:: bash
-
-    ./genesisgenerator --app-script myapp.lua [args]
-
-Next, CCF is started with *luageneric* as enclave file:
+-------
+CCF must be started with *luageneric* as enclave file:
 
 .. code-block:: bash
 
     ./cchost --enclave-file libluageneric.signed.so [args]
 
+Then, members should :ref:`register the Lua application <Registering the Lua Application>`.
 
 

@@ -2,9 +2,9 @@ Example App
 ===========
 
 Description
-```````````
+-----------
 
-The repository contains equivalent C++ and a Lua implementations of a simple example application for logging. These are meant to serve as templates for building more useful applications and to showcase core features. 
+The repository contains equivalent C++ and a Lua implementations of a simple example application for logging. These are meant to serve as templates for building more useful applications and to showcase core features.
 
 .. note::
 
@@ -75,9 +75,9 @@ The Logging application implements a trivial protocol, made up of four transacti
         }
 
 Implementations
-```````````````
+---------------
 
-The C++ and Lua implementations of the Logging application are located in the [CCF]/src/apps folder. They are discussed in detail on the following pages:
+The C++ and Lua implementations of the Logging application are located in the `src/apps <https://github.com/microsoft/CCF/tree/master/src/apps>`_ folder. They are discussed in detail on the following pages:
 
 .. toctree::
    :maxdepth: 2
@@ -85,11 +85,3 @@ The C++ and Lua implementations of the Logging application are located in the [C
    logging_cpp
    logging_lua
    logging_rpc_api
-
-Client
-``````
-
-There are no particular requirements for the client, other than it should use `JSON-RPC <https://www.jsonrpc.org/specification>`_
-over `TLS <https://tools.ietf.org/html/rfc5246>`_. 
-
-If the client is written in C++, subclassing :cpp:class:`::RpcTlsClient` is a good start.
