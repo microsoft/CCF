@@ -567,10 +567,16 @@ class CCFRemote(object):
             cmd += [
                 "start",
                 "--network-cert-file=networkcert.pem",
-                f"--member-certs={members_certs}",
                 f"--gov-script={os.path.basename(gov_script)}",
             ]
-            data_files += [members_certs, os.path.basename(gov_script)]
+            if members_certs is None:
+                raise ValueError(
+                    "Starting node should be given at least one member certificate"
+                )
+            for mc in members_certs:
+                cmd += [f"--member-cert={mc}"]
+            data_files.extend(members_certs)
+            data_files += [os.path.basename(gov_script)]
         elif start_type == StartType.join:
             cmd += [
                 "join",
