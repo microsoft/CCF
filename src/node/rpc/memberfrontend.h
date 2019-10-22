@@ -3,7 +3,9 @@
 #pragma once
 #include "frontend.h"
 #include "luainterp/txscriptrunner.h"
+#include "node/genesisgen.h"
 #include "node/quoteverification.h"
+#include "node/nodes.h"
 #include "tls/entropy.h"
 #include "tls/keypair.h"
 
@@ -405,12 +407,66 @@ namespace ccf
         LOG_INFO << "FFFFFFFF - received create message" << std::endl;
 
         const auto in = args.params.get<CreateNetworkNodeToNode::In>();
+        CreateNetworkNodeToNode::Out result;
 
         LOG_INFO << "FFFFFFFF - received create message:" << in.foo.c_str() << std::endl;
 
-        CreateNetworkNodeToNode::Out result;
-        result.result = true;
+        GenesisGenerator g(this->network, args.tx);
+        g.init_values();
+        for (auto& cert : in.member_cert) {
+          g.add_member(cert);
+        }
 
+        ccf::NodeInfoNetwork node_info_network{
+            in.node_info_network.host,
+            in.node_info_network.pubhost,
+            in.node_info_network.nodeport,
+            in.node_info_network.rpcport
+        };
+
+        // Generate quote over node certificate
+        // TODO: https://github.com/microsoft/CCF/issues/59
+        std::vector<uint8_t> quote{1};
+
+        size_t self = g.add_node({node_info_network,
+                                  in.node_cert,
+                                  quote,
+                                  NodeStatus::TRUSTED});
+        
+        if (self != 0) {
+          result.result = false;
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            fmt::format(
+              "My node is was set to {}",
+              self));
+
+        }
+
+#ifdef GET_QUOTE
+        // Trust own code id
+        g.trust_code_id(node_code_id);
+#endif
+
+        // set access whitelists
+        // TODO(#feature): this should be configurable
+        for (const auto& wl : default_whitelists)
+        {
+          g.set_whitelist(wl.first, wl.second);
+        }
+
+          g.set_gov_scripts(lua::Interpreter().invoke<nlohmann::json>(
+            in.gov_script));
+
+          g.create_service(in.network_cert);
+
+
+
+
+
+
+
+        result.result = true;
         return jsonrpc::success(result);
       };
 

@@ -300,7 +300,8 @@ void prepare_callers()
   network.tables->set_encryptor(encryptor);
   network2.tables->set_encryptor(encryptor);
 
-  GenesisGenerator g(network);
+  Store::Tx gen_tx;
+  GenesisGenerator g(network, gen_tx);
   g.init_values();
   g.add_user(user_caller);
   g.add_user(invalid_caller);
@@ -312,7 +313,8 @@ void prepare_callers()
 
 void add_callers_primary_store()
 {
-  GenesisGenerator g(network2);
+  Store::Tx gen_tx;
+  GenesisGenerator g(network2, gen_tx);
   g.init_values();
   g.add_user(user_caller);
   g.add_member(member_caller);

@@ -144,7 +144,8 @@ TEST_CASE("simple lua apps")
   NetworkTables network;
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   StubNotifier notifier;
   // create network with 1 user and 3 active members
@@ -268,7 +269,8 @@ TEST_CASE("simple bank")
   NetworkTables network;
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   StubNotifier notifier;
   // create network with 1 user and 3 active members
@@ -373,7 +375,8 @@ TEST_CASE("pre-populated environment")
   NetworkTables network;
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   StubNotifier notifier;
   // create network with 1 user and 3 active members

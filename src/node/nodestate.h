@@ -220,6 +220,8 @@ namespace ccf
       }
 
       create_rpc.params.gov_script = args.config.genesis.gov_script;
+      create_rpc.params.node_cert = node_cert;
+      create_rpc.params.network_cert = network.secrets->get_current().cert;
       create_rpc.params.node_info_network.host = args.config.node_info_network.host;
       create_rpc.params.node_info_network.pubhost = args.config.node_info_network.pubhost;
       create_rpc.params.node_info_network.nodeport = args.config.node_info_network.nodeport;
@@ -290,12 +292,16 @@ namespace ccf
           //foo.empty();
           LOG_INFO << "AAAAAAAAA: " << std::string((const char*)foo.data(), foo.size()).c_str() << std::endl;
 
+          // Become the primary and force replication.
+          consensus->force_become_primary();
+
           SendRequest(foo); 
 
           LOG_INFO << "AAAAAAA after send request" << std::endl;
           
-
-          GenesisGenerator g(network);
+          /*
+          Store::Tx tx;
+          GenesisGenerator g(network, tx);
           g.init_values();
 
           for (auto& cert : args.config.genesis.member_certs) {
@@ -333,6 +339,7 @@ namespace ccf
           if (g.finalize() != kv::CommitSuccess::OK) {
             return false;
           }
+          */
 
           // Accept node connections for other nodes to join
           accept_node_connections();
@@ -344,6 +351,7 @@ namespace ccf
           sm.advance(State::partOfNetwork);
 
           return true;
+
 
 /*
           if (g.finalize() != kv::CommitSuccess::OK) {
@@ -662,7 +670,8 @@ namespace ccf
       if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
       {
         network.tables->compact(ledger_idx);
-        GenesisGenerator g(network);
+        Store::Tx tx;
+        GenesisGenerator g(network, tx);
         auto last_sig = g.get_last_signature();
         if (last_sig.has_value())
         {
@@ -689,7 +698,8 @@ namespace ccf
 
       // When reaching the end of the public ledger, truncate to last signed
       // index and promote network secrets to this index
-      GenesisGenerator g(network);
+      Store::Tx tx;
+      GenesisGenerator g(network, tx);
 
       auto last_sig = g.get_last_signature();
       kv::Version last_index = 0;
@@ -830,7 +840,8 @@ namespace ccf
       // Open the service
       if (consensus->is_primary())
       {
-        GenesisGenerator g(network);
+        Store::Tx tx;
+        GenesisGenerator g(network, tx);
         if (!g.open_service())
           throw std::logic_error("Service could not be opened");
 
