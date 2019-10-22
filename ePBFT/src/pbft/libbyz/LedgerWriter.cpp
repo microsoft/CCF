@@ -4,10 +4,8 @@
 
 #include "Request.h"
 
-LedgerWriter::LedgerWriter(
-  append_ledger_entry_cb ledger_entry_cb_, void* ledger_cb_ctx_) :
-  ledger_entry_cb(ledger_entry_cb_),
-  ledger_cb_ctx(ledger_cb_ctx_)
+LedgerWriter::LedgerWriter(std::unique_ptr<consensus::LedgerEnclave> ledger_) :
+  ledger(std::move(ledger_))
 {}
 
 void LedgerWriter::write_prepare(
@@ -45,7 +43,7 @@ void LedgerWriter::write_prepare(
       sizeof(Prepared_cert::PrePrepareProof));
   }
 
-  ledger_entry_cb(entry.data(), entry.size(), ledger_cb_ctx);
+  ledger->put_entry(entry);
 }
 
 void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
@@ -108,10 +106,9 @@ void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
         Pre_prepare_ledger_large_message_header header(0);
         serialized::write(data, entry_size, (uint8_t*)&header, sizeof(header));
       }
-
-      ledger_entry_cb(entry.data(), entry.size(), ledger_cb_ctx);
     }
   }
+  ledger->put_entry(entry);
 }
 
 void LedgerWriter::write_view_change(View_change* vc)
@@ -126,6 +123,21 @@ void LedgerWriter::write_view_change(View_change* vc)
     vc->signature()
 #endif
   );
-  ledger_entry_cb(
-    (uint8_t*)&header, sizeof(View_change_ledger_header), ledger_cb_ctx);
+
+  std::vector<uint8_t> entry(sizeof(View_change_ledger_header));
+  uint8_t* tdata = entry.data();
+  auto size = sizeof(View_change_ledger_header);
+  serialized::write(tdata, size, (uint8_t*)&header, size);
+  ledger->put_entry(entry);
+}
+
+std::pair<std::vector<uint8_t>, bool> LedgerWriter::record_entry(
+  const uint8_t*& data, size_t& size)
+{
+  return ledger->record_entry(data, size);
+}
+
+void LedgerWriter::truncate(Seqno seqno)
+{
+  ledger->truncate(seqno);
 }

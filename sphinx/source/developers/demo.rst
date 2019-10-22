@@ -5,18 +5,18 @@ This document explains how the Python testing infrastructure is used to run a co
 
 The script ``tests/e2e_scenarios.py`` reads a test scenario from json. This json file can specify which app the network should run, how many nodes it should create, and the list of transactions to run. ``tests/simple_logging_scenario.json`` is an example scenario file showing the expected format:
 
-.. literalinclude:: ../../tests/simple_logging_scenario.json
+.. literalinclude:: ../../../tests/simple_logging_scenario.json
     :language: json
 
-To execute this scenario first follow the instructions in :ref:`getting_started` and then, from the ``build`` directory, run:
+Then, from the ``build`` directory, run:
 
 .. code-block:: bash
 
-    python ../tests/e2e_scenarios.py --scenario ../tests/simple_logging_scenario.json
+    $ python ../tests/e2e_scenarios.py --scenario ../tests/simple_logging_scenario.json
 
 This first loads the scenario from the given json file, extracting initial fields:
 
-.. literalinclude:: ../../tests/e2e_scenarios.py
+.. literalinclude:: ../../../tests/e2e_scenarios.py
     :language: python
     :start-after: SNIPPET_START: parsing
     :end-before: SNIPPET_END: parsing
@@ -24,7 +24,7 @@ This first loads the scenario from the given json file, extracting initial field
 
 Given the above ``scenario.json`` this should create 2 nodes on the local machine running the ``logging`` example app. The script then creates the requested CCF network:
 
-.. literalinclude:: ../../tests/e2e_scenarios.py
+.. literalinclude:: ../../../tests/e2e_scenarios.py
     :language: python
     :start-after: SNIPPET_START: create_network
     :end-before: SNIPPET_END: create_network
@@ -52,7 +52,7 @@ There should be a corresponding entry in the Python output, similar to:
     | INFO     | infra.jsonrpc:request:192 - #0 LOG_record {'id': 42, 'msg': 'Hello world'}
     | DEBUG    | infra.jsonrpc:response:209 - #0 {'id': 0, 'result': True, 'error': None, 'jsonrpc': '2.0', 'commit': 5, 'term': 2, 'global_commit': 4}
 
-The ``e2e`` test script takes several additional parameters, documented by passing ``-h`` on the command line. To debug a node it may be useful to increase the node's verbosity by altering the ``--log-level`` option [#log_location]_, or to attach a debugger to a node at launch with the ``--debug-nodes`` option. If passed the ``--network-only`` option the script will keep the network alive rather, than closing immediately after transactions have completed, allowing additional transactions to be sent manually.
+The ``e2e`` test script takes several additional parameters, documented by passing ``-h`` on the command line. To debug a node it may be useful to increase the node's verbosity by altering the ``--log-level`` option [#log_location]_, or to attach a debugger to a node at launch with the ``--debug-nodes`` option. If passed the ``--network-only`` option the script will keep the network alive, rather than closing immediately after transactions have completed, allowing additional transactions to be sent manually.
 
 .. rubric:: Footnotes
 

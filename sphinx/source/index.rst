@@ -1,26 +1,21 @@
-Welcome to CCF's documentation
-===============================
+CCF documentation
+=================
+
+.. image:: ccf.svg
+
+.. include:: quickstart/index.rst
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+    :maxdepth: 1
+    :caption: Contents:
 
-   introduction
-   getting_started
-   start_network
-   ledger
-   governance
-   kv/index.rst
-   recovery
-   cryptography
-   example
-   demo
-   rpc_api
-   api
-   glossary
-   design/index.rst
+    introduction
+    quickstart/index.rst
+    members/index.rst
+    developers/index.rst
+    operators/index.rst
+    users/index.rst
 
-Index
-=====
+    glossary
+    design/index.rst
 
-* :ref:`genindex`

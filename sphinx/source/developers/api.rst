@@ -1,5 +1,5 @@
-API
-===
+Developer API
+=============
 
 Application Entry Point
 -----------------------
@@ -11,12 +11,5 @@ Application Handler
 -------------------
 
 .. doxygenclass:: ccf::RpcFrontend
-   :project: CCF
-   :members:
-
-Client
-------
-
-.. doxygenclass:: RpcTlsClient
    :project: CCF
    :members:

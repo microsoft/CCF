@@ -21,7 +21,7 @@ Note that even if a transaction only affects a private ``Store::Map``, unencrypt
 Ledger replication
 ------------------
 
-The replication process currently uses Raft as the consensus algorithm and therefore the terminology changes slightly. Instead of primary we use the term leader and instead of backup we use the term follower. 
+The replication process currently uses Raft as the consensus algorithm and therefore the terminology changes slightly. Instead of primary we use the term leader and instead of backup we use the term follower.
 
 As such, the replicated process relies on authenticated Append Entries (AE) headers sent from the leader to followers and which specify the start and end index of the encrypted deltas payload. When an AE header is emitted from a node's enclave for replication, the corresponding encrypted deltas are read from the ledger and appended to the AE header.
 
@@ -83,10 +83,10 @@ The ``Ledger`` class is constructed using the path of the ledger. It then expose
  * The serialised public domain, containing operations made only on public tables (get_public_domain)
 
 .. note:: Parsing the encrypted private data (which begins immediately after the public data on the ledger, and is optional) is not supported by the ``Ledger`` class at the moment. This will be added at a later stage.
-..
 
 An example of how to read and verify entries on the ledger can be found on ``votinghistory.py``, which verifies the voting history.
 Since every vote request is signed by the requesting member, verified by the primary and then stored on the ledger, the test performs the following (this sequence of operations is performed sequentially per transaction):
+
  1. Read and store the member certificates
  2. Read an entry from the ``voting_history`` table (each entry on the ``voting_history`` table contains the member id of the voting member, along with the signed request)
  3. Create a public key using the certificate of the voting member (which was stored on step 1)

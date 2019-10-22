@@ -2,14 +2,14 @@ Key-Value Store API
 ===================
 
 Store
-`````
+-----
 
 .. doxygenclass:: kv::Store
    :project: CCF
    :members:
 
 Map
-```
+---
 
 .. doxygentypedef:: kv::Version
    :project: CCF
@@ -22,14 +22,14 @@ Map
    :members:
 
 Transaction
-```````````
+-----------
 
 .. doxygenclass:: kv::Tx
    :project: CCF
    :members:
 
 Transaction View
-````````````````
+----------------
 
 .. doxygenclass:: kv::Map::TxView
    :project: CCF

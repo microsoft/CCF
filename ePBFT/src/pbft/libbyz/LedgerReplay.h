@@ -25,6 +25,7 @@ public:
     const std::vector<uint8_t>& data,
     Req_queue& rqueue,
     Big_req_table& brt,
-    LedgerWriter* ledger_writed);
+    LedgerWriter& ledger_writed,
+    Seqno last_executed);
   void clear_requests(Req_queue& rqueue, Big_req_table& brt);
 };
