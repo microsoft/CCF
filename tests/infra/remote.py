@@ -63,7 +63,7 @@ def log_errors(out_path, err_path):
     try:
         errors = 0
         tail_lines = deque(maxlen=10)
-        with open(out_path, "r") as lines:
+        with open(out_path, "r", errors="replace") as lines:
             for line in lines:
                 stripped_line = line.rstrip()
                 tail_lines.append(stripped_line)
