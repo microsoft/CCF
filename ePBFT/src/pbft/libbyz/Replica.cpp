@@ -166,9 +166,9 @@ Replica::Replica(
   exec_command = nullptr;
   non_det_choices = 0;
 
-  ledger_replay = std::make_unique<LedgerReplay>();
   if (ledger)
   {
+    ledger_replay = std::make_unique<LedgerReplay>();
     ledger_writer = std::make_unique<LedgerWriter>(std::move(ledger));
   }
 }
@@ -264,6 +264,8 @@ bool Replica::compare_execution_results(
 
 bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
 {
+  PBFT_ASSERT(ledger_replay, "ledger_replay should be initialized");
+
   if (data.empty())
   {
     LOG_FAIL << "Received empty entries" << std::endl;

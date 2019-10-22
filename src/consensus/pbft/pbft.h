@@ -104,7 +104,6 @@ namespace pbft
     std::unique_ptr<AbstractPbftConfig> pbft_config;
     std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
-    std::unique_ptr<consensus::LedgerEnclave> ledger;
     SeqNo global_commit_seqno;
     std::unique_ptr<pbft::Store> store;
 
@@ -119,13 +118,12 @@ namespace pbft
       std::unique_ptr<pbft::Store> store_,
       std::shared_ptr<ChannelProxy> channels_,
       NodeId id,
-      std::unique_ptr<consensus::LedgerEnclave> ledger_,
+      std::unique_ptr<consensus::LedgerEnclave> ledger,
       std::shared_ptr<enclave::RPCMap> rpc_map,
       std::shared_ptr<enclave::RPCSessions> rpcsessions_) :
       Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
-      ledger(std::move(ledger_)),
       global_commit_seqno(1),
       store(std::move(store_))
     {

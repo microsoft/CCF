@@ -68,7 +68,7 @@ NodeInfo get_node_info()
   return node_info;
 }
 
-void init_replica(
+void create_replica(
   std::vector<char>& service_mem,
   std::unique_ptr<consensus::LedgerEnclave> ledger)
 {
@@ -92,25 +92,27 @@ void init_replica(
 
 TEST_CASE("Test Ledger Replay")
 {
-  size_t circuit_size_shift = 22;
-  ringbuffer::Circuit init_circuit(1 << circuit_size_shift);
-  auto wf = ringbuffer::WriterFactory(init_circuit);
-  auto initial_ledger_io = std::make_unique<consensus::LedgerEnclave>(wf);
-
   int mem_size = 400 * 8192;
   std::vector<char> service_mem(mem_size, 0);
   ExecutionMock exec_mock(0);
 
-  // initiate replica with ledger enclave
+  size_t circuit_size_shift = 22;
+  // initiate replica with ledger enclave to be used on replay
   ringbuffer::Circuit replay_circuit(1 << circuit_size_shift);
   auto wf_rplay = ringbuffer::WriterFactory(replay_circuit);
 
   auto replay_ledger_io = std::make_unique<consensus::LedgerEnclave>(wf_rplay);
 
-  init_replica(service_mem, std::move(replay_ledger_io));
+  create_replica(service_mem, std::move(replay_ledger_io));
   replica->register_exec(exec_mock.exec_command);
 
-  INFO("Create dummy pre-prepares and write them to ledger file");
+  // initial ledger enclave is used by the LedgerWriter to simulate writting
+  // entries to the ledger
+  ringbuffer::Circuit init_circuit(1 << circuit_size_shift);
+  auto wf = ringbuffer::WriterFactory(init_circuit);
+  auto initial_ledger_io = std::make_unique<consensus::LedgerEnclave>(wf);
+
+  INFO("Create dummy pre-prepares and write them to ledger");
   {
     LedgerWriter ledger_writer(std::move(initial_ledger_io));
 
@@ -148,14 +150,16 @@ TEST_CASE("Test Ledger Replay")
     replica->big_reqs()->clear();
   }
 
-  INFO("Read the ledger file and replay it out of order and in order");
+  INFO("Read the ledger entries and replay them out of order and in order");
   {
     std::vector<uint8_t> initial_ledger;
     std::vector<size_t> positions;
     size_t total_len = 0;
     size_t num_msgs = 0;
-    // all entries will have the same size in this test
-    size_t entry_size;
+    // We can get the entries that would have been written to the ledger file
+    // from the circuit and put them in initial_ledger for them to be replayed.
+    // Replay expects the entries to be preceeded by the entry frame indicating
+    // the size of the entry that follows, and that is simulated here.
     init_circuit.read_from_inside().read(
       -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
         switch (m)
@@ -167,7 +171,7 @@ TEST_CASE("Test Ledger Replay")
             total_len += framed_entry_size;
             initial_ledger.reserve(total_len);
             uint32_t s = (uint32_t)size;
-            entry_size = size + sizeof(uint32_t);
+
             initial_ledger.insert(
               end(initial_ledger),
               (uint8_t*)&s,
@@ -181,27 +185,27 @@ TEST_CASE("Test Ledger Replay")
         ++num_msgs;
       });
     REQUIRE(num_msgs == (TOTAL_REQUESTS - 1));
-    // check that nothing gets executed out of order
 
-    // read from entries 5 till 9
+    // check that nothing gets executed out of order
+    INFO("replay entries 5 till 9 should fail");
     auto first = initial_ledger.begin() + positions.at(4);
     auto last = initial_ledger.end();
     std::vector<uint8_t> vec_5_9(first, last);
     CHECK(!replica->apply_ledger_data(vec_5_9));
 
-    // read entries 1 till 3
+    INFO("replay entries 1 till 3");
     first = initial_ledger.begin();
     last = initial_ledger.begin() + positions.at(3);
     std::vector<uint8_t> vec_1_3(first, last);
     CHECK(replica->apply_ledger_data(vec_1_3));
 
-    // try 2 till 3 and expect replay to not execute
+    INFO("replay entries 2 till 3 should fail");
     first = initial_ledger.begin() + positions.at(1);
     last = initial_ledger.begin() + positions.at(3);
     std::vector<uint8_t> vec_2_3(first, last);
     CHECK(!replica->apply_ledger_data(vec_2_3));
 
-    // execute the rest of the pre-prepares in batches of 3
+    INFO("replay the rest of the pre-prepares in batches of 3");
     for (size_t i = 3; i < TOTAL_REQUESTS; i += 4)
     {
       auto until = i + 4;
@@ -221,6 +225,9 @@ TEST_CASE("Test Ledger Replay")
     std::vector<uint8_t> replay_ledger;
     std::vector<size_t> positions_replay;
     size_t total_len_replay = 0;
+    // Same as above we get the entries that would have been written to the
+    // ledger on replay. We also take into account the fact that truncate will
+    // have been called when the entries were played out of order
     replay_circuit.read_from_inside().read(
       -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
         switch (m)
@@ -233,7 +240,7 @@ TEST_CASE("Test Ledger Replay")
             replay_ledger.reserve(total_len_replay);
 
             uint32_t s = (uint32_t)size;
-            entry_size = size + sizeof(uint32_t);
+
             replay_ledger.insert(
               end(replay_ledger),
               (uint8_t*)&s,

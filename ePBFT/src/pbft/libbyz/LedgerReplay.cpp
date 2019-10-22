@@ -39,6 +39,9 @@ std::vector<std::unique_ptr<Pre_prepare>> LedgerReplay::process_data(
 
     if (!ret.second)
     {
+      PBFT_ASSERT(
+        ret.second,
+        "record entry should successfully record data into the ledger");
       // NB: This will currently never be triggered.
       // This should only fail if there is malformed data. Truncate
       // the log and reply false.
@@ -48,7 +51,7 @@ std::vector<std::unique_ptr<Pre_prepare>> LedgerReplay::process_data(
       return {};
     }
 
-    const std::vector<uint8_t> ret_vector = ret.first;
+    const std::vector<uint8_t>& ret_vector = ret.first;
     auto e_data = ret_vector.data();
     auto e_size = ret_vector.size();
 
