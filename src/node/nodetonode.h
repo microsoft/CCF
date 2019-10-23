@@ -117,7 +117,12 @@ namespace ccf
 
       auto& n2n_channel = channels->get(t.from_node);
       if (!n2n_channel.decrypt(hdr, asCb(t), {data, size}, plain))
-        throw std::logic_error("Invalid encrypted node2node message");
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid authenticated node2node message from node {} (size: {})",
+          t.from_node,
+          size));
+      }
 
       return std::make_pair(t, plain);
     }
