@@ -8,6 +8,7 @@
 #include "nodetypes.h"
 
 #include <algorithm>
+#include <fmt/format_header_only.h>
 
 namespace ccf
 {
@@ -75,7 +76,12 @@ namespace ccf
       auto& n2n_channel = channels->get(t.from_node);
 
       if (!n2n_channel.verify(hdr, asCb(t)))
-        throw std::logic_error("Invalid authenticated node2node message");
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid authenticated node2node message from node {} (size: {})",
+          t.from_node,
+          size));
+      }
 
       return t;
     }
@@ -111,7 +117,12 @@ namespace ccf
 
       auto& n2n_channel = channels->get(t.from_node);
       if (!n2n_channel.decrypt(hdr, asCb(t), {data, size}, plain))
-        throw std::logic_error("Invalid encrypted node2node message");
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid authenticated node2node message from node {} (size: {})",
+          t.from_node,
+          size));
+      }
 
       return std::make_pair(t, plain);
     }
