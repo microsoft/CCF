@@ -421,9 +421,6 @@ namespace ccf
         if (self != 0)
         {
           throw std::logic_error(fmt::format("My node was set to {}", self));
-          return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            fmt::format("My node was set to {}", self));
         }
 
 #ifdef GET_QUOTE
