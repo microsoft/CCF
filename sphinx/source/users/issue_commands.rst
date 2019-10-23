@@ -72,4 +72,4 @@ To guarantee that their request is successfully committed to the ledger, a user 
       "term": 2
     }
 
-In this example, the ``result`` field indicates that the request was executed at ``30`` (``commit``) was in term ``2``, the same term that the ``LOG_record``. Moreover, the ``global_commit`` (``31``) is now greater than the ``commit`` version. The `LOG_record` request issued earlier was successfully committed to the ledger.
+In this example, the ``result`` field indicates that the request was executed at ``30`` (``commit``) was in term ``2``, the same term that the ``LOG_record``. Moreover, the ``global_commit`` (``31``) is now greater than the ``commit`` version. The ``LOG_record`` request issued earlier was successfully committed to the ledger.

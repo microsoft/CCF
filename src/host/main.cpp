@@ -1,6 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "crypto/slurp_files.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/logger.h"
@@ -195,12 +194,12 @@ int main(int argc, char** argv)
     ->check(CLI::ExistingFile)
     ->required();
 
-  std::string member_cert_file = "member*_cert.pem";
+  std::vector<std::string> member_cert_files;
   start
     ->add_option(
-      "--member-certs",
-      member_cert_file,
-      "Globbing pattern for member certificate files",
+      "--member-cert",
+      member_cert_files,
+      "Consortium member certificates",
       true)
     ->required();
 
@@ -305,10 +304,17 @@ int main(int argc, char** argv)
 
   if (*start)
   {
-    LOG_INFO_FMT("Creating new node - new network");
     start_type = StartType::New;
-    ccf_config.genesis.member_certs = files::slurp_certs(member_cert_file);
+
+    for (auto const& cert_file : member_cert_files)
+    {
+      ccf_config.genesis.member_certs.emplace_back(
+        tls::make_verifier(files::slurp(cert_file))->raw_cert_data());
+    }
     ccf_config.genesis.gov_script = files::slurp_string(gov_script);
+    LOG_INFO_FMT(
+      "Creating new node: new network (with {} initial member(s))",
+      ccf_config.genesis.member_certs.size());
   }
   else if (*join)
   {
