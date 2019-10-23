@@ -36,7 +36,6 @@ namespace ccf
     members = 0,
     users,
     nodes,
-    management,
     // not to be used
     unknown
   };
