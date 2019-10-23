@@ -402,6 +402,7 @@ namespace ccf
 
         return jsonrpc::success(complete_proposal(args.tx, vote.id));
       };
+      install_with_auto_schema<Vote, bool>(MemberProcs::VOTE, vote, Write);
 
       auto create = [this](RequestArgs& args) {
         const auto in = args.params.get<CreateNetworkNodeToNode::In>();
@@ -444,12 +445,12 @@ namespace ccf
 
         g.create_service(in.network_cert);
 
+        // This endpoint should only be called once, from the starting node
+        uninstall(MemberProcs::CREATE);
+
         return jsonrpc::success(true);
       };
-
       install(MemberProcs::CREATE, create, Write);
-
-      install_with_auto_schema<Vote, bool>(MemberProcs::VOTE, vote, Write);
 
       auto complete = [this](RequestArgs& args) {
         if (!check_member_active(args.tx, args.caller_id))
@@ -514,6 +515,11 @@ namespace ccf
       };
       install_with_auto_schema<void, bool>(
         MemberProcs::UPDATE_ACK_NONCE, update_ack_nonce, Write);
+    }
+
+    void uninstall_create_handler()
+    {
+      uninstall(MemberProcs::CREATE);
     }
   };
 } // namespace ccf

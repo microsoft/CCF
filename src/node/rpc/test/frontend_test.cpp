@@ -41,6 +41,19 @@ public:
   }
 };
 
+class TestOneShotFrontend : public ccf::UserRpcFrontend
+{
+public:
+  TestOneShotFrontend(Store& tables) : UserRpcFrontend(tables)
+  {
+    auto empty_function = [this](RequestArgs& args) {
+      uninstall("empty_function");
+      return jsonrpc::success(true);
+    };
+    install("empty_function", empty_function, Read);
+  }
+};
+
 class TestReqNotStoredFrontend : public ccf::UserRpcFrontend
 {
 public:
@@ -409,6 +422,28 @@ TEST_CASE("MinimalHandleFuction")
   auto response =
     frontend.process_json(rpc_ctx, tx, caller_id, echo_call, sr).value();
   CHECK(response[jsonrpc::RESULT] == echo_call[jsonrpc::PARAMS]);
+}
+
+TEST_CASE("Uninstall handler")
+{
+  prepare_callers();
+  TestOneShotFrontend frontend(*network.tables);
+  auto simple_call = create_simple_json();
+
+  std::vector<uint8_t> serialized_call =
+    jsonrpc::pack(simple_call, jsonrpc::Pack::MsgPack);
+
+  auto response = jsonrpc::unpack(
+    frontend.process(rpc_ctx, serialized_call), jsonrpc::Pack::MsgPack);
+
+  CHECK(response[jsonrpc::RESULT] == true);
+
+  response = jsonrpc::unpack(
+    frontend.process(rpc_ctx, serialized_call), jsonrpc::Pack::MsgPack);
+  CHECK(
+    response[jsonrpc::ERR][jsonrpc::CODE] ==
+    static_cast<jsonrpc::StandardErrorCodes>(
+      jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND));
 }
 
 TEST_CASE("process_json")
