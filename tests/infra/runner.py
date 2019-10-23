@@ -125,7 +125,7 @@ def run(build_directory, get_command, args):
                 remote_client.start()
 
             try:
-                with cimetrics.upload.Metrics() as metrics:
+                with cimetrics.upload.metrics() as metrics:
                     tx_rates = infra.rates.TxRates(primary)
                     while True:
                         if not tx_rates.process_next():
