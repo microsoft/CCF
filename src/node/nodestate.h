@@ -105,7 +105,8 @@ namespace ccf
       auto state = this->s.load();
       if (s != state)
       {
-        throw std::logic_error(fmt::format("Unexpected state: {}", state));
+        throw std::logic_error(
+          fmt::format("State is {}, but expected {}", state, s));
       }
     }
 
