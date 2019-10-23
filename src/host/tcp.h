@@ -190,6 +190,8 @@ namespace asynchost
         return false;
       }
 
+      uv_tcp_keepalive(&uv_handle, 1, 30);
+
       uv_handle.data = this;
       return true;
     }
