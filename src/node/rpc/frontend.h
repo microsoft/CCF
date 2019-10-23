@@ -530,7 +530,16 @@ namespace ccf
       }
 
       // Retrieve id of caller
-      auto caller_id = valid_caller(tx, ctx.caller_cert);
+      std::optional<CallerId> caller_id;
+      if (ctx.is_create_request)
+      {
+        caller_id = INVALID_ID;
+      }
+      else
+      {
+        caller_id = valid_caller(tx, ctx.caller_cert);
+      }
+
       if (!caller_id.has_value())
       {
         return jsonrpc::pack(
@@ -554,8 +563,10 @@ namespace ccf
       {
         auto& req = rpc_->at(jsonrpc::REQ);
 
-        if (!verify_client_signature(
-              ctx.caller_cert, caller_id.value(), *rpc_, signed_request))
+        if (
+          !ctx.is_create_request &&
+          !verify_client_signature(
+            ctx.caller_cert, caller_id.value(), *rpc_, signed_request))
         {
           return jsonrpc::pack(
             jsonrpc::error_response(
@@ -566,7 +577,9 @@ namespace ccf
         }
 
         // Client signature is only recorded on the primary
-        if (consensus == nullptr || consensus->is_primary())
+        if (
+          consensus == nullptr || consensus->is_primary() ||
+          ctx.is_create_request)
         {
           record_client_signature(tx, caller_id.value(), signed_request);
         }
@@ -681,6 +694,8 @@ namespace ccf
       {
         return {jsonrpc::pack(rpc.second, pack.value()), merkle_root};
       }
+
+      update_consensus();
 
       // Strip signature
       auto rpc_ = &rpc.second;
@@ -870,7 +885,8 @@ namespace ccf
       update_history();
 
 #ifndef PBFT
-      bool is_primary = (consensus == nullptr) || consensus->is_primary();
+      bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
+        ctx.is_create_request;
 
       if (!is_primary)
       {

@@ -176,7 +176,8 @@ TEST_CASE("Member query/read")
   // initialize the network state
   const Cert mcert = {0};
   NetworkTables network;
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   StubNodeState node;
   MemberRpcFrontend frontend(network, node);
@@ -290,7 +291,8 @@ TEST_CASE("Member query/read")
 TEST_CASE("Proposer ballot")
 {
   NetworkTables network;
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
 
   const auto proposer_cert = get_cert_data(0, kp);
@@ -402,7 +404,8 @@ TEST_CASE("Add new members until there are 7, then reject")
   constexpr auto n_new_members = 7;
   constexpr auto max_members = 8;
   NetworkTables network;
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   StubNodeState node;
   // add three initial active members
@@ -579,7 +582,8 @@ TEST_CASE("Add new members until there are 7, then reject")
 TEST_CASE("Accept node")
 {
   NetworkTables network;
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   StubNodeState node;
   auto new_kp = tls::make_key_pair();
@@ -740,7 +744,8 @@ TEST_CASE("Propose raw writes")
     {
       const bool should_succeed = pro_votes > n_members / 2;
       NetworkTables network;
-      GenesisGenerator gen(network);
+      Store::Tx gen_tx;
+      GenesisGenerator gen(network, gen_tx);
       gen.init_values();
       StubNodeState node;
       // manually add a member in state active (not recommended)
@@ -799,7 +804,8 @@ TEST_CASE("Propose raw writes")
         for (const auto& sensitive_table : sensitive_tables)
         {
           NetworkTables network;
-          GenesisGenerator gen(network);
+          Store::Tx gen_tx;
+          GenesisGenerator gen(network, gen_tx);
           gen.init_values();
           StubNodeState node;
 
@@ -828,7 +834,8 @@ TEST_CASE("Remove proposal")
   caller.cert = v->raw_cert_data();
 
   NetworkTables network;
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
 
   StubNodeState node;
@@ -917,7 +924,8 @@ TEST_CASE("Remove proposal")
 TEST_CASE("Complete proposal after initial rejection")
 {
   NetworkTables network;
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   StubNodeState node;
   auto frontend = init_frontend(network, gen, node, 3);
@@ -977,7 +985,8 @@ TEST_CASE("Add user via proposed call")
 {
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   StubNodeState node;
   enclave::RPCContext rpc_ctx(0, {});
@@ -1016,7 +1025,8 @@ TEST_CASE("Passing members ballot with operator")
   // Members pass a ballot with a constitution that includes an operator
   // Operator votes, but is _not_ taken into consideration
   NetworkTables network;
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
 
   // Operating member, as set in operator_gov.lua
@@ -1131,7 +1141,8 @@ TEST_CASE("Passing operator vote")
   // Operator issues a proposal that only requires its own vote
   // and gets it through without member votes
   NetworkTables network;
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   auto new_kp = tls::make_key_pair();
   auto new_ca = new_kp->self_sign("CN=new node");
@@ -1224,7 +1235,8 @@ TEST_CASE("Members passing an operator vote")
   // Operator proposes a vote, but does not vote for it
   // A majority of members pass the vote
   NetworkTables network;
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   auto new_kp = tls::make_key_pair();
   auto new_ca = new_kp->self_sign("CN=new node");
