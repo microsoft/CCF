@@ -3,6 +3,8 @@
 #pragma once
 #include "frontend.h"
 #include "luainterp/txscriptrunner.h"
+#include "node/genesisgen.h"
+#include "node/nodes.h"
 #include "node/quoteverification.h"
 #include "tls/entropy.h"
 #include "tls/keypair.h"
@@ -400,6 +402,53 @@ namespace ccf
 
         return jsonrpc::success(complete_proposal(args.tx, vote.id));
       };
+
+      auto create = [this](RequestArgs& args) {
+        const auto in = args.params.get<CreateNetworkNodeToNode::In>();
+
+        GenesisGenerator g(this->network, args.tx);
+        g.init_values();
+        for (auto& cert : in.member_cert)
+        {
+          g.add_member(cert);
+        }
+
+        // Generate quote over node certificate
+        // TODO: https://github.com/microsoft/CCF/issues/59
+        size_t self = g.add_node(
+          {in.node_info_network, in.node_cert, in.quote, NodeStatus::TRUSTED});
+
+        if (self != 0)
+        {
+          throw std::logic_error(fmt::format("My node was set to {}", self));
+        }
+
+#ifdef GET_QUOTE
+        CodeDigest node_code_id;
+        std::copy_n(
+          std::begin(in.code_digest),
+          CODE_DIGEST_BYTES,
+          std::begin(node_code_id));
+        g.trust_code_id(node_code_id);
+#endif
+
+        // set access whitelists
+        // TODO(#feature): this should be configurable
+        for (const auto& wl : default_whitelists)
+        {
+          g.set_whitelist(wl.first, wl.second);
+        }
+
+        g.set_gov_scripts(
+          lua::Interpreter().invoke<nlohmann::json>(in.gov_script));
+
+        g.create_service(in.network_cert);
+
+        return jsonrpc::success(true);
+      };
+
+      install(MemberProcs::CREATE, create, Write);
+
       install_with_auto_schema<Vote, bool>(MemberProcs::VOTE, vote, Write);
 
       auto complete = [this](RequestArgs& args) {
