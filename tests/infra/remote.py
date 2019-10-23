@@ -14,7 +14,6 @@ import uuid
 import ctypes
 import signal
 import re
-import glob
 from collections import deque
 
 from loguru import logger as LOG
@@ -63,7 +62,7 @@ def log_errors(out_path, err_path):
     try:
         errors = 0
         tail_lines = deque(maxlen=10)
-        with open(out_path, "r") as lines:
+        with open(out_path, "r", errors="replace") as lines:
             for line in lines:
                 stripped_line = line.rstrip()
                 tail_lines.append(stripped_line)
@@ -157,11 +156,9 @@ class SSHRemote(CmdMixin):
         assert self._rc("mkdir -p {}".format(self.root)) == 0
         session = self.client.open_sftp()
         for path in self.files:
-            # Some files can be glob patterns
-            for f in glob.glob(os.path.basename(path)):
-                tgt_path = os.path.join(self.root, os.path.basename(f))
-                LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, f))
-                session.put(f, tgt_path)
+            tgt_path = os.path.join(self.root, os.path.basename(path))
+            LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, path))
+            session.put(path, tgt_path)
         session.close()
         executable = self.cmd[0]
         if executable.startswith("./"):
@@ -215,7 +212,7 @@ class SSHRemote(CmdMixin):
             for filepath in (self.err, self.out):
                 try:
                     local_filepath = "{}_{}_{}".format(
-                        self.hostname, filename, self.name
+                        self.hostname, os.path.basename(filepath), self.name
                     )
                     session.get(filepath, local_filepath)
                     LOG.info("Downloaded {}".format(local_filepath))
@@ -274,20 +271,27 @@ class SSHRemote(CmdMixin):
         client = self._connect_new()
         try:
             for _ in range(timeout):
-                _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.root}/out")
+                _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.out}")
                 if stdout.channel.recv_exit_status() == 0:
                     return
                 time.sleep(1)
-            raise ValueError(
-                "{} not found in stdout after {} seconds".format(line, timeout)
-            )
+            raise ValueError(f"{line} not found in stdout after {timeout} seconds")
         finally:
             client.close()
+
+    def check_for_stdout_line(self, line, timeout):
+        client = self._connect_new()
+        for _ in range(timeout):
+            _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.out}")
+            if stdout.channel.recv_exit_status() == 0:
+                return True
+            time.sleep(1)
+        return False
 
     def print_and_upload_result(self, name, metrics, lines):
         client = self._connect_new()
         try:
-            _, stdout, _ = client.exec_command(f"tail -{lines} {self.root}/out")
+            _, stdout, _ = client.exec_command(f"tail -{lines} {self.out}")
             if stdout.channel.recv_exit_status() == 0:
                 LOG.success(f"Result for {self.name}:")
                 self._print_upload_perf(name, metrics, stdout.read().splitlines())
@@ -421,12 +425,21 @@ class LocalRemote(CmdMixin):
         for _ in range(timeout):
             with open(self.out, "rb") as out:
                 for out_line in out:
-                    if line.strip() in out_line.strip().decode():
+                    if line in out_line.decode():
                         return
             time.sleep(1)
         raise ValueError(
             "{} not found in stdout after {} seconds".format(line, timeout)
         )
+
+    def check_for_stdout_line(self, line, timeout):
+        for _ in range(timeout):
+            with open(self.out, "rb") as out:
+                for out_line in out:
+                    if line in out_line.decode():
+                        return True
+            time.sleep(1)
+        return False
 
     def print_and_upload_result(self, name, metrics, line):
         with open(self.out, "rb") as out:
@@ -551,10 +564,16 @@ class CCFRemote(object):
             cmd += [
                 "start",
                 "--network-cert-file=networkcert.pem",
-                f"--member-certs={members_certs}",
                 f"--gov-script={os.path.basename(gov_script)}",
             ]
-            data_files += [members_certs, os.path.basename(gov_script)]
+            if members_certs is None:
+                raise ValueError(
+                    "Starting node should be given at least one member certificate"
+                )
+            for mc in members_certs:
+                cmd += [f"--member-cert={mc}"]
+            data_files.extend(members_certs)
+            data_files += [os.path.basename(gov_script)]
         elif start_type == StartType.join:
             cmd += [
                 "join",

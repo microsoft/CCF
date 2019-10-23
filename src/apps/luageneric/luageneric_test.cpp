@@ -144,7 +144,8 @@ TEST_CASE("simple lua apps")
   NetworkTables network;
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   StubNotifier notifier;
   // create network with 1 user and 3 active members
@@ -251,14 +252,14 @@ TEST_CASE("simple lua apps")
     // (1) read out members table
     const auto pc = make_pc("get_members", {});
     // expect to see 3 members in state active
-    map<string, MemberInfo> expected = {{"0", {MemberStatus::ACTIVE}},
-                                        {"1", {MemberStatus::ACTIVE}},
-                                        {"2", {MemberStatus::ACTIVE}}};
+    map<string, MemberInfo> expected = {{"0", {{}, MemberStatus::ACTIVE}},
+                                        {"1", {{}, MemberStatus::ACTIVE}},
+                                        {"2", {{}, MemberStatus::ACTIVE}}};
     check_success(frontend->process(rpc_ctx, pc), expected);
 
     // (2) try to write to members table
     const auto pc1 = make_pc(
-      "put_member", {{"k", 99}, {"v", MemberInfo{MemberStatus::ACTIVE}}});
+      "put_member", {{"k", 99}, {"v", MemberInfo{{}, MemberStatus::ACTIVE}}});
     check_error(frontend->process(rpc_ctx, pc1), CCFErrorCodes::SCRIPT_ERROR);
   }
 }
@@ -268,7 +269,8 @@ TEST_CASE("simple bank")
   NetworkTables network;
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   StubNotifier notifier;
   // create network with 1 user and 3 active members
@@ -373,7 +375,8 @@ TEST_CASE("pre-populated environment")
   NetworkTables network;
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   StubNotifier notifier;
   // create network with 1 user and 3 active members

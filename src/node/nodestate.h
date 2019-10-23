@@ -3,7 +3,8 @@
 #pragma once
 
 #include "calltypes.h"
-#include "consensustypes.h"
+#include "consensus/ledgerenclave.h"
+#include "consensus/raft/raftconsensus.h"
 #include "ds/logger.h"
 #include "enclave/rpcclient.h"
 #include "enclave/rpcsessions.h"
@@ -12,6 +13,7 @@
 #include "genesisgen.h"
 #include "history.h"
 #include "networkstate.h"
+#include "node/nodetonode.h"
 #include "nodetonode.h"
 #include "notifier.h"
 #include "rpc/consts.h"
@@ -21,6 +23,10 @@
 #include "timer.h"
 #include "tls/client.h"
 #include "tls/entropy.h"
+
+#ifdef PBFT
+#  include "consensus/pbft/pbft.h"
+#endif
 
 #include <atomic>
 #include <ccf_t.h>
@@ -38,6 +44,14 @@ extern "C"
 
 namespace ccf
 {
+  using RaftConsensusType =
+    raft::RaftConsensus<consensus::LedgerEnclave, NodeToNode>;
+  using RaftType = raft::Raft<consensus::LedgerEnclave, NodeToNode>;
+
+#ifdef PBFT
+  using PbftConsensusType = pbft::Pbft<consensus::LedgerEnclave, NodeToNode>;
+#endif
+
   template <typename T>
   class StateMachine
   {
@@ -122,9 +136,10 @@ namespace ccf
     NetworkState& network;
 
     std::shared_ptr<kv::Consensus> consensus;
-    std::shared_ptr<enclave::RpcMap> rpc_map;
+    std::shared_ptr<enclave::RPCMap> rpc_map;
     std::shared_ptr<NodeToNode> n2n_channels;
-    enclave::RPCSessions& rpcsessions;
+    std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
+    std::shared_ptr<enclave::RPCSessions> rpcsessions;
     ccf::Notifier& notifier;
     Timers& timers;
 
@@ -157,7 +172,7 @@ namespace ccf
     NodeState(
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
-      enclave::RPCSessions& rpcsessions,
+      std::shared_ptr<enclave::RPCSessions> rpcsessions,
       ccf::Notifier& notifier,
       Timers& timers) :
       sm(State::uninitialized),
@@ -179,7 +194,8 @@ namespace ccf
     void initialize(
       const raft::Config& raft_config_,
       std::shared_ptr<NodeToNode> n2n_channels_,
-      std::shared_ptr<enclave::RpcMap> rpc_map_)
+      std::shared_ptr<enclave::RPCMap> rpc_map_,
+      std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder_)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::uninitialized);
@@ -188,7 +204,71 @@ namespace ccf
       n2n_channels = n2n_channels_;
       // Capture rpc_map to pass to pbft for frontend execution
       rpc_map = rpc_map_;
+      cmd_forwarder = cmd_forwarder_;
       sm.advance(State::initialized);
+    }
+
+    std::vector<uint8_t> serialize_create_request(
+      const CreateNew::In& args, std::vector<uint8_t>& quote)
+    {
+      jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> create_rpc;
+
+      create_rpc.id = 0;
+      create_rpc.method = ccf::MemberProcs::CREATE;
+
+      for (auto& cert : args.config.genesis.member_certs)
+      {
+        create_rpc.params.member_cert.push_back(cert);
+      }
+
+      create_rpc.params.gov_script = args.config.genesis.gov_script;
+      create_rpc.params.node_cert = node_cert;
+      create_rpc.params.network_cert = network.secrets->get_current().cert;
+      create_rpc.params.quote = quote;
+      create_rpc.params.code_digest =
+        std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
+      create_rpc.params.node_info_network = args.config.node_info_network;
+
+      nlohmann::json j = create_rpc;
+      auto contents = nlohmann::json::to_msgpack(j);
+
+      auto sig_contents = node_kp->sign(contents);
+
+      nlohmann::json sj;
+      sj["req"] = j;
+      sj["sig"] = sig_contents;
+
+      return jsonrpc::pack(sj, jsonrpc::Pack::Text);
+    }
+
+    void send_create_request(std::vector<uint8_t>& packed)
+    {
+      auto handler = this->rpc_map->find(ccf::ActorsType::members);
+      if (!handler.has_value())
+      {
+        throw std::logic_error("Handler has no value");
+      }
+      auto frontend = handler.value();
+
+      enclave::RPCContext ctx(
+        enclave::InvalidSessionId, node_cert, ccf::ActorsType::nodes);
+      ctx.is_create_request = true;
+
+#ifdef PBFT
+      frontend->process_pbft(ctx, packed);
+#else
+      frontend->process(ctx, packed);
+#endif
+    }
+
+    bool create_and_send_request(
+      const CreateNew::In& args, std::vector<uint8_t>& quote)
+    {
+      auto rpc = serialize_create_request(args, quote);
+
+      send_create_request(rpc);
+
+      return true;
     }
 
     //
@@ -219,35 +299,9 @@ namespace ccf
       {
         case StartType::New:
         {
-          GenesisGenerator g(network);
-          g.init_values();
-
-          for (auto& cert : args.config.genesis.member_certs)
-            g.add_member(cert);
-
-          // Add self as TRUSTED
-          self = g.add_node({args.config.node_info_network,
-                             node_cert,
-                             quote,
-                             NodeStatus::TRUSTED});
-
-#ifdef GET_QUOTE
-          // Trust own code id
-          g.trust_code_id(node_code_id);
-#endif
-
-          // set access whitelists
-          // TODO(#feature): this should be configurable
-          for (const auto& wl : default_whitelists)
-            g.set_whitelist(wl.first, wl.second);
-
-          g.set_gov_scripts(lua::Interpreter().invoke<nlohmann::json>(
-            args.config.genesis.gov_script));
-
           network.secrets = std::make_unique<NetworkSecrets>(
             "CN=The CA", std::make_unique<Seal>(writer_factory));
-
-          g.create_service(network.secrets->get_current().cert);
+          self = 0; // The first nodes id is always 0
 
 #ifdef PBFT
           setup_pbft();
@@ -260,9 +314,11 @@ namespace ccf
           // Become the primary and force replication.
           consensus->force_become_primary();
 
-          if (g.finalize() != kv::CommitSuccess::OK)
+          if (!create_and_send_request(args, quote))
+          {
             return Fail<CreateNew::Out>(
               "Genesis transaction could not be committed");
+          }
 
           // Accept node connections for other nodes to join
           accept_node_connections();
@@ -324,7 +380,8 @@ namespace ccf
         Actors::NODES, tls_ca, node_cert, node_kp->private_key_pem(), nullb);
 
       // Create RPC client and connect to remote node
-      auto join_client = rpcsessions.create_client(std::move(join_client_cert));
+      auto join_client =
+        rpcsessions->create_client(std::move(join_client_cert));
 
       join_client->connect(
         args.config.joining.target_host,
@@ -478,7 +535,8 @@ namespace ccf
       if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
       {
         network.tables->compact(ledger_idx);
-        GenesisGenerator g(network);
+        Store::Tx tx;
+        GenesisGenerator g(network, tx);
         auto last_sig = g.get_last_signature();
         if (last_sig.has_value())
         {
@@ -505,7 +563,8 @@ namespace ccf
 
       // When reaching the end of the public ledger, truncate to last signed
       // index and promote network secrets to this index
-      GenesisGenerator g(network);
+      Store::Tx tx;
+      GenesisGenerator g(network, tx);
 
       auto last_sig = g.get_last_signature();
       kv::Version last_index = 0;
@@ -646,7 +705,8 @@ namespace ccf
       // Open the service
       if (consensus->is_primary())
       {
-        GenesisGenerator g(network);
+        Store::Tx tx;
+        GenesisGenerator g(network, tx);
         if (!g.open_service())
           throw std::logic_error("Service could not be opened");
 
@@ -974,7 +1034,6 @@ namespace ccf
       nodes_view->foreach([&result](const NodeId& nid, const NodeInfo& ni) {
         if (ni.status == ccf::NodeStatus::TRUSTED)
         {
-          LOG_FAIL_FMT("One node is trusted! {}", nid);
           GetQuotes::Quote quote;
           quote.node_id = nid;
           quote.raw = std::string(ni.quote.begin(), ni.quote.end());
@@ -1011,7 +1070,7 @@ namespace ccf
         nw->sign_csr(members_keypair->create_csr("CN=members"), "CN=The CA");
 
       // Accept member connections.
-      rpcsessions.add_cert(
+      rpcsessions->add_cert(
         ccf::Actors::MEMBERS, nullb, members_cert, members_privkey);
     }
 
@@ -1025,7 +1084,7 @@ namespace ccf
         nw->sign_csr(nodes_keypair->create_csr("CN=nodes"), "CN=The CA");
 
       // Accept node connections.
-      rpcsessions.add_cert(
+      rpcsessions->add_cert(
         ccf::Actors::NODES, nullb, nodes_cert, nodes_privkey);
     }
 
@@ -1039,7 +1098,7 @@ namespace ccf
         nw->sign_csr(users_keypair->create_csr("CN=users"), "CN=The CA");
 
       // Accept user connections.
-      rpcsessions.add_cert(
+      rpcsessions->add_cert(
         ccf::Actors::USERS, nullb, users_cert, users_privkey);
     }
 
@@ -1086,6 +1145,8 @@ namespace ccf
                                         const Service::Write& w) {
         if (w.at(0).value.status == ServiceStatus::OPEN)
         {
+          this->consensus->set_f(
+            1); // TODO: we should make f come from a KV table
           accept_user_connections();
           LOG_INFO_FMT("Now accepting user transactions");
         }
@@ -1146,13 +1207,18 @@ namespace ccf
 
     void setup_n2n_channels()
     {
-      // setup node-to-node channels
       n2n_channels->initialize(self, {network.secrets->get_current().priv_key});
+    }
+
+    void setup_cmd_forwarder()
+    {
+      cmd_forwarder->initialize(self);
     }
 
     void setup_raft(bool public_only = false)
     {
       setup_n2n_channels();
+      setup_cmd_forwarder();
 
       auto raft = std::make_unique<RaftType>(
         std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(

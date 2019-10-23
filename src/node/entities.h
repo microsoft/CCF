@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "consensus/consensustypes.h"
 #include "kv/kv.h"
 #include "kv/kvserialiser.h"
 
@@ -11,11 +12,9 @@
 
 namespace ccf
 {
-  using ObjectId = uint64_t;
   constexpr ObjectId INVALID_ID = (std::numeric_limits<ObjectId>::max)();
 
   using MemberId = ObjectId;
-  using NodeId = ObjectId;
   using UserId = ObjectId;
   using CallerId = ObjectId;
   using Cert = std::vector<uint8_t>;
@@ -37,7 +36,6 @@ namespace ccf
     members = 0,
     users,
     nodes,
-    management,
     // not to be used
     unknown
   };
@@ -47,6 +45,7 @@ namespace ccf
     static constexpr auto MEMBERS = "ccf.members";
     static constexpr auto MEMBER_ACKS = "ccf.member_acks";
     static constexpr auto MEMBER_CERTS = "ccf.member_certs";
+    static constexpr auto USERS = "ccf.users";
     static constexpr auto USER_CERTS = "ccf.user_certs";
     static constexpr auto NODES = "ccf.nodes";
     static constexpr auto VALUES = "ccf.values";

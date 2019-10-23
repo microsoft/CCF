@@ -31,20 +31,21 @@ namespace metrics
     ccf::GetMetrics::HistogramResults get_histogram_results()
     {
       ccf::GetMetrics::HistogramResults result;
-      nlohmann::json hist;
       result.low = histogram.get_low();
       result.high = histogram.get_high();
       result.overflow = histogram.get_overflow();
       result.underflow = histogram.get_underflow();
       auto range_counts = histogram.get_range_count();
-      for (auto const& [range, count] : range_counts)
+      nlohmann::json buckets;
+      for (auto const& e : range_counts)
       {
+        const auto count = e.second;
         if (count > 0)
         {
-          hist[range] = count;
+          buckets.push_back(e);
         }
       }
-      result.buckets = hist;
+      result.buckets = buckets;
       return result;
     }
 

@@ -40,7 +40,7 @@ if(BUILD_TESTS)
   # Tests
   enable_testing()
 
-  ## Unit tests
+  # Unit tests
   add_unit_test(map_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
@@ -68,21 +68,23 @@ if(BUILD_TESTS)
   target_link_libraries(ds_test PRIVATE
     ${CMAKE_THREAD_LIBS_INIT})
 
-  add_unit_test(raft_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/main.cpp)
-  target_link_libraries(raft_test PRIVATE
-    ${CRYPTO_LIBRARY})
-
   add_unit_test(ledger_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp)
 
-  add_unit_test(raft_enclave_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/enclave.cpp)
-  target_include_directories(raft_enclave_test PRIVATE
-    ${CCFCRYPTO_INC})
-  target_link_libraries(raft_enclave_test PRIVATE
-    ${CRYPTO_LIBRARY}
-    secp256k1.host)
+  if (NOT PBFT)
+    add_unit_test(raft_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/main.cpp)
+    target_link_libraries(raft_test PRIVATE
+      ${CRYPTO_LIBRARY})
+
+    add_unit_test(raft_enclave_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/enclave.cpp)
+    target_include_directories(raft_enclave_test PRIVATE
+      ${CCFCRYPTO_INC})
+    target_link_libraries(raft_enclave_test PRIVATE
+      ${CRYPTO_LIBRARY}
+      secp256k1.host)
+  endif()
 
   add_unit_test(crypto_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp)
@@ -178,49 +180,72 @@ if(BUILD_TESTS)
 
   ## Picobench wrapper
   function(add_picobench name)
+    cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS
+      ""
+      ""
+      "SRCS;INCLUDE_DIRS;LINK_LIBS"
+    )
+
     add_executable(${name}
-      ${ARGN})
-    target_include_directories(${name} PRIVATE src)
-    # -Wall -Werror catches a number of warnings in picobench
-    target_include_directories(${name} SYSTEM PRIVATE 3rdparty)
-    add_test(
-      NAME ${name}
-      COMMAND ${name} --samples=1000)
-    use_client_mbedtls(${name})
+      ${PARSED_ARGS_SRCS}
+    )
+
+    target_include_directories(${name} PRIVATE
+      src
+      ${PARSED_ARGS_INCLUDE_DIRS}
+    )
+
     target_link_libraries(${name} PRIVATE
       ${CMAKE_THREAD_LIBS_INIT}
+      ${PARSED_ARGS_LINK_LIBS}
     )
+
+    # -Wall -Werror catches a number of warnings in picobench
+    target_include_directories(${name} SYSTEM PRIVATE 3rdparty)
+
+    add_test(
+      NAME ${name}
+      COMMAND bash -c "$<TARGET_FILE:${name}> --samples=1000 --out-fmt=csv --output=${name}.csv && cat ${name}.csv"
+    )
+
+    use_client_mbedtls(${name})
+
     set_property(TEST ${name} PROPERTY LABELS benchmark)
   endfunction()
 
   ## Picobench benchmarks
-  add_picobench(map_bench src/ds/test/map_bench.cpp)
-  add_picobench(logger_bench src/ds/test/logger_bench.cpp)
-  add_picobench(logger_json_bench src/ds/test/logger_json_bench.cpp)
-  add_picobench(json_bench src/ds/test/json_bench.cpp)
-  add_picobench(ringbuffer_bench src/ds/test/ringbuffer_bench.cpp)
-  target_link_libraries(ringbuffer_bench PRIVATE
-    ${CMAKE_THREAD_LIBS_INIT})
-  add_picobench(tls_bench src/tls/test/bench.cpp)
-  target_link_libraries(tls_bench PRIVATE
-    ${CMAKE_THREAD_LIBS_INIT}
-    secp256k1.host)
-  add_picobench(merkle_bench src/node/test/merkle_bench.cpp)
-  target_link_libraries(merkle_bench PRIVATE
-    ccfcrypto.host
-    evercrypt.host
-    secp256k1.host)
-  target_include_directories(merkle_bench PRIVATE
-    ${EVERCRYPT_INC})
-  add_picobench(history_bench src/node/test/history_bench.cpp)
-  target_link_libraries(history_bench PRIVATE
-    ccfcrypto.host
-    evercrypt.host
-    secp256k1.host)
-  target_include_directories(history_bench PRIVATE
-    ${EVERCRYPT_INC})
-  add_picobench(kv_bench src/kv/test/kv_bench.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmkey.cpp)
+  add_picobench(map_bench
+    SRCS src/ds/test/map_bench.cpp
+  )
+  add_picobench(logger_bench
+    SRCS src/ds/test/logger_bench.cpp
+  )
+  add_picobench(logger_json_bench
+    SRCS src/ds/test/logger_json_bench.cpp
+  )
+  add_picobench(json_bench
+    SRCS src/ds/test/json_bench.cpp
+  )
+  add_picobench(ringbuffer_bench
+    SRCS src/ds/test/ringbuffer_bench.cpp
+  )
+  add_picobench(tls_bench
+    SRCS src/tls/test/bench.cpp
+    LINK_LIBS secp256k1.host
+  )
+  add_picobench(merkle_bench
+    SRCS src/node/test/merkle_bench.cpp
+    LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
+    INCLUDE_DIRS ${EVERCRYPT_INC}
+  )
+  add_picobench(history_bench
+    SRCS src/node/test/history_bench.cpp
+    LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
+    INCLUDE_DIRS ${EVERCRYPT_INC}
+  )
+  add_picobench(kv_bench
+    SRCS src/kv/test/kv_bench.cpp src/crypto/symmkey.cpp
+  )
 
   # Merkle Tree memory test
   add_executable(merkle_mem src/node/test/merkle_mem.cpp)
@@ -249,7 +274,7 @@ if(BUILD_TESTS)
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
     if (NOT HTTP)
-      ## Member client end to end tests
+      # Member client end to end tests
       add_e2e_test(
         NAME member_client_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
@@ -294,15 +319,15 @@ if(BUILD_TESTS)
           PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
         )
 
-        add_e2e_test(
-          NAME code_update_test
-          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-          ADDITIONAL_ARGS
-            --oesign ${OESIGN}
-            --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
-            --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
-            --election-timeout 1500
-        )
+        #add_e2e_test(
+        #  NAME code_update_test
+        #  PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+        #  ADDITIONAL_ARGS
+        #    --oesign ${OESIGN}
+        #    --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+        #    --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+        #    --election-timeout 1500
+        #)
       endif()
 
       add_e2e_test(
@@ -357,13 +382,7 @@ if(BUILD_TESTS)
     endif()
 
   else()
-    # TODO: For now, this is the only end to end test run with PBFT. When the
-    # integration is complete, all existing tests will be supported with both
-    # Raft and PBFT.
-    add_e2e_test(
-      NAME end_to_end_pbft
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging_pbft.py
-    )
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/epbft.cmake)
   endif()
 
   if (EXTENSIVE_TESTS)

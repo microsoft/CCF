@@ -45,7 +45,7 @@ void check_error_message(const nlohmann::json& j, const std::string& msg)
 }
 
 const json frontend_process(
-  RpcFrontend& frontend,
+  NodeRpcFrontend& frontend,
   const json& json_params,
   const std::string& method,
   const Cert& caller)
@@ -62,7 +62,8 @@ const json frontend_process(
 TEST_CASE("Add a node to an opening service")
 {
   NetworkState network;
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
 
   StubNodeState node;
@@ -148,7 +149,8 @@ TEST_CASE("Add a node to an opening service")
 TEST_CASE("Add a node to an open service")
 {
   NetworkState network;
-  GenesisGenerator gen(network);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
   gen.init_values();
 
   StubNodeState node;

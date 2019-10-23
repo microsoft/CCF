@@ -1,6 +1,17 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+function(check_submodule_not_empty path)
+  file(GLOB submodule_files "${path}/*")
+  list(LENGTH submodule_files number)
+  if(${number} EQUAL 0)
+    message(FATAL_ERROR "Submodule ${path} is empty. You can initialise submodules now with 'git submodule update --recursive --init', or during 'git clone' by passing '--recursive'.")
+  endif()
+endfunction()
+
+# Give an early, helpful message when submodules are missing
+check_submodule_not_empty(${CCF_DIR}/3rdparty/evercrypt-msr)
+
 set(MSGPACK_INCLUDE_DIR ${CCF_DIR}/3rdparty/msgpack-c)
 
 set(default_build_type "RelWithDebInfo")
@@ -14,12 +25,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
-# Azure Pipelines does not support color codes
-if (DEFINED ENV{BUILD_BUILDNUMBER})
-  set(PYTHON python3)
-else()
-  set(PYTHON unbuffer python3)
-endif()
+set(PYTHON unbuffer python3)
 
 separate_arguments(COVERAGE_FLAGS UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
 separate_arguments(COVERAGE_LINK UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
@@ -144,6 +150,7 @@ add_custom_command(
 
 configure_file(${CCF_DIR}/tests/tests.sh ${CMAKE_CURRENT_BINARY_DIR}/tests.sh COPYONLY)
 configure_file(${CCF_DIR}/tests/cimetrics_env.sh ${CMAKE_CURRENT_BINARY_DIR}/cimetrics_env.sh COPYONLY)
+configure_file(${CCF_DIR}/tests/upload_pico_metrics.py ${CMAKE_CURRENT_BINARY_DIR}/upload_pico_metrics.py COPYONLY)
 
 if(NOT ${TARGET} STREQUAL "virtual")
   # If OE was built with LINK_SGX=1, then we also need to link SGX
@@ -336,11 +343,6 @@ if (PBFT)
   set(SIGN_BATCH ON)
   include(${CCF_DIR}/ePBFT/cmake/pbft.cmake)
 
-  target_include_directories(libbyz.host PRIVATE
-    ${CCF_DIR}/src/ds
-    ${EVERCRYPT_INC}
-  )
-
   target_include_directories(libbyz.enclave PRIVATE
     ${CCF_DIR}/src/ds
     ${OE_INCLUDE_DIR}
@@ -490,7 +492,7 @@ function(add_unit_test name)
       -stdlib=libc++
       -lc++
       -lc++abi
-  ccfcrypto.host)
+      ccfcrypto.host)
 
   use_client_mbedtls(${name})
   add_san(${name})
@@ -507,7 +509,7 @@ function(add_unit_test name)
   )
 endfunction()
 
-# GenesisGenerator Executable
+# Keygenerator Executable
 add_executable(keygenerator ${CCF_DIR}/src/keygenerator/main.cpp)
 use_client_mbedtls(keygenerator)
 target_link_libraries(keygenerator PRIVATE
@@ -537,6 +539,7 @@ if(NOT ${TARGET} STREQUAL "virtual")
     ccfcrypto.host
     evercrypt.host
     CURL::libcurl
+    secp256k1.host
   )
   enable_quote_code(cchost)
 endif()
@@ -565,6 +568,7 @@ if(${TARGET} STREQUAL "virtual" OR ${TARGET} STREQUAL "all")
     ccfcrypto.host
     evercrypt.host
     CURL::libcurl
+    secp256k1.host
   )
 endif()
 

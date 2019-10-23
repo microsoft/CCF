@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/consensustypes.h"
 #include "crypto/hash.h"
 
 #include <array>
@@ -64,7 +65,7 @@ namespace kv
       std::vector<uint8_t> request;
       uint64_t actor;
       uint64_t caller_id;
-      CBuffer caller_cert;
+      std::vector<uint8_t> caller_cert;
     };
 
     struct ResultCallbackArgs
@@ -93,7 +94,7 @@ namespace kv
       kv::TxHistory::RequestID id,
       uint64_t actor,
       uint64_t caller_id,
-      CBuffer& caller_cert,
+      const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request) = 0;
     virtual void add_result(
       RequestID id, kv::Version version, const std::vector<uint8_t>& data) = 0;
@@ -191,6 +192,8 @@ namespace kv
     virtual void enable_all_domains() {}
     virtual void resume_replication() {}
     virtual void suspend_replication(kv::Version) {}
+
+    virtual void set_f(ccf::NodeId f) = 0;
   };
 
   using PendingTx = std::function<

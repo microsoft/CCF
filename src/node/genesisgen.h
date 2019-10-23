@@ -25,7 +25,7 @@ namespace ccf
   {
     NetworkTables& tables;
 
-    Store::Tx tx;
+    Store::Tx& tx;
 
     template <typename T>
     void set_scripts(
@@ -44,7 +44,10 @@ namespace ccf
     }
 
   public:
-    GenesisGenerator(NetworkTables& tables_) : tables(tables_) {}
+    GenesisGenerator(NetworkTables& tables_, Store::Tx& tx_) :
+      tables(tables_),
+      tx(tx_)
+    {}
 
     void init_values()
     {
@@ -82,26 +85,22 @@ namespace ccf
       const std::vector<uint8_t>& member_cert,
       MemberStatus member_status = MemberStatus::ACTIVE)
     {
-      // generate member id and create entry in members table
       auto member_id =
         get_next_id(tx.get_view(tables.values), ValueIds::NEXT_MEMBER_ID);
-      auto members_view = tx.get_view(tables.members);
-      members_view->put(member_id, {member_status});
-
-      // store pubk
-      auto member_certs_view = tx.get_view(tables.member_certs);
+      auto [members_view, member_certs_view] =
+        tx.get_view(tables.members, tables.member_certs);
+      members_view->put(member_id, {member_cert, member_status});
       member_certs_view->put(member_cert, member_id);
       return member_id;
     }
 
     auto add_user(const std::vector<uint8_t>& user_cert)
     {
-      // generate user id and create entry in users table
       auto user_id =
         get_next_id(tx.get_view(tables.values), ValueIds::NEXT_USER_ID);
-
-      // store pubk
-      auto user_certs_view = tx.get_view(tables.user_certs);
+      auto [users_view, user_certs_view] =
+        tx.get_view(tables.users, tables.user_certs);
+      users_view->put(user_id, {user_cert});
       user_certs_view->put(user_cert, user_id);
       return user_id;
     }

@@ -27,6 +27,11 @@ def run(args):
     ) as network:
         primary, others = network.start_and_join(args)
 
+        LOG.info("Add a valid node from a backup")
+        new_node = network.create_and_trust_node(
+            args.package, "localhost", args, target_node=others[0]
+        )
+
         # Adding as many pending nodes as initial (trusted) nodes should not
         # change the raft consensus rules (i.e. majority)
         number_new_nodes = len(hosts)
@@ -39,16 +44,14 @@ def run(args):
         check_can_progress(primary)
 
         LOG.info("Add a valid node")
-        new_node = network.create_and_trust_node(args.package, "localhost", args, True)
+        new_node = network.create_and_trust_node(args.package, "localhost", args)
         assert new_node
         check_can_progress(primary)
 
         if args.enclave_type == "debug":
             LOG.info("Add an invalid node (unknown code id)")
             assert (
-                network.create_and_trust_node(
-                    "libluagenericenc", "localhost", args, True
-                )
+                network.create_and_trust_node("libluagenericenc", "localhost", args)
                 == None
             ), "Adding node with unknown code id should fail"
         else:

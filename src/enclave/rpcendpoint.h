@@ -18,7 +18,7 @@ namespace enclave
   class RPCEndpoint : public ServerEndpoint
   {
   private:
-    std::shared_ptr<RpcMap> rpc_map;
+    std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RpcHandler> handler;
     ccf::ActorsType actor;
     size_t session_id;
@@ -26,7 +26,7 @@ namespace enclave
 
   public:
     RPCEndpoint(
-      std::shared_ptr<RpcMap> rpc_map_,
+      std::shared_ptr<RPCMap> rpc_map_,
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :

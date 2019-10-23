@@ -79,12 +79,24 @@ namespace kv
       std::unordered_set<NodeId> conf,
       const NodeConf& node_conf) override
     {}
+
+    void set_f(ccf::NodeId) override
+    {
+      return;
+    }
   };
 
   class BackupStubConsensus : public StubConsensus
   {
   public:
     bool is_primary() override
+    {
+      return false;
+    }
+
+    bool replicate(
+      const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
+      override
     {
       return false;
     }

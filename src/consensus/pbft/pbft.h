@@ -15,7 +15,6 @@
 #include "libbyz/libbyz.h"
 #include "libbyz/network.h"
 #include "libbyz/receive_message_base.h"
-#include "node/consensustypes.h"
 #include "node/nodetypes.h"
 #include "node/rpc/jsonrpc.h"
 
@@ -54,7 +53,6 @@ namespace pbft
       {
         // If a replica sends a message to itself (e.g. if f == 0), handle
         // the message straight away without writing it to the ringbuffer
-        assert(message_receiver_base->f() == 0);
         message_receiver_base->receive_message(
           (const uint8_t*)(msg->contents()), msg->size());
         return msg->size();
@@ -105,8 +103,7 @@ namespace pbft
     std::unique_ptr<PbftEnclaveNetwork> pbft_network;
     std::unique_ptr<AbstractPbftConfig> pbft_config;
     std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
-    enclave::RPCSessions& rpcsessions;
-    std::unique_ptr<consensus::LedgerEnclave> ledger;
+    std::shared_ptr<enclave::RPCSessions> rpcsessions;
     SeqNo global_commit_seqno;
     std::unique_ptr<pbft::Store> store;
 
@@ -121,13 +118,12 @@ namespace pbft
       std::unique_ptr<pbft::Store> store_,
       std::shared_ptr<ChannelProxy> channels_,
       NodeId id,
-      std::unique_ptr<consensus::LedgerEnclave> ledger_,
-      std::shared_ptr<enclave::RpcMap> rpc_map,
-      enclave::RPCSessions& rpcsessions_) :
+      std::unique_ptr<consensus::LedgerEnclave> ledger,
+      std::shared_ptr<enclave::RPCMap> rpc_map,
+      std::shared_ptr<enclave::RPCSessions> rpcsessions_) :
       Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
-      ledger(std::move(ledger_)),
       global_commit_seqno(1),
       store(std::move(store_))
     {
@@ -178,6 +174,7 @@ namespace pbft
         0,
         0,
         pbft_network.get(),
+        std::move(ledger),
         &message_receiver_base);
       LOG_INFO_FMT("PBFT setup for local_id: {}", local_id);
 
@@ -199,21 +196,6 @@ namespace pbft
       message_receiver_base->register_reply_handler(
         reply_handler_cb, client_proxy.get());
 
-      auto append_ledger_entry_cb =
-        [](const uint8_t* data, size_t size, void* ctx) {
-          auto ledger = static_cast<consensus::LedgerEnclave*>(ctx);
-
-          size_t tsize = size + consensus::LedgerEnclave::FRAME_SIZE;
-          assert(consensus::LedgerEnclave::FRAME_SIZE <= sizeof(tsize));
-          std::vector<uint8_t> entry(tsize);
-          uint8_t* tdata = entry.data();
-
-          serialized::write<uint32_t>(tdata, tsize, tsize);
-          serialized::write(tdata, tsize, data, size);
-
-          ledger->put_entry(entry);
-        };
-
       auto global_commit_cb = [](kv::Version version, void* ctx) {
         auto p = static_cast<register_global_commit_info*>(ctx);
         if (version == kv::NoVersion || version < *p->global_commit_seqno)
@@ -224,9 +206,6 @@ namespace pbft
         p->store->compact(version);
       };
 
-      message_receiver_base->register_append_ledger_entry_cb(
-        append_ledger_entry_cb, ledger.get());
-
       register_global_commit_ctx.store = store.get();
       register_global_commit_ctx.global_commit_seqno = &global_commit_seqno;
 
@@ -236,17 +215,9 @@ namespace pbft
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
-      auto total_req_size = pbft_config->message_size() + args.request.size() +
-        args.caller_cert.rawSize();
-
-      uint8_t request_buffer[total_req_size];
-      pbft_config->fill_request(
-        request_buffer,
-        total_req_size,
-        args.request,
-        args.actor,
-        args.caller_id,
-        args.caller_cert);
+      ccf_req request = {
+        args.actor, args.caller_id, args.caller_cert, args.request};
+      auto serialized_req = request.serialise();
 
       auto rep_cb = [&](
                       void* owner,
@@ -256,15 +227,15 @@ namespace pbft
                       size_t len) {
         LOG_DEBUG_FMT("PBFT reply callback for {}", caller_rid);
 
-        return rpcsessions.reply_async(
+        return rpcsessions->reply_async(
           std::get<1>(caller_rid), {reply, reply + len});
       };
 
       LOG_DEBUG_FMT("PBFT sending request {}", args.rid);
       return client_proxy->send_request(
         args.rid,
-        request_buffer,
-        sizeof(request_buffer),
+        serialized_req.data(),
+        serialized_req.size(),
         rep_cb,
         client_proxy.get());
     }
@@ -344,6 +315,11 @@ namespace pbft
         default:
         {}
       }
+    }
+
+    void set_f(ccf::NodeId f) override
+    {
+      message_receiver_base->set_f(f);
     }
   };
 }

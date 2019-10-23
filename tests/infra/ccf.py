@@ -168,7 +168,7 @@ class Network:
                             lib_name=args.package,
                             workspace=args.workspace,
                             label=args.label,
-                            members_certs="member*_cert.pem",
+                            members_certs=self.get_members_certs(),
                             **forwarded_args,
                         )
                     else:
@@ -251,17 +251,20 @@ class Network:
     def remove_last_node(self):
         last_node = self.nodes.pop()
 
-    def _add_node(self, node, lib_name, args, should_wait=True):
+    def _add_node(self, node, lib_name, args, target_node=None, should_wait=True):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
 
-        primary, _ = self.find_primary()
+        # Contact primary if no target node is set
+        if target_node is None:
+            target_node, _ = self.find_primary()
+
         node.join(
             lib_name=lib_name,
             workspace=args.workspace,
             label=args.label,
-            target_rpc_address=f"{primary.host}:{primary.rpc_port}",
+            target_rpc_address=f"{target_node.host}:{target_node.rpc_port}",
             **forwarded_args,
         )
 
@@ -289,13 +292,15 @@ class Network:
                 + getattr(node_status, f" with status {node_status.name}", "")
             )
 
-    def create_and_add_pending_node(self, lib_name, host, args, should_wait=True):
+    def create_and_add_pending_node(
+        self, lib_name, host, args, target_node=None, should_wait=True
+    ):
         """
         Create a new node and add it to the network. Note that the new node
         still needs to be trusted by members to complete the join protocol.
         """
         new_node = self.create_node(host)
-        self._add_node(new_node, lib_name, args, should_wait)
+        self._add_node(new_node, lib_name, args, target_node, should_wait)
         primary, _ = self.find_primary()
         try:
             self._wait_for_node_to_exist_in_store(
@@ -318,12 +323,16 @@ class Network:
         return new_node
 
     # TODO: should_wait should disappear once nodes can join a network and catch up in PBFT
-    def create_and_trust_node(self, lib_name, host, args, should_wait=True):
+    def create_and_trust_node(
+        self, lib_name, host, args, target_node=None, should_wait=True
+    ):
         """
         Create a new node, add it to the network and let members vote to trust
         it so that it becomes part of the consensus protocol.
         """
-        new_node = self.create_and_add_pending_node(lib_name, host, args, should_wait)
+        new_node = self.create_and_add_pending_node(
+            lib_name, host, args, target_node, should_wait
+        )
         if new_node is None:
             return None
 
@@ -346,9 +355,13 @@ class Network:
 
     def create_members(self, members):
         self.members.extend(members)
-        members = ["member{}".format(m) for m in members]
+        members = [f"member{m}" for m in members]
         for m in members:
             infra.proc.ccall("./keygenerator", "--name={}".format(m)).check_returncode()
+
+    def get_members_certs(self):
+        members_certs = [f"member{m}_cert.pem" for m in self.members]
+        return members_certs
 
     def create_users(self, users):
         users = ["user{}".format(u) for u in users]
@@ -411,7 +424,9 @@ class Network:
 
             return (True, j_result["result"])
 
-    def vote_using_majority(self, remote_node, proposal_id):
+    def vote_using_majority(
+        self, remote_node, proposal_id, should_wait_for_global_commit=True
+    ):
         # There is no need to stop after n / 2 + 1 members have voted,
         # but this could prove to be useful in detecting errors
         # related to the voting mechanism
@@ -419,7 +434,14 @@ class Network:
         for i, member in enumerate(self.members):
             if i >= majority_count:
                 break
-            res = self.vote(member, remote_node, proposal_id, True)
+            res = self.vote(
+                member,
+                remote_node,
+                proposal_id,
+                True,
+                False,
+                should_wait_for_global_commit,
+            )
             assert res[0]
             if res[1]:
                 break
@@ -427,7 +449,15 @@ class Network:
         assert res
         return res[1]
 
-    def vote(self, member_id, remote_node, proposal_id, accept, force_unsigned=False):
+    def vote(
+        self,
+        member_id,
+        remote_node,
+        proposal_id,
+        accept,
+        force_unsigned=False,
+        should_wait_for_global_commit=True,
+    ):
         if os.getenv("HTTP"):
             script = """
             tables, changes = ...
@@ -453,7 +483,7 @@ class Network:
         # If the proposal was accepted, wait for it to be globally committed
         # This is particularly useful for the open network proposal to wait
         # until the global hook on the SERVICE table is triggered
-        if j_result["result"]:
+        if j_result["result"] and should_wait_for_global_commit:
             with remote_node.node_client(member_id) as mc:
                 wait_for_global_commit(mc, j_result["commit"], j_result["term"], True)
 

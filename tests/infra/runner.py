@@ -125,21 +125,30 @@ def run(build_directory, get_command, args):
                 remote_client.start()
 
             try:
-                metrics = cimetrics.upload.Metrics()
-                tx_rates = infra.rates.TxRates(primary)
-                while True:
-                    if not tx_rates.process_next():
-                        for i, remote_client in enumerate(clients):
-                            remote_client.wait()
-                            remote_client.print_and_upload_result(args.label, metrics)
-                            remote_client.stop()
-                        break
-                    time.sleep(1)
+                with cimetrics.upload.metrics() as metrics:
+                    tx_rates = infra.rates.TxRates(primary)
+                    while True:
+                        if not tx_rates.process_next():
+                            stop_waiting = True
+                            for i, remote_client in enumerate(clients):
+                                done = remote_client.check_done()
+                                # all the clients need to be done
+                                LOG.info(
+                                    f"Client {i} has {'completed' if done else 'not completed'} running"
+                                )
+                                stop_waiting = stop_waiting and done
+                            if stop_waiting:
+                                break
+                        time.sleep(1)
 
-                LOG.info(f"Rates: {tx_rates}")
-                tx_rates.save_results(args.metrics_file)
-                metrics.publish()
+                    tx_rates.get_metrics()
+                    for remote_client in clients:
+                        remote_client.print_and_upload_result(args.label, metrics)
+                        remote_client.stop()
 
-            except KeyboardInterrupt:
+                    LOG.info(f"Rates:\n{tx_rates}")
+                    tx_rates.save_results(args.metrics_file)
+
+            except Exception:
                 for remote_client in clients:
                     remote_client.stop()

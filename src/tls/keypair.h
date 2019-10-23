@@ -896,6 +896,8 @@ namespace tls
     BCk1ContextPtr bc_ctx =
       make_bc_context(SECP256K1_CONTEXT_VERIFY | SECP256K1_CONTEXT_SIGN);
 
+    secp256k1_pubkey bc_pub;
+
     static constexpr size_t privk_size = 32;
     uint8_t c4_priv[privk_size] = {0};
 
@@ -925,6 +927,22 @@ namespace tls
       {
         throw std::logic_error("secp256k1 private key is not valid");
       }
+
+      parse_secp256k_bc(*ctx, bc_ctx->p, &bc_pub);
+    }
+
+    // Since this inherits from PublicKey (via Keypair), rather than
+    // PublicKey_k1Bitcoin, we re-override verify_hash here
+    bool verify_hash(
+      const uint8_t* hash,
+      size_t hash_size,
+      const uint8_t* signature,
+      size_t signature_size) override
+    {
+      bool ok = verify_secp256k_bc(
+        bc_ctx->p, signature, signature_size, hash, hash_size, &bc_pub);
+
+      return ok;
     }
 
     int sign_hash(
