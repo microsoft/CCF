@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/json_schema.h"
+#include "node/nodeinfonetwork.h"
 #include "node/secret.h"
 
 #include <nlohmann/json.hpp>
@@ -43,6 +44,20 @@ namespace ccf
     struct Out
     {
       std::vector<Quote> quotes;
+    };
+  };
+
+  struct CreateNetworkNodeToNode
+  {
+    struct In
+    {
+      std::vector<std::vector<uint8_t>> member_cert;
+      std::string gov_script;
+      std::vector<uint8_t> node_cert;
+      Cert network_cert;
+      std::vector<uint8_t> quote;
+      std::vector<uint8_t> code_digest;
+      NodeInfoNetwork node_info_network;
     };
   };
 

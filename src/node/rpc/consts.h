@@ -27,6 +27,8 @@ namespace ccf
 
   struct MemberProcs
   {
+    static constexpr auto CREATE = "create";
+
     static constexpr auto READ = "read";
     static constexpr auto QUERY = "query";
 
