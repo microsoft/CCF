@@ -14,7 +14,6 @@ import uuid
 import ctypes
 import signal
 import re
-import glob
 from collections import deque
 
 from loguru import logger as LOG
@@ -157,11 +156,9 @@ class SSHRemote(CmdMixin):
         assert self._rc("mkdir -p {}".format(self.root)) == 0
         session = self.client.open_sftp()
         for path in self.files:
-            # Some files can be glob patterns
-            for f in glob.glob(path):
-                tgt_path = os.path.join(self.root, os.path.basename(f))
-                LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, f))
-                session.put(f, tgt_path)
+            tgt_path = os.path.join(self.root, os.path.basename(path))
+            LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, path))
+            session.put(path, tgt_path)
         session.close()
         executable = self.cmd[0]
         if executable.startswith("./"):
@@ -567,10 +564,16 @@ class CCFRemote(object):
             cmd += [
                 "start",
                 "--network-cert-file=networkcert.pem",
-                f"--member-certs={members_certs}",
                 f"--gov-script={os.path.basename(gov_script)}",
             ]
-            data_files += [members_certs, os.path.basename(gov_script)]
+            if members_certs is None:
+                raise ValueError(
+                    "Starting node should be given at least one member certificate"
+                )
+            for mc in members_certs:
+                cmd += [f"--member-cert={mc}"]
+            data_files.extend(members_certs)
+            data_files += [os.path.basename(gov_script)]
         elif start_type == StartType.join:
             cmd += [
                 "join",

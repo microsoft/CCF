@@ -16,34 +16,6 @@
 using namespace std;
 using namespace jsonrpc;
 
-vector<uint8_t> slup_cert(const string& path)
-{
-  vector<uint8_t> cert;
-
-  mbedtls_x509_crt crt;
-  mbedtls_x509_crt_init(&crt);
-  auto raw = files::slurp(path);
-  if (mbedtls_x509_crt_parse(&crt, raw.data(), raw.size()))
-  {
-    cerr << "Failed to parse certificate " << path << endl;
-    exit(-1);
-  }
-  cert = {crt.raw.p, crt.raw.p + crt.raw.len};
-  return cert;
-}
-
-void dump(CBuffer b, const string& file)
-{
-  ofstream f(file, ios::binary | ios::trunc);
-  f.write((char*)b.p, b.rawSize());
-
-  if (!f)
-  {
-    cerr << "Failed to write to " << file << endl;
-    exit(1);
-  }
-}
-
 std::vector<uint8_t> make_rpc_raw(
   const string& host,
   const string& port,
