@@ -268,15 +268,6 @@ namespace ccf
 
       send_request(rpc);
 
-      // Accept node connections for other nodes to join
-      accept_node_connections();
-
-      // Accept members connections for members to configure and open the
-      // network
-      accept_member_connections();
-
-      sm.advance(State::partOfNetwork);
-
       return true;
     }
 
@@ -325,6 +316,15 @@ namespace ccf
             return Fail<CreateNew::Out>(
               "Genesis transaction could not be committed");
           }
+
+          // Accept node connections for other nodes to join
+          accept_node_connections();
+
+          // Accept members connections for members to configure and open the
+          // network
+          accept_member_connections();
+
+          sm.advance(State::partOfNetwork);
 
           return Success<CreateNew::Out>(
             {node_cert, quote, network.secrets->get_current().cert});
