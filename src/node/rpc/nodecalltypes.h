@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/json_schema.h"
+#include "node/nodeinfonetwork.h"
 #include "node/secret.h"
 
 #include <nlohmann/json.hpp>
@@ -56,19 +57,8 @@ namespace ccf
       Cert network_cert;
       std::vector<uint8_t> quote;
       std::vector<uint8_t> code_digest;
-
-      struct NodeInfoNetwork
-      {
-        std::string host;
-        std::string pubhost;
-        std::string nodeport;
-        std::string rpcport;
-      };
       NodeInfoNetwork node_info_network;
     };
-
-    struct Out
-    {};
   };
 
   struct JoinNetworkNodeToNode

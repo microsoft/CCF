@@ -405,7 +405,6 @@ namespace ccf
 
       auto create = [this](RequestArgs& args) {
         const auto in = args.params.get<CreateNetworkNodeToNode::In>();
-        CreateNetworkNodeToNode::Out result;
 
         GenesisGenerator g(this->network, args.tx);
         g.init_values();
@@ -414,21 +413,16 @@ namespace ccf
           g.add_member(cert);
         }
 
-        ccf::NodeInfoNetwork node_info_network{in.node_info_network.host,
-                                               in.node_info_network.pubhost,
-                                               in.node_info_network.nodeport,
-                                               in.node_info_network.rpcport};
-
         // Generate quote over node certificate
         // TODO: https://github.com/microsoft/CCF/issues/59
         size_t self = g.add_node(
-          {node_info_network, in.node_cert, in.quote, NodeStatus::TRUSTED});
+          {in.node_info_network, in.node_cert, in.quote, NodeStatus::TRUSTED});
 
         if (self != 0)
         {
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            fmt::format("My node is was set to {}", self));
+            fmt::format("My node was set to {}", self));
         }
 
 #ifdef GET_QUOTE
@@ -452,7 +446,7 @@ namespace ccf
 
         g.create_service(in.network_cert);
 
-        return jsonrpc::success(result);
+        return jsonrpc::success(true);
       };
 
       install(MemberProcs::CREATE, create, Write);
