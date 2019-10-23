@@ -1,0 +1,5 @@
+pandas
+jupyter
+matplotlib
+notebook
+sklearn

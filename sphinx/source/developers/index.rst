@@ -18,4 +18,5 @@ These endpoints mutate the state of a unique :ref:`Key-Value Store` that represe
   kv/index.rst
   ledger
   cryptography
+  performance
   api
