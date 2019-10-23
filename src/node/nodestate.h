@@ -205,7 +205,7 @@ namespace ccf
       sm.advance(State::initialized);
     }
 
-    std::vector<uint8_t> serialize_genesis(
+    std::vector<uint8_t> serialize_create_request(
       const CreateNew::In& args, std::vector<uint8_t>& quote)
     {
       jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> create_rpc;
@@ -238,13 +238,12 @@ namespace ccf
       return jsonrpc::pack(sj, jsonrpc::Pack::Text);
     }
 
-    void send_request(std::vector<uint8_t>& packed)
+    void send_create_request(std::vector<uint8_t>& packed)
     {
       auto handler = this->rpc_map->find(ccf::ActorsType::members);
       if (!handler.has_value())
       {
-        LOG_INFO << "handler has no value" << std::endl;
-        return;
+        throw std::logic_error("Handler has no value");
       }
       auto frontend = handler.value();
 
@@ -259,14 +258,12 @@ namespace ccf
 #endif
     }
 
-    bool create_and_apply_genesis_tx(
+    bool create_and_send_request(
       const CreateNew::In& args, std::vector<uint8_t>& quote)
     {
-      auto rpc = serialize_genesis(args, quote);
-      // Become the primary and force replication.
-      consensus->force_become_primary();
+      auto rpc = serialize_create_request(args, quote);
 
-      send_request(rpc);
+      send_create_request(rpc);
 
       return true;
     }
@@ -311,7 +308,10 @@ namespace ccf
           setup_history();
           setup_encryptor();
 
-          if (!create_and_apply_genesis_tx(args, quote))
+          // Become the primary and force replication.
+          consensus->force_become_primary();
+
+          if (!create_and_send_request(args, quote))
           {
             return Fail<CreateNew::Out>(
               "Genesis transaction could not be committed");

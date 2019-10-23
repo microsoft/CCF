@@ -695,8 +695,9 @@ namespace ccf
         return {jsonrpc::pack(rpc.second, pack.value()), merkle_root};
       }
 
-      // Strip signature
       update_consensus();
+
+      // Strip signature
       auto rpc_ = &rpc.second;
       SignedReq signed_request(rpc.second);
       if (rpc_->find(jsonrpc::SIG) != rpc_->end())
