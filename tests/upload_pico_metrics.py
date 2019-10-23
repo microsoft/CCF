@@ -77,11 +77,10 @@ if __name__ == "__main__":
                         name = spec.get("_name") or spec.get("Suite") or "UNNAMED"
                         found_metrics[name].append(float(format(ops_per_sec, ".2f")))
 
-    metrics = cimetrics.upload.Metrics()
-    for name, results in found_metrics.items():
-        many_results = len(results) > 1
-        for i, result in enumerate(results):
-            upload_name = f"{name}_{i}" if many_results else name
-            LOG.debug(f"Uploading metric: {upload_name} = {result}")
-            metrics.put(upload_name, result)
-    metrics.publish()
+    with cimetrics.upload.metrics() as metrics:
+        for name, results in found_metrics.items():
+            many_results = len(results) > 1
+            for i, result in enumerate(results):
+                upload_name = f"{name}_{i}" if many_results else name
+                LOG.debug(f"Uploading metric: {upload_name} = {result}")
+                metrics.put(upload_name, result)
