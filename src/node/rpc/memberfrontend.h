@@ -446,7 +446,7 @@ namespace ccf
         g.create_service(in.network_cert);
 
         // This endpoint should only be called once, from the starting node
-        uninstall_create_handler()
+        uninstall_create_handler();
 
         return jsonrpc::success(true);
       };
