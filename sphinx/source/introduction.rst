@@ -37,7 +37,7 @@ In contrast, in a consortium or multi-party network backed by TEEs, such as CCF,
 A trusted network of enclaves running on physical nodes is established without requiring the actors that control those nodes to trust one another
 —  what code is run is controlled and correctness of its output can be guaranteed, simplifying the consensus methods and reducing duplicative validation of data. 
 
-.. image:: ccf.svg
+.. image:: img/ccf.svg
 
 Microsoft has taken this approach in developing CCF: using :term:`TEE` technology, the enclave of each node in the network (where cryptographically protected data is executed)
 can decide whether it can trust the enclaves of other nodes based on mutual attestation exchange and mutual authentication, regardless of whether the parties involved
