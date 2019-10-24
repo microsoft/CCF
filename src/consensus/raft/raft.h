@@ -383,6 +383,7 @@ namespace raft
       {
         if (timeout_elapsed >= request_timeout)
         {
+          LOG_INFO_FMT("periodic");
           using namespace std::chrono_literals;
           timeout_elapsed = 0ms;
 
@@ -453,7 +454,7 @@ namespace raft
       const auto prev_term = get_term_internal(prev_idx);
       const auto term_of_idx = get_term_internal(end_idx);
 
-      LOG_DEBUG_FMT(
+      LOG_INFO_FMT(
         "Send append entries from {} to {}: {} to {} ({})",
         local_id,
         to,
@@ -494,7 +495,7 @@ namespace raft
         LOG_FAIL_FMT(err.what());
         return;
       }
-      LOG_DEBUG_FMT(
+      LOG_INFO_FMT(
         "Received pt: {} pi: {} t: {} i: {}",
         r.prev_term,
         r.prev_idx,
@@ -509,7 +510,7 @@ namespace raft
       // topology changes that include adding this new leader can be accepted.
       if (r.prev_idx < commit_idx)
       {
-        LOG_DEBUG_FMT(
+        LOG_INFO_FMT(
           "Recv append entries to {} from {} but prev_idex ({}) < commit_idx "
           "({})",
           local_id,
@@ -924,6 +925,7 @@ namespace raft
       // Randomise timeout_elapsed to get an election timeout that is
       // effectively between zero and double the configured election timeout.
       timeout_elapsed = std::chrono::milliseconds(distrib(rand));
+      LOG_INFO_FMT("timeout_elasped restarted {}", timeout_elapsed.count());
     }
 
     void become_candidate()

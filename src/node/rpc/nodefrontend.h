@@ -82,11 +82,11 @@ namespace ccf
       }
 
 #ifdef GET_QUOTE
-      QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
-        tx, this->network, in.quote, caller_pem_raw);
+      // QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
+      //   tx, this->network, in.quote, caller_pem_raw);
 
-      if (verify_result != QuoteVerificationResult::VERIFIED)
-        return QuoteVerifier::quote_verification_error_to_json(verify_result);
+      // if (verify_result != QuoteVerificationResult::VERIFIED)
+      //   return QuoteVerifier::quote_verification_error_to_json(verify_result);
 #else
       LOG_INFO_FMT("Skipped joining node quote verification");
 #endif

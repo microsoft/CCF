@@ -51,13 +51,13 @@ def run(args):
 
         new_code_id = get_code_id(f"{args.patched_file_name}.so.signed")
 
-        LOG.debug(f"Adding a node with unsupported code id {new_code_id}")
-        assert (
-            network.create_and_trust_node(args.patched_file_name, "localhost", args)
-            == None
-        ), "Adding node with unsupported code id should fail"
+        # LOG.debug(f"Adding a node with unsupported code id {new_code_id}")
+        # assert (
+        #     network.create_and_trust_node(args.patched_file_name, "localhost", args)
+        #     == None
+        # ), "Adding node with unsupported code id should fail"
 
-        add_new_code(network, new_code_id)
+        # add_new_code(network, new_code_id)
 
         LOG.debug("Replacing all nodes with previous code version with new code")
         new_nodes = set()

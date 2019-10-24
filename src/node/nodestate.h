@@ -117,6 +117,7 @@ namespace ccf
 
     void advance(T s)
     {
+      LOG_FAIL_FMT("Advancing to state {}", s);
       this->s.store(s);
     }
   };
