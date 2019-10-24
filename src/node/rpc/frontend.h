@@ -154,15 +154,6 @@ namespace ccf
         method, std::forward<Ts>(ts)...);
     }
 
-    /** Uninstall handle function for method name
-     *
-     * @param method Method name to uninstall
-     */
-    void uninstall(const std::string& method)
-    {
-      handlers.erase(method);
-    }
-
     /** Set a default HandleFunction
      *
      * The default HandleFunction is only invoked if no specific HandleFunction

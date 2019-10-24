@@ -408,6 +408,16 @@ namespace ccf
         const auto in = args.params.get<CreateNetworkNodeToNode::In>();
 
         GenesisGenerator g(this->network, args.tx);
+
+        // This endpoint can only be called once, directly from the starting
+        // node for the genesis transaction to initialise the service
+        if (g.is_service_created())
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            "Service is already created");
+        }
+
         g.init_values();
         for (auto& cert : in.member_cert)
         {
@@ -444,9 +454,6 @@ namespace ccf
           lua::Interpreter().invoke<nlohmann::json>(in.gov_script));
 
         g.create_service(in.network_cert);
-
-        // This endpoint should only be called once, from the starting node
-        uninstall_create_handler();
 
         return jsonrpc::success(true);
       };
@@ -515,11 +522,6 @@ namespace ccf
       };
       install_with_auto_schema<void, bool>(
         MemberProcs::UPDATE_ACK_NONCE, update_ack_nonce, Write);
-    }
-
-    void uninstall_create_handler()
-    {
-      uninstall(MemberProcs::CREATE);
     }
   };
 } // namespace ccf

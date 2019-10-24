@@ -302,17 +302,6 @@ namespace ccf
       return true;
     }
 
-    void uninstall_create_handler()
-    {
-      auto handler = this->rpc_map->find(ccf::ActorsType::members);
-      if (!handler.has_value())
-      {
-        throw std::logic_error("Handler has no value");
-      }
-      auto frontend = dynamic_cast<MemberRpcFrontend*>(handler.value().get());
-      frontend->uninstall_create_handler();
-    }
-
     //
     // funcs in state "initialized"
     //
@@ -380,18 +369,12 @@ namespace ccf
           // sent by the primary via the kv store
           raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
 
-          // Create handler should only be available when starting a new network
-          uninstall_create_handler();
-
           sm.advance(State::pending);
           return Success<CreateNew::Out>({node_cert, quote});
         }
         case StartType::Recover:
         {
           node_info_network = args.config.node_info_network;
-
-          // Create handler should only be available when starting a new network
-          uninstall_create_handler();
 
           // Create temporary network secrets but do not seal yet
           network.secrets = std::make_unique<NetworkSecrets>(
