@@ -34,6 +34,8 @@ namespace enclave
     };
     struct request req;
 
+    bool is_create_request = false;
+
     //
     // Only set in the case of a forwarded RPC
     //

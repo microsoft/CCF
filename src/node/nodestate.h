@@ -44,6 +44,47 @@ extern "C"
 
 namespace ccf
 {
+  enum class State
+  {
+    uninitialized,
+    initialized,
+    pending,
+    partOfPublicNetwork,
+    partOfNetwork,
+    readingPublicLedger,
+    readingPrivateLedger
+  };
+}
+
+// Used by fmtlib to render ccf::State
+namespace std
+{
+  std::ostream& operator<<(std::ostream& os, ccf::State s)
+  {
+    switch (s)
+    {
+      case ccf::State::uninitialized:
+        return os << "uninitialized";
+      case ccf::State::initialized:
+        return os << "initialized";
+      case ccf::State::pending:
+        return os << "pending";
+      case ccf::State::partOfPublicNetwork:
+        return os << "partOfPublicNetwork";
+      case ccf::State::partOfNetwork:
+        return os << "partOfNetwork";
+      case ccf::State::readingPublicLedger:
+        return os << "readingPublicLedger";
+      case ccf::State::readingPrivateLedger:
+        return os << "readingPrivateLedger";
+      default:
+        return os << "unknown value";
+    }
+  }
+}
+
+namespace ccf
+{
   using RaftConsensusType =
     raft::RaftConsensus<consensus::LedgerEnclave, NodeToNode>;
   using RaftType = raft::Raft<consensus::LedgerEnclave, NodeToNode>;
@@ -61,8 +102,12 @@ namespace ccf
     StateMachine(T s) : s(s) {}
     void expect(T s) const
     {
-      if (s != this->s.load())
-        throw std::logic_error("Unexpected state");
+      auto state = this->s.load();
+      if (s != state)
+      {
+        throw std::logic_error(
+          fmt::format("State is {}, but expected {}", state, s));
+      }
     }
 
     bool check(T s) const
@@ -100,17 +145,6 @@ namespace ccf
       LOG_DEBUG_FMT(s);
       return {{}, false};
     }
-
-    enum class State
-    {
-      uninitialized,
-      initialized,
-      pending,
-      partOfPublicNetwork,
-      partOfNetwork,
-      readingPublicLedger,
-      readingPrivateLedger
-    };
 
     //
     // this node's core state
@@ -205,6 +239,69 @@ namespace ccf
       sm.advance(State::initialized);
     }
 
+    std::vector<uint8_t> serialize_create_request(
+      const CreateNew::In& args, std::vector<uint8_t>& quote)
+    {
+      jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> create_rpc;
+
+      create_rpc.id = 0;
+      create_rpc.method = ccf::MemberProcs::CREATE;
+
+      for (auto& cert : args.config.genesis.member_certs)
+      {
+        create_rpc.params.member_cert.push_back(cert);
+      }
+
+      create_rpc.params.gov_script = args.config.genesis.gov_script;
+      create_rpc.params.node_cert = node_cert;
+      create_rpc.params.network_cert = network.secrets->get_current().cert;
+      create_rpc.params.quote = quote;
+      create_rpc.params.code_digest =
+        std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
+      create_rpc.params.node_info_network = args.config.node_info_network;
+
+      nlohmann::json j = create_rpc;
+      auto contents = nlohmann::json::to_msgpack(j);
+
+      auto sig_contents = node_kp->sign(contents);
+
+      nlohmann::json sj;
+      sj["req"] = j;
+      sj["sig"] = sig_contents;
+
+      return jsonrpc::pack(sj, jsonrpc::Pack::Text);
+    }
+
+    void send_create_request(std::vector<uint8_t>& packed)
+    {
+      auto handler = this->rpc_map->find(ccf::ActorsType::members);
+      if (!handler.has_value())
+      {
+        throw std::logic_error("Handler has no value");
+      }
+      auto frontend = handler.value();
+
+      enclave::RPCContext ctx(
+        enclave::InvalidSessionId, node_cert, ccf::ActorsType::nodes);
+      ctx.is_create_request = true;
+
+#ifdef PBFT
+      frontend->process_pbft(ctx, packed);
+#else
+      frontend->process(ctx, packed);
+#endif
+    }
+
+    bool create_and_send_request(
+      const CreateNew::In& args, std::vector<uint8_t>& quote)
+    {
+      auto rpc = serialize_create_request(args, quote);
+
+      send_create_request(rpc);
+
+      return true;
+    }
+
     //
     // funcs in state "initialized"
     //
@@ -233,35 +330,9 @@ namespace ccf
       {
         case StartType::New:
         {
-          GenesisGenerator g(network);
-          g.init_values();
-
-          for (auto& cert : args.config.genesis.member_certs)
-            g.add_member(cert);
-
-          // Add self as TRUSTED
-          self = g.add_node({args.config.node_info_network,
-                             node_cert,
-                             quote,
-                             NodeStatus::TRUSTED});
-
-#ifdef GET_QUOTE
-          // Trust own code id
-          g.trust_code_id(node_code_id);
-#endif
-
-          // set access whitelists
-          // TODO(#feature): this should be configurable
-          for (const auto& wl : default_whitelists)
-            g.set_whitelist(wl.first, wl.second);
-
-          g.set_gov_scripts(lua::Interpreter().invoke<nlohmann::json>(
-            args.config.genesis.gov_script));
-
           network.secrets = std::make_unique<NetworkSecrets>(
             "CN=The CA", std::make_unique<Seal>(writer_factory));
-
-          g.create_service(network.secrets->get_current().cert);
+          self = 0; // The first nodes id is always 0
 
 #ifdef PBFT
           setup_pbft();
@@ -274,9 +345,11 @@ namespace ccf
           // Become the primary and force replication.
           consensus->force_become_primary();
 
-          if (g.finalize() != kv::CommitSuccess::OK)
+          if (!create_and_send_request(args, quote))
+          {
             return Fail<CreateNew::Out>(
               "Genesis transaction could not be committed");
+          }
 
           // Accept node connections for other nodes to join
           accept_node_connections();
@@ -491,7 +564,8 @@ namespace ccf
       if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
       {
         network.tables->compact(ledger_idx);
-        GenesisGenerator g(network);
+        Store::Tx tx;
+        GenesisGenerator g(network, tx);
         auto last_sig = g.get_last_signature();
         if (last_sig.has_value())
         {
@@ -518,7 +592,8 @@ namespace ccf
 
       // When reaching the end of the public ledger, truncate to last signed
       // index and promote network secrets to this index
-      GenesisGenerator g(network);
+      Store::Tx tx;
+      GenesisGenerator g(network, tx);
 
       auto last_sig = g.get_last_signature();
       kv::Version last_index = 0;
@@ -659,7 +734,8 @@ namespace ccf
       // Open the service
       if (consensus->is_primary())
       {
-        GenesisGenerator g(network);
+        Store::Tx tx;
+        GenesisGenerator g(network, tx);
         if (!g.open_service())
           throw std::logic_error("Service could not be opened");
 

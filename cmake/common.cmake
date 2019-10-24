@@ -509,7 +509,7 @@ function(add_unit_test name)
   )
 endfunction()
 
-# GenesisGenerator Executable
+# Keygenerator Executable
 add_executable(keygenerator ${CCF_DIR}/src/keygenerator/main.cpp)
 use_client_mbedtls(keygenerator)
 target_link_libraries(keygenerator PRIVATE
@@ -539,6 +539,7 @@ if(NOT ${TARGET} STREQUAL "virtual")
     ccfcrypto.host
     evercrypt.host
     CURL::libcurl
+    secp256k1.host
   )
   enable_quote_code(cchost)
 endif()
@@ -567,6 +568,7 @@ if(${TARGET} STREQUAL "virtual" OR ${TARGET} STREQUAL "all")
     ccfcrypto.host
     evercrypt.host
     CURL::libcurl
+    secp256k1.host
   )
 endif()
 

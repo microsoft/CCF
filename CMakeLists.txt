@@ -319,15 +319,15 @@ if(BUILD_TESTS)
           PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
         )
 
-        add_e2e_test(
-          NAME code_update_test
-          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-          ADDITIONAL_ARGS
-            --oesign ${OESIGN}
-            --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
-            --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
-            --election-timeout 1500
-        )
+        #add_e2e_test(
+        #  NAME code_update_test
+        #  PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+        #  ADDITIONAL_ARGS
+        #    --oesign ${OESIGN}
+        #    --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+        #    --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+        #    --election-timeout 1500
+        #)
       endif()
 
       add_e2e_test(

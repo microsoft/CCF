@@ -168,7 +168,7 @@ class Network:
                             lib_name=args.package,
                             workspace=args.workspace,
                             label=args.label,
-                            members_certs="member*_cert.pem",
+                            members_certs=self.get_members_certs(),
                             **forwarded_args,
                         )
                     else:
@@ -355,9 +355,13 @@ class Network:
 
     def create_members(self, members):
         self.members.extend(members)
-        members = ["member{}".format(m) for m in members]
+        members = [f"member{m}" for m in members]
         for m in members:
             infra.proc.ccall("./keygenerator", "--name={}".format(m)).check_returncode()
+
+    def get_members_certs(self):
+        members_certs = [f"member{m}_cert.pem" for m in self.members]
+        return members_certs
 
     def create_users(self, users):
         users = ["user{}".format(u) for u in users]
