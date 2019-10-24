@@ -150,7 +150,7 @@ protected:
   std::string service_name;
   int node_id; // identifier of the current node.
   size_t max_faulty; // Maximum number of faulty replicas.
-    size_t num_replicas; // Number of replicas in the service. It must be	
+  size_t num_replicas; // Number of replicas in the service. It must be
                        // num_replicas == 3*max_faulty+1.
   size_t num_clients; // Number of clients in the service
 
