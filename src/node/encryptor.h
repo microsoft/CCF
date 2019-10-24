@@ -24,7 +24,7 @@ namespace ccf
       std::vector<uint8_t>& cipher,
       kv::Version version) override
     {
-      crypto::GcmHeader<crypto::GCM_SIZE_IV> gcm_hdr;
+      crypto::GcmHeader<crypto::GCM_SIZE_IV> gcm_hdr = {};
       serialised_header = std::move(gcm_hdr.serialise());
       cipher = plain;
     }

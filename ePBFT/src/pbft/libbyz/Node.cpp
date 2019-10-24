@@ -56,20 +56,7 @@ Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
 
   // read max_faulty and compute derived variables
   max_faulty = node_info.general_info.max_faulty;
-  num_replicas = node_info.general_info.num_replicas;
-  if (num_replicas <= 2 * max_faulty)
-  {
-    LOG_FATAL << "Not enough replicas: " << num_replicas
-              << " for desired f: " << max_faulty << std::endl;
-    throw std::logic_error(
-      "Not enough replicas: " + std::to_string(num_replicas) +
-      " for desired f: " + std::to_string(max_faulty));
-  }
   num_clients = node_info.general_info.num_clients;
-  if (num_replicas > Max_num_replicas)
-  {
-    PBFT_FAIL("Invalid number of replicas");
-  }
   if (max_faulty == 0)
   {
     // f == 0 so num_correct_replicas is set to 1
@@ -79,11 +66,8 @@ Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
   }
   else
   {
-    threshold = num_replicas - max_faulty;
+    threshold = replica_count - max_faulty;
   }
-
-  LOG_INFO << " max faulty (f): " << max_faulty
-           << " num replicas: " << num_replicas << std::endl;
 
   // Read authentication timeout
   int at = node_info.general_info.auth_timeout;
@@ -349,7 +333,7 @@ void Node::resend_new_key()
 void Node::send_to_replicas(Message* m)
 {
   LOG_TRACE << "replica_count:" << replica_count
-            << ", num_replicas:" << num_replicas << " m:" << m->tag()
+            << ", m:" << m->tag()
             << std::endl;
 
   if (send_only_to_self && m->tag() != Status_tag)

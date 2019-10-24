@@ -159,7 +159,7 @@ Replica::Replica(
   recovering = false;
   qs = 0;
   rr = 0;
-  rr_views = new View[num_replicas];
+  rr_views = new View[Max_num_replicas];
   recovery_point = Seqno_max;
   max_rec_n = 0;
 
@@ -571,7 +571,7 @@ void Replica::handle(Request* m)
 
         if (rqueue.append(m))
         {
-          if (!limbo)
+          if (!limbo && f() > 0)
           {
             send(m, primary());
             start_vtimer_if_request_waiting();
@@ -794,7 +794,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       // https://github.com/microsoft/CCF/issues/357
       if (!compare_execution_results(info, pp))
       {
-        // break;
+        break;
       }
 
       if (ledger_writer && !is_primary())
@@ -1242,7 +1242,7 @@ void Replica::handle(Status* m)
             New_view* nv = vi.my_new_view(t_sent);
             if (nv != 0)
             {
-              for (int i = 0; i < num_replicas; i++)
+              for (int i = 0; i < replica_count; i++)
               {
                 if (!m->has_vc(i) && nv->view_change(i))
                 {
@@ -1261,7 +1261,7 @@ void Replica::handle(Status* m)
           else
           {
             // Send any view-change acks p may be missing.
-            for (int i = 0; i < num_replicas; i++)
+            for (int i = 0; i < replica_count; i++)
             {
               if (m->id() == i)
               {
@@ -1420,7 +1420,7 @@ void Replica::send_view_change()
 
   // Move to next view.
   v++;
-  cur_primary = v % num_replicas;
+  cur_primary = v % replica_count;
   limbo = true;
   vtimer->stop(); // stop timer if it is still running
   ntimer->restop();
@@ -2176,7 +2176,7 @@ void Replica::new_state(Seqno c)
 
   // Check if c is known to be stable.
   int scount = 0;
-  for (int i = 0; i < num_replicas; i++)
+  for (int i = 0; i < replica_count; i++)
   {
     auto it = stable_checkpoints.find(i);
     if (it != stable_checkpoints.end() && it->second->seqno() >= c)
@@ -2304,7 +2304,7 @@ void Replica::mark_stable(Seqno n, bool have_state)
   // Go over stable_checkpoints transfering any checkpoints that are now within
   // my window to elog.
   Seqno new_ls = last_stable;
-  for (int i = 0; i < num_replicas; i++)
+  for (int i = 0; i < replica_count; i++)
   {
     auto it = stable_checkpoints.find(i);
     if (it != stable_checkpoints.end())
@@ -2565,7 +2565,7 @@ bool Replica::restart(FILE* in)
   sz += fread(&has_nv_state, sizeof(bool), 1, in);
 
   limbo = (limbo != 0);
-  cur_primary = v % num_replicas;
+  cur_primary = v % replica_count;
   if (v < 0 || id() == primary())
   {
     ret = false;
@@ -2650,7 +2650,7 @@ void Replica::recover()
   delete rr;
   rr = 0;
   recovery_point = Seqno_max;
-  for (int i = 0; i < num_replicas; i++)
+  for (int i = 0; i < replica_count; i++)
   {
     rr_views[i] = 0;
   }

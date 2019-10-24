@@ -150,8 +150,6 @@ protected:
   std::string service_name;
   int node_id; // identifier of the current node.
   size_t max_faulty; // Maximum number of faulty replicas.
-  size_t num_replicas; // Number of replicas in the service. It must be
-                       // num_replicas == 3*max_faulty+1.
   size_t num_clients; // Number of clients in the service
 
   size_t threshold; // Number of correct replicas. It must be
@@ -208,7 +206,7 @@ inline View Node::view() const
 
 inline size_t Node::num_of_replicas() const
 {
-  return num_replicas;
+  return replica_count;
 }
 
 inline size_t Node::f() const
@@ -251,7 +249,7 @@ inline bool Node::is_replica(int id) const
 
 inline int Node::primary(View vi) const
 {
-  return (vi == v) ? cur_primary : (vi % num_replicas);
+  return (vi == v) ? cur_primary : (vi % replica_count);
 }
 
 inline int Node::primary() const
