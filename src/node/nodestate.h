@@ -17,7 +17,7 @@
 #include "nodetonode.h"
 #include "notifier.h"
 #include "rpc/consts.h"
-#include "rpc/memberfrontend.h"
+#include "rpc/frontend.h"
 #include "rpc/serialization.h"
 #include "seal.h"
 #include "timer.h"
