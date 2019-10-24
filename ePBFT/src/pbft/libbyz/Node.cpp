@@ -332,8 +332,7 @@ void Node::resend_new_key()
 
 void Node::send_to_replicas(Message* m)
 {
-  LOG_TRACE << "replica_count:" << replica_count
-            << ", m:" << m->tag()
+  LOG_TRACE << "replica_count:" << replica_count << ", m:" << m->tag()
             << std::endl;
 
   if (send_only_to_self && m->tag() != Status_tag)
