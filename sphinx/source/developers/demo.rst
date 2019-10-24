@@ -28,8 +28,7 @@ To run manually with your own scenario:
     $ ./tests.sh -N                           # Creates Python venv
     $ source env/bin/activate                 # Activates venv
     $ export PYTHONPATH=/data/src/CCF/tests   # Makes Python test infra importable
-    $ python ../tests/e2e_scenarios.py --help
-    $ python ../tests/e2e_scenarios.py --scenario path/to/scenario.json -g ../src/runtime_config/gov.lua
+    $ python ../tests/e2e_scenarios.py --scenario path/to/scenario.json
 
 This first loads the scenario from the given json file, extracting setup fields:
 
