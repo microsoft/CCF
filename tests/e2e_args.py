@@ -3,11 +3,14 @@
 import argparse
 import os
 import infra.path
+import sys
 
 
 def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     if parser is None:
-        parser = argparse.ArgumentParser()
+        parser = argparse.ArgumentParser(
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        )
     parser.add_argument("-b", "--build-dir", help="Build directory", default=".")
     parser.add_argument(
         "-d",
@@ -90,7 +93,10 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Temporary directory where nodes store their logs, ledgers, quotes, etc.",
         default=infra.path.default_workspace(),
     )
-    parser.add_argument("--label", help="Unique identifier for the test", required=True)
+    default_label = os.path.splitext(os.path.basename(sys.argv[0]))[0]
+    parser.add_argument(
+        "--label", help="Unique identifier for the test", default=default_label
+    )
     add(parser)
 
     if accept_unknown:
