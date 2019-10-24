@@ -152,7 +152,7 @@ Reply* Client::recv_reply()
       // more robust to attacks by picking the median view in the
       // certificate.
       v = rep->view();
-      cur_primary = v % replica_count;
+      cur_primary = v % num_replicas;
 
       decrease_retransmission_timeout();
 

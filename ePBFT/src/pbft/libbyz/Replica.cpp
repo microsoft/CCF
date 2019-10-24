@@ -159,7 +159,7 @@ Replica::Replica(
   recovering = false;
   qs = 0;
   rr = 0;
-  rr_views = new View[Max_num_replicas];
+  rr_views = new View[num_replicas];
   recovery_point = Seqno_max;
   max_rec_n = 0;
 
@@ -1242,7 +1242,7 @@ void Replica::handle(Status* m)
             New_view* nv = vi.my_new_view(t_sent);
             if (nv != 0)
             {
-              for (int i = 0; i < replica_count; i++)
+              for (int i = 0; i < num_replicas; i++)
               {
                 if (!m->has_vc(i) && nv->view_change(i))
                 {
@@ -1261,7 +1261,7 @@ void Replica::handle(Status* m)
           else
           {
             // Send any view-change acks p may be missing.
-            for (int i = 0; i < replica_count; i++)
+            for (int i = 0; i < num_replicas; i++)
             {
               if (m->id() == i)
               {
@@ -1420,7 +1420,7 @@ void Replica::send_view_change()
 
   // Move to next view.
   v++;
-  cur_primary = v % replica_count;
+  cur_primary = v % num_replicas;
   limbo = true;
   vtimer->stop(); // stop timer if it is still running
   ntimer->restop();
@@ -2650,7 +2650,7 @@ void Replica::recover()
   delete rr;
   rr = 0;
   recovery_point = Seqno_max;
-  for (int i = 0; i < replica_count; i++)
+  for (int i = 0; i < num_replicas; i++)
   {
     rr_views[i] = 0;
   }
