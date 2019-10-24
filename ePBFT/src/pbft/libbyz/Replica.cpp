@@ -2176,7 +2176,7 @@ void Replica::new_state(Seqno c)
 
   // Check if c is known to be stable.
   int scount = 0;
-  for (int i = 0; i < replica_count; i++)
+  for (int i = 0; i < num_replicas; i++)
   {
     auto it = stable_checkpoints.find(i);
     if (it != stable_checkpoints.end() && it->second->seqno() >= c)
@@ -2304,7 +2304,7 @@ void Replica::mark_stable(Seqno n, bool have_state)
   // Go over stable_checkpoints transfering any checkpoints that are now within
   // my window to elog.
   Seqno new_ls = last_stable;
-  for (int i = 0; i < replica_count; i++)
+  for (int i = 0; i < num_replicas; i++)
   {
     auto it = stable_checkpoints.find(i);
     if (it != stable_checkpoints.end())
@@ -2565,7 +2565,7 @@ bool Replica::restart(FILE* in)
   sz += fread(&has_nv_state, sizeof(bool), 1, in);
 
   limbo = (limbo != 0);
-  cur_primary = v % replica_count;
+  cur_primary = v % num_replicas;
   if (v < 0 || id() == primary())
   {
     ret = false;
