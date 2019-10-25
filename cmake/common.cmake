@@ -88,6 +88,7 @@ option(COVERAGE "Enable coverage mapping" OFF)
 option(PBFT "Enable PBFT" OFF)
 if (PBFT)
   add_definitions(-DPBFT)
+  add_definitions(-DUSE_NULL_ENCRYPTOR) # for now do not encrypt the ledger as the current implementation does not work for PBFT
   set(PBFT_BUILD_ENCLAVE TRUE)
   set(PBFT_BUILD_HOST TRUE)
   set(PBFT_USE_LIBC TRUE)
