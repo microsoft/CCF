@@ -69,7 +69,7 @@ A handler can either be installed as:
 
 - ``Write``: this handler can only be executed on the primary of the consensus network.
 - ``Read``: this handler can be executed on any node of the network.
-- ``MayWrite``: the execution of this handler on a specific node depends on the value of the ``"readonly"`` paramater in the JSON-RPC command.
+- ``MayWrite``: the execution of this handler on a specific node depends on the value of the ``"readonly"`` parameter in the JSON-RPC command.
 
 App-defined errors
 ~~~~~~~~~~~~~~~~~~
