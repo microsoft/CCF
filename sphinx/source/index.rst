@@ -1,7 +1,7 @@
 CCF documentation
 =================
 
-.. image:: ccf.svg
+.. image:: img/ccf.svg
 
 .. include:: quickstart/index.rst
 
