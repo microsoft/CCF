@@ -8,13 +8,29 @@ The script ``tests/e2e_scenarios.py`` reads a test scenario from json. This json
 .. literalinclude:: ../../../tests/simple_logging_scenario.json
     :language: json
 
-Then, from the ``build`` directory, run:
+To see how this is run in the main test suite, look at the `Test command` used by CTest:
 
 .. code-block:: bash
 
-    $ python ../tests/e2e_scenarios.py --scenario ../tests/simple_logging_scenario.json
+    $ cd build
+    $ ctest -VV -R end_to_end_scenario -N
 
-This first loads the scenario from the given json file, extracting initial fields:
+    ...
+    42: Test command: /usr/bin/unbuffer "python3" "/data/src/CCF/tests/e2e_scenarios.py" "-b" "." "--label" "end_to_end_scenario" "-l" "info" "-g" "/data/src/CCF/src/runtime_config/gov.lua" "--scenario" "/data/src/CCF/tests/simple_logging_scenario.json"
+    42: Environment variables:
+    42:  PYTHONPATH=/data/src/CCF/tests
+
+To run manually with your own scenario:
+
+.. code-block:: bash
+
+    $ cd build
+    $ ./tests.sh -N                           # Creates Python venv
+    $ source env/bin/activate                 # Activates venv
+    $ export PYTHONPATH=/data/src/CCF/tests   # Makes Python test infra importable
+    $ python ../tests/e2e_scenarios.py --scenario path/to/scenario.json
+
+This first loads the scenario from the given json file, extracting setup fields:
 
 .. literalinclude:: ../../../tests/e2e_scenarios.py
     :language: python

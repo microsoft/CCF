@@ -116,7 +116,7 @@ Both approaches register their RPC's params and result schema, allowing them to 
 Build
 -----
 
-Once an application is complete, it needs be built into a shared object, and signed:
+Once an application is complete, it needs to be built into a shared object, and signed:
 
 .. literalinclude:: ../../../CMakeLists.txt
     :language: cmake
