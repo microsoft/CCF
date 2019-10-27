@@ -282,14 +282,10 @@ namespace ccf
       auto frontend = handler.value();
 
       enclave::RPCContext ctx(
-        enclave::InvalidSessionId, node_cert, ccf::ActorsType::nodes);
+        enclave::InvalidSessionId, node_cert, ccf::ActorsType::members);
       ctx.is_create_request = true;
 
-#ifdef PBFT
-      frontend->process_pbft(ctx, packed);
-#else
       frontend->process(ctx, packed);
-#endif
     }
 
     bool create_and_send_request(
