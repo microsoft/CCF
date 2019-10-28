@@ -651,13 +651,6 @@ namespace ccf
           }
         }
 
-        LOG_FAIL_FMT(
-          "Consensus is null: {}", (consensus == nullptr ? "yes" : "no"));
-        LOG_FAIL_FMT("Primary: {}", consensus->primary());
-        LOG_FAIL_FMT(
-          "cmd forwarder is null: {}",
-          (cmd_forwarder == nullptr ? "yes" : "no"));
-
         return jsonrpc::pack(
           jsonrpc::error_response(
             0,

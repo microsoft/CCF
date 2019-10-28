@@ -82,11 +82,14 @@ namespace ccf
       }
 
 #ifdef GET_QUOTE
-      // QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
-      //   tx, this->network, in.quote, caller_pem_raw);
+      // TODO: https://github.com/microsoft/CCF/issues/480
+      // Verifying the joining node's quote takes a significant amount of time
+      // as of OE v0.7.0 (about 2 secs).
+      QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
+        tx, this->network, in.quote, caller_pem_raw);
 
-      // if (verify_result != QuoteVerificationResult::VERIFIED)
-      //   return QuoteVerifier::quote_verification_error_to_json(verify_result);
+      if (verify_result != QuoteVerificationResult::VERIFIED)
+        return QuoteVerifier::quote_verification_error_to_json(verify_result);
 #else
       LOG_INFO_FMT("Skipped joining node quote verification");
 #endif

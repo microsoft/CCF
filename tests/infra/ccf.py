@@ -345,10 +345,9 @@ class Network:
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {new_node.node_id} failed to join the network")
             new_node.stop()
-            # TODO: Remove node from network.nodes?
             return None
 
-        new_node.network_state = NodeNetworkState.joined # TODO: Move this up
+        new_node.network_state = NodeNetworkState.joined
         if should_wait:
             self.wait_for_all_nodes_to_catch_up(primary)
 

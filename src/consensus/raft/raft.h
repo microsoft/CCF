@@ -495,7 +495,7 @@ namespace raft
         LOG_FAIL_FMT(err.what());
         return;
       }
-      LOG_INFO_FMT(
+      LOG_DEBUG_FMT(
         "Received pt: {} pi: {} t: {} i: {}",
         r.prev_term,
         r.prev_idx,
@@ -510,7 +510,7 @@ namespace raft
       // topology changes that include adding this new leader can be accepted.
       if (r.prev_idx < commit_idx)
       {
-        LOG_INFO_FMT(
+        LOG_DEBUG_FMT(
           "Recv append entries to {} from {} but prev_idex ({}) < commit_idx "
           "({})",
           local_id,
@@ -1118,6 +1118,7 @@ namespace raft
     void rollback(Index idx)
     {
       store->rollback(idx);
+      LOG_DEBUG_FMT("Rolled back at {}", idx);
 
       while (!committable_indices.empty() && (committable_indices.back() > idx))
       {

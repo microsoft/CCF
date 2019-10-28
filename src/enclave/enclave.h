@@ -146,7 +146,6 @@ namespace enclave
             if (ms_count > 0)
             {
               std::chrono::milliseconds elapsed_ms(ms_count);
-              LOG_INFO_FMT("ticking");
               logger::config::tick(elapsed_ms);
               node.tick(elapsed_ms);
               timers.tick(elapsed_ms);
@@ -157,10 +156,6 @@ namespace enclave
                 for (auto& r : rpc_map->get_map())
                   r.second->tick(elapsed_ms);
               }
-            }
-            else
-            {
-              LOG_FAIL_FMT("ms_count <= 0!!!");
             }
           });
 
