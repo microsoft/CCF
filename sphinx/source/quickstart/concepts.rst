@@ -12,7 +12,7 @@ Network and nodes
 
 A CCF network consists of several nodes, each running on top of a Trusted Execution Environment (:term:`TEE`), or enclave, such as :term:`SGX`. As such, a CCF network is decentralised and highly-available.
 
-Nodes are run and maintained by :term:`operators`.
+Nodes are run and maintained by :term:`operators`. However, nodes must be trusted by the consortium of members before joining a CCF network.
 
 Application
 -----------
@@ -20,6 +20,10 @@ Application
 Each node runs the same application (a.k.a. transaction engine). An application is a collection of endpoints that can be triggered by trusted :term:`users`' :term:`JSON-RPC` requests over :term:`TLS`.
 
 Each endpoint mutates an in-enclave-memory Key-Value Store that is replicated across all nodes in the network. Changes to the Key-Value Store must be agreed by a variable number of nodes, depending on the consensus algorithm selected (either Raft or PBFT), before being applied.
+
+The Key-Value Store is composed of maps (associating a key to a value) that are defined by the application. These maps can be private (encrypted in the ledger) or public (visible by anyone that has access to the ledger).
+
+.. note:: Since all nodes in the CCF network can read the content of private maps, it is up to the application logic to control the access to such maps. Since every application endpoint has access to the identity of the user triggering it, it is easy to restrict which maps (and entries in those maps) a user can read or write to.
 
 Ledger
 ------
