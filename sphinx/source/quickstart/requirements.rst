@@ -34,7 +34,7 @@ The CCF repository provides a sample `devcontainer.json`_ file which will build 
 Azure Confidential Compute
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. note:: On Windows, you can use WSL or `Azure Cloud Shell (Bash) <https://azure.microsoft.com/en-us/features/cloud-shell/>`_ to run the following commands.
+.. note:: On Windows, you can use `WSL <https://docs.microsoft.com/en-us/windows/wsl/install-win10>`_ or `Azure Cloud Shell (Bash) <https://azure.microsoft.com/en-us/features/cloud-shell/>`_ to run the following commands.
 
 First, you should clone the CCF repository locally to get access to the scripts required to create and configure the CCF environment.
 
@@ -59,18 +59,20 @@ Then, to quickly get a VM up and running (in the East US region), you can run th
 
 After signing in to your Azure account, the script will create a default ``ccf`` user on the VM, authenticated by the public key specified by ``path_to_ssh_public_key`` (defaults to ``~/.ssh/id_rsa.pub``). See :ref:`OE Engine Walkthrough` for further details about how to deploy ACC VM.
 
+Then, you should ssh into your newky created vm and clone the CCF repository:
+
+.. code-block:: bash
+
+    $ ssh ccf@ccf-dev.eastus.cloudapp.azure.com
+    $ git clone --recursive https://github.com/microsoft/CCF.git
+
+.. note:: The ``--recursive`` option is required to retrieve some third-party dependencies of CCF. It is not possible to build CCF without these dependencies.
+
 The `SSH Remote`_ extension to `Visual Studio Code`_ makes it possible to develop your application directly on this VM.
 
 .. _`Marketplace App`: https://aka.ms/ccvm
 .. _`Azure CLI`: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli
 .. _`SSH Remote`: https://code.visualstudio.com/docs/remote/ssh
-
-
-.. code-block:: bash
-
-    $ git clone --recursive https://github.com/microsoft/CCF.git
-
-.. note:: The ``--recursive`` option is required to retrieve some third-party dependencies of CCF. It is not possible to build CCF without these dependencies.
 
 Installing Dependencies
 -----------------------
