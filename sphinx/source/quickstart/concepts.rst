@@ -7,7 +7,7 @@ The following diagram shows a CCF network made of 3 nodes, running the same appl
 
 .. image:: ccf_concepts.svg
 
-Network and nodes
+Network and Nodes
 -----------------
 
 A CCF network consists of several nodes, each running on top of a Trusted Execution Environment (:term:`TEE`), or enclave, such as :term:`SGX`. As such, a CCF network is decentralised and highly-available.
@@ -35,7 +35,7 @@ The integrity of the ledger is guaranteed by a Merkle tree whose root is periodi
 Governance
 ----------
 
-A CCF network is governed by a :term:`consortium` of :term:`members`. The :term:`constitution`, recorded in the ledger itself, defines a set of rules that members should follow.
+A CCF network is governed by a consortium of :term:`members`. The :term:`constitution`, recorded in the ledger itself, defines a set of rules that members should follow.
 
 Members can submit proposals to modify the state of the Key-Value Store. For examples, members can decide to allow a new trusted user to issue requests to the application or to add a new member to the consortium.
 
