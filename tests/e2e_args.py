@@ -3,11 +3,14 @@
 import argparse
 import os
 import infra.path
+import sys
 
 
 def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     if parser is None:
-        parser = argparse.ArgumentParser()
+        parser = argparse.ArgumentParser(
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        )
     parser.add_argument("-b", "--build-dir", help="Build directory", default=".")
     parser.add_argument(
         "-d",
@@ -43,7 +46,10 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=os.getenv("JSON_LOG_PATH", None),
     )
     parser.add_argument(
-        "-g", "--gov-script", help="Path to governance script", required=True
+        "-g",
+        "--gov-script",
+        help="Path to governance script",
+        default="../src/runtime_config/gov.lua",
     )
     parser.add_argument("-s", "--app-script", help="Path to app script")
     parser.add_argument(
@@ -90,7 +96,10 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Temporary directory where nodes store their logs, ledgers, quotes, etc.",
         default=infra.path.default_workspace(),
     )
-    parser.add_argument("--label", help="Unique identifier for the test", required=True)
+    default_label = os.path.splitext(os.path.basename(sys.argv[0]))[0]
+    parser.add_argument(
+        "--label", help="Unique identifier for the test", default=default_label
+    )
     add(parser)
 
     if accept_unknown:

@@ -134,7 +134,7 @@ On a machine without SGX, you can instead use:
 .. code-block:: bash
 
     $ cd CCF/getting_started/setup_vm
-    $ ./setup_nosgx.sh
+    $ ./setup_nodriver.sh
 
 .. _OpenEnclave: https://github.com/openenclave/openenclave
 .. _mbedtls: https://tls.mbed.org/

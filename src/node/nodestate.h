@@ -283,14 +283,10 @@ namespace ccf
       auto frontend = handler.value();
 
       enclave::RPCContext ctx(
-        enclave::InvalidSessionId, node_cert, ccf::ActorsType::nodes);
+        enclave::InvalidSessionId, node_cert, ccf::ActorsType::members);
       ctx.is_create_request = true;
 
-#ifdef PBFT
-      frontend->process_pbft(ctx, packed);
-#else
       frontend->process(ctx, packed);
-#endif
     }
 
     bool create_and_send_request(
@@ -367,8 +363,7 @@ namespace ccf
         case StartType::Join:
         {
           // Generate fresh key to encrypt/decrypt historical network secrets
-          // sent
-          // by the primary via the kv store
+          // sent by the primary via the kv store
           raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
 
           sm.advance(State::pending);

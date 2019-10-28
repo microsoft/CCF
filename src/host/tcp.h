@@ -78,7 +78,7 @@ namespace asynchost
     TCPImpl() : status(FRESH)
     {
       if (!init())
-        throw std::logic_error("uv_tcp_init failed");
+        throw std::logic_error("uv tcp initialization failed");
 
       uv_handle.data = this;
     }
@@ -187,6 +187,12 @@ namespace asynchost
       if ((rc = uv_tcp_init(uv_default_loop(), &uv_handle)) < 0)
       {
         LOG_FAIL_FMT("uv_tcp_init failed: {}", uv_strerror(rc));
+        return false;
+      }
+
+      if ((rc = uv_tcp_keepalive(&uv_handle, 1, 30)) < 0)
+      {
+        LOG_FAIL_FMT("uv_tcp_keepalive failed: {}", uv_strerror(rc));
         return false;
       }
 
