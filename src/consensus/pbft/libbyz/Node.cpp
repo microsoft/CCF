@@ -29,6 +29,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "Pre_prepare.h"
+#include "Request.h"
+
 #ifndef NDEBUG
 #  define NDEBUG
 #endif
@@ -228,7 +231,17 @@ void Node::send(Message* m, Principal* p)
       throw std::logic_error("Network not set");
     }
 
+    if (m->tag() != Status_tag) {
+      uint64_t seqno = 0;
+      if (m->tag() == Pre_prepare_tag) {
+        seqno = ((Pre_prepare*)m)->rep().seqno;
+      } else if (m->tag() == Request_tag) {
+        seqno = ((Request*)m)->digest().hash();
+      }
+      LOG_INFO << "AAAA sending msg:" << m->tag() << ", to:" << p->pid() << ", seqno:" << seqno << std::endl;
+    }
     error = network->Send(m, *p);
+
 
     STOP_CC(sendto_cycles);
 #ifndef NDEBUG
@@ -348,13 +361,16 @@ void Node::resend_new_key()
 
 void Node::send_to_replicas(Message* m)
 {
-  LOG_TRACE << "replica_count:" << replica_count
-            << ", num_replicas:" << num_replicas << " m:" << m->tag()
-            << std::endl;
+  if (m->tag() != Status_tag) {
+    LOG_INFO << "replica_count:" << replica_count
+              << ", num_replicas:" << num_replicas << " m:" << m->tag()
+              << ", send only to self:" << (send_only_to_self ? "true" : "false")
+              << std::endl;
+  }
 
   if (send_only_to_self && m->tag() != Status_tag)
   {
-    LOG_TRACE << "Only sending to self" << std::endl;
+    LOG_INFO << "Only sending to self" << std::endl;
     send(m, node_id);
   }
   else
@@ -368,6 +384,9 @@ void Node::send_to_replicas(Message* m)
       }
     }
   }
+  if (m->tag() != Status_tag) {
+    LOG_INFO << "Done sending" << std::endl;
+  }
 }
 
 void Node::set_f(ccf::NodeId f)
@@ -375,4 +394,5 @@ void Node::set_f(ccf::NodeId f)
   LOG_INFO << "***** setting f to " << f << "*****" << std::endl;
   max_faulty = f;
   send_only_to_self = (f == 0);
+  threshold = num_replicas - max_faulty;
 }

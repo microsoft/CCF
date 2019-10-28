@@ -159,7 +159,6 @@ Replica::Replica(
   recovering = false;
   qs = 0;
   rr = 0;
-  rr_views = new View[num_replicas];
   recovery_point = Seqno_max;
   max_rec_n = 0;
 
@@ -201,8 +200,6 @@ void Replica::compute_non_det(Seqno s, char* b, int* b_len)
 
 Replica::~Replica()
 {
-  delete[] rr_views;
-  delete ntimer;
   delete vtimer;
 #ifdef PROACTIVE_RECOVERY
   delete rtimer;
@@ -533,8 +530,9 @@ void Replica::handle(Request* m)
 
   if (has_complete_new_view() && verified)
   {
-    LOG_TRACE << "Received request with rid: " << m->request_id()
-              << " with cid: " << m->client_id() << std::endl;
+    LOG_INFO << "Received request with rid: " << m->request_id()
+             << " with cid: " << m->client_id()
+             << ", digest:" << m->digest().hash() << std::endl;
 #if 0
     // TODO: Fix execution of read-only requests
     if (ro)
@@ -645,8 +643,8 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       // TODO: should make code match my proof with request removed
       // only when executed rather than removing them from rqueue when the
       // pre-prepare is constructed.
-      LOG_DEBUG << "adding to plog from pre prepare: " << next_pp_seqno
-                << std::endl;
+      LOG_INFO << "adding to plog from pre prepare: " << next_pp_seqno
+               << std::endl;
       pp->set_merkle_root_and_ctx(info.merkle_root, info.ctx);
       pp->set_digest();
       plog.fetch(next_pp_seqno).add_mine(pp);
@@ -775,6 +773,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
     if (pc.my_prepare() == 0 && pc.is_pp_complete())
     {
+       bool send_only_to_self = (f() == 0);
       // Send prepare to all replicas and log it.
       Pre_prepare* pp = pc.pre_prepare();
       ByzInfo info;
@@ -803,15 +802,17 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       }
 
       Prepare* p = new Prepare(v, pp->seqno(), pp->digest());
-      send(p, All_replicas);
+      int send_node_id = (send_only_to_self ? node_id : All_replicas );
+      send(p, send_node_id);
       pc.add_mine(p);
       LOG_DEBUG << "added to pc in prepare: " << pp->seqno() << std::endl;
 
       if (pc.is_complete())
       {
-        LOG_TRACE << "pc is complete for seqno: " << seqno
-                  << " and sending commit" << std::endl;
-        send_commit(seqno);
+        LOG_INFO << "pc is complete for seqno: " << seqno
+                  << " and sending commit"
+                  << ", send_only_to_self:" << (send_only_to_self ? "true" : "false") << std::endl;
+        send_commit(seqno, send_only_to_self);
       }
       seqno++;
     }
@@ -822,7 +823,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
   }
 }
 
-void Replica::send_commit(Seqno s)
+void Replica::send_commit(Seqno s, bool send_only_to_self)
 {
   // Executing request before sending commit improves performance
   // for null requests. May not be true in general.
@@ -832,7 +833,8 @@ void Replica::send_commit(Seqno s)
   }
 
   Commit* c = new Commit(view(), s);
-  send(c, All_replicas);
+  int send_node_id = (send_only_to_self ? node_id : All_replicas );
+  send(c, send_node_id);
 
   if (s > last_prepared)
   {
@@ -2650,10 +2652,6 @@ void Replica::recover()
   delete rr;
   rr = 0;
   recovery_point = Seqno_max;
-  for (int i = 0; i < num_replicas; i++)
-  {
-    rr_views[i] = 0;
-  }
 
   // Change my incoming session keys and zero client's keys.
   START_CC(nk_time);
@@ -2889,6 +2887,7 @@ void Replica::vtimer_handler(void* owner)
     {
       LOG_INFO << "View change timer expired first rid: "
                << replica->rqueue.first()->request_id()
+               << ", digest" << replica->rqueue.first()->digest().hash()
                << " first cid: " << replica->rqueue.first()->client_id()
                << std::endl;
     }

@@ -214,6 +214,8 @@ inline int Certificate<T>::num_correct() const
 template <class T>
 inline bool Certificate<T>::is_complete() const
 {
+  LOG_INFO << "num_correct:" << num_correct() << ", complete:" << complete
+           << std::endl;
   return num_correct() >= complete;
 }
 
@@ -307,15 +309,20 @@ bool Certificate<T>::add(T* m)
     return true;
   }
 
+  LOG_INFO << "PPPPP" << std::endl;
+
   if (node->is_replica(id) && !bmap.test(id))
   {
+  LOG_INFO << "PPPPP" << std::endl;
     // "m" was sent by a replica that does not have a message in
     // the certificate
-    if ((c == 0 || (c->count < complete && c->m->match(m))) && m->verify())
+    if ((c == 0 || (c->count < complete && c->m->match(m))) /*&& m->verify()*/)
     {
+      /*
       // add "m" to the certificate
       PBFT_ASSERT(
         id != node->id(), "verify should return false for messages from self");
+      */
 
       bmap.set(id);
       if (c)

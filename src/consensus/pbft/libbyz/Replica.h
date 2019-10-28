@@ -219,7 +219,7 @@ private:
   // If ByzInfo is provided there is no need to execute since execution has
   // already happened and relative information resides in info
 
-  void send_commit(Seqno s);
+  void send_commit(Seqno s, bool send_only_to_self = false);
 
   void send_null();
   // Send a pre-prepare with a null request if the system is idle
@@ -445,7 +445,6 @@ private:
   Request* rr; // Outstanding recovery request or null if
                // there is no outstanding recovery request.
   Certificate<Reply> rr_reps; // Certificate with replies to recovery request.
-  View* rr_views; // Views in recovery replies.
 
   Seqno recovery_point; // Seqno_max if not known
   Seqno max_rec_n; // Maximum sequence number of a recovery request in state.
