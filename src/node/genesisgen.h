@@ -124,6 +124,12 @@ namespace ccf
       service_view->put(0, {version, network_cert, ServiceStatus::OPENING});
     }
 
+    bool is_service_created()
+    {
+      auto service_view = tx.get_view(tables.service);
+      return service_view->get(0).has_value();
+    }
+
     // TODO: This function is very similar to open_network() in nodestate.h
     // Change this as part of https://github.com/microsoft/CCF/issues/320 so
     // that this class can either take an existing Store::Tx or create a new

@@ -49,9 +49,6 @@ namespace ccf
       DoNotForward
     };
 
-  protected:
-    Store& tables;
-
   private:
     using HandleFunction =
       std::function<std::pair<bool, nlohmann::json>(RequestArgs& args)>;
@@ -59,6 +56,118 @@ namespace ccf
     using MinimalHandleFunction = std::function<std::pair<bool, nlohmann::json>(
       Store::Tx& tx, const nlohmann::json& params)>;
 
+  protected:
+    Store& tables;
+
+    void disable_request_storing()
+    {
+      request_storing_disabled = true;
+    }
+
+    /** Install HandleFunction for method name
+     *
+     * If an implementation is already installed for that method, it will be
+     * replaced.
+     *
+     * @param method Method name
+     * @param f Method implementation
+     * @param rw Flag if method will Read, Write, MayWrite
+     * @param params_schema JSON schema for params object in requests
+     * @param result_schema JSON schema for result object in responses
+     * @param forwardable Allow method to be forwarded to primary
+     */
+    void install(
+      const std::string& method,
+      HandleFunction f,
+      ReadWrite rw,
+      const nlohmann::json& params_schema = nlohmann::json::object(),
+      const nlohmann::json& result_schema = nlohmann::json::object(),
+      Forwardable forwardable = Forwardable::CanForward)
+    {
+      handlers[method] = {f, rw, params_schema, result_schema, forwardable};
+    }
+
+    void install(
+      const std::string& method,
+      HandleFunction f,
+      ReadWrite rw,
+      Forwardable forwardable)
+    {
+      install(
+        method,
+        f,
+        rw,
+        nlohmann::json::object(),
+        nlohmann::json::object(),
+        forwardable);
+    }
+
+    /** Install MinimalHandleFunction for method name
+     *
+     * For simple app methods which require minimal arguments, this creates a
+     * wrapper to reduce handler complexity and repetition.
+     *
+     * @param method Method name
+     * @param f Method implementation
+     */
+    template <typename... Ts>
+    void install(const std::string& method, MinimalHandleFunction f, Ts&&... ts)
+    {
+      install(
+        method,
+        [f](RequestArgs& args) { return f(args.tx, args.params); },
+        std::forward<Ts>(ts)...);
+    }
+
+    template <typename In, typename Out, typename F>
+    void install_with_auto_schema(
+      const std::string& method,
+      F&& f,
+      ReadWrite rw,
+      Forwardable forwardable = Forwardable::CanForward)
+    {
+      auto params_schema = nlohmann::json::object();
+      if constexpr (!std::is_same_v<In, void>)
+      {
+        params_schema = ds::json::build_schema<In>(method + "/params");
+      }
+
+      auto result_schema = nlohmann::json::object();
+      if constexpr (!std::is_same_v<Out, void>)
+      {
+        result_schema = ds::json::build_schema<Out>(method + "/result");
+      }
+
+      install(
+        method,
+        std::forward<F>(f),
+        rw,
+        params_schema,
+        result_schema,
+        forwardable);
+    }
+
+    template <typename T, typename... Ts>
+    void install_with_auto_schema(const std::string& method, Ts&&... ts)
+    {
+      install_with_auto_schema<typename T::In, typename T::Out>(
+        method, std::forward<Ts>(ts)...);
+    }
+
+    /** Set a default HandleFunction
+     *
+     * The default HandleFunction is only invoked if no specific HandleFunction
+     * was found.
+     *
+     * @param f Method implementation
+     * @param rw Flag if method will Read, Write, MayWrite
+     */
+    void set_default(HandleFunction f, ReadWrite rw)
+    {
+      default_handler = {f, rw};
+    }
+
+  private:
     // TODO: replace with an lru map
     std::map<CallerId, tls::VerifierPtr> verifiers;
 
@@ -386,11 +495,6 @@ namespace ccf
         GeneralProcs::GET_SCHEMA, get_schema, Read);
     }
 
-    void disable_request_storing()
-    {
-      request_storing_disabled = true;
-    }
-
     void set_sig_intervals(size_t sig_max_tx_, size_t sig_max_ms_) override
     {
       sig_max_tx = sig_max_tx_;
@@ -402,109 +506,6 @@ namespace ccf
       std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder_) override
     {
       cmd_forwarder = cmd_forwarder_;
-    }
-
-    /** Install HandleFunction for method name
-     *
-     * If an implementation is already installed for that method, it will be
-     * replaced.
-     *
-     * @param method Method name
-     * @param f Method implementation
-     * @param rw Flag if method will Read, Write, MayWrite
-     * @param params_schema JSON schema for params object in requests
-     * @param result_schema JSON schema for result object in responses
-     * @param forwardable Allow method to be forwarded to primary
-     */
-    void install(
-      const std::string& method,
-      HandleFunction f,
-      ReadWrite rw,
-      const nlohmann::json& params_schema = nlohmann::json::object(),
-      const nlohmann::json& result_schema = nlohmann::json::object(),
-      Forwardable forwardable = Forwardable::CanForward)
-    {
-      handlers[method] = {f, rw, params_schema, result_schema, forwardable};
-    }
-
-    void install(
-      const std::string& method,
-      HandleFunction f,
-      ReadWrite rw,
-      Forwardable forwardable)
-    {
-      install(
-        method,
-        f,
-        rw,
-        nlohmann::json::object(),
-        nlohmann::json::object(),
-        forwardable);
-    }
-
-    /** Install MinimalHandleFunction for method name
-     *
-     * For simple app methods which require minimal arguments, this creates a
-     * wrapper to reduce handler complexity and repetition.
-     *
-     * @param method Method name
-     * @param f Method implementation
-     */
-    template <typename... Ts>
-    void install(const std::string& method, MinimalHandleFunction f, Ts&&... ts)
-    {
-      install(
-        method,
-        [f](RequestArgs& args) { return f(args.tx, args.params); },
-        std::forward<Ts>(ts)...);
-    }
-
-    template <typename In, typename Out, typename F>
-    void install_with_auto_schema(
-      const std::string& method,
-      F&& f,
-      ReadWrite rw,
-      Forwardable forwardable = Forwardable::CanForward)
-    {
-      auto params_schema = nlohmann::json::object();
-      if constexpr (!std::is_same_v<In, void>)
-      {
-        params_schema = ds::json::build_schema<In>(method + "/params");
-      }
-
-      auto result_schema = nlohmann::json::object();
-      if constexpr (!std::is_same_v<Out, void>)
-      {
-        result_schema = ds::json::build_schema<Out>(method + "/result");
-      }
-
-      install(
-        method,
-        std::forward<F>(f),
-        rw,
-        params_schema,
-        result_schema,
-        forwardable);
-    }
-
-    template <typename T, typename... Ts>
-    void install_with_auto_schema(const std::string& method, Ts&&... ts)
-    {
-      install_with_auto_schema<typename T::In, typename T::Out>(
-        method, std::forward<Ts>(ts)...);
-    }
-
-    /** Set a default HandleFunction
-     *
-     * The default HandleFunction is only invoked if no specific HandleFunction
-     * was found.
-     *
-     * @param f Method implementation
-     * @param rw Flag if method will Read, Write, MayWrite
-     */
-    void set_default(HandleFunction f, ReadWrite rw)
-    {
-      default_handler = {f, rw};
     }
 
     /** Process a serialised command with the associated RPC context

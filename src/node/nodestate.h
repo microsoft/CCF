@@ -362,8 +362,7 @@ namespace ccf
         case StartType::Join:
         {
           // Generate fresh key to encrypt/decrypt historical network secrets
-          // sent
-          // by the primary via the kv store
+          // sent by the primary via the kv store
           raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
 
           sm.advance(State::pending);

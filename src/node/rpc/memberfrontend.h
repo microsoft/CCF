@@ -402,11 +402,22 @@ namespace ccf
 
         return jsonrpc::success(complete_proposal(args.tx, vote.id));
       };
+      install_with_auto_schema<Vote, bool>(MemberProcs::VOTE, vote, Write);
 
       auto create = [this](RequestArgs& args) {
         const auto in = args.params.get<CreateNetworkNodeToNode::In>();
 
         GenesisGenerator g(this->network, args.tx);
+
+        // This endpoint can only be called once, directly from the starting
+        // node for the genesis transaction to initialise the service
+        if (g.is_service_created())
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            "Service is already created");
+        }
+
         g.init_values();
         for (auto& cert : in.member_cert)
         {
@@ -446,10 +457,7 @@ namespace ccf
 
         return jsonrpc::success(true);
       };
-
       install(MemberProcs::CREATE, create, Write);
-
-      install_with_auto_schema<Vote, bool>(MemberProcs::VOTE, vote, Write);
 
       auto complete = [this](RequestArgs& args) {
         if (!check_member_active(args.tx, args.caller_id))
