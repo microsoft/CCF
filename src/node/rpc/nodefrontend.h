@@ -82,6 +82,9 @@ namespace ccf
       }
 
 #ifdef GET_QUOTE
+      // TODO: https://github.com/microsoft/CCF/issues/480
+      // Verifying the joining node's quote takes a significant amount of time
+      // as of OE v0.7.0 (about 2 secs).
       QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
         tx, this->network, in.quote, caller_pem_raw);
 
