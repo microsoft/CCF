@@ -383,7 +383,6 @@ namespace raft
       {
         if (timeout_elapsed >= request_timeout)
         {
-          LOG_INFO_FMT("periodic");
           using namespace std::chrono_literals;
           timeout_elapsed = 0ms;
 
@@ -454,7 +453,7 @@ namespace raft
       const auto prev_term = get_term_internal(prev_idx);
       const auto term_of_idx = get_term_internal(end_idx);
 
-      LOG_INFO_FMT(
+      LOG_DEBUG_FMT(
         "Send append entries from {} to {}: {} to {} ({})",
         local_id,
         to,
@@ -925,7 +924,6 @@ namespace raft
       // Randomise timeout_elapsed to get an election timeout that is
       // effectively between zero and double the configured election timeout.
       timeout_elapsed = std::chrono::milliseconds(distrib(rand));
-      LOG_INFO_FMT("timeout_elasped restarted {}", timeout_elapsed.count());
     }
 
     void become_candidate()

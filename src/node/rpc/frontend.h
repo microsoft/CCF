@@ -650,7 +650,6 @@ namespace ccf
             return {};
           }
         }
-
         return jsonrpc::pack(
           jsonrpc::error_response(
             0,
