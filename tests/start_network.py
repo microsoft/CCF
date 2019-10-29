@@ -4,15 +4,23 @@ import e2e_args
 import infra.ccf
 import infra.proc
 import time
+import sys
 
 from loguru import logger as LOG
 
 
 def run(args):
     hosts = args.node or ["localhost"] * 3
-    LOG.info("Starting {} CCF nodes...".format(len(hosts)))
-    if args.quiet:
+
+    if not args.verbose:
+        LOG.remove()
+        LOG.add(
+            sys.stdout,
+            format="<green>[{time:YYYY-MM-DD HH:mm:ss.SSS}]</green> {message}",
+        )
         LOG.disable("infra")
+
+    LOG.info("Starting {} CCF nodes...".format(len(hosts)))
 
     with infra.ccf.network(hosts, args.build_dir, args.debug_nodes) as network:
         primary, backups = network.start_and_join(args)
@@ -62,9 +70,9 @@ if __name__ == "__main__":
             required=True,
         )
         parser.add_argument(
-            "-q",
-            "--quiet",
-            help="If set, start up logs are not displayed",
+            "-v",
+            "--verbose",
+            help="If set, start up logs are displayed",
             action="store_true",
             default=False,
         )

@@ -18,4 +18,4 @@ source env/bin/activate
 pip install -q -U -r ../tests/requirements.txt
 echo "Python environment successfully setup"
 
-python ../tests/start_network.py --package "$1" --quiet
+python ../tests/start_network.py --package "$1"

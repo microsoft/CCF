@@ -1,6 +1,8 @@
 Issuing Commands
 ================
 
+Clients communicate with CCF using framed :term:`JSON-RPC` over :term:`TLS`.
+
 Users can issue business transactions to CCF using the ``client`` command-line utility built with CCF. For example, to record a message at a specific id with the :ref:`Example App`:
 
 .. code-block:: bash
