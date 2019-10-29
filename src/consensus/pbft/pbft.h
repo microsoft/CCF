@@ -3,6 +3,11 @@
 #pragma once
 
 #include "consensus/ledgerenclave.h"
+#include "consensus/pbft/libbyz/Big_req_table.h"
+#include "consensus/pbft/libbyz/Client_proxy.h"
+#include "consensus/pbft/libbyz/libbyz.h"
+#include "consensus/pbft/libbyz/network.h"
+#include "consensus/pbft/libbyz/receive_message_base.h"
 #include "consensus/pbft/pbftconfig.h"
 #include "consensus/pbft/pbfttypes.h"
 #include "ds/logger.h"
@@ -10,11 +15,6 @@
 #include "enclave/rpcsessions.h"
 #include "host/ledger.h"
 #include "kv/kvtypes.h"
-#include "libbyz/Big_req_table.h"
-#include "libbyz/Client_proxy.h"
-#include "libbyz/libbyz.h"
-#include "libbyz/network.h"
-#include "libbyz/receive_message_base.h"
 #include "node/nodetypes.h"
 #include "node/rpc/jsonrpc.h"
 

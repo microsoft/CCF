@@ -386,7 +386,8 @@ if(BUILD_TESTS)
     endif()
 
   else()
-    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/epbft.cmake)
+    message(STATUS "Using PBFT as consensus")
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
   endif()
 
   if (EXTENSIVE_TESTS)
