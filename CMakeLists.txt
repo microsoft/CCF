@@ -319,15 +319,19 @@ if(BUILD_TESTS)
           PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
         )
 
-        #add_e2e_test(
-        #  NAME code_update_test
-        #  PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-        #  ADDITIONAL_ARGS
-        #    --oesign ${OESIGN}
-        #    --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
-        #    --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
-        #    --election-timeout 1500
-        #)
+        add_e2e_test(
+         NAME code_update_test
+         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+         ADDITIONAL_ARGS
+           --oesign ${OESIGN}
+           --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+           --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+           # TODO: This test spins up many nodes that go through the join protocol
+           # Since oe_verify_report can take quite a long time to execute (~2s)
+           # and trigger Raft elections, the election timeout should stay high
+           # until https://github.com/microsoft/CCF/issues/480 is fixed
+           --election-timeout 5000
+        )
       endif()
 
       add_e2e_test(

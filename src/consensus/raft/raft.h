@@ -1116,6 +1116,7 @@ namespace raft
     void rollback(Index idx)
     {
       store->rollback(idx);
+      LOG_DEBUG_FMT("Rolled back at {}", idx);
 
       while (!committable_indices.empty() && (committable_indices.back() > idx))
       {

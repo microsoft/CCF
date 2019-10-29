@@ -53,7 +53,7 @@ If the version of the code being executed needs to be updated (for example, to s
         num_tcs=8
         mrenclave=3175971c02d00c1a8f9dd23ca89e64955c5caa94e24f4a3a0579dcfb2e6aebf9
 
-Once the proposal has been accepted, nodes running the new code are authorised join the network. Nodes running older versions of the code can then be retired and stopped.
+Once the proposal has been accepted, nodes running the new code are authorised to join the network. Nodes running older versions of the code can then be retired and stopped.
 
 .. note:: It is important to keep the code compatible with the previous version, since there will be a point in time in which the new code is running on at least one node, while the other version is running on a different node.
 

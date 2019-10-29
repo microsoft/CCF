@@ -45,13 +45,13 @@ def run(args):
     ) as network:
         primary, others = network.start_and_join(args)
 
-        LOG.debug("Adding a new node")
+        LOG.info("Adding a new node")
         new_node = network.create_and_trust_node(args.package, "localhost", args)
         assert new_node
 
         new_code_id = get_code_id(f"{args.patched_file_name}.so.signed")
 
-        LOG.debug(f"Adding a node with unsupported code id {new_code_id}")
+        LOG.info(f"Adding a node with unsupported code id {new_code_id}")
         assert (
             network.create_and_trust_node(args.patched_file_name, "localhost", args)
             == None
@@ -59,12 +59,14 @@ def run(args):
 
         add_new_code(network, new_code_id)
 
-        LOG.debug("Replacing all nodes with previous code version with new code")
         new_nodes = set()
         old_nodes_count = len(network.nodes)
+        new_nodes_count = old_nodes_count + 1
 
-        LOG.debug("Adding more new nodes than originally existed")
-        for _ in range(0, old_nodes_count + 1):
+        LOG.info(
+            f"Adding more new nodes ({new_nodes_count}) than originally existed ({old_nodes_count})"
+        )
+        for _ in range(0, new_nodes_count):
             new_node = network.create_and_trust_node(
                 args.patched_file_name, "localhost", args
             )
@@ -75,18 +77,19 @@ def run(args):
             new_primary = node
             break
 
-        LOG.debug("Stopping all original nodes")
+        LOG.info("Stopping all original nodes")
         old_nodes = set(network.nodes).difference(new_nodes)
         for node in old_nodes:
-            LOG.debug(f"Stopping node {node.node_id}")
+            LOG.debug(f"Stopping old node {node.node_id}")
             node.stop()
 
-        LOG.debug("Waiting for a new primary to be elected...")
+        LOG.info("Waiting for a new primary to be elected...")
         time.sleep(args.election_timeout * 6 / 1000)
 
         new_primary, _ = network.find_primary()
-        LOG.debug(f"Waited, new_primary is {new_primary.node_id}")
+        LOG.info(f"Waited, new_primary is {new_primary.node_id}")
 
+        LOG.info("Adding another node to the network")
         new_node = network.create_and_trust_node(
             args.patched_file_name, "localhost", args
         )
