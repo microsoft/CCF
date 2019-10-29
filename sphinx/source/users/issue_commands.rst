@@ -17,7 +17,7 @@ Users can issue business transactions to CCF using the ``client`` command-line u
       }
     }
 
-    $ client --pretty-print --rpc-address node_rpc_ip:node_rpc_port --ca networkcert.pem userrpc --req @request.json user_cert.pem --pk user_privk.pem
+    $ client --pretty-print --rpc-address node_rpc_ip:node_rpc_port --ca networkcert.pem userrpc --req @request.json --cert user_cert.pem --pk user_privk.pem
     Sending RPC to node_rpc_ip:node_rpc_port
     Doing user RPC:
     {
@@ -57,7 +57,7 @@ To guarantee that their request is successfully committed to the ledger, a user 
       }
    }
 
-    $ client --pretty-print --rpc-address node_rpc_ip:node_rpc_port --ca networkcert.pem userrpc --req @get_commit.json user_cert.pem --pk user_privk.pem
+    $ client --pretty-print --rpc-address node_rpc_ip:node_rpc_port --ca networkcert.pem userrpc --req @get_commit.json --cert user_cert.pem --pk user_privk.pem
     Sending RPC to node_rpc_ip:node_rpc_port
     Doing user RPC:
     {
