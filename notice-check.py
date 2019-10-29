@@ -82,7 +82,7 @@ def check_pbft():
     missing = []
     excluded = [] + submodules()
     for root, dirs, files in os.walk("src/consensus/pbft/libbyz") and os.walk(
-        "tests/infra/pbft"
+        "tests/infra/libbyz"
     ):
         for edir in excluded:
             if edir in dirs:
