@@ -1,5 +1,5 @@
-Deploy Application on CCF
-=========================
+Deploy an Application
+=====================
 
 The quickest way to deploy a CCF application is to use the `deploy_ccf.sh <https://github.com/microsoft/CCF/blob/master/deploy_ccf.sh>`_ script, specifying the :ref:`CCF application <Writing CCF Applications>` to run.
 
