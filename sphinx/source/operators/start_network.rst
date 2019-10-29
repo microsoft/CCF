@@ -28,6 +28,8 @@ To create a new CCF network, the first node of the network should be started wit
     [--member-cert /path/to/member2_cert ...]
     --gov-script /path/to/lua/governance_script
 
+.. note:: To start a CCF node in `virtual` mode, operators should run ``$ cchost.virtual --enclave-file /path/to/virtual_enclave_library ...``
+
 When starting up, the node generates its own key pair and outputs the certificate associated with its public key at the location specified by ``--node-cert-file``. A quote file, required for remote attestation, is also output at the location specified by ``--quote-file``. The certificate of the freshly-created CCF network is also output at the location specified by ``--network-cert-file``.
 
 .. note:: The network certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. For the ``client`` and ``memberclient`` utilities, ``--ca /path/to/network_certificate`` should always be specified.
