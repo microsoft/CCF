@@ -1072,6 +1072,11 @@ size_t Replica::f() const
 
 void Replica::set_f(ccf::NodeId f)
 {
+  if (max_faulty == 0 && f > 0)
+  {
+    rqueue.clear();
+  }
+
   Node::set_f(f);
 }
 
@@ -2905,7 +2910,7 @@ bool Replica::delay_vc()
 
 void Replica::start_vtimer_if_request_waiting()
 {
-  if (rqueue.size() > 0)
+  if (rqueue.size() > 0 && f() > 0)
   {
     Request* first = rqueue.first();
     cid_vtimer = first->client_id();
@@ -2920,7 +2925,6 @@ void Replica::start_vtimer_if_request_waiting()
 
 void Replica::vtimer_handler(void* owner)
 {
-  /*
   PBFT_ASSERT(replica, "replica is not initialized\n");
 
   if (!replica->delay_vc() && replica->f() > 0)
@@ -2940,7 +2944,6 @@ void Replica::vtimer_handler(void* owner)
   {
     replica->vtimer->restart();
   }
-  */
 }
 
 void Replica::stimer_handler(void* owner)
