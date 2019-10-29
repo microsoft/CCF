@@ -349,7 +349,7 @@ TEST_CASE("get_signed_req")
     std::vector<uint8_t> serialized_call =
       jsonrpc::pack(simple_call, jsonrpc::Pack::MsgPack);
 
-    frontend.process(rpc_ctx, serialized_call);
+    frontend.process(rpc_ctx, simple_call, serialized_call);
     auto signed_resp = get_signed_req(caller_id);
     CHECK(!signed_resp.has_value());
   }
@@ -359,7 +359,7 @@ TEST_CASE("get_signed_req")
     std::vector<uint8_t> serialized_call =
       jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
 
-    frontend.process(rpc_ctx, serialized_call);
+    frontend.process(rpc_ctx, signed_call, serialized_call);
     auto signed_resp = get_signed_req(caller_id);
     CHECK(signed_resp.has_value());
     auto value = signed_resp.value();
@@ -374,7 +374,7 @@ TEST_CASE("get_signed_req")
     std::vector<uint8_t> serialized_call =
       jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
 
-    frontend_nostore.process(rpc_ctx, serialized_call);
+    frontend_nostore.process(rpc_ctx, signed_call, serialized_call);
     auto signed_resp = get_signed_req(caller_id);
 
     CHECK(signed_resp.has_value());
@@ -388,7 +388,7 @@ TEST_CASE("get_signed_req")
     std::vector<uint8_t> serialized_call =
       jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
 
-    frontend.process(rpc_ctx, serialized_call);
+    frontend.process(rpc_ctx, signed_call, serialized_call);
     auto signed_resp = get_signed_req(inval_caller_id);
     CHECK(!signed_resp.has_value());
   }
@@ -438,7 +438,7 @@ TEST_CASE("process")
     std::vector<uint8_t> serialized_call =
       jsonrpc::pack(simple_call, jsonrpc::Pack::MsgPack);
     std::vector<uint8_t> serialized_response =
-      frontend.process(rpc_ctx, serialized_call);
+      frontend.process(rpc_ctx, simple_call, serialized_call);
     auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(response[jsonrpc::RESULT] == true);
@@ -450,7 +450,7 @@ TEST_CASE("process")
     std::vector<uint8_t> serialized_call =
       jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
     std::vector<uint8_t> serialized_response =
-      frontend.process(rpc_ctx, serialized_call);
+      frontend.process(rpc_ctx, signed_call, serialized_call);
     auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(response[jsonrpc::RESULT] == true);
@@ -462,7 +462,7 @@ TEST_CASE("process")
     std::vector<uint8_t> serialized_call =
       jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
     std::vector<uint8_t> serialized_response =
-      frontend.process(invalid_rpc_ctx, serialized_call);
+      frontend.process(invalid_rpc_ctx, signed_call, serialized_call);
     auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(
@@ -485,7 +485,7 @@ TEST_CASE("User caller")
   SUBCASE("valid caller")
   {
     std::vector<uint8_t> serialized_response =
-      frontend.process(rpc_ctx, serialized_call);
+      frontend.process(rpc_ctx, simple_call, serialized_call);
     auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(response[jsonrpc::RESULT] == true);
@@ -493,7 +493,7 @@ TEST_CASE("User caller")
   SUBCASE("invalid caller")
   {
     std::vector<uint8_t> serialized_response =
-      frontend.process(member_rpc_ctx, serialized_call);
+      frontend.process(member_rpc_ctx, simple_call, serialized_call);
     auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(
@@ -514,7 +514,7 @@ TEST_CASE("Member caller")
   SUBCASE("valid caller")
   {
     std::vector<uint8_t> serialized_response =
-      frontend.process(member_rpc_ctx, serialized_call);
+      frontend.process(member_rpc_ctx, simple_call, serialized_call);
     auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(response[jsonrpc::RESULT] == true);
@@ -522,7 +522,7 @@ TEST_CASE("Member caller")
   SUBCASE("invalid caller")
   {
     std::vector<uint8_t> serialized_response =
-      frontend.process(rpc_ctx, serialized_call);
+      frontend.process(rpc_ctx, simple_call, serialized_call);
     auto response =
       jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
     CHECK(
@@ -542,7 +542,7 @@ TEST_CASE("No certs table")
   TestNoCertsFrontend frontend(*network.tables);
 
   std::vector<uint8_t> serialized_response =
-    frontend.process(rpc_ctx, serialized_call);
+    frontend.process(rpc_ctx, simple_call, serialized_call);
   auto response = jsonrpc::unpack(serialized_response, jsonrpc::Pack::MsgPack);
   CHECK(response[jsonrpc::RESULT] == true);
 }
@@ -560,7 +560,8 @@ TEST_CASE("Signed read requests can be executed on backup")
   auto serialized_signed_call =
     jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
   auto response = jsonrpc::unpack(
-    frontend.process(rpc_ctx, serialized_signed_call), jsonrpc::Pack::MsgPack);
+    frontend.process(rpc_ctx, signed_call, serialized_signed_call),
+    jsonrpc::Pack::MsgPack);
 
   CHECK(response[jsonrpc::RESULT] == true);
 }
@@ -591,7 +592,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(channel_stub->is_empty());
 
     auto response = jsonrpc::unpack(
-      user_frontend_backup.process(ctx, serialized_call),
+      user_frontend_backup.process(ctx, write_req, serialized_call),
       jsonrpc::Pack::MsgPack);
     REQUIRE(ctx.is_pending == false);
     REQUIRE(channel_stub->is_empty());
@@ -611,7 +612,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(channel_stub->is_empty());
 
     auto response = jsonrpc::unpack(
-      user_frontend_backup_read.process(ctx, serialized_call),
+      user_frontend_backup_read.process(ctx, write_req, serialized_call),
       jsonrpc::Pack::MsgPack);
     REQUIRE(ctx.is_pending == false);
     REQUIRE(channel_stub->is_empty());
@@ -624,7 +625,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     enclave::RPCContext ctx(enclave::InvalidSessionId, user_caller);
     REQUIRE(ctx.is_pending == false);
     REQUIRE(channel_stub->is_empty());
-    user_frontend_backup.process(ctx, serialized_call);
+    user_frontend_backup.process(ctx, write_req, serialized_call);
     REQUIRE(ctx.is_pending == true);
     REQUIRE(channel_stub->size() == 1);
 
@@ -660,7 +661,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     enclave::RPCContext ctx(enclave::InvalidSessionId, user_caller);
     REQUIRE(ctx.is_pending == false);
     REQUIRE(channel_stub->is_empty());
-    user_frontend_backup.process(ctx, serialized_call);
+    user_frontend_backup.process(ctx, write_req, serialized_call);
     REQUIRE(ctx.is_pending == true);
     REQUIRE(channel_stub->size() == 1);
 
@@ -692,7 +693,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     auto signed_call = create_signed_json();
     auto serialized_signed_call =
       jsonrpc::pack(signed_call, jsonrpc::Pack::MsgPack);
-    user_frontend_backup.process(ctx, serialized_signed_call);
+    user_frontend_backup.process(ctx, signed_call, serialized_signed_call);
     REQUIRE(ctx.is_pending == true);
     REQUIRE(channel_stub->size() == 1);
 
@@ -725,7 +726,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     enclave::RPCContext ctx(enclave::InvalidSessionId, {});
     REQUIRE(ctx.is_pending == false);
     REQUIRE(channel_stub->is_empty());
-    user_frontend_backup_no_forwarding.process(ctx, serialized_call);
+    user_frontend_backup_no_forwarding.process(ctx, write_req, serialized_call);
     REQUIRE(ctx.is_pending == false);
     REQUIRE(channel_stub->size() == 0);
   }
@@ -752,7 +753,7 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto serialized_call = jsonrpc::pack(write_req, jsonrpc::Pack::MsgPack);
 
   enclave::RPCContext ctx(enclave::InvalidSessionId, node_caller);
-  node_frontend_backup.process(ctx, serialized_call);
+  node_frontend_backup.process(ctx, write_req, serialized_call);
   REQUIRE(ctx.is_pending == true);
   REQUIRE(channel_stub->size() == 1);
 
@@ -792,7 +793,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto serialized_call = jsonrpc::pack(write_req, jsonrpc::Pack::MsgPack);
 
   enclave::RPCContext ctx(enclave::InvalidSessionId, user_caller);
-  user_frontend_backup.process(ctx, serialized_call);
+  user_frontend_backup.process(ctx, write_req, serialized_call);
   REQUIRE(ctx.is_pending == true);
   REQUIRE(channel_stub->size() == 1);
 
@@ -834,7 +835,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   auto serialized_call = jsonrpc::pack(write_req, jsonrpc::Pack::MsgPack);
 
   enclave::RPCContext ctx(enclave::InvalidSessionId, member_caller);
-  member_frontend_backup.process(ctx, serialized_call);
+  member_frontend_backup.process(ctx, write_req, serialized_call);
   REQUIRE(ctx.is_pending == true);
   REQUIRE(channel_stub->size() == 1);
 
@@ -864,7 +865,7 @@ TEST_CASE("App-defined errors")
       jsonrpc::pack(foo_call, jsonrpc::Pack::MsgPack);
 
     std::vector<uint8_t> serialized_foo_response =
-      frontend.process(rpc_ctx, serialized_foo);
+      frontend.process(rpc_ctx, foo_call, serialized_foo);
     auto foo_response =
       jsonrpc::unpack(serialized_foo_response, jsonrpc::Pack::MsgPack);
 
@@ -885,7 +886,7 @@ TEST_CASE("App-defined errors")
       jsonrpc::pack(bar_call, jsonrpc::Pack::MsgPack);
 
     std::vector<uint8_t> serialized_bar_response =
-      frontend.process(rpc_ctx, serialized_bar);
+      frontend.process(rpc_ctx, bar_call, serialized_bar);
     auto bar_response =
       jsonrpc::unpack(serialized_bar_response, jsonrpc::Pack::MsgPack);
 

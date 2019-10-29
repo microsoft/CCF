@@ -438,10 +438,11 @@ TEST_CASE("Add new members until there are 7, then reject")
 
     // check new_member id does not work before member is added
     enclave::RPCContext rpc_ctx(0, new_member.cert);
-    const auto read_next_member_id = mpack(create_json_req(
-      read_params<int>(ValueIds::NEXT_MEMBER_ID, Tables::VALUES), "read"));
+    const auto read_next_req = create_json_req(
+      read_params<int>(ValueIds::NEXT_MEMBER_ID, Tables::VALUES), "read");
+    const auto read_next_member_id = mpack(read_next_req);
     check_error(
-      munpack(frontend.process(rpc_ctx, read_next_member_id)),
+      munpack(frontend.process(rpc_ctx, read_next_req, read_next_member_id)),
       CCFErrorCodes::INVALID_CALLER_ID);
 
     // propose new member, as proposer
@@ -502,7 +503,8 @@ TEST_CASE("Add new members until there are 7, then reject")
         CHECK(r.result);
         // check that member with the new new_member cert can make rpc's now
         CHECK(
-          Response<int>(munpack(frontend.process(rpc_ctx, read_next_member_id)))
+          Response<int>(munpack(frontend.process(
+                          rpc_ctx, read_next_req, read_next_member_id)))
             .result == new_member.id + 1);
 
         // successful proposals are removed from the kv, so we can't confirm
@@ -514,7 +516,8 @@ TEST_CASE("Add new members until there are 7, then reject")
         CHECK(!r.result);
         // check that member with the new new_member cert can make rpc's now
         check_error(
-          munpack(frontend.process(rpc_ctx, read_next_member_id)),
+          munpack(
+            frontend.process(rpc_ctx, read_next_req, read_next_member_id)),
           CCFErrorCodes::INVALID_CALLER_ID);
 
         // re-read proposal, as second member
@@ -541,39 +544,45 @@ TEST_CASE("Add new members until there are 7, then reject")
       enclave::RPCContext rpc_ctx(0, new_member->cert);
 
       // (1) read ack entry
-      const auto read_nonce = mpack(create_json_req(
-        read_params(new_member->id, Tables::MEMBER_ACKS), "read"));
+      const auto read_nonce_req = create_json_req(
+        read_params(new_member->id, Tables::MEMBER_ACKS), "read");
+      const auto read_nonce = mpack(read_nonce_req);
       const Response<MemberAck> ack0 =
-        munpack(frontend.process(rpc_ctx, read_nonce));
+        munpack(frontend.process(rpc_ctx, read_nonce_req, read_nonce));
       // (2) ask for a fresher nonce
-      const auto freshen_nonce =
-        mpack(create_json_req(nullptr, "updateAckNonce"));
-      check_success(munpack(frontend.process(rpc_ctx, freshen_nonce)));
+      const auto freshen_nonce_req = create_json_req(nullptr, "updateAckNonce");
+      const auto freshen_nonce = mpack(freshen_nonce_req);
+      check_success(
+        munpack(frontend.process(rpc_ctx, freshen_nonce_req, freshen_nonce)));
       // (3) read ack entry again and check that the nonce has changed
       const Response<MemberAck> ack1 =
-        munpack(frontend.process(rpc_ctx, read_nonce));
+        munpack(frontend.process(rpc_ctx, read_nonce_req, read_nonce));
       CHECK(ack0.result.next_nonce != ack1.result.next_nonce);
       // (4) sign old nonce and send it
       const auto bad_sig =
         RawSignature{new_member->kp->sign(ack0.result.next_nonce)};
-      const auto send_bad_sig = mpack(create_json_req(bad_sig, "ack"));
+      const auto send_bad_sig_req = create_json_req(bad_sig, "ack");
+      const auto send_bad_sig = mpack(send_bad_sig_req);
       check_error(
-        munpack(frontend.process(rpc_ctx, send_bad_sig)),
+        munpack(frontend.process(rpc_ctx, send_bad_sig_req, send_bad_sig)),
         jsonrpc::StandardErrorCodes::INVALID_PARAMS);
       // (5) sign new nonce and send it
       const auto good_sig =
         RawSignature{new_member->kp->sign(ack1.result.next_nonce)};
-      const auto send_good_sig = mpack(create_json_req(good_sig, "ack"));
-      check_success(munpack(frontend.process(rpc_ctx, send_good_sig)));
+      const auto send_good_sig_req = create_json_req(good_sig, "ack");
+      const auto send_good_sig = mpack(send_good_sig_req);
+      check_success(
+        munpack(frontend.process(rpc_ctx, send_good_sig_req, send_good_sig)));
       // (6) read ack entry again and check that the signature matches
       const Response<MemberAck> ack2 =
-        munpack(frontend.process(rpc_ctx, read_nonce));
+        munpack(frontend.process(rpc_ctx, read_nonce_req, read_nonce));
       CHECK(ack2.result.sig == good_sig.sig);
       // (7) read own member status
-      const auto read_status = mpack(
-        create_json_req(read_params(new_member->id, Tables::MEMBERS), "read"));
+      const auto read_status_req =
+        create_json_req(read_params(new_member->id, Tables::MEMBERS), "read");
+      const auto read_status = mpack(read_status_req);
       const Response<MemberInfo> mi =
-        munpack(frontend.process(rpc_ctx, read_status));
+        munpack(frontend.process(rpc_ctx, read_status_req, read_status));
       CHECK(mi.result.status == MemberStatus::ACTIVE);
     }
   }

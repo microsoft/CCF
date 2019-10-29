@@ -512,11 +512,14 @@ namespace ccf
      * If an RPC that requires writing to the kv store is processed on a
      * backup, the serialised RPC is forwarded to the current network primary.
      *
+     * // TODO: Update these docs
      * @param ctx Context for this RPC
      * @param input Serialised JSON RPC
      */
     std::vector<uint8_t> process(
-      enclave::RPCContext& ctx, const nlohmann::json& rpc, const std::vector<uint8_t>& input) override
+      enclave::RPCContext& ctx,
+      const nlohmann::json& rpc,
+      const std::vector<uint8_t>& input) override
     {
       Store::Tx tx;
 

@@ -208,7 +208,7 @@ namespace ccf
       sm.advance(State::initialized);
     }
 
-    std::vector<uint8_t> serialize_create_request(
+    auto serialize_create_request(
       const CreateNew::In& args, std::vector<uint8_t>& quote)
     {
       jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> create_rpc;
@@ -238,10 +238,11 @@ namespace ccf
       sj["req"] = j;
       sj["sig"] = sig_contents;
 
-      return jsonrpc::pack(sj, jsonrpc::Pack::Text);
+      return std::make_pair(sj, jsonrpc::pack(sj, jsonrpc::Pack::Text));
     }
 
-    void send_create_request(std::vector<uint8_t>& packed)
+    void send_create_request(
+      const nlohmann::json& rpc, std::vector<uint8_t>& packed)
     {
       auto handler = this->rpc_map->find(ccf::ActorsType::members);
       if (!handler.has_value())
@@ -255,18 +256,18 @@ namespace ccf
       ctx.is_create_request = true;
 
 #ifdef PBFT
-      frontend->process_pbft(ctx, packed);
+      frontend->process_pbft(ctx, rpc, packed);
 #else
-      frontend->process(ctx, packed);
+      frontend->process(ctx, rpc, packed);
 #endif
     }
 
     bool create_and_send_request(
       const CreateNew::In& args, std::vector<uint8_t>& quote)
     {
-      auto rpc = serialize_create_request(args, quote);
+      auto [rpc, packed] = serialize_create_request(args, quote);
 
-      send_create_request(rpc);
+      send_create_request(rpc, packed);
 
       return true;
     }
