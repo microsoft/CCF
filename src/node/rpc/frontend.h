@@ -481,6 +481,8 @@ namespace ccf
       const nlohmann::json& rpc,
       const std::vector<uint8_t>& input) override
     {
+      update_consensus();
+
       Store::Tx tx;
 
       // TODO: This should be done by caller already
@@ -681,7 +683,8 @@ namespace ccf
       // if (history)
       //   history->add_response(reqid, rv);
 
-      return {jsonrpc::pack(rep.value(), ctx.pack.value()), merkle_root, version};
+      return {
+        jsonrpc::pack(rep.value(), ctx.pack.value()), merkle_root, version};
     }
 
     /** Process a serialised input forwarded from another node
@@ -701,6 +704,11 @@ namespace ccf
       {
         throw std::logic_error(
           "Processing forwarded command with unitialised forwarded context");
+      }
+
+      if (!ctx.pack.has_value())
+      {
+        ctx.pack = jsonrpc::detect_pack(input);
       }
 
       Store::Tx tx;
@@ -818,6 +826,7 @@ namespace ccf
       }
 
       update_history();
+      update_consensus();
 
 #ifndef PBFT
       bool is_primary = (consensus == nullptr) || consensus->is_primary() ||

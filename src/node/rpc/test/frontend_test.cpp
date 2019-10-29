@@ -585,8 +585,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   auto write_req = create_simple_json();
   auto serialized_call = jsonrpc::pack(write_req, jsonrpc::Pack::MsgPack);
 
-  INFO("Backup frontend without forwarder does not forward");
   {
+    INFO("Backup frontend without forwarder does not forward");
     enclave::RPCContext ctx(enclave::InvalidSessionId, user_caller);
     REQUIRE(ctx.is_pending == false);
     REQUIRE(channel_stub->is_empty());
@@ -604,8 +604,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
 
-  INFO("Read command is not forwarded to primary");
   {
+    INFO("Read command is not forwarded to primary");
     TestUserFrontend user_frontend_backup_read(*network.tables);
     enclave::RPCContext ctx(enclave::InvalidSessionId, user_caller);
     REQUIRE(ctx.is_pending == false);
@@ -620,8 +620,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     CHECK(response[jsonrpc::RESULT] == true);
   }
 
-  INFO("Write command on backup is forwarded to primary");
   {
+    INFO("Write command on backup is forwarded to primary");
     enclave::RPCContext ctx(enclave::InvalidSessionId, user_caller);
     REQUIRE(ctx.is_pending == false);
     REQUIRE(channel_stub->is_empty());
@@ -635,8 +635,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
         ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
         .value();
 
-    INFO("Invalid caller");
     {
+      INFO("Invalid caller");
       auto response = jsonrpc::unpack(
         user_frontend_primary.process_forwarded(fwd_ctx, forwarded_cmd),
         jsonrpc::Pack::MsgPack);
@@ -646,8 +646,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
           jsonrpc::CCFErrorCodes::INVALID_CALLER_ID));
     };
 
-    INFO("Valid caller");
     {
+      INFO("Valid caller");
       add_callers_primary_store();
       auto response = jsonrpc::unpack(
         user_frontend_primary.process_forwarded(fwd_ctx, forwarded_cmd),
@@ -656,8 +656,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     }
   }
 
-  INFO("Forwarding write command to a backup return TX_NOT_PRIMARY");
   {
+    INFO("Forwarding write command to a backup return TX_NOT_PRIMARY");
     enclave::RPCContext ctx(enclave::InvalidSessionId, user_caller);
     REQUIRE(ctx.is_pending == false);
     REQUIRE(channel_stub->is_empty());
@@ -683,8 +683,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
         jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY));
   }
 
-  INFO("Client signature on forwarded RPC is recorded by primary");
   {
+    INFO("Client signature on forwarded RPC is recorded by primary");
     enclave::RPCContext ctx(enclave::InvalidSessionId, user_caller);
     Store::Tx tx;
 
@@ -712,8 +712,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(SignedReq(client_sig.value()) == SignedReq(signed_call));
   }
 
-  INFO("Write command should not be forwarded if marked as non-forwardable");
   {
+    INFO("Write command should not be forwarded if marked as non-forwardable");
     TestNoForwardingFrontEnd user_frontend_backup_no_forwarding(
       *network.tables);
 
