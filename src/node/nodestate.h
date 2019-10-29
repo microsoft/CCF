@@ -256,7 +256,7 @@ namespace ccf
       ctx.is_create_request = true;
 
 #ifdef PBFT
-      frontend->process_pbft(ctx, rpc, packed);
+      frontend->process_pbft(ctx, packed);
 #else
       frontend->process(ctx, rpc, packed);
 #endif
