@@ -47,58 +47,65 @@ namespace enclave
       }
     }
 
-    std::string get_actor(const std::string& method)
+    auto split_actor_and_method(const std::string& actor_method)
     {
-      return method.substr(0, method.find_last_of('/'));
+      const auto split_point = actor_method.find_last_of('/');
+      const auto actor = actor_method.substr(0, split_point);
+      const auto method =
+        actor_method.substr(split_point + 1, actor_method.size());
+
+      // NB: If the string does not contain '/', then both actor and method will
+      // contain the entire string
+      return std::make_pair(actor, method);
     }
 
     bool handle_data(const std::vector<uint8_t>& data)
     {
       LOG_TRACE_FMT("Entered handle_data {} {}", data.size(), data.empty());
 
-      std::optional<jsonrpc::Pack> pack;
-      auto [success, rpc] = jsonrpc::unpack_rpc(data, pack);
+      RPCContext rpc_ctx(session_id, peer_cert());
+      auto [success, rpc] = jsonrpc::unpack_rpc(data, rpc_ctx.pack);
 
       if (!success)
       {
-        send(jsonrpc::pack(rpc, pack.value()));
+        send(jsonrpc::pack(rpc, rpc_ctx.value_or(jsonrpc::Pack::Text)));
         return true;
       }
       LOG_TRACE_FMT("Deserialised");
 
-      auto method = get_method(rpc);
-      if (!method.has_value())
+      auto prefixed_method = get_method(rpc);
+      if (!prefixed_method.has_value())
       {
         send(jsonrpc::pack(
           jsonrpc::error_response(
             rpc.value(jsonrpc::ID, 0),
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
             "No method specified"),
-          pack.value()));
+          rpc_ctx.value()));
         return true;
       }
       LOG_TRACE_FMT("Got method");
 
-      std::string actor_prefix = get_actor(method.value());
+      auto [actor_s, method] = split_actor_and_method(prefixed_method.value());
+      rpc_ctx.method = method;
 
-      auto actor = rpc_map->resolve(actor_prefix);
+      auto actor = rpc_map->resolve(actor_s);
       if (actor == ccf::ActorsType::unknown)
       {
         send(jsonrpc::pack(
           jsonrpc::error_response(
             rpc.value(jsonrpc::ID, 0),
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-            fmt::format("No such prefix: {}", actor_prefix)),
-          pack.value()));
+            fmt::format("No such prefix: {}", actor_s)),
+          rpc_ctx.value()));
         return true;
       }
+      rpc_ctx.actor = actor;
 
       auto search = rpc_map->find(actor);
       if (!search.has_value())
         return false;
 
-      RPCContext rpc_ctx(session_id, peer_cert(), actor);
-      rpc_ctx.pack = pack;
       auto rep = search.value()->process(rpc_ctx, rpc, data);
 
       if (rpc_ctx.is_pending)

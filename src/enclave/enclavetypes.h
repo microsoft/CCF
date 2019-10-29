@@ -18,58 +18,60 @@ namespace enclave
     //
     const size_t client_session_id = InvalidSessionId;
     std::vector<uint8_t> caller_cert;
-    // Actor type to dispatch to appropriate frontend
-    const ccf::ActorsType actor;
 
     //
     // Out parameters (changed during lifetime of context)
     //
     // If true, the RPC does not reply to the client synchronously
     bool is_pending = false;
+
+    // Packing format of original request, should be used to pack response
     std::optional<jsonrpc::Pack> pack = std::nullopt;
+
+    // Method indicating dispatch to specific handler
+    std::string method;
+
+    // Actor type to dispatch to appropriate frontend
+    ccf::ActorsType actor;
+
     // Request payload specific attributes
-    struct request
+    struct Request
     {
       uint64_t seq_no;
     };
-    struct request req;
+    struct Request req;
 
     bool is_create_request = false;
 
     //
     // Only set in the case of a forwarded RPC
     //
-    struct forwarded
+    struct Forwarded
     {
       // Initialised when forwarded context is created
       const size_t client_session_id;
       const ccf::CallerId caller_id;
 
-      forwarded(size_t client_session_id_, ccf::CallerId caller_id_) :
+      Forwarded(size_t client_session_id_, ccf::CallerId caller_id_) :
         client_session_id(client_session_id_),
         caller_id(caller_id_)
       {}
     };
-    std::optional<struct forwarded> fwd = std::nullopt;
+    std::optional<Forwarded> fwd = std::nullopt;
 
     // Constructor used for non-forwarded RPC
     RPCContext(
-      size_t client_session_id_,
-      const std::vector<uint8_t>& caller_cert_,
-      ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
+      size_t client_session_id_, const std::vector<uint8_t>& caller_cert_) :
       client_session_id(client_session_id_),
-      caller_cert(caller_cert_),
-      actor(actor_)
+      caller_cert(caller_cert_)
     {}
 
     // Constructor used for forwarded and PBFT RPC
     RPCContext(
       size_t fwd_session_id_,
       ccf::CallerId caller_id_,
-      ccf::ActorsType actor_ = ccf::ActorsType::unknown,
       const std::vector<uint8_t>& caller_cert_ = {}) :
-      fwd(std::make_optional<struct forwarded>(fwd_session_id_, caller_id_)),
-      actor(actor_),
+      fwd(std::make_optional<Forwarded>(fwd_session_id_, caller_id_)),
       caller_cert(caller_cert_)
     {}
   };
