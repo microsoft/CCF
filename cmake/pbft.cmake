@@ -175,19 +175,19 @@ if(${TARGET} STREQUAL "virtual")
   add_test(
     NAME test_UDP
     COMMAND
-      python3 ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/e2e_test.py --ip 127.0.0.1 --servers 4 --clients 2 --test-config ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/test_config --run-time 30
+      python3 ${CMAKE_SOURCE_DIR}/tests/infra/pbft/e2e_test.py --ip 127.0.0.1 --servers 4 --clients 2 --test-config ${CMAKE_SOURCE_DIR}/tests/infra/pbft/test_config --run-time 30
   )
 
   add_test(
     NAME test_client_proxy
     COMMAND
-      python3 ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/e2e_test.py --ip 127.0.0.1 --servers 4 --clients 0 --test-config ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/test_config --test-client-proxy
+      python3 ${CMAKE_SOURCE_DIR}/tests/infra/pbft/e2e_test.py --ip 127.0.0.1 --servers 4 --clients 0 --test-config ${CMAKE_SOURCE_DIR}/tests/infra/pbft/test_config --test-client-proxy
       --run-time 30
   )
 
   add_test(
     NAME test_UDP_with_delay
     COMMAND
-      python3 ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/e2e_test.py --ip 127.0.0.1 --servers 4 --clients 2 --test-config ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/test_config --with-delays
+      python3 ${CMAKE_SOURCE_DIR}/tests/infra/pbft/e2e_test.py --ip 127.0.0.1 --servers 4 --clients 2 --test-config ${CMAKE_SOURCE_DIR}/tests/infra/pbft/test_config --with-delays
   )
 endif()

@@ -81,7 +81,9 @@ def check_ccf():
 def check_pbft():
     missing = []
     excluded = [] + submodules()
-    for root, dirs, files in os.walk("src/consensus/pbft/libbyz"):
+    for root, dirs, files in os.walk("src/consensus/pbft/libbyz") and os.walk(
+        "tests/infra/pbft"
+    ):
         for edir in excluded:
             if edir in dirs:
                 dirs.remove(edir)
