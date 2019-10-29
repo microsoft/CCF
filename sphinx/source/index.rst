@@ -10,6 +10,7 @@ CCF documentation
     :caption: Contents:
 
     introduction
+    concepts
     quickstart/index.rst
     members/index.rst
     developers/index.rst

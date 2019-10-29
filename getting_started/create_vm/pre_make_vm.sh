@@ -14,7 +14,7 @@ if ! type az > /dev/null; then
 fi
 
 if ! type $OE_ENGINE_PATH/oe-engine > /dev/null; then
-    echo "Downloading oe-engine binary from the cloud..."
+    echo "Downloading oe-engine binary..."
     sudo wget "$OE_ENGINE_URL" -P "$OE_ENGINE_PATH"
     sudo chmod 755 "$OE_ENGINE_PATH"/oe-engine
     echo "oe-engine installed to ${OE_ENGINE_PATH}"

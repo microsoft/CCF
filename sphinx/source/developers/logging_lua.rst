@@ -1,7 +1,7 @@
 Logging (Lua)
 =============
 
-CCF comes with a generic application for running Lua scripts called *luageneric*, implemented in [CCF]/src/apps/luageneric/luageneric.cpp. At runtime, *luageneric* dispatches incoming RPCs to Lua scripts stored in the table *APP_SCRIPTS*. The RPC method name is used as the key, and if a script exists at this key it is called with the RPC arguments.
+CCF comes with a generic application for running Lua scripts called `luageneric`, implemented in `luageneric.cpp <https://github.com/microsoft/CCF/blob/master/src/apps/luageneric/luageneric.cpp>`_. At runtime, *luageneric* dispatches incoming RPCs to Lua scripts stored in the table *APP_SCRIPTS*. The RPC method name is used as the key, and if a script exists at this key it is called with the RPC arguments.
 
 The script at key ``__environment`` is special. If set, the corresponding script is invoked before any actual handler script to initialize the Lua environment.
 
@@ -73,11 +73,12 @@ The tables passed to a Lua handler in ``tables`` and ``gov_tables`` can be acces
 
 Running
 -------
-CCF must be started with *luageneric* as enclave file:
+
+:ref:`Operators should start the first CCF node <Starting the First Node>` with `luageneric` as enclave file:
 
 .. code-block:: bash
 
-    ./cchost --enclave-file libluageneric.signed.so [args]
+    cchost --enclave-file libluageneric.signed.so [args]
 
 Then, members should :ref:`register the Lua application <Registering the Lua Application>`.
 
