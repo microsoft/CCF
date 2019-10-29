@@ -16,24 +16,24 @@ PREFIXES_CCF = [
 ]
 PREFIXES_CCF.append("#!/bin/bash" + os.linesep + PREFIXES_CCF[-1])
 
-NOTICE_LINES_PBFT = [	
-    "Copyright (c) Microsoft Corporation.",	
-    "Copyright (c) 1999 Miguel Castro, Barbara Liskov.",	
-    "Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.",	
-    "Licensed under the MIT license.",	
-]	
+NOTICE_LINES_PBFT = [
+    "Copyright (c) Microsoft Corporation.",
+    "Copyright (c) 1999 Miguel Castro, Barbara Liskov.",
+    "Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.",
+    "Licensed under the MIT license.",
+]
 
-PREFIXES_PBFT = [	
-    os.linesep.join([prefix + " " + line for line in NOTICE_LINES_PBFT])	
-    for prefix in ["//", "--", "#"]	
-] + [	
-    os.linesep.join(	
-        [prefix + " " + line for line in [NOTICE_LINES_PBFT[0], NOTICE_LINES_PBFT[3]]]	
-    )	
-    for prefix in ["//", "--", "#"]	
-]	
+PREFIXES_PBFT = [
+    os.linesep.join([prefix + " " + line for line in NOTICE_LINES_PBFT])
+    for prefix in ["//", "--", "#"]
+] + [
+    os.linesep.join(
+        [prefix + " " + line for line in [NOTICE_LINES_PBFT[0], NOTICE_LINES_PBFT[3]]]
+    )
+    for prefix in ["//", "--", "#"]
+]
 
-PREFIXES_PBFT.append("#!/bin/bash" + os.linesep + PREFIXES_PBFT[-1])	
+PREFIXES_PBFT.append("#!/bin/bash" + os.linesep + PREFIXES_PBFT[-1])
 
 
 def has_notice(path, prefixes):
@@ -60,6 +60,7 @@ def submodules():
         if line
     ]
 
+
 def check_ccf():
     missing = []
     excluded = ["3rdparty", ".git", "libbyz", "build"] + submodules()
@@ -76,21 +77,23 @@ def check_ccf():
                     missing.append(path)
     return missing
 
+
 def check_pbft():
-    missing = []	
-    excluded = [] + submodules()	
-    for root, dirs, files in os.walk("src/pbft/libbyz"):	
-        for edir in excluded:	
-            if edir in dirs:	
-                dirs.remove(edir)	
-        for name in files:	
-            if name.startswith("."):	
-                continue	
-            if is_src(name):	
-                path = os.path.join(root, name)	
+    missing = []
+    excluded = [] + submodules()
+    for root, dirs, files in os.walk("src/consensus/pbft/libbyz"):
+        for edir in excluded:
+            if edir in dirs:
+                dirs.remove(edir)
+        for name in files:
+            if name.startswith("."):
+                continue
+            if is_src(name):
+                path = os.path.join(root, name)
                 if not has_notice(path, PREFIXES_PBFT):
-                    missing.append(path)	
+                    missing.append(path)
     return missing
+
 
 if __name__ == "__main__":
     missing = []
@@ -100,5 +103,3 @@ if __name__ == "__main__":
     for path in missing:
         print("Copyright notice missing from {}".format(path))
     sys.exit(len(missing))
-
-    

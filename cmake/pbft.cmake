@@ -110,7 +110,7 @@ if(${TARGET} STREQUAL "virtual")
   target_link_libraries(libcommontest.mock PRIVATE libcommontest)
   target_include_directories(libcommontest.mock PRIVATE
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz
-    ${CMAKE_SOURCE_DIR}/src/pbft/test
+    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test
     ${EVERCRYPT_INC}
   )
   target_compile_options(libcommontest.mock PRIVATE -stdlib=libc++)
@@ -118,7 +118,6 @@ if(${TARGET} STREQUAL "virtual")
   function(use_libbyz name)
 
     target_include_directories(${name} PRIVATE
-      ${CMAKE_SOURCE_DIR}/src/pbft/
       ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test
       ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz
       ${CMAKE_SOURCE_DIR}/src/pbft/crypto

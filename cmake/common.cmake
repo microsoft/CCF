@@ -386,11 +386,6 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       ${CMAKE_CURRENT_BINARY_DIR}
     )
     if (PBFT)
-      target_include_directories(${name} SYSTEM PRIVATE
-        ${CCF_DIR}/src/pbft/libbyz
-      )
-    endif()
-    if (PBFT)
       target_link_libraries(${name} PRIVATE
         -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
         libbyz.enclave
@@ -434,11 +429,6 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       ${OE_INCLUDE_DIR}
       ${CMAKE_CURRENT_BINARY_DIR}
     )
-    if (PBFT)
-      target_include_directories(${virt_name} SYSTEM PRIVATE
-        ${CCF_DIR}/src/pbft/libbyz
-      )
-    endif()
     if (PBFT)
       target_link_libraries(${virt_name} PRIVATE
         -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
