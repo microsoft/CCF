@@ -234,7 +234,7 @@ private:
   // "m" (provided it is really read-only and does not require
   // non-deterministic choices), and sends a reply to the client
 
-  void execute_committed();
+  void execute_committed(bool was_f_0 = false);
   // Effects: Executes as many commands as possible by calling
   // execute_prepared; sends Checkpoint messages when needed and
   // manipulates the wait timer.
@@ -281,7 +281,7 @@ private:
   // Effects: Returns non-zero iff there is a pre-prepare pp that prepared for
   // sequence number "s" (in this case it returns pp).
 
-  Pre_prepare* committed(Seqno s);
+  Pre_prepare* committed(Seqno s, bool was_f_0 = false);
   // Effects: Returns non-zero iff there is a pre-prepare pp that committed for
   // sequence number "s" (in this case it returns pp).
 

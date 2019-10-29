@@ -265,6 +265,7 @@ bool Big_req_table::add_request(Request* r, bool verified)
             PBFT_ASSERT(n > last_stable, "Invalid state");
             Prepared_cert& pc = replica->plog.fetch(n);
             pc.add(bre->rd, i);
+            LOG_INFO << "n:" << n << ", r->hash:" << r->digest().hash() << std::endl;
             replica->send_prepare(n);
           }
         }

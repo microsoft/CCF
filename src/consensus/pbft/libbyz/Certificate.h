@@ -97,6 +97,7 @@ public:
   // in this.
 
   bool is_complete() const;
+  void print() const;
   void make_complete();
   // Effects: If cvalue() is not null, makes the certificate
   // complete.
@@ -173,11 +174,12 @@ private:
   Message_val* c; // correct certificate value or 0 if unknown.
 
   int complete; // certificate is complete if "num_correct() >= complete"
+  int comp;
 
   T* mym; // my message in this or null if I have no message in this
   Time t_sent; // time at which mym was last sent
 
-  const ccf::NodeId f; // the value of f when starting to run
+  ccf::NodeId f; // the value of f when starting to run
 
   // The implementation assumes:
   // correct > 0 and complete > correct
@@ -214,9 +216,17 @@ inline int Certificate<T>::num_correct() const
 template <class T>
 inline bool Certificate<T>::is_complete() const
 {
-  LOG_INFO << "num_correct:" << num_correct() << ", complete:" << complete
-           << std::endl;
+  //LOG_INFO << "num_correct:" << num_correct() << ", complete:" << complete
+  //         << std::endl;
+  //PBFT_ASSERT(num_correct() < 11, "too high");
   return num_correct() >= complete;
+}
+
+template <class T>
+inline void Certificate<T>::print() const
+{
+  LOG_INFO << "printing cert -> num_correct:" << num_correct() << ", complete:" << complete
+           << std::endl;
 }
 
 template <class T>
@@ -273,12 +283,13 @@ inline bool Certificate<T>::Val_iter::get(T*& m, int& count)
 }
 
 template <class T>
-Certificate<T>::Certificate(int comp) : f(node->f())
+Certificate<T>::Certificate(int comp_) : f(node->f()), comp(comp_)
 {
   max_size = f + 1;
   vals = new Message_val[max_size];
   cur_size = 0;
   correct = f + 1;
+  //complete = (comp == 0) ? (2*f+1) : comp;
   complete = (comp == 0) ? node->num_correct_replicas() : comp;
   c = 0;
   mym = 0;
@@ -294,6 +305,15 @@ Certificate<T>::~Certificate()
 template <class T>
 bool Certificate<T>::add(T* m)
 {
+  if (bmap.none()) {
+    f = node->f();
+    max_size = f + 1;
+    vals = new Message_val[max_size];
+    cur_size = 0;
+    correct = f + 1;
+    complete = (comp == 0) ? node->num_correct_replicas() : comp;
+  }
+
   const int id = m->id();
 
   if (f == 0)
@@ -313,7 +333,7 @@ bool Certificate<T>::add(T* m)
 
   if (node->is_replica(id) && !bmap.test(id))
   {
-  LOG_INFO << "PPPPP" << std::endl;
+  LOG_INFO << "PPPPP, id:" << id << std::endl;
     // "m" was sent by a replica that does not have a message in
     // the certificate
     if ((c == 0 || (c->count < complete && c->m->match(m))) /*&& m->verify()*/)
@@ -397,6 +417,15 @@ bool Certificate<T>::add_mine(T* m)
 {
   PBFT_ASSERT(m->id() == node->id(), "Invalid argument");
   PBFT_ASSERT(m->full(), "Invalid argument");
+
+  if (bmap.none()) {
+    f = node->f();
+    max_size = f + 1;
+    vals = new Message_val[max_size];
+    cur_size = 0;
+    correct = f + 1;
+    complete = (comp == 0) ? node->num_correct_replicas() : comp;
+  }
 
   if (c != 0 && !c->m->match(m))
   {

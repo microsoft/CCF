@@ -31,6 +31,7 @@
 
 #include "Pre_prepare.h"
 #include "Request.h"
+#include "Commit.h"
 
 #ifndef NDEBUG
 #  define NDEBUG
@@ -232,11 +233,15 @@ void Node::send(Message* m, Principal* p)
     }
 
     if (m->tag() != Status_tag) {
-      uint64_t seqno = 0;
+      uint64_t seqno = 99999999;
       if (m->tag() == Pre_prepare_tag) {
         seqno = ((Pre_prepare*)m)->rep().seqno;
       } else if (m->tag() == Request_tag) {
         seqno = ((Request*)m)->digest().hash();
+      } else if (m->tag() == Prepare_tag) {
+        seqno = ((Prepare*)m)->seqno();
+      } else if (m->tag() == Commit_tag) {
+        seqno = ((Commit*)m)->seqno();
       }
       LOG_INFO << "AAAA sending msg:" << m->tag() << ", to:" << p->pid() << ", seqno:" << seqno << std::endl;
     }
@@ -394,5 +399,6 @@ void Node::set_f(ccf::NodeId f)
   LOG_INFO << "***** setting f to " << f << "*****" << std::endl;
   max_faulty = f;
   send_only_to_self = (f == 0);
-  threshold = num_replicas - max_faulty;
+  threshold = f * 2 + 1;
+  num_replicas = 3*f+1;
 }
