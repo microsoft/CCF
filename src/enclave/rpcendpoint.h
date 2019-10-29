@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../node/rpc/jsonrpc.h"
 #include "http.h"
+#include "node/rpc/jsonrpc.h"
 #include "rpcmap.h"
 #include "tlsframedendpoint.h"
 
@@ -35,28 +35,6 @@ namespace enclave
       session_id(session_id)
     {}
 
-    std::pair<bool, nlohmann::json> unpack_json(
-      const std::vector<uint8_t>& input, jsonrpc::Pack pack)
-    {
-      nlohmann::json rpc;
-      try
-      {
-        rpc = jsonrpc::unpack(input, pack);
-        if (!rpc.is_object())
-          return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-            fmt::format("RPC payload is a not a valid object: {}", rpc.dump()));
-      }
-      catch (const std::exception& e)
-      {
-        return jsonrpc::error(
-          jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-          fmt::format("Exception during unpack: {}", e.what()));
-      }
-
-      return {true, rpc};
-    }
-
     std::optional<std::string> get_method(const nlohmann::json& j)
     {
       if (j.find(jsonrpc::SIG) != j.end())
@@ -77,21 +55,11 @@ namespace enclave
     bool handle_data(const std::vector<uint8_t>& data)
     {
       LOG_TRACE_FMT("Entered handle_data {} {}", data.size(), data.empty());
-      auto pack = jsonrpc::detect_pack(data);
-      if (!pack.has_value())
-      {
-        LOG_TRACE_FMT("NO PACK");
-        send(jsonrpc::pack(
-          jsonrpc::error_response(
-            0, jsonrpc::StandardErrorCodes::INVALID_REQUEST, "Empty request."),
-          jsonrpc::Pack::Text));
-        return true;
-      }
 
-      LOG_TRACE_FMT("Detected");
-      auto [deserialised, rpc] = unpack_json(data, pack.value());
+      std::optional<jsonrpc::Pack> pack;
+      auto [success, rpc] = jsonrpc::unpack_rpc(data, pack);
 
-      if (!deserialised)
+      if (!success)
       {
         send(jsonrpc::pack(rpc, pack.value()));
         return true;

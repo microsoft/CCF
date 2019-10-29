@@ -105,30 +105,6 @@ namespace ccf
       history = tables.get_history().get();
     }
 
-    std::pair<bool, nlohmann::json> unpack_json(
-      const std::vector<uint8_t>& input, jsonrpc::Pack pack)
-    {
-      nlohmann::json rpc;
-      try
-      {
-        rpc = jsonrpc::unpack(input, pack);
-        if (!rpc.is_object())
-        {
-          return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-            fmt::format("RPC payload is a not a valid object: {}", rpc.dump()));
-        }
-      }
-      catch (const std::exception& e)
-      {
-        return jsonrpc::error(
-          jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-          fmt::format("Exception during unpack: {}", e.what()));
-      }
-
-      return {true, rpc};
-    }
-
     std::optional<CallerId> valid_caller(
       Store::Tx& tx, const std::vector<uint8_t>& caller)
     {
@@ -653,29 +629,17 @@ namespace ccf
       crypto::Sha256Hash merkle_root;
       kv::Version version = kv::NoVersion;
 
-      auto pack = jsonrpc::detect_pack(input);
-      if (!pack.has_value())
+      auto [success, rpc] = jsonrpc::unpack_rpc(input, ctx.pack);
+      if (!success)
       {
-        return {jsonrpc::pack(
-                  jsonrpc::error_response(
-                    0,
-                    jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-                    "Empty PBFT request."),
-                  jsonrpc::Pack::Text),
-                merkle_root};
-      }
-
-      auto rpc = unpack_json(input, pack.value());
-      if (!rpc.first)
-      {
-        return {jsonrpc::pack(rpc.second, pack.value()), merkle_root};
+        return {jsonrpc::pack(rpc, ctx.pack.value()), merkle_root};
       }
 
       update_consensus();
 
       // Strip signature
-      auto rpc_ = &rpc.second;
-      SignedReq signed_request(rpc.second);
+      auto rpc_ = &rpc;
+      SignedReq signed_request(rpc);
       if (rpc_->find(jsonrpc::SIG) != rpc_->end())
       {
         auto& req = rpc_->at(jsonrpc::REQ);
@@ -716,7 +680,7 @@ namespace ccf
       // if (history)
       //   history->add_response(reqid, rv);
 
-      return {jsonrpc::pack(rep.value(), pack.value()), merkle_root, version};
+      return {jsonrpc::pack(rep.value(), ctx.pack.value()), merkle_root, version};
     }
 
     /** Process a serialised input forwarded from another node
@@ -740,17 +704,6 @@ namespace ccf
 
       Store::Tx tx;
 
-      ctx.pack = jsonrpc::detect_pack(input);
-      if (!ctx.pack.has_value())
-      {
-        return jsonrpc::pack(
-          jsonrpc::error_response(
-            0,
-            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-            "Empty forwarded request."),
-          jsonrpc::Pack::Text);
-      }
-
       if constexpr (!std::is_same_v<CT, void>)
       {
         // For frontends with valid callers (user and member frontends), lookup
@@ -769,18 +722,18 @@ namespace ccf
         ctx.caller_cert = caller.value().cert;
       }
 
-      auto rpc = unpack_json(input, ctx.pack.value());
-      if (!rpc.first)
+      auto [success, rpc] = jsonrpc::unpack_rpc(input, ctx.pack);
+      if (!success)
       {
-        return jsonrpc::pack(rpc.second, ctx.pack.value());
+        return jsonrpc::pack(rpc, ctx.pack.value());
       }
 
       // Unwrap signed request if necessary and store client signature. It is
       // assumed that the forwarder node has already verified the client
       // signature.
       update_consensus();
-      auto rpc_ = &rpc.second;
-      SignedReq signed_request(rpc.second);
+      auto rpc_ = &rpc;
+      SignedReq signed_request(rpc);
 
       if (rpc_->find(jsonrpc::SIG) != rpc_->end())
       {

@@ -332,4 +332,38 @@ namespace jsonrpc
     j[ERR] = Error(error_code, msg);
     return j;
   }
+
+  inline std::pair<bool, nlohmann::json> unpack_rpc(
+    const std::vector<uint8_t>& input, std::optional<Pack>& o_pack)
+  {
+    const auto pack = detect_pack(input);
+    if (!pack.has_value())
+    {
+      return jsonrpc::error(
+        StandardErrorCodes::INVALID_REQUEST,
+        "Unable to detect packing format of request");
+    }
+
+    o_pack = pack;
+
+    nlohmann::json rpc;
+    try
+    {
+      rpc = unpack(input, pack.value());
+      if (!rpc.is_object())
+      {
+        return jsonrpc::error(
+          StandardErrorCodes::INVALID_REQUEST,
+          fmt::format("RPC payload is a not a valid object: {}", rpc.dump()));
+      }
+    }
+    catch (const std::exception& e)
+    {
+      return error(
+        StandardErrorCodes::INVALID_REQUEST,
+        fmt::format("Exception during unpack: {}", e.what()));
+    }
+
+    return {true, rpc};
+  }
 }
