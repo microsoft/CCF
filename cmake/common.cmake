@@ -387,7 +387,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
     )
     if (PBFT)
       target_include_directories(${name} SYSTEM PRIVATE
-        ${CCF_DIR}/src/epbft/
+        ${CCF_DIR}/src/pbft/libbyz
       )
     endif()
     if (PBFT)
@@ -436,7 +436,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
     )
     if (PBFT)
       target_include_directories(${virt_name} SYSTEM PRIVATE
-        ${CCF_DIR}/src/epbft/
+        ${CCF_DIR}/src/pbft/libbyz
       )
     endif()
     if (PBFT)

@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "consensus/pbft/libbyz/libbyz.h"
+#include "consensus/pbft/libbyz/pbft_assert.h"
 #include "enclave/rpcmap.h"
-#include "epbft/libbyz/libbyz.h"
-#include "epbft/libbyz/pbft_assert.h"
 #include "pbftdeps.h"
 
 namespace pbft

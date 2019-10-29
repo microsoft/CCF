@@ -2,12 +2,12 @@
 // Licensed under the MIT license.
 
 #pragma once
+#include "../network_impl.h"
 #include "ITimer.h"
 #include "Message.h"
 #include "Node.h"
 #include "assert.h"
 #include "ds/logger.h"
-#include "network_impl.h"
 
 #include <unordered_map>
 

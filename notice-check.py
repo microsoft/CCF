@@ -62,7 +62,7 @@ def submodules():
 
 def check_ccf():
     missing = []
-    excluded = ["3rdparty", ".git", "epbft", "build"] + submodules()
+    excluded = ["3rdparty", ".git", "libbyz", "build"] + submodules()
     for root, dirs, files in os.walk("."):
         for edir in excluded:
             if edir in dirs:
@@ -79,7 +79,7 @@ def check_ccf():
 def check_pbft():
     missing = []	
     excluded = [] + submodules()	
-    for root, dirs, files in os.walk("src/epbft"):	
+    for root, dirs, files in os.walk("src/pbft/libbyz"):	
         for edir in excluded:	
             if edir in dirs:	
                 dirs.remove(edir)	

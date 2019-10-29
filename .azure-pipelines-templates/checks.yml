@@ -15,13 +15,6 @@ jobs:
     - script: python3.7 notice-check.py
       displayName: 'Check CCF copyright notices'
 
-    - script: python3.7 notice-check.py
-      workingDirectory: ePBFT
-      displayName: 'Check ePBFT copyright notices'
-
-    - script: ./check-format.sh src samples ePBFT/src
-      displayName: 'Check C++ code format'
-
     - script: |
         python3.7 -m venv env
         source env/bin/activate
