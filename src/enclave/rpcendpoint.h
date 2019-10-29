@@ -35,17 +35,6 @@ namespace enclave
       session_id(session_id)
     {}
 
-    std::optional<jsonrpc::Pack> detect_pack(const std::vector<uint8_t>& input)
-    {
-      if (input.empty())
-        return std::nullopt;
-
-      if (input[0] == '{')
-        return jsonrpc::Pack::Text;
-      else
-        return jsonrpc::Pack::MsgPack;
-    }
-
     std::pair<bool, nlohmann::json> unpack_json(
       const std::vector<uint8_t>& input, jsonrpc::Pack pack)
     {
@@ -88,7 +77,7 @@ namespace enclave
     bool handle_data(const std::vector<uint8_t>& data)
     {
       LOG_TRACE_FMT("Entered handle_data {} {}", data.size(), data.empty());
-      auto pack = detect_pack(data);
+      auto pack = jsonrpc::detect_pack(data);
       if (!pack.has_value())
       {
         LOG_TRACE_FMT("NO PACK");
@@ -141,6 +130,7 @@ namespace enclave
         return false;
 
       RPCContext rpc_ctx(session_id, peer_cert(), actor);
+      rpc_ctx.pack = pack;
       auto rep = search.value()->process(rpc_ctx, rpc, data);
 
       if (rpc_ctx.is_pending)

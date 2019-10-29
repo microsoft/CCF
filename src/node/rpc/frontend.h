@@ -224,23 +224,6 @@ namespace ccf
       return true;
     }
 
-    std::optional<jsonrpc::Pack> detect_pack(const std::vector<uint8_t>& input)
-    {
-      if (input.size() == 0)
-      {
-        return {};
-      }
-
-      if (input[0] == '{')
-      {
-        return jsonrpc::Pack::Text;
-      }
-      else
-      {
-        return jsonrpc::Pack::MsgPack;
-      }
-    }
-
   public:
     RpcFrontend(Store& tables_) :
       RpcFrontend(tables_, nullptr, nullptr, nullptr)
@@ -523,6 +506,12 @@ namespace ccf
     {
       Store::Tx tx;
 
+      // TODO: This should be done by caller already
+      if (!ctx.pack.has_value())
+      {
+        ctx.pack = jsonrpc::detect_pack(input);
+      }
+
       // Retrieve id of caller
       std::optional<CallerId> caller_id;
       if (ctx.is_create_request)
@@ -664,7 +653,7 @@ namespace ccf
       crypto::Sha256Hash merkle_root;
       kv::Version version = kv::NoVersion;
 
-      auto pack = detect_pack(input);
+      auto pack = jsonrpc::detect_pack(input);
       if (!pack.has_value())
       {
         return {jsonrpc::pack(
@@ -751,7 +740,7 @@ namespace ccf
 
       Store::Tx tx;
 
-      ctx.pack = detect_pack(input);
+      ctx.pack = jsonrpc::detect_pack(input);
       if (!ctx.pack.has_value())
       {
         return jsonrpc::pack(

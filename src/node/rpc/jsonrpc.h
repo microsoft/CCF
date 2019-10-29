@@ -135,6 +135,24 @@ namespace jsonrpc
     throw std::logic_error("Invalid jsonrpc::Pack");
   }
 
+  inline std::optional<jsonrpc::Pack> detect_pack(
+    const std::vector<uint8_t>& input)
+  {
+    if (input.size() == 0)
+    {
+      return {};
+    }
+
+    if (input[0] == '{')
+    {
+      return jsonrpc::Pack::Text;
+    }
+    else
+    {
+      return jsonrpc::Pack::MsgPack;
+    }
+  }
+
   //
   // Requests
   //
