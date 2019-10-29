@@ -291,8 +291,8 @@ class FramedTLSJSONRPCClient:
     def disconnect(self):
         return self.client.disconnect()
 
-    def request(self, method, params):
-        r = self.stream.request(f"{self.prefix}/{method}", params)
+    def request(self, method, params, *args, **kwargs):
+        r = self.stream.request(f"{self.prefix}/{method}", params, *args, **kwargs)
         self.client.send(getattr(r, "to_{}".format(self.format))())
         description = ""
         if self.description:
