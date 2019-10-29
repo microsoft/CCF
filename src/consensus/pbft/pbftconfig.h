@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "enclave/rpcmap.h"
-#include "libbyz/libbyz.h"
-#include "libbyz/pbft_assert.h"
+#include "epbft/libbyz/libbyz.h"
+#include "epbft/libbyz/pbft_assert.h"
 #include "pbftdeps.h"
 
 namespace pbft
