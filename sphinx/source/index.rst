@@ -1,7 +1,7 @@
 CCF documentation
 =================
 
-.. image:: ccf.svg
+.. image:: img/ccf.svg
 
 .. include:: quickstart/index.rst
 
@@ -10,6 +10,7 @@ CCF documentation
     :caption: Contents:
 
     introduction
+    concepts
     quickstart/index.rst
     members/index.rst
     developers/index.rst

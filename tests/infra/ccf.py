@@ -347,9 +347,9 @@ class Network:
             new_node.stop()
             return None
 
+        new_node.network_state = NodeNetworkState.joined
         if should_wait:
             self.wait_for_all_nodes_to_catch_up(primary)
-        new_node.network_state = NodeNetworkState.joined
 
         return new_node
 

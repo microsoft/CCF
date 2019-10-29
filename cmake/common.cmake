@@ -88,6 +88,7 @@ option(COVERAGE "Enable coverage mapping" OFF)
 option(PBFT "Enable PBFT" OFF)
 if (PBFT)
   add_definitions(-DPBFT)
+  add_definitions(-DUSE_NULL_ENCRYPTOR) # for now do not encrypt the ledger as the current implementation does not work for PBFT
   set(PBFT_BUILD_ENCLAVE TRUE)
   set(PBFT_BUILD_HOST TRUE)
   set(PBFT_USE_LIBC TRUE)
@@ -337,23 +338,6 @@ include(${CCF_DIR}/cmake/secp256k1.cmake)
 
 find_package(CURL REQUIRED)
 
-## Build PBFT if used as consensus
-if (PBFT)
-  message(STATUS "Using PBFT as consensus")
-  set(SIGN_BATCH ON)
-  include(${CCF_DIR}/ePBFT/cmake/pbft.cmake)
-
-  target_include_directories(libbyz.enclave PRIVATE
-    ${CCF_DIR}/src/ds
-    ${OE_INCLUDE_DIR}
-    ${OE_LIBCXX_INCLUDE_DIR}
-    ${OE_LIBC_INCLUDE_DIR}
-    ${OE_TP_INCLUDE_DIR}
-    ${PARSED_ARGS_INCLUDE_DIRS}
-    ${EVERCRYPT_INC}
-  )
-endif()
-
 function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   set(patched_name ${name}.patched)
   set(patched_lib_name lib${patched_name}.so)
@@ -402,11 +386,6 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       ${CMAKE_CURRENT_BINARY_DIR}
     )
     if (PBFT)
-      target_include_directories(${name} SYSTEM PRIVATE
-        ${CCF_DIR}/ePBFT/src/pbft/
-      )
-    endif()
-    if (PBFT)
       target_link_libraries(${name} PRIVATE
         -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
         libbyz.enclave
@@ -450,11 +429,6 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       ${OE_INCLUDE_DIR}
       ${CMAKE_CURRENT_BINARY_DIR}
     )
-    if (PBFT)
-      target_include_directories(${virt_name} SYSTEM PRIVATE
-        ${CCF_DIR}/ePBFT/src/pbft/
-      )
-    endif()
     if (PBFT)
       target_link_libraries(${virt_name} PRIVATE
         -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate

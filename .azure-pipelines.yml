@@ -45,11 +45,11 @@ schedules:
 resources:
   containers:
     - container: nosgx
-      image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-nosgx:latest
+      image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc2-sgx:latest
       options: --publish-all --cap-add SYS_PTRACE -v /dev/shm:/ccache
 
     - container: sgx
-      image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc1-sgx:latest
+      image: ccfciteam/ccf-ci-18.04-oe-0.7.0-rc2-sgx:latest
       options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/ccache
 
 jobs:

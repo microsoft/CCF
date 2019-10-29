@@ -571,7 +571,7 @@ void Replica::handle(Request* m)
 
         if (rqueue.append(m))
         {
-          if (!limbo)
+          if (!limbo && f() > 0)
           {
             send(m, primary());
             start_vtimer_if_request_waiting();
@@ -794,7 +794,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       // https://github.com/microsoft/CCF/issues/357
       if (!compare_execution_results(info, pp))
       {
-        // break;
+        break;
       }
 
       if (ledger_writer && !is_primary())

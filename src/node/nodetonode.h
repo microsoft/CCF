@@ -8,6 +8,7 @@
 #include "nodetypes.h"
 
 #include <algorithm>
+#include <fmt/format_header_only.h>
 
 namespace ccf
 {
@@ -50,20 +51,21 @@ namespace ccf
     }
 
     template <class T>
-    void send_authenticated(
+    bool send_authenticated(
       const NodeMsgType& msg_type, NodeId to, const T& data)
     {
       auto& n2n_channel = channels->get(to);
       if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
       {
         establish_channel(to);
-        return;
+        return false;
       }
 
       // The secure channel between self and to has already been established
       GcmHdr hdr;
       n2n_channel.tag(hdr, asCb(data));
       to_host->write(node_outbound, to, msg_type, data, hdr);
+      return true;
     }
 
     template <class T>
@@ -75,7 +77,12 @@ namespace ccf
       auto& n2n_channel = channels->get(t.from_node);
 
       if (!n2n_channel.verify(hdr, asCb(t)))
-        throw std::logic_error("Invalid authenticated node2node message");
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid authenticated node2node message from node {} (size: {})",
+          t.from_node,
+          size));
+      }
 
       return t;
     }
@@ -111,7 +118,12 @@ namespace ccf
 
       auto& n2n_channel = channels->get(t.from_node);
       if (!n2n_channel.decrypt(hdr, asCb(t), {data, size}, plain))
-        throw std::logic_error("Invalid encrypted node2node message");
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid authenticated node2node message from node {} (size: {})",
+          t.from_node,
+          size));
+      }
 
       return std::make_pair(t, plain);
     }

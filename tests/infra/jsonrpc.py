@@ -176,7 +176,7 @@ class FramedTLSClient:
         self.conn.sendall(frame)
 
     def _read(self):
-        size, = struct.unpack("<I", self.conn.recv(4))
+        (size,) = struct.unpack("<I", self.conn.recv(4))
         data = self.conn.recv(size)
         while len(data) < size:
             data += self.conn.recv(size - len(data))

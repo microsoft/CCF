@@ -44,6 +44,47 @@ extern "C"
 
 namespace ccf
 {
+  enum class State
+  {
+    uninitialized,
+    initialized,
+    pending,
+    partOfPublicNetwork,
+    partOfNetwork,
+    readingPublicLedger,
+    readingPrivateLedger
+  };
+}
+
+// Used by fmtlib to render ccf::State
+namespace std
+{
+  std::ostream& operator<<(std::ostream& os, ccf::State s)
+  {
+    switch (s)
+    {
+      case ccf::State::uninitialized:
+        return os << "uninitialized";
+      case ccf::State::initialized:
+        return os << "initialized";
+      case ccf::State::pending:
+        return os << "pending";
+      case ccf::State::partOfPublicNetwork:
+        return os << "partOfPublicNetwork";
+      case ccf::State::partOfNetwork:
+        return os << "partOfNetwork";
+      case ccf::State::readingPublicLedger:
+        return os << "readingPublicLedger";
+      case ccf::State::readingPrivateLedger:
+        return os << "readingPrivateLedger";
+      default:
+        return os << "unknown value";
+    }
+  }
+}
+
+namespace ccf
+{
   using RaftConsensusType =
     raft::RaftConsensus<consensus::LedgerEnclave, NodeToNode>;
   using RaftType = raft::Raft<consensus::LedgerEnclave, NodeToNode>;
@@ -61,8 +102,12 @@ namespace ccf
     StateMachine(T s) : s(s) {}
     void expect(T s) const
     {
-      if (s != this->s.load())
-        throw std::logic_error("Unexpected state");
+      auto state = this->s.load();
+      if (s != state)
+      {
+        throw std::logic_error(
+          fmt::format("State is {}, but expected {}", state, s));
+      }
     }
 
     bool check(T s) const
@@ -72,6 +117,7 @@ namespace ccf
 
     void advance(T s)
     {
+      LOG_DEBUG_FMT("Advancing to state {} (from {})", this->s.load());
       this->s.store(s);
     }
   };
@@ -100,17 +146,6 @@ namespace ccf
       LOG_DEBUG_FMT(s);
       return {{}, false};
     }
-
-    enum class State
-    {
-      uninitialized,
-      initialized,
-      pending,
-      partOfPublicNetwork,
-      partOfNetwork,
-      readingPublicLedger,
-      readingPrivateLedger
-    };
 
     //
     // this node's core state
@@ -252,7 +287,7 @@ namespace ccf
       auto frontend = handler.value();
 
       enclave::RPCContext ctx(
-        enclave::InvalidSessionId, node_cert, ccf::ActorsType::nodes);
+        enclave::InvalidSessionId, node_cert, ccf::ActorsType::members);
       ctx.is_create_request = true;
 
 #ifdef PBFT
@@ -336,8 +371,7 @@ namespace ccf
         case StartType::Join:
         {
           // Generate fresh key to encrypt/decrypt historical network secrets
-          // sent
-          // by the primary via the kv store
+          // sent by the primary via the kv store
           raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
 
           sm.advance(State::pending);
