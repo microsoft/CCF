@@ -43,7 +43,7 @@ public:
     params["id"] = id;
     params["msg"] = msg;
 
-    const auto response_bytes = rpc_client->call("users/LOG_record", params);
+    const auto response_bytes = rpc_client->call("LOG_record", params);
     const json response = json::from_msgpack(response_bytes);
 
     const auto error_it = response.find("error");
@@ -65,7 +65,7 @@ public:
     json params;
     params["id"] = id;
 
-    const auto response_bytes = rpc_client->call("users/LOG_get", params);
+    const auto response_bytes = rpc_client->call("LOG_get", params);
     const json response = json::from_msgpack(response_bytes);
 
     const auto error_it = response.find("error");

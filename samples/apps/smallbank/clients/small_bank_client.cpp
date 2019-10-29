@@ -46,7 +46,7 @@ private:
       json j;
       j["name"] = to_string(i);
       const auto response =
-        json::from_msgpack(conn->call("users/SmallBank_balance", j));
+        json::from_msgpack(conn->call("SmallBank_balance", j));
 
       check_response(response);
       accs.push_back({{"account", i}, {"balance", response["result"]}});
@@ -68,7 +68,7 @@ private:
     j["to"] = to;
     j["checking_amt"] = 1000;
     j["savings_amt"] = 1000;
-    connection->call("users/SmallBank_create_batch", j);
+    connection->call("SmallBank_create_batch", j);
   }
 
   void prepare_transactions() override
@@ -223,7 +223,7 @@ private:
       json j;
       j["name"] = to_string(account_it->get<size_t>());
       const auto response =
-        json::from_msgpack(conn->call("users/SmallBank_balance", j));
+        json::from_msgpack(conn->call("SmallBank_balance", j));
 
       auto result_it = response.find("result");
       if (result_it == response.end())

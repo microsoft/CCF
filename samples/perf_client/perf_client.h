@@ -177,10 +177,8 @@ namespace client
       bool expects_commit,
       const std::optional<size_t>& index)
     {
-      std::stringstream ss;
-      ss << "users/" << method;
       const PreparedTx tx{
-        rpc_connection->gen_rpc(ss.str(), params), ss.str(), expects_commit};
+        rpc_connection->gen_rpc(method, params), method, expects_commit};
 
       if (index.has_value())
       {
@@ -349,7 +347,7 @@ namespace client
     void force_global_commit(const std::shared_ptr<RpcTlsClient>& connection)
     {
       // End with a mkSign RPC to force a final global commit
-      const auto method = "users/mkSign";
+      const auto method = "mkSign";
       const auto mk_sign = connection->gen_rpc(method);
       if (timing.has_value())
       {
