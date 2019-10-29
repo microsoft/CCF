@@ -1,118 +1,88 @@
-Requirements
-============
+Environment Setup
+=================
 
-Operating Systems
------------------
+This page describes how to setup an environment to build and deploy CCF.
+
+There are two options to deploy a CCF-ready environment:
+
+- :ref:`Checkout CCF and its dependencies in a local container <Local Development without SGX (virtual)>`. This is useful for quick prototyping using CCF `virtual` mode.
+- :ref:`Create a SGX-enabled VM on Azure and install CCF dependencies <Azure Confidential Compute>`.
+
+Once this is done, you should look at how to :ref:`build CCF from source <Building CCF>`.
+
+Requirements
+------------
+
+Operating System
+~~~~~~~~~~~~~~~~
 
 At the moment, CCF only builds and runs on Linux. It is primarily developed and tested on Ubuntu 18.04.
 
-Hardware Requirements
----------------------
+Hardware
+~~~~~~~~
 
 Running CCF with full security guarantees requires :term:`SGX` hardware with :term:`FLC`.
 
 For development purposes however, it is possible to build and run CCF applications in `virtual` mode, i.e. without using SGX. The `virtual` mode does not provide any security guarantees but can be useful to quickly prototype applications or make changes to CCF itself before deploying it to a SGX-based network.
 
-Setting Up a CCF VM
--------------------
-
-Cloning the CCF Repository
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-To clone the CCF repository, run the following:
-
-.. code-block:: bash
-
-    $ git clone --recursive https://github.com/microsoft/CCF.git
-
-.. note:: The ``--recursive`` option is required to retrieve some third-party dependencies of CCF. It is not possible to build CCF without these dependencies.
 
 Local Development without SGX (virtual)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+---------------------------------------
 
 .. warning:: The `virtual` mode does not provide any security guarantees and should only be used to prototype applications.
 
-To quickly get a container up and running in which you can build CCF, the fastest way to go is to install `Visual Studio Code`_ and install the `Remote Container`_ extension.
+To quickly get a container up and running in which you can build CCF, the fastest way to go is to install Docker, `Visual Studio Code`_ and the `Remote Container`_ extension.
 
-The CCF repository also provides a sample `devcontainer.json`_ file which will build and launch a container with all necessary CCF dependencies. It can be used to develop on non-SGX machines, as long as CCF nodes are always started in `virtual` mode.
+The CCF repository provides a sample `devcontainer.json`_ file which will build and launch a container with all necessary CCF dependencies. It can be used to develop on non-SGX machines, as long as CCF nodes are always started in `virtual` mode. See how to `checkout the CCF repository in an isolated container <https://code.visualstudio.com/docs/remote/containers#_quick-start-open-a-public-git-repository-in-an-isolated-container-volume>`_.
 
 .. _`Visual Studio Code`: https://code.visualstudio.com/
 .. _`Remote Container`: https://code.visualstudio.com/docs/remote/containers
 .. _`devcontainer.json`: https://github.com/microsoft/CCF/blob/master/.devcontainer/devcontainer.json
 
+
 Azure Confidential Compute
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+--------------------------
+
+.. note:: These steps require an `Azure subscription <https://docs.microsoft.com/en-us/azure/billing/billing-create-subscription#create-a-subscription-in-the-azure-portal>`_.
 
 :term:`Azure Confidential Compute` (ACC) offers DC-series VMs using SGX hardware, which can be deployed either through a `Marketplace App`_, or through the :term:`OpenEnclave Engine`.
 
-.. _`Marketplace App`: https://aka.ms/ccvm
+.. note:: On Windows, you can use `WSL <https://docs.microsoft.com/en-us/windows/wsl/install-win10>`_ or `Azure Cloud Shell (Bash) <https://azure.microsoft.com/en-us/features/cloud-shell/>`_ to run the following commands.
 
-To quickly get a VM up and running, you can run the following script:
+First, from your local machine, you should clone the CCF repository to get access to the scripts required to create and configure the CCF environment.
+
+.. code-block:: bash
+
+    $ git clone --recursive https://github.com/microsoft/CCF.git
+
+First, you should run the ``pre_make_vm.sh`` script to install the `Azure CLI`_ and the :term:`OpenEnclave Engine` (``oe-engine``) that are required to create the DC-series in Azure:
 
 .. code-block:: bash
 
     $ cd CCF/getting_started/create_vm
-    $ SUBSCRIPTION=$AZURE_SUBSCRIPTION_NAME ./make_vm.sh
+    $ ./pre_make_vm.sh # Requires sudo privileges
 
-This will create a default ``ccf`` user on the VM, authenticated by ``~/.ssh/id_rsa.pub``. If you do not have a valid SSH key under that path, you will need to either create one, or edit ``vm.json`` to select a different path.
+Then, to quickly get a VM up and running (in the East US region), you can run the following command, specifying your personal Azure subscription as environment variable:
+
+.. code-block:: bash
+
+    $ SUBSCRIPTION=$AZURE_SUBSCRIPTION_NAME ./make_vm.sh [path_to_ssh_public_key]
+
+After signing in to your Azure account, the script will create a default ``ccf`` user on the VM, authenticated by the public key specified by ``path_to_ssh_public_key`` (defaults to ``~/.ssh/id_rsa.pub``). See :ref:`OE Engine Walkthrough` for further details about how to deploy an ACC VM.
+
+Then, you should ssh into your newly created vm and clone the CCF repository:
+
+.. code-block:: bash
+
+    $ ssh ccf@ccf-dev.eastus.cloudapp.azure.com
+    $ git clone --recursive https://github.com/microsoft/CCF.git
+
+.. note:: The ``--recursive`` option is required to retrieve some third-party dependencies of CCF. It is not possible to build CCF without these dependencies.
 
 The `SSH Remote`_ extension to `Visual Studio Code`_ makes it possible to develop your application directly on this VM.
 
-OE Engine Walkthrough
-`````````````````````
-
-:term:`OpenEnclave Engine` (OE Engine) offers detailed `deployment instructions`_, but this is a very condensed summary to get a CCF-ready VM up and running in 5 minutes. You can either execute these steps on a machine with the `Azure CLI`_ installed, or use `Azure Cloud Shell`_.
-
-1. Download the `oe-engine binary`_ for your platform.
-2. Create a definition file as ``vm.json``:
-
-.. code-block:: json
-
-    {
-        "properties": {
-            "vmProfiles": [
-            {
-                "name": "ccf-test",
-                "osType": "Linux",
-                "vmSize": "Standard_DC2s",
-                "ports": [22, 25000]
-            }
-            ],
-            "linuxProfile": {
-                "adminUsername": "ccf"
-            }
-        }
-    }
-
-3. Generate Azure Resource Manager deployment templates. This assumes that you are using an `SSH key`_ to authenticate, but it is also possible to use a password with adminPassword_.
-
-.. code-block:: bash
-
-    $ oe-engine generate --api-model vm.json --ssh-public-key ~/.ssh/id_rsa.pub --output-directory vm
-
-4. Log in to Azure, set a default subscription and create a resource group
-
-.. code-block:: bash
-
-    $ az login
-    $ az account set --subscription <subscription id>
-    $ az group create -l eastus -n <resource group name>
-
-5. Deploy the VM
-
-.. code-block:: bash
-
-    $ az group deployment create --name ccf-deploy \
-                               --resource-group <resource group name> \
-                               --template-file vm/azuredeploy.json \
-                               --parameters @vm/azuredeploy.parameters.json
-
-.. _`oe-engine binary`: https://github.com/Microsoft/oe-engine/releases
-.. _`deployment instructions`: https://github.com/Microsoft/oe-engine/blob/master/docs/deployment.md
-.. _`adminPassword`: https://github.com/Microsoft/oe-engine/blob/master/docs/examples/oe-lnx-passwd.json
-.. _`Azure CLI`: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest
-.. _`Azure Cloud Shell`: https://docs.microsoft.com/en-us/azure/cloud-shell/overview
-.. _`SSH key`: https://docs.microsoft.com/en-us/azure/virtual-machines/linux/mac-create-ssh-keys
+.. _`Marketplace App`: https://aka.ms/ccvm
+.. _`Azure CLI`: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli
 .. _`SSH Remote`: https://code.visualstudio.com/docs/remote/ssh
 
 Installing Dependencies

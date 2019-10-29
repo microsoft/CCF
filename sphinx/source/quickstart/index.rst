@@ -1,7 +1,7 @@
 Quickstart
 ==========
 
-First, you should :ref:`setup a CCF-compatible environment <Requirements>`. Then, you will be able to :ref:`build CCF from sources and run CCF test suite <Building CCF>`. Note that for rapid prototyping, you can run a `virtual` build of CCF that does not require Intel SGX.
+First, you should :ref:`setup a CCF-compatible environment <Environment Setup>`. Then, you will be able to :ref:`build CCF from source and run CCF test suite <Building CCF>`. Note that for rapid prototyping, you can run a `virtual` build of CCF that does not require Intel SGX.
 
 Once this is done, make sure you get familiar with some of :ref:`CCF concepts`. You will then be able to:
 
@@ -15,6 +15,6 @@ Once this is done, make sure you get familiar with some of :ref:`CCF concepts`. 
     :maxdepth: 2
     :caption: Contents:
 
-    concepts
     requirements
+    oeengine
     build
