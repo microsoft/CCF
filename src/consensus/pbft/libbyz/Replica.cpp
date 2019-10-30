@@ -868,14 +868,12 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
   Certificate<Commit>& cs = clog.fetch(s);
   //if (!send_only_to_self && cs.add_mine(c) && cs.is_complete())
   LOG_INFO << "ZZZZZZ" << std::endl;
-  cs.print();
   if ((cs.add_mine(c) && cs.is_complete()) || (before_f == 0))
   {
     LOG_INFO << "calling execute committed from send_commit seqno: " << s
               << std::endl;
     execute_committed(before_f == 0);
   }
-  cs.print();
 }
 
 void Replica::handle(Prepare* m)
@@ -927,7 +925,6 @@ void Replica::handle(Commit* m)
     {
       LOG_INFO << "calling execute committed from handle commit for seqno: "
                 << ms << std::endl;
-      cs.print();
       execute_committed();
     }
     return;
@@ -1704,7 +1701,6 @@ Pre_prepare* Replica::committed(Seqno s, bool was_f_0)
   // commits without prepared requests, i.e., only with the
   // pre-prepare.
   Pre_prepare* pp = prepared_pre_prepare(s);
-  clog.fetch(s).print();
   if (clog.fetch(s).is_complete()|| was_f_0)
   {
     return pp;

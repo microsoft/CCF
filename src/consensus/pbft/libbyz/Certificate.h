@@ -97,7 +97,6 @@ public:
   // in this.
 
   bool is_complete() const;
-  void print() const;
   void make_complete();
   // Effects: If cvalue() is not null, makes the certificate
   // complete.
@@ -216,17 +215,7 @@ inline int Certificate<T>::num_correct() const
 template <class T>
 inline bool Certificate<T>::is_complete() const
 {
-  //LOG_INFO << "num_correct:" << num_correct() << ", complete:" << complete
-  //         << std::endl;
-  //PBFT_ASSERT(num_correct() < 11, "too high");
   return num_correct() >= complete;
-}
-
-template <class T>
-inline void Certificate<T>::print() const
-{
-  LOG_INFO << "printing cert -> num_correct:" << num_correct() << ", complete:" << complete
-           << std::endl;
 }
 
 template <class T>
@@ -289,7 +278,6 @@ Certificate<T>::Certificate(int comp_) : f(node->f()), comp(comp_)
   vals = new Message_val[max_size];
   cur_size = 0;
   correct = f + 1;
-  //complete = (comp == 0) ? (2*f+1) : comp;
   complete = (comp == 0) ? node->num_correct_replicas() : comp;
   c = 0;
   mym = 0;
@@ -329,11 +317,8 @@ bool Certificate<T>::add(T* m)
     return true;
   }
 
-  LOG_INFO << "PPPPP" << std::endl;
-
   if (node->is_replica(id) && !bmap.test(id))
   {
-  LOG_INFO << "PPPPP, id:" << id << std::endl;
     // "m" was sent by a replica that does not have a message in
     // the certificate
     if ((c == 0 || (c->count < complete && c->m->match(m))) /*&& m->verify()*/)
