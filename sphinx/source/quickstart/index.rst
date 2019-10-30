@@ -8,7 +8,7 @@ Once this is done, you can quickly spin up a CCF network and start :ref:`issuing
 .. code-block:: bash
 
     $ cd CCF/build
-    $ ../deploy_ccf.sh libloggingenc
+    $ ../start_test_network.sh libloggingenc.so.signed
     Setting up Python environment...
     Python environment successfully setup
     [2019-10-29 14:47:41.562] Starting 3 CCF nodes...

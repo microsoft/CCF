@@ -21,6 +21,8 @@ def run(args):
         LOG.disable("infra")
 
     LOG.info("Starting {} CCF nodes...".format(len(hosts)))
+    if args.enclave_type == "virtual":
+        LOG.warning("Virtual mode enabled")
 
     with infra.ccf.network(hosts, args.build_dir, args.debug_nodes) as network:
         primary, backups = network.start_and_join(args)

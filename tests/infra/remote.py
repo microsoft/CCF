@@ -510,8 +510,6 @@ class CCFRemote(object):
             os.path.basename(ledger_file) if ledger_file else f"{local_node_id}.ledger"
         )
 
-        cmd = [self.BIN, f"--enclave-file={lib_path}"]
-
         exe_files = [self.BIN, lib_path] + self.DEPS
         data_files = ([self.ledger_file] if self.ledger_file else []) + (
             [sealed_secrets] if sealed_secrets else []
