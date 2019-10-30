@@ -237,7 +237,7 @@ namespace ccf
     {
       if (
         cmd_forwarder && forwardable == Forwardable::CanForward &&
-        !ctx.fwd.has_value())
+        !ctx.session.fwd.has_value())
       {
         return std::nullopt;
       }
@@ -491,7 +491,7 @@ namespace ccf
       }
       else
       {
-        caller_id = valid_caller(tx, ctx.caller_cert);
+        caller_id = valid_caller(tx, ctx.session.caller_cert);
       }
 
       if (!caller_id.has_value())
@@ -512,7 +512,7 @@ namespace ccf
         if (
           !ctx.is_create_request &&
           !verify_client_signature(
-            ctx.caller_cert, caller_id.value(), signed_request))
+            ctx.session.caller_cert, caller_id.value(), signed_request))
         {
           return jsonrpc::pack(
             jsonrpc::error_response(
@@ -535,7 +535,7 @@ namespace ccf
       kv::TxHistory::RequestID reqid;
 
       update_history();
-      reqid = {caller_id.value(), ctx.client_session_id, ctx.seq_no};
+      reqid = {caller_id.value(), ctx.session.client_session_id, ctx.seq_no};
       if (history)
       {
         if (!history->add_request(
@@ -576,7 +576,7 @@ namespace ccf
           std::vector<uint8_t> forwarded_caller_cert;
           if constexpr (std::is_same_v<CT, void>)
           {
-            forwarded_caller_cert = ctx.caller_cert;
+            forwarded_caller_cert = ctx.session.caller_cert;
           }
 
           if (
@@ -653,7 +653,7 @@ namespace ccf
 
       history->register_on_result(cb);
 
-      auto rep = process_json(ctx, tx, ctx.fwd->caller_id);
+      auto rep = process_json(ctx, tx, ctx.session.fwd->caller_id);
 
       history->clear_on_result();
 
@@ -683,7 +683,7 @@ namespace ccf
     std::vector<uint8_t> process_forwarded(
       enclave::RPCContext& ctx, const std::vector<uint8_t>& input) override
     {
-      if (!ctx.fwd.has_value())
+      if (!ctx.session.fwd.has_value())
       {
         throw std::logic_error(
           "Processing forwarded command with unitialised forwarded context");
@@ -701,7 +701,7 @@ namespace ccf
         // For frontends with valid callers (user and member frontends), lookup
         // the caller certificate from the forwarded caller id
         auto callers_view = tx.get_view(*callers);
-        auto caller = callers_view->get(ctx.fwd->caller_id);
+        auto caller = callers_view->get(ctx.session.fwd->caller_id);
         if (!caller.has_value())
         {
           return jsonrpc::pack(
@@ -711,7 +711,7 @@ namespace ccf
               "No corresponding caller entry exists."),
             ctx.pack.value());
         }
-        ctx.caller_cert = caller.value().cert;
+        ctx.session.caller_cert = caller.value().cert;
       }
 
       auto [success, rpc] = jsonrpc::unpack_rpc(input, ctx.pack);
@@ -730,12 +730,12 @@ namespace ccf
       if (rpc_->find(jsonrpc::SIG) != rpc_->end())
       {
         auto& req = rpc_->at(jsonrpc::REQ);
-        record_client_signature(tx, ctx.fwd->caller_id, signed_request);
+        record_client_signature(tx, ctx.session.fwd->caller_id, signed_request);
         rpc_ = &req;
       }
       auto& unsigned_rpc = *rpc_;
 
-      auto rep = process_json(ctx, tx, ctx.fwd->caller_id);
+      auto rep = process_json(ctx, tx, ctx.session.fwd->caller_id);
       if (!rep.has_value())
       {
         // This should never be called when process_json is called with a

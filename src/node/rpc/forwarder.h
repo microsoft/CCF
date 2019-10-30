@@ -50,9 +50,9 @@ namespace ccf
       const std::vector<uint8_t>& caller_cert)
     {
       IsCallerCertForwarded include_caller = false;
-      size_t size = sizeof(caller_id) + sizeof(rpc_ctx.client_session_id) +
-        sizeof(rpc_ctx.actor) + sizeof(IsCallerCertForwarded) +
-        rpc_ctx.raw.size();
+      size_t size = sizeof(caller_id) +
+        sizeof(rpc_ctx.session.client_session_id) + sizeof(rpc_ctx.actor) +
+        sizeof(IsCallerCertForwarded) + rpc_ctx.raw.size();
       if (!caller_cert.empty())
       {
         size += sizeof(size_t) + caller_cert.size();
@@ -63,7 +63,7 @@ namespace ccf
       auto data_ = plain.data();
       auto size_ = plain.size();
       serialized::write(data_, size_, caller_id);
-      serialized::write(data_, size_, rpc_ctx.client_session_id);
+      serialized::write(data_, size_, rpc_ctx.session.client_session_id);
       serialized::write(data_, size_, rpc_ctx.actor);
       serialized::write(data_, size_, include_caller);
       if (include_caller)
@@ -108,10 +108,11 @@ namespace ccf
       }
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
 
+      enclave::SessionContext session(
+        client_session_id, caller_id, caller_cert);
+
       return std::make_tuple(
-        enclave::RPCContext(client_session_id, caller_id, caller_cert),
-        r.first.from_node,
-        std::move(rpc));
+        enclave::RPCContext(session), r.first.from_node, std::move(rpc));
     }
 
     bool send_forwarded_response(

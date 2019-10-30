@@ -11,17 +11,48 @@ namespace enclave
 {
   static constexpr size_t InvalidSessionId = std::numeric_limits<size_t>::max();
 
-  struct RPCContext
+  struct SessionContext
   {
-    //
-    // In parameters (initialised when context is created)
-    //
-    const size_t client_session_id = InvalidSessionId;
+    size_t client_session_id = InvalidSessionId;
     std::vector<uint8_t> caller_cert = {};
 
     //
-    // Out parameters (changed during lifetime of context)
+    // Only set in the case of a forwarded RPC
     //
+    struct Forwarded
+    {
+      // Initialised when forwarded context is created
+      const size_t client_session_id;
+      const ccf::CallerId caller_id;
+
+      Forwarded(size_t client_session_id_, ccf::CallerId caller_id_) :
+        client_session_id(client_session_id_),
+        caller_id(caller_id_)
+      {}
+    };
+    std::optional<Forwarded> fwd = std::nullopt;
+
+    // Constructor used for non-forwarded RPC
+    SessionContext(
+      size_t client_session_id_, const std::vector<uint8_t>& caller_cert_) :
+      client_session_id(client_session_id_),
+      caller_cert(caller_cert_)
+    {}
+
+    // Constructor used for forwarded and PBFT RPC
+    SessionContext(
+      size_t fwd_session_id_,
+      ccf::CallerId caller_id_,
+      const std::vector<uint8_t>& caller_cert_ = {}) :
+      fwd(std::make_optional<Forwarded>(fwd_session_id_, caller_id_)),
+      caller_cert(caller_cert_)
+    {}
+  };
+
+  struct RPCContext
+  {
+    const SessionContext session;
+
     // Packing format of original request, should be used to pack response
     std::optional<jsonrpc::Pack> pack = std::nullopt;
 
@@ -43,45 +74,13 @@ namespace enclave
 
     bool is_create_request = false;
 
-    //
-    // Only set in the case of a forwarded RPC
-    //
-    struct Forwarded
-    {
-      // Initialised when forwarded context is created
-      const size_t client_session_id;
-      const ccf::CallerId caller_id;
-
-      Forwarded(size_t client_session_id_, ccf::CallerId caller_id_) :
-        client_session_id(client_session_id_),
-        caller_id(caller_id_)
-      {}
-    };
-    std::optional<Forwarded> fwd = std::nullopt;
-
-    // Constructor used for non-forwarded RPC
-    RPCContext(
-      size_t client_session_id_, const std::vector<uint8_t>& caller_cert_) :
-      client_session_id(client_session_id_),
-      caller_cert(caller_cert_)
-    {}
-
-    // Constructor used for forwarded and PBFT RPC
-    RPCContext(
-      size_t fwd_session_id_,
-      ccf::CallerId caller_id_,
-      const std::vector<uint8_t>& caller_cert_ = {}) :
-      fwd(std::make_optional<Forwarded>(fwd_session_id_, caller_id_)),
-      caller_cert(caller_cert_)
-    {}
+    RPCContext(const SessionContext& s) : session(s) {}
   };
 
   RPCContext make_rpc_context(
-    size_t client_session_id,
-    const std::vector<uint8_t>& caller_cert,
-    const std::vector<uint8_t>& packed)
+    const SessionContext& s, const std::vector<uint8_t>& packed)
   {
-    RPCContext rpc_ctx(client_session_id, caller_cert);
+    RPCContext rpc_ctx(s);
 
     auto [success, rpc] = jsonrpc::unpack_rpc(packed, rpc_ctx.pack);
     if (!success)
