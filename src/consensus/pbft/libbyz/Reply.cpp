@@ -142,7 +142,6 @@ void Reply::commit(Principal* p)
 bool Reply::verify()
 {
   return true;
-  // return verified_auth;
 }
 
 bool Reply::pre_verify()

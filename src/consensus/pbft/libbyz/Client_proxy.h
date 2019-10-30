@@ -217,8 +217,6 @@ void ClientProxy<T, C>::execute_request(Request* request)
 template <class T, class C>
 void ClientProxy<T, C>::recv_reply(Reply* reply)
 {
-  LOG_INFO << "RRRRRRRRRR received reply, seqno:" << reply->seqno()
-           << std::endl;
   auto it = out_reqs.find(reply->request_id());
   if (it == out_reqs.end())
   {
@@ -229,15 +227,15 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
 
   auto ctx = it->second.get();
 
-  LOG_INFO << "Received reply msg, request_id:" << reply->request_id()
-           << " seqno: " << reply->seqno() << " view " << reply->view()
-           << " id: " << reply->id()
-           << " tentative: " << (reply->is_tentative() ? "true" : "false")
-           << " reps.is_complete: "
-           << (ctx->t_reps.is_complete() ? "true" : "false")
-           << " reply->full: " << (reply->full() ? "true" : "false")
-           << " reply->verify: " << (reply->verify() ? "true" : "false")
-           << " reps.cvalue: " << (void*)ctx->t_reps.cvalue() << std::endl;
+  LOG_TRACE << "Received reply msg, request_id:" << reply->request_id()
+            << " seqno: " << reply->seqno() << " view " << reply->view()
+            << " id: " << reply->id()
+            << " tentative: " << (reply->is_tentative() ? "true" : "false")
+            << " reps.is_complete: "
+            << (ctx->t_reps.is_complete() ? "true" : "false")
+            << " reply->full: " << (reply->full() ? "true" : "false")
+            << " reply->verify: " << (reply->verify() ? "true" : "false")
+            << " reps.cvalue: " << (void*)ctx->t_reps.cvalue() << std::endl;
 
   Certificate<Reply>& reps =
     (reply->is_tentative()) ? ctx->t_reps : ctx->c_reps;

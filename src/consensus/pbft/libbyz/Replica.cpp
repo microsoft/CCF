@@ -643,8 +643,8 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       // TODO: should make code match my proof with request removed
       // only when executed rather than removing them from rqueue when the
       // pre-prepare is constructed.
-      LOG_INFO << "adding to plog from pre prepare: " << next_pp_seqno
-               << std::endl;
+      LOG_DEBUG << "adding to plog from pre prepare: " << next_pp_seqno
+                << std::endl;
       pp->set_merkle_root_and_ctx(info.merkle_root, info.ctx);
       pp->set_digest();
       plog.fetch(next_pp_seqno).add_mine(pp);
@@ -809,10 +809,8 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
       if (pc.is_complete())
       {
-        LOG_INFO << "pc is complete for seqno: " << seqno
-                 << " and sending commit"
-                 << ", send_only_to_self:"
-                 << (send_only_to_self ? "true" : "false") << std::endl;
+        LOG_TRACE << "pc is complete for seqno: " << seqno
+                  << " and sending commit" << std::endl;
         send_commit(seqno, send_node_id == node_id);
       }
       seqno++;
@@ -826,8 +824,6 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
 void Replica::send_commit(Seqno s, bool send_only_to_self)
 {
-  LOG_INFO << "Got commit s:" << s << ", last_executed:" << last_executed
-           << std::endl;
   size_t before_f = f();
   // Executing request before sending commit improves performance
   // for null requests. May not be true in general.
@@ -847,8 +843,6 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
   }
 
   Certificate<Commit>& cs = clog.fetch(s);
-  // if (!send_only_to_self && cs.add_mine(c) && cs.is_complete())
-  LOG_INFO << "ZZZZZZ" << std::endl;
   if ((cs.add_mine(c) && cs.is_complete()) || (before_f == 0))
   {
     LOG_INFO << "calling execute committed from send_commit seqno: " << s
@@ -900,12 +894,12 @@ void Replica::handle(Commit* m)
   // accept commits from older views as in proof.
   if (in_wv(m) && ms > low_bound)
   {
-    LOG_INFO << "handle commit for seqno: " << m->seqno() << ", id:" << m->id()
-             << std::endl;
+    LOG_TRACE << "handle commit for seqno: " << m->seqno() << ", id:" << m->id()
+              << std::endl;
     Certificate<Commit>& cs = clog.fetch(m->seqno());
     if (cs.add(m) && cs.is_complete())
     {
-      LOG_INFO << "calling execute committed from handle commit for seqno: "
+      LOG_DEBUG << "calling execute committed from handle commit for seqno: "
                << ms << std::endl;
       execute_committed();
     }
@@ -2899,8 +2893,8 @@ void Replica::vtimer_handler(void* owner)
     if (replica->rqueue.size() > 0)
     {
       LOG_INFO << "View change timer expired first rid: "
-               << replica->rqueue.first()->request_id() << ", digest "
-               << replica->rqueue.first()->digest().hash()
+               << replica->rqueue.first()->request_id()
+               << ", digest:" << replica->rqueue.first()->digest().hash()
                << " first cid: " << replica->rqueue.first()->client_id()
                << std::endl;
     }
