@@ -25,7 +25,11 @@ namespace enclave
     // Packing format of original request, should be used to pack response
     std::optional<jsonrpc::Pack> pack = std::nullopt;
 
+    // TODO: Avoid unnecessary copies
+    std::vector<uint8_t> raw = {};
+
     nlohmann::json unpacked_rpc = {};
+    std::optional<std::vector<uint8_t>> signature = std::nullopt;
 
     // Actor type to dispatch to appropriate frontend
     ccf::ActorsType actor = ccf::ActorsType::unknown;
@@ -33,11 +37,9 @@ namespace enclave
     // Method indicates specific handler for this request
     std::string method = {};
 
-    nlohmann::json params = {};
-
-    std::vector<uint8_t> signature = {};
-
     uint64_t seq_no = {};
+
+    nlohmann::json params = {};
 
     bool is_create_request = false;
 
@@ -91,16 +93,33 @@ namespace enclave
     if (sig_it != rpc.end())
     {
       assign_j(rpc_ctx.signature, *sig_it);
-      rpc_ctx.unpacked_rpc = rpc.at(jsonrpc::REQ);
+      rpc_ctx.raw = rpc.at(jsonrpc::REQ).get<decltype(rpc_ctx.raw)>();
+      rpc_ctx.unpacked_rpc = nlohmann::json::from_msgpack(rpc_ctx.raw);
     }
     else
     {
+      rpc_ctx.signature = std::nullopt;
       rpc_ctx.unpacked_rpc = rpc;
+      rpc_ctx.raw = packed;
     }
 
-    rpc_ctx.method = rpc_ctx.unpacked_rpc.at(jsonrpc::METHOD);
-    rpc_ctx.seq_no = rpc.at(jsonrpc::ID);
-    rpc_ctx.params = rpc.at(jsonrpc::PARAMS);
+    const auto method_it = rpc_ctx.unpacked_rpc.find(jsonrpc::METHOD);
+    if (method_it != rpc_ctx.unpacked_rpc.end())
+    {
+      rpc_ctx.method = method_it->get<std::string>();
+    }
+
+    const auto seq_it = rpc_ctx.unpacked_rpc.find(jsonrpc::ID);
+    if (seq_it != rpc_ctx.unpacked_rpc.end())
+    {
+      rpc_ctx.seq_no = seq_it->get<uint64_t>();
+    }
+
+    const auto params_it = rpc_ctx.unpacked_rpc.find(jsonrpc::PARAMS);
+    if (params_it != rpc_ctx.unpacked_rpc.end())
+    {
+      rpc_ctx.params = *params_it;
+    }
 
     return rpc_ctx;
   }
@@ -121,7 +140,6 @@ namespace enclave
       const enclave::RPCContext& rpc_ctx,
       ccf::NodeId to,
       ccf::CallerId caller_id,
-      const std::vector<uint8_t>& data,
       const std::vector<uint8_t>& caller_cert) = 0;
   };
 }

@@ -63,6 +63,9 @@ namespace enclave
     {
       LOG_TRACE_FMT("Entered handle_data {} {}", data.size(), data.empty());
 
+      // TODO: This does much of the same work as make_rpc_context. Work out if
+      // they can be combined, with different error reporting in this version
+
       RPCContext rpc_ctx(session_id, peer_cert());
       auto [success, rpc] = jsonrpc::unpack_rpc(data, rpc_ctx.pack);
 
@@ -73,14 +76,14 @@ namespace enclave
       }
       LOG_TRACE_FMT("Deserialised");
 
-      rpc_ctx.seq_no = rpc.at(jsonrpc::ID);
+      rpc_ctx.seq_no = rpc.value(jsonrpc::ID, 0);
 
       auto prefixed_method = get_method(rpc);
       if (!prefixed_method.has_value())
       {
         send(jsonrpc::pack(
           jsonrpc::error_response(
-            rpc.value(jsonrpc::ID, 0),
+            rpc_ctx.seq_no,
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
             "No method specified"),
           rpc_ctx.value()));
@@ -96,7 +99,7 @@ namespace enclave
       {
         send(jsonrpc::pack(
           jsonrpc::error_response(
-            rpc.value(jsonrpc::ID, 0),
+            rpc_ctx.seq_no,
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
             fmt::format("No such prefix: {}", actor_s)),
           rpc_ctx.value()));

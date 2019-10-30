@@ -24,9 +24,7 @@ namespace enclave
 
     // Used by rpcendpoint to process incoming client RPCs
     virtual std::optional<std::vector<uint8_t>> process(
-      const RPCContext& ctx,
-      const nlohmann::json& rpc,
-      const std::vector<uint8_t>& input) = 0;
+      const RPCContext& ctx) = 0;
 
     // Used by PBFT to execute commands
     struct ProcessPbftResp

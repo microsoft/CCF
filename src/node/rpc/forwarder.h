@@ -47,12 +47,12 @@ namespace ccf
       const enclave::RPCContext& rpc_ctx,
       NodeId to,
       CallerId caller_id,
-      const std::vector<uint8_t>& data,
       const std::vector<uint8_t>& caller_cert)
     {
       IsCallerCertForwarded include_caller = false;
       size_t size = sizeof(caller_id) + sizeof(rpc_ctx.client_session_id) +
-        sizeof(rpc_ctx.actor) + sizeof(IsCallerCertForwarded) + data.size();
+        sizeof(rpc_ctx.actor) + sizeof(IsCallerCertForwarded) +
+        rpc_ctx.raw.size();
       if (!caller_cert.empty())
       {
         size += sizeof(size_t) + caller_cert.size();
@@ -71,7 +71,7 @@ namespace ccf
         serialized::write(data_, size_, caller_cert.size());
         serialized::write(data_, size_, caller_cert.data(), caller_cert.size());
       }
-      serialized::write(data_, size_, data.data(), data.size());
+      serialized::write(data_, size_, rpc_ctx.raw.data(), rpc_ctx.raw.size());
 
       ForwardedHeader msg = {ForwardedMsg::forwarded_cmd, self};
 

@@ -370,7 +370,7 @@ namespace ccf
           return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
 
 #ifndef HTTP
-        if (args.signed_request.sig.empty())
+        if (args.rpc_ctx.signature.has_value())
           return jsonrpc::error(
             jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED, "Votes must be signed");
 #endif
@@ -398,7 +398,7 @@ namespace ccf
         proposals->put(vote.id, *proposal);
 
         auto voting_history = args.tx.get_view(this->network.voting_history);
-        voting_history->put(args.caller_id, {args.signed_request});
+        voting_history->put(args.caller_id, {args.rpc_ctx.signature.value()});
 
         return jsonrpc::success(complete_proposal(args.tx, vote.id));
       };
