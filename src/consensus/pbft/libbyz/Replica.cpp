@@ -620,8 +620,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
   if (
     (rqueue.size() >= min_pre_prepare_batch_size ||
      (do_not_wait_for_batch_size && rqueue.size() > 0)) &&
-    // next_pp_seqno + 1 <= last_executed + congestion_window &&
-    next_pp_seqno + 1 <= last_executed + 1 &&
+    next_pp_seqno + 1 <= last_executed + congestion_window &&
     next_pp_seqno + 1 <= max_out + last_stable && has_complete_new_view() &&
     !state.in_fetch_state())
   {
@@ -834,7 +833,6 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
 
   Commit* c = new Commit(view(), s);
   int send_node_id = (send_only_to_self ? node_id : All_replicas);
-
   send(c, send_node_id);
 
   if (s > last_prepared)
@@ -845,8 +843,8 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
   Certificate<Commit>& cs = clog.fetch(s);
   if ((cs.add_mine(c) && cs.is_complete()) || (before_f == 0))
   {
-    LOG_INFO << "calling execute committed from send_commit seqno: " << s
-             << std::endl;
+    LOG_DEBUG << "calling execute committed from send_commit seqno: " << s
+              << std::endl;
     execute_committed(before_f == 0);
   }
 }
@@ -1081,6 +1079,11 @@ void Replica::send(Message* m, int i)
 Seqno Replica::get_last_executed() const
 {
   return last_executed;
+}
+
+int Replica::my_id() const
+{
+  return Node::id();
 }
 
 void Replica::handle(New_key* m)

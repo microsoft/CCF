@@ -251,7 +251,15 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
   }
   else
   {
-    reps.add(reply);
+    if (reply->id() != my_replica.my_id())
+    {
+      reps.add(reply);
+    }
+    else
+    {
+      reps.add_mine(reply);
+    }
+
     reply = (reps.is_complete() && reps.cvalue()->full()) ?
       reps.cvalue_clear() :
       nullptr;

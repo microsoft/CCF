@@ -133,6 +133,7 @@ public:
   int primary(View view) const;
   void send(Message* m, int i);
   Seqno get_last_executed() const;
+  int my_id() const;
 
   bool shutdown();
   // Effects: Shuts down replica writing a checkpoint to disk.

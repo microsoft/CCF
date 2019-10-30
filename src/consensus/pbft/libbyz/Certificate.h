@@ -293,10 +293,11 @@ Certificate<T>::~Certificate()
 template <class T>
 bool Certificate<T>::add(T* m)
 {
-  if (bmap.none())
+  if (bmap.none() && f != node->f())
   {
     f = node->f();
     max_size = f + 1;
+    delete[] vals;
     vals = new Message_val[max_size];
     cur_size = 0;
     correct = f + 1;
@@ -324,11 +325,9 @@ bool Certificate<T>::add(T* m)
     // the certificate
     if ((c == 0 || (c->count < complete && c->m->match(m))))
     {
-      /*
       // add "m" to the certificate
       PBFT_ASSERT(
         id != node->id(), "verify should return false for messages from self");
-      */
 
       bmap.set(id);
       if (c)
@@ -404,10 +403,11 @@ bool Certificate<T>::add_mine(T* m)
   PBFT_ASSERT(m->id() == node->id(), "Invalid argument");
   PBFT_ASSERT(m->full(), "Invalid argument");
 
-  if (bmap.none())
+  if (bmap.none() && f != node->f())
   {
     f = node->f();
     max_size = f + 1;
+    delete[] vals;
     vals = new Message_val[max_size];
     cur_size = 0;
     correct = f + 1;
