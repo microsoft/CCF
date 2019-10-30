@@ -182,6 +182,9 @@ private:
 
   // The implementation assumes:
   // correct > 0 and complete > correct
+
+  void reset_f(); // If sets the f and associated values used when f has changed
+                  // between the cert is created and when it is first used
 };
 
 template <class T>
@@ -291,17 +294,23 @@ Certificate<T>::~Certificate()
 }
 
 template <class T>
+void Certificate<T>::reset_f()
+{
+  f = node->f();
+  max_size = f + 1;
+  delete[] vals;
+  vals = new Message_val[max_size];
+  cur_size = 0;
+  correct = f + 1;
+  complete = (comp == 0) ? node->num_correct_replicas() : comp;
+}
+
+template <class T>
 bool Certificate<T>::add(T* m)
 {
   if (bmap.none() && f != node->f())
   {
-    f = node->f();
-    max_size = f + 1;
-    delete[] vals;
-    vals = new Message_val[max_size];
-    cur_size = 0;
-    correct = f + 1;
-    complete = (comp == 0) ? node->num_correct_replicas() : comp;
+    reset_f();
   }
 
   const int id = m->id();
@@ -405,13 +414,7 @@ bool Certificate<T>::add_mine(T* m)
 
   if (bmap.none() && f != node->f())
   {
-    f = node->f();
-    max_size = f + 1;
-    delete[] vals;
-    vals = new Message_val[max_size];
-    cur_size = 0;
-    correct = f + 1;
-    complete = (comp == 0) ? node->num_correct_replicas() : comp;
+    reset_f();
   }
 
   if (c != 0 && !c->m->match(m))
