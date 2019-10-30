@@ -17,29 +17,27 @@ namespace enclave
     // In parameters (initialised when context is created)
     //
     const size_t client_session_id = InvalidSessionId;
-    std::vector<uint8_t> caller_cert;
+    std::vector<uint8_t> caller_cert = {};
 
     //
     // Out parameters (changed during lifetime of context)
     //
-    // If true, the RPC does not reply to the client synchronously
-    bool is_pending = false;
-
     // Packing format of original request, should be used to pack response
     std::optional<jsonrpc::Pack> pack = std::nullopt;
 
-    // Method indicating dispatch to specific handler
-    std::string method;
+    nlohmann::json unpacked_rpc = {};
 
     // Actor type to dispatch to appropriate frontend
-    ccf::ActorsType actor;
+    ccf::ActorsType actor = ccf::ActorsType::unknown;
 
-    // Request payload specific attributes
-    struct Request
-    {
-      uint64_t seq_no;
-    };
-    struct Request req;
+    // Method indicates specific handler for this request
+    std::string method = {};
+
+    nlohmann::json params = {};
+
+    std::vector<uint8_t> signature = {};
+
+    uint64_t seq_no = {};
 
     bool is_create_request = false;
 
@@ -76,6 +74,37 @@ namespace enclave
     {}
   };
 
+  RPCContext make_rpc_context(
+    size_t client_session_id,
+    const std::vector<uint8_t>& caller_cert,
+    const std::vector<uint8_t>& packed)
+  {
+    RPCContext rpc_ctx(client_session_id, caller_cert);
+
+    auto [success, rpc] = jsonrpc::unpack_rpc(packed, rpc_ctx.pack);
+    if (!success)
+    {
+      throw std::logic_error(fmt::format("Failed to unpack: {}", rpc.dump()));
+    }
+
+    const auto sig_it = rpc.find(jsonrpc::SIG);
+    if (sig_it != rpc.end())
+    {
+      assign_j(rpc_ctx.signature, *sig_it);
+      rpc_ctx.unpacked_rpc = rpc.at(jsonrpc::REQ);
+    }
+    else
+    {
+      rpc_ctx.unpacked_rpc = rpc;
+    }
+
+    rpc_ctx.method = rpc_ctx.unpacked_rpc.at(jsonrpc::METHOD);
+    rpc_ctx.seq_no = rpc.at(jsonrpc::ID);
+    rpc_ctx.params = rpc.at(jsonrpc::PARAMS);
+
+    return rpc_ctx;
+  }
+
   class AbstractRPCResponder
   {
   public:
@@ -89,7 +118,7 @@ namespace enclave
     virtual ~AbstractForwarder() {}
 
     virtual bool forward_command(
-      enclave::RPCContext& rpc_ctx,
+      const enclave::RPCContext& rpc_ctx,
       ccf::NodeId to,
       ccf::CallerId caller_id,
       const std::vector<uint8_t>& data,

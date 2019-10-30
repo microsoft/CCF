@@ -68,10 +68,12 @@ namespace enclave
 
       if (!success)
       {
-        send(jsonrpc::pack(rpc, rpc_ctx.value_or(jsonrpc::Pack::Text)));
+        send(jsonrpc::pack(rpc, rpc_ctx.pack.value_or(jsonrpc::Pack::Text)));
         return true;
       }
       LOG_TRACE_FMT("Deserialised");
+
+      rpc_ctx.seq_no = rpc.at(jsonrpc::ID);
 
       auto prefixed_method = get_method(rpc);
       if (!prefixed_method.has_value())
@@ -106,17 +108,17 @@ namespace enclave
       if (!search.has_value())
         return false;
 
-      auto rep = search.value()->process(rpc_ctx, rpc, data);
+      auto response = search.value()->process(rpc_ctx, rpc, data);
 
-      if (rpc_ctx.is_pending)
+      if (!response.has_value())
       {
-        // If the RPC has been forwarded, hold the connection.
+        // If the RPC is pending, hold the connection.
         return true;
       }
       else
       {
         // Otherwise, reply to the client synchronously.
-        send(rep);
+        send(response);
       }
 
       return true;

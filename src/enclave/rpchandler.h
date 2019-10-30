@@ -23,8 +23,8 @@ namespace enclave
     virtual void tick(std::chrono::milliseconds elapsed_ms_count) {}
 
     // Used by rpcendpoint to process incoming client RPCs
-    virtual std::vector<uint8_t> process(
-      RPCContext& ctx,
+    virtual std::optional<std::vector<uint8_t>> process(
+      const RPCContext& ctx,
       const nlohmann::json& rpc,
       const std::vector<uint8_t>& input) = 0;
 

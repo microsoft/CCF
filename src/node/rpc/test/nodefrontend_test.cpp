@@ -53,10 +53,10 @@ const json frontend_process(
   auto req = create_json_req(json_params, NodeProcs::JOIN);
   auto serialise_request = pack(req, Pack::MsgPack);
 
-  enclave::RPCContext rpc_ctx(0, caller);
+  const auto rpc_ctx = enclave::make_rpc_context(0, caller, serialise_request);
   auto serialised_response = frontend.process(rpc_ctx, req, serialise_request);
 
-  return unpack(serialised_response, Pack::MsgPack);
+  return unpack(serialised_response.value(), Pack::MsgPack);
 }
 
 TEST_CASE("Add a node to an opening service")

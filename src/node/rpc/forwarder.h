@@ -44,7 +44,7 @@ namespace ccf
     }
 
     bool forward_command(
-      enclave::RPCContext& rpc_ctx,
+      const enclave::RPCContext& rpc_ctx,
       NodeId to,
       CallerId caller_id,
       const std::vector<uint8_t>& data,
@@ -109,7 +109,7 @@ namespace ccf
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
 
       return std::make_tuple(
-        enclave::RPCContext(client_session_id, caller_id, actor, caller_cert),
+        enclave::RPCContext(client_session_id, caller_id, caller_cert),
         r.first.from_node,
         std::move(rpc));
     }
