@@ -1972,14 +1972,12 @@ void Replica::right_pad_contents(Byz_rep& outb)
 
 void Replica::execute_committed(bool was_f_0)
 {
-  LOG_INFO << "TTTTTTTTTTTTTT" << std::endl;
   if (
     !state.in_fetch_state() && !state.in_check_state() &&
     has_complete_new_view())
   {
     while (1)
     {
-      LOG_INFO << "TTTTTTTTTTTTTT" << std::endl;
       if (last_executed >= last_stable + max_out || last_executed < last_stable)
       {
         return;
@@ -1987,15 +1985,12 @@ void Replica::execute_committed(bool was_f_0)
 
       Pre_prepare* pp = committed(last_executed + 1, was_f_0);
 
-      LOG_INFO << "TTTTTTTTTTTTTT: pp" << (uint64_t)pp << "" << std::endl;
       if (pp && pp->view() == view())
       {
-        LOG_INFO << "TTTTTTTTTTTTTT" << std::endl;
         // Can execute the requests in the message with sequence number
         // last_executed+1.
         if (last_executed + 1 > last_tentative_execute)
         {
-          LOG_INFO << "TTTTTTTTTTTTTT" << std::endl;
           ByzInfo info;
           auto executed_ok = execute_tentative(pp, info);
           PBFT_ASSERT(
@@ -2053,7 +2048,6 @@ void Replica::execute_committed(bool was_f_0)
         // Send and log Checkpoint message for the new state if needed.
         if (last_executed % checkpoint_interval == 0)
         {
-          LOG_INFO << "TTTTTTTTTTTTTT" << std::endl;
           Digest d_state;
           state.digest(last_executed, d_state);
           Checkpoint* e = new Checkpoint(last_executed, d_state);
@@ -2070,7 +2064,6 @@ void Replica::execute_committed(bool was_f_0)
       }
       else
       {
-        LOG_INFO << "TTTTTTTTTTTTTT" << std::endl;
         // No more requests to execute at this point.
         break;
       }
@@ -2078,22 +2071,18 @@ void Replica::execute_committed(bool was_f_0)
 
     if (rqueue.size() > 0)
     {
-      LOG_INFO << "TTTTTTTTTTTTTT" << std::endl;
       if (primary() == node_id)
       {
         // Send a pre-prepare with any buffered requests
-        LOG_INFO << "TTTTTTTTTTTTTT" << std::endl;
         send_pre_prepare();
       }
       else
       {
         // If I am not the primary and have pending requests restart the
         // timer.
-        LOG_INFO << "TTTTTTTTTTTTTT" << std::endl;
         start_vtimer_if_request_waiting();
       }
     }
-    LOG_INFO << "TTTTTTTTTTTTTT" << std::endl;
   }
 }
 
