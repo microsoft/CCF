@@ -900,7 +900,7 @@ void Replica::handle(Commit* m)
     if (cs.add(m) && cs.is_complete())
     {
       LOG_DEBUG << "calling execute committed from handle commit for seqno: "
-               << ms << std::endl;
+                << ms << std::endl;
       execute_committed();
     }
     return;
