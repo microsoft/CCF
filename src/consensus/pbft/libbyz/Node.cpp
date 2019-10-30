@@ -32,6 +32,7 @@
 #include "Pre_prepare.h"
 #include "Request.h"
 #include "Commit.h"
+#include "Reply.h"
 
 #ifndef NDEBUG
 #  define NDEBUG
@@ -242,6 +243,8 @@ void Node::send(Message* m, Principal* p)
         seqno = ((Prepare*)m)->seqno();
       } else if (m->tag() == Commit_tag) {
         seqno = ((Commit*)m)->seqno();
+      } else if (m->tag() == Reply_tag) {
+        seqno = ((Reply*)m)->seqno();
       }
       LOG_INFO << "AAAA sending msg:" << m->tag() << ", to:" << p->pid() << ", seqno:" << seqno << std::endl;
     }
