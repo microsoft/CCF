@@ -290,6 +290,13 @@ const enclave::SessionContext invalid_session(
 const enclave::SessionContext member_session(
   enclave::InvalidSessionId, member_caller);
 
+UserId user_id = INVALID_ID;
+UserId invalid_user_id = INVALID_ID;
+UserId nos_id = INVALID_ID;
+
+MemberId member_id = INVALID_ID;
+MemberId invalid_member_id = INVALID_ID;
+
 static constexpr auto default_pack = jsonrpc::Pack::MsgPack;
 
 void prepare_callers()
@@ -307,11 +314,11 @@ void prepare_callers()
   Store::Tx gen_tx;
   GenesisGenerator g(network, gen_tx);
   g.init_values();
-  g.add_user(user_caller);
-  g.add_user(invalid_caller);
-  g.add_user(nos_caller);
-  g.add_member(member_caller);
-  g.add_member(invalid_caller);
+  user_id = g.add_user(user_caller);
+  invalid_user_id = g.add_user(invalid_caller);
+  nos_id = g.add_user(nos_caller);
+  member_id = g.add_member(member_caller);
+  invalid_member_id = g.add_member(invalid_caller);
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 
@@ -320,8 +327,8 @@ void add_callers_primary_store()
   Store::Tx gen_tx;
   GenesisGenerator g(network2, gen_tx);
   g.init_values();
-  g.add_user(user_caller);
-  g.add_member(member_caller);
+  user_id = g.add_user(user_caller);
+  member_id = g.add_member(member_caller);
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 
@@ -338,70 +345,92 @@ TEST_CASE("SignedReq to and from json")
   REQUIRE(sr.req.empty());
 }
 
-TEST_CASE("get_signed_req")
+TEST_CASE("process_json")
 {
   prepare_callers();
   TestUserFrontend frontend(*network.tables);
   auto simple_call = create_simple_json();
-  CallerId caller_id(0);
-  CallerId inval_caller_id(1);
-  CallerId nos_caller_id(2);
+
+  const auto serialized_call = jsonrpc::pack(simple_call, default_pack);
+  const auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+
   Store::Tx tx;
+  CallerId caller_id(0);
+  auto response = frontend.process_json(rpc_ctx, tx, caller_id).value();
+  CHECK(response[jsonrpc::RESULT] == true);
+}
 
-  SUBCASE("request with no signature")
+TEST_CASE("process")
+{
+  prepare_callers();
+  TestUserFrontend frontend(*network.tables);
+  const auto simple_call = create_simple_json();
+  const auto signed_call = create_signed_json();
+
+  SUBCASE("without signature")
   {
-    std::vector<uint8_t> serialized_call =
-      jsonrpc::pack(simple_call, default_pack);
-
+    const auto serialized_call = jsonrpc::pack(simple_call, default_pack);
     const auto rpc_ctx =
       enclave::make_rpc_context(user_session, serialized_call);
-    frontend.process(rpc_ctx);
-    auto signed_resp = get_signed_req(caller_id);
+
+    const auto serialized_response = frontend.process(rpc_ctx).value();
+    auto response = jsonrpc::unpack(serialized_response, default_pack);
+    CHECK(response[jsonrpc::RESULT] == true);
+
+    auto signed_resp = get_signed_req(user_id);
     CHECK(!signed_resp.has_value());
   }
-  SUBCASE("request with signature")
-  {
-    auto signed_call = create_signed_json();
-    std::vector<uint8_t> serialized_call =
-      jsonrpc::pack(signed_call, default_pack);
 
+  SUBCASE("with signature")
+  {
+    const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
     const auto rpc_ctx =
       enclave::make_rpc_context(user_session, serialized_call);
-    frontend.process(rpc_ctx);
-    auto signed_resp = get_signed_req(caller_id);
+
+    const auto serialized_response = frontend.process(rpc_ctx).value();
+    auto response = jsonrpc::unpack(serialized_response, default_pack);
+    CHECK(response[jsonrpc::RESULT] == true);
+
+    auto signed_resp = get_signed_req(user_id);
     CHECK(signed_resp.has_value());
     auto value = signed_resp.value();
     ccf::SignedReq signed_req(signed_call);
     CHECK(value.req == signed_req.req);
     CHECK(value.sig == signed_req.sig);
   }
+
   SUBCASE("request with signature but do not store")
   {
     TestReqNotStoredFrontend frontend_nostore(*network.tables);
-    auto signed_call = create_signed_json();
-    std::vector<uint8_t> serialized_call =
-      jsonrpc::pack(signed_call, default_pack);
-
+    const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
     const auto rpc_ctx =
       enclave::make_rpc_context(user_session, serialized_call);
-    frontend_nostore.process(rpc_ctx);
-    auto signed_resp = get_signed_req(caller_id);
 
+    const auto serialized_response = frontend_nostore.process(rpc_ctx).value();
+    const auto response = jsonrpc::unpack(serialized_response, default_pack);
+    CHECK(response[jsonrpc::RESULT] == true);
+
+    auto signed_resp = get_signed_req(user_id);
     CHECK(signed_resp.has_value());
     auto value = signed_resp.value();
     CHECK(value.req.empty());
     CHECK(value.sig == signed_call[jsonrpc::SIG]);
   }
+
   SUBCASE("signature not verified")
   {
-    auto signed_call = create_signed_json();
-    std::vector<uint8_t> serialized_call =
-      jsonrpc::pack(signed_call, default_pack);
+    const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
+    const auto invalid_rpc_ctx =
+      enclave::make_rpc_context(invalid_session, serialized_call);
 
-    const auto rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_call);
-    frontend.process(rpc_ctx);
-    auto signed_resp = get_signed_req(inval_caller_id);
+    const auto serialized_response = frontend.process(invalid_rpc_ctx).value();
+    const auto response = jsonrpc::unpack(serialized_response, default_pack);
+    CHECK(
+      response[jsonrpc::ERR][jsonrpc::CODE] ==
+      static_cast<jsonrpc::ErrorBaseType>(
+        jsonrpc::CCFErrorCodes::INVALID_CLIENT_SIGNATURE));
+
+    const auto signed_resp = get_signed_req(invalid_user_id);
     CHECK(!signed_resp.has_value());
   }
 }
@@ -423,67 +452,6 @@ TEST_CASE("MinimalHandleFuction")
     jsonrpc::unpack(frontend.process(rpc_ctx).value(), default_pack);
   CHECK(response[jsonrpc::RESULT] == echo_call[jsonrpc::PARAMS]);
 }
-
-// TEST_CASE("process_json")
-// {
-//   prepare_callers();
-//   TestUserFrontend frontend(*network.tables);
-//   auto simple_call = create_simple_json();
-//   CallerId caller_id(0);
-//   CallerId inval_caller_id(1);
-
-//   Store::Tx tx;
-
-//   ccf::SignedReq sr(simple_call);
-//   auto response =
-//     frontend.process_json(rpc_ctx, tx, caller_id, simple_call, sr).value();
-//   CHECK(response[jsonrpc::RESULT] == true);
-// }
-
-// TEST_CASE("process")
-// {
-//   prepare_callers();
-//   TestUserFrontend frontend(*network.tables);
-//   auto simple_call = create_simple_json();
-
-//   SUBCASE("without signature")
-//   {
-//     std::vector<uint8_t> serialized_call =
-//       jsonrpc::pack(simple_call, default_pack);
-//     std::vector<uint8_t> serialized_response =
-//       frontend.process(rpc_ctx, simple_call, serialized_call);
-//     auto response =
-//       jsonrpc::unpack(serialized_response, default_pack);
-//     CHECK(response[jsonrpc::RESULT] == true);
-//   }
-//   SUBCASE("with signature")
-//   {
-//     auto signed_call = create_signed_json();
-
-//     std::vector<uint8_t> serialized_call =
-//       jsonrpc::pack(signed_call, default_pack);
-//     std::vector<uint8_t> serialized_response =
-//       frontend.process(rpc_ctx, signed_call, serialized_call);
-//     auto response =
-//       jsonrpc::unpack(serialized_response, default_pack);
-//     CHECK(response[jsonrpc::RESULT] == true);
-//   }
-//   SUBCASE("signature not verified")
-//   {
-//     auto signed_call = create_signed_json();
-
-//     std::vector<uint8_t> serialized_call =
-//       jsonrpc::pack(signed_call, default_pack);
-//     std::vector<uint8_t> serialized_response =
-//       frontend.process(invalid_rpc_ctx, signed_call, serialized_call);
-//     auto response =
-//       jsonrpc::unpack(serialized_response, default_pack);
-//     CHECK(
-//       response[jsonrpc::ERR][jsonrpc::CODE] ==
-//       static_cast<jsonrpc::ErrorBaseType>(
-//         jsonrpc::CCFErrorCodes::INVALID_CLIENT_SIGNATURE));
-//   }
-// }
 
 // // callers
 
