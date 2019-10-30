@@ -51,7 +51,7 @@ namespace enclave
 
   struct RPCContext
   {
-    const SessionContext session;
+    SessionContext session;
 
     // Packing format of original request, should be used to pack response
     std::optional<jsonrpc::Pack> pack = std::nullopt;
@@ -92,7 +92,7 @@ namespace enclave
     if (sig_it != rpc.end())
     {
       assign_j(rpc_ctx.signature, *sig_it);
-      rpc_ctx.raw = rpc.at(jsonrpc::REQ).get<decltype(rpc_ctx.raw)>();
+      rpc_ctx.raw = nlohmann::json::to_msgpack(rpc.at(jsonrpc::REQ));
       rpc_ctx.unpacked_rpc = nlohmann::json::from_msgpack(rpc_ctx.raw);
     }
     else
