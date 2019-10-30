@@ -293,7 +293,8 @@ Certificate<T>::~Certificate()
 template <class T>
 bool Certificate<T>::add(T* m)
 {
-  if (bmap.none()) {
+  if (bmap.none())
+  {
     f = node->f();
     max_size = f + 1;
     vals = new Message_val[max_size];
@@ -403,7 +404,8 @@ bool Certificate<T>::add_mine(T* m)
   PBFT_ASSERT(m->id() == node->id(), "Invalid argument");
   PBFT_ASSERT(m->full(), "Invalid argument");
 
-  if (bmap.none()) {
+  if (bmap.none())
+  {
     f = node->f();
     max_size = f + 1;
     vals = new Message_val[max_size];

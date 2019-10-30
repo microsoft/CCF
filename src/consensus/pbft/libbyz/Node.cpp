@@ -29,11 +29,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "Pre_prepare.h"
-#include "Request.h"
-#include "Commit.h"
-#include "Reply.h"
-
 #ifndef NDEBUG
 #  define NDEBUG
 #endif
@@ -233,23 +228,7 @@ void Node::send(Message* m, Principal* p)
       throw std::logic_error("Network not set");
     }
 
-    if (m->tag() != Status_tag) {
-      uint64_t seqno = 99999999;
-      if (m->tag() == Pre_prepare_tag) {
-        seqno = ((Pre_prepare*)m)->rep().seqno;
-      } else if (m->tag() == Request_tag) {
-        seqno = ((Request*)m)->digest().hash();
-      } else if (m->tag() == Prepare_tag) {
-        seqno = ((Prepare*)m)->seqno();
-      } else if (m->tag() == Commit_tag) {
-        seqno = ((Commit*)m)->seqno();
-      } else if (m->tag() == Reply_tag) {
-        seqno = ((Reply*)m)->seqno();
-      }
-      LOG_INFO << "AAAA sending msg:" << m->tag() << ", to:" << p->pid() << ", seqno:" << seqno << std::endl;
-    }
     error = network->Send(m, *p);
-
 
     STOP_CC(sendto_cycles);
 #ifndef NDEBUG
@@ -369,16 +348,13 @@ void Node::resend_new_key()
 
 void Node::send_to_replicas(Message* m)
 {
-  if (m->tag() != Status_tag) {
-    LOG_INFO << "replica_count:" << replica_count
-              << ", num_replicas:" << num_replicas << " m:" << m->tag()
-              << ", send only to self:" << (send_only_to_self ? "true" : "false")
-              << std::endl;
-  }
+  LOG_TRACE << "replica_count:" << replica_count
+            << ", num_replicas:" << num_replicas << " m:" << m->tag()
+            << std::endl;
 
   if (send_only_to_self && m->tag() != Status_tag)
   {
-    LOG_INFO << "Only sending to self" << std::endl;
+    LOG_TRACE << "Only sending to self" << std::endl;
     send(m, node_id);
   }
   else
@@ -392,9 +368,6 @@ void Node::send_to_replicas(Message* m)
       }
     }
   }
-  if (m->tag() != Status_tag) {
-    LOG_INFO << "Done sending" << std::endl;
-  }
 }
 
 void Node::set_f(ccf::NodeId f)
@@ -403,5 +376,5 @@ void Node::set_f(ccf::NodeId f)
   max_faulty = f;
   send_only_to_self = (f == 0);
   threshold = f * 2 + 1;
-  num_replicas = 3*f+1;
+  num_replicas = 3 * f + 1;
 }

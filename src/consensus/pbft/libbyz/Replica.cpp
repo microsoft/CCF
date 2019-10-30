@@ -526,16 +526,12 @@ void Replica::recv()
 void Replica::handle(Request* m)
 {
   bool ro = m->is_read_only();
-  //bool verified = m->verify();
   bool verified = true;
 
   if (has_complete_new_view() && verified)
   {
-    LOG_INFO << "Received request with rid: " << m->request_id()
-             << " with cid: " << m->client_id()
-             << ", digest:" << m->digest().hash()
-             << ", ro:" << (ro ? "true" : "false") << ", id:" << id()
-             << ", primary:" << primary() << std::endl;
+    LOG_TRACE << "Received request with rid: " << m->request_id()
+              << " with cid: " << m->client_id() << std::endl;
 #if 0
     // TODO: Fix execution of read-only requests
     if (ro)
@@ -562,7 +558,6 @@ void Replica::handle(Request* m)
           send_pre_prepare();
           return;
         }
-        LOG_INFO << "MMMMMM" << std::endl;
       }
       else
       {
@@ -604,9 +599,6 @@ void Replica::handle(Request* m)
   }
   else
   {
-    LOG_INFO << "Received request with rid: " << m->request_id()
-             << " with cid: " << m->client_id()
-             << ", digest:" << m->digest().hash() << std::endl;
     if (
       m->size() > Request::big_req_thresh && !ro &&
       brt.add_request(m, verified))
@@ -625,26 +617,14 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
   // If rqueue is empty there are no requests for which to send
   // pre_prepare and a pre-prepare cannot be sent if the seqno exceeds
   // the maximum window or the replica does not have the new view.
-  LOG_INFO << "MMMMMM"
-  << ", do_not_wait_for_batch_size:" << (do_not_wait_for_batch_size ? "true" : "false") 
-  << ", rqueue.size():" << rqueue.size()
-  << ", next_pp_seqno:" << next_pp_seqno
-  << ", last_executed:" << last_executed
-  //<< ", congestion_window:" << congestion_window
-  << ", max_out + last_stable:" << (max_out + last_stable)
-  << ", has_complete_new_view():"  << (has_complete_new_view() ? "true" : "false")
-  << ", !state.in_fetch_state():" << ((!state.in_fetch_state()) ?  "true" : "false")
-  << std::endl;
-
   if (
     (rqueue.size() >= min_pre_prepare_batch_size ||
      (do_not_wait_for_batch_size && rqueue.size() > 0)) &&
-    //next_pp_seqno + 1 <= last_executed + congestion_window &&
+    // next_pp_seqno + 1 <= last_executed + congestion_window &&
     next_pp_seqno + 1 <= last_executed + 1 &&
     next_pp_seqno + 1 <= max_out + last_stable && has_complete_new_view() &&
     !state.in_fetch_state())
   {
-    LOG_INFO << "MMMMMM" << std::endl;
     btimer->stop();
     nbreqs += rqueue.size();
     nbrounds++;
@@ -696,7 +676,6 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       delete pp;
     }
   }
-  LOG_INFO << "MMMMMM" << std::endl;
 
   if (rqueue.size() > 0)
   {
@@ -794,7 +773,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
     if (pc.my_prepare() == 0 && pc.is_pp_complete())
     {
-       bool send_only_to_self = (f() == 0);
+      bool send_only_to_self = (f() == 0);
       // Send prepare to all replicas and log it.
       Pre_prepare* pp = pc.pre_prepare();
       ByzInfo info;
@@ -823,7 +802,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       }
 
       Prepare* p = new Prepare(v, pp->seqno(), pp->digest());
-      int send_node_id = (send_only_to_self ? node_id : All_replicas );
+      int send_node_id = (send_only_to_self ? node_id : All_replicas);
       send(p, send_node_id);
       pc.add_mine(p);
       LOG_DEBUG << "added to pc in prepare: " << pp->seqno() << std::endl;
@@ -831,8 +810,9 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       if (pc.is_complete())
       {
         LOG_INFO << "pc is complete for seqno: " << seqno
-                  << " and sending commit"
-                  << ", send_only_to_self:" << (send_only_to_self ? "true" : "false") << std::endl;
+                 << " and sending commit"
+                 << ", send_only_to_self:"
+                 << (send_only_to_self ? "true" : "false") << std::endl;
         send_commit(seqno, send_node_id == node_id);
       }
       seqno++;
@@ -846,7 +826,8 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
 void Replica::send_commit(Seqno s, bool send_only_to_self)
 {
-  LOG_INFO << "Got commit s:" << s << ", last_executed:" << last_executed << std::endl;
+  LOG_INFO << "Got commit s:" << s << ", last_executed:" << last_executed
+           << std::endl;
   size_t before_f = f();
   // Executing request before sending commit improves performance
   // for null requests. May not be true in general.
@@ -856,8 +837,8 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
   }
 
   Commit* c = new Commit(view(), s);
-  int send_node_id = (send_only_to_self ? node_id : All_replicas );
-  
+  int send_node_id = (send_only_to_self ? node_id : All_replicas);
+
   send(c, send_node_id);
 
   if (s > last_prepared)
@@ -866,12 +847,12 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
   }
 
   Certificate<Commit>& cs = clog.fetch(s);
-  //if (!send_only_to_self && cs.add_mine(c) && cs.is_complete())
+  // if (!send_only_to_self && cs.add_mine(c) && cs.is_complete())
   LOG_INFO << "ZZZZZZ" << std::endl;
   if ((cs.add_mine(c) && cs.is_complete()) || (before_f == 0))
   {
     LOG_INFO << "calling execute committed from send_commit seqno: " << s
-              << std::endl;
+             << std::endl;
     execute_committed(before_f == 0);
   }
 }
@@ -919,12 +900,13 @@ void Replica::handle(Commit* m)
   // accept commits from older views as in proof.
   if (in_wv(m) && ms > low_bound)
   {
-    LOG_INFO << "handle commit for seqno: " << m->seqno() << ", id:" << m->id() << std::endl;
+    LOG_INFO << "handle commit for seqno: " << m->seqno() << ", id:" << m->id()
+             << std::endl;
     Certificate<Commit>& cs = clog.fetch(m->seqno());
     if (cs.add(m) && cs.is_complete())
     {
       LOG_INFO << "calling execute committed from handle commit for seqno: "
-                << ms << std::endl;
+               << ms << std::endl;
       execute_committed();
     }
     return;
@@ -1701,7 +1683,7 @@ Pre_prepare* Replica::committed(Seqno s, bool was_f_0)
   // commits without prepared requests, i.e., only with the
   // pre-prepare.
   Pre_prepare* pp = prepared_pre_prepare(s);
-  if (clog.fetch(s).is_complete()|| was_f_0)
+  if (clog.fetch(s).is_complete() || was_f_0)
   {
     return pp;
   }
@@ -2917,8 +2899,8 @@ void Replica::vtimer_handler(void* owner)
     if (replica->rqueue.size() > 0)
     {
       LOG_INFO << "View change timer expired first rid: "
-               << replica->rqueue.first()->request_id()
-               << ", digest " << replica->rqueue.first()->digest().hash()
+               << replica->rqueue.first()->request_id() << ", digest "
+               << replica->rqueue.first()->digest().hash()
                << " first cid: " << replica->rqueue.first()->client_id()
                << std::endl;
     }

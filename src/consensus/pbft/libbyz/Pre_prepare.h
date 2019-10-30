@@ -180,10 +180,10 @@ public:
   // "Pre_prepare" pointer, returns the pointer in "m2" and returns
   // true. Otherwise, it returns false.
 
+private:
   Pre_prepare_rep& rep() const;
   // Effects: Casts contents to a Pre_prepare_rep&
 
-private:
   char* requests();
   // Effects: Returns a pointer to the first request contents.
 

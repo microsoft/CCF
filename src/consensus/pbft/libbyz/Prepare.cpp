@@ -138,7 +138,6 @@ bool Prepare::pre_verify()
 
 bool Prepare::verify()
 {
-  //return verified_auth;
   return true;
 }
 

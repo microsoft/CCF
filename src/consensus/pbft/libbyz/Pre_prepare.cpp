@@ -303,7 +303,6 @@ bool Pre_prepare::verify(int mode)
     }
   }
 
-  //return mode == NAC || verified_auth;
   return true;
 }
 
