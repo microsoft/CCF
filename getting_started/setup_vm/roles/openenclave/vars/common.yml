@@ -1,5 +1,5 @@
 workspace: "/tmp/"
-oe_ver: "0.7.0-rc1"
+oe_ver: "0.7.0"
 oe_src: "oe-{{ oe_ver }}.tar.gz"
-oe_url: "https://github.com/openenclave/openenclave/tarball/dab09ecd3d428c571b115621d68e2c9f995572e2"
+oe_url: "https://github.com/openenclave/openenclave/tarball/e529c2e6f17c19f8010082b4ab3d95dcac4aa5f4"
 oe_prefix: "/opt/openenclave"
