@@ -158,15 +158,20 @@ auto init_frontend(
   NetworkTables& network,
   GenesisGenerator& gen,
   StubNodeState& node,
-  const int n_members)
+  const int n_members,
+  std::vector<std::vector<uint8_t>>& member_certs)
 {
-  // create members with fake certs (no crypto here)
+  // create members
   for (uint8_t i = 0; i < n_members; i++)
-    gen.add_member({i}, MemberStatus::ACTIVE);
+  {
+    member_certs.push_back(get_cert_data(i, kp));
+    gen.add_member(member_certs.back(), MemberStatus::ACTIVE);
+  }
 
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
+
   return MemberRpcFrontend(network, node);
 }
 
@@ -276,9 +281,7 @@ TEST_CASE("Member query/read")
 TEST_CASE("Proposer ballot")
 {
   NetworkTables network;
-  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -375,9 +378,7 @@ TEST_CASE("Add new members until there are 7, then reject")
   constexpr auto n_new_members = 7;
   constexpr auto max_members = 8;
   NetworkTables network;
-  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -551,253 +552,239 @@ TEST_CASE("Add new members until there are 7, then reject")
   }
 }
 
-// TEST_CASE("Accept node")
-// {
-//   NetworkTables network;
-//   Store::Tx gen_tx;
-//   GenesisGenerator gen(network, gen_tx);
-//   gen.init_values();
-//   StubNodeState node;
-//   auto new_kp = tls::make_key_pair();
+TEST_CASE("Accept node")
+{
+  NetworkTables network;
+  network.tables->set_encryptor(encryptor);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
+  gen.init_values();
+  StubNodeState node;
+  auto new_kp = tls::make_key_pair();
 
-//   const Cert mcert0 = get_cert_data(0, new_kp), mcert1 = get_cert_data(1,
-//   kp); const auto mid0 = gen.add_member(mcert0, MemberStatus::ACTIVE); const
-//   auto mid1 = gen.add_member(mcert1, MemberStatus::ACTIVE);
-//   enclave::RPCContext rpc_ctx(0, mcert1);
+  const auto member_0_cert = get_cert_data(0, new_kp);
+  const auto member_1_cert = get_cert_data(1, kp);
+  const auto member_0 = gen.add_member(member_0_cert, MemberStatus::ACTIVE);
+  const auto member_1 = gen.add_member(member_1_cert, MemberStatus::ACTIVE);
 
-//   // node to be tested
-//   // new node certificate
-//   auto new_ca = new_kp->self_sign("CN=new node");
-//   NodeInfo ni;
-//   ni.cert = new_ca;
-//   gen.add_node(ni);
-//   set_whitelists(gen);
-//   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-//   gen.finalize();
-//   MemberRpcFrontend frontend(network, node);
-//   auto node_id = 0;
-//   // check node exists with status pending
-//   {
-//     Store::Tx tx;
-//     auto read_values_j =
-//       create_json_req(read_params<int>(node_id, Tables::NODES), "read");
-//     ccf::SignedReq sr(read_values_j);
+  // node to be tested
+  // new node certificate
+  auto new_ca = new_kp->self_sign("CN=new node");
+  NodeInfo ni;
+  ni.cert = new_ca;
+  gen.add_node(ni);
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
+  gen.finalize();
+  MemberRpcFrontend frontend(network, node);
+  auto node_id = 0;
 
-//     Response<NodeInfo> r =
-//       frontend.process_json(rpc_ctx, tx, mid0, read_values_j, sr).value();
-//     CHECK(r.result.status == NodeStatus::PENDING);
-//   }
-//   // m0 proposes adding new node
-//   {
-//     Script proposal(R"xxx(
-//       local tables, node_id = ...
-//       return Calls:call("trust_node", node_id)
-//     )xxx");
+  // check node exists with status pending
+  {
+    auto read_values_j =
+      create_json_req(read_params<int>(node_id, Tables::NODES), "read");
+    Response<NodeInfo> r =
+      frontend_process(frontend, read_values_j, member_0_cert);
 
-//     json proposej = create_json_req(Propose::In{proposal, node_id},
-//     "propose"); ccf::SignedReq sr(proposej);
+    CHECK(r.result.status == NodeStatus::PENDING);
+  }
 
-//     Store::Tx tx;
-//     Response<Propose::Out> r =
-//       frontend.process_json(rpc_ctx, tx, mid0, proposej, sr).value();
-//     CHECK(!r.result.completed);
-//     CHECK(r.result.id == 0);
-//   }
-//   // m1 votes for accepting a single new node
-//   {
-//     Script vote_ballot(R"xxx(
-//         local tables, calls = ...
-//         return #calls == 1 and calls[1].func == "trust_node"
-//        )xxx");
+  // m0 proposes adding new node
+  {
+    Script proposal(R"xxx(
+      local tables, node_id = ...
+      return Calls:call("trust_node", node_id)
+    )xxx");
+    json proposej = create_json_req(Propose::In{proposal, node_id}, "propose");
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, member_0_cert);
 
-//     json votej = create_json_req_signed(Vote{0, vote_ballot}, "vote", kp);
-//     ccf::SignedReq sr(votej);
+    CHECK(!r.result.completed);
+    CHECK(r.result.id == 0);
+  }
 
-//     Store::Tx tx;
-//     check_success(
-//       frontend.process_json(rpc_ctx, tx, mid1, votej["req"], sr).value());
-//   }
-//   // check node exists with status pending
-//   {
-//     Store::Tx tx;
-//     auto read_values_j =
-//       create_json_req(read_params<int>(node_id, Tables::NODES), "read");
-//     ccf::SignedReq sr(read_values_j);
+  // m1 votes for accepting a single new node
+  {
+    Script vote_ballot(R"xxx(
+        local tables, calls = ...
+        return #calls == 1 and calls[1].func == "trust_node"
+       )xxx");
+    json votej = create_json_req_signed(Vote{0, vote_ballot}, "vote", kp);
 
-//     Response<NodeInfo> r =
-//       frontend.process_json(rpc_ctx, tx, mid0, read_values_j, sr).value();
-//     CHECK(r.result.status == NodeStatus::TRUSTED);
-//   }
-// }
+    check_success(frontend_process(frontend, votej, member_1_cert));
+  }
 
-// bool test_raw_writes(
-//   NetworkTables& network,
-//   GenesisGenerator& gen,
-//   StubNodeState& node,
-//   Propose::In proposal,
-//   const int n_members = 1,
-//   const int pro_votes = 1,
-//   bool explicit_proposer_vote = false)
-// {
-//   enclave::RPCContext rpc_ctx(0, {});
-//   auto frontend = init_frontend(network, gen, node, n_members);
-//   // check values before
-//   {
-//     Store::Tx tx;
-//     auto next_member_id_r =
-//       tx.get_view(network.values)->get(ValueIds::NEXT_MEMBER_ID);
-//     CHECK(next_member_id_r);
-//     CHECK(*next_member_id_r == n_members);
-//   }
-//   // propose
-//   const auto proposal_id = 0ul;
-//   {
-//     const uint8_t proposer_id = 0;
-//     json proposej = create_json_req(proposal, "propose");
-//     ccf::SignedReq sr(proposej);
+  // check node exists with status pending
+  {
+    auto read_values_j =
+      create_json_req(read_params<int>(node_id, Tables::NODES), "read");
+    Response<NodeInfo> r =
+      frontend_process(frontend, read_values_j, member_0_cert);
+    CHECK(r.result.status == NodeStatus::TRUSTED);
+  }
+}
 
-//     Store::Tx tx;
-//     Response<Propose::Out> r =
-//       frontend.process_json(rpc_ctx, tx, proposer_id, proposej, sr).value();
-//     CHECK(r.result.completed == (n_members == 1));
-//     CHECK(r.result.id == proposal_id);
-//     if (r.result.completed)
-//       return true;
-//   }
-//   // con votes
-//   for (int i = n_members - 1; i >= pro_votes; i--)
-//   {
-//     auto mem_cert = get_cert_data(i, kp);
-//     enclave::RPCContext mem_rpc_ctx(0, mem_cert);
-//     const Script vote("return false");
-//     json votej = create_json_req_signed(Vote{proposal_id, vote}, "vote", kp);
-//     ccf::SignedReq sr(votej);
+bool test_raw_writes(
+  NetworkTables& network,
+  GenesisGenerator& gen,
+  StubNodeState& node,
+  Propose::In proposal,
+  const int n_members = 1,
+  const int pro_votes = 1,
+  bool explicit_proposer_vote = false)
+{
+  std::vector<std::vector<uint8_t>> member_certs;
+  auto frontend = init_frontend(network, gen, node, n_members, member_certs);
 
-//     Store::Tx tx;
-//     check_success(
-//       frontend.process_json(mem_rpc_ctx, tx, i, votej["req"], sr).value(),
-//       false);
-//   }
-//   // pro votes (proposer also votes)
-//   bool completed = false;
-//   for (uint8_t i = explicit_proposer_vote ? 0 : 1; i < pro_votes; i++)
-//   {
-//     const Script vote("return true");
-//     json votej = create_json_req_signed(Vote{proposal_id, vote}, "vote", kp);
-//     ccf::SignedReq sr(votej);
+  // check values before
+  {
+    Store::Tx tx;
+    auto next_member_id_r =
+      tx.get_view(network.values)->get(ValueIds::NEXT_MEMBER_ID);
+    CHECK(next_member_id_r);
+    CHECK(*next_member_id_r == n_members);
+  }
 
-//     Store::Tx tx;
-//     auto mem_cert = get_cert_data(i, kp);
-//     enclave::RPCContext mem_rpc_ctx(0, mem_cert);
-//     if (!completed)
-//     {
-//       completed =
-//         Response<bool>(
-//           frontend.process_json(mem_rpc_ctx, tx, i, votej["req"],
-//           sr).value()) .result;
-//     }
-//     else
-//     {
-//       // proposal has been accepted - additional votes return an error
-//       check_error(
-//         frontend.process_json(mem_rpc_ctx, tx, i, votej["req"], sr).value(),
-//         StandardErrorCodes::INVALID_PARAMS);
-//     }
-//   }
-//   return completed;
-// }
+  // propose
+  const auto proposal_id = 0ul;
+  {
+    const uint8_t proposer_id = 0;
+    json proposej = create_json_req(proposal, "propose");
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, member_certs[0]);
 
-// TEST_CASE("Propose raw writes")
-// {
-//   SUBCASE("insensitive tables")
-//   {
-//     const auto n_members = 10;
-//     for (int pro_votes = 0; pro_votes <= n_members; pro_votes++)
-//     {
-//       const bool should_succeed = pro_votes > n_members / 2;
-//       NetworkTables network;
-//       Store::Tx gen_tx;
-//       GenesisGenerator gen(network, gen_tx);
-//       gen.init_values();
-//       StubNodeState node;
-//       // manually add a member in state active (not recommended)
-//       const Cert member_cert = {1, 2, 3};
-//       CHECK(
-//         test_raw_writes(
-//           network,
-//           gen,
-//           node,
-//           {R"xxx(
-//         local tables, cert = ...
-//         local STATE_ACTIVE = 1
-//         local NEXT_MEMBER_ID_VALUE = 0
-//         local p = Puts:new()
-//         -- get id
-//         local member_id = tables["ccf.values"]:get(NEXT_MEMBER_ID_VALUE)
-//         -- increment id
-//         p:put("ccf.values", NEXT_MEMBER_ID_VALUE, member_id + 1)
-//         -- write member cert and status
-//         p:put("ccf.members", member_id, {cert = cert, status = STATE_ACTIVE})
-//         p:put("ccf.member_certs", cert, member_id)
-//         return Calls:call("raw_puts", p)
-//       )xxx"s,
-//            member_cert},
-//           n_members,
-//           pro_votes) == should_succeed);
-//       if (!should_succeed)
-//         continue;
+    CHECK(r.result.completed == (n_members == 1));
+    CHECK(r.result.id == proposal_id);
+    if (r.result.completed)
+      return true;
+  }
 
-//       // check results
-//       Store::Tx tx;
-//       const auto next_mid =
-//         tx.get_view(network.values)->get(ValueIds::NEXT_MEMBER_ID);
-//       CHECK(next_mid);
-//       CHECK(*next_mid == n_members + 1);
-//       const auto m = tx.get_view(network.members)->get(n_members);
-//       CHECK(m);
-//       CHECK(m->status == MemberStatus::ACTIVE);
-//       const auto member_id =
-//       tx.get_view(network.member_certs)->get(member_cert); CHECK(member_id);
-//       CHECK(*member_id == n_members);
-//     }
-//   }
+  // con votes
+  for (int i = n_members - 1; i >= pro_votes; i--)
+  {
+    const Script vote("return false");
+    json votej = create_json_req_signed(Vote{proposal_id, vote}, "vote", kp);
 
-//   SUBCASE("sensitive tables")
-//   {
-//     // propose changes to sensitive tables; changes must only be accepted
-//     // unanimously create new network for each case
-//     const auto sensitive_tables = {Tables::WHITELISTS, Tables::GOV_SCRIPTS};
-//     const auto n_members = 10;
-//     // let proposer vote/not vote
-//     for (const auto proposer_vote : {true, false})
-//     {
-//       for (int pro_votes = 0; pro_votes < n_members; pro_votes++)
-//       {
-//         for (const auto& sensitive_table : sensitive_tables)
-//         {
-//           NetworkTables network;
-//           Store::Tx gen_tx;
-//           GenesisGenerator gen(network, gen_tx);
-//           gen.init_values();
-//           StubNodeState node;
+    check_success(frontend_process(frontend, votej, member_certs[i]), false);
+  }
 
-//           const auto sensitive_put =
-//             "return Calls:call('raw_puts', Puts:put('"s + sensitive_table +
-//             "', 9, {'aaa'}))"s;
-//           CHECK(
-//             test_raw_writes(
-//               network,
-//               gen,
-//               node,
-//               {sensitive_put},
-//               n_members,
-//               pro_votes,
-//               proposer_vote) == (n_members == pro_votes));
-//         }
-//       }
-//     }
-//   }
-// }
+  // pro votes (proposer also votes)
+  bool completed = false;
+  for (uint8_t i = explicit_proposer_vote ? 0 : 1; i < pro_votes; i++)
+  {
+    const Script vote("return true");
+    json votej = create_json_req_signed(Vote{proposal_id, vote}, "vote", kp);
+    if (!completed)
+    {
+      completed =
+        Response<bool>(frontend_process(frontend, votej, member_certs[i]))
+          .result;
+    }
+    else
+    {
+      // proposal has been accepted - additional votes return an error
+      check_error(
+        frontend_process(frontend, votej, member_certs[i]),
+        StandardErrorCodes::INVALID_PARAMS);
+    }
+  }
+  return completed;
+}
+
+TEST_CASE("Propose raw writes")
+{
+  SUBCASE("insensitive tables")
+  {
+    const auto n_members = 10;
+    for (int pro_votes = 0; pro_votes <= n_members; pro_votes++)
+    {
+      const bool should_succeed = pro_votes > n_members / 2;
+      NetworkTables network;
+      network.tables->set_encryptor(encryptor);
+      Store::Tx gen_tx;
+      GenesisGenerator gen(network, gen_tx);
+      gen.init_values();
+      StubNodeState node;
+      // manually add a member in state active (not recommended)
+      const Cert member_cert = {1, 2, 3};
+      CHECK(
+        test_raw_writes(
+          network,
+          gen,
+          node,
+          {R"xxx(
+        local tables, cert = ...
+        local STATE_ACTIVE = 1
+        local NEXT_MEMBER_ID_VALUE = 0
+        local p = Puts:new()
+        -- get id
+        local member_id = tables["ccf.values"]:get(NEXT_MEMBER_ID_VALUE)
+        -- increment id
+        p:put("ccf.values", NEXT_MEMBER_ID_VALUE, member_id + 1)
+        -- write member cert and status
+        p:put("ccf.members", member_id, {cert = cert, status = STATE_ACTIVE})
+        p:put("ccf.member_certs", cert, member_id)
+        return Calls:call("raw_puts", p)
+      )xxx"s,
+           member_cert},
+          n_members,
+          pro_votes) == should_succeed);
+      if (!should_succeed)
+        continue;
+
+      // check results
+      Store::Tx tx;
+      const auto next_mid =
+        tx.get_view(network.values)->get(ValueIds::NEXT_MEMBER_ID);
+      CHECK(next_mid);
+      CHECK(*next_mid == n_members + 1);
+      const auto m = tx.get_view(network.members)->get(n_members);
+      CHECK(m);
+      CHECK(m->status == MemberStatus::ACTIVE);
+      const auto member_id =
+        tx.get_view(network.member_certs)->get(member_cert);
+      CHECK(member_id);
+      CHECK(*member_id == n_members);
+    }
+  }
+
+  SUBCASE("sensitive tables")
+  {
+    // propose changes to sensitive tables; changes must only be accepted
+    // unanimously create new network for each case
+    const auto sensitive_tables = {Tables::WHITELISTS, Tables::GOV_SCRIPTS};
+    const auto n_members = 10;
+    // let proposer vote/not vote
+    for (const auto proposer_vote : {true, false})
+    {
+      for (int pro_votes = 0; pro_votes < n_members; pro_votes++)
+      {
+        for (const auto& sensitive_table : sensitive_tables)
+        {
+          NetworkTables network;
+          network.tables->set_encryptor(encryptor);
+          Store::Tx gen_tx;
+          GenesisGenerator gen(network, gen_tx);
+          gen.init_values();
+          StubNodeState node;
+
+          const auto sensitive_put =
+            "return Calls:call('raw_puts', Puts:put('"s + sensitive_table +
+            "', 9, {'aaa'}))"s;
+          CHECK(
+            test_raw_writes(
+              network,
+              gen,
+              node,
+              {sensitive_put},
+              n_members,
+              pro_votes,
+              proposer_vote) == (n_members == pro_votes));
+        }
+      }
+    }
+  }
+}
 
 // TEST_CASE("Remove proposal")
 // {
