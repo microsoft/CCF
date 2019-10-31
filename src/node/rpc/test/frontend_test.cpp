@@ -707,175 +707,174 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   }
 }
 
-// TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
-// {
-//   prepare_callers();
+TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
+{
+  prepare_callers();
 
-//   TestForwardingNodeFrontEnd node_frontend_backup(network, node);
-//   TestForwardingNodeFrontEnd node_frontend_primary(network2, node);
-//   auto channel_stub = std::make_shared<ChannelStubProxy>();
+  TestForwardingNodeFrontEnd node_frontend_backup(network, node);
+  TestForwardingNodeFrontEnd node_frontend_primary(network2, node);
+  auto channel_stub = std::make_shared<ChannelStubProxy>();
 
-//   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-//     nullptr, channel_stub, nullptr);
-//   node_frontend_backup.set_cmd_forwarder(backup_forwarder);
-//   auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
-//   network.tables->set_consensus(backup_consensus);
+  auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
+    nullptr, channel_stub, nullptr);
+  node_frontend_backup.set_cmd_forwarder(backup_forwarder);
+  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  network.tables->set_consensus(backup_consensus);
 
-//   auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
-//   network2.tables->set_consensus(primary_consensus);
+  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  network2.tables->set_consensus(primary_consensus);
 
-//   auto write_req = create_simple_json();
-//   auto serialized_call = jsonrpc::pack(write_req, default_pack);
+  auto write_req = create_simple_json();
+  auto serialized_call = jsonrpc::pack(write_req, default_pack);
 
-//   enclave::RPCContext ctx(enclave::InvalidSessionId, node_caller);
-//   node_frontend_backup.process(ctx, write_req, serialized_call);
-//   REQUIRE(ctx.is_pending == true);
-//   REQUIRE(channel_stub->size() == 1);
+  const enclave::SessionContext node_session(
+    enclave::InvalidSessionId, node_caller);
+  const auto ctx = enclave::make_rpc_context(node_session, serialized_call);
+  const auto r = node_frontend_backup.process(ctx);
+  REQUIRE(!r.has_value());
+  REQUIRE(channel_stub->size() == 1);
 
-//   auto forwarded_msg = channel_stub->get_pop_back();
-//   auto [fwd_ctx, node_id, forwarded_cmd] =
-//     backup_forwarder
-//       ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-//       .value();
+  auto forwarded_msg = channel_stub->get_pop_back();
+  auto [fwd_ctx, node_id] =
+    backup_forwarder
+      ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
+      .value();
 
-//   auto response = jsonrpc::unpack(
-//     node_frontend_primary.process_forwarded(fwd_ctx, forwarded_cmd),
-//     default_pack);
+  auto response = jsonrpc::unpack(
+    node_frontend_primary.process_forwarded(fwd_ctx), default_pack);
 
-//   CHECK(node_frontend_primary.last_caller_cert == node_caller);
-//   CHECK(node_frontend_primary.last_caller_id == INVALID_ID);
-// }
+  CHECK(node_frontend_primary.last_caller_cert == node_caller);
+  CHECK(node_frontend_primary.last_caller_id == INVALID_ID);
+}
 
-// TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
-// {
-//   prepare_callers();
-//   add_callers_primary_store();
+TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
+{
+  prepare_callers();
+  add_callers_primary_store();
 
-//   TestForwardingUserFrontEnd user_frontend_backup(*network.tables);
-//   TestForwardingUserFrontEnd user_frontend_primary(*network2.tables);
-//   auto channel_stub = std::make_shared<ChannelStubProxy>();
+  TestForwardingUserFrontEnd user_frontend_backup(*network.tables);
+  TestForwardingUserFrontEnd user_frontend_primary(*network2.tables);
+  auto channel_stub = std::make_shared<ChannelStubProxy>();
 
-//   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-//     nullptr, channel_stub, nullptr);
-//   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
-//   auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
-//   network.tables->set_consensus(backup_consensus);
+  auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
+    nullptr, channel_stub, nullptr);
+  user_frontend_backup.set_cmd_forwarder(backup_forwarder);
+  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  network.tables->set_consensus(backup_consensus);
 
-//   auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
-//   network2.tables->set_consensus(primary_consensus);
+  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  network2.tables->set_consensus(primary_consensus);
 
-//   auto write_req = create_simple_json();
-//   auto serialized_call = jsonrpc::pack(write_req, default_pack);
+  auto write_req = create_simple_json();
+  auto serialized_call = jsonrpc::pack(write_req, default_pack);
 
-//   enclave::RPCContext ctx(enclave::InvalidSessionId, user_caller);
-//   user_frontend_backup.process(ctx, write_req, serialized_call);
-//   REQUIRE(ctx.is_pending == true);
-//   REQUIRE(channel_stub->size() == 1);
+  const auto ctx = enclave::make_rpc_context(user_session, serialized_call);
+  const auto r = user_frontend_backup.process(ctx);
+  REQUIRE(!r.has_value());
+  REQUIRE(channel_stub->size() == 1);
 
-//   auto forwarded_msg = channel_stub->get_pop_back();
-//   auto [fwd_ctx, node_id, forwarded_cmd] =
-//     backup_forwarder
-//       ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-//       .value();
+  auto forwarded_msg = channel_stub->get_pop_back();
+  auto [fwd_ctx, node_id] =
+    backup_forwarder
+      ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
+      .value();
 
-//   auto response = jsonrpc::unpack(
-//     user_frontend_primary.process_forwarded(fwd_ctx, forwarded_cmd),
-//     default_pack);
+  auto response = jsonrpc::unpack(
+    user_frontend_primary.process_forwarded(fwd_ctx), default_pack);
 
-//   CHECK(user_frontend_primary.last_caller_cert == user_caller);
-//   CHECK(user_frontend_primary.last_caller_id == 0);
-// }
+  CHECK(user_frontend_primary.last_caller_cert == user_caller);
+  CHECK(user_frontend_primary.last_caller_id == 0);
+}
 
-// TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
-// {
-//   prepare_callers();
-//   add_callers_primary_store();
+TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
+{
+  prepare_callers();
+  add_callers_primary_store();
 
-//   TestForwardingMemberFrontEnd member_frontend_backup(
-//     *network.tables, network, node);
-//   TestForwardingMemberFrontEnd member_frontend_primary(
-//     *network2.tables, network2, node);
-//   auto channel_stub = std::make_shared<ChannelStubProxy>();
+  TestForwardingMemberFrontEnd member_frontend_backup(
+    *network.tables, network, node);
+  TestForwardingMemberFrontEnd member_frontend_primary(
+    *network2.tables, network2, node);
+  auto channel_stub = std::make_shared<ChannelStubProxy>();
 
-//   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-//     nullptr, channel_stub, nullptr);
-//   member_frontend_backup.set_cmd_forwarder(backup_forwarder);
-//   auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
-//   network.tables->set_consensus(backup_consensus);
+  auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
+    nullptr, channel_stub, nullptr);
+  member_frontend_backup.set_cmd_forwarder(backup_forwarder);
+  auto backup_consensus = std::make_shared<kv::BackupStubConsensus>();
+  network.tables->set_consensus(backup_consensus);
 
-//   auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
-//   network2.tables->set_consensus(primary_consensus);
+  auto primary_consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  network2.tables->set_consensus(primary_consensus);
 
-//   auto write_req = create_simple_json();
-//   auto serialized_call = jsonrpc::pack(write_req, default_pack);
+  auto write_req = create_simple_json();
+  auto serialized_call = jsonrpc::pack(write_req, default_pack);
 
-//   enclave::RPCContext ctx(enclave::InvalidSessionId, member_caller);
-//   member_frontend_backup.process(ctx, write_req, serialized_call);
-//   REQUIRE(ctx.is_pending == true);
-//   REQUIRE(channel_stub->size() == 1);
+  const auto ctx = enclave::make_rpc_context(member_session, serialized_call);
+  const auto r = member_frontend_backup.process(ctx);
+  REQUIRE(!r.has_value());
+  REQUIRE(channel_stub->size() == 1);
 
-//   auto forwarded_msg = channel_stub->get_pop_back();
-//   auto [fwd_ctx, node_id, forwarded_cmd] =
-//     backup_forwarder
-//       ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
-//       .value();
+  auto forwarded_msg = channel_stub->get_pop_back();
+  auto [fwd_ctx, node_id] =
+    backup_forwarder
+      ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
+      .value();
 
-//   auto response = jsonrpc::unpack(
-//     member_frontend_primary.process_forwarded(fwd_ctx, forwarded_cmd),
-//     default_pack);
+  auto response = jsonrpc::unpack(
+    member_frontend_primary.process_forwarded(fwd_ctx), default_pack);
 
-//   CHECK(member_frontend_primary.last_caller_cert == member_caller);
-//   CHECK(member_frontend_primary.last_caller_id == 0);
-// }
+  CHECK(member_frontend_primary.last_caller_cert == member_caller);
+  CHECK(member_frontend_primary.last_caller_id == 0);
+}
 
-// TEST_CASE("App-defined errors")
-// {
-//   prepare_callers();
+TEST_CASE("App-defined errors")
+{
+  prepare_callers();
 
-//   TestAppErrorFrontEnd frontend(*network.tables);
-//   {
-//     auto foo_call = create_simple_json();
-//     foo_call[jsonrpc::METHOD] = "foo";
-//     std::vector<uint8_t> serialized_foo =
-//       jsonrpc::pack(foo_call, default_pack);
+  TestAppErrorFrontEnd frontend(*network.tables);
+  {
+    auto foo_call = create_simple_json();
+    foo_call[jsonrpc::METHOD] = "foo";
+    std::vector<uint8_t> serialized_foo = jsonrpc::pack(foo_call, default_pack);
 
-//     std::vector<uint8_t> serialized_foo_response =
-//       frontend.process(rpc_ctx, foo_call, serialized_foo);
-//     auto foo_response =
-//       jsonrpc::unpack(serialized_foo_response, default_pack);
+    const auto rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_foo);
+    std::vector<uint8_t> serialized_foo_response =
+      frontend.process(rpc_ctx).value();
+    auto foo_response = jsonrpc::unpack(serialized_foo_response, default_pack);
 
-//     CHECK(foo_response[jsonrpc::ERR] != nullptr);
-//     CHECK(
-//       foo_response[jsonrpc::ERR][jsonrpc::CODE].get<jsonrpc::ErrorBaseType>()
-//       == static_cast<jsonrpc::ErrorBaseType>(userapp::AppError::Foo));
+    CHECK(foo_response[jsonrpc::ERR] != nullptr);
+    CHECK(
+      foo_response[jsonrpc::ERR][jsonrpc::CODE].get<jsonrpc::ErrorBaseType>() ==
+      static_cast<jsonrpc::ErrorBaseType>(userapp::AppError::Foo));
 
-//     const auto msg =
-//       foo_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
-//     CHECK(msg.find("FOO") != std::string::npos);
-//   }
+    const auto msg =
+      foo_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
+    CHECK(msg.find("FOO") != std::string::npos);
+  }
 
-//   {
-//     auto bar_call = create_simple_json();
-//     bar_call[jsonrpc::METHOD] = "bar";
-//     std::vector<uint8_t> serialized_bar =
-//       jsonrpc::pack(bar_call, default_pack);
+  {
+    auto bar_call = create_simple_json();
+    bar_call[jsonrpc::METHOD] = "bar";
+    std::vector<uint8_t> serialized_bar = jsonrpc::pack(bar_call, default_pack);
 
-//     std::vector<uint8_t> serialized_bar_response =
-//       frontend.process(rpc_ctx, bar_call, serialized_bar);
-//     auto bar_response =
-//       jsonrpc::unpack(serialized_bar_response, default_pack);
+    const auto rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_bar);
+    std::vector<uint8_t> serialized_bar_response =
+      frontend.process(rpc_ctx).value();
+    auto bar_response = jsonrpc::unpack(serialized_bar_response, default_pack);
 
-//     CHECK(bar_response[jsonrpc::ERR] != nullptr);
-//     CHECK(
-//       bar_response[jsonrpc::ERR][jsonrpc::CODE].get<jsonrpc::ErrorBaseType>()
-//       == static_cast<jsonrpc::ErrorBaseType>(userapp::AppError::Bar));
+    CHECK(bar_response[jsonrpc::ERR] != nullptr);
+    CHECK(
+      bar_response[jsonrpc::ERR][jsonrpc::CODE].get<jsonrpc::ErrorBaseType>() ==
+      static_cast<jsonrpc::ErrorBaseType>(userapp::AppError::Bar));
 
-//     const auto msg =
-//       bar_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
-//     CHECK(msg.find("BAR") != std::string::npos);
-//     CHECK(msg.find(TestAppErrorFrontEnd::bar_msg) != std::string::npos);
-//   }
-// }
+    const auto msg =
+      bar_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
+    CHECK(msg.find("BAR") != std::string::npos);
+    CHECK(msg.find(TestAppErrorFrontEnd::bar_msg) != std::string::npos);
+  }
+}
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
