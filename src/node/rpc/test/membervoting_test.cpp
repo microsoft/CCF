@@ -128,7 +128,7 @@ auto read_params(const T& key, const string& table_name)
   return params;
 }
 
-const json frontend_process(
+json frontend_process(
   MemberRpcFrontend& frontend, const json& j_request, const Cert& caller)
 {
   auto serialized_request = pack(j_request, default_pack);
@@ -143,10 +143,7 @@ const json frontend_process(
 }
 
 nlohmann::json get_proposal(
-  const enclave::RPCContext& rpc_ctx,
-  MemberRpcFrontend& frontend,
-  size_t proposal_id,
-  CallerId as_member)
+  MemberRpcFrontend& frontend, size_t proposal_id, const Cert& caller)
 {
   Script read_proposal(fmt::format(
     R"xxx(
@@ -156,14 +153,8 @@ nlohmann::json get_proposal(
     proposal_id));
 
   const auto readj = create_json_req(read_proposal, "query");
-  const auto serialized = jsonrpc::pack(readj, default_pack);
 
-  const enclave::SessionContext session(0, as_member);
-  const auto ctx = enclave::make_rpc_context(session, serialized);
-
-  const auto r = frontend.process(ctx);
-
-  return jsonrpc::unpack(r.value(), default_pack);
+  return frontend_process(frontend, readj, caller);
 }
 
 std::vector<uint8_t> get_cert_data(uint64_t member_id, tls::KeyPairPtr& kp_mem)
@@ -294,116 +285,101 @@ TEST_CASE("Member query/read")
   }
 }
 
-// TEST_CASE("Proposer ballot")
-// {
-//   NetworkTables network;
-//   Store::Tx gen_tx;
-//   GenesisGenerator gen(network, gen_tx);
-//   gen.init_values();
+TEST_CASE("Proposer ballot")
+{
+  NetworkTables network;
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
 
-//   const auto proposer_cert = get_cert_data(0, kp);
-//   const auto proposer_id = gen.add_member(proposer_cert,
-//   MemberStatus::ACTIVE); const auto voter_cert = get_cert_data(1, kp); const
-//   auto voter_id = gen.add_member(voter_cert, MemberStatus::ACTIVE);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
+  gen.init_values();
 
-//   set_whitelists(gen);
-//   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-//   gen.finalize();
+  const auto proposer_cert = get_cert_data(0, kp);
+  const auto proposer_id = gen.add_member(proposer_cert, MemberStatus::ACTIVE);
+  const auto voter_cert = get_cert_data(1, kp);
+  const auto voter_id = gen.add_member(voter_cert, MemberStatus::ACTIVE);
 
-//   StubNodeState node;
-//   MemberRpcFrontend frontend(network, node);
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
+  gen.finalize();
 
-//   size_t proposal_id;
+  StubNodeState node;
+  MemberRpcFrontend frontend(network, node);
 
-//   const ccf::Script vote_for("return true");
-//   const ccf::Script vote_against("return false");
-//   {
-//     INFO("Propose, initially voting against");
+  size_t proposal_id;
 
-//     const auto proposed_member = get_cert_data(2, kp);
+  const ccf::Script vote_for("return true");
+  const ccf::Script vote_against("return false");
+  {
+    INFO("Propose, initially voting against");
 
-//     Script proposal(R"xxx(
-//       tables, member_cert = ...
-//       return Calls:call("new_member", member_cert)
-//     )xxx");
-//     const auto proposej = create_json_req(
-//       Propose::In{proposal, proposed_member, vote_against}, "propose");
-//     enclave::RPCContext rpc_ctx(proposer_id, proposer_cert);
+    const auto proposed_member = get_cert_data(2, kp);
 
-//     Store::Tx tx;
-//     ccf::SignedReq sr(proposej);
-//     Response<Propose::Out> r =
-//       frontend.process_json(rpc_ctx, tx, proposer_id, proposej, sr).value();
+    Script proposal(R"xxx(
+      tables, member_cert = ...
+      return Calls:call("new_member", member_cert)
+    )xxx");
+    const auto proposej = create_json_req(
+      Propose::In{proposal, proposed_member, vote_against}, "propose");
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, proposer_cert);
 
-//     // the proposal should be accepted, but not succeed immediately
-//     CHECK(r.result.completed == false);
+    // the proposal should be accepted, but not succeed immediately
+    CHECK(r.result.completed == false);
 
-//     proposal_id = r.result.id;
-//   }
+    proposal_id = r.result.id;
+  }
 
-//   {
-//     INFO("Second member votes for proposal");
+  {
+    INFO("Second member votes for proposal");
 
-//     const auto votej =
-//       create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+    const auto votej =
+      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+    Response<bool> r = frontend_process(frontend, votej, voter_cert);
 
-//     Store::Tx tx;
-//     enclave::RPCContext rpc_ctx(voter_id, voter_cert);
-//     ccf::SignedReq sr(votej);
-//     Response<bool> r =
-//       frontend.process_json(rpc_ctx, tx, voter_id, votej["req"], sr).value();
+    // The vote should not yet succeed
+    CHECK(r.result == false);
+  }
 
-//     // The vote should not yet succeed
-//     CHECK(r.result == false);
-//   }
+  {
+    INFO("Read current votes");
 
-//   {
-//     INFO("Read current votes");
+    const auto readj = create_json_req_signed(
+      read_params(proposal_id, Tables::PROPOSALS), "read", kp);
+    const Response<Proposal> proposal =
+      get_proposal(frontend, proposal_id, proposer_cert);
 
-//     const auto readj = create_json_req_signed(
-//       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
+    const auto& votes = proposal.result.votes;
+    CHECK(votes.size() == 2);
 
-//     Store::Tx tx;
-//     enclave::RPCContext rpc_ctx(proposer_id, proposer_cert);
-//     const Response<Proposal> proposal =
-//       get_proposal(rpc_ctx, frontend, proposal_id, proposer_id);
+    const auto proposer_vote = votes.find(proposer_id);
+    CHECK(proposer_vote != votes.end());
+    CHECK(proposer_vote->second == vote_against);
 
-//     const auto& votes = proposal.result.votes;
-//     CHECK(votes.size() == 2);
+    const auto voter_vote = votes.find(voter_id);
+    CHECK(voter_vote != votes.end());
+    CHECK(voter_vote->second == vote_for);
+  }
 
-//     const auto proposer_vote = votes.find(proposer_id);
-//     CHECK(proposer_vote != votes.end());
-//     CHECK(proposer_vote->second == vote_against);
+  {
+    INFO("Proposer votes for");
 
-//     const auto voter_vote = votes.find(voter_id);
-//     CHECK(voter_vote != votes.end());
-//     CHECK(voter_vote->second == vote_for);
-//   }
+    const auto votej =
+      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+    Response<bool> r = frontend_process(frontend, votej, proposer_cert);
 
-//   {
-//     INFO("Proposer votes for");
+    // The vote should now succeed
+    CHECK(r.result == true);
+  }
+}
 
-//     const auto votej =
-//       create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
-
-//     Store::Tx tx;
-//     enclave::RPCContext rpc_ctx(proposer_id, proposer_cert);
-//     ccf::SignedReq sr(votej);
-//     Response<bool> r =
-//       frontend.process_json(rpc_ctx, tx, proposer_id, votej["req"],
-//       sr).value();
-
-//     // The vote should now succeed
-//     CHECK(r.result == true);
-//   }
-// }
-
-// struct NewMember
-// {
-//   MemberId id;
-//   tls::KeyPairPtr kp = tls::make_key_pair();
-//   Cert cert;
-// };
+struct NewMember
+{
+  MemberId id;
+  tls::KeyPairPtr kp = tls::make_key_pair();
+  Cert cert;
+};
 
 // TEST_CASE("Add new members until there are 7, then reject")
 // {
