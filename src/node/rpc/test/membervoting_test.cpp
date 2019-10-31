@@ -909,7 +909,7 @@ TEST_CASE("Complete proposal after initial rejection")
     )xxx");
     const auto votej = create_json_req_signed(Vote{0, vote}, "vote", kp);
 
-    check_success(frontend_process(frontend, votej, member_certs[1]));
+    check_success(frontend_process(frontend, votej, member_certs[1]), false);
   }
 
   {
@@ -1073,239 +1073,207 @@ TEST_CASE("Passing members ballot with operator")
   }
 }
 
-// TEST_CASE("Passing operator vote")
-// {
-//   // Operator issues a proposal that only requires its own vote
-//   // and gets it through without member votes
-//   NetworkTables network;
-//   Store::Tx gen_tx;
-//   GenesisGenerator gen(network, gen_tx);
-//   gen.init_values();
-//   auto new_kp = tls::make_key_pair();
-//   auto new_ca = new_kp->self_sign("CN=new node");
-//   NodeInfo ni;
-//   ni.cert = new_ca;
-//   gen.add_node(ni);
+TEST_CASE("Passing operator vote")
+{
+  // Operator issues a proposal that only requires its own vote
+  // and gets it through without member votes
+  NetworkTables network;
+  network.tables->set_encryptor(encryptor);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
+  gen.init_values();
+  auto new_kp = tls::make_key_pair();
+  auto new_ca = new_kp->self_sign("CN=new node");
+  NodeInfo ni;
+  ni.cert = new_ca;
+  gen.add_node(ni);
 
-//   // Operating member, as set in operator_gov.lua
-//   const auto operator_cert = get_cert_data(0, kp);
-//   const auto operator_id = gen.add_member(operator_cert,
-//   MemberStatus::ACTIVE);
+  // Operating member, as set in operator_gov.lua
+  const auto operator_cert = get_cert_data(0, kp);
+  const auto operator_id = gen.add_member(operator_cert, MemberStatus::ACTIVE);
 
-//   // Non-operating members
-//   std::map<size_t, ccf::Cert> members;
-//   for (size_t i = 1; i < 4; i++)
-//   {
-//     auto cert = get_cert_data(i, kp);
-//     members[gen.add_member(cert, MemberStatus::ACTIVE)] = cert;
-//   }
+  // Non-operating members
+  std::map<size_t, ccf::Cert> members;
+  for (size_t i = 1; i < 4; i++)
+  {
+    auto cert = get_cert_data(i, kp);
+    members[gen.add_member(cert, MemberStatus::ACTIVE)] = cert;
+  }
 
-//   set_whitelists(gen);
-//   gen.set_gov_scripts(
-//     lua::Interpreter().invoke<json>(operator_gov_script_file));
-//   gen.finalize();
+  set_whitelists(gen);
+  gen.set_gov_scripts(
+    lua::Interpreter().invoke<json>(operator_gov_script_file));
+  gen.finalize();
 
-//   StubNodeState node;
-//   MemberRpcFrontend frontend(network, node);
+  StubNodeState node;
+  MemberRpcFrontend frontend(network, node);
 
-//   size_t proposal_id;
+  size_t proposal_id;
 
-//   const ccf::Script vote_for("return true");
-//   const ccf::Script vote_against("return false");
+  const ccf::Script vote_for("return true");
+  const ccf::Script vote_against("return false");
 
-//   auto node_id = 0;
-//   {
-//     INFO("Check node exists with status pending");
-//     Store::Tx tx;
-//     auto read_values_j =
-//       create_json_req(read_params<int>(node_id, Tables::NODES), "read");
-//     ccf::SignedReq sr(read_values_j);
+  auto node_id = 0;
+  {
+    INFO("Check node exists with status pending");
+    auto read_values_j =
+      create_json_req(read_params<int>(node_id, Tables::NODES), "read");
+    Response<NodeInfo> r =
+      frontend_process(frontend, read_values_j, operator_cert);
 
-//     enclave::RPCContext rpc_ctx(operator_id, operator_cert);
-//     Response<NodeInfo> r =
-//       frontend.process_json(rpc_ctx, tx, operator_id, read_values_j, sr)
-//         .value();
-//     CHECK(r.result.status == NodeStatus::PENDING);
-//   }
+    CHECK(r.result.status == NodeStatus::PENDING);
+  }
 
-//   {
-//     INFO("Operator proposes and votes for node");
-//     Script proposal(R"xxx(
-//       local tables, node_id = ...
-//       return Calls:call("trust_node", node_id)
-//     )xxx");
+  {
+    INFO("Operator proposes and votes for node");
+    Script proposal(R"xxx(
+      local tables, node_id = ...
+      return Calls:call("trust_node", node_id)
+    )xxx");
 
-//     json proposej =
-//       create_json_req(Propose::In{proposal, node_id, vote_for}, "propose");
-//     ccf::SignedReq sr(proposej);
+    json proposej =
+      create_json_req(Propose::In{proposal, node_id, vote_for}, "propose");
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, operator_cert);
 
-//     Store::Tx tx;
-//     enclave::RPCContext rpc_ctx(operator_id, operator_cert);
-//     Response<Propose::Out> r =
-//       frontend.process_json(rpc_ctx, tx, operator_id, proposej, sr).value();
+    CHECK(r.result.completed);
+    proposal_id = r.result.id;
+  }
 
-//     CHECK(r.result.completed);
-//     proposal_id = r.result.id;
-//   }
+  {
+    INFO("Validate vote tally");
 
-//   {
-//     INFO("Validate vote tally");
+    const auto readj = create_json_req_signed(
+      read_params(proposal_id, Tables::PROPOSALS), "read", kp);
 
-//     const auto readj = create_json_req_signed(
-//       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
+    const Response<Proposal> proposal =
+      get_proposal(frontend, proposal_id, operator_cert);
 
-//     Store::Tx tx;
-//     enclave::RPCContext rpc_ctx(operator_id, operator_cert);
-//     const Response<Proposal> proposal =
-//       get_proposal(rpc_ctx, frontend, proposal_id, 1);
+    const auto& votes = proposal.result.votes;
+    CHECK(votes.size() == 1);
 
-//     const auto& votes = proposal.result.votes;
-//     CHECK(votes.size() == 1);
+    const auto proposer_vote = votes.find(operator_id);
+    CHECK(proposer_vote != votes.end());
+    CHECK(proposer_vote->second == vote_for);
+  }
+}
 
-//     const auto proposer_vote = votes.find(operator_id);
-//     CHECK(proposer_vote != votes.end());
-//     CHECK(proposer_vote->second == vote_for);
-//   }
-// }
+TEST_CASE("Members passing an operator vote")
+{
+  // Operator proposes a vote, but does not vote for it
+  // A majority of members pass the vote
+  NetworkTables network;
+  network.tables->set_encryptor(encryptor);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
+  gen.init_values();
+  auto new_kp = tls::make_key_pair();
+  auto new_ca = new_kp->self_sign("CN=new node");
+  NodeInfo ni;
+  ni.cert = new_ca;
+  gen.add_node(ni);
 
-// TEST_CASE("Members passing an operator vote")
-// {
-//   // Operator proposes a vote, but does not vote for it
-//   // A majority of members pass the vote
-//   NetworkTables network;
-//   Store::Tx gen_tx;
-//   GenesisGenerator gen(network, gen_tx);
-//   gen.init_values();
-//   auto new_kp = tls::make_key_pair();
-//   auto new_ca = new_kp->self_sign("CN=new node");
-//   NodeInfo ni;
-//   ni.cert = new_ca;
-//   gen.add_node(ni);
+  // Operating member, as set in operator_gov.lua
+  const auto operator_cert = get_cert_data(0, kp);
+  const auto operator_id = gen.add_member(operator_cert, MemberStatus::ACTIVE);
 
-//   // Operating member, as set in operator_gov.lua
-//   const auto operator_cert = get_cert_data(0, kp);
-//   const auto operator_id = gen.add_member(operator_cert,
-//   MemberStatus::ACTIVE);
+  // Non-operating members
+  std::map<size_t, ccf::Cert> members;
+  for (size_t i = 1; i < 4; i++)
+  {
+    auto cert = get_cert_data(i, kp);
+    members[gen.add_member(cert, MemberStatus::ACTIVE)] = cert;
+  }
 
-//   // Non-operating members
-//   std::map<size_t, ccf::Cert> members;
-//   for (size_t i = 1; i < 4; i++)
-//   {
-//     auto cert = get_cert_data(i, kp);
-//     members[gen.add_member(cert, MemberStatus::ACTIVE)] = cert;
-//   }
+  set_whitelists(gen);
+  gen.set_gov_scripts(
+    lua::Interpreter().invoke<json>(operator_gov_script_file));
+  gen.finalize();
 
-//   set_whitelists(gen);
-//   gen.set_gov_scripts(
-//     lua::Interpreter().invoke<json>(operator_gov_script_file));
-//   gen.finalize();
+  StubNodeState node;
+  MemberRpcFrontend frontend(network, node);
 
-//   StubNodeState node;
-//   MemberRpcFrontend frontend(network, node);
+  size_t proposal_id;
 
-//   size_t proposal_id;
+  const ccf::Script vote_for("return true");
+  const ccf::Script vote_against("return false");
 
-//   const ccf::Script vote_for("return true");
-//   const ccf::Script vote_against("return false");
+  auto node_id = 0;
+  {
+    INFO("Check node exists with status pending");
+    auto read_values_j =
+      create_json_req(read_params<int>(node_id, Tables::NODES), "read");
+    Response<NodeInfo> r =
+      frontend_process(frontend, read_values_j, operator_cert);
+    CHECK(r.result.status == NodeStatus::PENDING);
+  }
 
-//   auto node_id = 0;
-//   {
-//     INFO("Check node exists with status pending");
-//     Store::Tx tx;
-//     auto read_values_j =
-//       create_json_req(read_params<int>(node_id, Tables::NODES), "read");
-//     ccf::SignedReq sr(read_values_j);
+  {
+    INFO("Operator proposes and votes against adding node");
+    Script proposal(R"xxx(
+      local tables, node_id = ...
+      return Calls:call("trust_node", node_id)
+    )xxx");
 
-//     enclave::RPCContext rpc_ctx(operator_id, operator_cert);
-//     Response<NodeInfo> r =
-//       frontend.process_json(rpc_ctx, tx, operator_id, read_values_j, sr)
-//         .value();
-//     CHECK(r.result.status == NodeStatus::PENDING);
-//   }
+    json proposej =
+      create_json_req(Propose::In{proposal, node_id, vote_against}, "propose");
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, operator_cert);
 
-//   {
-//     INFO("Operator proposes and votes against adding node");
-//     Script proposal(R"xxx(
-//       local tables, node_id = ...
-//       return Calls:call("trust_node", node_id)
-//     )xxx");
+    CHECK(!r.result.completed);
+    proposal_id = r.result.id;
+  }
 
-//     json proposej =
-//       create_json_req(Propose::In{proposal, node_id, vote_against},
-//       "propose");
-//     ccf::SignedReq sr(proposej);
+  size_t first_voter_id = 1;
+  size_t second_voter_id = 2;
 
-//     Store::Tx tx;
-//     enclave::RPCContext rpc_ctx(operator_id, operator_cert);
-//     Response<Propose::Out> r =
-//       frontend.process_json(rpc_ctx, tx, operator_id, proposej, sr).value();
+  {
+    INFO("First member votes for proposal");
 
-//     CHECK(!r.result.completed);
-//     proposal_id = r.result.id;
-//   }
+    const auto votej =
+      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+    Response<bool> r =
+      frontend_process(frontend, votej, members[first_voter_id]);
 
-//   size_t first_voter_id = 1;
-//   size_t second_voter_id = 2;
+    CHECK(r.result == false);
+  }
 
-//   {
-//     INFO("First member votes for proposal");
+  {
+    INFO("Second member votes for proposal");
 
-//     const auto votej =
-//       create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+    const auto votej =
+      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+    Response<bool> r =
+      frontend_process(frontend, votej, members[second_voter_id]);
 
-//     Store::Tx tx;
-//     enclave::RPCContext rpc_ctx(first_voter_id, members[first_voter_id]);
-//     ccf::SignedReq sr(votej);
-//     Response<bool> r =
-//       frontend.process_json(rpc_ctx, tx, first_voter_id, votej["req"], sr)
-//         .value();
+    CHECK(r.result == true);
+  }
 
-//     CHECK(r.result == false);
-//   }
+  {
+    INFO("Validate vote tally");
 
-//   {
-//     INFO("Second member votes for proposal");
+    const auto readj = create_json_req_signed(
+      read_params(proposal_id, Tables::PROPOSALS), "read", kp);
 
-//     const auto votej =
-//       create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+    const Response<Proposal> proposal =
+      get_proposal(frontend, proposal_id, operator_cert);
 
-//     Store::Tx tx;
-//     enclave::RPCContext rpc_ctx(second_voter_id, members[second_voter_id]);
-//     ccf::SignedReq sr(votej);
-//     Response<bool> r =
-//       frontend.process_json(rpc_ctx, tx, second_voter_id, votej["req"], sr)
-//         .value();
+    const auto& votes = proposal.result.votes;
+    CHECK(votes.size() == 3);
 
-//     CHECK(r.result == true);
-//   }
+    const auto proposer_vote = votes.find(operator_id);
+    CHECK(proposer_vote != votes.end());
+    CHECK(proposer_vote->second == vote_against);
 
-//   {
-//     INFO("Validate vote tally");
+    const auto first_vote = votes.find(first_voter_id);
+    CHECK(first_vote != votes.end());
+    CHECK(first_vote->second == vote_for);
 
-//     const auto readj = create_json_req_signed(
-//       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
-
-//     Store::Tx tx;
-//     enclave::RPCContext rpc_ctx(operator_id, operator_cert);
-//     const Response<Proposal> proposal =
-//       get_proposal(rpc_ctx, frontend, proposal_id, 1);
-
-//     const auto& votes = proposal.result.votes;
-//     CHECK(votes.size() == 3);
-
-//     const auto proposer_vote = votes.find(operator_id);
-//     CHECK(proposer_vote != votes.end());
-//     CHECK(proposer_vote->second == vote_against);
-
-//     const auto first_vote = votes.find(first_voter_id);
-//     CHECK(first_vote != votes.end());
-//     CHECK(first_vote->second == vote_for);
-
-//     const auto second_vote = votes.find(second_voter_id);
-//     CHECK(second_vote != votes.end());
-//     CHECK(second_vote->second == vote_for);
-//   }
-// }
+    const auto second_vote = votes.find(second_voter_id);
+    CHECK(second_vote != votes.end());
+    CHECK(second_vote->second == vote_for);
+  }
+}
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
