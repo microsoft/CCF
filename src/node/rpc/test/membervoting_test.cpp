@@ -786,319 +786,292 @@ TEST_CASE("Propose raw writes")
   }
 }
 
-// TEST_CASE("Remove proposal")
-// {
-//   NewMember caller;
-//   auto v = tls::make_verifier(caller.kp->self_sign("CN=new member"));
-//   caller.cert = v->raw_cert_data();
+TEST_CASE("Remove proposal")
+{
+  NewMember caller;
+  auto v = tls::make_verifier(caller.kp->self_sign("CN=new member"));
+  caller.cert = v->raw_cert_data();
 
-//   NetworkTables network;
-//   Store::Tx gen_tx;
-//   GenesisGenerator gen(network, gen_tx);
-//   gen.init_values();
+  NetworkTables network;
+  network.tables->set_encryptor(encryptor);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
+  gen.init_values();
 
-//   StubNodeState node;
-//   enclave::RPCContext rpc_ctx(0, {});
-//   gen.add_member(member_caller, MemberStatus::ACTIVE);
-//   gen.add_member(caller.cert, MemberStatus::ACTIVE);
-//   set_whitelists(gen);
-//   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-//   gen.finalize();
-//   MemberRpcFrontend frontend(network, node);
-//   auto proposal_id = 0;
-//   auto wrong_proposal_id = 1;
-//   ccf::Script proposal_script(R"xxx(
-//       local tables, param = ...
-//       return {}
-//     )xxx");
+  StubNodeState node;
+  gen.add_member(member_caller, MemberStatus::ACTIVE);
+  gen.add_member(caller.cert, MemberStatus::ACTIVE);
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
+  gen.finalize();
+  MemberRpcFrontend frontend(network, node);
+  auto proposal_id = 0;
+  auto wrong_proposal_id = 1;
+  ccf::Script proposal_script(R"xxx(
+      local tables, param = ...
+      return {}
+    )xxx");
 
-//   // check that the proposal doesn't exist
-//   {
-//     Store::Tx tx;
-//     auto proposal = tx.get_view(network.proposals)->get(proposal_id);
-//     CHECK(!proposal);
-//   }
+  // check that the proposal doesn't exist
+  {
+    Store::Tx tx;
+    auto proposal = tx.get_view(network.proposals)->get(proposal_id);
+    CHECK(!proposal);
+  }
 
-//   {
-//     json proposej = create_json_req(Propose::In{proposal_script, 0},
-//     "propose"); ccf::SignedReq sr(proposej);
+  {
+    json proposej = create_json_req(Propose::In{proposal_script, 0}, "propose");
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, member_caller);
 
-//     Store::Tx tx;
-//     Response<Propose::Out> r =
-//       frontend.process_json(rpc_ctx, tx, 0, proposej, sr).value();
-//     CHECK(r.result.id == proposal_id);
-//     CHECK(!r.result.completed);
-//   }
-//   // check that the proposal is there
-//   {
-//     Store::Tx tx;
-//     auto proposal = tx.get_view(network.proposals)->get(proposal_id);
-//     REQUIRE(proposal);
-//     CHECK(proposal->state == ProposalState::OPEN);
-//     CHECK(proposal->script.text.value() == proposal_script.text.value());
-//   }
-//   SUBCASE("Attempt withdraw proposal with non existing id")
-//   {
-//     Store::Tx tx;
-//     json param;
-//     param["id"] = wrong_proposal_id;
-//     json withdrawj = create_json_req(param, "withdraw");
-//     ccf::SignedReq sr(withdrawj);
+    CHECK(r.result.id == proposal_id);
+    CHECK(!r.result.completed);
+  }
 
-//     check_error(
-//       frontend.process_json(rpc_ctx, tx, 0, withdrawj, sr).value(),
-//       StandardErrorCodes::INVALID_PARAMS);
-//   }
-//   SUBCASE("Attempt withdraw proposal that you didn't propose")
-//   {
-//     Store::Tx tx;
-//     json param;
-//     param["id"] = proposal_id;
-//     json withdrawj = create_json_req(param, "withdraw");
-//     ccf::SignedReq sr(withdrawj);
+  // check that the proposal is there
+  {
+    Store::Tx tx;
+    auto proposal = tx.get_view(network.proposals)->get(proposal_id);
+    REQUIRE(proposal);
+    CHECK(proposal->state == ProposalState::OPEN);
+    CHECK(proposal->script.text.value() == proposal_script.text.value());
+  }
 
-//     check_error(
-//       frontend.process_json(rpc_ctx, tx, 1, withdrawj, sr).value(),
-//       CCFErrorCodes::INVALID_CALLER_ID);
-//   }
-//   SUBCASE("Successfully withdraw proposal")
-//   {
-//     Store::Tx tx;
-//     json param;
-//     param["id"] = proposal_id;
-//     json withdrawj = create_json_req(param, "withdraw");
-//     ccf::SignedReq sr(withdrawj);
+  SUBCASE("Attempt withdraw proposal with non existing id")
+  {
+    json param;
+    param["id"] = wrong_proposal_id;
+    json withdrawj = create_json_req(param, "withdraw");
 
-//     check_success(frontend.process_json(rpc_ctx, tx, 0, withdrawj,
-//     sr).value());
-//     // check that the proposal is now withdrawn
-//     {
-//       Store::Tx tx;
-//       auto proposal = tx.get_view(network.proposals)->get(proposal_id);
-//       CHECK(proposal.has_value());
-//       CHECK(proposal->state == ProposalState::WITHDRAWN);
-//     }
-//   }
-// }
+    check_error(
+      frontend_process(frontend, withdrawj, member_caller),
+      StandardErrorCodes::INVALID_PARAMS);
+  }
 
-// TEST_CASE("Complete proposal after initial rejection")
-// {
-//   NetworkTables network;
-//   Store::Tx gen_tx;
-//   GenesisGenerator gen(network, gen_tx);
-//   gen.init_values();
-//   StubNodeState node;
-//   auto frontend = init_frontend(network, gen, node, 3);
-//   const Cert m0 = {0}, m1 = get_cert_data(1, kp);
-//   enclave::RPCContext rpc_ctx(0, m1);
-//   // propose
-//   {
-//     const auto proposal =
-//       "return Calls:call('raw_puts', Puts:put('ccf.values', 999, 999))"s;
-//     const auto proposej = create_json_req(Propose::In{proposal}, "propose");
-//     ccf::SignedReq sr(proposej);
+  SUBCASE("Attempt withdraw proposal that you didn't propose")
+  {
+    json param;
+    param["id"] = proposal_id;
+    json withdrawj = create_json_req(param, "withdraw");
 
-//     Store::Tx tx;
-//     Response<Propose::Out> r =
-//       frontend.process_json(rpc_ctx, tx, 0, proposej, sr).value();
-//     CHECK(r.result.completed == false);
-//   }
-//   // vote that rejects initially
-//   {
-//     const Script vote(R"xxx(
-//     local tables = ...
-//     return tables["ccf.values"]:get(123) == 123
-//     )xxx");
-//     const auto votej = create_json_req_signed(Vote{0, vote}, "vote", kp);
-//     ccf::SignedReq sr(votej);
+    check_error(
+      frontend_process(frontend, withdrawj, caller.cert),
+      CCFErrorCodes::INVALID_CALLER_ID);
+  }
 
-//     Store::Tx tx;
-//     check_success(
-//       frontend.process_json(rpc_ctx, tx, 1, votej["req"], sr).value(),
-//       false);
-//   }
-//   // try to complete
-//   {
-//     const auto completej = create_json_req(ProposalAction{0}, "complete");
-//     ccf::SignedReq sr(completej);
+  SUBCASE("Successfully withdraw proposal")
+  {
+    json param;
+    param["id"] = proposal_id;
+    json withdrawj = create_json_req(param, "withdraw");
 
-//     Store::Tx tx;
-//     check_success(
-//       frontend.process_json(rpc_ctx, tx, 1, completej, sr).value(), false);
-//   }
-//   // put value that makes vote agree
-//   {
-//     Store::Tx tx;
-//     tx.get_view(network.values)->put(123, 123);
-//     CHECK(tx.commit() == kv::CommitSuccess::OK);
-//   }
-//   // try again to complete
-//   {
-//     const auto completej = create_json_req(ProposalAction{0}, "complete");
-//     ccf::SignedReq sr(completej);
+    check_success(frontend_process(frontend, withdrawj, member_caller));
 
-//     Store::Tx tx;
-//     check_success(frontend.process_json(rpc_ctx, tx, 1, completej,
-//     sr).value());
-//   }
-// }
+    // check that the proposal is now withdrawn
+    {
+      Store::Tx tx;
+      auto proposal = tx.get_view(network.proposals)->get(proposal_id);
+      CHECK(proposal.has_value());
+      CHECK(proposal->state == ProposalState::WITHDRAWN);
+    }
+  }
+}
 
-// TEST_CASE("Add user via proposed call")
-// {
-//   NetworkTables network;
-//   network.tables->set_encryptor(encryptor);
-//   Store::Tx gen_tx;
-//   GenesisGenerator gen(network, gen_tx);
-//   gen.init_values();
-//   StubNodeState node;
-//   enclave::RPCContext rpc_ctx(0, {});
-//   gen.add_member(Cert{0}, MemberStatus::ACTIVE);
-//   set_whitelists(gen);
-//   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-//   gen.finalize();
-//   MemberRpcFrontend frontend(network, node);
+TEST_CASE("Complete proposal after initial rejection")
+{
+  NetworkTables network;
+  network.tables->set_encryptor(encryptor);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
+  gen.init_values();
+  StubNodeState node;
+  std::vector<std::vector<uint8_t>> member_certs;
+  auto frontend = init_frontend(network, gen, node, 3, member_certs);
 
-//   Script proposal(R"xxx(
-//     tables, user_cert = ...
-//       return Calls:call("new_user", user_cert)
-//     )xxx");
+  {
+    INFO("Propose");
+    const auto proposal =
+      "return Calls:call('raw_puts', Puts:put('ccf.values', 999, 999))"s;
+    const auto proposej = create_json_req(Propose::In{proposal}, "propose");
+    ccf::SignedReq sr(proposej);
 
-//   const vector<uint8_t> user_cert = {1, 2, 3};
-//   json proposej = create_json_req(Propose::In{proposal, user_cert},
-//   "propose"); ccf::SignedReq sr(proposej);
+    Store::Tx tx;
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, member_certs[0]);
+    CHECK(r.result.completed == false);
+  }
 
-//   Store::Tx tx;
-//   Response<Propose::Out> r =
-//     frontend.process_json(rpc_ctx, tx, 0, proposej, sr).value();
-//   CHECK(r.result.completed);
-//   CHECK(r.result.id == 0);
+  {
+    INFO("Vote that rejects initially");
+    const Script vote(R"xxx(
+    local tables = ...
+    return tables["ccf.values"]:get(123) == 123
+    )xxx");
+    const auto votej = create_json_req_signed(Vote{0, vote}, "vote", kp);
 
-//   Store::Tx tx1;
-//   const auto uid = tx1.get_view(network.values)->get(ValueIds::NEXT_USER_ID);
-//   REQUIRE(uid);
-//   CHECK(*uid == 1);
-//   const auto uid1 = tx1.get_view(network.user_certs)->get(user_cert);
-//   REQUIRE(uid1);
-//   CHECK(*uid1 == 0);
-// }
+    check_success(frontend_process(frontend, votej, member_certs[1]));
+  }
 
-// TEST_CASE("Passing members ballot with operator")
-// {
-//   // Members pass a ballot with a constitution that includes an operator
-//   // Operator votes, but is _not_ taken into consideration
-//   NetworkTables network;
-//   Store::Tx gen_tx;
-//   GenesisGenerator gen(network, gen_tx);
-//   gen.init_values();
+  {
+    INFO("Try to complete");
+    const auto completej = create_json_req(ProposalAction{0}, "complete");
 
-//   // Operating member, as set in operator_gov.lua
-//   const auto operator_cert = get_cert_data(0, kp);
-//   const auto operator_id = gen.add_member(operator_cert,
-//   MemberStatus::ACTIVE);
+    check_success(
+      frontend_process(frontend, completej, member_certs[1]), false);
+  }
 
-//   // Non-operating members
-//   std::map<size_t, ccf::Cert> members;
-//   for (size_t i = 1; i < 4; i++)
-//   {
-//     auto cert = get_cert_data(i, kp);
-//     members[gen.add_member(cert, MemberStatus::ACTIVE)] = cert;
-//   }
+  {
+    INFO("Put value that makes vote agree");
+    Store::Tx tx;
+    tx.get_view(network.values)->put(123, 123);
+    CHECK(tx.commit() == kv::CommitSuccess::OK);
+  }
 
-//   set_whitelists(gen);
-//   gen.set_gov_scripts(
-//     lua::Interpreter().invoke<json>(operator_gov_script_file));
-//   gen.finalize();
+  {
+    INFO("Try again to complete");
+    const auto completej = create_json_req(ProposalAction{0}, "complete");
 
-//   StubNodeState node;
-//   MemberRpcFrontend frontend(network, node);
+    check_success(frontend_process(frontend, completej, member_certs[1]));
+  }
+}
 
-//   size_t proposal_id;
-//   size_t proposer_id = 1;
-//   size_t voter_id = 2;
+TEST_CASE("Add user via proposed call")
+{
+  NetworkTables network;
+  network.tables->set_encryptor(encryptor);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
+  gen.init_values();
+  StubNodeState node;
+  const auto member_cert = get_cert_data(0, kp);
+  gen.add_member(member_cert, MemberStatus::ACTIVE);
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
+  gen.finalize();
+  MemberRpcFrontend frontend(network, node);
 
-//   const ccf::Script vote_for("return true");
-//   const ccf::Script vote_against("return false");
-//   {
-//     INFO("Propose and vote for");
+  Script proposal(R"xxx(
+    tables, user_cert = ...
+      return Calls:call("new_user", user_cert)
+    )xxx");
 
-//     const auto proposed_member = get_cert_data(4, kp);
+  const vector<uint8_t> user_cert = {1, 2, 3};
+  json proposej = create_json_req(Propose::In{proposal, user_cert}, "propose");
+  ccf::SignedReq sr(proposej);
 
-//     Script proposal(R"xxx(
-//       tables, member_cert = ...
-//       return Calls:call("new_member", member_cert)
-//     )xxx");
-//     const auto proposej = create_json_req(
-//       Propose::In{proposal, proposed_member, vote_for}, "propose");
-//     enclave::RPCContext rpc_ctx(proposer_id, members[proposer_id]);
+  Response<Propose::Out> r = frontend_process(frontend, proposej, member_cert);
+  CHECK(r.result.completed);
+  CHECK(r.result.id == 0);
 
-//     Store::Tx tx;
-//     ccf::SignedReq sr(proposej);
-//     Response<Propose::Out> r =
-//       frontend.process_json(rpc_ctx, tx, proposer_id, proposej, sr).value();
+  Store::Tx tx1;
+  const auto uid = tx1.get_view(network.values)->get(ValueIds::NEXT_USER_ID);
+  REQUIRE(uid);
+  CHECK(*uid == 1);
+  const auto uid1 = tx1.get_view(network.user_certs)->get(user_cert);
+  REQUIRE(uid1);
+  CHECK(*uid1 == 0);
+}
 
-//     CHECK(r.result.completed == false);
+TEST_CASE("Passing members ballot with operator")
+{
+  // Members pass a ballot with a constitution that includes an operator
+  // Operator votes, but is _not_ taken into consideration
+  NetworkTables network;
+  network.tables->set_encryptor(encryptor);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
+  gen.init_values();
 
-//     proposal_id = r.result.id;
-//   }
+  // Operating member, as set in operator_gov.lua
+  const auto operator_cert = get_cert_data(0, kp);
+  const auto operator_id = gen.add_member(operator_cert, MemberStatus::ACTIVE);
 
-//   {
-//     INFO("Operator votes, but without effect");
+  // Non-operating members
+  std::map<size_t, ccf::Cert> members;
+  for (size_t i = 1; i < 4; i++)
+  {
+    auto cert = get_cert_data(i, kp);
+    members[gen.add_member(cert, MemberStatus::ACTIVE)] = cert;
+  }
 
-//     const auto votej =
-//       create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+  set_whitelists(gen);
+  gen.set_gov_scripts(
+    lua::Interpreter().invoke<json>(operator_gov_script_file));
+  gen.finalize();
 
-//     Store::Tx tx;
-//     enclave::RPCContext rpc_ctx(operator_id, operator_cert);
-//     ccf::SignedReq sr(votej);
-//     Response<bool> r =
-//       frontend.process_json(rpc_ctx, tx, operator_id, votej["req"],
-//       sr).value();
+  StubNodeState node;
+  MemberRpcFrontend frontend(network, node);
 
-//     CHECK(r.result == false);
-//   }
+  size_t proposal_id;
+  size_t proposer_id = 1;
+  size_t voter_id = 2;
 
-//   {
-//     INFO("Second member votes for proposal, which passes");
+  const ccf::Script vote_for("return true");
+  const ccf::Script vote_against("return false");
+  {
+    INFO("Propose and vote for");
 
-//     const auto votej =
-//       create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+    const auto proposed_member = get_cert_data(4, kp);
 
-//     Store::Tx tx;
-//     enclave::RPCContext rpc_ctx(voter_id, members[voter_id]);
-//     ccf::SignedReq sr(votej);
-//     Response<bool> r =
-//       frontend.process_json(rpc_ctx, tx, voter_id, votej["req"], sr).value();
+    Script proposal(R"xxx(
+      tables, member_cert = ...
+      return Calls:call("new_member", member_cert)
+    )xxx");
+    const auto proposej = create_json_req(
+      Propose::In{proposal, proposed_member, vote_for}, "propose");
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, members[proposer_id]);
 
-//     CHECK(r.result == true);
-//   }
+    CHECK(r.result.completed == false);
 
-//   {
-//     INFO("Validate vote tally");
+    proposal_id = r.result.id;
+  }
 
-//     const auto readj = create_json_req_signed(
-//       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
+  {
+    INFO("Operator votes, but without effect");
 
-//     Store::Tx tx;
-//     enclave::RPCContext rpc_ctx(proposer_id, members[proposer_id]);
-//     const Response<Proposal> proposal =
-//       get_proposal(rpc_ctx, frontend, proposal_id, proposer_id);
+    const auto votej =
+      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+    Response<bool> r = frontend_process(frontend, votej, operator_cert);
 
-//     const auto& votes = proposal.result.votes;
-//     CHECK(votes.size() == 3);
+    CHECK(r.result == false);
+  }
 
-//     const auto operator_vote = votes.find(operator_id);
-//     CHECK(operator_vote != votes.end());
-//     CHECK(operator_vote->second == vote_for);
+  {
+    INFO("Second member votes for proposal, which passes");
 
-//     const auto proposer_vote = votes.find(proposer_id);
-//     CHECK(proposer_vote != votes.end());
-//     CHECK(proposer_vote->second == vote_for);
+    const auto votej =
+      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+    Response<bool> r = frontend_process(frontend, votej, members[voter_id]);
 
-//     const auto voter_vote = votes.find(voter_id);
-//     CHECK(voter_vote != votes.end());
-//     CHECK(voter_vote->second == vote_for);
-//   }
-// }
+    CHECK(r.result == true);
+  }
+
+  {
+    INFO("Validate vote tally");
+
+    const auto readj = create_json_req_signed(
+      read_params(proposal_id, Tables::PROPOSALS), "read", kp);
+
+    const Response<Proposal> proposal =
+      get_proposal(frontend, proposal_id, members[proposer_id]);
+
+    const auto& votes = proposal.result.votes;
+    CHECK(votes.size() == 3);
+
+    const auto operator_vote = votes.find(operator_id);
+    CHECK(operator_vote != votes.end());
+    CHECK(operator_vote->second == vote_for);
+
+    const auto proposer_vote = votes.find(proposer_id);
+    CHECK(proposer_vote != votes.end());
+    CHECK(proposer_vote->second == vote_for);
+
+    const auto voter_vote = votes.find(voter_id);
+    CHECK(voter_vote != votes.end());
+    CHECK(voter_vote->second == vote_for);
+  }
+}
 
 // TEST_CASE("Passing operator vote")
 // {
