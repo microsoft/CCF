@@ -3,7 +3,9 @@ trigger:
 
 jobs:
 - job: build_and_publish_docs
-  pool: Ubuntu-1804-DC4s
+  container: ccfciteam/ccf-ci-18.04-oe-0.7.0-sgx:latest
+  pool: Ubuntu-1804-D8s_v3
+
   steps:
     - checkout: self
       clean: true
