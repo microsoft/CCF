@@ -78,7 +78,7 @@ namespace enclave
     RPCContext(const SessionContext& s) : session(s) {}
   };
 
-  RPCContext make_rpc_context(
+  inline RPCContext make_rpc_context(
     const SessionContext& s, const std::vector<uint8_t>& packed)
   {
     RPCContext rpc_ctx(s);

@@ -130,15 +130,17 @@ template <typename F, typename K, typename V>
 void check_store_load(F frontend, K k, V v)
 {
   const Cert u0 = {0};
-  enclave::RPCContext rpc_ctx(0, u0);
+  const enclave::SessionContext user_session(enclave::InvalidSessionId, u0);
 
   // store
-  const auto [pc0, packed0] = make_pc("store", {{"k", k}, {"v", v}});
-  check_success(frontend->process(rpc_ctx, pc0, packed0), true);
+  const auto [store_pc, store_packed] = make_pc("store", {{"k", k}, {"v", v}});
+  const auto store_ctx = enclave::make_rpc_context(user_session, store_packed);
+  check_success(frontend->process(store_ctx).value(), true);
 
   // load and check that we get the right result
-  const auto [pc1, packed1] = make_pc("load", {{"k", k}});
-  check_success(frontend->process(rpc_ctx, pc1, packed1), v);
+  const auto [load_pc, load_packed] = make_pc("load", {{"k", k}});
+  const auto load_ctx = enclave::make_rpc_context(user_session, load_packed);
+  check_success(frontend->process(load_ctx).value(), v);
 }
 
 TEST_CASE("simple lua apps")
@@ -154,7 +156,7 @@ TEST_CASE("simple lua apps")
   auto frontend = init_frontend(network, gen, notifier, 1, 3);
   set_lua_logger();
   const Cert u0 = {0};
-  enclave::RPCContext rpc_ctx(0, u0);
+  const enclave::SessionContext user_session(enclave::InvalidSessionId, u0);
 
   SUBCASE("missing lua arg")
   {
@@ -173,8 +175,9 @@ TEST_CASE("simple lua apps")
 
     // call "missing"
     const auto [pc, packed] = make_pc("missing", {});
+    const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
     const auto response = check_error(
-      frontend->process(rpc_ctx, pc, packed), CCFErrorCodes::SCRIPT_ERROR);
+      frontend->process(rpc_ctx).value(), CCFErrorCodes::SCRIPT_ERROR);
     const auto error_msg = response[ERR][MESSAGE].get<string>();
     CHECK(error_msg.find("THIS_KEY_DOESNT_EXIST") != string::npos);
   }
@@ -190,7 +193,8 @@ TEST_CASE("simple lua apps")
     // call "echo" function with "hello"
     const string verb = "hello";
     const auto [pc, packed] = make_pc("echo", {{"verb", verb}});
-    check_success(frontend->process(rpc_ctx, pc, packed), verb);
+    const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+    check_success(frontend->process(rpc_ctx).value(), verb);
   }
 
   SUBCASE("store/load different types in generic table")
@@ -228,9 +232,9 @@ TEST_CASE("simple lua apps")
 
     // (3) attempt to read non-existing key (set of integers)
     const auto [pc, packed] = make_pc("load", {{"k", set{5, 6, 7}}});
+    const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
     check_error(
-      frontend->process(rpc_ctx, pc, packed),
-      StandardErrorCodes::INVALID_PARAMS);
+      frontend->process(rpc_ctx).value(), StandardErrorCodes::INVALID_PARAMS);
   }
 
   SUBCASE("access gov tables")
@@ -254,17 +258,19 @@ TEST_CASE("simple lua apps")
 
     // (1) read out members table
     const auto [pc, packed] = make_pc("get_members", {});
+    const auto get_ctx = enclave::make_rpc_context(user_session, packed);
     // expect to see 3 members in state active
     map<string, MemberInfo> expected = {{"0", {{}, MemberStatus::ACTIVE}},
                                         {"1", {{}, MemberStatus::ACTIVE}},
                                         {"2", {{}, MemberStatus::ACTIVE}}};
-    check_success(frontend->process(rpc_ctx, pc, packed), expected);
+    check_success(frontend->process(get_ctx).value(), expected);
 
     // (2) try to write to members table
-    const auto [pc1, packed1] = make_pc(
+    const auto [put_pc, put_packed] = make_pc(
       "put_member", {{"k", 99}, {"v", MemberInfo{{}, MemberStatus::ACTIVE}}});
+    const auto put_ctx = enclave::make_rpc_context(user_session, put_packed);
     check_error(
-      frontend->process(rpc_ctx, pc1, packed1), CCFErrorCodes::SCRIPT_ERROR);
+      frontend->process(put_ctx).value(), CCFErrorCodes::SCRIPT_ERROR);
   }
 }
 
@@ -281,7 +287,7 @@ TEST_CASE("simple bank")
   auto frontend = init_frontend(network, gen, notifier, 1, 3);
   set_lua_logger();
   const Cert u0 = {0};
-  enclave::RPCContext rpc_ctx(0, u0);
+  const enclave::SessionContext user_session(enclave::InvalidSessionId, u0);
 
   constexpr auto create_method = "SB_create";
   constexpr auto create = R"xxx(
@@ -340,40 +346,54 @@ TEST_CASE("simple bank")
   set_handler(network, transfer_method, {transfer});
 
   {
-    const auto [pc, packed] =
+    const auto [create_pc, create_packed] =
       make_pc(create_method, {{"dst", 1}, {"amt", 123}});
-    check_success<bool>(frontend->process(rpc_ctx, pc, packed), true);
+    const auto create_ctx =
+      enclave::make_rpc_context(user_session, create_packed);
+    check_success<bool>(frontend->process(create_ctx).value(), true);
 
-    const auto [pc1, packed1] = make_pc(read_method, {{"account", 1}});
-    check_success(frontend->process(rpc_ctx, pc1, packed1), 123);
+    const auto [read_pc, read_packed] = make_pc(read_method, {{"account", 1}});
+    const auto read_ctx = enclave::make_rpc_context(user_session, read_packed);
+    check_success(frontend->process(read_ctx).value(), 123);
   }
 
   {
-    const auto [pc, packed] =
+    const auto [create_pc, create_packed] =
       make_pc(create_method, {{"dst", 2}, {"amt", 999}});
-    check_success<bool>(frontend->process(rpc_ctx, pc, packed), true);
+    const auto create_ctx =
+      enclave::make_rpc_context(user_session, create_packed);
+    check_success<bool>(frontend->process(create_ctx).value(), true);
 
-    const auto [pc1, packed1] = make_pc(read_method, {{"account", 2}});
-    check_success(frontend->process(rpc_ctx, pc1, packed1), 999);
+    const auto [read_pc, read_packed] = make_pc(read_method, {{"account", 2}});
+    const auto read_ctx = enclave::make_rpc_context(user_session, read_packed);
+    check_success(frontend->process(read_ctx).value(), 999);
   }
 
   {
-    const auto [pc, packed] = make_pc(read_method, {{"account", 3}});
+    const auto [read_pc, read_packed] = make_pc(read_method, {{"account", 3}});
+    const auto read_ctx = enclave::make_rpc_context(user_session, read_packed);
     check_error(
-      frontend->process(rpc_ctx, pc, packed),
-      StandardErrorCodes::INVALID_PARAMS);
+      frontend->process(read_ctx).value(), StandardErrorCodes::INVALID_PARAMS);
   }
 
   {
-    const auto [pc, packed] =
+    const auto [transfer_pc, transfer_packed] =
       make_pc(transfer_method, {{"src", 1}, {"dst", 2}, {"amt", 5}});
-    check_success<bool>(frontend->process(rpc_ctx, pc, packed), true);
+    const auto transfer_ctx =
+      enclave::make_rpc_context(user_session, transfer_packed);
+    check_success<bool>(frontend->process(transfer_ctx).value(), true);
 
-    const auto [pc1, packed1] = make_pc(read_method, {{"account", 1}});
-    check_success(frontend->process(rpc_ctx, pc1, packed1), 123 - 5);
+    const auto [read1_pc, read1_packed] =
+      make_pc(read_method, {{"account", 1}});
+    const auto read1_ctx =
+      enclave::make_rpc_context(user_session, read1_packed);
+    check_success(frontend->process(read1_ctx).value(), 123 - 5);
 
-    const auto [pc2, packed2] = make_pc(read_method, {{"account", 2}});
-    check_success(frontend->process(rpc_ctx, pc2, packed2), 999 + 5);
+    const auto [read2_pc, read2_packed] =
+      make_pc(read_method, {{"account", 2}});
+    const auto read2_ctx =
+      enclave::make_rpc_context(user_session, read2_packed);
+    check_success(frontend->process(read2_ctx).value(), 999 + 5);
   }
 }
 
@@ -390,7 +410,7 @@ TEST_CASE("pre-populated environment")
   auto frontend = init_frontend(network, gen, notifier, 1, 3);
   set_lua_logger();
   const Cert u0 = {0};
-  enclave::RPCContext rpc_ctx(0, u0);
+  const enclave::SessionContext user_session(enclave::InvalidSessionId, u0);
 
   {
     constexpr auto log_trace_method = "log_trace";
@@ -403,7 +423,8 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto [pc, packed] = make_pc(log_trace_method, {});
-      check_success(frontend->process(rpc_ctx, pc, packed), true);
+      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      check_success(frontend->process(rpc_ctx).value(), true);
     }
 
     constexpr auto log_debug_method = "log_debug";
@@ -416,7 +437,8 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto [pc, packed] = make_pc(log_debug_method, {});
-      check_success(frontend->process(rpc_ctx, pc, packed), true);
+      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      check_success(frontend->process(rpc_ctx).value(), true);
     }
 
     constexpr auto log_info_method = "log_info";
@@ -429,7 +451,8 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto [pc, packed] = make_pc(log_info_method, {});
-      check_success(frontend->process(rpc_ctx, pc, packed), true);
+      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      check_success(frontend->process(rpc_ctx).value(), true);
     }
 
     constexpr auto log_fail_method = "log_fail";
@@ -442,7 +465,8 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto [pc, packed] = make_pc(log_fail_method, {});
-      check_success(frontend->process(rpc_ctx, pc, packed), true);
+      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      check_success(frontend->process(rpc_ctx).value(), true);
     }
 
     constexpr auto log_fatal_method = "log_fatal";
@@ -454,8 +478,9 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto [pc, packed] = make_pc(log_fatal_method, {});
+      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
       check_error(
-        frontend->process(rpc_ctx, pc, packed),
+        frontend->process(rpc_ctx).value(),
         jsonrpc::StandardErrorCodes::INTERNAL_ERROR);
     }
   }
@@ -495,8 +520,9 @@ TEST_CASE("pre-populated environment")
       using StdEC = jsonrpc::StandardErrorCodes;
       using CCFEC = jsonrpc::CCFErrorCodes;
       const auto [pc, packed] = make_pc(invalid_params_method, {});
+      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
       const Response<std::vector<EBT>> r =
-        json::from_msgpack(frontend->process(rpc_ctx, pc, packed));
+        json::from_msgpack(frontend->process(rpc_ctx).value());
 
       std::vector<EBT> expected;
       expected.push_back(EBT(StdEC::PARSE_ERROR));
