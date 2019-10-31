@@ -65,18 +65,26 @@ namespace enclave
 
       // TODO: This does much of the same work as make_rpc_context. Work out if
       // they can be combined, with different error reporting in this version
+      const SessionContext session(session_id, peer_cert());
+      RPCContext rpc_ctx(session);
 
-      RPCContext rpc_ctx(session_id, peer_cert());
+      // If we are unable to detect packing format, default to sending responses
+      // as Text
+      rpc_ctx.pack = jsonrpc::Pack::Text;
+
       auto [success, rpc] = jsonrpc::unpack_rpc(data, rpc_ctx.pack);
 
       if (!success)
       {
-        send(jsonrpc::pack(rpc, rpc_ctx.pack.value_or(jsonrpc::Pack::Text)));
+        send(jsonrpc::pack(rpc, rpc_ctx.pack.value()));
         return true;
       }
       LOG_TRACE_FMT("Deserialised");
 
+      // Fill context with fields from JSON-RPC framing
       rpc_ctx.seq_no = rpc.value(jsonrpc::ID, 0);
+
+      // TODO: Extract signature here
 
       auto prefixed_method = get_method(rpc);
       if (!prefixed_method.has_value())
@@ -86,11 +94,12 @@ namespace enclave
             rpc_ctx.seq_no,
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
             "No method specified"),
-          rpc_ctx.value()));
+          rpc_ctx.pack.value()));
         return true;
       }
       LOG_TRACE_FMT("Got method");
 
+      // Separate JSON-RPC method into actor and true method
       auto [actor_s, method] = split_actor_and_method(prefixed_method.value());
       rpc_ctx.method = method;
 
@@ -102,16 +111,19 @@ namespace enclave
             rpc_ctx.seq_no,
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
             fmt::format("No such prefix: {}", actor_s)),
-          rpc_ctx.value()));
+          rpc_ctx.pack.value()));
         return true;
       }
       rpc_ctx.actor = actor;
 
       auto search = rpc_map->find(actor);
       if (!search.has_value())
+      {
         return false;
+      }
 
-      auto response = search.value()->process(rpc_ctx, rpc, data);
+      // Hand off parsed context to be processed by frontend
+      auto response = search.value()->process(rpc_ctx);
 
       if (!response.has_value())
       {
@@ -121,7 +133,7 @@ namespace enclave
       else
       {
         // Otherwise, reply to the client synchronously.
-        send(response);
+        send(response.value());
       }
 
       return true;

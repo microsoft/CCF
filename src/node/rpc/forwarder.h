@@ -184,7 +184,7 @@ namespace ccf
             LOG_DEBUG_FMT("Forwarded RPC: {}", ctx.actor);
 
             if (!send_forwarded_response(
-                  ctx.fwd->client_session_id,
+                  ctx.session.fwd->client_session_id,
                   from_node,
                   fwd_handler->process_forwarded(ctx)))
             {
