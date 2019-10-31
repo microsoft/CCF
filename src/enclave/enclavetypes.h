@@ -60,7 +60,8 @@ namespace enclave
     std::vector<uint8_t> raw = {};
 
     nlohmann::json unpacked_rpc = {};
-    std::optional<std::vector<uint8_t>> signature = std::nullopt;
+
+    std::optional<ccf::SignedReq> signed_request = std::nullopt;
 
     // Actor type to dispatch to appropriate frontend
     ccf::ActorsType actor = ccf::ActorsType::unknown;
@@ -82,6 +83,8 @@ namespace enclave
   {
     RPCContext rpc_ctx(s);
 
+    rpc_ctx.raw = packed;
+
     auto [success, rpc] = jsonrpc::unpack_rpc(packed, rpc_ctx.pack);
     if (!success)
     {
@@ -91,15 +94,16 @@ namespace enclave
     const auto sig_it = rpc.find(jsonrpc::SIG);
     if (sig_it != rpc.end())
     {
-      assign_j(rpc_ctx.signature, *sig_it);
-      rpc_ctx.raw = nlohmann::json::to_msgpack(rpc.at(jsonrpc::REQ));
-      rpc_ctx.unpacked_rpc = nlohmann::json::from_msgpack(rpc_ctx.raw);
+      rpc_ctx.unpacked_rpc = rpc.at(jsonrpc::REQ);
+      ccf::SignedReq signed_req;
+      signed_req.sig = sig_it->get<decltype(signed_req.sig)>();
+      signed_req.req = nlohmann::json::to_msgpack(rpc_ctx.unpacked_rpc);
+      rpc_ctx.signed_request = signed_req;
     }
     else
     {
-      rpc_ctx.signature = std::nullopt;
       rpc_ctx.unpacked_rpc = rpc;
-      rpc_ctx.raw = packed;
+      rpc_ctx.signed_request = std::nullopt;
     }
 
     const auto method_it = rpc_ctx.unpacked_rpc.find(jsonrpc::METHOD);

@@ -14,7 +14,7 @@ namespace ccf
     virtual ~ForwardedRpcHandler() {}
 
     virtual std::vector<uint8_t> process_forwarded(
-      enclave::RPCContext& fwd_ctx, const std::vector<uint8_t>& input) = 0;
+      enclave::RPCContext& fwd_ctx) = 0;
   };
 
   template <typename ChannelProxy>
@@ -78,7 +78,7 @@ namespace ccf
       return n2n_channels->send_encrypted(to, plain, msg);
     }
 
-    std::optional<std::tuple<enclave::RPCContext, NodeId, std::vector<uint8_t>>>
+    std::optional<std::tuple<enclave::RPCContext, NodeId>>
     recv_forwarded_command(const uint8_t* data, size_t size)
     {
       std::pair<ForwardedHeader, std::vector<uint8_t>> r;
@@ -112,7 +112,7 @@ namespace ccf
         client_session_id, caller_id, caller_cert);
 
       return std::make_tuple(
-        enclave::RPCContext(session), r.first.from_node, std::move(rpc));
+        enclave::make_rpc_context(session, rpc), r.first.from_node);
     }
 
     bool send_forwarded_response(
@@ -170,7 +170,7 @@ namespace ccf
             if (!r.has_value())
               return;
 
-            auto [ctx, from_node, request] = r.value();
+            auto [ctx, from_node] = r.value();
 
             auto handler = rpc_map->find(ctx.actor);
             if (!handler.has_value())
@@ -186,7 +186,7 @@ namespace ccf
             if (!send_forwarded_response(
                   ctx.fwd->client_session_id,
                   from_node,
-                  fwd_handler->process_forwarded(ctx, request)))
+                  fwd_handler->process_forwarded(ctx)))
             {
               LOG_FAIL_FMT(
                 "Could not send forwarded response to {}", from_node);

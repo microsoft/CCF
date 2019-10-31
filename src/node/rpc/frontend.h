@@ -268,20 +268,25 @@ namespace ccf
     }
 
     void record_client_signature(
-      Store::Tx& tx, CallerId caller_id, SignedReq& signed_request)
+      Store::Tx& tx, CallerId caller_id, const SignedReq& signed_request)
     {
+      auto client_sig_view = tx.get_view(*client_signatures);
       if (request_storing_disabled)
       {
-        signed_request.req.clear();
+        SignedReq no_req;
+        no_req.sig = signed_request.sig;
+        client_sig_view->put(caller_id, no_req);
       }
-      auto client_sig_view = tx.get_view(*client_signatures);
-      client_sig_view->put(caller_id, signed_request);
+      else
+      {
+        client_sig_view->put(caller_id, signed_request);
+      }
     }
 
     bool verify_client_signature(
       const std::vector<uint8_t>& caller,
       const CallerId caller_id,
-      SignedReq& signed_request)
+      const SignedReq& signed_request)
     {
 #ifdef HTTP
       return true; // TODO: use Authorize header
@@ -504,15 +509,14 @@ namespace ccf
           ctx.pack.value());
       }
 
-      if (ctx.signature.has_value())
+      if (ctx.signed_request.has_value())
       {
-        SignedReq signed_request;
-        signed_request.sig = ctx.signature.value();
-        signed_request.req = ctx.raw;
         if (
           !ctx.is_create_request &&
           !verify_client_signature(
-            ctx.session.caller_cert, caller_id.value(), signed_request))
+            ctx.session.caller_cert,
+            caller_id.value(),
+            ctx.signed_request.value()))
         {
           return jsonrpc::pack(
             jsonrpc::error_response(
@@ -527,7 +531,8 @@ namespace ccf
           consensus == nullptr || consensus->is_primary() ||
           ctx.is_create_request)
         {
-          record_client_signature(tx, caller_id.value(), signed_request);
+          record_client_signature(
+            tx, caller_id.value(), ctx.signed_request.value());
         }
       }
 
@@ -676,22 +681,15 @@ namespace ccf
      * forwarding backup.
      *
      * @param ctx Context for this forwarded RPC
-     * @param input Serialised JSON RPC
      *
      * @return Serialised reply to send back to forwarder node
      */
-    std::vector<uint8_t> process_forwarded(
-      enclave::RPCContext& ctx, const std::vector<uint8_t>& input) override
+    std::vector<uint8_t> process_forwarded(enclave::RPCContext& ctx) override
     {
       if (!ctx.session.fwd.has_value())
       {
         throw std::logic_error(
           "Processing forwarded command with unitialised forwarded context");
-      }
-
-      if (!ctx.pack.has_value())
-      {
-        ctx.pack = jsonrpc::detect_pack(input);
       }
 
       Store::Tx tx;
@@ -714,26 +712,13 @@ namespace ccf
         ctx.session.caller_cert = caller.value().cert;
       }
 
-      auto [success, rpc] = jsonrpc::unpack_rpc(input, ctx.pack);
-      if (!success)
+      // Store client signature. It is assumed that the forwarder node has
+      // already verified the client signature.
+      if (ctx.signed_request.has_value())
       {
-        return jsonrpc::pack(rpc, ctx.pack.value());
+        record_client_signature(
+          tx, ctx.session.fwd->caller_id, ctx.signed_request.value());
       }
-
-      // Unwrap signed request if necessary and store client signature. It is
-      // assumed that the forwarder node has already verified the client
-      // signature.
-      update_consensus();
-      auto rpc_ = &rpc;
-      SignedReq signed_request(rpc);
-
-      if (rpc_->find(jsonrpc::SIG) != rpc_->end())
-      {
-        auto& req = rpc_->at(jsonrpc::REQ);
-        record_client_signature(tx, ctx.session.fwd->caller_id, signed_request);
-        rpc_ = &req;
-      }
-      auto& unsigned_rpc = *rpc_;
 
       auto rep = process_json(ctx, tx, ctx.session.fwd->caller_id);
       if (!rep.has_value())
