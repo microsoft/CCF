@@ -49,18 +49,6 @@ const auto gov_script_file = files::slurp_string(get_script_path("gov.lua"));
 const auto operator_gov_script_file =
   files::slurp_string(get_script_path("operator_gov.lua"));
 
-template <typename T>
-auto mpack(T&& a)
-{
-  return pack(forward<T>(a), Pack::MsgPack);
-}
-
-template <typename T>
-auto munpack(T&& a)
-{
-  return unpack(forward<T>(a), Pack::MsgPack);
-}
-
 template <typename E>
 void check_error(const nlohmann::json& j, const E expected)
 {
@@ -381,200 +369,187 @@ struct NewMember
   Cert cert;
 };
 
-// TEST_CASE("Add new members until there are 7, then reject")
-// {
-//   constexpr auto initial_members = 3;
-//   constexpr auto n_new_members = 7;
-//   constexpr auto max_members = 8;
-//   NetworkTables network;
-//   Store::Tx gen_tx;
-//   GenesisGenerator gen(network, gen_tx);
-//   gen.init_values();
-//   StubNodeState node;
-//   // add three initial active members
-//   // the proposer
-//   auto proposer_id =
-//     gen.add_member(vector<uint8_t>(member_caller), MemberStatus::ACTIVE);
+TEST_CASE("Add new members until there are 7, then reject")
+{
+  constexpr auto initial_members = 3;
+  constexpr auto n_new_members = 7;
+  constexpr auto max_members = 8;
+  NetworkTables network;
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  network.tables->set_encryptor(encryptor);
 
-//   // the voters
-//   auto voter_a = gen.add_member(get_cert_data(1, kp), MemberStatus::ACTIVE);
-//   auto voter_b = gen.add_member(get_cert_data(2, kp), MemberStatus::ACTIVE);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
+  gen.init_values();
+  StubNodeState node;
+  // add three initial active members
+  // the proposer
+  auto proposer_id = gen.add_member(member_caller, MemberStatus::ACTIVE);
 
-//   set_whitelists(gen);
-//   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-//   gen.finalize();
-//   MemberRpcFrontend frontend(network, node);
+  // the voters
+  const auto voter_a_cert = get_cert_data(1, kp);
+  auto voter_a = gen.add_member(voter_a_cert, MemberStatus::ACTIVE);
+  const auto voter_b_cert = get_cert_data(2, kp);
+  auto voter_b = gen.add_member(voter_b_cert, MemberStatus::ACTIVE);
 
-//   vector<NewMember> new_members(n_new_members);
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
+  gen.finalize();
+  MemberRpcFrontend frontend(network, node);
 
-//   auto i = 0ul;
-//   for (auto& new_member : new_members)
-//   {
-//     const auto proposal_id = i;
-//     new_member.id = initial_members + i++;
+  vector<NewMember> new_members(n_new_members);
 
-//     // new member certificate
-//     auto v = tls::make_verifier(
-//       new_member.kp->self_sign(fmt::format("CN=new member{}",
-//       new_member.id)));
-//     const auto _cert = v->raw();
-//     new_member.cert = {_cert->raw.p, _cert->raw.p + _cert->raw.len};
+  auto i = 0ul;
+  for (auto& new_member : new_members)
+  {
+    const auto proposal_id = i;
+    new_member.id = initial_members + i++;
 
-//     // check new_member id does not work before member is added
-//     enclave::RPCContext rpc_ctx(0, new_member.cert);
-//     const auto read_next_req = create_json_req(
-//       read_params<int>(ValueIds::NEXT_MEMBER_ID, Tables::VALUES), "read");
-//     const auto read_next_member_id = mpack(read_next_req);
-//     check_error(
-//       munpack(frontend.process(rpc_ctx, read_next_req, read_next_member_id)),
-//       CCFErrorCodes::INVALID_CALLER_ID);
+    // new member certificate
+    auto v = tls::make_verifier(
+      new_member.kp->self_sign(fmt::format("CN=new member{}", new_member.id)));
+    const auto _cert = v->raw();
+    new_member.cert = {_cert->raw.p, _cert->raw.p + _cert->raw.len};
 
-//     // propose new member, as proposer
-//     Script proposal(R"xxx(
-//       local tables, member_cert = ...
-//       return Calls:call("new_member", member_cert)
-//     )xxx");
+    // check new_member id does not work before member is added
+    const auto read_next_req = create_json_req(
+      read_params<int>(ValueIds::NEXT_MEMBER_ID, Tables::VALUES), "read");
+    const auto r = frontend_process(frontend, read_next_req, new_member.cert);
+    check_error(r, CCFErrorCodes::INVALID_CALLER_ID);
 
-//     const auto proposej =
-//       create_json_req(Propose::In{proposal, new_member.cert}, "propose");
+    // propose new member, as proposer
+    Script proposal(R"xxx(
+      local tables, member_cert = ...
+      return Calls:call("new_member", member_cert)
+    )xxx");
 
-//     {
-//       Store::Tx tx;
-//       ccf::SignedReq sr(proposej);
-//       Response<Propose::Out> r =
-//         frontend.process_json(rpc_ctx, tx, proposer_id, proposej,
-//         sr).value();
+    const auto proposej =
+      create_json_req(Propose::In{proposal, new_member.cert}, "propose");
 
-//       // the proposal should be accepted, but not succeed immediately
-//       CHECK(r.result.id == proposal_id);
-//       CHECK(r.result.completed == false);
-//     }
+    {
+      Response<Propose::Out> r =
+        frontend_process(frontend, proposej, member_caller);
 
-//     // read initial proposal, as second member
-//     const Response<Proposal> initial_read =
-//       get_proposal(rpc_ctx, frontend, proposal_id, voter_a);
-//     CHECK(initial_read.result.proposer == proposer_id);
-//     CHECK(initial_read.result.script == proposal);
-//     CHECK(initial_read.result.parameter == new_member.cert);
+      // the proposal should be accepted, but not succeed immediately
+      CHECK(r.result.id == proposal_id);
+      CHECK(r.result.completed == false);
+    }
 
-//     // vote as second member
-//     Script vote_ballot(fmt::format(
-//       R"xxx(
-//         local tables, calls = ...
-//         local n = 0
-//         tables["ccf.members"]:foreach( function(k, v) n = n + 1 end )
-//         if n < {} then
-//           return true
-//         else
-//           return false
-//         end
-//       )xxx",
-//       max_members));
+    // read initial proposal, as second member
+    const Response<Proposal> initial_read =
+      get_proposal(frontend, proposal_id, voter_a_cert);
+    CHECK(initial_read.result.proposer == proposer_id);
+    CHECK(initial_read.result.script == proposal);
+    CHECK(initial_read.result.parameter == new_member.cert);
 
-//     json votej =
-//       create_json_req_signed(Vote{proposal_id, vote_ballot}, "vote", kp);
+    // vote as second member
+    Script vote_ballot(fmt::format(
+      R"xxx(
+        local tables, calls = ...
+        local n = 0
+        tables["ccf.members"]:foreach( function(k, v) n = n + 1 end )
+        if n < {} then
+          return true
+        else
+          return false
+        end
+      )xxx",
+      max_members));
 
-//     {
-//       Store::Tx tx;
-//       enclave::RPCContext mem_rpc_ctx(0, member_caller);
-//       ccf::SignedReq sr(votej);
-//       Response<bool> r =
-//         frontend.process_json(mem_rpc_ctx, tx, voter_a, votej["req"], sr)
-//           .value();
+    json votej =
+      create_json_req_signed(Vote{proposal_id, vote_ballot}, "vote", kp);
 
-//       if (new_member.id < max_members)
-//       {
-//         // vote should succeed
-//         CHECK(r.result);
-//         // check that member with the new new_member cert can make rpc's now
-//         CHECK(
-//           Response<int>(munpack(frontend.process(
-//                           rpc_ctx, read_next_req, read_next_member_id)))
-//             .result == new_member.id + 1);
+    {
+      Response<bool> r = frontend_process(frontend, votej, voter_a_cert);
 
-//         // successful proposals are removed from the kv, so we can't confirm
-//         // their final state
-//       }
-//       else
-//       {
-//         // vote should not succeed
-//         CHECK(!r.result);
-//         // check that member with the new new_member cert can make rpc's now
-//         check_error(
-//           munpack(
-//             frontend.process(rpc_ctx, read_next_req, read_next_member_id)),
-//           CCFErrorCodes::INVALID_CALLER_ID);
+      if (new_member.id < max_members)
+      {
+        // vote should succeed
+        CHECK(r.result);
+        // check that member with the new new_member cert can make RPCs now
+        CHECK(
+          Response<int>(
+            frontend_process(frontend, read_next_req, new_member.cert))
+            .result == new_member.id + 1);
 
-//         // re-read proposal, as second member
-//         const Response<Proposal> final_read =
-//           get_proposal(rpc_ctx, frontend, proposal_id, voter_a);
-//         CHECK(final_read.result.proposer == proposer_id);
-//         CHECK(final_read.result.script == proposal);
-//         CHECK(final_read.result.parameter == new_member.cert);
+        // successful proposals are removed from the kv, so we can't confirm
+        // their final state
+      }
+      else
+      {
+        // vote should not succeed
+        CHECK(!r.result);
+        // check that member with the new new_member cert can make RPCs now
+        check_error(
+          frontend_process(frontend, read_next_req, new_member.cert),
+          CCFErrorCodes::INVALID_CALLER_ID);
 
-//         const auto my_vote = final_read.result.votes.find(voter_a);
-//         CHECK(my_vote != final_read.result.votes.end());
-//         CHECK(my_vote->second == vote_ballot);
-//       }
-//     }
-//   }
+        // re-read proposal, as second member
+        const Response<Proposal> final_read =
+          get_proposal(frontend, proposal_id, voter_a_cert);
+        CHECK(final_read.result.proposer == proposer_id);
+        CHECK(final_read.result.script == proposal);
+        CHECK(final_read.result.parameter == new_member.cert);
 
-//   SUBCASE("ACK from newly added members")
-//   {
-//     // iterate over all new_members, except for the last one
-//     for (auto new_member = new_members.cbegin(); new_member !=
-//          new_members.cend() - (initial_members + n_new_members -
-//          max_members); new_member++)
-//     {
-//       enclave::RPCContext rpc_ctx(0, new_member->cert);
+        const auto my_vote = final_read.result.votes.find(voter_a);
+        CHECK(my_vote != final_read.result.votes.end());
+        CHECK(my_vote->second == vote_ballot);
+      }
+    }
+  }
 
-//       // (1) read ack entry
-//       const auto read_nonce_req = create_json_req(
-//         read_params(new_member->id, Tables::MEMBER_ACKS), "read");
-//       const auto read_nonce = mpack(read_nonce_req);
-//       const Response<MemberAck> ack0 =
-//         munpack(frontend.process(rpc_ctx, read_nonce_req, read_nonce));
-//       // (2) ask for a fresher nonce
-//       const auto freshen_nonce_req = create_json_req(nullptr,
-//       "updateAckNonce"); const auto freshen_nonce = mpack(freshen_nonce_req);
-//       check_success(
-//         munpack(frontend.process(rpc_ctx, freshen_nonce_req,
-//         freshen_nonce)));
-//       // (3) read ack entry again and check that the nonce has changed
-//       const Response<MemberAck> ack1 =
-//         munpack(frontend.process(rpc_ctx, read_nonce_req, read_nonce));
-//       CHECK(ack0.result.next_nonce != ack1.result.next_nonce);
-//       // (4) sign old nonce and send it
-//       const auto bad_sig =
-//         RawSignature{new_member->kp->sign(ack0.result.next_nonce)};
-//       const auto send_bad_sig_req = create_json_req(bad_sig, "ack");
-//       const auto send_bad_sig = mpack(send_bad_sig_req);
-//       check_error(
-//         munpack(frontend.process(rpc_ctx, send_bad_sig_req, send_bad_sig)),
-//         jsonrpc::StandardErrorCodes::INVALID_PARAMS);
-//       // (5) sign new nonce and send it
-//       const auto good_sig =
-//         RawSignature{new_member->kp->sign(ack1.result.next_nonce)};
-//       const auto send_good_sig_req = create_json_req(good_sig, "ack");
-//       const auto send_good_sig = mpack(send_good_sig_req);
-//       check_success(
-//         munpack(frontend.process(rpc_ctx, send_good_sig_req,
-//         send_good_sig)));
-//       // (6) read ack entry again and check that the signature matches
-//       const Response<MemberAck> ack2 =
-//         munpack(frontend.process(rpc_ctx, read_nonce_req, read_nonce));
-//       CHECK(ack2.result.sig == good_sig.sig);
-//       // (7) read own member status
-//       const auto read_status_req =
-//         create_json_req(read_params(new_member->id, Tables::MEMBERS),
-//         "read");
-//       const auto read_status = mpack(read_status_req);
-//       const Response<MemberInfo> mi =
-//         munpack(frontend.process(rpc_ctx, read_status_req, read_status));
-//       CHECK(mi.result.status == MemberStatus::ACTIVE);
-//     }
-//   }
-// }
+  SUBCASE("ACK from newly added members")
+  {
+    // iterate over all new_members, except for the last one
+    for (auto new_member = new_members.cbegin(); new_member !=
+         new_members.cend() - (initial_members + n_new_members - max_members);
+         new_member++)
+    {
+      // (1) read ack entry
+      const auto read_nonce_req = create_json_req(
+        read_params(new_member->id, Tables::MEMBER_ACKS), "read");
+      const Response<MemberAck> ack0 =
+        frontend_process(frontend, read_nonce_req, new_member->cert);
+
+      // (2) ask for a fresher nonce
+      const auto freshen_nonce_req = create_json_req(nullptr, "updateAckNonce");
+      check_success(
+        frontend_process(frontend, freshen_nonce_req, new_member->cert));
+
+      // (3) read ack entry again and check that the nonce has changed
+      const Response<MemberAck> ack1 =
+        frontend_process(frontend, read_nonce_req, new_member->cert);
+      CHECK(ack0.result.next_nonce != ack1.result.next_nonce);
+
+      // (4) sign old nonce and send it
+      const auto bad_sig =
+        RawSignature{new_member->kp->sign(ack0.result.next_nonce)};
+      const auto send_bad_sig_req = create_json_req(bad_sig, "ack");
+      check_error(
+        frontend_process(frontend, send_bad_sig_req, new_member->cert),
+        jsonrpc::StandardErrorCodes::INVALID_PARAMS);
+
+      // (5) sign new nonce and send it
+      const auto good_sig =
+        RawSignature{new_member->kp->sign(ack1.result.next_nonce)};
+      const auto send_good_sig_req = create_json_req(good_sig, "ack");
+      check_success(
+        frontend_process(frontend, send_good_sig_req, new_member->cert));
+
+      // (6) read ack entry again and check that the signature matches
+      const Response<MemberAck> ack2 =
+        frontend_process(frontend, read_nonce_req, new_member->cert);
+      CHECK(ack2.result.sig == good_sig.sig);
+
+      // (7) read own member status
+      const auto read_status_req =
+        create_json_req(read_params(new_member->id, Tables::MEMBERS), "read");
+      const Response<MemberInfo> mi =
+        frontend_process(frontend, read_status_req, new_member->cert);
+      CHECK(mi.result.status == MemberStatus::ACTIVE);
+    }
+  }
+}
 
 // TEST_CASE("Accept node")
 // {
