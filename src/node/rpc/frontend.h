@@ -475,9 +475,7 @@ namespace ccf
      * If an RPC that requires writing to the kv store is processed on a
      * backup, the serialised RPC is forwarded to the current network primary.
      *
-     * // TODO: Update these docs
      * @param ctx Context for this RPC
-     * @param input Serialised JSON RPC
      * @returns nullopt if the result is pending (to be forwarded, or still
      * to-be-executed by consensus), else the response (may contain error)
      */
@@ -594,9 +592,10 @@ namespace ccf
             return std::nullopt;
           }
         }
+
         return jsonrpc::pack(
           jsonrpc::error_response(
-            0,
+            ctx.seq_no,
             jsonrpc::CCFErrorCodes::RPC_NOT_FORWARDED,
             "RPC could not be forwarded to primary."),
           ctx.pack.value());

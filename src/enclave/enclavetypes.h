@@ -78,19 +78,8 @@ namespace enclave
     RPCContext(const SessionContext& s) : session(s) {}
   };
 
-  inline RPCContext make_rpc_context(
-    const SessionContext& s, const std::vector<uint8_t>& packed)
+  inline void parse_rpc_context(RPCContext& rpc_ctx, const nlohmann::json& rpc)
   {
-    RPCContext rpc_ctx(s);
-
-    rpc_ctx.raw = packed;
-
-    auto [success, rpc] = jsonrpc::unpack_rpc(packed, rpc_ctx.pack);
-    if (!success)
-    {
-      throw std::logic_error(fmt::format("Failed to unpack: {}", rpc.dump()));
-    }
-
     const auto sig_it = rpc.find(jsonrpc::SIG);
     if (sig_it != rpc.end())
     {
@@ -123,6 +112,22 @@ namespace enclave
     {
       rpc_ctx.params = *params_it;
     }
+  }
+
+  inline RPCContext make_rpc_context(
+    const SessionContext& s, const std::vector<uint8_t>& packed)
+  {
+    RPCContext rpc_ctx(s);
+
+    rpc_ctx.raw = packed;
+
+    auto [success, rpc] = jsonrpc::unpack_rpc(packed, rpc_ctx.pack);
+    if (!success)
+    {
+      throw std::logic_error(fmt::format("Failed to unpack: {}", rpc.dump()));
+    }
+
+    parse_rpc_context(rpc_ctx, rpc);
 
     return rpc_ctx;
   }

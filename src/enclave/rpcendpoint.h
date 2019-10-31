@@ -35,18 +35,6 @@ namespace enclave
       session_id(session_id)
     {}
 
-    std::optional<std::string> get_method(const nlohmann::json& j)
-    {
-      if (j.find(jsonrpc::SIG) != j.end())
-      {
-        return j.at(jsonrpc::REQ).at(jsonrpc::METHOD).get<std::string>();
-      }
-      else
-      {
-        return j.at(jsonrpc::METHOD).get<std::string>();
-      }
-    }
-
     auto split_actor_and_method(const std::string& actor_method)
     {
       const auto split_point = actor_method.find_last_of('/');
@@ -63,10 +51,10 @@ namespace enclave
     {
       LOG_TRACE_FMT("Entered handle_data {} {}", data.size(), data.empty());
 
-      // TODO: This does much of the same work as make_rpc_context. Work out if
-      // they can be combined, with different error reporting in this version
       const SessionContext session(session_id, peer_cert());
       RPCContext rpc_ctx(session);
+
+      rpc_ctx.raw = data;
 
       // If we are unable to detect packing format, default to sending responses
       // as Text
@@ -81,13 +69,10 @@ namespace enclave
       }
       LOG_TRACE_FMT("Deserialised");
 
-      // Fill context with fields from JSON-RPC framing
-      rpc_ctx.seq_no = rpc.value(jsonrpc::ID, 0);
+      parse_rpc_context(rpc_ctx, rpc);
 
-      // TODO: Extract signature here
-
-      auto prefixed_method = get_method(rpc);
-      if (!prefixed_method.has_value())
+      auto prefixed_method = rpc_ctx.method;
+      if (prefixed_method.empty())
       {
         send(jsonrpc::pack(
           jsonrpc::error_response(
@@ -100,7 +85,7 @@ namespace enclave
       LOG_TRACE_FMT("Got method");
 
       // Separate JSON-RPC method into actor and true method
-      auto [actor_s, method] = split_actor_and_method(prefixed_method.value());
+      auto [actor_s, method] = split_actor_and_method(prefixed_method);
       rpc_ctx.method = method;
 
       auto actor = rpc_map->resolve(actor_s);
