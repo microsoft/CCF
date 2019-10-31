@@ -172,24 +172,10 @@ protected:
   View v; //  Last view known to this node.
   int cur_primary; // id of primary for the current view.
 
-  //
-  // Handling authentication freshness
-  //
-  ITimer* atimer;
-  static void atimer_handler(void* owner);
-
-  virtual void resend_new_key();
-  // Effects: resends last_new_key.
-
-  virtual void send_new_key();
-  // Effects: Sends a new-key message and updates last_new_key.
-
   std::shared_ptr<Principal_map> get_principals() const
   {
     return std::atomic_load<Principal_map>(&atomic_principals);
   }
-
-  New_key* last_new_key; // Last new-key message we sent.
 
   // Communication variables.
   // int sock;

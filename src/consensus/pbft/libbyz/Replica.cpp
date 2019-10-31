@@ -30,7 +30,6 @@
 #include "Message_tags.h"
 #include "Meta_data.h"
 #include "Meta_data_d.h"
-#include "New_key.h"
 #include "New_view.h"
 #include "Pre_prepare.h"
 #include "Prepare.h"
@@ -326,17 +325,10 @@ void Replica::init_state()
 
 void Replica::recv_start()
 {
-  if (node_info.general_info.should_mac_message)
-  {
-    // Compute session keys and send initial new-key message.
-    Node::send_new_key();
-  }
-
   init_state();
 
   // Start status and authentication freshness timers
   stimer->start();
-  atimer->start();
   if (id() == primary())
   {
     ntimer->start();
@@ -359,7 +351,8 @@ void Replica::recv_start()
 
 void Replica::recv_process_one_msg(Message* m)
 {
-  // TODO: This should probably be a jump table.
+  PBFT_ASSERT(m->tag() != New_key_tag, "Tag no longer supported");
+
   switch (m->tag())
   {
     case Request_tag:
@@ -384,10 +377,6 @@ void Replica::recv_process_one_msg(Message* m)
 
     case Checkpoint_tag:
       gen_handle<Checkpoint>(m);
-      break;
-
-    case New_key_tag:
-      gen_handle<New_key>(m);
       break;
 
 #ifndef USE_PKEY_VIEW_CHANGES
@@ -496,9 +485,6 @@ bool Replica::pre_verify(Message* m)
 #ifndef USE_PKEY_VIEW_CHANGES
     case View_change_ack_tag:
 #endif
-
-    case New_key_tag:
-      return gen_pre_verify<New_key>(m);
 
     case Query_stable_tag:
     case Reply_stable_tag:
@@ -1086,15 +1072,6 @@ int Replica::my_id() const
   return Node::id();
 }
 
-void Replica::handle(New_key* m)
-{
-  if (!m->verify())
-  {
-    LOG_INFO << "BAD NKEY from " << m->id() << std::endl;
-  }
-  delete m;
-}
-
 void Replica::handle(Status* m)
 {
   static const int max_ret_bytes = 65536;
@@ -1344,16 +1321,6 @@ void Replica::handle(Status* m)
   }
   else
   {
-    // It is possible that we could not verify message because the
-    // sender did not receive my last new_key message. It is also
-    // possible message is bogus. We choose to retransmit last new_key
-    // message.  TODO: should impose a limit on the frequency at which
-    // we are willing to do it to prevent a denial of service attack.
-    // This is not being done right now.
-    if (last_new_key != 0 && (qs == 0 || !m->verify()))
-    {
-      send(last_new_key, m->id());
-    }
   }
 
   delete m;
@@ -1922,12 +1889,6 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
 void Replica::create_recovery_reply(
   int client_id, int last_tentative_execute, Byz_rep& outb)
 {
-  // Change keys. TODO: could change key only for recovering replica.
-  if (client_id != node_id)
-  {
-    send_new_key();
-  }
-
   max_rec_n = last_tentative_execute;
   // Reply includes sequence number where request was executed.
   outb.size = sizeof(last_tentative_execute);
@@ -2381,41 +2342,7 @@ void Replica::handle(Meta_data_d* m)
 void Replica::handle(Fetch* m)
 {
   int mid = m->id();
-  if (!state.handle(m, last_stable) && last_new_key != 0)
-  {
-    send(last_new_key, mid);
-  }
-}
-
-void Replica::send_new_key()
-{
-  Node::send_new_key();
-
-  // Cleanup messages in incomplete certificates that are
-  // authenticated with the old keys.
-  int max = last_stable + max_out;
-  int min = last_stable + 1;
-  for (Seqno n = min; n <= max; n++)
-  {
-    if (n % checkpoint_interval == 0)
-    {
-      elog.fetch(n).mark_stale();
-    }
-  }
-
-  if (last_executed > last_stable)
-  {
-    min = last_executed + 1;
-  }
-
-  for (Seqno n = min; n <= max; n++)
-  {
-    plog.fetch(n).mark_stale();
-    clog.fetch(n).mark_stale();
-  }
-
-  vi.mark_stale();
-  state.mark_stale();
+  state.handle(m, last_stable);
 }
 
 void Replica::send_status(bool send_now)
@@ -2665,7 +2592,6 @@ void Replica::recover()
 
   // Change my incoming session keys and zero client's keys.
   START_CC(nk_time);
-  send_new_key();
 
   unsigned zk[Key_size_u];
   bzero(zk, Key_size);
@@ -2704,13 +2630,6 @@ void Replica::handle(Query_stable* m)
 
     // TODO: should put a bound on the rate at which I send these messages.
     send(&rs, m->id());
-  }
-  else
-  {
-    if (last_new_key != 0)
-    {
-      send(last_new_key, m->id());
-    }
   }
 
   delete m;
