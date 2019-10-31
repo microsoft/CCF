@@ -142,7 +142,7 @@ Request::Request(Request_rep* contents) : Message(contents) {}
 
 bool Request::verify()
 {
-  return verified_auth;
+  return true;
 }
 
 bool Request::pre_verify()

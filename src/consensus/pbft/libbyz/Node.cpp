@@ -375,4 +375,6 @@ void Node::set_f(ccf::NodeId f)
   LOG_INFO << "***** setting f to " << f << "*****" << std::endl;
   max_faulty = f;
   send_only_to_self = (f == 0);
+  threshold = f * 2 + 1;
+  num_replicas = 3 * f + 1;
 }

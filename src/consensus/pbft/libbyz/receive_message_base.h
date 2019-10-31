@@ -28,4 +28,5 @@ public:
   virtual void handle(Request* m) = 0;
   virtual void send(Message* m, int i) = 0;
   virtual Seqno get_last_executed() const = 0;
+  virtual int my_id() const = 0;
 };

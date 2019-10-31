@@ -34,7 +34,7 @@ void Commit::re_authenticate(Principal* p)
 
 bool Commit::verify()
 {
-  return verified_auth;
+  return true;
 }
 
 bool Commit::pre_verify()
