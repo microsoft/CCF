@@ -50,7 +50,7 @@ const json frontend_process(
   const std::string& method,
   const Cert& caller)
 {
-  auto req = create_json_req(json_params, NodeProcs::JOIN);
+  auto req = create_json_req(json_params, method);
   auto serialise_request = pack(req, Pack::MsgPack);
 
   const enclave::SessionContext session(0, caller);
