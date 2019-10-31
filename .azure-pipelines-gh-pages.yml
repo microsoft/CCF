@@ -40,6 +40,8 @@ jobs:
     - script: |
         mv $DOWNLOADSECUREFILE_SECUREFILEPATH deploy_key
         chmod 600 deploy_key
+        mkdir ~/.ssh
+        chmod 700 ~/.ssh
         ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
         git remote add origin git@github.com:microsoft/CCF.git
         GIT_SSH_COMMAND="ssh -i deploy_key" git push -f origin HEAD:gh-pages
