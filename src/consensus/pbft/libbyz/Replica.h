@@ -238,7 +238,9 @@ private:
   void execute_committed(bool was_f_0 = false);
   // Effects: Executes as many commands as possible by calling
   // execute_prepared; sends Checkpoint messages when needed and
-  // manipulates the wait timer.
+  // manipulates the wait timer. If was_f_0 is set to true the certificate check
+  // assumes that only 1 response is needed even if f != 0 when execute
+  // committed is called
 
   void set_min_pre_prepare_batch_size();
   // Effects: Sets the min_pre_prepare_batch_size based on

@@ -173,7 +173,7 @@ private:
   Message_val* c; // correct certificate value or 0 if unknown.
 
   int complete; // certificate is complete if "num_correct() >= complete"
-  int comp;
+  int comp; // the value of complete as sent into the ctor
 
   T* mym; // my message in this or null if I have no message in this
   Time t_sent; // time at which mym was last sent

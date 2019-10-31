@@ -526,7 +526,7 @@ void Replica::recv()
 void Replica::handle(Request* m)
 {
   bool ro = m->is_read_only();
-  bool verified = true;
+  bool verified = m->verify();
 
   if (has_complete_new_view() && verified)
   {

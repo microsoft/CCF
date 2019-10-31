@@ -40,6 +40,8 @@ def run(args):
         network.vote_using_majority(primary, result[1]["id"], False)
         LOG.info("***** Network is now open *****")
 
+        # this will be replaced by something better than sleeping
+        # https://github.com/microsoft/CCF/issues/495
         time.sleep(15)
 
         with primary.node_client() as mc:
