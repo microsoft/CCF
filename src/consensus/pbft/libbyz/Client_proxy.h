@@ -210,7 +210,6 @@ void ClientProxy<T, C>::execute_request(Request* request)
     my_replica.send(request, Node::All_replicas);
   }
 
-  request->mark_verified();
   my_replica.handle(request);
 }
 

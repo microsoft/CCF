@@ -38,7 +38,7 @@ void Fetch::re_authenticate(Principal* p)
 
 bool Fetch::verify()
 {
-  return verified_auth;
+  return true;
 }
 
 bool Fetch::pre_verify()
@@ -69,7 +69,6 @@ bool Fetch::pre_verify()
     return false;
   }
 
-  verified_auth = node->verify_mac_out(id(), contents(), sizeof(Fetch_rep));
   return true;
 }
 

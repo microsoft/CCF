@@ -57,7 +57,6 @@ bool Commit::pre_verify()
     return false;
   }
 
-  verified_auth = node->verify_mac_in(id(), contents(), sizeof(Commit_rep));
   return true;
 }
 

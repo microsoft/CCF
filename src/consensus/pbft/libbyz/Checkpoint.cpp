@@ -55,7 +55,7 @@ void Checkpoint::re_authenticate(Principal* p, bool stable)
 
 bool Checkpoint::verify()
 {
-  return verified_auth;
+  return true;
 }
 
 bool Checkpoint::pre_verify()
@@ -67,26 +67,10 @@ bool Checkpoint::pre_verify()
   }
 
   // Check signature size.
-#ifndef USE_PKEY_CHECKPOINTS
   if (size() - (int)sizeof(Checkpoint_rep) < node->auth_size(id()))
   {
     return false;
   }
-
-  verified_auth = node->verify_mac_in(id(), contents(), sizeof(Checkpoint_rep));
-#else
-  if (size() - (int)sizeof(Checkpoint_rep) < node->sig_size(id()))
-  {
-    return false;
-  }
-
-  std::shared_ptr<Principal> p = node->get_principal(id());
-  if (p != nullptr)
-  {
-    verified_auth = p->verify_signature(
-      contents(), sizeof(Checkpoint_rep), contents() + sizeof(Checkpoint_rep));
-  }
-#endif
 
   return true;
 }

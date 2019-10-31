@@ -179,8 +179,6 @@ bool Reply::pre_verify()
     return false;
   }
   int size_wo_MAC = sizeof(Reply_rep) + rep_size;
-  verified_auth = replica->verify_mac_in(
-    contents(), sizeof(Reply_rep), contents() + size_wo_MAC);
 
   STOP_CC(reply_auth_ver_cycles);
 

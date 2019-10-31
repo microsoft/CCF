@@ -105,7 +105,6 @@ bool Prepare::pre_verify()
       return false;
     }
 
-    verified_auth = node->verify_mac_in(id(), contents(), sizeof(Prepare_rep));
     return true;
 #else
     if (
@@ -114,9 +113,6 @@ bool Prepare::pre_verify()
     {
       return false;
     }
-
-    verified_auth = node->get_principal(id())->verify_signature(
-      contents(), sizeof(Prepare_rep), contents() + sizeof(Prepare_rep));
     return true;
 #endif
   }
@@ -127,8 +123,6 @@ bool Prepare::pre_verify()
       return false;
     }
 
-    verified_auth = node->get_principal(id())->verify_mac_in(
-      contents(), sizeof(Prepare_rep), contents() + sizeof(Prepare_rep));
     return true;
   }
 

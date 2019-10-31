@@ -60,8 +60,6 @@ void Replica::retransmit(T* m, Time cur, Time tsent, Principal* p)
   // first time
   if (diff_time(cur, tsent) > 10000)
   {
-    m->re_authenticate(p);
-
     // Retransmit message
     INCR_OP(message_counts_retransmitted[m->tag()]);
     send(m, p->pid());

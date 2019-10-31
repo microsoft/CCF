@@ -120,9 +120,6 @@ public:
   bool pre_verify();
   // Effects: Performs preliminary verification checks
 
-  void mark_verified();
-  // Effects: Marks the request verified
-
   static bool convert(Message* m1, Request*& m2);
   // Effects: If "m1" has the right size and tag of a "Request",
   // casts "m1" to a "Request" pointer, returns the pointer in
@@ -195,9 +192,4 @@ inline bool Request::is_signed() const
 inline Digest& Request::digest() const
 {
   return rep().od;
-}
-
-inline void Request::mark_verified()
-{
-  verified_auth = true;
 }

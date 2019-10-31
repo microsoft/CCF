@@ -86,13 +86,6 @@ bool Principal::verify_mac(
   }
   return true;
 }
-// TODO (#pbft) thread local is not currently supported inside the enclave
-#ifdef INSIDE_ENCLAVE
-long long Principal::aes_gcm_nonce = 0;
-#else
-thread_local long long Principal::aes_gcm_nonce = 0;
-#endif
-
 void Principal::gen_mac(
   const char* src,
   unsigned src_len,

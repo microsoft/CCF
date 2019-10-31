@@ -260,8 +260,6 @@ bool Pre_prepare::pre_verify()
     int sz =
       rep().rset_size + rep().n_big_reqs * sizeof(Digest) + rep().non_det_size;
 #ifndef USE_PKEY
-    verified_auth = node->verify_mac_in(
-      sender, contents(), sizeof(Pre_prepare_rep), requests() + sz);
     return true;
 #else
     if (d == rep().digest)
@@ -271,8 +269,6 @@ bool Pre_prepare::pre_verify()
       {
         return false;
       }
-      verified_auth = ps->verify_signature(
-        contents(), sizeof(Pre_prepare_rep), requests() + sz);
       return true;
     }
 #endif

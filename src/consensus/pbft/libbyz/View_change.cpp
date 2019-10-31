@@ -188,7 +188,7 @@ void View_change::re_authenticate(Principal* p)
 
 bool View_change::verify()
 {
-  return verified_auth;
+  return true;
 }
 
 bool View_change::pre_verify()
@@ -245,19 +245,6 @@ bool View_change::pre_verify()
   {
     return false;
   }
-
-  // Check authenticator.
-#ifdef USE_PKEY_VIEW_CHANGES
-  std::shared_ptr<Principal> p = node->get_principal(id());
-  if (p != nullptr)
-  {
-    verified_auth =
-      p->verify_signature(contents(), old_size, contents() + old_size);
-  }
-#else
-  verified_auth =
-    node->verify_mac_in(id(), contents(), old_size, contents() + old_size);
-#endif
 
   return true;
 }
