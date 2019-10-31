@@ -173,14 +173,18 @@ private:
   Message_val* c; // correct certificate value or 0 if unknown.
 
   int complete; // certificate is complete if "num_correct() >= complete"
+  int comp; // the value of complete as sent into the ctor
 
   T* mym; // my message in this or null if I have no message in this
   Time t_sent; // time at which mym was last sent
 
-  const ccf::NodeId f; // the value of f when starting to run
+  ccf::NodeId f; // the value of f when starting to run
 
   // The implementation assumes:
   // correct > 0 and complete > correct
+
+  void reset_f(); // If sets the f and associated values used when f has changed
+                  // between the cert is created and when it is first used
 };
 
 template <class T>
@@ -271,7 +275,7 @@ inline bool Certificate<T>::Val_iter::get(T*& m, int& count)
 }
 
 template <class T>
-Certificate<T>::Certificate(int comp) : f(node->f())
+Certificate<T>::Certificate(int comp_) : f(node->f()), comp(comp_)
 {
   max_size = f + 1;
   vals = new Message_val[max_size];
@@ -290,8 +294,25 @@ Certificate<T>::~Certificate()
 }
 
 template <class T>
+void Certificate<T>::reset_f()
+{
+  f = node->f();
+  max_size = f + 1;
+  delete[] vals;
+  vals = new Message_val[max_size];
+  cur_size = 0;
+  correct = f + 1;
+  complete = (comp == 0) ? node->num_correct_replicas() : comp;
+}
+
+template <class T>
 bool Certificate<T>::add(T* m)
 {
+  if (bmap.none() && f != node->f())
+  {
+    reset_f();
+  }
+
   const int id = m->id();
 
   if (f == 0)
@@ -311,7 +332,7 @@ bool Certificate<T>::add(T* m)
   {
     // "m" was sent by a replica that does not have a message in
     // the certificate
-    if ((c == 0 || (c->count < complete && c->m->match(m))) && m->verify())
+    if ((c == 0 || (c->count < complete && c->m->match(m))))
     {
       // add "m" to the certificate
       PBFT_ASSERT(
@@ -390,6 +411,11 @@ bool Certificate<T>::add_mine(T* m)
 {
   PBFT_ASSERT(m->id() == node->id(), "Invalid argument");
   PBFT_ASSERT(m->full(), "Invalid argument");
+
+  if (bmap.none() && f != node->f())
+  {
+    reset_f();
+  }
 
   if (c != 0 && !c->m->match(m))
   {
