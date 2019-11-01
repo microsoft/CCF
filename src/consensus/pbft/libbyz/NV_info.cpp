@@ -133,9 +133,9 @@ View_change* NV_info::mark_stale(int id)
       add(nv, vi);
 
       PBFT_ASSERT(pres != 0, "Invalid state");
-      if (can_add(pres.get(), true))
+      if (can_add(pres.get()))
       {
-        add(std::move(pres), true);
+        add(std::move(pres));
       }
     }
   }
@@ -176,7 +176,7 @@ bool NV_info::add(New_view* m, View_info* parent)
   return true;
 }
 
-bool NV_info::can_add(View_change* m, bool verified)
+bool NV_info::can_add(View_change* m)
 {
   PBFT_ASSERT(m->view() == v, "Invalid argument");
 
@@ -197,17 +197,10 @@ bool NV_info::can_add(View_change* m, bool verified)
     }
   }
 
-  if (!verified)
-  {
-    if (is_primary || !m->verify_digest() || vcs[vcid].ack_count < node->f())
-    {
-      return false;
-    }
-  }
   return true;
 }
 
-void NV_info::add(std::unique_ptr<View_change> m, bool verified)
+void NV_info::add(std::unique_ptr<View_change> m)
 {
   int vcid = m->id();
   vcs[vcid].vc = std::move(m);
@@ -218,7 +211,6 @@ void NV_info::add(std::unique_ptr<View_change> m, bool verified)
 #ifdef USE_PKEY_VIEW_CHANGES
   if (is_primary)
   {
-    PBFT_ASSERT(verified, "View change was not verified");
     nv->add_view_change(vcid, vc->digest());
     summarize(vc);
   }

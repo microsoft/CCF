@@ -321,9 +321,9 @@ void View_info::view_change(View vi, Seqno last_executed, State* state)
     for (int i = 0; i < node->num_of_replicas(); i++)
     {
       auto vc = last_vcs[i].get();
-      if (vc && vc->view() == v && n.can_add(vc, true))
+      if (vc && vc->view() == v && n.can_add(vc))
       {
-        n.add(std::move(last_vcs[i]), true);
+        n.add(std::move(last_vcs[i]));
         last_vcs[i] = 0;
       }
     }
@@ -361,10 +361,10 @@ bool View_info::add(std::unique_ptr<View_change> vc)
   if (n.view() == vcv)
   {
     // There is a new-view message corresponding to "vc"
-    stored = n.can_add(vc.get(), true);
+    stored = n.can_add(vc.get());
     if (stored)
     {
-      n.add(std::move(vc), true);
+      n.add(std::move(vc));
     }
 
 #ifndef USE_PKEY_VIEW_CHANGES
@@ -432,9 +432,9 @@ void View_info::add(New_view* nv)
         for (int i = 0; i < last_vcs.size(); i++)
         {
           auto vc = last_vcs[i].get();
-          if (vc && vc->view() == nvv && n.can_add(vc, true))
+          if (vc && vc->view() == nvv && n.can_add(vc))
           {
-            n.add(std::move(last_vcs[i]), true);
+            n.add(std::move(last_vcs[i]));
           }
         }
       }
