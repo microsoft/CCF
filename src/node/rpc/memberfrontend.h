@@ -399,7 +399,7 @@ namespace ccf
 
         auto voting_history = args.tx.get_view(this->network.voting_history);
         voting_history->put(
-          args.caller_id, {args.rpc_ctx.signed_request.value().sig});
+          args.caller_id, {args.rpc_ctx.signed_request.value()});
 
         return jsonrpc::success(complete_proposal(args.tx, vote.id));
       };
