@@ -285,7 +285,7 @@ class Network:
             if self._check_node_exists(remote_node, node_id, node_status):
                 exists = True
                 break
-            time.sleep(1)
+            time.sleep(2)
         if not exists:
             raise TimeoutError(
                 f"Node {node_id} has not yet been recorded in the store"
@@ -809,6 +809,12 @@ class Node:
             **kwargs,
         )
         self.network_state = NodeNetworkState.joined
+
+    def suspend(self):
+        return self.remote.suspend()
+
+    def resume(self):
+        self.remote.resume()
 
     def join(
         self, lib_name, enclave_type, workspace, label, target_rpc_address, **kwargs

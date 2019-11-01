@@ -6,6 +6,7 @@ from enum import Enum
 import paramiko
 import logging
 import subprocess
+import psutil
 import getpass
 from contextlib import contextmanager
 import infra.path
@@ -135,12 +136,16 @@ class SSHRemote(CmdMixin):
         self.files += data_files
         self.cmd = cmd
         self.client = paramiko.SSHClient()
+        # this client is used to execute commands on the remote host since the main client uses pty
+        self.proc_client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        self.proc_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.root = os.path.join(workspace, label + "_" + name)
         self.name = name
         self.env = env or {}
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
+        self.suspension_proc = None
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
@@ -150,6 +155,7 @@ class SSHRemote(CmdMixin):
     def _connect(self):
         LOG.debug("[{}] connect".format(self.hostname))
         self.client.connect(self.hostname)
+        self.proc_client.connect(self.hostname)
 
     def _setup_files(self):
         assert self._rc("rm -rf {}".format(self.root)) == 0
@@ -231,6 +237,22 @@ class SSHRemote(CmdMixin):
         cmd = self._cmd()
         LOG.info("[{}] {}".format(self.hostname, cmd))
         stdin, stdout, stderr = self.client.exec_command(cmd, get_pty=True)
+        _, stdout_, _ = self.proc_client.exec_command(f'ps -ef | pgrep -f "{cmd}"')
+        self.pid = stdout_.readline()
+
+    def suspend(self):
+        _, stdout, _ = self.proc_client.exec_command(f"kill -STOP {self.pid}")
+        if stdout.channel.recv_exit_status() == 0:
+            LOG.info(f"Node {self.name} suspended...")
+            return True
+        LOG.info(f"Node {self.name} can not be suspended...")
+        return False
+
+    def resume(self):
+        _, stdout, _ = self.proc_client.exec_command(f"kill -CONT {self.pid}")
+        if stdout.channel.recv_exit_status() != 0:
+            raise RuntimeError(f"Could not resume node {self.name} from suspension!")
+        LOG.info(f"Node {self.name} resuming from suspension...")
 
     def stop(self):
         """
@@ -243,6 +265,7 @@ class SSHRemote(CmdMixin):
             "{}_err_{}".format(self.hostname, self.name),
         )
         self.client.close()
+        self.proc_client.close()
 
     def setup(self):
         """
@@ -336,6 +359,7 @@ class LocalRemote(CmdMixin):
         self.cmd = cmd
         self.root = os.path.join(workspace, label + "_" + name)
         self.proc = None
+        self.suspension_proc = None
         self.stdout = None
         self.stderr = None
         self.env = env
@@ -391,6 +415,20 @@ class LocalRemote(CmdMixin):
             stderr=self.stderr,
             env=self.env,
         )
+        self.suspension_proc = psutil.Process(pid=self.proc.pid)
+
+    def suspend(self):
+        try:
+            self.suspension_proc.suspend()
+            LOG.info(f"Node {self.name} suspended...")
+            return True
+        except psutil.NoSuchProcess:
+            LOG.info(f"Node {self.name} can not be suspended...")
+            return False
+
+    def resume(self):
+        self.suspension_proc.resume()
+        LOG.info(f"Node {self.name} resuming from suspension...")
 
     def stop(self):
         """
@@ -618,6 +656,12 @@ class CCFRemote(object):
 
     def start(self):
         self.remote.start()
+
+    def suspend(self):
+        return self.remote.suspend()
+
+    def resume(self):
+        self.remote.resume()
 
     def get_startup_files(self):
         self.remote.get(self.pem)
