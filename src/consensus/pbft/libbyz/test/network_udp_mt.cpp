@@ -337,7 +337,6 @@ void SenderThread::send_message(
   std::shared_ptr<Principal> p = node->get_principal(message->pid);
   if (p != nullptr)
   {
-
     sockaddr_in to = *(sockaddr_in*)p->address();
     if (port_offset != 0)
     {

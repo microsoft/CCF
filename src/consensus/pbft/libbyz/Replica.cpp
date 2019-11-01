@@ -582,9 +582,7 @@ void Replica::handle(Request* m)
   }
   else
   {
-    if (
-      m->size() > Request::big_req_thresh && !ro &&
-      brt.add_request(m))
+    if (m->size() > Request::big_req_thresh && !ro && brt.add_request(m))
     {
       return;
     }
@@ -1314,8 +1312,7 @@ void Replica::handle(Status* m)
     }
   }
   else
-  {
-  }
+  {}
 
   delete m;
 }
@@ -2587,15 +2584,6 @@ void Replica::recover()
   unsigned zk[Key_size_u];
   bzero(zk, Key_size);
 
-  auto principals = get_principals();
-  for (auto it : *principals)
-  {
-    const std::shared_ptr<Principal>& p = it.second;
-    if (p)
-    {
-      p->set_out_key(zk, p->last_tstamp() + 1);
-    }
-  }
   STOP_CC(nk_time);
 
   // Start estimation procedure.
