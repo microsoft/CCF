@@ -158,9 +158,6 @@ namespace ccf
     std::vector<uint8_t> node_cert;
     CodeDigest node_code_id;
 
-    std::vector<uint8_t> endorsed_node_cert;
-    std::shared_ptr<tls::Cert> endorsed_node_cert_ = nullptr;
-
     //
     // kv store, replication, and I/O
     //
@@ -243,7 +240,7 @@ namespace ccf
       sm.advance(State::initialized);
     }
 
-    auto serialize_create_request(
+    std::vector<uint8_t> serialize_create_request(
       const CreateNew::In& args, std::vector<uint8_t>& quote)
     {
       jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> create_rpc;
@@ -273,11 +270,10 @@ namespace ccf
       sj["req"] = j;
       sj["sig"] = sig_contents;
 
-      return std::make_pair(sj, jsonrpc::pack(sj, jsonrpc::Pack::Text));
+      return jsonrpc::pack(sj, jsonrpc::Pack::Text);
     }
 
-    void send_create_request(
-      const nlohmann::json& rpc, std::vector<uint8_t>& packed)
+    void send_create_request(std::vector<uint8_t>& packed)
     {
       auto handler = this->rpc_map->find(ccf::ActorsType::members);
       if (!handler.has_value())
@@ -302,9 +298,9 @@ namespace ccf
     bool create_and_send_request(
       const CreateNew::In& args, std::vector<uint8_t>& quote)
     {
-      auto [rpc, packed] = serialize_create_request(args, quote);
+      auto rpc = serialize_create_request(args, quote);
 
-      send_create_request(rpc, packed);
+      send_create_request(rpc);
 
       return true;
     }
