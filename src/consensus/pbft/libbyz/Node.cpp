@@ -112,10 +112,6 @@ Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
   send_only_to_self = ((f() == 0 && is_replica(id())));
 }
 
-Node::~Node()
-{
-}
-
 void Node::add_principal(const PrincipalInfo& principal_info)
 {
   LOG_INFO << "Adding principal with id:" << principal_info.id << std::endl;

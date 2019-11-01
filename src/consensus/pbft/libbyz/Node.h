@@ -32,7 +32,7 @@ public:
   // Effects: Create a new Node object using the information in
   // node_info.
 
-  virtual ~Node();
+  virtual ~Node() = default;
   // Effects: Deallocates all storage associated with node.
 
   View view() const;
