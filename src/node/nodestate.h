@@ -289,7 +289,7 @@ namespace ccf
       ctx.is_create_request = true;
 
 #ifdef PBFT
-      frontend->process_pbft(ctx, packed);
+      frontend->process_pbft(ctx);
 #else
       frontend->process(ctx);
 #endif

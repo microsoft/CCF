@@ -542,7 +542,11 @@ namespace ccf
       if (history)
       {
         if (!history->add_request(
-              reqid, ctx.actor, caller_id.value(), ctx.caller_cert, input))
+              reqid,
+              ctx.actor,
+              caller_id.value(),
+              ctx.session.caller_cert,
+              ctx.raw))
         {
           LOG_FAIL_FMT("Adding request {} failed", ctx.seq_no);
           return jsonrpc::pack(
@@ -610,17 +614,15 @@ namespace ccf
     /** Process a serialised command with the associated RPC context via PBFT
      *
      * @param ctx Context for this RPC
-     * @param input Serialised JSON RPC
      */
-    ProcessPbftResp process_pbft(
-      enclave::RPCContext& ctx, const std::vector<uint8_t>& input) override
+    ProcessPbftResp process_pbft(enclave::RPCContext& ctx) override
     {
       // TODO(#PBFT): Refactor this with process_forwarded().
       Store::Tx tx;
       crypto::Sha256Hash merkle_root;
       kv::Version version = kv::NoVersion;
 
-      auto [success, rpc] = jsonrpc::unpack_rpc(input, ctx.pack);
+      auto [success, rpc] = jsonrpc::unpack_rpc(ctx.raw, ctx.pack);
       if (!success)
       {
         return {jsonrpc::pack(rpc, ctx.pack.value()), merkle_root};

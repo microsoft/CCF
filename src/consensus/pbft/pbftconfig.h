@@ -115,13 +115,11 @@ namespace pbft
 
       auto frontend = handler.value();
 
-      enclave::RPCContext ctx(
-        enclave::InvalidSessionId,
-        request.caller_id,
-        ccf::ActorsType(request.actor),
-        request.caller_cert);
+      const enclave::SessionContext session(
+        enclave::InvalidSessionId, request.caller_id, request.caller_cert);
+      auto ctx = enclave::make_rpc_context(session, request.request);
 
-      auto rep = frontend->process_pbft(ctx, request.request);
+      auto rep = frontend->process_pbft(ctx);
 
       static_assert(sizeof(info.merkle_root) == sizeof(crypto::Sha256Hash));
       std::copy(

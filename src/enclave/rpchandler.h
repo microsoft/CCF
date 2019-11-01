@@ -34,7 +34,6 @@ namespace enclave
       kv::Version version;
     };
 
-    virtual ProcessPbftResp process_pbft(
-      RPCContext& ctx, const std::vector<uint8_t>& input) = 0;
+    virtual ProcessPbftResp process_pbft(RPCContext& ctx) = 0;
   };
 }
