@@ -42,7 +42,7 @@ bool Query_stable::verify()
     return false;
   }
 
-  return node->verify_mac_in(id(), contents(), sizeof(Query_stable_rep));
+  return true;
 }
 
 bool Query_stable::convert(Message* m1, Query_stable*& m2)

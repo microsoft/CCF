@@ -32,7 +32,7 @@ public:
   // Effects: Create a new Node object using the information in
   // node_info.
 
-  virtual ~Node();
+  virtual ~Node() = default;
   // Effects: Deallocates all storage associated with node.
 
   View view() const;
@@ -106,23 +106,6 @@ public:
   // Effects: Returns the size in bytes of an authenticator for principal
   // "id" (or current principal if "id" is negative.)
 
-  bool verify_mac_in(int i, char* src, unsigned src_len, char* dest = 0) const;
-  // Effects: If "i" is an invalid principal identifier or is the
-  // identifier of the calling principal, returns false and does
-  // nothing. Otherwise, returns true iff: "src"+"src_len" or ("dest"
-  // if non-zero) contains a MAC by principal "i" that is
-  // valid for the calling principal (i.e. computed with calling
-  // principal's in-key.)
-
-  bool verify_mac_out(int i, char* src, unsigned src_len, char* dest = 0) const;
-  // Effects: same as verify_mac_in except that checks an authenticator
-  // computed with calling principal's out-key.
-
-  void gen_mac(
-    int pid, Auth_type atype, char* src, unsigned src_len, char* dest) const;
-  // Effects: generates a mac for pid of type atype covering src_len bytes
-  // starting at src and place the result in dest.
-
   //
   // Signature generation:
   //
@@ -172,24 +155,10 @@ protected:
   View v; //  Last view known to this node.
   int cur_primary; // id of primary for the current view.
 
-  //
-  // Handling authentication freshness
-  //
-  ITimer* atimer;
-  static void atimer_handler(void* owner);
-
-  virtual void resend_new_key();
-  // Effects: resends last_new_key.
-
-  virtual void send_new_key();
-  // Effects: Sends a new-key message and updates last_new_key.
-
   std::shared_ptr<Principal_map> get_principals() const
   {
     return std::atomic_load<Principal_map>(&atomic_principals);
   }
-
-  New_key* last_new_key; // Last new-key message we sent.
 
   // Communication variables.
   // int sock;
@@ -265,76 +234,6 @@ inline int Node::auth_size(int id) const
   if (id < 0)
     id = node_id;
   return UMAC_size + UNonce_size;
-}
-
-inline bool Node::verify_mac_in(
-  int i, char* src, unsigned src_len, char* dest) const
-{
-  if (!node_info.general_info.should_mac_message)
-  {
-    return true;
-  }
-
-  if (dest == 0)
-  {
-    dest = src + src_len;
-  }
-
-  std::shared_ptr<Principal> p = get_principal(i);
-  if (!p)
-  {
-    return false;
-  }
-
-  return p->verify_mac_in(src, src_len, dest);
-}
-
-inline bool Node::verify_mac_out(
-  int i, char* src, unsigned src_len, char* dest) const
-{
-  if (!node_info.general_info.should_mac_message)
-  {
-    return true;
-  }
-
-  if (dest == 0)
-  {
-    dest = src + src_len;
-  }
-
-  std::shared_ptr<Principal> p = get_principal(i);
-  if (!p)
-  {
-    return false;
-  }
-
-  return p->verify_mac_out(src, src_len, dest);
-}
-
-inline void Node::gen_mac(
-  int pid, Auth_type atype, char* src, unsigned src_len, char* dst) const
-{
-  PBFT_ASSERT(dst != nullptr, "Invalid argument");
-
-  auto principals = get_principals();
-  auto it = principals->find(pid);
-  assert(it != principals->end());
-
-  std::shared_ptr<Principal>& p = it->second;
-  if (p == nullptr)
-  {
-    // principal not ready yet!
-    return;
-  }
-
-  if (atype == Auth_type::in)
-  {
-    p->gen_mac_in(src, src_len, dst);
-  }
-  else if (atype == Auth_type::out)
-  {
-    p->gen_mac_out(src, src_len, dst);
-  }
 }
 
 inline unsigned Node::sig_size(int id) const

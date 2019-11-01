@@ -147,11 +147,6 @@ int UDPNetworkMultiThreaded::Send(Message* msg, IPrincipal& principal)
   auto message = new (malloc(msg->size() + sizeof(MessageDesc))) MessageDesc;
   message->size = msg->size();
   message->pid = principal.pid();
-  msg->get_mac_parameters(
-    message->auth_type,
-    message->src_offset,
-    message->auth_len,
-    message->dst_offset);
   memcpy(message->get_buf(), msg->contents(), msg->size());
 
   next_thread++;
@@ -342,13 +337,6 @@ void SenderThread::send_message(
   std::shared_ptr<Principal> p = node->get_principal(message->pid);
   if (p != nullptr)
   {
-    node->gen_mac(
-      message->pid,
-      message->auth_type,
-      (char*)message->get_buf() + message->src_offset,
-      message->auth_len,
-      (char*)message->get_buf() + message->dst_offset);
-
     sockaddr_in to = *(sockaddr_in*)p->address();
     if (port_offset != 0)
     {

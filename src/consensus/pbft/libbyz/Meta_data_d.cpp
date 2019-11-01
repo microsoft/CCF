@@ -13,7 +13,7 @@
 #include "pbft_assert.h"
 
 Meta_data_d::Meta_data_d(Request_id r, int l, size_t i, Seqno ls) :
-  Message(Meta_data_d_tag, sizeof(Meta_data_d_rep) + MAC_size)
+  Message(Meta_data_d_tag, sizeof(Meta_data_d_rep))
 {
   PBFT_ASSERT(l < PLevels, "Invalid argument");
   PBFT_ASSERT(i < PLevelSize[l], "Invalid argument");
@@ -64,9 +64,7 @@ bool Meta_data_d::digest(Seqno n, Digest& d)
 
 void Meta_data_d::authenticate(Principal* p)
 {
-  set_size(sizeof(Meta_data_d_rep) + MAC_size);
-  // p->gen_mac_out(contents(), sizeof(Meta_data_d_rep),
-  // contents()+sizeof(Meta_data_d_rep));
+  set_size(sizeof(Meta_data_d_rep));
 
   auth_type = Auth_type::out;
   auth_len = sizeof(Meta_data_d_rep);
@@ -98,20 +96,11 @@ bool Meta_data_d::verify()
     return false;
   }
 
-  // Check sizes
-  if (size() < (int)ALIGNED_SIZE(sizeof(Meta_data_d_rep) + MAC_size))
-  {
-    return false;
-  }
-
-  // Check MAC
+  // Check principal exists
   std::shared_ptr<Principal> p = node->get_principal(id());
   if (p)
   {
-    return p->verify_mac_in(
-      contents(),
-      sizeof(Meta_data_d_rep),
-      contents() + sizeof(Meta_data_d_rep));
+    return true;
   }
 
   return false;

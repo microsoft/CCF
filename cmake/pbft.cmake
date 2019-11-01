@@ -8,7 +8,6 @@ set(SIGN_BATCH ON)
 set(PBFT_SRC
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/Client.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/Replica.cpp
-  ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/New_key.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/Commit.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/Message.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/Reply.cpp
