@@ -66,9 +66,9 @@ to embed one of several language runtimes on top of its key-value store. Clients
 
 ## Getting Started on Azure Confidential Computing
 
-First, if you are checking out the CCF repository, run `git clone` with the `--recursive` option:
+First, if you are checking out the CCF repository, run `git clone`:
 ```bash
-git clone --recursive https://github.com/microsoft/CCF.git
+git clone https://github.com/microsoft/CCF.git
 ```
 
 Then, under `CCF/getting_started/`:

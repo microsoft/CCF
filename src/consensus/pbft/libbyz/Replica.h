@@ -38,7 +38,6 @@ class Checkpoint;
 class Status;
 class View_change;
 class New_view;
-class New_key;
 class Fetch;
 class Data;
 class Meta_data;
@@ -133,6 +132,7 @@ public:
   int primary(View view) const;
   void send(Message* m, int i);
   Seqno get_last_executed() const;
+  int my_id() const;
 
   bool shutdown();
   // Effects: Shuts down replica writing a checkpoint to disk.
@@ -186,7 +186,6 @@ private:
   void handle(New_view* m);
   void handle(View_change_ack* m);
   void handle(Status* m);
-  void handle(New_key* m);
   void handle(Fetch* m);
   void handle(Data* m);
   void handle(Meta_data* m);
@@ -219,7 +218,7 @@ private:
   // If ByzInfo is provided there is no need to execute since execution has
   // already happened and relative information resides in info
 
-  void send_commit(Seqno s);
+  void send_commit(Seqno s, bool send_only_to_self = false);
 
   void send_null();
   // Send a pre-prepare with a null request if the system is idle
@@ -234,10 +233,12 @@ private:
   // "m" (provided it is really read-only and does not require
   // non-deterministic choices), and sends a reply to the client
 
-  void execute_committed();
+  void execute_committed(bool was_f_0 = false);
   // Effects: Executes as many commands as possible by calling
   // execute_prepared; sends Checkpoint messages when needed and
-  // manipulates the wait timer.
+  // manipulates the wait timer. If was_f_0 is set to true the certificate check
+  // assumes that only 1 response is needed even if f != 0 when execute
+  // committed is called
 
   void set_min_pre_prepare_batch_size();
   // Effects: Sets the min_pre_prepare_batch_size based on
@@ -281,7 +282,7 @@ private:
   // Effects: Returns non-zero iff there is a pre-prepare pp that prepared for
   // sequence number "s" (in this case it returns pp).
 
-  Pre_prepare* committed(Seqno s);
+  Pre_prepare* committed(Seqno s, bool was_f_0 = false);
   // Effects: Returns non-zero iff there is a pre-prepare pp that committed for
   // sequence number "s" (in this case it returns pp).
 
@@ -308,10 +309,6 @@ private:
   // needed. cur should be the current time.
 
   bool retransmit_rep(Reply* m, Time& cur, Time* tsent, Principal* p);
-
-  void send_new_key();
-  // Effects: Calls Node's send_new_key, adjusts timer and cleans up
-  // stale messages.
 
   void enforce_bound(Seqno b);
   // Effects: Ensures that there is no information above bound "b".
@@ -445,7 +442,6 @@ private:
   Request* rr; // Outstanding recovery request or null if
                // there is no outstanding recovery request.
   Certificate<Reply> rr_reps; // Certificate with replies to recovery request.
-  View* rr_views; // Views in recovery replies.
 
   Seqno recovery_point; // Seqno_max if not known
   Seqno max_rec_n; // Maximum sequence number of a recovery request in state.

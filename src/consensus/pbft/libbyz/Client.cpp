@@ -43,10 +43,6 @@ Client::Client(const NodeInfo& node_info, INetwork* network) :
   out_req = 0;
 
   init_network(std::unique_ptr<INetwork>(network));
-
-  // Multicast new key to all replicas.
-  send_new_key();
-  atimer->start();
 }
 
 Client::~Client()
@@ -124,7 +120,7 @@ Reply* Client::recv_reply()
     if (reps.is_complete())
     {
       // We have a complete certificate without a full reply.
-      if (!rep->full() || !rep->verify() || !rep->match(reps.cvalue()))
+      if (!rep->full() || !rep->match(reps.cvalue()))
       {
         delete rep;
         continue;
@@ -204,10 +200,6 @@ void Client::retransmit()
 #endif
 
     n_retrans++;
-    if (n_retrans == nk_thresh || n_retrans % nk_thresh_1 == 0)
-    {
-      Node::resend_new_key();
-    }
 
     bool ro = out_req->is_read_only();
     bool change = (ro || out_req->replier() >= 0) && n_retrans > thresh;
@@ -245,14 +237,4 @@ void Client::retransmit()
   }
 
   rtimer->restart();
-}
-
-void Client::send_new_key()
-{
-  Node::send_new_key();
-  need_auth = true;
-
-  // Cleanup reply messages authenticated with old keys.
-  t_reps.clear();
-  c_reps.clear();
 }

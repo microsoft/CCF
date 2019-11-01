@@ -67,13 +67,6 @@ bool View_change_ack::verify()
   {
     return false;
   }
-  int old_size = sizeof(View_change_ack_rep);
-
-  if (!p->verify_mac_in(contents(), old_size, contents() + old_size))
-  {
-    LOG_FAIL << "failed to verify mac at view_change" << std::endl;
-    return false;
-  }
 
   return true;
 }

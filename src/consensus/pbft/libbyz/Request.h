@@ -113,15 +113,8 @@ public:
   // Effects: Returns true iff the authentication token in the message
   // is a signature.
 
-  bool verify();
-  // Effects: Verifies if the message is authenticated by the client
-  // "client_id()" using an authenticator, or a signature.
-
   bool pre_verify();
   // Effects: Performs preliminary verification checks
-
-  void mark_verified();
-  // Effects: Marks the request verified
 
   static bool convert(Message* m1, Request*& m2);
   // Effects: If "m1" has the right size and tag of a "Request",
@@ -195,9 +188,4 @@ inline bool Request::is_signed() const
 inline Digest& Request::digest() const
 {
   return rep().od;
-}
-
-inline void Request::mark_verified()
-{
-  verified_auth = true;
 }

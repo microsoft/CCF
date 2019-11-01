@@ -30,7 +30,6 @@
 #include "Message_tags.h"
 #include "Meta_data.h"
 #include "Meta_data_d.h"
-#include "New_key.h"
 #include "New_view.h"
 #include "Pre_prepare.h"
 #include "Prepare.h"
@@ -61,8 +60,6 @@ void Replica::retransmit(T* m, Time cur, Time tsent, Principal* p)
   // first time
   if (diff_time(cur, tsent) > 10000)
   {
-    m->re_authenticate(p);
-
     // Retransmit message
     INCR_OP(message_counts_retransmitted[m->tag()]);
     send(m, p->pid());
@@ -159,7 +156,6 @@ Replica::Replica(
   recovering = false;
   qs = 0;
   rr = 0;
-  rr_views = new View[num_replicas];
   recovery_point = Seqno_max;
   max_rec_n = 0;
 
@@ -201,8 +197,6 @@ void Replica::compute_non_det(Seqno s, char* b, int* b_len)
 
 Replica::~Replica()
 {
-  delete[] rr_views;
-  delete ntimer;
   delete vtimer;
 #ifdef PROACTIVE_RECOVERY
   delete rtimer;
@@ -329,17 +323,10 @@ void Replica::init_state()
 
 void Replica::recv_start()
 {
-  if (node_info.general_info.should_mac_message)
-  {
-    // Compute session keys and send initial new-key message.
-    Node::send_new_key();
-  }
-
   init_state();
 
   // Start status and authentication freshness timers
   stimer->start();
-  atimer->start();
   if (id() == primary())
   {
     ntimer->start();
@@ -362,7 +349,8 @@ void Replica::recv_start()
 
 void Replica::recv_process_one_msg(Message* m)
 {
-  // TODO: This should probably be a jump table.
+  PBFT_ASSERT(m->tag() != New_key_tag, "Tag no longer supported");
+
   switch (m->tag())
   {
     case Request_tag:
@@ -387,10 +375,6 @@ void Replica::recv_process_one_msg(Message* m)
 
     case Checkpoint_tag:
       gen_handle<Checkpoint>(m);
-      break;
-
-    case New_key_tag:
-      gen_handle<New_key>(m);
       break;
 
 #ifndef USE_PKEY_VIEW_CHANGES
@@ -500,9 +484,6 @@ bool Replica::pre_verify(Message* m)
     case View_change_ack_tag:
 #endif
 
-    case New_key_tag:
-      return gen_pre_verify<New_key>(m);
-
     case Query_stable_tag:
     case Reply_stable_tag:
     case Meta_data_tag:
@@ -529,9 +510,8 @@ void Replica::recv()
 void Replica::handle(Request* m)
 {
   bool ro = m->is_read_only();
-  bool verified = m->verify();
 
-  if (has_complete_new_view() && verified)
+  if (has_complete_new_view())
   {
     LOG_TRACE << "Received request with rid: " << m->request_id()
               << " with cid: " << m->client_id() << std::endl;
@@ -602,9 +582,7 @@ void Replica::handle(Request* m)
   }
   else
   {
-    if (
-      m->size() > Request::big_req_thresh && !ro &&
-      brt.add_request(m, verified))
+    if (m->size() > Request::big_req_thresh && !ro && brt.add_request(m))
     {
       return;
     }
@@ -726,7 +704,7 @@ bool Replica::in_wv(T* m)
     return true;
   }
 
-  if ((m->view() > view() || offset > max_out) && m->verify())
+  if (m->view() > view() || offset > max_out)
   {
     // Send status message to obtain missing messages. This works as a
     // negative ack.
@@ -775,6 +753,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
     if (pc.my_prepare() == 0 && pc.is_pp_complete())
     {
+      bool send_only_to_self = (f() == 0);
       // Send prepare to all replicas and log it.
       Pre_prepare* pp = pc.pre_prepare();
       ByzInfo info;
@@ -803,7 +782,8 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       }
 
       Prepare* p = new Prepare(v, pp->seqno(), pp->digest());
-      send(p, All_replicas);
+      int send_node_id = (send_only_to_self ? node_id : All_replicas);
+      send(p, send_node_id);
       pc.add_mine(p);
       LOG_DEBUG << "added to pc in prepare: " << pp->seqno() << std::endl;
 
@@ -811,7 +791,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       {
         LOG_TRACE << "pc is complete for seqno: " << seqno
                   << " and sending commit" << std::endl;
-        send_commit(seqno);
+        send_commit(seqno, send_node_id == node_id);
       }
       seqno++;
     }
@@ -822,8 +802,9 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
   }
 }
 
-void Replica::send_commit(Seqno s)
+void Replica::send_commit(Seqno s, bool send_only_to_self)
 {
+  size_t before_f = f();
   // Executing request before sending commit improves performance
   // for null requests. May not be true in general.
   if (s == last_executed + 1)
@@ -832,7 +813,8 @@ void Replica::send_commit(Seqno s)
   }
 
   Commit* c = new Commit(view(), s);
-  send(c, All_replicas);
+  int send_node_id = (send_only_to_self ? node_id : All_replicas);
+  send(c, send_node_id);
 
   if (s > last_prepared)
   {
@@ -840,11 +822,11 @@ void Replica::send_commit(Seqno s)
   }
 
   Certificate<Commit>& cs = clog.fetch(s);
-  if (cs.add_mine(c) && cs.is_complete())
+  if ((cs.add_mine(c) && cs.is_complete()) || (before_f == 0))
   {
     LOG_DEBUG << "calling execute committed from send_commit seqno: " << s
               << std::endl;
-    execute_committed();
+    execute_committed(before_f == 0);
   }
 }
 
@@ -866,7 +848,7 @@ void Replica::handle(Prepare* m)
         ledger_writer->write_prepare(ps, ms);
       }
 
-      send_commit(ms);
+      send_commit(ms, f() == 0);
     }
     return;
   }
@@ -891,7 +873,8 @@ void Replica::handle(Commit* m)
   // accept commits from older views as in proof.
   if (in_wv(m) && ms > low_bound)
   {
-    LOG_TRACE << "handle commit for seqno: " << m->seqno() << std::endl;
+    LOG_TRACE << "handle commit for seqno: " << m->seqno() << ", id:" << m->id()
+              << std::endl;
     Certificate<Commit>& cs = clog.fetch(m->seqno());
     if (cs.add(m) && cs.is_complete())
     {
@@ -955,33 +938,30 @@ void Replica::handle(Checkpoint* m)
     return;
   }
 
-  if (m->verify())
+  // Checkpoint message above my window.
+  if (!m->stable())
   {
-    // Checkpoint message above my window.
-    if (!m->stable())
-    {
-      // Send status message to obtain missing messages. This works as a
-      // negative ack.
-      send_status();
-      delete m;
-      return;
-    }
-
-    // Stable checkpoint message above my window.
-    auto it = stable_checkpoints.find(m->id());
-    if (it == stable_checkpoints.end() || it->second->seqno() < ms)
-    {
-      stable_checkpoints.insert_or_assign(
-        m->id(), std::unique_ptr<Checkpoint>(m));
-      if (stable_checkpoints.size() > f())
-      {
-        fetch_state_outside_view_change();
-      }
-      return;
-    }
-
+    // Send status message to obtain missing messages. This works as a
+    // negative ack.
+    send_status();
     delete m;
+    return;
   }
+
+  // Stable checkpoint message above my window.
+  auto it = stable_checkpoints.find(m->id());
+  if (it == stable_checkpoints.end() || it->second->seqno() < ms)
+  {
+    stable_checkpoints.insert_or_assign(
+      m->id(), std::unique_ptr<Checkpoint>(m));
+    if (stable_checkpoints.size() > f())
+    {
+      fetch_state_outside_view_change();
+    }
+    return;
+  }
+
+  delete m;
 }
 
 void Replica::fetch_state_outside_view_change()
@@ -1041,6 +1021,11 @@ size_t Replica::f() const
 
 void Replica::set_f(ccf::NodeId f)
 {
+  if (max_faulty == 0 && f > 0)
+  {
+    rqueue.clear();
+  }
+
   Node::set_f(f);
 }
 
@@ -1074,20 +1059,16 @@ Seqno Replica::get_last_executed() const
   return last_executed;
 }
 
-void Replica::handle(New_key* m)
+int Replica::my_id() const
 {
-  if (!m->verify())
-  {
-    LOG_INFO << "BAD NKEY from " << m->id() << std::endl;
-  }
-  delete m;
+  return Node::id();
 }
 
 void Replica::handle(Status* m)
 {
   static const int max_ret_bytes = 65536;
 
-  if (m->verify() && qs == 0)
+  if (qs == 0)
   {
     Time current;
     Time t_sent = 0;
@@ -1331,18 +1312,7 @@ void Replica::handle(Status* m)
     }
   }
   else
-  {
-    // It is possible that we could not verify message because the
-    // sender did not receive my last new_key message. It is also
-    // possible message is bogus. We choose to retransmit last new_key
-    // message.  TODO: should impose a limit on the frequency at which
-    // we are willing to do it to prevent a denial of service attack.
-    // This is not being done right now.
-    if (last_new_key != 0 && (qs == 0 || !m->verify()))
-    {
-      send(last_new_key, m->id());
-    }
-  }
+  {}
 
   delete m;
 }
@@ -1354,12 +1324,9 @@ void Replica::handle(View_change* m)
 
   if (m->id() == primary() && m->view() > v)
   {
-    if (m->verify())
-    {
-      // "m" was sent by the primary for v and has a view number
-      // higher than v: move to the next view.
-      send_view_change();
-    }
+    // "m" was sent by the primary for v and has a view number
+    // higher than v: move to the next view.
+    send_view_change();
   }
   vi.add(std::unique_ptr<View_change>(m));
 
@@ -1661,14 +1628,14 @@ Pre_prepare* Replica::prepared_pre_prepare(Seqno n)
   return 0;
 }
 
-Pre_prepare* Replica::committed(Seqno s)
+Pre_prepare* Replica::committed(Seqno s, bool was_f_0)
 {
   // TODO: This is correct but too conservative: fix to handle case
   // where commit and prepare are not in same view; and to allow
   // commits without prepared requests, i.e., only with the
   // pre-prepare.
   Pre_prepare* pp = prepared_pre_prepare(s);
-  if (clog.fetch(s).is_complete())
+  if (clog.fetch(s).is_complete() || was_f_0)
   {
     return pp;
   }
@@ -1910,12 +1877,6 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
 void Replica::create_recovery_reply(
   int client_id, int last_tentative_execute, Byz_rep& outb)
 {
-  // Change keys. TODO: could change key only for recovering replica.
-  if (client_id != node_id)
-  {
-    send_new_key();
-  }
-
   max_rec_n = last_tentative_execute;
   // Reply includes sequence number where request was executed.
   outb.size = sizeof(last_tentative_execute);
@@ -1933,7 +1894,7 @@ void Replica::right_pad_contents(Byz_rep& outb)
   }
 }
 
-void Replica::execute_committed()
+void Replica::execute_committed(bool was_f_0)
 {
   if (
     !state.in_fetch_state() && !state.in_check_state() &&
@@ -1946,7 +1907,7 @@ void Replica::execute_committed()
         return;
       }
 
-      Pre_prepare* pp = committed(last_executed + 1);
+      Pre_prepare* pp = committed(last_executed + 1, was_f_0);
 
       if (pp && pp->view() == view())
       {
@@ -2369,41 +2330,7 @@ void Replica::handle(Meta_data_d* m)
 void Replica::handle(Fetch* m)
 {
   int mid = m->id();
-  if (!state.handle(m, last_stable) && last_new_key != 0)
-  {
-    send(last_new_key, mid);
-  }
-}
-
-void Replica::send_new_key()
-{
-  Node::send_new_key();
-
-  // Cleanup messages in incomplete certificates that are
-  // authenticated with the old keys.
-  int max = last_stable + max_out;
-  int min = last_stable + 1;
-  for (Seqno n = min; n <= max; n++)
-  {
-    if (n % checkpoint_interval == 0)
-    {
-      elog.fetch(n).mark_stale();
-    }
-  }
-
-  if (last_executed > last_stable)
-  {
-    min = last_executed + 1;
-  }
-
-  for (Seqno n = min; n <= max; n++)
-  {
-    plog.fetch(n).mark_stale();
-    clog.fetch(n).mark_stale();
-  }
-
-  vi.mark_stale();
-  state.mark_stale();
+  state.handle(m, last_stable);
 }
 
 void Replica::send_status(bool send_now)
@@ -2650,27 +2577,13 @@ void Replica::recover()
   delete rr;
   rr = 0;
   recovery_point = Seqno_max;
-  for (int i = 0; i < num_replicas; i++)
-  {
-    rr_views[i] = 0;
-  }
 
   // Change my incoming session keys and zero client's keys.
   START_CC(nk_time);
-  send_new_key();
 
   unsigned zk[Key_size_u];
   bzero(zk, Key_size);
 
-  auto principals = get_principals();
-  for (auto it : *principals)
-  {
-    const std::shared_ptr<Principal>& p = it.second;
-    if (p)
-    {
-      p->set_out_key(zk, p->last_tstamp() + 1);
-    }
-  }
   STOP_CC(nk_time);
 
   // Start estimation procedure.
@@ -2696,13 +2609,6 @@ void Replica::handle(Query_stable* m)
 
     // TODO: should put a bound on the rate at which I send these messages.
     send(&rs, m->id());
-  }
-  else
-  {
-    if (last_new_key != 0)
-    {
-      send(last_new_key, m->id());
-    }
   }
 
   delete m;
@@ -2866,7 +2772,7 @@ bool Replica::delay_vc()
 
 void Replica::start_vtimer_if_request_waiting()
 {
-  if (rqueue.size() > 0)
+  if (rqueue.size() > 0 && f() > 0)
   {
     Request* first = rqueue.first();
     cid_vtimer = first->client_id();
@@ -2889,6 +2795,7 @@ void Replica::vtimer_handler(void* owner)
     {
       LOG_INFO << "View change timer expired first rid: "
                << replica->rqueue.first()->request_id()
+               << ", digest:" << replica->rqueue.first()->digest().hash()
                << " first cid: " << replica->rqueue.first()->client_id()
                << std::endl;
     }

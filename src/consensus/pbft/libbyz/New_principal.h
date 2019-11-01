@@ -56,7 +56,6 @@ public:
   bool is_replica() const;
 
   bool verify();
-  bool pre_verify();
 
   static bool convert(Message* m1, New_principal*& m2);
 

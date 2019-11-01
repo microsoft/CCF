@@ -53,7 +53,7 @@ First, from your local machine, you should clone the CCF repository to get acces
 
 .. code-block:: bash
 
-    $ git clone --recursive https://github.com/microsoft/CCF.git
+    $ git clone https://github.com/microsoft/CCF.git
 
 First, you should run the ``pre_make_vm.sh`` script to install the `Azure CLI`_ and the :term:`OpenEnclave Engine` (``oe-engine``) that are required to create the DC-series in Azure:
 
@@ -75,9 +75,7 @@ Then, you should ssh into your newly created vm and clone the CCF repository:
 .. code-block:: bash
 
     $ ssh ccf@ccf-dev.eastus.cloudapp.azure.com
-    $ git clone --recursive https://github.com/microsoft/CCF.git
-
-.. note:: The ``--recursive`` option is required to retrieve some third-party dependencies of CCF. It is not possible to build CCF without these dependencies.
+    $ git clone https://github.com/microsoft/CCF.git
 
 The `SSH Remote`_ extension to `Visual Studio Code`_ makes it possible to develop your application directly on this VM.
 

@@ -11,12 +11,11 @@ To generate the certificate and private key of trusted users should be generated
 
 Before issuing business transactions to CCF, the certificates of trusted users need to be voted in by the consortium of members (see :ref:`Adding Users`).
 
-Clients communicate with CCF using framed :term:`JSON-RPC` over :term:`TLS`.
-
 .. toctree::
     :maxdepth: 2
     :caption: Contents:
 
+    deploy_app
     issue_commands
     client
     rpc_api
