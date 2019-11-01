@@ -120,10 +120,6 @@ public:
   // message information for sequence number "n" was picked for
   // propagation to the new-view.
 
-  bool verify();
-  // Effects: Verifies if the message is syntactically correct and
-  // is authenticated by the principal rep().id.
-
   bool pre_verify();
   // Effects: Performs preliminary verification checks
 

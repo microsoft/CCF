@@ -233,7 +233,6 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
             << " reps.is_complete: "
             << (ctx->t_reps.is_complete() ? "true" : "false")
             << " reply->full: " << (reply->full() ? "true" : "false")
-            << " reply->verify: " << (reply->verify() ? "true" : "false")
             << " reps.cvalue: " << (void*)ctx->t_reps.cvalue() << std::endl;
 
   Certificate<Reply>& reps =

@@ -186,11 +186,6 @@ void View_change::re_authenticate(Principal* p)
   }
 }
 
-bool View_change::verify()
-{
-  return true;
-}
-
 bool View_change::pre_verify()
 {
   int nreqs = rep().n_reqs;

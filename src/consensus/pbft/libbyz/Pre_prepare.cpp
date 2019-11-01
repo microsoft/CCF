@@ -286,10 +286,6 @@ bool Pre_prepare::verify(int mode)
     for (char* next = requests(); next < max_req; next += req.size())
     {
       Request::convert(next, max_req - next, req);
-      if (!req.verify())
-      {
-        return false;
-      }
 
       // TODO: If we batch requests from different clients inline. We need to
       // change this a bit. Otherwise, a good client could be denied

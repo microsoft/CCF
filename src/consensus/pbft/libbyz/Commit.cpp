@@ -32,11 +32,6 @@ void Commit::re_authenticate(Principal* p)
   auth_src_offset = 0;
 }
 
-bool Commit::verify()
-{
-  return true;
-}
-
 bool Commit::pre_verify()
 {
   // special case for f == 0

@@ -140,11 +140,6 @@ void Request::sign(int act_len)
 
 Request::Request(Request_rep* contents) : Message(contents) {}
 
-bool Request::verify()
-{
-  return true;
-}
-
 bool Request::pre_verify()
 {
   const int nid = node->id();

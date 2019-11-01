@@ -120,7 +120,7 @@ Reply* Client::recv_reply()
     if (reps.is_complete())
     {
       // We have a complete certificate without a full reply.
-      if (!rep->full() || !rep->verify() || !rep->match(reps.cvalue()))
+      if (!rep->full() || !rep->match(reps.cvalue()))
       {
         delete rep;
         continue;

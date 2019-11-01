@@ -130,11 +130,6 @@ bool Prepare::pre_verify()
   return false;
 }
 
-bool Prepare::verify()
-{
-  return true;
-}
-
 bool Prepare::convert(Message* m1, Prepare*& m2)
 {
   if (!m1->has_tag(Prepare_tag, sizeof(Prepare_rep)))

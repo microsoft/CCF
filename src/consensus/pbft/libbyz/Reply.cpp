@@ -139,11 +139,6 @@ void Reply::commit(Principal* p)
   auth_dst_offset = old_size;
 }
 
-bool Reply::verify()
-{
-  return true;
-}
-
 bool Reply::pre_verify()
 {
   // Replies must be sent by replicas.

@@ -510,9 +510,8 @@ void Replica::recv()
 void Replica::handle(Request* m)
 {
   bool ro = m->is_read_only();
-  bool verified = m->verify();
 
-  if (has_complete_new_view() && verified)
+  if (has_complete_new_view())
   {
     LOG_TRACE << "Received request with rid: " << m->request_id()
               << " with cid: " << m->client_id() << std::endl;
@@ -585,7 +584,7 @@ void Replica::handle(Request* m)
   {
     if (
       m->size() > Request::big_req_thresh && !ro &&
-      brt.add_request(m, verified))
+      brt.add_request(m))
     {
       return;
     }
@@ -707,7 +706,7 @@ bool Replica::in_wv(T* m)
     return true;
   }
 
-  if ((m->view() > view() || offset > max_out) && m->verify())
+  if (m->view() > view() || offset > max_out)
   {
     // Send status message to obtain missing messages. This works as a
     // negative ack.
@@ -941,33 +940,30 @@ void Replica::handle(Checkpoint* m)
     return;
   }
 
-  if (m->verify())
+  // Checkpoint message above my window.
+  if (!m->stable())
   {
-    // Checkpoint message above my window.
-    if (!m->stable())
-    {
-      // Send status message to obtain missing messages. This works as a
-      // negative ack.
-      send_status();
-      delete m;
-      return;
-    }
-
-    // Stable checkpoint message above my window.
-    auto it = stable_checkpoints.find(m->id());
-    if (it == stable_checkpoints.end() || it->second->seqno() < ms)
-    {
-      stable_checkpoints.insert_or_assign(
-        m->id(), std::unique_ptr<Checkpoint>(m));
-      if (stable_checkpoints.size() > f())
-      {
-        fetch_state_outside_view_change();
-      }
-      return;
-    }
-
+    // Send status message to obtain missing messages. This works as a
+    // negative ack.
+    send_status();
     delete m;
+    return;
   }
+
+  // Stable checkpoint message above my window.
+  auto it = stable_checkpoints.find(m->id());
+  if (it == stable_checkpoints.end() || it->second->seqno() < ms)
+  {
+    stable_checkpoints.insert_or_assign(
+      m->id(), std::unique_ptr<Checkpoint>(m));
+    if (stable_checkpoints.size() > f())
+    {
+      fetch_state_outside_view_change();
+    }
+    return;
+  }
+
+  delete m;
 }
 
 void Replica::fetch_state_outside_view_change()
@@ -1074,7 +1070,7 @@ void Replica::handle(Status* m)
 {
   static const int max_ret_bytes = 65536;
 
-  if (m->verify() && qs == 0)
+  if (qs == 0)
   {
     Time current;
     Time t_sent = 0;
@@ -1331,12 +1327,9 @@ void Replica::handle(View_change* m)
 
   if (m->id() == primary() && m->view() > v)
   {
-    if (m->verify())
-    {
-      // "m" was sent by the primary for v and has a view number
-      // higher than v: move to the next view.
-      send_view_change();
-    }
+    // "m" was sent by the primary for v and has a view number
+    // higher than v: move to the next view.
+    send_view_change();
   }
   vi.add(std::unique_ptr<View_change>(m));
 

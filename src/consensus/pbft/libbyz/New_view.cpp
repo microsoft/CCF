@@ -75,11 +75,6 @@ bool New_view::view_change(int id, Digest& d)
   return true;
 }
 
-bool New_view::verify()
-{
-  return true;
-}
-
 bool New_view::pre_verify()
 {
   if (

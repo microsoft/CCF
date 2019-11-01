@@ -76,9 +76,6 @@ public:
   bool match(const Prepare* p) const;
   // Effects: Returns true iff "p" and "this" match.
 
-  bool verify();
-  // Effects: Verifies if the message is signed by the replica rep().id.
-
   bool pre_verify();
   // Effects: Performs preliminary verification checks
 

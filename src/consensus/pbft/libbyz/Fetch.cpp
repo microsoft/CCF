@@ -36,11 +36,6 @@ void Fetch::re_authenticate(Principal* p)
   auth_src_offset = 0;
 }
 
-bool Fetch::verify()
-{
-  return true;
-}
-
 bool Fetch::pre_verify()
 {
   if (!node->is_replica(id()))

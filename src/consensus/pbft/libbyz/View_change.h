@@ -154,10 +154,6 @@ public:
   // most recent keys. If "p" is not null, may only update "p"'s
   // entry in the authenticator.
 
-  bool verify();
-  // Effects: Verifies if the message is syntactically correct and
-  // authenticated by the principal rep().id.
-
   bool pre_verify();
   // Effects: Performs preliminary verification checks
 

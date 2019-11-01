@@ -53,11 +53,6 @@ void Checkpoint::re_authenticate(Principal* p, bool stable)
 #endif
 }
 
-bool Checkpoint::verify()
-{
-  return true;
-}
-
 bool Checkpoint::pre_verify()
 {
   // Checkpoints must be sent by replicas.

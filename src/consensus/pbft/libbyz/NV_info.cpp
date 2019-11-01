@@ -144,8 +144,6 @@ View_change* NV_info::mark_stale(int id)
 
 bool NV_info::add(New_view* m, View_info* parent)
 {
-  PBFT_ASSERT(
-    m->verify() || node->id() == node->primary(m->view()), "Invalid argument");
   PBFT_ASSERT(parent != 0, "Invalid argument");
 
   if (m->view() <= v)

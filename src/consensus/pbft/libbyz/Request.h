@@ -113,10 +113,6 @@ public:
   // Effects: Returns true iff the authentication token in the message
   // is a signature.
 
-  bool verify();
-  // Effects: Verifies if the message is authenticated by the client
-  // "client_id()" using an authenticator, or a signature.
-
   bool pre_verify();
   // Effects: Performs preliminary verification checks
 

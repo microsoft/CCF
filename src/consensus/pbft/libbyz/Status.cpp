@@ -55,11 +55,6 @@ void Status::authenticate()
   auth_src_offset = 0;
 }
 
-bool Status::verify()
-{
-  return true;
-}
-
 bool Status::pre_verify()
 {
   if (!node->is_replica(id()) || id() == node->id() || view() < 0)
