@@ -711,7 +711,6 @@ void NV_info::make_new_view()
   }
 
   nv->set_max(max);
-  nv->re_authenticate();
 
   nv_sent = ITimer::current_time();
 

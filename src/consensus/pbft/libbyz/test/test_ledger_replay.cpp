@@ -134,7 +134,6 @@ TEST_CASE("Test Ledger Replay")
       Request* request = (Request*)req.opaque;
       request->request_id() = i;
       request->authenticate(req.size, false);
-      request->mark_verified();
       request->trim();
 
       rqueue.append(request);
