@@ -135,14 +135,14 @@ namespace logger
       const std::optional<::timespec>& enclave_ts = std::nullopt) override
     {
       auto file_line = fmt::format("{}:{}", file_name, line_number);
-      auto data = file_line.data();
+      auto file_line_data = file_line.data();
 
       // Truncate to final characters - if too long, advance char*
       constexpr auto max_len = 36u;
 
       const auto len = file_line.size();
       if (len > max_len)
-        data += len - max_len;
+        file_line_data += len - max_len;
 
       if (enclave_ts.has_value())
       {
@@ -155,7 +155,7 @@ namespace logger
           enclave_ts.value().tv_sec,
           enclave_ts.value().tv_nsec / 1000000,
           log_level,
-          file_line,
+          file_line_data,
           msg);
       }
       else
@@ -166,7 +166,7 @@ namespace logger
           "{}        [{:<5}] {:<36} | {}",
           get_timestamp(host_tm, host_ts),
           log_level,
-          file_line,
+          file_line_data,
           msg);
       }
     }
