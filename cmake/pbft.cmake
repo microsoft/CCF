@@ -50,27 +50,23 @@ set(PBFT_SRC
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/New_principal.cpp
 )
 
-add_library(libbyz.enclave STATIC ${PBFT_SRC})
-target_compile_options(libbyz.enclave PRIVATE
-  -nostdinc
-  -U__linux__)
-target_compile_definitions(libbyz.enclave PRIVATE INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD __USE_SYSTEM_ENDIAN_H__ )
-set_property(TARGET libbyz.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_include_directories(libbyz.enclave PRIVATE
-  ${CCF_DIR}/src/ds
-  ${OE_INCLUDE_DIR}
-  ${OE_LIBCXX_INCLUDE_DIR}
-  ${OE_LIBC_INCLUDE_DIR}
-  ${OE_TP_INCLUDE_DIR}
-  ${PARSED_ARGS_INCLUDE_DIRS}
-  ${EVERCRYPT_INC}
-)
-
-add_library(libbyz.host STATIC ${PBFT_SRC})
-target_compile_options(libbyz.host PRIVATE -stdlib=libc++)
-set_property(TARGET libbyz.host PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_include_directories(libbyz.host PRIVATE SYSTEM ${EVERCRYPT_INC})
-
+if(NOT ${TARGET} STREQUAL "virtual")
+  add_library(libbyz.enclave STATIC ${PBFT_SRC})
+  target_compile_options(libbyz.enclave PRIVATE
+    -nostdinc
+    -U__linux__)
+  target_compile_definitions(libbyz.enclave PRIVATE INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD __USE_SYSTEM_ENDIAN_H__ )
+  set_property(TARGET libbyz.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
+  target_include_directories(libbyz.enclave PRIVATE
+    ${CCF_DIR}/src/ds
+    ${OE_INCLUDE_DIR}
+    ${OE_LIBCXX_INCLUDE_DIR}
+    ${OE_LIBC_INCLUDE_DIR}
+    ${OE_TP_INCLUDE_DIR}
+    ${PARSED_ARGS_INCLUDE_DIRS}
+    ${EVERCRYPT_INC}
+  )
+endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -83,6 +79,11 @@ add_e2e_test(
 )
 
 if(${TARGET} STREQUAL "virtual")
+
+  add_library(libbyz.host STATIC ${PBFT_SRC})
+  target_compile_options(libbyz.host PRIVATE -stdlib=libc++)
+  set_property(TARGET libbyz.host PROPERTY POSITION_INDEPENDENT_CODE ON)
+  target_include_directories(libbyz.host PRIVATE SYSTEM ${EVERCRYPT_INC})
 
   set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
   add_subdirectory(${CMAKE_SOURCE_DIR}/3rdparty/snmalloc EXCLUDE_FROM_ALL)

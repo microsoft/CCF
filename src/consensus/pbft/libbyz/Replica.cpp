@@ -159,7 +159,6 @@ Replica::Replica(
   recovering = false;
   qs = 0;
   rr = 0;
-  rr_views = new View[num_replicas];
   recovery_point = Seqno_max;
   max_rec_n = 0;
 
@@ -201,8 +200,6 @@ void Replica::compute_non_det(Seqno s, char* b, int* b_len)
 
 Replica::~Replica()
 {
-  delete[] rr_views;
-  delete ntimer;
   delete vtimer;
 #ifdef PROACTIVE_RECOVERY
   delete rtimer;
@@ -775,6 +772,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
     if (pc.my_prepare() == 0 && pc.is_pp_complete())
     {
+      bool send_only_to_self = (f() == 0);
       // Send prepare to all replicas and log it.
       Pre_prepare* pp = pc.pre_prepare();
       ByzInfo info;
@@ -803,7 +801,8 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       }
 
       Prepare* p = new Prepare(v, pp->seqno(), pp->digest());
-      send(p, All_replicas);
+      int send_node_id = (send_only_to_self ? node_id : All_replicas);
+      send(p, send_node_id);
       pc.add_mine(p);
       LOG_DEBUG << "added to pc in prepare: " << pp->seqno() << std::endl;
 
@@ -811,7 +810,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       {
         LOG_TRACE << "pc is complete for seqno: " << seqno
                   << " and sending commit" << std::endl;
-        send_commit(seqno);
+        send_commit(seqno, send_node_id == node_id);
       }
       seqno++;
     }
@@ -822,8 +821,9 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
   }
 }
 
-void Replica::send_commit(Seqno s)
+void Replica::send_commit(Seqno s, bool send_only_to_self)
 {
+  size_t before_f = f();
   // Executing request before sending commit improves performance
   // for null requests. May not be true in general.
   if (s == last_executed + 1)
@@ -832,7 +832,8 @@ void Replica::send_commit(Seqno s)
   }
 
   Commit* c = new Commit(view(), s);
-  send(c, All_replicas);
+  int send_node_id = (send_only_to_self ? node_id : All_replicas);
+  send(c, send_node_id);
 
   if (s > last_prepared)
   {
@@ -840,11 +841,11 @@ void Replica::send_commit(Seqno s)
   }
 
   Certificate<Commit>& cs = clog.fetch(s);
-  if (cs.add_mine(c) && cs.is_complete())
+  if ((cs.add_mine(c) && cs.is_complete()) || (before_f == 0))
   {
     LOG_DEBUG << "calling execute committed from send_commit seqno: " << s
               << std::endl;
-    execute_committed();
+    execute_committed(before_f == 0);
   }
 }
 
@@ -866,7 +867,7 @@ void Replica::handle(Prepare* m)
         ledger_writer->write_prepare(ps, ms);
       }
 
-      send_commit(ms);
+      send_commit(ms, f() == 0);
     }
     return;
   }
@@ -891,7 +892,8 @@ void Replica::handle(Commit* m)
   // accept commits from older views as in proof.
   if (in_wv(m) && ms > low_bound)
   {
-    LOG_TRACE << "handle commit for seqno: " << m->seqno() << std::endl;
+    LOG_TRACE << "handle commit for seqno: " << m->seqno() << ", id:" << m->id()
+              << std::endl;
     Certificate<Commit>& cs = clog.fetch(m->seqno());
     if (cs.add(m) && cs.is_complete())
     {
@@ -1041,6 +1043,11 @@ size_t Replica::f() const
 
 void Replica::set_f(ccf::NodeId f)
 {
+  if (max_faulty == 0 && f > 0)
+  {
+    rqueue.clear();
+  }
+
   Node::set_f(f);
 }
 
@@ -1072,6 +1079,11 @@ void Replica::send(Message* m, int i)
 Seqno Replica::get_last_executed() const
 {
   return last_executed;
+}
+
+int Replica::my_id() const
+{
+  return Node::id();
 }
 
 void Replica::handle(New_key* m)
@@ -1661,14 +1673,14 @@ Pre_prepare* Replica::prepared_pre_prepare(Seqno n)
   return 0;
 }
 
-Pre_prepare* Replica::committed(Seqno s)
+Pre_prepare* Replica::committed(Seqno s, bool was_f_0)
 {
   // TODO: This is correct but too conservative: fix to handle case
   // where commit and prepare are not in same view; and to allow
   // commits without prepared requests, i.e., only with the
   // pre-prepare.
   Pre_prepare* pp = prepared_pre_prepare(s);
-  if (clog.fetch(s).is_complete())
+  if (clog.fetch(s).is_complete() || was_f_0)
   {
     return pp;
   }
@@ -1933,7 +1945,7 @@ void Replica::right_pad_contents(Byz_rep& outb)
   }
 }
 
-void Replica::execute_committed()
+void Replica::execute_committed(bool was_f_0)
 {
   if (
     !state.in_fetch_state() && !state.in_check_state() &&
@@ -1946,7 +1958,7 @@ void Replica::execute_committed()
         return;
       }
 
-      Pre_prepare* pp = committed(last_executed + 1);
+      Pre_prepare* pp = committed(last_executed + 1, was_f_0);
 
       if (pp && pp->view() == view())
       {
@@ -2650,10 +2662,6 @@ void Replica::recover()
   delete rr;
   rr = 0;
   recovery_point = Seqno_max;
-  for (int i = 0; i < num_replicas; i++)
-  {
-    rr_views[i] = 0;
-  }
 
   // Change my incoming session keys and zero client's keys.
   START_CC(nk_time);
@@ -2866,7 +2874,7 @@ bool Replica::delay_vc()
 
 void Replica::start_vtimer_if_request_waiting()
 {
-  if (rqueue.size() > 0)
+  if (rqueue.size() > 0 && f() > 0)
   {
     Request* first = rqueue.first();
     cid_vtimer = first->client_id();
@@ -2889,6 +2897,7 @@ void Replica::vtimer_handler(void* owner)
     {
       LOG_INFO << "View change timer expired first rid: "
                << replica->rqueue.first()->request_id()
+               << ", digest:" << replica->rqueue.first()->digest().hash()
                << " first cid: " << replica->rqueue.first()->client_id()
                << std::endl;
     }
