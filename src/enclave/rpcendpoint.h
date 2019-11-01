@@ -82,7 +82,7 @@ namespace enclave
           rpc_ctx.pack.value()));
         return true;
       }
-      LOG_TRACE_FMT("Got method");
+      LOG_TRACE_FMT("Got method: {}", prefixed_method);
 
       // Separate JSON-RPC method into actor and true method
       auto [actor_s, method] = split_actor_and_method(prefixed_method);
@@ -108,16 +108,19 @@ namespace enclave
       }
 
       // Hand off parsed context to be processed by frontend
+      LOG_TRACE_FMT("Processing");
       auto response = search.value()->process(rpc_ctx);
 
       if (!response.has_value())
       {
         // If the RPC is pending, hold the connection.
+        LOG_TRACE_FMT("Pending");
         return true;
       }
       else
       {
         // Otherwise, reply to the client synchronously.
+        LOG_TRACE_FMT("Responding");
         send(response.value());
       }
 

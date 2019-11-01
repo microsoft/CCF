@@ -52,6 +52,7 @@ namespace ccf
       IsCallerCertForwarded include_caller = false;
       size_t size = sizeof(caller_id) +
         sizeof(rpc_ctx.session.client_session_id) + sizeof(rpc_ctx.actor) +
+        sizeof(rpc_ctx.method.size()) + rpc_ctx.method.size() +
         sizeof(IsCallerCertForwarded) + rpc_ctx.raw.size();
       if (!caller_cert.empty())
       {
@@ -65,6 +66,7 @@ namespace ccf
       serialized::write(data_, size_, caller_id);
       serialized::write(data_, size_, rpc_ctx.session.client_session_id);
       serialized::write(data_, size_, rpc_ctx.actor);
+      serialized::write(data_, size_, rpc_ctx.method);
       serialized::write(data_, size_, include_caller);
       if (include_caller)
       {
@@ -99,6 +101,7 @@ namespace ccf
       auto caller_id = serialized::read<CallerId>(data_, size_);
       auto client_session_id = serialized::read<size_t>(data_, size_);
       auto actor = serialized::read<ActorsType>(data_, size_);
+      auto method = serialized::read<std::string>(data_, size_);
       auto includes_caller =
         serialized::read<IsCallerCertForwarded>(data_, size_);
       if (includes_caller)
@@ -108,11 +111,14 @@ namespace ccf
       }
       std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
 
-      enclave::SessionContext session(
+      const enclave::SessionContext session(
         client_session_id, caller_id, caller_cert);
 
-      return std::make_tuple(
-        enclave::make_rpc_context(session, rpc), r.first.from_node);
+      auto context = enclave::make_rpc_context(session, rpc);
+      context.actor = actor;
+      context.method = method;
+
+      return std::make_tuple(context, r.first.from_node);
     }
 
     bool send_forwarded_response(
@@ -168,20 +174,32 @@ namespace ccf
           {
             auto r = recv_forwarded_command(data, size);
             if (!r.has_value())
+            {
+              LOG_FAIL_FMT("Failed to receive forwarded command");
               return;
+            }
 
             auto [ctx, from_node] = r.value();
 
             auto handler = rpc_map->find(ctx.actor);
             if (!handler.has_value())
+            {
+              LOG_FAIL_FMT(
+                "Failed to process forwarded command: no handler for actor {}",
+                ctx.actor);
               return;
+            }
 
             auto fwd_handler =
               dynamic_cast<ForwardedRpcHandler*>(handler.value().get());
             if (!fwd_handler)
+            {
+              LOG_FAIL_FMT(
+                "Failed to process forwarded command: handler is not a "
+                "ForwardedRpcHandler",
+                ctx.actor);
               return;
-
-            LOG_DEBUG_FMT("Forwarded RPC: {}", ctx.actor);
+            }
 
             if (!send_forwarded_response(
                   ctx.session.fwd->client_session_id,
@@ -191,8 +209,10 @@ namespace ccf
               LOG_FAIL_FMT(
                 "Could not send forwarded response to {}", from_node);
             }
-
-            LOG_DEBUG_FMT("Sending forwarded response to {}", from_node);
+            else
+            {
+              LOG_DEBUG_FMT("Sending forwarded response to {}", from_node);
+            }
           }
           break;
         }
