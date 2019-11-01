@@ -117,7 +117,7 @@ namespace ccf
 
     void advance(T s)
     {
-      LOG_DEBUG_FMT("Advancing to state {} (from {})", this->s.load());
+      LOG_DEBUG_FMT("Advancing to state {} (from {})", s, this->s.load());
       this->s.store(s);
     }
   };
