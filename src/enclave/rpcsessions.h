@@ -59,11 +59,6 @@ namespace enclave
       certs.push_back(std::move(the_cert));
     }
 
-    void add(std::shared_ptr<tls::Cert> cert)
-    {
-      certs.push_back(cert);
-    }
-
     void accept(size_t id)
     {
       std::lock_guard<SpinLock> guard(lock);
