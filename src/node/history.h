@@ -232,6 +232,31 @@ namespace ccf
         throw std::logic_error("Precondition to mt_retract_to violated");
       mt_retract_to(tree, index);
     }
+
+    std::tuple<std::unique_ptr<hash_vec>, crypto::Sha256Hash, int> get_path(uint64_t index)
+    {
+      crypto::Sha256Hash res;
+      auto path = std::unique_ptr<hash_vec>(init_path());
+
+      if (!mt_get_path_pre(tree, index, path.get(), res.h))
+        throw std::logic_error("Precondition to mt_get_path violated");
+
+      auto nbelem = mt_get_path(tree, index, path.get(), res.h);
+
+      return {std::move(path), get_root(), index};
+    }
+
+    bool verify(const std::tuple<std::unique_ptr<hash_vec>, crypto::Sha256Hash, int>& path)
+    {
+      auto index = std::get<2>(path);
+      auto max_index = index + 1;
+      uint8_t * root = const_cast<uint8_t *>(std::get<1>(path).h);
+
+      if (!mt_verify_pre(tree, index, max_index, std::get<0>(path).get(), root))
+        throw std::logic_error("Precondition to mt_verify violated");
+
+      return mt_verify(tree, index, max_index, std::get<0>(path).get(), root);
+    }
   };
 
   template <class T>
