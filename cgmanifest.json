@@ -108,7 +108,16 @@
           "DownloadUrl": "http://www.pmg.csail.mit.edu/bft/bft.tar.gz"
         }
       }
-    }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/project-everest/evercrypt-msr",
+          "commitHash": "b407ad8aab77656cd6deb9b9bbfed70156638913"
+        }
+      }
+    },
   ],
   "Version": 1
 }
