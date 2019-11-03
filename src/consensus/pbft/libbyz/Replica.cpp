@@ -616,7 +616,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     // Create new pre_prepare message for set of requests
     // in rqueue, log message and multicast the pre_prepare.
     next_pp_seqno++;
-    LOG_DEBUG << "creating pre prepare with seqno: " << next_pp_seqno
+    LOG_TRACE << "creating pre prepare with seqno: " << next_pp_seqno
               << std::endl;
     size_t requests_in_batch;
     ByzInfo info;
