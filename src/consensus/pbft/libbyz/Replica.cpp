@@ -540,14 +540,10 @@ void Replica::handle(Request* m)
     {
       if (id() == primary())
       {
-        if (rqueue.append(m))
-        {
-          if (!wait_for_network_to_open)
-          {
+        if (rqueue.append(m) && !wait_for_network_to_open) {
             send_pre_prepare();
-          }
-          return;
         }
+        return;
       }
       else
       {
