@@ -9,8 +9,7 @@
 #include "ds/logger.h"
 #include "pbft_assert.h"
 
-Network_open::Network_open(
-  int id) :
+Network_open::Network_open(int id) :
   Message(Network_open_tag, sizeof(Network_open_rep))
 {
   rep().id = id;

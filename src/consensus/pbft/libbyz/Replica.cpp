@@ -422,7 +422,7 @@ void Replica::recv_process_one_msg(Message* m)
     case New_principal_tag:
       gen_handle<New_principal>(m);
       break;
-    
+
     case Network_open_tag:
       gen_handle<Network_open>(m);
 
@@ -540,8 +540,9 @@ void Replica::handle(Request* m)
     {
       if (id() == primary())
       {
-        if (rqueue.append(m) && !wait_for_network_to_open) {
-            send_pre_prepare();
+        if (rqueue.append(m) && !wait_for_network_to_open)
+        {
+          send_pre_prepare();
         }
         return;
       }
@@ -1521,18 +1522,19 @@ void Replica::handle(New_principal* m)
 void Replica::handle(Network_open* m)
 {
   std::shared_ptr<Principal> p = get_principal(m->id());
-  if (p == nullptr){
+  if (p == nullptr)
+  {
     LOG_FAIL << "recevied network open from unknown principal, id:" << m->id()
              << std::endl;
   }
 
-  if (p->received_network_open_msg()) {
-    LOG_FAIL << "recevied network open from, id:" << m->id()
-             << "already" << std::endl;
+  if (p->received_network_open_msg())
+  {
+    LOG_FAIL << "recevied network open from, id:" << m->id() << "already"
+             << std::endl;
   }
 
-  LOG_INFO << "recevied network open from, id:" << m->id()
-            << std::endl;
+  LOG_INFO << "recevied network open from, id:" << m->id() << std::endl;
 
   p->set_received_network_open_msg();
 
@@ -1540,7 +1542,8 @@ void Replica::handle(Network_open* m)
   auto principals = get_principals();
   for (const auto& it : *principals)
   {
-    if (it.second->received_network_open_msg()) {
+    if (it.second->received_network_open_msg())
+    {
       ++num_open;
     }
   }
