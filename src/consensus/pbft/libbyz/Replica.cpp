@@ -425,6 +425,7 @@ void Replica::recv_process_one_msg(Message* m)
 
     case Network_open_tag:
       gen_handle<Network_open>(m);
+      break;
 
     default:
       // Unknown message type.
