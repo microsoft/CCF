@@ -619,7 +619,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     // Create new pre_prepare message for set of requests
     // in rqueue, log message and multicast the pre_prepare.
     next_pp_seqno++;
-    LOG_INFO << "creating pre prepare with seqno: " << next_pp_seqno
+    LOG_DEBUG << "creating pre prepare with seqno: " << next_pp_seqno
               << std::endl;
     size_t requests_in_batch;
     ByzInfo info;
@@ -834,6 +834,12 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
     LOG_DEBUG << "calling execute committed from send_commit seqno: " << s
               << std::endl;
     execute_committed(before_f == 0);
+
+    if (before_f == 0 && f() != 0)
+    {
+      Network_open no(Node::id());
+      send(&no, primary());
+    }
   }
 }
 
@@ -1037,9 +1043,6 @@ void Replica::set_f(ccf::NodeId f)
     }
 
     rqueue.clear();
-
-    Network_open no(Node::id());
-    send(&no, primary());
   }
 
   Node::set_f(f);
@@ -1548,7 +1551,8 @@ void Replica::handle(Network_open* m)
 
   if (num_open == principals->size())
   {
-    LOG_INFO << "Finised waiting for network to open" << std::endl;
+    LOG_INFO << "Finised waiting for machines to network open. "
+             << "starting to process requests" << std::endl;
     wait_for_network_to_open = false;
     send_pre_prepare();
   }
