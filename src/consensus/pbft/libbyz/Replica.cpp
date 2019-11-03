@@ -1555,6 +1555,8 @@ void Replica::handle(Network_open* m)
     wait_for_network_to_open = false;
     send_pre_prepare();
   }
+
+  delete m;
 }
 
 void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
