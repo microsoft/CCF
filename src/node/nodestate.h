@@ -275,7 +275,9 @@ namespace ccf
 
     void send_create_request(std::vector<uint8_t>& packed)
     {
-      auto handler = this->rpc_map->find(ccf::ActorsType::members);
+      constexpr auto actor = ccf::ActorsType::members;
+
+      auto handler = this->rpc_map->find(actor);
       if (!handler.has_value())
       {
         throw std::logic_error("Handler has no value");
@@ -287,6 +289,7 @@ namespace ccf
       auto ctx = enclave::make_rpc_context(node_session, packed);
 
       ctx.is_create_request = true;
+      ctx.actor = actor;
 
       frontend->process(ctx);
     }
