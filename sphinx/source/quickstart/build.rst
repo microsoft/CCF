@@ -48,7 +48,7 @@ The full list of build switches can be obtained by running:
 * **NO_STRICT_TLS_CIPHERSUITES**: Boolean. Relax the list of accepted TLS ciphersuites. Default to OFF.
 * **OE_PREFIX**: Path. Open Enclave install prefix. Default to ``/opt/openenclave``.
 * **SAN**: Boolean. Build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
-* **TARGET**: String, one of ``all``, ``sgx``, ``virtual``. Defaults to ``all``, which builds both "virtual" enclaves and actual SGX enclaves.
+* **TARGET**: String, one of ``sgx``, ``virtual``, or ``sgx;virtual``. Defaults to ``sgx;virtual``, which builds both "virtual" enclaves and actual SGX enclaves.
 * **VERBOSE_LOGGING**: Boolean. Enable all logging levels. Default to OFF.
 
 Running Tests
