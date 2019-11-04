@@ -11,6 +11,7 @@
 #include "LedgerReplay.h"
 #include "LedgerWriter.h"
 #include "Log.h"
+#include "Network_open.h"
 #include "New_principal.h"
 #include "Node.h"
 #include "Partition.h"
@@ -193,6 +194,7 @@ private:
   void handle(Query_stable* m);
   void handle(Reply_stable* m);
   void handle(New_principal* m);
+  void handle(Network_open* m);
   // Effects: Execute the protocol steps associated with the arrival
   // of the argument message.
 
@@ -445,6 +447,11 @@ private:
 
   Seqno recovery_point; // Seqno_max if not known
   Seqno max_rec_n; // Maximum sequence number of a recovery request in state.
+
+  bool wait_for_network_to_open = false;
+  // Used when opening the network. After the network has been opened on the
+  // primary it will buffer messages until the other nodes have successfully
+  // opened their networks
 
 #ifdef DEBUG_SLOW
   ITimer* debug_slow_timer; // Used to dump state when requests take too long to

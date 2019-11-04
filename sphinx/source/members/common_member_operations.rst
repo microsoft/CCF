@@ -34,7 +34,7 @@ If the version of the code being executed needs to be updated (for example, to s
 
     $ memberclient --cert member_cert --privk member_privk --rpc-address node_ip:node_port --ca network_cert add_code --new-code-id code_version
 
-.. note:: For a given :term:`OpenEnclave` enclave library, the version of the code (``mrenclave``) can be found by running the ``oesign`` utility:
+.. note:: For a given :term:`Open Enclave` enclave library, the version of the code (``mrenclave``) can be found by running the ``oesign`` utility:
 
     .. code-block:: bash
 

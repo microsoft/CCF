@@ -24,12 +24,11 @@ namespace ccf
 {
   struct RequestArgs
   {
-    enclave::RPCContext& rpc_ctx;
+    const enclave::RPCContext& rpc_ctx;
     Store::Tx& tx;
     CallerId caller_id;
     const std::string& method;
     const nlohmann::json& params;
-    const SignedReq& signed_request;
   };
 
   template <typename CT = void>
@@ -214,30 +213,6 @@ namespace ccf
       history = tables.get_history().get();
     }
 
-    std::pair<bool, nlohmann::json> unpack_json(
-      const std::vector<uint8_t>& input, jsonrpc::Pack pack)
-    {
-      nlohmann::json rpc;
-      try
-      {
-        rpc = jsonrpc::unpack(input, pack);
-        if (!rpc.is_object())
-        {
-          return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-            fmt::format("RPC payload is a not a valid object: {}", rpc.dump()));
-        }
-      }
-      catch (const std::exception& e)
-      {
-        return jsonrpc::error(
-          jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-          fmt::format("Exception during unpack: {}", e.what()));
-      }
-
-      return {true, rpc};
-    }
-
     std::optional<CallerId> valid_caller(
       Store::Tx& tx, const std::vector<uint8_t>& caller)
     {
@@ -258,13 +233,13 @@ namespace ccf
     }
 
     std::optional<nlohmann::json> forward_or_redirect_json(
-      enclave::RPCContext& ctx, Forwardable forwardable)
+      const enclave::RPCContext& ctx, Forwardable forwardable)
     {
       if (
         cmd_forwarder && forwardable == Forwardable::CanForward &&
-        !ctx.fwd.has_value())
+        !ctx.session.fwd.has_value())
       {
-        return {};
+        return std::nullopt;
       }
       else
       {
@@ -280,34 +255,38 @@ namespace ccf
           if (info)
           {
             return jsonrpc::error_response(
-              ctx.req.seq_no,
+              ctx.seq_no,
               jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
               info->pubhost + ":" + info->rpcport);
           }
         }
         return jsonrpc::error_response(
-          ctx.req.seq_no,
+          ctx.seq_no,
           jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
           "Not primary, primary unknown.");
       }
     }
 
     void record_client_signature(
-      Store::Tx& tx, CallerId caller_id, SignedReq& signed_request)
+      Store::Tx& tx, CallerId caller_id, const SignedReq& signed_request)
     {
+      auto client_sig_view = tx.get_view(*client_signatures);
       if (request_storing_disabled)
       {
-        signed_request.req.clear();
+        SignedReq no_req;
+        no_req.sig = signed_request.sig;
+        client_sig_view->put(caller_id, no_req);
       }
-      auto client_sig_view = tx.get_view(*client_signatures);
-      client_sig_view->put(caller_id, signed_request);
+      else
+      {
+        client_sig_view->put(caller_id, signed_request);
+      }
     }
 
     bool verify_client_signature(
       const std::vector<uint8_t>& caller,
       const CallerId caller_id,
-      const nlohmann::json& full_rpc,
-      SignedReq& signed_request)
+      const SignedReq& signed_request)
     {
 #ifdef HTTP
       return true; // TODO: use Authorize header
@@ -331,23 +310,6 @@ namespace ccf
       }
 
       return true;
-    }
-
-    std::optional<jsonrpc::Pack> detect_pack(const std::vector<uint8_t>& input)
-    {
-      if (input.size() == 0)
-      {
-        return {};
-      }
-
-      if (input[0] == '{')
-      {
-        return jsonrpc::Pack::Text;
-      }
-      else
-      {
-        return jsonrpc::Pack::MsgPack;
-      }
     }
 
   public:
@@ -514,21 +476,15 @@ namespace ccf
      * backup, the serialised RPC is forwarded to the current network primary.
      *
      * @param ctx Context for this RPC
-     * @param input Serialised JSON RPC
+     * @returns nullopt if the result is pending (to be forwarded, or still
+     * to-be-executed by consensus), else the response (may contain error)
      */
-    std::vector<uint8_t> process(
-      enclave::RPCContext& ctx, const std::vector<uint8_t>& input) override
+    std::optional<std::vector<uint8_t>> process(
+      const enclave::RPCContext& ctx) override
     {
-      Store::Tx tx;
+      update_consensus();
 
-      ctx.pack = detect_pack(input);
-      if (!ctx.pack.has_value())
-      {
-        return jsonrpc::pack(
-          jsonrpc::error_response(
-            0, jsonrpc::StandardErrorCodes::INVALID_REQUEST, "Empty request."),
-          jsonrpc::Pack::Text);
-      }
+      Store::Tx tx;
 
       // Retrieve id of caller
       std::optional<CallerId> caller_id;
@@ -538,7 +494,7 @@ namespace ccf
       }
       else
       {
-        caller_id = valid_caller(tx, ctx.caller_cert);
+        caller_id = valid_caller(tx, ctx.session.caller_cert);
       }
 
       if (!caller_id.has_value())
@@ -550,28 +506,19 @@ namespace ccf
             "No corresponding caller entry exists."),
           ctx.pack.value());
       }
-      auto rpc = unpack_json(input, ctx.pack.value());
 
-      if (!rpc.first)
+      if (ctx.signed_request.has_value())
       {
-        return jsonrpc::pack(rpc.second, ctx.pack.value());
-      }
-
-      update_consensus();
-      auto rpc_ = &rpc.second;
-      SignedReq signed_request(rpc.second);
-      if (rpc_->find(jsonrpc::SIG) != rpc_->end())
-      {
-        auto& req = rpc_->at(jsonrpc::REQ);
-
         if (
           !ctx.is_create_request &&
           !verify_client_signature(
-            ctx.caller_cert, caller_id.value(), *rpc_, signed_request))
+            ctx.session.caller_cert,
+            caller_id.value(),
+            ctx.signed_request.value()))
         {
           return jsonrpc::pack(
             jsonrpc::error_response(
-              req.at(jsonrpc::ID),
+              ctx.seq_no,
               jsonrpc::CCFErrorCodes::INVALID_CLIENT_SIGNATURE,
               "Failed to verify client signature."),
             ctx.pack.value());
@@ -582,48 +529,47 @@ namespace ccf
           consensus == nullptr || consensus->is_primary() ||
           ctx.is_create_request)
         {
-          record_client_signature(tx, caller_id.value(), signed_request);
+          record_client_signature(
+            tx, caller_id.value(), ctx.signed_request.value());
         }
-
-        rpc_ = &req;
       }
-      auto& unsigned_rpc = *rpc_;
 
 #ifdef PBFT
       kv::TxHistory::RequestID reqid;
 
       update_history();
-      size_t jsonrpc_id = unsigned_rpc[jsonrpc::ID];
-      reqid = {caller_id.value(), ctx.client_session_id, jsonrpc_id};
+      reqid = {caller_id.value(), ctx.session.client_session_id, ctx.seq_no};
       if (history)
       {
         if (!history->add_request(
-              reqid, ctx.actor, caller_id.value(), ctx.caller_cert, input))
+              reqid,
+              ctx.actor,
+              caller_id.value(),
+              ctx.session.caller_cert,
+              ctx.raw))
         {
-          LOG_FAIL_FMT("Adding request {} failed", jsonrpc_id);
+          LOG_FAIL_FMT("Adding request {} failed", ctx.seq_no);
           return jsonrpc::pack(
             jsonrpc::error_response(
-              jsonrpc_id,
+              ctx.seq_no,
               jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
               "PBFT could not process request."),
             ctx.pack.value());
         }
         tx.set_req_id(reqid);
-        ctx.is_pending = true;
+        return std::nullopt;
       }
       else
       {
         return jsonrpc::pack(
           jsonrpc::error_response(
-            jsonrpc_id,
+            ctx.seq_no,
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             "PBFT is not yet ready."),
           ctx.pack.value());
       }
-      return {};
 #else
-      auto rep =
-        process_json(ctx, tx, caller_id.value(), unsigned_rpc, signed_request);
+      auto rep = process_json(ctx, tx, caller_id.value());
 
       // If necessary, forward the RPC to the current primary
       if (!rep.has_value())
@@ -637,23 +583,23 @@ namespace ccf
           std::vector<uint8_t> forwarded_caller_cert;
           if constexpr (std::is_same_v<CT, void>)
           {
-            forwarded_caller_cert = ctx.caller_cert;
+            forwarded_caller_cert = ctx.session.caller_cert;
           }
 
           if (
             primary_id != NoNode && cmd_forwarder &&
             cmd_forwarder->forward_command(
-              ctx, primary_id, caller_id.value(), input, forwarded_caller_cert))
+              ctx, primary_id, caller_id.value(), forwarded_caller_cert))
           {
             // Indicate that the RPC has been forwarded to primary
             LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
-            ctx.is_pending = true;
-            return {};
+            return std::nullopt;
           }
         }
+
         return jsonrpc::pack(
           jsonrpc::error_response(
-            0,
+            ctx.seq_no,
             jsonrpc::CCFErrorCodes::RPC_NOT_FORWARDED,
             "RPC could not be forwarded to primary."),
           ctx.pack.value());
@@ -668,45 +614,16 @@ namespace ccf
     /** Process a serialised command with the associated RPC context via PBFT
      *
      * @param ctx Context for this RPC
-     * @param input Serialised JSON RPC
      */
-    ProcessPbftResp process_pbft(
-      enclave::RPCContext& ctx, const std::vector<uint8_t>& input) override
+    ProcessPbftResp process_pbft(enclave::RPCContext& ctx) override
     {
       // TODO(#PBFT): Refactor this with process_forwarded().
       Store::Tx tx;
       crypto::Sha256Hash merkle_root;
       kv::Version version = kv::NoVersion;
 
-      auto pack = detect_pack(input);
-      if (!pack.has_value())
-      {
-        return {jsonrpc::pack(
-                  jsonrpc::error_response(
-                    0,
-                    jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-                    "Empty PBFT request."),
-                  jsonrpc::Pack::Text),
-                merkle_root};
-      }
-
-      auto rpc = unpack_json(input, pack.value());
-      if (!rpc.first)
-      {
-        return {jsonrpc::pack(rpc.second, pack.value()), merkle_root};
-      }
-
       update_consensus();
 
-      // Strip signature
-      auto rpc_ = &rpc.second;
-      SignedReq signed_request(rpc.second);
-      if (rpc_->find(jsonrpc::SIG) != rpc_->end())
-      {
-        auto& req = rpc_->at(jsonrpc::REQ);
-        rpc_ = &req;
-      }
-      auto& unsigned_rpc = *rpc_;
       bool has_updated_merkle_root = false;
 
       auto cb = [&merkle_root, &version, &has_updated_merkle_root](
@@ -727,8 +644,7 @@ namespace ccf
 
       history->register_on_result(cb);
 
-      auto rep =
-        process_json(ctx, tx, ctx.fwd->caller_id, unsigned_rpc, signed_request);
+      auto rep = process_json(ctx, tx, ctx.session.fwd->caller_id);
 
       history->clear_on_result();
 
@@ -741,7 +657,8 @@ namespace ccf
       // if (history)
       //   history->add_response(reqid, rv);
 
-      return {jsonrpc::pack(rep.value(), pack.value()), merkle_root, version};
+      return {
+        jsonrpc::pack(rep.value(), ctx.pack.value()), merkle_root, version};
     }
 
     /** Process a serialised input forwarded from another node
@@ -750,14 +667,12 @@ namespace ccf
      * forwarding backup.
      *
      * @param ctx Context for this forwarded RPC
-     * @param input Serialised JSON RPC
      *
      * @return Serialised reply to send back to forwarder node
      */
-    std::vector<uint8_t> process_forwarded(
-      enclave::RPCContext& ctx, const std::vector<uint8_t>& input) override
+    std::vector<uint8_t> process_forwarded(enclave::RPCContext& ctx) override
     {
-      if (!ctx.fwd.has_value())
+      if (!ctx.session.fwd.has_value())
       {
         throw std::logic_error(
           "Processing forwarded command with unitialised forwarded context");
@@ -765,23 +680,12 @@ namespace ccf
 
       Store::Tx tx;
 
-      ctx.pack = detect_pack(input);
-      if (!ctx.pack.has_value())
-      {
-        return jsonrpc::pack(
-          jsonrpc::error_response(
-            0,
-            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-            "Empty forwarded request."),
-          jsonrpc::Pack::Text);
-      }
-
       if constexpr (!std::is_same_v<CT, void>)
       {
         // For frontends with valid callers (user and member frontends), lookup
         // the caller certificate from the forwarded caller id
         auto callers_view = tx.get_view(*callers);
-        auto caller = callers_view->get(ctx.fwd->caller_id);
+        auto caller = callers_view->get(ctx.session.fwd->caller_id);
         if (!caller.has_value())
         {
           return jsonrpc::pack(
@@ -791,32 +695,18 @@ namespace ccf
               "No corresponding caller entry exists."),
             ctx.pack.value());
         }
-        ctx.caller_cert = caller.value().cert;
+        ctx.session.caller_cert = caller.value().cert;
       }
 
-      auto rpc = unpack_json(input, ctx.pack.value());
-      if (!rpc.first)
+      // Store client signature. It is assumed that the forwarder node has
+      // already verified the client signature.
+      if (ctx.signed_request.has_value())
       {
-        return jsonrpc::pack(rpc.second, ctx.pack.value());
+        record_client_signature(
+          tx, ctx.session.fwd->caller_id, ctx.signed_request.value());
       }
 
-      // Unwrap signed request if necessary and store client signature. It is
-      // assumed that the forwarder node has already verified the client
-      // signature.
-      update_consensus();
-      auto rpc_ = &rpc.second;
-      SignedReq signed_request(rpc.second);
-
-      if (rpc_->find(jsonrpc::SIG) != rpc_->end())
-      {
-        auto& req = rpc_->at(jsonrpc::REQ);
-        record_client_signature(tx, ctx.fwd->caller_id, signed_request);
-        rpc_ = &req;
-      }
-      auto& unsigned_rpc = *rpc_;
-
-      auto rep =
-        process_json(ctx, tx, ctx.fwd->caller_id, unsigned_rpc, signed_request);
+      auto rep = process_json(ctx, tx, ctx.session.fwd->caller_id);
       if (!rep.has_value())
       {
         // This should never be called when process_json is called with a
@@ -828,20 +718,13 @@ namespace ccf
     }
 
     std::optional<nlohmann::json> process_json(
-      enclave::RPCContext& ctx,
-      Store::Tx& tx,
-      CallerId caller_id,
-      const nlohmann::json& rpc,
-      const SignedReq& signed_request)
+      const enclave::RPCContext& ctx, Store::Tx& tx, CallerId caller_id)
     {
-      std::string method = rpc.at(jsonrpc::METHOD);
-      ctx.req.seq_no = rpc.at(jsonrpc::ID);
-
-      const auto rpc_version = rpc.at(jsonrpc::JSON_RPC);
+      const auto rpc_version = ctx.unpacked_rpc.at(jsonrpc::JSON_RPC);
       if (rpc_version != jsonrpc::RPC_VERSION)
       {
         return jsonrpc::error_response(
-          ctx.req.seq_no,
+          ctx.seq_no,
           jsonrpc::StandardErrorCodes::INVALID_REQUEST,
           fmt::format(
             "Unexpected JSON-RPC version. Must be string \"{}\", received {}",
@@ -849,24 +732,25 @@ namespace ccf
             rpc_version.dump()));
       }
 
-      const auto params_it = rpc.find(jsonrpc::PARAMS);
+      const auto params_it = ctx.unpacked_rpc.find(jsonrpc::PARAMS);
       if (
-        params_it != rpc.end() &&
+        params_it != ctx.unpacked_rpc.end() &&
         (!params_it->is_array() && !params_it->is_object()))
       {
         return jsonrpc::error_response(
-          ctx.req.seq_no,
+          ctx.seq_no,
           jsonrpc::StandardErrorCodes::INVALID_REQUEST,
           fmt::format(
             "If present, parameters must be an array or object. Received: {}",
             params_it->dump()));
       }
 
-      const auto& params =
-        params_it == rpc.end() ? nlohmann::json(nullptr) : *params_it;
+      const auto& params = params_it == ctx.unpacked_rpc.end() ?
+        nlohmann::json(nullptr) :
+        *params_it;
 
       Handler* handler = nullptr;
-      auto search = handlers.find(method);
+      auto search = handlers.find(ctx.method);
       if (search != handlers.end())
       {
         handler = &search->second;
@@ -878,12 +762,13 @@ namespace ccf
       else
       {
         return jsonrpc::error_response(
-          ctx.req.seq_no,
+          ctx.seq_no,
           jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-          method);
+          ctx.method);
       }
 
       update_history();
+      update_consensus();
 
 #ifndef PBFT
       bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
@@ -906,7 +791,7 @@ namespace ccf
 
           case MayWrite:
           {
-            bool readonly = rpc.value(jsonrpc::READONLY, true);
+            bool readonly = ctx.unpacked_rpc.value(jsonrpc::READONLY, true);
             if (!readonly)
             {
               return forward_or_redirect_json(ctx, handler->forwardable);
@@ -918,8 +803,7 @@ namespace ccf
 #endif
 
       auto func = handler->func;
-      auto args =
-        RequestArgs{ctx, tx, caller_id, method, params, signed_request};
+      auto args = RequestArgs{ctx, tx, caller_id, ctx.method, params};
 
       tx_count++;
 
@@ -931,7 +815,7 @@ namespace ccf
 
           if (!tx_result.first)
           {
-            return jsonrpc::error_response(ctx.req.seq_no, tx_result.second);
+            return jsonrpc::error_response(ctx.seq_no, tx_result.second);
           }
 
           switch (tx.commit())
@@ -939,7 +823,7 @@ namespace ccf
             case kv::CommitSuccess::OK:
             {
               nlohmann::json result =
-                jsonrpc::result_response(ctx.req.seq_no, tx_result.second);
+                jsonrpc::result_response(ctx.seq_no, tx_result.second);
 
               auto cv = tx.commit_version();
               if (cv == 0)
@@ -969,7 +853,7 @@ namespace ccf
             case kv::CommitSuccess::NO_REPLICATE:
             {
               return jsonrpc::error_response(
-                ctx.req.seq_no,
+                ctx.seq_no,
                 jsonrpc::CCFErrorCodes::TX_FAILED_TO_REPLICATE,
                 "Transaction failed to replicate.");
             }
@@ -978,16 +862,14 @@ namespace ccf
         catch (const RpcException& e)
         {
           return jsonrpc::error_response(
-            ctx.req.seq_no,
-            static_cast<jsonrpc::CCFErrorCodes>(e.error_id),
-            e.msg);
+            ctx.seq_no, static_cast<jsonrpc::CCFErrorCodes>(e.error_id), e.msg);
         }
         catch (JsonParseError& e)
         {
           e.pointer_elements.push_back(jsonrpc::PARAMS);
           const auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
           return jsonrpc::error_response(
-            ctx.req.seq_no, jsonrpc::StandardErrorCodes::PARSE_ERROR, err);
+            ctx.seq_no, jsonrpc::StandardErrorCodes::PARSE_ERROR, err);
         }
         catch (const kv::KvSerialiserException& e)
         {
@@ -999,9 +881,7 @@ namespace ccf
         catch (const std::exception& e)
         {
           return jsonrpc::error_response(
-            ctx.req.seq_no,
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            e.what());
+            ctx.seq_no, jsonrpc::StandardErrorCodes::INTERNAL_ERROR, e.what());
         }
       }
     }

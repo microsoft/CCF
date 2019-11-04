@@ -34,6 +34,7 @@ Principal::Principal(
 
   tstamp = 0;
   my_tstamp = zero_time();
+  has_received_network_open_msg = false;
 }
 
 bool Principal::verify_signature(
