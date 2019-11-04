@@ -179,9 +179,9 @@ breathe_projects = {"CCF": "../../doxygen/xml"}
 breathe_default_project = "CCF"
 
 html_context = {
-    'source_url_prefix': "https://github.com/Microsoft/CCF",
+    "source_url_prefix": "https://github.com/Microsoft/CCF",
     "display_github": True,
     "github_user": "Microsoft",
-    "github_repo": 'CCF',
+    "github_repo": "CCF",
     "github_version": "master/sphinx/source/",
 }
