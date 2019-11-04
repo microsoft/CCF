@@ -48,8 +48,8 @@ transactions in highly performant and highly available fashion.
 
 ## A flexible confidentiality layer for any multi-party computation application or blockchain ledger to build upon
 
-CCF currently runs on [Intel SGX](https://software.intel.com/en-us/sgx)-enabled platforms. Because CCF uses the [OpenEnclave SDK](https://github.com/openenclave/openenclave)
-as the foundation for running in an enclave, as OpenEnclave supports new TEE technologies, CCF will be able to run on new platforms. Networks can be run on-premises,
+CCF currently runs on [Intel SGX](https://software.intel.com/en-us/sgx)-enabled platforms. Because CCF uses the [Open Enclave SDK](https://github.com/openenclave/openenclave)
+as the foundation for running in an enclave, as Open Enclave supports new TEE technologies, CCF will be able to run on new platforms. Networks can be run on-premises,
 in one or many cloud-hosted data centers, including [Microsoft Azure](https://azure.microsoft.com/), or in any hybrid configuration.
 
 Ledger providers can use CCF to enable higher throughput and higher confidentiality guarantees for distributed ledger applications.

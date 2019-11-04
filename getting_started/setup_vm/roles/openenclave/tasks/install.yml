@@ -1,24 +1,24 @@
 - name: Include vars
   include_vars: common.yml
 
-- name: Download OpenEnclave source
+- name: Download Open Enclave source
   get_url:
     url: "{{ oe_url }}"
     dest: "{{ workspace }}/{{ oe_src }}"
     force: yes
   become: true
 
-- name: Remove Pre-existing OpenEnclave source on the remote
+- name: Remove Pre-existing Open Enclave source on the remote
   file:
     path: "{{ workspace }}/openenclave-{{ oe_ver }}"
     state: absent
 
-- name: Create directory for OpenEnclave source
+- name: Create directory for Open Enclave source
   file:
     path: "{{ workspace }}/openenclave-{{ oe_ver }}"
     state: directory
 
-- name: Expand OpenEnclave
+- name: Expand Open Enclave
   unarchive:
     src: "{{ workspace }}/{{ oe_src }}"
     dest: "{{ workspace }}/openenclave-{{ oe_ver }}"
@@ -26,12 +26,12 @@
     extra_opts: [--strip-components=1]
     creates: "{{ workspace }}/openenclave-{{ oe_ver }}/CMakeLists.txt"
 
-- name: Make OpenEnclave build dir
+- name: Make Open Enclave build dir
   file:
     path: "{{ workspace }}/openenclave-{{ oe_ver }}/build"
     state: directory
 
-# OpenEnclave turns on the Clang speculative load hardening pass by default.
+# Open Enclave turns on the Clang speculative load hardening pass by default.
 # This is good practice for arbitrary enclaved code, as it applies a general
 # mitigation that does not depend on source code annotation. However, being
 # a general mitigation, it also carries about a 30% performance penalty when
@@ -45,7 +45,7 @@
     regexp: '-mllvm -x86-speculative-load-hardening'
     replace: ''
 
-- name: Install OpenEnclave dependencies
+- name: Install Open Enclave dependencies
   shell: |
     scripts/ansible/install-ansible.sh
     ansible-playbook "{{ oe_playbook }}"
@@ -60,12 +60,12 @@
     name: ninja-build
   become: true
 
-- name: Make OpenEnclave build dir
+- name: Make Open Enclave build dir
   file:
     path: "{{ workspace }}/openenclave-{{ oe_ver }}/build"
     state: directory
 
-- name: Build OpenEnclave
+- name: Build Open Enclave
   shell: |
     cmake -GNinja -DCMAKE_INSTALL_PREFIX:PATH={{ oe_prefix }} -DCMAKE_BUILD_TYPE=RelWithDebInfo {{ oe_build_opts }} ..
     ninja
@@ -74,13 +74,13 @@
   async: 600
   poll: 5
 
-- name: Remove Pre-existing OpenEnclave install
+- name: Remove Pre-existing Open Enclave install
   file:
     path: "{{ oe_prefix }}"
     state: absent
   become: true
 
-- name: Install OpenEnclave
+- name: Install Open Enclave
   command: ninja install
   args:
     chdir: "{{ workspace }}/openenclave-{{ oe_ver }}/build"
