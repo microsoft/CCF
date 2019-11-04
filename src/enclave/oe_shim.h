@@ -16,7 +16,7 @@
 #else
 
 // Repeat or approximate a lot of OE definitions, so that the virtual library
-// can be compiled without any reference to OpenEnclave. This may need updating
+// can be compiled without any reference to Open Enclave. This may need updating
 // to stay up-to-date with OE.
 
 #  define OE_EXTERNC extern "C"
