@@ -517,7 +517,7 @@ class CCFRemote(object):
 
         cmd = [
             self.BIN,
-            f"--enclave-file={lib_path}",
+            f"--enclave-file=./{os.path.basename(lib_path)}",
             f"--enclave-type={enclave_type}",
             f"--node-address={host}:{node_port}",
             f"--rpc-address={host}:{rpc_port}",
