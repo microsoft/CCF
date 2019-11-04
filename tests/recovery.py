@@ -17,9 +17,6 @@ import functools
 
 from loguru import logger as LOG
 
-# Maximum number of retries of getCommit/getSignedIndex before test failure
-MAX_GET_STATUS_RETRY = 3
-
 
 class Txs:
     def __init__(self, nb_msgs, offset=0):
@@ -74,24 +71,6 @@ def check_responses(responses, result, check, check_commit):
     check_commit(responses[-1], result=result)
 
 
-def wait_for_state(node, state):
-    """
-    Wait for the public ledger to be read completely on a node.
-    """
-    for _ in range(MAX_GET_STATUS_RETRY):
-        try:
-            with node.node_client() as c:
-                id = c.request("getSignedIndex", {})
-                r = c.response(id).result
-                if r["state"] == state:
-                    break
-        except ConnectionRefusedError:
-            pass
-        time.sleep(1)
-    else:
-        raise TimeoutError("Timed out waiting for public ledger to be read")
-
-
 def run(args):
     hosts = ["localhost", "localhost"]
     ledger = None
@@ -133,7 +112,7 @@ def run(args):
                 check = infra.ccf.Checker()
 
                 for node in recovered_network.nodes:
-                    wait_for_state(node, b"partOfPublicNetwork")
+                    network.wait_for_state(node, "partOfPublicNetwork")
                 recovered_network.wait_for_node_commit_sync()
                 LOG.success("Public CFTR started")
 
@@ -170,24 +149,8 @@ def run(args):
                 assert rc and result
 
                 for node in recovered_network.nodes:
-                    wait_for_state(node, b"partOfNetwork")
+                    network.wait_for_state(node, "partOfNetwork")
                 LOG.success("All nodes part of network")
-
-                for _ in range(MAX_GET_STATUS_RETRY):
-                    try:
-                        with primary.node_client() as c:
-                            id = c.request("getSignedIndex", {})
-                            r = c.response(id).result
-                            if r.get("state") == b"partOfNetwork":
-                                break
-                    except ConnectionRefusedError:
-                        pass
-                    time.sleep(1)
-                else:
-                    raise TimeoutError(
-                        "Timed out waiting for private ledger to be read"
-                    )
-                LOG.success("Private ledger has been read on primary")
 
                 old_txs = Txs(args.msgs_per_recovery, recovery_idx)
 
