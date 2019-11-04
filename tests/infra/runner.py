@@ -104,7 +104,23 @@ def run(build_directory, get_command, args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, backups = network.start_and_join(args)
+        primary, backups = network.start_and_join(args, open_network=False)
+
+        for i in range(1, 4):
+            LOG.info(f"Adding node {i}")
+            assert network.create_and_trust_node(
+                args.package, "localhost", args, target_node=None, should_wait=False
+            )
+
+        network.add_users(primary, network.initial_users)
+        LOG.info("Initial set of users added")
+
+        # network.open_network(primary)
+        script = None
+        result = network.propose(1, primary, script, None, "open_network")
+        network.vote_using_majority(primary, result[1]["id"], False)
+        LOG.info("***** Network is now open *****")
+        LOG.error("AAAA")
 
         command_args = get_command_args(args, get_command)
 
@@ -141,13 +157,13 @@ def run(build_directory, get_command, args):
                                 break
                         time.sleep(1)
 
-                    tx_rates.get_metrics()
-                    for remote_client in clients:
-                        remote_client.print_and_upload_result(args.label, metrics)
-                        remote_client.stop()
+                    #tx_rates.get_metrics()
+                    #for remote_client in clients:
+                    #    remote_client.print_and_upload_result(args.label, metrics)
+                    #    remote_client.stop()
 
-                    LOG.info(f"Rates:\n{tx_rates}")
-                    tx_rates.save_results(args.metrics_file)
+                    #LOG.info(f"Rates:\n{tx_rates}")
+                    #tx_rates.save_results(args.metrics_file)
 
             except Exception:
                 for remote_client in clients:

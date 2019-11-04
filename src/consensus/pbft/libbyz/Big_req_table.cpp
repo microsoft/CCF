@@ -216,6 +216,9 @@ bool Big_req_table::add_unmatched(Request* r, Request*& old_req)
 
   if (centry.num_requests >= Max_unmatched_requests_per_client)
   {
+    LOG_FAIL << "Too many unbuffered requests for client_id:" << r->client_id()
+             << " max_unmatched_requests_per_client:"
+             << Max_unmatched_requests_per_client << std::endl;
     old_req = centry.requests.back();
     centry.requests.pop_back();
   }
