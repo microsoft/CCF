@@ -380,7 +380,9 @@ class Network:
                 pass
             time.sleep(1)
         else:
-            raise TimeoutError("Timed out waiting for public ledger to be read")
+            raise TimeoutError(
+                f"Timed out waiting for public ledger to be read on node {node.node_id}"
+            )
 
     # TODO: The following governance functions should be moved to their own class
     # See https://github.com/microsoft/CCF/issues/364
