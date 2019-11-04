@@ -49,16 +49,15 @@ namespace enclave
 
     bool handle_data(const std::vector<uint8_t>& data)
     {
-      LOG_TRACE_FMT("Entered handle_data {} {}", data.size(), data.empty());
+      LOG_TRACE_FMT(
+        "Entered handle_data, session {} with {} bytes",
+        session_id,
+        data.size());
 
       const SessionContext session(session_id, peer_cert());
       RPCContext rpc_ctx(session);
 
       rpc_ctx.raw = data;
-
-      // If we are unable to detect packing format, default to sending responses
-      // as Text
-      rpc_ctx.pack = jsonrpc::Pack::Text;
 
       auto [success, rpc] = jsonrpc::unpack_rpc(data, rpc_ctx.pack);
 
@@ -82,11 +81,16 @@ namespace enclave
           rpc_ctx.pack.value()));
         return true;
       }
-      LOG_TRACE_FMT("Got method: {}", prefixed_method);
 
       // Separate JSON-RPC method into actor and true method
       auto [actor_s, method] = split_actor_and_method(prefixed_method);
       rpc_ctx.method = method;
+
+      LOG_TRACE_FMT(
+        "Parsed actor {}, method {} (from {})",
+        actor_s,
+        method,
+        prefixed_method);
 
       auto actor = rpc_map->resolve(actor_s);
       if (actor == ccf::ActorsType::unknown)
@@ -104,6 +108,7 @@ namespace enclave
       auto search = rpc_map->find(actor);
       if (!search.has_value())
       {
+        LOG_TRACE_FMT("No frontend found for actor {}", actor);
         return false;
       }
 

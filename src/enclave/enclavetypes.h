@@ -54,7 +54,7 @@ namespace enclave
     SessionContext session;
 
     // Packing format of original request, should be used to pack response
-    std::optional<jsonrpc::Pack> pack = std::nullopt;
+    std::optional<jsonrpc::Pack> pack = jsonrpc::Pack::Text;
 
     // TODO: Avoid unnecessary copies
     std::vector<uint8_t> raw = {};
