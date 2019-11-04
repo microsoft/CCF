@@ -541,7 +541,9 @@ void Replica::handle(Request* m)
     {
       if (id() == primary())
       {
-        if (rqueue.append(m) && !wait_for_network_to_open)
+        bool result = rqueue.append(m);
+        assert(result);
+        if (!wait_for_network_to_open)
         {
           send_pre_prepare();
         }
@@ -1525,17 +1527,17 @@ void Replica::handle(Network_open* m)
   std::shared_ptr<Principal> p = get_principal(m->id());
   if (p == nullptr)
   {
-    LOG_FAIL << "recevied network open from unknown principal, id:" << m->id()
+    LOG_FAIL << "Received network open from unknown principal, id:" << m->id()
              << std::endl;
   }
 
   if (p->received_network_open_msg())
   {
-    LOG_FAIL << "recevied network open from, id:" << m->id() << "already"
+    LOG_FAIL << "Received network open from, id:" << m->id() << "already"
              << std::endl;
   }
 
-  LOG_INFO << "recevied network open from, id:" << m->id() << std::endl;
+  LOG_INFO << "Received network open from, id:" << m->id() << std::endl;
 
   p->set_received_network_open_msg();
 
@@ -1551,7 +1553,7 @@ void Replica::handle(Network_open* m)
 
   if (num_open == principals->size())
   {
-    LOG_INFO << "Finised waiting for machines to network open. "
+    LOG_INFO << "Finished waiting for machines to network open. "
              << "starting to process requests" << std::endl;
     wait_for_network_to_open = false;
     send_pre_prepare();
