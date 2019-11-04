@@ -120,7 +120,6 @@ def run(build_directory, get_command, args):
         result = network.propose(1, primary, script, None, "open_network")
         network.vote_using_majority(primary, result[1]["id"], False)
         LOG.info("***** Network is now open *****")
-        LOG.error("AAAA")
 
         command_args = get_command_args(args, get_command)
 
