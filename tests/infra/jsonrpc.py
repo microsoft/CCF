@@ -273,7 +273,7 @@ class FramedTLSJSONRPCClient:
         version="2.0",
         format="msgpack",
         description=None,
-        prefix=None,
+        prefix="users",
     ):
         self.client = FramedTLSClient(
             host, int(port), server_hostname, cert, key, cafile
@@ -482,7 +482,7 @@ def client(
     description=None,
     log_file=None,
     connection_timeout=3,
-    prefix=None,
+    prefix="users",
 ):
     if os.getenv("HTTP"):
         c = CurlClient(
