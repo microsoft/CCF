@@ -622,23 +622,8 @@ namespace ccf
       crypto::Sha256Hash merkle_root;
       kv::Version version = kv::NoVersion;
 
-      auto [success, rpc] = jsonrpc::unpack_rpc(ctx.raw, ctx.pack);
-      if (!success)
-      {
-        return {jsonrpc::pack(rpc, ctx.pack.value()), merkle_root};
-      }
-
       update_consensus();
 
-      // Strip signature
-      auto rpc_ = &rpc;
-      SignedReq signed_request(rpc);
-      if (rpc_->find(jsonrpc::SIG) != rpc_->end())
-      {
-        auto& req = rpc_->at(jsonrpc::REQ);
-        rpc_ = &req;
-      }
-      auto& unsigned_rpc = *rpc_;
       bool has_updated_merkle_root = false;
 
       auto cb = [&merkle_root, &version, &has_updated_merkle_root](
