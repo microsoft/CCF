@@ -57,10 +57,7 @@ namespace enclave
       const SessionContext session(session_id, peer_cert());
       RPCContext rpc_ctx(session);
 
-      rpc_ctx.raw = data;
-
       auto [success, rpc] = jsonrpc::unpack_rpc(data, rpc_ctx.pack);
-
       if (!success)
       {
         send(jsonrpc::pack(rpc, rpc_ctx.pack.value()));
@@ -69,6 +66,7 @@ namespace enclave
       LOG_TRACE_FMT("Deserialised");
 
       parse_rpc_context(rpc_ctx, rpc);
+      rpc_ctx.raw = data;
 
       auto prefixed_method = rpc_ctx.method;
       if (prefixed_method.empty())

@@ -54,7 +54,7 @@ namespace enclave
     SessionContext session;
 
     // Packing format of original request, should be used to pack response
-    std::optional<jsonrpc::Pack> pack = jsonrpc::Pack::Text;
+    std::optional<jsonrpc::Pack> pack = std::nullopt;
 
     // TODO: Avoid unnecessary copies
     std::vector<uint8_t> raw = {};
@@ -84,7 +84,10 @@ namespace enclave
     if (sig_it != rpc.end())
     {
       rpc_ctx.unpacked_rpc = rpc.at(jsonrpc::REQ);
-      rpc_ctx.signed_request = rpc;
+      ccf::SignedReq signed_req;
+      signed_req.sig = sig_it->get<decltype(signed_req.sig)>();
+      signed_req.req = nlohmann::json::to_msgpack(rpc_ctx.unpacked_rpc);
+      rpc_ctx.signed_request = signed_req;
     }
     else
     {
@@ -116,8 +119,6 @@ namespace enclave
   {
     RPCContext rpc_ctx(s);
 
-    rpc_ctx.raw = packed;
-
     auto [success, rpc] = jsonrpc::unpack_rpc(packed, rpc_ctx.pack);
     if (!success)
     {
@@ -125,6 +126,7 @@ namespace enclave
     }
 
     parse_rpc_context(rpc_ctx, rpc);
+    rpc_ctx.raw = packed;
 
     return rpc_ctx;
   }
