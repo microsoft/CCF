@@ -47,6 +47,7 @@ set(PBFT_SRC
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/key_format.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/request_id_gen.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/New_principal.cpp
+  ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/Network_open.cpp
 )
 
 if(NOT ${TARGET} STREQUAL "virtual")
