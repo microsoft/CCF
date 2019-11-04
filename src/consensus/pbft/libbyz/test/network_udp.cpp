@@ -91,16 +91,6 @@ public:
       to.sin_port = htons(ntohs(to.sin_port) + port_offset);
     }
 
-    Auth_type atype;
-    int src_offset, len, dst_offset;
-    msg->get_mac_parameters(atype, src_offset, len, dst_offset);
-    node->gen_mac(
-      principal.pid(),
-      atype,
-      msg->contents() + src_offset,
-      len,
-      msg->contents() + dst_offset);
-
     int error = sendto(
       sock,
       msg->contents(),

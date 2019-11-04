@@ -38,11 +38,6 @@ New_principal::New_principal(
   rep().is_replica = is_replica;
 }
 
-bool New_principal::pre_verify()
-{
-  return true;
-}
-
 bool New_principal::verify()
 {
   // Check if we are adding a known principal

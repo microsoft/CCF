@@ -397,8 +397,7 @@ bool Certificate<T>::add(T* m)
     }
     else
     {
-      if (m->verify())
-        bmap.set(id);
+      bmap.set(id);
     }
   }
 

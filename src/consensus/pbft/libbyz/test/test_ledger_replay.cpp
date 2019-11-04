@@ -64,7 +64,7 @@ NodeInfo get_node_info()
   principal_info.emplace_back(pi);
 
   GeneralInfo gi = {
-    2, 0, 0, true, "generic", 1800000, 5000, 100, 9999250000, principal_info};
+    2, 0, 0, "generic", 1800000, 5000, 100, 9999250000, principal_info};
 
   NodeInfo node_info = {
     gi.principal_info[0],
@@ -134,7 +134,6 @@ TEST_CASE("Test Ledger Replay")
       Request* request = (Request*)req.opaque;
       request->request_id() = i;
       request->authenticate(req.size, false);
-      request->mark_verified();
       request->trim();
 
       rqueue.append(request);

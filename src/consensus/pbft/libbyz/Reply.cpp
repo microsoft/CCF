@@ -139,11 +139,6 @@ void Reply::commit(Principal* p)
   auth_dst_offset = old_size;
 }
 
-bool Reply::verify()
-{
-  return true;
-}
-
 bool Reply::pre_verify()
 {
   // Replies must be sent by replicas.
@@ -179,8 +174,6 @@ bool Reply::pre_verify()
     return false;
   }
   int size_wo_MAC = sizeof(Reply_rep) + rep_size;
-  verified_auth = replica->verify_mac_in(
-    contents(), sizeof(Reply_rep), contents() + size_wo_MAC);
 
   STOP_CC(reply_auth_ver_cycles);
 

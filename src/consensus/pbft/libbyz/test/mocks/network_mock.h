@@ -53,15 +53,6 @@ public:
       conn_state = it->second.get();
     }
 
-    Auth_type atype;
-    int src_offset, len, dst_offset;
-    message->get_mac_parameters(atype, src_offset, len, dst_offset);
-    node->gen_mac(
-      principal.pid(),
-      atype,
-      message->contents() + src_offset,
-      len,
-      message->contents() + dst_offset);
     uint8_t* tmp_buf = (uint8_t*)message->contents();
     std::vector<uint8_t> msg = {tmp_buf, tmp_buf + message->size()};
     // socket send message

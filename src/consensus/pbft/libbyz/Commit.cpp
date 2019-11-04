@@ -32,11 +32,6 @@ void Commit::re_authenticate(Principal* p)
   auth_src_offset = 0;
 }
 
-bool Commit::verify()
-{
-  return true;
-}
-
 bool Commit::pre_verify()
 {
   // special case for f == 0
@@ -57,7 +52,6 @@ bool Commit::pre_verify()
     return false;
   }
 
-  verified_auth = node->verify_mac_in(id(), contents(), sizeof(Commit_rep));
   return true;
 }
 

@@ -36,11 +36,6 @@ void Fetch::re_authenticate(Principal* p)
   auth_src_offset = 0;
 }
 
-bool Fetch::verify()
-{
-  return verified_auth;
-}
-
 bool Fetch::pre_verify()
 {
   if (!node->is_replica(id()))
@@ -69,7 +64,6 @@ bool Fetch::pre_verify()
     return false;
   }
 
-  verified_auth = node->verify_mac_out(id(), contents(), sizeof(Fetch_rep));
   return true;
 }
 

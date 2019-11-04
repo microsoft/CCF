@@ -105,12 +105,6 @@ public:
   // Effects: Messages may be full or empty. Empty messages are just
   // digests of full messages.
 
-  void get_mac_parameters(
-    Auth_type& atype, int& src_offset, int& len, int& dst_offset) const;
-  // Effects: returns the parameters that should be used to compute a MAC for
-  // this message: MAC type "atype", computed for "len" bytes starting at
-  // "src_offset" from contents(), and placed at "dst_offset" from contents().
-
   // Message-specific heap management operators.
   void* operator new(size_t s);
   void operator delete(void* x, size_t s);
@@ -160,7 +154,6 @@ protected:
   int max_size; // Maximum number of bytes that can be stored in "msg"
                 // or "-1" if this instance is not responsible for
                 // deallocating the storage in msg.
-  bool verified_auth;
   // Invariant: max_size <= 0 || 0 < msg->size <= max_size
   Log_allocator* allocator;
 

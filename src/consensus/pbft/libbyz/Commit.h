@@ -61,9 +61,6 @@ public:
   bool match(const Commit* c) const;
   // Effects: Returns true iff this and c match.
 
-  bool verify();
-  // Effects: Verifies if the message is signed by the replica rep().id.
-
   bool pre_verify();
   // Effects: Performs preliminary verification checks
 

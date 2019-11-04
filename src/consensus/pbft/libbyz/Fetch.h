@@ -75,10 +75,6 @@ public:
   // Effects: If checkpoint() > 0, returns the designated replier. Otherwise,
   // returns -1;
 
-  bool verify();
-  // Effects: Verifies if the message is correctly authenticated by
-  // the replica id().
-
   bool pre_verify();
   // Effects: Performs preliminary verification checks
 

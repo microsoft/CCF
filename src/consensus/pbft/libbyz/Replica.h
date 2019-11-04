@@ -38,7 +38,6 @@ class Checkpoint;
 class Status;
 class View_change;
 class New_view;
-class New_key;
 class Fetch;
 class Data;
 class Meta_data;
@@ -187,7 +186,6 @@ private:
   void handle(New_view* m);
   void handle(View_change_ack* m);
   void handle(Status* m);
-  void handle(New_key* m);
   void handle(Fetch* m);
   void handle(Data* m);
   void handle(Meta_data* m);
@@ -311,10 +309,6 @@ private:
   // needed. cur should be the current time.
 
   bool retransmit_rep(Reply* m, Time& cur, Time* tsent, Principal* p);
-
-  void send_new_key();
-  // Effects: Calls Node's send_new_key, adjusts timer and cleans up
-  // stale messages.
 
   void enforce_bound(Seqno b);
   // Effects: Ensures that there is no information above bound "b".

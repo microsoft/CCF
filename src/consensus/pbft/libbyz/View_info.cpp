@@ -321,9 +321,9 @@ void View_info::view_change(View vi, Seqno last_executed, State* state)
     for (int i = 0; i < node->num_of_replicas(); i++)
     {
       auto vc = last_vcs[i].get();
-      if (vc && vc->view() == v && n.can_add(vc, true))
+      if (vc && vc->view() == v && n.can_add(vc))
       {
-        n.add(std::move(last_vcs[i]), true);
+        n.add(std::move(last_vcs[i]));
         last_vcs[i] = 0;
       }
     }
@@ -361,11 +361,10 @@ bool View_info::add(std::unique_ptr<View_change> vc)
   if (n.view() == vcv)
   {
     // There is a new-view message corresponding to "vc"
-    bool verified = vc->verify();
-    stored = n.can_add(vc.get(), verified);
+    stored = n.can_add(vc.get());
     if (stored)
     {
-      n.add(std::move(vc), verified);
+      n.add(std::move(vc));
     }
 
 #ifndef USE_PKEY_VIEW_CHANGES
@@ -383,7 +382,7 @@ bool View_info::add(std::unique_ptr<View_change> vc)
     }
 #endif
 
-    if (verified && vcv > last_views[vci])
+    if (vcv > last_views[vci])
     {
       last_views[vci] = vcv;
     }
@@ -391,7 +390,7 @@ bool View_info::add(std::unique_ptr<View_change> vc)
   else
   {
     // There is no matching new-view.
-    if (vcv > last_views[vci] && vc->verify())
+    if (vcv > last_views[vci])
     {
       last_vcs[vci] = std::move(vc);
       last_views[vci] = vcv;
@@ -421,7 +420,7 @@ void View_info::add(New_view* nv)
   int nvi = nv->id();
   int nvv = nv->view();
 
-  if (nvv >= v && nv->verify())
+  if (nvv >= v)
   {
     NV_info& n = last_nvs[nvi];
     if (nv->view() > n.view())
@@ -433,9 +432,9 @@ void View_info::add(New_view* nv)
         for (int i = 0; i < last_vcs.size(); i++)
         {
           auto vc = last_vcs[i].get();
-          if (vc && vc->view() == nvv && n.can_add(vc, true))
+          if (vc && vc->view() == nvv && n.can_add(vc))
           {
-            n.add(std::move(last_vcs[i]), true);
+            n.add(std::move(last_vcs[i]));
           }
         }
       }
