@@ -49,7 +49,7 @@ set(PBFT_SRC
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/New_principal.cpp
 )
 
-if(${TARGET} STREQUAL "sgx")
+if("sgx" IN_LIST TARGET)
   add_library(libbyz.enclave STATIC ${PBFT_SRC})
   target_compile_options(libbyz.enclave PRIVATE
     -nostdinc
@@ -77,7 +77,7 @@ add_e2e_test(
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging_pbft.py
 )
 
-if(${TARGET} STREQUAL "virtual")
+if("virtual" IN_LIST TARGET)
 
   add_library(libbyz.host STATIC ${PBFT_SRC})
   target_compile_options(libbyz.host PRIVATE -stdlib=libc++)
