@@ -84,10 +84,7 @@ namespace enclave
     if (sig_it != rpc.end())
     {
       rpc_ctx.unpacked_rpc = rpc.at(jsonrpc::REQ);
-      ccf::SignedReq signed_req;
-      signed_req.sig = sig_it->get<decltype(signed_req.sig)>();
-      signed_req.req = nlohmann::json::to_msgpack(rpc_ctx.unpacked_rpc);
-      rpc_ctx.signed_request = signed_req;
+      rpc_ctx.signed_request = rpc;
     }
     else
     {
