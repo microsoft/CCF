@@ -228,8 +228,6 @@ class Network:
         self.open_network(primary)
         LOG.success("***** Network is now open *****")
 
-        return primary, self.nodes[1:]
-
     def start_in_recovery(self, args, ledger_file, sealed_secrets):
         primary = self._start_all_nodes(
             args, recovery=True, ledger_file=ledger_file, sealed_secrets=sealed_secrets
