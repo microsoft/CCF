@@ -49,7 +49,7 @@ set(PBFT_SRC
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/New_principal.cpp
 )
 
-if(NOT ${TARGET} STREQUAL "virtual")
+if(${TARGET} STREQUAL "sgx")
   add_library(libbyz.enclave STATIC ${PBFT_SRC})
   target_compile_options(libbyz.enclave PRIVATE
     -nostdinc
