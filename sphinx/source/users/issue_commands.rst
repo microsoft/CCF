@@ -1,7 +1,7 @@
 Issuing Commands
 ================
 
-Clients communicate with CCF using framed :term:`JSON-RPC` over :term:`TLS`.
+Clients communicate with CCF using framed :term:`JSON-RPC` over :term:`TLS`. The ``method`` must be prefixed with the name of the target frontend (``"users"`` or ``"members"``), separated from the intended ``method`` with a single ``/``.
 
 Users can issue business transactions to CCF using the ``client`` command-line utility built with CCF. For example, to record a message at a specific id with the :ref:`Example App`:
 
@@ -10,7 +10,7 @@ Users can issue business transactions to CCF using the ``client`` command-line u
     $ cat request.json
     {
       "id": 0,
-      "method": "LOG_record",
+      "method": "users/LOG_record",
       "jsonrpc": "2.0",
       "params":
       {
@@ -51,7 +51,7 @@ To guarantee that their request is successfully committed to the ledger, a user 
     $ cat get_commit.json
     {
       "id": 0,
-      "method": "getCommit",
+      "method": "users/getCommit",
       "jsonrpc": "2.0",
       "params":
       {

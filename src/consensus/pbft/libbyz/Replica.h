@@ -11,6 +11,7 @@
 #include "LedgerReplay.h"
 #include "LedgerWriter.h"
 #include "Log.h"
+#include "Network_open.h"
 #include "New_principal.h"
 #include "Node.h"
 #include "Partition.h"
@@ -38,7 +39,6 @@ class Checkpoint;
 class Status;
 class View_change;
 class New_view;
-class New_key;
 class Fetch;
 class Data;
 class Meta_data;
@@ -187,7 +187,6 @@ private:
   void handle(New_view* m);
   void handle(View_change_ack* m);
   void handle(Status* m);
-  void handle(New_key* m);
   void handle(Fetch* m);
   void handle(Data* m);
   void handle(Meta_data* m);
@@ -195,6 +194,7 @@ private:
   void handle(Query_stable* m);
   void handle(Reply_stable* m);
   void handle(New_principal* m);
+  void handle(Network_open* m);
   // Effects: Execute the protocol steps associated with the arrival
   // of the argument message.
 
@@ -311,10 +311,6 @@ private:
   // needed. cur should be the current time.
 
   bool retransmit_rep(Reply* m, Time& cur, Time* tsent, Principal* p);
-
-  void send_new_key();
-  // Effects: Calls Node's send_new_key, adjusts timer and cleans up
-  // stale messages.
 
   void enforce_bound(Seqno b);
   // Effects: Ensures that there is no information above bound "b".
@@ -451,6 +447,11 @@ private:
 
   Seqno recovery_point; // Seqno_max if not known
   Seqno max_rec_n; // Maximum sequence number of a recovery request in state.
+
+  bool wait_for_network_to_open = false;
+  // Used when opening the network. After the network has been opened on the
+  // primary it will buffer messages until the other nodes have successfully
+  // opened their networks
 
 #ifdef DEBUG_SLOW
   ITimer* debug_slow_timer; // Used to dump state when requests take too long to

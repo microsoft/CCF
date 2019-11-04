@@ -72,11 +72,7 @@ private:
   ITimer* rtimer; // Retransmission timer
 
   void retransmit();
-  // Effects: Retransmits any outstanding request and last new-key message.
-
-  void send_new_key();
-  // Effects: Calls Node's send_new_key, and cleans up stale replies in
-  // certificates.
+  // Effects: Retransmits any outstanding request
 };
 
 inline Request_id Client::get_rid() const

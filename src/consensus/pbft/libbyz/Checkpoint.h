@@ -62,9 +62,6 @@ public:
   bool match(const Checkpoint* c) const;
   // Effects: Returns true iff "c" and "this" have the same digest
 
-  bool verify();
-  // Effects: Verifies if the message is signed by the replica rep().id.
-
   bool pre_verify();
   // Effects: Performs preliminary verification checks
 

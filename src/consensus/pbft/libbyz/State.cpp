@@ -728,7 +728,7 @@ void State::send_fetch(bool change_replier)
 bool State::handle(Fetch* m, Seqno ls)
 {
   std::shared_ptr<Principal> pi = replica->get_principal(m->id());
-  if (pi == nullptr || !m->verify())
+  if (pi == nullptr)
   {
     delete m;
     return false;

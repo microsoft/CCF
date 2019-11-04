@@ -140,11 +140,6 @@ void Request::sign(int act_len)
 
 Request::Request(Request_rep* contents) : Message(contents) {}
 
-bool Request::verify()
-{
-  return true;
-}
-
 bool Request::pre_verify()
 {
   const int nid = node->id();
@@ -161,8 +156,6 @@ bool Request::pre_verify()
       // Message has an authenticator.
       if (cid != nid && size() - old_size >= node->auth_size(cid))
       {
-        verified_auth = node->verify_mac_out(
-          cid, contents(), sizeof(Request_rep), contents() + old_size);
         return true;
       }
     }
@@ -171,8 +164,6 @@ bool Request::pre_verify()
       // Message is signed.
       if (size() - old_size >= p->sig_size())
       {
-        verified_auth = p->verify_signature(
-          contents(), sizeof(Request_rep), contents() + old_size, true);
         return true;
       }
     }

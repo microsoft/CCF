@@ -4,6 +4,7 @@
 
 #include "tls_client.h"
 
+#include <fmt/format_header_only.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 
@@ -56,10 +57,12 @@ public:
   nlohmann::json json_rpc(
     const std::string& method, const nlohmann::json& params)
   {
+    const auto prefixed_method = fmt::format("{}/{}", get_sni(), method);
+
     nlohmann::json j;
     j["jsonrpc"] = "2.0";
     j["id"] = id++;
-    j["method"] = method;
+    j["method"] = prefixed_method;
     j["params"] = params;
     return j;
   }

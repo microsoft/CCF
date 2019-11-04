@@ -11,68 +11,125 @@ namespace enclave
 {
   static constexpr size_t InvalidSessionId = std::numeric_limits<size_t>::max();
 
-  struct RPCContext
+  struct SessionContext
   {
-    //
-    // In parameters (initialised when context is created)
-    //
-    const size_t client_session_id = InvalidSessionId;
-    std::vector<uint8_t> caller_cert;
-    // Actor type to dispatch to appropriate frontend
-    const ccf::ActorsType actor;
-
-    //
-    // Out parameters (changed during lifetime of context)
-    //
-    // If true, the RPC does not reply to the client synchronously
-    bool is_pending = false;
-    std::optional<jsonrpc::Pack> pack = std::nullopt;
-    // Request payload specific attributes
-    struct request
-    {
-      uint64_t seq_no;
-    };
-    struct request req;
-
-    bool is_create_request = false;
+    size_t client_session_id = InvalidSessionId;
+    std::vector<uint8_t> caller_cert = {};
 
     //
     // Only set in the case of a forwarded RPC
     //
-    struct forwarded
+    struct Forwarded
     {
       // Initialised when forwarded context is created
       const size_t client_session_id;
       const ccf::CallerId caller_id;
 
-      forwarded(size_t client_session_id_, ccf::CallerId caller_id_) :
+      Forwarded(size_t client_session_id_, ccf::CallerId caller_id_) :
         client_session_id(client_session_id_),
         caller_id(caller_id_)
       {}
     };
-    std::optional<struct forwarded> fwd = std::nullopt;
+    std::optional<Forwarded> fwd = std::nullopt;
 
     // Constructor used for non-forwarded RPC
-    RPCContext(
-      size_t client_session_id_,
-      const std::vector<uint8_t>& caller_cert_,
-      ccf::ActorsType actor_ = ccf::ActorsType::unknown) :
+    SessionContext(
+      size_t client_session_id_, const std::vector<uint8_t>& caller_cert_) :
       client_session_id(client_session_id_),
-      caller_cert(caller_cert_),
-      actor(actor_)
+      caller_cert(caller_cert_)
     {}
 
     // Constructor used for forwarded and PBFT RPC
-    RPCContext(
+    SessionContext(
       size_t fwd_session_id_,
       ccf::CallerId caller_id_,
-      ccf::ActorsType actor_ = ccf::ActorsType::unknown,
       const std::vector<uint8_t>& caller_cert_ = {}) :
-      fwd(std::make_optional<struct forwarded>(fwd_session_id_, caller_id_)),
-      actor(actor_),
+      fwd(std::make_optional<Forwarded>(fwd_session_id_, caller_id_)),
       caller_cert(caller_cert_)
     {}
   };
+
+  struct RPCContext
+  {
+    SessionContext session;
+
+    // Packing format of original request, should be used to pack response
+    std::optional<jsonrpc::Pack> pack = std::nullopt;
+
+    // TODO: Avoid unnecessary copies
+    std::vector<uint8_t> raw = {};
+
+    nlohmann::json unpacked_rpc = {};
+
+    std::optional<ccf::SignedReq> signed_request = std::nullopt;
+
+    // Actor type to dispatch to appropriate frontend
+    ccf::ActorsType actor = ccf::ActorsType::unknown;
+
+    // Method indicates specific handler for this request
+    std::string method = {};
+
+    uint64_t seq_no = {};
+
+    nlohmann::json params = {};
+
+    bool is_create_request = false;
+
+    RPCContext(const SessionContext& s) : session(s) {}
+  };
+
+  inline void parse_rpc_context(RPCContext& rpc_ctx, const nlohmann::json& rpc)
+  {
+    const auto sig_it = rpc.find(jsonrpc::SIG);
+    if (sig_it != rpc.end())
+    {
+      rpc_ctx.unpacked_rpc = rpc.at(jsonrpc::REQ);
+      ccf::SignedReq signed_req;
+      signed_req.sig = sig_it->get<decltype(signed_req.sig)>();
+      signed_req.req = nlohmann::json::to_msgpack(rpc_ctx.unpacked_rpc);
+      rpc_ctx.signed_request = signed_req;
+    }
+    else
+    {
+      rpc_ctx.unpacked_rpc = rpc;
+      rpc_ctx.signed_request = std::nullopt;
+    }
+
+    const auto method_it = rpc_ctx.unpacked_rpc.find(jsonrpc::METHOD);
+    if (method_it != rpc_ctx.unpacked_rpc.end())
+    {
+      rpc_ctx.method = method_it->get<std::string>();
+    }
+
+    const auto seq_it = rpc_ctx.unpacked_rpc.find(jsonrpc::ID);
+    if (seq_it != rpc_ctx.unpacked_rpc.end())
+    {
+      rpc_ctx.seq_no = seq_it->get<uint64_t>();
+    }
+
+    const auto params_it = rpc_ctx.unpacked_rpc.find(jsonrpc::PARAMS);
+    if (params_it != rpc_ctx.unpacked_rpc.end())
+    {
+      rpc_ctx.params = *params_it;
+    }
+  }
+
+  inline RPCContext make_rpc_context(
+    const SessionContext& s, const std::vector<uint8_t>& packed)
+  {
+    RPCContext rpc_ctx(s);
+
+    auto [success, rpc] = jsonrpc::unpack_rpc(packed, rpc_ctx.pack);
+    if (!success)
+    {
+      throw std::logic_error(fmt::format("Failed to unpack: {}", rpc.dump()));
+    }
+
+    parse_rpc_context(rpc_ctx, rpc);
+    rpc_ctx.raw = packed;
+
+    return rpc_ctx;
+  }
 
   class AbstractRPCResponder
   {
@@ -87,10 +144,9 @@ namespace enclave
     virtual ~AbstractForwarder() {}
 
     virtual bool forward_command(
-      enclave::RPCContext& rpc_ctx,
+      const enclave::RPCContext& rpc_ctx,
       ccf::NodeId to,
       ccf::CallerId caller_id,
-      const std::vector<uint8_t>& data,
       const std::vector<uint8_t>& caller_cert) = 0;
   };
 }

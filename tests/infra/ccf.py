@@ -368,6 +368,22 @@ class Network:
         for u in users:
             infra.proc.ccall("./keygenerator", "--name={}".format(u)).check_returncode()
 
+    def wait_for_state(self, node, state, timeout=3):
+        for _ in range(timeout):
+            try:
+                with node.node_client(format="json") as c:
+                    id = c.request("getSignedIndex", {})
+                    r = c.response(id).result
+                    if r["state"] == state:
+                        break
+            except ConnectionRefusedError:
+                pass
+            time.sleep(1)
+        else:
+            raise TimeoutError(
+                f"Timed out waiting for public ledger to be read on node {node.node_id}"
+            )
+
     # TODO: The following governance functions should be moved to their own class
     # See https://github.com/microsoft/CCF/issues/364
     def check_for_service(self, node, status=ServiceStatus.OPEN):
@@ -930,6 +946,7 @@ class Node:
             cafile="networkcert.pem",
             description="node {} (user)".format(self.node_id),
             format=format,
+            prefix="users",
             **kwargs,
         )
 
@@ -942,6 +959,7 @@ class Node:
             key=None,
             cafile="networkcert.pem",
             description="node {} (node)".format(self.node_id),
+            prefix="nodes",
             **kwargs,
         )
 
@@ -954,5 +972,6 @@ class Node:
             key="member{}_privk.pem".format(member_id),
             cafile="networkcert.pem",
             description="node {} (member)".format(self.node_id),
+            prefix="members",
             **kwargs,
         )

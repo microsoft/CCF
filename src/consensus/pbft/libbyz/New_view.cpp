@@ -57,34 +57,6 @@ void New_view::pick(int id, Seqno n)
   picked()[n - min()] = (uint8_t)id;
 }
 
-void New_view::re_authenticate(Principal* p)
-{
-  if (!verified_auth)
-  {
-    int old_size = sizeof(New_view_rep) +
-      sizeof(VC_info) * node->num_of_replicas() + max() - min();
-
-    // Compute authenticator and update size.
-    PBFT_ASSERT(
-      Max_message_size - old_size >= node->auth_size(), "Message is too small");
-
-#ifdef USE_PKEY_VIEW_CHANGES
-    set_size(old_size + node->sig_size());
-    node->gen_signature(contents(), old_size, contents() + old_size);
-#else
-    set_size(old_size + node->auth_size());
-    auth_type = Auth_type::out;
-    auth_len = old_size;
-    auth_dst_offset = old_size;
-    auth_src_offset = 0;
-#endif
-
-    trim();
-
-    verified_auth = true;
-  }
-}
-
 bool New_view::view_change(int id, Digest& d)
 {
   if (id < 0 || id >= node->num_of_replicas())
@@ -101,11 +73,6 @@ bool New_view::view_change(int id, Digest& d)
   d = vci.d;
 
   return true;
-}
-
-bool New_view::verify()
-{
-  return verified_auth;
 }
 
 bool New_view::pre_verify()
@@ -131,26 +98,10 @@ bool New_view::pre_verify()
   int old_size = sizeof(New_view_rep) +
     sizeof(VC_info) * node->num_of_replicas() + max() - min();
 
-#ifdef USE_PKEY_VIEW_CHANGES
   if (Max_message_size - old_size < node->sig_size(id()))
   {
     return false;
   }
-
-  std::shared_ptr<Principal> p = node->get_principal(id());
-  if (p != nullptr)
-  {
-    verified_auth =
-      p->verify_signature(contents(), old_size, contents() + old_size);
-  }
-#else
-  if (Max_message_size - old_size < node->auth_size(id()))
-    return false;
-
-  // Check authenticator
-  verified_auth =
-    node->verify_mac_in(id(), contents(), old_size, contents() + old_size);
-#endif
 
   return true;
 }

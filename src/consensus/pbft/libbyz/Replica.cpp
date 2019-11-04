@@ -30,7 +30,6 @@
 #include "Message_tags.h"
 #include "Meta_data.h"
 #include "Meta_data_d.h"
-#include "New_key.h"
 #include "New_view.h"
 #include "Pre_prepare.h"
 #include "Prepare.h"
@@ -61,8 +60,6 @@ void Replica::retransmit(T* m, Time cur, Time tsent, Principal* p)
   // first time
   if (diff_time(cur, tsent) > 10000)
   {
-    m->re_authenticate(p);
-
     // Retransmit message
     INCR_OP(message_counts_retransmitted[m->tag()]);
     send(m, p->pid());
@@ -326,17 +323,10 @@ void Replica::init_state()
 
 void Replica::recv_start()
 {
-  if (node_info.general_info.should_mac_message)
-  {
-    // Compute session keys and send initial new-key message.
-    Node::send_new_key();
-  }
-
   init_state();
 
   // Start status and authentication freshness timers
   stimer->start();
-  atimer->start();
   if (id() == primary())
   {
     ntimer->start();
@@ -359,7 +349,8 @@ void Replica::recv_start()
 
 void Replica::recv_process_one_msg(Message* m)
 {
-  // TODO: This should probably be a jump table.
+  PBFT_ASSERT(m->tag() != New_key_tag, "Tag no longer supported");
+
   switch (m->tag())
   {
     case Request_tag:
@@ -384,10 +375,6 @@ void Replica::recv_process_one_msg(Message* m)
 
     case Checkpoint_tag:
       gen_handle<Checkpoint>(m);
-      break;
-
-    case New_key_tag:
-      gen_handle<New_key>(m);
       break;
 
 #ifndef USE_PKEY_VIEW_CHANGES
@@ -434,6 +421,10 @@ void Replica::recv_process_one_msg(Message* m)
 
     case New_principal_tag:
       gen_handle<New_principal>(m);
+      break;
+
+    case Network_open_tag:
+      gen_handle<Network_open>(m);
       break;
 
     default:
@@ -497,15 +488,13 @@ bool Replica::pre_verify(Message* m)
     case View_change_ack_tag:
 #endif
 
-    case New_key_tag:
-      return gen_pre_verify<New_key>(m);
-
     case Query_stable_tag:
     case Reply_stable_tag:
     case Meta_data_tag:
     case Meta_data_d_tag:
     case Data_tag:
     case New_principal_tag:
+    case Network_open_tag:
       return true;
 
     default:
@@ -526,9 +515,8 @@ void Replica::recv()
 void Replica::handle(Request* m)
 {
   bool ro = m->is_read_only();
-  bool verified = m->verify();
 
-  if (has_complete_new_view() && verified)
+  if (has_complete_new_view())
   {
     LOG_TRACE << "Received request with rid: " << m->request_id()
               << " with cid: " << m->client_id() << std::endl;
@@ -555,7 +543,10 @@ void Replica::handle(Request* m)
       {
         if (rqueue.append(m))
         {
-          send_pre_prepare();
+          if (!wait_for_network_to_open)
+          {
+            send_pre_prepare();
+          }
           return;
         }
       }
@@ -599,9 +590,7 @@ void Replica::handle(Request* m)
   }
   else
   {
-    if (
-      m->size() > Request::big_req_thresh && !ro &&
-      brt.add_request(m, verified))
+    if (m->size() > Request::big_req_thresh && !ro && brt.add_request(m))
     {
       return;
     }
@@ -723,7 +712,7 @@ bool Replica::in_wv(T* m)
     return true;
   }
 
-  if ((m->view() > view() || offset > max_out) && m->verify())
+  if (m->view() > view() || offset > max_out)
   {
     // Send status message to obtain missing messages. This works as a
     // negative ack.
@@ -846,6 +835,12 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
     LOG_DEBUG << "calling execute committed from send_commit seqno: " << s
               << std::endl;
     execute_committed(before_f == 0);
+
+    if (before_f == 0 && f() != 0)
+    {
+      Network_open no(Node::id());
+      send(&no, primary());
+    }
   }
 }
 
@@ -957,33 +952,30 @@ void Replica::handle(Checkpoint* m)
     return;
   }
 
-  if (m->verify())
+  // Checkpoint message above my window.
+  if (!m->stable())
   {
-    // Checkpoint message above my window.
-    if (!m->stable())
-    {
-      // Send status message to obtain missing messages. This works as a
-      // negative ack.
-      send_status();
-      delete m;
-      return;
-    }
-
-    // Stable checkpoint message above my window.
-    auto it = stable_checkpoints.find(m->id());
-    if (it == stable_checkpoints.end() || it->second->seqno() < ms)
-    {
-      stable_checkpoints.insert_or_assign(
-        m->id(), std::unique_ptr<Checkpoint>(m));
-      if (stable_checkpoints.size() > f())
-      {
-        fetch_state_outside_view_change();
-      }
-      return;
-    }
-
+    // Send status message to obtain missing messages. This works as a
+    // negative ack.
+    send_status();
     delete m;
+    return;
   }
+
+  // Stable checkpoint message above my window.
+  auto it = stable_checkpoints.find(m->id());
+  if (it == stable_checkpoints.end() || it->second->seqno() < ms)
+  {
+    stable_checkpoints.insert_or_assign(
+      m->id(), std::unique_ptr<Checkpoint>(m));
+    if (stable_checkpoints.size() > f())
+    {
+      fetch_state_outside_view_change();
+    }
+    return;
+  }
+
+  delete m;
 }
 
 void Replica::fetch_state_outside_view_change()
@@ -1045,6 +1037,12 @@ void Replica::set_f(ccf::NodeId f)
 {
   if (max_faulty == 0 && f > 0)
   {
+    if (Node::id() == primary())
+    {
+      LOG_INFO << "Waiting for network to open" << std::endl;
+      wait_for_network_to_open = true;
+    }
+
     rqueue.clear();
   }
 
@@ -1086,20 +1084,11 @@ int Replica::my_id() const
   return Node::id();
 }
 
-void Replica::handle(New_key* m)
-{
-  if (!m->verify())
-  {
-    LOG_INFO << "BAD NKEY from " << m->id() << std::endl;
-  }
-  delete m;
-}
-
 void Replica::handle(Status* m)
 {
   static const int max_ret_bytes = 65536;
 
-  if (m->verify() && qs == 0)
+  if (qs == 0)
   {
     Time current;
     Time t_sent = 0;
@@ -1343,18 +1332,7 @@ void Replica::handle(Status* m)
     }
   }
   else
-  {
-    // It is possible that we could not verify message because the
-    // sender did not receive my last new_key message. It is also
-    // possible message is bogus. We choose to retransmit last new_key
-    // message.  TODO: should impose a limit on the frequency at which
-    // we are willing to do it to prevent a denial of service attack.
-    // This is not being done right now.
-    if (last_new_key != 0 && (qs == 0 || !m->verify()))
-    {
-      send(last_new_key, m->id());
-    }
-  }
+  {}
 
   delete m;
 }
@@ -1366,12 +1344,9 @@ void Replica::handle(View_change* m)
 
   if (m->id() == primary() && m->view() > v)
   {
-    if (m->verify())
-    {
-      // "m" was sent by the primary for v and has a view number
-      // higher than v: move to the next view.
-      send_view_change();
-    }
+    // "m" was sent by the primary for v and has a view number
+    // higher than v: move to the next view.
+    send_view_change();
   }
   vi.add(std::unique_ptr<View_change>(m));
 
@@ -1546,6 +1521,46 @@ void Replica::handle(New_principal* m)
                      m->is_replica()};
 
   node->add_principal(info);
+}
+
+void Replica::handle(Network_open* m)
+{
+  std::shared_ptr<Principal> p = get_principal(m->id());
+  if (p == nullptr)
+  {
+    LOG_FAIL << "Received network open from unknown principal, id:" << m->id()
+             << std::endl;
+  }
+
+  if (p->received_network_open_msg())
+  {
+    LOG_FAIL << "Received network open from, id:" << m->id() << "already"
+             << std::endl;
+  }
+
+  LOG_INFO << "Received network open from, id:" << m->id() << std::endl;
+
+  p->set_received_network_open_msg();
+
+  uint32_t num_open = 0;
+  auto principals = get_principals();
+  for (const auto& it : *principals)
+  {
+    if (it.second->received_network_open_msg())
+    {
+      ++num_open;
+    }
+  }
+
+  if (num_open == principals->size())
+  {
+    LOG_INFO << "Finished waiting for machines to network open. "
+             << "starting to process requests" << std::endl;
+    wait_for_network_to_open = false;
+    send_pre_prepare();
+  }
+
+  delete m;
 }
 
 void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
@@ -1922,12 +1937,6 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
 void Replica::create_recovery_reply(
   int client_id, int last_tentative_execute, Byz_rep& outb)
 {
-  // Change keys. TODO: could change key only for recovering replica.
-  if (client_id != node_id)
-  {
-    send_new_key();
-  }
-
   max_rec_n = last_tentative_execute;
   // Reply includes sequence number where request was executed.
   outb.size = sizeof(last_tentative_execute);
@@ -2381,41 +2390,7 @@ void Replica::handle(Meta_data_d* m)
 void Replica::handle(Fetch* m)
 {
   int mid = m->id();
-  if (!state.handle(m, last_stable) && last_new_key != 0)
-  {
-    send(last_new_key, mid);
-  }
-}
-
-void Replica::send_new_key()
-{
-  Node::send_new_key();
-
-  // Cleanup messages in incomplete certificates that are
-  // authenticated with the old keys.
-  int max = last_stable + max_out;
-  int min = last_stable + 1;
-  for (Seqno n = min; n <= max; n++)
-  {
-    if (n % checkpoint_interval == 0)
-    {
-      elog.fetch(n).mark_stale();
-    }
-  }
-
-  if (last_executed > last_stable)
-  {
-    min = last_executed + 1;
-  }
-
-  for (Seqno n = min; n <= max; n++)
-  {
-    plog.fetch(n).mark_stale();
-    clog.fetch(n).mark_stale();
-  }
-
-  vi.mark_stale();
-  state.mark_stale();
+  state.handle(m, last_stable);
 }
 
 void Replica::send_status(bool send_now)
@@ -2665,20 +2640,10 @@ void Replica::recover()
 
   // Change my incoming session keys and zero client's keys.
   START_CC(nk_time);
-  send_new_key();
 
   unsigned zk[Key_size_u];
   bzero(zk, Key_size);
 
-  auto principals = get_principals();
-  for (auto it : *principals)
-  {
-    const std::shared_ptr<Principal>& p = it.second;
-    if (p)
-    {
-      p->set_out_key(zk, p->last_tstamp() + 1);
-    }
-  }
   STOP_CC(nk_time);
 
   // Start estimation procedure.
@@ -2704,13 +2669,6 @@ void Replica::handle(Query_stable* m)
 
     // TODO: should put a bound on the rate at which I send these messages.
     send(&rs, m->id());
-  }
-  else
-  {
-    if (last_new_key != 0)
-    {
-      send(last_new_key, m->id());
-    }
   }
 
   delete m;
