@@ -91,6 +91,10 @@ public:
   // Effects: Gets and sets the last request identifier in a fetch
   // message from this principal.
 
+  bool received_network_open_msg() const;
+  void set_received_network_open_msg();
+  // Effects: Gets and sets if we have seen a network open message
+
 private:
   int id;
   Addr addr;
@@ -107,7 +111,18 @@ private:
 
   Request_id
     last_fetch; // Last request_id in a fetch message from this principal
+  bool has_received_network_open_msg;
 };
+
+inline bool Principal::received_network_open_msg() const
+{
+  return has_received_network_open_msg;
+}
+
+inline void Principal::set_received_network_open_msg()
+{
+  has_received_network_open_msg = true;
+}
 
 inline const Addr* Principal::address() const
 {

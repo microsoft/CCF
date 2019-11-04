@@ -273,6 +273,7 @@ class FramedTLSJSONRPCClient:
         version="2.0",
         format="msgpack",
         description=None,
+        prefix="users",
     ):
         self.client = FramedTLSClient(
             host, int(port), server_hostname, cert, key, cafile
@@ -282,6 +283,7 @@ class FramedTLSJSONRPCClient:
         self.name = "[{}:{}]".format(host, port)
         self.description = description
         self.rpc_loggers = (RPCLogger(),)
+        self.prefix = prefix
 
     def connect(self):
         return self.client.connect()
@@ -289,8 +291,8 @@ class FramedTLSJSONRPCClient:
     def disconnect(self):
         return self.client.disconnect()
 
-    def request(self, *args, **kwargs):
-        r = self.stream.request(*args, **kwargs)
+    def request(self, method, params, *args, **kwargs):
+        r = self.stream.request(f"{self.prefix}/{method}", params, *args, **kwargs)
         self.client.send(getattr(r, "to_{}".format(self.format))())
         description = ""
         if self.description:
@@ -350,6 +352,7 @@ class CurlClient:
         version,
         format,
         description,
+        prefix,
     ):
         self.host = host
         self.port = port
@@ -361,9 +364,10 @@ class CurlClient:
         self.format = format
         self.stream = Stream(version, format=format)
         self.pending = {}
+        self.prefix = prefix
 
-    def signed_request(self, *args, **kwargs):
-        r = self.stream.request(*args, **kwargs)
+    def signed_request(self, method, params):
+        r = self.stream.request(f"{self.prefix}/{method}", params)
         with tempfile.NamedTemporaryFile() as nf:
             msg = getattr(r, "to_{}".format(self.format))()
             LOG.debug("Going to send {}".format(msg))
@@ -403,8 +407,8 @@ class CurlClient:
             self.stream.update(rc.stdout)
         return r.id
 
-    def request(self, *args, **kwargs):
-        r = self.stream.request(*args, **kwargs)
+    def request(self, method, params):
+        r = self.stream.request(f"{self.prefix}/{method}", params)
         with tempfile.NamedTemporaryFile() as nf:
             msg = getattr(r, "to_{}".format(self.format))()
             LOG.debug("Going to send {}".format(msg))
@@ -478,15 +482,34 @@ def client(
     description=None,
     log_file=None,
     connection_timeout=3,
+    prefix="users",
 ):
     if os.getenv("HTTP"):
         c = CurlClient(
-            host, port, server_hostname, cert, key, cafile, version, format, description
+            host,
+            port,
+            server_hostname,
+            cert,
+            key,
+            cafile,
+            version,
+            format,
+            description,
+            prefix,
         )
         yield c
     else:
         c = FramedTLSJSONRPCClient(
-            host, port, server_hostname, cert, key, cafile, version, format, description
+            host,
+            port,
+            server_hostname,
+            cert,
+            key,
+            cafile,
+            version,
+            format,
+            description,
+            prefix,
         )
 
         if log_file is not None:
