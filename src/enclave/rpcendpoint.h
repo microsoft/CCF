@@ -49,7 +49,7 @@ namespace enclave
 
     bool handle_data(const std::vector<uint8_t>& data)
     {
-      LOG_TRACE_FMT(
+      LOG_DEBUG_FMT(
         "Entered handle_data, session {} with {} bytes",
         session_id,
         data.size());
