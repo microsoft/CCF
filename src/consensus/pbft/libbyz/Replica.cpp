@@ -541,8 +541,7 @@ void Replica::handle(Request* m)
     {
       if (id() == primary())
       {
-        bool result = rqueue.append(m);
-        assert(result);
+        rqueue.append(m);
         if (!wait_for_network_to_open)
         {
           send_pre_prepare();
