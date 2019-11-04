@@ -27,7 +27,7 @@ def build_lib_path(lib_name, enclave_type="debug"):
             raise ValueError(f"Virtual mode requires {VIRTUAL_EXT} enclave image")
         elif enclave_type == "debug" and SIGNED_EXT not in lib_name:
             raise ValueError(f"Real enclave requires {SIGNED_EXT} enclave image")
-        return f"./{lib_name}"
+        return lib_name
     else:
         if enclave_type == "virtual":
             return f"./{lib_name}{VIRTUAL_EXT}"
