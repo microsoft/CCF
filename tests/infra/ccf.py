@@ -322,7 +322,6 @@ class Network:
 
         return new_node
 
-    # TODO: should_wait should disappear once nodes can join a network and catch up in PBFT
     def create_and_trust_node(
         self, lib_name, host, args, target_node=None, should_wait=True
     ):

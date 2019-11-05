@@ -88,7 +88,7 @@ private:
     RequestContext* prev;
   };
   std::unordered_map<Request_id, std::unique_ptr<RequestContext>> out_reqs;
-  static const int Max_outstanding = 1024;
+  static const int Max_outstanding = 1000 * 100;
 
   // list of outstanding requests used for retransmissions
   // (we only retransmit the request at the head of the queue)
@@ -145,6 +145,11 @@ bool ClientProxy<T, C>::send_request(
   C* owner,
   bool is_read_only)
 {
+  if (out_reqs.size() >= Max_outstanding)
+  {	
+    LOG_FAIL << "Too many outstanding requests, rejecting!" << std::endl;
+    return false;	
+  }
 
   Request_id rid = request_id_generator.next_rid();
   auto req = std::make_unique<Request>(rid);
