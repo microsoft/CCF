@@ -38,94 +38,82 @@ def timeout(node, suspend, election_timeout):
 def run(args):
     hosts = ["localhost", "localhost", "localhost"]
 
-    with infra.notification.notification_server(args.notify_server) as notifications:
-        # Lua apps do not support notifications
-        # https://github.com/microsoft/CCF/issues/415
-        notifications_queue = (
-            notifications.get_queue() if args.package == "libloggingenc" else None
-        )
+    with infra.ccf.network(
+        hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        first_node, (backups) = network.start_and_join(args)
 
-        with infra.ccf.network(
-            hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
-        ) as network:
-            first_node, (backups) = network.start_and_join(args)
+        term_info = {}
+        long_msg = "X" * (2 ** 14)
 
-            term_info = {}
-            long_msg = "X" * (2 ** 14)
-
-            # first timer determines after how many seconds each node will be suspended
-            timeouts = []
+        # first timer determines after how many seconds each node will be suspended
+        timeouts = []
+        t = random.uniform(1, 10)
+        LOG.info(f"Initial timer for node {first_node.node_id} is {t} seconds...")
+        timeouts.append((t, first_node))
+        for backup in backups:
             t = random.uniform(1, 10)
-            LOG.info(f"Initial timer for node {first_node.node_id} is {t} seconds...")
-            timeouts.append((t, first_node))
-            for backup in backups:
-                t = random.uniform(1, 10)
-                LOG.info(f"Initial timer for node {backup.node_id} is {t} seconds...")
-                timeouts.append((t, backup))
+            LOG.info(f"Initial timer for node {backup.node_id} is {t} seconds...")
+            timeouts.append((t, backup))
 
-            for t, node in timeouts:
-                tm = Timer(t, timeout, args=[node, True, args.election_timeout / 1000],)
-                tm.start()
+        for t, node in timeouts:
+            tm = Timer(t, timeout, args=[node, True, args.election_timeout / 1000],)
+            tm.start()
 
-            with first_node.node_client() as mc:
-                check_commit = infra.ccf.Checker(mc, notifications_queue)
-                check = infra.ccf.Checker()
+        with first_node.node_client() as mc:
+            check_commit = infra.ccf.Checker(mc)
+            check = infra.ccf.Checker()
 
-                clients = []
-                with contextlib.ExitStack() as es:
-                    LOG.info("Write messages to nodes using round robin")
-                    clients.append(
-                        es.enter_context(first_node.user_client(format="json"))
-                    )
-                    for backup in backups:
-                        clients.append(
-                            es.enter_context(backup.user_client(format="json"))
-                        )
-                    node_id = 0
-                    for id in range(1, TOTAL_REQUESTS):
-                        node_id += 1
-                        c = clients[node_id % len(clients)]
-                        try:
-                            resp = c.rpc("LOG_record", {"id": id, "msg": long_msg})
-                        except Exception:
-                            LOG.info("Trying to access a suspended node")
-                        try:
-                            cur_primary, cur_term = network.find_primary()
-                            term_info[cur_term] = cur_primary.node_id
-                        except Exception:
-                            LOG.info("Trying to access a suspended node")
-                        id += 1
+            clients = []
+            with contextlib.ExitStack() as es:
+                LOG.info("Write messages to nodes using round robin")
+                clients.append(es.enter_context(first_node.user_client(format="json")))
+                for backup in backups:
+                    clients.append(es.enter_context(backup.user_client(format="json")))
+                node_id = 0
+                for id in range(1, TOTAL_REQUESTS):
+                    node_id += 1
+                    c = clients[node_id % len(clients)]
+                    try:
+                        resp = c.rpc("LOG_record", {"id": id, "msg": long_msg})
+                    except Exception:
+                        LOG.info("Trying to access a suspended node")
+                    try:
+                        cur_primary, cur_term = network.find_primary()
+                        term_info[cur_term] = cur_primary.node_id
+                    except Exception:
+                        LOG.info("Trying to access a suspended node")
+                    id += 1
 
-                    # wait for the last request to commit
-                    final_msg = "Hello world!"
-                    check_commit(
-                        c.rpc("LOG_record", {"id": 1000, "msg": final_msg}),
-                        result=True,
-                    )
+                # wait for the last request to commit
+                final_msg = "Hello world!"
+                check_commit(
+                    c.rpc("LOG_record", {"id": 1000, "msg": final_msg}), result=True,
+                )
+                check(
+                    c.rpc("LOG_get", {"id": 1000}), result={"msg": final_msg},
+                )
+
+                # check that a new node can catch up after all the requests
+                new_node = network.create_and_trust_node(
+                    lib_name=args.package, host="localhost", args=args,
+                )
+                assert new_node
+
+                # give new_node a second to catch up
+                time.sleep(1)
+
+                with new_node.user_client(format="json") as c:
                     check(
                         c.rpc("LOG_get", {"id": 1000}), result={"msg": final_msg},
                     )
 
-                    # check that a new node can catch up after all the requests
-                    new_node = network.create_and_trust_node(
-                        lib_name=args.package, host="localhost", args=args,
-                    )
-                    assert new_node
+                # assert that view changes actually did occur
+                assert len(term_info) > 1
 
-                    # give new_node a second to catch up
-                    time.sleep(1)
-
-                    with new_node.user_client(format="json") as c:
-                        check(
-                            c.rpc("LOG_get", {"id": 1000}), result={"msg": final_msg},
-                        )
-
-                    # assert that view changes actually did occur
-                    assert len(term_info) > 1
-
-                    LOG.success("----------- terms and primaries recorded -----------")
-                    for term, primary in term_info.items():
-                        LOG.success(f"term {term} - primary {primary}")
+                LOG.success("----------- terms and primaries recorded -----------")
+                for term, primary in term_info.items():
+                    LOG.success(f"term {term} - primary {primary}")
 
 
 if __name__ == "__main__":

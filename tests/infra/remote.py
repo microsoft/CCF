@@ -135,7 +135,7 @@ class SSHRemote(CmdMixin):
         self.files += data_files
         self.cmd = cmd
         self.client = paramiko.SSHClient()
-        # this client is used to execute commands on the remote host since the main client uses pty
+        # this client (proc_client) is used to execute commands on the remote host since the main client uses pty
         self.proc_client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.proc_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
