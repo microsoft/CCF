@@ -826,10 +826,11 @@ namespace raft
       }
 
       // If the candidate's log is at least as up-to-date as ours, vote yes
-      auto last_term = get_term_internal(last_idx);
+      auto last_commit_term = get_term_internal(commit_idx);
 
-      auto answer = (r.last_log_term > last_term) ||
-        ((r.last_log_term == last_term) && (r.last_log_idx >= last_idx));
+      auto answer = (r.last_commit_term > last_commit_term) ||
+        ((r.last_commit_term == last_commit_term) &&
+         (r.commit_idx >= commit_idx));
 
       if (answer)
       {

@@ -109,8 +109,8 @@ namespace raft
   struct RequestVote : RaftHeader
   {
     Term term;
-    Index last_log_idx;
-    Term last_log_term;
+    Index commit_idx;
+    Term last_commit_term;
   };
 
   struct RequestVoteResponse : RaftHeader

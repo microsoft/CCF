@@ -6,7 +6,6 @@ from enum import Enum
 import paramiko
 import logging
 import subprocess
-import psutil
 import getpass
 from contextlib import contextmanager
 import infra.path
@@ -244,9 +243,8 @@ class SSHRemote(CmdMixin):
         _, stdout, _ = self.proc_client.exec_command(f"kill -STOP {self.pid}")
         if stdout.channel.recv_exit_status() == 0:
             LOG.info(f"Node {self.name} suspended...")
-            return True
-        LOG.info(f"Node {self.name} can not be suspended...")
-        return False
+        else:
+            raise RuntimeError(f"Node {self.name} could not be suspended")
 
     def resume(self):
         _, stdout, _ = self.proc_client.exec_command(f"kill -CONT {self.pid}")
@@ -359,7 +357,6 @@ class LocalRemote(CmdMixin):
         self.cmd = cmd
         self.root = os.path.join(workspace, label + "_" + name)
         self.proc = None
-        self.suspension_proc = None
         self.stdout = None
         self.stderr = None
         self.env = env
@@ -415,19 +412,13 @@ class LocalRemote(CmdMixin):
             stderr=self.stderr,
             env=self.env,
         )
-        self.suspension_proc = psutil.Process(pid=self.proc.pid)
 
     def suspend(self):
-        try:
-            self.suspension_proc.suspend()
-            LOG.info(f"Node {self.name} suspended...")
-            return True
-        except psutil.NoSuchProcess:
-            LOG.info(f"Node {self.name} can not be suspended...")
-            return False
+        self.proc.send_signal(signal.SIGSTOP)
+        LOG.info(f"Node {self.name} suspended...")
 
     def resume(self):
-        self.suspension_proc.resume()
+        self.proc.send_signal(signal.SIGCONT)
         LOG.info(f"Node {self.name} resuming from suspension...")
 
     def stop(self):

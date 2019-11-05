@@ -278,14 +278,14 @@ class Network:
             node.network_state = NodeNetworkState.joined
 
     def _wait_for_node_to_exist_in_store(
-        self, remote_node, node_id, node_status=None, timeout=3
+        self, remote_node, node_id, node_status=None, timeout=5
     ):
         exists = False
         for _ in range(timeout):
             if self._check_node_exists(remote_node, node_id, node_status):
                 exists = True
                 break
-            time.sleep(2)
+            time.sleep(1)
         if not exists:
             raise TimeoutError(
                 f"Node {node_id} has not yet been recorded in the store"
@@ -827,7 +827,7 @@ class Node:
         self.network_state = NodeNetworkState.joined
 
     def suspend(self):
-        return self.remote.suspend()
+        self.remote.suspend()
 
     def resume(self):
         self.remote.resume()
