@@ -21,7 +21,7 @@ The Logging application implements a trivial protocol, made up of four transacti
         {
             "jsonrpc": "2.0",
             "id": 0,
-            "method": "LOG_record",
+            "method": "users/LOG_record",
             "params": {
                 "id": 42,
                 "msg": "A sample private log message"
@@ -37,7 +37,7 @@ The Logging application implements a trivial protocol, made up of four transacti
         {
             "jsonrpc": "2.0",
             "id": 1,
-            "method": "LOG_get",
+            "method": "users/LOG_get",
             "params": {
                 "id": 42
             }
@@ -52,7 +52,7 @@ The Logging application implements a trivial protocol, made up of four transacti
         {
             "jsonrpc": "2.0",
             "id": 2,
-            "method": "LOG_record_pub",
+            "method": "users/LOG_record_pub",
             "params": {
                 "id": 100,
                 "msg": "A sample public log message"
@@ -68,7 +68,7 @@ The Logging application implements a trivial protocol, made up of four transacti
         {
             "jsonrpc": "2.0",
             "id": 3,
-            "method": "LOG_get_pub",
+            "method": "users/LOG_get_pub",
             "params": {
                 "id": 100
             }

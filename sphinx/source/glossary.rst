@@ -24,14 +24,14 @@ Glossary
   Microsoft Azure
     `Microsoft Azure <https://azure.microsoft.com>`_ is a cloud computing service created by Microsoft for building, testing, deploying, and managing applications and services through Microsoft-managed data centers.
 
-  OpenEnclave
-    `OpenEnclave SDK <https://openenclave.io/sdk>`_ is an SDK for building enclave applications in C and C++.
+  Open Enclave
+    `Open Enclave SDK <https://openenclave.io/sdk>`_ is an SDK for building enclave applications in C and C++.
 
   Operators
     Are in charge of operating a CCF network (e.g. adding or removing nodes). Their identities are not registered in CCF.
 
-  OpenEnclave Engine
-    `OpenEnclave Engine <https://github.com/Microsoft/oe-engine>`_ is a template generation tool for :term:`Azure Confidential Compute`.
+  Open Enclave Engine
+    `Open Enclave Engine <https://github.com/Microsoft/oe-engine>`_ is a template generation tool for :term:`Azure Confidential Compute`.
 
   Quorum
     A quorum of members is defined as the minimum number of members required to accept governance proposals. It is defined by the governance as a Lua script set when a CCF network is created.

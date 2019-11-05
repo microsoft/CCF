@@ -3,6 +3,7 @@
 #pragma once
 
 #include "http.h"
+#include "node/rpc/jsonrpc.h"
 #include "rpcmap.h"
 #include "tlsframedendpoint.h"
 
@@ -34,39 +35,96 @@ namespace enclave
       session_id(session_id)
     {}
 
+    auto split_actor_and_method(const std::string& actor_method)
+    {
+      const auto split_point = actor_method.find_last_of('/');
+      const auto actor = actor_method.substr(0, split_point);
+      const auto method =
+        actor_method.substr(split_point + 1, actor_method.size());
+
+      // NB: If the string does not contain '/', then both actor and method will
+      // contain the entire string
+      return std::make_pair(actor, method);
+    }
+
     bool handle_data(const std::vector<uint8_t>& data)
     {
-      if (!handler)
+      LOG_DEBUG_FMT(
+        "Entered handle_data, session {} with {} bytes",
+        session_id,
+        data.size());
+
+      const SessionContext session(session_id, peer_cert());
+      RPCContext rpc_ctx(session);
+
+      auto [success, rpc] = jsonrpc::unpack_rpc(data, rpc_ctx.pack);
+      if (!success)
       {
-        // The hostname indicates the rpc class.
-        auto host = hostname();
+        send(jsonrpc::pack(rpc, rpc_ctx.pack.value()));
+        return true;
+      }
+      LOG_TRACE_FMT("Deserialised");
 
-        actor = rpc_map->resolve(host);
-        if (actor == ccf::ActorsType::unknown)
-          return false;
+      parse_rpc_context(rpc_ctx, rpc);
+      rpc_ctx.raw = data;
 
-        auto search = rpc_map->find(actor);
-        if (!search.has_value())
-          return false;
-
-        // If there is a client cert, pass it to the rpc handler.
-        LOG_DEBUG_FMT("RPC endpoint {}: {}", session_id, host);
-        handler = search.value();
-        caller = peer_cert();
+      auto prefixed_method = rpc_ctx.method;
+      if (prefixed_method.empty())
+      {
+        send(jsonrpc::pack(
+          jsonrpc::error_response(
+            rpc_ctx.seq_no,
+            jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
+            "No method specified"),
+          rpc_ctx.pack.value()));
+        return true;
       }
 
-      RPCContext rpc_ctx(session_id, std::vector<uint8_t>(caller), actor);
-      auto rep = handler->process(rpc_ctx, data);
+      // Separate JSON-RPC method into actor and true method
+      auto [actor_s, method] = split_actor_and_method(prefixed_method);
+      rpc_ctx.method = method;
 
-      if (rpc_ctx.is_pending)
+      LOG_TRACE_FMT(
+        "Parsed actor {}, method {} (from {})",
+        actor_s,
+        method,
+        prefixed_method);
+
+      auto actor = rpc_map->resolve(actor_s);
+      if (actor == ccf::ActorsType::unknown)
       {
-        // If the RPC has been forwarded, hold the connection.
+        send(jsonrpc::pack(
+          jsonrpc::error_response(
+            rpc_ctx.seq_no,
+            jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
+            fmt::format("No such prefix: {}", actor_s)),
+          rpc_ctx.pack.value()));
+        return true;
+      }
+      rpc_ctx.actor = actor;
+
+      auto search = rpc_map->find(actor);
+      if (!search.has_value())
+      {
+        LOG_TRACE_FMT("No frontend found for actor {}", actor);
+        return false;
+      }
+
+      // Hand off parsed context to be processed by frontend
+      LOG_TRACE_FMT("Processing");
+      auto response = search.value()->process(rpc_ctx);
+
+      if (!response.has_value())
+      {
+        // If the RPC is pending, hold the connection.
+        LOG_TRACE_FMT("Pending");
         return true;
       }
       else
       {
         // Otherwise, reply to the client synchronously.
-        send(rep);
+        LOG_TRACE_FMT("Responding");
+        send(response.value());
       }
 
       return true;

@@ -952,6 +952,7 @@ class Node:
             cafile="networkcert.pem",
             description="node {} (user)".format(self.node_id),
             format=format,
+            prefix="users",
             **kwargs,
         )
 
@@ -964,6 +965,7 @@ class Node:
             key=None,
             cafile="networkcert.pem",
             description="node {} (node)".format(self.node_id),
+            prefix="nodes",
             **kwargs,
         )
 
@@ -976,5 +978,6 @@ class Node:
             key="member{}_privk.pem".format(member_id),
             cafile="networkcert.pem",
             description="node {} (member)".format(self.node_id),
+            prefix="members",
             **kwargs,
         )
