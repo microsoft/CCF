@@ -41,13 +41,7 @@ class ServiceStatus(Enum):
 
 @contextmanager
 def network(
-    hosts,
-    build_directory,
-    dbg_nodes=[],
-    perf_nodes=[],
-    create_nodes=True,
-    node_offset=0,
-    pdb=False,
+    hosts, build_directory, dbg_nodes=[], perf_nodes=[], pdb=False,
 ):
     """
     Context manager for Network class.
@@ -55,18 +49,11 @@ def network(
     :param build_directory: the build directory
     :param dbg_nodes: default: []. List of node id's that will not start (user is prompted to start them manually)
     :param perf_nodes: default: []. List of node ids that will run under perf record
-    :param create_nodes: default: True. If set to false it turns off the automatic node creation
     :return: a Network instance that can be used to create/access nodes, handle the genesis state (add members, create
     node.json), and stop all the nodes that belong to the network
     """
     with infra.path.working_dir(build_directory):
-        net = Network(
-            hosts=hosts,
-            dbg_nodes=dbg_nodes,
-            perf_nodes=perf_nodes,
-            create_nodes=create_nodes,
-            node_offset=node_offset,
-        )
+        net = Network(hosts=hosts, dbg_nodes=dbg_nodes, perf_nodes=perf_nodes)
         try:
             yield net
         except Exception:
@@ -122,30 +109,28 @@ class Network:
     # Maximum delay (seconds) for updates to propagate from the primary to backups
     replication_delay = 30
 
-    def __init__(
-        self, hosts, dbg_nodes=None, perf_nodes=None, create_nodes=True, node_offset=0
-    ):
+    def __init__(self, hosts, dbg_nodes=None, perf_nodes=None, existing_network=None):
+        if existing_network is None:
+            self.members = []
+            self.node_offset = 0
+        else:
+            self.members = list(existing_network.members)
+            self.node_offset = len(existing_network.nodes)
+
         self.nodes = []
-        self.members = []
         self.hosts = hosts
-        self.net_cert = []
-        self.status = ServiceStatus.OPENING
-        self.dbg_nodes = dbg_nodes or []
-        if create_nodes:
-            for node_id, host in enumerate(hosts):
-                node_id_ = node_id + node_offset
-                self.create_node(
-                    host,
-                    node_id_,
-                    debug=str(node_id_) in self.dbg_nodes,
-                    perf=str(node_id_) in (perf_nodes or []),
-                )
+        self.status = ServiceStatus.CLOSED
+        self.dbg_nodes = dbg_nodes
+        self.perf_nodes = perf_nodes
+
+        for host in hosts:
+            self.create_node(host)
 
     def _start_all_nodes(
         self, args, recovery=False, ledger_file=None, sealed_secrets=None
     ):
 
-        hosts = self.hosts or ["localhost"] * number_of_local_nodes()
+        hosts = self.hosts or ["localhost"] * number_of_local.nodes()
 
         if not args.package:
             raise ValueError("A package name must be specified.")
@@ -236,19 +221,17 @@ class Network:
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined recovered public network")
 
-        return primary, self.nodes[1:]
-
-    def create_node(self, host, node_id=None, debug=False, perf=False):
-        if node_id is None:
-            node_id = self.get_next_local_node_id()
-        if not debug:
-            debug = str(node_id) in self.dbg_nodes
+    def create_node(self, host):
+        node_id = self.get_next_local_node_id()
+        debug = (
+            (str(node_id) in self.dbg_nodes) if self.dbg_nodes is not None else False
+        )
+        perf = (
+            (str(node_id) in self.perf_nodes) if self.perf_nodes is not None else False
+        )
         node = Node(node_id, host, debug, perf)
         self.nodes.append(node)
         return node
-
-    def remove_last_node(self):
-        last_node = self.nodes.pop()
 
     def _add_node(self, node, lib_name, args, target_node=None, should_wait=True):
         forwarded_args = {
@@ -434,7 +417,6 @@ class Network:
             j_result = self.member_client_rpc_as_json(member_id, remote_node, *args)
 
             if j_result.get("error") is not None:
-                self.remove_last_node()
                 return (False, j_result["error"])
 
             return (True, j_result["result"])
@@ -612,6 +594,34 @@ class Network:
         )
         self.vote_using_majority(node, result[1]["id"])
 
+    def accept_recovery(self, node, sealed_secrets):
+        result = self.propose(
+            1, node, None, None, "accept_recovery", f"--sealed-secrets={sealed_secrets}"
+        )
+        self.vote_using_majority(node, result[1]["id"])
+
+    def wait_for_all_nodes_to_be_trusted(self, timeout=3):
+        primary, _ = self.find_primary()
+        for n in self.nodes:
+            self._wait_for_node_to_exist_in_store(
+                primary, n.node_id, NodeStatus.TRUSTED
+            )
+
+    def _wait_for_node_to_exist_in_store(
+        self, remote_node, node_id, node_status=None, timeout=3
+    ):
+        exists = False
+        for _ in range(timeout):
+            if self._check_node_exists(remote_node, node_id, node_status):
+                exists = True
+                break
+            time.sleep(1)
+        if not exists:
+            raise TimeoutError(
+                f"Node {node_id} has not yet been recorded in the store"
+                + getattr(node_status, f" with status {node_status.name}", "")
+            )
+
     def stop_all_nodes(self):
         for node in self.nodes:
             node.stop()
@@ -655,11 +665,12 @@ class Network:
         assert primary_id is not None, "No primary found"
         return (self.get_node_by_id(primary_id), term)
 
-    def get_any_backup(self, timeout=3):
+    def get_backups(self, timeout=3):
         primary, _ = self.find_primary(timeout)
-        backup_nodes = [n for n in self.get_joined_nodes() if n != primary]
-        backup = random.choice(backup_nodes)
-        return backup
+        return [n for n in self.get_joined_nodes() if n != primary]
+
+    def get_any_backup(self, timeout=3):
+        return random.choice(self.get_backups(timeout))
 
     def wait_for_all_nodes_to_catch_up(self, primary, timeout=3):
         """
@@ -712,7 +723,7 @@ class Network:
     def get_next_local_node_id(self):
         if len(self.nodes):
             return self.nodes[-1].node_id + 1
-        return 0
+        return self.node_offset
 
 
 class Checker:

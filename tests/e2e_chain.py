@@ -1,5 +1,6 @@
 import e2e_logging
 import reconfiguration
+import recovery
 import e2e_args
 import infra.ccf
 import time
@@ -15,6 +16,7 @@ tests = [
     reconfiguration.test_add_node_untrusted_code,
     reconfiguration.test_retire_node,
     e2e_logging.test,
+    recovery.test,
 ]
 
 
