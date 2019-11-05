@@ -23,8 +23,8 @@ namespace enclave
     virtual void tick(std::chrono::milliseconds elapsed_ms_count) {}
 
     // Used by rpcendpoint to process incoming client RPCs
-    virtual std::vector<uint8_t> process(
-      RPCContext& ctx, const std::vector<uint8_t>& input) = 0;
+    virtual std::optional<std::vector<uint8_t>> process(
+      const RPCContext& ctx) = 0;
 
     // Used by PBFT to execute commands
     struct ProcessPbftResp
@@ -34,7 +34,6 @@ namespace enclave
       kv::Version version;
     };
 
-    virtual ProcessPbftResp process_pbft(
-      RPCContext& ctx, const std::vector<uint8_t>& input) = 0;
+    virtual ProcessPbftResp process_pbft(RPCContext& ctx) = 0;
   };
 }

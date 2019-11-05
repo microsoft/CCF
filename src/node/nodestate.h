@@ -275,18 +275,23 @@ namespace ccf
 
     void send_create_request(std::vector<uint8_t>& packed)
     {
-      auto handler = this->rpc_map->find(ccf::ActorsType::members);
+      constexpr auto actor = ccf::ActorsType::members;
+
+      auto handler = this->rpc_map->find(actor);
       if (!handler.has_value())
       {
         throw std::logic_error("Handler has no value");
       }
       auto frontend = handler.value();
 
-      enclave::RPCContext ctx(
-        enclave::InvalidSessionId, node_cert, ccf::ActorsType::members);
-      ctx.is_create_request = true;
+      const enclave::SessionContext node_session(
+        enclave::InvalidSessionId, node_cert);
+      auto ctx = enclave::make_rpc_context(node_session, packed);
 
-      frontend->process(ctx, packed);
+      ctx.is_create_request = true;
+      ctx.actor = actor;
+
+      frontend->process(ctx);
     }
 
     bool create_and_send_request(
@@ -483,7 +488,9 @@ namespace ccf
       // Send RPC request to remote node to join the network.
       jsonrpc::ProcedureCall<JoinNetworkNodeToNode::In> join_rpc;
       join_rpc.id = join_seq_no++;
-      join_rpc.method = ccf::NodeProcs::JOIN;
+      std::stringstream ss;
+      ss << "nodes/" << ccf::NodeProcs::JOIN;
+      join_rpc.method = ss.str();
       join_rpc.params.raw_fresh_key = raw_fresh_key;
       join_rpc.params.node_info_network = args.config.node_info_network;
 
