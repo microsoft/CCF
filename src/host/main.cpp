@@ -180,7 +180,7 @@ int main(int argc, char** argv)
     ->add_option(
       "--network-cert-file",
       network_cert_file,
-      "Destination path to freshly created network certificate",
+      "Destination path where fresh network certificate will be created",
       true)
     ->check(CLI::NonexistentPath);
 
@@ -199,8 +199,9 @@ int main(int argc, char** argv)
     ->add_option(
       "--member-cert",
       member_cert_files,
-      "Consortium member certificates",
+      "Certificate files of the initial consortium members",
       true)
+    ->check(CLI::ExistingFile)
     ->required();
 
   auto join = app.add_subcommand("join", "Join existing network");
