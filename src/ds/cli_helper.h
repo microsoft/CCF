@@ -7,8 +7,8 @@ namespace cli
 {
   struct ParsedAddress
   {
-    std::string hostname;
-    std::string port;
+    std::string hostname = {};
+    std::string port = {};
   };
 
   CLI::Option* add_address_option(
