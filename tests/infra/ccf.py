@@ -14,6 +14,7 @@ import infra.net
 import infra.proc
 import array
 import ssl
+import random
 
 from loguru import logger as LOG
 
@@ -508,13 +509,16 @@ class Network:
             member_id, remote_node, None, None, "retire_node", f"--node-id={node_id}"
         )
 
-    def retire_node(self, remote_node, node_id):
+    def retire_node(self, node_to_retire):
         member_id = 1
-        result = self.propose_retire_node(member_id, remote_node, node_id)
-        self.vote_using_majority(remote_node, result[1]["id"])
+        primary, _ = self.find_primary()
+        result = self.propose_retire_node(member_id, primary, node_to_retire.node_id)
+        self.vote_using_majority(primary, result[1]["id"])
 
-        with remote_node.member_client() as c:
-            id = c.request("read", {"table": "ccf.nodes", "key": node_id})
+        with primary.member_client() as c:
+            id = c.request(
+                "read", {"table": "ccf.nodes", "key": node_to_retire.node_id}
+            )
             assert c.response(id).result["status"].decode() == NodeStatus.RETIRED.name
 
     def propose_trust_node(self, member_id, remote_node, node_id):
@@ -651,6 +655,12 @@ class Network:
         assert primary_id is not None, "No primary found"
         return (self.get_node_by_id(primary_id), term)
 
+    def get_any_backup(self, timeout=3):
+        primary, _ = self.find_primary(timeout)
+        backup_nodes = [n for n in self.get_joined_nodes() if n != primary]
+        backup = random.choice(backup_nodes)
+        return backup
+
     def wait_for_all_nodes_to_catch_up(self, primary, timeout=3):
         """
         Wait for all nodes to have joined the network and globally replicated
@@ -663,7 +673,7 @@ class Network:
             term_leader = res.term
 
         for _ in range(timeout):
-            joined_nodes = 0
+            caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
                     id = c.request("getCommit", {})
@@ -675,13 +685,13 @@ class Network:
                         resp.global_commit >= local_commit_leader
                         and resp.result["term"] == term_leader
                     ):
-                        joined_nodes += 1
-            if joined_nodes == len(self.get_joined_nodes()):
+                        caught_up_nodes.append(node)
+            if len(caught_up_nodes) == len(self.get_joined_nodes()):
                 break
             time.sleep(1)
-        assert joined_nodes == len(
+        assert len(caught_up_nodes) == len(
             self.get_joined_nodes()
-        ), f"Only {joined_nodes} (out of {len(self.get_joined_nodes())}) nodes have joined the network"
+        ), f"Only {len(caught_up_nodes)} (out of {len(self.get_joined_nodes())}) nodes have joined the network"
 
     def wait_for_node_commit_sync(self, timeout=3):
         """
