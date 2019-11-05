@@ -76,7 +76,7 @@ public:
     raft::NodeId node_id, raft::NodeId tgt_node_id, raft::RequestVote rv)
   {
     std::ostringstream s;
-    s << "request_vote t: " << rv.term << ", lli: " << rv.commit_idx
+    s << "request_vote t: " << rv.term << ", lli: " << rv.last_commit_idx
       << ", llt: " << rv.last_commit_term;
     log(node_id, tgt_node_id, s.str());
   }

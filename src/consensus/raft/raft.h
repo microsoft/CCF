@@ -830,7 +830,7 @@ namespace raft
 
       auto answer = (r.last_commit_term > last_commit_term) ||
         ((r.last_commit_term == last_commit_term) &&
-         (r.commit_idx >= commit_idx));
+         (r.last_commit_idx >= commit_idx));
 
       if (answer)
       {
