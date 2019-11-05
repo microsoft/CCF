@@ -21,11 +21,16 @@ logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 
-def number_of_local_nodes():
+def number_of_local_nodes(args):
     """
     On 2-core VMs, we start only one node, but on 4 core, we want to start 2.
     Not 3, because the client is typically running two threads.
     """
+    if args.pbft:
+        LOG.error("foobar = true")
+        return 4
+    LOG.error("foobar = false")
+
     if multiprocessing.cpu_count() > 2:
         return 2
     else:
@@ -97,29 +102,29 @@ def run(build_directory, get_command, args):
 
     hosts = args.nodes
     if not hosts:
-        hosts = ["localhost"] * number_of_local_nodes()
+        hosts = ["localhost"] * number_of_local_nodes(args)
 
     LOG.info("Starting nodes on {}".format(hosts))
 
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, backups = network.start_and_join(args, open_network=False)
+        primary, backups = network.start_and_join(args)
 
-        for i in range(1, 4):
-            LOG.info(f"Adding node {i}")
-            assert network.create_and_trust_node(
-                args.package, "localhost", args, target_node=None, should_wait=False
-            )
+        #for i in range(1, 4):
+        #    LOG.info(f"Adding node {i}")
+        #    assert network.create_and_trust_node(
+        #        args.package, "localhost", args, target_node=None, should_wait=False
+        #    )
 
-        network.add_users(primary, network.initial_users)
-        LOG.info("Initial set of users added")
+        #network.add_users(primary, network.initial_users)
+        #LOG.info("Initial set of users added")
 
         # network.open_network(primary)
-        script = None
-        result = network.propose(1, primary, script, None, "open_network")
-        network.vote_using_majority(primary, result[1]["id"], False)
-        LOG.info("***** Network is now open *****")
+        #script = None
+        #result = network.propose(1, primary, script, None, "open_network")
+        #network.vote_using_majority(primary, result[1]["id"], False)
+        #LOG.info("***** Network is now open *****")
 
         command_args = get_command_args(args, get_command)
 

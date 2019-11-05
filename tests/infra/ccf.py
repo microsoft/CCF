@@ -209,13 +209,18 @@ class Network:
             infra.proc.ccall("cp", args.gov_script, args.build_dir).check_returncode()
         LOG.info("Lua scripts copied")
 
+        LOG.error("111111")
         primary = self._start_all_nodes(args)
+        LOG.error("222222")
 
         if not open_network:
             LOG.warning("Network still needs to be opened")
             return primary, self.nodes[1:]
 
-        self.wait_for_all_nodes_to_catch_up(primary)
+        LOG.error("AAAAAA")
+        if not args.pbft:
+            self.wait_for_all_nodes_to_catch_up(primary)
+        LOG.error("BBBBBB")
         LOG.success("All nodes joined network")
 
         if args.app_script:
@@ -225,7 +230,7 @@ class Network:
         self.add_users(primary, self.initial_users)
         LOG.info("Initial set of users added")
 
-        self.open_network(primary)
+        self.open_network(args, primary)
         LOG.success("***** Network is now open *****")
 
         return primary, self.nodes[1:]
@@ -269,7 +274,7 @@ class Network:
         )
 
         # If the network is opening, node are trusted without consortium approval
-        if self.status == ServiceStatus.OPENING and should_wait:
+        if self.status == ServiceStatus.OPENING and should_wait and not args.pbft:
             try:
                 node.wait_for_node_to_join()
             except TimeoutError:
@@ -555,7 +560,7 @@ class Network:
             f"--member-cert={new_member_cert}",
         )
 
-    def open_network(self, node):
+    def open_network(self, args, node):
         """
         Assuming a network in state OPENING, this functions creates a new
         proposal and make members vote to transition the network to state
@@ -568,8 +573,9 @@ class Network:
             return Calls:call("open_network")
             """
         result = self.propose(1, node, script, None, "open_network")
-        self.vote_using_majority(node, result[1]["id"])
-        self.check_for_service(node)
+        self.vote_using_majority(node, result[1]["id"], not args.pbft)
+        if not args.pbft:
+            self.check_for_service(node)
         self.status = ServiceStatus.OPEN
 
     def add_users(self, node, users):

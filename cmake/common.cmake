@@ -660,6 +660,12 @@ function(add_perf_test)
     unset(VERIFICATION_ARG)
   endif()
 
+  if(PBFT)
+    set(PBFT_ARG "--pbft")
+  else()
+    unset(PBFT_ARG)
+  endif()
+
   add_test(
     NAME ${PARSED_ARGS_NAME}
     COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
@@ -670,6 +676,7 @@ function(add_perf_test)
       ${PARSED_ARGS_ADDITIONAL_ARGS}
       --write-tx-times
       ${VERIFICATION_ARG}
+      ${PBFT_ARG}
   )
 
   ## Make python test client framework importable
