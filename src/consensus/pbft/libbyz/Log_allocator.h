@@ -34,7 +34,7 @@
 #  define DEBUG_ALLOC 1
 #endif
 
-//#define USE_STD_MALLOC
+#define USE_STD_MALLOC
 
 class Log_allocator
 {
