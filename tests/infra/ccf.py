@@ -191,7 +191,7 @@ class Network:
         self.check_for_service(primary, status=ServiceStatus.OPENING)
         return primary
 
-    def start_and_join(self, args, open_network=True):
+    def start_and_join(self, args):
         """
         Starts a CCF network.
         :param args: command line arguments to configure the CCF nodes.
@@ -210,10 +210,6 @@ class Network:
         LOG.info("Lua scripts copied")
 
         primary = self._start_all_nodes(args)
-
-        if not open_network:
-            LOG.warning("Network still needs to be opened")
-            return primary, self.nodes[1:]
 
         if not args.pbft:
             self.wait_for_all_nodes_to_catch_up(primary)
