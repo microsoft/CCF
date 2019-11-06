@@ -146,9 +146,9 @@ bool ClientProxy<T, C>::send_request(
   bool is_read_only)
 {
   if (out_reqs.size() >= Max_outstanding)
-  {	
+  {
     LOG_FAIL << "Too many outstanding requests, rejecting!" << std::endl;
-    return false;	
+    return false;
   }
 
   Request_id rid = request_id_generator.next_rid();

@@ -1916,10 +1916,11 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
       // Finish constructing the reply.
       LOG_DEBUG << "Executed from tentative exec: " << pp->seqno()
                 << " from client: " << client_id
-                << " rid: " << request.request_id() << " commit_id: " << info.ctx
-                << std::endl;
+                << " rid: " << request.request_id()
+                << " commit_id: " << info.ctx << std::endl;
 
-      if (info.ctx > max_local_commit_value) {
+      if (info.ctx > max_local_commit_value)
+      {
         max_local_commit_value = info.ctx;
       }
 
@@ -1932,8 +1933,8 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
 #endif
     }
     LOG_DEBUG << "Executed from tentative exec: " << pp->seqno()
-             << " rid: " << request.request_id() << " commit_id: " << info.ctx
-             << std::endl;
+              << " rid: " << request.request_id() << " commit_id: " << info.ctx
+              << std::endl;
 
     if (last_tentative_execute % checkpoint_interval == 0)
     {
