@@ -57,6 +57,7 @@ namespace raft
 
     void truncate(Index idx)
     {
+      ledger.resize(idx);
 #ifdef STUB_LOG
       std::cout << "  KV" << _id << "->>Node" << _id << ": truncate i: " << idx
                 << std::endl;
@@ -153,6 +154,39 @@ namespace raft
       Term* term = nullptr)
     {
       return kv::DeserialiseSuccess::PASS;
+    }
+  };
+
+  class LoggingStubStoreSig
+  {
+  private:
+    raft::NodeId _id;
+
+  public:
+    LoggingStubStoreSig(raft::NodeId id) : _id(id) {}
+
+    void compact(Index i)
+    {
+#ifdef STUB_LOG
+      std::cout << "  Node" << _id << "->>KV" << _id << ": compact i: " << i
+                << std::endl;
+#endif
+    }
+
+    void rollback(Index i)
+    {
+#ifdef STUB_LOG
+      std::cout << "  Node" << _id << "->>KV" << _id << ": rollback i: " << i
+                << std::endl;
+#endif
+    }
+
+    kv::DeserialiseSuccess deserialise(
+      const std::vector<uint8_t>& data,
+      bool public_only = false,
+      Term* term = nullptr)
+    {
+      return kv::DeserialiseSuccess::PASS_SIGNATURE;
     }
   };
 }
