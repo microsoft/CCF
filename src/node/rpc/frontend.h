@@ -503,7 +503,7 @@ namespace ccf
           jsonrpc::error_response(
             0,
             jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
-            "No corresponding caller entry exists."),
+            "Could not find matching user certificate."),
           ctx.pack.value());
       }
 
@@ -692,7 +692,7 @@ namespace ccf
             jsonrpc::error_response(
               0,
               jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
-              "No corresponding caller entry exists."),
+              "Could not find matching user certificate."),
             ctx.pack.value());
         }
         ctx.session.caller_cert = caller.value().cert;
