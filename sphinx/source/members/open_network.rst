@@ -12,7 +12,7 @@ Then, the certificates of trusted users should be registered in CCF via the memb
 
 .. code-block:: bash
 
-    $ memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert add_user --user_cert user_cert
+    $ memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert add_user --user-cert user_cert
     {"commit":4,"global_commit":3,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":0},"term":2}
 
 Other members are then allowed to vote for the proposal, using the proposal id returned to the proposer member (here ``0``, as per ``"result":{"completed":false,"id":0}``).

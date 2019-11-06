@@ -143,6 +143,9 @@ inline bool Prepared_cert::add(Prepare* m)
 #ifdef SIGN_BATCH
   int id = m->id();
   std::array<uint8_t, signature_size>& digest_sig = m->digest_sig();
+  PrePrepareProof proof;
+  std::copy(
+    std::begin(digest_sig), std::end(digest_sig), std::begin(proof.signature));
 #endif
 
   bool result = prepare_cert.add(m);
@@ -152,15 +155,9 @@ inline bool Prepared_cert::add(Prepare* m)
   {
     const std::array<uint8_t, Asym_key_size>& pub_sig =
       node->get_principal(id)->get_pub_key_enc();
-    PrePrepareProof proof;
 
     std::copy(
       std::begin(pub_sig), std::end(pub_sig), std::begin(proof.public_key));
-
-    std::copy(
-      std::begin(digest_sig),
-      std::end(digest_sig),
-      std::begin(proof.signature));
 
     pre_prepare_proof.insert({id, proof});
   }

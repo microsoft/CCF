@@ -862,6 +862,12 @@ class Node:
         )
         self.network_state = NodeNetworkState.joined
 
+    def suspend(self):
+        self.remote.suspend()
+
+    def resume(self):
+        self.remote.resume()
+
     def join(
         self, lib_name, enclave_type, workspace, label, target_rpc_address, **kwargs
     ):
@@ -982,6 +988,7 @@ class Node:
             cafile="networkcert.pem",
             description="node {} (user)".format(self.node_id),
             format=format,
+            prefix="users",
             **kwargs,
         )
 
@@ -994,6 +1001,7 @@ class Node:
             key=None,
             cafile="networkcert.pem",
             description="node {} (node)".format(self.node_id),
+            prefix="nodes",
             **kwargs,
         )
 
@@ -1006,5 +1014,6 @@ class Node:
             key="member{}_privk.pem".format(member_id),
             cafile="networkcert.pem",
             description="node {} (member)".format(self.node_id),
+            prefix="members",
             **kwargs,
         )

@@ -51,21 +51,27 @@ int main(int argc, char** argv)
 
   cli::ParsedAddress node_address;
   cli::add_address_option(
-    app, node_address, "--node-address", "Node-to-node listening address")
+    app,
+    node_address,
+    "--node-address",
+    "Address on which to listen for TLS commands coming from other nodes")
     ->required();
 
   cli::ParsedAddress rpc_address;
   cli::add_address_option(
-    app, rpc_address, "--rpc-address", "RPC over TLS listening address")
+    app,
+    rpc_address,
+    "--rpc-address",
+    "Address on which to listen for TLS commands coming from clients")
     ->required();
 
   cli::ParsedAddress public_rpc_address;
-  cli::add_address_option(
+  auto public_rpc_address_option = cli::add_address_option(
     app,
     public_rpc_address,
     "--public-rpc-address",
-    "Public RPC over TLS listening address")
-    ->required();
+    "Address to advertise publicly to clients (defaults to same as "
+    "--rpc-address)");
 
   std::string ledger_file("ccf.ledger");
   app.add_option("--ledger-file", ledger_file, "Ledger file", true);
@@ -180,7 +186,7 @@ int main(int argc, char** argv)
     ->add_option(
       "--network-cert-file",
       network_cert_file,
-      "Destination path to freshly created network certificate",
+      "Destination path where fresh network certificate will be created",
       true)
     ->check(CLI::NonexistentPath);
 
@@ -199,8 +205,9 @@ int main(int argc, char** argv)
     ->add_option(
       "--member-cert",
       member_cert_files,
-      "Consortium member certificates",
+      "Certificate files of the initial consortium members",
       true)
+    ->check(CLI::ExistingFile)
     ->required();
 
   auto join = app.add_subcommand("join", "Join existing network");
@@ -230,6 +237,11 @@ int main(int argc, char** argv)
     ->check(CLI::NonexistentPath);
 
   CLI11_PARSE(app, argc, argv);
+
+  if (!(*public_rpc_address_option))
+  {
+    public_rpc_address = rpc_address;
+  }
 
   uint32_t oe_flags = 0;
   if (enclave_type == "debug")

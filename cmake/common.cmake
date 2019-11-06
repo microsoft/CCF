@@ -106,7 +106,7 @@ include_directories(
   ${MSGPACK_INCLUDE_DIR}
 )
 
-set(TARGET "all" CACHE STRING "One of sgx, virtual, all")
+set(TARGET "sgx" CACHE STRING "One of sgx, virtual, or 'sgx;virtual'")
 
 set(OE_PREFIX "/opt/openenclave" CACHE PATH "Path to Open Enclave install")
 message(STATUS "Open Enclave prefix set to ${OE_PREFIX}")
@@ -142,7 +142,7 @@ configure_file(${CCF_DIR}/tests/tests.sh ${CMAKE_CURRENT_BINARY_DIR}/tests.sh CO
 configure_file(${CCF_DIR}/tests/cimetrics_env.sh ${CMAKE_CURRENT_BINARY_DIR}/cimetrics_env.sh COPYONLY)
 configure_file(${CCF_DIR}/tests/upload_pico_metrics.py ${CMAKE_CURRENT_BINARY_DIR}/upload_pico_metrics.py COPYONLY)
 
-if(NOT ${TARGET} STREQUAL "virtual")
+if("sgx" IN_LIST TARGET)
   # If OE was built with LINK_SGX=1, then we also need to link SGX
   execute_process(COMMAND "ldd" ${OESIGN}
                   COMMAND "grep" "-c" "sgx"
@@ -349,7 +349,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
     "SRCS;INCLUDE_DIRS;LINK_LIBS"
   )
 
-  if(NOT ${TARGET} STREQUAL "virtual")
+  if("sgx" IN_LIST TARGET)
     add_library(${name} SHARED
       ${ENCLAVE_FILES}
       ${PARSED_ARGS_SRCS}
@@ -396,7 +396,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
     endif()
   endif()
 
-  if(${TARGET} STREQUAL "virtual" OR ${TARGET} STREQUAL "all")
+  if("virtual" IN_LIST TARGET)
     ## Build a virtual enclave, loaded as a shared library without OE
     set(virt_name ${name}.virtual)
     add_library(${virt_name} SHARED
@@ -480,7 +480,7 @@ target_link_libraries(keygenerator PRIVATE
   secp256k1.host
 )
 
-if(NOT ${TARGET} STREQUAL "virtual")
+if("sgx" IN_LIST TARGET)
   # Host Executable
   add_executable(cchost
     ${CCF_DIR}/src/host/main.cpp
@@ -507,7 +507,7 @@ if(NOT ${TARGET} STREQUAL "virtual")
   enable_quote_code(cchost)
 endif()
 
-if(${TARGET} STREQUAL "virtual" OR ${TARGET} STREQUAL "all")
+if("virtual" IN_LIST TARGET)
   # Virtual Host Executable
   add_executable(cchost.virtual
     ${CCF_DIR}/src/host/main.cpp)

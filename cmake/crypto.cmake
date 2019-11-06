@@ -14,7 +14,7 @@ file(GLOB_RECURSE EVERCRYPT_SRC "${EVERCRYPT_PREFIX}/*.[cS]")
 
 # We need two versions of EverCrypt, because it depends on libc
 
-if(NOT ${TARGET} STREQUAL "virtual")
+if("sgx" IN_LIST TARGET)
   add_library(evercrypt.enclave STATIC ${EVERCRYPT_SRC})
   target_compile_options(evercrypt.enclave PRIVATE -nostdinc -U__linux__ -Wno-everything)
   target_compile_definitions(evercrypt.enclave PRIVATE INSIDE_ENCLAVE KRML_HOST_PRINTF=oe_printf KRML_HOST_EXIT=oe_abort)
@@ -37,7 +37,7 @@ set(CCFCRYPTO_SRC
 
 set(CCFCRYPTO_INC ${CCF_DIR}/src/crypto/ ${EVERCRYPT_INC})
 
-if(NOT ${TARGET} STREQUAL "virtual")
+if("sgx" IN_LIST TARGET)
   add_library(ccfcrypto.enclave STATIC ${CCFCRYPTO_SRC})
   target_compile_definitions(ccfcrypto.enclave PRIVATE
     INSIDE_ENCLAVE

@@ -50,13 +50,14 @@ const json frontend_process(
   const std::string& method,
   const Cert& caller)
 {
-  auto serialise_request =
-    pack(create_json_req(json_params, NodeProcs::JOIN), Pack::MsgPack);
+  auto req = create_json_req(json_params, method);
+  auto serialise_request = pack(req, Pack::MsgPack);
 
-  enclave::RPCContext rpc_ctx(0, caller);
-  auto serialised_response = frontend.process(rpc_ctx, serialise_request);
+  const enclave::SessionContext session(0, caller);
+  const auto rpc_ctx = enclave::make_rpc_context(session, serialise_request);
+  auto serialised_response = frontend.process(rpc_ctx);
 
-  return unpack(serialised_response, Pack::MsgPack);
+  return unpack(serialised_response.value(), Pack::MsgPack);
 }
 
 TEST_CASE("Add a node to an opening service")
