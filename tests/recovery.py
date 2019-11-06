@@ -19,11 +19,15 @@ from loguru import logger as LOG
 
 
 class Txs:
-    def __init__(self, nb_msgs, offset=0):
+    def __init__(self, nb_msgs, offset=0, since_beginning=False):
         self.pub = {}
         self.priv = {}
 
-        for i in range(offset * nb_msgs, nb_msgs + offset * nb_msgs):
+        # After a recovery, check that all messages since the beginning of
+        # time have been successfully recovered
+        start_i = (offset * nb_msgs) if not since_beginning else 0
+
+        for i in range(start_i, nb_msgs + offset * nb_msgs):
             self.pub[i] = "Public msg #{}".format(i)
             self.priv[i] = "Private msg #{}".format(i)
 
@@ -71,75 +75,75 @@ def check_responses(responses, result, check, check_commit):
     check_commit(responses[-1], result=result)
 
 
-# Expects logging application TODO: remove this assumption
-# Expects at least two nodes
+# Expects nothing
 def test(network, args):
+    LOG.info("Starting network recovery")
 
-    hosts = ["localhost", "localhost"]
+    primary, backups = network.find_nodes()
 
-    primary, _ = network.find_primary()
-    backups = network.get_backups()
+    ledger = primary.remote.get_ledger()
+    sealed_secrets = primary.remote.get_sealed_secrets()
 
-    txs = Txs(10)
-    with primary.node_client() as mc:
-        check_commit = infra.ccf.Checker(mc)
-        check = infra.ccf.Checker()
+    recovered_network = infra.ccf.Network(
+        network.hosts, args.debug_nodes, args.perf_nodes, network
+    )
+    recovered_network.start_in_recovery(args, ledger, sealed_secrets)
 
-        rs = log_msgs(primary, txs)
-        check_responses(rs, True, check, check_commit)
-        network.wait_for_node_commit_sync()
-        check_nodes_have_msgs(backups, txs)
+    for node in recovered_network.nodes:
+        network.wait_for_state(node, "partOfPublicNetwork")
+        recovered_network.wait_for_node_commit_sync()
+    LOG.info("Public CFTR started")
 
-        # Until here, has only issue some transactions
+    primary, _ = recovered_network.find_primary()
 
-        ledger = primary.remote.get_ledger()
-        sealed_secrets = primary.remote.get_sealed_secrets()
+    LOG.info("Members verify that the new nodes have joined the network")
+    recovered_network.wait_for_all_nodes_to_be_trusted()
 
-        network.stop_all_nodes()
+    LOG.info("Members vote to complete the recovery")
+    recovered_network.accept_recovery(primary, sealed_secrets)
 
-        recovered_network = infra.ccf.Network(
-            hosts, args.debug_nodes, args.perf_nodes, network
-        )
-        recovered_network.start_in_recovery(args, ledger, sealed_secrets)
+    for node in recovered_network.nodes:
+        network.wait_for_state(node, "partOfNetwork")
 
-        for node in recovered_network.nodes:
-            network.wait_for_state(node, "partOfPublicNetwork")
-            recovered_network.wait_for_node_commit_sync()
-        LOG.success("Public CFTR started")
+    recovered_network.wait_for_all_nodes_to_catch_up(primary)
 
-        primary = recovered_network.nodes[0]  # TODO: Does find_primary work?
+    recovered_network.check_for_service(primary)
+    LOG.success("Network successfully recovered")
 
-        LOG.debug("2/3 members verify that the new nodes have joined the network")
-        recovered_network.wait_for_all_nodes_to_be_trusted()
-
-        LOG.debug("2/3 members vote to complete the recovery")
-        recovered_network.accept_recovery(primary, sealed_secrets)
-
-        with primary.node_client() as mc:
-            check_commit = infra.ccf.Checker(mc)
-            check = infra.ccf.Checker()
-
-        for node in recovered_network.nodes:
-            network.wait_for_state(node, "partOfNetwork")
-            LOG.success("All nodes part of network")
-
-        # After here, check that the transactions have been issued
-
-        old_txs = Txs(10)
-
-        check_nodes_have_msgs(recovered_network.nodes, old_txs)
-        LOG.success("Recovery complete on all nodes")
-        recovered_network.check_for_service(primary)
+    return recovered_network
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
+    hosts = ["localhost"]
 
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        test(network, args)
+
+        for recovery_idx in range(args.recovery):
+            txs = Txs(args.msgs_per_recovery, recovery_idx)
+
+            primary, backups = network.find_nodes()
+
+            with primary.node_client() as mc:
+                check_commit = infra.ccf.Checker(mc)
+                check = infra.ccf.Checker()
+
+                rs = log_msgs(primary, txs)
+                check_responses(rs, True, check, check_commit)
+                network.wait_for_node_commit_sync()
+                check_nodes_have_msgs(backups, txs)
+
+            recovered_network = test(network, args)
+
+            network.stop_all_nodes()
+            network = recovered_network
+
+            old_txs = Txs(args.msgs_per_recovery, recovery_idx, since_beginning=True)
+
+            check_nodes_have_msgs(recovered_network.nodes, old_txs)
+            LOG.success("Recovery complete on all nodes")
 
 
 if __name__ == "__main__":

@@ -17,12 +17,52 @@ import e2e_args
 from loguru import logger as LOG
 
 
-# Expects two nodes
+def test_update_lua(network, args):
+    if args.package == "libluagenericenc":
+        LOG.info("Updating Lua application")
+        primary, _ = network.find_primary()
+
+        # Create a new lua application file (minimal app)
+        # TODO: Writing to file will not be required when memberclient is deprecated
+        new_app_file = "new_lua_app.lua"
+        with open(new_app_file, "w") as qfile:
+            qfile.write(
+                """
+                            return {
+                            ping = [[
+                                tables, args = ...
+                                return {result = "pong"}
+                            ]],
+                            }"""
+            )
+
+        network.set_lua_app(primary, new_app_file)
+        with primary.user_client(format="json") as c:
+            check(c.rpc("ping", params={}), result="pong")
+
+            LOG.debug("Check that former endpoints no longer exists")
+            for endpoint in [
+                "LOG_record",
+                "LOG_record_pub",
+                "LOG_get",
+                "LOG_get_pub",
+            ]:
+                check(
+                    c.rpc(endpoint, params={}),
+                    error=lambda e: e is not None
+                    and e["code"] == infra.jsonrpc.ErrorCode.METHOD_NOT_FOUND.value,
+                )
+    else:
+        LOG.warning("Skipping Lua app update as application is not Lua")
+
+    return network
+
+
+# Expects at least two nodes
 # Expects the libloggingenc application
 def test(network, args, notifications_queue=None):
 
-    primary = network.nodes[0]
-    backup = network.nodes[1]
+    primary, backup = network.find_primary_and_any_backup()
 
     with primary.node_client() as mc:
         check_commit = infra.ccf.Checker(mc, notifications_queue)
@@ -65,40 +105,6 @@ def test(network, args, notifications_queue=None):
                 check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg})
             id += 1
 
-        if args.package == "libluagenericenc":
-            LOG.info("Setting new lua application")
-
-            # Create a new lua application file (minimal app)
-            # TODO: Writing to file will not be required when memberclient is deprecated
-            new_app_file = "new_lua_app.lua"
-            with open(new_app_file, "w") as qfile:
-                qfile.write(
-                    """
-                            return {
-                            ping = [[
-                                tables, args = ...
-                                return {result = "pong"}
-                            ]],
-                            }"""
-                )
-
-            network.set_lua_app(primary, new_app_file)
-            with primary.user_client(format="json") as c:
-                check(c.rpc("ping", params={}), result="pong")
-
-                LOG.debug("Check that former endpoints no longer exists")
-                for endpoint in [
-                    "LOG_record",
-                    "LOG_record_pub",
-                    "LOG_get",
-                    "LOG_get_pub",
-                ]:
-                    check(
-                        c.rpc(endpoint, params={}),
-                        error=lambda e: e is not None
-                        and e["code"] == infra.jsonrpc.ErrorCode.METHOD_NOT_FOUND.value,
-                    )
-
     return network
 
 
@@ -117,6 +123,7 @@ def run(args):
         ) as network:
             network.start_and_join(args)
             test(network, args, notifications_queue)
+            test_update_lua(network, args)
 
 
 if __name__ == "__main__":

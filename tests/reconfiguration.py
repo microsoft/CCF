@@ -19,6 +19,7 @@ def check_can_progress(node):
             check_commit(c.rpc("mkSign", params={}), result=True)
 
 
+# Expects nothing
 def test_add_node(network, args):
     LOG.info("Adding a valid node from primary")
     new_node = network.create_and_trust_node(args.package, "localhost", args)
@@ -26,9 +27,10 @@ def test_add_node(network, args):
     return network
 
 
+# Expects at least two nodes
 def test_add_node_from_backup(network, args):
     LOG.info("Adding a valid node from a backup")
-    backup = network.get_any_backup()
+    backup = network.find_any_backup()
     new_node = network.create_and_trust_node(
         args.package, "localhost", args, target_node=backup
     )
@@ -36,6 +38,7 @@ def test_add_node_from_backup(network, args):
     return network
 
 
+# Expects nothing
 def test_add_as_many_pending_nodes(network, args):
     # Adding as many pending nodes as current number of nodes should not
     # change the raft consensus rules (i.e. majority)
@@ -50,6 +53,7 @@ def test_add_as_many_pending_nodes(network, args):
     return network
 
 
+# Expects nothing
 def test_add_node_untrusted_code(network, args):
     if args.enclave_type == "debug":
         LOG.info("Adding an invalid node (unknown code id)")
@@ -61,9 +65,11 @@ def test_add_node_untrusted_code(network, args):
     return network
 
 
+# Expects at least two nodes
+# Network may need recovery after this test
 def test_retire_node(network, args):
     LOG.info("Retiring a backup")
-    backup_to_retire = network.get_any_backup()
+    backup_to_retire = network.find_any_backup()
     network.retire_node(backup_to_retire)
     backup_to_retire.stop()
     return network

@@ -383,6 +383,9 @@ namespace ccf
           // public ledger has been read
           accept_member_connections();
 
+          // Accept node connections for operators to check the state of the network
+          accept_node_connections();
+
           sm.advance(State::readingPublicLedger);
 
           return Success<CreateNew::Out>(
@@ -658,8 +661,6 @@ namespace ccf
         throw std::logic_error(
           "Could not commit transaction when starting recovered public "
           "network");
-
-      accept_node_connections();
 
       LOG_INFO_FMT("Restarted network");
 

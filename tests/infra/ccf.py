@@ -69,7 +69,7 @@ def network(
 
 # TODO: This function should only be part of the Checker class once the
 # memberclient is no longer used.
-def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeout=2):
+def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeout=3):
     """
     Given a client to a CCF network and a commit_index/term pair, this function
     waits for this specific commit index to be globally committed by the
@@ -115,7 +115,13 @@ class Network:
             self.node_offset = 0
         else:
             self.members = list(existing_network.members)
-            self.node_offset = len(existing_network.nodes)
+            # When creating a new network from an existing one (e.g. for recovery),
+            # the node id of the nodes of the new network should start from the node
+            # id of the existing network, so that new nodes id match the ones in the
+            # nodes KV table
+            self.node_offset = (
+                len(existing_network.nodes) + existing_network.node_offset
+            )
 
         self.nodes = []
         self.hosts = hosts
@@ -392,6 +398,7 @@ class Network:
             assert (
                 current_status == status.name
             ), f"Service status {current_status} (expected {status.name})"
+        self.status = status
 
     def member_client_rpc_as_json(self, member_id, remote_node, *args):
         if remote_node is None:
@@ -555,7 +562,6 @@ class Network:
         result = self.propose(1, node, script, None, "open_network")
         self.vote_using_majority(node, result[1]["id"])
         self.check_for_service(node)
-        self.status = ServiceStatus.OPEN
 
     def add_users(self, node, users):
         if os.getenv("HTTP"):
@@ -665,12 +671,23 @@ class Network:
         assert primary_id is not None, "No primary found"
         return (self.get_node_by_id(primary_id), term)
 
-    def get_backups(self, timeout=3):
-        primary, _ = self.find_primary(timeout)
+    def find_backups(self, primary=None, timeout=3):
+        if primary is None:
+            primary, _ = self.find_primary(timeout)
         return [n for n in self.get_joined_nodes() if n != primary]
 
-    def get_any_backup(self, timeout=3):
-        return random.choice(self.get_backups(timeout))
+    def find_any_backup(self, timeout=3):
+        return random.choice(self.find_backups(timeout=timeout))
+
+    def find_nodes(self, timeout=3):
+        primary, _ = self.find_primary(timeout)
+        backups = self.find_backups(primary=primary, timeout=timeout)
+        return primary, backups
+
+    def find_primary_and_any_backup(self, timeout=3):
+        primary, backups = self.find_nodes(timeout)
+        backup = random.choice(backups)
+        return primary, backup
 
     def wait_for_all_nodes_to_catch_up(self, primary, timeout=3):
         """
