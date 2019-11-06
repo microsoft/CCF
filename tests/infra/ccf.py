@@ -560,8 +560,8 @@ class Network:
             """
         result = self.propose(1, node, script, None, "open_network")
         self.vote_using_majority(node, result[1]["id"], not args.pbft)
-        if not args.pbft:
-            self.check_for_service(node)
+
+        self.check_for_service(node)
         self.status = ServiceStatus.OPEN
 
     def add_users(self, node, users):
