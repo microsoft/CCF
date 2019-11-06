@@ -252,7 +252,7 @@ class Network:
     def remove_last_node(self):
         last_node = self.nodes.pop()
 
-    def _add_node(self, node, lib_name, args, target_node=None, should_wait=True):
+    def _add_node(self, node, lib_name, args, target_node=None):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
@@ -270,7 +270,7 @@ class Network:
         )
 
         # If the network is opening, node are trusted without consortium approval
-        if self.status == ServiceStatus.OPENING and should_wait and not args.pbft:
+        if self.status == ServiceStatus.OPENING and not args.pbft:
             try:
                 node.wait_for_node_to_join()
             except TimeoutError:
@@ -294,14 +294,14 @@ class Network:
             )
 
     def create_and_add_pending_node(
-        self, lib_name, host, args, target_node=None, should_wait=True
+        self, lib_name, host, args, target_node=None
     ):
         """
         Create a new node and add it to the network. Note that the new node
         still needs to be trusted by members to complete the join protocol.
         """
         new_node = self.create_node(host)
-        self._add_node(new_node, lib_name, args, target_node, should_wait)
+        self._add_node(new_node, lib_name, args, target_node)
         primary, _ = self.find_primary()
         try:
             self._wait_for_node_to_exist_in_store(
@@ -324,14 +324,14 @@ class Network:
         return new_node
 
     def create_and_trust_node(
-        self, lib_name, host, args, target_node=None, should_wait=True
+        self, lib_name, host, args, target_node=None
     ):
         """
         Create a new node, add it to the network and let members vote to trust
         it so that it becomes part of the consensus protocol.
         """
         new_node = self.create_and_add_pending_node(
-            lib_name, host, args, target_node, should_wait
+            lib_name, host, args, target_node
         )
         if new_node is None:
             return None
@@ -340,16 +340,12 @@ class Network:
         try:
             if self.status is ServiceStatus.OPEN:
                 self.trust_node(primary, new_node.node_id)
-            if should_wait:
-                new_node.wait_for_node_to_join()
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {new_node.node_id} failed to join the network")
             new_node.stop()
             return None
 
         new_node.network_state = NodeNetworkState.joined
-        if should_wait:
-            self.wait_for_all_nodes_to_catch_up(primary)
 
         return new_node
 
