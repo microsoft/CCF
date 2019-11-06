@@ -826,6 +826,12 @@ class Node:
         )
         self.network_state = NodeNetworkState.joined
 
+    def suspend(self):
+        self.remote.suspend()
+
+    def resume(self):
+        self.remote.resume()
+
     def join(
         self, lib_name, enclave_type, workspace, label, target_rpc_address, **kwargs
     ):
