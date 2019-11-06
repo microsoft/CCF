@@ -870,7 +870,6 @@ TEST_CASE(
     r1.channels->sent_request_vote.sort(by_0);
 
     INFO("Node 2 receives the vote request");
-
     // pop for first node (node 0) so that it doesn't participate in the
     // election
     auto vote_req_from_1_to_0 = r1.channels->sent_request_vote.front();
@@ -945,7 +944,7 @@ TEST_CASE(
     REQUIRE(r1.channels->sent_append_entries.size() == 0);
 
     // Node 0 will now have an ae response which will return false because
-    // it's log for index 2 has the wrong term (ours: 1, theirs: 2)
+    // its log for index 2 has the wrong term (ours: 1, theirs: 2)
     REQUIRE(r0.channels->sent_append_entries_response.size() == 1);
     REQUIRE(
       1 ==
