@@ -1,6 +1,4 @@
-import e2e_logging
-import reconfiguration
-import recovery
+import test_suite
 import e2e_args
 import infra.ccf
 import time
@@ -9,31 +7,19 @@ import json
 from loguru import logger as LOG
 
 
-# TODO: Move this and includes to a different file
-tests = [
-    reconfiguration.test_add_node,
-    reconfiguration.test_add_node_from_backup,
-    reconfiguration.test_add_as_many_pending_nodes,
-    reconfiguration.test_add_node_untrusted_code,
-    reconfiguration.test_retire_node,
-    e2e_logging.test,
-    e2e_logging.test_update_lua,
-    recovery.test,
-]
-
-
 def run(args):
 
     hosts = ["localhost", "localhost"]
     network = infra.ccf.Network(hosts, args.debug_nodes, args.perf_nodes)
     network.start_and_join(args)
 
-    LOG.info(f"Running {len(tests)} tests for {args.test_duration} seconds")
+    LOG.info(f"Running {len(test_suite.tests)} tests for {args.test_duration} seconds")
 
     run_tests = {}
     elapsed = args.test_duration
 
-    for test in tests:
+    # TODO: If we run out of tests but not duration, loop over again
+    for test in test_suite.tests:
         test_name = f"{test.__module__}.{test.__name__}"
         success = False
 
@@ -70,7 +56,7 @@ def run(args):
 
             elapsed -= test_elapsed
 
-    LOG.success(f"Ran {len(run_tests)}/{len(tests)} tests:")
+    LOG.success(f"Ran {len(run_tests)}/{len(test_suite.tests)} tests:")
     LOG.success(f"\n{json.dumps(run_tests, indent=4)}")
 
 
