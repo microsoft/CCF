@@ -16,7 +16,6 @@ using TRaft = raft::Raft<raft::LedgerStubProxy, raft::ChannelStubProxy>;
 using Store = raft::LoggingStubStore;
 using StoreSig = raft::LoggingStubStoreSig;
 using Adaptor = raft::Adaptor<Store, kv::DeserialiseSuccess>;
-using AdaptorSig = raft::Adaptor<StoreSig, kv::DeserialiseSuccess>;
 
 TEST_CASE("Single node startup" * doctest::test_suite("single"))
 {
@@ -758,21 +757,21 @@ TEST_CASE(
   ms request_timeout(10);
 
   TRaft r0(
-    std::make_unique<AdaptorSig>(kv_store0),
+    std::make_unique<Adaptor>(kv_store0),
     std::make_unique<raft::LedgerStubProxy>(node_id0),
     std::make_shared<raft::ChannelStubProxy>(),
     node_id0,
     request_timeout,
     ms(20));
   TRaft r1(
-    std::make_unique<AdaptorSig>(kv_store1),
+    std::make_unique<Adaptor>(kv_store1),
     std::make_unique<raft::LedgerStubProxy>(node_id1),
     std::make_shared<raft::ChannelStubProxy>(),
     node_id1,
     request_timeout,
     ms(100));
   TRaft r2(
-    std::make_unique<AdaptorSig>(kv_store2),
+    std::make_unique<Adaptor>(kv_store2),
     std::make_unique<raft::LedgerStubProxy>(node_id2),
     std::make_shared<raft::ChannelStubProxy>(),
     node_id2,

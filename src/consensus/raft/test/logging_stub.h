@@ -132,7 +132,7 @@ namespace raft
   public:
     LoggingStubStore(raft::NodeId id) : _id(id) {}
 
-    void compact(Index i)
+    virtual void compact(Index i)
     {
 #ifdef STUB_LOG
       std::cout << "  Node" << _id << "->>KV" << _id << ": compact i: " << i
@@ -140,7 +140,7 @@ namespace raft
 #endif
     }
 
-    void rollback(Index i)
+    virtual void rollback(Index i)
     {
 #ifdef STUB_LOG
       std::cout << "  Node" << _id << "->>KV" << _id << ": rollback i: " << i
@@ -148,7 +148,7 @@ namespace raft
 #endif
     }
 
-    kv::DeserialiseSuccess deserialise(
+    virtual kv::DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term = nullptr)
@@ -157,34 +157,15 @@ namespace raft
     }
   };
 
-  class LoggingStubStoreSig
+  class LoggingStubStoreSig : public LoggingStubStore
   {
-  private:
-    raft::NodeId _id;
-
   public:
-    LoggingStubStoreSig(raft::NodeId id) : _id(id) {}
-
-    void compact(Index i)
-    {
-#ifdef STUB_LOG
-      std::cout << "  Node" << _id << "->>KV" << _id << ": compact i: " << i
-                << std::endl;
-#endif
-    }
-
-    void rollback(Index i)
-    {
-#ifdef STUB_LOG
-      std::cout << "  Node" << _id << "->>KV" << _id << ": rollback i: " << i
-                << std::endl;
-#endif
-    }
+    LoggingStubStoreSig(raft::NodeId id) : LoggingStubStore(id) {}
 
     kv::DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
       bool public_only = false,
-      Term* term = nullptr)
+      Term* term = nullptr) override
     {
       return kv::DeserialiseSuccess::PASS_SIGNATURE;
     }
