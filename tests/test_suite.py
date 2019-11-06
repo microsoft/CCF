@@ -1,8 +1,10 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
 import e2e_logging
 import reconfiguration
 import recovery
 
-# For now, these are hardcoded
+# For now, these are hardcoded.
 tests = [
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_from_backup,

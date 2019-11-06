@@ -388,7 +388,8 @@ namespace ccf
           // public ledger has been read
           accept_member_connections();
 
-          // Accept node connections for operators to check the state of the network
+          // Accept node connections for operators to check the state of the
+          // network
           accept_node_connections();
 
           sm.advance(State::readingPublicLedger);
