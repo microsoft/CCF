@@ -18,7 +18,6 @@ def run(args):
     run_tests = {}
     elapsed = args.test_duration
 
-    # TODO: If we run out of tests but not duration, loop over again
     for test in test_suite.tests:
         test_name = f"{test.__module__}.{test.__name__}"
         success = False
