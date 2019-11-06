@@ -106,7 +106,7 @@ include_directories(
   ${MSGPACK_INCLUDE_DIR}
 )
 
-set(TARGET "sgx" CACHE STRING "One of sgx, virtual, or 'sgx;virtual'")
+set(TARGET "sgx;virtual" CACHE STRING "One of sgx, virtual, or 'sgx;virtual'")
 
 set(OE_PREFIX "/opt/openenclave" CACHE PATH "Path to Open Enclave install")
 message(STATUS "Open Enclave prefix set to ${OE_PREFIX}")
