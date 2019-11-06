@@ -23,7 +23,8 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, _ = network.start_and_join(args, open_network=False)
+        network.start_and_join(args, open_network=False)
+        primary, _ = network.find_primary()
 
         for i in range(1, 4):
             LOG.info(f"Adding node {i}")

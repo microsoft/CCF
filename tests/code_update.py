@@ -43,7 +43,8 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, others = network.start_and_join(args)
+        network.start_and_join(args)
+        primary, others = network.find_nodes()
 
         LOG.info("Adding a new node")
         new_node = network.create_and_trust_node(args.package, "localhost", args)

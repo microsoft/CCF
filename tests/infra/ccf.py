@@ -136,7 +136,7 @@ class Network:
         self, args, recovery=False, ledger_file=None, sealed_secrets=None
     ):
 
-        hosts = self.hosts or ["localhost"] * number_of_local.nodes()
+        hosts = self.hosts or ["localhost"] * number_of_local_nodes()
 
         if not args.package:
             raise ValueError("A package name must be specified.")
@@ -676,8 +676,8 @@ class Network:
             primary, _ = self.find_primary(timeout)
         return [n for n in self.get_joined_nodes() if n != primary]
 
-    def find_any_backup(self, timeout=3):
-        return random.choice(self.find_backups(timeout=timeout))
+    def find_any_backup(self, primary=None, timeout=3):
+        return random.choice(self.find_backups(primary=primary, timeout=timeout))
 
     def find_nodes(self, timeout=3):
         primary, _ = self.find_primary(timeout)
