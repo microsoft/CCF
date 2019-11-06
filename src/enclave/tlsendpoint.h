@@ -56,19 +56,28 @@ namespace enclave
     std::string hostname()
     {
       if (status != ready)
+      {
         return {};
+      }
 
       return ctx->host();
     }
 
-    CBuffer peer_cert()
+    std::vector<uint8_t> peer_cert()
     {
       if (status != ready)
-        return nullb;
+      {
+        return {};
+      }
 
       auto client_cert = ctx->peer_cert();
-      return client_cert ? CBuffer(client_cert->raw.p, client_cert->raw.len) :
-                           nullb;
+      if (client_cert == nullptr)
+      {
+        return {};
+      }
+
+      return std::vector<uint8_t>(
+        client_cert->raw.p, client_cert->raw.p + client_cert->raw.len);
     }
 
     std::vector<uint8_t> read(size_t up_to, bool exact = false)

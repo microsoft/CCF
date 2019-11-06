@@ -147,7 +147,7 @@ class Network:
 
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
-            self.set_lua_app(primary, args.app_script)
+            self.consortium.set_lua_app(primary, args.app_script)
 
         self.consortium.add_users(primary, self.initial_users)
         LOG.info("Initial set of users added")

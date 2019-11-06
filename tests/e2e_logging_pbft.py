@@ -23,7 +23,8 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, _ = network.start_and_join(args, open_network=False)
+        network.start_and_join(args, open_network=False)
+        primary, _ = network.find_primary()
 
         for i in range(1, 4):
             LOG.info(f"Adding node {i}")
@@ -39,10 +40,6 @@ def run(args):
         result = network.propose(1, primary, script, None, "open_network")
         network.vote_using_majority(primary, result[1]["id"], False)
         LOG.info("***** Network is now open *****")
-
-        # this will be replaced by something better than sleeping
-        # https://github.com/microsoft/CCF/issues/495
-        time.sleep(15)
 
         with primary.node_client() as mc:
             check_commit = infra.ccf.Checker(mc)

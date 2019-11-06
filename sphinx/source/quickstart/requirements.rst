@@ -45,7 +45,7 @@ Azure Confidential Compute
 
 .. note:: These steps require an `Azure subscription <https://docs.microsoft.com/en-us/azure/billing/billing-create-subscription#create-a-subscription-in-the-azure-portal>`_.
 
-:term:`Azure Confidential Compute` (ACC) offers DC-series VMs using SGX hardware, which can be deployed either through a `Marketplace App`_, or through the :term:`OpenEnclave Engine`.
+:term:`Azure Confidential Compute` (ACC) offers DC-series VMs using SGX hardware, which can be deployed either through a `Marketplace App`_, or through the :term:`Open Enclave Engine`.
 
 .. note:: On Windows, you can use `WSL <https://docs.microsoft.com/en-us/windows/wsl/install-win10>`_ or `Azure Cloud Shell (Bash) <https://azure.microsoft.com/en-us/features/cloud-shell/>`_ to run the following commands.
 
@@ -55,7 +55,7 @@ First, from your local machine, you should clone the CCF repository to get acces
 
     $ git clone https://github.com/microsoft/CCF.git
 
-First, you should run the ``pre_make_vm.sh`` script to install the `Azure CLI`_ and the :term:`OpenEnclave Engine` (``oe-engine``) that are required to create the DC-series in Azure:
+First, you should run the ``pre_make_vm.sh`` script to install the `Azure CLI`_ and the :term:`Open Enclave Engine` (``oe-engine``) that are required to create the DC-series in Azure:
 
 .. code-block:: bash
 

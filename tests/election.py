@@ -47,7 +47,7 @@ def run(args):
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
 
-        initial_primary, _ = network.start_and_join(args)
+        network.start_and_join(args)
         current_term = None
 
         # Time before an election completes

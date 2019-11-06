@@ -22,6 +22,8 @@ def test_update_lua(network, args):
         LOG.info("Updating Lua application")
         primary, _ = network.find_primary()
 
+        check = infra.ccf.Checker()
+
         # Create a new lua application file (minimal app)
         # TODO: Writing to file will not be required when memberclient is deprecated
         new_app_file = "new_lua_app.lua"

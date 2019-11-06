@@ -1,7 +1,11 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+
 import e2e_logging
 import reconfiguration
 import recovery
 
+# For now, these are hardcoded.
 tests = [
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_from_backup,
@@ -15,8 +19,7 @@ tests = [
 
 #
 # Test functions should only make assumptions on the number of nodes in the network
-# or the application running in the network. They may leave the network in a broken
-# state which will require catastrophic recovery.
+# or the application it is running.
 #
 # Test functions are expected to be in the following format:
 #

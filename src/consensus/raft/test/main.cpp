@@ -139,8 +139,8 @@ TEST_CASE(
   REQUIRE(get<0>(rv) == node_id1);
   auto rvc = get<1>(rv);
   REQUIRE(rvc.term == 1);
-  REQUIRE(rvc.last_log_idx == 0);
-  REQUIRE(rvc.last_log_term == 0);
+  REQUIRE(rvc.last_commit_idx == 0);
+  REQUIRE(rvc.last_commit_term == 0);
 
   r1.recv_message(reinterpret_cast<uint8_t*>(&rvc), sizeof(rvc));
 
@@ -151,8 +151,8 @@ TEST_CASE(
   REQUIRE(get<0>(rv) == node_id2);
   rvc = get<1>(rv);
   REQUIRE(rvc.term == 1);
-  REQUIRE(rvc.last_log_idx == 0);
-  REQUIRE(rvc.last_log_term == 0);
+  REQUIRE(rvc.last_commit_idx == 0);
+  REQUIRE(rvc.last_commit_term == 0);
 
   r2.recv_message(reinterpret_cast<uint8_t*>(&rvc), sizeof(rvc));
 

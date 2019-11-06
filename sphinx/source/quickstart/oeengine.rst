@@ -1,7 +1,7 @@
 OE Engine Walkthrough
 =====================
 
-:term:`OpenEnclave Engine` (OE Engine) offers detailed `deployment instructions`_, but this is a very condensed summary to get a CCF-ready VM up and running in 5 minutes. You can either execute these steps on a machine with the `Azure CLI`_ installed, or use `Azure Cloud Shell`_ (installed by the ``pre_make_vm.sh`` script).
+:term:`Open Enclave Engine` (OE Engine) offers detailed `deployment instructions`_, but this is a very condensed summary to get a CCF-ready VM up and running in 5 minutes. You can either execute these steps on a machine with the `Azure CLI`_ installed, or use `Azure Cloud Shell`_ (installed by the ``pre_make_vm.sh`` script).
 
 1. Download the `oe-engine binary`_ for your platform.
 2. Create a definition file as ``vm.json``:

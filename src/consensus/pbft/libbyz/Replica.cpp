@@ -423,6 +423,10 @@ void Replica::recv_process_one_msg(Message* m)
       gen_handle<New_principal>(m);
       break;
 
+    case Network_open_tag:
+      gen_handle<Network_open>(m);
+      break;
+
     default:
       // Unknown message type.
       delete m;
@@ -490,6 +494,7 @@ bool Replica::pre_verify(Message* m)
     case Meta_data_d_tag:
     case Data_tag:
     case New_principal_tag:
+    case Network_open_tag:
       return true;
 
     default:
@@ -538,7 +543,10 @@ void Replica::handle(Request* m)
       {
         if (rqueue.append(m))
         {
-          send_pre_prepare();
+          if (!wait_for_network_to_open)
+          {
+            send_pre_prepare();
+          }
           return;
         }
       }
@@ -827,6 +835,12 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
     LOG_DEBUG << "calling execute committed from send_commit seqno: " << s
               << std::endl;
     execute_committed(before_f == 0);
+
+    if (before_f == 0 && f() != 0)
+    {
+      Network_open no(Node::id());
+      send(&no, primary());
+    }
   }
 }
 
@@ -1023,6 +1037,12 @@ void Replica::set_f(ccf::NodeId f)
 {
   if (max_faulty == 0 && f > 0)
   {
+    if (Node::id() == primary())
+    {
+      LOG_INFO << "Waiting for network to open" << std::endl;
+      wait_for_network_to_open = true;
+    }
+
     rqueue.clear();
   }
 
@@ -1501,6 +1521,46 @@ void Replica::handle(New_principal* m)
                      m->is_replica()};
 
   node->add_principal(info);
+}
+
+void Replica::handle(Network_open* m)
+{
+  std::shared_ptr<Principal> p = get_principal(m->id());
+  if (p == nullptr)
+  {
+    LOG_FAIL << "Received network open from unknown principal, id:" << m->id()
+             << std::endl;
+  }
+
+  if (p->received_network_open_msg())
+  {
+    LOG_FAIL << "Received network open from, id:" << m->id() << "already"
+             << std::endl;
+  }
+
+  LOG_INFO << "Received network open from, id:" << m->id() << std::endl;
+
+  p->set_received_network_open_msg();
+
+  uint32_t num_open = 0;
+  auto principals = get_principals();
+  for (const auto& it : *principals)
+  {
+    if (it.second->received_network_open_msg())
+    {
+      ++num_open;
+    }
+  }
+
+  if (num_open == principals->size())
+  {
+    LOG_INFO << "Finished waiting for machines to network open. "
+             << "starting to process requests" << std::endl;
+    wait_for_network_to_open = false;
+    send_pre_prepare();
+  }
+
+  delete m;
 }
 
 void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)

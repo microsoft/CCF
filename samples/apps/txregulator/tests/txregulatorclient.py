@@ -17,7 +17,8 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, others = network.start_and_join(args)
+        network.start_and_join(args)
+        primary, others = network.find_nodes()
 
         script = "if tonumber(amt) > 200000 then return true else return false end"
         if args.lua_script is not None:

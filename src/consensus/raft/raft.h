@@ -768,8 +768,8 @@ namespace raft
       RequestVote rv = {raft_request_vote,
                         local_id,
                         current_term,
-                        last_idx,
-                        get_term_internal(last_idx)};
+                        commit_idx,
+                        get_term_internal(commit_idx)};
 
       channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, rv);
     }
@@ -826,10 +826,11 @@ namespace raft
       }
 
       // If the candidate's log is at least as up-to-date as ours, vote yes
-      auto last_term = get_term_internal(last_idx);
+      auto last_commit_term = get_term_internal(commit_idx);
 
-      auto answer = (r.last_log_term > last_term) ||
-        ((r.last_log_term == last_term) && (r.last_log_idx >= last_idx));
+      auto answer = (r.last_commit_term > last_commit_term) ||
+        ((r.last_commit_term == last_commit_term) &&
+         (r.last_commit_idx >= commit_idx));
 
       if (answer)
       {
@@ -1116,6 +1117,8 @@ namespace raft
     void rollback(Index idx)
     {
       store->rollback(idx);
+      ledger->truncate(idx);
+      last_idx = idx;
       LOG_DEBUG_FMT("Rolled back at {}", idx);
 
       while (!committable_indices.empty() && (committable_indices.back() > idx))

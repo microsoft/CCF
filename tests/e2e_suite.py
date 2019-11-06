@@ -1,4 +1,6 @@
-import test_suite
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.import test_suite
+
 import e2e_args
 import infra.ccf
 import time
@@ -18,7 +20,6 @@ def run(args):
     run_tests = {}
     elapsed = args.test_duration
 
-    # TODO: If we run out of tests but not duration, loop over again
     for test in test_suite.tests:
         test_name = f"{test.__module__}.{test.__name__}"
         success = False
