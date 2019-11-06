@@ -893,7 +893,8 @@ namespace ccf
       tx_count = 0;
       // TODO(#refactoring): move this to NodeState::tick
       update_consensus();
-      if ((consensus != nullptr) && consensus->is_primary()) {
+      if ((consensus != nullptr) && consensus->is_primary())
+      {
         if (elapsed < ms_to_sig)
         {
           ms_to_sig -= elapsed;
