@@ -101,9 +101,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--label", help="Unique identifier for the test", default=default_label
     )
     parser.add_argument(
-        "--pbft",
-        help="Use the PBFT consensus",
-        action="store_true",
+        "--pbft", help="Use the PBFT consensus", action="store_true",
     )
     add(parser)
 
