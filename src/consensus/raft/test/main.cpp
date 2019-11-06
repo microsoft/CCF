@@ -803,7 +803,6 @@ TEST_CASE(
 
   r1.channels->sent_append_entries_response.clear();
   r2.channels->sent_append_entries_response.clear();
-  raft::AppendEntries ae_idx_2; // To save for later use
 
   std::vector<uint8_t> first_entry = {1, 1, 1};
   std::vector<uint8_t> second_entry = {2, 2, 2};
