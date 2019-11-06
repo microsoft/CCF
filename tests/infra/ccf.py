@@ -293,9 +293,7 @@ class Network:
                 + getattr(node_status, f" with status {node_status.name}", "")
             )
 
-    def create_and_add_pending_node(
-        self, lib_name, host, args, target_node=None
-    ):
+    def create_and_add_pending_node(self, lib_name, host, args, target_node=None):
         """
         Create a new node and add it to the network. Note that the new node
         still needs to be trusted by members to complete the join protocol.
@@ -323,16 +321,12 @@ class Network:
 
         return new_node
 
-    def create_and_trust_node(
-        self, lib_name, host, args, target_node=None
-    ):
+    def create_and_trust_node(self, lib_name, host, args, target_node=None):
         """
         Create a new node, add it to the network and let members vote to trust
         it so that it becomes part of the consensus protocol.
         """
-        new_node = self.create_and_add_pending_node(
-            lib_name, host, args, target_node
-        )
+        new_node = self.create_and_add_pending_node(lib_name, host, args, target_node)
         if new_node is None:
             return None
 
