@@ -557,11 +557,18 @@ add_enclave_library_c(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Common test args for Python scripts starting up CCF networks
+if(PBFT)
+  set(PBFT_ARG "--pbft")
+else()
+  unset(PBFT_ARG)
+endif()
+
 set(CCF_NETWORK_TEST_ARGS
   ${TEST_IGNORE_QUOTE}
   ${TEST_ENCLAVE_TYPE}
   -l ${TEST_HOST_LOGGING_LEVEL}
   -g ${CCF_DIR}/src/runtime_config/gov.lua
+  ${PBFT_ARG}
 )
 
 # Lua generic app
@@ -607,12 +614,6 @@ function(add_e2e_test)
   )
 
   if (BUILD_END_TO_END_TESTS)
-    if(PBFT)
-      set(PBFT_ARG "--pbft")
-    else()
-      unset(PBFT_ARG)
-    endif()
-
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
@@ -620,7 +621,6 @@ function(add_e2e_test)
         --label ${PARSED_ARGS_NAME}
         ${CCF_NETWORK_TEST_ARGS}
         ${PARSED_ARGS_ADDITIONAL_ARGS}
-        ${PBFT_ARG}
     )
 
     ## Make python test client framework importable
@@ -667,12 +667,6 @@ function(add_perf_test)
     unset(VERIFICATION_ARG)
   endif()
 
-  if(PBFT)
-    set(PBFT_ARG "--pbft")
-  else()
-    unset(PBFT_ARG)
-  endif()
-
   add_test(
     NAME ${PARSED_ARGS_NAME}
     COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
@@ -683,7 +677,6 @@ function(add_perf_test)
       ${PARSED_ARGS_ADDITIONAL_ARGS}
       --write-tx-times
       ${VERIFICATION_ARG}
-      ${PBFT_ARG}
   )
 
   ## Make python test client framework importable

@@ -128,7 +128,8 @@ void setup_client_proxy()
   auto req_timer_cb = [](void* ctx) {
     auto cp = (ClientProxy<uint64_t, void>*)ctx;
 
-    while (request_count - reply_count < 7)
+    static const uint32_t max_pending_requests = 7;
+    while (request_count - reply_count < max_pending_requests)
     {
       uint8_t request_buffer[8];
       auto request = new (request_buffer) test_req;

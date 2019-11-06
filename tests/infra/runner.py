@@ -23,7 +23,8 @@ logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 def number_of_local_nodes(args):
     """
-    On 2-core VMs, we start only one node, but on 4 core, we want to start 2.
+    If we are using pbft then we need to have 4 nodes. Otherwise with CFT
+    on 2-core VMs, we start only one node, but on 4 core, we want to start 2.
     Not 3, because the client is typically running two threads.
     """
     if args.pbft:
@@ -144,6 +145,9 @@ def run(build_directory, get_command, args):
                                 break
                         time.sleep(1)
 
+                    # For now we will not collect metrics with PBFT as the messages that
+                    # can be created when collecting the metrics is too large.
+                    # https://github.com/microsoft/CCF/issues/534
                     if not args.pbft:
                         tx_rates.get_metrics()
                         for remote_client in clients:
