@@ -59,7 +59,7 @@ def run(args):
         assert not result[1]["completed"]
 
         # Display all proposals
-        proposals = network.member_client_rpc_as_json(1, primary, "proposal_display")
+        proposals = network.consortium.member_client_rpc_as_json(1, primary, "proposal_display")
 
         # Check proposal is present and open
         proposal_entry = proposals.get(str(proposal_id))
@@ -85,11 +85,11 @@ def run(args):
         assert network.vote(3, primary, proposal_id, False)[1]["code"] == params_error
 
         LOG.debug("Accepted proposal cannot be withdrawn")
-        result = network.member_client_rpc_as_json(
+        result = network.consortium.member_client_rpc_as_json(
             1, primary, "withdraw", f"--proposal-id={proposal_id}"
         )
         assert result["error"]["code"] == params_error
-        result = network.member_client_rpc_as_json(
+        result = network.consortium.member_client_rpc_as_json(
             2, primary, "withdraw", f"--proposal-id={proposal_id}"
         )
         assert (
@@ -101,7 +101,7 @@ def run(args):
         assert result[1]["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
         LOG.debug("New member ACK")
-        result = network.member_client_rpc_as_json(4, primary, "ack")
+        result = network.consortium.member_client_rpc_as_json(4, primary, "ack")
         assert result["result"]
 
         LOG.info("New member is now active and send an accept node proposal")
@@ -123,7 +123,7 @@ def run(args):
         assert not result[1]["completed"]
 
         LOG.debug("Other members (non proposer) are unable to withdraw new proposal")
-        result = network.member_client_rpc_as_json(
+        result = network.consortium.member_client_rpc_as_json(
             2, primary, "withdraw", f"--proposal-id={proposal_id}"
         )
         assert (
@@ -131,18 +131,18 @@ def run(args):
         )
 
         LOG.debug("Proposer withdraws their proposal")
-        result = network.member_client_rpc_as_json(
+        result = network.consortium.member_client_rpc_as_json(
             4, primary, "withdraw", f"--proposal-id={proposal_id}"
         )
         assert result["result"]
 
-        proposals = network.member_client_rpc_as_json(4, primary, "proposal_display")
+        proposals = network.consortium.member_client_rpc_as_json(4, primary, "proposal_display")
         proposal_entry = proposals.get(f"{proposal_id}")
         assert proposal_entry
         assert proposal_entry["state"] == "WITHDRAWN"
 
         LOG.debug("Further withdraw proposals fail")
-        result = network.member_client_rpc_as_json(
+        result = network.consortium.member_client_rpc_as_json(
             4, primary, "withdraw", f"--proposal-id={proposal_id}"
         )
         assert result["error"]["code"] == params_error
@@ -157,7 +157,7 @@ def run(args):
         assert result[1]["code"] == params_error
 
         LOG.debug("New member proposes to deactivate member 1")
-        result = network.member_client_rpc_as_json(
+        result = network.consortium.member_client_rpc_as_json(
             4,
             primary,
             "raw_puts",

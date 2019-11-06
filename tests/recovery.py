@@ -97,7 +97,7 @@ def test(network, args):
     primary, _ = recovered_network.find_primary()
 
     LOG.info("Members verify that the new nodes have joined the network")
-    recovered_network.wait_for_all_nodes_to_be_trusted()
+    recovered_network.wait_for_all_nodes_to_be_trusted(primary)
 
     LOG.info("Members vote to complete the recovery")
     recovered_network.accept_recovery(primary, sealed_secrets)
