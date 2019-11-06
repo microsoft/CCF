@@ -143,7 +143,6 @@ inline bool Prepared_cert::add(Prepare* m)
 #ifdef SIGN_BATCH
   int id = m->id();
   std::array<uint8_t, signature_size>& digest_sig = m->digest_sig();
-
   PrePrepareProof proof;
   std::copy(
     std::begin(digest_sig), std::end(digest_sig), std::begin(proof.signature));
