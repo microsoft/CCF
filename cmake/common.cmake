@@ -607,6 +607,12 @@ function(add_e2e_test)
   )
 
   if (BUILD_END_TO_END_TESTS)
+    if(PBFT)
+      set(PBFT_ARG "--pbft")
+    else()
+      unset(PBFT_ARG)
+    endif()
+
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
@@ -614,6 +620,7 @@ function(add_e2e_test)
         --label ${PARSED_ARGS_NAME}
         ${CCF_NETWORK_TEST_ARGS}
         ${PARSED_ARGS_ADDITIONAL_ARGS}
+        ${PBFT_ARG}
     )
 
     ## Make python test client framework importable
