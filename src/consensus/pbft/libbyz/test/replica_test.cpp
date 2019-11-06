@@ -128,8 +128,7 @@ void setup_client_proxy()
   auto req_timer_cb = [](void* ctx) {
     auto cp = (ClientProxy<uint64_t, void>*)ctx;
 
-    while (request_count - reply_count <
-           Big_req_table::Max_unmatched_requests_per_client - 1)
+    while (request_count - reply_count < 7)
     {
       uint8_t request_buffer[8];
       auto request = new (request_buffer) test_req;

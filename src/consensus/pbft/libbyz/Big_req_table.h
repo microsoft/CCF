@@ -78,7 +78,7 @@ public:
   void dump_state(std::ostream& os);
   // Effects: logs state for debugging
 
-  static const int Max_unmatched_requests_per_client = 1000 * 1000;
+  static const int Max_unmatched_requests_per_client = 1024;
 
 private:
   bool check_pcerts(BR_entry* bre);
