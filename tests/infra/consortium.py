@@ -188,7 +188,7 @@ class Consortium:
             f"--member-cert={new_member_cert}",
         )
 
-    def open_network(self, member_id, remote_node):
+    def open_network(self, member_id, remote_node, pbft_open=False):
         """
         Assuming a network in state OPENING, this functions creates a new
         proposal and make members vote to transition the network to state
@@ -201,7 +201,7 @@ class Consortium:
             return Calls:call("open_network")
             """
         result = self.propose(member_id, remote_node, script, None, "open_network")
-        self.vote_using_majority(remote_node, result[1]["id"])
+        self.vote_using_majority(remote_node, result[1]["id"], pbft_open)
         self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN)
 
     def add_users(self, remote_node, users):
