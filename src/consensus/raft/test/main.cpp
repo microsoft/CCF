@@ -742,6 +742,9 @@ TEST_CASE("Exceed append entries limit")
   REQUIRE(r2.ledger->ledger.size() == individual_entries);
 }
 
+// Reproduces issue described here: https://github.com/microsoft/CCF/issues/521
+// Once this is fixed test will need to be modified since right now it checks
+// that the issue stands
 TEST_CASE(
   "Primary gets invalidated if it compacts right before a term change that it "
   "doesn't participate in")
