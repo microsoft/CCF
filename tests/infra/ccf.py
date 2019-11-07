@@ -605,21 +605,6 @@ class Network:
                 primary, n.node_id, NodeStatus.TRUSTED
             )
 
-    def _wait_for_node_to_exist_in_store(
-        self, remote_node, node_id, node_status=None, timeout=3
-    ):
-        exists = False
-        for _ in range(timeout):
-            if self._check_node_exists(remote_node, node_id, node_status):
-                exists = True
-                break
-            time.sleep(1)
-        if not exists:
-            raise TimeoutError(
-                f"Node {node_id} has not yet been recorded in the store"
-                + getattr(node_status, f" with status {node_status.name}", "")
-            )
-
     def stop_all_nodes(self):
         for node in self.nodes:
             node.stop()

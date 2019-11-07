@@ -13,7 +13,7 @@ import infra.proc
 import infra.jsonrpc
 import infra.remote
 import json
-import functools
+import suite.test_requirements as reqs
 
 from loguru import logger as LOG
 
@@ -75,7 +75,7 @@ def check_responses(responses, result, check, check_commit):
     check_commit(responses[-1], result=result)
 
 
-# Expects nothing
+@reqs.none
 def test(network, args):
     LOG.info("Starting network recovery")
 
