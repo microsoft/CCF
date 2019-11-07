@@ -20,6 +20,12 @@ namespace ccf
 {
   class MemberRpcFrontend : public RpcFrontend<Members>
   {
+  protected:
+    std::string invalid_caller_error_message() const override
+    {
+      return "Could not find matching member certificate";
+    }
+
   private:
     Script get_script(Store::Tx& tx, std::string name)
     {
