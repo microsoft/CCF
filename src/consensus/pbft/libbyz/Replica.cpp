@@ -1836,6 +1836,7 @@ void Replica::execute_prepared(bool committed)
 
     if (global_commit_cb != nullptr)
     {
+      LOG_TRACE << "Global_commit:" << pp->get_ctx() << std::endl;
       global_commit_cb(pp->get_ctx(), global_commit_ctx);
     }
   }
@@ -1857,6 +1858,7 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
     // each of them.
     Pre_prepare::Requests_iter iter(pp);
     Request request;
+    int64_t max_local_commit_value = INT64_MIN;
 
     while (iter.get(request))
     {
@@ -1914,9 +1916,15 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
       // Finish constructing the reply.
       LOG_DEBUG << "Executed from tentative exec: " << pp->seqno()
                 << " from client: " << client_id
-                << " rid: " << request.request_id() << " ctx: " << info.ctx
-                << std::endl;
+                << " rid: " << request.request_id()
+                << " commit_id: " << info.ctx << std::endl;
 
+      if (info.ctx > max_local_commit_value)
+      {
+        max_local_commit_value = info.ctx;
+      }
+
+      info.ctx = max_local_commit_value;
 #ifdef ENFORCE_EXACTLY_ONCE
       replies.end_reply(client_id, request.request_id(), outb.size);
 #else
@@ -1924,6 +1932,9 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
         client_id, request.request_id(), last_tentative_execute, outb.size);
 #endif
     }
+    LOG_DEBUG << "Executed from tentative exec: " << pp->seqno()
+              << " rid: " << request.request_id() << " commit_id: " << info.ctx
+              << std::endl;
 
     if (last_tentative_execute % checkpoint_interval == 0)
     {

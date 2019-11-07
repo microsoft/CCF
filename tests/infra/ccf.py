@@ -112,11 +112,12 @@ class Network:
                 raise
         LOG.info("All remotes started")
 
-        primary, _ = self.find_primary()
+        primary, term = self.find_primary()
         self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
+
         return primary
 
-    def start_and_join(self, args, open_network=True):
+    def start_and_join(self, args):
         """
         Starts a CCF network.
         :param args: command line arguments to configure the CCF nodes.
@@ -136,11 +137,8 @@ class Network:
 
         primary = self._start_all_nodes(args)
 
-        if not open_network:
-            LOG.warning("Network still needs to be opened")
-            return primary, self.nodes[1:]
-
-        self.wait_for_all_nodes_to_catch_up(primary)
+        if not args.pbft:
+            self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
 
         if args.app_script:
@@ -175,7 +173,7 @@ class Network:
         self.nodes.append(node)
         return node
 
-    def _add_node(self, node, lib_name, args, target_node=None, should_wait=True):
+    def _add_node(self, node, lib_name, args, target_node=None):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
@@ -193,7 +191,7 @@ class Network:
         )
 
         # If the network is opening, node are trusted without consortium approval
-        if self.status == ServiceStatus.OPENING and should_wait:
+        if self.status == ServiceStatus.OPENING and not args.pbft:
             try:
                 node.wait_for_node_to_join()
             except TimeoutError:
@@ -276,14 +274,14 @@ class Network:
 
     def find_backups(self, primary=None, timeout=3):
         if primary is None:
-            primary, _ = self.find_primary(timeout)
+            primary, term = self.find_primary(timeout)
         return [n for n in self.get_joined_nodes() if n != primary]
 
     def find_any_backup(self, primary=None, timeout=3):
         return random.choice(self.find_backups(primary=primary, timeout=timeout))
 
     def find_nodes(self, timeout=3):
-        primary, _ = self.find_primary(timeout)
+        primary, term = self.find_primary(timeout)
         backups = self.find_backups(primary=primary, timeout=timeout)
         return primary, backups
 

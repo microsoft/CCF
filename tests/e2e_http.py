@@ -26,7 +26,7 @@ def run(args):
             hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
         ) as network:
             network.start_and_join(args)
-            primary, _ = network.find_primary()
+            primary, term = network.find_primary()
 
             time.sleep(3)
 

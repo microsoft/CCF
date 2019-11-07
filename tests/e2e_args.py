@@ -100,6 +100,15 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--label", help="Unique identifier for the test", default=default_label
     )
+    parser.add_argument(
+        "--enforce-reqs",
+        help="Enforce test requirements (useful when running the test suite)",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--pbft", help="Opens network the PBFT way", action="store_true",
+    )
     add(parser)
 
     if accept_unknown:

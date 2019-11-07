@@ -14,6 +14,7 @@ using namespace std;
 using ms = std::chrono::milliseconds;
 using TRaft = raft::Raft<raft::LedgerStubProxy, raft::ChannelStubProxy>;
 using Store = raft::LoggingStubStore;
+using StoreSig = raft::LoggingStubStoreSig;
 using Adaptor = raft::Adaptor<Store, kv::DeserialiseSuccess>;
 
 TEST_CASE("Single node startup" * doctest::test_suite("single"))
@@ -739,4 +740,232 @@ TEST_CASE("Exceed append entries limit")
     (sent_entries > num_small_entries_sent &&
      sent_entries <= num_small_entries_sent + num_big_entries));
   REQUIRE(r2.ledger->ledger.size() == individual_entries);
+}
+
+// Reproduces issue described here: https://github.com/microsoft/CCF/issues/521
+// Once this is fixed test will need to be modified since right now it checks
+// that the issue stands
+TEST_CASE(
+  "Primary gets invalidated if it compacts right before a term change that it "
+  "doesn't participate in")
+{
+  auto kv_store0 = std::make_shared<StoreSig>(0);
+  auto kv_store1 = std::make_shared<StoreSig>(1);
+  auto kv_store2 = std::make_shared<StoreSig>(2);
+
+  raft::NodeId node_id0(0);
+  raft::NodeId node_id1(1);
+  raft::NodeId node_id2(2);
+
+  ms request_timeout(10);
+
+  TRaft r0(
+    std::make_unique<Adaptor>(kv_store0),
+    std::make_unique<raft::LedgerStubProxy>(node_id0),
+    std::make_shared<raft::ChannelStubProxy>(),
+    node_id0,
+    request_timeout,
+    ms(20));
+  TRaft r1(
+    std::make_unique<Adaptor>(kv_store1),
+    std::make_unique<raft::LedgerStubProxy>(node_id1),
+    std::make_shared<raft::ChannelStubProxy>(),
+    node_id1,
+    request_timeout,
+    ms(100));
+  TRaft r2(
+    std::make_unique<Adaptor>(kv_store2),
+    std::make_unique<raft::LedgerStubProxy>(node_id2),
+    std::make_shared<raft::ChannelStubProxy>(),
+    node_id2,
+    request_timeout,
+    ms(50));
+
+  std::unordered_set<raft::NodeId> config0 = {node_id0, node_id1, node_id2};
+  r0.add_configuration(0, config0);
+  r1.add_configuration(0, config0);
+  r2.add_configuration(0, config0);
+
+  map<raft::NodeId, TRaft*> nodes;
+  nodes[node_id0] = &r0;
+  nodes[node_id1] = &r1;
+  nodes[node_id2] = &r2;
+
+  r0.periodic(std::chrono::milliseconds(200));
+
+  INFO("Initial election for Node 0");
+  {
+    REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_request_vote));
+    REQUIRE(1 == dispatch_all(nodes, r1.channels->sent_request_vote_response));
+
+    REQUIRE(r0.is_leader());
+    REQUIRE(r0.channels->sent_append_entries.size() == 2);
+    REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_append_entries));
+    REQUIRE(r0.channels->sent_append_entries.size() == 0);
+  }
+
+  r1.channels->sent_append_entries_response.clear();
+  r2.channels->sent_append_entries_response.clear();
+
+  std::vector<uint8_t> first_entry = {1, 1, 1};
+  std::vector<uint8_t> second_entry = {2, 2, 2};
+  std::vector<uint8_t> third_entry = {3, 3, 3};
+
+  INFO("Node 0 compacts twice but Nodes 1 and 2 only once");
+  {
+    REQUIRE(r0.replicate({{1, first_entry, true}}));
+    REQUIRE(r0.ledger->ledger.size() == 1);
+    r0.periodic(ms(10));
+    REQUIRE(r0.channels->sent_append_entries.size() == 2);
+
+    // Nodes 1 and 2 receive append entries and respond
+    REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_append_entries));
+    REQUIRE(r0.channels->sent_append_entries.size() == 0);
+
+    REQUIRE(
+      1 == dispatch_all(nodes, r1.channels->sent_append_entries_response));
+    REQUIRE(
+      1 == dispatch_all(nodes, r2.channels->sent_append_entries_response));
+
+    REQUIRE(r0.replicate({{2, second_entry, true}}));
+    REQUIRE(r0.ledger->ledger.size() == 2);
+    r0.periodic(ms(10));
+    REQUIRE(r0.channels->sent_append_entries.size() == 2);
+
+    // Nodes 1 and 2 receive append entries and respond
+    // Node 0 will compact again and be ahead of Node 1 and 2
+    REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_append_entries));
+    REQUIRE(r0.channels->sent_append_entries.size() == 0);
+
+    REQUIRE(
+      1 == dispatch_all(nodes, r1.channels->sent_append_entries_response));
+    REQUIRE(
+      1 == dispatch_all(nodes, r2.channels->sent_append_entries_response));
+
+    CHECK(r0.get_term() == 1);
+    CHECK(r0.get_commit_idx() == 2);
+    CHECK(r0.get_last_idx() == 2);
+
+    CHECK(r1.get_term() == 1);
+    CHECK(r1.get_commit_idx() == 1);
+    CHECK(r1.get_last_idx() == 2);
+
+    CHECK(r2.get_term() == 1);
+    CHECK(r2.get_commit_idx() == 1);
+    CHECK(r2.get_last_idx() == 2);
+
+    // clean up
+    r2.channels->sent_request_vote_response.clear();
+
+    REQUIRE(r0.channels->sent_msg_count() == 0);
+    REQUIRE(r1.channels->sent_msg_count() == 0);
+    REQUIRE(r2.channels->sent_msg_count() == 0);
+  }
+
+  INFO("Node 1 exceeds its election timeout and starts an election");
+  {
+    auto by_0 = [](auto const& lhs, auto const& rhs) -> bool {
+      return get<0>(lhs) < get<0>(rhs);
+    };
+
+    r1.periodic(std::chrono::milliseconds(200));
+    REQUIRE(r1.channels->sent_request_vote.size() == 2);
+    r1.channels->sent_request_vote.sort(by_0);
+
+    INFO("Node 2 receives the vote request");
+    // pop for first node (node 0) so that it doesn't participate in the
+    // election
+    auto vote_req_from_1_to_0 = r1.channels->sent_request_vote.front();
+    r1.channels->sent_request_vote.pop_front();
+
+    REQUIRE(
+      1 ==
+      dispatch_all_and_check(
+        nodes, r1.channels->sent_request_vote, [](const auto& msg) {
+          REQUIRE(msg.term == 2);
+          REQUIRE(msg.last_commit_idx == 1);
+          REQUIRE(msg.last_commit_term == 1);
+        }));
+
+    INFO("Node 2 votes for Node 1, Node 0 is suspended");
+    REQUIRE(
+      1 ==
+      dispatch_all_and_check(
+        nodes, r2.channels->sent_request_vote_response, [](const auto& msg) {
+          REQUIRE(msg.term == 2);
+          REQUIRE(msg.vote_granted);
+        }));
+
+    INFO("Node 1 is now leader");
+    REQUIRE(r1.is_leader());
+    // pop Node 0's append entries
+    r1.channels->sent_append_entries.pop_front();
+    REQUIRE(
+      1 ==
+      dispatch_all_and_check(
+        nodes, r1.channels->sent_append_entries, [](const auto& msg) {
+          REQUIRE(msg.idx == 1);
+          REQUIRE(msg.term == 2);
+          REQUIRE(msg.prev_idx == 1);
+          REQUIRE(msg.prev_term == 1);
+          REQUIRE(msg.leader_commit_idx == 1);
+        }));
+    REQUIRE(r1.channels->sent_append_entries.size() == 0);
+
+    REQUIRE(
+      1 == dispatch_all(nodes, r2.channels->sent_append_entries_response));
+  }
+
+  INFO(
+    "Node 1 and Node 2 proceed to compact at idx 2, where Node 0 has "
+    "compacted for a previous term");
+  {
+    REQUIRE(r1.replicate({{2, second_entry, true}}));
+    REQUIRE(r1.ledger->ledger.size() == 2);
+    r1.periodic(ms(10));
+    REQUIRE(r1.channels->sent_append_entries.size() == 2);
+
+    // Nodes 0 and 2 receive append entries and respond
+    REQUIRE(2 == dispatch_all(nodes, r1.channels->sent_append_entries));
+    REQUIRE(r1.channels->sent_append_entries.size() == 0);
+
+    REQUIRE(
+      1 == dispatch_all(nodes, r2.channels->sent_append_entries_response));
+
+    // Node 0 will not respond here since it received an append entries it can
+    // not process [prev_idex (1) < commit_idx (2)]
+    REQUIRE(r0.channels->sent_append_entries_response.size() == 0);
+
+    INFO("Another entry from Node 1 so that Node 2 can also compact");
+    REQUIRE(r1.replicate({{3, third_entry, true}}));
+    REQUIRE(r1.ledger->ledger.size() == 3);
+    r1.periodic(ms(10));
+    REQUIRE(r1.channels->sent_append_entries.size() == 2);
+
+    // Nodes 0 and 2 receive append entries
+    REQUIRE(2 == dispatch_all(nodes, r1.channels->sent_append_entries));
+    REQUIRE(r1.channels->sent_append_entries.size() == 0);
+
+    // Node 0 will now have an ae response which will return false because
+    // its log for index 2 has the wrong term (ours: 1, theirs: 2)
+    REQUIRE(r0.channels->sent_append_entries_response.size() == 1);
+    REQUIRE(
+      1 ==
+      dispatch_all_and_check(
+        nodes, r0.channels->sent_append_entries_response, [](const auto& msg) {
+          REQUIRE(msg.last_log_idx == 2);
+          REQUIRE(!msg.success);
+        }));
+
+    REQUIRE(r1.ledger->ledger.size() == 3);
+    REQUIRE(r2.ledger->ledger.size() == 3);
+
+    CHECK(r1.get_term() == 2);
+    CHECK(r1.get_commit_idx() == 2);
+    CHECK(r1.get_last_idx() == 3);
+
+    CHECK(r2.get_term() == 2);
+    CHECK(r2.get_commit_idx() == 2);
+    CHECK(r2.get_last_idx() == 3);
+  }
 }
