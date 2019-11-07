@@ -331,12 +331,16 @@ class Network:
         try:
             if self.status is ServiceStatus.OPEN:
                 self.trust_node(primary, new_node.node_id)
+            if not args.pbft:
+                new_node.wait_for_node_to_join()
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {new_node.node_id} failed to join the network")
             new_node.stop()
             return None
 
         new_node.network_state = NodeNetworkState.joined
+        if not args.pbft:
+            self.wait_for_all_nodes_to_catch_up(primary)
 
         return new_node
 
