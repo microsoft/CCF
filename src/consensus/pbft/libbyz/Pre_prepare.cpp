@@ -110,6 +110,8 @@ Pre_prepare::Pre_prepare(
   INCR_CNT(sum_batch_size, requests_in_batch);
   INCR_OP(batch_size_histogram[requests_in_batch]);
 
+  LOG_TRACE << "request in batch:" << requests_in_batch << std::endl;
+
   // Compute authenticator and update size.
   int old_size = sizeof(Pre_prepare_rep) + rep().rset_size +
     rep().n_big_reqs * sizeof(Digest) + rep().non_det_size;

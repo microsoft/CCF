@@ -21,11 +21,15 @@ logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 
-def number_of_local_nodes():
+def number_of_local_nodes(args):
     """
-    On 2-core VMs, we start only one node, but on 4 core, we want to start 2.
+    If we are using pbft then we need to have 4 nodes. Otherwise with CFT
+    on 2-core VMs, we start only one node, but on 4 core, we want to start 2.
     Not 3, because the client is typically running two threads.
     """
+    if args.pbft:
+        return 4
+
     if multiprocessing.cpu_count() > 2:
         return 2
     else:
@@ -97,7 +101,7 @@ def run(build_directory, get_command, args):
 
     hosts = args.nodes
     if not hosts:
-        hosts = ["localhost"] * number_of_local_nodes()
+        hosts = ["localhost"] * number_of_local_nodes(args)
 
     LOG.info("Starting nodes on {}".format(hosts))
 
@@ -141,13 +145,17 @@ def run(build_directory, get_command, args):
                                 break
                         time.sleep(1)
 
-                    tx_rates.get_metrics()
-                    for remote_client in clients:
-                        remote_client.print_and_upload_result(args.label, metrics)
-                        remote_client.stop()
+                    # For now we will not collect metrics with PBFT as the messages that
+                    # can be created when collecting the metrics is too large.
+                    # https://github.com/microsoft/CCF/issues/534
+                    if not args.pbft:
+                        tx_rates.get_metrics()
+                        for remote_client in clients:
+                            remote_client.print_and_upload_result(args.label, metrics)
+                            remote_client.stop()
 
-                    LOG.info(f"Rates:\n{tx_rates}")
-                    tx_rates.save_results(args.metrics_file)
+                        LOG.info(f"Rates:\n{tx_rates}")
+                        tx_rates.save_results(args.metrics_file)
 
             except Exception:
                 for remote_client in clients:
