@@ -10,7 +10,7 @@ import infra.node
 
 from loguru import logger as LOG
 
-# TODO: Make sure that API is consistent, i.e. (self, node, member_id, ...s)
+
 class Consortium:
     def __init__(self, members):
         self.members = members
@@ -23,10 +23,7 @@ class Consortium:
         members_certs = [f"member{m}_cert.pem" for m in self.members]
         return members_certs
 
-    def member_client_rpc_as_json(self, member_id, remote_node, *args):
-        if remote_node is None:
-            remote_node = self.find_primary()[0]  # TODO: Remove this
-
+    def _member_client_rpc_as_json(self, member_id, remote_node, *args):
         result = infra.proc.ccall(
             "./memberclient",
             f"--cert=member{member_id}_cert.pem",
@@ -44,7 +41,7 @@ class Consortium:
                 r = mc.rpc("propose", {"parameter": params, "script": {"text": script}})
                 return (True, r.result)
         else:
-            j_result = self.member_client_rpc_as_json(member_id, remote_node, *args)
+            j_result = self._member_client_rpc_as_json(member_id, remote_node, *args)
 
             if j_result.get("error") is not None:
                 return (False, j_result["error"])
@@ -71,7 +68,7 @@ class Consortium:
                 )
             return (True, r.result)
         else:
-            j_result = self.member_client_rpc_as_json(
+            j_result = self._member_client_rpc_as_json(
                 member_id,
                 remote_node,
                 "vote",
@@ -118,21 +115,23 @@ class Consortium:
         assert res
         return res[1]
 
-    def withdraw(self, member_id, node, proposal_id):
-        return self.member_client_rpc_as_json(
-            member_id, node, "withdraw", f"--proposal-id={proposal_id}"
+    def withdraw(self, member_id, remote_node, proposal_id):
+        return self._member_client_rpc_as_json(
+            member_id, remote_node, "withdraw", f"--proposal-id={proposal_id}"
         )
 
-    def ack(self, member_id, node):
-        return self.member_client_rpc_as_json(member_id, node, "ack")
+    def ack(self, member_id, remote_node):
+        return self._member_client_rpc_as_json(member_id, remote_node, "ack")
 
-    def get_proposals(self, member_id, node):
-        return self.member_client_rpc_as_json(member_id, node, "proposal_display")
+    def get_proposals(self, member_id, remote_node):
+        return self._member_client_rpc_as_json(
+            member_id, remote_node, "proposal_display"
+        )
 
-    def raw_puts(self, member_id, node, script, params):
-        return self.member_client_rpc_as_json(
+    def raw_puts(self, member_id, remote_node, script, params):
+        return self._member_client_rpc_as_json(
             member_id,
-            node,
+            remote_node,
             "raw_puts",
             "raw_puts",
             f"--script={script}",
@@ -144,12 +143,14 @@ class Consortium:
             member_id, remote_node, None, None, "retire_node", f"--node-id={node_id}"
         )
 
-    def retire_node(self, node, node_to_retire):
+    def retire_node(self, remote_node, node_to_retire):
         member_id = 1
-        result = self.propose_retire_node(member_id, node, node_to_retire.node_id)
-        self.vote_using_majority(node, result[1]["id"])
+        result = self.propose_retire_node(
+            member_id, remote_node, node_to_retire.node_id
+        )
+        self.vote_using_majority(remote_node, result[1]["id"])
 
-        with node.member_client() as c:
+        with remote_node.member_client() as c:
             id = c.request(
                 "read", {"table": "ccf.nodes", "key": node_to_retire.node_id}
             )
@@ -163,13 +164,12 @@ class Consortium:
             member_id, remote_node, None, None, "trust_node", f"--node-id={node_id}"
         )
 
-    def trust_node(self, remote_node, node_id):
+    def trust_node(self, member_id, remote_node, node_id):
         if not self._check_node_exists(
             remote_node, node_id, infra.node.NodeStatus.PENDING
         ):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
-        member_id = 1
         result = self.propose_trust_node(member_id, remote_node, node_id)
         self.vote_using_majority(remote_node, result[1]["id"])
 
@@ -188,7 +188,7 @@ class Consortium:
             f"--member-cert={new_member_cert}",
         )
 
-    def open_network(self, node):
+    def open_network(self, member_id, remote_node):
         """
         Assuming a network in state OPENING, this functions creates a new
         proposal and make members vote to transition the network to state
@@ -200,13 +200,13 @@ class Consortium:
             tables = ...
             return Calls:call("open_network")
             """
-        result = self.propose(1, node, script, None, "open_network")
-        self.vote_using_majority(node, result[1]["id"])
-        self.check_for_service(node, infra.ccf.ServiceStatus.OPEN)
+        result = self.propose(member_id, remote_node, script, None, "open_network")
+        self.vote_using_majority(remote_node, result[1]["id"])
+        self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN)
 
-    def add_users(self, node, users):
+    def add_users(self, remote_node, users):
         if os.getenv("HTTP"):
-            with node.member_client() as mc:
+            with remote_node.member_client() as mc:
                 for u in users:
                     user_cert = []
                     with open(f"user{u}_cert.pem") as cert:
@@ -218,7 +218,7 @@ class Consortium:
                     r = mc.rpc(
                         "propose", {"parameter": user_cert, "script": {"text": script}}
                     )
-                    with node.member_client(2) as mc2:
+                    with remote_node.member_client(2) as mc2:
                         script = """
                         tables, changes = ...
                         return true
@@ -231,29 +231,44 @@ class Consortium:
         else:
             for u in users:
                 result = self.propose(
-                    1, node, None, None, "add_user", f"--user-cert=user{u}_cert.pem"
+                    1,
+                    remote_node,
+                    None,
+                    None,
+                    "add_user",
+                    f"--user-cert=user{u}_cert.pem",
                 )
-                self.vote_using_majority(node, result[1]["id"])
+                self.vote_using_majority(remote_node, result[1]["id"])
 
-    def set_lua_app(self, node, app_script):
+    def set_lua_app(self, member_id, remote_node, app_script):
         result = self.propose(
-            1, node, None, None, "set_lua_app", f"--lua-app-file={app_script}"
+            member_id,
+            remote_node,
+            None,
+            None,
+            "set_lua_app",
+            f"--lua-app-file={app_script}",
         )
-        self.vote_using_majority(node, result[1]["id"])
+        self.vote_using_majority(remote_node, result[1]["id"])
 
-    def accept_recovery(self, node, sealed_secrets):
+    def accept_recovery(self, member_id, remote_node, sealed_secrets):
         result = self.propose(
-            1, node, None, None, "accept_recovery", f"--sealed-secrets={sealed_secrets}"
+            member_id,
+            remote_node,
+            None,
+            None,
+            "accept_recovery",
+            f"--sealed-secrets={sealed_secrets}",
         )
-        self.vote_using_majority(node, result[1]["id"])
+        self.vote_using_majority(remote_node, result[1]["id"])
 
-    def check_for_service(self, node, status):
+    def check_for_service(self, remote_node, status):
         """
         Check via the member frontend of the given node that the certificate
         associated with current CCF service signing key has been recorded in
         the KV store with the appropriate status.
         """
-        with node.member_client(format="json") as c:
+        with remote_node.member_client(format="json") as c:
             rep = c.do(
                 "query",
                 {

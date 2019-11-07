@@ -48,9 +48,7 @@ class Network:
             self.consortium = []
             self.node_offset = 0
         else:
-            self.consortium = (
-                existing_network.consortium
-            )  # TODO: Probably do a deep copy
+            self.consortium = existing_network.consortium
             # When creating a new network from an existing one (e.g. for recovery),
             # the node id of the nodes of the new network should start from the node
             # id of the existing network, so that new nodes id match the ones in the
@@ -147,12 +145,14 @@ class Network:
 
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
-            self.consortium.set_lua_app(primary, args.app_script)
+            self.consortium.set_lua_app(
+                member_id=1, remote_node=primary, app_script=args.app_script
+            )
 
         self.consortium.add_users(primary, self.initial_users)
         LOG.info("Initial set of users added")
 
-        self.consortium.open_network(primary)
+        self.consortium.open_network(member_id=1, remote_node=primary)
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
@@ -339,7 +339,7 @@ class Network:
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
-                self.consortium.trust_node(primary, new_node.node_id)
+                self.consortium.trust_node(1, primary, new_node.node_id)
             if should_wait:
                 new_node.wait_for_node_to_join()
         except (ValueError, TimeoutError):

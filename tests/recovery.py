@@ -100,7 +100,9 @@ def test(network, args):
     recovered_network.wait_for_all_nodes_to_be_trusted()
 
     LOG.info("Members vote to complete the recovery")
-    recovered_network.consortium.accept_recovery(primary, sealed_secrets)
+    recovered_network.consortium.accept_recovery(
+        member_id=1, remote_node=primary, sealed_secrets=sealed_secrets
+    )
 
     for node in recovered_network.nodes:
         network.wait_for_state(node, "partOfNetwork")
