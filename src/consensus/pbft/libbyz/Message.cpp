@@ -93,6 +93,12 @@ void Message::trim()
 void Message::set_size(int size)
 {
   PBFT_ASSERT(msg && ALIGNED(msg), "Invalid state");
+  if (!(max_size < 0 || ALIGNED_SIZE(size) <= max_size))
+  {
+    LOG_INFO << "Error - size:" << size
+             << ", aligned_size:" << ALIGNED_SIZE(size)
+             << ", max_size:" << max_size << std::endl;
+  }
   PBFT_ASSERT(max_size < 0 || ALIGNED_SIZE(size) <= max_size, "Invalid state");
   int aligned = ALIGNED_SIZE(size);
   for (int i = size; i < aligned; i++)

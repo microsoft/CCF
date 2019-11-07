@@ -57,6 +57,7 @@ namespace raft
 
     void truncate(Index idx)
     {
+      ledger.resize(idx);
 #ifdef STUB_LOG
       std::cout << "  KV" << _id << "->>Node" << _id << ": truncate i: " << idx
                 << std::endl;
@@ -131,7 +132,7 @@ namespace raft
   public:
     LoggingStubStore(raft::NodeId id) : _id(id) {}
 
-    void compact(Index i)
+    virtual void compact(Index i)
     {
 #ifdef STUB_LOG
       std::cout << "  Node" << _id << "->>KV" << _id << ": compact i: " << i
@@ -139,7 +140,7 @@ namespace raft
 #endif
     }
 
-    void rollback(Index i)
+    virtual void rollback(Index i)
     {
 #ifdef STUB_LOG
       std::cout << "  Node" << _id << "->>KV" << _id << ": rollback i: " << i
@@ -147,12 +148,26 @@ namespace raft
 #endif
     }
 
-    kv::DeserialiseSuccess deserialise(
+    virtual kv::DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term = nullptr)
     {
       return kv::DeserialiseSuccess::PASS;
+    }
+  };
+
+  class LoggingStubStoreSig : public LoggingStubStore
+  {
+  public:
+    LoggingStubStoreSig(raft::NodeId id) : LoggingStubStore(id) {}
+
+    kv::DeserialiseSuccess deserialise(
+      const std::vector<uint8_t>& data,
+      bool public_only = false,
+      Term* term = nullptr) override
+    {
+      return kv::DeserialiseSuccess::PASS_SIGNATURE;
     }
   };
 }

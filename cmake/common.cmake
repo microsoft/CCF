@@ -557,11 +557,18 @@ add_enclave_library_c(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Common test args for Python scripts starting up CCF networks
+if(PBFT)
+  set(PBFT_ARG "--pbft")
+else()
+  unset(PBFT_ARG)
+endif()
+
 set(CCF_NETWORK_TEST_ARGS
   ${TEST_IGNORE_QUOTE}
   ${TEST_ENCLAVE_TYPE}
   -l ${TEST_HOST_LOGGING_LEVEL}
   -g ${CCF_DIR}/src/runtime_config/gov.lua
+  ${PBFT_ARG}
 )
 
 # Lua generic app
