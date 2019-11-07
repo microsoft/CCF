@@ -388,6 +388,10 @@ if(BUILD_TESTS)
   else()
     message(STATUS "Using PBFT as consensus")
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
+
+    if (BUILD_SMALLBANK)
+      include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
+    endif()
   endif()
 
   if (EXTENSIVE_TESTS)

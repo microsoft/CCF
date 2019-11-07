@@ -189,9 +189,10 @@ class Network:
 
         primary, _ = self.find_primary()
         self.check_for_service(primary, status=ServiceStatus.OPENING)
+
         return primary
 
-    def start_and_join(self, args, open_network=True):
+    def start_and_join(self, args):
         """
         Starts a CCF network.
         :param args: command line arguments to configure the CCF nodes.
@@ -211,11 +212,8 @@ class Network:
 
         primary = self._start_all_nodes(args)
 
-        if not open_network:
-            LOG.warning("Network still needs to be opened")
-            return primary, self.nodes[1:]
-
-        self.wait_for_all_nodes_to_catch_up(primary)
+        if not args.pbft:
+            self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
 
         if args.app_script:
@@ -225,7 +223,7 @@ class Network:
         self.add_users(primary, self.initial_users)
         LOG.info("Initial set of users added")
 
-        self.open_network(primary)
+        self.open_network(args, primary)
         LOG.success("***** Network is now open *****")
 
         return primary, self.nodes[1:]
@@ -251,7 +249,7 @@ class Network:
     def remove_last_node(self):
         last_node = self.nodes.pop()
 
-    def _add_node(self, node, lib_name, args, target_node=None, should_wait=True):
+    def _add_node(self, node, lib_name, args, target_node=None):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
@@ -269,7 +267,7 @@ class Network:
         )
 
         # If the network is opening, node are trusted without consortium approval
-        if self.status == ServiceStatus.OPENING and should_wait:
+        if self.status == ServiceStatus.OPENING and not args.pbft:
             try:
                 node.wait_for_node_to_join()
             except TimeoutError:
@@ -292,15 +290,13 @@ class Network:
                 + getattr(node_status, f" with status {node_status.name}", "")
             )
 
-    def create_and_add_pending_node(
-        self, lib_name, host, args, target_node=None, should_wait=True
-    ):
+    def create_and_add_pending_node(self, lib_name, host, args, target_node=None):
         """
         Create a new node and add it to the network. Note that the new node
         still needs to be trusted by members to complete the join protocol.
         """
         new_node = self.create_node(host)
-        self._add_node(new_node, lib_name, args, target_node, should_wait)
+        self._add_node(new_node, lib_name, args, target_node)
         primary, _ = self.find_primary()
         try:
             self._wait_for_node_to_exist_in_store(
@@ -322,17 +318,12 @@ class Network:
 
         return new_node
 
-    # TODO: should_wait should disappear once nodes can join a network and catch up in PBFT
-    def create_and_trust_node(
-        self, lib_name, host, args, target_node=None, should_wait=True
-    ):
+    def create_and_trust_node(self, lib_name, host, args, target_node=None):
         """
         Create a new node, add it to the network and let members vote to trust
         it so that it becomes part of the consensus protocol.
         """
-        new_node = self.create_and_add_pending_node(
-            lib_name, host, args, target_node, should_wait
-        )
+        new_node = self.create_and_add_pending_node(lib_name, host, args, target_node)
         if new_node is None:
             return None
 
@@ -340,7 +331,7 @@ class Network:
         try:
             if self.status is ServiceStatus.OPEN:
                 self.trust_node(primary, new_node.node_id)
-            if should_wait:
+            if not args.pbft:
                 new_node.wait_for_node_to_join()
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {new_node.node_id} failed to join the network")
@@ -348,7 +339,7 @@ class Network:
             return None
 
         new_node.network_state = NodeNetworkState.joined
-        if should_wait:
+        if not args.pbft:
             self.wait_for_all_nodes_to_catch_up(primary)
 
         return new_node
@@ -556,7 +547,7 @@ class Network:
             f"--member-cert={new_member_cert}",
         )
 
-    def open_network(self, node):
+    def open_network(self, args, node):
         """
         Assuming a network in state OPENING, this functions creates a new
         proposal and make members vote to transition the network to state
@@ -569,7 +560,8 @@ class Network:
             return Calls:call("open_network")
             """
         result = self.propose(1, node, script, None, "open_network")
-        self.vote_using_majority(node, result[1]["id"])
+        self.vote_using_majority(node, result[1]["id"], not args.pbft)
+
         self.check_for_service(node)
         self.status = ServiceStatus.OPEN
 

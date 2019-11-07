@@ -18,27 +18,12 @@ from loguru import logger as LOG
 
 
 def run(args):
-    hosts = ["localhost"]
+    hosts = ["localhost"] * 4
 
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, _ = network.start_and_join(args, open_network=False)
-
-        for i in range(1, 4):
-            LOG.info(f"Adding node {i}")
-            assert network.create_and_trust_node(
-                args.package, "localhost", args, target_node=None, should_wait=False
-            )
-
-        network.add_users(primary, network.initial_users)
-        LOG.info("Initial set of users added")
-
-        # network.open_network(primary)
-        script = None
-        result = network.propose(1, primary, script, None, "open_network")
-        network.vote_using_majority(primary, result[1]["id"], False)
-        LOG.info("***** Network is now open *****")
+        primary, _ = network.start_and_join(args)
 
         with primary.node_client() as mc:
             check_commit = infra.ccf.Checker(mc)
