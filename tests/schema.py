@@ -66,7 +66,7 @@ def run(args):
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes
     ) as network:
         network.start_and_join(args)
-        primary, _ = network.find_primary()
+        primary, term = network.find_primary()
 
         check = infra.ccf.Checker()
 

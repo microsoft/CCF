@@ -26,8 +26,7 @@ def run(args):
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        primary, _ = network.find_primary()
-        backup = network.find_any_backup(primary)
+        primary, (backup, ) = network.find_nodes()
 
         with primary.node_client() as mc:
             check_commit = infra.ccf.Checker(mc)

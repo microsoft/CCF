@@ -179,7 +179,7 @@ class Network:
                 raise
         LOG.info("All remotes started")
 
-        primary, _ = self.find_primary()
+        primary, term = self.find_primary()
         self.check_for_service(primary, status=ServiceStatus.OPENING)
         return primary
 
@@ -289,7 +289,7 @@ class Network:
         """
         new_node = self.create_node(host)
         self._add_node(new_node, lib_name, args, target_node, should_wait)
-        primary, _ = self.find_primary()
+        primary, term = self.find_primary()
         try:
             self._wait_for_node_to_exist_in_store(
                 primary,
@@ -324,7 +324,7 @@ class Network:
         if new_node is None:
             return None
 
-        primary, _ = self.find_primary()
+        primary, term = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
                 self.trust_node(primary, new_node.node_id)
@@ -500,7 +500,7 @@ class Network:
 
     def retire_node(self, node_to_retire):
         member_id = 1
-        primary, _ = self.find_primary()
+        primary, term = self.find_primary()
         result = self.propose_retire_node(member_id, primary, node_to_retire.node_id)
         self.vote_using_majority(primary, result[1]["id"])
 
@@ -607,7 +607,7 @@ class Network:
         self.vote_using_majority(node, result[1]["id"])
 
     def wait_for_all_nodes_to_be_trusted(self, timeout=3):
-        primary, _ = self.find_primary()
+        primary, term = self.find_primary()
         for n in self.nodes:
             self._wait_for_node_to_exist_in_store(
                 primary, n.node_id, NodeStatus.TRUSTED
@@ -673,14 +673,14 @@ class Network:
 
     def find_backups(self, primary=None, timeout=3):
         if primary is None:
-            primary, _ = self.find_primary(timeout)
+            primary, term = self.find_primary(timeout)
         return [n for n in self.get_joined_nodes() if n != primary]
 
     def find_any_backup(self, primary=None, timeout=3):
         return random.choice(self.find_backups(primary=primary, timeout=timeout))
 
     def find_nodes(self, timeout=3):
-        primary, _ = self.find_primary(timeout)
+        primary, term = self.find_primary(timeout)
         backups = self.find_backups(primary=primary, timeout=timeout)
         return primary, backups
 

@@ -3,13 +3,47 @@
 
 import e2e_args
 import infra.ccf
+import test_suite
 import time
 import json
 
+from inspect import signature, Parameter
 from loguru import logger as LOG
 
 
+def test_name(test):
+    return f"{test.__module__}.{test.__name__}"
+
+
+def validate_tests_signature(suite):
+    """
+    Validates that the test functions signatures are in the correct format
+    """
+    valid_sig = signature(test_suite.test_example)
+
+    for test in suite:
+        sig = signature(test)
+
+        assert len(sig.parameters) >= len(
+            valid_sig.parameters
+        ), f"{test_name(test)} should have at least {len(valid_sig.parameters)} parameters"
+
+        p_index = 0
+        for p, v in zip(sig.parameters.items(), valid_sig.parameters.items()):
+            assert (
+                p[0] == v[0]
+            ), f'Signature of {test_name(test)} does not contain "{v[0]}" parameter in the right order'
+            p_index += 1
+
+        for p in list(sig.parameters.values())[p_index:]:
+            assert (
+                p.default is not Parameter.empty
+            ), f'Signature of {test_name(test)} includes custom non-defaulted parameter "{p}"'
+
+
 def run(args):
+
+    validate_tests_signature(test_suite.tests)
 
     hosts = ["localhost", "localhost"]
     network = infra.ccf.Network(hosts, args.debug_nodes, args.perf_nodes)
@@ -21,7 +55,6 @@ def run(args):
     elapsed = args.test_duration
 
     for test in test_suite.tests:
-        test_name = f"{test.__module__}.{test.__name__}"
         success = False
 
         if elapsed <= 0:
@@ -29,19 +62,22 @@ def run(args):
             break
 
         try:
-            LOG.info(f"Running {test_name}...")
+            LOG.info(f"Running {test_name(test)}...")
             test_time_before = time.time()
             new_network = test(network, args)
             success = True
         except Exception as e:
-            LOG.exception(f"Test {test_name} failed")
+            LOG.exception(f"Test {test_name(test)} failed")
             new_network = network
         finally:
             test_elapsed = time.time() - test_time_before
-            run_tests[test_name] = {
+            run_tests[test_name(test)] = {
                 "success": success,
                 "elapsed": round(test_elapsed, 2),
             }
+
+            if new_network is None:
+                raise ValueError(f"Network returned by {test_name(test)} is None")
 
             # If the network was changed (e.g. recovery test), stop the previous network
             # and use the new network from now on
@@ -49,7 +85,7 @@ def run(args):
                 network.stop_all_nodes()
                 network = new_network
 
-            LOG.info(f"Test {test_name} took {test_elapsed:.2f} secs")
+            LOG.info(f"Test {test_name(test)} took {test_elapsed:.2f} secs")
 
             # For now, if a test fails, the entire test suite if stopped
             if success is not True:

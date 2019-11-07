@@ -29,7 +29,7 @@ def get_code_id(lib_path):
 def add_new_code(network, new_code_id):
     LOG.debug(f"Adding new code id: {new_code_id}")
 
-    primary, _ = network.find_primary()
+    primary, term = network.find_primary()
     result = network.propose(
         1, primary, None, None, "add_code", f"--new-code-id={new_code_id}"
     )

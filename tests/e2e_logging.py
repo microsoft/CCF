@@ -20,7 +20,7 @@ from loguru import logger as LOG
 def test_update_lua(network, args):
     if args.package == "libluagenericenc":
         LOG.info("Updating Lua application")
-        primary, _ = network.find_primary()
+        primary, term = network.find_primary()
 
         check = infra.ccf.Checker()
 

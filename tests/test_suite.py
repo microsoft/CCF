@@ -18,14 +18,9 @@ tests = [
 ]
 
 #
-# Test functions should only make assumptions on the number of nodes in the network
-# or the application it is running.
-#
 # Test functions are expected to be in the following format:
 #
-# def test(network, args):
-#     LOG.info("<Test Description>")
-#
-#     # Test logic, e.g. issuing transaction or adding a node
-#
-#     return network
+def test_example(network, args):
+    LOG.info("<Test Description>")
+    # Test logic, e.g. issuing transaction or adding a node
+    return network

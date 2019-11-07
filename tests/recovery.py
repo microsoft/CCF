@@ -94,7 +94,7 @@ def test(network, args):
         recovered_network.wait_for_node_commit_sync()
     LOG.info("Public CFTR started")
 
-    primary, _ = recovered_network.find_primary()
+    primary, term = recovered_network.find_primary()
 
     LOG.info("Members verify that the new nodes have joined the network")
     recovered_network.wait_for_all_nodes_to_be_trusted()

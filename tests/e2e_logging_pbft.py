@@ -24,7 +24,7 @@ def run(args):
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args, open_network=False)
-        primary, _ = network.find_primary()
+        primary, term = network.find_primary()
 
         for i in range(1, 4):
             LOG.info(f"Adding node {i}")
