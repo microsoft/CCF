@@ -47,8 +47,8 @@ class ErrorCode(IntEnum):
 
 
 def truncate(string, max_len=256):
-    if len(string) > 256:
-        return string[: 256 - 3] + "..."
+    if len(string) > max_len:
+        return string[: max_len - 3] + "..."
     else:
         return string
 
