@@ -42,8 +42,8 @@ def run(args):
         LOG.info("***** Network is now open *****")
 
         with primary.node_client() as mc:
-            check_commit = infra.ccf.Checker(mc)
-            check = infra.ccf.Checker()
+            check_commit = infra.checker.Checker(mc)
+            check = infra.checker.Checker()
 
             msg = "Hello world"
             msg2 = "Hello there"

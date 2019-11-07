@@ -1,6 +1,7 @@
 import array
 import os
 import json
+import time
 from enum import Enum
 import infra.ccf
 import infra.proc
@@ -9,7 +10,7 @@ import infra.node
 
 from loguru import logger as LOG
 
-
+# TODO: Make sure that API is consistent, i.e. (self, node, member_id, ...s)
 class Consortium:
     def __init__(self, members):
         self.members = members
@@ -24,7 +25,7 @@ class Consortium:
 
     def member_client_rpc_as_json(self, member_id, remote_node, *args):
         if remote_node is None:
-            remote_node = self.find_primary()[0] # TODO: Remove this
+            remote_node = self.find_primary()[0]  # TODO: Remove this
 
         result = infra.proc.ccall(
             "./memberclient",
@@ -86,7 +87,9 @@ class Consortium:
         # until the global hook on the SERVICE table is triggered
         if j_result["result"] and should_wait_for_global_commit:
             with remote_node.node_client(member_id) as mc:
-                infra.checker.wait_for_global_commit(mc, j_result["commit"], j_result["term"], True)
+                infra.checker.wait_for_global_commit(
+                    mc, j_result["commit"], j_result["term"], True
+                )
 
         return (True, j_result["result"])
 
@@ -115,6 +118,27 @@ class Consortium:
         assert res
         return res[1]
 
+    def withdraw(self, member_id, node, proposal_id):
+        return self.member_client_rpc_as_json(
+            member_id, node, "withdraw", f"--proposal-id={proposal_id}"
+        )
+
+    def ack(self, member_id, node):
+        return self.member_client_rpc_as_json(member_id, node, "ack")
+
+    def get_proposals(self, member_id, node):
+        return self.member_client_rpc_as_json(member_id, node, "proposal_display")
+
+    def raw_puts(self, member_id, node, script, params):
+        return self.member_client_rpc_as_json(
+            member_id,
+            node,
+            "raw_puts",
+            "raw_puts",
+            f"--script={script}",
+            f"--param={params}",
+        )
+
     def propose_retire_node(self, member_id, remote_node, node_id):
         return self.propose(
             member_id, remote_node, None, None, "retire_node", f"--node-id={node_id}"
@@ -129,7 +153,10 @@ class Consortium:
             id = c.request(
                 "read", {"table": "ccf.nodes", "key": node_to_retire.node_id}
             )
-            assert c.response(id).result["status"].decode() == infra.node.NodeStatus.RETIRED.name
+            assert (
+                c.response(id).result["status"].decode()
+                == infra.node.NodeStatus.RETIRED.name
+            )
 
     def propose_trust_node(self, member_id, remote_node, node_id):
         return self.propose(
@@ -137,14 +164,18 @@ class Consortium:
         )
 
     def trust_node(self, remote_node, node_id):
-        if not self._check_node_exists(remote_node, node_id, infra.node.NodeStatus.PENDING):
+        if not self._check_node_exists(
+            remote_node, node_id, infra.node.NodeStatus.PENDING
+        ):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
         member_id = 1
         result = self.propose_trust_node(member_id, remote_node, node_id)
         self.vote_using_majority(remote_node, result[1]["id"])
 
-        if not self._check_node_exists(remote_node, node_id, infra.node.NodeStatus.TRUSTED):
+        if not self._check_node_exists(
+            remote_node, node_id, infra.node.NodeStatus.TRUSTED
+        ):
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
     def propose_add_member(self, member_id, remote_node, new_member_cert):
@@ -215,12 +246,6 @@ class Consortium:
             1, node, None, None, "accept_recovery", f"--sealed-secrets={sealed_secrets}"
         )
         self.vote_using_majority(node, result[1]["id"])
-
-    def wait_for_all_nodes_to_be_trusted(self, node, timeout=3):
-        for n in self.nodes:
-            self._wait_for_node_to_exist_in_store(
-                node, n.node_id, infra.node.NodeStatus.TRUSTED
-            )
 
     def check_for_service(self, node, status):
         """

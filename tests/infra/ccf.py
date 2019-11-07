@@ -221,6 +221,15 @@ class Network:
             raise TimeoutError(
                 f"Timed out waiting for public ledger to be read on node {node.node_id}"
             )
+        if state == "partOfNetwork":
+            self.status = ServiceStatus.OPEN
+
+    def wait_for_all_nodes_to_be_trusted(self, timeout=3):
+        primary, _ = self.find_primary(timeout)
+        for n in self.nodes:
+            self.consortium.wait_for_node_to_exist_in_store(
+                primary, n.node_id, infra.node.NodeStatus.TRUSTED
+            )
 
     def stop_all_nodes(self):
         for node in self.nodes:
@@ -270,8 +279,8 @@ class Network:
             primary, _ = self.find_primary(timeout)
         return [n for n in self.get_joined_nodes() if n != primary]
 
-    def find_any_backup(self, timeout=3):
-        return random.choice(self.find_backups(timeout=timeout))
+    def find_any_backup(self, primary=None, timeout=3):
+        return random.choice(self.find_backups(primary=primary, timeout=timeout))
 
     def find_nodes(self, timeout=3):
         primary, _ = self.find_primary(timeout)

@@ -30,8 +30,8 @@ def run(args):
         backup = network.find_any_backup(primary)
 
         with primary.node_client() as mc:
-            check_commit = infra.ccf.Checker(mc)
-            check = infra.ccf.Checker()
+            check_commit = infra.checker.Checker(mc)
+            check = infra.checker.Checker()
             r = mc.rpc("getQuotes", {})
             quotes = r.result["quotes"]
             assert len(quotes) == len(hosts)
