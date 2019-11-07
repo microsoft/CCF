@@ -63,6 +63,11 @@ namespace ccf
       request_storing_disabled = true;
     }
 
+    virtual std::string invalid_caller_error_message() const
+    {
+      return "Could not find matching actor certificate";
+    }
+
     /** Install HandleFunction for method name
      *
      * If an implementation is already installed for that method, it will be
@@ -503,7 +508,7 @@ namespace ccf
           jsonrpc::error_response(
             0,
             jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
-            "No corresponding caller entry exists."),
+            invalid_caller_error_message()),
           ctx.pack.value());
       }
 
@@ -692,7 +697,7 @@ namespace ccf
             jsonrpc::error_response(
               0,
               jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
-              "No corresponding caller entry exists."),
+              invalid_caller_error_message()),
             ctx.pack.value());
         }
         ctx.session.caller_cert = caller.value().cert;
