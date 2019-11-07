@@ -3,97 +3,95 @@
 
 import e2e_args
 import infra.ccf
-import test_suite
+import suite.test_suite as s
+import suite.test_requirements as reqs
 import time
 import json
+from enum import Enum
 
-from inspect import signature, Parameter
 from loguru import logger as LOG
 
 
-def test_name(test):
-    return f"{test.__module__}.{test.__name__}"
-
-
-def validate_tests_signature(suite):
-    """
-    Validates that the test functions signatures are in the correct format
-    """
-    valid_sig = signature(test_suite.test_example)
-
-    for test in suite:
-        sig = signature(test)
-
-        assert len(sig.parameters) >= len(
-            valid_sig.parameters
-        ), f"{test_name(test)} should have at least {len(valid_sig.parameters)} parameters"
-
-        p_index = 0
-        for p, v in zip(sig.parameters.items(), valid_sig.parameters.items()):
-            assert (
-                p[0] == v[0]
-            ), f'Signature of {test_name(test)} does not contain "{v[0]}" parameter in the right order'
-            p_index += 1
-
-        for p in list(sig.parameters.values())[p_index:]:
-            assert (
-                p.default is not Parameter.empty
-            ), f'Signature of {test_name(test)} includes custom non-defaulted parameter "{p}"'
+class TestStatus(Enum):
+    success = 1
+    failure = 2
+    skipped = 3
 
 
 def run(args):
 
-    validate_tests_signature(test_suite.tests)
+    s.validate_tests_signature(s.tests)
+
+    if args.enforce_reqs is False:
+        LOG.warning("Test requirements will be ignored")
 
     hosts = ["localhost", "localhost"]
     network = infra.ccf.Network(hosts, args.debug_nodes, args.perf_nodes)
     network.start_and_join(args)
 
-    LOG.info(f"Running {len(test_suite.tests)} tests for {args.test_duration} seconds")
+    LOG.info(f"Running {len(s.tests)} tests for {args.test_duration} seconds")
 
     run_tests = {}
     elapsed = args.test_duration
 
-    for test in test_suite.tests:
-        success = False
+    for i, test in enumerate(s.tests):
+        status = None
+        reason = None
 
         if elapsed <= 0:
             LOG.warning(f"Test duration time ({args.test_duration} seconds) is up!")
             break
 
         try:
-            LOG.info(f"Running {test_name(test)}...")
+            LOG.debug(f"Running {s.test_name(test)}...")
             test_time_before = time.time()
+
+            # Actually run the test
             new_network = test(network, args)
-            success = True
-        except Exception as e:
-            LOG.exception(f"Test {test_name(test)} failed")
+            status = TestStatus.success
+
+        except reqs.TestRequirementsNotMet as ce:
+            LOG.warning(f"Test requirements for {s.test_name(test)} not met")
+            status = TestStatus.skipped
+            reason = str(ce)
             new_network = network
-        finally:
-            test_elapsed = time.time() - test_time_before
-            run_tests[test_name(test)] = {
-                "success": success,
-                "elapsed": round(test_elapsed, 2),
-            }
 
-            if new_network is None:
-                raise ValueError(f"Network returned by {test_name(test)} is None")
+        except Exception as e:
+            LOG.exception(f"Test {s.test_name(test)} failed")
+            status = TestStatus.failure
+            new_network = network
 
-            # If the network was changed (e.g. recovery test), stop the previous network
-            # and use the new network from now on
-            if new_network != network:
-                network.stop_all_nodes()
-                network = new_network
+        test_elapsed = time.time() - test_time_before
 
-            LOG.info(f"Test {test_name(test)} took {test_elapsed:.2f} secs")
+        # Construct test report
+        run_tests[i] = {
+            "name": s.test_name(test),
+            "status": status.name,
+            "elapsed (s)": round(test_elapsed, 2),
+        }
 
-            # For now, if a test fails, the entire test suite if stopped
-            if success is not True:
-                break
+        if reason is not None:
+            run_tests[i]["reason"] = reason
 
-            elapsed -= test_elapsed
+        # If the test function did not return a network, it is not possible to continue
+        if new_network is None:
+            raise ValueError(f"Network returned by {s.test_name(test)} is None")
 
-    LOG.success(f"Ran {len(run_tests)}/{len(test_suite.tests)} tests:")
+        # If the network was changed (e.g. recovery test), stop the previous network
+        # and use the new network from now on
+        if new_network != network:
+            network.stop_all_nodes()
+            network = new_network
+
+        LOG.debug(f"Test {s.test_name(test)} took {test_elapsed:.2f} secs")
+
+        # For now, if a test fails, the entire test suite if stopped
+        if status is TestStatus.failure:
+            break
+
+        elapsed -= test_elapsed
+
+    LOG.success(f"Ran {len(run_tests)}/{len(s.tests)} tests:")
     LOG.success(f"\n{json.dumps(run_tests, indent=4)}")
 
 

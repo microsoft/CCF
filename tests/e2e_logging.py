@@ -12,11 +12,13 @@ import infra.proc
 import infra.jsonrpc
 import infra.notification
 import infra.net
+import suite.test_requirements as reqs
 import e2e_args
 
 from loguru import logger as LOG
 
 
+@reqs.lua_logging_app
 def test_update_lua(network, args):
     if args.package == "libluagenericenc":
         LOG.info("Updating Lua application")
@@ -60,10 +62,10 @@ def test_update_lua(network, args):
     return network
 
 
-# Expects at least two nodes
-# Expects the libloggingenc application
+@reqs.logging_app
+@reqs.at_least_2_nodes
 def test(network, args, notifications_queue=None):
-
+    LOG.info("Running transactions against logging app")
     primary, backup = network.find_primary_and_any_backup()
 
     with primary.node_client() as mc:
