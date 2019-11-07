@@ -278,7 +278,7 @@ class Network:
             node.network_state = NodeNetworkState.joined
 
     def _wait_for_node_to_exist_in_store(
-        self, remote_node, node_id, node_status=None, timeout=3
+        self, remote_node, node_id, node_status=None, timeout=20
     ):
         exists = False
         for _ in range(timeout):
