@@ -189,6 +189,7 @@ class Network:
 
         primary, _ = self.find_primary()
         self.check_for_service(primary, status=ServiceStatus.OPENING)
+
         return primary
 
     def start_and_join(self, args):
