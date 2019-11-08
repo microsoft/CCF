@@ -31,6 +31,10 @@ parameters:
     san:
       cmake_args: '-DSAN=ON'
 
+  test:
+    SGX:
+      ctest_args: '-L suite'
+
   perf_test_filter: '"benchmark|perf"'
   static_check_job_name: 'Formatting_and_License_Checks'
 
@@ -52,7 +56,7 @@ jobs:
           consensus: ${{ consensus }}
           env: ${{ parameters.env[target] }}
           cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-          ctest_filter: '-LE ${{ parameters.perf_test_filter }}'
+          ctest_filter: '-LE ${{ parameters.perf_test_filter }}' '-L ${{ parameters.test[target].ctest_args }}'
           suffix: ''
           depends_on: ${{ parameters.static_check_job_name }}
 
