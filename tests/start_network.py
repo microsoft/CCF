@@ -25,7 +25,8 @@ def run(args):
         LOG.warning("Virtual mode enabled")
 
     with infra.ccf.network(hosts, args.build_dir, args.debug_nodes) as network:
-        primary, backups = network.start_and_join(args)
+        network.start_and_join(args)
+        primary, backups = network.find_nodes()
 
         LOG.info("Started CCF network with the following nodes:")
         LOG.info(

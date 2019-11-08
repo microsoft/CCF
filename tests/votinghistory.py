@@ -90,7 +90,8 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, others = network.start_and_join(args)
+        network.start_and_join(args)
+        primary, term = network.find_primary()
 
         LOG.debug("Propose to add a new member")
         infra.proc.ccall("./keygenerator", "--name=member4")

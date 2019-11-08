@@ -14,6 +14,7 @@ import infra.net
 import infra.proc
 import array
 import ssl
+import random
 
 from loguru import logger as LOG
 
@@ -40,13 +41,7 @@ class ServiceStatus(Enum):
 
 @contextmanager
 def network(
-    hosts,
-    build_directory,
-    dbg_nodes=[],
-    perf_nodes=[],
-    create_nodes=True,
-    node_offset=0,
-    pdb=False,
+    hosts, build_directory, dbg_nodes=[], perf_nodes=[], pdb=False,
 ):
     """
     Context manager for Network class.
@@ -54,18 +49,11 @@ def network(
     :param build_directory: the build directory
     :param dbg_nodes: default: []. List of node id's that will not start (user is prompted to start them manually)
     :param perf_nodes: default: []. List of node ids that will run under perf record
-    :param create_nodes: default: True. If set to false it turns off the automatic node creation
     :return: a Network instance that can be used to create/access nodes, handle the genesis state (add members, create
     node.json), and stop all the nodes that belong to the network
     """
     with infra.path.working_dir(build_directory):
-        net = Network(
-            hosts=hosts,
-            dbg_nodes=dbg_nodes,
-            perf_nodes=perf_nodes,
-            create_nodes=create_nodes,
-            node_offset=node_offset,
-        )
+        net = Network(hosts=hosts, dbg_nodes=dbg_nodes, perf_nodes=perf_nodes)
         try:
             yield net
         except Exception:
@@ -81,7 +69,7 @@ def network(
 
 # TODO: This function should only be part of the Checker class once the
 # memberclient is no longer used.
-def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeout=2):
+def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeout=3):
     """
     Given a client to a CCF network and a commit_index/term pair, this function
     waits for this specific commit index to be globally committed by the
@@ -121,24 +109,28 @@ class Network:
     # Maximum delay (seconds) for updates to propagate from the primary to backups
     replication_delay = 30
 
-    def __init__(
-        self, hosts, dbg_nodes=None, perf_nodes=None, create_nodes=True, node_offset=0
-    ):
+    def __init__(self, hosts, dbg_nodes=None, perf_nodes=None, existing_network=None):
+        if existing_network is None:
+            self.members = []
+            self.node_offset = 0
+        else:
+            self.members = list(existing_network.members)
+            # When creating a new network from an existing one (e.g. for recovery),
+            # the node id of the nodes of the new network should start from the node
+            # id of the existing network, so that new nodes id match the ones in the
+            # nodes KV table
+            self.node_offset = (
+                len(existing_network.nodes) + existing_network.node_offset
+            )
+
         self.nodes = []
-        self.members = []
         self.hosts = hosts
-        self.net_cert = []
-        self.status = ServiceStatus.OPENING
-        self.dbg_nodes = dbg_nodes or []
-        if create_nodes:
-            for node_id, host in enumerate(hosts):
-                node_id_ = node_id + node_offset
-                self.create_node(
-                    host,
-                    node_id_,
-                    debug=str(node_id_) in self.dbg_nodes,
-                    perf=str(node_id_) in (perf_nodes or []),
-                )
+        self.status = ServiceStatus.CLOSED
+        self.dbg_nodes = dbg_nodes
+        self.perf_nodes = perf_nodes
+
+        for host in hosts:
+            self.create_node(host)
 
     def _start_all_nodes(
         self, args, recovery=False, ledger_file=None, sealed_secrets=None
@@ -187,7 +179,7 @@ class Network:
                 raise
         LOG.info("All remotes started")
 
-        primary, _ = self.find_primary()
+        primary, term = self.find_primary()
         self.check_for_service(primary, status=ServiceStatus.OPENING)
 
         return primary
@@ -226,8 +218,6 @@ class Network:
         self.open_network(args, primary)
         LOG.success("***** Network is now open *****")
 
-        return primary, self.nodes[1:]
-
     def start_in_recovery(self, args, ledger_file, sealed_secrets):
         primary = self._start_all_nodes(
             args, recovery=True, ledger_file=ledger_file, sealed_secrets=sealed_secrets
@@ -235,19 +225,17 @@ class Network:
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined recovered public network")
 
-        return primary, self.nodes[1:]
-
-    def create_node(self, host, node_id=None, debug=False, perf=False):
-        if node_id is None:
-            node_id = self.get_next_local_node_id()
-        if not debug:
-            debug = str(node_id) in self.dbg_nodes
+    def create_node(self, host):
+        node_id = self.get_next_local_node_id()
+        debug = (
+            (str(node_id) in self.dbg_nodes) if self.dbg_nodes is not None else False
+        )
+        perf = (
+            (str(node_id) in self.perf_nodes) if self.perf_nodes is not None else False
+        )
         node = Node(node_id, host, debug, perf)
         self.nodes.append(node)
         return node
-
-    def remove_last_node(self):
-        last_node = self.nodes.pop()
 
     def _add_node(self, node, lib_name, args, target_node=None):
         forwarded_args = {
@@ -297,7 +285,7 @@ class Network:
         """
         new_node = self.create_node(host)
         self._add_node(new_node, lib_name, args, target_node)
-        primary, _ = self.find_primary()
+        primary, term = self.find_primary()
         try:
             self._wait_for_node_to_exist_in_store(
                 primary,
@@ -327,7 +315,7 @@ class Network:
         if new_node is None:
             return None
 
-        primary, _ = self.find_primary()
+        primary, term = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
                 self.trust_node(primary, new_node.node_id)
@@ -401,6 +389,7 @@ class Network:
             assert (
                 current_status == status.name
             ), f"Service status {current_status} (expected {status.name})"
+        self.status = status
 
     def member_client_rpc_as_json(self, member_id, remote_node, *args):
         if remote_node is None:
@@ -426,7 +415,6 @@ class Network:
             j_result = self.member_client_rpc_as_json(member_id, remote_node, *args)
 
             if j_result.get("error") is not None:
-                self.remove_last_node()
                 return (False, j_result["error"])
 
             return (True, j_result["result"])
@@ -501,13 +489,16 @@ class Network:
             member_id, remote_node, None, None, "retire_node", f"--node-id={node_id}"
         )
 
-    def retire_node(self, remote_node, node_id):
+    def retire_node(self, node_to_retire):
         member_id = 1
-        result = self.propose_retire_node(member_id, remote_node, node_id)
-        self.vote_using_majority(remote_node, result[1]["id"])
+        primary, term = self.find_primary()
+        result = self.propose_retire_node(member_id, primary, node_to_retire.node_id)
+        self.vote_using_majority(primary, result[1]["id"])
 
-        with remote_node.member_client() as c:
-            id = c.request("read", {"table": "ccf.nodes", "key": node_id})
+        with primary.member_client() as c:
+            id = c.request(
+                "read", {"table": "ccf.nodes", "key": node_to_retire.node_id}
+            )
             assert c.response(id).result["status"].decode() == NodeStatus.RETIRED.name
 
     def propose_trust_node(self, member_id, remote_node, node_id):
@@ -563,7 +554,6 @@ class Network:
         self.vote_using_majority(node, result[1]["id"], not args.pbft)
 
         self.check_for_service(node)
-        self.status = ServiceStatus.OPEN
 
     def add_users(self, node, users):
         if os.getenv("HTTP"):
@@ -601,6 +591,19 @@ class Network:
             1, node, None, None, "set_lua_app", f"--lua-app-file={app_script}"
         )
         self.vote_using_majority(node, result[1]["id"])
+
+    def accept_recovery(self, node, sealed_secrets):
+        result = self.propose(
+            1, node, None, None, "accept_recovery", f"--sealed-secrets={sealed_secrets}"
+        )
+        self.vote_using_majority(node, result[1]["id"])
+
+    def wait_for_all_nodes_to_be_trusted(self, timeout=3):
+        primary, term = self.find_primary()
+        for n in self.nodes:
+            self._wait_for_node_to_exist_in_store(
+                primary, n.node_id, NodeStatus.TRUSTED
+            )
 
     def stop_all_nodes(self):
         for node in self.nodes:
@@ -645,6 +648,24 @@ class Network:
         assert primary_id is not None, "No primary found"
         return (self.get_node_by_id(primary_id), term)
 
+    def find_backups(self, primary=None, timeout=3):
+        if primary is None:
+            primary, term = self.find_primary(timeout)
+        return [n for n in self.get_joined_nodes() if n != primary]
+
+    def find_any_backup(self, primary=None, timeout=3):
+        return random.choice(self.find_backups(primary=primary, timeout=timeout))
+
+    def find_nodes(self, timeout=3):
+        primary, term = self.find_primary(timeout)
+        backups = self.find_backups(primary=primary, timeout=timeout)
+        return primary, backups
+
+    def find_primary_and_any_backup(self, timeout=3):
+        primary, backups = self.find_nodes(timeout)
+        backup = random.choice(backups)
+        return primary, backup
+
     def wait_for_all_nodes_to_catch_up(self, primary, timeout=3):
         """
         Wait for all nodes to have joined the network and globally replicated
@@ -657,7 +678,7 @@ class Network:
             term_leader = res.term
 
         for _ in range(timeout):
-            joined_nodes = 0
+            caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
                     id = c.request("getCommit", {})
@@ -669,13 +690,13 @@ class Network:
                         resp.global_commit >= local_commit_leader
                         and resp.result["term"] == term_leader
                     ):
-                        joined_nodes += 1
-            if joined_nodes == len(self.get_joined_nodes()):
+                        caught_up_nodes.append(node)
+            if len(caught_up_nodes) == len(self.get_joined_nodes()):
                 break
             time.sleep(1)
-        assert joined_nodes == len(
+        assert len(caught_up_nodes) == len(
             self.get_joined_nodes()
-        ), f"Only {joined_nodes} (out of {len(self.get_joined_nodes())}) nodes have joined the network"
+        ), f"Only {len(caught_up_nodes)} (out of {len(self.get_joined_nodes())}) nodes have joined the network"
 
     def wait_for_node_commit_sync(self, timeout=3):
         """
@@ -696,7 +717,7 @@ class Network:
     def get_next_local_node_id(self):
         if len(self.nodes):
             return self.nodes[-1].node_id + 1
-        return 0
+        return self.node_offset
 
 
 class Checker:

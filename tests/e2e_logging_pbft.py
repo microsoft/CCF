@@ -23,7 +23,8 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, _ = network.start_and_join(args)
+        network.start_and_join(args)
+        primary, term = network.find_primary()
 
         with primary.node_client() as mc:
             check_commit = infra.ccf.Checker(mc)

@@ -65,7 +65,8 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes
     ) as network:
-        primary, backups = network.start_and_join(args)
+        network.start_and_join(args)
+        primary, term = network.find_primary()
 
         check = infra.ccf.Checker()
 
