@@ -31,12 +31,20 @@ parameters:
     san:
       cmake_args: '-DSAN=ON'
 
-  # Only SGX jobs (non-perf and non-san) run test suite
-  test:
-    SGX:
-      ctest_args: '-L suite'
+  perf_test_filter: 'benchmark|perf'
+  # Only SGX jobs run test suite
+  perf_test_suite_filter: 'benchmark|perf|suite'
 
-  perf_test_filter: '"benchmark|perf"'
+  test:
+    NoSGX:
+      ctest_args: '-LE ${{ parameters.perf_test_suite_filter}}'
+    SGX:
+      ctest_args: '-LE ${{ parameters.perf_test_filer}}'
+    perf:
+      ctest_args: '-L ${{ parameters.perf_test_filer}}'
+    san:
+      ctest_args: '-LE ${{ parameters.perf_test_suite_filter}}'
+
   static_check_job_name: 'Formatting_and_License_Checks'
 
   san_target: 'NoSGX'
@@ -57,7 +65,7 @@ jobs:
           consensus: ${{ consensus }}
           env: ${{ parameters.env[target] }}
           cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-          ctest_filter: '-LE ${{ parameters.perf_test_filter }} ${{ parameters.test[target].ctest_args }}'
+          ctest_filter: '${{ parameters.test[target].ctest_args }}'
           suffix: ''
           depends_on: ${{ parameters.static_check_job_name }}
 
@@ -69,7 +77,7 @@ jobs:
         consensus: ${{ consensus }}
         env: '${{ parameters.env.NoSGX_SAN }}'
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build[parameters.san_target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-        ctest_filter: '-LE ${{ parameters.perf_test_filter }}'
+        ctest_filter: '${{ parameters.test.san.ctest_args }}'
         suffix: 'SAN'
         depends_on: ${{ parameters.static_check_job_name }}
 
@@ -81,6 +89,6 @@ jobs:
         consensus: ${{ consensus }}
         env: ${{ parameters.env.SGX }}
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-        ctest_filter: '-L ${{ parameters.perf_test_filter }}'
+        ctest_filter: '${{ parameters.test.perf.ctest_args }}'
         suffix: 'Perf'
         depends_on: ${{ parameters.static_check_job_name }}
