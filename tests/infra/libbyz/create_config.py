@@ -18,7 +18,6 @@ def create_config_file(f, replicas, clients):
         "num_replicas": len(replicas),
         "num_clients": len(clients),
         "max_faulty": f,
-        "should_mac_message": True,
         "service_name": "generic",
         "auth_timeout": 2000000000,  # period between key changes (ms)
         "view_timeout": 5000,  # view change timeout (ms)

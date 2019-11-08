@@ -37,7 +37,6 @@ Message::Message(unsigned sz) : msg(0), max_size(ALIGNED_SIZE(sz))
     }
   }
   auth_type = Auth_type::unknown;
-  verified_auth = false;
   auth_len = 0;
   auth_dst_offset = 0;
   next = nullptr;
@@ -58,7 +57,6 @@ Message::Message(int t, unsigned sz)
   msg->size = max_size;
   msg->extra = 0;
   auth_type = Auth_type::unknown;
-  verified_auth = false;
   auth_len = 0;
   auth_dst_offset = 0;
   next = nullptr;
@@ -70,7 +68,6 @@ Message::Message(Message_rep* cont)
   msg = cont;
   max_size = -1; // To prevent contents from being deallocated or trimmed
   auth_type = Auth_type::unknown;
-  verified_auth = false;
   auth_len = 0;
   auth_dst_offset = 0;
   next = nullptr;
@@ -96,6 +93,12 @@ void Message::trim()
 void Message::set_size(int size)
 {
   PBFT_ASSERT(msg && ALIGNED(msg), "Invalid state");
+  if (!(max_size < 0 || ALIGNED_SIZE(size) <= max_size))
+  {
+    LOG_INFO << "Error - size:" << size
+             << ", aligned_size:" << ALIGNED_SIZE(size)
+             << ", max_size:" << max_size << std::endl;
+  }
   PBFT_ASSERT(max_size < 0 || ALIGNED_SIZE(size) <= max_size, "Invalid state");
   int aligned = ALIGNED_SIZE(size);
   for (int i = size; i < aligned; i++)
@@ -128,15 +131,6 @@ bool Message::convert(char* src, unsigned len, int t, int sz, Message& m)
 
   m = ret;
   return true;
-}
-
-void Message::get_mac_parameters(
-  Auth_type& atype, int& src_offset, int& len, int& dst_offset) const
-{
-  atype = auth_type;
-  src_offset = auth_src_offset;
-  len = auth_len;
-  dst_offset = (auth_dst_offset == 0) ? auth_len : auth_dst_offset;
 }
 
 bool Message::encode(FILE* o)

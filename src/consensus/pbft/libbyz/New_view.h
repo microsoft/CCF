@@ -91,11 +91,6 @@ public:
   // "n" in "m" as picked (i.e., chosen to be propagated into the next
   // view.)
 
-  void re_authenticate(Principal* p = 0);
-  // Effects: Recomputes the signature in the message using the most
-  // recent freshness nonces. If "p" is not null, may only update "p"'s
-  // freshness nonce. It trims any excess storage.
-
   View view() const;
   // Effects: Returns the view in the message.
 
@@ -124,10 +119,6 @@ public:
   // Effects: Returns the identifier of the replica whose view-change
   // message information for sequence number "n" was picked for
   // propagation to the new-view.
-
-  bool verify();
-  // Effects: Verifies if the message is syntactically correct and
-  // is authenticated by the principal rep().id.
 
   bool pre_verify();
   // Effects: Performs preliminary verification checks

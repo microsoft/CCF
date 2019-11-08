@@ -36,7 +36,6 @@ struct GeneralInfo
   int num_replicas;
   int num_clients;
   int max_faulty;
-  bool should_mac_message;
   std::string service_name;
   int auth_timeout;
   long view_timeout;
@@ -50,7 +49,6 @@ inline void from_json(const nlohmann::json& j, GeneralInfo& gi)
   gi.num_replicas = j["num_replicas"];
   gi.num_clients = j["num_clients"];
   gi.max_faulty = j["max_faulty"];
-  gi.should_mac_message = j["should_mac_message"];
   gi.service_name = j["service_name"];
   gi.auth_timeout = j["auth_timeout"];
   gi.view_timeout = j["view_timeout"];

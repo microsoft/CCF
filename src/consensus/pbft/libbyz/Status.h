@@ -200,10 +200,6 @@ public:
   };
   friend class PPS_iter;
 
-  bool verify();
-  // Effects: Verifies if the message has a valid authenticator from
-  // id() and whether it is self-consistent.
-
   bool pre_verify();
   // Effects: Performs preliminary verification checks
 

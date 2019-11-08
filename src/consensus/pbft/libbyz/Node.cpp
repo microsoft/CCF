@@ -8,7 +8,6 @@
 #include "ITimer.h"
 #include "Message.h"
 #include "Message_tags.h"
-#include "New_key.h"
 #include "Principal.h"
 #include "Time.h"
 #include "crypt.h"
@@ -110,16 +109,7 @@ Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
   sleep(2);
 #endif
 
-  last_new_key = 0;
-  atimer = new ITimer(at, atimer_handler, this);
-
   send_only_to_self = ((f() == 0 && is_replica(id())));
-}
-
-Node::~Node()
-{
-  delete atimer;
-  delete last_new_key;
 }
 
 void Node::add_principal(const PrincipalInfo& principal_info)
@@ -159,11 +149,6 @@ void Node::add_principal(const PrincipalInfo& principal_info)
   if (principal_info.is_replica)
   {
     replica_count++;
-  }
-
-  if (node_info.general_info.should_mac_message && principal_info.id != node_id)
-  {
-    node->send_new_key();
   }
 }
 
@@ -313,37 +298,6 @@ unsigned Node::decrypt(
 Request_id Node::new_rid()
 {
   return request_id_generator.next_rid();
-}
-
-void Node::atimer_handler(void* owner)
-{
-  // Multicast new key to all replicas.
-  ((Node*)owner)->send_new_key();
-}
-
-void Node::send_new_key()
-{
-  delete last_new_key;
-
-  // Multicast new key to all replicas.
-  last_new_key = new New_key();
-  send(last_new_key, All_replicas);
-
-  // Stop timer if not expired and then restart it
-  atimer->stop();
-  atimer->restart();
-}
-
-void Node::resend_new_key()
-{
-  if (last_new_key != nullptr)
-  {
-    send(last_new_key, All_replicas);
-  }
-  else
-  {
-    send_new_key();
-  }
 }
 
 void Node::send_to_replicas(Message* m)

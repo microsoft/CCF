@@ -107,9 +107,6 @@ public:
   bool full() const;
   // Effects: Returns true iff "this" is a full reply.
 
-  bool verify();
-  // Effects: Verifies if the message is authenticated by id().
-
   bool pre_verify();
   // Effects: Performs preliminary verification checks
 

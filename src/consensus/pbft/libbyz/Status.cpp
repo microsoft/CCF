@@ -55,11 +55,6 @@ void Status::authenticate()
   auth_src_offset = 0;
 }
 
-bool Status::verify()
-{
-  return verified_auth;
-}
-
 bool Status::pre_verify()
 {
   if (!node->is_replica(id()) || id() == node->id() || view() < 0)
@@ -131,7 +126,6 @@ bool Status::pre_verify()
     }
   }
 
-  verified_auth = node->verify_mac_in(id(), contents(), old_size);
   return true;
 }
 

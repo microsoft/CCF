@@ -29,8 +29,9 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        check = infra.ccf.Checker()
-        primary, others = network.start_and_join(args)
+        check = infra.checker.Checker()
+        network.start_and_join(args)
+        primary, others = network.find_nodes()
 
         primary_pid = primary.remote.remote.proc.pid
         num_fds = psutil.Process(primary_pid).num_fds()

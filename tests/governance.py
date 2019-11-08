@@ -25,11 +25,12 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, (backup,) = network.start_and_join(args)
+        network.start_and_join(args)
+        primary, (backup,) = network.find_nodes()
 
         with primary.node_client() as mc:
-            check_commit = infra.ccf.Checker(mc)
-            check = infra.ccf.Checker()
+            check_commit = infra.checker.Checker(mc)
+            check = infra.checker.Checker()
             r = mc.rpc("getQuotes", {})
             quotes = r.result["quotes"]
             assert len(quotes) == len(hosts)

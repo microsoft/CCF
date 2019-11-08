@@ -88,7 +88,7 @@ private:
     RequestContext* prev;
   };
   std::unordered_map<Request_id, std::unique_ptr<RequestContext>> out_reqs;
-  static const int Max_outstanding = 128;
+  static const int Max_outstanding = 1000 * 100;
 
   // list of outstanding requests used for retransmissions
   // (we only retransmit the request at the head of the queue)
@@ -147,6 +147,7 @@ bool ClientProxy<T, C>::send_request(
 {
   if (out_reqs.size() >= Max_outstanding)
   {
+    LOG_FAIL << "Too many outstanding requests, rejecting!" << std::endl;
     return false;
   }
 
@@ -210,7 +211,6 @@ void ClientProxy<T, C>::execute_request(Request* request)
     my_replica.send(request, Node::All_replicas);
   }
 
-  request->mark_verified();
   my_replica.handle(request);
 }
 
@@ -234,7 +234,6 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
             << " reps.is_complete: "
             << (ctx->t_reps.is_complete() ? "true" : "false")
             << " reply->full: " << (reply->full() ? "true" : "false")
-            << " reply->verify: " << (reply->verify() ? "true" : "false")
             << " reps.cvalue: " << (void*)ctx->t_reps.cvalue() << std::endl;
 
   Certificate<Reply>& reps =

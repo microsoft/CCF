@@ -163,4 +163,9 @@ public:
     read(b);
     return true;
   }
+
+  std::string get_sni() const
+  {
+    return sni;
+  }
 };

@@ -31,13 +31,15 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes
     ) as network:
-        primary, backups = network.start_and_join(args)
+        network.start_and_join(args)
         # SNIPPET_END: create_network
+
+        primary, backups = network.find_nodes()
 
         with primary.node_client() as mc:
 
-            check = infra.ccf.Checker()
-            check_commit = infra.ccf.Checker(mc)
+            check = infra.checker.Checker()
+            check_commit = infra.checker.Checker(mc)
             with primary.user_client() as uc:
                 check_commit(uc.do("mkSign", params={}), result=True)
 

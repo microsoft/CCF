@@ -77,13 +77,13 @@ public:
   // != 0", it deletes any new-view and view-change messages stored
   // in this. Returns true iff it adds "nv" to this.
 
-  bool can_add(View_change* vc, bool verified);
-  // Requires:  "vc->view() == view()" and "verified == vc->verify()"
+  bool can_add(View_change* vc);
+  // Requires:  "vc->view() == view()"
   // Effects: If "vc" is one of the messages referenced in the
   // new-view message contained in this and is valid , add "vc" to
   // this and return true. Otherwise, do nothing and return false.
 
-  void add(std::unique_ptr<View_change> m, bool verified);
+  void add(std::unique_ptr<View_change> m);
 
   bool add(View_change_ack* vca);
   // Requires: "vca->view() == view() && vca.verify()"

@@ -61,10 +61,7 @@ bool Reply_stable::verify()
   std::shared_ptr<Principal> p = node->get_principal(id());
   if (p)
   {
-    return p->verify_mac_in(
-      contents(),
-      sizeof(Reply_stable_rep),
-      contents() + sizeof(Reply_stable_rep));
+    return true;
   }
 
   return false;

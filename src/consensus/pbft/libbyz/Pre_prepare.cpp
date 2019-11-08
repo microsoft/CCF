@@ -110,6 +110,8 @@ Pre_prepare::Pre_prepare(
   INCR_CNT(sum_batch_size, requests_in_batch);
   INCR_OP(batch_size_histogram[requests_in_batch]);
 
+  LOG_TRACE << "request in batch:" << requests_in_batch << std::endl;
+
   // Compute authenticator and update size.
   int old_size = sizeof(Pre_prepare_rep) + rep().rset_size +
     rep().n_big_reqs * sizeof(Digest) + rep().non_det_size;
@@ -260,8 +262,6 @@ bool Pre_prepare::pre_verify()
     int sz =
       rep().rset_size + rep().n_big_reqs * sizeof(Digest) + rep().non_det_size;
 #ifndef USE_PKEY
-    verified_auth = node->verify_mac_in(
-      sender, contents(), sizeof(Pre_prepare_rep), requests() + sz);
     return true;
 #else
     if (d == rep().digest)
@@ -271,8 +271,6 @@ bool Pre_prepare::pre_verify()
       {
         return false;
       }
-      verified_auth = ps->verify_signature(
-        contents(), sizeof(Pre_prepare_rep), requests() + sz);
       return true;
     }
 #endif
@@ -290,10 +288,6 @@ bool Pre_prepare::verify(int mode)
     for (char* next = requests(); next < max_req; next += req.size())
     {
       Request::convert(next, max_req - next, req);
-      if (!req.verify())
-      {
-        return false;
-      }
 
       // TODO: If we batch requests from different clients inline. We need to
       // change this a bit. Otherwise, a good client could be denied

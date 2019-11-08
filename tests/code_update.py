@@ -9,7 +9,6 @@ import os
 import subprocess
 import sys
 import time
-from infra.ccf import NodeNetworkState
 from loguru import logger as LOG
 
 
@@ -29,12 +28,12 @@ def get_code_id(lib_path):
 def add_new_code(network, new_code_id):
     LOG.debug(f"Adding new code id: {new_code_id}")
 
-    primary, _ = network.find_primary()
-    result = network.propose(
+    primary, term = network.find_primary()
+    result = network.consortium.propose(
         1, primary, None, None, "add_code", f"--new-code-id={new_code_id}"
     )
 
-    network.vote_using_majority(primary, result[1]["id"])
+    network.consortium.vote_using_majority(primary, result[1]["id"])
 
 
 def run(args):
@@ -43,7 +42,8 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, others = network.start_and_join(args)
+        network.start_and_join(args)
+        primary, others = network.find_nodes()
 
         LOG.info("Adding a new node")
         new_node = network.create_and_trust_node(args.package, "localhost", args)
