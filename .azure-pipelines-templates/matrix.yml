@@ -41,11 +41,11 @@ parameters:
   san_target: 'NoSGX'
   checks_target: 'NoSGX'
 
-jobs:
-  - template: checks.yml
-    parameters:
-      env: ${{ parameters.env[parameters.checks_target] }}
-      job_name: ${{ parameters.static_check_job_name }}
+# jobs:
+#   - template: checks.yml
+#     parameters:
+#       env: ${{ parameters.env[parameters.checks_target] }}
+#       job_name: ${{ parameters.static_check_job_name }}
 
   # Debug builds with code coverage, run all tests except performance
   - ${{ each target in parameters.target }}:
