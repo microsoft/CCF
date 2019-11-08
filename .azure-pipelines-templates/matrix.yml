@@ -39,9 +39,9 @@ parameters:
     NoSGX:
       ctest_args: '-LE ${{ parameters.perf_test_suite_filter}}'
     SGX:
-      ctest_args: '-LE ${{ parameters.perf_test_filer}}'
+      ctest_args: '-LE ${{ parameters.perf_test_filter}}'
     perf:
-      ctest_args: '-L ${{ parameters.perf_test_filer}}'
+      ctest_args: '-L ${{ parameters.perf_test_filter}}'
     san:
       ctest_args: '-LE ${{ parameters.perf_test_suite_filter}}'
 
