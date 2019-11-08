@@ -31,19 +31,15 @@ parameters:
     san:
       cmake_args: '-DSAN=ON'
 
-  perf_test_filter: 'benchmark|perf'
-  # Only SGX jobs run test suite
-  perf_test_suite_filter: 'benchmark|perf|suite'
-
   test:
     NoSGX:
-      ctest_args: '-LE ${{ parameters.perf_test_suite_filter}}'
+      ctest_args: '-LE benchmark|perf|suite'
     SGX:
-      ctest_args: '-LE ${{ parameters.perf_test_filter}}'
+      ctest_args: '-LE benchmark|perf'
     perf:
-      ctest_args: '-L ${{ parameters.perf_test_filter}}'
+      ctest_args: '-L benchmark|perf'
     san:
-      ctest_args: '-LE ${{ parameters.perf_test_suite_filter}}'
+      ctest_args: '-LE benchmark|perf|suite'
 
   static_check_job_name: 'Formatting_and_License_Checks'
 
