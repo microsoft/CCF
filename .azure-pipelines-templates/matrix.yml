@@ -41,7 +41,7 @@ parameters:
   san_target: 'NoSGX'
   checks_target: 'NoSGX'
 
-# jobs:
+jobs:
 #   - template: checks.yml
 #     parameters:
 #       env: ${{ parameters.env[parameters.checks_target] }}
@@ -58,7 +58,7 @@ parameters:
           cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
           ctest_filter: '-LE ${{ parameters.perf_test_filter }}' '-L ${{ parameters.test[target].ctest_args }}'
           suffix: ''
-          depends_on: ${{ parameters.static_check_job_name }}
+          # depends_on: ${{ parameters.static_check_job_name }}
 
   # SAN builds (ASAN & UBSAN), run all tests except performance
   - ${{ each consensus in parameters.consensus }}:
@@ -70,7 +70,7 @@ parameters:
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build[parameters.san_target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
         ctest_filter: '-LE ${{ parameters.perf_test_filter }}'
         suffix: 'SAN'
-        depends_on: ${{ parameters.static_check_job_name }}
+        # depends_on: ${{ parameters.static_check_job_name }}
 
   # Optimised builds, only run performance tests
   - ${{ each consensus in parameters.consensus }}:
@@ -82,4 +82,4 @@ parameters:
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
         ctest_filter: '-L ${{ parameters.perf_test_filter }}'
         suffix: 'Perf'
-        depends_on: ${{ parameters.static_check_job_name }}
+        # depends_on: ${{ parameters.static_check_job_name }}
