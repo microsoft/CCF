@@ -24,7 +24,7 @@ def test_update_lua(network, args):
         LOG.info("Updating Lua application")
         primary, term = network.find_primary()
 
-        check = infra.ccf.Checker()
+        check = infra.checker.Checker()
 
         # Create a new lua application file (minimal app)
         # TODO: Writing to file will not be required when memberclient is deprecated
@@ -40,7 +40,9 @@ def test_update_lua(network, args):
                             }"""
             )
 
-        network.set_lua_app(primary, new_app_file)
+        network.consortium.set_lua_app(
+            member_id=1, remote_node=primary, app_script=new_app_file
+        )
         with primary.user_client(format="json") as c:
             check(c.rpc("ping", params={}), result="pong")
 
@@ -69,8 +71,8 @@ def test(network, args, notifications_queue=None):
     primary, backup = network.find_primary_and_any_backup()
 
     with primary.node_client() as mc:
-        check_commit = infra.ccf.Checker(mc, notifications_queue)
-        check = infra.ccf.Checker()
+        check_commit = infra.checker.Checker(mc, notifications_queue)
+        check = infra.checker.Checker()
 
         msg = "Hello world"
         msg2 = "Hello there"

@@ -15,7 +15,7 @@ from loguru import logger as LOG
 
 def check_can_progress(node):
     with node.node_client() as mc:
-        check_commit = infra.ccf.Checker(mc)
+        check_commit = infra.checker.Checker(mc)
         with node.node_client() as c:
             check_commit(c.rpc("mkSign", params={}), result=True)
 
@@ -69,8 +69,9 @@ def test_add_node_untrusted_code(network, args):
 @reqs.at_least_2_nodes
 def test_retire_node(network, args):
     LOG.info("Retiring a backup")
+    primary, _ = network.find_primary()
     backup_to_retire = network.find_any_backup()
-    network.retire_node(backup_to_retire)
+    network.consortium.retire_node(primary, backup_to_retire)
     backup_to_retire.stop()
     return network
 

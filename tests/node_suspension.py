@@ -61,8 +61,8 @@ def run(args):
             tm.start()
 
         with first_node.node_client() as mc:
-            check_commit = infra.ccf.Checker(mc)
-            check = infra.ccf.Checker()
+            check_commit = infra.checker.Checker(mc)
+            check = infra.checker.Checker()
 
             clients = []
             with contextlib.ExitStack() as es:

@@ -38,8 +38,8 @@ def run(args):
 
         with primary.node_client() as mc:
 
-            check = infra.ccf.Checker()
-            check_commit = infra.ccf.Checker(mc)
+            check = infra.checker.Checker()
+            check_commit = infra.checker.Checker(mc)
             with primary.user_client() as uc:
                 check_commit(uc.do("mkSign", params={}), result=True)
 

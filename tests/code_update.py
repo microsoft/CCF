@@ -9,7 +9,6 @@ import os
 import subprocess
 import sys
 import time
-from infra.ccf import NodeNetworkState
 from loguru import logger as LOG
 
 
@@ -30,11 +29,11 @@ def add_new_code(network, new_code_id):
     LOG.debug(f"Adding new code id: {new_code_id}")
 
     primary, term = network.find_primary()
-    result = network.propose(
+    result = network.consortium.propose(
         1, primary, None, None, "add_code", f"--new-code-id={new_code_id}"
     )
 
-    network.vote_using_majority(primary, result[1]["id"])
+    network.consortium.vote_using_majority(primary, result[1]["id"])
 
 
 def run(args):

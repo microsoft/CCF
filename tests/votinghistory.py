@@ -95,7 +95,7 @@ def run(args):
 
         LOG.debug("Propose to add a new member")
         infra.proc.ccall("./keygenerator", "--name=member4")
-        result = network.propose_add_member(1, primary, "member4_cert.pem")
+        result = network.consortium.propose_add_member(1, primary, "member4_cert.pem")
 
         # When proposal is added the proposal id and the result of running
         # complete proposal are returned
@@ -105,17 +105,17 @@ def run(args):
         # 2 out of 3 members vote to accept the new member so that
         # that member can send its own proposals
         LOG.debug("2/3 members accept the proposal")
-        result = network.vote(1, primary, proposal_id, True)
+        result = network.consortium.vote(1, primary, proposal_id, True)
         assert result[0] and not result[1]
 
         LOG.debug("Failed vote as unsigned")
-        result = network.vote(2, primary, proposal_id, True, True)
+        result = network.consortium.vote(2, primary, proposal_id, True, True)
         assert (
             not result[0]
             and result[1]["code"] == infra.jsonrpc.ErrorCode.RPC_NOT_SIGNED.value
         )
 
-        result = network.vote(2, primary, proposal_id, True)
+        result = network.consortium.vote(2, primary, proposal_id, True)
         assert result[0] and result[1]
 
         ledger_filename = network.find_primary()[0].remote.ledger_path()

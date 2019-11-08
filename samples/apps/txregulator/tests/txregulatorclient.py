@@ -49,8 +49,8 @@ def run(args):
 
         with primary.node_client() as mc:
             with primary.user_client(format="msgpack", user_id=regulator[0] + 1) as c:
-                check_commit = infra.ccf.Checker(mc)
-                check = infra.ccf.Checker()
+                check_commit = infra.checker.Checker(mc)
+                check = infra.checker.Checker()
 
                 check(
                     c.rpc(
@@ -73,8 +73,8 @@ def run(args):
 
         for bank in banks:
             with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
-                check_commit = infra.ccf.Checker(mc)
-                check = infra.ccf.Checker()
+                check_commit = infra.checker.Checker(mc)
+                check = infra.checker.Checker()
 
                 check(c.rpc("BK_register", {"country": bank[1]}), result=bank[0])
                 check(c.rpc("BK_get", {"id": bank[0]}), result=bank[1].encode())

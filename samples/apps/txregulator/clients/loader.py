@@ -63,7 +63,7 @@ def run(args):
 
         for regulator in regulators:
             with primary.user_client(format="msgpack", user_id=regulator[0] + 1) as c:
-                check = infra.ccf.Checker()
+                check = infra.checker.Checker()
 
                 check(
                     c.rpc(
@@ -89,7 +89,7 @@ def run(args):
 
         for bank in banks:
             with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
-                check = infra.ccf.Checker()
+                check = infra.checker.Checker()
 
                 check(c.rpc("BK_register", {"country": bank[1]}), result=bank[0])
                 check(c.rpc("BK_get", {"id": bank[0]}), result=bank[1].encode())

@@ -90,7 +90,7 @@ def test(network, args):
     recovered_network.start_in_recovery(args, ledger, sealed_secrets)
 
     for node in recovered_network.nodes:
-        network.wait_for_state(node, "partOfPublicNetwork")
+        recovered_network.wait_for_state(node, "partOfPublicNetwork")
         recovered_network.wait_for_node_commit_sync()
     LOG.info("Public CFTR started")
 
@@ -100,14 +100,18 @@ def test(network, args):
     recovered_network.wait_for_all_nodes_to_be_trusted()
 
     LOG.info("Members vote to complete the recovery")
-    recovered_network.accept_recovery(primary, sealed_secrets)
+    recovered_network.consortium.accept_recovery(
+        member_id=1, remote_node=primary, sealed_secrets=sealed_secrets
+    )
 
     for node in recovered_network.nodes:
         network.wait_for_state(node, "partOfNetwork")
 
     recovered_network.wait_for_all_nodes_to_catch_up(primary)
 
-    recovered_network.check_for_service(primary)
+    recovered_network.consortium.check_for_service(
+        primary, infra.ccf.ServiceStatus.OPEN
+    )
     LOG.success("Network successfully recovered")
 
     return recovered_network
@@ -127,8 +131,8 @@ def run(args):
             primary, backups = network.find_nodes()
 
             with primary.node_client() as mc:
-                check_commit = infra.ccf.Checker(mc)
-                check = infra.ccf.Checker()
+                check_commit = infra.checker.Checker(mc)
+                check = infra.checker.Checker()
 
                 rs = log_msgs(primary, txs)
                 check_responses(rs, True, check, check_commit)

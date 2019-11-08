@@ -29,7 +29,7 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        check = infra.ccf.Checker()
+        check = infra.checker.Checker()
         network.start_and_join(args)
         primary, others = network.find_nodes()
 
