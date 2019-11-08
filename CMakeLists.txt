@@ -280,99 +280,99 @@ if(BUILD_TESTS)
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
       )
 
-      # ## Logging client end to end test
-      # add_e2e_test(
-      #   NAME logging_client_test
-      #   PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
-      # )
+      ## Logging client end to end test
+      add_e2e_test(
+        NAME logging_client_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
+      )
 
-      # if (NOT SAN)
-      #   add_e2e_test(
-      #     NAME connections
-      #     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-      #   )
-      # endif()
+      if (NOT SAN)
+        add_e2e_test(
+          NAME connections
+          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+        )
+      endif()
 
-      # ## Storing signed votes test
-      # add_e2e_test(
-      #   NAME voting_history_test
-      #   PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
+      ## Storing signed votes test
+      add_e2e_test(
+        NAME voting_history_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
 
-      # ## Lua sample app (tx regulator) end to end test
-      # add_e2e_test(
-      #   NAME lua_txregulator_test
-      #   PYTHON_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
-      #   ADDITIONAL_ARGS
-      #     --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
-      #     --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
+      ## Lua sample app (tx regulator) end to end test
+      add_e2e_test(
+        NAME lua_txregulator_test
+        PYTHON_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
+        ADDITIONAL_ARGS
+          --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
+          --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
 
-      # if(QUOTES_ENABLED)
-      #   add_e2e_test(
-      #     NAME governance_tests
-      #     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-      #     ADDITIONAL_ARGS
-      #       --oesign ${OESIGN}
-      #   )
+      if(QUOTES_ENABLED)
+        add_e2e_test(
+          NAME governance_tests
+          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+          ADDITIONAL_ARGS
+            --oesign ${OESIGN}
+        )
 
-      #   add_e2e_test(
-      #     NAME reconfiguration_test
-      #     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-      #   )
+        add_e2e_test(
+          NAME reconfiguration_test
+          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+        )
 
-      #   add_e2e_test(
-      #    NAME code_update_test
-      #    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-      #    ADDITIONAL_ARGS
-      #      --oesign ${OESIGN}
-      #      --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
-      #      --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
-      #      # TODO: This test spins up many nodes that go through the join protocol
-      #      # Since oe_verify_report can take quite a long time to execute (~2s)
-      #      # and trigger Raft elections, the election timeout should stay high
-      #      # until https://github.com/microsoft/CCF/issues/480 is fixed
-      #      --election-timeout 5000
-      #   )
-      # endif()
+        add_e2e_test(
+         NAME code_update_test
+         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+         ADDITIONAL_ARGS
+           --oesign ${OESIGN}
+           --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+           --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+           # TODO: This test spins up many nodes that go through the join protocol
+           # Since oe_verify_report can take quite a long time to execute (~2s)
+           # and trigger Raft elections, the election timeout should stay high
+           # until https://github.com/microsoft/CCF/issues/480 is fixed
+           --election-timeout 5000
+        )
+      endif()
 
-      # add_e2e_test(
-      #   NAME end_to_end_logging
-      #   PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-      # )
+      add_e2e_test(
+        NAME end_to_end_logging
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+      )
 
-      # add_e2e_test(
-      #   NAME lua_end_to_end_logging
-      #   PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-      #   ADDITIONAL_ARGS
-      #     --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua)
+      add_e2e_test(
+        NAME lua_end_to_end_logging
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+        ADDITIONAL_ARGS
+          --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua)
 
-      # add_e2e_test(
-      #   NAME end_to_end_scenario
-      #   PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
-      #   ADDITIONAL_ARGS
-      #     --scenario ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
-      # )
+      add_e2e_test(
+        NAME end_to_end_scenario
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
+        ADDITIONAL_ARGS
+          --scenario ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
+      )
 
-      # add_e2e_test(
-      #   NAME election_tests
-      #   PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-      #   ADDITIONAL_ARGS
-      #     --election-timeout 2000
-      # )
+      add_e2e_test(
+        NAME election_tests
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+        ADDITIONAL_ARGS
+          --election-timeout 2000
+      )
 
-      # add_e2e_test(
-      #   NAME recovery_tests
-      #   PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-      #   ADDITIONAL_ARGS
-      #     ${RECOVERY_ARGS}
-      # )
+      add_e2e_test(
+        NAME recovery_tests
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+        ADDITIONAL_ARGS
+          ${RECOVERY_ARGS}
+      )
 
-      # add_e2e_test(
-      #   NAME schema_tests
-      #   PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
-      #   ADDITIONAL_ARGS
-      #   -p libloggingenc
-      #   --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
-      #   )
+      add_e2e_test(
+        NAME schema_tests
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+        ADDITIONAL_ARGS
+        -p libloggingenc
+        --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
+        )
 
       add_e2e_test(
         NAME test_suite
