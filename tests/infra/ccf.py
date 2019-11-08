@@ -231,6 +231,19 @@ class Network:
                 primary, n.node_id, infra.node.NodeStatus.TRUSTED
             )
 
+    def accept_recovery(self, node, sealed_secrets):
+        result = self.propose(
+            1, node, None, None, "accept_recovery", f"--sealed-secrets={sealed_secrets}"
+        )
+        self.vote_using_majority(node, result[1]["id"])
+
+    def wait_for_all_nodes_to_be_trusted(self, timeout=3):
+        primary, term = self.find_primary()
+        for n in self.nodes:
+            self.consortium.wait_for_node_to_exist_in_store(
+                primary, n.node_id, infra.node.NodeStatus.TRUSTED
+            )
+
     def stop_all_nodes(self):
         for node in self.nodes:
             node.stop()

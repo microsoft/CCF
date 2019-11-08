@@ -13,7 +13,7 @@ import infra.proc
 import infra.jsonrpc
 import infra.remote
 import json
-import functools
+import suite.test_requirements as reqs
 
 from loguru import logger as LOG
 
@@ -75,7 +75,7 @@ def check_responses(responses, result, check, check_commit):
     check_commit(responses[-1], result=result)
 
 
-# Expects nothing
+@reqs.none
 def test(network, args):
     LOG.info("Starting network recovery")
 
@@ -90,7 +90,7 @@ def test(network, args):
     recovered_network.start_in_recovery(args, ledger, sealed_secrets)
 
     for node in recovered_network.nodes:
-        network.wait_for_state(node, "partOfPublicNetwork")
+        recovered_network.wait_for_state(node, "partOfPublicNetwork")
         recovered_network.wait_for_node_commit_sync()
     LOG.info("Public CFTR started")
 

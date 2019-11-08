@@ -29,7 +29,7 @@ def add_new_code(network, new_code_id):
     LOG.debug(f"Adding new code id: {new_code_id}")
 
     primary, term = network.find_primary()
-    result = network.propose(
+    result = network.consortium.propose(
         1, primary, None, None, "add_code", f"--new-code-id={new_code_id}"
     )
 
