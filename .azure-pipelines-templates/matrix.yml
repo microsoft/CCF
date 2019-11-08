@@ -33,7 +33,7 @@ parameters:
 
   test:
     SGX:
-      ctest_args: '-L suite'
+      ctest_args: 'suite'
 
   perf_test_filter: '"benchmark|perf"'
   static_check_job_name: 'Formatting_and_License_Checks'
