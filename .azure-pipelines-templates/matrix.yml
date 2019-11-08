@@ -33,13 +33,13 @@ parameters:
 
   test:
     NoSGX:
-      ctest_args: '-LE benchmark|perf|suite'
+      ctest_args: '-LE "benchmark|perf|suite"'
     SGX:
-      ctest_args: '-LE benchmark|perf'
+      ctest_args: '-LE "benchmark|perf"'
     perf:
-      ctest_args: '-L benchmark|perf'
+      ctest_args: '-L "benchmark|perf"'
     san:
-      ctest_args: '-LE benchmark|perf|suite'
+      ctest_args: '-LE "benchmark|perf|suite"'
 
   static_check_job_name: 'Formatting_and_License_Checks'
 
