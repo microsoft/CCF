@@ -374,6 +374,15 @@ if(BUILD_TESTS)
         --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
         )
 
+      add_e2e_test(
+        NAME test_suite
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+        IS_SUITE TRUE
+        ADDITIONAL_ARGS
+        --test-duration 100
+        --enforce-reqs
+      )
+
       if (BUILD_SMALLBANK)
         include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
       endif()

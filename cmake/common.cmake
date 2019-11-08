@@ -609,7 +609,7 @@ endfunction()
 function(add_e2e_test)
   cmake_parse_arguments(PARSE_ARGV 0 PARSED_ARGS
     ""
-    "NAME;PYTHON_SCRIPT;"
+    "NAME;PYTHON_SCRIPT;IS_SUITE"
     "ADDITIONAL_ARGS"
   )
 
@@ -630,12 +630,21 @@ function(add_e2e_test)
       PROPERTY
         ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
     )
-    set_property(
-      TEST ${PARSED_ARGS_NAME}
-      APPEND
-      PROPERTY
-        LABELS end_to_end
-    )
+    if (${PARSED_ARGS_IS_SUITE})
+      set_property(
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY
+          LABELS suite
+      )
+    else()
+      set_property(
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY
+          LABELS end_to_end
+      )
+    endif()
     if (HTTP)
       set_property(
         TEST ${PARSED_ARGS_NAME}
