@@ -31,7 +31,16 @@ parameters:
     san:
       cmake_args: '-DSAN=ON'
 
-  perf_test_filter: '"benchmark|perf"'
+  test:
+    NoSGX:
+      ctest_args: '-LE "benchmark|perf|suite"'
+    SGX:
+      ctest_args: '-LE "benchmark|perf"'
+    perf:
+      ctest_args: '-L "benchmark|perf"'
+    san:
+      ctest_args: '-LE "benchmark|perf|suite"'
+
   static_check_job_name: 'Formatting_and_License_Checks'
 
   san_target: 'NoSGX'
@@ -52,7 +61,7 @@ jobs:
           consensus: ${{ consensus }}
           env: ${{ parameters.env[target] }}
           cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-          ctest_filter: '-LE ${{ parameters.perf_test_filter }}'
+          ctest_filter: '${{ parameters.test[target].ctest_args }}'
           suffix: ''
           depends_on: ${{ parameters.static_check_job_name }}
 
@@ -64,7 +73,7 @@ jobs:
         consensus: ${{ consensus }}
         env: '${{ parameters.env.NoSGX_SAN }}'
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build[parameters.san_target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-        ctest_filter: '-LE ${{ parameters.perf_test_filter }}'
+        ctest_filter: '${{ parameters.test.san.ctest_args }}'
         suffix: 'SAN'
         depends_on: ${{ parameters.static_check_job_name }}
 
@@ -76,6 +85,6 @@ jobs:
         consensus: ${{ consensus }}
         env: ${{ parameters.env.SGX }}
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-        ctest_filter: '-L ${{ parameters.perf_test_filter }}'
+        ctest_filter: '${{ parameters.test.perf.ctest_args }}'
         suffix: 'Perf'
         depends_on: ${{ parameters.static_check_job_name }}
