@@ -233,7 +233,7 @@ namespace ccf
       mt_retract_to(tree, index);
     }
 
-    std::tuple<std::unique_ptr<hash_vec>, crypto::Sha256Hash, int> get_path(uint64_t index)
+    std::tuple<std::unique_ptr<hash_vec>, crypto::Sha256Hash, uint64_t, uint32_t> get_path(uint64_t index)
     {
       crypto::Sha256Hash res;
       auto path = std::unique_ptr<hash_vec>(init_path());
@@ -243,19 +243,41 @@ namespace ccf
 
       auto nbelem = mt_get_path(tree, index, path.get(), res.h);
 
-      return {std::move(path), get_root(), index};
+      return {std::move(path), get_root(), index, nbelem};
     }
 
-    bool verify(const std::tuple<std::unique_ptr<hash_vec>, crypto::Sha256Hash, int>& path)
+    std::vector<uint8_t> get_pathv(uint64_t index)
+    {
+      auto path = get_path(index);
+
+      nlohmann::json j;
+      j["index"] = std::get<2>(path);
+      j["max_index"] = std::get<3>(path);
+      auto r = std::get<1>(path);
+      j["root"] = std::vector<uint8_t>(r.h, r.h + r.SIZE);
+      j["path"] = std::vector<uint8_t>(*std::get<0>(path)->vs, *std::get<0>(path)->vs + std::get<0>(path)->sz);
+
+      auto d = j.dump();
+      return std::vector<uint8_t>(d.begin(), d.end());
+    }
+
+    bool verify(const std::tuple<std::unique_ptr<hash_vec>, crypto::Sha256Hash, uint64_t, uint32_t>& path)
     {
       auto index = std::get<2>(path);
-      auto max_index = index + 1;
+      auto max_index = std::get<3>(path);
       uint8_t * root = const_cast<uint8_t *>(std::get<1>(path).h);
 
       if (!mt_verify_pre(tree, index, max_index, std::get<0>(path).get(), root))
         throw std::logic_error("Precondition to mt_verify violated");
 
       return mt_verify(tree, index, max_index, std::get<0>(path).get(), root);
+    }
+
+    bool verifyv(std::vector<uint8_t> v)
+    {
+      auto j = nlohmann::json::parse(v);
+
+      auto p = std::unique_ptr<hash_vec>(init_path());
     }
   };
 
