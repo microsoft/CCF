@@ -211,7 +211,6 @@ class Network:
             node.stop()
         LOG.info("All remotes stopped...")
 
-
     def create_and_add_pending_node(self, lib_name, host, args, target_node=None):
         """
         Create a new node and add it to the network. Note that the new node
