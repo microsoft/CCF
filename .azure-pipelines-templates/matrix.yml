@@ -96,8 +96,8 @@ jobs:
       parameters:
         target: SGX
         consensus: CFT
-        env: ${{ parameters.env[target] }}
-        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-        ctest_filter: '${{ parameters.test[target].ctest_args }}'
+        env: ${{ parameters.env.SGX }}
+        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build.CFT.cmake_args }}'
+        ctest_filter: '${{ parameters.test.SGX.ctest_args }}'
         suffix: ''
         depends_on: ${{ parameters.static_check_job_name }}
