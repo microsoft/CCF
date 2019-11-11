@@ -5,6 +5,8 @@
 | Code coverage | [![codecov](https://codecov.io/gh/microsoft/CCF/branch/master/graph/badge.svg)](https://codecov.io/gh/microsoft/CCF) |
 | Documentation | [![docs](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20GitHub%20Pages?branchName=master)](https://microsoft.github.io/CCF/) |
 
+test
+
 # The Confidential Consortium Framework
 
 The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly available,
