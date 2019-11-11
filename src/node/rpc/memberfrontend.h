@@ -72,22 +72,43 @@ namespace ccf
         // add a new member
         {"new_member",
          [this](Store::Tx& tx, const nlohmann::json& args) {
-           const Cert cert = args;
-           auto mc = tx.get_view(this->network.member_certs);
+           const Cert pem_cert = args;
+           auto [mc, m, ack, v] = tx.get_view(
+             this->network.member_certs,
+             this->network.members,
+             this->network.member_acks,
+             this->network.values);
            // the cert needs to be unique
+           auto cert = tls::make_verifier(pem_cert)->raw_cert_data();
            if (mc->get(cert))
              throw std::logic_error("Certificate already exists");
 
-           const auto id = get_next_id(
-             tx.get_view(this->network.values), ValueIds::NEXT_MEMBER_ID);
+           const auto id = get_next_id(v, ValueIds::NEXT_MEMBER_ID);
            // store cert
            mc->put(cert, id);
            // set state to ACCEPTED
-           tx.get_view(this->network.members)
-             ->put(id, {cert, MemberStatus::ACCEPTED});
+           m->put(id, {cert, MemberStatus::ACCEPTED});
            // create nonce for ACK
-           tx.get_view(this->network.member_acks)
-             ->put(id, {rng->random(SIZE_NONCE)});
+           ack->put(id, {rng->random(SIZE_NONCE)});
+           return true;
+         }},
+        // add a new user
+        {"new_user",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
+           const Cert pem_cert = args;
+           auto [uc, u, v] = tx.get_view(
+             this->network.user_certs,
+             this->network.users,
+             this->network.values);
+           // the cert needs to be unique
+           auto cert = tls::make_verifier(pem_cert)->raw_cert_data();
+           const auto id = get_next_id(v, ValueIds::NEXT_USER_ID);
+           if (uc->get(cert))
+             throw std::logic_error("Certificate already exists");
+
+           // store cert (bi-directional)
+           uc->put(cert, id);
+           u->put(id, {cert});
            return true;
          }},
         // accept a node
@@ -404,8 +425,12 @@ namespace ccf
         proposals->put(vote.id, *proposal);
 
         auto voting_history = args.tx.get_view(this->network.voting_history);
+
+        // TODO: HTTP should support signed vote requests
+#ifndef HTTP
         voting_history->put(
           args.caller_id, {args.rpc_ctx.signed_request.value()});
+#endif
 
         return jsonrpc::success(complete_proposal(args.tx, vote.id));
       };

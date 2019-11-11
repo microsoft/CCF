@@ -39,17 +39,9 @@ class Consortium:
         return j_result
 
     def propose(self, member_id, remote_node, script=None, params=None, *args):
-        if os.getenv("HTTP"):
-            with remote_node.member_client() as mc:
-                r = mc.rpc("propose", {"parameter": params, "script": {"text": script}})
-                return (True, r.result)
-        else:
-            j_result = self._member_client_rpc_as_json(member_id, remote_node, *args)
-
-            if j_result.get("error") is not None:
-                return (False, j_result["error"])
-
-            return (True, j_result["result"])
+        with remote_node.member_client(format="json") as mc:
+            r = mc.rpc("propose", {"parameter": params, "script": {"text": script}})
+            return (True, r.result)
 
     def vote(
         self,
@@ -65,7 +57,7 @@ class Consortium:
             tables, changes = ...
             return true
             """
-            with remote_node.member_client(member_id) as mc:
+            with remote_node.member_client(format="json", member_id=member_id) as mc:
                 r = mc.rpc(
                     "vote", {"ballot": {"text": script}, "id": proposal_id}, signed=True
                 )
@@ -127,9 +119,20 @@ class Consortium:
         return self._member_client_rpc_as_json(member_id, remote_node, "ack")
 
     def get_proposals(self, member_id, remote_node):
-        return self._member_client_rpc_as_json(
-            member_id, remote_node, "proposal_display"
-        )
+        LOG.error("Getting proposals")
+        script = """
+        tables = ...
+        local proposals = {}
+        tables["ccf.proposals"]:foreach( function(k, v)
+            proposals[tostring(k)] = v;
+        end )
+        return proposals;
+        """
+
+        with remote_node.member_client(format="json", member_id=member_id) as c:
+            rep = c.do("query", {"text": script})
+            LOG.success(rep.result)
+            return rep.result
 
     def raw_puts(self, member_id, remote_node, script, params):
         return self._member_client_rpc_as_json(
@@ -197,51 +200,26 @@ class Consortium:
         proposal and make members vote to transition the network to state
         OPEN.
         """
-        script = None
-        if os.getenv("HTTP"):
-            script = """
-            tables = ...
-            return Calls:call("open_network")
-            """
-        result = self.propose(member_id, remote_node, script, None, "open_network")
+        script = """
+        tables = ...
+        return Calls:call("open_network")
+        """
+        result = self.propose(member_id, remote_node, script, None)
         self.vote_using_majority(remote_node, result[1]["id"], pbft_open)
         self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN)
 
     def add_users(self, remote_node, users):
-        if os.getenv("HTTP"):
-            with remote_node.member_client() as mc:
-                for u in users:
-                    user_cert = []
-                    with open(f"user{u}_cert.pem") as cert:
-                        user_cert = [ord(c) for c in cert.read()]
-                    script = """
-                    tables, user_cert = ...
-                    return Calls:call("new_user", user_cert)
-                    """
-                    r = mc.rpc(
-                        "propose", {"parameter": user_cert, "script": {"text": script}}
-                    )
-                    with remote_node.member_client(2) as mc2:
-                        script = """
-                        tables, changes = ...
-                        return true
-                        """
-                        r = mc2.rpc(
-                            "vote",
-                            {"ballot": {"text": script}, "id": r.result["id"]},
-                            signed=True,
-                        )
-        else:
-            for u in users:
-                result = self.propose(
-                    1,
-                    remote_node,
-                    None,
-                    None,
-                    "add_user",
-                    f"--user-cert=user{u}_cert.pem",
-                )
-                self.vote_using_majority(remote_node, result[1]["id"])
+        pass
+        for u in users:
+            user_cert = []
+            with open(f"user{u}_cert.pem") as cert:
+                user_cert = [ord(c) for c in cert.read()]
+            script = """
+            tables, user_cert = ...
+            return Calls:call("new_user", user_cert)
+            """
+            result = self.propose(1, remote_node, script, user_cert)
+            self.vote_using_majority(remote_node, result[1]["id"])
 
     def set_lua_app(self, member_id, remote_node, app_script):
         result = self.propose(

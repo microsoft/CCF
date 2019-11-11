@@ -118,14 +118,4 @@ return {
     end
   end
   return true]],
-
-  new_user = [[
-  tables, cert = ...
-  if tables["ccf.user_certs"]:get(cert) then return end
-  NEXT_USER_ID = 1
-  user_id = tables["ccf.values"]:get(NEXT_USER_ID)
-  tables["ccf.values"]:put(NEXT_USER_ID, user_id + 1)
-  tables["ccf.users"]:put(user_id, {cert=cert})
-  tables["ccf.user_certs"]:put(cert, user_id)
-  ]]
 }

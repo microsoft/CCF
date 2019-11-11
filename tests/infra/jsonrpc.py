@@ -374,7 +374,7 @@ class CurlClient:
             nf.write(msg)
             nf.flush()
             dgst = subprocess.run(
-                ["openssl", "dgst", "-sha256", "-sign", "member1_privk.pem", nf.name],
+                ["openssl", "dgst", "-sha256", "-sign", f"{self.key}", nf.name],
                 check=True,
                 capture_output=True,
             )
