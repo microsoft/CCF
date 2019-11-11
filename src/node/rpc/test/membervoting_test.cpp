@@ -955,7 +955,7 @@ TEST_CASE("Add user via proposed call")
       return Calls:call("new_user", user_cert)
     )xxx");
 
-  std::vector<uint8_t> user_cert = kp->self_sign("CN=new user");
+  const vector<uint8_t> user_cert = {1, 2, 3};
   json proposej = create_json_req(Propose::In{proposal, user_cert}, "propose");
   ccf::SignedReq sr(proposej);
 
@@ -967,8 +967,7 @@ TEST_CASE("Add user via proposed call")
   const auto uid = tx1.get_view(network.values)->get(ValueIds::NEXT_USER_ID);
   REQUIRE(uid);
   CHECK(*uid == 1);
-  const auto uid1 = tx1.get_view(network.user_certs)
-                      ->get(tls::make_verifier(user_cert)->raw_cert_data());
+  const auto uid1 = tx1.get_view(network.user_certs)->get(user_cert);
   REQUIRE(uid1);
   CHECK(*uid1 == 0);
 }

@@ -30,8 +30,6 @@ parameters:
       cmake_args: '-DSERVICE_IDENTITY_CURVE_CHOICE=secp256k1_bitcoin'
     san:
       cmake_args: '-DSAN=ON'
-    http:
-      cmake_args: '-HTTP=ON'
 
   test:
     NoSGX:

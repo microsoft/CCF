@@ -56,7 +56,7 @@ class Consortium:
             tables, changes = ...
             return true
             """
-            with remote_node.member_client(format="json", member_id=member_id) as mc:
+            with remote_node.member_client(member_id) as mc:
                 r = mc.rpc(
                     "vote", {"ballot": {"text": script}, "id": proposal_id}, signed=True
                 )
