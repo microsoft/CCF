@@ -30,8 +30,6 @@ parameters:
       cmake_args: '-DSERVICE_IDENTITY_CURVE_CHOICE=secp256k1_bitcoin'
     san:
       cmake_args: '-DSAN=ON'
-    http:
-      cmake_args: '-HTTP=ON'
 
   test:
     NoSGX:
@@ -89,15 +87,4 @@ jobs:
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
         ctest_filter: '${{ parameters.test.perf.ctest_args }}'
         suffix: 'Perf'
-        depends_on: ${{ parameters.static_check_job_name }}
-
-  # HTTP build (behind a toggle for now), only on SGX and CFT
-    - template: common.yml
-      parameters:
-        target: SGX
-        consensus: CFT
-        env: ${{ parameters.env[target] }}
-        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-        ctest_filter: '${{ parameters.test[target].ctest_args }}'
-        suffix: ''
         depends_on: ${{ parameters.static_check_job_name }}

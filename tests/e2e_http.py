@@ -20,22 +20,28 @@ from loguru import logger as LOG
 def run(args):
     hosts = ["localhost"]
 
-    with infra.ccf.network(
-        hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
-    ) as network:
-        network.start_and_join(args)
-        primary, term = network.find_primary()
-        time.sleep(3)
+    with infra.notification.notification_server(args.notify_server) as notifications:
 
-        with primary.node_client() as mc:
-            check_commit = infra.checker.Checker(mc)
+        with infra.ccf.network(
+            hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        ) as network:
+            network.start_and_join(args)
+            primary, term = network.find_primary()
+
+            time.sleep(3)
 
             with primary.user_client(format="json") as c:
-                check_commit(c.rpc("LOG_record", {"id": 42, "msg": "Hello"}))
+                c.rpc("LOG_record", {"id": 42, "msg": "Hello"})
 
 
 if __name__ == "__main__":
 
     args = e2e_args.cli_args()
     args.package = "libloggingenc"
+    notify_server_host = "localhost"
+    args.notify_server = (
+        notify_server_host
+        + ":"
+        + str(infra.net.probably_free_local_port(notify_server_host))
+    )
     run(args)
