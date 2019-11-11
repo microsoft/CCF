@@ -99,5 +99,5 @@ jobs:
         env: ${{ parameters.env.SGX }}
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build.CFT.cmake_args }}'
         ctest_filter: '${{ parameters.test.SGX.ctest_args }}'
-        suffix: ''
+        suffix: 'HTTP'
         depends_on: ${{ parameters.static_check_job_name }}
