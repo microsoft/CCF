@@ -31,7 +31,7 @@ parameters:
     san:
       cmake_args: '-DSAN=ON'
     http:
-      cmake_args: '-HTTP=ON'
+      cmake_args: '-DHTTP=ON'
 
   test:
     NoSGX:
