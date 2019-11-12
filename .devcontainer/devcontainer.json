@@ -1,7 +1,7 @@
 {
-	"name": "Sample No SGX Development Environment for CCF",
+	"name": "Sample Development Environment for CCF",
 	"context": "..",
-	"dockerFile": "../docker/Dockerfile.nosgx",
+	"dockerFile": "../docker/Dockerfile.sgx",
 	"runArgs": [],
 	"extensions": ["ms-vscode.cpptools", "ms-python.python"]
 }

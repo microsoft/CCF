@@ -18,7 +18,9 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        primary, others = network.start_and_join(args)
+        network.start_and_join(args)
+        primary, others = network.find_nodes()
+
         if args.run_poll:
             with open("revealed.log", "a+") as stdout:
                 subprocess.Popen(
@@ -61,7 +63,7 @@ def run(args):
 
         for regulator in regulators:
             with primary.user_client(format="msgpack", user_id=regulator[0] + 1) as c:
-                check = infra.ccf.Checker()
+                check = infra.checker.Checker()
 
                 check(
                     c.rpc(
@@ -87,7 +89,7 @@ def run(args):
 
         for bank in banks:
             with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
-                check = infra.ccf.Checker()
+                check = infra.checker.Checker()
 
                 check(c.rpc("BK_register", {"country": bank[1]}), result=bank[0])
                 check(c.rpc("BK_get", {"id": bank[0]}), result=bank[1].encode())
