@@ -56,7 +56,7 @@ class Consortium:
             tables, changes = ...
             return true
             """
-            with remote_node.member_client(member_id) as mc:
+            with remote_node.member_client(format="json", member_id=member_id) as mc:
                 r = mc.rpc(
                     "vote", {"ballot": {"text": script}, "id": proposal_id}, signed=True
                 )
@@ -199,7 +199,6 @@ class Consortium:
         self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN)
 
     def add_users(self, remote_node, users):
-        pass
         for u in users:
             user_cert = []
             with open(f"user{u}_cert.pem") as cert:

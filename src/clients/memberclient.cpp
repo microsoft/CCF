@@ -134,8 +134,7 @@ void add_new(
   RpcTlsClient& tls_connection, const string& cert_file, const string& proposal)
 {
   const auto cert = slurp(cert_file);
-  auto verifier = tls::make_verifier(cert);
-  const auto params = proposal_params(proposal, verifier->raw_cert_data());
+  const auto params = proposal_params(proposal, cert);
   const auto response =
     json::from_msgpack(tls_connection.call("propose", params));
   cout << response.dump() << endl;
