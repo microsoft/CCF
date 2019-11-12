@@ -328,70 +328,68 @@ if(BUILD_TESTS)
       if (BUILD_SMALLBANK)
         include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
       endif()
+    endif()
 
-    else()
+    add_e2e_test(
+      NAME end_to_end_logging
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+    )
 
+    add_e2e_test(
+      NAME lua_end_to_end_logging
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+      ADDITIONAL_ARGS
+        --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
+    )
+
+    add_e2e_test(
+      NAME end_to_end_scenario
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
+      ADDITIONAL_ARGS
+        --scenario ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
+    )
+
+    add_e2e_test(
+      NAME election_tests
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+      ADDITIONAL_ARGS
+        --election-timeout 2000
+    )
+
+    if (NOT SAN)
       add_e2e_test(
-        NAME end_to_end_logging
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+        NAME connections
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+      )
+    endif()
+
+    add_e2e_test(
+      NAME schema_tests
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+      ADDITIONAL_ARGS
+      -p libloggingenc
+      --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
+    )
+
+    if(QUOTES_ENABLED)
+      add_e2e_test(
+        NAME reconfiguration_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
       )
 
       add_e2e_test(
-        NAME lua_end_to_end_logging
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+        NAME code_update_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
         ADDITIONAL_ARGS
-          --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
+          --oesign ${OESIGN}
+          --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+          --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+          # TODO: This test spins up many nodes that go through the join protocol
+          # Since oe_verify_report can take quite a long time to execute (~2s)
+          # and trigger Raft elections, the election timeout should stay high
+          # until https://github.com/microsoft/CCF/issues/480 is fixed
+          --election-timeout 5000
       )
-
-      add_e2e_test(
-        NAME end_to_end_scenario
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
-        ADDITIONAL_ARGS
-          --scenario ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
-      )
-
-      add_e2e_test(
-        NAME election_tests
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-        ADDITIONAL_ARGS
-          --election-timeout 2000
-      )
-
-      if (NOT SAN)
-        add_e2e_test(
-          NAME connections
-          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-        )
-      endif()
-
-      add_e2e_test(
-        NAME schema_tests
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
-        ADDITIONAL_ARGS
-        -p libloggingenc
-        --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
-      )
-
-      if(QUOTES_ENABLED)
-        add_e2e_test(
-          NAME reconfiguration_test
-          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-        )
-
-        add_e2e_test(
-          NAME code_update_test
-          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-          ADDITIONAL_ARGS
-            --oesign ${OESIGN}
-            --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
-            --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
-            # TODO: This test spins up many nodes that go through the join protocol
-            # Since oe_verify_report can take quite a long time to execute (~2s)
-            # and trigger Raft elections, the election timeout should stay high
-            # until https://github.com/microsoft/CCF/issues/480 is fixed
-            --election-timeout 5000
-        )
-      endif()
     endif()
 
   else()
