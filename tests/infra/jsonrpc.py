@@ -407,8 +407,8 @@ class CurlClient:
             self.stream.update(rc.stdout)
         return r.id
 
-    def request(self, method, params):
-        r = self.stream.request(f"{self.prefix}/{method}", params)
+    def request(self, method, params, *args, **kwargs):
+        r = self.stream.request(f"{self.prefix}/{method}", params, *args, **kwargs)
         with tempfile.NamedTemporaryFile() as nf:
             msg = getattr(r, "to_{}".format(self.format))()
             LOG.debug("Going to send {}".format(msg))

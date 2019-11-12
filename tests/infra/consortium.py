@@ -145,14 +145,11 @@ class Consortium:
         )
         self.vote_using_majority(remote_node, result["id"])
 
-        with remote_node.member_client() as c:
+        with remote_node.member_client(format="json") as c:
             id = c.request(
                 "read", {"table": "ccf.nodes", "key": node_to_retire.node_id}
             )
-            assert (
-                c.response(id).result["status"].decode()
-                == infra.node.NodeStatus.RETIRED.name
-            )
+            assert c.response(id).result["status"] == infra.node.NodeStatus.RETIRED.name
 
     def propose_trust_node(self, member_id, remote_node, node_id):
         script = """
@@ -267,11 +264,11 @@ class Consortium:
             ), f"Service status {current_status} (expected {status.name})"
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
-        with remote_node.member_client() as c:
+        with remote_node.member_client(format="json") as c:
             rep = c.do("read", {"table": "ccf.nodes", "key": node_id})
 
             if rep.error is not None or (
-                node_status and rep.result["status"].decode() != node_status.name
+                node_status and rep.result["status"] != node_status.name
             ):
                 return False
 
