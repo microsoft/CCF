@@ -27,7 +27,7 @@ namespace enclave
       auto req = fmt::format(
         "POST / HTTP/1.1\r\n"
         "Content-Type: application/json\r\n"
-        "Content-Length: {}\r\n\r\n{}",
+        "Content-Length: {}\r\n\r\n",
         body.size());
       return std::vector<uint8_t>(req.begin(), req.end());
     }
@@ -128,7 +128,7 @@ namespace enclave
     class ResponseHeaderEmitter
     {
     public:
-      static std::vector<uint8_t> emit(const std::vector<uint8_t> data)
+      static std::vector<uint8_t> emit(const std::vector<uint8_t>& data)
       {
         if (data.size() == 0)
         {
@@ -149,9 +149,9 @@ namespace enclave
     class RequestHeaderEmitter
     {
     public:
-      static std::vector<uint8_t> emit(const std::vector<uint8_t> data)
+      static std::vector<uint8_t> emit(const std::vector<uint8_t>& data)
       {
-        return http::post_header(data);
+        return http::post(std::string(data.begin(), data.end()));
       }
     };
 
