@@ -39,8 +39,8 @@ static void serialise(picobench::state& s)
   auto encryptor = std::make_shared<ccf::TxEncryptor>(0x1, secrets);
   kv_store.set_encryptor(encryptor);
 
-  auto& map0 = kv_store.create<std::string, std::string>("map0", SD);
-  auto& map1 = kv_store.create<std::string, std::string>("map1", SD);
+  auto& map0 = kv_store.create<std::string, std::string>("map0", SD, true);
+  auto& map1 = kv_store.create<std::string, std::string>("map1", SD, true);
   Store::Tx tx;
   auto [tx0, tx1] = tx.get_view(map0, map1);
 
@@ -70,10 +70,10 @@ static void deserialise(picobench::state& s)
   kv_store.set_encryptor(encryptor);
   kv_store2.set_encryptor(encryptor);
 
-  auto& map0 = kv_store.create<std::string, std::string>("map0", SD);
-  auto& map1 = kv_store.create<std::string, std::string>("map1", SD);
-  auto& map0_ = kv_store2.create<std::string, std::string>("map0", SD);
-  auto& map1_ = kv_store2.create<std::string, std::string>("map1", SD);
+  auto& map0 = kv_store.create<std::string, std::string>("map0", SD, true);
+  auto& map1 = kv_store.create<std::string, std::string>("map1", SD, true);
+  auto& map0_ = kv_store2.create<std::string, std::string>("map0", SD, true);
+  auto& map1_ = kv_store2.create<std::string, std::string>("map1", SD, true);
   Store::Tx tx;
   auto [tx0, tx1] = tx.get_view(map0, map1);
 

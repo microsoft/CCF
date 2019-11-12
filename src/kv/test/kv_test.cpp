@@ -61,7 +61,7 @@ TEST_CASE("Reads/writes and deletions")
 {
   Store kv_store;
   auto& map = kv_store.create<std::string, std::string>(
-    "map", kv::SecurityDomain::PUBLIC);
+    "map", kv::SecurityDomain::PUBLIC, true);
 
   constexpr auto k = "key";
   constexpr auto invalid_key = "invalid_key";
@@ -153,7 +153,7 @@ TEST_CASE("Rollback and compact")
 {
   Store kv_store;
   auto& map = kv_store.create<std::string, std::string>(
-    "map", kv::SecurityDomain::PUBLIC);
+    "map", kv::SecurityDomain::PUBLIC, true);
 
   constexpr auto k = "key";
   constexpr auto v1 = "value1";
@@ -207,9 +207,9 @@ TEST_CASE("Clear entire store")
 {
   Store kv_store;
   auto& map1 = kv_store.create<std::string, std::string>(
-    "map1", kv::SecurityDomain::PUBLIC);
+    "map1", kv::SecurityDomain::PUBLIC, true);
   auto& map2 = kv_store.create<std::string, std::string>(
-    "map2", kv::SecurityDomain::PUBLIC);
+    "map2", kv::SecurityDomain::PUBLIC, true);
 
   INFO("Commit a transaction over two maps");
   {
@@ -248,6 +248,7 @@ TEST_CASE("Local commit hooks")
   using Write = Store::Map<std::string, std::string>::Write;
   std::vector<Write> local_writes;
   std::vector<Write> global_writes;
+  auto replicated = true;
 
   auto local_hook = [&](kv::Version v, const State& s, const Write& w) {
     local_writes.push_back(w);
@@ -258,7 +259,7 @@ TEST_CASE("Local commit hooks")
 
   Store kv_store;
   auto& map = kv_store.create<std::string, std::string>(
-    "map", kv::SecurityDomain::PUBLIC, local_hook, global_hook);
+    "map", kv::SecurityDomain::PUBLIC, replicated, local_hook, global_hook);
 
   INFO("Write with hooks");
   {
@@ -322,11 +323,17 @@ TEST_CASE("Global commit hooks")
     global_writes.emplace_back(GlobalHookInput({v, w}));
   };
 
+  auto replicated = true;
+
   Store kv_store;
   auto& map_with_hook = kv_store.create<std::string, std::string>(
-    "map_with_hook", kv::SecurityDomain::PUBLIC, nullptr, global_hook);
+    "map_with_hook",
+    kv::SecurityDomain::PUBLIC,
+    replicated,
+    nullptr,
+    global_hook);
   auto& map_no_hook = kv_store.create<std::string, std::string>(
-    "map_no_hook", kv::SecurityDomain::PUBLIC);
+    "map_no_hook", kv::SecurityDomain::PUBLIC, true);
 
   INFO("Compact an empty store");
   {
@@ -444,10 +451,10 @@ TEST_CASE("Clone schema")
   Store store;
   store.set_encryptor(encryptor);
 
-  auto& public_map =
-    store.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
-  auto& private_map =
-    store.create<size_t, std::string>("private", kv::SecurityDomain::PRIVATE);
+  auto& public_map = store.create<size_t, std::string>(
+    "public", kv::SecurityDomain::PUBLIC, true);
+  auto& private_map = store.create<size_t, std::string>(
+    "private", kv::SecurityDomain::PRIVATE, true);
   Store::Tx tx1(store.next_version());
   auto [view1, view2] = tx1.get_view(public_map, private_map);
   view1->put(42, "aardvark");
@@ -459,7 +466,8 @@ TEST_CASE("Clone schema")
   clone.clone_schema(store);
   clone.set_encryptor(encryptor);
 
-  REQUIRE(clone.deserialise(serialised) == kv::DeserialiseSuccess::PASS);
+  REQUIRE(
+    clone.deserialise(serialised.replicated) == kv::DeserialiseSuccess::PASS);
 }
 
 TEST_CASE("Deserialise return status")
@@ -467,10 +475,11 @@ TEST_CASE("Deserialise return status")
   Store store;
 
   auto& signatures = store.create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
-  auto& nodes =
-    store.create<ccf::Nodes>(ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& data = store.create<size_t, size_t>("data", kv::SecurityDomain::PUBLIC);
+    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC, true);
+  auto& nodes = store.create<ccf::Nodes>(
+    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC, true);
+  auto& data =
+    store.create<size_t, size_t>("data", kv::SecurityDomain::PUBLIC, true);
 
   auto kp = tls::make_key_pair();
 
@@ -485,7 +494,8 @@ TEST_CASE("Deserialise return status")
     auto [success, reqid, serialised] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    REQUIRE(store.deserialise(serialised) == kv::DeserialiseSuccess::PASS);
+    REQUIRE(
+      store.deserialise(serialised.replicated) == kv::DeserialiseSuccess::PASS);
   }
 
   {
@@ -497,7 +507,8 @@ TEST_CASE("Deserialise return status")
     REQUIRE(success == kv::CommitSuccess::OK);
 
     REQUIRE(
-      store.deserialise(serialised) == kv::DeserialiseSuccess::PASS_SIGNATURE);
+      store.deserialise(serialised.replicated) ==
+      kv::DeserialiseSuccess::PASS_SIGNATURE);
   }
 
   INFO("Signature transactions with additional contents should fail");
@@ -510,7 +521,9 @@ TEST_CASE("Deserialise return status")
     auto [success, reqid, serialised] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    REQUIRE(store.deserialise(serialised) == kv::DeserialiseSuccess::FAILED);
+    REQUIRE(
+      store.deserialise(serialised.replicated) ==
+      kv::DeserialiseSuccess::FAILED);
   }
 }
 
@@ -520,15 +533,17 @@ TEST_CASE("map swap between stores")
   Store s1;
   s1.set_encryptor(encryptor);
 
-  auto& d1 = s1.create<size_t, size_t>("data", kv::SecurityDomain::PRIVATE);
+  auto& d1 =
+    s1.create<size_t, size_t>("data", kv::SecurityDomain::PRIVATE, true);
   auto& pd1 =
-    s1.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
+    s1.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC, true);
 
   Store s2;
   s2.set_encryptor(encryptor);
-  auto& d2 = s2.create<size_t, size_t>("data", kv::SecurityDomain::PRIVATE);
+  auto& d2 =
+    s2.create<size_t, size_t>("data", kv::SecurityDomain::PRIVATE, true);
   auto& pd2 =
-    s2.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
+    s2.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC, true);
 
   {
     Store::Tx tx;
@@ -621,16 +636,16 @@ TEST_CASE("private recovery map swap")
   Store s1;
   s1.set_encryptor(encryptor);
   auto& priv1 =
-    s1.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE);
+    s1.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE, true);
   auto& pub1 =
-    s1.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
+    s1.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC, true);
 
   Store s2;
   s2.set_encryptor(encryptor);
   auto& priv2 =
-    s2.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE);
+    s2.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE, true);
   auto& pub2 =
-    s2.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
+    s2.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC, true);
 
   INFO("Populate s1 with public entries");
   // We compact twice, deliberately. A public KV during recovery
@@ -744,5 +759,75 @@ TEST_CASE("private recovery map swap")
       // state later than the compact level on the public KV, as this is
       // impossible during recovery.
     }
+  }
+}
+
+TEST_CASE("replicated and derived table serialisation")
+{
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  Store store;
+  store.set_encryptor(encryptor);
+
+  auto& data_replicated = store.create<size_t, size_t>(
+    "data_replicated", kv::SecurityDomain::PUBLIC, true);
+  auto& data_derived = store.create<size_t, size_t>(
+    "data_derived", kv::SecurityDomain::PUBLIC, false);
+  auto& data_replicated_private = store.create<size_t, size_t>(
+    "data_replicated_private", kv::SecurityDomain::PRIVATE, true);
+  auto& data_derived_private = store.create<size_t, size_t>(
+    "data_derived_private", kv::SecurityDomain::PRIVATE, false);
+
+  {
+    Store::Tx tx(store.next_version());
+    auto data_view = tx.get_view(data_replicated);
+    auto data_view_private = tx.get_view(data_replicated_private);
+    data_view->put(42, 42);
+    data_view_private->put(43, 43);
+    auto [success, reqid, serialised] = tx.commit_reserved();
+    REQUIRE(success == kv::CommitSuccess::OK);
+
+    REQUIRE(
+      store.deserialise(serialised.replicated) == kv::DeserialiseSuccess::PASS);
+
+    REQUIRE(serialised.replicated.size() > 0);
+    REQUIRE(serialised.derived.size() == 0);
+  }
+
+  {
+    Store::Tx tx(store.next_version());
+    auto data_view = tx.get_view(data_derived);
+    auto data_view_private = tx.get_view(data_derived_private);
+    data_view->put(42, 42);
+    data_view_private->put(43, 43);
+    auto [success, reqid, serialised] = tx.commit_reserved();
+    REQUIRE(success == kv::CommitSuccess::OK);
+
+    REQUIRE(
+      store.deserialise(serialised.derived) == kv::DeserialiseSuccess::PASS);
+
+    REQUIRE(serialised.derived.size() > 0);
+    REQUIRE(serialised.replicated.size() == 0);
+  }
+
+  {
+    Store::Tx tx(store.next_version());
+    auto data_view_r = tx.get_view(data_replicated);
+    auto data_view_r_p = tx.get_view(data_replicated_private);
+    auto data_view_d = tx.get_view(data_derived);
+    auto data_view_d_p = tx.get_view(data_derived_private);
+    data_view_r->put(42, 42);
+    data_view_d->put(42, 42);
+    data_view_r_p->put(43, 43);
+    data_view_d_p->put(43, 43);
+    auto [success, reqid, serialised] = tx.commit_reserved();
+    REQUIRE(success == kv::CommitSuccess::OK);
+
+    REQUIRE(
+      store.deserialise(serialised.replicated) == kv::DeserialiseSuccess::PASS);
+    REQUIRE(
+      store.deserialise(serialised.derived) == kv::DeserialiseSuccess::PASS);
+
+    REQUIRE(serialised.replicated.size() > 0);
+    REQUIRE(serialised.derived.size() > 0);
   }
 }

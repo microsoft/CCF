@@ -101,11 +101,13 @@ namespace kv
     LocalCommits commit_deltas;
     SpinLock sl;
     const SecurityDomain security_domain;
+    const bool replicated;
 
     Map(
       Store<S, D>* store_,
       std::string name_,
       SecurityDomain security_domain_,
+      bool replicated_,
       CommitHook local_hook_,
       CommitHook global_hook_) :
       store(store_),
@@ -113,6 +115,7 @@ namespace kv
       roll(std::make_unique<LocalCommits>()),
       rollback_counter(0),
       security_domain(security_domain_),
+      replicated(replicated_),
       local_hook(local_hook_),
       global_hook(global_hook_)
     {
@@ -129,7 +132,8 @@ namespace kv
       if (store_ == nullptr)
         throw std::logic_error("Failed to cast store in Map clone");
 
-      return new Map(store_, name, security_domain, nullptr, nullptr);
+      return new Map(
+        store_, name, security_domain, replicated, nullptr, nullptr);
     }
 
     /** Get the name of the map
@@ -177,6 +181,15 @@ namespace kv
     virtual SecurityDomain get_security_domain() override
     {
       return security_domain;
+    }
+
+    /** Get Map replicability
+     *
+     * @return true if the map is to be replicated, false if it is to be derived
+     */
+    virtual bool is_replicated() override
+    {
+      return replicated;
     }
 
     bool operator==(const AbstractMap<S, D>& that) const override
@@ -473,6 +486,11 @@ namespace kv
           throw std::logic_error("Uncommitted transaction has no end order");
 
         return commit_version;
+      }
+
+      bool is_replicated()
+      {
+        return map.is_replicated();
       }
 
     private:
@@ -995,8 +1013,8 @@ namespace kv
 
       version = c.value();
 
-      const std::vector<uint8_t> data = serialise();
-      if (!data.size())
+      SerialisedMaps data = serialise();
+      if (data.replicated.empty() && data.derived.empty())
       {
         auto h = store->get_history();
         if (h != nullptr)
@@ -1011,10 +1029,9 @@ namespace kv
       return store->commit(
         version,
         [data = std::move(data), req_id = std::move(req_id)]()
-          -> std::
-            tuple<CommitSuccess, TxHistory::RequestID, std::vector<uint8_t>> {
-              return {CommitSuccess::OK, std::move(req_id), std::move(data)};
-            },
+          -> std::tuple<CommitSuccess, TxHistory::RequestID, SerialisedMaps> {
+          return {CommitSuccess::OK, std::move(req_id), std::move(data)};
+        },
         false);
     }
 
@@ -1087,7 +1104,7 @@ namespace kv
       return version;
     }
 
-    std::vector<uint8_t> serialise(bool include_reads = false)
+    SerialisedMaps serialise(bool include_reads = false)
     {
       if (!committed)
         throw std::logic_error("Transaction not yet committed");
@@ -1114,7 +1131,8 @@ namespace kv
       auto map = view_list.begin()->second.map;
       auto e = map->get_store()->get_encryptor();
 
-      S s(e, version);
+      S replicated_serialiser(e, version);
+      S derived_serialiser(e, version);
 
       auto grouped_maps = get_maps_grouped_by_domain(view_list);
 
@@ -1122,12 +1140,20 @@ namespace kv
       {
         for (auto curr_map : domain_it.second)
         {
-          curr_map->serialise(s, include_reads);
+          if (curr_map->is_replicated())
+          {
+            curr_map->serialise(replicated_serialiser, include_reads);
+          }
+          else
+          {
+            curr_map->serialise(derived_serialiser, include_reads);
+          }
         }
       }
 
       // Return serialised Tx.
-      return std::move(s.get_raw_data());
+      return {std::move(replicated_serialiser.get_raw_data()),
+              std::move(derived_serialiser.get_raw_data())};
     }
 
     // Used by frontend for reserved transactions
@@ -1140,7 +1166,7 @@ namespace kv
     {}
 
     // Used by frontend to commit reserved transactions
-    std::tuple<CommitSuccess, TxHistory::RequestID, std::vector<uint8_t>>
+    std::tuple<CommitSuccess, TxHistory::RequestID, SerialisedMaps>
     commit_reserved()
     {
       if (committed)
@@ -1184,6 +1210,11 @@ namespace kv
     template <class K, class V, class H = std::hash<K>>
     using Map = Map<K, V, H, S, D>;
     using Tx = Tx<S, D>;
+#ifdef PBFT
+    static constexpr auto replicated_default = false;
+#else
+    static constexpr auto replicated_default = true;
+#endif
 
   private:
     // All collections of Map must be ordered so that we lock their contained
@@ -1317,11 +1348,12 @@ namespace kv
     Map<K, V, H>& create(
       std::string name,
       SecurityDomain security_domain = kv::SecurityDomain::PRIVATE,
+      bool replicated = replicated_default,
       typename Map<K, V, H>::CommitHook local_hook = nullptr,
       typename Map<K, V, H>::CommitHook global_hook = nullptr)
     {
       return create<Map<K, V, H>>(
-        name, security_domain, local_hook, global_hook);
+        name, security_domain, replicated, local_hook, global_hook);
     }
 
     /** Create a Map
@@ -1338,6 +1370,7 @@ namespace kv
     M& create(
       std::string name,
       SecurityDomain security_domain = kv::SecurityDomain::PRIVATE,
+      bool replicated = replicated_default,
       typename M::CommitHook local_hook = nullptr,
       typename M::CommitHook global_hook = nullptr)
     {
@@ -1347,7 +1380,8 @@ namespace kv
       if (search != maps.end())
         throw std::logic_error("Map already exists");
 
-      auto result = new M(this, name, security_domain, local_hook, global_hook);
+      auto result =
+        new M(this, name, security_domain, replicated, local_hook, global_hook);
       maps[name] = std::unique_ptr<AbstractMap<S, D>>(result);
       return *result;
     }
@@ -1629,13 +1663,17 @@ namespace kv
 
           if (h)
           {
-            h->add_result(reqid, version, data_);
+            h->add_result(reqid, version, data_.replicated, data_.derived);
           }
 
           LOG_DEBUG_FMT(
-            "Batching {} ({})", last_replicated + offset, data_.size());
+            "Batching {} ({})",
+            last_replicated + offset,
+            data_.replicated.size());
           batch.emplace_back(
-            last_replicated + offset, std::move(data_), committable_);
+            last_replicated + offset,
+            std::move(data_.replicated),
+            committable_);
           pending_txs.erase(search);
         }
 

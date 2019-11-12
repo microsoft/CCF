@@ -71,16 +71,16 @@ TEST_CASE("Check signature verification")
   Store primary_store;
   primary_store.set_encryptor(encryptor);
   auto& primary_nodes = primary_store.create<ccf::Nodes>(
-    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
+    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC, true);
   auto& primary_signatures = primary_store.create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
+    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC, true);
 
   Store backup_store;
   backup_store.set_encryptor(encryptor);
   auto& backup_nodes = backup_store.create<ccf::Nodes>(
-    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
+    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC, true);
   auto& backup_signatures = backup_store.create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
+    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC, true);
 
   auto kp = tls::make_key_pair();
 
@@ -136,16 +136,16 @@ TEST_CASE("Check signing works across rollback")
   Store primary_store;
   primary_store.set_encryptor(encryptor);
   auto& primary_nodes = primary_store.create<ccf::Nodes>(
-    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
+    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC, true);
   auto& primary_signatures = primary_store.create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
+    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC, true);
 
   Store backup_store;
   backup_store.set_encryptor(encryptor);
   auto& backup_nodes = backup_store.create<ccf::Nodes>(
-    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
+    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC, true);
   auto& backup_signatures = backup_store.create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
+    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC, true);
 
   auto kp = tls::make_key_pair();
 
@@ -251,9 +251,9 @@ TEST_CASE(
   store.set_consensus(consensus);
 
   auto& table =
-    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
-  auto& other_table =
-    store.create<size_t, size_t>("other_table", kv::SecurityDomain::PUBLIC);
+    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC, true);
+  auto& other_table = store.create<size_t, size_t>(
+    "other_table", kv::SecurityDomain::PUBLIC, true);
 
   INFO("Write first tx");
   {
@@ -359,7 +359,7 @@ TEST_CASE(
   store.set_consensus(consensus);
 
   auto& table =
-    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
+    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC, true);
 
   INFO("Write first tx");
   {
@@ -398,7 +398,7 @@ TEST_CASE(
   store.set_consensus(consensus);
 
   auto& table =
-    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC);
+    store.create<size_t, size_t>("table", kv::SecurityDomain::PUBLIC, true);
 
   INFO("Write first tx");
   {

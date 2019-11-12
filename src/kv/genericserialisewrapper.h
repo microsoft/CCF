@@ -196,10 +196,26 @@ namespace kv
       // writer.
       if (!crypto_util)
       {
+        if (serialised_public_domain.size() <= 1)
+        {
+          // only contains the initial version that was stored in the writer on
+          // construction, no actual data
+          return {};
+        }
         return serialised_public_domain;
       }
 
       auto serialised_private_domain = private_writer.get_raw_data();
+
+      if (
+        serialised_public_domain.size() <= 1 &&
+        serialised_private_domain.size() <= 1)
+      {
+        // only contains the initial version that was stored in the writer on
+        // construction, no actual data
+        return {};
+      }
+
       return serialise_domains(
         serialised_public_domain, serialised_private_domain);
     }
