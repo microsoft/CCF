@@ -38,20 +38,20 @@ def check_nodes_have_msgs(nodes, txs):
     makes sure nodes have recovered state.
     """
     for node in nodes:
-        with node.user_client() as c:
+        with node.user_client(format="json") as c:
             for n, msg in txs.priv.items():
                 c.do(
                     "LOG_get",
                     {"id": n},
                     readonly_hint=None,
-                    expected_result={"msg": msg.encode()},
+                    expected_result={"msg": msg},
                 )
             for n, msg in txs.pub.items():
                 c.do(
                     "LOG_get_pub",
                     {"id": n},
                     readonly_hint=None,
-                    expected_result={"msg": msg.encode()},
+                    expected_result={"msg": msg},
                 )
 
 
@@ -61,7 +61,7 @@ def log_msgs(primary, txs):
     """
     LOG.debug("Applying new transactions")
     responses = []
-    with primary.user_client() as c:
+    with primary.user_client(format="json") as c:
         for n, msg in txs.priv.items():
             responses.append(c.rpc("LOG_record", {"id": n, "msg": msg}))
         for n, msg in txs.pub.items():

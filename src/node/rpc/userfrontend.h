@@ -15,5 +15,11 @@ namespace ccf
         tables_.get<Certs>(Tables::USER_CERTS),
         tables_.get<Users>(Tables::USERS))
     {}
+
+  protected:
+    virtual std::string invalid_caller_error_message() const
+    {
+      return "Could not find matching user certificate";
+    }
   };
 }

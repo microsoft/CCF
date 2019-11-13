@@ -209,7 +209,7 @@ class Node:
             **kwargs,
         )
 
-    def member_client(self, member_id=1, **kwargs):
+    def member_client(self, format="msgpack", member_id=1, **kwargs):
         return infra.jsonrpc.client(
             self.host,
             self.rpc_port,
@@ -218,6 +218,7 @@ class Node:
             key="member{}_privk.pem".format(member_id),
             cafile="networkcert.pem",
             description="node {} (member)".format(self.node_id),
+            format=format,
             prefix="members",
             **kwargs,
         )

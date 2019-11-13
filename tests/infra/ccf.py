@@ -199,6 +199,10 @@ class Network:
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
+        if os.getenv("HTTP"):
+            LOG.warning("Sleeping 3 seconds before continuing (HTTP)...")
+            time.sleep(3)
+
     def start_in_recovery(self, args, ledger_file, sealed_secrets):
         primary = self._start_all_nodes(
             args, recovery=True, ledger_file=ledger_file, sealed_secrets=sealed_secrets
@@ -252,6 +256,9 @@ class Network:
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(1, primary, new_node.node_id)
+                if os.getenv("HTTP"):
+                    LOG.warning("Sleeping 3 seconds before continuing (HTTP)...")
+                    time.sleep(3)
             if not args.pbft:
                 new_node.wait_for_node_to_join()
         except (ValueError, TimeoutError):

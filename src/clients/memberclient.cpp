@@ -134,8 +134,7 @@ void add_new(
   RpcTlsClient& tls_connection, const string& cert_file, const string& proposal)
 {
   const auto cert = slurp(cert_file);
-  auto verifier = tls::make_verifier(cert);
-  const auto params = proposal_params(proposal, verifier->raw_cert_data());
+  const auto params = proposal_params(proposal, cert);
   const auto response =
     json::from_msgpack(tls_connection.call("propose", params));
   cout << response.dump() << endl;
@@ -255,7 +254,7 @@ void submit_ack(
   // member using its own certificate reads its member id
   auto verifier = tls::make_verifier(raw_cert);
   Response<ObjectId> read_id = json::from_msgpack(tls_connection.call(
-    "read", read_params(verifier->raw_cert_data(), Tables::MEMBER_CERTS)));
+    "read", read_params(verifier->der_cert_data(), Tables::MEMBER_CERTS)));
   const auto member_id = read_id.result;
 
   // member reads nonce

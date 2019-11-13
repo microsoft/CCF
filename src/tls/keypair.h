@@ -1143,7 +1143,7 @@ namespace tls
       return &cert;
     }
 
-    std::vector<uint8_t> raw_cert_data()
+    std::vector<uint8_t> der_cert_data()
     {
       const auto crt = raw();
       return {crt->raw.p, crt->raw.p + crt->raw.len};
