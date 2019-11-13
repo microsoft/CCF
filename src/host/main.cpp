@@ -321,7 +321,7 @@ int main(int argc, char** argv)
     for (auto const& cert_file : member_cert_files)
     {
       ccf_config.genesis.member_certs.emplace_back(
-        tls::make_verifier(files::slurp(cert_file))->raw_cert_data());
+        tls::make_verifier(files::slurp(cert_file))->der_cert_data());
     }
     ccf_config.genesis.gov_script = files::slurp_string(gov_script);
     LOG_INFO_FMT(

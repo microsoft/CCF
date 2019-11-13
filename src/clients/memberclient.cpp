@@ -254,7 +254,7 @@ void submit_ack(
   // member using its own certificate reads its member id
   auto verifier = tls::make_verifier(raw_cert);
   Response<ObjectId> read_id = json::from_msgpack(tls_connection.call(
-    "read", read_params(verifier->raw_cert_data(), Tables::MEMBER_CERTS)));
+    "read", read_params(verifier->der_cert_data(), Tables::MEMBER_CERTS)));
   const auto member_id = read_id.result;
 
   // member reads nonce

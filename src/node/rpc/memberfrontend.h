@@ -79,9 +79,14 @@ namespace ccf
              this->network.member_acks,
              this->network.values);
            // the cert needs to be unique
-           auto cert = tls::make_verifier(pem_cert)->raw_cert_data();
-           if (mc->get(cert))
-             throw std::logic_error("Member certificate already exists");
+           auto cert = tls::make_verifier(pem_cert)->der_cert_data();
+           auto member_id = mc->get(cert);
+           if (member_id.has_value())
+           {
+             throw std::logic_error(fmt::format(
+               "Member certificate already exists (member {})",
+               member_id.value()));
+           }
 
            const auto id = get_next_id(v, ValueIds::NEXT_MEMBER_ID);
            // store cert
@@ -101,11 +106,16 @@ namespace ccf
              this->network.users,
              this->network.values);
            // the cert needs to be unique
-           auto cert = tls::make_verifier(pem_cert)->raw_cert_data();
-           const auto id = get_next_id(v, ValueIds::NEXT_USER_ID);
-           if (uc->get(cert))
-             throw std::logic_error("User certificate already exists");
+           auto cert = tls::make_verifier(pem_cert)->der_cert_data();
+           auto user_id = uc->get(cert);
+           if (user_id.has_value())
+           {
+             throw std::logic_error(fmt::format(
+               "User certificate already exists (member {})",
+               user_id.value()));
+           }
 
+           const auto id = get_next_id(v, ValueIds::NEXT_USER_ID);
            // store cert (bi-directional)
            uc->put(cert, id);
            u->put(id, {cert});

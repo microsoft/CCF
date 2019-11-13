@@ -11,17 +11,6 @@ namespace enclave
   namespace http
   {
     // TODO: Split into a request formatter class
-    std::vector<uint8_t> post(const std::string& body)
-    {
-      auto req = fmt::format(
-        "POST / HTTP/1.1\r\n"
-        "Content-Type: application/json\r\n"
-        "Content-Length: {}\r\n\r\n",
-        body.size(),
-        body);
-      return std::vector<uint8_t>(req.begin(), req.end());
-    }
-
     std::vector<uint8_t> post_header(const std::vector<uint8_t>& body)
     {
       auto req = fmt::format(
