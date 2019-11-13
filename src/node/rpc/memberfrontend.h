@@ -111,8 +111,7 @@ namespace ccf
            if (user_id.has_value())
            {
              throw std::logic_error(fmt::format(
-               "User certificate already exists (member {})",
-               user_id.value()));
+               "User certificate already exists (user {})", user_id.value()));
            }
 
            const auto id = get_next_id(v, ValueIds::NEXT_USER_ID);
