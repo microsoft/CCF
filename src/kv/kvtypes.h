@@ -63,6 +63,11 @@ namespace kv
       replicated(std::move(replicated_)),
       derived(std::move(derived_))
     {}
+
+    bool empty()
+    {
+      return replicated.empty() && derived.empty();
+    }
   };
 
   class TxHistory

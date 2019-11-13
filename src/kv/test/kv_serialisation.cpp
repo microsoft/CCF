@@ -410,3 +410,74 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
       kv::DeserialiseSuccess::FAILED);
   }
 }
+
+TEST_CASE("replicated and derived table serialisation")
+{
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  Store store;
+  store.set_encryptor(encryptor);
+
+  auto& data_replicated = store.create<size_t, size_t>(
+    "data_replicated", kv::SecurityDomain::PUBLIC, true);
+  auto& data_derived = store.create<size_t, size_t>(
+    "data_derived", kv::SecurityDomain::PUBLIC, false);
+  auto& data_replicated_private = store.create<size_t, size_t>(
+    "data_replicated_private", kv::SecurityDomain::PRIVATE, true);
+  auto& data_derived_private = store.create<size_t, size_t>(
+    "data_derived_private", kv::SecurityDomain::PRIVATE, false);
+
+  {
+    Store::Tx tx(store.next_version());
+    auto [data_view, data_view_private] =
+      tx.get_view(data_replicated, data_replicated_private);
+    data_view->put(42, 42);
+    data_view_private->put(43, 43);
+    auto [success, reqid, serialised] = tx.commit_reserved();
+    REQUIRE(success == kv::CommitSuccess::OK);
+
+    REQUIRE(
+      store.deserialise(serialised.replicated) == kv::DeserialiseSuccess::PASS);
+
+    REQUIRE(serialised.replicated.size() > 0);
+    REQUIRE(serialised.derived.size() == 0);
+  }
+
+  {
+    Store::Tx tx(store.next_version());
+    auto [data_view, data_view_private] =
+      tx.get_view(data_derived, data_derived_private);
+    data_view->put(42, 42);
+    data_view_private->put(43, 43);
+    auto [success, reqid, serialised] = tx.commit_reserved();
+    REQUIRE(success == kv::CommitSuccess::OK);
+
+    REQUIRE(
+      store.deserialise(serialised.derived) == kv::DeserialiseSuccess::PASS);
+
+    REQUIRE(serialised.derived.size() > 0);
+    REQUIRE(serialised.replicated.size() == 0);
+  }
+
+  {
+    Store::Tx tx(store.next_version());
+    auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] = tx.get_view(
+      data_replicated,
+      data_replicated_private,
+      data_derived,
+      data_derived_private);
+    data_view_r->put(42, 42);
+    data_view_d->put(42, 42);
+    data_view_r_p->put(43, 43);
+    data_view_d_p->put(43, 43);
+    auto [success, reqid, serialised] = tx.commit_reserved();
+    REQUIRE(success == kv::CommitSuccess::OK);
+
+    REQUIRE(
+      store.deserialise(serialised.replicated) == kv::DeserialiseSuccess::PASS);
+    REQUIRE(
+      store.deserialise(serialised.derived) == kv::DeserialiseSuccess::PASS);
+
+    REQUIRE(serialised.replicated.size() > 0);
+    REQUIRE(serialised.derived.size() > 0);
+  }
+}

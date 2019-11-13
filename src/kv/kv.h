@@ -1013,8 +1013,8 @@ namespace kv
 
       version = c.value();
 
-      SerialisedMaps data = serialise();
-      if (data.replicated.empty() && data.derived.empty())
+      auto data = serialise();
+      if (data.empty())
       {
         auto h = store->get_history();
         if (h != nullptr)
