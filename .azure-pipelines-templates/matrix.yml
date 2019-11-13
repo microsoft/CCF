@@ -30,6 +30,8 @@ parameters:
       cmake_args: '-DSERVICE_IDENTITY_CURVE_CHOICE=secp256k1_bitcoin'
     san:
       cmake_args: '-DSAN=ON'
+    http:
+      cmake_args: '-DHTTP=ON'
 
   test:
     NoSGX:
@@ -88,3 +90,15 @@ jobs:
         ctest_filter: '${{ parameters.test.perf.ctest_args }}'
         suffix: 'Perf'
         depends_on: ${{ parameters.static_check_job_name }}
+
+  # HTTP build (behind a toggle for now), only on NoSGX and CFT
+  # TODO: Once large messages are supported with HTTP (e.g. quotes over join request), SGX should be run
+  - template: common.yml
+    parameters:
+      target: NoSGX
+      consensus: CFT
+      env: ${{ parameters.env.NoSGX }}
+      cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }} ${{ parameters.build.CFT.cmake_args }} ${{ parameters.build.http.cmake_args }}'
+      ctest_filter: '${{ parameters.test.NoSGX.ctest_args }}'
+      suffix: 'HTTP'
+      depends_on: ${{ parameters.static_check_job_name }}

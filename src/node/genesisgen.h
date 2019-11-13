@@ -110,7 +110,7 @@ namespace ccf
       auto node_id =
         get_next_id(tx.get_view(tables.values), ValueIds::NEXT_NODE_ID);
 
-      auto raw_cert = tls::make_verifier(node_info.cert)->raw_cert_data();
+      auto raw_cert = tls::make_verifier(node_info.cert)->der_cert_data();
 
       auto node_view = tx.get_view(tables.nodes);
       node_view->put(node_id, node_info);

@@ -25,17 +25,6 @@ def get_code_id(lib_path):
     return lines[0].split("=")[1]
 
 
-def add_new_code(network, new_code_id):
-    LOG.debug(f"Adding new code id: {new_code_id}")
-
-    primary, term = network.find_primary()
-    result = network.consortium.propose(
-        1, primary, None, None, "add_code", f"--new-code-id={new_code_id}"
-    )
-
-    network.consortium.vote_using_majority(primary, result[1]["id"])
-
-
 def run(args):
     hosts = ["localhost", "localhost"]
 
@@ -57,7 +46,7 @@ def run(args):
             == None
         ), "Adding node with unsupported code id should fail"
 
-        add_new_code(network, new_code_id)
+        network.consortium.add_new_code(1, primary, new_code_id)
 
         new_nodes = set()
         old_nodes_count = len(network.nodes)

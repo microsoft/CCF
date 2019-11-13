@@ -32,7 +32,7 @@ using namespace nlohmann;
 auto kp = tls::make_key_pair();
 auto ca_mem = kp -> self_sign("CN=name_member");
 auto verifier_mem = tls::make_verifier(ca_mem);
-auto member_caller = verifier_mem -> raw_cert_data();
+auto member_caller = verifier_mem -> der_cert_data();
 auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
 
 constexpr auto default_pack = jsonrpc::Pack::MsgPack;
@@ -150,7 +150,7 @@ std::vector<uint8_t> get_cert_data(uint64_t member_id, tls::KeyPairPtr& kp_mem)
   std::vector<uint8_t> ca_mem =
     kp_mem->self_sign("CN=new member" + to_string(member_id));
   auto v_mem = tls::make_verifier(ca_mem);
-  std::vector<uint8_t> cert_data = v_mem->raw_cert_data();
+  std::vector<uint8_t> cert_data = v_mem->der_cert_data();
   return cert_data;
 }
 
@@ -790,7 +790,7 @@ TEST_CASE("Remove proposal")
 {
   NewMember caller;
   auto v = tls::make_verifier(caller.kp->self_sign("CN=new member"));
-  caller.cert = v->raw_cert_data();
+  caller.cert = v->der_cert_data();
 
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
@@ -955,7 +955,7 @@ TEST_CASE("Add user via proposed call")
       return Calls:call("new_user", user_cert)
     )xxx");
 
-  const vector<uint8_t> user_cert = {1, 2, 3};
+  const vector<uint8_t> user_cert = kp->self_sign("CN=new user");
   json proposej = create_json_req(Propose::In{proposal, user_cert}, "propose");
   ccf::SignedReq sr(proposej);
 
@@ -967,7 +967,8 @@ TEST_CASE("Add user via proposed call")
   const auto uid = tx1.get_view(network.values)->get(ValueIds::NEXT_USER_ID);
   REQUIRE(uid);
   CHECK(*uid == 1);
-  const auto uid1 = tx1.get_view(network.user_certs)->get(user_cert);
+  const auto uid1 = tx1.get_view(network.user_certs)
+                      ->get(tls::make_verifier(user_cert)->der_cert_data());
   REQUIRE(uid1);
   CHECK(*uid1 == 0);
 }
