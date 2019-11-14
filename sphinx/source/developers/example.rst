@@ -1,5 +1,5 @@
-Example App
-===========
+Example Application
+===================
 
 Description
 -----------
@@ -73,6 +73,7 @@ The Logging application implements a trivial protocol, made up of four transacti
                 "id": 100
             }
         }
+
 
 Implementations
 ---------------

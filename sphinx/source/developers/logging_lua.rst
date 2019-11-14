@@ -70,16 +70,3 @@ The tables passed to a Lua handler in ``tables`` and ``gov_tables`` can be acces
 
 * ``end_order()``: returns the "commit version" of the table. (Probably not useful for most applications.)
 
-
-Running
--------
-
-:ref:`Operators should start the first CCF node <Starting the First Node>` with `luageneric` as enclave file:
-
-.. code-block:: bash
-
-    cchost --enclave-file libluageneric.signed.so [args]
-
-Then, members should :ref:`register the Lua application <Registering the Lua Application>`.
-
-
