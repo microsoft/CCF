@@ -30,7 +30,7 @@ The user is successfully added once a :term:`quorum` of members have accepted th
 Registering the Lua Application
 -------------------------------
 
-.. note:: This section only applies when deploying Lua applications (i.e. using the ``libluageneric.so.signed`` enclave library). For C++ applications, this step should be skipped.
+.. note:: This section only applies when deploying Lua applications (i.e. using the ``libluagenericenc.so.signed`` enclave library). For C++ applications, this step should be skipped.
 
 Before opening the CCF network to users, members should vote to register the Lua application defining the user-specific business logic (see for example :ref:`Logging (Lua)`):
 

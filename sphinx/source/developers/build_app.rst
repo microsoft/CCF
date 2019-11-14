@@ -59,6 +59,6 @@ Running the Application
 
 .. code-block:: bash
 
-    $ cchost --enclave-file libluageneric.signed.so [args]
+    $ cchost --enclave-file libluagenericenc.signed.so [args]
 
 .. note:: When deploying the ``luageneric`` application, members should also :ref:`register the Lua application <Registering the Lua Application>` before the network is opened to users.
