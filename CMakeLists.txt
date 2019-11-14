@@ -33,7 +33,6 @@ target_link_libraries(logging_client PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
 )
 
-# SNIPPET: Logging application
 add_enclave_lib(loggingenc ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem SRCS src/apps/logging/logging.cpp src/apps/logging/stub_for_code_signing.cpp)
 
 if(BUILD_TESTS)

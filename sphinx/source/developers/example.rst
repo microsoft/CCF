@@ -1,5 +1,5 @@
-Example App
-===========
+Example Application
+===================
 
 Description
 -----------
@@ -52,7 +52,7 @@ The Logging application implements a trivial protocol, made up of four transacti
         {
             "jsonrpc": "2.0",
             "id": 2,
-            "method": "users/LOG_record_pub",
+        "method": "users/LOG_record_pub",
             "params": {
                 "id": 100,
                 "msg": "A sample public log message"
@@ -73,6 +73,7 @@ The Logging application implements a trivial protocol, made up of four transacti
                 "id": 100
             }
         }
+
 
 Implementations
 ---------------
