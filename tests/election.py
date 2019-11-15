@@ -63,7 +63,7 @@ def run(args):
 
             LOG.debug("Commit new transactions")
             commit_index = None
-            with primary.user_client() as c:
+            with primary.user_client(format="json") as c:
                 res = c.do(
                     "LOG_record",
                     {

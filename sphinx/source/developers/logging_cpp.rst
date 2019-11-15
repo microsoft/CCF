@@ -113,30 +113,6 @@ This produces validation error messages with a lower performance overhead, and e
 
 Both approaches register their RPC's params and result schema, allowing them to be retrieved at runtime with calls to the getSchema RPC.
 
-Build
------
-
-Once an application is complete, it needs to be built into a shared object, and signed:
-
-.. literalinclude:: ../../../CMakeLists.txt
-    :language: cmake
-    :start-after: SNIPPET: Logging application
-    :lines: 1
-
-For signing to work, a configuration is necessary. The configuration should be called `oe_sign.conf`, and
-be placed under the same directory as the source files for the application.
-
-.. literalinclude:: ../../../src/apps/logging/oe_sign.conf
-
-Running
--------
-
-This produces the enclave library ``libloggingenc.so.signed`` which can be loaded by the cchost application:
-
-.. code-block:: bash
-
-    $ cchost --enclave-file libloggingenc.so.signed [args]
-
 .. rubric:: Footnotes
 
 .. [#valijson] `Valijson is a header-only JSON Schema Validation library for C++11 <https://github.com/tristanpenman/valijson>`_.

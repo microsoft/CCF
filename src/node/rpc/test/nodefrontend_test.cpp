@@ -75,7 +75,7 @@ TEST_CASE("Add a node to an opening service")
   // Node certificate
   tls::KeyPairPtr kp = tls::make_key_pair();
   auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
-  Cert caller = v->raw_cert_data();
+  Cert caller = v->der_cert_data();
 
   INFO("Add first node before a service exists");
   {
@@ -134,7 +134,7 @@ TEST_CASE("Add a node to an opening service")
   {
     tls::KeyPairPtr kp = tls::make_key_pair();
     auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
-    Cert caller = v->raw_cert_data();
+    Cert caller = v->der_cert_data();
 
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;
@@ -166,7 +166,7 @@ TEST_CASE("Add a node to an open service")
   // Node certificate
   tls::KeyPairPtr kp = tls::make_key_pair();
   auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
-  Cert caller = v->raw_cert_data();
+  Cert caller = v->der_cert_data();
 
   std::optional<NodeInfo> node_info;
   Store::Tx tx;
@@ -198,7 +198,7 @@ TEST_CASE("Add a node to an open service")
   {
     tls::KeyPairPtr kp = tls::make_key_pair();
     auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
-    Cert caller = v->raw_cert_data();
+    Cert caller = v->der_cert_data();
 
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;

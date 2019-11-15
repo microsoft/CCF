@@ -11,8 +11,6 @@ import infra.proc
 import infra.checker
 import infra.node
 
-from loguru import logger as LOG
-
 
 class Consortium:
     def __init__(self, members):
@@ -38,19 +36,12 @@ class Consortium:
         j_result = json.loads(result.stdout)
         return j_result
 
-    def propose(self, member_id, remote_node, script=None, params=None, *args):
-        if os.getenv("HTTP"):
-            with remote_node.member_client() as mc:
-                r = mc.rpc("propose", {"parameter": params, "script": {"text": script}})
-                return (True, r.result)
-        else:
-            j_result = self._member_client_rpc_as_json(member_id, remote_node, *args)
+    def propose(self, member_id, remote_node, script=None, params=None):
+        with remote_node.member_client(format="json", member_id=member_id) as mc:
+            r = mc.rpc("propose", {"parameter": params, "script": {"text": script}})
+            return r.result, r.error
 
-            if j_result.get("error") is not None:
-                return (False, j_result["error"])
-
-            return (True, j_result["result"])
-
+    # TODO: Remove use of memberclient when client signatures are supported from JSON-RPC/HTTP
     def vote(
         self,
         member_id,
@@ -65,7 +56,7 @@ class Consortium:
             tables, changes = ...
             return true
             """
-            with remote_node.member_client(member_id) as mc:
+            with remote_node.member_client(format="json", member_id=member_id) as mc:
                 r = mc.rpc(
                     "vote", {"ballot": {"text": script}, "id": proposal_id}, signed=True
                 )
@@ -127,45 +118,45 @@ class Consortium:
         return self._member_client_rpc_as_json(member_id, remote_node, "ack")
 
     def get_proposals(self, member_id, remote_node):
-        return self._member_client_rpc_as_json(
-            member_id, remote_node, "proposal_display"
-        )
+        script = """
+        tables = ...
+        local proposals = {}
+        tables["ccf.proposals"]:foreach( function(k, v)
+            proposals[tostring(k)] = v;
+        end )
+        return proposals;
+        """
 
-    def raw_puts(self, member_id, remote_node, script, params):
-        return self._member_client_rpc_as_json(
-            member_id,
-            remote_node,
-            "raw_puts",
-            "raw_puts",
-            f"--script={script}",
-            f"--param={params}",
-        )
+        with remote_node.member_client(format="json", member_id=member_id) as c:
+            rep = c.do("query", {"text": script})
+            return rep.result
 
     def propose_retire_node(self, member_id, remote_node, node_id):
-        return self.propose(
-            member_id, remote_node, None, None, "retire_node", f"--node-id={node_id}"
-        )
+        script = """
+        tables, node_id = ...
+        return Calls:call("retire_node", node_id)
+        """
+        return self.propose(member_id, remote_node, script, node_id)
 
     def retire_node(self, remote_node, node_to_retire):
         member_id = 1
-        result = self.propose_retire_node(
+        result, error = self.propose_retire_node(
             member_id, remote_node, node_to_retire.node_id
         )
-        self.vote_using_majority(remote_node, result[1]["id"])
+        self.vote_using_majority(remote_node, result["id"])
 
-        with remote_node.member_client() as c:
+        with remote_node.member_client(format="json") as c:
             id = c.request(
                 "read", {"table": "ccf.nodes", "key": node_to_retire.node_id}
             )
-            assert (
-                c.response(id).result["status"].decode()
-                == infra.node.NodeStatus.RETIRED.name
-            )
+            assert c.response(id).result["status"] == infra.node.NodeStatus.RETIRED.name
 
     def propose_trust_node(self, member_id, remote_node, node_id):
-        return self.propose(
-            member_id, remote_node, None, None, "trust_node", f"--node-id={node_id}"
-        )
+        script = """
+        tables, node_id = ...
+        return Calls:call("trust_node", node_id)
+        """
+        return self.propose(member_id, remote_node, script, node_id)
 
     def trust_node(self, member_id, remote_node, node_id):
         if not self._check_node_exists(
@@ -173,8 +164,8 @@ class Consortium:
         ):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
-        result = self.propose_trust_node(member_id, remote_node, node_id)
-        self.vote_using_majority(remote_node, result[1]["id"])
+        result, error = self.propose_trust_node(member_id, remote_node, node_id)
+        self.vote_using_majority(remote_node, result["id"])
 
         if not self._check_node_exists(
             remote_node, node_id, infra.node.NodeStatus.TRUSTED
@@ -182,14 +173,13 @@ class Consortium:
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
     def propose_add_member(self, member_id, remote_node, new_member_cert):
-        return self.propose(
-            member_id,
-            remote_node,
-            None,
-            None,
-            "add_member",
-            f"--member-cert={new_member_cert}",
-        )
+        script = """
+        tables, member_cert = ...
+        return Calls:call("new_member", member_cert)
+        """
+        with open(new_member_cert) as cert:
+            new_member_cert_pem = [ord(c) for c in cert.read()]
+        return self.propose(member_id, remote_node, script, new_member_cert_pem)
 
     def open_network(self, member_id, remote_node, pbft_open=False):
         """
@@ -197,73 +187,56 @@ class Consortium:
         proposal and make members vote to transition the network to state
         OPEN.
         """
-        script = None
-        if os.getenv("HTTP"):
-            script = """
-            tables = ...
-            return Calls:call("open_network")
-            """
-        result = self.propose(member_id, remote_node, script, None, "open_network")
-        self.vote_using_majority(remote_node, result[1]["id"], pbft_open)
+        script = """
+        tables = ...
+        return Calls:call("open_network")
+        """
+        result, error = self.propose(member_id, remote_node, script)
+        self.vote_using_majority(remote_node, result["id"], pbft_open)
         self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN)
 
     def add_users(self, remote_node, users):
-        if os.getenv("HTTP"):
-            with remote_node.member_client() as mc:
-                for u in users:
-                    user_cert = []
-                    with open(f"user{u}_cert.pem") as cert:
-                        user_cert = [ord(c) for c in cert.read()]
-                    script = """
-                    tables, user_cert = ...
-                    return Calls:call("new_user", user_cert)
-                    """
-                    r = mc.rpc(
-                        "propose", {"parameter": user_cert, "script": {"text": script}}
-                    )
-                    with remote_node.member_client(2) as mc2:
-                        script = """
-                        tables, changes = ...
-                        return true
-                        """
-                        r = mc2.rpc(
-                            "vote",
-                            {"ballot": {"text": script}, "id": r.result["id"]},
-                            signed=True,
-                        )
-        else:
-            for u in users:
-                result = self.propose(
-                    1,
-                    remote_node,
-                    None,
-                    None,
-                    "add_user",
-                    f"--user-cert=user{u}_cert.pem",
-                )
-                self.vote_using_majority(remote_node, result[1]["id"])
+        for u in users:
+            user_cert = []
+            with open(f"user{u}_cert.pem") as cert:
+                user_cert = [ord(c) for c in cert.read()]
+            script = """
+            tables, user_cert = ...
+            return Calls:call("new_user", user_cert)
+            """
+            result, error = self.propose(1, remote_node, script, user_cert)
+            self.vote_using_majority(remote_node, result["id"])
 
     def set_lua_app(self, member_id, remote_node, app_script):
-        result = self.propose(
-            member_id,
-            remote_node,
-            None,
-            None,
-            "set_lua_app",
-            f"--lua-app-file={app_script}",
-        )
-        self.vote_using_majority(remote_node, result[1]["id"])
+        script = """
+        tables, app = ...
+        return Calls:call("set_lua_app", app)
+        """
+        with open(app_script) as app:
+            new_lua_app = app.read()
+        result, error = self.propose(member_id, remote_node, script, new_lua_app)
+        self.vote_using_majority(remote_node, result["id"])
 
     def accept_recovery(self, member_id, remote_node, sealed_secrets):
-        result = self.propose(
-            member_id,
-            remote_node,
-            None,
-            None,
-            "accept_recovery",
-            f"--sealed-secrets={sealed_secrets}",
+        script = """
+        tables, sealed_secrets = ...
+        return Calls:call("accept_recovery", sealed_secrets)
+        """
+        with open(sealed_secrets) as s:
+            sealed_json = json.load(s)
+
+        result, error = self.propose(member_id, remote_node, script, sealed_json)
+        self.vote_using_majority(remote_node, result["id"])
+
+    def add_new_code(self, member_id, remote_node, new_code_id):
+        script = """
+        tables, code_digest = ...
+        return Calls:call("new_code", code_digest)
+        """
+        result = self._member_client_rpc_as_json(
+            member_id, remote_node, "add_code", f"--new-code-id={new_code_id}",
         )
-        self.vote_using_majority(remote_node, result[1]["id"])
+        self.vote_using_majority(remote_node, result["result"]["id"])
 
     def check_for_service(self, remote_node, status):
         """
@@ -291,11 +264,11 @@ class Consortium:
             ), f"Service status {current_status} (expected {status.name})"
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
-        with remote_node.member_client() as c:
+        with remote_node.member_client(format="json") as c:
             rep = c.do("read", {"table": "ccf.nodes", "key": node_id})
 
             if rep.error is not None or (
-                node_status and rep.result["status"].decode() != node_status.name
+                node_status and rep.result["status"] != node_status.name
             ):
                 return False
 
