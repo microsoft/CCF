@@ -18,7 +18,7 @@ import e2e_args
 from loguru import logger as LOG
 
 
-@reqs.lua_logging_app
+@reqs.lua_generic_app
 def test_update_lua(network, args):
     if args.package == "libluagenericenc":
         LOG.info("Updating Lua application")

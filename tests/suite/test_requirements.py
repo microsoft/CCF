@@ -62,7 +62,7 @@ def logging_app(func):
     return wrapper
 
 
-def lua_logging_app(func):
+def lua_generic_app(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         if args[1].enforce_reqs is False:
@@ -72,7 +72,7 @@ def lua_logging_app(func):
         # Lua app is by looking at the package passed to the nodes at startup
         args_ = args[1]
         if args_.package is not "libluagenericenc":
-            raise TestRequirementsNotMet("Lua logging app not installed")
+            raise TestRequirementsNotMet("Lua generic app not installed")
 
         return func(*args, **kwargs)
 
