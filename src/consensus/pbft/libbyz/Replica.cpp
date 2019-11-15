@@ -87,7 +87,7 @@ Replica::Replica(
   rep_cb(nullptr),
   global_commit_cb(nullptr),
   state(this, mem, nbytes),
-  vi(node_id, 0)
+  vi(node_id, 0, 64) // make this dynamic
 {
   // Fail if node is not a replica.
   if (!is_replica(id()))
@@ -516,14 +516,20 @@ void Replica::handle(Request* m)
 {
   bool ro = m->is_read_only();
 
+  Digest rd = m->digest();
+  LOG_INFO << "Received request with rid: " << m->request_id()
+            << " id:" << id() << " primary:" << primary()
+            << " with cid: " << m->client_id()
+            << " current seqno: " << next_pp_seqno
+            << " digest: " << rd.hash() << std::endl;
+
   if (has_complete_new_view())
   {
-    LOG_TRACE << "Received request with rid: " << m->request_id()
-              << " with cid: " << m->client_id() << std::endl;
 #if 0
     // TODO: Fix execution of read-only requests
     if (ro)
     {
+      LOG_INFO << "AAAAAA" << std::endl;
       // Read-only requests.
       if (execute_read_only(m) || !ro_rqueue.append(m))
         delete m;
@@ -532,6 +538,8 @@ void Replica::handle(Request* m)
     }
 #endif
 
+    LOG_INFO << "AAAAAA" << std::endl;
+
 #ifdef ENFORCE_EXACTLY_ONCE
     int client_id = m->client_id();
     Request_id rid = m->request_id();
@@ -539,12 +547,16 @@ void Replica::handle(Request* m)
     if (last_rid < rid)
 #endif
     {
+      LOG_INFO << "AAAAAA" << std::endl;
       if (id() == primary())
       {
+        LOG_INFO << "AAAAAA" << std::endl;
         if (rqueue.append(m))
         {
+          LOG_INFO << "AAAAAA" << std::endl;
           if (!wait_for_network_to_open)
           {
+            LOG_INFO << "AAAAAA" << std::endl;
             send_pre_prepare();
           }
           return;
@@ -552,15 +564,19 @@ void Replica::handle(Request* m)
       }
       else
       {
+        LOG_INFO << "AAAAAA" << std::endl;
         if (m->size() > Request::big_req_thresh && brt.add_request(m))
         {
+          LOG_INFO << "AAAAAA" << std::endl;
           return;
         }
 
         if (rqueue.append(m))
         {
+          LOG_INFO << "AAAAAA" << std::endl;
           if (!limbo && f() > 0)
           {
+            LOG_INFO << "AAAAAA" << std::endl;
             send(m, primary());
             start_vtimer_if_request_waiting();
           }
@@ -603,6 +619,8 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
 {
   PBFT_ASSERT(primary() == node_id, "Non-primary called send_pre_prepare");
 
+  LOG_INFO << "1111111" << std::endl;
+
   // If rqueue is empty there are no requests for which to send
   // pre_prepare and a pre-prepare cannot be sent if the seqno exceeds
   // the maximum window or the replica does not have the new view.
@@ -613,6 +631,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     next_pp_seqno + 1 <= max_out + last_stable && has_complete_new_view() &&
     !state.in_fetch_state())
   {
+    LOG_INFO << "1111111" << std::endl;
     btimer->stop();
     nbreqs += rqueue.size();
     nbrounds++;
@@ -620,7 +639,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     // Create new pre_prepare message for set of requests
     // in rqueue, log message and multicast the pre_prepare.
     next_pp_seqno++;
-    LOG_TRACE << "creating pre prepare with seqno: " << next_pp_seqno
+    LOG_INFO << "creating pre prepare with seqno: " << next_pp_seqno
               << std::endl;
     size_t requests_in_batch;
     ByzInfo info;
@@ -631,7 +650,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       // TODO: should make code match my proof with request removed
       // only when executed rather than removing them from rqueue when the
       // pre-prepare is constructed.
-      LOG_DEBUG << "adding to plog from pre prepare: " << next_pp_seqno
+      LOG_INFO << "adding to plog from pre prepare: " << next_pp_seqno
                 << std::endl;
       pp->set_merkle_root_and_ctx(info.merkle_root, info.ctx);
       pp->set_digest();
@@ -646,10 +665,12 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
 
       if (node->f() > 0)
       {
+        LOG_INFO << "BBBBBBB" << std::endl;
         send(pp, All_replicas);
       }
       else
       {
+        LOG_INFO << "BBBBBBB" << std::endl;
         send_prepare(next_pp_seqno, info);
       }
     }
@@ -664,6 +685,8 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       delete pp;
     }
   }
+
+  LOG_INFO << "1111111" << std::endl;
 
   if (rqueue.size() > 0)
   {
@@ -729,9 +752,14 @@ void Replica::handle(Pre_prepare* m)
 
   b.contents = m->choices(b.size);
 
+  LOG_INFO << "Received pre prepare with seqno: " << ms
+           << ", in_mv:" << (in_wv(m) ? "true" : "false")
+           << ", low_bound:" << low_bound << ", has complete_new_view:"
+           << (has_complete_new_view() ? "true" : "false") << std::endl;
+
   if (in_wv(m) && ms > low_bound && has_complete_new_view())
   {
-    LOG_TRACE << "processing pre prepare with seqno: " << ms << std::endl;
+    LOG_INFO << "Processing pre prepare with seqno: " << ms << std::endl;
     Prepared_cert& pc = plog.fetch(ms);
 
     // Only accept message if we never accepted another pre-prepare
@@ -742,6 +770,8 @@ void Replica::handle(Pre_prepare* m)
     }
     return;
   }
+  LOG_INFO << "Failed to handle pre-prepare with seqno: " << ms << std::endl;
+  
 
   if (!has_complete_new_view())
   {
@@ -1340,7 +1370,8 @@ void Replica::handle(Status* m)
 void Replica::handle(View_change* m)
 {
   LOG_INFO << "Received view change for " << m->view() << " from " << m->id()
-           << "\n";
+           << ", v:" << v
+           << std::endl;
 
   if (m->id() == primary() && m->view() > v)
   {
@@ -1353,8 +1384,10 @@ void Replica::handle(View_change* m)
   // TODO: memoize maxv and avoid this computation if it cannot change i.e.
   // m->view() <= last maxv. This also holds for the next check.
   View maxv = vi.max_view();
+  LOG_INFO << "PPPP => maxv:" << maxv << ", v:" << v << std::endl;
   if (maxv > v)
   {
+    LOG_INFO << "QQQQQQQQQQQ" << std::endl;
     // Replica has at least f+1 view-changes with a view number
     // greater than or equal to maxv: change to view maxv.
     v = maxv - 1;
@@ -1380,6 +1413,8 @@ void Replica::handle(View_change* m)
       vc_recovering = true;
     }
   }
+
+  LOG_INFO << "End received view change for v:" << v << std::endl;
 }
 
 void Replica::handle(New_view* m)
@@ -1408,6 +1443,7 @@ void Replica::send_view_change()
   // Move to next view.
   v++;
   cur_primary = v % num_replicas;
+  LOG_INFO << "setting primary, cur_primary:" << cur_primary << ", v:" << v << ", num_replicas:" << num_replicas << std::endl;
   limbo = true;
   vtimer->stop(); // stop timer if it is still running
   ntimer->restop();
@@ -1503,7 +1539,8 @@ void Replica::write_view_change_to_ledger()
       continue;
     }
 
-    ledger_writer->write_view_change(vc);
+    // TODO: something is broken here :(
+    //ledger_writer->write_view_change(vc);
   }
 }
 
@@ -2259,6 +2296,7 @@ void Replica::new_state(Seqno c)
 
 void Replica::mark_stable(Seqno n, bool have_state)
 {
+  LOG_INFO << "KKKKKK" << std::endl;
   if (n <= last_stable)
   {
     return;
@@ -2275,7 +2313,7 @@ void Replica::mark_stable(Seqno n, bool have_state)
     LOG_TRACE << "mark stable, last_tentative_execute: "
               << last_tentative_execute << " last_stable: " << last_stable
               << std::endl;
-    PBFT_ASSERT(last_tentative_execute < last_stable, "Invalid state");
+    PBFT_ASSERT(last_tentative_execute <= last_stable, "Invalid state");
     last_executed = last_tentative_execute = last_stable;
     stats.last_executed = last_executed;
 
@@ -2843,8 +2881,10 @@ bool Replica::delay_vc()
 
 void Replica::start_vtimer_if_request_waiting()
 {
+  LOG_INFO << "BBBBB: rqueue.size:" << rqueue.size() << std::endl;
   if (rqueue.size() > 0 && f() > 0)
   {
+    LOG_INFO << "BBBBB" << std::endl;
     Request* first = rqueue.first();
     cid_vtimer = first->client_id();
     rid_vtimer = first->request_id();

@@ -498,6 +498,10 @@ inline void Replica::modify_index(int bindex)
 
 inline bool Replica::has_complete_new_view() const
 {
+  LOG_INFO << "v: " << v
+           << ", has_nv_state:" << (has_nv_state ? "true" : "false")
+           << ", vi.has_complete_new_view(v)"
+           << (vi.has_complete_new_view(v) ? "true" : "false") << std::endl;
   return v == 0 || (has_nv_state && vi.has_complete_new_view(v));
 }
 

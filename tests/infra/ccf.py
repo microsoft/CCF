@@ -312,7 +312,7 @@ class Network:
     def _get_node_by_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
-    def find_primary(self, timeout=3):
+    def find_primary(self, timeout=30):
         """
         Find the identity of the primary in the network and return its identity
         and the current term.
@@ -321,15 +321,27 @@ class Network:
         term = None
 
         for _ in range(timeout):
+            print(self.get_joined_nodes())
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    id = c.request("getPrimaryInfo", {})
-                    res = c.response(id)
+                    LOG.error(f"contacting {node.node_id}")
+
+                    for node in range(5):
+                        try:
+                            id = c.request("getPrimaryInfo", {})
+                            res = c.response(id)
+                        except:
+                            LOG.error("trying again")
+                            time.sleep(15)
+                            continue
+                        break
+
                     if res.error is None:
                         primary_id = res.result["primary_id"]
                         term = res.term
                         break
                     else:
+                        LOG.error(f"error:{res.error['code']}")
                         assert (
                             res.error["code"]
                             == infra.jsonrpc.ErrorCode.TX_PRIMARY_UNKNOWN

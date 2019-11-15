@@ -59,7 +59,7 @@ NV_info::NV_info() :
   nv(0),
   vc_target(0),
   vc_cur(0),
-  vcs(node->num_of_replicas())
+  vcs(64) // TODO: this is not great
 {
   chosen_ckpt = -1;
   max = -1;
@@ -181,8 +181,11 @@ bool NV_info::can_add(View_change* m)
   PBFT_ASSERT(m->view() == v, "Invalid argument");
 
   int vcid = m->id();
+
+  LOG_INFO << "GGGGGG - m->id():" << m->id() << ", vc:" << vcs[vcid].vc << std::endl;
   if (vcs[vcid].vc != 0 || is_complete)
   {
+    LOG_INFO << "GGGGGG" << std::endl;
     return false;
   }
 
@@ -190,9 +193,11 @@ bool NV_info::can_add(View_change* m)
 
   if (!is_primary)
   {
+    LOG_INFO << "GGGGGG" << std::endl;
     Digest d;
     if (!nv->view_change(vcid, d) || d != m->digest())
     {
+      LOG_INFO << "GGGGGG" << std::endl;
       return false;
     }
   }
@@ -207,23 +212,31 @@ void NV_info::add(std::unique_ptr<View_change> m)
   auto vc = vcs[vcid].vc.get();
   vc_cur++;
 
+  LOG_INFO << "OOOOOOO" << std::endl;
+
   bool is_primary = node->primary(v) == node->id();
 #ifdef USE_PKEY_VIEW_CHANGES
   if (is_primary)
   {
+    LOG_INFO << "OOOOOOO" << std::endl;
     nv->add_view_change(vcid, vc->digest());
+    LOG_INFO << "OOOOOOO" << std::endl;
     summarize(vc);
+    LOG_INFO << "OOOOOOO" << std::endl;
   }
 #else
   if (is_primary && vcid == node->id())
   {
+    LOG_INFO << "OOOOOOO" << std::endl;
     nv->add_view_change(vcid, vc->digest());
     summarize(vc);
   }
 #endif
 
+  LOG_INFO << "OOOOOOO" << std::endl;
   if (!is_primary && vc_cur == vc_target)
   {
+    LOG_INFO << "OOOOOOO" << std::endl;
     // We have all the needed view-change messages. Check if they
     // form a valid new-view.
     if (!check_new_view())
@@ -232,6 +245,7 @@ void NV_info::add(std::unique_ptr<View_change> m)
       LOG_FAIL << "Primary " << node->primary(v) << " is faulty" << std::endl;
     }
   }
+  LOG_INFO << "OOOOOOO" << std::endl;
 }
 
 bool NV_info::add(View_change_ack* m)
@@ -289,6 +303,7 @@ bool NV_info::add(View_change_ack* m)
 
 void NV_info::summarize(View_change* vc)
 {
+  LOG_INFO << "IIIIIII" << std::endl;
   PBFT_ASSERT(!is_complete, "Invalid state");
 
   int size = ckpts.size();
@@ -301,13 +316,16 @@ void NV_info::summarize(View_change* vc)
   Seqno vcn = vc->last_stable();
   vc->ckpt(vcn, vclc); // vclc is null if vc has no checkpoint digest
 
+  LOG_INFO << "IIIIIII" << std::endl;
   for (int i = 0; i < size; i++)
   {
+    LOG_INFO << "IIIIIII" << std::endl;
     Ckpt_sum& cur = ckpts[i];
 
     if (cur.n == vcn && cur.d == vclc)
     {
       match = true;
+      LOG_INFO << "IIIIIII - add" << std::endl;
       cur.n_proofs++;
       cur.n_le++;
       if (vc->max_seqno() > cur.max_seqno)
@@ -320,11 +338,13 @@ void NV_info::summarize(View_change* vc)
       Digest d;
       if (vc->ckpt(cur.n, d) && d == cur.d)
       {
+        LOG_INFO << "IIIIIII - add" << std::endl;
         cur.n_proofs++;
       }
 
       if (cur.n > vcn)
       {
+        LOG_INFO << "IIIIIII - add" << std::endl;
         cur.n_le++;
         if (vc->max_seqno() > cur.max_seqno)
         {
@@ -341,15 +361,22 @@ void NV_info::summarize(View_change* vc)
       }
     }
 
+    LOG_INFO << "IIIIIII - cur.n_proofs:" << cur.n_proofs << ", f:" << node->f()
+             << ", n_le:" << cur.n_le
+             << ", num_correct:" << node->num_correct_replicas() << std::endl;
     if (
       cur.n_proofs >= node->f() + 1 && cur.n_le >= node->num_correct_replicas())
     {
+      LOG_INFO << "IIIIIII" << std::endl;
       choose_ckpt(i);
     }
+    LOG_INFO << "IIIIIII" << std::endl;
   }
 
+  LOG_INFO << "IIIIIII" << std::endl;
   if (!match && !vclc.is_zero())
   {
+    LOG_INFO << "IIIIIII" << std::endl;
     // vc has checkpoints and no entry matches its last checkpoint: add a new
     // one.
     Ckpt_sum ns;
@@ -362,10 +389,11 @@ void NV_info::summarize(View_change* vc)
 
     // Search view-changes in new-view for proofs
     Digest d;
-    for (int i = 0; i < vcs.size(); i++)
+    for (int i = 0; i < node->num_of_replicas(); i++)
     {
       if (nv->view_change(i) && vcs[i].vc->ckpt(vcn, d) && d == vclc)
       {
+        LOG_INFO << "IIIIIII - add" << std::endl;
         ns.n_proofs++;
       }
     }
@@ -374,15 +402,19 @@ void NV_info::summarize(View_change* vc)
 
     if (ns.n_proofs >= node->f() + 1 && ns.n_le >= node->num_correct_replicas())
     {
+      LOG_INFO << "IIIIIII" << std::endl;
       choose_ckpt(ckpts.size() - 1);
     }
   }
 
+  LOG_INFO << "IIIIIII" << std::endl;
   if (was_chosen && !is_complete)
   {
+    LOG_INFO << "IIIIIII" << std::endl;
     summarize_reqs(vc);
     replica->send_status();
   }
+  LOG_INFO << "IIIIIII" << std::endl;
 }
 
 void NV_info::choose_ckpt(int index)
@@ -411,7 +443,7 @@ void NV_info::choose_ckpt(int index)
     }
 
     // Summarize requests for all view-change messages in new-view.
-    for (int i = 0; i < vcs.size(); i++)
+    for (int i = 0; i < node->num_of_replicas(); i++)
     {
       if (nv->view_change(i))
       {
@@ -662,7 +694,7 @@ void NV_info::summarize_reqs(View_change* vc)
       Req_sum& cur = reqsi.emplace_back(rv, rd, n_le + 1, vc->id(), 0, 0);
 
       // Search view-changes for proofs
-      for (int j = 0; j < vcs.size(); j++)
+      for (int j = 0; j < node->num_of_replicas(); j++)
       {
         if (vcs[j].req_sum)
         {
@@ -734,7 +766,7 @@ bool NV_info::check_new_view()
 
   // Search view-changes for proofs
   Digest dd;
-  for (int i = 0; i < vcs.size(); i++)
+  for (int i = 0; i < node->num_of_replicas(); i++)
   {
     if (i != cid && vcs[i].vc)
     {
@@ -761,7 +793,7 @@ bool NV_info::check_new_view()
   // propose any pre-prepared or prepared request with sequence number
   // greater than or equal to nv->max().
   int n_lt = 0;
-  for (int i = 0; i < vcs.size(); i++)
+  for (int i = 0; i < node->num_of_replicas(); i++)
   {
     auto vc = vcs[i].vc.get();
     if (vc == 0)
@@ -813,7 +845,7 @@ bool NV_info::check_new_view()
     View v = vc->req(i, d);
     Req_sum& cur = reqs[i - base].emplace_back(v, d, 0, vc->id(), 0, 0);
     // Search view-changes for proofs
-    for (int j = 0; j < vcs.size(); j++)
+    for (int j = 0; j < node->num_of_replicas(); j++)
     {
       if (vcs[j].vc && i > vcs[j].vc->last_stable())
       {
@@ -1041,7 +1073,7 @@ void NV_info::dump_state(std::ostream& os)
      << " nv_sent: " << nv_sent << std::endl;
 
   os << " View changes vcs: " << std::endl;
-  for (int i = 0; i < vcs.size(); i++)
+  for (int i = 0; i < node->num_of_replicas(); i++)
   {
     os << " i: " << i << " vc: " << (void*)vcs[i].vc.get()
        << " ack_count: " << vcs[i].ack_count << " ack_reps: " << vcs[i].ack_reps

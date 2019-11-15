@@ -239,6 +239,8 @@ namespace pbft
         client_proxy.get());
     }
 
+    // TODO: something is going wrong here
+
     // TODO(#PBFT): PBFT consensus should implement the following functions to
     // return meaningful information to clients (e.g. global commit, term/view)
     // https://github.com/microsoft/CCF/issues/57
