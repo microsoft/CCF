@@ -85,19 +85,14 @@ if("virtual" IN_LIST TARGET)
   set_property(TARGET libbyz.host PROPERTY POSITION_INDEPENDENT_CODE ON)
   target_include_directories(libbyz.host PRIVATE SYSTEM ${EVERCRYPT_INC})
 
-  set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
-  add_subdirectory(${CMAKE_SOURCE_DIR}/3rdparty/snmalloc EXCLUDE_FROM_ALL)
-
   add_library(libcommontest STATIC
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/network_udp.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/network_udp_mt.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/ITimer.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/Time.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/Statistics.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/snmalloc.cpp
   )
   target_compile_options(libcommontest PRIVATE -stdlib=libc++)
-  target_link_libraries(libcommontest PRIVATE snmalloc_lib)
 
   target_include_directories(libcommontest PRIVATE
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz

@@ -91,15 +91,6 @@
       }
     },
     {
-      "component": {
-        "type": "git",
-        "git": {
-          "repositoryUrl": "https://github.com/microsoft/snmalloc",
-          "commitHash": "9ca436c951d635bface96a0b9d73262ab4cb088e"
-        }
-      }
-    },
-    {
       "Component": {
         "Type": "other",
         "Other": {
