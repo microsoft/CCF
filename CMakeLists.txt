@@ -342,6 +342,12 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
+      NAME lua_end_to_end_batched
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
+      ADDITIONAL_ARGS
+        --app-script ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua)
+
+    add_e2e_test(
       NAME end_to_end_scenario
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
       ADDITIONAL_ARGS
