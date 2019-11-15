@@ -255,7 +255,12 @@ namespace ccf
       j["max_index"] = std::get<3>(path);
       auto r = std::get<1>(path);
       j["root"] = std::vector<uint8_t>(r.h, r.h + r.SIZE);
-      j["path"] = std::vector<uint8_t>(*std::get<0>(path)->vs, *std::get<0>(path)->vs + std::get<0>(path)->sz);
+
+      std::vector<uint8_t> p;
+      for (size_t i=0; i<std::get<0>(path)->sz; ++i)
+        p.insert(p.end(), *(std::get<0>(path)->vs + i), *(std::get<0>(path)->vs + i) + r.SIZE);
+      
+      j["path"] = p;
 
       auto d = j.dump();
       return std::vector<uint8_t>(d.begin(), d.end());
@@ -278,8 +283,9 @@ namespace ccf
       auto j = nlohmann::json::parse(v);
       std::vector<uint8_t> path = j["path"];
       auto p = std::unique_ptr<hash_vec>(init_path());
-      for (uint8_t c: path)
-        path_insert(p.get(), &c);
+      for (size_t i=0; i<path.size(); i += 32)
+        path_insert(p.get(), &path[i]);
+
       std::vector<uint8_t> r = j["root"]; 
       crypto::Sha256Hash root;
       std::copy(r.begin(), r.end(), root.h);
