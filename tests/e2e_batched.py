@@ -2,6 +2,8 @@
 # Licensed under the Apache 2.0 License.
 from hashlib import md5
 import itertools
+import time
+
 import infra.ccf
 import infra.proc
 import infra.jsonrpc
@@ -17,7 +19,7 @@ id_gen = itertools.count()
 
 @reqs.lua_generic_app
 def test(network, args, batch_size=100):
-    LOG.info("Running transactions against batched app")
+    LOG.info(f"Running batch submission of {batch_size} new entries")
     primary, _ = network.find_primary()
 
     with primary.user_client() as c:
@@ -27,7 +29,12 @@ def test(network, args, batch_size=100):
             for i in message_ids
         ]
 
+        pre_submit = time.time()
         submit_response = c.rpc("BATCH_submit", messages)
+        post_submit = time.time()
+        LOG.warning(
+            f"Submitting {batch_size} new keys took {post_submit - pre_submit}s"
+        )
         assert submit_response.result == len(messages)
 
         fetch_response = c.rpc("BATCH_fetch", message_ids)
@@ -54,7 +61,24 @@ def run(args):
         network = test(network, args, batch_size=10)
         network = test(network, args, batch_size=100)
         network = test(network, args, batch_size=1000)
-        network = test(network, args, batch_size=10000)
+
+        bs = 10000
+        try:
+            while bs <= 100000:
+                for _ in range(3):
+                    network = test(network, args, batch_size=bs)
+                bs += 10000
+        except Exception as e:
+            LOG.error("Looks like something broke")
+            LOG.error(e)
+            LOG.error("Press Ctrl+C to shutdown the network")
+
+            try:
+                while True:
+                    time.sleep(60)
+
+            except KeyboardInterrupt:
+                LOG.info("Stopping all CCF nodes...")
 
 
 if __name__ == "__main__":
