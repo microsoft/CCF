@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import functools
+from hashlib import md5
+import itertools
 import infra.ccf
 import infra.proc
 import infra.jsonrpc
@@ -11,27 +12,49 @@ import e2e_args
 
 from loguru import logger as LOG
 
+id_gen = itertools.count()
+
 
 @reqs.lua_generic_app
-def test(network, args):
+def test(network, args, batch_size=100):
     LOG.info("Running transactions against batched app")
     primary, _ = network.find_primary()
 
-    with primary.node_client() as mc:
-        pass
+    with primary.user_client() as c:
+        message_ids = [next(id_gen) for _ in range(batch_size)]
+        messages = [
+            {"id": i, "msg": f"A unique message: {md5(bytes(i)).hexdigest()}"}
+            for i in message_ids
+        ]
+
+        submit_response = c.rpc("BATCH_submit", messages)
+        assert submit_response.result == len(messages)
+
+        fetch_response = c.rpc("BATCH_fetch", message_ids)
+        assert fetch_response.result is not None
+        assert len(fetch_response.result) == len(message_ids)
+        for n, m in enumerate(messages):
+            fetched = fetch_response.result[n]
+            assert m["id"] == fetched["id"]
+            assert m["msg"] == fetched["msg"].decode()
 
     return network
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
+    hosts = ["localhost", "localhost", "localhost"]
 
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
 
-        network = test(network, args)
+        network = test(network, args, batch_size=1)
+        network = test(network, args, batch_size=5)
+        network = test(network, args, batch_size=10)
+        network = test(network, args, batch_size=100)
+        network = test(network, args, batch_size=1000)
+        network = test(network, args, batch_size=10000)
 
 
 if __name__ == "__main__":

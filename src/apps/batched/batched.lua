@@ -14,19 +14,21 @@ return {
 
   BATCH_submit = [[
     tables, gov_tables, args = ...
+    count = 0
     for n, e in ipairs(args.params) do
       id = e.id
       msg = e.msg
       tables.priv0:put(id, msg)
+      count = count + 1
     end
-    return env.jsucc(true)
+    return env.jsucc(count)
   ]],
 
   BATCH_fetch = [[
     tables, gov_tables, args = ...
     results = {}
     for n, id in ipairs(args.params) do
-      results[id] = tables.priv0:get(id)
+      table.insert(results, {id = id, msg = tables.priv0:get(id)})
     end
     return env.jsucc(results)
   ]]
