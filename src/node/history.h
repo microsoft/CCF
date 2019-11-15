@@ -276,8 +276,12 @@ namespace ccf
     bool verifyv(std::vector<uint8_t> v)
     {
       auto j = nlohmann::json::parse(v);
-
+      std::vector<uint8_t> path = j["path"];
       auto p = std::unique_ptr<hash_vec>(init_path());
+      for (uint8_t c: path)
+        path_insert(p.get(), &c);
+      crypto::Sha256Hash root(j["root"]);
+      return verify({std::move(p), root, });
     }
   };
 
