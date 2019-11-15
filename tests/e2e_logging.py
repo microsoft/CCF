@@ -100,16 +100,18 @@ def test(network, args, notifications_queue=None):
             check(c.rpc("LOG_get", {"id": 100}), result={"msg": backup_msg})
             check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
 
-        LOG.info("Write/Read large messages on primary")
-        with primary.user_client(format="json") as c:
-            id = 44
-            for p in range(14, 20):
-                long_msg = "X" * (2 ** p)
-                check_commit(
-                    c.rpc("LOG_record", {"id": id, "msg": long_msg}), result=True,
-                )
-                check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg})
-            id += 1
+        # TODO: Remove when HTTP supports large messages
+        if not os.getenv("HTTP"):
+            LOG.info("Write/Read large messages on primary")
+            with primary.user_client(format="json") as c:
+                id = 44
+                for p in range(14, 20):
+                    long_msg = "X" * (2 ** p)
+                    check_commit(
+                        c.rpc("LOG_record", {"id": id, "msg": long_msg}), result=True,
+                    )
+                    check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg})
+                id += 1
 
     return network
 

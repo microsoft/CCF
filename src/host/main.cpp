@@ -128,15 +128,22 @@ int main(int argc, char** argv)
     "--notify-server-address",
     "Server address to notify progress to");
 
-  size_t raft_timeout = 100;
-  app.add_option(
-    "--raft-timeout-ms", raft_timeout, "Raft timeout in milliseconds", true);
-
-  size_t raft_election_timeout = 500;
+  size_t raft_election_timeout = 5000;
   app.add_option(
     "--raft-election-timeout-ms",
     raft_election_timeout,
-    "Raft election timeout in milliseconds",
+    "Raft election timeout in milliseconds. If a Raft follower does not "
+    "receive any heartbeat from the leader after this timeout, the "
+    "follower triggers a new election.",
+    true);
+
+  size_t raft_timeout = 100;
+  app.add_option(
+    "--raft-timeout-ms",
+    raft_timeout,
+    "Raft timeout in milliseconds. The Raft leader sends heartbeats to its "
+    "followers at regular intervals defined by this timeout. This should be "
+    "set to a significantly lower value than --raft-election-timeout-ms.",
     true);
 
   size_t max_msg_size = 24;
@@ -321,7 +328,7 @@ int main(int argc, char** argv)
     for (auto const& cert_file : member_cert_files)
     {
       ccf_config.genesis.member_certs.emplace_back(
-        tls::make_verifier(files::slurp(cert_file))->raw_cert_data());
+        tls::make_verifier(files::slurp(cert_file))->der_cert_data());
     }
     ccf_config.genesis.gov_script = files::slurp_string(gov_script);
     LOG_INFO_FMT(

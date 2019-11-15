@@ -95,12 +95,14 @@ def run(args):
 
         LOG.debug("Propose to add a new member")
         infra.proc.ccall("./keygenerator", "--name=member4")
-        result = network.consortium.propose_add_member(1, primary, "member4_cert.pem")
+        result, error = network.consortium.propose_add_member(
+            1, primary, "member4_cert.pem"
+        )
 
         # When proposal is added the proposal id and the result of running
         # complete proposal are returned
-        assert not result[1]["completed"]
-        proposal_id = result[1]["id"]
+        assert not result["completed"]
+        proposal_id = result["id"]
 
         # 2 out of 3 members vote to accept the new member so that
         # that member can send its own proposals

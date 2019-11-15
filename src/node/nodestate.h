@@ -465,6 +465,9 @@ namespace ccf
             setup_history();
             setup_encryptor();
 
+            // TODO: accept_node_connections() should be moved earlier once
+            // certificate endorsement is changed so that it is possible for
+            // operators to query a node before it has joined
             accept_node_connections();
             accept_member_connections();
             if (public_only)

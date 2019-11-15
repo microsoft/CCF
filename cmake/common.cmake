@@ -571,7 +571,7 @@ set(CCF_NETWORK_TEST_ARGS
   ${PBFT_ARG}
 )
 
-# Lua generic app
+# SNIPPET: Lua generic application
 add_enclave_lib(luagenericenc ${CCF_DIR}/src/apps/luageneric/oe_sign.conf ${CCF_DIR}/src/apps/sample_key.pem SRCS ${CCF_DIR}/src/apps/luageneric/luageneric.cpp)
 
 # Samples

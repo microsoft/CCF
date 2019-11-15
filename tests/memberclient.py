@@ -29,35 +29,38 @@ def run(args):
         primary, term = network.find_primary()
 
         LOG.debug("Network should not be able to be opened twice")
-        result = network.consortium.propose(1, primary, None, None, "open_network")
+        script = """
+        tables = ...
+        return Calls:call("open_network")
+        """
+        result, _ = network.consortium.propose(1, primary, script)
         assert not network.consortium.vote_using_majority(
-            primary, result[1]["id"]
+            primary, result["id"]
         ), "Network should not be opened twice"
 
         # Create a lua query file to change a member state to accepted
-        with open("query.lua", "w") as qfile:
-            qfile.write(
-                """local tables, param = ...
-               local member_id = param
-               local STATE_ACCEPTED = 0
-               local member_info = {cert = {}, status = STATE_ACCEPTED}
-               local p = Puts:new()
-               p:put("ccf.members", member_id, member_info)
-               return Calls:call("raw_puts", p)"""
-            )
-
-        # Create json file to be passed as the argument to the query.lua file
-        # It is passing a member id
-        with open("param.json", "w") as pfile:
-            pfile.write("""{"p": 0}""")
+        query = """local tables, param = ...
+        local member_id = param
+        local STATE_ACCEPTED = 0
+        local member_info = {cert = {}, status = STATE_ACCEPTED}
+        local p = Puts:new()
+        p:put("ccf.members", member_id, member_info)
+        return Calls:call("raw_puts", p)
+        """
 
         LOG.info("Proposal to add a new member")
         infra.proc.ccall("./keygenerator", "--name=member4")
-        result = network.consortium.propose_add_member(1, primary, "member4_cert.pem")
+        script = """
+        tables, member_cert = ...
+        return Calls:call("new_member", member_cert)
+        """
+        result, _ = network.consortium.propose_add_member(
+            1, primary, "member4_cert.pem"
+        )
 
         # When proposal is added the proposal id and the result of running complete proposal are returned
-        proposal_id = result[1]["id"]
-        assert not result[1]["completed"]
+        proposal_id = result["id"]
+        assert not result["completed"]
 
         # Display all proposals
         proposals = network.consortium.get_proposals(1, primary)
@@ -112,21 +115,21 @@ def run(args):
             result["error"]["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value
         )
 
-        LOG.info("New non-accepted member should get insufficient rights response")
-        result = network.consortium.propose(
-            4, primary, None, None, "trust_node", "--node-id=0"
-        )
-        assert result[1]["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
+        LOG.info("New non-active member should get insufficient rights response")
+        script = """
+        tables, node_id = ...
+        return Calls:call("trust_node", node_id)
+        """
+        result, error = network.consortium.propose(4, primary, script, 0)
+        assert error["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
         LOG.debug("New member ACK")
         result = network.consortium.ack(4, primary)
 
         LOG.info("New member is now active and send an accept node proposal")
-        result = network.consortium.propose(
-            4, primary, None, None, "trust_node", "--node-id=0"
-        )
-        assert not result[1]["completed"]
-        proposal_id = result[1]["id"]
+        result, _ = network.consortium.propose(4, primary, script, 0)
+        assert not result["completed"]
+        proposal_id = result["id"]
 
         LOG.debug("Members vote to accept the accept node proposal")
         result = network.consortium.vote(1, primary, proposal_id, True)
@@ -137,11 +140,9 @@ def run(args):
         assert result[0] and result[1]
 
         LOG.info("New member makes a new proposal")
-        result = network.consortium.propose(
-            4, primary, None, None, "trust_node", "--node-id=1"
-        )
-        proposal_id = result[1]["id"]
-        assert not result[1]["completed"]
+        result, _ = network.consortium.propose(4, primary, script, 1)
+        proposal_id = result["id"]
+        assert not result["completed"]
 
         LOG.debug("Other members (non proposer) are unable to withdraw new proposal")
         result = network.consortium.withdraw(2, primary, proposal_id)
@@ -172,9 +173,9 @@ def run(args):
         assert result[1]["code"] == params_error
 
         LOG.debug("New member proposes to deactivate member 1")
-        result = network.consortium.raw_puts(4, primary, "query.lua", "param.json")
-        assert not result["result"]["completed"]
-        proposal_id = result["result"]["id"]
+        result, _ = network.consortium.propose(4, primary, query, 0)
+        assert not result["completed"]
+        proposal_id = result["id"]
 
         LOG.debug("Other members accept the proposal")
         result = network.consortium.vote(3, primary, proposal_id, True)
@@ -184,16 +185,12 @@ def run(args):
         assert result[0] and result[1]
 
         LOG.debug("Deactivated member cannot make a new proposal")
-        result = network.consortium.propose(
-            1, primary, None, None, "trust_node", "--node-id=0"
-        )
-        assert result[1]["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
+        result, error = network.consortium.propose(1, primary, script, 0)
+        assert error["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
         LOG.debug("New member should still be able to make a new proposal")
-        result = network.consortium.propose(
-            4, primary, None, None, "add_user", "--user-cert=member3_cert.pem"
-        )
-        assert not result[1]["completed"]
+        result, _ = network.consortium.propose(4, primary, script, 0)
+        assert not result["completed"]
 
 
 if __name__ == "__main__":
