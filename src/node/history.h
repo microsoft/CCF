@@ -280,8 +280,12 @@ namespace ccf
       auto p = std::unique_ptr<hash_vec>(init_path());
       for (uint8_t c: path)
         path_insert(p.get(), &c);
-      crypto::Sha256Hash root(j["root"]);
-      return verify({std::move(p), root, });
+      std::vector<uint8_t> r = j["root"]; 
+      crypto::Sha256Hash root;
+      std::copy(r.begin(), r.end(), root.h);
+      uint64_t index = j["index"];
+      uint32_t max_index = j["max_index"];
+      return verify({std::move(p), root, index, max_index});
     }
   };
 
