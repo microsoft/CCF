@@ -61,7 +61,7 @@ def run(args):
                 )
                 check(
                     c.rpc("REG_get", {"id": regulator[0]}),
-                    result=[regulator[1].encode(), regulator[2].encode()],
+                    result=[regulator[1], regulator[2]],
                 )
 
                 check(
@@ -77,7 +77,7 @@ def run(args):
                 check = infra.checker.Checker()
 
                 check(c.rpc("BK_register", {"country": bank[1]}), result=bank[0])
-                check(c.rpc("BK_get", {"id": bank[0]}), result=bank[1].encode())
+                check(c.rpc("BK_get", {"id": bank[0]}), result=bank[1])
 
                 check(
                     c.rpc("REG_register", {"country": bank[1]}),
@@ -109,31 +109,31 @@ def run(args):
                     check(
                         c.rpc("TX_get", {"tx_id": tx_id}),
                         result={
-                            "amt": amount.encode(),
+                            "amt": amount,
                             "bank_id": bank[0],
-                            "dst": transaction["dst"].encode(),
-                            "dst_country": transaction["dst_country"].encode(),
-                            "src": transaction["src"].encode(),
-                            "src_country": transaction["src_country"].encode(),
-                            "timestamp": transaction["timestamp"].encode(),
-                            "type": transaction["type"].encode(),
+                            "dst": transaction["dst"],
+                            "dst_country": transaction["dst_country"],
+                            "src": transaction["src"],
+                            "src_country": transaction["src_country"],
+                            "timestamp": transaction["timestamp"],
+                            "type": transaction["type"],
                         },
                     )
                     if float(amount) > flagged_amt:
                         check(
                             c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
-                            result=[reg_id, False, transaction["timestamp"].encode()],
+                            result=[reg_id, False, transaction["timestamp"]],
                         )
                         flagged_tx = {
-                            "amt": amount.encode(),
+                            "amt": amount,
                             "bank_id": bank[0],
-                            "dst": transaction["dst"].encode(),
-                            "dst_country": transaction["dst_country"].encode(),
-                            "src": transaction["src"].encode(),
-                            "src_country": transaction["src_country"].encode(),
-                            "timestamp": transaction["timestamp"].encode(),
+                            "dst": transaction["dst"],
+                            "dst_country": transaction["dst_country"],
+                            "src": transaction["src"],
+                            "src_country": transaction["src_country"],
+                            "timestamp": transaction["timestamp"],
                             "tx_id": tx_id,
-                            "type": transaction["type"].encode(),
+                            "type": transaction["type"],
                         }
                         flagged_ids.append(tx_id)
                         flagged_txs[tx_id] = flagged_tx
