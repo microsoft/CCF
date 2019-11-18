@@ -43,7 +43,7 @@ def test(network, args, batch_size=100):
         for n, m in enumerate(messages):
             fetched = fetch_response.result[n]
             assert m["id"] == fetched["id"]
-            assert m["msg"] == fetched["msg"].decode()
+            assert m["msg"] == fetched["msg"]
 
     return network
 
