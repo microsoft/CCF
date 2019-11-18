@@ -36,7 +36,7 @@ def run(args):
             assert len(quotes) == len(hosts)
             primary_quote = quotes[0]
             assert primary_quote["node_id"] == 0
-            mrenclave = primary_quote["mrenclave"].decode()
+            mrenclave = primary_quote["mrenclave"]
 
             oed = subprocess.run(
                 [args.oesign, "dump", "-e", f"{args.package}.so.signed"],
