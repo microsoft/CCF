@@ -111,7 +111,7 @@ def test(network, args, notifications_queue=None):
                         c.rpc("LOG_record", {"id": id, "msg": long_msg}), result=True,
                     )
                     check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg})
-                id += 1
+                    id += 1
 
     return network
 
