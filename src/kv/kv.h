@@ -1238,7 +1238,7 @@ namespace kv
     Version last_replicated = 0;
     Version last_committable = 0;
     Version rollback_count = 0;
-    kv::ReplicateType replicate_type;
+    kv::ReplicateType replicate_type = kv::ReplicateType::ALL;
     std::unordered_set<std::string> replicated_tables;
 
     template <typename SP, typename DP>
