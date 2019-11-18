@@ -243,7 +243,9 @@ namespace ccf
       mt_retract_to(tree, index);
     }
 
-    std::tuple<std::unique_ptr<hash_vec>, crypto::Sha256Hash, uint64_t, uint32_t> get_path(uint64_t index)
+    std::
+      tuple<std::unique_ptr<hash_vec>, crypto::Sha256Hash, uint64_t, uint32_t>
+      get_path(uint64_t index)
     {
       crypto::Sha256Hash res;
       auto path = std::unique_ptr<hash_vec>(init_path());
@@ -267,20 +269,27 @@ namespace ccf
       j["root"] = std::vector<uint8_t>(r.h, r.h + r.SIZE);
 
       std::vector<uint8_t> p;
-      for (size_t i=0; i<std::get<0>(path)->sz; ++i)
-        p.insert(p.end(), *(std::get<0>(path)->vs + i), *(std::get<0>(path)->vs + i) + r.SIZE);
-      
+      for (size_t i = 0; i < std::get<0>(path)->sz; ++i)
+        p.insert(
+          p.end(),
+          *(std::get<0>(path)->vs + i),
+          *(std::get<0>(path)->vs + i) + r.SIZE);
+
       j["path"] = p;
 
       auto d = j.dump();
       return std::vector<uint8_t>(d.begin(), d.end());
     }
 
-    bool verify(const std::tuple<std::unique_ptr<hash_vec>, crypto::Sha256Hash, uint64_t, uint32_t>& path)
+    bool verify(const std::tuple<
+                std::unique_ptr<hash_vec>,
+                crypto::Sha256Hash,
+                uint64_t,
+                uint32_t>& path)
     {
       auto index = std::get<2>(path);
       auto max_index = std::get<3>(path);
-      uint8_t * root = const_cast<uint8_t *>(std::get<1>(path).h);
+      uint8_t* root = const_cast<uint8_t*>(std::get<1>(path).h);
 
       if (!mt_verify_pre(tree, index, max_index, std::get<0>(path).get(), root))
         throw std::logic_error("Precondition to mt_verify violated");
@@ -293,10 +302,10 @@ namespace ccf
       auto j = nlohmann::json::parse(v);
       std::vector<uint8_t> path = j["path"];
       auto p = std::unique_ptr<hash_vec>(init_path());
-      for (size_t i=0; i<path.size(); i += 32)
+      for (size_t i = 0; i < path.size(); i += 32)
         path_insert(p.get(), &path[i]);
 
-      std::vector<uint8_t> r = j["root"]; 
+      std::vector<uint8_t> r = j["root"];
       crypto::Sha256Hash root;
       std::copy(r.begin(), r.end(), root.h);
       uint64_t index = j["index"];

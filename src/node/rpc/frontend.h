@@ -460,7 +460,7 @@ namespace ccf
 
             return jsonrpc::success(out);
           }
-          catch(const std::exception& e)
+          catch (const std::exception& e)
           {
             return jsonrpc::error(
               jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
@@ -473,32 +473,33 @@ namespace ccf
           "Unable to produce receipt");
       };
 
-      auto verify_receipt = [this](Store::Tx& tx, const nlohmann::json& params) {
-        const auto in = params.get<VerifyReceipt::In>();
+      auto verify_receipt =
+        [this](Store::Tx& tx, const nlohmann::json& params) {
+          const auto in = params.get<VerifyReceipt::In>();
 
-        update_history();
+          update_history();
 
-        if (history != nullptr)
-        {
-          try
+          if (history != nullptr)
           {
-            bool v = history->verify_receipt(in.receipt);
-            const VerifyReceipt::Out out{v};
+            try
+            {
+              bool v = history->verify_receipt(in.receipt);
+              const VerifyReceipt::Out out{v};
 
-            return jsonrpc::success(out);
+              return jsonrpc::success(out);
+            }
+            catch (const std::exception& e)
+            {
+              return jsonrpc::error(
+                jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+                fmt::format("Unable to verify receipt: {}", e.what()));
+            }
           }
-          catch(const std::exception& e)
-          {
-            return jsonrpc::error(
-              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-              fmt::format("Unable to verify receipt: {}", e.what()));
-          }
-        }
 
-        return jsonrpc::error(
-          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-          "Unable to produce receipt");
-      };
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            "Unable to produce receipt");
+        };
 
       install_with_auto_schema<GetCommit>(
         GeneralProcs::GET_COMMIT, get_commit, Read);

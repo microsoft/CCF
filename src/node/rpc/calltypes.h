@@ -101,7 +101,7 @@ namespace ccf
     {
       std::vector<std::uint8_t> receipt = {};
     };
-  }; 
+  };
 
   struct VerifyReceipt
   {
@@ -114,5 +114,5 @@ namespace ccf
     {
       bool valid = false;
     };
-  }; 
+  };
 }

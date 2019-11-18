@@ -108,7 +108,6 @@ namespace kv
     virtual crypto::Sha256Hash get_root() = 0;
     virtual std::vector<uint8_t> get_receipt(Version v) = 0;
     virtual bool verify_receipt(const std::vector<uint8_t>& receipt) = 0;
-
   };
 
   class Consensus
