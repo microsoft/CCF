@@ -62,23 +62,16 @@ def run(args):
         network = test(network, args, batch_size=100)
         network = test(network, args, batch_size=1000)
 
-        bs = 10000
-        try:
-            while bs <= 100000:
-                for _ in range(3):
-                    network = test(network, args, batch_size=bs)
-                bs += 10000
-        except Exception as e:
-            LOG.error("Looks like something broke")
-            LOG.error(e)
-            LOG.error("Press Ctrl+C to shutdown the network")
-
+        bs = 30000
+        while bs <= 100000:
             try:
-                while True:
-                    time.sleep(60)
-
-            except KeyboardInterrupt:
-                LOG.info("Stopping all CCF nodes...")
+                network = test(network, args, batch_size=bs)
+                bs += 10000
+            except Exception as e:
+                LOG.error("Looks like something broke")
+                LOG.error(e)
+                bs -= 10000
+                LOG.error(f"Backing off to batch size {bs}")
 
 
 if __name__ == "__main__":
