@@ -76,7 +76,6 @@ namespace kv
     W private_writer;
     W* current_writer;
     Version version;
-    bool has_contents = false;
 
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
 
@@ -84,23 +83,15 @@ namespace kv
     SecurityDomain current_domain;
 
     template <typename T>
-    void serialise_internal(T&& t, bool content_update = true)
+    void serialise_internal(T&& t)
     {
       current_writer->append(std::forward<T>(t));
-      if (content_update)
-      {
-        has_contents = true;
-      }
     }
 
     template <typename T>
-    void serialise_internal_public(T&& t, bool content_update = true)
+    void serialise_internal_public(T&& t)
     {
       public_writer.append(std::forward<T>(t));
-      if (content_update)
-      {
-        has_contents = true;
-      }
     }
 
     void set_current_domain(SecurityDomain domain)
@@ -126,7 +117,7 @@ namespace kv
       crypto_util(e)
     {
       set_current_domain(SecurityDomain::PUBLIC);
-      serialise_internal(version_, false);
+      serialise_internal(version_);
       version = version_;
     }
 
@@ -198,11 +189,6 @@ namespace kv
       auto writer_guard_func = [](W* writer) { writer->clear(); };
       std::unique_ptr<decltype(private_writer), decltype(writer_guard_func)>
         writer_guard(&private_writer, writer_guard_func);
-
-      if (!has_contents)
-      {
-        return {};
-      }
 
       auto serialised_public_domain = public_writer.get_raw_data();
 

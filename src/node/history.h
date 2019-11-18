@@ -155,7 +155,7 @@ namespace ccf
       kv::TxHistory::RequestID id,
       kv::Version version,
       const std::vector<uint8_t>& data_replicated,
-      const std::vector<uint8_t>& data_derived) override
+      const std::vector<uint8_t>& all_data) override
     {}
     void add_result(RequestID id, kv::Version version) override {}
     void add_response(
@@ -400,14 +400,9 @@ namespace ccf
       kv::TxHistory::RequestID id,
       kv::Version version,
       const std::vector<uint8_t>& data_replicated,
-      const std::vector<uint8_t>& data_derived) override
+      const std::vector<uint8_t>& all_data) override
     {
-      std::vector<uint8_t> data;
-      data.reserve(data_replicated.size() + data_derived.size());
-      data.insert(data.end(), data_replicated.begin(), data_replicated.end());
-      data.insert(data.end(), data_derived.begin(), data_derived.end());
-
-      append(data);
+      append(all_data);
       auto root = get_root();
       LOG_DEBUG << fmt::format(
                      "HISTORY: add_result {0} {1} {2}", id, version, root)

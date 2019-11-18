@@ -34,6 +34,7 @@ class Network:
         "sig_max_tx",
         "sig_max_ms",
         "election_timeout",
+        "consensus",
         "memory_reserve_startup",
         "notify_server",
         "json_log_path",

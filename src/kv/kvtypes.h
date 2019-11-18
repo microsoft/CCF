@@ -51,6 +51,13 @@ namespace kv
     PASS_SIGNATURE = 2
   };
 
+  enum ReplicateType
+  {
+    ALL = 0,
+    NONE,
+    SPECIFIED
+  };
+
   struct SerialisedMaps
   {
     std::vector<uint8_t> replicated;
@@ -119,7 +126,7 @@ namespace kv
       RequestID id,
       kv::Version version,
       const std::vector<uint8_t>& data_replicated,
-      const std::vector<uint8_t>& data_derived) = 0;
+      const std::vector<uint8_t>& all_data) = 0;
     virtual void add_result(RequestID id, kv::Version version) = 0;
     virtual void add_response(
       RequestID id, const std::vector<uint8_t>& response) = 0;

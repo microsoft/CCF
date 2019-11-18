@@ -76,7 +76,7 @@ TEST_CASE(
   Store kv_store_target;
 
   auto& pub_map = kv_store.create<std::string, std::string>(
-    "pub_map", kv::SecurityDomain::PUBLIC, true);
+    "pub_map", kv::SecurityDomain::PUBLIC);
   kv_store_target.clone_schema(kv_store);
 
   INFO("Commit to public map in source store");
@@ -111,8 +111,7 @@ TEST_CASE(
   Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
 
-  auto& priv_map = kv_store.create<std::string, std::string>(
-    "priv_map", kv::SecurityDomain::PRIVATE, true);
+  auto& priv_map = kv_store.create<std::string, std::string>("priv_map");
   kv_store_target.clone_schema(kv_store);
 
   INFO("Commit a private transaction without an encryptor throws an exception");
@@ -162,10 +161,9 @@ TEST_CASE(
   kv_store.set_encryptor(encryptor);
   kv_store_target.set_encryptor(encryptor);
 
-  auto& priv_map = kv_store.create<std::string, std::string>(
-    "priv_map", kv::SecurityDomain::PRIVATE, true);
+  auto& priv_map = kv_store.create<std::string, std::string>("priv_map");
   auto& pub_map = kv_store.create<std::string, std::string>(
-    "pub_map", kv::SecurityDomain::PUBLIC, true);
+    "pub_map", kv::SecurityDomain::PUBLIC);
   kv_store_target.clone_schema(kv_store);
 
   INFO("Commit to public and private map in source store");
@@ -207,8 +205,7 @@ TEST_CASE(
   kv_store.set_encryptor(encryptor);
   kv_store_target.set_encryptor(encryptor);
 
-  auto& priv_map = kv_store.create<std::string, std::string>(
-    "priv_map", kv::SecurityDomain::PRIVATE, true);
+  auto& priv_map = kv_store.create<std::string, std::string>("priv_map");
   kv_store_target.clone_schema(kv_store);
 
   INFO("Commit a new key in source store and deserialise in target store");
@@ -259,7 +256,7 @@ TEST_CASE(
   Store kv_store;
 
   auto& map = kv_store.create<CustomClass, CustomClass>(
-    "map", kv::SecurityDomain::PUBLIC, true);
+    "map", kv::SecurityDomain::PUBLIC);
 
   CustomClass k(3);
   CustomClass v1(33);
@@ -271,7 +268,7 @@ TEST_CASE(
   {
     Store kv_store2;
     auto& map2 = kv_store2.create<CustomClass, CustomClass>(
-      "map", kv::SecurityDomain::PUBLIC, true);
+      "map", kv::SecurityDomain::PUBLIC);
 
     Store::Tx tx(kv_store.next_version());
     auto view = tx.get_view(map);
@@ -343,9 +340,9 @@ TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
     kv_store_target.set_encryptor(encryptor);
 
     auto& public_map = kv_store.create<std::string, std::string>(
-      "public_map", kv::SecurityDomain::PUBLIC, true);
-    auto& private_map = kv_store.create<std::string, std::string>(
-      "private_map", kv::SecurityDomain::PRIVATE, true);
+      "public_map", kv::SecurityDomain::PUBLIC);
+    auto& private_map =
+      kv_store.create<std::string, std::string>("private_map");
 
     kv_store_target.clone_schema(kv_store);
 
@@ -380,8 +377,8 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     auto r = std::make_shared<kv::StubConsensus>();
     using Table = Store::Map<std::vector<int>, std::string>;
     Store s0(r), s1;
-    auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC, true);
-    s1.create<Table>("t", kv::SecurityDomain::PRIVATE, true);
+    auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
+    s1.create<Table>("t");
 
     Store::Tx tx;
     tx.get_view(t)->put(k1, v1);
@@ -397,8 +394,8 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     auto r = std::make_shared<kv::StubConsensus>();
     using Table = Store::Map<nlohmann::json, nlohmann::json>;
     Store s0(r), s1;
-    auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC, true);
-    s1.create<Table>("t", kv::SecurityDomain::PRIVATE, true);
+    auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
+    s1.create<Table>("t");
 
     Store::Tx tx;
     tx.get_view(t)->put(k0, v0);
@@ -414,17 +411,19 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
 TEST_CASE("replicated and derived table serialisation")
 {
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
-  Store store;
+  std::unordered_set<std::string> replicated_tables = {
+    "data_replicated", "data_replicated_private"};
+  Store store(kv::ReplicateType::SPECIFIED, replicated_tables);
   store.set_encryptor(encryptor);
 
-  auto& data_replicated = store.create<size_t, size_t>(
-    "data_replicated", kv::SecurityDomain::PUBLIC, true);
-  auto& data_derived = store.create<size_t, size_t>(
-    "data_derived", kv::SecurityDomain::PUBLIC, false);
-  auto& data_replicated_private = store.create<size_t, size_t>(
-    "data_replicated_private", kv::SecurityDomain::PRIVATE, true);
-  auto& data_derived_private = store.create<size_t, size_t>(
-    "data_derived_private", kv::SecurityDomain::PRIVATE, false);
+  auto& data_replicated =
+    store.create<size_t, size_t>("data_replicated", kv::SecurityDomain::PUBLIC);
+  auto& data_derived =
+    store.create<size_t, size_t>("data_derived", kv::SecurityDomain::PUBLIC);
+  auto& data_replicated_private =
+    store.create<size_t, size_t>("data_replicated_private");
+  auto& data_derived_private =
+    store.create<size_t, size_t>("data_derived_private");
 
   {
     Store::Tx tx(store.next_version());

@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../ds/champmap.h"
-#include "../ds/logger.h"
-#include "../ds/spinlock.h"
+#include "ds/champmap.h"
+#include "ds/logger.h"
+#include "ds/spinlock.h"
 #include "kvtypes.h"
 
 #include <functional>
@@ -1133,6 +1133,10 @@ namespace kv
 
       S replicated_serialiser(e, version);
       S derived_serialiser(e, version);
+      // flags that indicate if we have actually written any data in the
+      // serializers
+      bool replicated = false;
+      bool derived = false;
 
       auto grouped_maps = get_maps_grouped_by_domain(view_list);
 
@@ -1142,18 +1146,22 @@ namespace kv
         {
           if (curr_map->is_replicated())
           {
+            replicated = true;
             curr_map->serialise(replicated_serialiser, include_reads);
           }
           else
           {
+            derived = true;
             curr_map->serialise(derived_serialiser, include_reads);
           }
         }
       }
 
       // Return serialised Tx.
-      return {std::move(replicated_serialiser.get_raw_data()),
-              std::move(derived_serialiser.get_raw_data())};
+      return {replicated ? std::move(replicated_serialiser.get_raw_data()) :
+                           std::move(std::vector<uint8_t>(0)),
+              derived ? std::move(derived_serialiser.get_raw_data()) :
+                        std::move(std::vector<uint8_t>(0))};
     }
 
     // Used by frontend for reserved transactions
@@ -1210,11 +1218,6 @@ namespace kv
     template <class K, class V, class H = std::hash<K>>
     using Map = Map<K, V, H, S, D>;
     using Tx = Tx<S, D>;
-#ifdef PBFT
-    static constexpr auto replicated_default = false;
-#else
-    static constexpr auto replicated_default = true;
-#endif
 
   private:
     // All collections of Map must be ordered so that we lock their contained
@@ -1235,6 +1238,8 @@ namespace kv
     Version last_replicated = 0;
     Version last_committable = 0;
     Version rollback_count = 0;
+    kv::ReplicateType replicate_type;
+    std::unordered_set<std::string> replicated_tables;
 
     template <typename SP, typename DP>
     inline std::map<kv::SecurityDomain, std::vector<AbstractMap<SP, DP>*>>
@@ -1268,6 +1273,13 @@ namespace kv
     }
 
     Store() {}
+
+    Store(
+      const ReplicateType& replicate_type_,
+      const std::unordered_set<std::string>& replicated_tables_) :
+      replicate_type(replicate_type_),
+      replicated_tables(replicated_tables_)
+    {}
 
     Store(std::shared_ptr<Consensus> consensus_) : consensus(consensus_) {}
 
@@ -1348,12 +1360,11 @@ namespace kv
     Map<K, V, H>& create(
       std::string name,
       SecurityDomain security_domain = kv::SecurityDomain::PRIVATE,
-      bool replicated = replicated_default,
       typename Map<K, V, H>::CommitHook local_hook = nullptr,
       typename Map<K, V, H>::CommitHook global_hook = nullptr)
     {
       return create<Map<K, V, H>>(
-        name, security_domain, replicated, local_hook, global_hook);
+        name, security_domain, local_hook, global_hook);
     }
 
     /** Create a Map
@@ -1370,7 +1381,6 @@ namespace kv
     M& create(
       std::string name,
       SecurityDomain security_domain = kv::SecurityDomain::PRIVATE,
-      bool replicated = replicated_default,
       typename M::CommitHook local_hook = nullptr,
       typename M::CommitHook global_hook = nullptr)
     {
@@ -1379,6 +1389,18 @@ namespace kv
       auto search = maps.find(name);
       if (search != maps.end())
         throw std::logic_error("Map already exists");
+      auto replicated = true;
+      if (replicate_type == kv::ReplicateType::NONE)
+      {
+        replicated = false;
+      }
+      else if (replicate_type == kv::ReplicateType::SPECIFIED)
+      {
+        if (replicated_tables.find(name) == replicated_tables.end())
+        {
+          replicated = false;
+        }
+      }
 
       auto result =
         new M(this, name, security_domain, replicated, local_hook, global_hook);
@@ -1661,19 +1683,22 @@ namespace kv
           if (success_ != CommitSuccess::OK)
             LOG_DEBUG_FMT("Failed Tx commit {}", last_replicated + offset);
 
+          std::vector<uint8_t> all_data;
+          all_data.reserve(data_.replicated.size() + data_.derived.size());
+          all_data.insert(
+            all_data.end(), data_.replicated.begin(), data_.replicated.end());
+          all_data.insert(
+            all_data.end(), data_.derived.begin(), data_.derived.end());
+
           if (h)
           {
-            h->add_result(reqid, version, data_.replicated, data_.derived);
+            h->add_result(reqid, version, data_.replicated, all_data);
           }
 
           LOG_DEBUG_FMT(
-            "Batching {} ({})",
-            last_replicated + offset,
-            data_.replicated.size());
+            "Batching {} ({})", last_replicated + offset, all_data.size());
           batch.emplace_back(
-            last_replicated + offset,
-            std::move(data_.replicated),
-            committable_);
+            last_replicated + offset, std::move(all_data), committable_);
           pending_txs.erase(search);
         }
 

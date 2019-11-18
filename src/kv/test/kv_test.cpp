@@ -61,7 +61,7 @@ TEST_CASE("Reads/writes and deletions")
 {
   Store kv_store;
   auto& map = kv_store.create<std::string, std::string>(
-    "map", kv::SecurityDomain::PUBLIC, true);
+    "map", kv::SecurityDomain::PUBLIC);
 
   constexpr auto k = "key";
   constexpr auto invalid_key = "invalid_key";
@@ -153,7 +153,7 @@ TEST_CASE("Rollback and compact")
 {
   Store kv_store;
   auto& map = kv_store.create<std::string, std::string>(
-    "map", kv::SecurityDomain::PUBLIC, true);
+    "map", kv::SecurityDomain::PUBLIC);
 
   constexpr auto k = "key";
   constexpr auto v1 = "value1";
@@ -207,9 +207,9 @@ TEST_CASE("Clear entire store")
 {
   Store kv_store;
   auto& map1 = kv_store.create<std::string, std::string>(
-    "map1", kv::SecurityDomain::PUBLIC, true);
+    "map1", kv::SecurityDomain::PUBLIC);
   auto& map2 = kv_store.create<std::string, std::string>(
-    "map2", kv::SecurityDomain::PUBLIC, true);
+    "map2", kv::SecurityDomain::PUBLIC);
 
   INFO("Commit a transaction over two maps");
   {
@@ -248,7 +248,6 @@ TEST_CASE("Local commit hooks")
   using Write = Store::Map<std::string, std::string>::Write;
   std::vector<Write> local_writes;
   std::vector<Write> global_writes;
-  auto replicated = true;
 
   auto local_hook = [&](kv::Version v, const State& s, const Write& w) {
     local_writes.push_back(w);
@@ -259,7 +258,7 @@ TEST_CASE("Local commit hooks")
 
   Store kv_store;
   auto& map = kv_store.create<std::string, std::string>(
-    "map", kv::SecurityDomain::PUBLIC, replicated, local_hook, global_hook);
+    "map", kv::SecurityDomain::PUBLIC, local_hook, global_hook);
 
   INFO("Write with hooks");
   {
@@ -323,17 +322,11 @@ TEST_CASE("Global commit hooks")
     global_writes.emplace_back(GlobalHookInput({v, w}));
   };
 
-  auto replicated = true;
-
   Store kv_store;
   auto& map_with_hook = kv_store.create<std::string, std::string>(
-    "map_with_hook",
-    kv::SecurityDomain::PUBLIC,
-    replicated,
-    nullptr,
-    global_hook);
+    "map_with_hook", kv::SecurityDomain::PUBLIC, nullptr, global_hook);
   auto& map_no_hook = kv_store.create<std::string, std::string>(
-    "map_no_hook", kv::SecurityDomain::PUBLIC, true);
+    "map_no_hook", kv::SecurityDomain::PUBLIC);
 
   INFO("Compact an empty store");
   {
@@ -451,10 +444,9 @@ TEST_CASE("Clone schema")
   Store store;
   store.set_encryptor(encryptor);
 
-  auto& public_map = store.create<size_t, std::string>(
-    "public", kv::SecurityDomain::PUBLIC, true);
-  auto& private_map = store.create<size_t, std::string>(
-    "private", kv::SecurityDomain::PRIVATE, true);
+  auto& public_map =
+    store.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
+  auto& private_map = store.create<size_t, std::string>("private");
   Store::Tx tx1(store.next_version());
   auto [view1, view2] = tx1.get_view(public_map, private_map);
   view1->put(42, "aardvark");
@@ -475,11 +467,10 @@ TEST_CASE("Deserialise return status")
   Store store;
 
   auto& signatures = store.create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC, true);
-  auto& nodes = store.create<ccf::Nodes>(
-    ccf::Tables::NODES, kv::SecurityDomain::PUBLIC, true);
-  auto& data =
-    store.create<size_t, size_t>("data", kv::SecurityDomain::PUBLIC, true);
+    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
+  auto& nodes =
+    store.create<ccf::Nodes>(ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
+  auto& data = store.create<size_t, size_t>("data", kv::SecurityDomain::PUBLIC);
 
   auto kp = tls::make_key_pair();
 
@@ -533,17 +524,15 @@ TEST_CASE("map swap between stores")
   Store s1;
   s1.set_encryptor(encryptor);
 
-  auto& d1 =
-    s1.create<size_t, size_t>("data", kv::SecurityDomain::PRIVATE, true);
+  auto& d1 = s1.create<size_t, size_t>("data");
   auto& pd1 =
-    s1.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC, true);
+    s1.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
 
   Store s2;
   s2.set_encryptor(encryptor);
-  auto& d2 =
-    s2.create<size_t, size_t>("data", kv::SecurityDomain::PRIVATE, true);
+  auto& d2 = s2.create<size_t, size_t>("data");
   auto& pd2 =
-    s2.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC, true);
+    s2.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
 
   {
     Store::Tx tx;
@@ -635,17 +624,15 @@ TEST_CASE("private recovery map swap")
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   Store s1;
   s1.set_encryptor(encryptor);
-  auto& priv1 =
-    s1.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE, true);
+  auto& priv1 = s1.create<size_t, size_t>("private");
   auto& pub1 =
-    s1.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC, true);
+    s1.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
 
   Store s2;
   s2.set_encryptor(encryptor);
-  auto& priv2 =
-    s2.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE, true);
+  auto& priv2 = s2.create<size_t, size_t>("private");
   auto& pub2 =
-    s2.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC, true);
+    s2.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
 
   INFO("Populate s1 with public entries");
   // We compact twice, deliberately. A public KV during recovery
