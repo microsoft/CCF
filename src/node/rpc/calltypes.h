@@ -102,4 +102,17 @@ namespace ccf
       std::vector<std::uint8_t> receipt = {};
     };
   }; 
+
+  struct VerifyReceipt
+  {
+    struct In
+    {
+      std::vector<std::uint8_t> receipt = {};
+    };
+
+    struct Out
+    {
+      bool valid = false;
+    };
+  }; 
 }

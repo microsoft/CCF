@@ -473,6 +473,33 @@ namespace ccf
           "Unable to produce receipt");
       };
 
+      auto verify_receipt = [this](Store::Tx& tx, const nlohmann::json& params) {
+        const auto in = params.get<VerifyReceipt::In>();
+
+        update_history();
+
+        if (history != nullptr)
+        {
+          try
+          {
+            bool v = history->verify_receipt(in.receipt);
+            const VerifyReceipt::Out out{v};
+
+            return jsonrpc::success(out);
+          }
+          catch(const std::exception& e)
+          {
+            return jsonrpc::error(
+              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+              fmt::format("Unable to verify receipt: {}", e.what()));
+          }
+        }
+
+        return jsonrpc::error(
+          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          "Unable to produce receipt");
+      };
+
       install_with_auto_schema<GetCommit>(
         GeneralProcs::GET_COMMIT, get_commit, Read);
       install_with_auto_schema<void, GetMetrics::Out>(
@@ -489,6 +516,8 @@ namespace ccf
         GeneralProcs::GET_SCHEMA, get_schema, Read);
       install_with_auto_schema<GetReceipt>(
         GeneralProcs::GET_RECEIPT, get_receipt, Read);
+      install_with_auto_schema<VerifyReceipt>(
+        GeneralProcs::VERIFY_RECEIPT, verify_receipt, Read);
     }
 
     void set_sig_intervals(size_t sig_max_tx_, size_t sig_max_ms_) override
