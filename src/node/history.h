@@ -175,12 +175,12 @@ namespace ccf
       return crypto::Sha256Hash();
     }
 
-    std::vector<uint8_t> get_pathv(uint64_t index)
+    std::vector<uint8_t> get_receipt(kv::Version v) override
     {
       return {};
     }
 
-    bool verifyv(const std::vector<uint8_t>& v)
+    bool verify_receipt(const std::vector<uint8_t>& v) override
     {
       return true;
     }
