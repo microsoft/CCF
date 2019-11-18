@@ -64,7 +64,7 @@ def test_update_lua(network, args):
     return network
 
 
-@reqs.logging_app
+@reqs.supports_methods("mkSign", "LOG_record", "LOG_get")
 @reqs.at_least_2_nodes
 def test(network, args, notifications_queue=None):
     LOG.info("Running transactions against logging app")
