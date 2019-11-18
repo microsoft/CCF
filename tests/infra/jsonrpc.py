@@ -108,27 +108,14 @@ class Response:
         return d
 
     def _from_parsed(self, parsed):
-        def decode(sl, is_key=False):
-            if is_key and hasattr(sl, "decode"):
-                return sl.decode()
-            if hasattr(sl, "items"):
-                return {decode(k, is_key=True): decode(v) for k, v in sl.items()}
-            elif isinstance(sl, list):
-                return [decode(e) for e in sl]
-            else:
-                return sl
-
-        parsed_s = {
-            decode(attr, is_key=True): decode(value) for attr, value in parsed.items()
-        }
-        unexpected = parsed_s.keys() - self._attrs
+        unexpected = parsed.keys() - self._attrs
         if unexpected:
             raise ValueError("Unexpected keys in response: {}".format(unexpected))
-        for attr, value in parsed_s.items():
+        for attr, value in parsed.items():
             setattr(self, attr, value)
 
     def from_msgpack(self, data):
-        parsed = msgpack.unpackb(data)
+        parsed = msgpack.unpackb(data, raw=False)
         self._from_parsed(parsed)
 
     def from_json(self, data):
