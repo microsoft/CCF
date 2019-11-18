@@ -210,20 +210,22 @@ Replica::~Replica()
 
 void Replica::receive_message(const uint8_t* data, uint32_t size)
 {
+  //LOG_INFO << "received msg, size: " << size << std::endl;
   if (size > Max_message_size)
   {
-    LOG_DEBUG
+    LOG_INFO
       << "Received message will not be processed, size exceeds message limits: "
       << size << std::endl;
-    return;
+    //return;
   }
-  Message* m = new Message(Max_message_size);
+  uint64_t alloc_size = std::max(size, (uint32_t)Max_message_size);
+  Message* m = new Message(alloc_size);
   // TODO: remove this memcpy
   memcpy(m->contents(), data, size);
   if (pre_verify(m))
   {
-    PBFT_ASSERT(
-      Max_message_size >= size, "size must be less than Max_message_size");
+    //PBFT_ASSERT(
+    //  Max_message_size >= size, "size must be less than Max_message_size");
     recv_process_one_msg(m);
   }
   else
@@ -351,6 +353,11 @@ void Replica::recv_process_one_msg(Message* m)
 {
   PBFT_ASSERT(m->tag() != New_key_tag, "Tag no longer supported");
 
+  if (m->tag() == New_view_tag)
+  {
+    LOG_INFO << "Receiving new view - process, size:" << m->size() << std::endl;
+  }
+
   switch (m->tag())
   {
     case Request_tag:
@@ -452,6 +459,11 @@ bool Replica::gen_pre_verify(Message* m)
 
 bool Replica::pre_verify(Message* m)
 {
+  if (m->tag() == New_view_tag)
+  {
+    LOG_INFO << "Receiving new view - pre_verify" << std::endl;
+  }
+
   switch (m->tag())
   {
     case Request_tag:
@@ -665,7 +677,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
 
       if (node->f() > 0)
       {
-        LOG_INFO << "BBBBBBB" << std::endl;
+        LOG_INFO << "BBBBBBB, seqno:" << pp->seqno() << std::endl;
         send(pp, All_replicas);
       }
       else
@@ -766,8 +778,14 @@ void Replica::handle(Pre_prepare* m)
     // for the same view and sequence number and the message is valid.
     if (pc.add(m))
     {
+      LOG_INFO << "Accepted pp, seqno:" << ms << std::endl;
       send_prepare(ms);
     }
+    else
+    {
+      LOG_INFO << "Rejected pp, seqno:" << ms << std::endl;
+    }
+    
     return;
   }
   LOG_INFO << "Failed to handle pre-prepare with seqno: " << ms << std::endl;
@@ -785,32 +803,40 @@ void Replica::handle(Pre_prepare* m)
 
 void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 {
+  LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
   while (plog.within_range(seqno))
   {
+    LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
     Prepared_cert& pc = plog.fetch(seqno);
 
     if (pc.my_prepare() == 0 && pc.is_pp_complete())
     {
+      LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
       bool send_only_to_self = (f() == 0);
       // Send prepare to all replicas and log it.
       Pre_prepare* pp = pc.pre_prepare();
       ByzInfo info;
       if (byz_info.has_value())
       {
+        LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
         info = byz_info.value();
       }
       else
       {
+        LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
         if (!execute_tentative(pp, info))
         {
+          LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
           break;
         }
       }
 
+      LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
       // TODO: fix this check
       // https://github.com/microsoft/CCF/issues/357
       if (!compare_execution_results(info, pp))
       {
+        LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
         break;
       }
 
@@ -824,9 +850,11 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       send(p, send_node_id);
       pc.add_mine(p);
       LOG_DEBUG << "added to pc in prepare: " << pp->seqno() << std::endl;
+      LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
 
       if (pc.is_complete())
       {
+        LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
         LOG_TRACE << "pc is complete for seqno: " << seqno
                   << " and sending commit" << std::endl;
         send_commit(seqno, send_node_id == node_id);
@@ -835,6 +863,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
     }
     else
     {
+      LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
       break;
     }
   }
@@ -842,6 +871,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
 void Replica::send_commit(Seqno s, bool send_only_to_self)
 {
+  LOG_INFO << "XXXXXX Sending commit seqno:" << s << std::endl;
   size_t before_f = f();
   // Executing request before sending commit improves performance
   // for null requests. May not be true in general.
@@ -862,7 +892,7 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
   Certificate<Commit>& cs = clog.fetch(s);
   if ((cs.add_mine(c) && cs.is_complete()) || (before_f == 0))
   {
-    LOG_DEBUG << "calling execute committed from send_commit seqno: " << s
+    LOG_INFO << "calling execute committed from send_commit seqno: " << s
               << std::endl;
     execute_committed(before_f == 0);
 
@@ -877,13 +907,14 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
 void Replica::handle(Prepare* m)
 {
   const Seqno ms = m->seqno();
+  LOG_INFO << "handle prepare for seqno: " << ms << std::endl;
   // Only accept prepare messages that are not sent by the primary for
   // current view.
   if (
     in_wv(m) && ms > low_bound && primary() != m->id() &&
     has_complete_new_view())
   {
-    LOG_TRACE << "handle prepare for seqno: " << ms << std::endl;
+    LOG_INFO << "handle prepare for seqno: " << ms << std::endl;
     Prepared_cert& ps = plog.fetch(ms);
     if (ps.add(m) && ps.is_complete())
     {
@@ -1420,7 +1451,7 @@ void Replica::handle(View_change* m)
 void Replica::handle(New_view* m)
 {
   LOG_INFO << "Received new view for " << m->view() << " from " << m->id()
-           << "\n";
+           << std::endl;
   vi.add(m);
 }
 
@@ -1617,7 +1648,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   if (primary(v) == id())
   {
     New_view* nv = vi.my_new_view();
-    LOG_INFO << "Sending new view for " << nv->view() << "\n";
+    LOG_INFO << "Sending new view for " << nv->view() << std::endl;
     send(nv, All_replicas);
   }
 
@@ -1712,7 +1743,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   {
     start_vtimer_if_request_waiting();
   }
-  LOG_INFO << "Done with process new view " << v << "\n";
+  LOG_INFO << "Done with process new view " << v << std::endl;
 }
 
 Pre_prepare* Replica::prepared_pre_prepare(Seqno n)

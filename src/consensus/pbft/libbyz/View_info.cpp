@@ -385,7 +385,7 @@ bool View_info::add(std::unique_ptr<View_change> vc)
     return false;
   }
 
-  LOG_INFO << "ZZZZZZZZZZZ" << std::endl;
+  LOG_INFO << "ZZZZZZZZZZZ, last_nvs.size:" << last_nvs.size() << std::endl;
   // Try to match vc with a new-view message.
   NV_info& n = last_nvs[node->primary(vcv)];
   bool stored = false;
