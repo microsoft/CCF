@@ -77,3 +77,33 @@ def lua_logging_app(func):
         return func(*args, **kwargs)
 
     return wrapper
+
+
+def supports_methods(*methods):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(network, args, *nargs, **kwargs):
+            if args.enforce_reqs:
+                try:
+                    primary, term = network.find_primary()
+                    with primary.user_client() as c:
+                        response = c.rpc("listMethods", {})
+                        supported_methods = response.result["methods"]
+                        missing = {*methods}.difference(supported_methods)
+                        if missing:
+                            concat = ", ".join(missing)
+                            raise TestRequirementsNotMet(
+                                f"Missing required methods: {concat}"
+                            )
+                except TestRequirementsNotMet:
+                    raise
+                except Exception as e:
+                    raise TestRequirementsNotMet(
+                        f"Could not check if constraints were met: {e}"
+                    )
+
+            return func(network, args, *nargs, **kwargs)
+
+        return wrapper
+
+    return decorator
