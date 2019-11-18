@@ -174,6 +174,16 @@ namespace ccf
     {
       return crypto::Sha256Hash();
     }
+
+    std::vector<uint8_t> get_pathv(uint64_t index)
+    {
+      return {};
+    }
+
+    bool verifyv(const std::vector<uint8_t>& v)
+    {
+      return true;
+    }
   };
 
   class MerkleTreeHistory
@@ -278,7 +288,7 @@ namespace ccf
       return mt_verify(tree, index, max_index, std::get<0>(path).get(), root);
     }
 
-    bool verifyv(std::vector<uint8_t> v)
+    bool verifyv(const std::vector<uint8_t>& v)
     {
       auto j = nlohmann::json::parse(v);
       std::vector<uint8_t> path = j["path"];
@@ -492,6 +502,16 @@ namespace ccf
     {
       LOG_DEBUG << fmt::format("HISTORY: add_response {0}", id) << std::endl;
       responses[id] = response;
+    }
+
+    std::vector<uint8_t> get_receipt(kv::Version index) override
+    {
+      return tree.get_pathv(index);
+    }
+
+    bool verify_receipt(const std::vector<uint8_t>& v) override
+    {
+      return tree.verifyv(v);
     }
   };
 

@@ -152,16 +152,16 @@ static void append_get_pathv_verifyv(picobench::state& s)
   s.stop_timer();
 }
 
-const std::vector<int> sizes = {1000, 10000, 100000};
+const std::vector<int> sizes = {1000, 10000};
 
 PICOBENCH_SUITE("append_retract");
 PICOBENCH(append_retract).iterations(sizes).samples(10).baseline();
 PICOBENCH_SUITE("append_flush");
 PICOBENCH(append_flush).iterations(sizes).samples(10).baseline();
-//PICOBENCH_SUITE("append_get_path_verify");
-//PICOBENCH(append_get_path_verify).iterations(sizes).samples(10).baseline();
+PICOBENCH_SUITE("append_get_path_verify");
+PICOBENCH(append_get_path_verify).iterations(sizes).samples(10).baseline();
 PICOBENCH_SUITE("append_get_pathv_verifyv");
-PICOBENCH(append_get_pathv_verifyv).iterations({1000}).samples(10).baseline();
+PICOBENCH(append_get_pathv_verifyv).iterations(sizes).samples(10).baseline();
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char* argv[])

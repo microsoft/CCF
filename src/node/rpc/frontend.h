@@ -446,6 +446,33 @@ namespace ccf
         return jsonrpc::success(out);
       };
 
+      auto get_receipt = [this](Store::Tx& tx, const nlohmann::json& params) {
+        const auto in = params.get<GetReceipt::In>();
+
+        update_history();
+
+        if (history != nullptr)
+        {
+          try
+          {
+            auto p = history->get_receipt(in.commit);
+            const GetReceipt::Out out{p};
+
+            return jsonrpc::success(out);
+          }
+          catch(const std::exception& e)
+          {
+            return jsonrpc::error(
+              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+              fmt::format("Unable to produce receipt: {}", e.what()));
+          }
+        }
+
+        return jsonrpc::error(
+          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          "Unable to produce receipt");
+      };
+
       install_with_auto_schema<GetCommit>(
         GeneralProcs::GET_COMMIT, get_commit, Read);
       install_with_auto_schema<void, GetMetrics::Out>(
@@ -460,6 +487,8 @@ namespace ccf
         GeneralProcs::LIST_METHODS, list_methods, Read);
       install_with_auto_schema<GetSchema>(
         GeneralProcs::GET_SCHEMA, get_schema, Read);
+      install_with_auto_schema<GetReceipt>(
+        GeneralProcs::GET_RECEIPT, get_receipt, Read);
     }
 
     void set_sig_intervals(size_t sig_max_tx_, size_t sig_max_ms_) override

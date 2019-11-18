@@ -89,4 +89,17 @@ namespace ccf
       ds::json::JsonSchema result_schema = {};
     };
   };
+
+  struct GetReceipt
+  {
+    struct In
+    {
+      int64_t commit = 0;
+    };
+
+    struct Out
+    {
+      std::vector<std::uint8_t> receipt = {};
+    };
+  }; 
 }
