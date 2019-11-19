@@ -186,6 +186,78 @@ namespace ccf
     }
   };
 
+  class Receipt
+  {
+  private:
+    uint64_t index;
+    uint32_t max_index;
+    crypto::Sha256Hash root;
+    hash_vec * path;
+
+  public:
+    Receipt()
+    {
+      path = init_path();
+    }
+
+    Receipt(uint64_t index_, uint32_t max_index_, const crypto::Sha256Hash& root_, hash_vec * path_) : index(index_), max_index(max_index_), root(root_), path(path_)
+    {}
+
+    Receipt(merkle_tree * tree, uint64_t index_)
+    {
+      index = index_;
+      path = init_path();
+
+      if (!mt_get_path_pre(tree, index, path, root.h))
+      {
+        free_path(path);
+        throw std::logic_error("Precondition to mt_get_path violated");
+      }
+
+      max_index = mt_get_path(tree, index, path, root.h);
+    }
+
+    bool verify(merkle_tree * tree) const
+    {
+      if (!mt_verify_pre(tree, index, max_index, path, (uint8_t *) root.h))
+        throw std::logic_error("Precondition to mt_verify violated");
+
+      return mt_verify(tree, index, max_index, path, (uint8_t *) root.h);
+    }
+
+    ~Receipt()
+    {
+      free_path(path);
+    }
+
+    std::vector<uint8_t> to_v() const
+    {
+      size_t vs = sizeof(index) + sizeof(max_index) + root.SIZE + root.SIZE * path->sz;
+      std::vector<uint8_t> v(vs);
+      uint8_t * buf = v.data();
+      serialized::write(buf, vs, index);
+      serialized::write(buf, vs, max_index);
+      serialized::write(buf, vs, root.h, root.SIZE);
+      for (size_t i = 0; i < path->sz; ++i)
+        serialized::write(buf, vs, *(path->vs + i), root.SIZE);
+      return v;
+    }
+
+    // TODO: should be a static ctor
+    void from_v(const std::vector<uint8_t>& v)
+    {
+      const uint8_t * buf = v.data();
+      size_t s = v.size();
+      index = serialized::read<decltype(index)>(buf, s);
+      max_index = serialized::read<decltype(max_index)>(buf, s);
+      std::copy(buf, buf + root.SIZE, root.h);
+      buf += root.SIZE;
+      s -= root.SIZE;
+      for (size_t i = 0; i < s; i += 32)
+        path_insert(path, const_cast<uint8_t *>(buf + i));
+    }
+  };
+
   class MerkleTreeHistory
   {
     merkle_tree* tree;
@@ -243,74 +315,14 @@ namespace ccf
       mt_retract_to(tree, index);
     }
 
-    std::
-      tuple<std::unique_ptr<hash_vec>, crypto::Sha256Hash, uint64_t, uint32_t>
-      get_path(uint64_t index)
+    Receipt get_receipt(uint64_t index)
     {
-      crypto::Sha256Hash res;
-      auto path = std::unique_ptr<hash_vec>(init_path());
-
-      if (!mt_get_path_pre(tree, index, path.get(), res.h))
-        throw std::logic_error("Precondition to mt_get_path violated");
-
-      auto nbelem = mt_get_path(tree, index, path.get(), res.h);
-
-      return {std::move(path), get_root(), index, nbelem};
+      return Receipt(tree, index);
     }
 
-    std::vector<uint8_t> get_pathv(uint64_t index)
+    bool verify(const Receipt& r)
     {
-      auto path = get_path(index);
-
-      nlohmann::json j;
-      j["index"] = std::get<2>(path);
-      j["max_index"] = std::get<3>(path);
-      auto r = std::get<1>(path);
-      j["root"] = std::vector<uint8_t>(r.h, r.h + r.SIZE);
-
-      std::vector<uint8_t> p;
-      for (size_t i = 0; i < std::get<0>(path)->sz; ++i)
-        p.insert(
-          p.end(),
-          *(std::get<0>(path)->vs + i),
-          *(std::get<0>(path)->vs + i) + r.SIZE);
-
-      j["path"] = p;
-
-      auto d = j.dump();
-      return std::vector<uint8_t>(d.begin(), d.end());
-    }
-
-    bool verify(const std::tuple<
-                std::unique_ptr<hash_vec>,
-                crypto::Sha256Hash,
-                uint64_t,
-                uint32_t>& path)
-    {
-      auto index = std::get<2>(path);
-      auto max_index = std::get<3>(path);
-      uint8_t* root = const_cast<uint8_t*>(std::get<1>(path).h);
-
-      if (!mt_verify_pre(tree, index, max_index, std::get<0>(path).get(), root))
-        throw std::logic_error("Precondition to mt_verify violated");
-
-      return mt_verify(tree, index, max_index, std::get<0>(path).get(), root);
-    }
-
-    bool verifyv(const std::vector<uint8_t>& v)
-    {
-      auto j = nlohmann::json::parse(v);
-      std::vector<uint8_t> path = j["path"];
-      auto p = std::unique_ptr<hash_vec>(init_path());
-      for (size_t i = 0; i < path.size(); i += 32)
-        path_insert(p.get(), &path[i]);
-
-      std::vector<uint8_t> r = j["root"];
-      crypto::Sha256Hash root;
-      std::copy(r.begin(), r.end(), root.h);
-      uint64_t index = j["index"];
-      uint32_t max_index = j["max_index"];
-      return verify({std::move(p), root, index, max_index});
+      return r.verify(tree);
     }
   };
 
@@ -515,12 +527,14 @@ namespace ccf
 
     std::vector<uint8_t> get_receipt(kv::Version index) override
     {
-      return tree.get_pathv(index);
+      return tree.get_receipt(index).to_v();
     }
 
     bool verify_receipt(const std::vector<uint8_t>& v) override
     {
-      return tree.verifyv(v);
+      Receipt r;
+      r.from_v(v);
+      return tree.verify(r);
     }
   };
 
