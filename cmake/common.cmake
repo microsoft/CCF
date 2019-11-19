@@ -568,6 +568,7 @@ set(CCF_NETWORK_TEST_ARGS
   ${TEST_ENCLAVE_TYPE}
   -l ${TEST_HOST_LOGGING_LEVEL}
   -g ${CCF_DIR}/src/runtime_config/gov.lua
+  --consensus ${CONSENSUS_ARG}
 )
 
 # SNIPPET: Lua generic application
@@ -620,7 +621,6 @@ function(add_e2e_test)
         --label ${PARSED_ARGS_NAME}
         ${CCF_NETWORK_TEST_ARGS}
         ${PARSED_ARGS_ADDITIONAL_ARGS}
-        --consensus ${CONSENSUS_ARG}
     )
 
     ## Make python test client framework importable
@@ -686,7 +686,6 @@ function(add_perf_test)
       ${PARSED_ARGS_ADDITIONAL_ARGS}
       --write-tx-times
       ${VERIFICATION_ARG}
-      --consensus ${CONSENSUS_ARG}
   )
 
   ## Make python test client framework importable
