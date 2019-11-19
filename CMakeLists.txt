@@ -324,6 +324,12 @@ if(BUILD_TESTS)
         --enforce-reqs
       )
 
+      add_e2e_test(
+        NAME lua_end_to_end_batched
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
+        ADDITIONAL_ARGS
+          --app-script ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua)
+
       if (BUILD_SMALLBANK)
         include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
       endif()
@@ -340,12 +346,6 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS
         --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
     )
-
-    add_e2e_test(
-      NAME lua_end_to_end_batched
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
-      ADDITIONAL_ARGS
-        --app-script ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua)
 
     add_e2e_test(
       NAME end_to_end_scenario
