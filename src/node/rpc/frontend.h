@@ -476,7 +476,7 @@ namespace ccf
           {
             return jsonrpc::error(
               jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-              fmt::format("Unable to produce receipt: {}", e.what()));
+              fmt::format("Unable to produce receipt for commit {} : {}", in.commit, e.what()));
           }
         }
 
