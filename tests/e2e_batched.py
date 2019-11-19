@@ -61,14 +61,15 @@ def run(args):
         network = test(network, args, batch_size=100)
         network = test(network, args, batch_size=1000)
 
-        bs = 10000
-        step_size = 10000
+        # TODO: CI already takes ~25s for batch of 10k, so avoid large batches for now
+        # bs = 10000
+        # step_size = 10000
 
-        # TODO: This tests fails with larger batch sizes, and with any transaction
-        # larger than ~2MB. Investigate why, then expand this test
-        while bs <= 30000:
-            network = test(network, args, batch_size=bs)
-            bs += step_size
+        # # TODO: This tests fails with larger batch sizes, and with any transaction
+        # # larger than ~2MB. Investigate why, then expand this test
+        # while bs <= 30000:
+        #     network = test(network, args, batch_size=bs)
+        #     bs += step_size
 
 
 if __name__ == "__main__":
