@@ -301,13 +301,6 @@ inline Pre_prepare* View_info::fetch_request(Seqno n, Digest& d)
 
 inline bool View_info::has_complete_new_view(View vi) const
 {
-  const NV_info& info = last_nvs[node->primary(vi)];
-
-  LOG_INFO << "size: " << last_nvs.size() << ", primary: " << node->primary(vi)
-           << ", is_complete: "
-           << (last_nvs[node->primary(vi)].complete() ? "true" : "false")
-           << std::endl;
-
   return last_nvs[node->primary(vi)].complete();
 }
 

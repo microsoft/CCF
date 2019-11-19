@@ -265,10 +265,6 @@ inline bool Prepared_cert::is_complete()
       prepare_cert.is_complete(true);
     }
   }
-  LOG_INFO << "prepared_cert - " << (result ? "true" : "false")
-           << ", pp_i:" << (pp_i ? "true" : "false")
-           << ", pc:" << (pc ? "true" : "false")
-           << ", m:" << (m ? "true" : "false") << std::endl;
 
   return false;
 }

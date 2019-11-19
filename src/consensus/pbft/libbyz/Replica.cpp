@@ -293,7 +293,7 @@ bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
 
       if (global_commit_cb != nullptr)
       {
-        global_commit_cb(executable_pp->get_ctx(), global_commit_ctx);
+        global_commit_cb(executable_pp->get_ctx(), executable_pp->view(), global_commit_ctx);
       }
 
       last_executed++;
@@ -533,6 +533,7 @@ void Replica::handle(Request* m)
             << " id:" << id() << " primary:" << primary()
             << " with cid: " << m->client_id()
             << " current seqno: " << next_pp_seqno
+            << " last executed: " << last_executed
             << " digest: " << rd.hash() << std::endl;
 
   if (has_complete_new_view())
@@ -1908,7 +1909,7 @@ void Replica::execute_prepared(bool committed)
     if (global_commit_cb != nullptr)
     {
       LOG_TRACE << "Global_commit:" << pp->get_ctx() << std::endl;
-      global_commit_cb(pp->get_ctx(), global_commit_ctx);
+      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_ctx);
     }
   }
 }

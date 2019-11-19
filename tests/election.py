@@ -66,7 +66,7 @@ def run(args):
             LOG.debug("Find freshly elected primary")
             primary, current_term = network.find_primary()
 
-            LOG.debug("Commit new transactions")
+            LOG.debug("Commit new transactions, primary:{}, current_term:{}".format(primary, current_term))
             commit_index = None
             with primary.user_client(format="json") as c:
                 res = c.do(
