@@ -498,7 +498,7 @@ namespace ccf
 
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            "Unable to produce receipt");
+            "Unable to verify receipt");
         };
 
       install_with_auto_schema<GetCommit>(
