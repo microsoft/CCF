@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
+
 set(MSGPACK_INCLUDE_DIR ${CCF_DIR}/3rdparty/msgpack-c)
 
 set(default_build_type "RelWithDebInfo")
@@ -111,11 +113,10 @@ set(TARGET "sgx;virtual" CACHE STRING "One of sgx, virtual, or 'sgx;virtual'")
 set(OE_PREFIX "/opt/openenclave" CACHE PATH "Path to Open Enclave install")
 message(STATUS "Open Enclave prefix set to ${OE_PREFIX}")
 
-set(CLIENT_MBEDTLS_PREFIX "/usr/local" CACHE PATH "Prefix to the mbedtls install the client should use")
-message(STATUS "Client mbedtls prefix set to ${CLIENT_MBEDTLS_PREFIX}")
+find_package(MbedTLS REQUIRED)
 
-set(CLIENT_MBEDTLS_INCLUDE_DIR "${CLIENT_MBEDTLS_PREFIX}/include")
-set(CLIENT_MBEDTLS_LIB_DIR "${CLIENT_MBEDTLS_PREFIX}/lib")
+set(CLIENT_MBEDTLS_INCLUDE_DIR "${MBEDTLS_INCLUDE_DIRS}")
+set(CLIENT_MBEDTLS_LIBRARIES "${MBEDTLS_LIBRARIES}")
 
 set(OE_INCLUDE_DIR "${OE_PREFIX}/include")
 set(OE_LIB_DIR "${OE_PREFIX}/lib/openenclave")
@@ -235,11 +236,6 @@ set(OE_ENCLAVE_SYSCALL "${OE_LIB_DIR}/enclave/liboesyscall.a")
 set(OE_ENCLAVE_LIBC "${OE_LIB_DIR}/enclave/liboelibc.a")
 set(OE_ENCLAVE_LIBCXX "${OE_LIB_DIR}/enclave/liboelibcxx.a")
 set(OE_HOST_LIBRARY "${OE_LIB_DIR}/host/liboehost.a")
-
-set(CLIENT_MBEDTLS_LIBRARIES
-  "${CLIENT_MBEDTLS_LIB_DIR}/libmbedtls.a"
-  "${CLIENT_MBEDTLS_LIB_DIR}/libmbedx509.a"
-  "${CLIENT_MBEDTLS_LIB_DIR}/libmbedcrypto.a")
 
 # The OE libraries must be listed in a specific order. Issue #887 on github
 set(ENCLAVE_LIBS
