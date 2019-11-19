@@ -12,7 +12,7 @@ namespace enclave
     uint32_t msg_size;
     size_t count;
 
-    static constexpr size_t max_msg_size = 1 * 1024 * 1024;
+    static constexpr size_t max_msg_size = 2 * 1024 * 1024;
 
   public:
     FramedTLSEndpoint(
