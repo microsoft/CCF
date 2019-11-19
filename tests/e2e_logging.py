@@ -18,7 +18,7 @@ import e2e_args
 from loguru import logger as LOG
 
 
-@reqs.lua_logging_app
+@reqs.lua_generic_app
 def test_update_lua(network, args):
     if args.package == "libluagenericenc":
         LOG.info("Updating Lua application")
@@ -111,7 +111,7 @@ def test(network, args, notifications_queue=None):
                         c.rpc("LOG_record", {"id": id, "msg": long_msg}), result=True,
                     )
                     check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg})
-                id += 1
+                    id += 1
 
     return network
 

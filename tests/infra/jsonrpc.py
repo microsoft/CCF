@@ -420,9 +420,10 @@ class CurlClient:
                 cmd.extend(["--cert", self.cert])
             LOG.debug(f"Running: {' '.join(cmd)}")
             rc = subprocess.run(cmd, capture_output=True)
-            LOG.debug(f"Received {rc.stdout.decode()}")
+            LOG.debug(f"Received {rc.stdout}")
             if rc.returncode != 0:
-                LOG.debug(f"ERR {rc.stderr.decode()}")
+                LOG.error(rc.stderr)
+                raise RuntimeError("Curl failed")
             self.stream.update(rc.stdout)
         return r.id
 
