@@ -33,7 +33,8 @@ extern "C"
     uint8_t* network_cert,
     size_t network_cert_size,
     size_t* network_cert_len,
-    StartType start_type)
+    StartType start_type,
+    ConsensusType consensus_type)
   {
     std::lock_guard<SpinLock> guard(create_lock);
 
@@ -51,7 +52,8 @@ extern "C"
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];
 #endif
 
-    e = new enclave::Enclave(ec, cc.signature_intervals, cc.raft_config);
+    e = new enclave::Enclave(
+      ec, cc.signature_intervals, consensus_type, cc.raft_config);
 
     return e->create_new_node(
       start_type,

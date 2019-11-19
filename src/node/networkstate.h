@@ -11,6 +11,9 @@ namespace ccf
   struct NetworkState : public NetworkTables
   {
     std::unique_ptr<NetworkSecrets> secrets;
+    NetworkState(const ConsensusType& consensus_type) :
+      NetworkTables(consensus_type)
+    {}
     NetworkState() = default;
   };
 }

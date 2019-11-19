@@ -49,6 +49,10 @@ int main(int argc, char** argv)
       true)
     ->required();
 
+  std::string consensus;
+  app.add_set("-c,--consensus", consensus, {"raft", "pbft"}, "Consensus", true)
+    ->required();
+
   cli::ParsedAddress node_address;
   cli::add_address_option(
     app,
@@ -305,6 +309,7 @@ int main(int argc, char** argv)
   std::vector<uint8_t> network_cert(certificate_size);
 
   StartType start_type;
+  ConsensusType consensus_type;
 
   EnclaveConfig enclave_config;
   enclave_config.circuit = &circuit;
@@ -320,6 +325,14 @@ int main(int argc, char** argv)
                                   public_rpc_address.hostname,
                                   node_address.port,
                                   rpc_address.port};
+  if (consensus == "raft")
+  {
+    consensus_type = ConsensusType::Raft;
+  }
+  else if (consensus == "pbft")
+  {
+    consensus_type = ConsensusType::Pbft;
+  }
 
   if (*start)
   {
@@ -354,7 +367,13 @@ int main(int argc, char** argv)
   }
 
   enclave.create_node(
-    enclave_config, ccf_config, node_cert, quote, network_cert, start_type);
+    enclave_config,
+    ccf_config,
+    node_cert,
+    quote,
+    network_cert,
+    start_type,
+    consensus_type);
 
   LOG_INFO_FMT("Created new node");
 
