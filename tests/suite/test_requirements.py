@@ -84,3 +84,7 @@ def installed_package(p):
         return ensure_reqs(check, func)
 
     return decorator
+
+
+def lua_generic_app(func):
+    return installed_package("libluagenericenc")(func)
