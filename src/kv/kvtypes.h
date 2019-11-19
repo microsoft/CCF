@@ -55,7 +55,7 @@ namespace kv
   {
     ALL = 0,
     NONE,
-    SPECIFIED
+    SOME
   };
 
   struct SerialisedMaps

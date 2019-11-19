@@ -413,7 +413,7 @@ TEST_CASE("replicated and derived table serialisation")
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   std::unordered_set<std::string> replicated_tables = {
     "data_replicated", "data_replicated_private"};
-  Store store(kv::ReplicateType::SPECIFIED, replicated_tables);
+  Store store(kv::ReplicateType::SOME, replicated_tables);
   store.set_encryptor(encryptor);
 
   auto& data_replicated =

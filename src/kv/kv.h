@@ -1394,7 +1394,7 @@ namespace kv
       {
         replicated = false;
       }
-      else if (replicate_type == kv::ReplicateType::SPECIFIED)
+      else if (replicate_type == kv::ReplicateType::SOME)
       {
         if (replicated_tables.find(name) == replicated_tables.end())
         {
