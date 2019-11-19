@@ -18,11 +18,13 @@ id_gen = itertools.count()
 
 
 @reqs.supports_methods("BATCH_submit", "BATCH_fetch")
-def test(network, args, batch_size=100):
+def test(network, args, batch_size=100, write_key_divisor=1, write_size_multiplier=1):
     LOG.info(f"Running batch submission of {batch_size} new entries")
     primary, _ = network.find_primary()
 
     with primary.user_client() as c:
+        check = infra.checker.Checker()
+
         message_ids = [next(id_gen) for _ in range(batch_size)]
         messages = [
             {"id": i, "msg": f"A unique message: {md5(bytes(i)).hexdigest()}"}
@@ -30,20 +32,26 @@ def test(network, args, batch_size=100):
         ]
 
         pre_submit = time.time()
-        submit_response = c.rpc("BATCH_submit", messages)
+        check(
+            c.rpc(
+                "BATCH_submit",
+                {
+                    "entries": messages,
+                    "write_key_divisor": write_key_divisor,
+                    "write_size_multiplier": write_size_multiplier,
+                },
+            ),
+            result=len(messages),
+        )
         post_submit = time.time()
         LOG.warning(
             f"Submitting {batch_size} new keys took {post_submit - pre_submit}s"
         )
-        assert submit_response.result == len(messages)
 
         fetch_response = c.rpc("BATCH_fetch", message_ids)
-        assert fetch_response.result is not None
-        assert len(fetch_response.result) == len(message_ids)
-        for n, m in enumerate(messages):
-            fetched = fetch_response.result[n]
-            assert m["id"] == fetched["id"]
-            assert m["msg"] == fetched["msg"]
+
+        if write_key_divisor == 1 and write_size_multiplier == 1:
+            check(fetch_response, result=messages)
 
     return network
 
@@ -60,6 +68,16 @@ def run(args):
         network = test(network, args, batch_size=10)
         network = test(network, args, batch_size=100)
         network = test(network, args, batch_size=1000)
+
+        network = test(network, args, batch_size=1000, write_key_divisor=100)
+        network = test(network, args, batch_size=1000, write_size_multiplier=100)
+        network = test(
+            network,
+            args,
+            batch_size=1000,
+            write_key_divisor=100,
+            write_size_multiplier=100,
+        )
 
         # TODO: CI already takes ~25s for batch of 10k, so avoid large batches for now
         # bs = 10000
