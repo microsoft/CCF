@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 
-#include "enclave/appinterface.h"
 #include "kv/kv.h"
+#include "node/appinterface.h"
 #include "node/encryptor.h"
 #include "stub_consensus.h"
 
@@ -11,6 +11,7 @@
 #include <string>
 
 using namespace ccfapp;
+using namespace ccf;
 
 // Helper functions
 ccf::NetworkSecrets create_network_secrets()

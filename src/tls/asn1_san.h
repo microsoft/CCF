@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-// #include "ds/logger.h"
-
+#include <arpa/inet.h> // For inet_addr()
+#include <fmt/format_header_only.h>
 #include <mbedtls/asn1write.h>
 #include <mbedtls/oid.h>
 #include <mbedtls/x509_crt.h>
@@ -53,8 +53,6 @@ namespace tls
         max_san_length));
     }
 
-    LOG_INFO_FMT("Name for SAN is : {} (type {})", name, san);
-
     switch (san)
     {
       case san_type::dns_name:
@@ -102,7 +100,7 @@ namespace tls
       ctx,
       MBEDTLS_OID_SUBJECT_ALT_NAME,
       MBEDTLS_OID_SIZE(MBEDTLS_OID_SUBJECT_ALT_NAME),
-      1, // Mark SAN as critical as we base hostname verification on this
+      0, // Mark SAN as non-critical
       san_buf + max_san_length - len,
       len);
   }

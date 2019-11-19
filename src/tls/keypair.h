@@ -894,10 +894,13 @@ namespace tls
       return pem;
     }
 
-    std::vector<uint8_t> self_sign(const std::string& name, bool ca = true)
+    std::vector<uint8_t> self_sign(
+      const std::string& name,
+      const std::optional<std::string> san = std::nullopt,
+      bool ca = true)
     {
       auto csr = create_csr(name);
-      return sign_csr(csr, name, std::nullopt, ca);
+      return sign_csr(csr, name, san, ca);
     }
 
     // TODO: This should be removed

@@ -4,7 +4,7 @@
 #include "doctest/doctest.h"
 #include "ds/files.h"
 #include "ds/logger.h"
-#include "enclave/appinterface.h"
+#include "node/appinterface.h"
 #include "node/clientsignatures.h"
 #include "node/encryptor.h"
 #include "node/genesisgen.h"

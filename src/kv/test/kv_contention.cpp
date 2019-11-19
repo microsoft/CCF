@@ -7,12 +7,12 @@
 #include <chrono>
 #include <doctest/doctest.h>
 #include <ds/logger.h>
-#include <enclave/appinterface.h>
+#include <node/appinterface.h>
 #include <string>
 #include <thread>
 #include <vector>
 
-using namespace ccfapp;
+using namespace ccf;
 
 TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 {

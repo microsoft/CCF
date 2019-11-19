@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "interface.h"
 #include "node/entities.h"
 #include "rpchandler.h"
 
@@ -17,11 +18,12 @@ namespace enclave
     RPCMap() = default;
 
     template <ccf::ActorsType T>
-    void register_frontend(
+    auto register_frontend(
       std::string name, std::shared_ptr<RpcHandler> handler_)
     {
       actors_map.emplace(name, T);
-      map.emplace(T, handler_);
+      auto h = map.emplace(T, handler_);
+      return h.first->second;
     }
 
     ccf::ActorsType resolve(std::string& name)
@@ -51,4 +53,12 @@ namespace enclave
 #define REGISTER_FRONTEND(rpc_map, name, fe) \
   rpc_map->register_frontend<ccf::ActorsType::name>(#name, fe)
 
+  inline void initialize_frontend(
+    std::shared_ptr<enclave::RpcHandler> fe,
+    const CCFConfig::SignatureIntervals& sig_intervals,
+    std::shared_ptr<AbstractForwarder> cmd_forwarder)
+  {
+    fe->set_sig_intervals(sig_intervals.sig_max_tx, sig_intervals.sig_max_ms);
+    fe->set_cmd_forwarder(cmd_forwarder);
+  }
 }

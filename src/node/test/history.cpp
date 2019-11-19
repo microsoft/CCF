@@ -3,7 +3,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "node/history.h"
 
-#include "enclave/appinterface.h"
+#include "node/appinterface.h"
 #include "kv/kv.h"
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
@@ -18,7 +18,7 @@ extern "C"
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
 
-using namespace ccfapp;
+using namespace ccf;
 
 class DummyConsensus : public kv::StubConsensus
 {

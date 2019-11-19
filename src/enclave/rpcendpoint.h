@@ -93,11 +93,20 @@ namespace enclave
       auto actor = rpc_map->resolve(actor_s);
       if (actor == ccf::ActorsType::unknown)
       {
+        std::string error_msg;
+        if (actor_s == ccf::Actors::MEMBERS || actor_s == ccf::Actors::USERS)
+        {
+          error_msg = fmt::format("Service is not open to {}", actor_s);
+        }
+        else
+        {
+          error_msg = fmt::format("No such prefix: {}/", actor_s);
+        }
         send(jsonrpc::pack(
           jsonrpc::error_response(
             rpc_ctx.seq_no,
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-            fmt::format("No such prefix: {}", actor_s)),
+            error_msg),
           rpc_ctx.pack.value()));
         return true;
       }

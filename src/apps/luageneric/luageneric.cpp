@@ -1,12 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "enclave/appinterface.h"
 #include "luainterp/luaargs.h"
 #include "luainterp/luainterp.h"
 #include "luainterp/luakv.h"
 #include "luainterp/txscriptrunner.h"
-#include "node/entities.h"
-#include "node/rpc/nodeinterface.h"
+#include "node/appinterface.h"
 #include "node/rpc/userfrontend.h"
 
 #include <memory>
@@ -19,7 +17,7 @@ namespace ccfapp
   using namespace ccf;
   using namespace lua;
 
-  using GenericTable = Store::Map<nlohmann::json, nlohmann::json>;
+  using GenericTable = ccf::Store::Map<nlohmann::json, nlohmann::json>;
 
   class AppTsr : public TxScriptRunner
   {
@@ -83,7 +81,7 @@ namespace ccfapp
     const std::vector<GenericTable*> app_tables;
     void add_custom_tables(
       lua::Interpreter& li,
-      Store::Tx& tx,
+      ccf::Store::Tx& tx,
       int& n_registered_tables) const override
     {
       n_registered_tables++;
