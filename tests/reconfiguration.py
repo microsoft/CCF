@@ -28,7 +28,7 @@ def test_add_node(network, args):
     return network
 
 
-@reqs.at_least_2_nodes
+@reqs.at_least_n_nodes(2)
 def test_add_node_from_backup(network, args):
     LOG.info("Adding a valid node from a backup")
     backup = network.find_any_backup()
@@ -66,7 +66,7 @@ def test_add_node_untrusted_code(network, args):
     return network
 
 
-@reqs.at_least_2_nodes
+@reqs.at_least_n_nodes(2)
 def test_retire_node(network, args):
     LOG.info("Retiring a backup")
     primary, _ = network.find_primary()

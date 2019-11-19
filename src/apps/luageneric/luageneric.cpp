@@ -166,6 +166,22 @@ namespace ccfapp
       // TODO: https://github.com/microsoft/CCF/issues/409
       set_default(default_handler, Write);
     }
+
+    // Since we do our own dispatch within the default handler, report the
+    // supported methods here
+    void list_methods(Store::Tx& tx, ListMethods::Out& out) override
+    {
+      ccf::UserRpcFrontend::list_methods(tx, out);
+
+      auto scripts = tx.get_view(this->network.app_scripts);
+      scripts->foreach([&out](const auto& key, const auto&) {
+        if (key != UserScriptIds::ENV_HANDLER)
+        {
+          out.methods.push_back(key);
+        }
+        return true;
+      });
+    }
   };
 
   std::shared_ptr<enclave::RpcHandler> get_rpc_handler(
