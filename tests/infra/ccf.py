@@ -34,6 +34,7 @@ class Network:
         "sig_max_tx",
         "sig_max_ms",
         "election_timeout",
+        "consensus",
         "memory_reserve_startup",
         "notify_server",
         "json_log_path",
@@ -101,7 +102,7 @@ class Network:
         )
 
         # If the network is opening, node are trusted without consortium approval
-        if self.status == ServiceStatus.OPENING and not args.pbft:
+        if self.status == ServiceStatus.OPENING and args.consensus != "pbft":
             try:
                 node.wait_for_node_to_join()
             except TimeoutError:
@@ -180,7 +181,7 @@ class Network:
 
         primary = self._start_all_nodes(args)
 
-        if not args.pbft:
+        if args.consensus != "pbft":
             self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
 
@@ -194,7 +195,7 @@ class Network:
         LOG.info("Initial set of users added")
 
         self.consortium.open_network(
-            member_id=1, remote_node=primary, pbft_open=not args.pbft
+            member_id=1, remote_node=primary, pbft_open=args.consensus != "pbft"
         )
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
@@ -259,7 +260,7 @@ class Network:
                 if os.getenv("HTTP"):
                     LOG.warning("Sleeping 3 seconds before continuing (HTTP)...")
                     time.sleep(3)
-            if not args.pbft:
+            if args.consensus != "pbft":
                 new_node.wait_for_node_to_join()
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {new_node.node_id} failed to join the network")
@@ -267,7 +268,7 @@ class Network:
             return None
 
         new_node.network_state = infra.node.NodeNetworkState.joined
-        if not args.pbft:
+        if args.consensus != "pbft":
             self.wait_for_all_nodes_to_catch_up(primary)
 
         return new_node

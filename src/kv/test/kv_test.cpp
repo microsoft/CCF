@@ -446,8 +446,7 @@ TEST_CASE("Clone schema")
 
   auto& public_map =
     store.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
-  auto& private_map =
-    store.create<size_t, std::string>("private", kv::SecurityDomain::PRIVATE);
+  auto& private_map = store.create<size_t, std::string>("private");
   Store::Tx tx1(store.next_version());
   auto [view1, view2] = tx1.get_view(public_map, private_map);
   view1->put(42, "aardvark");
@@ -459,7 +458,8 @@ TEST_CASE("Clone schema")
   clone.clone_schema(store);
   clone.set_encryptor(encryptor);
 
-  REQUIRE(clone.deserialise(serialised) == kv::DeserialiseSuccess::PASS);
+  REQUIRE(
+    clone.deserialise(serialised.replicated) == kv::DeserialiseSuccess::PASS);
 }
 
 TEST_CASE("Deserialise return status")
@@ -485,7 +485,8 @@ TEST_CASE("Deserialise return status")
     auto [success, reqid, serialised] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    REQUIRE(store.deserialise(serialised) == kv::DeserialiseSuccess::PASS);
+    REQUIRE(
+      store.deserialise(serialised.replicated) == kv::DeserialiseSuccess::PASS);
   }
 
   {
@@ -497,7 +498,8 @@ TEST_CASE("Deserialise return status")
     REQUIRE(success == kv::CommitSuccess::OK);
 
     REQUIRE(
-      store.deserialise(serialised) == kv::DeserialiseSuccess::PASS_SIGNATURE);
+      store.deserialise(serialised.replicated) ==
+      kv::DeserialiseSuccess::PASS_SIGNATURE);
   }
 
   INFO("Signature transactions with additional contents should fail");
@@ -510,7 +512,9 @@ TEST_CASE("Deserialise return status")
     auto [success, reqid, serialised] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    REQUIRE(store.deserialise(serialised) == kv::DeserialiseSuccess::FAILED);
+    REQUIRE(
+      store.deserialise(serialised.replicated) ==
+      kv::DeserialiseSuccess::FAILED);
   }
 }
 
@@ -520,13 +524,13 @@ TEST_CASE("map swap between stores")
   Store s1;
   s1.set_encryptor(encryptor);
 
-  auto& d1 = s1.create<size_t, size_t>("data", kv::SecurityDomain::PRIVATE);
+  auto& d1 = s1.create<size_t, size_t>("data");
   auto& pd1 =
     s1.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
 
   Store s2;
   s2.set_encryptor(encryptor);
-  auto& d2 = s2.create<size_t, size_t>("data", kv::SecurityDomain::PRIVATE);
+  auto& d2 = s2.create<size_t, size_t>("data");
   auto& pd2 =
     s2.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
 
@@ -620,15 +624,13 @@ TEST_CASE("private recovery map swap")
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   Store s1;
   s1.set_encryptor(encryptor);
-  auto& priv1 =
-    s1.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE);
+  auto& priv1 = s1.create<size_t, size_t>("private");
   auto& pub1 =
     s1.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
 
   Store s2;
   s2.set_encryptor(encryptor);
-  auto& priv2 =
-    s2.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE);
+  auto& priv2 = s2.create<size_t, size_t>("private");
   auto& pub2 =
     s2.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
 

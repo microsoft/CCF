@@ -10,6 +10,7 @@ namespace ccf
     struct In
     {
       StartType start_type;
+      ConsensusType consensus_type;
       CCFConfig config;
     };
     struct Out
