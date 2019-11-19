@@ -400,6 +400,7 @@ if(BUILD_TESTS)
 
     if (BUILD_SMALLBANK)
       include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
+      include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/tpcc/tpcc.cmake)
     endif()
   endif()
 

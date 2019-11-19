@@ -8,6 +8,8 @@ namespace ccfapp
 namespace tpcc
 {
 
+    using WarehouseId = uint64_t;
+
     struct Warehouse
     {
         // Primary key: id
@@ -22,6 +24,8 @@ namespace tpcc
 
         MSGPACK_DEFINE(name, street_1, street_2, city, state, zip, tax, ytd);
     };
+
+    using DistrictId = std::tuple<uint64_t, uint64_t>;
 
     struct District
     {
@@ -39,6 +43,8 @@ namespace tpcc
         MSGPACK_DEFINE(name, street_1, street_2, city, state, zip, tax, ytd,
             next_o_id);
     };
+
+    using CustomerId = std::tuple<uint64_t, uint64_t, uint64_t>;
 
     struct Customer
     {
@@ -67,6 +73,8 @@ namespace tpcc
             payment_cnt, delivery_cnt, data);
     };
 
+    using HistoryId = uint64_t; 
+
     struct History
     {
         // Primary key: none
@@ -82,11 +90,15 @@ namespace tpcc
         MSGPACK_DEFINE(c_id, c_d_id, c_w_id, d_id, w_id, date, amount, data);
     };
 
+    using NewOrderId = std::tuple<uint64_t, uint64_t, uint64_t>;
+
     struct NewOrder
     {
         // Primary key: (w_id, d_id, o_id)
 
     };
+
+    using OrderId = std::tuple<uint64_t, uint64_t, uint64_t>;
 
     struct Order
     {
@@ -99,6 +111,8 @@ namespace tpcc
 
         MSGPACK_DEFINE(c_id, entry_d, carrier_id, ol_cnt, all_local);
     };
+
+    using OrderLineId = std::tuple<uint64_t, uint64_t, uint64_t, uint64_t>;
 
     struct OrderLine
     {
@@ -115,6 +129,8 @@ namespace tpcc
             amount, dist_info);
     };
 
+    using ItemId = uint64_t;
+
     struct Item
     {
         // Primary key: (id)
@@ -125,6 +141,8 @@ namespace tpcc
 
         MSGPACK_DEFINE(im_id, name, price, data);
     };
+
+    using StockId = std::tuple<uint64_t, uint64_t>;
 
     struct Stock
     {
