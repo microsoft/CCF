@@ -93,28 +93,28 @@ namespace tls
         mbedtls_ssl_conf_own_cert(cfg, &cert, &pkey);
     }
 
-    bool sni(mbedtls_ssl_context* ssl, const unsigned char* name, size_t len)
-    {
-      if (hostname.size() > 0)
-      {
-        if (hostname.size() != len)
-          return false;
+    // bool sni(mbedtls_ssl_context* ssl, const unsigned char* name, size_t len)
+    // {
+    //   if (hostname.size() > 0)
+    //   {
+    //     if (hostname.size() != len)
+    //       return false;
 
-        if (std::memcmp(hostname.c_str(), name, len) != 0)
-          return false;
-      }
+    //     if (std::memcmp(hostname.c_str(), name, len) != 0)
+    //       return false;
+    //   }
 
-      if (peer_ca)
-        peer_ca->sni(ssl);
+    //   if (peer_ca)
+    //     peer_ca->sni(ssl);
 
-      if (auth != auth_default)
-        mbedtls_ssl_set_hs_authmode(ssl, authmode(auth));
+    //   if (auth != auth_default)
+    //     mbedtls_ssl_set_hs_authmode(ssl, authmode(auth));
 
-      if (has_cert)
-        mbedtls_ssl_set_hs_own_cert(ssl, &cert, &pkey);
+    //   if (has_cert)
+    //     mbedtls_ssl_set_hs_own_cert(ssl, &cert, &pkey);
 
-      return true;
-    }
+    //   return true;
+    // }
 
     const mbedtls_x509_crt* raw()
     {

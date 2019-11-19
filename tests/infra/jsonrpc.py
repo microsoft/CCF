@@ -416,12 +416,12 @@ class CurlClient:
             nf.flush()
             cmd = [
                 "curl",
-                "-k",
-                f"https://{self.server_hostname}:{self.port}/",
+                # "-k",
+                f"https://{self.host}:{self.port}/",
                 "-H",
                 "Content-Type: application/json",
-                "--resolve",
-                f"{self.server_hostname}:{self.port}:{self.host}",
+                # "--resolve",
+                # f"{self.server_hostname}:{self.port}:{self.host}",
                 "--data-binary",
                 f"@{nf.name}",
             ]

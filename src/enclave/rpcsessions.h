@@ -44,13 +44,13 @@ namespace enclave
     {}
 
     void add_cert(
-      const std::string& sni, CBuffer ca_cert, CBuffer cert, const tls::Pem& pk)
+      const std::string& sni, CBuffer peer_ca, CBuffer cert, const tls::Pem& pk)
     {
       std::lock_guard<SpinLock> guard(lock);
-      auto hasCa = ca_cert != nullb;
+      auto hasCa = peer_ca != nullb;
       auto the_cert = std::make_shared<tls::Cert>(
         sni,
-        hasCa ? std::make_shared<tls::CA>(ca_cert) : nullptr,
+        hasCa ? std::make_shared<tls::CA>(peer_ca) : nullptr,
         cert,
         pk,
         nullb,

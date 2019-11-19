@@ -14,23 +14,31 @@ namespace tls
     std::vector<std::shared_ptr<Cert>> certs;
     std::shared_ptr<Cert> cert;
 
-    void initCallbacks()
-    {
-      mbedtls_ssl_conf_sni(&cfg, sni_callback, this);
-    }
+    // void initCallbacks()
+    // {
+    //   mbedtls_ssl_conf_sni(&cfg, sni_callback, this);
+    // }
 
   public:
     Server(std::shared_ptr<Cert> cert, bool dtls = false) : Context(false, dtls)
     {
       certs.push_back(cert);
-      initCallbacks();
+      LOG_INFO_FMT("New server, without callbacks");
+      // initCallbacks();
     }
 
     Server(std::vector<std::shared_ptr<Cert>> certs_, bool dtls = false) :
       Context(false, dtls),
       certs(certs_)
     {
-      initCallbacks();
+      LOG_INFO_FMT(
+        "New server, without callbacks (many certs: {})", certs_.size());
+      // initCallbacks();
+      for (auto const& c : certs_)
+      {
+        LOG_INFO_FMT("Setting up certificate with host= {}", c->host());
+        c->use(&ssl, &cfg);
+      }
     }
 
     std::string host() override
@@ -42,29 +50,29 @@ namespace tls
     }
 
   private:
-    bool handle_sni(
-      mbedtls_ssl_context* ssl, const unsigned char* name, size_t len)
-    {
-      for (auto& c : certs)
-      {
-        if (c->sni(ssl, name, len))
-        {
-          cert = c;
-          return true;
-        }
-      }
+    // bool handle_sni(
+    //   mbedtls_ssl_context* ssl, const unsigned char* name, size_t len)
+    // {
+    //   for (auto& c : certs)
+    //   {
+    //     if (c->sni(ssl, name, len))
+    //     {
+    //       cert = c;
+    //       return true;
+    //     }
+    //   }
 
-      return false;
-    }
+    //   return false;
+    // }
 
-    static int sni_callback(
-      void* ctx,
-      mbedtls_ssl_context* ssl,
-      const unsigned char* name,
-      size_t len)
-    {
-      auto s = reinterpret_cast<Server*>(ctx);
-      return s->handle_sni(ssl, name, len) ? 0 : -1;
-    }
+    // static int sni_callback(
+    //   void* ctx,
+    //   mbedtls_ssl_context* ssl,
+    //   const unsigned char* name,
+    //   size_t len)
+    // {
+    //   auto s = reinterpret_cast<Server*>(ctx);
+    //   return s->handle_sni(ssl, name, len) ? 0 : -1;
+    // }
   };
 }

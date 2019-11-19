@@ -360,6 +360,9 @@ namespace ccf
           // network
           accept_member_connections();
 
+          // TODO: This accepts any TLS connections
+          accept_tls_connections(args.config.node_info_network.host);
+
           sm.advance(State::partOfNetwork);
 
           return Success<CreateNew::Out>(
@@ -1097,46 +1100,64 @@ namespace ccf
     };
 
   private:
+    void accept_tls_connections(const std::string& host)
+    {
+      LOG_INFO_FMT("Accepting TLS connections");
+
+      auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
+      auto node_privkey = node_kp->private_key_pem();
+
+      auto node_cert = nw->sign_csr(
+        node_kp->create_csr(fmt::format("CN={}", "ccf")),
+        fmt::format("CN={}", "The CA"),
+        "127.128.129.130");
+
+      rpcsessions->add_cert("", nullb, node_cert, node_privkey);
+    }
+
     void accept_member_connections()
     {
-      auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
-      auto members_keypair = tls::make_key_pair();
+      // auto nw =
+      // tls::make_key_pair({network.secrets->get_current().priv_key}); auto
+      // members_keypair = tls::make_key_pair();
 
-      auto members_privkey = members_keypair->private_key_pem();
-      auto members_cert =
-        nw->sign_csr(members_keypair->create_csr("CN=members"), "CN=The CA");
+      // auto members_privkey = members_keypair->private_key_pem();
+      // auto members_cert =
+      //   nw->sign_csr(members_keypair->create_csr("CN=members"), "CN=The CA");
 
-      // Accept member connections.
-      rpcsessions->add_cert(
-        ccf::Actors::MEMBERS, nullb, members_cert, members_privkey);
+      // // Accept member connections.
+      // rpcsessions->add_cert(
+      //   ccf::Actors::MEMBERS, nullb, members_cert, members_privkey);
     }
 
     void accept_node_connections()
     {
-      auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
-      auto nodes_keypair = tls::make_key_pair();
+      // auto nw =
+      // tls::make_key_pair({network.secrets->get_current().priv_key}); auto
+      // nodes_keypair = tls::make_key_pair();
 
-      auto nodes_privkey = nodes_keypair->private_key_pem();
-      auto nodes_cert =
-        nw->sign_csr(nodes_keypair->create_csr("CN=nodes"), "CN=The CA");
+      // auto nodes_privkey = nodes_keypair->private_key_pem();
+      // auto nodes_cert =
+      //   nw->sign_csr(nodes_keypair->create_csr("CN=nodes"), "CN=The CA");
 
-      // Accept node connections.
-      rpcsessions->add_cert(
-        ccf::Actors::NODES, nullb, nodes_cert, nodes_privkey);
+      // // Accept node connections.
+      // rpcsessions->add_cert(
+      //   ccf::Actors::NODES, nullb, nodes_cert, nodes_privkey);
     }
 
     void accept_user_connections()
     {
-      auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
-      auto users_keypair = tls::make_key_pair();
+      // auto nw =
+      // tls::make_key_pair({network.secrets->get_current().priv_key}); auto
+      // users_keypair = tls::make_key_pair();
 
-      auto users_privkey = users_keypair->private_key_pem();
-      auto users_cert =
-        nw->sign_csr(users_keypair->create_csr("CN=users"), "CN=The CA");
+      // auto users_privkey = users_keypair->private_key_pem();
+      // auto users_cert =
+      //   nw->sign_csr(users_keypair->create_csr("CN=users"), "CN=The CA");
 
-      // Accept user connections.
-      rpcsessions->add_cert(
-        ccf::Actors::USERS, nullb, users_cert, users_privkey);
+      // // Accept user connections.
+      // rpcsessions->add_cert(
+      //   ccf::Actors::USERS, nullb, users_cert, users_privkey);
     }
 
     void backup_finish_recovery()
