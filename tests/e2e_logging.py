@@ -64,8 +64,8 @@ def test_update_lua(network, args):
     return network
 
 
-@reqs.logging_app
-@reqs.at_least_2_nodes
+@reqs.supports_methods("mkSign", "LOG_record", "LOG_get")
+@reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None):
     LOG.info("Running transactions against logging app")
     primary, backup = network.find_primary_and_any_backup()
@@ -130,8 +130,8 @@ def run(args):
             hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
         ) as network:
             network.start_and_join(args)
-            test(network, args, notifications_queue)
-            test_update_lua(network, args)
+            network = test(network, args, notifications_queue)
+            network = test_update_lua(network, args)
 
 
 if __name__ == "__main__":

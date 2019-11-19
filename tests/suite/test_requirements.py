@@ -19,61 +19,63 @@ def none(func):
     return wrapper
 
 
-# TODO: Parameterise this decorator once we add a test that requires a
-# different number of nodes
-def at_least_2_nodes(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        if args[1].enforce_reqs is False:
-            return func(*args, **kwargs)
+def ensure_reqs(check_reqs):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(network, args, *nargs, **kwargs):
+            if args.enforce_reqs:
+                try:
+                    # This should throw TestRequirementsNotMet if any checks fail.
+                    # Return code is ignored
+                    check_reqs(network, args, *nargs, **kwargs)
+                except TestRequirementsNotMet:
+                    raise
+                except Exception as e:
+                    raise TestRequirementsNotMet(
+                        f"Could not check if test requirements were met: {e}"
+                    )
 
-        network = args[0]
+            return func(network, args, *nargs, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+def supports_methods(*methods):
+    def check(network, args, *nargs, **kwargs):
+        primary, term = network.find_primary()
+        with primary.user_client() as c:
+            response = c.rpc("listMethods", {})
+            supported_methods = response.result["methods"]
+            missing = {*methods}.difference(supported_methods)
+            if missing:
+                concat = ", ".join(missing)
+                raise TestRequirementsNotMet(f"Missing required methods: {concat}")
+
+    return ensure_reqs(check)
+
+
+def at_least_n_nodes(n):
+    def check(network, args, *nargs, **kwargs):
         running_nodes = len(network.get_joined_nodes())
-        if running_nodes < 2:
+        if running_nodes < n:
             raise TestRequirementsNotMet(
-                f"Too few nodes. Only have {running_nodes}, requires 2"
+                f"Too few nodes. Only have {running_nodes}, requires at least {n}"
             )
 
-        return func(*args, **kwargs)
-
-    return wrapper
+    return ensure_reqs(check)
 
 
-def logging_app(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        if args[1].enforce_reqs is False:
-            return func(*args, **kwargs)
+def installed_package(p):
+    def check(network, args, *nargs, **kwargs):
+        if args.package != p:
+            raise TestRequirementsNotMet(
+                f"Incorrect app. Requires '{p}', not '{args.package}'"
+            )
 
-        network = args[0]
-        try:
-            primary, term = network.find_primary()
-            with primary.user_client(format="json") as c:
-                resp = c.rpc("listMethods", {})
-                if "LOG_record" not in resp.result["methods"]:
-                    raise TestRequirementsNotMet("Logging app not installed")
-        except TestRequirementsNotMet:
-            raise
-        except Exception as e:
-            raise TestRequirementsNotMet("Could not check if constraints were met")
-
-        return func(*args, **kwargs)
-
-    return wrapper
+    return ensure_reqs(check)
 
 
 def lua_generic_app(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        if args[1].enforce_reqs is False:
-            return func(*args, **kwargs)
-
-        # For now, the only way to find out whether the network is running a
-        # Lua app is by looking at the package passed to the nodes at startup
-        args_ = args[1]
-        if args_.package is not "libluagenericenc":
-            raise TestRequirementsNotMet("Lua generic app not installed")
-
-        return func(*args, **kwargs)
-
-    return wrapper
+    return installed_package("libluagenericenc")(func)

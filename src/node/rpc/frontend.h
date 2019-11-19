@@ -171,6 +171,20 @@ namespace ccf
       default_handler = {f, rw};
     }
 
+    /** Populate out with all supported methods
+     *
+     * This is virtual since the default handler may do its own dispatch
+     * internally, so derived implementations must be able to populate the list
+     * with the supported methods however it constructs them.
+     */
+    virtual void list_methods(Store::Tx& tx, ListMethods::Out& out)
+    {
+      for (const auto& handler : handlers)
+      {
+        out.methods.push_back(handler.first);
+      }
+    }
+
   private:
     // TODO: replace with an lru map
     std::map<CallerId, tls::VerifierPtr> verifiers;
@@ -416,18 +430,16 @@ namespace ccf
           return jsonrpc::success(out);
         };
 
-      auto list_methods = [this](Store::Tx& tx, const nlohmann::json& params) {
-        ListMethods::Out out;
+      auto list_methods_fn =
+        [this](Store::Tx& tx, const nlohmann::json& params) {
+          ListMethods::Out out;
 
-        for (const auto& handler : handlers)
-        {
-          out.methods.push_back(handler.first);
-        }
+          list_methods(tx, out);
 
-        std::sort(out.methods.begin(), out.methods.end());
+          std::sort(out.methods.begin(), out.methods.end());
 
-        return jsonrpc::success(out);
-      };
+          return jsonrpc::success(out);
+        };
 
       auto get_schema = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetSchema::In>();
@@ -457,7 +469,7 @@ namespace ccf
       install_with_auto_schema<void, GetNetworkInfo::Out>(
         GeneralProcs::GET_NETWORK_INFO, get_network_info, Read);
       install_with_auto_schema<void, ListMethods::Out>(
-        GeneralProcs::LIST_METHODS, list_methods, Read);
+        GeneralProcs::LIST_METHODS, list_methods_fn, Read);
       install_with_auto_schema<GetSchema>(
         GeneralProcs::GET_SCHEMA, get_schema, Read);
     }
