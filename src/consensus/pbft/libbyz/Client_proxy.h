@@ -77,6 +77,7 @@ private:
       std::unique_ptr<Request> req);
 
     T caller_rid;
+    size_t f;
     ReplyCallback cb;
     C* owner;
 
@@ -143,10 +144,11 @@ ClientProxy<T, C>::RequestContext::RequestContext(
   C* owner,
   std::unique_ptr<Request> req) :
   caller_rid(caller_rid),
+  f(replica.f()),
   cb(cb),
   owner(owner),
-  t_reps(2 * replica.f() + 1),
-  c_reps(replica.f() + 1),
+  t_reps([this](){return 2 * f + 1;}),
+  c_reps([this](){return f + 1;}),
   req(std::move(req)),
   next(nullptr),
   prev(nullptr)

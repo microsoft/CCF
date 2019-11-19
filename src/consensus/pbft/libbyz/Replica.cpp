@@ -806,10 +806,10 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
   LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
   while (plog.within_range(seqno))
   {
-    LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
     Prepared_cert& pc = plog.fetch(seqno);
 
-    if (pc.my_prepare() == 0 && pc.is_pp_complete())
+    LOG_INFO << "XXXXXXX seqno:" << seqno << ", my_prepare:" << pc.my_prepare() << std::endl;
+    if (pc.my_prepare() == 0 && pc.is_pp_complete(true))
     {
       LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
       bool send_only_to_self = (f() == 0);
@@ -907,7 +907,7 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
 void Replica::handle(Prepare* m)
 {
   const Seqno ms = m->seqno();
-  LOG_INFO << "handle prepare for seqno: " << ms << std::endl;
+  LOG_INFO << "handle prepare for seqno: " << ms << ", pid:" << m->id() << std::endl;
   // Only accept prepare messages that are not sent by the primary for
   // current view.
   if (
@@ -925,6 +925,7 @@ void Replica::handle(Prepare* m)
 
       send_commit(ms, f() == 0);
     }
+    LOG_INFO << "handle prepare for seqno: " << ms << std::endl;
     return;
   }
 
@@ -943,17 +944,19 @@ void Replica::handle(Prepare* m)
 void Replica::handle(Commit* m)
 {
   const Seqno ms = m->seqno();
+  LOG_INFO << "handle commit for seqno: " << std::endl;
 
   // Only accept messages with the current view.  TODO: change to
   // accept commits from older views as in proof.
   if (in_wv(m) && ms > low_bound)
   {
-    LOG_TRACE << "handle commit for seqno: " << m->seqno() << ", id:" << m->id()
+    int pid = m->id();
+    LOG_INFO << "handle commit for seqno: " << ms << ", id:" << pid
               << std::endl;
     Certificate<Commit>& cs = clog.fetch(m->seqno());
     if (cs.add(m) && cs.is_complete())
     {
-      LOG_DEBUG << "calling execute committed from handle commit for seqno: "
+      LOG_INFO << "calling execute committed from handle commit for seqno: "
                 << ms << std::endl;
       execute_committed();
     }

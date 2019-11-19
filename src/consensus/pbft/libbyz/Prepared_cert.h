@@ -79,7 +79,7 @@ public:
   bool is_complete();
   // Effects: Returns true iff the certificate is complete.
 
-  bool is_pp_complete();
+  bool is_pp_complete(bool print = false);
   // Effects: Returns true iff the pre-prepare-info is complete.
 
   bool is_pp_correct();
@@ -148,7 +148,10 @@ inline bool Prepared_cert::add(Prepare* m)
     std::begin(digest_sig), std::end(digest_sig), std::begin(proof.signature));
 #endif
 
+  Seqno ms = m->seqno();
+
   bool result = prepare_cert.add(m);
+  LOG_INFO << "NNNNNN seqno:" << ms << ", result:" << (result ? "true" : "false") << std::endl; 
 
 #ifdef SIGN_BATCH
   if (result)
@@ -235,13 +238,44 @@ inline int Prepared_cert::num_correct()
 
 inline bool Prepared_cert::is_complete()
 {
-  return pp_info.is_complete() && prepare_cert.is_complete() &&
-    pp_info.pre_prepare()->match(prepare_cert.cvalue());
+  bool pp_i = pp_info.is_complete();
+  bool pc = false;
+  bool m = false;
+  bool result = false;
+
+  if (pp_i)
+  {
+    if (prepare_cert.num_complete() == 0)
+    {
+      return true;
+    }
+
+    pc = prepare_cert.is_complete();
+    if (pc)
+    {
+      m = pp_info.pre_prepare()->match(prepare_cert.cvalue());
+      if (m)
+      {
+        result = pp_i && pc && m;
+        return result;
+      }
+    }
+    else
+    {
+      prepare_cert.is_complete(true);
+    }
+  }
+  LOG_INFO << "prepared_cert - " << (result ? "true" : "false")
+           << ", pp_i:" << (pp_i ? "true" : "false")
+           << ", pc:" << (pc ? "true" : "false")
+           << ", m:" << (m ? "true" : "false") << std::endl;
+
+  return false;
 }
 
-inline bool Prepared_cert::is_pp_complete()
+inline bool Prepared_cert::is_pp_complete(bool print)
 {
-  return pp_info.is_complete();
+  return pp_info.is_complete(print);
 }
 
 inline Pre_prepare* Prepared_cert::pre_prepare() const
@@ -284,4 +318,6 @@ inline void Prepared_cert::clear()
   t_sent = 0;
   prepare_cert.clear();
   primary = false;
+
+  //prepare_cert(node->num_correct_replicas() - 1),
 }
