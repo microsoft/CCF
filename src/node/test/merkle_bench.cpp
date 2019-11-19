@@ -142,9 +142,8 @@ static void append_get_receipt_verify_v(picobench::state& s)
     (void)_;
     t.append(hashes[index++]);
 
-    auto p = t.get_receipt(index).to_v();
-    ccf::Receipt r;
-    r.from_v(p);
+    auto v = t.get_receipt(index).to_v();
+    auto r = ccf::Receipt::from_v(v);
     if (!t.verify(r))
       throw std::runtime_error("Bad path");
 

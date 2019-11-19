@@ -192,7 +192,7 @@ namespace ccf
     uint64_t index;
     uint32_t max_index;
     crypto::Sha256Hash root;
-    hash_vec * path;
+    hash_vec* path;
 
   public:
     Receipt()
@@ -200,10 +200,22 @@ namespace ccf
       path = init_path();
     }
 
-    Receipt(uint64_t index_, uint32_t max_index_, const crypto::Sha256Hash& root_, hash_vec * path_) : index(index_), max_index(max_index_), root(root_), path(path_)
-    {}
+    static Receipt from_v(const std::vector<uint8_t>& v)
+    {
+      Receipt r;
+      const uint8_t* buf = v.data();
+      size_t s = v.size();
+      r.index = serialized::read<decltype(index)>(buf, s);
+      r.max_index = serialized::read<decltype(max_index)>(buf, s);
+      std::copy(buf, buf + r.root.SIZE, r.root.h);
+      buf += r.root.SIZE;
+      s -= r.root.SIZE;
+      for (size_t i = 0; i < s; i += r.root.SIZE)
+        path_insert(r.path, const_cast<uint8_t*>(buf + i));
+      return r;
+    }
 
-    Receipt(merkle_tree * tree, uint64_t index_)
+    Receipt(merkle_tree* tree, uint64_t index_)
     {
       index = index_;
       path = init_path();
@@ -217,12 +229,12 @@ namespace ccf
       max_index = mt_get_path(tree, index, path, root.h);
     }
 
-    bool verify(merkle_tree * tree) const
+    bool verify(merkle_tree* tree) const
     {
-      if (!mt_verify_pre(tree, index, max_index, path, (uint8_t *) root.h))
+      if (!mt_verify_pre(tree, index, max_index, path, (uint8_t*)root.h))
         throw std::logic_error("Precondition to mt_verify violated");
 
-      return mt_verify(tree, index, max_index, path, (uint8_t *) root.h);
+      return mt_verify(tree, index, max_index, path, (uint8_t*)root.h);
     }
 
     ~Receipt()
@@ -232,29 +244,16 @@ namespace ccf
 
     std::vector<uint8_t> to_v() const
     {
-      size_t vs = sizeof(index) + sizeof(max_index) + root.SIZE + root.SIZE * path->sz;
+      size_t vs =
+        sizeof(index) + sizeof(max_index) + root.SIZE + root.SIZE * path->sz;
       std::vector<uint8_t> v(vs);
-      uint8_t * buf = v.data();
+      uint8_t* buf = v.data();
       serialized::write(buf, vs, index);
       serialized::write(buf, vs, max_index);
       serialized::write(buf, vs, root.h, root.SIZE);
       for (size_t i = 0; i < path->sz; ++i)
         serialized::write(buf, vs, *(path->vs + i), root.SIZE);
       return v;
-    }
-
-    // TODO: should be a static ctor
-    void from_v(const std::vector<uint8_t>& v)
-    {
-      const uint8_t * buf = v.data();
-      size_t s = v.size();
-      index = serialized::read<decltype(index)>(buf, s);
-      max_index = serialized::read<decltype(max_index)>(buf, s);
-      std::copy(buf, buf + root.SIZE, root.h);
-      buf += root.SIZE;
-      s -= root.SIZE;
-      for (size_t i = 0; i < s; i += 32)
-        path_insert(path, const_cast<uint8_t *>(buf + i));
     }
   };
 
@@ -532,8 +531,7 @@ namespace ccf
 
     bool verify_receipt(const std::vector<uint8_t>& v) override
     {
-      Receipt r;
-      r.from_v(v);
+      auto r = Receipt::from_v(v);
       return tree.verify(r);
     }
   };
