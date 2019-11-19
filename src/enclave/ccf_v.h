@@ -9,6 +9,7 @@
 #include <wchar.h>
 
 #ifdef VIRTUAL_ENCLAVE
+#  include "consensus_type.h"
 #  include "start_type.h"
 #else
 #  include <ccf_args.h>
@@ -63,7 +64,8 @@ extern "C"
     uint8_t*,
     size_t,
     size_t*,
-    StartType);
+    StartType,
+    ConsensusType);
 
   using run_func_t = bool (*)();
 
@@ -102,7 +104,8 @@ extern "C"
     uint8_t* network_cert,
     size_t network_cert_size,
     size_t* network_cert_len,
-    StartType start_type)
+    StartType start_type,
+    ConsensusType consensus_type)
   {
     static create_node_func_t create_node_func =
       get_enclave_exported_function<create_node_func_t>("enclave_create_node");
@@ -120,7 +123,8 @@ extern "C"
       network_cert,
       network_cert_size,
       network_cert_len,
-      start_type);
+      start_type,
+      consensus_type);
     return *_retval ? OE_OK : OE_FAILURE;
   }
 

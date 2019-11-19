@@ -27,7 +27,7 @@ def number_of_local_nodes(args):
     on 2-core VMs, we start only one node, but on 4 core, we want to start 2.
     Not 3, because the client is typically running two threads.
     """
-    if args.pbft:
+    if args.consensus == "pbft":
         return 4
 
     if multiprocessing.cpu_count() > 2:
@@ -149,7 +149,7 @@ def run(build_directory, get_command, args):
                     # For now we will not collect metrics with PBFT as the messages that
                     # can be created when collecting the metrics is too large.
                     # https://github.com/microsoft/CCF/issues/534
-                    if not args.pbft:
+                    if args.consensus != "pbft":
                         tx_rates.get_metrics()
                         for remote_client in clients:
                             remote_client.print_and_upload_result(args.label, metrics)
