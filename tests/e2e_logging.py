@@ -67,8 +67,6 @@ def test_update_lua(network, args):
 @reqs.supports_methods("mkSign", "LOG_record", "LOG_get")
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None):
-    """This is the docstring for the test function"""
-
     LOG.info("Running transactions against logging app")
     primary, backup = network.find_primary_and_any_backup()
 
