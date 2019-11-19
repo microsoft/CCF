@@ -17,7 +17,7 @@ from loguru import logger as LOG
 id_gen = itertools.count()
 
 
-@reqs.lua_generic_app
+@reqs.supports_methods("BATCH_submit", "BATCH_fetch")
 def test(network, args, batch_size=100):
     LOG.info(f"Running batch submission of {batch_size} new entries")
     primary, _ = network.find_primary()
