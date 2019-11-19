@@ -35,10 +35,10 @@ namespace ccf
     struct Quote
     {
       NodeId node_id = {};
-      std::string raw = {};
+      std::vector<uint8_t> raw = {};
 
       std::string error = {};
-      std::string mrenclave = {};
+      std::string mrenclave = {}; // < Hex-encoded
     };
 
     struct Out
