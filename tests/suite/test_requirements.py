@@ -34,7 +34,7 @@ def ensure_reqs(check_reqs, func):
                     f"Could not check if test requirements were met: {e}"
                 )
 
-        func(network, args, *nargs, **kwargs)
+        return func(network, args, *nargs, **kwargs)
 
     return wrapper
 
