@@ -100,10 +100,14 @@ def run(args):
         try:
             primary, current_term = network.find_primary()
             assert False, "Primary should not be found"
+        except TypeError:
+            assert args.pbft, "Unexpected error"
         except AssertionError:
-            LOG.info(
-                "As expected, primary could not be found after election timeout. Test ended successfully."
-            )
+            assert not args.pbft, "Unexpected error"
+
+        LOG.info(
+            "As expected, primary could not be found after election timeout. Test ended successfully."
+        )
 
 
 if __name__ == "__main__":

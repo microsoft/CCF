@@ -277,12 +277,10 @@ namespace pbft
 
     View get_view(SeqNo seqno) override
     {
-      LOG_INFO << "TTTT - seqno:" << seqno << std::endl;
       for (auto rit = view_change_list.rbegin(); rit != view_change_list.rend();
            ++rit)
       {
         view_change_info& info = *rit;
-        LOG_INFO << "TTTT - min:" << info.min_global_commit << ", view:" << info.view << std::endl;
         if (info.min_global_commit <= seqno)
         {
           return info.view + 2;
