@@ -148,8 +148,6 @@ inline bool Prepared_cert::add(Prepare* m)
     std::begin(digest_sig), std::end(digest_sig), std::begin(proof.signature));
 #endif
 
-  Seqno ms = m->seqno();
-
   bool result = prepare_cert.add(m);
 
 #ifdef SIGN_BATCH
@@ -242,27 +240,15 @@ inline bool Prepared_cert::is_complete()
   bool m = false;
   bool result = false;
 
-  if (pp_i)
+  if (pp_info.is_complete())
   {
     if (prepare_cert.num_complete() == 0)
     {
       return true;
     }
 
-    pc = prepare_cert.is_complete();
-    if (pc)
-    {
-      m = pp_info.pre_prepare()->match(prepare_cert.cvalue());
-      if (m)
-      {
-        result = pp_i && pc && m;
-        return result;
-      }
-    }
-    else
-    {
-      prepare_cert.is_complete();
-    }
+    return prepare_cert.is_complete() &&
+      pp_info.pre_prepare()->match(prepare_cert.cvalue());
   }
 
   return false;
