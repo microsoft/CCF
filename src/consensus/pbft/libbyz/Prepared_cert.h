@@ -299,6 +299,4 @@ inline void Prepared_cert::clear()
   t_sent = 0;
   prepare_cert.clear();
   primary = false;
-
-  //prepare_cert(node->num_correct_replicas() - 1),
 }

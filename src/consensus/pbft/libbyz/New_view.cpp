@@ -77,7 +77,6 @@ bool New_view::view_change(int id, Digest& d)
 
 bool New_view::pre_verify()
 {
-  /*
   if (
     view() <= 0 || min() < 0 || max() < 0 || max() < min() ||
     max() - min() > max_out + 1)
@@ -103,7 +102,6 @@ bool New_view::pre_verify()
   {
     return false;
   }
-  */
 
   return true;
 }

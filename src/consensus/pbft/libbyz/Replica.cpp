@@ -212,7 +212,7 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
 {
   if (size > Max_message_size)
   {
-    LOG_INFO
+    LOG_DEBUG
       << "Received message will not be processed, size exceeds message limits: "
       << size << std::endl;
   }
