@@ -35,13 +35,13 @@ class Node:
         self.host, *self.pubhost = hosts.split(",")
         self.rpc_port = port[0] if port else None
 
-        if self.host == "localhost":
-            self.host = infra.net.expand_localhost()
-            self._set_ports(infra.net.probably_free_local_port)
-            self.remote_impl = infra.remote.LocalRemote
-        else:
-            self._set_ports(infra.net.probably_free_remote_port)
-            self.remote_impl = infra.remote.SSHRemote
+        # if self.host == "localhost":
+        # self.host = infra.net.expand_localhost()
+        self._set_ports(infra.net.probably_free_local_port)
+        self.remote_impl = infra.remote.LocalRemote
+        # else:
+            # self._set_ports(infra.net.probably_free_remote_port)
+            # self.remote_impl = infra.remote.SSHRemote
 
         self.pubhost = self.pubhost[0] if self.pubhost else self.host
 
@@ -196,15 +196,15 @@ class Node:
             **kwargs,
         )
 
-    def node_client(self, timeout=3, **kwargs):
+    def node_client(self, format="msgpack", timeout=3, **kwargs):
         return infra.jsonrpc.client(
             self.host,
             self.rpc_port,
-            "nodes",
             cert=None,
             key=None,
             cafile="networkcert.pem",
             description="node {} (node)".format(self.node_id),
+            format=format,
             prefix="nodes",
             **kwargs,
         )
@@ -213,7 +213,6 @@ class Node:
         return infra.jsonrpc.client(
             self.host,
             self.rpc_port,
-            "members",
             cert="member{}_cert.pem".format(member_id),
             key="member{}_privk.pem".format(member_id),
             cafile="networkcert.pem",

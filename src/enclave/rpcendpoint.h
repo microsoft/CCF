@@ -93,20 +93,11 @@ namespace enclave
       auto actor = rpc_map->resolve(actor_s);
       if (actor == ccf::ActorsType::unknown)
       {
-        std::string error_msg;
-        if (actor_s == ccf::Actors::MEMBERS || actor_s == ccf::Actors::USERS)
-        {
-          error_msg = fmt::format("Service is not open to {}", actor_s);
-        }
-        else
-        {
-          error_msg = fmt::format("No such prefix: {}/", actor_s);
-        }
         send(jsonrpc::pack(
           jsonrpc::error_response(
             rpc_ctx.seq_no,
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-            error_msg),
+            fmt::format("No such prefix: {}", actor_s)),
           rpc_ctx.pack.value()));
         return true;
       }
@@ -116,6 +107,17 @@ namespace enclave
       if (!search.has_value())
       {
         LOG_TRACE_FMT("No frontend found for actor {}", actor);
+        return false;
+      }
+
+      if (!search.value()->is_open())
+      {
+        send(jsonrpc::pack(
+          jsonrpc::error_response(
+            rpc_ctx.seq_no,
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            fmt::format("Service is not open to {}", actor_s)),
+          rpc_ctx.pack.value()));
         return false;
       }
 

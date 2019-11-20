@@ -175,7 +175,6 @@ namespace ccf
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
     ccf::Notifier& notifier;
     Timers& timers;
-    CCFConfig::SignatureIntervals signature_intervals;
 
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
@@ -229,8 +228,7 @@ namespace ccf
       const raft::Config& raft_config_,
       std::shared_ptr<NodeToNode> n2n_channels_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
-      std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder_,
-      const CCFConfig::SignatureIntervals& signature_intervals_)
+      std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder_)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::uninitialized);
@@ -240,7 +238,6 @@ namespace ccf
       // Capture rpc_map to pass to pbft for frontend execution
       rpc_map = rpc_map_;
       cmd_forwarder = cmd_forwarder_;
-      signature_intervals = signature_intervals_;
       sm.advance(State::initialized);
     }
 
@@ -313,11 +310,14 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::initialized);
 
+      LOG_FAIL_FMT("Hostname is {}", args.config.hostname);
+
       // Generate node key pair
       std::stringstream name;
       node_cert = node_kp->self_sign(
-        fmt::format("CN={}", Actors::NODES),
-        args.config.node_info_network.host);
+        fmt::format("CN={}", "CCF node"), args.config.hostname);
+
+      open_node_frontend();
 
       // Generate quote over node certificate
       // TODO: https://github.com/microsoft/CCF/issues/59
@@ -335,7 +335,7 @@ namespace ccf
         case StartType::New:
         {
           network.secrets = std::make_unique<NetworkSecrets>(
-            "CN=The CA", std::make_unique<Seal>(writer_factory));
+            "CN=CCF Network", std::make_unique<Seal>(writer_factory));
 
           self = 0; // The first node id is always 0
 
@@ -360,7 +360,8 @@ namespace ccf
               "Genesis transaction could not be committed");
           }
 
-          accept_network_tls_connections(args.config.node_info_network.host);
+          accept_network_tls_connections(args.config.hostname);
+
           sm.advance(State::partOfNetwork);
 
           return Success<CreateNew::Out>(
@@ -372,7 +373,10 @@ namespace ccf
           // sent by the primary via the kv store
           raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
 
+          // TLS connections are not endorsed by the network until the node has
+          // joined
           accept_node_tls_connections(args.config.node_info_network.host);
+
           sm.advance(State::pending);
 
           return Success<CreateNew::Out>({node_cert, quote});
@@ -383,7 +387,7 @@ namespace ccf
 
           // Create temporary network secrets but do not seal yet
           network.secrets = std::make_unique<NetworkSecrets>(
-            "CN=The CA", std::make_unique<Seal>(writer_factory), false);
+            "CN=CCF Network", std::make_unique<Seal>(writer_factory), false);
           setup_history();
           setup_encryptor();
 
@@ -391,7 +395,8 @@ namespace ccf
           // public ledger has been read
           open_member_frontend();
 
-          accept_network_tls_connections(args.config.node_info_network.host);
+          accept_network_tls_connections(args.config.hostname);
+
           sm.advance(State::readingPublicLedger);
 
           return Success<CreateNew::Out>(
@@ -413,7 +418,11 @@ namespace ccf
     {
       auto tls_ca = std::make_shared<tls::CA>(args.config.joining.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
-        Actors::NODES, tls_ca, node_cert, node_kp->private_key_pem(), nullb);
+        args.config.joining.target_host,
+        tls_ca,
+        node_cert,
+        node_kp->private_key_pem(),
+        nullb);
 
       // Create RPC client and connect to remote node
       auto join_client =
@@ -467,8 +476,7 @@ namespace ccf
 
             open_member_frontend();
 
-            // TODO: Also remove old node-endorsed certificate
-            accept_network_tls_connections(args.config.node_info_network.host);
+            accept_network_tls_connections(args.config.hostname);
 
             if (public_only)
               sm.advance(State::partOfPublicNetwork);
@@ -1094,23 +1102,21 @@ namespace ccf
     };
 
   private:
-    void accept_network_tls_connections(const std::string& host)
+    void accept_network_tls_connections(const std::string& hostname)
     {
       // Accept TLS connections, presenting node certificate signed by network
       // certificate
       LOG_INFO_FMT("Accepting network-endorsed TLS connections");
 
-      // TODO: Remove non-endorsed certificate, if it exists
-
       auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
       auto node_privkey = node_kp->private_key_pem();
 
       auto endorsed_node_cert = nw->sign_csr(
-        node_kp->create_csr(fmt::format("CN={}", "ccf")),
-        fmt::format("CN={}", "The CA"),
-        host);
+        node_kp->create_csr(fmt::format("CN=node{}.{}", self, hostname)),
+        fmt::format("CN={}", "CCF Network"),
+        fmt::format("*.{}", hostname));
 
-      rpcsessions->add_cert("", nullb, endorsed_node_cert, node_privkey);
+      rpcsessions->set_cert(nullb, endorsed_node_cert, node_privkey);
     }
 
     void accept_node_tls_connections(const std::string& host)
@@ -1119,24 +1125,32 @@ namespace ccf
       // certificate. Once the node is part of the network, this certificate
       // should be removed and replaced with network-endorsed counterpart
       LOG_INFO_FMT("Accepting node TLS connections");
-      rpcsessions->add_cert("", nullb, node_cert, node_kp->private_key_pem());
+      rpcsessions->set_cert(nullb, node_cert, node_kp->private_key_pem());
+    }
+
+    void open_frontend(ccf::ActorsType actor)
+    {
+      auto fe = rpc_map->find(actor);
+      if (!fe.has_value())
+      {
+        throw std::logic_error(fmt::format("Cannot open {} frontend", actor));
+      }
+      fe.value()->open();
+    }
+
+    void open_node_frontend()
+    {
+      open_frontend(ActorsType::nodes);
     }
 
     void open_member_frontend()
     {
-      auto member_fe = REGISTER_FRONTEND(
-        rpc_map,
-        members,
-        std::make_unique<ccf::MemberRpcFrontend>(network, *this));
-      enclave::initialize_frontend(
-        member_fe, signature_intervals, cmd_forwarder);
+      open_frontend(ActorsType::members);
     }
 
     void open_user_frontend()
     {
-      auto user_fe = REGISTER_FRONTEND(
-        rpc_map, users, ccfapp::get_rpc_handler(network, notifier));
-      enclave::initialize_frontend(user_fe, signature_intervals, cmd_forwarder);
+      open_frontend(ActorsType::users);
     }
 
     void backup_finish_recovery()

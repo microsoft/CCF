@@ -66,6 +66,10 @@ namespace tls
         break;
       }
 
+      // mbedtls (2.16.2) only supports parsing of subject alternative name that
+      // is DNS= (so no IPAddress=). IPAddress can be used when a non-mbedtls
+      // client (curl) connects to a node but should not be used in practice
+      // because of the join protocol
       case san_type::ip_address:
       {
         auto ip = inet_addr(name);

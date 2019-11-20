@@ -166,6 +166,10 @@ int main(int argc, char** argv)
     "latency at a cost to throughput",
     true);
 
+  std::string hostname = "ccf.io";
+  app.add_option(
+    "--hostname", hostname, "Hostname for TLS certificate validation", true);
+
   size_t memory_reserve_startup = 0;
   app.add_option(
     "--memory-reserve-startup",
@@ -313,6 +317,7 @@ int main(int argc, char** argv)
                                   public_rpc_address.hostname,
                                   node_address.port,
                                   rpc_address.port};
+  ccf_config.hostname = hostname;
 
   if (*start)
   {

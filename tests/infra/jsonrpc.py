@@ -137,10 +137,9 @@ class Response:
 
 
 class FramedTLSClient:
-    def __init__(self, host, port, server_hostname, cert=None, key=None, cafile=None):
+    def __init__(self, host, port, cert=None, key=None, cafile=None):
         self.host = host
         self.port = port
-        self.server_hostname = server_hostname
         self.cert = cert
         self.key = key
         self.cafile = cafile
@@ -163,11 +162,12 @@ class FramedTLSClient:
                 self.context.set_ecdh_curve("secp256k1")
         else:
             self.context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        self.host = "node0.ccf.io"
         if self.cert and self.key:
             self.context.load_cert_chain(certfile=self.cert, keyfile=self.key)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.conn = self.context.wrap_socket(
-            self.sock, server_side=False, server_hostname=self.server_hostname
+            self.sock, server_side=False, server_hostname=self.host
         )
         self.conn.connect((self.host, self.port))
 
@@ -266,7 +266,6 @@ class FramedTLSJSONRPCClient:
         self,
         host,
         port,
-        server_hostname,
         cert=None,
         key=None,
         cafile=None,
@@ -275,9 +274,7 @@ class FramedTLSJSONRPCClient:
         description=None,
         prefix="users",
     ):
-        self.client = FramedTLSClient(
-            host, int(port), server_hostname, cert, key, cafile
-        )
+        self.client = FramedTLSClient(host, int(port), cert, key, cafile)
         self.stream = Stream(version, format=format)
         self.format = format
         self.name = "[{}:{}]".format(host, port)
@@ -473,7 +470,6 @@ class CurlClient:
 def client(
     host,
     port,
-    server_hostname="users",
     cert=None,
     key=None,
     cafile=None,
@@ -500,16 +496,7 @@ def client(
         yield c
     else:
         c = FramedTLSJSONRPCClient(
-            host,
-            port,
-            server_hostname,
-            cert,
-            key,
-            cafile,
-            version,
-            format,
-            description,
-            prefix,
+            host, port, cert, key, cafile, version, format, description, prefix,
         )
 
         if log_file is not None:

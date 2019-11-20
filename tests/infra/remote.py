@@ -280,7 +280,7 @@ class SSHRemote(CmdMixin):
 
     def _dbg(self):
         cmd = " ".join(self.cmd)
-        return f"cd {self.root} && {DBG} --args ./{cmd}"
+        return f"cd {self.root} && {DBG} --args {cmd}"
 
     def _connect_new(self):
         client = paramiko.SSHClient()

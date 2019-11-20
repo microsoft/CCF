@@ -11,6 +11,8 @@ import infra.proc
 import infra.checker
 import infra.node
 
+from loguru import logger as LOG
+
 
 class Consortium:
     def __init__(self, members):
@@ -29,7 +31,7 @@ class Consortium:
             "./memberclient",
             f"--cert=member{member_id}_cert.pem",
             f"--privk=member{member_id}_privk.pem",
-            f"--rpc-address={remote_node.host}:{remote_node.rpc_port}",
+            f"--rpc-address=node0.ccf.io:{remote_node.rpc_port}",
             "--ca=networkcert.pem",
             *args,
         )
@@ -77,7 +79,7 @@ class Consortium:
         # This is particularly useful for the open network proposal to wait
         # until the global hook on the SERVICE table is triggered
         if j_result["result"] and should_wait_for_global_commit:
-            with remote_node.node_client(member_id) as mc:
+            with remote_node.node_client() as mc:
                 infra.checker.wait_for_global_commit(
                     mc, j_result["commit"], j_result["term"], True
                 )

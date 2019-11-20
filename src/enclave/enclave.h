@@ -54,14 +54,25 @@ namespace enclave
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
 
-      // At start-up, only the node frontend is open for operators to use.
-      // Member and user frontends are opened later, based on the node state
-      auto node_fe = REGISTER_FRONTEND(
-        rpc_map, nodes, std::make_unique<ccf::NodeRpcFrontend>(network, node));
-      initialize_frontend(node_fe, signature_intervals, cmd_forwarder);
+      REGISTER_FRONTEND(
+        rpc_map,
+        members,
+        std::make_unique<ccf::MemberRpcFrontend>(network, node));
 
-      node.initialize(
-        raft_config, n2n_channels, rpc_map, cmd_forwarder, signature_intervals);
+      REGISTER_FRONTEND(
+        rpc_map, users, ccfapp::get_rpc_handler(network, notifier));
+
+      REGISTER_FRONTEND(
+        rpc_map, nodes, std::make_unique<ccf::NodeRpcFrontend>(network, node));
+
+      for (auto& [actor, fe] : rpc_map->get_map())
+      {
+        fe->set_sig_intervals(
+          signature_intervals.sig_max_tx, signature_intervals.sig_max_ms);
+        fe->set_cmd_forwarder(cmd_forwarder);
+      }
+
+      node.initialize(raft_config, n2n_channels, rpc_map, cmd_forwarder);
     }
 
     bool create_new_node(

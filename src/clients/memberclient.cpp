@@ -22,7 +22,7 @@ using namespace jsonrpc;
 using namespace std;
 using namespace nlohmann;
 
-constexpr auto members_sni = "members";
+constexpr auto members_prefix = "members";
 
 static const string add_member_proposal(R"xxx(
       tables, member_cert = ...
@@ -401,22 +401,18 @@ int main(int argc, char** argv)
 
   // create tls client
   auto tls_cert = make_shared<tls::Cert>(
-    members_sni, make_shared<tls::CA>(ca), raw_cert, key_pem, nullb);
+    server_address.hostname,
+    make_shared<tls::CA>(ca),
+    raw_cert,
+    key_pem,
+    nullb);
 
   unique_ptr<RpcTlsClient> tls_connection = force_unsigned ?
     make_unique<RpcTlsClient>(
-      server_address.hostname,
-      server_address.port,
-      members_sni,
-      nullptr,
-      tls_cert) :
+      server_address.hostname, server_address.port, nullptr, tls_cert) :
     make_unique<SigRpcTlsClient>(
-      key_pem,
-      server_address.hostname,
-      server_address.port,
-      members_sni,
-      nullptr,
-      tls_cert);
+      key_pem, server_address.hostname, server_address.port, nullptr, tls_cert);
+  tls_connection->set_prefix("members");
 
   try
   {

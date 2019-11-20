@@ -34,6 +34,7 @@ struct CCFConfig
 {
   raft::Config raft_config = {};
   ccf::NodeInfoNetwork node_info_network = {};
+  std::string hostname;
 
   struct SignatureIntervals
   {
@@ -61,7 +62,12 @@ struct CCFConfig
   Joining joining = {};
 
   MSGPACK_DEFINE(
-    raft_config, node_info_network, signature_intervals, genesis, joining);
+    raft_config,
+    node_info_network,
+    hostname,
+    signature_intervals,
+    genesis,
+    joining);
 };
 
 /// General administrative messages

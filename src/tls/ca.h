@@ -23,15 +23,15 @@ namespace tls
 
       if (ca_.n > 0)
       {
-        Pem pemCa(ca_);
-        if (mbedtls_x509_crt_parse(&ca, pemCa.data(), pemCa.size()) != 0)
+        Pem pem_ca(ca_);
+        if (mbedtls_x509_crt_parse(&ca, pem_ca.data(), pem_ca.size()) != 0)
           throw std::logic_error("Could not parse CA");
       }
 
       if (crl_.n > 0)
       {
-        Pem pemCrl(crl_);
-        if (mbedtls_x509_crl_parse(&crl, pemCrl.data(), pemCrl.size()) != 0)
+        Pem pem_crl(crl_);
+        if (mbedtls_x509_crl_parse(&crl, pem_crl.data(), pem_crl.size()) != 0)
           throw std::logic_error("Could not parse CRL");
       }
     }
