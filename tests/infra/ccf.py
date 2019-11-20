@@ -321,19 +321,15 @@ class Network:
         term = None
 
         for _ in range(timeout):
-            print(self.get_joined_nodes())
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    LOG.error(f"contacting {node.node_id}")
                     id = c.request("getPrimaryInfo", {})
                     res = c.response(id)
-
                     if res.error is None:
                         primary_id = res.result["primary_id"]
                         term = res.term
                         break
                     else:
-                        LOG.error(f"error:{res.error['code']}")
                         assert (
                             res.error["code"]
                             == infra.jsonrpc.ErrorCode.TX_PRIMARY_UNKNOWN

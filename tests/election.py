@@ -28,8 +28,6 @@ def wait_for_index_globally_committed(index, term, nodes):
             with f.node_client() as c:
                 id = c.request("getCommit", {"commit": index})
                 res = c.response(id)
-                LOG.error(f"res.result:{res.result['term']} == term:{term} && re.global_commit:{res.global_commit} > index:{index}")
-
                 if res.result["term"] == term and (res.global_commit > index or args.pbft):
                     up_to_date_f.append(f.node_id)
         if len(up_to_date_f) == len(nodes):
@@ -44,7 +42,10 @@ def run(args):
     # Three nodes minimum to make sure that the raft network can still make progress
     # if one node stops
 
-    hosts = ["localhost", "localhost", "localhost", "localhost"]
+    if args.pbft:
+        hosts = ["localhost", "localhost", "localhost", "localhost"]
+    else:
+        hosts = ["localhost", "localhost", "localhost"]
     
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb

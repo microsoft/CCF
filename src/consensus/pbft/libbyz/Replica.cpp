@@ -210,13 +210,11 @@ Replica::~Replica()
 
 void Replica::receive_message(const uint8_t* data, uint32_t size)
 {
-  //LOG_INFO << "received msg, size: " << size << std::endl;
   if (size > Max_message_size)
   {
     LOG_INFO
       << "Received message will not be processed, size exceeds message limits: "
       << size << std::endl;
-    //return;
   }
   uint64_t alloc_size = std::max(size, (uint32_t)Max_message_size);
   Message* m = new Message(alloc_size);
@@ -224,8 +222,6 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
   memcpy(m->contents(), data, size);
   if (pre_verify(m))
   {
-    //PBFT_ASSERT(
-    //  Max_message_size >= size, "size must be less than Max_message_size");
     recv_process_one_msg(m);
   }
   else
@@ -353,11 +349,6 @@ void Replica::recv_process_one_msg(Message* m)
 {
   PBFT_ASSERT(m->tag() != New_key_tag, "Tag no longer supported");
 
-  if (m->tag() == New_view_tag)
-  {
-    LOG_INFO << "Receiving new view - process, size:" << m->size() << std::endl;
-  }
-
   switch (m->tag())
   {
     case Request_tag:
@@ -459,11 +450,6 @@ bool Replica::gen_pre_verify(Message* m)
 
 bool Replica::pre_verify(Message* m)
 {
-  if (m->tag() == New_view_tag)
-  {
-    LOG_INFO << "Receiving new view - pre_verify" << std::endl;
-  }
-
   switch (m->tag())
   {
     case Request_tag:
@@ -1389,10 +1375,8 @@ void Replica::handle(View_change* m)
   // TODO: memoize maxv and avoid this computation if it cannot change i.e.
   // m->view() <= last maxv. This also holds for the next check.
   View maxv = vi.max_view();
-  LOG_INFO << "PPPP => maxv:" << maxv << ", v:" << v << std::endl;
   if (maxv > v)
   {
-    LOG_INFO << "QQQQQQQQQQQ" << std::endl;
     // Replica has at least f+1 view-changes with a view number
     // greater than or equal to maxv: change to view maxv.
     v = maxv - 1;
@@ -2886,10 +2870,8 @@ bool Replica::delay_vc()
 
 void Replica::start_vtimer_if_request_waiting()
 {
-  LOG_INFO << "BBBBB: rqueue.size:" << rqueue.size() << std::endl;
   if (rqueue.size() > 0 && f() > 0)
   {
-    LOG_INFO << "BBBBB" << std::endl;
     Request* first = rqueue.first();
     cid_vtimer = first->client_id();
     rid_vtimer = first->request_id();

@@ -377,30 +377,23 @@ bool View_info::add(std::unique_ptr<View_change> vc)
   int vci = vc->id();
   int vcv = vc->view();
 
-  LOG_INFO << "ZZZZZZZZZZZ" << std::endl;
-
   if (vcv < v)
   {
-    LOG_INFO << "ZZZZZZZZZZZ" << std::endl;
     return false;
   }
 
-  LOG_INFO << "ZZZZZZZZZZZ, last_nvs.size:" << last_nvs.size() << std::endl;
   // Try to match vc with a new-view message.
   NV_info& n = last_nvs[node->primary(vcv)];
   bool stored = false;
   if (n.view() == vcv)
   {
-    LOG_INFO << "ZZZZZZZZZZZ" << std::endl;
     // There is a new-view message corresponding to "vc"
     stored = n.can_add(vc.get());
     if (stored)
     {
-      LOG_INFO << "ZZZZZZZZZZZ" << std::endl;
       n.add(std::move(vc));
     }
 
-    LOG_INFO << "ZZZZZZZZZZZ" << std::endl;
 #ifndef USE_PKEY_VIEW_CHANGES
     if (stored && id == node->primary(v) && vcv == v)
     {
@@ -423,11 +416,9 @@ bool View_info::add(std::unique_ptr<View_change> vc)
   }
   else
   {
-    LOG_INFO << "ZZZZZZZZZZZ" << std::endl;
     // There is no matching new-view.
     if (vcv > last_views[vci])
     {
-      LOG_INFO << "ZZZZZZZZZZZ" << std::endl;
       last_vcs[vci] = std::move(vc);
       last_views[vci] = vcv;
       stored = true;
@@ -447,7 +438,6 @@ bool View_info::add(std::unique_ptr<View_change> vc)
       }
 #endif
     }
-    LOG_INFO << "ZZZZZZZZZZZ" << std::endl;
   }
   return stored;
 }
