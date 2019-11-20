@@ -123,6 +123,15 @@ class Response:
         self._from_parsed(parsed)
 
 
+def human_readable_size(n):
+    suffixes = ("B", "KB", "MB", "GB")
+    i = 0
+    while n >= 1024 and i < len(suffixes) - 1:
+        n /= 1024.0
+        i += 1
+    return f"{n:,.2f} {suffixes[i]}"
+
+
 class FramedTLSClient:
     def __init__(self, host, port, server_hostname, cert=None, key=None, cafile=None):
         self.host = host
@@ -159,11 +168,13 @@ class FramedTLSClient:
         self.conn.connect((self.host, self.port))
 
     def send(self, msg):
+        LOG.trace(f"Sending {human_readable_size(len(msg))} message")
         frame = struct.pack("<I", len(msg)) + msg
         self.conn.sendall(frame)
 
     def _read(self):
         (size,) = struct.unpack("<I", self.conn.recv(4))
+        LOG.trace(f"Reading {human_readable_size(size)} response")
         data = self.conn.recv(size)
         while len(data) < size:
             data += self.conn.recv(size - len(data))

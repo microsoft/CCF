@@ -47,7 +47,7 @@ namespace enclave
       return std::make_pair(actor, method);
     }
 
-    bool handle_data(const std::vector<uint8_t>& data)
+    bool handle_data(const std::vector<uint8_t>& data) override
     {
       LOG_DEBUG_FMT(
         "Entered handle_data, session {} with {} bytes",
@@ -128,6 +128,21 @@ namespace enclave
       }
 
       return true;
+    }
+
+    std::vector<uint8_t> oversized_message_error(
+      size_t msg_size, size_t max_msg_size) override
+    {
+      return jsonrpc::pack(
+        jsonrpc::error_response(
+          0,
+          jsonrpc::StandardErrorCodes::PARSE_ERROR,
+          fmt::format(
+            "Requested message ({} bytes) is too large. Maximum allowed is {} "
+            "bytes. Closing connection.",
+            msg_size,
+            max_msg_size)),
+        jsonrpc::Pack::Text);
     }
   };
 }

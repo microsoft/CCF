@@ -12,6 +12,8 @@ namespace enclave
     uint32_t msg_size;
     size_t count;
 
+    static constexpr size_t max_msg_size = 2 * 1024 * 1024;
+
   public:
     FramedTLSEndpoint(
       size_t session_id,
@@ -24,6 +26,16 @@ namespace enclave
 
     void recv(const uint8_t* data, size_t size)
     {
+      const auto status = get_status();
+      if (status >= closed)
+      {
+        LOG_INFO_FMT(
+          "Received additional data for {}, ignoring due to status {}",
+          session_id,
+          status);
+        return;
+      }
+
       recv_buffered(data, size);
 
       while (true)
@@ -43,8 +55,14 @@ namespace enclave
 
         // Arbitrary limit on RPC size to stop a client from requesting
         // a very large allocation.
-        if (msg_size > 1 << 21)
+        if (msg_size > max_msg_size)
         {
+          LOG_FAIL_FMT(
+            "Received oversized message request ({} bytes) - closing session "
+            "{}",
+            msg_size,
+            session_id);
+          send(oversized_message_error(msg_size, max_msg_size));
           close();
           return;
         }

@@ -31,7 +31,7 @@ namespace asynchost
     friend class close_ptr<TCPImpl>;
 
     static constexpr int backlog = 128;
-    static constexpr size_t read_size = 1024;
+    static constexpr size_t max_read_size = 16384;
 
     enum Status
     {
@@ -456,15 +456,17 @@ namespace asynchost
       return true;
     }
 
-    static void on_alloc(uv_handle_t* handle, size_t, uv_buf_t* buf)
+    static void on_alloc(
+      uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf)
     {
-      static_cast<TCPImpl*>(handle->data)->on_alloc(buf);
+      static_cast<TCPImpl*>(handle->data)->on_alloc(suggested_size, buf);
     }
 
-    void on_alloc(uv_buf_t* buf)
+    void on_alloc(size_t suggested_size, uv_buf_t* buf)
     {
-      buf->base = new char[read_size];
-      buf->len = read_size;
+      auto alloc_size = std::min(suggested_size, max_read_size);
+      buf->base = new char[alloc_size];
+      buf->len = alloc_size;
     }
 
     void on_free(const uv_buf_t* buf)
