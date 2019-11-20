@@ -79,7 +79,7 @@ In this example, the ``result`` field indicates that the request was executed at
 Transaction receipts
 --------------------
 
-Once a transaction has been committed, it is possible to get a receipt for it. That receipt can later be checked against either a CCF service, or offline against the ledger, to prove that the transaction did happen at a particular version.
+Once a transaction has been committed, it is possible to get a receipt for it. That receipt can later be checked against either a CCF service, or offline against the ledger, to prove that the transaction did happen at a particular commit.
 
 To obtain a receipt, a user needs to issue a ``getReceipt`` RPC for a particular commit:
 
