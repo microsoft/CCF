@@ -99,7 +99,7 @@ public:
 
   int num_complete() const {return complete;}
 
-  bool is_complete(bool print = false) const;
+  bool is_complete() const;
   void make_complete();
   // Effects: If cvalue() is not null, makes the certificate
   // complete.
@@ -219,12 +219,8 @@ inline int Certificate<T>::num_correct() const
 }
 
 template <class T>
-inline bool Certificate<T>::is_complete(bool print) const
+inline bool Certificate<T>::is_complete() const
 {
-  if (print){
-    LOG_INFO << "num_correct:" << num_correct() << ", complete:" << complete << ", comp:" << comp()
-             << std::endl;
-  }
   return num_correct() >= complete;
 }
 

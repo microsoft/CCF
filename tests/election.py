@@ -88,8 +88,9 @@ def run(args):
             LOG.debug("Stopping primary")
             primary.stop()
 
-            LOG.debug("Waiting for a new primary to be elected...")
-            time.sleep(max_election_duration)
+            if not args.pbft:
+                LOG.debug("Waiting for a new primary to be elected...")
+                time.sleep(max_election_duration)
 
         # More than F nodes have been stopped, trying to commit any message
         LOG.debug(

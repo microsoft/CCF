@@ -542,7 +542,6 @@ void Replica::handle(Request* m)
     // TODO: Fix execution of read-only requests
     if (ro)
     {
-      LOG_INFO << "AAAAAA" << std::endl;
       // Read-only requests.
       if (execute_read_only(m) || !ro_rqueue.append(m))
         delete m;
@@ -551,8 +550,6 @@ void Replica::handle(Request* m)
     }
 #endif
 
-    LOG_INFO << "AAAAAA" << std::endl;
-
 #ifdef ENFORCE_EXACTLY_ONCE
     int client_id = m->client_id();
     Request_id rid = m->request_id();
@@ -560,16 +557,12 @@ void Replica::handle(Request* m)
     if (last_rid < rid)
 #endif
     {
-      LOG_INFO << "AAAAAA" << std::endl;
       if (id() == primary())
       {
-        LOG_INFO << "AAAAAA" << std::endl;
         if (rqueue.append(m))
         {
-          LOG_INFO << "AAAAAA" << std::endl;
           if (!wait_for_network_to_open)
           {
-            LOG_INFO << "AAAAAA" << std::endl;
             send_pre_prepare();
           }
           return;
@@ -577,19 +570,15 @@ void Replica::handle(Request* m)
       }
       else
       {
-        LOG_INFO << "AAAAAA" << std::endl;
         if (m->size() > Request::big_req_thresh && brt.add_request(m))
         {
-          LOG_INFO << "AAAAAA" << std::endl;
           return;
         }
 
         if (rqueue.append(m))
         {
-          LOG_INFO << "AAAAAA" << std::endl;
           if (!limbo && f() > 0)
           {
-            LOG_INFO << "AAAAAA" << std::endl;
             send(m, primary());
             start_vtimer_if_request_waiting();
           }
@@ -632,8 +621,6 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
 {
   PBFT_ASSERT(primary() == node_id, "Non-primary called send_pre_prepare");
 
-  LOG_INFO << "1111111" << std::endl;
-
   // If rqueue is empty there are no requests for which to send
   // pre_prepare and a pre-prepare cannot be sent if the seqno exceeds
   // the maximum window or the replica does not have the new view.
@@ -644,7 +631,6 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     next_pp_seqno + 1 <= max_out + last_stable && has_complete_new_view() &&
     !state.in_fetch_state())
   {
-    LOG_INFO << "1111111" << std::endl;
     btimer->stop();
     nbreqs += rqueue.size();
     nbrounds++;
@@ -678,12 +664,10 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
 
       if (node->f() > 0)
       {
-        LOG_INFO << "BBBBBBB, seqno:" << pp->seqno() << std::endl;
         send(pp, All_replicas);
       }
       else
       {
-        LOG_INFO << "BBBBBBB" << std::endl;
         send_prepare(next_pp_seqno, info);
       }
     }
@@ -698,8 +682,6 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       delete pp;
     }
   }
-
-  LOG_INFO << "1111111" << std::endl;
 
   if (rqueue.size() > 0)
   {
@@ -804,40 +786,32 @@ void Replica::handle(Pre_prepare* m)
 
 void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 {
-  LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
   while (plog.within_range(seqno))
   {
     Prepared_cert& pc = plog.fetch(seqno);
 
-    LOG_INFO << "XXXXXXX seqno:" << seqno << ", my_prepare:" << pc.my_prepare() << std::endl;
-    if (pc.my_prepare() == 0 && pc.is_pp_complete(true))
+    if (pc.my_prepare() == 0 && pc.is_pp_complete())
     {
-      LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
       bool send_only_to_self = (f() == 0);
       // Send prepare to all replicas and log it.
       Pre_prepare* pp = pc.pre_prepare();
       ByzInfo info;
       if (byz_info.has_value())
       {
-        LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
         info = byz_info.value();
       }
       else
       {
-        LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
         if (!execute_tentative(pp, info))
         {
-          LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
           break;
         }
       }
 
-      LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
       // TODO: fix this check
       // https://github.com/microsoft/CCF/issues/357
       if (!compare_execution_results(info, pp))
       {
-        LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
         break;
       }
 
@@ -851,11 +825,9 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       send(p, send_node_id);
       pc.add_mine(p);
       LOG_DEBUG << "added to pc in prepare: " << pp->seqno() << std::endl;
-      LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
 
       if (pc.is_complete())
       {
-        LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
         LOG_TRACE << "pc is complete for seqno: " << seqno
                   << " and sending commit" << std::endl;
         send_commit(seqno, send_node_id == node_id);
@@ -864,7 +836,6 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
     }
     else
     {
-      LOG_INFO << "XXXXXXX seqno:" << seqno << std::endl;
       break;
     }
   }
@@ -872,7 +843,6 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
 void Replica::send_commit(Seqno s, bool send_only_to_self)
 {
-  LOG_INFO << "XXXXXX Sending commit seqno:" << s << std::endl;
   size_t before_f = f();
   // Executing request before sending commit improves performance
   // for null requests. May not be true in general.

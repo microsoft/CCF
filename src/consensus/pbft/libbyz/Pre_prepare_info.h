@@ -39,7 +39,7 @@ public:
   const BR_map& missing_reqs() const;
   // Effects: Returns a bit map with the indices of missing requests.
 
-  bool is_complete(bool print = false) const;
+  bool is_complete() const;
   // Effects: Returns true iff this contains a pre-prepare and all the
   // big requests it references are cached.
 
@@ -119,10 +119,7 @@ inline void Pre_prepare_info::clear()
   mrmap.reset();
 }
 
-inline bool Pre_prepare_info::is_complete(bool print) const
+inline bool Pre_prepare_info::is_complete() const
 {
-  if (print) {
-    LOG_INFO << "pp:" << pp << ", mreqs:" << mreqs << std::endl;
-  }
   return pp != 0 && mreqs == 0;
 }

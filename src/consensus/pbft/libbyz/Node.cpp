@@ -212,10 +212,6 @@ void Node::send(Message* m, Principal* p)
     {
       throw std::logic_error("Network not set");
     }
-    
-    if (m->tag() == New_view_tag) {
-      LOG_INFO << "sending new view to " << p->pid() << ", size:" << m->size() << std::endl;
-    }
 
     error = network->Send(m, *p);
 

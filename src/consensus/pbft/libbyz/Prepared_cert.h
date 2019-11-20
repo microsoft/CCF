@@ -79,7 +79,7 @@ public:
   bool is_complete();
   // Effects: Returns true iff the certificate is complete.
 
-  bool is_pp_complete(bool print = false);
+  bool is_pp_complete();
   // Effects: Returns true iff the pre-prepare-info is complete.
 
   bool is_pp_correct();
@@ -151,7 +151,6 @@ inline bool Prepared_cert::add(Prepare* m)
   Seqno ms = m->seqno();
 
   bool result = prepare_cert.add(m);
-  LOG_INFO << "NNNNNN seqno:" << ms << ", result:" << (result ? "true" : "false") << std::endl; 
 
 #ifdef SIGN_BATCH
   if (result)
@@ -262,16 +261,16 @@ inline bool Prepared_cert::is_complete()
     }
     else
     {
-      prepare_cert.is_complete(true);
+      prepare_cert.is_complete();
     }
   }
 
   return false;
 }
 
-inline bool Prepared_cert::is_pp_complete(bool print)
+inline bool Prepared_cert::is_pp_complete()
 {
-  return pp_info.is_complete(print);
+  return pp_info.is_complete();
 }
 
 inline Pre_prepare* Prepared_cert::pre_prepare() const
