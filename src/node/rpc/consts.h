@@ -23,6 +23,8 @@ namespace ccf
     static constexpr auto GET_NETWORK_INFO = "getNetworkInfo";
     static constexpr auto LIST_METHODS = "listMethods";
     static constexpr auto GET_SCHEMA = "getSchema";
+    static constexpr auto GET_RECEIPT = "getReceipt";
+    static constexpr auto VERIFY_RECEIPT = "verifyReceipt";
   };
 
   struct MemberProcs

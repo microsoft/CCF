@@ -175,6 +175,87 @@ namespace ccf
     {
       return crypto::Sha256Hash();
     }
+
+    std::vector<uint8_t> get_receipt(kv::Version v) override
+    {
+      return {};
+    }
+
+    bool verify_receipt(const std::vector<uint8_t>& v) override
+    {
+      return true;
+    }
+  };
+
+  class Receipt
+  {
+  private:
+    uint64_t index;
+    uint32_t max_index;
+    crypto::Sha256Hash root;
+    hash_vec* path;
+
+  public:
+    Receipt()
+    {
+      path = init_path();
+    }
+
+    static Receipt from_v(const std::vector<uint8_t>& v)
+    {
+      Receipt r;
+      const uint8_t* buf = v.data();
+      size_t s = v.size();
+      r.index = serialized::read<decltype(index)>(buf, s);
+      r.max_index = serialized::read<decltype(max_index)>(buf, s);
+      std::copy(buf, buf + r.root.SIZE, r.root.h);
+      buf += r.root.SIZE;
+      s -= r.root.SIZE;
+      for (size_t i = 0; i < s; i += r.root.SIZE)
+        path_insert(r.path, const_cast<uint8_t*>(buf + i));
+      return r;
+    }
+
+    Receipt(merkle_tree* tree, uint64_t index_)
+    {
+      index = index_;
+      path = init_path();
+
+      if (!mt_get_path_pre(tree, index, path, root.h))
+      {
+        free_path(path);
+        throw std::logic_error("Precondition to mt_get_path violated");
+      }
+
+      max_index = mt_get_path(tree, index, path, root.h);
+    }
+
+    bool verify(merkle_tree* tree) const
+    {
+      if (!mt_verify_pre(tree, index, max_index, path, (uint8_t*)root.h))
+        throw std::logic_error("Precondition to mt_verify violated");
+
+      return mt_verify(tree, index, max_index, path, (uint8_t*)root.h);
+    }
+
+    ~Receipt()
+    {
+      free_path(path);
+    }
+
+    std::vector<uint8_t> to_v() const
+    {
+      size_t vs =
+        sizeof(index) + sizeof(max_index) + root.SIZE + root.SIZE * path->sz;
+      std::vector<uint8_t> v(vs);
+      uint8_t* buf = v.data();
+      serialized::write(buf, vs, index);
+      serialized::write(buf, vs, max_index);
+      serialized::write(buf, vs, root.h, root.SIZE);
+      for (size_t i = 0; i < path->sz; ++i)
+        serialized::write(buf, vs, *(path->vs + i), root.SIZE);
+      return v;
+    }
   };
 
   class MerkleTreeHistory
@@ -232,6 +313,16 @@ namespace ccf
       if (!mt_retract_to_pre(tree, index))
         throw std::logic_error("Precondition to mt_retract_to violated");
       mt_retract_to(tree, index);
+    }
+
+    Receipt get_receipt(uint64_t index)
+    {
+      return Receipt(tree, index);
+    }
+
+    bool verify(const Receipt& r)
+    {
+      return r.verify(tree);
     }
   };
 
@@ -433,6 +524,17 @@ namespace ccf
     {
       LOG_DEBUG << fmt::format("HISTORY: add_response {0}", id) << std::endl;
       responses[id] = response;
+    }
+
+    std::vector<uint8_t> get_receipt(kv::Version index) override
+    {
+      return tree.get_receipt(index).to_v();
+    }
+
+    bool verify_receipt(const std::vector<uint8_t>& v) override
+    {
+      auto r = Receipt::from_v(v);
+      return tree.verify(r);
     }
   };
 

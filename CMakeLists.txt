@@ -299,6 +299,12 @@ if(BUILD_TESTS)
           --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
           --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
 
+      ## Receipts end to end test
+      add_e2e_test(
+        NAME receipts_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
+      )
+
       if(QUOTES_ENABLED)
         add_e2e_test(
           NAME governance_tests
