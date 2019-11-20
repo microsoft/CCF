@@ -480,3 +480,86 @@ TEST_CASE("replicated and derived table serialisation")
     REQUIRE(serialised.derived.size() > 0);
   }
 }
+
+struct NonSerialisable
+{
+  std::string message = "NonSerialisable";
+  enum
+  {
+    LogicError,
+    BadAlloc,
+  } kind = LogicError;
+};
+
+namespace msgpack
+{
+  MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
+  {
+    namespace adaptor
+    {
+      // msgpack conversion for uint256_t
+      template <>
+      struct convert<NonSerialisable>
+      {
+        msgpack::object const& operator()(
+          msgpack::object const& o, NonSerialisable& ns) const
+        {
+          const auto msg = fmt::format("Deserialise failure: {}", ns.message);
+          switch (ns.kind)
+          {
+            case NonSerialisable::LogicError:
+            {
+              throw std::logic_error(msg);
+            }
+            case NonSerialisable::BadAlloc:
+            {
+              throw std::bad_alloc();
+            }
+          }
+        }
+      };
+
+      template <>
+      struct pack<NonSerialisable>
+      {
+        template <typename Stream>
+        packer<Stream>& operator()(
+          msgpack::packer<Stream>& o, NonSerialisable const& ns) const
+        {
+          const auto msg = fmt::format("Serialise failure: {}", ns.message);
+          switch (ns.kind)
+          {
+            case NonSerialisable::LogicError:
+            {
+              throw std::logic_error(msg);
+            }
+            case NonSerialisable::BadAlloc:
+            {
+              throw std::bad_alloc();
+            }
+          }
+        }
+      };
+    }
+  }
+}
+
+TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
+{
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  auto consensus = std::make_shared<kv::StubConsensus>();
+
+  Store store(consensus);
+  store.set_encryptor(encryptor);
+
+  auto& map = store.create<size_t, NonSerialisable>("map");
+
+  {
+    Store::Tx tx;
+    auto view = tx.get_view(map);
+
+    view->put(0, {});
+
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+}
