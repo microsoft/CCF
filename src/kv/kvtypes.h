@@ -30,7 +30,8 @@ namespace kv
   {
     OK,
     CONFLICT,
-    NO_REPLICATE
+    NO_REPLICATE,
+    NO_SERIALISE
   };
 
   enum SecurityDomain
