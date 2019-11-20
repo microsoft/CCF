@@ -143,9 +143,9 @@ void View_change::re_authenticate(Principal* p)
   PBFT_ASSERT(
     rep().n_ckpts == 0 || rep().ckpts[rep().n_ckpts - 1] != Digest(),
     "Invalid state");
-  //PBFT_ASSERT(
-  //  last_stable() >= 0 && last_stable() % checkpoint_interval == 0,
-  //  "Invalid state");
+  PBFT_ASSERT(
+    last_stable() >= 0 && last_stable() % checkpoint_interval == 0,
+    "Invalid state");
 
   if (rep().digest.is_zero())
   {

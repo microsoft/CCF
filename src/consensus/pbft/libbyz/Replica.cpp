@@ -524,6 +524,8 @@ void Replica::handle(Request* m)
 
   if (has_complete_new_view())
   {
+    LOG_TRACE << "Received request with rid: " << m->request_id()
+              << " with cid: " << m->client_id() << std::endl;
 #if 0
     // TODO: Fix execution of read-only requests
     if (ro)
@@ -1512,8 +1514,7 @@ void Replica::write_view_change_to_ledger()
       continue;
     }
 
-    // TODO: something is broken here :(
-    //ledger_writer->write_view_change(vc);
+    ledger_writer->write_view_change(vc);
   }
 }
 
