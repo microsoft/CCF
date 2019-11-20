@@ -46,10 +46,5 @@ namespace tls
     {
       mbedtls_ssl_conf_ca_chain(cfg, &ca, &crl);
     }
-
-    void sni(mbedtls_ssl_context* ssl)
-    {
-      mbedtls_ssl_set_hs_ca_chain(ssl, &ca, &crl);
-    }
   };
 }
