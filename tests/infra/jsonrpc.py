@@ -100,7 +100,13 @@ class Response:
         self._attrs = set(locals()) - {"self"}
 
     def to_dict(self):
-        d = {"id": self.id, "jsonrpc": self.jsonrpc}
+        d = {
+            "id": self.id,
+            "jsonrpc": self.jsonrpc,
+            "commit": self.commit,
+            "global_commit": self.global_commit,
+            "term": self.term
+        }
         if self.result is not None:
             d["result"] = self.result
         else:
@@ -149,7 +155,9 @@ class FramedTLSClient:
 
     def connect(self):
         if self.cafile:
-            self.context = ssl.create_default_context(cafile=self.cafile)
+            # TODO: This is really bad!!!
+            # For now, do it like this to avoid DNS resolution with sudo
+            self.context = ssl._create_unverified_context(cafile=self.cafile)
 
             # Auto detect EC curve to use based on server CA
             ca_bytes = open(self.cafile, "rb").read()
@@ -162,7 +170,6 @@ class FramedTLSClient:
                 self.context.set_ecdh_curve("secp256k1")
         else:
             self.context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        self.host = "node0.ccf.io"
         if self.cert and self.key:
             self.context.load_cert_chain(certfile=self.cert, keyfile=self.key)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -339,21 +346,10 @@ class FramedTLSJSONRPCClient:
 # the resulting logs nicely illustrate manual usage in a way using requests doesn't
 class CurlClient:
     def __init__(
-        self,
-        host,
-        port,
-        server_hostname,
-        cert,
-        key,
-        cafile,
-        version,
-        format,
-        description,
-        prefix,
+        self, host, port, cert, key, cafile, version, format, description, prefix,
     ):
         self.host = host
         self.port = port
-        self.server_hostname = server_hostname
         self.cert = cert
         self.key = key
         self.cafile = cafile
@@ -380,13 +376,13 @@ class CurlClient:
                 "curl",
                 "-v",
                 "-k",
-                f"https://{self.server_hostname}:{self.port}/",
+                f"https://{self.host}:{self.port}/",
                 "-H",
                 "Content-Type: application/json",
                 "-H",
                 f"Authorize: {base64.b64encode(dgst.stdout).decode()}",
-                "--resolve",
-                f"{self.server_hostname}:{self.port}:{self.host}",
+                # "--resolve",
+                # f"{self.server_hostname}:{self.port}:{self.host}",
                 "--data-binary",
                 f"@{nf.name}",
             ]
@@ -413,7 +409,7 @@ class CurlClient:
             nf.flush()
             cmd = [
                 "curl",
-                # "-k",
+                "-k",
                 f"https://{self.host}:{self.port}/",
                 "-H",
                 "Content-Type: application/json",
@@ -482,16 +478,7 @@ def client(
 ):
     if os.getenv("HTTP"):
         c = CurlClient(
-            host,
-            port,
-            server_hostname,
-            cert,
-            key,
-            cafile,
-            version,
-            format,
-            description,
-            prefix,
+            host, port, cert, key, cafile, version, "json", description, prefix,
         )
         yield c
     else:

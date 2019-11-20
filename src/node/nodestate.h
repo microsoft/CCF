@@ -1106,8 +1106,6 @@ namespace ccf
     {
       // Accept TLS connections, presenting node certificate signed by network
       // certificate
-      LOG_INFO_FMT("Accepting network-endorsed TLS connections");
-
       auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
       auto node_privkey = node_kp->private_key_pem();
 
@@ -1117,6 +1115,7 @@ namespace ccf
         fmt::format("*.{}", hostname));
 
       rpcsessions->set_cert(nullb, endorsed_node_cert, node_privkey);
+      LOG_INFO_FMT("Network TLS connections now accepted");
     }
 
     void accept_node_tls_connections(const std::string& host)
@@ -1124,8 +1123,8 @@ namespace ccf
       // Accept TLS connections, presenting self-signed (i.e. non-endorsed) node
       // certificate. Once the node is part of the network, this certificate
       // should be removed and replaced with network-endorsed counterpart
-      LOG_INFO_FMT("Accepting node TLS connections");
       rpcsessions->set_cert(nullb, node_cert, node_kp->private_key_pem());
+      LOG_INFO_FMT("Node TLS connections now accepted");
     }
 
     void open_frontend(ccf::ActorsType actor)

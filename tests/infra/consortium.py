@@ -59,10 +59,11 @@ class Consortium:
             return true
             """
             with remote_node.member_client(format="json", member_id=member_id) as mc:
-                r = mc.rpc(
+                res = mc.rpc(
                     "vote", {"ballot": {"text": script}, "id": proposal_id}, signed=True
                 )
-            return (True, r.result)
+                j_result = res.to_dict()
+
         else:
             j_result = self._member_client_rpc_as_json(
                 member_id,
