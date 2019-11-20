@@ -212,7 +212,6 @@ namespace asynchost
 
           // If the message is a raft append entries message, affix the
           // corresponding ledger entries
-          /*
           if (
             serialized::read<ccf::NodeMsgType>(data, size) ==
               ccf::NodeMsgType::consensus_msg &&
@@ -247,7 +246,6 @@ namespace asynchost
             node.value()->write(frame, framed_entries.data());
           }
           else
-          */
           {
             // Write as framed data to the recipient.
             uint32_t frame = (uint32_t)size_to_send;
