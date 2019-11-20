@@ -44,7 +44,6 @@ class Certificate
   // true if successful and false otherwise.
 
 public:
-  //Certificate(int complete = 0);
   Certificate(std::function<int()> complete = nullptr);
   // Requires: "complete" >= f+1 or 0
   // Effects: Creates an empty certificate. The certificate is
@@ -97,8 +96,7 @@ public:
   // Effects: Returns the number of messages with the correct value
   // in this.
 
-  int num_complete() const {return complete;}
-
+  int num_complete() const;
   bool is_complete() const;
   void make_complete();
   // Effects: If cvalue() is not null, makes the certificate
@@ -216,6 +214,12 @@ template <class T>
 inline int Certificate<T>::num_correct() const
 {
   return (c) ? c->count : 0;
+}
+
+template <class T>
+inline int Certificate<T>::num_complete() const
+{
+  return complete;
 }
 
 template <class T>

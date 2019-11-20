@@ -515,7 +515,7 @@ void Replica::handle(Request* m)
   bool ro = m->is_read_only();
 
   Digest rd = m->digest();
-  LOG_INFO << "Received request with rid: " << m->request_id()
+  LOG_TRACE << "Received request with rid: " << m->request_id()
             << " id:" << id() << " primary:" << primary()
             << " with cid: " << m->client_id()
             << " current seqno: " << next_pp_seqno
@@ -624,7 +624,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     // Create new pre_prepare message for set of requests
     // in rqueue, log message and multicast the pre_prepare.
     next_pp_seqno++;
-    LOG_INFO << "creating pre prepare with seqno: " << next_pp_seqno
+    LOG_TRACE << "creating pre prepare with seqno: " << next_pp_seqno
               << std::endl;
     size_t requests_in_batch;
     ByzInfo info;
@@ -635,7 +635,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       // TODO: should make code match my proof with request removed
       // only when executed rather than removing them from rqueue when the
       // pre-prepare is constructed.
-      LOG_INFO << "adding to plog from pre prepare: " << next_pp_seqno
+      LOG_DEBUG << "adding to plog from pre prepare: " << next_pp_seqno
                 << std::endl;
       pp->set_merkle_root_and_ctx(info.merkle_root, info.ctx);
       pp->set_digest();
@@ -733,32 +733,25 @@ void Replica::handle(Pre_prepare* m)
 
   b.contents = m->choices(b.size);
 
-  LOG_INFO << "Received pre prepare with seqno: " << ms
-           << ", in_mv:" << (in_wv(m) ? "true" : "false")
-           << ", low_bound:" << low_bound << ", has complete_new_view:"
-           << (has_complete_new_view() ? "true" : "false") << std::endl;
+  LOG_TRACE << "Received pre prepare with seqno: " << ms
+            << ", in_mv:" << (in_wv(m) ? "true" : "false")
+            << ", low_bound:" << low_bound << ", has complete_new_view:"
+            << (has_complete_new_view() ? "true" : "false") << std::endl;
 
   if (in_wv(m) && ms > low_bound && has_complete_new_view())
   {
-    LOG_INFO << "Processing pre prepare with seqno: " << ms << std::endl;
+    LOG_TRACE << "processing pre prepare with seqno: " << ms << std::endl;
     Prepared_cert& pc = plog.fetch(ms);
 
     // Only accept message if we never accepted another pre-prepare
     // for the same view and sequence number and the message is valid.
     if (pc.add(m))
     {
-      LOG_INFO << "Accepted pp, seqno:" << ms << std::endl;
       send_prepare(ms);
-    }
-    else
-    {
-      LOG_INFO << "Rejected pp, seqno:" << ms << std::endl;
     }
     
     return;
   }
-  LOG_INFO << "Failed to handle pre-prepare with seqno: " << ms << std::endl;
-  
 
   if (!has_complete_new_view())
   {
@@ -849,7 +842,7 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
   Certificate<Commit>& cs = clog.fetch(s);
   if ((cs.add_mine(c) && cs.is_complete()) || (before_f == 0))
   {
-    LOG_INFO << "calling execute committed from send_commit seqno: " << s
+    LOG_DEBUG << "calling execute committed from send_commit seqno: " << s
               << std::endl;
     execute_committed(before_f == 0);
 
@@ -864,14 +857,13 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
 void Replica::handle(Prepare* m)
 {
   const Seqno ms = m->seqno();
-  LOG_INFO << "handle prepare for seqno: " << ms << ", pid:" << m->id() << std::endl;
   // Only accept prepare messages that are not sent by the primary for
   // current view.
   if (
     in_wv(m) && ms > low_bound && primary() != m->id() &&
     has_complete_new_view())
   {
-    LOG_INFO << "handle prepare for seqno: " << ms << std::endl;
+    LOG_TRACE << "handle prepare for seqno: " << ms << std::endl;
     Prepared_cert& ps = plog.fetch(ms);
     if (ps.add(m) && ps.is_complete())
     {
@@ -882,7 +874,6 @@ void Replica::handle(Prepare* m)
 
       send_commit(ms, f() == 0);
     }
-    LOG_INFO << "handle prepare for seqno: " << ms << std::endl;
     return;
   }
 
@@ -1361,8 +1352,7 @@ void Replica::handle(Status* m)
 void Replica::handle(View_change* m)
 {
   LOG_INFO << "Received view change for " << m->view() << " from " << m->id()
-           << ", v:" << v
-           << std::endl;
+           << ", v:" << v << std::endl;
 
   if (m->id() == primary() && m->view() > v)
   {
