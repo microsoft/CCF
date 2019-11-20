@@ -892,19 +892,17 @@ void Replica::handle(Prepare* m)
 void Replica::handle(Commit* m)
 {
   const Seqno ms = m->seqno();
-  LOG_INFO << "handle commit for seqno: " << std::endl;
 
   // Only accept messages with the current view.  TODO: change to
   // accept commits from older views as in proof.
   if (in_wv(m) && ms > low_bound)
   {
-    int pid = m->id();
-    LOG_INFO << "handle commit for seqno: " << ms << ", id:" << pid
+    LOG_TRACE << "handle commit for seqno: " << ms << ", id:" << m->id()
               << std::endl;
     Certificate<Commit>& cs = clog.fetch(m->seqno());
     if (cs.add(m) && cs.is_complete())
     {
-      LOG_INFO << "calling execute committed from handle commit for seqno: "
+      LOG_DEBUG << "calling execute committed from handle commit for seqno: "
                 << ms << std::endl;
       execute_committed();
     }
@@ -1393,7 +1391,6 @@ void Replica::handle(View_change* m)
     }
   }
 
-  LOG_INFO << "End received view change for v:" << v << std::endl;
 }
 
 void Replica::handle(New_view* m)
@@ -1422,7 +1419,6 @@ void Replica::send_view_change()
   // Move to next view.
   v++;
   cur_primary = v % num_replicas;
-  LOG_INFO << "setting primary, cur_primary:" << cur_primary << ", v:" << v << ", num_replicas:" << num_replicas << std::endl;
   limbo = true;
   vtimer->stop(); // stop timer if it is still running
   ntimer->restop();
@@ -2275,7 +2271,6 @@ void Replica::new_state(Seqno c)
 
 void Replica::mark_stable(Seqno n, bool have_state)
 {
-  LOG_INFO << "KKKKKK" << std::endl;
   if (n <= last_stable)
   {
     return;
@@ -2292,7 +2287,7 @@ void Replica::mark_stable(Seqno n, bool have_state)
     LOG_TRACE << "mark stable, last_tentative_execute: "
               << last_tentative_execute << " last_stable: " << last_stable
               << std::endl;
-    PBFT_ASSERT(last_tentative_execute <= last_stable, "Invalid state");
+    PBFT_ASSERT(last_tentative_execute < last_stable, "Invalid state");
     last_executed = last_tentative_execute = last_stable;
     stats.last_executed = last_executed;
 
