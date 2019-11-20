@@ -87,7 +87,7 @@ Replica::Replica(
   rep_cb(nullptr),
   global_commit_cb(nullptr),
   state(this, mem, nbytes),
-  vi(node_id, 0, 64) // make this dynamic
+  vi(node_id, 0, 64) // make this dynamic - https://github.com/microsoft/CCF/issues/385
 {
   // Fail if node is not a replica.
   if (!is_replica(id()))

@@ -59,7 +59,7 @@ NV_info::NV_info() :
   nv(0),
   vc_target(0),
   vc_cur(0),
-  vcs(64) // TODO: this is not great
+  vcs(64) // TODO: this is not great - https://github.com/microsoft/CCF/issues/385 
 {
   chosen_ckpt = -1;
   max = -1;
