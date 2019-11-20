@@ -222,7 +222,6 @@ namespace pbft
 
         if (*p->last_commit_view < view)
         {
-          LOG_INFO << "MMMMMM add - v:" << view << ", version:" << version << std::endl;
           p->view_change_list->emplace_back(view, version);
         }
         p->store->compact(version);

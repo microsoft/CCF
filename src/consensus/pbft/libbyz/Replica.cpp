@@ -749,7 +749,6 @@ void Replica::handle(Pre_prepare* m)
     {
       send_prepare(ms);
     }
-    
     return;
   }
 
@@ -897,7 +896,7 @@ void Replica::handle(Commit* m)
   // accept commits from older views as in proof.
   if (in_wv(m) && ms > low_bound)
   {
-    LOG_TRACE << "handle commit for seqno: " << ms << ", id:" << m->id()
+    LOG_TRACE << "handle commit for seqno: " << m->seqno() << ", id:" << m->id()
               << std::endl;
     Certificate<Commit>& cs = clog.fetch(m->seqno());
     if (cs.add(m) && cs.is_complete())
@@ -1390,7 +1389,6 @@ void Replica::handle(View_change* m)
       vc_recovering = true;
     }
   }
-
 }
 
 void Replica::handle(New_view* m)

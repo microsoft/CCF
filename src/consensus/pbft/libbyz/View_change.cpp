@@ -42,13 +42,6 @@ View_change::View_change(View v, Seqno ls, int id) :
 
 void View_change::add_checkpoint(Seqno n, Digest& d)
 {
-  // TODO: is removing this ok?
-  /*
-  PBFT_ASSERT(n % checkpoint_interval == 0, "Invalid argument");
-  PBFT_ASSERT(
-    (last_stable() <= n) && (n <= last_stable() + max_out), "Invalid argument");
-  */
-
   int index = (n - last_stable()) / checkpoint_interval;
   rep().ckpts[index] = d;
 
@@ -191,7 +184,6 @@ void View_change::re_authenticate(Principal* p)
 
 bool View_change::pre_verify()
 {
-  /*
   int nreqs = rep().n_reqs;
   if (!node->is_replica(id()) || nreqs < 0 || nreqs > max_out || view() <= 0)
   {
@@ -244,7 +236,6 @@ bool View_change::pre_verify()
   {
     return false;
   }
-  */
 
   return true;
 }
