@@ -1014,9 +1014,9 @@ namespace kv
       {
         version = c.value();
 
-        // From here, we have received a unique commit version - we must commit
-        // this to make progress. So if any of these steps fail, we must still
-        // commit an empty transaction
+        // From here, we have received a unique commit version and made
+        // modifications to our local kv. If we fail in any way, we cannot
+        // recover.
         try
         {
           auto data = serialise();
@@ -1044,14 +1044,10 @@ namespace kv
         catch (const std::exception& e)
         {
           LOG_FAIL_FMT("Error during serialisation: {}", e.what());
-          store->commit(
-            version,
-            []() -> PendingTx::result_type {
-              return {CommitSuccess::NO_SERIALISE, {}, {}};
-            },
-            false);
 
-          return CommitSuccess::NO_SERIALISE;
+          // Discard original exception type, throw as now fatal
+          // KvSerialiserException
+          throw KvSerialiserException(e.what());
         }
       }
     }

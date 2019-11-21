@@ -482,14 +482,7 @@ TEST_CASE("replicated and derived table serialisation")
 }
 
 struct NonSerialisable
-{
-  std::string message = "NonSerialisable";
-  enum
-  {
-    LogicError,
-    BadAlloc,
-  } kind = LogicError;
-};
+{};
 
 namespace msgpack
 {
@@ -504,18 +497,7 @@ namespace msgpack
         msgpack::object const& operator()(
           msgpack::object const& o, NonSerialisable& ns) const
         {
-          const auto msg = fmt::format("Deserialise failure: {}", ns.message);
-          switch (ns.kind)
-          {
-            case NonSerialisable::LogicError:
-            {
-              throw std::logic_error(msg);
-            }
-            case NonSerialisable::BadAlloc:
-            {
-              throw std::bad_alloc();
-            }
-          }
+          throw std::runtime_error("Deserialise failure");
         }
       };
 
@@ -526,18 +508,7 @@ namespace msgpack
         packer<Stream>& operator()(
           msgpack::packer<Stream>& o, NonSerialisable const& ns) const
         {
-          const auto msg = fmt::format("Serialise failure: {}", ns.message);
-          switch (ns.kind)
-          {
-            case NonSerialisable::LogicError:
-            {
-              throw std::logic_error(msg);
-            }
-            case NonSerialisable::BadAlloc:
-            {
-              throw std::bad_alloc();
-            }
-          }
+          throw std::runtime_error("Serialise failure");
         }
       };
     }
@@ -552,14 +523,18 @@ TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
   Store store(consensus);
   store.set_encryptor(encryptor);
 
-  auto& map = store.create<size_t, NonSerialisable>("map");
+  auto& good_map = store.create<size_t, size_t>("good_map");
+  auto& bad_map = store.create<size_t, NonSerialisable>("bad_map");
 
   {
     Store::Tx tx;
-    auto view = tx.get_view(map);
 
-    view->put(0, {});
+    auto good_view = tx.get_view(good_map);
+    good_view->put(1, 2);
 
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    auto bad_view = tx.get_view(bad_map);
+    bad_view->put(0, {});
+
+    REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
   }
 }

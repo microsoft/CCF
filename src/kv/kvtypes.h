@@ -30,8 +30,7 @@ namespace kv
   {
     OK,
     CONFLICT,
-    NO_REPLICATE,
-    NO_SERIALISE
+    NO_REPLICATE
   };
 
   enum SecurityDomain
@@ -75,6 +74,20 @@ namespace kv
     bool empty()
     {
       return replicated.empty() && derived.empty();
+    }
+  };
+
+  class KvSerialiserException : public std::exception
+  {
+  private:
+    std::string msg;
+
+  public:
+    KvSerialiserException(const std::string& msg_) : msg(msg_) {}
+
+    virtual const char* what() const throw()
+    {
+      return msg.c_str();
     }
   };
 
