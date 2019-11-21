@@ -69,14 +69,14 @@ def run(args):
         network = test(network, args, batch_size=100)
         network = test(network, args, batch_size=1000)
 
-        network = test(network, args, batch_size=1000, write_key_divisor=100)
-        network = test(network, args, batch_size=1000, write_size_multiplier=100)
+        network = test(network, args, batch_size=1000, write_key_divisor=10)
+        network = test(network, args, batch_size=1000, write_size_multiplier=10)
         network = test(
             network,
             args,
             batch_size=1000,
-            write_key_divisor=100,
-            write_size_multiplier=100,
+            write_key_divisor=10,
+            write_size_multiplier=10,
         )
 
         # TODO: CI already takes ~25s for batch of 10k, so avoid large batches for now
@@ -90,9 +90,33 @@ def run(args):
         #     bs += step_size
 
 
+def run_to_destruction(args):
+    hosts = ["localhost", "localhost", "localhost"]
+
+    with infra.ccf.network(
+        hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_join(args)
+
+        try:
+            wsm = 5000
+            while True:
+                LOG.info(f"Trying with writes scaled by {wsm}")
+                network = test(network, args, batch_size=10, write_size_multiplier=wsm)
+                wsm += 5000
+        except Exception as e:
+            LOG.info(f"Large write set caused an exception, as expected")
+            time.sleep(3)
+            assert (
+                network.nodes[0].remote.remote.proc.poll() is not None
+            ), "Primary should have been terminated"
+
+
 if __name__ == "__main__":
     args = e2e_args.cli_args()
     args.package = "libluagenericenc"
     args.enforce_reqs = True
 
     run(args)
+
+    # run_to_destruction(args)
