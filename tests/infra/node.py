@@ -7,6 +7,7 @@ import infra.remote
 import infra.net
 import infra.path
 import infra.jsonrpc
+import time
 
 from loguru import logger as LOG
 
@@ -40,8 +41,8 @@ class Node:
         self._set_ports(infra.net.probably_free_local_port)
         self.remote_impl = infra.remote.LocalRemote
         # else:
-            # self._set_ports(infra.net.probably_free_remote_port)
-            # self.remote_impl = infra.remote.SSHRemote
+        # self._set_ports(infra.net.probably_free_remote_port)
+        # self.remote_impl = infra.remote.SSHRemote
 
         self.pubhost = self.pubhost[0] if self.pubhost else self.host
 

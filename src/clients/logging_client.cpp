@@ -134,7 +134,11 @@ int main(int argc, char** argv)
   const tls::Pem key_pem(raw_key);
 
   const auto cert = make_shared<tls::Cert>(
-    host, make_shared<tls::CA>(ca), raw_cert, key_pem, nullb);
+    server_address.hostname,
+    make_shared<tls::CA>(ca),
+    raw_cert,
+    key_pem,
+    nullb);
 
   LoggingClient client(server_address.hostname, server_address.port, cert);
 

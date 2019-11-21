@@ -13,6 +13,7 @@ import os
 import subprocess
 import tempfile
 import base64
+import requests
 from enum import IntEnum
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -105,7 +106,7 @@ class Response:
             "jsonrpc": self.jsonrpc,
             "commit": self.commit,
             "global_commit": self.global_commit,
-            "term": self.term
+            "term": self.term,
         }
         if self.result is not None:
             d["result"] = self.result

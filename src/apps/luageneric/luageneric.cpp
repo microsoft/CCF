@@ -1,10 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "enclave/appinterface.h"
 #include "luainterp/luaargs.h"
 #include "luainterp/luainterp.h"
 #include "luainterp/luakv.h"
 #include "luainterp/txscriptrunner.h"
-#include "node/appinterface.h"
 #include "node/rpc/userfrontend.h"
 
 #include <memory>

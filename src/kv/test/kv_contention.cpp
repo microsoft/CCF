@@ -7,7 +7,7 @@
 #include <chrono>
 #include <doctest/doctest.h>
 #include <ds/logger.h>
-#include <node/appinterface.h>
+#include <enclave/appinterface.h>
 #include <string>
 #include <thread>
 #include <vector>

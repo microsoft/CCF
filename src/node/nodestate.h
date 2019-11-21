@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "appinterface.h"
 #include "calltypes.h"
 #include "consensus/ledgerenclave.h"
 #include "consensus/raft/raftconsensus.h"

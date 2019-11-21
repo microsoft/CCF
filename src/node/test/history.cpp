@@ -3,9 +3,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "node/history.h"
 
+#include "enclave/appinterface.h"
 #include "kv/kv.h"
 #include "kv/test/stub_consensus.h"
-#include "node/appinterface.h"
 #include "node/encryptor.h"
 #include "node/entities.h"
 #include "node/nodes.h"
