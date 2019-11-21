@@ -157,7 +157,6 @@ class FramedTLSClient:
             # self.context = ssl._create_unverified_context(cafile=self.cafile)
             self.context = ssl.create_default_context(cafile=self.cafile)
 
-
             # Auto detect EC curve to use based on server CA
             ca_bytes = open(self.cafile, "rb").read()
             ca_curve = (
