@@ -1010,29 +1010,46 @@ namespace kv
         LOG_FAIL_FMT("Could not commit transaction {}", version);
         return CommitSuccess::CONFLICT;
       }
-
-      version = c.value();
-
-      auto data = serialise();
-      if (data.empty())
+      else
       {
-        auto h = store->get_history();
-        if (h != nullptr)
-        {
-          // This tx does not have a write set, so this is a read only tx
-          // because of this we are returning NoVersion
-          h->add_result(req_id, NoVersion);
-        }
-        return CommitSuccess::OK;
-      }
+        version = c.value();
 
-      return store->commit(
-        version,
-        [data = std::move(data), req_id = std::move(req_id)]()
-          -> std::tuple<CommitSuccess, TxHistory::RequestID, SerialisedMaps> {
-          return {CommitSuccess::OK, std::move(req_id), std::move(data)};
-        },
-        false);
+        // From here, we have received a unique commit version and made
+        // modifications to our local kv. If we fail in any way, we cannot
+        // recover.
+        try
+        {
+          auto data = serialise();
+
+          if (data.empty())
+          {
+            auto h = store->get_history();
+            if (h != nullptr)
+            {
+              // This tx does not have a write set, so this is a read only tx
+              // because of this we are returning NoVersion
+              h->add_result(req_id, NoVersion);
+            }
+            return CommitSuccess::OK;
+          }
+
+          return store->commit(
+            version,
+            [data = std::move(data),
+             req_id = std::move(req_id)]() -> PendingTx::result_type {
+              return {CommitSuccess::OK, std::move(req_id), std::move(data)};
+            },
+            false);
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT("Error during serialisation: {}", e.what());
+
+          // Discard original exception type, throw as now fatal
+          // KvSerialiserException
+          throw KvSerialiserException(e.what());
+        }
+      }
     }
 
     /** Commit version if committed

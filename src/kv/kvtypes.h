@@ -77,6 +77,20 @@ namespace kv
     }
   };
 
+  class KvSerialiserException : public std::exception
+  {
+  private:
+    std::string msg;
+
+  public:
+    KvSerialiserException(const std::string& msg_) : msg(msg_) {}
+
+    virtual const char* what() const throw()
+    {
+      return msg.c_str();
+    }
+  };
+
   class TxHistory
   {
   public:
