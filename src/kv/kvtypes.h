@@ -51,6 +51,32 @@ namespace kv
     PASS_SIGNATURE = 2
   };
 
+  enum ReplicateType
+  {
+    ALL = 0,
+    NONE,
+    SOME
+  };
+
+  struct SerialisedMaps
+  {
+    std::vector<uint8_t> replicated;
+    std::vector<uint8_t> derived;
+
+    SerialisedMaps() = default;
+
+    SerialisedMaps(
+      std::vector<uint8_t>&& replicated_, std::vector<uint8_t>&& derived_) :
+      replicated(std::move(replicated_)),
+      derived(std::move(derived_))
+    {}
+
+    bool empty()
+    {
+      return replicated.empty() && derived.empty();
+    }
+  };
+
   class TxHistory
   {
   public:
@@ -97,7 +123,10 @@ namespace kv
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request) = 0;
     virtual void add_result(
-      RequestID id, kv::Version version, const std::vector<uint8_t>& data) = 0;
+      RequestID id,
+      kv::Version version,
+      const std::vector<uint8_t>& data_replicated,
+      const std::vector<uint8_t>& all_data) = 0;
     virtual void add_result(RequestID id, kv::Version version) = 0;
     virtual void add_response(
       RequestID id, const std::vector<uint8_t>& response) = 0;
@@ -106,6 +135,8 @@ namespace kv
     virtual void clear_on_result() = 0;
     virtual void clear_on_response() = 0;
     virtual crypto::Sha256Hash get_root() = 0;
+    virtual std::vector<uint8_t> get_receipt(Version v) = 0;
+    virtual bool verify_receipt(const std::vector<uint8_t>& receipt) = 0;
   };
 
   class Consensus
@@ -197,7 +228,7 @@ namespace kv
   };
 
   using PendingTx = std::function<
-    std::tuple<CommitSuccess, TxHistory::RequestID, std::vector<uint8_t>>()>;
+    std::tuple<CommitSuccess, TxHistory::RequestID, SerialisedMaps>()>;
 
   class AbstractTxEncryptor
   {
@@ -254,6 +285,7 @@ namespace kv
     virtual bool deserialise(D& d, Version version) = 0;
     virtual Version start_order() = 0;
     virtual Version end_order() = 0;
+    virtual bool is_replicated() = 0;
   };
 
   template <class S, class D>
@@ -272,6 +304,7 @@ namespace kv
     virtual void lock() = 0;
     virtual void unlock() = 0;
     virtual SecurityDomain get_security_domain() = 0;
+    virtual bool is_replicated() = 0;
     virtual void clear() = 0;
 
     virtual AbstractMap<S, D>* clone(AbstractStore* store) = 0;

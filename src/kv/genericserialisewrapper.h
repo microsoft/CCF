@@ -200,6 +200,7 @@ namespace kv
       }
 
       auto serialised_private_domain = private_writer.get_raw_data();
+
       return serialise_domains(
         serialised_public_domain, serialised_private_domain);
     }

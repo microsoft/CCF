@@ -33,7 +33,6 @@ target_link_libraries(logging_client PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
 )
 
-# SNIPPET: Logging application
 add_enclave_lib(loggingenc ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem SRCS src/apps/logging/logging.cpp src/apps/logging/stub_for_code_signing.cpp)
 
 if(BUILD_TESTS)
@@ -300,6 +299,12 @@ if(BUILD_TESTS)
           --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
           --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
 
+      ## Receipts end to end test
+      add_e2e_test(
+        NAME receipts_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
+      )
+
       if(QUOTES_ENABLED)
         add_e2e_test(
           NAME governance_tests
@@ -324,6 +329,12 @@ if(BUILD_TESTS)
         --test-duration 100
         --enforce-reqs
       )
+
+      add_e2e_test(
+        NAME lua_end_to_end_batched
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
+        ADDITIONAL_ARGS
+          --app-script ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua)
 
       if (BUILD_SMALLBANK)
         include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)

@@ -173,6 +173,20 @@ namespace ccf
       default_handler = {f, rw};
     }
 
+    /** Populate out with all supported methods
+     *
+     * This is virtual since the default handler may do its own dispatch
+     * internally, so derived implementations must be able to populate the list
+     * with the supported methods however it constructs them.
+     */
+    virtual void list_methods(Store::Tx& tx, ListMethods::Out& out)
+    {
+      for (const auto& handler : handlers)
+      {
+        out.methods.push_back(handler.first);
+      }
+    }
+
   private:
     // TODO: replace with an lru map
     std::map<CallerId, tls::VerifierPtr> verifiers;
@@ -420,18 +434,16 @@ namespace ccf
           return jsonrpc::success(out);
         };
 
-      auto list_methods = [this](Store::Tx& tx, const nlohmann::json& params) {
-        ListMethods::Out out;
+      auto list_methods_fn =
+        [this](Store::Tx& tx, const nlohmann::json& params) {
+          ListMethods::Out out;
 
-        for (const auto& handler : handlers)
-        {
-          out.methods.push_back(handler.first);
-        }
+          list_methods(tx, out);
 
-        std::sort(out.methods.begin(), out.methods.end());
+          std::sort(out.methods.begin(), out.methods.end());
 
-        return jsonrpc::success(out);
-      };
+          return jsonrpc::success(out);
+        };
 
       auto get_schema = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetSchema::In>();
@@ -450,6 +462,64 @@ namespace ccf
         return jsonrpc::success(out);
       };
 
+      auto get_receipt = [this](Store::Tx& tx, const nlohmann::json& params) {
+        const auto in = params.get<GetReceipt::In>();
+
+        update_history();
+
+        if (history != nullptr)
+        {
+          try
+          {
+            auto p = history->get_receipt(in.commit);
+            const GetReceipt::Out out{p};
+
+            return jsonrpc::success(out);
+          }
+          catch (const std::exception& e)
+          {
+            return jsonrpc::error(
+              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+              fmt::format(
+                "Unable to produce receipt for commit {} : {}",
+                in.commit,
+                e.what()));
+          }
+        }
+
+        return jsonrpc::error(
+          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          "Unable to produce receipt");
+      };
+
+      auto verify_receipt =
+        [this](Store::Tx& tx, const nlohmann::json& params) {
+          const auto in = params.get<VerifyReceipt::In>();
+
+          update_history();
+
+          if (history != nullptr)
+          {
+            try
+            {
+              bool v = history->verify_receipt(in.receipt);
+              const VerifyReceipt::Out out{v};
+
+              return jsonrpc::success(out);
+            }
+            catch (const std::exception& e)
+            {
+              return jsonrpc::error(
+                jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+                fmt::format("Unable to verify receipt: {}", e.what()));
+            }
+          }
+
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            "Unable to verify receipt");
+        };
+
       install_with_auto_schema<GetCommit>(
         GeneralProcs::GET_COMMIT, get_commit, Read);
       install_with_auto_schema<void, GetMetrics::Out>(
@@ -461,9 +531,13 @@ namespace ccf
       install_with_auto_schema<void, GetNetworkInfo::Out>(
         GeneralProcs::GET_NETWORK_INFO, get_network_info, Read);
       install_with_auto_schema<void, ListMethods::Out>(
-        GeneralProcs::LIST_METHODS, list_methods, Read);
+        GeneralProcs::LIST_METHODS, list_methods_fn, Read);
       install_with_auto_schema<GetSchema>(
         GeneralProcs::GET_SCHEMA, get_schema, Read);
+      install_with_auto_schema<GetReceipt>(
+        GeneralProcs::GET_RECEIPT, get_receipt, Read);
+      install_with_auto_schema<VerifyReceipt>(
+        GeneralProcs::VERIFY_RECEIPT, verify_receipt, Read);
     }
 
     void set_sig_intervals(size_t sig_max_tx_, size_t sig_max_ms_) override

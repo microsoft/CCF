@@ -23,7 +23,7 @@ Once this is done, you can quickly spin up a CCF network and start :ref:`issuing
 You should also get familiar with some of :ref:`CCF concepts`. You will then be able to:
 
 1. :ref:`Create a consortium and agree on the constitution <Member Governance>`
-2. :ref:`Develop a CCF application, based on the example logging application <Example App>`
+2. :ref:`Develop a CCF application, based on the example logging application <Example Application>`
 3. :ref:`Start a new CCF network to deploy the application <Starting a New Network>`
 4. :ref:`Let the consortium configure and open the network to users <Opening a Network>`
 5. :ref:`Have users issue business transactions to the application <Using CCF Applications>`

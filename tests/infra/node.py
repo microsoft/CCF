@@ -175,9 +175,12 @@ class Node:
         """
         for _ in range(timeout):
             with self.node_client() as mc:
-                rep = mc.do("getCommit", {})
-                if rep.error == None and rep.result is not None:
-                    return
+                try:
+                    rep = mc.do("getCommit", {})
+                    if rep.error == None and rep.result is not None:
+                        return
+                except:
+                    pass
             time.sleep(1)
         raise TimeoutError(f"Node {self.node_id} failed to join the network")
 

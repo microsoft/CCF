@@ -1077,7 +1077,7 @@ namespace ccf
         {
           GetQuotes::Quote quote;
           quote.node_id = nid;
-          quote.raw = std::string(ni.quote.begin(), ni.quote.end());
+          quote.raw = ni.quote;
 
 #ifdef GET_QUOTE
           oe_report_t parsed_quote = {0};

@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "commit": {
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
+      "type": "number"
+    }
+  },
+  "required": [
+    "commit"
+  ],
+  "title": "getReceipt/params",
+  "type": "object"
+}

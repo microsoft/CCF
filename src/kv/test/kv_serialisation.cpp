@@ -111,8 +111,7 @@ TEST_CASE(
   Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
 
-  auto& priv_map = kv_store.create<std::string, std::string>(
-    "priv_map", kv::SecurityDomain::PRIVATE);
+  auto& priv_map = kv_store.create<std::string, std::string>("priv_map");
   kv_store_target.clone_schema(kv_store);
 
   INFO("Commit a private transaction without an encryptor throws an exception");
@@ -280,7 +279,9 @@ TEST_CASE(
     REQUIRE(success == kv::CommitSuccess::OK);
     kv_store.compact(view->end_order());
 
-    REQUIRE(kv_store2.deserialise(serialised) == kv::DeserialiseSuccess::PASS);
+    REQUIRE(
+      kv_store2.deserialise(serialised.replicated) ==
+      kv::DeserialiseSuccess::PASS);
     Store::Tx tx2;
     auto view2 = tx2.get_view(map2);
     auto va = view2->get(k);
@@ -340,8 +341,8 @@ TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
 
     auto& public_map = kv_store.create<std::string, std::string>(
       "public_map", kv::SecurityDomain::PUBLIC);
-    auto& private_map = kv_store.create<std::string, std::string>(
-      "private_map", kv::SecurityDomain::PRIVATE);
+    auto& private_map =
+      kv_store.create<std::string, std::string>("private_map");
 
     kv_store_target.clone_schema(kv_store);
 
@@ -404,5 +405,78 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     REQUIRE(
       s1.deserialise(r->get_latest_data().first) !=
       kv::DeserialiseSuccess::FAILED);
+  }
+}
+
+TEST_CASE("replicated and derived table serialisation")
+{
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  std::unordered_set<std::string> replicated_tables = {
+    "data_replicated", "data_replicated_private"};
+  Store store(kv::ReplicateType::SOME, replicated_tables);
+  store.set_encryptor(encryptor);
+
+  auto& data_replicated =
+    store.create<size_t, size_t>("data_replicated", kv::SecurityDomain::PUBLIC);
+  auto& data_derived =
+    store.create<size_t, size_t>("data_derived", kv::SecurityDomain::PUBLIC);
+  auto& data_replicated_private =
+    store.create<size_t, size_t>("data_replicated_private");
+  auto& data_derived_private =
+    store.create<size_t, size_t>("data_derived_private");
+
+  {
+    Store::Tx tx(store.next_version());
+    auto [data_view, data_view_private] =
+      tx.get_view(data_replicated, data_replicated_private);
+    data_view->put(42, 42);
+    data_view_private->put(43, 43);
+    auto [success, reqid, serialised] = tx.commit_reserved();
+    REQUIRE(success == kv::CommitSuccess::OK);
+
+    REQUIRE(
+      store.deserialise(serialised.replicated) == kv::DeserialiseSuccess::PASS);
+
+    REQUIRE(serialised.replicated.size() > 0);
+    REQUIRE(serialised.derived.size() == 0);
+  }
+
+  {
+    Store::Tx tx(store.next_version());
+    auto [data_view, data_view_private] =
+      tx.get_view(data_derived, data_derived_private);
+    data_view->put(42, 42);
+    data_view_private->put(43, 43);
+    auto [success, reqid, serialised] = tx.commit_reserved();
+    REQUIRE(success == kv::CommitSuccess::OK);
+
+    REQUIRE(
+      store.deserialise(serialised.derived) == kv::DeserialiseSuccess::PASS);
+
+    REQUIRE(serialised.derived.size() > 0);
+    REQUIRE(serialised.replicated.size() == 0);
+  }
+
+  {
+    Store::Tx tx(store.next_version());
+    auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] = tx.get_view(
+      data_replicated,
+      data_replicated_private,
+      data_derived,
+      data_derived_private);
+    data_view_r->put(42, 42);
+    data_view_d->put(42, 42);
+    data_view_r_p->put(43, 43);
+    data_view_d_p->put(43, 43);
+    auto [success, reqid, serialised] = tx.commit_reserved();
+    REQUIRE(success == kv::CommitSuccess::OK);
+
+    REQUIRE(
+      store.deserialise(serialised.replicated) == kv::DeserialiseSuccess::PASS);
+    REQUIRE(
+      store.deserialise(serialised.derived) == kv::DeserialiseSuccess::PASS);
+
+    REQUIRE(serialised.replicated.size() > 0);
+    REQUIRE(serialised.derived.size() > 0);
   }
 }

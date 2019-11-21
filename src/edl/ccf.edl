@@ -4,6 +4,7 @@
 enclave {
 
     include "enclave/start_type.h"
+    include "enclave/consensus_type.h"
 
     trusted {
 
@@ -20,7 +21,8 @@ enclave {
             [out, count=network_cert_size] uint8_t * network_cert,
             size_t network_cert_size,
             [out] size_t* network_cert_len,
-            StartType start_type
+            StartType start_type,
+            ConsensusType consensus_type
         );
 
         public bool enclave_run();

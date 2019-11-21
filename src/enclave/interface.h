@@ -5,6 +5,7 @@
 #pragma once
 
 #include "consensus/raft/rafttypes.h"
+#include "consensus_type.h"
 #include "ds/buffer.h"
 #include "ds/logger.h"
 #include "ds/oversized.h"

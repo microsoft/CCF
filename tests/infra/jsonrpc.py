@@ -115,32 +115,28 @@ class Response:
         return d
 
     def _from_parsed(self, parsed):
-        def decode(sl, is_key=False):
-            if is_key and hasattr(sl, "decode"):
-                return sl.decode()
-            if hasattr(sl, "items"):
-                return {decode(k, is_key=True): decode(v) for k, v in sl.items()}
-            elif isinstance(sl, list):
-                return [decode(e) for e in sl]
-            else:
-                return sl
-
-        parsed_s = {
-            decode(attr, is_key=True): decode(value) for attr, value in parsed.items()
-        }
-        unexpected = parsed_s.keys() - self._attrs
+        unexpected = parsed.keys() - self._attrs
         if unexpected:
             raise ValueError("Unexpected keys in response: {}".format(unexpected))
-        for attr, value in parsed_s.items():
+        for attr, value in parsed.items():
             setattr(self, attr, value)
 
     def from_msgpack(self, data):
-        parsed = msgpack.unpackb(data)
+        parsed = msgpack.unpackb(data, raw=False)
         self._from_parsed(parsed)
 
     def from_json(self, data):
         parsed = json.loads(data.decode())
         self._from_parsed(parsed)
+
+
+def human_readable_size(n):
+    suffixes = ("B", "KB", "MB", "GB")
+    i = 0
+    while n >= 1024 and i < len(suffixes) - 1:
+        n /= 1024.0
+        i += 1
+    return f"{n:,.2f} {suffixes[i]}"
 
 
 class FramedTLSClient:
@@ -180,11 +176,13 @@ class FramedTLSClient:
         self.conn.connect((self.host, self.port))
 
     def send(self, msg):
+        LOG.trace(f"Sending {human_readable_size(len(msg))} message")
         frame = struct.pack("<I", len(msg)) + msg
         self.conn.sendall(frame)
 
     def _read(self):
         (size,) = struct.unpack("<I", self.conn.recv(4))
+        LOG.trace(f"Reading {human_readable_size(size)} response")
         data = self.conn.recv(size)
         while len(data) < size:
             data += self.conn.recv(size - len(data))
@@ -427,9 +425,10 @@ class CurlClient:
                 cmd.extend(["--cert", self.cert])
             LOG.debug(f"Running: {' '.join(cmd)}")
             rc = subprocess.run(cmd, capture_output=True)
-            LOG.debug(f"Received {rc.stdout.decode()}")
+            LOG.debug(f"Received {rc.stdout}")
             if rc.returncode != 0:
-                LOG.debug(f"ERR {rc.stderr.decode()}")
+                LOG.error(rc.stderr)
+                raise RuntimeError("Curl failed")
             self.stream.update(rc.stdout)
         return r.id
 

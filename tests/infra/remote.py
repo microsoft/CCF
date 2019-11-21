@@ -511,6 +511,7 @@ class CCFRemote(object):
         sig_max_tx=1000,
         sig_max_ms=1000,
         election_timeout=1000,
+        consensus="raft",
         memory_reserve_startup=0,
         notify_server=None,
         gov_script=None,
@@ -555,6 +556,7 @@ class CCFRemote(object):
             f"--node-cert-file={self.pem}",
             f"--host-log-level={host_log_level}",
             f"--raft-election-timeout-ms={election_timeout}",
+            f"--consensus={consensus}",
         ]
 
         if json_log_path:
