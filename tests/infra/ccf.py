@@ -44,7 +44,9 @@ class Network:
     # Maximum delay (seconds) for updates to propagate from the primary to backups
     replication_delay = 30
 
-    def __init__(self, hosts, dbg_nodes=None, perf_nodes=None, existing_network=None):
+    def __init__(
+        self, hosts, domain, dbg_nodes=None, perf_nodes=None, existing_network=None
+    ):
         if existing_network is None:
             self.consortium = []
             self.node_offset = 0
@@ -65,14 +67,14 @@ class Network:
         self.perf_nodes = perf_nodes
 
         for host in hosts:
-            self.create_node(host)
+            self.create_node(host, domain)
 
     def _get_next_local_node_id(self):
         if len(self.nodes):
             return self.nodes[-1].node_id + 1
         return self.node_offset
 
-    def create_node(self, host):
+    def create_node(self, host, domain):
         node_id = self._get_next_local_node_id()
         debug = (
             (str(node_id) in self.dbg_nodes) if self.dbg_nodes is not None else False
@@ -80,7 +82,7 @@ class Network:
         perf = (
             (str(node_id) in self.perf_nodes) if self.perf_nodes is not None else False
         )
-        node = infra.node.Node(node_id, host, debug, perf)
+        node = infra.node.Node(node_id, host, domain, debug, perf)
         self.nodes.append(node)
         return node
 
@@ -97,7 +99,8 @@ class Network:
             lib_name=lib_name,
             workspace=args.workspace,
             label=args.label,
-            target_rpc_address=f"{target_node.host}:{target_node.rpc_port}",
+            # target_rpc_address=f"{target_node.host}:{target_node.rpc_port}",
+            target_rpc_address=f"{target_node.node_name}:{target_node.rpc_port}",
             **forwarded_args,
         )
 
@@ -406,11 +409,12 @@ class Network:
 
 @contextmanager
 def network(
-    hosts, build_directory, dbg_nodes=[], perf_nodes=[], pdb=False,
+    hosts, domain, build_directory, dbg_nodes=[], perf_nodes=[], pdb=False,
 ):
     """
     Context manager for Network class.
     :param hosts: a list of hostnames (localhost or remote hostnames)
+    :params domain: domain name to use for DNS resolution
     :param build_directory: the build directory
     :param dbg_nodes: default: []. List of node id's that will not start (user is prompted to start them manually)
     :param perf_nodes: default: []. List of node ids that will run under perf record
@@ -418,7 +422,9 @@ def network(
     node.json), and stop all the nodes that belong to the network
     """
     with infra.path.working_dir(build_directory):
-        net = Network(hosts=hosts, dbg_nodes=dbg_nodes, perf_nodes=perf_nodes)
+        net = Network(
+            hosts=hosts, domain=domain, dbg_nodes=dbg_nodes, perf_nodes=perf_nodes
+        )
         try:
             yield net
         except Exception:

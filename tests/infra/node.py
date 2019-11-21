@@ -25,24 +25,30 @@ class NodeStatus(Enum):
 
 
 class Node:
-    def __init__(self, node_id, host, debug=False, perf=False):
+    def __init__(self, node_id, host, domain, debug=False, perf=False):
         self.node_id = node_id
         self.debug = debug
         self.perf = perf
         self.remote = None
         self.network_state = NodeNetworkState.stopped
+        self.domain = domain
+        self.node_name = f"node{self.node_id}.{domain}"
 
         hosts, *port = host.split(":")
         self.host, *self.pubhost = hosts.split(",")
         self.rpc_port = port[0] if port else None
 
-        # if self.host == "localhost":
-        # self.host = infra.net.expand_localhost()
-        self._set_ports(infra.net.probably_free_local_port)
-        self.remote_impl = infra.remote.LocalRemote
-        # else:
-        # self._set_ports(infra.net.probably_free_remote_port)
-        # self.remote_impl = infra.remote.SSHRemote
+        if self.host == "localhost":
+            self.host = infra.net.expand_localhost()
+            self._set_ports(infra.net.probably_free_local_port)
+            self.remote_impl = infra.remote.LocalRemote
+        else:
+            self._set_ports(infra.net.probably_free_remote_port)
+            self.remote_impl = infra.remote.SSHRemote
+
+        # TODO: Add entry to /etc/hosts for this node on the remote, not here
+        with open("/etc/hosts", "a") as hosts_file:
+            hosts_file.write(f"{self.host} {self.node_name}\n")
 
         self.pubhost = self.pubhost[0] if self.pubhost else self.host
 
@@ -126,6 +132,7 @@ class Node:
             str(self.node_id),
             self.host,
             self.pubhost,
+            self.domain,
             self.node_port,
             self.rpc_port,
             self.remote_impl,
@@ -162,6 +169,13 @@ class Node:
             self.remote.stop()
             self.network_state = NodeNetworkState.stopped
 
+        with open("/etc/hosts", "r") as f:
+            lines = f.readlines()
+        with open("/etc/hosts", "w") as f:
+            for line in lines:
+                if self.host not in line.strip("\n"):
+                    f.write(line)
+
     def is_stopped(self):
         return self.network_state == NodeNetworkState.stopped
 
@@ -189,7 +203,7 @@ class Node:
 
     def user_client(self, format="msgpack", user_id=1, **kwargs):
         return infra.jsonrpc.client(
-            self.host,
+            self.node_name,
             self.rpc_port,
             cert="user{}_cert.pem".format(user_id),
             key="user{}_privk.pem".format(user_id),
@@ -202,7 +216,7 @@ class Node:
 
     def node_client(self, format="msgpack", timeout=3, **kwargs):
         return infra.jsonrpc.client(
-            self.host,
+            self.node_name,
             self.rpc_port,
             cert=None,
             key=None,
@@ -215,7 +229,7 @@ class Node:
 
     def member_client(self, format="msgpack", member_id=1, **kwargs):
         return infra.jsonrpc.client(
-            self.host,
+            self.node_name,
             self.rpc_port,
             cert="member{}_cert.pem".format(member_id),
             key="member{}_privk.pem".format(member_id),

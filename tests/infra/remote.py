@@ -498,6 +498,7 @@ class CCFRemote(object):
         local_node_id,
         host,
         pubhost,
+        domain,
         node_port,
         rpc_port,
         remote_class,
@@ -557,6 +558,7 @@ class CCFRemote(object):
             f"--host-log-level={host_log_level}",
             f"--raft-election-timeout-ms={election_timeout}",
             f"--consensus={consensus}",
+            f"--domain={domain}",
         ]
 
         if json_log_path:

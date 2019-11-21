@@ -374,7 +374,7 @@ class CurlClient:
             cmd = [
                 "curl",
                 "-v",
-                "-k",
+                # "-k",
                 f"https://{self.host}:{self.port}/",
                 "-H",
                 "Content-Type: application/json",
@@ -408,7 +408,7 @@ class CurlClient:
             nf.flush()
             cmd = [
                 "curl",
-                "-k",
+                # "-k",
                 f"https://{self.host}:{self.port}/",
                 "-H",
                 "Content-Type: application/json",

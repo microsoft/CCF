@@ -309,12 +309,10 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::initialized);
 
-      LOG_FAIL_FMT("Hostname is {}", args.config.hostname);
-
       // Generate node key pair
       std::stringstream name;
       node_cert = node_kp->self_sign(
-        fmt::format("CN={}", "CCF node"), args.config.hostname);
+        fmt::format("CN={}", "CCF node"), args.config.domain);
 
       open_node_frontend();
 
@@ -359,7 +357,7 @@ namespace ccf
               "Genesis transaction could not be committed");
           }
 
-          accept_network_tls_connections(args.config.hostname);
+          accept_network_tls_connections(args.config.domain);
 
           sm.advance(State::partOfNetwork);
 
@@ -374,7 +372,7 @@ namespace ccf
 
           // TLS connections are not endorsed by the network until the node has
           // joined
-          accept_node_tls_connections(args.config.node_info_network.host);
+          accept_node_tls_connections();
 
           sm.advance(State::pending);
 
@@ -394,7 +392,7 @@ namespace ccf
           // public ledger has been read
           open_member_frontend();
 
-          accept_network_tls_connections(args.config.hostname);
+          accept_network_tls_connections(args.config.domain);
 
           sm.advance(State::readingPublicLedger);
 
@@ -475,7 +473,7 @@ namespace ccf
 
             open_member_frontend();
 
-            accept_network_tls_connections(args.config.hostname);
+            accept_network_tls_connections(args.config.domain);
 
             if (public_only)
               sm.advance(State::partOfPublicNetwork);
@@ -1101,7 +1099,7 @@ namespace ccf
     };
 
   private:
-    void accept_network_tls_connections(const std::string& hostname)
+    void accept_network_tls_connections(const std::string& domain)
     {
       // Accept TLS connections, presenting node certificate signed by network
       // certificate
@@ -1109,15 +1107,15 @@ namespace ccf
       auto node_privkey = node_kp->private_key_pem();
 
       auto endorsed_node_cert = nw->sign_csr(
-        node_kp->create_csr(fmt::format("CN=node{}.{}", self, hostname)),
+        node_kp->create_csr(fmt::format("CN=node{}.{}", self, domain)),
         fmt::format("CN={}", "CCF Network"),
-        fmt::format("*.{}", hostname));
+        fmt::format("*.{}", domain));
 
       rpcsessions->set_cert(nullb, endorsed_node_cert, node_privkey);
       LOG_INFO_FMT("Network TLS connections now accepted");
     }
 
-    void accept_node_tls_connections(const std::string& host)
+    void accept_node_tls_connections()
     {
       // Accept TLS connections, presenting self-signed (i.e. non-endorsed) node
       // certificate. Once the node is part of the network, this certificate

@@ -68,7 +68,7 @@ def test_update_lua(network, args):
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None):
     LOG.info("Running transactions against logging app")
-    primary, _ = network.find_primary()
+    primary, backup = network.find_primary_and_any_backup()
 
     with primary.node_client(format="json") as mc:
         check_commit = infra.checker.Checker(mc, notifications_queue)
@@ -85,20 +85,20 @@ def test(network, args, notifications_queue=None):
             check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
             check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2})
 
-        # LOG.info("Write on all backup frontends")
-        # with backup.node_client(format="json") as c:
-        #     check_commit(c.do("mkSign", params={}), result=True)
-        # with backup.member_client(format="json") as c:
-        #     check_commit(c.do("mkSign", params={}), result=True)
+        LOG.info("Write on all backup frontends")
+        with backup.node_client(format="json") as c:
+            check_commit(c.do("mkSign", params={}), result=True)
+        with backup.member_client(format="json") as c:
+            check_commit(c.do("mkSign", params={}), result=True)
 
         LOG.info("Write/Read on backup")
 
-        # with backup.user_client(format="json") as c:
-        #     check_commit(
-        #         c.rpc("LOG_record", {"id": 100, "msg": backup_msg}), result=True
-        #     )
-        #     check(c.rpc("LOG_get", {"id": 100}), result={"msg": backup_msg})
-        #     check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
+        with backup.user_client(format="json") as c:
+            check_commit(
+                c.rpc("LOG_record", {"id": 100, "msg": backup_msg}), result=True
+            )
+            check(c.rpc("LOG_get", {"id": 100}), result={"msg": backup_msg})
+            check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
 
         # TODO: Remove when HTTP supports large messages
         if not os.getenv("HTTP"):
@@ -117,7 +117,8 @@ def test(network, args, notifications_queue=None):
 
 
 def run(args):
-    hosts = ["127.123.139.130:50000"]
+    # hosts = ["127.123.139.130:50000", "127.123.139.131:50001"]
+    hosts = ["localhost", "localhost"]
 
     with infra.notification.notification_server(args.notify_server) as notifications:
         # Lua apps do not support notifications
@@ -127,7 +128,12 @@ def run(args):
         )
 
         with infra.ccf.network(
-            hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+            hosts,
+            args.domain,
+            args.build_dir,
+            args.debug_nodes,
+            args.perf_nodes,
+            pdb=args.pdb,
         ) as network:
             network.start_and_join(args)
             network = test(network, args, notifications_queue)

@@ -35,7 +35,7 @@ struct CCFConfig
 {
   raft::Config raft_config = {};
   ccf::NodeInfoNetwork node_info_network = {};
-  std::string hostname;
+  std::string domain;
 
   struct SignatureIntervals
   {
@@ -65,7 +65,7 @@ struct CCFConfig
   MSGPACK_DEFINE(
     raft_config,
     node_info_network,
-    hostname,
+    domain,
     signature_intervals,
     genesis,
     joining);

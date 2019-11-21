@@ -177,9 +177,9 @@ int main(int argc, char** argv)
     "latency at a cost to throughput",
     true);
 
-  std::string hostname = "ccf.io";
+  std::string domain = "ccf.io";
   app.add_option(
-    "--hostname", hostname, "Hostname for TLS certificate validation", true);
+    "--domain", domain, "DNS to use for TLS certificate validation", true);
 
   size_t memory_reserve_startup = 0;
   app.add_option(
@@ -329,7 +329,7 @@ int main(int argc, char** argv)
                                   public_rpc_address.hostname,
                                   node_address.port,
                                   rpc_address.port};
-  ccf_config.hostname = hostname;
+  ccf_config.domain = domain;
   if (consensus == "raft")
   {
     consensus_type = ConsensusType::Raft;
