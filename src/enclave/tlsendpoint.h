@@ -195,7 +195,7 @@ namespace enclave
 
     std::vector<uint8_t> read_all_available()
     {
-      constexpr auto read_size = 1024;
+      constexpr auto read_size = 4096;
       auto buf = read(read_size, false);
 
       if (buf.size() == read_size)
