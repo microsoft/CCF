@@ -119,4 +119,4 @@ if __name__ == "__main__":
 
     run(args)
 
-    # run_to_destruction(args)
+    run_to_destruction(args)
