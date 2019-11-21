@@ -134,7 +134,8 @@ int main(int argc, char** argv)
   const tls::Pem key_pem(raw_key);
 
   const auto cert = make_shared<tls::Cert>(
-    server_address.hostname,
+    // server_address.hostname,
+    std::nullopt,
     make_shared<tls::CA>(ca),
     raw_cert,
     key_pem,

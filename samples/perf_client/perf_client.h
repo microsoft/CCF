@@ -67,7 +67,7 @@ namespace client
         key = tls::Pem(raw_key);
 
         tls_cert = std::make_shared<tls::Cert>(
-          "",
+          std::nullopt,
           std::make_shared<tls::CA>(ca),
           raw_cert,
           key,

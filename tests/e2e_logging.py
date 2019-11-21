@@ -117,7 +117,6 @@ def test(network, args, notifications_queue=None):
 
 
 def run(args):
-    # hosts = ["127.123.139.130:50000", "127.123.139.131:50001"]
     hosts = ["localhost", "localhost"]
 
     with infra.notification.notification_server(args.notify_server) as notifications:
@@ -128,12 +127,7 @@ def run(args):
         )
 
         with infra.ccf.network(
-            hosts,
-            args.domain,
-            args.build_dir,
-            args.debug_nodes,
-            args.perf_nodes,
-            pdb=args.pdb,
+            hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
         ) as network:
             network.start_and_join(args)
             network = test(network, args, notifications_queue)

@@ -873,7 +873,7 @@ namespace tls
       {
         if (
           x509write_crt_set_subject_alt_name(
-            &sign.crt, san->c_str(), san_type::dns_name) != 0)
+            &sign.crt, san->c_str(), san_type::ip_address) != 0)
           return {};
       }
 

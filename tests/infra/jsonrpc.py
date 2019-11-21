@@ -154,7 +154,9 @@ class FramedTLSClient:
         if self.cafile:
             # TODO: This is really bad!!!
             # For now, do it like this to avoid DNS resolution with sudo
-            self.context = ssl._create_unverified_context(cafile=self.cafile)
+            # self.context = ssl._create_unverified_context(cafile=self.cafile)
+            self.context = ssl.create_default_context(cafile=self.cafile)
+
 
             # Auto detect EC curve to use based on server CA
             ca_bytes = open(self.cafile, "rb").read()

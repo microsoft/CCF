@@ -44,7 +44,7 @@ std::vector<uint8_t> make_rpc_raw(
     const auto client_pk = files::slurp(client_pk_file);
     const tls::Pem pk_pem(client_pk);
     cert = std::make_shared<tls::Cert>(
-      host, tls_ca, client_cert, pk_pem, nullb, auth);
+      std::nullopt, tls_ca, client_cert, pk_pem, nullb, auth);
   }
 
   switch (pack)
