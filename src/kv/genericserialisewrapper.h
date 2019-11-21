@@ -38,20 +38,6 @@ namespace kv
       static_cast<KotBase>(a) | static_cast<KotBase>(b));
   }
 
-  class KvSerialiserException : public std::exception
-  {
-  private:
-    std::string msg;
-
-  public:
-    KvSerialiserException(const std::string& msg_) : msg(msg_) {}
-
-    virtual const char* what() const throw()
-    {
-      return msg.c_str();
-    }
-  };
-
   template <typename K, typename V, typename Version>
   struct KeyValVersion
   {

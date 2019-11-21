@@ -15,10 +15,12 @@ return {
   BATCH_submit = [[
     tables, gov_tables, args = ...
     count = 0
-    for n, e in ipairs(args.params) do
+    for n, e in ipairs(args.params.entries) do
       id = e.id
-      msg = e.msg
-      tables.priv0:put(id, msg)
+      if id % args.params.write_key_divisor == 0 then
+        msg = string.rep(e.msg, args.params.write_size_multiplier)
+        tables.priv0:put(id, msg)
+      end
       count = count + 1
     end
     return env.jsucc(count)
