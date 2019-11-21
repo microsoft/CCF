@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
+#include "kv/flatbufferwrapper.h"
 #include "kv/kv.h"
 #include "kv/kvserialiser.h"
 #include "node/encryptor.h"
@@ -479,4 +480,19 @@ TEST_CASE("replicated and derived table serialisation")
     REQUIRE(serialised.replicated.size() > 0);
     REQUIRE(serialised.derived.size() > 0);
   }
+}
+
+TEST_CASE("Test flatbuffers")
+{
+  using namespace kv::data;
+  std::vector<uint8_t> derived_data(10, 1);
+  std::vector<uint8_t> replicated_data(11, 0);
+
+  kv::FlatbufferSerialiser fb_serialiser(replicated_data, derived_data);
+
+  auto buf = fb_serialiser.get_flatbuffer();
+
+  kv::FlatbufferDeserialiser db_deserialiser(buf);
+  auto replicated_read = db_deserialiser.get_replicated();
+  CHECK(replicated_read.size() == replicated_data.size());
 }

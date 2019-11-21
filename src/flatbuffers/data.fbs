@@ -1,0 +1,12 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+
+namespace kv.data;
+
+table Data
+{
+  replicated:[uint8];
+  derived:[uint8];
+}
+
+root_type Data;
