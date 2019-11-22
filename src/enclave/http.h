@@ -33,9 +33,22 @@ namespace enclave
       IN_MESSAGE
     };
 
-    static int on_msg(http_parser* parser);
-    static int on_msg_end(http_parser* parser);
+    static int on_msg_begin(http_parser* parser);
+    static int on_url(http_parser* parser, const char* at, size_t length);
     static int on_req(http_parser* parser, const char* at, size_t length);
+    static int on_msg_end(http_parser* parser);
+
+    std::string extract_url_field(
+      const http_parser_url& url, http_parser_url_fields field, char const* raw)
+    {
+      if ((1 << field) & url.field_set)
+      {
+        const auto& data = url.field_data[field];
+        return std::string(raw + data.off, raw + data.off + data.len);
+      }
+
+      return {};
+    }
 
     class Parser
     {
@@ -45,14 +58,19 @@ namespace enclave
       MsgProcessor& proc;
       State state = DONE;
       std::vector<uint8_t> buf;
+      std::string path = "";
+      std::string query = "";
 
     public:
       Parser(http_parser_type type, MsgProcessor& proc_) : proc(proc_)
       {
         http_parser_settings_init(&settings);
+
+        settings.on_message_begin = on_msg_begin;
+        settings.on_url = on_url;
         settings.on_body = on_req;
-        settings.on_message_begin = on_msg;
         settings.on_message_complete = on_msg_end;
+
         http_parser_init(&parser, type);
         parser.data = this;
       }
@@ -68,6 +86,10 @@ namespace enclave
             "HTTP parsing failed: {}: {}",
             http_errno_name(err),
             http_errno_description(err)));
+
+        LOG_TRACE_FMT(
+          "Parsed a {} request", http_method_str(http_method(parser.method)));
+
         // TODO: check for http->upgrade to support websockets
         return parsed;
       }
@@ -76,7 +98,7 @@ namespace enclave
       {
         if (state == IN_MESSAGE)
         {
-          LOG_TRACE_FMT("Appending chunk [{}]", std::string(at, at + length));
+          LOG_TRACE_FMT("Appending chunk [{}]", std::string_view(at, length));
           std::copy(at, at + length, std::back_inserter(buf));
         }
         else
@@ -91,6 +113,7 @@ namespace enclave
         {
           LOG_TRACE_FMT("Entering new message");
           state = IN_MESSAGE;
+          buf.clear();
         }
         else
         {
@@ -112,6 +135,26 @@ namespace enclave
           throw std::runtime_error("Ending message, but not in a message");
         }
       }
+
+      void parse_url(const char* at, size_t length)
+      {
+        LOG_INFO_FMT("Received url to parse: {}", std::string_view(at, length));
+
+        http_parser_url url;
+        http_parser_url_init(&url);
+
+        const auto err = http_parser_parse_url(at, length, 0, &url);
+        if (err != 0)
+        {
+          throw std::runtime_error(fmt::format("Error parsing url: {}", err));
+        }
+
+        path = extract_url_field(url, UF_PATH, at);
+        LOG_INFO_FMT("Extracted path: {}", path);
+
+        query = extract_url_field(url, UF_QUERY, at);
+        LOG_INFO_FMT("Extracted query: {}", query);
+      }
     };
 
     class ResponseHeaderEmitter
@@ -127,8 +170,9 @@ namespace enclave
         else
         {
           auto hdr = fmt::format(
-            "HTTP/1.1 200 OK\r\nContent-Type: "
-            "application/json\r\nContent-Length: {}\r\n\r\n",
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: application/json\r\n"
+            "Content-Length: {}\r\n\r\n",
             data.size());
           return std::vector<uint8_t>(hdr.begin(), hdr.end());
         }
@@ -144,17 +188,17 @@ namespace enclave
       }
     };
 
-    static int on_msg(http_parser* parser)
+    static int on_msg_begin(http_parser* parser)
     {
       Parser* p = reinterpret_cast<Parser*>(parser->data);
       p->new_message();
       return 0;
     }
 
-    static int on_msg_end(http_parser* parser)
+    static int on_url(http_parser* parser, const char* at, size_t length)
     {
       Parser* p = reinterpret_cast<Parser*>(parser->data);
-      p->end_message();
+      p->parse_url(at, length);
       return 0;
     }
 
@@ -162,6 +206,13 @@ namespace enclave
     {
       Parser* p = reinterpret_cast<Parser*>(parser->data);
       p->append(at, length);
+      return 0;
+    }
+
+    static int on_msg_end(http_parser* parser)
+    {
+      Parser* p = reinterpret_cast<Parser*>(parser->data);
+      p->end_message();
       return 0;
     }
   }
