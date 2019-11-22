@@ -152,9 +152,7 @@ class FramedTLSClient:
 
     def connect(self):
         if self.cafile:
-            # TODO: This is really bad!!!
-            # For now, do it like this to avoid DNS resolution with sudo
-            # self.context = ssl._create_unverified_context(cafile=self.cafile)
+            LOG.error(f"ca file is {self.cafile}")
             self.context = ssl.create_default_context(cafile=self.cafile)
 
             # Auto detect EC curve to use based on server CA
@@ -375,14 +373,11 @@ class CurlClient:
             cmd = [
                 "curl",
                 "-v",
-                # "-k",
                 f"https://{self.host}:{self.port}/",
                 "-H",
                 "Content-Type: application/json",
                 "-H",
                 f"Authorize: {base64.b64encode(dgst.stdout).decode()}",
-                # "--resolve",
-                # f"{self.server_hostname}:{self.port}:{self.host}",
                 "--data-binary",
                 f"@{nf.name}",
             ]
@@ -409,12 +404,9 @@ class CurlClient:
             nf.flush()
             cmd = [
                 "curl",
-                # "-k",
                 f"https://{self.host}:{self.port}/",
                 "-H",
                 "Content-Type: application/json",
-                # "--resolve",
-                # f"{self.server_hostname}:{self.port}:{self.host}",
                 "--data-binary",
                 f"@{nf.name}",
             ]

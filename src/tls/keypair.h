@@ -571,6 +571,12 @@ namespace tls
     }
   }
 
+  struct SubjectAltName
+  {
+    std::string san;
+    bool is_ip;
+  };
+
   class KeyPair : public PublicKey
   {
   private:
@@ -810,7 +816,7 @@ namespace tls
     std::vector<uint8_t> sign_csr(
       CBuffer csr,
       const std::string& issuer,
-      const std::optional<std::string> san = {},
+      const std::optional<SubjectAltName> subject_alt_name = std::nullopt,
       bool ca = false)
     {
       SignCsr sign;
@@ -848,8 +854,8 @@ namespace tls
       if (mbedtls_x509write_crt_set_serial(&sign.crt, &sign.serial) != 0)
         return {};
 
-      // TODO: Today's date + 825 days?
-      // https://derflounder.wordpress.com/2019/06/06/new-tls-security-requirements-for-ios-13-and-macos-catalina-10-15/
+      // TODO: macOS certificates require 825-day maximum validity
+      // (https://support.apple.com/en-us/HT210176)
       if (
         mbedtls_x509write_crt_set_validity(
           &sign.crt, "20010101000000", "21001231235959") != 0)
@@ -866,14 +872,17 @@ namespace tls
       if (mbedtls_x509write_crt_set_authority_key_identifier(&sign.crt) != 0)
         return {};
 
-      // Here, because mbedtls does not support parsing x509v3 extensions from a
+      // Because mbedtls does not support parsing x509v3 extensions from a
       // CSR (https://github.com/ARMmbed/mbedtls/issues/2912), the CA sets the
       // SAN directly instead of reading it from the CSR
-      if (san.has_value())
+      if (subject_alt_name.has_value())
       {
         if (
           x509write_crt_set_subject_alt_name(
-            &sign.crt, san->c_str(), san_type::ip_address) != 0)
+            &sign.crt,
+            subject_alt_name->san.c_str(),
+            (subject_alt_name->is_ip ? san_type::ip_address :
+                                       san_type::dns_name)) != 0)
           return {};
       }
 
@@ -896,11 +905,11 @@ namespace tls
 
     std::vector<uint8_t> self_sign(
       const std::string& name,
-      const std::optional<std::string> san = std::nullopt,
+      const std::optional<SubjectAltName> subject_alt_name = std::nullopt,
       bool ca = true)
     {
       auto csr = create_csr(name);
-      return sign_csr(csr, name, san, ca);
+      return sign_csr(csr, name, subject_alt_name, ca);
     }
 
     // TODO: This should be removed

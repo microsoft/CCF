@@ -309,12 +309,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::initialized);
 
-      // Generate node key pair
-      std::stringstream name;
-      node_cert = node_kp->self_sign(
-        fmt::format("CN={}", args.config.node_info_network.host),
-        args.config.node_info_network.host);
-
+      create_node_cert(args.config);
       open_node_frontend();
 
       // Generate quote over node certificate
@@ -358,7 +353,7 @@ namespace ccf
               "Genesis transaction could not be committed");
           }
 
-          accept_network_tls_connections(args.config.node_info_network.host);
+          accept_network_tls_connections(args.config);
 
           sm.advance(State::partOfNetwork);
 
@@ -393,7 +388,7 @@ namespace ccf
           // public ledger has been read
           open_member_frontend();
 
-          accept_network_tls_connections(args.config.node_info_network.host);
+          accept_network_tls_connections(args.config);
 
           sm.advance(State::readingPublicLedger);
 
@@ -470,7 +465,7 @@ namespace ccf
 
             open_member_frontend();
 
-            accept_network_tls_connections(args.config.node_info_network.host);
+            accept_network_tls_connections(args.config);
 
             if (public_only)
               sm.advance(State::partOfPublicNetwork);
@@ -1096,29 +1091,43 @@ namespace ccf
     };
 
   private:
-    void accept_network_tls_connections(const std::string& own_ip)
+    tls::SubjectAltName get_subject_alt_name(const CCFConfig& config)
     {
-      // Accept TLS connections, presenting node certificate signed by network
-      // certificate
-      auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
-      auto node_privkey = node_kp->private_key_pem();
+      // If a domain is passed at node creation, record domain in SAN for node
+      // hostname authentication over TLS. Otherwise, record IP in SAN.
+      bool san_is_ip = config.domain.empty();
+      return {san_is_ip ? config.node_info_network.host : config.domain,
+              san_is_ip};
+    }
 
-      auto endorsed_node_cert = nw->sign_csr(
-        node_kp->create_csr(fmt::format("CN={}", own_ip)),
-        fmt::format("CN={}", "CCF Network"),
-        own_ip);
-
-      rpcsessions->set_cert(nullb, endorsed_node_cert, node_privkey);
-      LOG_INFO_FMT("Network TLS connections now accepted");
+    void create_node_cert(const CCFConfig& config)
+    {
+      node_cert =
+        node_kp->self_sign("CN=CCF node", get_subject_alt_name(config));
     }
 
     void accept_node_tls_connections()
     {
       // Accept TLS connections, presenting self-signed (i.e. non-endorsed) node
       // certificate. Once the node is part of the network, this certificate
-      // should be removed and replaced with network-endorsed counterpart
-      rpcsessions->set_cert(nullb, node_cert, node_kp->private_key_pem());
+      // should be replaced with network-endorsed counterpart
+      rpcsessions->set_cert(node_cert, node_kp->private_key_pem());
       LOG_INFO_FMT("Node TLS connections now accepted");
+    }
+
+    void accept_network_tls_connections(const CCFConfig& config)
+    {
+      // Accept TLS connections, presenting node certificate signed by network
+      // certificate
+      auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
+
+      auto endorsed_node_cert = nw->sign_csr(
+        node_kp->create_csr(fmt::format("CN=CCF node {}", self)),
+        fmt::format("CN={}", "CCF Network"),
+        get_subject_alt_name(config));
+
+      rpcsessions->set_cert(endorsed_node_cert, node_kp->private_key_pem());
+      LOG_INFO_FMT("Network TLS connections now accepted");
     }
 
     void open_frontend(ccf::ActorsType actor)

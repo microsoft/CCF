@@ -43,17 +43,17 @@ namespace enclave
       rpc_map(rpc_map_)
     {}
 
-    void set_cert(CBuffer peer_ca, CBuffer cert_, const tls::Pem& pk)
+    void set_cert(CBuffer cert_, const tls::Pem& pk)
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      auto has_peer_ca = peer_ca != nullb;
       cert = std::make_shared<tls::Cert>(
-        has_peer_ca ? std::make_shared<tls::CA>(peer_ca) : nullptr,
+        nullptr, // Caller authentication is done by each frontend by looking up
+                 // the caller's certificate in the relevant store table
         cert_,
         pk,
         nullb,
-        has_peer_ca ? tls::auth_required : tls::auth_optional);
+        tls::auth_optional);
     }
 
     void accept(size_t id)

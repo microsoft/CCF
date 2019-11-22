@@ -177,7 +177,7 @@ int main(int argc, char** argv)
     "latency at a cost to throughput",
     true);
 
-  std::string domain = "ccf.io";
+  std::string domain;
   app.add_option(
     "--domain", domain, "DNS to use for TLS certificate validation", true);
 

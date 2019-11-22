@@ -31,8 +31,6 @@ class Node:
         self.perf = perf
         self.remote = None
         self.network_state = NodeNetworkState.stopped
-        # self.domain = domain
-        # self.node_name = f"node{self.node_id}.{domain}"
 
         hosts, *port = host.split(":")
         self.host, *self.pubhost = hosts.split(",")
