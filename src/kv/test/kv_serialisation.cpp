@@ -480,3 +480,61 @@ TEST_CASE("replicated and derived table serialisation")
     REQUIRE(serialised.derived.size() > 0);
   }
 }
+
+struct NonSerialisable
+{};
+
+namespace msgpack
+{
+  MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
+  {
+    namespace adaptor
+    {
+      // msgpack conversion for uint256_t
+      template <>
+      struct convert<NonSerialisable>
+      {
+        msgpack::object const& operator()(
+          msgpack::object const& o, NonSerialisable& ns) const
+        {
+          throw std::runtime_error("Deserialise failure");
+        }
+      };
+
+      template <>
+      struct pack<NonSerialisable>
+      {
+        template <typename Stream>
+        packer<Stream>& operator()(
+          msgpack::packer<Stream>& o, NonSerialisable const& ns) const
+        {
+          throw std::runtime_error("Serialise failure");
+        }
+      };
+    }
+  }
+}
+
+TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
+{
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  auto consensus = std::make_shared<kv::StubConsensus>();
+
+  Store store(consensus);
+  store.set_encryptor(encryptor);
+
+  auto& good_map = store.create<size_t, size_t>("good_map");
+  auto& bad_map = store.create<size_t, NonSerialisable>("bad_map");
+
+  {
+    Store::Tx tx;
+
+    auto good_view = tx.get_view(good_map);
+    good_view->put(1, 2);
+
+    auto bad_view = tx.get_view(bad_map);
+    bad_view->put(0, {});
+
+    REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
+  }
+}
