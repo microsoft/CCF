@@ -281,9 +281,9 @@ namespace pbft
         if (info.min_global_commit <= seqno)
         {
           return info.view + 2;
-          }
-       }
-       throw std::logic_error("should never be here");
+        }
+      }
+      throw std::logic_error("should never be here");
     }
 
     SeqNo get_commit_seqno() override

@@ -112,15 +112,15 @@ private:
   Cycle_counter latency; // Used to measure latency.
 
   // Multiplier used to obtain retransmission timeout from avg_latency
-  static const int Rtimeout_mult = 4;	
+  static const int Rtimeout_mult = 4;
 
-  static void rtimer_handler(void* owner);	
-  std::unique_ptr<ITimer> rtimer; // Retransmission timer	
+  static void rtimer_handler(void* owner);
+  std::unique_ptr<ITimer> rtimer; // Retransmission timer
 
-  bool primary_only_execution; // true iff f == 0	
+  bool primary_only_execution; // true iff f == 0
 
-  void retransmit();	
-  // Effects: Retransmits any outstanding request at the head of	
+  void retransmit();
+  // Effects: Retransmits any outstanding request at the head of
   // the queue.
 };
 
@@ -130,9 +130,9 @@ ClientProxy<T, C>::ClientProxy(IMessageReceiveBase& my_replica) :
   out_reqs(Max_outstanding),
   head(nullptr),
   tail(nullptr),
-  n_retrans(0),	
-  rtimeout(150),	
-  rtimer(new ITimer(rtimeout, rtimer_handler, this)),	
+  n_retrans(0),
+  rtimeout(150),
+  rtimer(new ITimer(rtimeout, rtimer_handler, this)),
   primary_only_execution(my_replica.f() == 0)
 {}
 
@@ -147,8 +147,8 @@ ClientProxy<T, C>::RequestContext::RequestContext(
   f(replica.f()),
   cb(cb),
   owner(owner),
-  t_reps([this](){return 2 * f + 1;}),
-  c_reps([this](){return f + 1;}),
+  t_reps([this]() { return 2 * f + 1; }),
+  c_reps([this]() { return f + 1; }),
   req(std::move(req)),
   next(nullptr),
   prev(nullptr)
@@ -323,99 +323,99 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
 
   out_reqs.erase(it);
   delete reply;
-  decrease_retransmission_timeout();	
+  decrease_retransmission_timeout();
 
-  n_retrans = 0;	
+  n_retrans = 0;
 
-  if (head != nullptr)	
-  {	
-    rtimer->start();	
-  }	
-}	
+  if (head != nullptr)
+  {
+    rtimer->start();
+  }
+}
 
-template <class T, class C>	
-void ClientProxy<T, C>::rtimer_handler(void* owner)	
-{	
-  ((ClientProxy*)owner)->retransmit();	
-}	
+template <class T, class C>
+void ClientProxy<T, C>::rtimer_handler(void* owner)
+{
+  ((ClientProxy*)owner)->retransmit();
+}
 
-template <class T, class C>	
-void ClientProxy<T, C>::increase_retransmission_timeout()	
-{	
-  rtimeout = rtimeout * 2;	
-  if (rtimeout > Max_rtimeout)	
-  {	
-    rtimeout = Max_rtimeout;	
-  }	
-  rtimer->adjust(rtimeout);	
-}	
+template <class T, class C>
+void ClientProxy<T, C>::increase_retransmission_timeout()
+{
+  rtimeout = rtimeout * 2;
+  if (rtimeout > Max_rtimeout)
+  {
+    rtimeout = Max_rtimeout;
+  }
+  rtimer->adjust(rtimeout);
+}
 
-template <class T, class C>	
-void ClientProxy<T, C>::decrease_retransmission_timeout()	
-{	
-  rtimeout = rtimeout - 100;	
-  if (rtimeout < Min_rtimeout)	
-  {	
-    rtimeout = Min_rtimeout;	
-  }	
-  rtimer->adjust(rtimeout);	
-}	
+template <class T, class C>
+void ClientProxy<T, C>::decrease_retransmission_timeout()
+{
+  rtimeout = rtimeout - 100;
+  if (rtimeout < Min_rtimeout)
+  {
+    rtimeout = Min_rtimeout;
+  }
+  rtimer->adjust(rtimeout);
+}
 
-template <class T, class C>	
-void ClientProxy<T, C>::retransmit()	
-{	
-  // Retransmit any outstanding request.	
-  static const int thresh = 1;	
+template <class T, class C>
+void ClientProxy<T, C>::retransmit()
+{
+  // Retransmit any outstanding request.
+  static const int thresh = 1;
 
-  if (head != nullptr)	
-  {	
-    RequestContext* ctx = head;	
-    Request* out_req = ctx->req.get();	
+  if (head != nullptr)
+  {
+    RequestContext* ctx = head;
+    Request* out_req = ctx->req.get();
 
-    LOG_DEBUG << "Retransmitting req id: " << out_req->request_id()	
-              << std::endl;	
-    INCR_OP(req_retrans);	
+    LOG_DEBUG << "Retransmitting req id: " << out_req->request_id()
+              << std::endl;
+    INCR_OP(req_retrans);
 
-#ifndef ENFORCE_EXACTLY_ONCE	
-    ctx->t_reps.clear();	
-    ctx->c_reps.clear();	
-#endif	
+#ifndef ENFORCE_EXACTLY_ONCE
+    ctx->t_reps.clear();
+    ctx->c_reps.clear();
+#endif
 
-    n_retrans++;	
-    bool ro = out_req->is_read_only();	
-    bool change = (ro || out_req->replier() >= 0) && n_retrans > thresh;	
+    n_retrans++;
+    bool ro = out_req->is_read_only();
+    bool change = (ro || out_req->replier() >= 0) && n_retrans > thresh;
 
-    if (change)	
-    {	
-      // Compute new authenticator for request	
-      out_req->re_authenticate(change);	
-      if (ro && change)	
-      {	
-        ctx->t_reps.clear();	
-      }	
-    }	
+    if (change)
+    {
+      // Compute new authenticator for request
+      out_req->re_authenticate(change);
+      if (ro && change)
+      {
+        ctx->t_reps.clear();
+      }
+    }
 
-    if (	
-      out_req->is_read_only() || n_retrans > thresh ||	
-      out_req->size() > Request::big_req_thresh)	
-    {	
-      // read-only requests, requests retransmitted more than	
-      // thresh times, and big requests are multicast to all	
-      // replicas.	
-      auto req_clone = out_req->clone();	
-      execute_request(req_clone);	
-    }	
-    else	
-    {	
-      // read-write requests are sent to the primary only.	
-      my_replica.send(out_req, my_replica.primary());	
-    }	
-  }	
+    if (
+      out_req->is_read_only() || n_retrans > thresh ||
+      out_req->size() > Request::big_req_thresh)
+    {
+      // read-only requests, requests retransmitted more than
+      // thresh times, and big requests are multicast to all
+      // replicas.
+      auto req_clone = out_req->clone();
+      execute_request(req_clone);
+    }
+    else
+    {
+      // read-write requests are sent to the primary only.
+      my_replica.send(out_req, my_replica.primary());
+    }
+  }
 
-  if (n_retrans > thresh)	
-  {	
-    increase_retransmission_timeout();	
-  }	
+  if (n_retrans > thresh)
+  {
+    increase_retransmission_timeout();
+  }
 
   rtimer->restart();
 }

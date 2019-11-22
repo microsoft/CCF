@@ -282,7 +282,9 @@ inline bool Certificate<T>::Val_iter::get(T*& m, int& count)
 }
 
 template <class T>
-Certificate<T>::Certificate(std::function<int()> comp_) : f(node->f()), comp(comp_)
+Certificate<T>::Certificate(std::function<int()> comp_) :
+  f(node->f()),
+  comp(comp_)
 {
   max_size = f + 1;
   vals = new Message_val[max_size];

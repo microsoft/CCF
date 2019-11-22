@@ -218,7 +218,6 @@ void View_info::discard_old_and_resize_if_needed()
     last_vcs.resize(node->num_of_replicas());
   }
 
-
   for (int i = 0; i < my_vacks.size(); i++)
   {
     delete my_vacks[i];
@@ -640,7 +639,6 @@ void View_info::clear()
 
   for (int i = 0; i < last_nvs.size(); i++)
   {
-
     last_nvs[i].clear();
   }
   vc_sent = zero_time();

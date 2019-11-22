@@ -87,7 +87,10 @@ Replica::Replica(
   rep_cb(nullptr),
   global_commit_cb(nullptr),
   state(this, mem, nbytes),
-  vi(node_id, 0, 64) // make this dynamic - https://github.com/microsoft/CCF/issues/385
+  vi(
+    node_id,
+    0,
+    64) // make this dynamic - https://github.com/microsoft/CCF/issues/385
 {
   // Fail if node is not a replica.
   if (!is_replica(id()))
@@ -289,7 +292,8 @@ bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
 
       if (global_commit_cb != nullptr)
       {
-        global_commit_cb(executable_pp->get_ctx(), executable_pp->view(), global_commit_ctx);
+        global_commit_cb(
+          executable_pp->get_ctx(), executable_pp->view(), global_commit_ctx);
       }
 
       last_executed++;
@@ -519,8 +523,8 @@ void Replica::handle(Request* m)
             << " id:" << id() << " primary:" << primary()
             << " with cid: " << m->client_id()
             << " current seqno: " << next_pp_seqno
-            << " last executed: " << last_executed
-            << " digest: " << rd.hash() << std::endl;
+            << " last executed: " << last_executed << " digest: " << rd.hash()
+            << std::endl;
 
   if (has_complete_new_view())
   {
