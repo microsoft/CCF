@@ -28,7 +28,9 @@ def wait_for_index_globally_committed(index, term, nodes):
             with f.node_client() as c:
                 id = c.request("getCommit", {"commit": index})
                 res = c.response(id)
-                if res.result["term"] == term and (res.global_commit > index or args.pbft):
+                if res.result["term"] == term and (
+                    res.global_commit > index or args.pbft
+                ):
                     up_to_date_f.append(f.node_id)
         if len(up_to_date_f) == len(nodes):
             break
@@ -46,7 +48,7 @@ def run(args):
         hosts = ["localhost", "localhost", "localhost", "localhost"]
     else:
         hosts = ["localhost", "localhost", "localhost"]
-    
+
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
@@ -67,7 +69,11 @@ def run(args):
             LOG.debug("Find freshly elected primary")
             primary, current_term = network.find_primary()
 
-            LOG.debug("Commit new transactions, primary:{}, current_term:{}".format(primary, current_term))
+            LOG.debug(
+                "Commit new transactions, primary:{}, current_term:{}".format(
+                    primary, current_term
+                )
+            )
             commit_index = None
             with primary.user_client(format="json") as c:
                 res = c.do(
