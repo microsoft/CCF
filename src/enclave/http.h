@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "http_builder.h"
 #include "tlsendpoint.h"
 
 #include <http-parser/http_parser.h>
@@ -10,21 +11,14 @@ namespace enclave
 {
   namespace http
   {
-    // TODO: Split into a request formatter class
-    std::vector<uint8_t> post_header(const std::vector<uint8_t>& body)
-    {
-      auto req = fmt::format(
-        "POST / HTTP/1.1\r\n"
-        "Content-Type: application/json\r\n"
-        "Content-Length: {}\r\n\r\n",
-        body.size());
-      return std::vector<uint8_t>(req.begin(), req.end());
-    }
-
     class MsgProcessor
     {
     public:
-      virtual void msg(std::vector<uint8_t> m) = 0;
+      virtual void msg(
+        http_method method,
+        const std::string& path,
+        const std::string& query,
+        std::vector<uint8_t> body) = 0;
     };
 
     enum State
@@ -127,7 +121,7 @@ namespace enclave
         if (state == IN_MESSAGE)
         {
           LOG_TRACE_FMT("Done with message");
-          proc.msg(std::move(buf));
+          proc.msg(http_method(parser.method), path, query, std::move(buf));
           state = DONE;
         }
         else
@@ -184,7 +178,7 @@ namespace enclave
     public:
       static std::vector<uint8_t> emit(const std::vector<uint8_t>& data)
       {
-        return http::post_header(data);
+        return http::build_post_header(data);
       }
     };
 
@@ -249,13 +243,17 @@ namespace enclave
         return;
     }
 
-    virtual void msg(std::vector<uint8_t> m)
+    virtual void msg(
+      http_method method,
+      const std::string& path,
+      const std::string& query,
+      std::vector<uint8_t> body)
     {
-      if (m.size() > 0)
+      if (body.size() > 0)
       {
         try
         {
-          if (!handle_data(m))
+          if (!handle_data(body))
             close();
         }
         catch (...)
