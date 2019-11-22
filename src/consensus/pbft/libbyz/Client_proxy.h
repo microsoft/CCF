@@ -100,11 +100,11 @@ private:
   int rtimeout; // Timeout period in msecs
 
   // Maximum retransmission timeout in msecs
-  static const int Max_rtimeout = 200;
+  static const int Max_rtimeout = 3000;
 
   // Minimum retransmission timeout after retransmission
   // in msecs
-  static const int Min_rtimeout = 100;
+  static const int Min_rtimeout = 2000;
 
   void increase_retransmission_timeout();
   void decrease_retransmission_timeout();
