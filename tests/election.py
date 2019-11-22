@@ -28,9 +28,7 @@ def wait_for_index_globally_committed(index, term, nodes):
             with f.node_client() as c:
                 id = c.request("getCommit", {"commit": index})
                 res = c.response(id)
-                if res.result["term"] == term and (
-                    res.global_commit > index or args.pbft
-                ):
+                if res.result["term"] == term and (res.global_commit >= index):
                     up_to_date_f.append(f.node_id)
         if len(up_to_date_f) == len(nodes):
             break
@@ -44,7 +42,7 @@ def run(args):
     # Three nodes minimum to make sure that the raft network can still make progress
     # if one node stops
 
-    if args.pbft:
+    if args.consensus == "pbft":
         hosts = ["localhost", "localhost", "localhost", "localhost"]
     else:
         hosts = ["localhost", "localhost", "localhost"]
@@ -61,8 +59,8 @@ def run(args):
 
         # Number of nodes F to stop until network cannot make progress
         nodes_to_stop = math.ceil(len(hosts) / 2)
-        if args.pbft:
-            nodes_to_stop = 2
+        if args.consensus == "pbft":
+            nodes_to_stop = math.ceil(len(hosts) / 3)
 
         for _ in range(nodes_to_stop):
             # Note that for the first iteration, the primary is known in advance anyway
@@ -95,9 +93,8 @@ def run(args):
             LOG.debug("Stopping primary")
             primary.stop()
 
-            if not args.pbft:
-                LOG.debug("Waiting for a new primary to be elected...")
-                time.sleep(max_election_duration)
+            LOG.debug("Waiting for a new primary to be elected...")
+            time.sleep(max_election_duration)
 
         # More than F nodes have been stopped, trying to commit any message
         LOG.debug(
@@ -109,9 +106,9 @@ def run(args):
             primary, current_term = network.find_primary()
             assert False, "Primary should not be found"
         except TypeError:
-            assert args.pbft, "Unexpected error"
+            assert args.consensus == "pbft", "Unexpected error"
         except AssertionError:
-            assert not args.pbft, "Unexpected error"
+            assert args.consensus != "pbft", "Unexpected error"
 
         LOG.info(
             "As expected, primary could not be found after election timeout. Test ended successfully."
