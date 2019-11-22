@@ -85,7 +85,6 @@ class Node:
             target_rpc_address,
             **kwargs,
         )
-        self.network_state = NodeNetworkState.joined
 
     def recover(self, lib_name, enclave_type, workspace, label, **kwargs):
         self._start(

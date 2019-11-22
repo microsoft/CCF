@@ -108,7 +108,7 @@ class Network:
             except TimeoutError:
                 LOG.error(f"New node {node.node_id} failed to join the network")
                 raise
-            node.network_state = infra.node.NodeNetworkState.joined
+        node.network_state = infra.node.NodeNetworkState.joined
 
     def _start_all_nodes(
         self, args, recovery=False, ledger_file=None, sealed_secrets=None
