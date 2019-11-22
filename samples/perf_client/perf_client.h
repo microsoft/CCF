@@ -154,6 +154,7 @@ namespace client
           tls_cert) :
         std::make_shared<RpcTlsClient>(
           server_address.hostname, server_address.port, nullptr, tls_cert);
+      conn->set_prefix("users");
 
       // Report ciphersuite of first client (assume it is the same for each)
       if (verbosity >= 1 && is_first)
