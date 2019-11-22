@@ -32,15 +32,15 @@ namespace tls
 
   public:
     Cert(
-      std::optional<std::string> peer_hostname_,
       std::shared_ptr<CA> peer_ca_,
       CBuffer own_cert_ = nullb,
       const tls::Pem& own_pkey_ = {},
       CBuffer pw = nullb,
-      Auth auth_ = auth_default) :
-      peer_hostname(peer_hostname_),
+      Auth auth_ = auth_default,
+      std::optional<std::string> peer_hostname_ = std::nullopt) :
       peer_ca(peer_ca_),
       auth(auth_),
+      peer_hostname(peer_hostname_),
       has_cert(false)
     {
       mbedtls_x509_crt_init(&own_cert);
@@ -79,6 +79,11 @@ namespace tls
     {
       if (peer_hostname.has_value())
       {
+        // Peer hostname is only checked against peer certificate (SAN
+        // extension) if it is set. This lets us connect to peers that present
+        // certificates with IPAddress in SAN field (mbedtls does not parse
+        // IPAddress in SAN field). This is OK since we check for peer CA
+        // endorsement.
         mbedtls_ssl_set_hostname(ssl, peer_hostname->c_str());
       }
 

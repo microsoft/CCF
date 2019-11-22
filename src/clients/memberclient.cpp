@@ -400,13 +400,8 @@ int main(int argc, char** argv)
   const tls::Pem key_pem(raw_key);
 
   // create tls client
-  auto tls_cert = make_shared<tls::Cert>(
-    // server_address.hostname,
-    std::nullopt,
-    make_shared<tls::CA>(ca),
-    raw_cert,
-    key_pem,
-    nullb);
+  auto tls_cert =
+    make_shared<tls::Cert>(make_shared<tls::CA>(ca), raw_cert, key_pem);
 
   unique_ptr<RpcTlsClient> tls_connection = force_unsigned ?
     make_unique<RpcTlsClient>(

@@ -49,7 +49,6 @@ namespace enclave
 
       auto has_peer_ca = peer_ca != nullb;
       cert = std::make_shared<tls::Cert>(
-        std::nullopt, // Server does not check client hostname
         has_peer_ca ? std::make_shared<tls::CA>(peer_ca) : nullptr,
         cert_,
         pk,
