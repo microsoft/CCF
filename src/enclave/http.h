@@ -176,19 +176,15 @@ namespace enclave
     HTTPEndpoint(
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx)
-    {
-      LOG_FAIL_FMT("FAIL");
-      assert(false);
-    }
+      std::unique_ptr<tls::Context> ctx) = delete;
 
     void recv(const uint8_t* data, size_t size)
     {
       recv_buffered(data, size);
 
       LOG_TRACE_FMT("recv called with {} bytes", size);
-      auto buf = read(4096, false); // TODO: retry if more was pending
-      LOG_TRACE_FMT("read got {}", buf.size());
+
+      auto buf = read_all_available();
 
       if (buf.size() == 0)
         return;

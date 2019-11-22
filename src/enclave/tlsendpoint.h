@@ -193,6 +193,30 @@ namespace enclave
       return data;
     }
 
+    std::vector<uint8_t> read_all_available()
+    {
+      constexpr auto read_size = 4096;
+      auto buf = read(read_size, false);
+
+      if (buf.size() == read_size)
+      {
+        while (true)
+        {
+          const auto more = read(read_size, false);
+
+          buf.insert(buf.end(), more.begin(), more.end());
+
+          if (more.size() != read_size)
+          {
+            break;
+          }
+        }
+      }
+
+      LOG_TRACE_FMT("read_all_available returning {} bytes", buf.size());
+      return buf;
+    }
+
     void recv(const uint8_t* data, size_t size)
     {
       pending_read.insert(pending_read.end(), data, data + size);
