@@ -22,8 +22,6 @@ using namespace jsonrpc;
 using namespace std;
 using namespace nlohmann;
 
-constexpr auto members_prefix = "members";
-
 static const string add_member_proposal(R"xxx(
       tables, member_cert = ...
       return Calls:call("new_member", member_cert)

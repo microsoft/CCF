@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "interface.h"
 #include "node/entities.h"
 #include "rpchandler.h"
 

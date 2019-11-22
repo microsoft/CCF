@@ -59,7 +59,6 @@ namespace enclave
     void accept(size_t id)
     {
       std::lock_guard<SpinLock> guard(lock);
-      std::cout << "Accept" << id << std::endl;
 
       if (sessions.find(id) != sessions.end())
         throw std::logic_error(
