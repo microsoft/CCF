@@ -102,7 +102,7 @@ class Network:
         )
 
         # If the network is opening, node are trusted without consortium approval
-        if self.status == ServiceStatus.OPENING
+        if self.status == ServiceStatus.OPENING:
             if args.consensus != "pbft":
                 try:
                     node.wait_for_node_to_join()
