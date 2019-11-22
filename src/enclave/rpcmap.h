@@ -18,7 +18,7 @@ namespace enclave
     RPCMap() = default;
 
     template <ccf::ActorsType T>
-    auto register_frontend(
+    void register_frontend(
       std::string name, std::shared_ptr<RpcHandler> handler_)
     {
       actors_map.emplace(name, T);

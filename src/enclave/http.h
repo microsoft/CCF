@@ -200,19 +200,9 @@ namespace enclave
         buf.size(),
         std::string(buf.begin(), buf.end()));
 
-      try
-      {
-        if (p.execute(buf.data(), buf.size()) == 0)
-          return;
-      }
-      catch (const std::exception& e)
-      {
-        LOG_FAIL_FMT("Fail to parse HTTP request");
-        std::string error_msg =
-          fmt::format("Error parsing HTTP request: {}", e.what());
-        send(std::vector<uint8_t>(error_msg.begin(), error_msg.end()));
+      // TODO: This should return an error to the client if this fails
+      if (p.execute(buf.data(), buf.size()) == 0)
         return;
-      }
     }
 
     virtual void msg(std::vector<uint8_t> m)

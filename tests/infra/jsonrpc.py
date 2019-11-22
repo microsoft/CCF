@@ -152,7 +152,6 @@ class FramedTLSClient:
 
     def connect(self):
         if self.cafile:
-            LOG.error(f"ca file is {self.cafile}")
             self.context = ssl.create_default_context(cafile=self.cafile)
 
             # Auto detect EC curve to use based on server CA

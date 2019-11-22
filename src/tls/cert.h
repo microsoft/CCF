@@ -22,7 +22,7 @@ namespace tls
   class Cert
   {
   private:
-    std::optional<std::string> peer_hostname; // Only set when used with server
+    std::optional<std::string> peer_hostname;
     mbedtls_x509_crt own_cert;
     mbedtls_pk_context own_pkey;
     std::shared_ptr<CA> peer_ca;

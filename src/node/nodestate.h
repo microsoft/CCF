@@ -398,8 +398,7 @@ namespace ccf
         default:
         {
           throw std::logic_error(fmt::format(
-            "Node was started in unknown mode {}",
-            std::to_string(args.start_type)));
+            "Node was started in unknown mode {}", args.start_type));
         }
       }
     }

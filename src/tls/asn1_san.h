@@ -41,6 +41,8 @@ namespace tls
     uint8_t san_buf[max_san_length];
     int ret = 0;
     size_t len = 0;
+
+    // mbedtls asn1 write API writes backward in san_buf
     uint8_t* pc = san_buf + max_san_length;
 
     auto name_len = strlen(name);
@@ -67,9 +69,10 @@ namespace tls
       }
 
       // mbedtls (2.16.2) only supports parsing of subject alternative name that
-      // is DNS= (so no IPAddress=). IPAddress can be used when a non-mbedtls
-      // client (curl) connects to a node but should not be used in practice
-      // because of the join protocol
+      // is DNS= (so no IPAddress=). When connecting to a node that has
+      // IPAddress set, mbedtls_ssl_set_hostname() should not be called.
+      // However, it should work fine with a majority of other clients (e.g.
+      // curl).
       case san_type::ip_address:
       {
         auto ip = inet_addr(name);

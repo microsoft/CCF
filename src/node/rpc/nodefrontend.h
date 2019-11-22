@@ -136,7 +136,7 @@ namespace ccf
         {
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            "Node not part of network cannot accept new nodes");
+            "Target node should be part of network to accept new nodes");
         }
 
         auto [nodes_view, service_view] =

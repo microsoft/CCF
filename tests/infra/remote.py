@@ -557,7 +557,6 @@ class CCFRemote(object):
             f"--host-log-level={host_log_level}",
             f"--raft-election-timeout-ms={election_timeout}",
             f"--consensus={consensus}",
-            # f"--domain={domain}",
         ]
 
         if json_log_path:
