@@ -7,7 +7,7 @@ set(MSGPACK_INCLUDE_DIR ${CCF_DIR}/3rdparty/msgpack-c)
 set(FLATBUFFERS_INCLUDE_DIR ${CCF_DIR}/3rdparty/flatbuffers/include)
 
 execute_process(
-    COMMAND flatc --cpp ${CCF_DIR}/src/flatbuffers/data.fbs
+    COMMAND flatc --cpp ${CCF_DIR}/src/kv/frame.fbs
 )
 
 set(default_build_type "RelWithDebInfo")

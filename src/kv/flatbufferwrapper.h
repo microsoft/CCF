@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <data_generated.h>
+#include <frame_generated.h>
 
 namespace kv
 {
@@ -10,7 +10,7 @@ namespace kv
   {
   private:
     flatbuffers::FlatBufferBuilder builder;
-    flatbuffers::Offset<data::Data> data;
+    flatbuffers::Offset<Frame> frame;
 
   public:
     FlatbufferSerialiser(
@@ -20,31 +20,27 @@ namespace kv
       auto fb_replicated = builder.CreateVector(replicated);
       auto fb_derived = builder.CreateVector(derived);
 
-      data = data::CreateData(builder, fb_replicated, fb_derived);
-      builder.Finish(data);
+      frame = CreateFrame(builder, fb_replicated, fb_derived);
+      builder.Finish(frame);
     }
 
-    std::vector<uint8_t> get_flatbuffer()
+    uint8_t* get_flatbuffer()
     {
-      auto buf = builder.GetBufferPointer();
-      return std::move(std::vector<uint8_t>(buf, buf + builder.GetSize()));
+      return builder.GetBufferPointer();
     }
   };
 
   class FlatbufferDeserialiser
   {
   private:
-    const data::Data* data;
+    const Frame* frame;
 
   public:
-    FlatbufferDeserialiser(const std::vector<uint8_t>& data_) :
-      data(data::GetData(data_.data()))
-    {}
+    FlatbufferDeserialiser(uint8_t* frame_) : frame(GetFrame(frame_)) {}
 
-    std::vector<uint8_t> get_replicated()
+    const Frame* get_frame()
     {
-      return std::move(std::vector<uint8_t>(
-        data->replicated()->begin(), data->replicated()->end()));
+      return frame;
     }
   };
 }
