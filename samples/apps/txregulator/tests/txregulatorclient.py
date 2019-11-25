@@ -73,7 +73,11 @@ def run(args):
                 check(
                     c.rpc(
                         "REG_register",
-                        {"country": regulator.country, "script": script},
+                        {
+                            "country": regulator.country,
+                            "script": script,
+                            "name": regulator.name,
+                        },
                     ),
                     result=regulator.ccf_id,
                 )
