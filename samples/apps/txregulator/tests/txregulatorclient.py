@@ -48,7 +48,7 @@ def run(args):
                 transactions.append(json_tx)
 
         with primary.node_client() as mc:
-            with primary.user_client(format="msgpack", user_id=regulator[0] + 1) as c:
+            with primary.user_client(format="msgpack", user_id=regulator[0]) as c:
                 check_commit = infra.checker.Checker(mc)
                 check = infra.checker.Checker()
 
@@ -72,7 +72,7 @@ def run(args):
             LOG.debug(f"User {regulator[0]} successfully registered as regulator")
 
         for bank in banks:
-            with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
+            with primary.user_client(format="msgpack", user_id=bank[0]) as c:
                 check_commit = infra.checker.Checker(mc)
                 check = infra.checker.Checker()
 
@@ -97,7 +97,7 @@ def run(args):
         flagged_amt = 200000
 
         for i, bank in enumerate(banks):
-            bank_id = bank[0] + 1
+            bank_id = bank[0]
             reg_id = regulator[0]
             with primary.user_client(format="msgpack", user_id=bank_id) as c:
                 # Destination account is the next one in the list of banks
@@ -150,7 +150,7 @@ def run(args):
         LOG.success(f"{tx_id} transactions have been successfully issued")
 
         # bank that issued first flagged transaction
-        with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
+        with primary.user_client(format="msgpack", user_id=bank[0]) as c:
             # try to poll flagged but fail as you are not a regulator
             check(
                 c.rpc("REG_poll_flagged", {}),
@@ -174,7 +174,7 @@ def run(args):
 
         # regulator poll for transactions that are flagged
         with primary.node_client() as mc:
-            with primary.user_client(format="msgpack", user_id=regulator[0] + 1) as c:
+            with primary.user_client(format="msgpack", user_id=regulator[0]) as c:
                 # assert that the flagged txs that we poll for are correct
                 resp = c.rpc("REG_poll_flagged", {})
                 poll_flagged_ids = []
