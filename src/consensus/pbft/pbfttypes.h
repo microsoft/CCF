@@ -14,7 +14,7 @@ namespace pbft
 
   enum PbftMsgType : Node2NodeMsg
   {
-    pbft_message = 0,
+    pbft_message = 1000,
   };
 
 #pragma pack(push, 1)

@@ -87,7 +87,10 @@ Replica::Replica(
   rep_cb(nullptr),
   global_commit_cb(nullptr),
   state(this, mem, nbytes),
-  vi(node_id, 0)
+  vi(
+    node_id,
+    0,
+    64) // make this dynamic - https://github.com/microsoft/CCF/issues/385
 {
   // Fail if node is not a replica.
   if (!is_replica(id()))
@@ -212,18 +215,14 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
 {
   if (size > Max_message_size)
   {
-    LOG_DEBUG
-      << "Received message will not be processed, size exceeds message limits: "
-      << size << std::endl;
-    return;
+    LOG_FAIL << "Received message size exceeds message: " << size << std::endl;
   }
-  Message* m = new Message(Max_message_size);
+  uint64_t alloc_size = std::max(size, (uint32_t)Max_message_size);
+  Message* m = new Message(alloc_size);
   // TODO: remove this memcpy
   memcpy(m->contents(), data, size);
   if (pre_verify(m))
   {
-    PBFT_ASSERT(
-      Max_message_size >= size, "size must be less than Max_message_size");
     recv_process_one_msg(m);
   }
   else
@@ -291,7 +290,8 @@ bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
 
       if (global_commit_cb != nullptr)
       {
-        global_commit_cb(executable_pp->get_ctx(), global_commit_ctx);
+        global_commit_cb(
+          executable_pp->get_ctx(), executable_pp->view(), global_commit_ctx);
       }
 
       last_executed++;
@@ -516,6 +516,14 @@ void Replica::handle(Request* m)
 {
   bool ro = m->is_read_only();
 
+  Digest rd = m->digest();
+  LOG_TRACE << "Received request with rid: " << m->request_id()
+            << " id:" << id() << " primary:" << primary()
+            << " with cid: " << m->client_id()
+            << " current seqno: " << next_pp_seqno
+            << " last executed: " << last_executed << " digest: " << rd.hash()
+            << std::endl;
+
   if (has_complete_new_view())
   {
     LOG_TRACE << "Received request with rid: " << m->request_id()
@@ -728,6 +736,11 @@ void Replica::handle(Pre_prepare* m)
   Byz_buffer b;
 
   b.contents = m->choices(b.size);
+
+  LOG_TRACE << "Received pre prepare with seqno: " << ms
+            << ", in_wv:" << (in_wv(m) ? "true" : "false")
+            << ", low_bound:" << low_bound << ", has complete_new_view:"
+            << (has_complete_new_view() ? "true" : "false") << std::endl;
 
   if (in_wv(m) && ms > low_bound && has_complete_new_view())
   {
@@ -1340,7 +1353,7 @@ void Replica::handle(Status* m)
 void Replica::handle(View_change* m)
 {
   LOG_INFO << "Received view change for " << m->view() << " from " << m->id()
-           << "\n";
+           << ", v:" << v << std::endl;
 
   if (m->id() == primary() && m->view() > v)
   {
@@ -1385,7 +1398,7 @@ void Replica::handle(View_change* m)
 void Replica::handle(New_view* m)
 {
   LOG_INFO << "Received new view for " << m->view() << " from " << m->id()
-           << "\n";
+           << std::endl;
   vi.add(m);
 }
 
@@ -1580,7 +1593,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   if (primary(v) == id())
   {
     New_view* nv = vi.my_new_view();
-    LOG_INFO << "Sending new view for " << nv->view() << "\n";
+    LOG_INFO << "Sending new view for " << nv->view() << std::endl;
     send(nv, All_replicas);
   }
 
@@ -1675,7 +1688,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   {
     start_vtimer_if_request_waiting();
   }
-  LOG_INFO << "Done with process new view " << v << "\n";
+  LOG_INFO << "Done with process new view " << v << std::endl;
 }
 
 Pre_prepare* Replica::prepared_pre_prepare(Seqno n)
@@ -1837,7 +1850,7 @@ void Replica::execute_prepared(bool committed)
     if (global_commit_cb != nullptr)
     {
       LOG_TRACE << "Global_commit:" << pp->get_ctx() << std::endl;
-      global_commit_cb(pp->get_ctx(), global_commit_ctx);
+      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_ctx);
     }
   }
 }

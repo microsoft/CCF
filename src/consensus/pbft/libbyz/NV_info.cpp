@@ -59,7 +59,8 @@ NV_info::NV_info() :
   nv(0),
   vc_target(0),
   vc_cur(0),
-  vcs(node->num_of_replicas())
+  vcs(
+    64) // TODO: this is not great - https://github.com/microsoft/CCF/issues/385
 {
   chosen_ckpt = -1;
   max = -1;
@@ -362,7 +363,7 @@ void NV_info::summarize(View_change* vc)
 
     // Search view-changes in new-view for proofs
     Digest d;
-    for (int i = 0; i < vcs.size(); i++)
+    for (int i = 0; i < node->num_of_replicas(); i++)
     {
       if (nv->view_change(i) && vcs[i].vc->ckpt(vcn, d) && d == vclc)
       {
@@ -411,7 +412,7 @@ void NV_info::choose_ckpt(int index)
     }
 
     // Summarize requests for all view-change messages in new-view.
-    for (int i = 0; i < vcs.size(); i++)
+    for (int i = 0; i < node->num_of_replicas(); i++)
     {
       if (nv->view_change(i))
       {
@@ -662,7 +663,7 @@ void NV_info::summarize_reqs(View_change* vc)
       Req_sum& cur = reqsi.emplace_back(rv, rd, n_le + 1, vc->id(), 0, 0);
 
       // Search view-changes for proofs
-      for (int j = 0; j < vcs.size(); j++)
+      for (int j = 0; j < node->num_of_replicas(); j++)
       {
         if (vcs[j].req_sum)
         {
@@ -734,7 +735,7 @@ bool NV_info::check_new_view()
 
   // Search view-changes for proofs
   Digest dd;
-  for (int i = 0; i < vcs.size(); i++)
+  for (int i = 0; i < node->num_of_replicas(); i++)
   {
     if (i != cid && vcs[i].vc)
     {
@@ -761,7 +762,7 @@ bool NV_info::check_new_view()
   // propose any pre-prepared or prepared request with sequence number
   // greater than or equal to nv->max().
   int n_lt = 0;
-  for (int i = 0; i < vcs.size(); i++)
+  for (int i = 0; i < node->num_of_replicas(); i++)
   {
     auto vc = vcs[i].vc.get();
     if (vc == 0)
@@ -813,7 +814,7 @@ bool NV_info::check_new_view()
     View v = vc->req(i, d);
     Req_sum& cur = reqs[i - base].emplace_back(v, d, 0, vc->id(), 0, 0);
     // Search view-changes for proofs
-    for (int j = 0; j < vcs.size(); j++)
+    for (int j = 0; j < node->num_of_replicas(); j++)
     {
       if (vcs[j].vc && i > vcs[j].vc->last_stable())
       {
@@ -1041,7 +1042,7 @@ void NV_info::dump_state(std::ostream& os)
      << " nv_sent: " << nv_sent << std::endl;
 
   os << " View changes vcs: " << std::endl;
-  for (int i = 0; i < vcs.size(); i++)
+  for (int i = 0; i < node->num_of_replicas(); i++)
   {
     os << " i: " << i << " vc: " << (void*)vcs[i].vc.get()
        << " ack_count: " << vcs[i].ack_count << " ack_reps: " << vcs[i].ack_reps

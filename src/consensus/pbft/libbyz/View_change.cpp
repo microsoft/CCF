@@ -42,10 +42,6 @@ View_change::View_change(View v, Seqno ls, int id) :
 
 void View_change::add_checkpoint(Seqno n, Digest& d)
 {
-  PBFT_ASSERT(n % checkpoint_interval == 0, "Invalid argument");
-  PBFT_ASSERT(
-    (last_stable() <= n) && (n <= last_stable() + max_out), "Invalid argument");
-
   int index = (n - last_stable()) / checkpoint_interval;
   rep().ckpts[index] = d;
 

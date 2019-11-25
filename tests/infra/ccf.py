@@ -102,12 +102,13 @@ class Network:
         )
 
         # If the network is opening, node are trusted without consortium approval
-        if self.status == ServiceStatus.OPENING and args.consensus != "pbft":
-            try:
-                node.wait_for_node_to_join()
-            except TimeoutError:
-                LOG.error(f"New node {node.node_id} failed to join the network")
-                raise
+        if self.status == ServiceStatus.OPENING:
+            if args.consensus != "pbft":
+                try:
+                    node.wait_for_node_to_join()
+                except TimeoutError:
+                    LOG.error(f"New node {node.node_id} failed to join the network")
+                    raise
             node.network_state = infra.node.NodeNetworkState.joined
 
     def _start_all_nodes(
