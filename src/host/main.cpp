@@ -49,7 +49,7 @@ int main(int argc, char** argv)
       true)
     ->required();
 
-  std::string consensus;
+  std::string consensus = "raft";
   app.add_set("-c,--consensus", consensus, {"raft", "pbft"}, "Consensus", true)
     ->required();
 
