@@ -57,6 +57,7 @@ namespace enclave
           {
             uri +=
               fmt::format("{}{}={}", (first ? '?' : '&'), it.first, it.second);
+            first = false;
           }
         }
 
@@ -77,56 +78,69 @@ namespace enclave
       }
     };
 
+    // Generic
+    static std::vector<uint8_t> build_header(
+      http_method method, const std::vector<uint8_t>& body)
+    {
+      return Request(method).build_request(body, true);
+    }
+
+    static std::vector<uint8_t> build_request(
+      http_method method, const std::vector<uint8_t>& body)
+    {
+      return Request(method).build_request(body, false);
+    }
+
     // HTTP_DELETE
     static std::vector<uint8_t> build_delete_header(
       const std::vector<uint8_t>& body)
     {
-      return Request(HTTP_DELETE).build_request(body, true);
+      return build_header(HTTP_DELETE, body);
     }
 
     static std::vector<uint8_t> build_delete_request(
       const std::vector<uint8_t>& body)
     {
-      return Request(HTTP_DELETE).build_request(body, false);
+      return build_request(HTTP_DELETE, body);
     }
 
     // HTTP_GET
     static std::vector<uint8_t> build_get_header(
       const std::vector<uint8_t>& body)
     {
-      return Request(HTTP_GET).build_request(body, true);
+      return build_header(HTTP_GET, body);
     }
 
     static std::vector<uint8_t> build_get_request(
       const std::vector<uint8_t>& body)
     {
-      return Request(HTTP_GET).build_request(body, false);
+      return build_request(HTTP_GET, body);
     }
 
     // HTTP_POST
     static std::vector<uint8_t> build_post_header(
       const std::vector<uint8_t>& body)
     {
-      return Request(HTTP_POST).build_request(body, true);
+      return build_header(HTTP_POST, body);
     }
 
     static std::vector<uint8_t> build_post_request(
       const std::vector<uint8_t>& body)
     {
-      return Request(HTTP_POST).build_request(body, false);
+      return build_request(HTTP_POST, body);
     }
 
     // HTTP_PUT
     static std::vector<uint8_t> build_put_header(
       const std::vector<uint8_t>& body)
     {
-      return Request(HTTP_PUT).build_request(body, true);
+      return build_header(HTTP_PUT, body);
     }
 
     static std::vector<uint8_t> build_put_request(
       const std::vector<uint8_t>& body)
     {
-      return Request(HTTP_PUT).build_request(body, false);
+      return build_request(HTTP_PUT, body);
     }
   }
 }

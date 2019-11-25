@@ -98,66 +98,128 @@ TEST_CASE("Partial request")
   CHECK(m.body == r0);
 }
 
-// TEST_CASE("Partial body")
-// {
-//   StubProc sp;
-//   enclave::http::Parser p(HTTP_REQUEST, sp);
+TEST_CASE("Partial body")
+{
+  StubProc sp;
+  enclave::http::Parser p(HTTP_REQUEST, sp);
 
-//   auto req = build_post_request(request_0);
-//   size_t offset = 10;
+  const auto r0 = s_to_v(request_0);
+  auto req = build_post_request(r0);
+  size_t offset = build_post_header(r0).size() + 4;
 
-//   auto parsed = p.execute(req.data(), req.size() - offset);
-//   CHECK(parsed == req.size() - offset);
+  auto parsed = p.execute(req.data(), req.size() - offset);
+  CHECK(parsed == req.size() - offset);
+  parsed = p.execute(req.data() + req.size() - offset, offset);
+  CHECK(parsed == offset);
 
-//   parsed = p.execute(req.data() + req.size() - offset, offset);
-//   CHECK(parsed == offset);
+  CHECK(!sp.received.empty());
+  const auto& m = sp.received.front();
+  CHECK(m.method == HTTP_POST);
+  CHECK(m.body == r0);
+}
 
-//   sp.expect({request_0});
-// }
+TEST_CASE("Multiple requests")
+{
+  StubProc sp;
+  enclave::http::Parser p(HTTP_REQUEST, sp);
 
-// TEST_CASE("Multiple requests")
-// {
-//   StubProc sp;
-//   enclave::http::Parser p(HTTP_REQUEST, sp);
+  const auto r0 = s_to_v(request_0);
+  auto req = build_post_request(r0);
+  const auto r1 = s_to_v(request_1);
+  auto req1 = build_post_request(r1);
+  std::copy(req1.begin(), req1.end(), std::back_inserter(req));
 
-//   auto req = post(request_0);
-//   auto req1 = post(request_1);
-//   std::copy(req1.begin(), req1.end(), std::back_inserter(req));
+  auto parsed = p.execute(req.data(), req.size());
+  CHECK(parsed == req.size());
 
-//   auto parsed = p.execute(req.data(), req.size());
-//   CHECK(parsed == req.size());
+  {
+    CHECK(!sp.received.empty());
+    const auto& m = sp.received.front();
+    CHECK(m.method == HTTP_POST);
+    CHECK(m.body == r0);
+  }
 
-//   sp.expect({request_0, request_1});
-// }
+  sp.received.pop();
 
-// TEST_CASE("URL parsing")
-// {
-//   StubProc sp;
-//   enclave::http::Parser p(HTTP_REQUEST, sp);
+  {
+    CHECK(!sp.received.empty());
+    const auto& m = sp.received.front();
+    CHECK(m.method == HTTP_POST);
+    CHECK(m.body == r1);
+  }
+}
 
-//   const auto path = "/foo/123";
-//   const auto query = "balance=42&id=100";
-//   auto req = post(request_0, path, query);
+TEST_CASE("Method parsing")
+{
+  StubProc sp;
+  enclave::http::Parser p(HTTP_REQUEST, sp);
 
-//   auto parsed = p.execute(req.data(), req.size());
-//   CHECK(parsed == req.size());
+  bool choice;
+  for (const auto method : {HTTP_DELETE, HTTP_GET, HTTP_POST, HTTP_PUT})
+  {
+    const auto r = s_to_v(choice ? request_0 : request_1);
+    auto req = build_request(method, r);
+    auto parsed = p.execute(req.data(), req.size());
 
-//   sp.expect({request_0});
-//   CHECK(sp.path == path);
-//   CHECK(sp.query == query);
-// }
+    CHECK(!sp.received.empty());
+    const auto& m = sp.received.front();
+    CHECK(m.method == method);
+    CHECK(m.body == r);
 
-// TEST_CASE("Pessimal transport")
-// {
-//   StubProc sp;
-//   enclave::http::Parser p(HTTP_REQUEST, sp);
+    sp.received.pop();
+    choice = !choice;
+  }
+}
 
-//   auto req = post(request_0);
-//   auto req1 = post(request_1);
-//   std::copy(req1.begin(), req1.end(), std::back_inserter(req));
+TEST_CASE("URL parsing")
+{
+  StubProc sp;
+  enclave::http::Parser p(HTTP_REQUEST, sp);
 
-//   auto parsed = p.execute(req.data(), req.size());
-//   CHECK(parsed == req.size());
+  const auto path = "/foo/123";
 
-//   sp.expect({request_0, request_1});
-// }
+  Request r;
+  r.set_path(path);
+  r.set_query_param("balance", "42");
+  r.set_query_param("id", "100");
+
+  const auto body = s_to_v(request_0);
+  auto req = r.build_request(body);
+
+  auto parsed = p.execute(req.data(), req.size());
+  CHECK(parsed == req.size());
+
+  CHECK(!sp.received.empty());
+  const auto& m = sp.received.front();
+  CHECK(m.method == HTTP_POST);
+  CHECK(m.body == body);
+  CHECK(m.path == path);
+  CHECK(m.query.find("balance=42") != std::string::npos);
+  CHECK(m.query.find("id=100") != std::string::npos);
+  CHECK(m.query.find("&") != std::string::npos);
+}
+
+TEST_CASE("Pessimal transport")
+{
+  StubProc sp;
+  enclave::http::Parser p(HTTP_REQUEST, sp);
+
+  const auto r0 = s_to_v(request_0);
+  auto req = build_post_request(r0);
+
+  size_t done = 0;
+  while (done < req.size())
+  {
+    // Simulate dreadful transport - send between 1 and 8 bytes at a time
+    size_t next = (rand() % 8) + 1;
+    next = std::min(next, req.size() - done);
+    auto parsed = p.execute(req.data() + done, next);
+    CHECK(parsed == next);
+    done += next;
+  }
+
+  CHECK(!sp.received.empty());
+  const auto& m = sp.received.front();
+  CHECK(m.method == HTTP_POST);
+  CHECK(m.body == r0);
+}

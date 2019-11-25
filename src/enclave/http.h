@@ -132,7 +132,8 @@ namespace enclave
 
       void parse_url(const char* at, size_t length)
       {
-        LOG_INFO_FMT("Received url to parse: {}", std::string_view(at, length));
+        LOG_TRACE_FMT(
+          "Received url to parse: {}", std::string_view(at, length));
 
         http_parser_url url;
         http_parser_url_init(&url);
@@ -144,10 +145,8 @@ namespace enclave
         }
 
         path = extract_url_field(url, UF_PATH, at);
-        LOG_INFO_FMT("Extracted path: {}", path);
 
         query = extract_url_field(url, UF_QUERY, at);
-        LOG_INFO_FMT("Extracted query: {}", query);
       }
     };
 
