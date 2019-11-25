@@ -120,6 +120,21 @@ namespace ccf
            u->put(id, {cert});
            return true;
          }},
+        {"set_user_data",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
+           const UserId user_id = args["user_id"];
+           auto users_view = tx.get_view(this->network.users);
+           auto user_info = users_view->get(user_id);
+           if (!user_info.has_value())
+           {
+             throw std::logic_error(
+               fmt::format("{} is not a valid user ID", user_id));
+           }
+
+           user_info->user_data = args["user_data"];
+           users_view->put(user_id, *user_info);
+           return true;
+         }},
         // accept a node
         {"trust_node",
          [this](Store::Tx& tx, const nlohmann::json& args) {
