@@ -76,10 +76,12 @@ namespace enclave
         LOG_TRACE_FMT("Parsed {} bytes", parsed);
         auto err = HTTP_PARSER_ERRNO(&parser);
         if (err)
+        {
           throw std::runtime_error(fmt::format(
             "HTTP parsing failed: {}: {}",
             http_errno_name(err),
             http_errno_description(err)));
+        }
 
         LOG_TRACE_FMT(
           "Parsed a {} request", http_method_str(http_method(parser.method)));
@@ -238,8 +240,12 @@ namespace enclave
         buf.size(),
         std::string(buf.begin(), buf.end()));
 
+      // TODO: This should return an error to the client if this fails
       if (p.execute(buf.data(), buf.size()) == 0)
+      {
+        LOG_FAIL_FMT("Failed to parse request");
         return;
+      }
     }
 
     virtual void msg(

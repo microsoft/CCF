@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 
-using namespace ccfapp;
+using namespace ccf;
 
 TEST_CASE("Map creation")
 {

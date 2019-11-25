@@ -154,7 +154,7 @@ TEST_CASE("Method parsing")
   StubProc sp;
   enclave::http::Parser p(HTTP_REQUEST, sp);
 
-  bool choice;
+  bool choice = false;
   for (const auto method : {HTTP_DELETE, HTTP_GET, HTTP_POST, HTTP_PUT})
   {
     const auto r = s_to_v(choice ? request_0 : request_1);

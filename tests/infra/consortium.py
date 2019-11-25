@@ -11,6 +11,8 @@ import infra.proc
 import infra.checker
 import infra.node
 
+from loguru import logger as LOG
+
 
 class Consortium:
     def __init__(self, members):
@@ -57,10 +59,11 @@ class Consortium:
             return true
             """
             with remote_node.member_client(format="json", member_id=member_id) as mc:
-                r = mc.rpc(
+                res = mc.rpc(
                     "vote", {"ballot": {"text": script}, "id": proposal_id}, signed=True
                 )
-            return (True, r.result)
+                j_result = res.to_dict()
+
         else:
             j_result = self._member_client_rpc_as_json(
                 member_id,
@@ -77,7 +80,7 @@ class Consortium:
         # This is particularly useful for the open network proposal to wait
         # until the global hook on the SERVICE table is triggered
         if j_result["result"] and should_wait_for_global_commit:
-            with remote_node.node_client(member_id) as mc:
+            with remote_node.node_client() as mc:
                 infra.checker.wait_for_global_commit(
                     mc, j_result["commit"], j_result["term"], True
                 )

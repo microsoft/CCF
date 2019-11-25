@@ -19,8 +19,10 @@ class LoggingClient
 public:
   LoggingClient(
     const string& host, const string& port, const shared_ptr<tls::Cert>& cert) :
-    rpc_client(make_unique<RpcTlsClient>(host, port, "users", nullptr, cert))
-  {}
+    rpc_client(make_unique<RpcTlsClient>(host, port, nullptr, cert))
+  {
+    rpc_client->set_prefix("users");
+  }
 
   static std::string make_timestamped_message(const std::string& body)
   {
@@ -131,8 +133,8 @@ int main(int argc, char** argv)
 
   const tls::Pem key_pem(raw_key);
 
-  const auto cert = make_shared<tls::Cert>(
-    "users", make_shared<tls::CA>(ca), raw_cert, key_pem, nullb);
+  const auto cert =
+    make_shared<tls::Cert>(make_shared<tls::CA>(ca), raw_cert, key_pem);
 
   LoggingClient client(server_address.hostname, server_address.port, cert);
 
