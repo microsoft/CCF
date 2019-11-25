@@ -235,11 +235,6 @@ inline int Prepared_cert::num_correct()
 
 inline bool Prepared_cert::is_complete()
 {
-  bool pp_i = pp_info.is_complete();
-  bool pc = false;
-  bool m = false;
-  bool result = false;
-
   if (pp_info.is_complete())
   {
     if (prepare_cert.num_complete() == 0)

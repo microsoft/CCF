@@ -215,8 +215,8 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
 {
   if (size > Max_message_size)
   {
-    LOG_DEBUG
-      << "Received message will not be processed, size exceeds message limits: "
+    LOG_FAIL
+      << "Received message size exceeds message: "
       << size << std::endl;
   }
   uint64_t alloc_size = std::max(size, (uint32_t)Max_message_size);
@@ -740,7 +740,7 @@ void Replica::handle(Pre_prepare* m)
   b.contents = m->choices(b.size);
 
   LOG_TRACE << "Received pre prepare with seqno: " << ms
-            << ", in_mv:" << (in_wv(m) ? "true" : "false")
+            << ", in_wv:" << (in_wv(m) ? "true" : "false")
             << ", low_bound:" << low_bound << ", has complete_new_view:"
             << (has_complete_new_view() ? "true" : "false") << std::endl;
 

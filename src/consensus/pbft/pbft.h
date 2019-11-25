@@ -142,8 +142,10 @@ namespace pbft
       rpcsessions(rpcsessions_),
       global_commit_seqno(1),
       last_commit_view(0),
-      store(std::move(store_))
+      store(std::move(store_)),
+      view_change_list(1, view_change_info(0, 0))
     {
+
       // configure replica
       GeneralInfo general_info;
       general_info.num_replicas = 1;
@@ -232,7 +234,6 @@ namespace pbft
       register_global_commit_ctx.last_commit_view = &last_commit_view;
       register_global_commit_ctx.view_change_list = &view_change_list;
 
-      view_change_list.emplace_back(0, 0);
       message_receiver_base->register_global_commit(
         global_commit_cb, &register_global_commit_ctx);
     }
@@ -264,9 +265,6 @@ namespace pbft
         client_proxy.get());
     }
 
-    // TODO(#PBFT): PBFT consensus should implement the following functions to
-    // return meaningful information to clients (e.g. global commit, term/view)
-    // https://github.com/microsoft/CCF/issues/57
     View get_view() override
     {
       return message_receiver_base->view() + 2;

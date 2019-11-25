@@ -108,7 +108,7 @@ def run(args):
         except TypeError:
             assert args.consensus == "pbft", "Unexpected error"
         except AssertionError:
-            assert args.consensus != "pbft", "Unexpected error"
+            assert args.consensus == "raft", "Unexpected error"
 
         LOG.info(
             "As expected, primary could not be found after election timeout. Test ended successfully."
