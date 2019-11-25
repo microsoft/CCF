@@ -13,6 +13,7 @@ import os
 import subprocess
 import tempfile
 import base64
+import requests
 from enum import IntEnum
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -100,7 +101,13 @@ class Response:
         self._attrs = set(locals()) - {"self"}
 
     def to_dict(self):
-        d = {"id": self.id, "jsonrpc": self.jsonrpc}
+        d = {
+            "id": self.id,
+            "jsonrpc": self.jsonrpc,
+            "commit": self.commit,
+            "global_commit": self.global_commit,
+            "term": self.term,
+        }
         if self.result is not None:
             d["result"] = self.result
         else:
@@ -133,10 +140,9 @@ def human_readable_size(n):
 
 
 class FramedTLSClient:
-    def __init__(self, host, port, server_hostname, cert=None, key=None, cafile=None):
+    def __init__(self, host, port, cert=None, key=None, cafile=None):
         self.host = host
         self.port = port
-        self.server_hostname = server_hostname
         self.cert = cert
         self.key = key
         self.cafile = cafile
@@ -163,7 +169,7 @@ class FramedTLSClient:
             self.context.load_cert_chain(certfile=self.cert, keyfile=self.key)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.conn = self.context.wrap_socket(
-            self.sock, server_side=False, server_hostname=self.server_hostname
+            self.sock, server_side=False, server_hostname=self.host
         )
         self.conn.connect((self.host, self.port))
 
@@ -264,7 +270,6 @@ class FramedTLSJSONRPCClient:
         self,
         host,
         port,
-        server_hostname,
         cert=None,
         key=None,
         cafile=None,
@@ -273,9 +278,7 @@ class FramedTLSJSONRPCClient:
         description=None,
         prefix="users",
     ):
-        self.client = FramedTLSClient(
-            host, int(port), server_hostname, cert, key, cafile
-        )
+        self.client = FramedTLSClient(host, int(port), cert, key, cafile)
         self.stream = Stream(version, format=format)
         self.format = format
         self.name = "[{}:{}]".format(host, port)
@@ -340,21 +343,10 @@ class FramedTLSJSONRPCClient:
 # the resulting logs nicely illustrate manual usage in a way using requests doesn't
 class CurlClient:
     def __init__(
-        self,
-        host,
-        port,
-        server_hostname,
-        cert,
-        key,
-        cafile,
-        version,
-        format,
-        description,
-        prefix,
+        self, host, port, cert, key, cafile, version, format, description, prefix,
     ):
         self.host = host
         self.port = port
-        self.server_hostname = server_hostname
         self.cert = cert
         self.key = key
         self.cafile = cafile
@@ -380,14 +372,11 @@ class CurlClient:
             cmd = [
                 "curl",
                 "-v",
-                "-k",
-                f"https://{self.server_hostname}:{self.port}/",
+                f"https://{self.host}:{self.port}/",
                 "-H",
                 "Content-Type: application/json",
                 "-H",
                 f"Authorize: {base64.b64encode(dgst.stdout).decode()}",
-                "--resolve",
-                f"{self.server_hostname}:{self.port}:{self.host}",
                 "--data-binary",
                 f"@{nf.name}",
             ]
@@ -414,12 +403,9 @@ class CurlClient:
             nf.flush()
             cmd = [
                 "curl",
-                "-k",
-                f"https://{self.server_hostname}:{self.port}/",
+                f"https://{self.host}:{self.port}/",
                 "-H",
                 "Content-Type: application/json",
-                "--resolve",
-                f"{self.server_hostname}:{self.port}:{self.host}",
                 "--data-binary",
                 f"@{nf.name}",
             ]
@@ -472,7 +458,6 @@ class CurlClient:
 def client(
     host,
     port,
-    server_hostname="users",
     cert=None,
     key=None,
     cafile=None,
@@ -485,30 +470,12 @@ def client(
 ):
     if os.getenv("HTTP"):
         c = CurlClient(
-            host,
-            port,
-            server_hostname,
-            cert,
-            key,
-            cafile,
-            version,
-            format,
-            description,
-            prefix,
+            host, port, cert, key, cafile, version, "json", description, prefix,
         )
         yield c
     else:
         c = FramedTLSJSONRPCClient(
-            host,
-            port,
-            server_hostname,
-            cert,
-            key,
-            cafile,
-            version,
-            format,
-            description,
-            prefix,
+            host, port, cert, key, cafile, version, format, description, prefix,
         )
 
         if log_file is not None:

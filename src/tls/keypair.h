@@ -2,10 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../crypto/hash.h"
-#include "../ds/logger.h"
+#include "asn1_san.h"
 #include "cert.h"
+#include "crypto/hash.h"
 #include "csr.h"
+#include "ds/logger.h"
 #include "entropy.h"
 #include "error_string.h"
 #include "secp256k1/include/secp256k1.h"
@@ -570,6 +571,12 @@ namespace tls
     }
   }
 
+  struct SubjectAltName
+  {
+    std::string san;
+    bool is_ip;
+  };
+
   class KeyPair : public PublicKey
   {
   private:
@@ -807,7 +814,10 @@ namespace tls
     }
 
     std::vector<uint8_t> sign_csr(
-      CBuffer csr, const std::string& issuer, bool ca = false)
+      CBuffer csr,
+      const std::string& issuer,
+      const std::optional<SubjectAltName> subject_alt_name = std::nullopt,
+      bool ca = false)
     {
       SignCsr sign;
 
@@ -844,9 +854,12 @@ namespace tls
       if (mbedtls_x509write_crt_set_serial(&sign.crt, &sign.serial) != 0)
         return {};
 
+      // TODO: macOS certificates require 825-day maximum validity
+      // (https://support.apple.com/en-us/HT210176)
+      // &sign.crt, "20010101000000", "21001231235959") != 0)
       if (
         mbedtls_x509write_crt_set_validity(
-          &sign.crt, "20010101000000", "21001231235959") != 0)
+          &sign.crt, "20191101000000", "20211231235959") != 0)
         return {};
 
       if (
@@ -859,6 +872,20 @@ namespace tls
 
       if (mbedtls_x509write_crt_set_authority_key_identifier(&sign.crt) != 0)
         return {};
+
+      // Because mbedtls does not support parsing x509v3 extensions from a
+      // CSR (https://github.com/ARMmbed/mbedtls/issues/2912), the CA sets the
+      // SAN directly instead of reading it from the CSR
+      if (subject_alt_name.has_value())
+      {
+        if (
+          x509write_crt_set_subject_alt_name(
+            &sign.crt,
+            subject_alt_name->san.c_str(),
+            (subject_alt_name->is_ip ? san_type::ip_address :
+                                       san_type::dns_name)) != 0)
+          return {};
+      }
 
       uint8_t buf[4096];
       memset(buf, 0, sizeof(buf));
@@ -877,10 +904,13 @@ namespace tls
       return pem;
     }
 
-    std::vector<uint8_t> self_sign(const std::string& name, bool ca = true)
+    std::vector<uint8_t> self_sign(
+      const std::string& name,
+      const std::optional<SubjectAltName> subject_alt_name = std::nullopt,
+      bool ca = true)
     {
       auto csr = create_csr(name);
-      return sign_csr(csr, name, ca);
+      return sign_csr(csr, name, subject_alt_name, ca);
     }
 
     // TODO: This should be removed

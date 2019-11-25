@@ -1,15 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "enclave/appinterface.h"
-#include "node/entities.h"
-#include "node/rpc/nodeinterface.h"
 #include "node/rpc/userfrontend.h"
 
 using namespace std;
 using namespace nlohmann;
 using namespace ccf;
-
-//#define PRINT_LOGS
 
 namespace ccfapp
 {

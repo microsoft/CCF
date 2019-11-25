@@ -50,5 +50,4 @@ namespace enclave
 
 #define REGISTER_FRONTEND(rpc_map, name, fe) \
   rpc_map->register_frontend<ccf::ActorsType::name>(#name, fe)
-
 }

@@ -70,7 +70,7 @@ def test(network, args, notifications_queue=None):
     LOG.info("Running transactions against logging app")
     primary, backup = network.find_primary_and_any_backup()
 
-    with primary.node_client() as mc:
+    with primary.node_client(format="json") as mc:
         check_commit = infra.checker.Checker(mc, notifications_queue)
         check = infra.checker.Checker()
 
@@ -100,18 +100,16 @@ def test(network, args, notifications_queue=None):
             check(c.rpc("LOG_get", {"id": 100}), result={"msg": backup_msg})
             check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
 
-        # TODO: Remove when HTTP supports large messages
-        if not os.getenv("HTTP"):
-            LOG.info("Write/Read large messages on primary")
-            with primary.user_client(format="json") as c:
-                id = 44
-                for p in range(14, 20):
-                    long_msg = "X" * (2 ** p)
-                    check_commit(
-                        c.rpc("LOG_record", {"id": id, "msg": long_msg}), result=True,
-                    )
-                    check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg})
-                    id += 1
+        LOG.info("Write/Read large messages on primary")
+        with primary.user_client(format="json") as c:
+            id = 44
+            for p in range(14, 20):
+                long_msg = "X" * (2 ** p)
+                check_commit(
+                    c.rpc("LOG_record", {"id": id, "msg": long_msg}), result=True,
+                )
+                check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg})
+                id += 1
 
     return network
 
@@ -127,7 +125,7 @@ def run(args):
         )
 
         with infra.ccf.network(
-            hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+            hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
         ) as network:
             network.start_and_join(args)
             network = test(network, args, notifications_queue)

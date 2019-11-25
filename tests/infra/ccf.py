@@ -200,10 +200,6 @@ class Network:
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
-        if os.getenv("HTTP"):
-            LOG.warning("Sleeping 3 seconds before continuing (HTTP)...")
-            time.sleep(3)
-
     def start_in_recovery(self, args, ledger_file, sealed_secrets):
         primary = self._start_all_nodes(
             args, recovery=True, ledger_file=ledger_file, sealed_secrets=sealed_secrets

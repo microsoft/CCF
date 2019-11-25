@@ -5,6 +5,7 @@
 #include "ds/buffer.h"
 #include "ds/histogram.h"
 #include "ds/json_schema.h"
+#include "ds/spinlock.h"
 #include "enclave/rpchandler.h"
 #include "forwarder.h"
 #include "jsonrpc.h"
@@ -17,6 +18,7 @@
 #include "serialization.h"
 
 #include <fmt/format_header_only.h>
+#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -188,6 +190,8 @@ namespace ccf
   private:
     // TODO: replace with an lru map
     std::map<CallerId, tls::VerifierPtr> verifiers;
+    SpinLock lock;
+    bool is_open_ = false;
 
     struct Handler
     {
@@ -458,6 +462,64 @@ namespace ccf
         return jsonrpc::success(out);
       };
 
+      auto get_receipt = [this](Store::Tx& tx, const nlohmann::json& params) {
+        const auto in = params.get<GetReceipt::In>();
+
+        update_history();
+
+        if (history != nullptr)
+        {
+          try
+          {
+            auto p = history->get_receipt(in.commit);
+            const GetReceipt::Out out{p};
+
+            return jsonrpc::success(out);
+          }
+          catch (const std::exception& e)
+          {
+            return jsonrpc::error(
+              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+              fmt::format(
+                "Unable to produce receipt for commit {} : {}",
+                in.commit,
+                e.what()));
+          }
+        }
+
+        return jsonrpc::error(
+          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          "Unable to produce receipt");
+      };
+
+      auto verify_receipt =
+        [this](Store::Tx& tx, const nlohmann::json& params) {
+          const auto in = params.get<VerifyReceipt::In>();
+
+          update_history();
+
+          if (history != nullptr)
+          {
+            try
+            {
+              bool v = history->verify_receipt(in.receipt);
+              const VerifyReceipt::Out out{v};
+
+              return jsonrpc::success(out);
+            }
+            catch (const std::exception& e)
+            {
+              return jsonrpc::error(
+                jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+                fmt::format("Unable to verify receipt: {}", e.what()));
+            }
+          }
+
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            "Unable to verify receipt");
+        };
+
       install_with_auto_schema<GetCommit>(
         GeneralProcs::GET_COMMIT, get_commit, Read);
       install_with_auto_schema<void, GetMetrics::Out>(
@@ -472,6 +534,10 @@ namespace ccf
         GeneralProcs::LIST_METHODS, list_methods_fn, Read);
       install_with_auto_schema<GetSchema>(
         GeneralProcs::GET_SCHEMA, get_schema, Read);
+      install_with_auto_schema<GetReceipt>(
+        GeneralProcs::GET_RECEIPT, get_receipt, Read);
+      install_with_auto_schema<VerifyReceipt>(
+        GeneralProcs::VERIFY_RECEIPT, verify_receipt, Read);
     }
 
     void set_sig_intervals(size_t sig_max_tx_, size_t sig_max_ms_) override
@@ -485,6 +551,18 @@ namespace ccf
       std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder_) override
     {
       cmd_forwarder = cmd_forwarder_;
+    }
+
+    void open() override
+    {
+      std::lock_guard<SpinLock> mguard(lock);
+      is_open_ = true;
+    }
+
+    bool is_open() override
+    {
+      std::lock_guard<SpinLock> mguard(lock);
+      return is_open_;
     }
 
     /** Process a serialised command with the associated RPC context

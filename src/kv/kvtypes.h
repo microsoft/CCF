@@ -77,6 +77,20 @@ namespace kv
     }
   };
 
+  class KvSerialiserException : public std::exception
+  {
+  private:
+    std::string msg;
+
+  public:
+    KvSerialiserException(const std::string& msg_) : msg(msg_) {}
+
+    virtual const char* what() const throw()
+    {
+      return msg.c_str();
+    }
+  };
+
   class TxHistory
   {
   public:
@@ -135,6 +149,8 @@ namespace kv
     virtual void clear_on_result() = 0;
     virtual void clear_on_response() = 0;
     virtual crypto::Sha256Hash get_root() = 0;
+    virtual std::vector<uint8_t> get_receipt(Version v) = 0;
+    virtual bool verify_receipt(const std::vector<uint8_t>& receipt) = 0;
   };
 
   class Consensus

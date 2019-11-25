@@ -88,12 +88,81 @@ static void append_flush(picobench::state& s)
   s.stop_timer();
 }
 
-const std::vector<int> sizes = {10000, 100000};
+static void append_get_receipt_verify(picobench::state& s)
+{
+  ccf::MerkleTreeHistory t;
+  vector<crypto::Sha256Hash> hashes;
+  std::random_device r;
+
+  for (size_t i = 0; i < s.iterations(); ++i)
+  {
+    crypto::Sha256Hash h;
+    for (size_t j = 0; j < crypto::Sha256Hash::SIZE; j++)
+      h.h[j] = r();
+
+    hashes.emplace_back(h);
+  }
+
+  size_t index = 0;
+  s.start_timer();
+  for (auto _ : s)
+  {
+    (void)_;
+    t.append(hashes[index++]);
+
+    auto p = t.get_receipt(index);
+    if (!t.verify(p))
+      throw std::runtime_error("Bad path");
+
+    // do_not_optimize();
+    clobber_memory();
+  }
+  s.stop_timer();
+}
+
+static void append_get_receipt_verify_v(picobench::state& s)
+{
+  ccf::MerkleTreeHistory t;
+  vector<crypto::Sha256Hash> hashes;
+  std::random_device r;
+
+  for (size_t i = 0; i < s.iterations(); ++i)
+  {
+    crypto::Sha256Hash h;
+    for (size_t j = 0; j < crypto::Sha256Hash::SIZE; j++)
+      h.h[j] = r();
+
+    hashes.emplace_back(h);
+  }
+
+  size_t index = 0;
+  s.start_timer();
+  for (auto _ : s)
+  {
+    (void)_;
+    t.append(hashes[index++]);
+
+    auto v = t.get_receipt(index).to_v();
+    auto r = ccf::Receipt::from_v(v);
+    if (!t.verify(r))
+      throw std::runtime_error("Bad path");
+
+    // do_not_optimize();
+    clobber_memory();
+  }
+  s.stop_timer();
+}
+
+const std::vector<int> sizes = {1000, 10000};
 
 PICOBENCH_SUITE("append_retract");
 PICOBENCH(append_retract).iterations(sizes).samples(10).baseline();
 PICOBENCH_SUITE("append_flush");
 PICOBENCH(append_flush).iterations(sizes).samples(10).baseline();
+PICOBENCH_SUITE("append_get_receipt_verify");
+PICOBENCH(append_get_receipt_verify).iterations(sizes).samples(10).baseline();
+PICOBENCH_SUITE("append_get_receipt_verify_v");
+PICOBENCH(append_get_receipt_verify_v).iterations(sizes).samples(10).baseline();
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char* argv[])

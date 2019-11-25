@@ -9,7 +9,7 @@ namespace tls
 {
   inline std::string error_string(int err)
   {
-    constexpr size_t len = 100;
+    constexpr size_t len = 256;
     char buf[len];
     mbedtls_strerror(err, buf, len);
     return std::string(buf);
