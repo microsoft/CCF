@@ -145,26 +145,26 @@ def run(args):
                     error=lambda e: e is not None
                     and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
                 )
-            LOG.debug(f"User {regulator} successfully registered as regulator")
+                LOG.debug(f"User {regulator} successfully registered as regulator")
 
-            for bank in banks:
-                check(
-                    c.rpc(
-                        "BK_register", {"bank_id": bank.ccf_id, "country": bank.country}
-                    ),
-                    result=bank.ccf_id,
-                )
-                check(c.rpc("BK_get", {"id": bank.ccf_id}), result=bank.country)
+                for bank in banks:
+                    check(
+                        c.rpc(
+                            "BK_register", {"bank_id": bank.ccf_id, "country": bank.country}
+                        ),
+                        result=bank.ccf_id,
+                    )
+                    check(c.rpc("BK_get", {"id": bank.ccf_id}), result=bank.country)
 
-                check(
-                    c.rpc(
-                        "REG_register",
-                        {"regulator_id": bank.ccf_id, "country": bank.country},
-                    ),
-                    error=lambda e: e is not None
-                    and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
-                )
-                LOG.debug(f"User {bank} successfully registered as bank")
+                    check(
+                        c.rpc(
+                            "REG_register",
+                            {"regulator_id": bank.ccf_id, "country": bank.country},
+                        ),
+                        error=lambda e: e is not None
+                        and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+                    )
+                    LOG.debug(f"User {bank} successfully registered as bank")
 
         LOG.success(f"{1} regulator and {len(banks)} bank(s) successfully setup")
 

@@ -164,7 +164,7 @@ return {
       local bank_id = args.params.bank_id
       reg_v = env.reg_table():get(bank_id)
       if reg_v then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "User " .. bank_id .. " is already registered as a regulator")
+        return env.jerr(env.error_codes.INVALID_PARAMS, "User " .. bank_id .. " is already registered as a regulator - not permitted to also be a bank")
       end
       env.bank_table():put(bank_id, args.params.country)
       return env.jsucc(bank_id)
@@ -212,7 +212,7 @@ return {
       local reg_id = args.params.regulator_id
       bank_v = env.bank_table():get(reg_id)
       if bank_v then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "User " .. reg_id .. " is already registered as a bank")
+        return env.jerr(env.error_codes.INVALID_PARAMS, "User " .. reg_id .. " is already registered as a bank - not permitted to also be a regulator")
       end
       env.reg_table():put(reg_id, {args.params.country, args.params.script, args.params.name})
       return env.jsucc(reg_id)
