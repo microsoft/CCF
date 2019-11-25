@@ -34,6 +34,7 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
+        check = infra.checker.Checker()
         network.start_and_join(args)
         primary, others = network.find_nodes()
 
@@ -44,6 +45,7 @@ def run(args):
                 data = f.readlines()
             script = "".join(data)
 
+        manager = AppUser(network, "manager", "GB")
         regulator = AppUser(network, "auditor", "GB")
         banks = [
             AppUser(network, f"bank{country}", country)
@@ -68,15 +70,65 @@ def run(args):
                 }
                 transactions.append(json_tx)
 
-        with primary.node_client() as mc:
-            with primary.user_client(format="msgpack", user_id=regulator.name) as c:
-                check_commit = infra.checker.Checker(mc)
-                check = infra.checker.Checker()
+        # Manager is granted special privileges by members, which is later read by app to enforce access restrictions
+        proposal_result, error = network.consortium.propose(
+            0,
+            primary,
+            f"""
+            return Calls:call(
+                "set_user_data",
+                {{
+                    user_id = {manager.ccf_id},
+                    user_data = {{
+                        privileges = {{
+                            REGISTER_REGULATORS = true,
+                            REGISTER_BANKS = true,
+                        }}
+                    }}
+                }}
+            )
+            """,
+        )
+        network.consortium.vote_using_majority(primary, proposal_result["id"])
 
+        # Check permissions are enforced
+        with primary.user_client(user_id=regulator.name) as c:
+            check(
+                c.rpc("REG_register", {}),
+                error=lambda e: e is not None
+                and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
+            )
+            check(
+                c.rpc("BK_register", {}),
+                error=lambda e: e is not None
+                and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
+            )
+
+        with primary.user_client(user_id=banks[0].name) as c:
+            check(
+                c.rpc("REG_register", {}),
+                error=lambda e: e is not None
+                and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
+            )
+            check(
+                c.rpc("BK_register", {}),
+                error=lambda e: e is not None
+                and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
+            )
+
+        # As permissioned manager, register regulator and banks
+        with primary.node_client() as mc:
+            check_commit = infra.checker.Checker(mc)
+
+            with primary.user_client(format="msgpack", user_id=manager.name) as c:
                 check(
                     c.rpc(
                         "REG_register",
-                        {"country": regulator.country, "script": script},
+                        {
+                            "regulator_id": regulator.ccf_id,
+                            "country": regulator.country,
+                            "script": script,
+                        },
                     ),
                     result=regulator.ccf_id,
                 )
@@ -86,28 +138,33 @@ def run(args):
                 )
 
                 check(
-                    c.rpc("BK_register", {"country": regulator.country}),
+                    c.rpc(
+                        "BK_register",
+                        {"bank_id": regulator.ccf_id, "country": regulator.country},
+                    ),
                     error=lambda e: e is not None
-                    and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
+                    and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
                 )
             LOG.debug(f"User {regulator} successfully registered as regulator")
 
-        for bank in banks:
-            with primary.user_client(format="msgpack", user_id=bank.name) as c:
-                check_commit = infra.checker.Checker(mc)
-                check = infra.checker.Checker()
-
+            for bank in banks:
                 check(
-                    c.rpc("BK_register", {"country": bank.country}), result=bank.ccf_id
+                    c.rpc(
+                        "BK_register", {"bank_id": bank.ccf_id, "country": bank.country}
+                    ),
+                    result=bank.ccf_id,
                 )
                 check(c.rpc("BK_get", {"id": bank.ccf_id}), result=bank.country)
 
                 check(
-                    c.rpc("REG_register", {"country": bank.country}),
+                    c.rpc(
+                        "REG_register",
+                        {"regulator_id": bank.ccf_id, "country": bank.country},
+                    ),
                     error=lambda e: e is not None
-                    and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
+                    and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
                 )
-            LOG.debug(f"User {bank} successfully registered as bank")
+                LOG.debug(f"User {bank} successfully registered as bank")
 
         LOG.success(f"{1} regulator and {len(banks)} bank(s) successfully setup")
 
