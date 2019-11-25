@@ -11,6 +11,20 @@ import random
 from loguru import logger as LOG
 
 
+class AppUser:
+    def __init__(self, network, name, country):
+        self.name = name
+        self.country = country
+
+        primary, _ = network.find_primary()
+
+        network.create_users([self.name])
+        network.consortium.add_users(primary, [self.name])
+
+        with primary.user_client(user_id=self.name) as client:
+            self.ccf_id = client.rpc("whoAmI", {}).result["caller_id"]
+
+
 def run(args):
     hosts = ["localhost"]
 
@@ -27,9 +41,13 @@ def run(args):
                 data = f.readlines()
             script = "".join(data)
 
-        regulator = (0, "GB", script)
-        banks = [(1, "US", 99), (1, "GB", 29), (2, "GR", 99), (2, "FR", 29)]
+        regulator = AppUser(network, "regulator", "GB")
+        banks = [
+            AppUser(network, f"bank{country}", country)
+            for country in ("US", "GB", "GR", "FR")
+        ]
         transactions = []
+
         with open(args.datafile, newline="") as f:
             datafile = csv.DictReader(f)
             for i, row in enumerate(datafile):
@@ -48,43 +66,49 @@ def run(args):
                 transactions.append(json_tx)
 
         with primary.node_client() as mc:
-            with primary.user_client(format="msgpack", user_id=regulator[0]) as c:
+            with primary.user_client(format="msgpack", user_id=regulator.name) as c:
                 check_commit = infra.checker.Checker(mc)
                 check = infra.checker.Checker()
 
                 check(
                     c.rpc(
                         "REG_register",
-                        {"country": regulator[1], "script": regulator[2]},
+                        {"country": regulator.country, "script": script},
                     ),
-                    result=regulator[0],
+                    result=regulator.ccf_id,
                 )
                 check(
-                    c.rpc("REG_get", {"id": regulator[0]}),
-                    result=[regulator[1], regulator[2]],
+                    c.rpc("REG_get", {"id": regulator.ccf_id}),
+                    result=[regulator.country, script],
                 )
 
                 check(
-                    c.rpc("BK_register", {"country": regulator[1]}),
+                    c.rpc("BK_register", {"country": regulator.country}),
                     error=lambda e: e is not None
                     and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
                 )
-            LOG.debug(f"User {regulator[0]} successfully registered as regulator")
+            LOG.debug(
+                f"User {regulator.ccf_id} ({regulator.name}) successfully registered as regulator"
+            )
 
         for bank in banks:
-            with primary.user_client(format="msgpack", user_id=bank[0]) as c:
+            with primary.user_client(format="msgpack", user_id=bank.name) as c:
                 check_commit = infra.checker.Checker(mc)
                 check = infra.checker.Checker()
 
-                check(c.rpc("BK_register", {"country": bank[1]}), result=bank[0])
-                check(c.rpc("BK_get", {"id": bank[0]}), result=bank[1])
+                check(
+                    c.rpc("BK_register", {"country": bank.country}), result=bank.ccf_id
+                )
+                check(c.rpc("BK_get", {"id": bank.ccf_id}), result=bank.country)
 
                 check(
-                    c.rpc("REG_register", {"country": bank[1]}),
+                    c.rpc("REG_register", {"country": bank.country}),
                     error=lambda e: e is not None
                     and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
                 )
-            LOG.debug(f"User {bank[0]} successfully registered as bank")
+            LOG.debug(
+                f"User {bank.ccf_id} ({bank.name}) successfully registered as bank"
+            )
 
         LOG.success(f"{1} regulator and {len(banks)} bank(s) successfully setup")
 
@@ -97,9 +121,7 @@ def run(args):
         flagged_amt = 200000
 
         for i, bank in enumerate(banks):
-            bank_id = bank[0]
-            reg_id = regulator[0]
-            with primary.user_client(format="msgpack", user_id=bank_id) as c:
+            with primary.user_client(format="msgpack", user_id=bank.name) as c:
                 # Destination account is the next one in the list of banks
                 for transaction in transactions:
                     print(transaction)
@@ -110,7 +132,7 @@ def run(args):
                         c.rpc("TX_get", {"tx_id": tx_id}),
                         result={
                             "amt": amount,
-                            "bank_id": bank[0],
+                            "bank_id": bank.ccf_id,
                             "dst": transaction["dst"],
                             "dst_country": transaction["dst_country"],
                             "src": transaction["src"],
@@ -122,11 +144,11 @@ def run(args):
                     if float(amount) > flagged_amt:
                         check(
                             c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
-                            result=[reg_id, False, transaction["timestamp"]],
+                            result=[regulator.ccf_id, False, transaction["timestamp"]],
                         )
                         flagged_tx = {
                             "amt": amount,
-                            "bank_id": bank[0],
+                            "bank_id": bank.ccf_id,
                             "dst": transaction["dst"],
                             "dst_country": transaction["dst_country"],
                             "src": transaction["src"],
@@ -150,7 +172,7 @@ def run(args):
         LOG.success(f"{tx_id} transactions have been successfully issued")
 
         # bank that issued first flagged transaction
-        with primary.user_client(format="msgpack", user_id=bank[0]) as c:
+        with primary.user_client(format="msgpack", user_id=bank.name) as c:
             # try to poll flagged but fail as you are not a regulator
             check(
                 c.rpc("REG_poll_flagged", {}),
@@ -174,7 +196,7 @@ def run(args):
 
         # regulator poll for transactions that are flagged
         with primary.node_client() as mc:
-            with primary.user_client(format="msgpack", user_id=regulator[0]) as c:
+            with primary.user_client(format="msgpack", user_id=regulator.name) as c:
                 # assert that the flagged txs that we poll for are correct
                 resp = c.rpc("REG_poll_flagged", {})
                 poll_flagged_ids = []
