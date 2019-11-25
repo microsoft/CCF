@@ -479,6 +479,40 @@ TEST_CASE("pre-populated environment")
         frontend->process(rpc_ctx).value(),
         jsonrpc::StandardErrorCodes::INTERNAL_ERROR);
     }
+
+    constexpr auto log_throws_nil_method = "log_throws_nil";
+    constexpr auto log_throws_nil = "LOG_INFO(nil)";
+    set_handler(network, log_throws_nil_method, {log_throws_nil});
+    {
+      const auto packed = make_pc(log_throws_nil_method, {});
+      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      check_error(
+        frontend->process(rpc_ctx).value(),
+        jsonrpc::StandardErrorCodes::INTERNAL_ERROR);
+    }
+
+    constexpr auto log_throws_bool_method = "log_throws_bool";
+    constexpr auto log_throws_bool = "LOG_INFO(true)";
+    set_handler(network, log_throws_bool_method, {log_throws_bool});
+
+    {
+      const auto packed = make_pc(log_throws_bool_method, {});
+      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      check_error(
+        frontend->process(rpc_ctx).value(),
+        jsonrpc::StandardErrorCodes::INTERNAL_ERROR);
+    }
+
+    constexpr auto log_no_throw_method = "log_no_throw";
+    constexpr auto log_no_throw =
+      "LOG_INFO(tostring(nil), tostring(true)); return env.jsucc(true)";
+    set_handler(network, log_no_throw_method, {log_no_throw});
+
+    {
+      const auto packed = make_pc(log_no_throw_method, {});
+      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      check_success(frontend->process(rpc_ctx).value(), true);
+    }
   }
 
   {
