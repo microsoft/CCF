@@ -75,13 +75,26 @@ namespace tls
       // curl).
       case san_type::ip_address:
       {
-        auto ip = inet_addr(name);
+        char addr_buf[16]; // Large enough buffer to hold IPv6
+        size_t addr_size = 4;
+        if (inet_pton(AF_INET, name, addr_buf) != 1)
+        {
+          addr_size = 16;
+          if (inet_pton(AF_INET6, name, addr_buf) != 1)
+          {
+            throw std ::logic_error(fmt::format(
+              "Subject Alternative Name {} is not a valid IPv4 or "
+              "IPv6 address",
+              name));
+          }
+        }
+
         MBEDTLS_ASN1_CHK_ADD(
           len,
           mbedtls_asn1_write_raw_buffer(
-            &pc, san_buf, (const unsigned char*)&ip, sizeof(ip)));
+            &pc, san_buf, (const unsigned char*)&addr_buf, addr_size));
         MBEDTLS_ASN1_CHK_ADD(
-          len, mbedtls_asn1_write_len(&pc, san_buf, sizeof(ip)));
+          len, mbedtls_asn1_write_len(&pc, san_buf, addr_size));
 
         break;
       }
