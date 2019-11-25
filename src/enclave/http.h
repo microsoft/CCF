@@ -198,7 +198,10 @@ namespace enclave
 
       // TODO: This should return an error to the client if this fails
       if (p.execute(buf.data(), buf.size()) == 0)
+      {
+        LOG_FAIL_FMT("Failed to parse request");
         return;
+      }
     }
 
     virtual void msg(std::vector<uint8_t> m)
