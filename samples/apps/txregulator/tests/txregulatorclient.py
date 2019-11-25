@@ -24,6 +24,9 @@ class AppUser:
         with primary.user_client(user_id=self.name) as client:
             self.ccf_id = client.rpc("whoAmI", {}).result["caller_id"]
 
+    def __str__(self):
+        return f"{self.ccf_id} ({self.name})"
+
 
 def run(args):
     hosts = ["localhost"]
@@ -41,7 +44,7 @@ def run(args):
                 data = f.readlines()
             script = "".join(data)
 
-        regulator = AppUser(network, "regulator", "GB")
+        regulator = AppUser(network, "auditor", "GB")
         banks = [
             AppUser(network, f"bank{country}", country)
             for country in ("US", "GB", "GR", "FR")
@@ -73,11 +76,7 @@ def run(args):
                 check(
                     c.rpc(
                         "REG_register",
-                        {
-                            "country": regulator.country,
-                            "script": script,
-                            "name": regulator.name,
-                        },
+                        {"country": regulator.country, "script": script},
                     ),
                     result=regulator.ccf_id,
                 )
@@ -91,9 +90,7 @@ def run(args):
                     error=lambda e: e is not None
                     and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
                 )
-            LOG.debug(
-                f"User {regulator.ccf_id} ({regulator.name}) successfully registered as regulator"
-            )
+            LOG.debug(f"User {regulator} successfully registered as regulator")
 
         for bank in banks:
             with primary.user_client(format="msgpack", user_id=bank.name) as c:
@@ -110,9 +107,7 @@ def run(args):
                     error=lambda e: e is not None
                     and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
                 )
-            LOG.debug(
-                f"User {bank.ccf_id} ({bank.name}) successfully registered as bank"
-            )
+            LOG.debug(f"User {bank} successfully registered as bank")
 
         LOG.success(f"{1} regulator and {len(banks)} bank(s) successfully setup")
 

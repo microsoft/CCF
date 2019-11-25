@@ -25,6 +25,9 @@ class AppUser:
         with primary.user_client(user_id=self.name) as client:
             self.ccf_id = client.rpc("whoAmI", {}).result["caller_id"]
 
+    def __str__(self):
+        return f"{self.ccf_id} ({self.name})"
+
 
 def run(args):
     hosts = ["localhost"]
@@ -101,9 +104,7 @@ def run(args):
                     ],
                 )
 
-            LOG.debug(
-                f"User {regulator.ccf_id} ({regulator.name}) successfully registered as regulator"
-            )
+            LOG.debug(f"User {regulator} successfully registered as regulator")
         for bank in banks:
             with primary.user_client(format="msgpack", user_id=bank.name) as c:
                 check = infra.checker.Checker()
@@ -112,9 +113,7 @@ def run(args):
                     c.rpc("BK_register", {"country": bank.country}), result=bank.ccf_id
                 )
                 check(c.rpc("BK_get", {"id": bank.ccf_id}), result=bank.country)
-            LOG.debug(
-                f"User {bank.ccf_id} ({bank.name}) successfully registered as bank"
-            )
+            LOG.debug(f"User {bank} successfully registered as bank")
 
         LOG.success(
             f"{len(regulators)} regulator and {len(banks)} bank(s) successfully setup"
