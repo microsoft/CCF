@@ -83,9 +83,9 @@
 - name: Expand FlatBuffers
   unarchive:
     src: "{{ workspace }}/{{ flatbuffers_src }}"
-    dest: "{{ fb_prefix }}/flatbuffers-{{ fb_ver }}"
+    dest: "{{ fb_prefix }}"
     copy: no
-    creates: "{{ fb_prefix }}/flatbuffers-{{ fb_ver }}/{{ flatbuffers_sub_dir }}/CMakeLists.txt"
+    creates: "{{ fb_prefix }}/flatbuffers-{{ fb_ver }}/CMakeLists.txt"
   become: true
 
 - name: Build flatc
@@ -93,12 +93,12 @@
     CC=/usr/bin/clang-8 CXX=/usr/bin/clang++-8 cmake -GNinja .
     ninja
   args:
-    chdir: "{{ fb_prefix }}/flatbuffers-{{ fb_ver }}/{{ flatbuffers_sub_dir }}"
+    chdir: "{{ fb_prefix }}/flatbuffers-{{ fb_ver }}"
   become: true
 
 - name: Install flatc
   file:
-    src: "{{ fb_prefix }}/flatbuffers-{{ fb_ver }}/{{ flatbuffers_sub_dir }}/flatc"
+    src: "{{ fb_prefix }}/flatbuffers-{{ fb_ver }}/flatc"
     dest: /usr/local/bin/flatc
     mode: +x
     state: link

@@ -489,9 +489,9 @@ TEST_CASE("Test flatbuffers")
 
   kv::FlatbufferSerialiser fb_serialiser(replicated_data, derived_data);
 
-  auto buf = fb_serialiser.get_flatbuffer();
+  auto detached_buf = fb_serialiser.get_flatbuffer();
 
-  kv::FlatbufferDeserialiser db_deserialiser(buf);
+  kv::FlatbufferDeserialiser db_deserialiser(detached_buf.data());
   auto frame = db_deserialiser.get_frame();
   CHECK(frame->replicated()->size() == replicated_data.size());
 }

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <frame_generated.h>
+#include <generated/flatbuffers/frame_generated.h>
 
 namespace kv
 {
@@ -24,9 +24,9 @@ namespace kv
       builder.Finish(frame);
     }
 
-    uint8_t* get_flatbuffer()
+    flatbuffers::DetachedBuffer get_flatbuffer()
     {
-      return builder.GetBufferPointer();
+      return builder.Release();
     }
   };
 
