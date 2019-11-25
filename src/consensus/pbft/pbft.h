@@ -145,7 +145,6 @@ namespace pbft
       store(std::move(store_)),
       view_change_list(1, view_change_info(0, 0))
     {
-
       // configure replica
       GeneralInfo general_info;
       general_info.num_replicas = 1;
