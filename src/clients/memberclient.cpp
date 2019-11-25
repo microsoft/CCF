@@ -22,8 +22,6 @@ using namespace jsonrpc;
 using namespace std;
 using namespace nlohmann;
 
-constexpr auto members_sni = "members";
-
 static const string add_member_proposal(R"xxx(
       tables, member_cert = ...
       return Calls:call("new_member", member_cert)
@@ -281,10 +279,10 @@ int main(int argc, char** argv)
     ->required();
 
   string cert_file, privk_file, ca_file;
-  app.add_option("--cert", cert_file, "Client certificate")
+  app.add_option("--cert", cert_file, "Client certificate in PEM format")
     ->required(true)
     ->check(CLI::ExistingFile);
-  app.add_option("--privk", privk_file, "Client private key")
+  app.add_option("--privk", privk_file, "Client private key in PEM format")
     ->required(true)
     ->check(CLI::ExistingFile);
   app.add_option("--ca", ca_file, "CA")
@@ -400,23 +398,15 @@ int main(int argc, char** argv)
   const tls::Pem key_pem(raw_key);
 
   // create tls client
-  auto tls_cert = make_shared<tls::Cert>(
-    members_sni, make_shared<tls::CA>(ca), raw_cert, key_pem, nullb);
+  auto tls_cert =
+    make_shared<tls::Cert>(make_shared<tls::CA>(ca), raw_cert, key_pem);
 
   unique_ptr<RpcTlsClient> tls_connection = force_unsigned ?
     make_unique<RpcTlsClient>(
-      server_address.hostname,
-      server_address.port,
-      members_sni,
-      nullptr,
-      tls_cert) :
+      server_address.hostname, server_address.port, nullptr, tls_cert) :
     make_unique<SigRpcTlsClient>(
-      key_pem,
-      server_address.hostname,
-      server_address.port,
-      members_sni,
-      nullptr,
-      tls_cert);
+      key_pem, server_address.hostname, server_address.port, nullptr, tls_cert);
+  tls_connection->set_prefix("members");
 
   try
   {

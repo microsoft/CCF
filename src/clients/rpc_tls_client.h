@@ -12,6 +12,7 @@ class RpcTlsClient : public TlsClient
 {
 public:
   uint32_t id = 0;
+  std::optional<std::string> prefix;
 
   struct PreparedRpc
   {
@@ -20,6 +21,14 @@ public:
   };
 
   using TlsClient::TlsClient;
+
+  RpcTlsClient(
+    const std::string& host,
+    const std::string& port,
+    std::shared_ptr<tls::CA> node_ca = nullptr,
+    std::shared_ptr<tls::Cert> cert = nullptr) :
+    TlsClient(host, port, node_ca, cert)
+  {}
 
   PreparedRpc gen_rpc_raw(
     const nlohmann::json& j, const std::optional<size_t>& explicit_id = {})
@@ -57,12 +66,16 @@ public:
   nlohmann::json json_rpc(
     const std::string& method, const nlohmann::json& params)
   {
-    const auto prefixed_method = fmt::format("{}/{}", get_sni(), method);
+    auto method_ = method;
+    if (prefix.has_value())
+    {
+      method_ = fmt::format("{}/{}", prefix.value(), method);
+    }
 
     nlohmann::json j;
     j["jsonrpc"] = "2.0";
     j["id"] = id++;
-    j["method"] = prefixed_method;
+    j["method"] = method_;
     j["params"] = params;
     return j;
   }
@@ -120,5 +133,10 @@ public:
     std::vector<uint8_t> r(len);
     read(r);
     return r;
+  }
+
+  void set_prefix(const std::string& prefix_)
+  {
+    prefix = prefix_;
   }
 };

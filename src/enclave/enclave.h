@@ -12,7 +12,6 @@
 #include "node/nodetypes.h"
 #include "node/notifier.h"
 #include "node/rpc/forwarder.h"
-#include "node/rpc/memberfrontend.h"
 #include "node/rpc/nodefrontend.h"
 #include "node/timer.h"
 #include "rpcclient.h"

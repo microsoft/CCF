@@ -64,10 +64,12 @@ namespace enclave
         LOG_TRACE_FMT("Parsed {} bytes", parsed);
         auto err = HTTP_PARSER_ERRNO(&parser);
         if (err)
+        {
           throw std::runtime_error(fmt::format(
             "HTTP parsing failed: {}: {}",
             http_errno_name(err),
             http_errno_description(err)));
+        }
         // TODO: check for http->upgrade to support websockets
         return parsed;
       }
@@ -194,8 +196,12 @@ namespace enclave
         buf.size(),
         std::string(buf.begin(), buf.end()));
 
+      // TODO: This should return an error to the client if this fails
       if (p.execute(buf.data(), buf.size()) == 0)
+      {
+        LOG_FAIL_FMT("Failed to parse request");
         return;
+      }
     }
 
     virtual void msg(std::vector<uint8_t> m)
