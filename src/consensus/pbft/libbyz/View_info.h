@@ -27,7 +27,7 @@ class View_info
   // Holds information for the view-change protocol.
   //
 public:
-  View_info(int id, View v = 0);
+  View_info(int id, View v, uint64_t num_replicas);
   // Effects: Create a view-info object for replica "id" with initial
   // view "v".
 
@@ -280,8 +280,9 @@ private:
   // Auxiliary methods:
   //
 
-  void discard_old();
+  void discard_old_and_resize_if_needed();
   // Effects: Discards messages with views lower than "v"
+  //          then checks the number of replicas and resizes arrays if required
 
   View k_max(int k) const;
   // Effects: Returns the value "v" in "last_views" such that there
