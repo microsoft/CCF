@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <generated/flatbuffers/frame_generated.h>
+#include <frame_generated.h>
 
 namespace kv
 {

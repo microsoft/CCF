@@ -8,8 +8,6 @@ set(FLATBUFFERS_INCLUDE_DIR ${CCF_DIR}/3rdparty/flatbuffers/include)
 
 execute_process(
     COMMAND flatc --cpp ${CCF_DIR}/src/kv/frame.fbs
-    COMMAND ${CMAKE_COMMAND} -E make_directory generated/flatbuffers
-    COMMAND mv frame_generated.h generated/flatbuffers/frame_generated.h
 )
 
 set(default_build_type "RelWithDebInfo")
