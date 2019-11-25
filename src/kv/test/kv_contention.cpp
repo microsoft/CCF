@@ -12,7 +12,7 @@
 #include <thread>
 #include <vector>
 
-using namespace ccfapp;
+using namespace ccf;
 
 TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 {

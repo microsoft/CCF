@@ -109,6 +109,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         action="store_true",
         default=False,
     )
+    parser.add_argument(
+        "--domain",
+        help="Domain name used for node certificate verification",
+        default="ccf.io",
+    )
     add(parser)
 
     if accept_unknown:

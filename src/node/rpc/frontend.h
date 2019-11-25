@@ -5,6 +5,7 @@
 #include "ds/buffer.h"
 #include "ds/histogram.h"
 #include "ds/json_schema.h"
+#include "ds/spinlock.h"
 #include "enclave/rpchandler.h"
 #include "forwarder.h"
 #include "jsonrpc.h"
@@ -17,6 +18,7 @@
 #include "serialization.h"
 
 #include <fmt/format_header_only.h>
+#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -188,6 +190,8 @@ namespace ccf
   private:
     // TODO: replace with an lru map
     std::map<CallerId, tls::VerifierPtr> verifiers;
+    SpinLock lock;
+    bool is_open_ = false;
 
     struct Handler
     {
@@ -547,6 +551,18 @@ namespace ccf
       std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder_) override
     {
       cmd_forwarder = cmd_forwarder_;
+    }
+
+    void open() override
+    {
+      std::lock_guard<SpinLock> mguard(lock);
+      is_open_ = true;
+    }
+
+    bool is_open() override
+    {
+      std::lock_guard<SpinLock> mguard(lock);
+      return is_open_;
     }
 
     /** Process a serialised command with the associated RPC context

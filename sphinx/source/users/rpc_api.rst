@@ -1,7 +1,7 @@
 RPC API
 =======
 
-The available RPC methods vary depending on your TLS connection identity. Some methods are common to all frontends, others are restricted to the member or management frontends, and the app logic is only exposed to users.
+The available RPC methods vary depending on your TLS connection identity. Some methods are common to all frontends, others are restricted to the member and node frontends, and the app logic is only exposed to users.
 
 The API can also be retrieved from a running service using the `listMethods`_ and `getSchema`_ methods. For example, using the CCF client application:
 

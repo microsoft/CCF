@@ -18,7 +18,7 @@ extern "C"
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
 
-using namespace ccfapp;
+using namespace ccf;
 
 class DummyConsensus : public kv::StubConsensus
 {

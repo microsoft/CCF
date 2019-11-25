@@ -110,6 +110,17 @@ namespace enclave
         return false;
       }
 
+      if (!search.value()->is_open())
+      {
+        send(jsonrpc::pack(
+          jsonrpc::error_response(
+            rpc_ctx.seq_no,
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            fmt::format("Service is not open to {}", actor_s)),
+          rpc_ctx.pack.value()));
+        return false;
+      }
+
       // Hand off parsed context to be processed by frontend
       LOG_TRACE_FMT("Processing");
       auto response = search.value()->process(rpc_ctx);

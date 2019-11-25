@@ -108,11 +108,6 @@ namespace tls
       return {};
     }
 
-    virtual std::string sni()
-    {
-      return {};
-    }
-
     const mbedtls_x509_crt* peer_cert()
     {
       return mbedtls_ssl_get_peer_cert(&ssl);

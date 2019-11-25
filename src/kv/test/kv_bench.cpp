@@ -11,6 +11,7 @@
 #include <string>
 
 using namespace ccfapp;
+using namespace ccf;
 
 // Helper functions
 ccf::NetworkSecrets create_network_secrets()

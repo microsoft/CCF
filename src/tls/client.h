@@ -18,14 +18,5 @@ namespace tls
     {
       cert->use(&ssl, &cfg);
     }
-
-  private:
-    std::string host()
-    {
-      if (cert)
-        return cert->host();
-
-      return {};
-    }
   };
 }

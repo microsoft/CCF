@@ -23,7 +23,7 @@ namespace enclave
   {
   private:
     std::shared_ptr<RPCMap> rpc_map;
-    std::vector<std::shared_ptr<tls::Cert>> certs;
+    std::shared_ptr<tls::Cert> cert;
 
     SpinLock lock;
     std::unordered_map<size_t, std::shared_ptr<Endpoint>> sessions;
@@ -43,20 +43,16 @@ namespace enclave
       rpc_map(rpc_map_)
     {}
 
-    void add_cert(
-      const std::string& sni, CBuffer ca_cert, CBuffer cert, const tls::Pem& pk)
+    void set_cert(CBuffer cert_, const tls::Pem& pk)
     {
       std::lock_guard<SpinLock> guard(lock);
-      auto hasCa = ca_cert != nullb;
-      auto the_cert = std::make_shared<tls::Cert>(
-        sni,
-        hasCa ? std::make_shared<tls::CA>(ca_cert) : nullptr,
-        cert,
-        pk,
-        nullb,
-        hasCa ? tls::auth_required : tls::auth_optional);
 
-      certs.push_back(std::move(the_cert));
+      // Caller authentication is done by each frontend by looking up
+      // the caller's certificate in the relevant store table. The caller
+      // certificate does not have to be signed by a known CA (nullptr,
+      // tls::auth_optional).
+      cert = std::make_shared<tls::Cert>(
+        nullptr, cert_, pk, nullb, tls::auth_optional);
     }
 
     void accept(size_t id)
@@ -68,7 +64,7 @@ namespace enclave
           "Duplicate conn ID received inside enclave: " + std::to_string(id));
 
       LOG_DEBUG_FMT("Accepting a session inside the enclave: {}", id);
-      auto ctx = std::make_unique<tls::Server>(certs);
+      auto ctx = std::make_unique<tls::Server>(cert);
 
       auto session = std::make_shared<RPCEndpoint>(
         rpc_map, id, writer_factory, std::move(ctx));
