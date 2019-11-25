@@ -47,13 +47,12 @@ namespace enclave
     {
       std::lock_guard<SpinLock> guard(lock);
 
+      // Caller authentication is done by each frontend by looking up
+      // the caller's certificate in the relevant store table. The caller
+      // certificate does not have to be signed by a known CA (nullptr,
+      // tls::auth_optional).
       cert = std::make_shared<tls::Cert>(
-        nullptr, // Caller authentication is done by each frontend by looking up
-                 // the caller's certificate in the relevant store table
-        cert_,
-        pk,
-        nullb,
-        tls::auth_optional);
+        nullptr, cert_, pk, nullb, tls::auth_optional);
     }
 
     void accept(size_t id)

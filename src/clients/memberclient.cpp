@@ -279,10 +279,10 @@ int main(int argc, char** argv)
     ->required();
 
   string cert_file, privk_file, ca_file;
-  app.add_option("--cert", cert_file, "Client certificate")
+  app.add_option("--cert", cert_file, "Client certificate in PEM format")
     ->required(true)
     ->check(CLI::ExistingFile);
-  app.add_option("--privk", privk_file, "Client private key")
+  app.add_option("--privk", privk_file, "Client private key in PEM format")
     ->required(true)
     ->check(CLI::ExistingFile);
   app.add_option("--ca", ca_file, "CA")

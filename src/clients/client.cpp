@@ -141,8 +141,10 @@ int main(int argc, char** argv)
   std::string client_cert_file;
   std::string client_pk_file;
   app.add_option("--req", req, "RPC request data, '@' allowed", true);
-  app.add_option("--cert", client_cert_file, "Client certificate", true);
-  app.add_option("--pk", client_pk_file, "Client private key", true);
+  app.add_option(
+    "--cert", client_cert_file, "Client certificate in PEM format", true);
+  app.add_option(
+    "--pk", client_pk_file, "Client private key  in PEM format", true);
 
   CLI11_PARSE(app, argc, argv);
 
@@ -156,7 +158,6 @@ int main(int argc, char** argv)
               server_address.port)
          << endl;
 
-    cout << "Doing RPC:" << endl;
     response = make_rpc(
       server_address.hostname,
       server_address.port,
