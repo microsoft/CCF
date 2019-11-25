@@ -44,7 +44,7 @@ class Certificate
   // true if successful and false otherwise.
 
 public:
-  Certificate(int complete = 0);
+  Certificate(std::function<int()> complete = nullptr);
   // Requires: "complete" >= f+1 or 0
   // Effects: Creates an empty certificate. The certificate is
   // complete when it contains at least "complete" matching messages
@@ -96,6 +96,7 @@ public:
   // Effects: Returns the number of messages with the correct value
   // in this.
 
+  int num_complete() const;
   bool is_complete() const;
   void make_complete();
   // Effects: If cvalue() is not null, makes the certificate
@@ -173,7 +174,9 @@ private:
   Message_val* c; // correct certificate value or 0 if unknown.
 
   int complete; // certificate is complete if "num_correct() >= complete"
-  int comp; // the value of complete as sent into the ctor
+  std::function<int()>
+    comp; // the value of complete as sent into the ctor through a function so
+          // if f() changes it can be recalculated
 
   T* mym; // my message in this or null if I have no message in this
   Time t_sent; // time at which mym was last sent
@@ -213,6 +216,12 @@ template <class T>
 inline int Certificate<T>::num_correct() const
 {
   return (c) ? c->count : 0;
+}
+
+template <class T>
+inline int Certificate<T>::num_complete() const
+{
+  return complete;
 }
 
 template <class T>
@@ -275,13 +284,22 @@ inline bool Certificate<T>::Val_iter::get(T*& m, int& count)
 }
 
 template <class T>
-Certificate<T>::Certificate(int comp_) : f(node->f()), comp(comp_)
+Certificate<T>::Certificate(std::function<int()> comp_) :
+  f(node->f()),
+  comp(comp_)
 {
   max_size = f + 1;
   vals = new Message_val[max_size];
   cur_size = 0;
   correct = f + 1;
-  complete = (comp == 0) ? node->num_correct_replicas() : comp;
+  if (comp_ != nullptr)
+  {
+    complete = comp_();
+  }
+  else
+  {
+    complete = node->num_correct_replicas();
+  }
   c = 0;
   mym = 0;
   t_sent = 0;
@@ -302,7 +320,14 @@ void Certificate<T>::reset_f()
   vals = new Message_val[max_size];
   cur_size = 0;
   correct = f + 1;
-  complete = (comp == 0) ? node->num_correct_replicas() : comp;
+  if (comp != nullptr)
+  {
+    complete = comp();
+  }
+  else
+  {
+    complete = node->num_correct_replicas();
+  }
 }
 
 template <class T>

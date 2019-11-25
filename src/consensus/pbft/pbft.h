@@ -105,12 +105,28 @@ namespace pbft
     std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
     SeqNo global_commit_seqno;
+    View last_commit_view;
     std::unique_ptr<pbft::Store> store;
+
+    struct view_change_info
+    {
+      view_change_info(View view_, SeqNo min_global_commit_) :
+        min_global_commit(min_global_commit_),
+        view(view_)
+      {}
+
+      SeqNo min_global_commit;
+      View view;
+    };
+
+    std::vector<view_change_info> view_change_list;
 
     struct register_global_commit_info
     {
       pbft::Store* store;
       SeqNo* global_commit_seqno;
+      View* last_commit_view;
+      std::vector<view_change_info>* view_change_list;
     } register_global_commit_ctx;
 
   public:
@@ -125,7 +141,9 @@ namespace pbft
       channels(channels_),
       rpcsessions(rpcsessions_),
       global_commit_seqno(1),
-      store(std::move(store_))
+      last_commit_view(0),
+      store(std::move(store_)),
+      view_change_list(1, view_change_info(0, 0))
     {
       // configure replica
       GeneralInfo general_info;
@@ -195,18 +213,25 @@ namespace pbft
       message_receiver_base->register_reply_handler(
         reply_handler_cb, client_proxy.get());
 
-      auto global_commit_cb = [](kv::Version version, void* ctx) {
+      auto global_commit_cb = [](kv::Version version, ::View view, void* ctx) {
         auto p = static_cast<register_global_commit_info*>(ctx);
         if (version == kv::NoVersion || version < *p->global_commit_seqno)
         {
           return;
         }
         *p->global_commit_seqno = version;
+
+        if (*p->last_commit_view < view)
+        {
+          p->view_change_list->emplace_back(view, version);
+        }
         p->store->compact(version);
       };
 
       register_global_commit_ctx.store = store.get();
       register_global_commit_ctx.global_commit_seqno = &global_commit_seqno;
+      register_global_commit_ctx.last_commit_view = &last_commit_view;
+      register_global_commit_ctx.view_change_list = &view_change_list;
 
       message_receiver_base->register_global_commit(
         global_commit_cb, &register_global_commit_ctx);
@@ -239,17 +264,23 @@ namespace pbft
         client_proxy.get());
     }
 
-    // TODO(#PBFT): PBFT consensus should implement the following functions to
-    // return meaningful information to clients (e.g. global commit, term/view)
-    // https://github.com/microsoft/CCF/issues/57
     View get_view() override
     {
-      return 2;
+      return message_receiver_base->view() + 2;
     }
 
     View get_view(SeqNo seqno) override
     {
-      return 2;
+      for (auto rit = view_change_list.rbegin(); rit != view_change_list.rend();
+           ++rit)
+      {
+        view_change_info& info = *rit;
+        if (info.min_global_commit <= seqno)
+        {
+          return info.view + 2;
+        }
+      }
+      throw std::logic_error("should never be here");
     }
 
     SeqNo get_commit_seqno() override
@@ -259,7 +290,7 @@ namespace pbft
 
     kv::NodeId primary() override
     {
-      return 0;
+      return message_receiver_base->primary();
     }
 
     void add_configuration(

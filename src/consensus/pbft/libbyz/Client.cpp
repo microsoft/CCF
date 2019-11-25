@@ -26,8 +26,8 @@
 
 Client::Client(const NodeInfo& node_info, INetwork* network) :
   Node(node_info),
-  t_reps(2 * f() + 1),
-  c_reps(f() + 1)
+  t_reps([this]() { return 2 * f() + 1; }),
+  c_reps([this]() { return f() + 1; })
 {
   // Fail if node is a replica.
   LOG_INFO << "my id " << id() << std::endl;

@@ -38,6 +38,11 @@ public:
   // Effects: Discards any new-view, view-change and view-change ack
   // messages stored in this.
 
+  NV_info(const NV_info&) = delete;
+  NV_info& operator=(const NV_info&) = delete;
+  NV_info(NV_info&&) = default;
+  NV_info& operator=(NV_info&&) = default;
+
   void clear();
   // Effects: Makes this empty -- deletes all contained messages
   // and sets view() == 0.

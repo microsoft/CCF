@@ -235,8 +235,18 @@ inline int Prepared_cert::num_correct()
 
 inline bool Prepared_cert::is_complete()
 {
-  return pp_info.is_complete() && prepare_cert.is_complete() &&
-    pp_info.pre_prepare()->match(prepare_cert.cvalue());
+  if (pp_info.is_complete())
+  {
+    if (prepare_cert.num_complete() == 0)
+    {
+      return true;
+    }
+
+    return prepare_cert.is_complete() &&
+      pp_info.pre_prepare()->match(prepare_cert.cvalue());
+  }
+
+  return false;
 }
 
 inline bool Prepared_cert::is_pp_complete()

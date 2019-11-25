@@ -20,7 +20,7 @@ View_info::VCA_info::VCA_info() : v(0), vacks(node->num_of_replicas(), nullptr)
 
 void View_info::VCA_info::clear()
 {
-  for (int i = 0; i < node->num_of_replicas(); i++)
+  for (int i = 0; i < vacks.size(); i++)
   {
     delete vacks[i];
     vacks[i] = 0;
@@ -28,17 +28,18 @@ void View_info::VCA_info::clear()
   v = 0;
 }
 
-View_info::View_info(int ident, View vi) :
+View_info::View_info(int ident, View vi, uint64_t num_replicas) :
   v(vi),
   id(ident),
   last_stable(0),
   oplog(max_out),
-  last_views(node->num_of_replicas(), (View)0),
-  last_vcs(node->num_of_replicas()),
-  my_vacks(node->num_of_replicas(), nullptr),
-  last_nvs(node->num_of_replicas())
+  last_vcs(num_replicas),
+  my_vacks(num_replicas, nullptr),
+  last_nvs(num_replicas)
 {
-  vacks.resize(node->num_of_replicas());
+  last_views.resize(num_replicas);
+  std::fill(std::begin(last_views), std::end(last_views), 0);
+  vacks.resize(1);
 }
 
 View_info::~View_info()
@@ -201,30 +202,55 @@ bool View_info::prepare(Seqno n, Digest& d)
   return false;
 }
 
-void View_info::discard_old()
+void View_info::discard_old_and_resize_if_needed()
 {
   // Discard view-changes, view-change acks, and new views with view
   // less than "v"
-  for (int i = 0; i < node->num_of_replicas(); i++)
+  for (int i = 0; i < last_vcs.size(); i++)
   {
     if (last_vcs[i] && last_vcs[i]->view() < v)
     {
       last_vcs[i] = 0;
     }
+  }
+  if (last_vcs.size() != node->num_of_replicas())
+  {
+    last_vcs.resize(node->num_of_replicas());
+  }
 
+  for (int i = 0; i < my_vacks.size(); i++)
+  {
     delete my_vacks[i];
     my_vacks[i] = 0;
+  }
+  if (my_vacks.size() != node->num_of_replicas())
+  {
+    my_vacks.resize(node->num_of_replicas());
+  }
 
+  for (int i = 0; i < vacks.size(); i++)
+  {
     if (vacks[i].v < v)
     {
       vacks[i].clear();
       vacks[i].v = v;
     }
+  }
+  if (vacks.size() != node->num_of_replicas())
+  {
+    vacks.resize(node->num_of_replicas());
+  }
 
+  for (int i = 0; i < last_nvs.size(); i++)
+  {
     if (last_nvs[i].view() < v)
     {
       last_nvs[i].clear();
     }
+  }
+  if (last_nvs.size() != node->num_of_replicas())
+  {
+    last_nvs.resize(node->num_of_replicas());
   }
 }
 
@@ -232,7 +258,7 @@ void View_info::view_change(View vi, Seqno last_executed, State* state)
 {
   v = vi;
 
-  discard_old();
+  discard_old_and_resize_if_needed();
 
   // Create my view-change message for "v".
   auto vc = std::make_unique<View_change>(v, last_stable, id);
@@ -318,7 +344,7 @@ void View_info::view_change(View vi, Seqno last_executed, State* state)
     n.add(nv, this);
 
     // Move any view-change messages for view "v" to "n".
-    for (int i = 0; i < node->num_of_replicas(); i++)
+    for (int i = 0; i < last_vcs.size(); i++)
     {
       auto vc = last_vcs[i].get();
       if (vc && vc->view() == v && n.can_add(vc))
@@ -514,7 +540,7 @@ void View_info::set_received_vcs(Status* m)
   }
   else
   {
-    for (int i = 0; i < node->num_of_replicas(); i++)
+    for (int i = 0; i < last_vcs.size(); i++)
     {
       if (last_vcs[i] != 0 && last_vcs[i]->view() == v)
       {
@@ -590,15 +616,29 @@ void View_info::clear()
 {
   oplog.clear(last_stable + 1);
 
-  for (int i = 0; i < node->num_of_replicas(); i++)
+  for (int i = 0; i < last_vcs.size(); i++)
   {
     last_vcs[i] = 0;
-    last_views[i] = v;
-    vacks[i].clear();
+  }
 
+  for (int i = 0; i < last_views.size(); i++)
+  {
+    last_views[i] = v;
+  }
+
+  for (int i = 0; i < vacks.size(); i++)
+  {
+    vacks[i].clear();
+  }
+
+  for (int i = 0; i < my_vacks.size(); i++)
+  {
     delete my_vacks[i];
     my_vacks[i] = 0;
+  }
 
+  for (int i = 0; i < last_nvs.size(); i++)
+  {
     last_nvs[i].clear();
   }
   vc_sent = zero_time();
@@ -734,7 +774,13 @@ bool View_info::enforce_bound(Seqno b, Seqno ks, bool corrupt)
 
 void View_info::mark_stale()
 {
-  for (int i = 0; i < node->num_of_replicas(); i++)
+  PBFT_ASSERT(last_vcs.size() == last_views.size(), "sizes do not match");
+  PBFT_ASSERT(last_vcs.size() == my_vacks.size(), "sizes do not match");
+  PBFT_ASSERT(last_vcs.size() == last_nvs.size(), "sizes do not match");
+  PBFT_ASSERT(last_vcs.size() == last_vcs.size(), "sizes do not match");
+  PBFT_ASSERT(last_vcs.size() == vacks.size(), "sizes do not match");
+
+  for (int i = 0; i < last_vcs.size(); i++)
   {
     if (i != id)
     {
