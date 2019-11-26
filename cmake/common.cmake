@@ -6,10 +6,6 @@ set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
 set(MSGPACK_INCLUDE_DIR ${CCF_DIR}/3rdparty/msgpack-c)
 set(FLATBUFFERS_INCLUDE_DIR ${CCF_DIR}/3rdparty/flatbuffers/include)
 
-execute_process(
-    COMMAND flatc --cpp ${CCF_DIR}/src/kv/frame.fbs
-)
-
 set(default_build_type "RelWithDebInfo")
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
@@ -101,6 +97,16 @@ if (USE_NLJSON_KV_SERIALISER)
 endif()
 
 enable_language(ASM)
+
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/frame_generated.h
+    COMMAND flatc --cpp ${CCF_DIR}/src/kv/frame.fbs
+    DEPENDS ${CCF_DIR}/src/kv/frame.fbs
+)
+
+add_custom_target(flatbuffers_generate ALL
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/frame_generated.h
+)
 
 include_directories(
   ${CCF_DIR}/src
