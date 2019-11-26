@@ -4,6 +4,11 @@
 set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
 
 set(MSGPACK_INCLUDE_DIR ${CCF_DIR}/3rdparty/msgpack-c)
+set(FLATBUFFERS_INCLUDE_DIR ${CCF_DIR}/3rdparty/flatbuffers/include)
+
+execute_process(
+    COMMAND flatc --cpp ${CCF_DIR}/src/kv/frame.fbs
+)
 
 set(default_build_type "RelWithDebInfo")
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -106,6 +111,8 @@ include_directories(
   ${CCF_DIR}/3rdparty
   ${CCF_DIR}/3rdparty/evercrypt-msr
   ${MSGPACK_INCLUDE_DIR}
+  ${FLATBUFFERS_INCLUDE_DIR}
+  ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 set(TARGET "sgx;virtual" CACHE STRING "One of sgx, virtual, or 'sgx;virtual'")

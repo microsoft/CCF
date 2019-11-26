@@ -109,6 +109,15 @@
         }
       }
     },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/google/flatbuffers",
+          "commitHash": "bf9eb67ab9371755c6bcece13cadc7693bcbf264"
+        }
+      }
+    }
   ],
   "Version": 1
 }
