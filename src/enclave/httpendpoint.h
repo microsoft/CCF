@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/logger.h"
 #include "httpparser.h"
 #include "rpcmap.h"
 
@@ -78,41 +79,40 @@ namespace enclave
         const auto actor_s = path.substr(first_slash + 1, second_slash - 1);
         const auto method_s = path.substr(second_slash + 1);
 
-        if (actor_s.empty() || actor_s.empty())
+        if (actor_s.empty() || method_s.empty())
         {
           // TODO: Send error
-          return;
+          LOG_FAIL_FMT("EMPTY: '{}' || '{}'", actor_s, method_s);
         }
 
         auto actor = rpc_map->resolve(actor_s);
         if (actor == ccf::ActorsType::unknown)
         {
           // TODO: Send error
-          return;
+          LOG_FAIL_FMT("{} == unknown", actor);
         }
 
         rpc_ctx.actor = actor;
 
-        // TODO: This is temporary; while we have a full RPC object including
-        // method inside the body, it should match the method specified in the
-        // URI
-        if (rpc_ctx.method != method_s)
+        // TODO: This is temporary; while we have a full RPC object inside the
+        // body, it should match the dispatch details specified in the URI
+        if (rpc_ctx.method != fmt::format("{}/{}", actor_s, method_s))
         {
           // TODO: Send error
-          return;
+          LOG_FAIL_FMT("{} != {}", rpc_ctx.method, method_s);
         }
         rpc_ctx.method = method_s;
 
         auto search = rpc_map->find(actor);
         if (!search.has_value())
         {
-          // TODO: Send error
+          LOG_FAIL_FMT("Couldn't find actor {}", actor);
           return;
         }
 
         if (!search.value()->is_open())
         {
-          // TODO: Send error
+          LOG_FAIL_FMT("Session is not open {}", actor);
           return;
         }
 
