@@ -1,28 +1,6 @@
 Common Governance Operations
 ============================
 
-Adding new users
-----------------
-
-All CCF commands must be submitted by an approved user, using a TLS connection created with their approved cert. The members are responsible for managing the set of approved user certs, adding new users and removing old users. Each change is first proposed, and then accepted and enacted by consensus:
-
-.. code-block:: bash
-
-    ./memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert add_user --user-cert new_user_cert
-    {"commit":21,"global_commit":20,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":4},"term":2}
-
-    ./memberclient --cert member2_cert --privk member2_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 4 --accept
-    {"commit":25,"global_commit":24,"id":0,"jsonrpc":"2.0","result":true,"term":2}
-
-The approved user can then make RPCs, for example ``whoAmI`` to retrieve the unique caller ID assigned to them by CCF:
-
-.. code-block:: bash
-
-    ./client --rpc-address rpc_ip:rpc_port --ca network_cert --cert new_user_cert --pk new_user_privk --req '{"jsonrpc": "2.0", "id": 0, "method": "users/whoAmI"}'
-    {"commit":26,"global_commit":26,"id":0,"jsonrpc":"2.0","result":{"caller_id":3},"term":2}
-
-For each approved user CCF also stores arbitrary user-data in a JSON object, which can only be written to by members. This lets members define initial metadata for certain users; for example to grant specific privileges, associate a human-readable name, or categorise the users. This user-data can then be read (but not written) by the user-facing apps.
-
 Trusting a New Node
 -------------------
 
