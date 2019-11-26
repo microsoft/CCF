@@ -3,6 +3,7 @@
 #pragma once
 
 #include "httpparser.h"
+#include "rpcmap.h"
 
 namespace enclave
 {
@@ -11,9 +12,13 @@ namespace enclave
   {
   protected:
     http::Parser p;
+    std::shared_ptr<RPCMap> rpc_map;
+    std::shared_ptr<RpcHandler> handler;
+    size_t session_id;
 
   public:
     HTTPEndpoint(
+      std::shared_ptr<RPCMap> rpc_map,
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) = delete;
@@ -50,20 +55,87 @@ namespace enclave
       const std::string& query,
       std::vector<uint8_t> body)
     {
-      if (body.size() > 0)
+      try
       {
-        try
+        const SessionContext session(session_id, peer_cert());
+        RPCContext rpc_ctx(session);
+
+        const auto body_json = nlohmann::json::parse(body);
+        parse_rpc_context(rpc_ctx, body_json);
+        rpc_ctx.raw = body;
+
+        const auto first_slash = path.find_first_of('/');
+        const auto second_slash = path.find_first_of('/', first_slash + 1);
+
+        if (
+          first_slash != 0 || first_slash == std::string::npos ||
+          second_slash == std::string::npos)
         {
-          // if (!handle_data(body))
-          {
-            close();
-          }
+          // TODO: Send error
+          return;
         }
-        catch (...)
+
+        const auto actor_s = path.substr(first_slash + 1, second_slash - 1);
+        const auto method_s = path.substr(second_slash + 1);
+
+        if (actor_s.empty() || actor_s.empty())
         {
-          // On any exception, close the connection.
-          close();
+          // TODO: Send error
+          return;
         }
+
+        auto actor = rpc_map->resolve(actor_s);
+        if (actor == ccf::ActorsType::unknown)
+        {
+          // TODO: Send error
+          return;
+        }
+
+        rpc_ctx.actor = actor;
+
+        // TODO: This is temporary; while we have a full RPC object including
+        // method inside the body, it should match the method specified in the
+        // URI
+        if (rpc_ctx.method != method_s)
+        {
+          // TODO: Send error
+          return;
+        }
+        rpc_ctx.method = method_s;
+
+        auto search = rpc_map->find(actor);
+        if (!search.has_value())
+        {
+          // TODO: Send error
+          return;
+        }
+
+        if (!search.value()->is_open())
+        {
+          // TODO: Send error
+          return;
+        }
+
+        auto response = search.value()->process(rpc_ctx);
+
+        if (!response.has_value())
+        {
+          // If the RPC is pending, hold the connection.
+          LOG_TRACE_FMT("Pending");
+          return;
+        }
+        else
+        {
+          // Otherwise, reply to the client synchronously.
+          LOG_TRACE_FMT("Responding");
+          send(response.value());
+        }
+      }
+      catch (...)
+      {
+        // TODO: Should try to return an error first?
+        // On any exception, close the connection.
+        close();
       }
     }
 
@@ -80,19 +152,25 @@ namespace enclave
 
   template <>
   HTTPEndpoint<http::RequestHeaderEmitter>::HTTPEndpoint(
+    std::shared_ptr<RPCMap> rpc_map,
     size_t session_id,
     ringbuffer::AbstractWriterFactory& writer_factory,
     std::unique_ptr<tls::Context> ctx) :
     TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-    p(HTTP_RESPONSE, *this)
+    p(HTTP_RESPONSE, *this),
+    rpc_map(rpc_map),
+    session_id(session_id)
   {}
 
   template <>
   HTTPEndpoint<http::ResponseHeaderEmitter>::HTTPEndpoint(
+    std::shared_ptr<RPCMap> rpc_map,
     size_t session_id,
     ringbuffer::AbstractWriterFactory& writer_factory,
     std::unique_ptr<tls::Context> ctx) :
     TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-    p(HTTP_REQUEST, *this)
+    p(HTTP_REQUEST, *this),
+    rpc_map(rpc_map),
+    session_id(session_id)
   {}
 }

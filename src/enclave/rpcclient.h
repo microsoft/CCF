@@ -8,14 +8,7 @@
 
 namespace enclave
 {
-  // TODO
-  // #ifdef HTTP
-  //   using ClientEndpoint = HTTPEndpoint<http::RequestHeaderEmitter>;
-  // #else
-  using ClientEndpoint = FramedTLSEndpoint;
-  //#endif
-
-  class RPCClient : public ClientEndpoint
+  class RPCClient : public FramedTLSEndpoint
   {
     using HandleDataCallback =
       std::function<bool(const std::vector<uint8_t>& data)>;
@@ -28,7 +21,7 @@ namespace enclave
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      ClientEndpoint(session_id, writer_factory, move(ctx))
+      FramedTLSEndpoint(session_id, writer_factory, move(ctx))
     {}
 
     void connect(

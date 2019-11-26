@@ -6,6 +6,7 @@
 #include "ds/serialized.h"
 #include "enclavetypes.h"
 #include "framedtlsendpoint.h"
+#include "httpendpoint.h"
 #include "rpcclient.h"
 #include "rpcendpoint.h"
 #include "rpchandler.h"
@@ -19,6 +20,12 @@
 
 namespace enclave
 {
+#ifdef HTTP
+  using EndpointImpl = HTTPEndpoint<http::ResponseHeaderEmitter>;
+#else
+  using EndpointImpl = RPCEndpoint;
+#endif
+
   class RPCSessions : public AbstractRPCResponder
   {
   private:
@@ -66,7 +73,7 @@ namespace enclave
       LOG_DEBUG_FMT("Accepting a session inside the enclave: {}", id);
       auto ctx = std::make_unique<tls::Server>(cert);
 
-      auto session = std::make_shared<RPCEndpoint>(
+      auto session = std::make_shared<EndpointImpl>(
         rpc_map, id, writer_factory, std::move(ctx));
       sessions.insert(std::make_pair(id, std::move(session)));
     }
