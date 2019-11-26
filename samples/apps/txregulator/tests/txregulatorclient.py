@@ -150,7 +150,8 @@ def run(args):
                 for bank in banks:
                     check(
                         c.rpc(
-                            "BK_register", {"bank_id": bank.ccf_id, "country": bank.country}
+                            "BK_register",
+                            {"bank_id": bank.ccf_id, "country": bank.country},
                         ),
                         result=bank.ccf_id,
                     )
