@@ -57,7 +57,7 @@ namespace ccf
       //! script that proposes changes
       Script script;
       //! fixed parameter for the script
-      nlohmann::json parameter;
+      nlohmann::json parameter = nullptr;
       //! vote ballot of proposer
       Script ballot = {"return true"};
     };

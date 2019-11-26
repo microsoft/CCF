@@ -434,6 +434,41 @@ namespace ccf
           return jsonrpc::success(out);
         };
 
+      auto who_am_i = [this](const RequestArgs& args) {
+        if (certs == nullptr)
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            fmt::format(
+              "This frontend does not support {}", GeneralProcs::WHO_AM_I));
+        }
+
+        return jsonrpc::success(WhoAmI::Out{args.caller_id});
+      };
+
+      auto who_is = [this](Store::Tx& tx, const nlohmann::json& params) {
+        const WhoIs::In in = params;
+
+        if (certs == nullptr)
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            fmt::format(
+              "This frontend does not support {}", GeneralProcs::WHO_IS));
+        }
+        auto certs_view = tx.get_view(*certs);
+        auto caller_id = certs_view->get(in.cert);
+
+        if (!caller_id.has_value())
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            "Certificate not recognised");
+        }
+
+        return jsonrpc::success(WhoIs::Out{caller_id.value()});
+      };
+
       auto list_methods_fn =
         [this](Store::Tx& tx, const nlohmann::json& params) {
           ListMethods::Out out;
@@ -530,6 +565,10 @@ namespace ccf
         GeneralProcs::GET_PRIMARY_INFO, get_primary_info, Read);
       install_with_auto_schema<void, GetNetworkInfo::Out>(
         GeneralProcs::GET_NETWORK_INFO, get_network_info, Read);
+      install_with_auto_schema<void, WhoAmI::Out>(
+        GeneralProcs::WHO_AM_I, who_am_i, Read);
+      install_with_auto_schema<WhoIs::In, WhoIs::Out>(
+        GeneralProcs::WHO_IS, who_is, Read);
       install_with_auto_schema<void, ListMethods::Out>(
         GeneralProcs::LIST_METHODS, list_methods_fn, Read);
       install_with_auto_schema<GetSchema>(

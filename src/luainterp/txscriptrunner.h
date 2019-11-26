@@ -161,6 +161,14 @@ namespace ccf
         std::stringstream ss;
         for (size_t i = 1; i <= args; ++i)
         {
+          const int type = lua_type(l, i);
+          if (type != LUA_TNUMBER && type != LUA_TSTRING)
+          {
+            throw std::runtime_error(fmt::format(
+              "Can only format lua args which are numbers or strings - got {}. "
+              "Call tostring from within Lua",
+              lua_typename(l, type)));
+          }
           ss << lua_tostring(l, i);
         }
         return ss.str();

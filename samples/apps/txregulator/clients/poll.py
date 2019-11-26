@@ -25,26 +25,22 @@ def convert(data):
 
 
 def run(args):
-    regulator = (0, "gbr", None)
-    banks = [(1, "us", 99), (1, "gbr", 29), (2, "grc", 99), (2, "fr", 29)]
     revealed = []
 
-    reg_id = regulator[0] + 1
     with client(
         host=args.host,
         port=args.port,
         format="msgpack",
-        cert="user{}_cert.pem".format(reg_id),
-        key="user{}_privk.pem".format(reg_id),
+        cert="user{}_cert.pem".format(args.regulator_name),
+        key="user{}_privk.pem".format(args.regulator_name),
         cafile="networkcert.pem",
     ) as reg_c:
-        bank_id = user_id = banks[0][0] + 1
         with client(
             host=args.host,
             port=args.port,
             format="msgpack",
-            cert="user{}_cert.pem".format(bank_id),
-            key="user{}_privk.pem".format(bank_id),
+            cert="user{}_cert.pem".format(args.bank_name),
+            key="user{}_privk.pem".format(args.bank_name),
             cafile="networkcert.pem",
         ) as c:
             while True:
@@ -81,6 +77,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", help="Hostname that service is running on", type=str)
     parser.add_argument("--port", help="Port that service is running on", type=int)
+    parser.add_argument(
+        "--regulator-name",
+        help="Name of cert/key to use for regulator connection",
+        type=str,
+    )
+    parser.add_argument(
+        "--bank-name", help="Name of cert/key to user for bank connection", type=str
+    )
 
     args = parser.parse_args()
     run(args)

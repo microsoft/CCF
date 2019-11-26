@@ -12,6 +12,23 @@ import json
 import subprocess
 
 
+class AppUser:
+    def __init__(self, network, name, country):
+        self.name = name
+        self.country = country
+
+        primary, _ = network.find_primary()
+
+        network.create_users([self.name])
+        network.consortium.add_users(primary, [self.name])
+
+        with primary.user_client(user_id=self.name) as client:
+            self.ccf_id = client.rpc("whoAmI", {}).result["caller_id"]
+
+    def __str__(self):
+        return f"{self.ccf_id} ({self.name})"
+
+
 def run(args):
     hosts = ["localhost"]
 
@@ -21,6 +38,34 @@ def run(args):
         network.start_and_join(args)
         primary, others = network.find_nodes()
 
+        regulators = [AppUser(network, "FCA", "GB"), AppUser(network, "SEC", "FR")]
+        banks = [
+            AppUser(network, f"bank{country}", country)
+            for country in ("US", "GB", "GR", "FR")
+        ]
+
+        # Give regulators permissions to register regulators and banks
+        for regulator in regulators:
+            proposal_result, error = network.consortium.propose(
+                0,
+                primary,
+                f"""
+                return Calls:call(
+                    "set_user_data",
+                    {{
+                        user_id = {regulator.ccf_id},
+                        user_data = {{
+                            privileges = {{
+                                REGISTER_REGULATORS = true,
+                                REGISTER_BANKS = true,
+                            }}
+                        }}
+                    }}
+                )
+                """,
+            )
+            network.consortium.vote_using_majority(primary, proposal_result["id"])
+
         if args.run_poll:
             with open("revealed.log", "a+") as stdout:
                 subprocess.Popen(
@@ -29,6 +74,8 @@ def run(args):
                         f"{os.path.realpath(os.path.dirname(__file__))}/poll.py",
                         f"--host={primary.host}",
                         f"--port={primary.rpc_port}",
+                        f"--regulator-name={regulators[0].name}",
+                        f"--bank-name={banks[0].name}",
                     ],
                     stdout=stdout,
                 )
@@ -48,65 +95,63 @@ def run(args):
         data = []
         with open(args.lua_script, "r") as f:
             data = f.readlines()
-        script = "".join(data)
 
-        regulators = [
-            (0, "GB", script, "FCA"),
-            (
-                1,
-                "FR",
-                "if tonumber(amt) > 15000 then return true else return false end",
-                "SEC",
-            ),
-        ]
-        banks = [(2, "US", 99), (3, "GB", 29), (4, "GR", 99), (5, "FR", 29)]
+        scripts = {}
+        scripts["FCA"] = "".join(data)
+        scripts[
+            "SEC"
+        ] = "if tonumber(amt) > 15000 then return true else return false end"
 
         for regulator in regulators:
-            with primary.user_client(format="msgpack", user_id=regulator[0] + 1) as c:
+            with primary.user_client(format="msgpack", user_id=regulator.name) as c:
                 check = infra.checker.Checker()
 
                 check(
                     c.rpc(
                         "REG_register",
                         {
-                            "country": regulator[1],
-                            "script": regulator[2],
-                            "name": regulator[3],
+                            "regulator_id": regulator.ccf_id,
+                            "country": regulator.country,
+                            "script": scripts[regulator.name],
+                            "name": regulator.name,
                         },
                     ),
-                    result=regulator[0],
+                    result=regulator.ccf_id,
                 )
                 check(
-                    c.rpc("REG_get", {"id": regulator[0]}),
+                    c.rpc("REG_get", {"id": regulator.ccf_id}),
                     result=[
-                        regulator[1].encode(),
-                        regulator[2].encode(),
-                        regulator[3].encode(),
+                        regulator.country,
+                        scripts[regulator.name],
+                        regulator.name,
                     ],
                 )
 
-            LOG.debug(f"User {regulator[0]} successfully registered as regulator")
+            LOG.debug(f"User {regulator} successfully registered as regulator")
 
-        for bank in banks:
-            with primary.user_client(format="msgpack", user_id=bank[0] + 1) as c:
+        with primary.user_client(format="msgpack", user_id=regulators[0].name) as c:
+            for bank in banks:
                 check = infra.checker.Checker()
 
-                check(c.rpc("BK_register", {"country": bank[1]}), result=bank[0])
-                check(c.rpc("BK_get", {"id": bank[0]}), result=bank[1].encode())
-            LOG.debug(f"User {bank[0]} successfully registered as bank")
+                check(
+                    c.rpc(
+                        "BK_register", {"bank_id": bank.ccf_id, "country": bank.country}
+                    ),
+                    result=bank.ccf_id,
+                )
+                check(c.rpc("BK_get", {"id": bank.ccf_id}), result=bank.country)
+                LOG.debug(f"User {bank} successfully registered as bank")
 
         LOG.success(
             f"{len(regulators)} regulator and {len(banks)} bank(s) successfully setup"
         )
 
         tx_id = 0  # Tracks how many transactions have been issued
-        bank_id = banks[0][0] + 1
-        LOG.info(f"Loading scenario file as bank {bank_id}")
+        LOG.info(f"Loading scenario file as bank {banks[0].ccf_id} ({banks[0].name})")
 
-        with primary.user_client(format="msgpack", user_id=regulator[0] + 1) as reg_c:
-
+        with primary.user_client(format="msgpack", user_id=regulators[0].name) as reg_c:
             with primary.user_client(
-                format="msgpack", user_id=bank_id, log_file=None
+                format="msgpack", user_id=banks[0].name, log_file=None
             ) as c:
                 with open(args.datafile, newline="") as f:
                     start_time = perf_counter()
