@@ -277,7 +277,7 @@ namespace enclave
       }
     }
 
-    void close() override
+    void close()
     {
       switch (status)
       {

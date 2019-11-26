@@ -54,7 +54,7 @@ namespace enclave
       {
         try
         {
-          if (!handle_data(body))
+          // if (!handle_data(body))
           {
             close();
           }

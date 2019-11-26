@@ -8,11 +8,12 @@
 
 namespace enclave
 {
-#ifdef HTTP
-  using ClientEndpoint = HTTPEndpoint<http::RequestHeaderEmitter>;
-#else
+  // TODO
+  // #ifdef HTTP
+  //   using ClientEndpoint = HTTPEndpoint<http::RequestHeaderEmitter>;
+  // #else
   using ClientEndpoint = FramedTLSEndpoint;
-#endif
+  //#endif
 
   class RPCClient : public ClientEndpoint
   {

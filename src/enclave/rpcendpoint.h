@@ -3,17 +3,12 @@
 #pragma once
 
 #include "framedtlsendpoint.h"
-#include "httpendpoint.h"
 #include "node/rpc/jsonrpc.h"
 #include "rpcmap.h"
 
 namespace enclave
 {
-#ifdef HTTP
-  using ServerEndpoint = HTTPEndpoint<http::ResponseHeaderEmitter>;
-#else
   using ServerEndpoint = FramedTLSEndpoint;
-#endif
 
   class RPCEndpoint : public ServerEndpoint
   {
