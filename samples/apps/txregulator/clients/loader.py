@@ -44,6 +44,28 @@ def run(args):
             for country in ("US", "GB", "GR", "FR")
         ]
 
+        # Give regulators permissions to register regulators and banks
+        for regulator in regulators:
+            proposal_result, error = network.consortium.propose(
+                0,
+                primary,
+                f"""
+                return Calls:call(
+                    "set_user_data",
+                    {{
+                        user_id = {regulator.ccf_id},
+                        user_data = {{
+                            privileges = {{
+                                REGISTER_REGULATORS = true,
+                                REGISTER_BANKS = true,
+                            }}
+                        }}
+                    }}
+                )
+                """,
+            )
+            network.consortium.vote_using_majority(primary, proposal_result["id"])
+
         if args.run_poll:
             with open("revealed.log", "a+") as stdout:
                 subprocess.Popen(
@@ -88,6 +110,7 @@ def run(args):
                     c.rpc(
                         "REG_register",
                         {
+                            "regulator_id": regulator.ccf_id,
                             "country": regulator.country,
                             "script": scripts[regulator.name],
                             "name": regulator.name,
@@ -105,15 +128,19 @@ def run(args):
                 )
 
             LOG.debug(f"User {regulator} successfully registered as regulator")
-        for bank in banks:
-            with primary.user_client(format="msgpack", user_id=bank.name) as c:
+
+        with primary.user_client(format="msgpack", user_id=regulators[0].name) as c:
+            for bank in banks:
                 check = infra.checker.Checker()
 
                 check(
-                    c.rpc("BK_register", {"country": bank.country}), result=bank.ccf_id
+                    c.rpc(
+                        "BK_register", {"bank_id": bank.ccf_id, "country": bank.country}
+                    ),
+                    result=bank.ccf_id,
                 )
                 check(c.rpc("BK_get", {"id": bank.ccf_id}), result=bank.country)
-            LOG.debug(f"User {bank} successfully registered as bank")
+                LOG.debug(f"User {bank} successfully registered as bank")
 
         LOG.success(
             f"{len(regulators)} regulator and {len(banks)} bank(s) successfully setup"
