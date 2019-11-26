@@ -3,8 +3,8 @@
 #pragma once
 
 #include "enclavetypes.h"
+#include "framedtlsendpoint.h"
 #include "httpendpoint.h"
-#include "tlsframedendpoint.h"
 
 namespace enclave
 {
