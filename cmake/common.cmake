@@ -7,8 +7,13 @@ set(MSGPACK_INCLUDE_DIR ${CCF_DIR}/3rdparty/msgpack-c)
 set(FLATBUFFERS_INCLUDE_DIR ${CCF_DIR}/3rdparty/flatbuffers/include)
 
 execute_process(
-    COMMAND flatc --cpp ${CCF_DIR}/src/kv/frame.fbs
+    COMMAND flatc --cpp ${CCF_DIR}/src/kv/frame.fbs RESULT_VARIABLE flatc_retcode
 )
+
+if(NOT "${flatc_retcode}" STREQUAL "0")
+  message(FATAL_ERROR "Failed to run flatc over flatbuffer schema")
+endif()
+
 
 set(default_build_type "RelWithDebInfo")
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
