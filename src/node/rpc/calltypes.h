@@ -70,7 +70,7 @@ namespace ccf
 
   struct CallerInfo
   {
-    size_t caller_id;
+    CallerId caller_id;
   };
 
   struct WhoAmI

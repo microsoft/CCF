@@ -435,12 +435,27 @@ namespace ccf
         };
 
       auto who_am_i = [this](const RequestArgs& args) {
+        if (certs == nullptr)
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            fmt::format(
+              "This frontend does not support {}", GeneralProcs::WHO_AM_I));
+        }
+
         return jsonrpc::success(WhoAmI::Out{args.caller_id});
       };
 
       auto who_is = [this](Store::Tx& tx, const nlohmann::json& params) {
         const WhoIs::In in = params;
 
+        if (certs == nullptr)
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            fmt::format(
+              "This frontend does not support {}", GeneralProcs::WHO_IS));
+        }
         auto certs_view = tx.get_view(*certs);
         auto caller_id = certs_view->get(in.cert);
 
@@ -448,7 +463,7 @@ namespace ccf
         {
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            fmt::format("Cert not recognised"));
+            "Certificate not recognised");
         }
 
         return jsonrpc::success(WhoIs::Out{caller_id.value()});
