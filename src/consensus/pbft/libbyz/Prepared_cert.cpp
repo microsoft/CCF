@@ -8,7 +8,7 @@
 #include "Node.h"
 
 Prepared_cert::Prepared_cert() :
-  prepare_cert(node->num_correct_replicas() - 1),
+  prepare_cert([]() { return node->num_correct_replicas() - 1; }),
   primary(false)
 {}
 

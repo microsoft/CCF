@@ -28,7 +28,7 @@ def wait_for_index_globally_committed(index, term, nodes):
             with f.node_client() as c:
                 id = c.request("getCommit", {"commit": index})
                 res = c.response(id)
-                if res.result["term"] == term and res.global_commit > index:
+                if res.result["term"] == term and (res.global_commit >= index):
                     up_to_date_f.append(f.node_id)
         if len(up_to_date_f) == len(nodes):
             break
@@ -41,7 +41,11 @@ def wait_for_index_globally_committed(index, term, nodes):
 def run(args):
     # Three nodes minimum to make sure that the raft network can still make progress
     # if one node stops
-    hosts = ["localhost", "localhost", "localhost"]
+
+    if args.consensus == "pbft":
+        hosts = ["localhost", "localhost", "localhost", "localhost"]
+    else:
+        hosts = ["localhost", "localhost", "localhost"]
 
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -55,13 +59,19 @@ def run(args):
 
         # Number of nodes F to stop until network cannot make progress
         nodes_to_stop = math.ceil(len(hosts) / 2)
+        if args.consensus == "pbft":
+            nodes_to_stop = math.ceil(len(hosts) / 3)
 
         for _ in range(nodes_to_stop):
             # Note that for the first iteration, the primary is known in advance anyway
             LOG.debug("Find freshly elected primary")
             primary, current_term = network.find_primary()
 
-            LOG.debug("Commit new transactions")
+            LOG.debug(
+                "Commit new transactions, primary:{}, current_term:{}".format(
+                    primary, current_term
+                )
+            )
             commit_index = None
             with primary.user_client(format="json") as c:
                 res = c.do(
@@ -95,10 +105,14 @@ def run(args):
         try:
             primary, current_term = network.find_primary()
             assert False, "Primary should not be found"
+        except TypeError:
+            assert args.consensus == "pbft", "Unexpected error"
         except AssertionError:
-            LOG.info(
-                "As expected, primary could not be found after election timeout. Test ended successfully."
-            )
+            assert args.consensus == "raft", "Unexpected error"
+
+        LOG.info(
+            "As expected, primary could not be found after election timeout. Test ended successfully."
+        )
 
 
 if __name__ == "__main__":
