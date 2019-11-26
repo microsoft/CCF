@@ -451,7 +451,7 @@ namespace ccf
             fmt::format("Cert not recognised"));
         }
 
-        return jsonrpc::success(WhoAmI::Out{caller_id.value()});
+        return jsonrpc::success(WhoIs::Out{caller_id.value()});
       };
 
       auto list_methods_fn =
