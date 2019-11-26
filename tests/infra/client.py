@@ -141,22 +141,22 @@ def human_readable_size(n):
 
 
 class FramedTLSClient:
-    def __init__(self, host, port, cert=None, key=None, cafile=None):
+    def __init__(self, host, port, cert=None, key=None, ca=None):
         self.host = host
         self.port = port
         self.cert = cert
         self.key = key
-        self.cafile = cafile
+        self.ca = ca
         self.context = None
         self.sock = None
         self.conn = None
 
     def connect(self):
-        if self.cafile:
-            self.context = ssl.create_default_context(cafile=self.cafile)
+        if self.ca:
+            self.context = ssl.create_default_context(cafile=self.ca)
 
             # Auto detect EC curve to use based on server CA
-            ca_bytes = open(self.cafile, "rb").read()
+            ca_bytes = open(self.ca, "rb").read()
             ca_curve = (
                 x509.load_pem_x509_certificate(ca_bytes, default_backend())
                 .public_key()
@@ -273,19 +273,26 @@ class FramedTLSJSONRPCClient:
         port,
         cert=None,
         key=None,
-        cafile=None,
+        ca=None,
         version="2.0",
         format="msgpack",
-        description=None,
-        prefix="users",
+        connection_timeout=3,
+        *args,
+        **kwargs,
     ):
-        self.client = FramedTLSClient(host, int(port), cert, key, cafile)
+        self.client = FramedTLSClient(host, int(port), cert, key, ca)
         self.stream = Stream(version, format=format)
         self.format = format
-        self.name = "[{}:{}]".format(host, port)
-        self.description = description
-        self.rpc_loggers = (RPCLogger(),)
-        self.prefix = prefix
+
+        while connection_timeout >= 0:
+            try:
+                self.connect()
+                break
+            except ssl.SSLError:
+                if connection_timeout < 0:
+                    raise
+            connection_timeout -= 0.1
+            time.sleep(0.1)
 
     def connect(self):
         return self.client.connect()
@@ -293,15 +300,9 @@ class FramedTLSJSONRPCClient:
     def disconnect(self):
         return self.client.disconnect()
 
-    def request(self, method, params, *args, **kwargs):
-        r = self.stream.request(f"{self.prefix}/{method}", params, *args, **kwargs)
-        self.client.send(getattr(r, "to_{}".format(self.format))())
-        description = ""
-        if self.description:
-            description = " ({})".format(self.description)
-        for logger in self.rpc_loggers:
-            logger.log_request(r, self.name, description)
-        return r.id
+    def request(self, request):
+        self.client.send(getattr(request, "to_{}".format(self.format))())
+        return request.id
 
     def tick(self):
         msg = self.client.read()
@@ -309,134 +310,53 @@ class FramedTLSJSONRPCClient:
 
     def response(self, id):
         self.tick()
-        r = self.stream.response(id)
-        for logger in self.rpc_loggers:
-            logger.log_response(r)
-        return r
-
-    def do(self, *args, **kwargs):
-        expected_result = None
-        expected_error_code = None
-        if "expected_result" in kwargs:
-            expected_result = kwargs.pop("expected_result")
-        if "expected_error_code" in kwargs:
-            expected_error_code = kwargs.pop("expected_error_code")
-
-        id = self.request(*args, **kwargs)
-        r = self.response(id)
-
-        if expected_result is not None:
-            assert expected_result == r.result
-
-        if expected_error_code is not None:
-            assert expected_error_code == r.error["code"]
-        return r
-
-    def rpc(self, *args, **kwargs):
-        id = self.request(*args, **kwargs)
-        return self.response(id)
-
-
-class RequestClient:
-    def __init__(
-        self,
-        host,
-        port,
-        cert,
-        key,
-        cafile,
-        version,
-        format,
-        description,
-        prefix,
-        timeout,
-    ):
-        self.host = host
-        self.port = port
-        self.cert = cert
-        self.key = key
-        self.cafile = cafile
-        self.version = version
-        self.format = format
-        self.name = "[{}:{}]".format(host, port)
-        self.stream = Stream(version, format=format)
-        self.prefix = prefix
-        self.description = description
-        self.rpc_loggers = (RPCLogger(),)
-        self.timeout = timeout
-
-    def request(self, method, params, *args, **kwargs):
-        r = self.stream.request(f"{self.prefix}/{method}", params, *args, **kwargs)
-
-        if self.description:
-            description = " ({})".format(self.description)
-        for logger in self.rpc_loggers:
-            logger.log_request(r, self.name, description)
-
-        rep = requests.post(
-            f"https://{self.host}:{self.port}/",
-            json=r.to_dict(),  # TODO: For REST queries, data= instead
-            cert=(self.cert, self.key),
-            verify=self.cafile,
-            timeout=3,
-        )
-        self.stream.update(rep.content)
-        return r.id
-
-    def response(self, id):
-        r = self.stream.response(id)
-        for logger in self.rpc_loggers:
-            logger.log_response(r)
-        return r
-
-    def do(self, *args, **kwargs):
-        expected_result = None
-        expected_error_code = None
-        if "expected_result" in kwargs:
-            expected_result = kwargs.pop("expected_result")
-        if "expected_error_code" in kwargs:
-            expected_error_code = kwargs.pop("expected_error_code")
-
-        id = self.request(*args, **kwargs)
-        r = self.response(id)
-
-        if expected_result is not None:
-            assert expected_result == r.result
-
-        if expected_error_code is not None:
-            assert expected_error_code == r.error["code"]
-        return r
-
-    def rpc(self, *args, **kwargs):
-        if "signed" in kwargs and kwargs.pop("signed"):
-            # TODO: Use signed  client instead
-            id = self.request(*args, **kwargs)
-            return self.response(id)
-        else:
-            id = self.request(*args, **kwargs)
-            return self.response(id)
+        return self.stream.response(id)
 
 
 # We keep this around in a limited fashion still, because
 # the resulting logs nicely illustrate manual usage in a way using requests doesn't
 class CurlClient:
-    def __init__(
-        self, host, port, cert, key, cafile, version, format, description, prefix,
-    ):
+    def __init__(self, host, port, cert, key, ca, version, format, *args, **kwargs):
         self.host = host
         self.port = port
         self.cert = cert
         self.key = key
-        self.cafile = cafile
-        self.version = version
+        self.ca = ca
         self.format = format
-        self.stream = Stream(version, format=format)
-        self.prefix = prefix
+        self.stream = Stream(version, self.format)
 
-    def signed_request(self, method, params):
-        r = self.stream.request(f"{self.prefix}/{method}", params)
+    def request(self, request):
         with tempfile.NamedTemporaryFile() as nf:
-            msg = getattr(r, "to_{}".format(self.format))()
+            msg = getattr(request, "to_{}".format(self.format))()
+            LOG.debug("Going to send {}".format(msg))
+            nf.write(msg)
+            nf.flush()
+            cmd = [
+                "curl",
+                f"https://{self.host}:{self.port}/",
+                "-H",
+                "Content-Type: application/json",
+                "--data-binary",
+                f"@{nf.name}",
+            ]
+            if self.ca:
+                cmd.extend(["--cacert", self.ca])
+            if self.key:
+                cmd.extend(["--key", self.key])
+            if self.cert:
+                cmd.extend(["--cert", self.cert])
+            LOG.debug(f"Running: {' '.join(cmd)}")
+            rc = subprocess.run(cmd, capture_output=True)
+            LOG.debug(f"Received {rc.stdout}")
+            if rc.returncode != 0:
+                LOG.error(rc.stderr)
+                raise RuntimeError("Curl failed")
+            self.stream.update(rc.stdout)
+        return request.id
+
+    def signed_request(self, request):
+        with tempfile.NamedTemporaryFile() as nf:
+            msg = getattr(request, "to_{}".format(self.format))()
             LOG.debug("Going to send {}".format(msg))
             nf.write(msg)
             nf.flush()
@@ -457,8 +377,8 @@ class CurlClient:
                 "--data-binary",
                 f"@{nf.name}",
             ]
-            if self.cafile:
-                cmd.extend(["--cacert", self.cafile])
+            if self.ca:
+                cmd.extend(["--cacert", self.ca])
             if self.key:
                 cmd.extend(["--key", self.key])
             if self.cert:
@@ -469,40 +389,105 @@ class CurlClient:
             if rc.returncode != 0:
                 LOG.debug(f"ERR {rc.stderr.decode()}")
             self.stream.update(rc.stdout)
-        return r.id
-
-    def request(self, method, params, *args, **kwargs):
-        r = self.stream.request(f"{self.prefix}/{method}", params, *args, **kwargs)
-        with tempfile.NamedTemporaryFile() as nf:
-            msg = getattr(r, "to_{}".format(self.format))()
-            LOG.debug("Going to send {}".format(msg))
-            nf.write(msg)
-            nf.flush()
-            cmd = [
-                "curl",
-                f"https://{self.host}:{self.port}/",
-                "-H",
-                "Content-Type: application/json",
-                "--data-binary",
-                f"@{nf.name}",
-            ]
-            if self.cafile:
-                cmd.extend(["--cacert", self.cafile])
-            if self.key:
-                cmd.extend(["--key", self.key])
-            if self.cert:
-                cmd.extend(["--cert", self.cert])
-            LOG.debug(f"Running: {' '.join(cmd)}")
-            rc = subprocess.run(cmd, capture_output=True)
-            LOG.debug(f"Received {rc.stdout}")
-            if rc.returncode != 0:
-                LOG.error(rc.stderr)
-                raise RuntimeError("Curl failed")
-            self.stream.update(rc.stdout)
-        return r.id
+        return request.id
 
     def response(self, id):
         return self.stream.response(id)
+
+    def disconnect(self):
+        pass
+
+
+class RequestClient:
+    def __init__(
+        self,
+        host,
+        port,
+        cert,
+        key,
+        ca,
+        version,
+        format,
+        connection_timeout,
+        request_timeout,
+    ):
+        self.host = host
+        self.port = port
+        self.cert = cert
+        self.key = key
+        self.ca = ca
+        self.stream = Stream(version, "json")
+        self.request_timeout = request_timeout
+
+    def request(self, request):
+        rep = requests.post(
+            f"https://{self.host}:{self.port}/",
+            json=request.to_dict(),  # TODO: For REST queries, use data= instead
+            cert=(self.cert, self.key),
+            verify=self.ca,
+            timeout=self.request_timeout,
+        )
+        self.stream.update(rep.content)
+        return request.id
+
+    def signed_request(self, request):
+        # TODO: For now, signed requests are not implemented.
+        # Use requests_http_signature instead
+        return self.request(request)
+
+    def response(self, id):
+        return self.stream.response(id)
+
+    def disconnect(self):
+        pass
+
+
+class CCFClient:
+    def __init__(self, *args, **kwargs):
+        self.prefix = kwargs.pop("prefix")
+        self.description = kwargs.pop("description")
+        self.rpc_loggers = (RPCLogger(),)
+        self.name = "[{}:{}]".format(kwargs.get("host"), kwargs.get("port"))
+
+        if os.getenv("HTTP"):
+            if os.getenv("CURL_CLIENT"):
+                self.client_impl = CurlClient(*args, **kwargs)
+            else:
+                self.client_impl = RequestClient(*args, **kwargs)
+        else:
+            self.client_impl = FramedTLSJSONRPCClient(*args, **kwargs)
+
+    def disconnect(self):
+        self.client_impl.disconnect()
+
+    def request(self, method, params, *args, **kwargs):
+        r = self.client_impl.stream.request(
+            f"{self.prefix}/{method}", params, *args, **kwargs
+        )
+        if self.description:
+            description = " ({})".format(self.description)
+        for logger in self.rpc_loggers:
+            logger.log_request(r, self.name, description)
+
+        self.client_impl.request(r)
+        return r.id
+
+    def signed_request(self, method, params, *args, **kwargs):
+        r = self.client_impl.stream.request(
+            f"{self.prefix}/{method}", params, *args, **kwargs
+        )
+        if self.description:
+            description = " ({}) [signed]".format(self.description)
+        for logger in self.rpc_loggers:
+            logger.log_request(r, self.name, description)
+
+        return self.client_impl.signed_request(r)
+
+    def response(self, id):
+        r = self.client_impl.response(id)
+        for logger in self.rpc_loggers:
+            logger.log_response(r)
+        return r
 
     def do(self, *args, **kwargs):
         expected_result = None
@@ -525,10 +510,9 @@ class CurlClient:
     def rpc(self, *args, **kwargs):
         if "signed" in kwargs and kwargs.pop("signed"):
             id = self.signed_request(*args, **kwargs)
-            return self.response(id)
         else:
             id = self.request(*args, **kwargs)
-            return self.response(id)
+        return self.response(id)
 
 
 @contextlib.contextmanager
@@ -537,52 +521,33 @@ def client(
     port,
     cert=None,
     key=None,
-    cafile=None,
+    ca=None,
     version="2.0",
     format="json" if os.getenv("HTTP") else "msgpack",
     description=None,
     log_file=None,
+    prefix="users",
     connection_timeout=3,
     request_timeout=3,
-    prefix="users",
 ):
-    if os.getenv("HTTP"):
-        if os.getenv("CURL_CLIENT"):
-            c = CurlClient(
-                host, port, cert, key, cafile, version, "json", description, prefix,
-            )
-        else:
-            c = RequestClient(
-                host,
-                port,
-                cert,
-                key,
-                cafile,
-                version,
-                "json",
-                description,
-                prefix,
-                request_timeout,
-            )
-        yield c
-    else:
-        c = FramedTLSJSONRPCClient(
-            host, port, cert, key, cafile, version, format, description, prefix,
-        )
+    c = CCFClient(
+        host=host,
+        port=port,
+        cert=cert,
+        key=key,
+        ca=ca,
+        version=version,
+        format=format,
+        description=description,
+        prefix=prefix,
+        connection_timeout=connection_timeout,
+        request_timeout=request_timeout,
+    )
 
     if log_file is not None:
         c.rpc_loggers += (RPCFileLogger(log_file),)
 
-        while connection_timeout >= 0:
-            try:
-                c.connect()
-                break
-            except ssl.SSLError:
-                if connection_timeout < 0:
-                    raise
-            connection_timeout -= 0.1
-            time.sleep(0.1)
-        try:
-            yield c
-        finally:
-            c.disconnect()
+    try:
+        yield c
+    finally:
+        c.disconnect()

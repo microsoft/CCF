@@ -10,7 +10,7 @@ import shutil
 import random
 import infra.ccf
 import infra.proc
-import infra.jsonrpc
+import infra.client
 import e2e_args
 
 from loguru import logger as LOG
@@ -63,7 +63,7 @@ def run(args):
                                 r,
                                 error=lambda e: e is not None
                                 and e["code"]
-                                == infra.jsonrpc.ErrorCode(tx.get("expected_error")),
+                                == infra.client.ErrorCode(tx.get("expected_error")),
                             )
 
                         elif tx.get("expected_result") is not None:

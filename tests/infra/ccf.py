@@ -7,7 +7,7 @@ import logging
 from contextlib import contextmanager
 from glob import glob
 from enum import Enum
-import infra.jsonrpc
+import infra.client
 import infra.path
 import infra.proc
 import infra.node
@@ -329,7 +329,7 @@ class Network:
                     else:
                         assert (
                             res.error["code"]
-                            == infra.jsonrpc.ErrorCode.TX_PRIMARY_UNKNOWN
+                            == infra.client.ErrorCode.TX_PRIMARY_UNKNOWN
                         ), "RPC error code is not TX_NOT_PRIMARY"
             if primary_id is not None:
                 break

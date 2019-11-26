@@ -114,7 +114,7 @@ def run(args):
         result = network.consortium.vote(2, primary, proposal_id, True, True)
         assert (
             not result[0]
-            and result[1]["code"] == infra.jsonrpc.ErrorCode.RPC_NOT_SIGNED.value
+            and result[1]["code"] == infra.client.ErrorCode.RPC_NOT_SIGNED.value
         )
 
         result = network.consortium.vote(2, primary, proposal_id, True)

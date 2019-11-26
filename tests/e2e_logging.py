@@ -9,7 +9,7 @@ import shutil
 from random import seed
 import infra.ccf
 import infra.proc
-import infra.jsonrpc
+import infra.client
 import infra.notification
 import infra.net
 import suite.test_requirements as reqs
@@ -56,7 +56,7 @@ def test_update_lua(network, args):
                 check(
                     c.rpc(endpoint, params={}),
                     error=lambda e: e is not None
-                    and e["code"] == infra.jsonrpc.ErrorCode.METHOD_NOT_FOUND.value,
+                    and e["code"] == infra.client.ErrorCode.METHOD_NOT_FOUND.value,
                 )
     else:
         LOG.warning("Skipping Lua app update as application is not Lua")
@@ -69,6 +69,7 @@ def test_update_lua(network, args):
 def test(network, args, notifications_queue=None):
     LOG.info("Running transactions against logging app")
     primary, backup = network.find_primary_and_any_backup()
+    # primary, _ = network.find_primary()
 
     with primary.node_client(format="json") as mc:
         check_commit = infra.checker.Checker(mc, notifications_queue)
@@ -116,6 +117,7 @@ def test(network, args, notifications_queue=None):
 
 def run(args):
     hosts = ["localhost", "localhost"]
+    # hosts = ["localhost"]
 
     with infra.notification.notification_server(args.notify_server) as notifications:
         # Lua apps do not support notifications
