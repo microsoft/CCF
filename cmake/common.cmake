@@ -6,8 +6,16 @@ set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
 set(MSGPACK_INCLUDE_DIR ${CCF_DIR}/3rdparty/msgpack-c)
 set(FLATBUFFERS_INCLUDE_DIR ${CCF_DIR}/3rdparty/flatbuffers/include)
 
-execute_process(
+add_custom_command(
     COMMAND flatc --cpp ${CCF_DIR}/src/kv/frame.fbs
+    DEPENDS ${CCF_DIR}/src/kv/frame.fbs
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/frame_generated.h
+)
+
+add_custom_target(
+  flatbuffers_generated
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/frame_generated.h
+  COMMENT "Generating code from flatbuffers schema"
 )
 
 set(default_build_type "RelWithDebInfo")
