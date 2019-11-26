@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "http.h"
+#include "httpendpoint.h"
 #include "node/rpc/jsonrpc.h"
 #include "rpcmap.h"
 #include "tlsframedendpoint.h"
