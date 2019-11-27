@@ -21,9 +21,11 @@
 namespace enclave
 {
 #ifdef HTTP
-  using EndpointImpl = HTTPEndpoint<http::ResponseHeaderEmitter>;
+  using ServerEndpointImpl = HTTPServerEndpoint;
+  using ClientEndpointImpl = HTTPClientEndpoint;
 #else
-  using EndpointImpl = RPCEndpoint;
+  using ServerEndpointImpl = RPCEndpoint;
+  using ClientEndpointImpl = RPCClient;
 #endif
 
   class RPCSessions : public AbstractRPCResponder
@@ -73,7 +75,7 @@ namespace enclave
       LOG_DEBUG_FMT("Accepting a session inside the enclave: {}", id);
       auto ctx = std::make_unique<tls::Server>(cert);
 
-      auto session = std::make_shared<EndpointImpl>(
+      auto session = std::make_shared<ServerEndpointImpl>(
         rpc_map, id, writer_factory, std::move(ctx));
       sessions.insert(std::make_pair(id, std::move(session)));
     }
