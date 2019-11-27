@@ -179,7 +179,12 @@ namespace enclave
     public:
       static std::vector<uint8_t> emit(const std::vector<uint8_t>& data)
       {
-        return http::build_post_header(data);
+        // TODO: This is a hideous hack
+        const auto j = nlohmann::json::parse(data);
+        const auto method = j["method"].get<std::string>();
+        http::Request r(HTTP_POST);
+        r.set_path(fmt::format("/{}", method));
+        return r.build_request(data, true);
       }
     };
 
