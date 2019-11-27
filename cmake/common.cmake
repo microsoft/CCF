@@ -153,6 +153,7 @@ add_custom_command(
 )
 
 configure_file(${CCF_DIR}/tests/tests.sh ${CMAKE_CURRENT_BINARY_DIR}/tests.sh COPYONLY)
+configure_file(${CCF_DIR}/tests/keygenerator.sh ${CMAKE_CURRENT_BINARY_DIR}/keygenerator.sh COPYONLY)
 configure_file(${CCF_DIR}/tests/cimetrics_env.sh ${CMAKE_CURRENT_BINARY_DIR}/cimetrics_env.sh COPYONLY)
 configure_file(${CCF_DIR}/tests/upload_pico_metrics.py ${CMAKE_CURRENT_BINARY_DIR}/upload_pico_metrics.py COPYONLY)
 
@@ -511,7 +512,6 @@ if("sgx" IN_LIST TARGET)
     ccfcrypto.host
     evercrypt.host
     CURL::libcurl
-    secp256k1.host
   )
   enable_quote_code(cchost)
 endif()
@@ -540,7 +540,6 @@ if("virtual" IN_LIST TARGET)
     ccfcrypto.host
     evercrypt.host
     CURL::libcurl
-    secp256k1.host
   )
 endif()
 

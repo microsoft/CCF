@@ -94,7 +94,7 @@ def run(args):
         primary, term = network.find_primary()
 
         LOG.debug("Propose to add a new member")
-        infra.proc.ccall("./keygenerator", "--name=member4")
+        infra.proc.ccall("./keygenerator.sh", "member4", args.curve)
         result, error = network.consortium.propose_add_member(
             1, primary, "member4_cert.pem"
         )

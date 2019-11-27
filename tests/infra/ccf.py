@@ -172,9 +172,9 @@ class Network:
         cmd = ["rm", "-f"] + glob("member*.pem")
         infra.proc.ccall(*cmd)
 
-        self.consortium = infra.consortium.Consortium([0, 1, 2])
+        self.consortium = infra.consortium.Consortium([0, 1, 2], args.curve)
         self.initial_users = [0, 1, 2]
-        self.create_users(self.initial_users)
+        self.create_users(self.initial_users, args.curve)
 
         if args.gov_script:
             infra.proc.ccall("cp", args.gov_script, args.build_dir).check_returncode()
@@ -270,10 +270,12 @@ class Network:
 
         return new_node
 
-    def create_users(self, users):
+    def create_users(self, users, curve):
         users = ["user{}".format(u) for u in users]
         for u in users:
-            infra.proc.ccall("./keygenerator", "--name={}".format(u)).check_returncode()
+            infra.proc.ccall(
+                "./keygenerator.sh", f"{u}", curve, log_output=False
+            ).check_returncode()
 
     def get_members(self):
         return self.consortium.members

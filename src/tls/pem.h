@@ -48,5 +48,13 @@ namespace tls
     {
       return s.size();
     }
+
+    std::vector<uint8_t> nt_vector()
+    {
+      const auto cert_data = data();
+      auto cert_len = strlen((char*)cert_data) + 1;
+
+      return {cert_data, cert_data + cert_len};
+    }
   };
 }

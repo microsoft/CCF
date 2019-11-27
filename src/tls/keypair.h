@@ -899,7 +899,7 @@ namespace tls
           sign.entropy->get_data()) != 0)
         return {};
 
-      auto len = strlen((char*)buf) + 1;
+      auto len = strlen((char*)buf) + 1; // For null termination
       std::vector<uint8_t> pem(buf, buf + len);
       return pem;
     }

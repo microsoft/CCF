@@ -114,6 +114,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Domain name used for node certificate verification",
         default="ccf.io",
     )
+    parser.add_argument(
+        "--curve",
+        help="Curve to use for member and user identities (e.g. secp384r1)",
+        default="secp384r1",
+    )
     add(parser)
 
     if accept_unknown:
