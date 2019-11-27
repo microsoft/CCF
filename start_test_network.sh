@@ -18,4 +18,4 @@ source env/bin/activate
 pip install -q -U -r ../tests/requirements.txt
 echo "Python environment successfully setup"
 
-CURL_CLIENT=ON python ../tests/start_network.py --package "$1" --label test_network --verbose
+CURL_CLIENT=ON python ../tests/start_network.py --package "$1" --label test_network
