@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "caller_id": {
+      "maximum": 18446744073709551615,
+      "minimum": 0,
+      "type": "number"
+    }
+  },
+  "required": [
+    "caller_id"
+  ],
+  "title": "whoIs/result",
+  "type": "object"
+}

@@ -67,6 +67,12 @@ namespace ccf
   DECLARE_JSON_TYPE(GetNetworkInfo::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetNetworkInfo::Out, nodes, primary_id)
 
+  DECLARE_JSON_TYPE(CallerInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(CallerInfo, caller_id);
+
+  DECLARE_JSON_TYPE(WhoIs::In)
+  DECLARE_JSON_REQUIRED_FIELDS(WhoIs::In, cert);
+
   DECLARE_JSON_TYPE(ListMethods::Out)
   DECLARE_JSON_REQUIRED_FIELDS(ListMethods::Out, methods)
 
