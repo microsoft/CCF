@@ -21,6 +21,8 @@ namespace ccf
     static constexpr auto MK_SIGN = "mkSign";
     static constexpr auto GET_PRIMARY_INFO = "getPrimaryInfo";
     static constexpr auto GET_NETWORK_INFO = "getNetworkInfo";
+    static constexpr auto WHO_AM_I = "whoAmI";
+    static constexpr auto WHO_IS = "whoIs";
     static constexpr auto LIST_METHODS = "listMethods";
     static constexpr auto GET_SCHEMA = "getSchema";
     static constexpr auto GET_RECEIPT = "getReceipt";

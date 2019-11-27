@@ -68,6 +68,26 @@ namespace ccf
     };
   };
 
+  struct CallerInfo
+  {
+    CallerId caller_id;
+  };
+
+  struct WhoAmI
+  {
+    using Out = CallerInfo;
+  };
+
+  struct WhoIs
+  {
+    struct In
+    {
+      std::vector<uint8_t> cert;
+    };
+
+    using Out = CallerInfo;
+  };
+
   struct ListMethods
   {
     struct Out

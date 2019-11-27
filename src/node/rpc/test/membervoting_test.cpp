@@ -1276,6 +1276,85 @@ TEST_CASE("Members passing an operator vote")
   }
 }
 
+TEST_CASE("User data")
+{
+  const Cert member_cert = {0};
+  const Cert user_cert = {1};
+
+  NetworkTables network;
+  network.tables->set_encryptor(encryptor);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
+  gen.init_values();
+  const auto member_id = gen.add_member(member_cert, MemberStatus::ACTIVE);
+  const auto user_id = gen.add_user(user_cert);
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
+  gen.finalize();
+
+  StubNodeState node;
+  MemberRpcFrontend frontend(network, node);
+
+  const auto read_user_info =
+    create_json_req(read_params(user_id, Tables::USERS), "read");
+
+  {
+    INFO("user data is initially empty");
+    Response<ccf::UserInfo> read_response =
+      frontend_process(frontend, read_user_info, member_cert);
+    CHECK(read_response.result.user_data.is_null());
+  }
+
+  {
+    auto user_data_object = nlohmann::json::object();
+    user_data_object["name"] = "bob";
+    user_data_object["permissions"] = {"read", "delete"};
+
+    INFO("user data can be set to an object");
+    Propose::In proposal;
+    proposal.script = fmt::format(
+      R"xxx(
+        proposed_user_data = {{
+          name = "bob",
+          permissions = {{"read", "delete"}}
+        }}
+        return Calls:call("set_user_data", {{user_id = {}, user_data = proposed_user_data}})
+      )xxx",
+      user_id);
+    const auto j_proposal = create_json_req(proposal, "propose");
+    Response<Propose::Out> propose_response =
+      frontend_process(frontend, j_proposal, member_cert);
+    CHECK(propose_response.result.completed);
+
+    INFO("user data object can be read");
+    Response<ccf::UserInfo> read_response =
+      frontend_process(frontend, read_user_info, member_cert);
+    CHECK(read_response.result.user_data == user_data_object);
+  }
+
+  {
+    const auto user_data_string = "ADMINISTRATOR";
+
+    INFO("user data can be overwritten");
+    Propose::In proposal;
+    proposal.script = std::string(R"xxx(
+      local tables, param = ...
+      return Calls:call("set_user_data", {user_id = param.id, user_data = param.data})
+    )xxx");
+    proposal.parameter["id"] = user_id;
+    proposal.parameter["data"] = user_data_string;
+    const auto j_proposal = create_json_req(proposal, "propose");
+    Response<Propose::Out> propose_response =
+      frontend_process(frontend, j_proposal, member_cert);
+    CHECK(propose_response.result.completed);
+
+    INFO("user data object can be read");
+    Response<ccf::UserInfo> response =
+      frontend_process(frontend, read_user_info, member_cert);
+    CHECK(response.result.user_data == user_data_string);
+  }
+}
+
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
 {
