@@ -146,18 +146,15 @@ def run(build_directory, get_command, args):
                                 break
                         time.sleep(1)
 
-                    # For now we will not collect metrics with PBFT as the messages that
-                    # can be created when collecting the metrics is too large.
-                    # https://github.com/microsoft/CCF/issues/534
-                    if args.consensus != "pbft":
-                        tx_rates.get_metrics()
-                        for remote_client in clients:
-                            remote_client.print_and_upload_result(args.label, metrics)
-                            remote_client.stop()
+                    tx_rates.get_metrics()
+                    for remote_client in clients:
+                        remote_client.print_and_upload_result(args.label, metrics)
+                        remote_client.stop()
 
-                        LOG.info(f"Rates:\n{tx_rates}")
-                        tx_rates.save_results(args.metrics_file)
+                    LOG.info(f"Rates:\n{tx_rates}")
+                    tx_rates.save_results(args.metrics_file)
 
             except Exception:
                 for remote_client in clients:
                     remote_client.stop()
+                raise
