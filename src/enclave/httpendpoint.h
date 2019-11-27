@@ -2,13 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "clientendpoint.h"
 #include "ds/logger.h"
 #include "httpparser.h"
 #include "rpcmap.h"
 
 namespace enclave
 {
-  template <class E>
   class HTTPEndpoint : public TLSEndpoint, public http::MsgProcessor
   {
   protected:
@@ -49,28 +49,9 @@ namespace enclave
         return;
       }
     }
-
-    void send(const std::string& s)
-    {
-      send(std::vector<uint8_t>(s.begin(), s.end()));
-    }
-
-    void send(const std::vector<uint8_t>& data) override
-    {
-      LOG_INFO_FMT(
-        "Sending response of {} bytes: {}",
-        data.size(),
-        nlohmann::json::parse(data).dump(2));
-      send_buffered(E::emit(data));
-      if (data.size() > 0)
-      {
-        send_buffered(data);
-      }
-      flush();
-    }
   };
 
-  class HTTPServerEndpoint : public HTTPEndpoint<http::ResponseHeaderEmitter>
+  class HTTPServerEndpoint : public HTTPEndpoint
   {
   private:
     std::shared_ptr<RPCMap> rpc_map;
@@ -83,11 +64,35 @@ namespace enclave
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint<http::ResponseHeaderEmitter>(
-        HTTP_REQUEST, session_id, writer_factory, std::move(ctx)),
+      HTTPEndpoint(HTTP_REQUEST, session_id, writer_factory, std::move(ctx)),
       rpc_map(rpc_map),
       session_id(session_id)
     {}
+
+    void send_response(const std::string& data)
+    {
+      send_response(std::vector<uint8_t>(data.begin(), data.end()));
+    }
+
+    void send_response(const std::vector<uint8_t>& data)
+    {
+      if (data.empty())
+      {
+        auto hdr = fmt::format("HTTP/1.1 204 No Content\r\n");
+        send(std::vector<uint8_t>(hdr.begin(), hdr.end()));
+      }
+      else
+      {
+        auto hdr = fmt::format(
+          "HTTP/1.1 200 OK\r\n"
+          "Content-Type: application/json\r\n"
+          "Content-Length: {}\r\n\r\n",
+          data.size());
+        send_buffered(std::vector<uint8_t>(hdr.begin(), hdr.end()));
+        send_buffered(data);
+        flush();
+      }
+    }
 
     void msg(
       http_method method,
@@ -180,44 +185,46 @@ namespace enclave
         {
           // Otherwise, reply to the client synchronously.
           LOG_TRACE_FMT("Responding");
-          send(response.value());
+          send_response(response.value());
         }
       }
       catch (const std::exception& e)
       {
         LOG_FAIL_FMT("Exception while processing HTTP message: {}", e.what());
-        // TODO: Should try to return an error first?
+        send_response(fmt::format("Exception: {}", e.what()));
+
         // On any exception, close the connection.
         close();
       }
     }
   };
 
-  class HTTPClientEndpoint : public HTTPEndpoint<http::RequestHeaderEmitter>
+  class HTTPClientEndpoint : public HTTPEndpoint, public ClientEndpoint
   {
-    using HandleDataCallback =
-      std::function<bool(const std::vector<uint8_t>& data)>;
-
-  private:
-    HandleDataCallback handle_data_cb;
-
   public:
     HTTPClientEndpoint(
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint<http::RequestHeaderEmitter>(
-        HTTP_RESPONSE, session_id, writer_factory, std::move(ctx))
+      HTTPEndpoint(HTTP_RESPONSE, session_id, writer_factory, std::move(ctx))
     {}
 
-    void connect(
-      const std::string& hostname,
-      const std::string& service,
-      const HandleDataCallback f)
+    ringbuffer::AbstractWriter* get_to_host() override
     {
-      RINGBUFFER_WRITE_MESSAGE(
-        tls::tls_connect, to_host, session_id, hostname, service);
-      handle_data_cb = f;
+      return to_host.get();
+    }
+
+    size_t get_session_id() override
+    {
+      return session_id;
+    }
+
+    void send_request(
+      const std::string& path, const std::vector<uint8_t>& data) override
+    {
+      http::Request r(HTTP_POST);
+      r.set_path(path);
+      send(r.build_request(data));
     }
 
     void msg(

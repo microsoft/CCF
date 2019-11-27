@@ -152,28 +152,6 @@ namespace enclave
       }
     };
 
-    class ResponseHeaderEmitter
-    {
-    public:
-      static std::vector<uint8_t> emit(const std::vector<uint8_t>& data)
-      {
-        if (data.size() == 0)
-        {
-          auto hdr = fmt::format("HTTP/1.1 204 No Content\r\n");
-          return std::vector<uint8_t>(hdr.begin(), hdr.end());
-        }
-        else
-        {
-          auto hdr = fmt::format(
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: application/json\r\n"
-            "Content-Length: {}\r\n\r\n",
-            data.size());
-          return std::vector<uint8_t>(hdr.begin(), hdr.end());
-        }
-      }
-    };
-
     class RequestHeaderEmitter
     {
     public:
