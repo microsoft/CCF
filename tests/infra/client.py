@@ -353,6 +353,7 @@ class CurlClient:
             self.stream.update(rc.stdout)
         return request.id
 
+    # TODO: Untested
     def signed_request(self, request):
         with tempfile.NamedTemporaryFile() as nf:
             msg = getattr(request, "to_{}".format(self.format))()
