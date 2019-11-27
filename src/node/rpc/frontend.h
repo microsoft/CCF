@@ -88,9 +88,11 @@ namespace ccf
       ReadWrite rw,
       const nlohmann::json& params_schema = nlohmann::json::object(),
       const nlohmann::json& result_schema = nlohmann::json::object(),
-      Forwardable forwardable = Forwardable::CanForward)
+      Forwardable forwardable = Forwardable::CanForward,
+      bool execute_locally = false)
     {
-      handlers[method] = {f, rw, params_schema, result_schema, forwardable};
+      handlers[method] = {
+        f, rw, params_schema, result_schema, forwardable, execute_locally};
     }
 
     void install(
@@ -130,7 +132,8 @@ namespace ccf
       const std::string& method,
       F&& f,
       ReadWrite rw,
-      Forwardable forwardable = Forwardable::CanForward)
+      Forwardable forwardable = Forwardable::CanForward,
+      bool execute_locally = false)
     {
       auto params_schema = nlohmann::json::object();
       if constexpr (!std::is_same_v<In, void>)
@@ -150,7 +153,8 @@ namespace ccf
         rw,
         params_schema,
         result_schema,
-        forwardable);
+        forwardable,
+        execute_locally);
     }
 
     template <typename T, typename... Ts>
@@ -200,6 +204,7 @@ namespace ccf
       nlohmann::json params_schema;
       nlohmann::json result_schema;
       Forwardable forwardable;
+      bool execute_locally = false;
     };
 
     Nodes* nodes;
@@ -558,7 +563,11 @@ namespace ccf
       install_with_auto_schema<GetCommit>(
         GeneralProcs::GET_COMMIT, get_commit, Read);
       install_with_auto_schema<void, GetMetrics::Out>(
-        GeneralProcs::GET_METRICS, get_metrics, Read);
+        GeneralProcs::GET_METRICS,
+        get_metrics,
+        Read,
+        Forwardable::CanForward,
+        true);
       install_with_auto_schema<void, bool>(
         GeneralProcs::MK_SIGN, make_signature, Write);
       install_with_auto_schema<void, GetPrimaryInfo::Out>(
@@ -669,6 +678,12 @@ namespace ccf
       }
 
 #ifdef PBFT
+      auto rep = process_if_local_node_rpc(ctx, tx, caller_id.value());
+      if (rep.has_value())
+      {
+        auto rv = jsonrpc::pack(rep.value(), ctx.pack.value());
+        return rv;
+      }
       kv::TxHistory::RequestID reqid;
 
       update_history();
@@ -849,6 +864,19 @@ namespace ccf
       }
 
       return jsonrpc::pack(rep.value(), ctx.pack.value());
+    }
+
+    std::optional<nlohmann::json> process_if_local_node_rpc(
+      const enclave::RPCContext& ctx, Store::Tx& tx, CallerId caller_id)
+    {
+      Handler* handler = nullptr;
+      auto search = handlers.find(ctx.method);
+      if (search != handlers.end() && search->second.execute_locally)
+      {
+        auto rep = process_json(ctx, tx, caller_id);
+        return rep;
+      }
+      return std::nullopt;
     }
 
     std::optional<nlohmann::json> process_json(
