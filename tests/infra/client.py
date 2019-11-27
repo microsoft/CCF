@@ -7,7 +7,6 @@ import struct
 import select
 import contextlib
 import json
-import logging
 import time
 import os
 import subprocess
@@ -431,9 +430,20 @@ class RequestClient:
         return request.id
 
     def signed_request(self, request):
-        # TODO: For now, signed requests are not implemented.
-        # Use requests_http_signature instead
-        return self.request(request)
+        with open(self.key, "rb") as k:
+            rep = requests.post(
+                f"https://{self.host}:{self.port}/",
+                json=request.to_dict(),  # TODO: For REST queries, use data= instead
+                cert=(self.cert, self.key),
+                verify=self.ca,
+                timeout=self.request_timeout,
+                # key_id needs to be specified but is unused
+                auth=HTTPSignatureAuth(
+                    algorithm="ecdsa-sha256", key=k.read(), key_id="tls"
+                ),
+            )
+            self.stream.update(rep.content)
+        return request.id
 
     def response(self, id):
         return self.stream.response(id)
