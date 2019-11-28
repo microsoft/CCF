@@ -557,7 +557,8 @@ namespace ccf
         "Deserialising public ledger entry ({})", ledger_entry.size());
 
       // When reading the public ledger, deserialise in the real store
-      auto result = network.tables->deserialise(ledger_entry, true);
+      auto result = network.tables->deserialise(
+        ledger_entry.data(), ledger_entry.size(), true);
       if (result == kv::DeserialiseSuccess::FAILED)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in public ledger");
@@ -686,7 +687,8 @@ namespace ccf
         "Deserialising private ledger entry ({})", ledger_entry.size());
 
       // When reading the private ledger, deserialise in the recovery store
-      auto result = recovery_store->deserialise(ledger_entry);
+      auto result =
+        recovery_store->deserialise(ledger_entry.data(), ledger_entry.size());
       if (result == kv::DeserialiseSuccess::FAILED)
       {
         LOG_FAIL_FMT("Failed to deserialise entry in private ledger");

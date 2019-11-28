@@ -4,6 +4,7 @@
 
 #include "consensus/consensustypes.h"
 #include "crypto/hash.h"
+#include "flatbufferwrapper.h"
 
 #include <array>
 #include <chrono>
@@ -241,8 +242,14 @@ namespace kv
     virtual void set_f(ccf::NodeId f) = 0;
   };
 
-  using PendingTx = std::function<
-    std::tuple<CommitSuccess, TxHistory::RequestID, SerialisedMaps>()>;
+  struct PendingTxInfo
+  {
+    CommitSuccess success;
+    TxHistory::RequestID reqid;
+    DetachedFlatbuffer buffer;
+  };
+
+  using PendingTx = std::function<PendingTxInfo()>;
 
   class AbstractTxEncryptor
   {
@@ -274,7 +281,8 @@ namespace kv
     virtual std::shared_ptr<TxHistory> get_history() = 0;
     virtual std::shared_ptr<AbstractTxEncryptor> get_encryptor() = 0;
     virtual DeserialiseSuccess deserialise(
-      const std::vector<uint8_t>& data,
+      const uint8_t* data,
+      size_t size,
       bool public_only = false,
       Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;

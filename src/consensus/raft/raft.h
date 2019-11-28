@@ -636,8 +636,8 @@ namespace raft
         }
 
         Term sig_term = 0;
-        auto deserialise_success =
-          store->deserialise(ret.first, public_only, &sig_term);
+        auto deserialise_success = store->deserialise(
+          ret.first.data(), ret.first.size(), public_only, &sig_term);
 
         switch (deserialise_success)
         {

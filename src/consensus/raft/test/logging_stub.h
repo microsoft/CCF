@@ -149,7 +149,8 @@ namespace raft
     }
 
     virtual kv::DeserialiseSuccess deserialise(
-      const std::vector<uint8_t>& data,
+      const uint8_t* data,
+      size_t size,
       bool public_only = false,
       Term* term = nullptr)
     {
@@ -163,7 +164,8 @@ namespace raft
     LoggingStubStoreSig(raft::NodeId id) : LoggingStubStore(id) {}
 
     kv::DeserialiseSuccess deserialise(
-      const std::vector<uint8_t>& data,
+      const uint8_t* data,
+      size_t size,
       bool public_only = false,
       Term* term = nullptr) override
     {

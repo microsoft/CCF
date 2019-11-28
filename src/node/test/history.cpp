@@ -34,7 +34,7 @@ public:
     if (store)
     {
       REQUIRE(entries.size() == 1);
-      return store->deserialise(std::get<1>(entries[0]));
+      return store->deserialise(std::get<1>(entries[0]).data(), std::get<1>(entries[0]).size());
     }
     return true;
   }

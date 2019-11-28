@@ -90,8 +90,10 @@ TEST_CASE(
 
   INFO("Deserialise transaction in target store");
   {
+    auto stub_consensus_data = consensus->get_latest_data().first;
     REQUIRE(
-      kv_store_target.deserialise(consensus->get_latest_data().first) ==
+      kv_store_target.deserialise(
+        stub_consensus_data.data(), stub_consensus_data.size()) ==
       kv::DeserialiseSuccess::PASS);
 
     Store::Tx tx_target;
@@ -139,8 +141,10 @@ TEST_CASE(
 
   INFO("Deserialise transaction in target store");
   {
+    auto stub_consensus_data = consensus->get_latest_data().first;
     REQUIRE(
-      kv_store_target.deserialise(consensus->get_latest_data().first) ==
+      kv_store_target.deserialise(
+        stub_consensus_data.data(), stub_consensus_data.size()) ==
       kv::DeserialiseSuccess::PASS);
 
     Store::Tx tx_target;
@@ -180,9 +184,10 @@ TEST_CASE(
 
   INFO("Deserialise transaction in target store");
   {
-    auto serial = consensus->get_latest_data();
+    auto stub_consensus_data = consensus->get_latest_data().first;
     REQUIRE(
-      kv_store_target.deserialise(serial.first) !=
+      kv_store_target.deserialise(
+        stub_consensus_data.data(), stub_consensus_data.size()) !=
       kv::DeserialiseSuccess::FAILED);
 
     Store::Tx tx;
@@ -216,9 +221,10 @@ TEST_CASE(
     view_priv->put("privk1", "privv1");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
-    auto serial = consensus->get_latest_data();
+    auto stub_consensus_data = consensus->get_latest_data().first;
     REQUIRE(
-      kv_store_target.deserialise(serial.first) !=
+      kv_store_target.deserialise(
+        stub_consensus_data.data(), stub_consensus_data.size()) !=
       kv::DeserialiseSuccess::FAILED);
 
     Store::Tx tx_target;
@@ -239,9 +245,10 @@ TEST_CASE(
     auto view_priv2 = tx2.get_view(priv_map);
     REQUIRE(view_priv2->get("privk1").has_value() == false);
 
-    auto serial = consensus->get_latest_data();
+    auto stub_consensus_data = consensus->get_latest_data().first;
     REQUIRE(
-      kv_store_target.deserialise(serial.first) !=
+      kv_store_target.deserialise(
+        stub_consensus_data.data(), stub_consensus_data.size()) !=
       kv::DeserialiseSuccess::FAILED);
 
     Store::Tx tx_target;
@@ -276,12 +283,12 @@ TEST_CASE(
     view->put(k, v1);
     view->put(k2, v2);
 
-    auto [success, reqid, serialised] = tx.commit_reserved();
+    auto [success, reqid, buffer] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
     kv_store.compact(view->end_order());
 
     REQUIRE(
-      kv_store2.deserialise(serialised.replicated) ==
+      kv_store2.deserialise(buffer.data(), buffer.size()) ==
       kv::DeserialiseSuccess::PASS);
     Store::Tx tx2;
     auto view2 = tx2.get_view(map2);
@@ -295,6 +302,8 @@ TEST_CASE(
     // we only require operator==() to be implemented, so for consistency -
     // this is the operator we use for comparison, and not operator!=()
     REQUIRE(!(vb.value() == v1));
+
+    buffer.destroy();
   }
 }
 
@@ -360,7 +369,7 @@ TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
     REQUIRE(corrupt_serialised_tx(serialised_tx, value_to_corrupt));
 
     REQUIRE(
-      kv_store_target.deserialise(serialised_tx) ==
+      kv_store_target.deserialise(serialised_tx.data(), serialised_tx.size()) ==
       kv::DeserialiseSuccess::FAILED);
   }
 }
@@ -375,9 +384,9 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
 
   SUBCASE("baseline")
   {
-    auto r = std::make_shared<kv::StubConsensus>();
+    auto consensus = std::make_shared<kv::StubConsensus>();
     using Table = Store::Map<std::vector<int>, std::string>;
-    Store s0(r), s1;
+    Store s0(consensus), s1;
     auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
     s1.create<Table>("t");
 
@@ -385,16 +394,17 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     tx.get_view(t)->put(k1, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
+    auto stub_consensus_data = consensus->get_latest_data().first;
     REQUIRE(
-      s1.deserialise(r->get_latest_data().first) !=
+      s1.deserialise(stub_consensus_data.data(), stub_consensus_data.size()) !=
       kv::DeserialiseSuccess::FAILED);
   }
 
   SUBCASE("nlohmann")
   {
-    auto r = std::make_shared<kv::StubConsensus>();
+    auto consensus = std::make_shared<kv::StubConsensus>();
     using Table = Store::Map<nlohmann::json, nlohmann::json>;
-    Store s0(r), s1;
+    Store s0(consensus), s1;
     auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
     s1.create<Table>("t");
 
@@ -403,8 +413,10 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     tx.get_view(t)->put(k1, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
+    auto stub_consensus_data = consensus->get_latest_data().first;
+
     REQUIRE(
-      s1.deserialise(r->get_latest_data().first) !=
+      s1.deserialise(stub_consensus_data.data(), stub_consensus_data.size()) !=
       kv::DeserialiseSuccess::FAILED);
   }
 }
@@ -432,14 +444,17 @@ TEST_CASE("replicated and derived table serialisation")
       tx.get_view(data_replicated, data_replicated_private);
     data_view->put(42, 42);
     data_view_private->put(43, 43);
-    auto [success, reqid, serialised] = tx.commit_reserved();
+    auto [success, reqid, buffer] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
     REQUIRE(
-      store.deserialise(serialised.replicated) == kv::DeserialiseSuccess::PASS);
+      store.deserialise(buffer.data(), buffer.size()) ==
+      kv::DeserialiseSuccess::PASS);
 
-    REQUIRE(serialised.replicated.size() > 0);
-    REQUIRE(serialised.derived.size() == 0);
+    REQUIRE(buffer.root()->replicated()->size() > 0);
+    REQUIRE(buffer.root()->derived()->size() == 0);
+
+    buffer.destroy();
   }
 
   {
@@ -448,14 +463,17 @@ TEST_CASE("replicated and derived table serialisation")
       tx.get_view(data_derived, data_derived_private);
     data_view->put(42, 42);
     data_view_private->put(43, 43);
-    auto [success, reqid, serialised] = tx.commit_reserved();
+    auto [success, reqid, buffer] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
     REQUIRE(
-      store.deserialise(serialised.derived) == kv::DeserialiseSuccess::PASS);
+      store.deserialise(buffer.data(), buffer.size()) ==
+      kv::DeserialiseSuccess::PASS);
 
-    REQUIRE(serialised.derived.size() > 0);
-    REQUIRE(serialised.replicated.size() == 0);
+    REQUIRE(buffer.root()->derived()->size() > 0);
+    REQUIRE(buffer.root()->replicated()->size() == 0);
+
+    buffer.destroy();
   }
 
   {
@@ -469,16 +487,17 @@ TEST_CASE("replicated and derived table serialisation")
     data_view_d->put(42, 42);
     data_view_r_p->put(43, 43);
     data_view_d_p->put(43, 43);
-    auto [success, reqid, serialised] = tx.commit_reserved();
+    auto [success, reqid, buffer] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
     REQUIRE(
-      store.deserialise(serialised.replicated) == kv::DeserialiseSuccess::PASS);
-    REQUIRE(
-      store.deserialise(serialised.derived) == kv::DeserialiseSuccess::PASS);
+      store.deserialise(buffer.data(), buffer.size()) ==
+      kv::DeserialiseSuccess::PASS);
 
-    REQUIRE(serialised.replicated.size() > 0);
-    REQUIRE(serialised.derived.size() > 0);
+    REQUIRE(buffer.root()->replicated()->size() > 0);
+    REQUIRE(buffer.root()->derived()->size() > 0);
+
+    buffer.destroy();
   }
 }
 
@@ -547,9 +566,12 @@ TEST_CASE("Test flatbuffers")
 
   kv::FlatbufferSerialiser fb_serialiser(replicated_data, derived_data);
 
-  auto detached_buf = fb_serialiser.get_flatbuffer();
+  auto buffer = fb_serialiser.get_flatbuffer();
 
-  kv::FlatbufferDeserialiser db_deserialiser(detached_buf.data());
+  kv::FlatbufferDeserialiser db_deserialiser(buffer.data());
+
   auto frame = db_deserialiser.get_frame();
+  CHECK(buffer.root()->replicated()->size() == replicated_data.size());
   CHECK(frame->replicated()->size() == replicated_data.size());
+  buffer.destroy();
 }

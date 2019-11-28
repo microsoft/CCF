@@ -383,6 +383,8 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       ${EVERCRYPT_INC}
       ${CMAKE_CURRENT_BINARY_DIR}
     )
+    add_dependencies(${name} flatbuffers_generate)
+
     if (PBFT)
       target_link_libraries(${name} PRIVATE
         -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
@@ -427,6 +429,8 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       ${OE_INCLUDE_DIR}
       ${CMAKE_CURRENT_BINARY_DIR}
     )
+    add_dependencies(${virt_name} flatbuffers_generate)
+
     if (PBFT)
       target_link_libraries(${virt_name} PRIVATE
         -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
@@ -466,6 +470,7 @@ function(add_unit_test name)
       -lc++abi
       ccfcrypto.host)
 
+  add_dependencies(${name} flatbuffers_generate)
   use_client_mbedtls(${name})
   add_san(${name})
 
@@ -605,6 +610,7 @@ function(add_client_exe name)
     ${CMAKE_THREAD_LIBS_INIT}
   )
 
+  add_dependencies(${name} flatbuffers_generate)
   target_include_directories(${name} PRIVATE
     ${CCF_DIR}/samples/perf_client
     ${PARSED_ARGS_INCLUDE_DIRS}
