@@ -4,8 +4,15 @@
 
 set -e
 
+DEFAULT_TYPE="ec"
+EDWARDS_TYPE="ed"
+
+DEFAULT_CURVE="secp384r1"
+
 if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
-  echo "Usage: $0 participant [curve]"
+  echo "Generates private key and self-signed certificates for CCF participants."
+  echo "Usage:"""
+  echo "  $0 participant [curve=$DEFAULT_CURVE] [type=$DEFAULT_TYPE]"
   exit 0
 fi
 
@@ -14,24 +21,28 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-DEFAULT_CURVE="secp384r1"
-
-if [ -z "$2" ]; then
-    curve=$DEFAULT_CURVE
-else
-    curve=$2
-fi
+curve=${2:-$DEFAULT_CURVE}
+type=${3:-$DEFAULT_TYPE}
 
 cert="$1"_cert.pem
 privk="$1"_privk.pem
 
-echo "Key type: $curve"
+echo "Curve type: $type"
+echo "Curve: $curve"
 echo "Generating private key and certificate for participant \"$1\"..."
 
-openssl ecparam -out "$privk" -name "$curve" -genkey
-openssl req -new -key "$privk" -x509 -nodes -days 365 -out "$cert" -subj=/CN="$1"
+if [ "$type" == $DEFAULT_TYPE ]; then
+    openssl ecparam -out "$privk" -name "$curve" -genkey
+elif [ "$type" == $EDWARDS_TYPE ]; then
+    openssl genpkey -out "$privk" -algorithm "$curve"
+else
+    echo "Curve type $type not supported"
+    exit 1
+fi
 
-# echo "\0" >> "$cert"
+openssl req -new -key "$privk" -x509 -nodes -days 365 -out "$cert" -subj=/CN="$1"
 
 echo "Certificate generated at: $cert (to be registed in CCF)"
 echo "Private key generated at: $privk"
+
+openssl x509 -in "$cert" -noout -text
