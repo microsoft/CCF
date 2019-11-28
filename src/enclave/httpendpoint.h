@@ -30,23 +30,25 @@ namespace enclave
 
       LOG_TRACE_FMT("recv called with {} bytes", size);
 
-      auto buf = read_all_available();
-
-      if (buf.size() == 0)
+      while (true)
       {
-        return;
-      }
+        auto buf = read(4096, false);
+        if (buf.size() == 0)
+        {
+          return;
+        }
 
-      LOG_TRACE_FMT(
-        "Going to parse {} bytes: [{}]",
-        buf.size(),
-        std::string(buf.begin(), buf.end()));
+        LOG_TRACE_FMT(
+          "Going to parse {} bytes: \n[{}]",
+          buf.size(),
+          std::string(buf.begin(), buf.end()));
 
-      // TODO: This should return an error to the client if this fails
-      if (p.execute(buf.data(), buf.size()) == 0)
-      {
-        LOG_FAIL_FMT("Failed to parse request");
-        return;
+        // TODO: This should return an error to the client if this fails
+        if (p.execute(buf.data(), buf.size()) == 0)
+        {
+          LOG_FAIL_FMT("Failed to parse request");
+          return;
+        }
       }
     }
   };
