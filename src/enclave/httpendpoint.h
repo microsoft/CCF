@@ -196,7 +196,7 @@ namespace enclave
         parse_rpc_context(rpc_ctx, json_rpc);
         // TODO: This is temporary; while we have a full RPC object inside the
         // body, it should match the dispatch details specified in the URI
-        const auto expected = fmt::format("{}/{}.\n", actor_s, method_s);
+        const auto expected = fmt::format("{}/{}", actor_s, method_s);
         if (rpc_ctx.method != expected)
         {
           send_response(
