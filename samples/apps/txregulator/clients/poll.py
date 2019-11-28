@@ -8,7 +8,6 @@ import time
 import csv
 from loguru import logger as LOG
 import argparse
-from infra.client import client
 
 import json
 

@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import e2e_args
 import infra.ccf
+import infra.jsonrpc
 
 import logging
 from time import gmtime, strftime
@@ -143,7 +144,7 @@ def run(args):
                         {"bank_id": regulator.ccf_id, "country": regulator.country},
                     ),
                     error=lambda e: e is not None
-                    and e["code"] == infra.client.ErrorCode.INVALID_PARAMS.value,
+                    and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
                 )
                 LOG.debug(f"User {regulator} successfully registered as regulator")
 
@@ -163,7 +164,7 @@ def run(args):
                             {"regulator_id": bank.ccf_id, "country": bank.country},
                         ),
                         error=lambda e: e is not None
-                        and e["code"] == infra.client.ErrorCode.INVALID_PARAMS.value,
+                        and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
                     )
                     LOG.debug(f"User {bank} successfully registered as bank")
 
@@ -221,7 +222,7 @@ def run(args):
                             c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
                             error=lambda e: e is not None
                             and e["code"]
-                            == infra.client.ErrorCode.INVALID_PARAMS.value,
+                            == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
                         )
                         non_flagged_ids.append(tx_id)
 
@@ -234,7 +235,7 @@ def run(args):
             check(
                 c.rpc("REG_poll_flagged", {}),
                 error=lambda e: e is not None
-                and e["code"] == infra.client.ErrorCode.INVALID_CALLER_ID.value,
+                and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
             )
 
             # bank reveal some transactions that were flagged
@@ -248,7 +249,7 @@ def run(args):
                 check(
                     c.rpc("TX_reveal", {"tx_id": tx_id}),
                     error=lambda e: e is not None
-                    and e["code"] == infra.client.ErrorCode.INVALID_PARAMS.value,
+                    and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
                 )
 
         # regulator poll for transactions that are flagged
@@ -270,7 +271,7 @@ def run(args):
                             c.rpc("REG_get_revealed", {"tx_id": tx_id}),
                             error=lambda e: e is not None
                             and e["code"]
-                            == infra.client.ErrorCode.INVALID_PARAMS.value,
+                            == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
                         )
 
                 # get from flagged txs, try to get the flagged ones that were revealed
