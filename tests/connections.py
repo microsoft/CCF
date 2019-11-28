@@ -13,7 +13,6 @@ import multiprocessing
 from random import seed
 import infra.ccf
 import infra.proc
-import infra.jsonrpc
 import json
 import contextlib
 import resource

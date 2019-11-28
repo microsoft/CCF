@@ -73,7 +73,9 @@ namespace enclave
       {
         auto parsed =
           http_parser_execute(&parser, &settings, (const char*)data, size);
+
         LOG_TRACE_FMT("Parsed {} bytes", parsed);
+
         auto err = HTTP_PARSER_ERRNO(&parser);
         if (err)
         {
@@ -82,9 +84,6 @@ namespace enclave
             http_errno_name(err),
             http_errno_description(err)));
         }
-
-        LOG_TRACE_FMT(
-          "Parsed a {} request", http_method_str(http_method(parser.method)));
 
         // TODO: check for http->upgrade to support websockets
         return parsed;

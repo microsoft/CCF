@@ -60,6 +60,34 @@ return {
       return tx_id
     end
 
+    function env.get_privileges(caller_id)
+      local users_table = gov_tables["ccf.users"]
+      local user_info = users_table:get(caller_id)
+      if user_info ~= nil then
+        local user_data = user_info.user_data
+        if user_data ~= nil then
+          return user_data.privileges
+        end
+      end
+      return nil
+    end
+
+    function env.can_register_regulators(caller_id)
+      local privileges = env.get_privileges(caller_id)
+      if privileges ~= nil then
+        return privileges.REGISTER_REGULATORS == true
+      end
+      return false
+    end
+
+    function env.can_register_banks(caller_id)
+      local privileges = env.get_privileges(caller_id)
+      if privileges ~= nil then
+        return privileges.REGISTER_BANKS == true
+      end
+      return false
+    end
+
     --
     --  BANK ENDPOINTS
     --
@@ -129,12 +157,17 @@ return {
     end
 
     function env.register_bank()
-      reg_v = env.reg_table():get(args.caller_id)
-      if reg_v then
-        return env.jerr(env.error_codes.INVALID_CALLER_ID, "User is already registered as a regulator")
+      if not env.can_register_banks(args.caller_id) then
+        return env.jerr(env.error_codes.INVALID_CALLER_ID, "User " .. args.caller_id .. " is not permitted to register new banks")
       end
-      env.bank_table():put(args.caller_id, args.params.country)
-      return env.jsucc(args.caller_id)
+
+      local bank_id = args.params.bank_id
+      reg_v = env.reg_table():get(bank_id)
+      if reg_v then
+        return env.jerr(env.error_codes.INVALID_PARAMS, "User " .. bank_id .. " is already registered as a regulator - not permitted to also be a bank")
+      end
+      env.bank_table():put(bank_id, args.params.country)
+      return env.jsucc(bank_id)
     end
 
     function env.get_bank()
@@ -172,13 +205,17 @@ return {
     --
 
     function env.register_regulator()
-      bank_v = env.bank_table():get(args.caller_id)
-      if bank_v then
-        return env.jerr(env.error_codes.INVALID_CALLER_ID, "User is already registered as a bank")
+      if not env.can_register_regulators(args.caller_id) then
+        return env.jerr(env.error_codes.INVALID_CALLER_ID, "User " .. args.caller_id .. " is not permitted to register new regulators")
       end
 
-      env.reg_table():put(args.caller_id, {args.params.country, args.params.script, args.params.name})
-      return env.jsucc(args.caller_id)
+      local reg_id = args.params.regulator_id
+      bank_v = env.bank_table():get(reg_id)
+      if bank_v then
+        return env.jerr(env.error_codes.INVALID_PARAMS, "User " .. reg_id .. " is already registered as a bank - not permitted to also be a regulator")
+      end
+      env.reg_table():put(reg_id, {args.params.country, args.params.script, args.params.name})
+      return env.jsucc(reg_id)
     end
 
     function env.get_regulator()

@@ -6,7 +6,7 @@ from enum import Enum
 import infra.remote
 import infra.net
 import infra.path
-import infra.jsonrpc
+import infra.clients
 import time
 
 from loguru import logger as LOG
@@ -188,12 +188,12 @@ class Node:
         return self.remote.get_sealed_secrets()
 
     def user_client(self, format="msgpack", user_id=1, **kwargs):
-        return infra.jsonrpc.client(
+        return infra.clients.client(
             self.host,
             self.rpc_port,
             cert="user{}_cert.pem".format(user_id),
             key="user{}_privk.pem".format(user_id),
-            cafile="networkcert.pem",
+            ca="networkcert.pem",
             description="node {} (user)".format(self.node_id),
             format=format,
             prefix="users",
@@ -201,12 +201,12 @@ class Node:
         )
 
     def node_client(self, format="msgpack", timeout=3, **kwargs):
-        return infra.jsonrpc.client(
+        return infra.clients.client(
             self.host,
             self.rpc_port,
             cert=None,
             key=None,
-            cafile="networkcert.pem",
+            ca="networkcert.pem",
             description="node {} (node)".format(self.node_id),
             format=format,
             prefix="nodes",
@@ -214,12 +214,12 @@ class Node:
         )
 
     def member_client(self, format="msgpack", member_id=1, **kwargs):
-        return infra.jsonrpc.client(
+        return infra.clients.client(
             self.host,
             self.rpc_port,
             cert="member{}_cert.pem".format(member_id),
             key="member{}_privk.pem".format(member_id),
-            cafile="networkcert.pem",
+            ca="networkcert.pem",
             description="node {} (member)".format(self.node_id),
             format=format,
             prefix="members",

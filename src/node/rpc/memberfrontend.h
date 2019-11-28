@@ -18,6 +18,15 @@
 
 namespace ccf
 {
+  struct SetUserData
+  {
+    UserId user_id;
+    nlohmann::json user_data = nullptr;
+  };
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SetUserData)
+  DECLARE_JSON_REQUIRED_FIELDS(SetUserData, user_id)
+  DECLARE_JSON_OPTIONAL_FIELDS(SetUserData, user_data)
+
   class MemberRpcFrontend : public RpcFrontend<Members>
   {
   protected:
@@ -118,6 +127,21 @@ namespace ccf
            // store cert (bi-directional)
            uc->put(cert, id);
            u->put(id, {cert});
+           return true;
+         }},
+        {"set_user_data",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
+           const auto parsed = args.get<SetUserData>();
+           auto users_view = tx.get_view(this->network.users);
+           auto user_info = users_view->get(parsed.user_id);
+           if (!user_info.has_value())
+           {
+             throw std::logic_error(
+               fmt::format("{} is not a valid user ID", parsed.user_id));
+           }
+
+           user_info->user_data = parsed.user_data;
+           users_view->put(parsed.user_id, *user_info);
            return true;
          }},
         // accept a node

@@ -7,11 +7,12 @@ import logging
 from contextlib import contextmanager
 from glob import glob
 from enum import Enum
-import infra.jsonrpc
+import infra.clients
 import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
+import infra.jsonrpc
 import ssl
 import random
 
@@ -172,8 +173,8 @@ class Network:
         cmd = ["rm", "-f"] + glob("member*.pem")
         infra.proc.ccall(*cmd)
 
-        self.consortium = infra.consortium.Consortium([1, 2, 3])
-        self.initial_users = [1, 2, 3]
+        self.consortium = infra.consortium.Consortium([0, 1, 2])
+        self.initial_users = [0, 1, 2]
         self.create_users(self.initial_users)
 
         if args.gov_script:

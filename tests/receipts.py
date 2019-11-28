@@ -9,7 +9,6 @@ import shutil
 from random import seed
 import infra.ccf
 import infra.proc
-import infra.jsonrpc
 import infra.notification
 import infra.net
 import suite.test_requirements as reqs
