@@ -822,7 +822,8 @@ namespace tls
       SignCsr sign;
 
       Pem pem_csr(csr);
-      if (mbedtls_x509_csr_parse(&sign.csr, pem_csr.data(), pem_csr.size()) != 0)
+      if (
+        mbedtls_x509_csr_parse(&sign.csr, pem_csr.data(), pem_csr.size()) != 0)
         return {};
 
       char subject[512];

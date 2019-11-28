@@ -56,6 +56,5 @@ namespace tls
     {
       return s.size();
     }
-
   };
 }
