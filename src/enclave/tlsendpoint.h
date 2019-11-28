@@ -193,23 +193,13 @@ namespace enclave
       return data;
     }
 
-    void recv(const uint8_t* data, size_t size)
-    {
-      pending_read.insert(pending_read.end(), data, data + size);
-      do_handshake();
-
-      auto avail = ctx->available_bytes();
-      if (avail > 0)
-        handle_data(read(avail));
-    }
-
     void recv_buffered(const uint8_t* data, size_t size)
     {
       pending_read.insert(pending_read.end(), data, data + size);
       do_handshake();
     }
 
-    void send(const std::vector<uint8_t>& data)
+    void send_raw(const std::vector<uint8_t>& data)
     {
       // Writes as much of the data as possible. If the data cannot all
       // be written now, we store the remainder. We

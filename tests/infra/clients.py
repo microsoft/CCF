@@ -307,7 +307,7 @@ class CurlClient:
             nf.flush()
             cmd = [
                 "curl",
-                f"https://{self.host}:{self.port}/",
+                f"https://{self.host}:{self.port}/{request.method}",
                 "-H",
                 "Content-Type: application/json",
                 "--data-binary",
@@ -344,7 +344,7 @@ class CurlClient:
             cmd = [
                 "curl",
                 "-v",
-                f"https://{self.host}:{self.port}/",
+                f"https://{self.host}:{self.port}/{request.method}",
                 "-H",
                 "Content-Type: application/json",
                 "-H",
@@ -396,7 +396,7 @@ class RequestClient:
 
     def request(self, request):
         rep = requests.post(
-            f"https://{self.host}:{self.port}/",
+            f"https://{self.host}:{self.port}/{request.method}",
             json=request.to_dict(),  # TODO: For REST queries, use data= instead
             cert=(self.cert, self.key),
             verify=self.ca,
@@ -408,7 +408,7 @@ class RequestClient:
     def signed_request(self, request):
         with open(self.key, "rb") as k:
             rep = requests.post(
-                f"https://{self.host}:{self.port}/",
+                f"https://{self.host}:{self.port}/{request.method}",
                 json=request.to_dict(),  # TODO: For REST queries, use data= instead
                 cert=(self.cert, self.key),
                 verify=self.ca,

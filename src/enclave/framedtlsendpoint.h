@@ -14,6 +14,8 @@ namespace enclave
 
     static constexpr size_t max_msg_size = 2 * 1024 * 1024;
 
+    virtual bool handle_data(const std::vector<uint8_t>& data) = 0;
+
   public:
     FramedTLSEndpoint(
       size_t session_id,

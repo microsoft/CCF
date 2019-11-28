@@ -24,7 +24,7 @@ namespace enclave
       map.emplace(T, handler_);
     }
 
-    ccf::ActorsType resolve(std::string& name)
+    ccf::ActorsType resolve(const std::string& name)
     {
       auto search = actors_map.find(name);
       if (search == actors_map.end())

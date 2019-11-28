@@ -5,6 +5,8 @@
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "enclavetypes.h"
+#include "framedtlsendpoint.h"
+#include "httpendpoint.h"
 #include "rpcclient.h"
 #include "rpcendpoint.h"
 #include "rpchandler.h"
@@ -12,13 +14,20 @@
 #include "tls/client.h"
 #include "tls/context.h"
 #include "tls/server.h"
-#include "tlsframedendpoint.h"
 
 #include <limits>
 #include <unordered_map>
 
 namespace enclave
 {
+#ifdef HTTP
+  using ServerEndpointImpl = HTTPServerEndpoint;
+  using ClientEndpointImpl = HTTPClientEndpoint;
+#else
+  using ServerEndpointImpl = RPCEndpoint;
+  using ClientEndpointImpl = RPCClient;
+#endif
+
   class RPCSessions : public AbstractRPCResponder
   {
   private:
@@ -66,7 +75,7 @@ namespace enclave
       LOG_DEBUG_FMT("Accepting a session inside the enclave: {}", id);
       auto ctx = std::make_unique<tls::Server>(cert);
 
-      auto session = std::make_shared<RPCEndpoint>(
+      auto session = std::make_shared<ServerEndpointImpl>(
         rpc_map, id, writer_factory, std::move(ctx));
       sessions.insert(std::make_pair(id, std::move(session)));
     }
@@ -95,7 +104,8 @@ namespace enclave
       sessions.erase(id);
     }
 
-    std::shared_ptr<RPCClient> create_client(std::shared_ptr<tls::Cert> cert)
+    std::shared_ptr<ClientEndpoint> create_client(
+      std::shared_ptr<tls::Cert> cert)
     {
       std::lock_guard<SpinLock> guard(lock);
       auto ctx = std::make_unique<tls::Client>(cert);
@@ -103,8 +113,8 @@ namespace enclave
 
       LOG_DEBUG_FMT("Creating a new client session inside the enclave: {}", id);
 
-      auto session =
-        std::make_shared<RPCClient>(id, writer_factory, std::move(ctx));
+      auto session = std::make_shared<ClientEndpointImpl>(
+        id, writer_factory, std::move(ctx));
       sessions.insert(std::make_pair(id, session));
       return session;
     }

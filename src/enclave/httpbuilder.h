@@ -38,7 +38,14 @@ namespace enclave
 
       void set_path(const std::string& p)
       {
-        path = p;
+        if (p.size() > 0 && p[0] == '/')
+        {
+          path = p;
+        }
+        else
+        {
+          path = fmt::format("/{}", p);
+        }
       }
 
       void set_query_param(const std::string& k, const std::string& v)

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "http_builder.h"
+#include "httpbuilder.h"
 #include "tlsendpoint.h"
 
 #include <http-parser/http_parser.h>
@@ -151,37 +151,6 @@ namespace enclave
       }
     };
 
-    class ResponseHeaderEmitter
-    {
-    public:
-      static std::vector<uint8_t> emit(const std::vector<uint8_t>& data)
-      {
-        if (data.size() == 0)
-        {
-          auto hdr = fmt::format("HTTP/1.1 204 No Content\r\n");
-          return std::vector<uint8_t>(hdr.begin(), hdr.end());
-        }
-        else
-        {
-          auto hdr = fmt::format(
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Type: application/json\r\n"
-            "Content-Length: {}\r\n\r\n",
-            data.size());
-          return std::vector<uint8_t>(hdr.begin(), hdr.end());
-        }
-      }
-    };
-
-    class RequestHeaderEmitter
-    {
-    public:
-      static std::vector<uint8_t> emit(const std::vector<uint8_t>& data)
-      {
-        return http::build_post_header(data);
-      }
-    };
-
     static int on_msg_begin(http_parser* parser)
     {
       Parser* p = reinterpret_cast<Parser*>(parser->data);
@@ -210,92 +179,4 @@ namespace enclave
       return 0;
     }
   }
-
-  template <class E>
-  class HTTPEndpoint : public TLSEndpoint, public http::MsgProcessor
-  {
-  protected:
-    http::Parser p;
-
-  public:
-    HTTPEndpoint(
-      size_t session_id,
-      ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx) = delete;
-
-    void recv(const uint8_t* data, size_t size)
-    {
-      recv_buffered(data, size);
-
-      LOG_TRACE_FMT("recv called with {} bytes", size);
-
-      while (true)
-      {
-        auto buf = read(4096, false);
-        if (buf.size() == 0)
-        {
-          return;
-        }
-
-        LOG_TRACE_FMT(
-          "Going to parse {} bytes: \n[{}]",
-          buf.size(),
-          std::string(buf.begin(), buf.end()));
-
-        // TODO: This should return an error to the client if this fails
-        if (p.execute(buf.data(), buf.size()) == 0)
-        {
-          LOG_FAIL_FMT("Failed to parse request");
-          return;
-        }
-      }
-    }
-
-    virtual void msg(
-      http_method method,
-      const std::string& path,
-      const std::string& query,
-      std::vector<uint8_t> body)
-    {
-      if (body.size() > 0)
-      {
-        try
-        {
-          if (!handle_data(body))
-            close();
-        }
-        catch (...)
-        {
-          // On any exception, close the connection.
-          close();
-        }
-      }
-    }
-
-    void send(const std::vector<uint8_t>& data)
-    {
-      send_buffered(E::emit(data));
-      if (data.size() > 0)
-        send_buffered(data);
-      flush();
-    }
-  };
-
-  template <>
-  HTTPEndpoint<http::RequestHeaderEmitter>::HTTPEndpoint(
-    size_t session_id,
-    ringbuffer::AbstractWriterFactory& writer_factory,
-    std::unique_ptr<tls::Context> ctx) :
-    TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-    p(HTTP_RESPONSE, *this)
-  {}
-
-  template <>
-  HTTPEndpoint<http::ResponseHeaderEmitter>::HTTPEndpoint(
-    size_t session_id,
-    ringbuffer::AbstractWriterFactory& writer_factory,
-    std::unique_ptr<tls::Context> ctx) :
-    TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-    p(HTTP_REQUEST, *this)
-  {}
 }
