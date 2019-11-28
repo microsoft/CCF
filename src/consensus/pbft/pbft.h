@@ -155,6 +155,8 @@ namespace pbft
       general_info.view_timeout = 5000;
       general_info.status_timeout = 100;
       general_info.recovery_timeout = 9999250000;
+      general_info.max_requests_between_signatures = 50;
+      general_info.max_ms_between_signatures = 1000;
 
       // TODO(#pbft): We do not need this in the long run
       std::string privk =

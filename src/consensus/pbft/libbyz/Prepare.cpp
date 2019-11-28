@@ -28,8 +28,11 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst) :
   rep().digest = d;
 
 #ifdef SIGN_BATCH
-  node->gen_signature(
-    d.digest(), d.digest_size(), rep().batch_digest_signature);
+  if (((s - replica->next_expected_sig_offset()) % replica->sig_req_offset()) == 0)
+  {
+    node->gen_signature(
+      d.digest(), d.digest_size(), rep().batch_digest_signature);
+  }
 #endif
 
   rep().id = node->id();

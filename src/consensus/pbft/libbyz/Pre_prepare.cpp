@@ -124,8 +124,13 @@ Pre_prepare::Pre_prepare(
   auth_src_offset = 0;
 #else
   set_size(old_size + node->sig_size());
-  node->gen_signature(
-    contents(), sizeof(Pre_prepare_rep), contents() + old_size);
+#ifdef SIGN_BATCH
+  if (((s - replica->next_expected_sig_offset()) % replica->sig_req_offset()) == 0)
+  {
+    node->gen_signature(
+      contents(), sizeof(Pre_prepare_rep), contents() + old_size);
+  }
+  #endif
 #endif
 
   trim();
@@ -176,8 +181,11 @@ bool Pre_prepare::set_digest()
   rep().digest = d;
 
 #ifdef SIGN_BATCH
+  if (((rep().seqno - replica->next_expected_sig_offset()) % replica->sig_req_offset()) == 0)
+  {
   node->gen_signature(
     d.digest(), d.digest_size(), rep().batch_digest_signature);
+  }
 #endif
 
   return true;
@@ -249,13 +257,18 @@ bool Pre_prepare::pre_verify()
   if (check_digest())
   {
 #ifdef SIGN_BATCH
-    if (!node->get_principal(sender)->verify_signature(
-          rep().digest.digest(),
-          rep().digest.digest_size(),
-          (const char*)get_digest_sig().data()))
+    if (
+      ((rep().seqno - replica->next_expected_sig_offset()) %
+       replica->sig_req_offset()) == 0)
     {
-      LOG_DEBUG << "failed to verify signature on the digest" << std::endl;
-      return false;
+      if (!node->get_principal(sender)->verify_signature(
+            rep().digest.digest(),
+            rep().digest.digest_size(),
+            (const char*)get_digest_sig().data()))
+      {
+        LOG_DEBUG << "failed to verify signature on the digest" << std::endl;
+        return false;
+      }
     }
 #endif
 

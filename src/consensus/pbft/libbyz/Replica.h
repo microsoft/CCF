@@ -135,6 +135,17 @@ public:
   Seqno get_last_executed() const;
   int my_id() const;
 
+  Seqno signature_offset = 0;
+  Seqno next_expected_sig_offset()
+  {
+    return signature_offset;
+  }
+
+  Seqno sig_req_offset()
+  {
+    return node_info.general_info.max_requests_between_signatures;
+  }
+
   bool shutdown();
   // Effects: Shuts down replica writing a checkpoint to disk.
 
