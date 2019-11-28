@@ -12,6 +12,7 @@ import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
+import infra.jsonrpc
 import ssl
 import random
 
@@ -329,7 +330,7 @@ class Network:
                     else:
                         assert (
                             res.error["code"]
-                            == infra.client.ErrorCode.TX_PRIMARY_UNKNOWN
+                            == infra.jsonrpc.ErrorCode.TX_PRIMARY_UNKNOWN
                         ), "RPC error code is not TX_NOT_PRIMARY"
             if primary_id is not None:
                 break

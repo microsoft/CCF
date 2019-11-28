@@ -1,17 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import os
-import getpass
-import time
-import logging
-import multiprocessing
-import shutil
-from random import seed
 import infra.ccf
-import infra.proc
-import infra.client
+import infra.jsonrpc
 import infra.notification
-import infra.net
 import suite.test_requirements as reqs
 import e2e_args
 
@@ -56,7 +47,7 @@ def test_update_lua(network, args):
                 check(
                     c.rpc(endpoint, params={}),
                     error=lambda e: e is not None
-                    and e["code"] == infra.client.ErrorCode.METHOD_NOT_FOUND.value,
+                    and e["code"] == infra.jsonrpc.ErrorCode.METHOD_NOT_FOUND.value,
                 )
     else:
         LOG.warning("Skipping Lua app update as application is not Lua")

@@ -13,7 +13,7 @@ import multiprocessing
 from random import seed
 import infra.ccf
 import infra.proc
-import infra.client
+import infra.jsonrpc
 import json
 
 from loguru import logger as LOG
@@ -80,7 +80,7 @@ def run(args):
         LOG.debug(
             "Further vote requests fail as the proposal has already been accepted"
         )
-        params_error = infra.client.ErrorCode.INVALID_PARAMS.value
+        params_error = infra.jsonrpc.ErrorCode.INVALID_PARAMS.value
         assert (
             network.consortium.vote(0, primary, proposal_id, True)[1]["code"]
             == params_error
@@ -111,7 +111,9 @@ def run(args):
         assert result["error"]["code"] == params_error
 
         result = network.consortium.withdraw(1, primary, proposal_id)
-        assert result["error"]["code"] == infra.client.ErrorCode.INVALID_CALLER_ID.value
+        assert (
+            result["error"]["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value
+        )
 
         LOG.info("New non-active member should get insufficient rights response")
         script = """
@@ -119,7 +121,7 @@ def run(args):
         return Calls:call("trust_node", node_id)
         """
         result, error = network.consortium.propose(3, primary, script, 0)
-        assert error["code"] == infra.client.ErrorCode.INSUFFICIENT_RIGHTS.value
+        assert error["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
         LOG.debug("New member ACK")
         result = network.consortium.ack(3, primary)
@@ -144,7 +146,9 @@ def run(args):
 
         LOG.debug("Other members (non proposer) are unable to withdraw new proposal")
         result = network.consortium.withdraw(1, primary, proposal_id)
-        assert result["error"]["code"] == infra.client.ErrorCode.INVALID_CALLER_ID.value
+        assert (
+            result["error"]["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value
+        )
 
         LOG.debug("Proposer withdraws their proposal")
         result = network.consortium.withdraw(3, primary, proposal_id)
@@ -182,7 +186,7 @@ def run(args):
 
         LOG.debug("Deactivated member cannot make a new proposal")
         result, error = network.consortium.propose(0, primary, script, 0)
-        assert error["code"] == infra.client.ErrorCode.INSUFFICIENT_RIGHTS.value
+        assert error["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
         LOG.debug("New member should still be able to make a new proposal")
         result, _ = network.consortium.propose(3, primary, script, 0)
