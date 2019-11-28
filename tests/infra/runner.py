@@ -9,7 +9,6 @@ from random import seed
 import infra.ccf
 import infra.proc
 import infra.remote_client
-import infra.jsonrpc
 import infra.rates
 import os
 import re

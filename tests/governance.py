@@ -11,7 +11,6 @@ import subprocess
 from random import seed
 import infra.ccf
 import infra.proc
-import infra.jsonrpc
 import infra.notification
 import infra.net
 import e2e_args

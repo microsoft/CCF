@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import client
+import perfclient
 import sys
 import os
 
@@ -11,7 +11,7 @@ if __name__ == "__main__":
             "-u", "--accounts", help="Number of accounts", default=10, type=int
         )
 
-    args, unknown_args = client.cli_args(add=add, accept_unknown=True)
+    args, unknown_args = perfclient.cli_args(add=add, accept_unknown=True)
 
     unknown_args = [term for arg in unknown_args for term in arg.split(" ")]
 
@@ -19,4 +19,4 @@ if __name__ == "__main__":
         return [*common_args, "--accounts", str(args.accounts)] + unknown_args
 
     args.package = "libsmallbankenc"
-    client.run(args.build_dir, get_command, args)
+    perfclient.run(args.build_dir, get_command, args)

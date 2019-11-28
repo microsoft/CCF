@@ -7,7 +7,6 @@ import time
 import math
 import infra.ccf
 import infra.proc
-import infra.jsonrpc
 import e2e_args
 
 from loguru import logger as LOG
