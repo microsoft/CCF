@@ -12,7 +12,7 @@ DEFAULT_CURVE="secp384r1"
 if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
   echo "Generates private key and self-signed certificates for CCF participants."
   echo "Usage:"""
-  echo "  $0 participant [curve=$DEFAULT_CURVE] [type=$DEFAULT_TYPE]"
+  echo "  $0 participant [curve=$DEFAULT_CURVE]"
   exit 0
 fi
 
@@ -22,7 +22,14 @@ if [ -z "$1" ]; then
 fi
 
 curve=${2:-$DEFAULT_CURVE}
-type=${3:-$DEFAULT_TYPE}
+
+# Because openssl CLI interface for generating EC and Ed keys is different,
+# detect which interface to use based on first letter of the specified curve
+if [[ "$curve" == ${EDWARDS_TYPE}* ]]; then
+    type=$EDWARDS_TYPE
+else
+    type=$DEFAULT_TYPE
+fi
 
 cert="$1"_cert.pem
 privk="$1"_privk.pem
@@ -44,5 +51,3 @@ openssl req -new -key "$privk" -x509 -nodes -days 365 -out "$cert" -subj=/CN="$1
 
 echo "Certificate generated at: $cert (to be registed in CCF)"
 echo "Private key generated at: $privk"
-
-openssl x509 -in "$cert" -noout -text

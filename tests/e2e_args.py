@@ -115,9 +115,10 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default="ccf.io",
     )
     parser.add_argument(
-        "--curve",
+        "--participants-curve",
         help="Curve to use for member and user identities (e.g. secp384r1)",
         default="secp384r1",
+        choices=("secp384r1", "secp256k1", "ed25519"),
     )
     add(parser)
 

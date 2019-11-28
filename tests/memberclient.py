@@ -49,7 +49,7 @@ def run(args):
         """
 
         LOG.info("Proposal to add a new member")
-        infra.proc.ccall("./keygenerator.sh", "member3", args.curve)
+        infra.proc.ccall("./keygenerator.sh", "member3", args.participants_curve)
         script = """
         tables, member_cert = ...
         return Calls:call("new_member", member_cert)

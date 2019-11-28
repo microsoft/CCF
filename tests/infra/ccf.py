@@ -173,9 +173,11 @@ class Network:
         cmd = ["rm", "-f"] + glob("member*.pem")
         infra.proc.ccall(*cmd)
 
-        self.consortium = infra.consortium.Consortium([0, 1, 2], args.curve)
+        self.consortium = infra.consortium.Consortium(
+            [0, 1, 2], args.participants_curve
+        )
         self.initial_users = [0, 1, 2]
-        self.create_users(self.initial_users, args.curve)
+        self.create_users(self.initial_users, args.participants_curve)
 
         if args.gov_script:
             infra.proc.ccall("cp", args.gov_script, args.build_dir).check_returncode()
