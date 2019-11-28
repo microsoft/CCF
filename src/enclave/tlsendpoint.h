@@ -223,7 +223,7 @@ namespace enclave
       do_handshake();
     }
 
-    void send(const std::vector<uint8_t>& data) override
+    void send_raw(const std::vector<uint8_t>& data)
     {
       // Writes as much of the data as possible. If the data cannot all
       // be written now, we store the remainder. We

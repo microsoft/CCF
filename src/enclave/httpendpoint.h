@@ -69,6 +69,13 @@ namespace enclave
       session_id(session_id)
     {}
 
+    void send(const std::vector<uint8_t>& data) override
+    {
+      // This should be called with raw body of response - we will wrap it with
+      // header then transmit
+      send_response(data);
+    }
+
     void send_response(const std::string& data)
     {
       send_response(std::vector<uint8_t>(data.begin(), data.end()));
@@ -79,7 +86,7 @@ namespace enclave
       if (data.empty())
       {
         auto hdr = fmt::format("HTTP/1.1 204 No Content\r\n");
-        send(std::vector<uint8_t>(hdr.begin(), hdr.end()));
+        send_raw(std::vector<uint8_t>(hdr.begin(), hdr.end()));
       }
       else
       {
@@ -224,7 +231,12 @@ namespace enclave
     {
       http::Request r(HTTP_POST);
       r.set_path(path);
-      send(r.build_request(data));
+      send_raw(r.build_request(data));
+    }
+
+    void send(const std::vector<uint8_t>& data) override
+    {
+      LOG_FATAL_FMT("send() should not be called directly on HTTPClient");
     }
 
     void msg(
