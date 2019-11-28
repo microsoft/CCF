@@ -23,6 +23,8 @@ namespace tls
 
     Pem(CBuffer b)
     {
+      TODO: https://github.com/microsoft/CCF/issues/601
+
       if (b.n == 0)
         throw std::logic_error("Got PEM of size 0.");
 

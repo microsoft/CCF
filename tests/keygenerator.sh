@@ -23,8 +23,8 @@ fi
 
 curve=${2:-$DEFAULT_CURVE}
 
-# Because openssl CLI interface for generating EC and Ed keys is different,
-# detect which interface to use based on first letter of the specified curve
+# Because openssl CLI interface for EC key differs from Ed, detect which
+# interface to use based on first letters of the specified curve
 if [[ "$curve" == ${EDWARDS_TYPE}* ]]; then
     type=$EDWARDS_TYPE
 else
