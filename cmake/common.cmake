@@ -486,14 +486,6 @@ function(add_unit_test name)
   )
 endfunction()
 
-# Keygenerator Executable
-add_executable(keygenerator ${CCF_DIR}/src/keygenerator/main.cpp)
-use_client_mbedtls(keygenerator)
-target_link_libraries(keygenerator PRIVATE
-  ${CMAKE_THREAD_LIBS_INIT}
-  secp256k1.host
-)
-
 if("sgx" IN_LIST TARGET)
   # Host Executable
   add_executable(cchost
