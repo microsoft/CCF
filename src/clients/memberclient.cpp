@@ -296,13 +296,16 @@ int main(int argc, char** argv)
   auto add_member = app.add_subcommand("add_member", "Add a new member");
   string member_cert_file;
   add_member
-    ->add_option("--member-cert", member_cert_file, "New member certificate in PEM format")
+    ->add_option(
+      "--member-cert", member_cert_file, "New member certificate in PEM format")
     ->required(true)
     ->check(CLI::ExistingFile);
 
   auto add_user = app.add_subcommand("add_user", "Add a new user");
   string user_cert_file;
-  add_user->add_option("--user-cert", user_cert_file, "New user certificate in PEM format")
+  add_user
+    ->add_option(
+      "--user-cert", user_cert_file, "New user certificate in PEM format")
     ->required(true)
     ->check(CLI::ExistingFile);
 
