@@ -15,9 +15,15 @@ namespace enclave
 
     HandleDataCallback handle_data_cb;
 
+    size_t session_id;
+    std::unique_ptr<ringbuffer::AbstractWriter> to_host;
+
   public:
-    virtual ringbuffer::AbstractWriter* get_to_host() = 0;
-    virtual size_t get_session_id() = 0;
+    ClientEndpoint(
+      size_t session_id, ringbuffer::AbstractWriterFactory& writer_factory) :
+      session_id(session_id),
+      to_host(writer_factory.create_writer_to_outside())
+    {}
 
     virtual void send_request(
       const std::string& path, const std::vector<uint8_t>& data) = 0;
@@ -28,7 +34,7 @@ namespace enclave
       const HandleDataCallback f)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        tls::tls_connect, get_to_host(), get_session_id(), hostname, service);
+        tls::tls_connect, to_host, session_id, hostname, service);
       handle_data_cb = f;
     }
   };

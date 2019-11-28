@@ -215,18 +215,9 @@ namespace enclave
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(HTTP_RESPONSE, session_id, writer_factory, std::move(ctx))
+      HTTPEndpoint(HTTP_RESPONSE, session_id, writer_factory, std::move(ctx)),
+      ClientEndpoint(session_id, writer_factory)
     {}
-
-    ringbuffer::AbstractWriter* get_to_host() override
-    {
-      return to_host.get();
-    }
-
-    size_t get_session_id() override
-    {
-      return session_id;
-    }
 
     void send_request(
       const std::string& path, const std::vector<uint8_t>& data) override

@@ -104,7 +104,7 @@ namespace enclave
       sessions.erase(id);
     }
 
-    std::shared_ptr<ClientEndpointImpl> create_client(
+    std::shared_ptr<ClientEndpoint> create_client(
       std::shared_ptr<tls::Cert> cert)
     {
       std::lock_guard<SpinLock> guard(lock);
