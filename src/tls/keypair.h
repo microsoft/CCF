@@ -808,7 +808,7 @@ namespace tls
           entropy->get_data()) != 0)
         return {};
 
-      auto len = strlen((char*)buf) + 1;
+      auto len = strlen((char*)buf) + 1; // For null termination
       std::vector<uint8_t> pem(buf, buf + len);
       return pem;
     }
@@ -821,8 +821,8 @@ namespace tls
     {
       SignCsr sign;
 
-      Pem pemCsr(csr);
-      if (mbedtls_x509_csr_parse(&sign.csr, pemCsr.data(), pemCsr.size()) != 0)
+      Pem pem_csr(csr);
+      if (mbedtls_x509_csr_parse(&sign.csr, pem_csr.data(), pem_csr.size()) != 0)
         return {};
 
       char subject[512];

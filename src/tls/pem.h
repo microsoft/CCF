@@ -12,7 +12,7 @@
 
 namespace tls
 {
-  // convenience class ensuring null termination of PEM-encoded certificates as
+  // Convenience class ensuring null termination of PEM-encoded certificates as
   // required by mbedTLS
   class Pem
   {
@@ -44,17 +44,18 @@ namespace tls
       return reinterpret_cast<const uint8_t*>(s.data());
     }
 
-    size_t size() const
-    {
-      return s.size();
-    }
-
-    std::vector<uint8_t> nt_vector()
+    std::vector<uint8_t> raw() const
     {
       const auto cert_data = data();
       auto cert_len = strlen((char*)cert_data) + 1;
 
       return {cert_data, cert_data + cert_len};
     }
+
+    size_t size() const
+    {
+      return s.size();
+    }
+
   };
 }
