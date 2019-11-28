@@ -104,7 +104,7 @@ add_custom_command(
     DEPENDS ${CCF_DIR}/src/kv/frame.fbs
 )
 
-add_custom_target(flatbuffers_generate ALL
+add_custom_target(flatbuffers ALL
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/frame_generated.h
 )
 
@@ -465,7 +465,7 @@ function(add_unit_test name)
       -lc++
       -lc++abi
       ccfcrypto.host)
-
+  add_dependencies(${name} flatbuffers)
   use_client_mbedtls(${name})
   add_san(${name})
 
