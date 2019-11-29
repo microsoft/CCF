@@ -1856,7 +1856,8 @@ void Replica::execute_prepared(bool committed)
     if (global_commit_cb != nullptr && pp->is_signed())
     {
       int64_t max_signed_version = std::max(pp->get_ctx(), signed_version);
-      LOG_TRACE << "Global_commit:" << pp->get_ctx() << ", signed_version:" << signed_version << std::endl;
+      LOG_TRACE << "Global_commit:" << pp->get_ctx()
+                << ", signed_version:" << signed_version << std::endl;
 
       global_commit_cb(max_signed_version, pp->view(), global_commit_ctx);
       signed_version = 0;

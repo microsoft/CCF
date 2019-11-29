@@ -445,7 +445,8 @@ namespace ccf
     {
       // Signatures are only emitted when there is a consensus
       auto consensus = store.get_consensus();
-      if (!consensus) {
+      if (!consensus)
+      {
         return;
       }
 

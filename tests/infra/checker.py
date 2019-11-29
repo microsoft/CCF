@@ -37,7 +37,9 @@ class Checker:
         self.notification_queue = notification_queue
         self.notified_commit = 0
 
-    def __call__(self, rpc_result, result=None, error=None, timeout=2, force_sign=False):
+    def __call__(
+        self, rpc_result, result=None, error=None, timeout=2, force_sign=False
+    ):
         if error is not None:
             if callable(error):
                 assert error(rpc_result.error), rpc_result.error

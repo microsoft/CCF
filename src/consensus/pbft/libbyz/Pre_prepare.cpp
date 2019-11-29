@@ -173,11 +173,11 @@ bool Pre_prepare::check_digest()
 bool Pre_prepare::is_signed()
 {
 #ifdef SIGN_BATCH
-    return (
-      std::none_of(
-        std::begin(rep().batch_digest_signature),
-        std::end(rep().batch_digest_signature),
-        [](int i) { return i != 0; }) == false);
+  return (
+    std::none_of(
+      std::begin(rep().batch_digest_signature),
+      std::end(rep().batch_digest_signature),
+      [](int i) { return i != 0; }) == false);
 #endif
   return true;
 }
@@ -195,7 +195,8 @@ bool Pre_prepare::set_digest()
 #ifdef SIGN_BATCH
   if (
     ((rep().seqno - replica->next_expected_sig_offset()) %
-     replica->sig_req_offset()) == 0 || node->f() == 0)
+     replica->sig_req_offset()) == 0 ||
+    node->f() == 0)
   {
     node->gen_signature(
       d.digest(), d.digest_size(), rep().batch_digest_signature);
