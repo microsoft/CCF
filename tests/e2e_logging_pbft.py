@@ -47,8 +47,6 @@ def run(args):
                 check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
                 check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2})
 
-                # check_commit(c.do("mkSign", params={}), result=True)
-
             LOG.debug("Write/Read large messages on primary")
             with primary.user_client(format="json") as c:
                 id = 44
