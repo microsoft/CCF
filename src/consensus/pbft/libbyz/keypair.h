@@ -28,6 +28,7 @@ extern "C"
 #include "ds/logger.h"
 #include "epbft_drng.h"
 #include "parameters.h"
+#include "pbft_assert.h"
 
 static constexpr size_t SHA512_BYTES = 512 / 8;
 using SHA512 = std::array<uint8_t, SHA512_BYTES>;
@@ -365,6 +366,7 @@ public:
     {
       LOG_FAIL << "Verification failed" << std::endl;
     }
+    //PBFT_ASSERT(rc, "Verification failed");
 
     return rc;
   }

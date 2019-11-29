@@ -84,6 +84,11 @@ namespace kv
     {
       return;
     }
+
+    void emit_signature() override
+    {
+      return;
+    }
   };
 
   class BackupStubConsensus : public StubConsensus

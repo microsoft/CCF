@@ -127,6 +127,7 @@ public:
   size_t num_correct_replicas() const;
   size_t f() const;
   void set_f(ccf::NodeId f);
+  void emit_signature_on_next_pp();
   View view() const;
   bool is_primary() const;
   int primary() const;

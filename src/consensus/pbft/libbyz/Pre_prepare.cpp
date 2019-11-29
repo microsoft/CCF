@@ -125,12 +125,26 @@ Pre_prepare::Pre_prepare(
 #else
   set_size(old_size + node->sig_size());
 #ifdef SIGN_BATCH
+  // TODO: should this be here?
   if (((s - replica->next_expected_sig_offset()) % replica->sig_req_offset()) == 0)
   {
+    LOG_INFO << "Gen signature, seqno:" << s << std::endl;
     node->gen_signature(
       contents(), sizeof(Pre_prepare_rep), contents() + old_size);
   }
-  #endif
+
+  std::fill(
+    std::begin(rep().batch_digest_signature),
+    std::end(rep().batch_digest_signature),
+    0);
+#  endif
+#endif
+
+#ifdef SIGN_BATCH
+  std::fill(
+    std::begin(rep().batch_digest_signature),
+    std::end(rep().batch_digest_signature),
+    0);
 #endif
 
   trim();
@@ -183,8 +197,9 @@ bool Pre_prepare::set_digest()
 #ifdef SIGN_BATCH
   if (((rep().seqno - replica->next_expected_sig_offset()) % replica->sig_req_offset()) == 0)
   {
-  node->gen_signature(
-    d.digest(), d.digest_size(), rep().batch_digest_signature);
+    LOG_INFO << "Gen signature, seqno:" << rep().seqno << std::endl;
+    node->gen_signature(
+      d.digest(), d.digest_size(), rep().batch_digest_signature);
   }
 #endif
 
@@ -258,16 +273,22 @@ bool Pre_prepare::pre_verify()
   {
 #ifdef SIGN_BATCH
     if (
-      ((rep().seqno - replica->next_expected_sig_offset()) %
-       replica->sig_req_offset()) == 0)
+      std::none_of(
+        std::begin(rep().batch_digest_signature),
+        std::end(rep().batch_digest_signature),
+        [](int i) { return i != 0; }) == false)
     {
       if (!node->get_principal(sender)->verify_signature(
             rep().digest.digest(),
             rep().digest.digest_size(),
             (const char*)get_digest_sig().data()))
       {
-        LOG_DEBUG << "failed to verify signature on the digest" << std::endl;
+        LOG_INFO << "failed to verify signature on the digest, seqno:" << rep().seqno << std::endl;
         return false;
+      }
+      else
+      {
+        LOG_INFO << "passed verifing signature on the digest, seqno:" << rep().seqno << std::endl;
       }
     }
 #endif

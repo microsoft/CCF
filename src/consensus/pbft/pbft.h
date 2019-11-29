@@ -353,5 +353,14 @@ namespace pbft
     {
       message_receiver_base->set_f(f);
     }
+
+    void emit_signature() override
+    {
+      if (
+        message_receiver_base != nullptr && message_receiver_base->is_primary())
+      {
+        message_receiver_base->emit_signature_on_next_pp();
+      }
+    }
   };
 }

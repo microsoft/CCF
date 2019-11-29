@@ -113,5 +113,10 @@ namespace raft
     {
       return;
     }
+
+    void emit_signature() override
+    {
+      return;
+    }
   };
 }

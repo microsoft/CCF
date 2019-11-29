@@ -1062,6 +1062,11 @@ void Replica::set_f(ccf::NodeId f)
   Node::set_f(f);
 }
 
+void Replica::emit_signature_on_next_pp()
+{
+  signature_offset = next_pp_seqno;
+}
+
 View Replica::view() const
 {
   return Node::view();
