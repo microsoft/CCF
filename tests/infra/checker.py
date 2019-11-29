@@ -37,7 +37,7 @@ class Checker:
         self.notification_queue = notification_queue
         self.notified_commit = 0
 
-    def __call__(self, rpc_result, result=None, error=None, timeout=2):
+    def __call__(self, rpc_result, result=None, error=None, timeout=2, force_sign=False):
         if error is not None:
             if callable(error):
                 assert error(rpc_result.error), rpc_result.error
@@ -57,7 +57,7 @@ class Checker:
 
             if self.node_client:
                 wait_for_global_commit(
-                    self.node_client, rpc_result.commit, rpc_result.term
+                    self.node_client, rpc_result.commit, rpc_result.term, force_sign
                 )
 
             if self.notification_queue:

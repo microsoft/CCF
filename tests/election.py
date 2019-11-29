@@ -21,10 +21,12 @@ def wait_for_index_globally_committed(index, term, nodes):
     """
     Wait for a specific version at a specific term to be committed on all nodes.
     """
+
     for _ in range(infra.ccf.Network.replication_delay):
         up_to_date_f = []
         for f in nodes:
             with f.node_client() as c:
+                c.rpc("mkSign", params={})
                 id = c.request("getCommit", {"commit": index})
                 res = c.response(id)
                 if res.result["term"] == term and (res.global_commit >= index):
