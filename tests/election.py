@@ -16,6 +16,7 @@ from loguru import logger as LOG
 # this process until no progress can be made (i.e. no primary can be elected
 # as F > N/2).
 
+
 def wait_for_index_globally_committed(index, term, nodes):
     """
     Wait for a specific version at a specific term to be committed on all nodes.
