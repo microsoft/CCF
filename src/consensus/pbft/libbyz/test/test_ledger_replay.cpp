@@ -63,8 +63,17 @@ NodeInfo get_node_info()
     true};
   principal_info.emplace_back(pi);
 
-  GeneralInfo gi = {
-    2, 0, 0, "generic", 1800000, 5000, 100, 9999250000, 10000, 1000, principal_info};
+  GeneralInfo gi = {2,
+                    0,
+                    0,
+                    "generic",
+                    1800000,
+                    5000,
+                    100,
+                    9999250000,
+                    10000,
+                    1000,
+                    principal_info};
 
   NodeInfo node_info = {
     gi.principal_info[0],

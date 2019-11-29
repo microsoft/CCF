@@ -181,7 +181,9 @@ bool Pre_prepare::set_digest()
   rep().digest = d;
 
 #ifdef SIGN_BATCH
-  if (((rep().seqno - replica->next_expected_sig_offset()) % replica->sig_req_offset()) == 0)
+  if (
+    ((rep().seqno - replica->next_expected_sig_offset()) %
+     replica->sig_req_offset()) == 0)
   {
     LOG_INFO << "Gen signature, seqno:" << rep().seqno << std::endl;
     node->gen_signature(
@@ -269,12 +271,9 @@ bool Pre_prepare::pre_verify()
             rep().digest.digest_size(),
             (const char*)get_digest_sig().data()))
       {
-        LOG_INFO << "failed to verify signature on the digest, seqno:" << rep().seqno << std::endl;
+        LOG_INFO << "failed to verify signature on the digest, seqno:"
+                 << rep().seqno << std::endl;
         return false;
-      }
-      else
-      {
-        LOG_INFO << "passed verifing signature on the digest, seqno:" << rep().seqno << std::endl;
       }
     }
 #endif
