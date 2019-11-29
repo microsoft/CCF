@@ -95,7 +95,8 @@ namespace enclave
         auto hdr = fmt::format(
           "HTTP/1.1 200 OK\r\n"
           "Content-Type: application/json\r\n"
-          "Content-Length: {}\r\n\r\n",
+          "Content-Length: {}\r\n"
+          "\r\n",
           data.size());
         send_buffered(std::vector<uint8_t>(hdr.begin(), hdr.end()));
         send_buffered(data);
@@ -103,11 +104,12 @@ namespace enclave
       }
     }
 
-    void msg(
+    void handle_message(
       http_method method,
       const std::string& path,
       const std::string& query,
-      std::vector<uint8_t> body) override
+      const http::HeaderMap& headers,
+      const std::vector<uint8_t>& body) override
     {
       LOG_INFO_FMT(
         "Processing msg({}, {}, {}, [{} bytes])",
@@ -232,11 +234,12 @@ namespace enclave
       LOG_FATAL_FMT("send() should not be called directly on HTTPClient");
     }
 
-    void msg(
+    void handle_message(
       http_method method,
       const std::string& path,
       const std::string& query,
-      std::vector<uint8_t> body) override
+      const http::HeaderMap& headers,
+      const std::vector<uint8_t>& body) override
     {
       handle_data_cb(body);
 
