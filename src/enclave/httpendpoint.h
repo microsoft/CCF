@@ -78,29 +78,49 @@ namespace enclave
       send_response(data);
     }
 
-    void send_response(const std::string& data)
+    void send_response(
+      const std::string& data,
+      http_status status = HTTP_STATUS_OK,
+      const std::string& content_type = "text/plain")
     {
-      send_response(std::vector<uint8_t>(data.begin(), data.end()));
+      send_response(
+        std::vector<uint8_t>(data.begin(), data.end()), status, content_type);
     }
 
-    void send_response(const std::vector<uint8_t>& data)
+    void send_response(
+      const std::vector<uint8_t>& data,
+      http_status status = HTTP_STATUS_OK,
+      const std::string& content_type = "application/json")
     {
-      if (data.empty())
+      if (data.empty() && status == HTTP_STATUS_OK)
       {
-        auto hdr = fmt::format("HTTP/1.1 204 No Content\r\n");
-        send_raw(std::vector<uint8_t>(hdr.begin(), hdr.end()));
+        status = HTTP_STATUS_NO_CONTENT;
       }
-      else
+
+      if (status == HTTP_STATUS_NO_CONTENT)
       {
-        auto hdr = fmt::format(
-          "HTTP/1.1 200 OK\r\n"
-          "Content-Type: application/json\r\n"
-          "Content-Length: {}\r\n\r\n",
-          data.size());
-        send_buffered(std::vector<uint8_t>(hdr.begin(), hdr.end()));
-        send_buffered(data);
-        flush();
+        const auto first_line = fmt::format(
+          "HTTP/1.1 {} {}\r\n"
+          "\r\n",
+          status,
+          http_status_str(status));
+
+        send_raw(std::vector<uint8_t>(first_line.begin(), first_line.end()));
+        return;
       }
+
+      auto hdr = fmt::format(
+        "HTTP/1.1 {} {}\r\n"
+        "Content-Type: {}\r\n"
+        "Content-Length: {}\r\n"
+        "\r\n",
+        status,
+        http_status_str(status),
+        content_type,
+        data.size());
+      send_buffered(std::vector<uint8_t>(hdr.begin(), hdr.end()));
+      send_buffered(data);
+      flush();
     }
 
     void msg(
@@ -118,27 +138,19 @@ namespace enclave
 
       try
       {
-        const SessionContext session(session_id, peer_cert());
-        RPCContext rpc_ctx(session);
-
-        auto [success, json_rpc] = jsonrpc::unpack_rpc(body, rpc_ctx.pack);
-        if (!success)
-        {
-          LOG_FAIL_FMT("Failed to unpack body", path);
-          return;
-        }
-
-        parse_rpc_context(rpc_ctx, json_rpc);
-        rpc_ctx.raw = body;
-
         const auto first_slash = path.find_first_of('/');
         const auto second_slash = path.find_first_of('/', first_slash + 1);
+
+        constexpr auto path_parse_error =
+          "Request path must contain '/[actor]/[method]'. Unable to parse "
+          "'{}'.\n";
 
         if (
           first_slash != 0 || first_slash == std::string::npos ||
           second_slash == std::string::npos)
         {
-          LOG_FAIL_FMT("Not happy with the slashes in {}", path);
+          send_response(
+            fmt::format(path_parse_error, path), HTTP_STATUS_BAD_REQUEST);
           return;
         }
 
@@ -147,40 +159,58 @@ namespace enclave
 
         if (actor_s.empty() || method_s.empty())
         {
-          // TODO: Send error
-          LOG_FAIL_FMT("EMPTY: '{}' || '{}'", actor_s, method_s);
+          send_response(
+            fmt::format(path_parse_error, path), HTTP_STATUS_BAD_REQUEST);
+          return;
         }
 
         auto actor = rpc_map->resolve(actor_s);
-        if (actor == ccf::ActorsType::unknown)
-        {
-          // TODO: Send error
-          LOG_FAIL_FMT("{} == unknown", actor);
-        }
-
-        rpc_ctx.actor = actor;
-
-        // TODO: This is temporary; while we have a full RPC object inside the
-        // body, it should match the dispatch details specified in the URI
-        if (rpc_ctx.method != fmt::format("{}/{}", actor_s, method_s))
-        {
-          // TODO: Send error
-          LOG_FAIL_FMT("{} != {}", rpc_ctx.method, method_s);
-        }
-        rpc_ctx.method = method_s;
-
         auto search = rpc_map->find(actor);
-        if (!search.has_value())
+        if (actor == ccf::ActorsType::unknown || !search.has_value())
         {
-          LOG_FAIL_FMT("Couldn't find actor {}", actor);
+          send_response(
+            fmt::format("Unknown session '{}'.\n", actor_s),
+            HTTP_STATUS_NOT_FOUND);
           return;
         }
 
         if (!search.value()->is_open())
         {
-          LOG_FAIL_FMT("Session is not open {}", actor);
+          send_response(
+            fmt::format("Session '{}' is not open.\n", actor),
+            HTTP_STATUS_NOT_FOUND);
           return;
         }
+
+        const SessionContext session(session_id, peer_cert());
+        RPCContext rpc_ctx(session);
+
+        auto [success, json_rpc] = jsonrpc::unpack_rpc(body, rpc_ctx.pack);
+        if (!success)
+        {
+          send_response(
+            fmt::format("Unable to unpack body.\n"), HTTP_STATUS_BAD_REQUEST);
+          return;
+        }
+
+        parse_rpc_context(rpc_ctx, json_rpc);
+        // TODO: This is temporary; while we have a full RPC object inside the
+        // body, it should match the dispatch details specified in the URI
+        const auto expected = fmt::format("{}/{}", actor_s, method_s);
+        if (rpc_ctx.method != expected)
+        {
+          send_response(
+            fmt::format(
+              "RPC method must match path ('{}' != '{}').\n",
+              expected,
+              rpc_ctx.method),
+            HTTP_STATUS_BAD_REQUEST);
+          return;
+        }
+
+        rpc_ctx.raw = body; // TODO: This is insufficient, need entire request
+        rpc_ctx.method = method_s;
+        rpc_ctx.actor = actor;
 
         auto response = search.value()->process(rpc_ctx);
 
@@ -199,8 +229,9 @@ namespace enclave
       }
       catch (const std::exception& e)
       {
-        LOG_FAIL_FMT("Exception while processing HTTP message: {}", e.what());
-        send_response(fmt::format("Exception: {}", e.what()));
+        send_response(
+          fmt::format("Exception:\n{}\n", e.what()),
+          HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
         // On any exception, close the connection.
         close();
