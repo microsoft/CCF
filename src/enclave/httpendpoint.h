@@ -120,14 +120,6 @@ namespace enclave
         data.size());
       send_buffered(std::vector<uint8_t>(hdr.begin(), hdr.end()));
       send_buffered(data);
-
-      // Assume the content is text based (text or json), and append a newline
-      // for clarity
-      if (data.back() != '\n')
-      {
-        send_buffered({'\r', '\n'});
-      }
-
       flush();
     }
 
@@ -151,7 +143,7 @@ namespace enclave
 
         constexpr auto path_parse_error =
           "Request path must contain '/[actor]/[method]'. Unable to parse "
-          "'{}'.";
+          "'{}'.\n";
 
         if (
           first_slash != 0 || first_slash == std::string::npos ||
@@ -177,7 +169,7 @@ namespace enclave
         if (actor == ccf::ActorsType::unknown || !search.has_value())
         {
           send_response(
-            fmt::format("Unknown session '{}'.", actor_s),
+            fmt::format("Unknown session '{}'.\n", actor_s),
             HTTP_STATUS_NOT_FOUND);
           return;
         }
@@ -185,7 +177,7 @@ namespace enclave
         if (!search.value()->is_open())
         {
           send_response(
-            fmt::format("Session '{}' is not open.", actor),
+            fmt::format("Session '{}' is not open.\n", actor),
             HTTP_STATUS_NOT_FOUND);
           return;
         }
@@ -197,7 +189,7 @@ namespace enclave
         if (!success)
         {
           send_response(
-            fmt::format("Unable to unpack body."), HTTP_STATUS_BAD_REQUEST);
+            fmt::format("Unable to unpack body.\n"), HTTP_STATUS_BAD_REQUEST);
           return;
         }
 
@@ -209,7 +201,7 @@ namespace enclave
         {
           send_response(
             fmt::format(
-              "RPC method must match path ('{}' != '{}').",
+              "RPC method must match path ('{}' != '{}').\n",
               expected,
               rpc_ctx.method),
             HTTP_STATUS_BAD_REQUEST);
@@ -238,7 +230,7 @@ namespace enclave
       catch (const std::exception& e)
       {
         send_response(
-          fmt::format("Exception:\n{}", e.what()),
+          fmt::format("Exception:\n{}\n", e.what()),
           HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
         // On any exception, close the connection.
