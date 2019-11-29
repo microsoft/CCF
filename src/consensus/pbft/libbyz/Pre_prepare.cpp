@@ -124,20 +124,6 @@ Pre_prepare::Pre_prepare(
   auth_src_offset = 0;
 #else
   set_size(old_size + node->sig_size());
-#ifdef SIGN_BATCH
-  // TODO: should this be here?
-  if (((s - replica->next_expected_sig_offset()) % replica->sig_req_offset()) == 0)
-  {
-    LOG_INFO << "Gen signature, seqno:" << s << std::endl;
-    node->gen_signature(
-      contents(), sizeof(Pre_prepare_rep), contents() + old_size);
-  }
-
-  std::fill(
-    std::begin(rep().batch_digest_signature),
-    std::end(rep().batch_digest_signature),
-    0);
-#  endif
 #endif
 
 #ifdef SIGN_BATCH
