@@ -175,6 +175,9 @@ public:
   bool set_digest();
   // Effects: calculates and sets the digest.
 
+  bool is_signed();
+  // Effects: checks if there is a signature over the pre_prepare message
+
   static bool convert(Message* m1, Pre_prepare*& m2);
   // Effects: If "m1" has the right size and tag, casts "m1" to a
   // "Pre_prepare" pointer, returns the pointer in "m2" and returns

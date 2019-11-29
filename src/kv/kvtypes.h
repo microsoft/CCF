@@ -239,7 +239,7 @@ namespace kv
     virtual void suspend_replication(kv::Version) {}
 
     virtual void set_f(ccf::NodeId f) = 0;
-    virtual void emit_signature() = 0;
+    virtual void emit_signature(kv::Version version) = 0;
   };
 
   using PendingTx = std::function<

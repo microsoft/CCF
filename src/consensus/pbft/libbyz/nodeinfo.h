@@ -42,7 +42,6 @@ struct GeneralInfo
   long status_timeout;
   long recovery_timeout;
   uint64_t max_requests_between_signatures;
-  uint64_t max_ms_between_signatures;
   std::vector<PrincipalInfo> principal_info;
 };
 
@@ -57,7 +56,6 @@ inline void from_json(const nlohmann::json& j, GeneralInfo& gi)
   gi.status_timeout = j["status_timeout"];
   gi.recovery_timeout = j["recovery_timeout"];
   gi.max_requests_between_signatures = j["max_requests_between_signatures"];
-  gi.max_ms_between_signatures = j["max_ms_between_signatures"];
   std::vector<PrincipalInfo> temp = j["principal_info"];
   gi.principal_info = std::move(temp);
 }

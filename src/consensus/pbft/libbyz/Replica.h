@@ -127,7 +127,7 @@ public:
   size_t num_correct_replicas() const;
   size_t f() const;
   void set_f(ccf::NodeId f);
-  void emit_signature_on_next_pp();
+  void emit_signature_on_next_pp(int64_t version);
   View view() const;
   bool is_primary() const;
   int primary() const;
@@ -137,6 +137,7 @@ public:
   int my_id() const;
 
   Seqno signature_offset = 0;
+  int64_t signed_version = 0;
   Seqno next_expected_sig_offset()
   {
     return signature_offset;

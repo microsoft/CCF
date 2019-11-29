@@ -1062,9 +1062,10 @@ void Replica::set_f(ccf::NodeId f)
   Node::set_f(f);
 }
 
-void Replica::emit_signature_on_next_pp()
+void Replica::emit_signature_on_next_pp(int64_t version)
 {
   signature_offset = next_pp_seqno;
+  signed_version = version;
 }
 
 View Replica::view() const
@@ -1852,10 +1853,13 @@ void Replica::execute_prepared(bool committed)
       }
     }
 
-    if (global_commit_cb != nullptr)
+    if (global_commit_cb != nullptr && pp->is_signed())
     {
-      LOG_TRACE << "Global_commit:" << pp->get_ctx() << std::endl;
-      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_ctx);
+      int64_t max_signed_version = std::max(pp->get_ctx(), signed_version);
+      LOG_TRACE << "Global_commit:" << pp->get_ctx() << ", signed_version:" << signed_version << std::endl;
+
+      global_commit_cb(max_signed_version, pp->view(), global_commit_ctx);
+      signed_version = 0;
     }
   }
 }

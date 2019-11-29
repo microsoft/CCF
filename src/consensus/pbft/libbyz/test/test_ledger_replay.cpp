@@ -71,8 +71,7 @@ NodeInfo get_node_info()
                     5000,
                     100,
                     9999250000,
-                    10000,
-                    1000,
+                    50,
                     principal_info};
 
   NodeInfo node_info = {

@@ -445,8 +445,9 @@ namespace ccf
     {
       // Signatures are only emitted when there is a consensus
       auto consensus = store.get_consensus();
-      if (!consensus)
+      if (!consensus) {
         return;
+      }
 
 #ifndef PBFT
       auto version = store.next_version();
@@ -467,7 +468,8 @@ namespace ccf
         },
         true);
 #else
-      consensus->emit_signature();
+      auto version = store.current_version();
+      consensus->emit_signature(version);
 #endif
     }
 

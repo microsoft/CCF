@@ -85,7 +85,7 @@ namespace kv
       return;
     }
 
-    void emit_signature() override
+    void emit_signature(kv::Version) override
     {
       return;
     }

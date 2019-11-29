@@ -156,7 +156,6 @@ namespace pbft
       general_info.status_timeout = 100;
       general_info.recovery_timeout = 9999250000;
       general_info.max_requests_between_signatures = 50;
-      general_info.max_ms_between_signatures = 1000;
 
       // TODO(#pbft): We do not need this in the long run
       std::string privk =
@@ -354,12 +353,11 @@ namespace pbft
       message_receiver_base->set_f(f);
     }
 
-    void emit_signature() override
+    void emit_signature(kv::Version version) override
     {
-      if (
-        message_receiver_base != nullptr && message_receiver_base->is_primary())
+      if (message_receiver_base != nullptr)
       {
-        message_receiver_base->emit_signature_on_next_pp();
+        message_receiver_base->emit_signature_on_next_pp(version);
       }
     }
   };
