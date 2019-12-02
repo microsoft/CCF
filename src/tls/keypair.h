@@ -28,7 +28,7 @@ namespace tls
   {
     secp384r1 = 1,
 #ifdef MOD_MBEDTLS
-    Ed25519 = 2,
+    ed25519 = 2,
 #endif
     secp256k1_mbedtls = 3,
     secp256k1_bitcoin = 4,
@@ -36,7 +36,7 @@ namespace tls
 #if SERVICE_IDENTITY_CURVE_CHOICE_SECP384R1
     service_identity_curve_choice = secp384r1,
 #elif SERVICE_IDENTITY_CURVE_CHOICE_ED25519
-    service_identity_curve_choice = Ed25519,
+    service_identity_curve_choice = ed25519,
 #elif SERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_MBEDTLS
     service_identity_curve_choice = secp256k1_mbedtls,
 #elif SERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_BITCOIN
@@ -79,7 +79,7 @@ namespace tls
         return MBEDTLS_ECP_DP_SECP384R1;
       }
 #ifdef MOD_MBEDTLS
-      case CurveImpl::Ed25519:
+      case CurveImpl::ed25519:
       {
         return MBEDTLS_ECP_DP_CURVE25519;
       }

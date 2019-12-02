@@ -58,5 +58,5 @@ fi
 
 openssl req -new -key "$privk" -x509 -nodes -days 365 -out "$cert" -"$digest" -subj=/CN="$1"
 
-echo "Certificate generated at: $cert (to be registed in CCF)"
+echo "Certificate generated at: $cert (to be registered in CCF)"
 echo "Private key generated at: $privk"

@@ -573,7 +573,7 @@ set(CCF_NETWORK_TEST_ARGS
   -l ${TEST_HOST_LOGGING_LEVEL}
   -g ${CCF_DIR}/src/runtime_config/gov.lua
   --consensus ${CONSENSUS_ARG}
-  --participants-curve ${DEFAULT_PARTICIPANTS_CURVE}
+  --default-curve ${DEFAULT_PARTICIPANTS_CURVE}
 )
 
 # SNIPPET: Lua generic application

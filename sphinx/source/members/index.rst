@@ -12,7 +12,7 @@ The ``CCF/tests/keygenerator.sh`` script can be used to generate the member's ce
     $ CCF/tests/keygenerator.sh member1
     Curve: secp384r1
     Generating private key and certificate for participant "member1"...
-    Certificate generated at: member1_cert.pem (to be registed in CCF)
+    Certificate generated at: member1_cert.pem (to be registered in CCF)
     Private key generated at: member1_privk.pem
 
 .. note:: See :ref:`Algorithms and Curves` for the list of supported cryptographic curves.

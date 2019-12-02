@@ -54,14 +54,14 @@ const auto operator_gov_script_file =
 template <typename E>
 void check_error(const nlohmann::json& j, const E expected)
 {
-  REQUIRE(
+  CHECK(
     j[ERR][CODE].get<jsonrpc::ErrorBaseType>() ==
     static_cast<jsonrpc::ErrorBaseType>(expected));
 }
 
 void check_success(const Response<bool> r, const bool expected = true)
 {
-  REQUIRE(r.result == expected);
+  CHECK(r.result == expected);
 }
 
 void set_whitelists(GenesisGenerator& gen)
@@ -123,11 +123,12 @@ json frontend_process(
 {
   auto serialized_request = pack(j_request, default_pack);
 
-  const enclave::SessionContext session(0, caller);
+  const enclave::SessionContext session(
+    0, tls::make_verifier(caller)->der_cert_data());
   const auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
   auto serialized_response = frontend.process(rpc_ctx);
 
-  REQUIRE(serialized_response.has_value());
+  CHECK(serialized_response.has_value());
 
   return unpack(serialized_response.value(), default_pack);
 }
@@ -176,7 +177,6 @@ auto init_frontend(
 TEST_CASE("Member query/read")
 {
   // initialize the network state
-  // const Cert member_cert = {0};
   NetworkTables network;
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
@@ -194,7 +194,7 @@ TEST_CASE("Member query/read")
   constexpr auto value = 456;
   Store::Tx tx;
   tx.get_view(network.values)->put(key, value);
-  REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  CHECK(tx.commit() == kv::CommitSuccess::OK);
 
   static constexpr auto query = R"xxx(
   local tables = ...
@@ -207,14 +207,14 @@ TEST_CASE("Member query/read")
     Store::Tx tx;
     tx.get_view(network.whitelists)
       ->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     bool compile = true;
     do
     {
       const auto req = create_json_req(query_params(query, compile), "query");
-      const Response<int> r = frontend_process(frontend, req, member_caller);
-      REQUIRE(r.result == value);
+      const Response<int> r = frontend_process(frontend, req, member_cert);
+      CHECK(r.result == value);
       compile = !compile;
     } while (!compile);
   }
@@ -224,10 +224,10 @@ TEST_CASE("Member query/read")
     // set member ACL so that no table is accessible
     Store::Tx tx;
     tx.get_view(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {});
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     auto req = create_json_req(query_params(query, true), "query");
-    const auto response = frontend_process(frontend, req, member_caller);
+    const auto response = frontend_process(frontend, req, member_cert);
 
     check_error(response, CCFErrorCodes::SCRIPT_ERROR);
   }
@@ -237,14 +237,14 @@ TEST_CASE("Member query/read")
     Store::Tx tx;
     tx.get_view(network.whitelists)
       ->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     auto read_call_j =
       create_json_req(read_params<int>(key, Tables::VALUES), "read");
     const Response<int> r =
-      frontend_process(frontend, read_call_j, member_caller);
+      frontend_process(frontend, read_call_j, member_cert);
 
-    REQUIRE(r.result == value);
+    CHECK(r.result == value);
   }
 
   SUBCASE("Read: allowed access, key doesn't exist")
@@ -253,12 +253,11 @@ TEST_CASE("Member query/read")
     Store::Tx tx;
     tx.get_view(network.whitelists)
       ->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     auto read_call_j =
       create_json_req(read_params<int>(wrong_key, Tables::VALUES), "read");
-    const auto response =
-      frontend_process(frontend, read_call_j, member_caller);
+    const auto response = frontend_process(frontend, read_call_j, member_cert);
 
     check_error(response, StandardErrorCodes::INVALID_PARAMS);
   }
@@ -267,12 +266,11 @@ TEST_CASE("Member query/read")
   {
     Store::Tx tx;
     tx.get_view(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {});
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     auto read_call_j =
       create_json_req(read_params<int>(key, Tables::VALUES), "read");
-    const auto response =
-      frontend_process(frontend, read_call_j, member_caller);
+    const auto response = frontend_process(frontend, read_call_j, member_cert);
 
     check_error(response, CCFErrorCodes::SCRIPT_ERROR);
   }
@@ -313,11 +311,11 @@ TEST_CASE("Proposer ballot")
     )xxx");
     const auto proposej = create_json_req(
       Propose::In{proposal, proposed_member, vote_against}, "propose");
-    Response<Propose::Out> r = frontend_process(
-      frontend, proposej, tls::make_verifier(proposer_cert)->der_cert_data());
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, proposer_cert);
 
     // the proposal should be accepted, but not succeed immediately
-    REQUIRE(r.result.completed == false);
+    CHECK(r.result.completed == false);
 
     proposal_id = r.result.id;
   }
@@ -327,11 +325,10 @@ TEST_CASE("Proposer ballot")
 
     const auto votej =
       create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
-    Response<bool> r = frontend_process(
-      frontend, votej, tls::make_verifier(voter_cert)->der_cert_data());
+    Response<bool> r = frontend_process(frontend, votej, voter_cert);
 
     // The vote should not yet succeed
-    REQUIRE(r.result == false);
+    CHECK(r.result == false);
   }
 
   {
@@ -345,15 +342,15 @@ TEST_CASE("Proposer ballot")
       tls::make_verifier(proposer_cert)->der_cert_data());
 
     const auto& votes = proposal.result.votes;
-    REQUIRE(votes.size() == 2);
+    CHECK(votes.size() == 2);
 
     const auto proposer_vote = votes.find(proposer_id);
-    REQUIRE(proposer_vote != votes.end());
-    REQUIRE(proposer_vote->second == vote_against);
+    CHECK(proposer_vote != votes.end());
+    CHECK(proposer_vote->second == vote_against);
 
     const auto voter_vote = votes.find(voter_id);
-    REQUIRE(voter_vote != votes.end());
-    REQUIRE(voter_vote->second == vote_for);
+    CHECK(voter_vote != votes.end());
+    CHECK(voter_vote->second == vote_for);
   }
 
   {
@@ -361,11 +358,10 @@ TEST_CASE("Proposer ballot")
 
     const auto votej =
       create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
-    Response<bool> r = frontend_process(
-      frontend, votej, tls::make_verifier(proposer_cert)->der_cert_data());
+    Response<bool> r = frontend_process(frontend, votej, proposer_cert);
 
     // The vote should now succeed
-    REQUIRE(r.result == true);
+    CHECK(r.result == true);
   }
 }
 
@@ -420,10 +416,7 @@ TEST_CASE("Add new members until there are 7")
     // check new_member id does not work before member is added
     const auto read_next_req = create_json_req(
       read_params<int>(ValueIds::NEXT_MEMBER_ID, Tables::VALUES), "read");
-    const auto r = frontend_process(
-      frontend,
-      read_next_req,
-      tls::make_verifier(new_member.cert)->der_cert_data());
+    const auto r = frontend_process(frontend, read_next_req, new_member.cert);
     check_error(r, CCFErrorCodes::INVALID_CALLER_ID);
 
     // propose new member, as proposer
@@ -437,19 +430,19 @@ TEST_CASE("Add new members until there are 7")
 
     {
       Response<Propose::Out> r =
-        frontend_process(frontend, proposej, member_caller);
+        frontend_process(frontend, proposej, member_cert);
 
       // the proposal should be accepted, but not succeed immediately
-      REQUIRE(r.result.id == proposal_id);
-      REQUIRE(r.result.completed == false);
+      CHECK(r.result.id == proposal_id);
+      CHECK(r.result.completed == false);
     }
 
     // read initial proposal, as second member
     const Response<Proposal> initial_read = get_proposal(
       frontend, proposal_id, tls::make_verifier(voter_a_cert)->der_cert_data());
-    REQUIRE(initial_read.result.proposer == proposer_id);
-    REQUIRE(initial_read.result.script == proposal);
-    REQUIRE(initial_read.result.parameter == cert_pem);
+    CHECK(initial_read.result.proposer == proposer_id);
+    CHECK(initial_read.result.script == proposal);
+    CHECK(initial_read.result.parameter == cert_pem);
 
     // vote as second member
     Script vote_ballot(fmt::format(
@@ -469,19 +462,16 @@ TEST_CASE("Add new members until there are 7")
       create_json_req_signed(Vote{proposal_id, vote_ballot}, "vote", kp);
 
     {
-      Response<bool> r = frontend_process(
-        frontend, votej, tls::make_verifier(voter_a_cert)->der_cert_data());
+      Response<bool> r = frontend_process(frontend, votej, voter_a_cert);
 
       if (new_member.id < max_members)
       {
         // vote should succeed
-        REQUIRE(r.result);
+        CHECK(r.result);
         // check that member with the new new_member cert can make RPCs now
-        REQUIRE(
-          Response<int>(frontend_process(
-                          frontend,
-                          read_next_req,
-                          tls::make_verifier(new_member.cert)->der_cert_data()))
+        CHECK(
+          Response<int>(
+            frontend_process(frontend, read_next_req, new_member.cert))
             .result == new_member.id + 1);
 
         // successful proposals are removed from the kv, so we can't confirm
@@ -490,13 +480,10 @@ TEST_CASE("Add new members until there are 7")
       else
       {
         // vote should not succeed
-        REQUIRE(!r.result);
+        CHECK(!r.result);
         // check that member with the new new_member cert can make RPCs now
         check_error(
-          frontend_process(
-            frontend,
-            read_next_req,
-            tls::make_verifier(new_member.cert)->der_cert_data()),
+          frontend_process(frontend, read_next_req, new_member.cert),
           CCFErrorCodes::INVALID_CALLER_ID);
 
         // re-read proposal, as second member
@@ -504,13 +491,13 @@ TEST_CASE("Add new members until there are 7")
           frontend,
           proposal_id,
           tls::make_verifier(voter_a_cert)->der_cert_data());
-        REQUIRE(final_read.result.proposer == proposer_id);
-        REQUIRE(final_read.result.script == proposal);
-        REQUIRE(final_read.result.parameter == cert_pem);
+        CHECK(final_read.result.proposer == proposer_id);
+        CHECK(final_read.result.script == proposal);
+        CHECK(final_read.result.parameter == cert_pem);
 
         const auto my_vote = final_read.result.votes.find(voter_a);
-        REQUIRE(my_vote != final_read.result.votes.end());
-        REQUIRE(my_vote->second == vote_ballot);
+        CHECK(my_vote != final_read.result.votes.end());
+        CHECK(my_vote->second == vote_ballot);
       }
     }
   }
@@ -525,60 +512,45 @@ TEST_CASE("Add new members until there are 7")
       // (1) read ack entry
       const auto read_nonce_req = create_json_req(
         read_params(new_member->id, Tables::MEMBER_ACKS), "read");
-      const Response<MemberAck> ack0 = frontend_process(
-        frontend,
-        read_nonce_req,
-        tls::make_verifier(new_member->cert)->der_cert_data());
+      const Response<MemberAck> ack0 =
+        frontend_process(frontend, read_nonce_req, new_member->cert);
 
       // (2) ask for a fresher nonce
       const auto freshen_nonce_req = create_json_req(nullptr, "updateAckNonce");
-      check_success(frontend_process(
-        frontend,
-        freshen_nonce_req,
-        tls::make_verifier(new_member->cert)->der_cert_data()));
+      check_success(
+        frontend_process(frontend, freshen_nonce_req, new_member->cert));
 
       // (3) read ack entry again and check that the nonce has changed
-      const Response<MemberAck> ack1 = frontend_process(
-        frontend,
-        read_nonce_req,
-        tls::make_verifier(new_member->cert)->der_cert_data());
-      REQUIRE(ack0.result.next_nonce != ack1.result.next_nonce);
+      const Response<MemberAck> ack1 =
+        frontend_process(frontend, read_nonce_req, new_member->cert);
+      CHECK(ack0.result.next_nonce != ack1.result.next_nonce);
 
       // (4) sign old nonce and send it
       const auto bad_sig =
         RawSignature{new_member->kp->sign(ack0.result.next_nonce)};
       const auto send_bad_sig_req = create_json_req(bad_sig, "ack");
       check_error(
-        frontend_process(
-          frontend,
-          send_bad_sig_req,
-          tls::make_verifier(new_member->cert)->der_cert_data()),
+        frontend_process(frontend, send_bad_sig_req, new_member->cert),
         jsonrpc::StandardErrorCodes::INVALID_PARAMS);
 
       // (5) sign new nonce and send it
       const auto good_sig =
         RawSignature{new_member->kp->sign(ack1.result.next_nonce)};
       const auto send_good_sig_req = create_json_req(good_sig, "ack");
-      check_success(frontend_process(
-        frontend,
-        send_good_sig_req,
-        tls::make_verifier(new_member->cert)->der_cert_data()));
+      check_success(
+        frontend_process(frontend, send_good_sig_req, new_member->cert));
 
       // (6) read ack entry again and check that the signature matches
-      const Response<MemberAck> ack2 = frontend_process(
-        frontend,
-        read_nonce_req,
-        tls::make_verifier(new_member->cert)->der_cert_data());
-      REQUIRE(ack2.result.sig == good_sig.sig);
+      const Response<MemberAck> ack2 =
+        frontend_process(frontend, read_nonce_req, new_member->cert);
+      CHECK(ack2.result.sig == good_sig.sig);
 
       // (7) read own member status
       const auto read_status_req =
         create_json_req(read_params(new_member->id, Tables::MEMBERS), "read");
-      const Response<MemberInfo> mi = frontend_process(
-        frontend,
-        read_status_req,
-        tls::make_verifier(new_member->cert)->der_cert_data());
-      REQUIRE(mi.result.status == MemberStatus::ACTIVE);
+      const Response<MemberInfo> mi =
+        frontend_process(frontend, read_status_req, new_member->cert);
+      CHECK(mi.result.status == MemberStatus::ACTIVE);
     }
   }
 }
@@ -614,12 +586,10 @@ TEST_CASE("Accept node")
   {
     auto read_values_j =
       create_json_req(read_params<int>(node_id, Tables::NODES), "read");
-    Response<NodeInfo> r = frontend_process(
-      frontend,
-      read_values_j,
-      tls::make_verifier(member_0_cert)->der_cert_data());
+    Response<NodeInfo> r =
+      frontend_process(frontend, read_values_j, member_0_cert);
 
-    REQUIRE(r.result.status == NodeStatus::PENDING);
+    CHECK(r.result.status == NodeStatus::PENDING);
   }
 
   // m0 proposes adding new node
@@ -629,11 +599,11 @@ TEST_CASE("Accept node")
       return Calls:call("trust_node", node_id)
     )xxx");
     json proposej = create_json_req(Propose::In{proposal, node_id}, "propose");
-    Response<Propose::Out> r = frontend_process(
-      frontend, proposej, tls::make_verifier(member_0_cert)->der_cert_data());
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, member_0_cert);
 
-    REQUIRE(!r.result.completed);
-    REQUIRE(r.result.id == 0);
+    CHECK(!r.result.completed);
+    CHECK(r.result.id == 0);
   }
 
   // m1 votes for accepting a single new node
@@ -644,19 +614,16 @@ TEST_CASE("Accept node")
        )xxx");
     json votej = create_json_req_signed(Vote{0, vote_ballot}, "vote", kp);
 
-    check_success(frontend_process(
-      frontend, votej, tls::make_verifier(member_1_cert)->der_cert_data()));
+    check_success(frontend_process(frontend, votej, member_1_cert));
   }
 
   // check node exists with status pending
   {
     auto read_values_j =
       create_json_req(read_params<int>(node_id, Tables::NODES), "read");
-    Response<NodeInfo> r = frontend_process(
-      frontend,
-      read_values_j,
-      tls::make_verifier(member_0_cert)->der_cert_data());
-    REQUIRE(r.result.status == NodeStatus::TRUSTED);
+    Response<NodeInfo> r =
+      frontend_process(frontend, read_values_j, member_0_cert);
+    CHECK(r.result.status == NodeStatus::TRUSTED);
   }
 }
 
@@ -677,8 +644,8 @@ bool test_raw_writes(
     Store::Tx tx;
     auto next_member_id_r =
       tx.get_view(network.values)->get(ValueIds::NEXT_MEMBER_ID);
-    REQUIRE(next_member_id_r);
-    REQUIRE(*next_member_id_r == n_members);
+    CHECK(next_member_id_r);
+    CHECK(*next_member_id_r == n_members);
   }
 
   // propose
@@ -686,11 +653,11 @@ bool test_raw_writes(
   {
     const uint8_t proposer_id = 0;
     json proposej = create_json_req(proposal, "propose");
-    Response<Propose::Out> r = frontend_process(
-      frontend, proposej, tls::make_verifier(member_certs[0])->der_cert_data());
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, member_certs[0]);
 
-    REQUIRE(r.result.completed == (n_members == 1));
-    REQUIRE(r.result.id == proposal_id);
+    CHECK(r.result.completed == (n_members == 1));
+    CHECK(r.result.id == proposal_id);
     if (r.result.completed)
       return true;
   }
@@ -701,10 +668,7 @@ bool test_raw_writes(
     const Script vote("return false");
     json votej = create_json_req_signed(Vote{proposal_id, vote}, "vote", kp);
 
-    check_success(
-      frontend_process(
-        frontend, votej, tls::make_verifier(member_certs[i])->der_cert_data()),
-      false);
+    check_success(frontend_process(frontend, votej, member_certs[i]), false);
   }
 
   // pro votes (proposer also votes)
@@ -716,20 +680,14 @@ bool test_raw_writes(
     if (!completed)
     {
       completed =
-        Response<bool>(frontend_process(
-                         frontend,
-                         votej,
-                         tls::make_verifier(member_certs[i])->der_cert_data()))
+        Response<bool>(frontend_process(frontend, votej, member_certs[i]))
           .result;
     }
     else
     {
       // proposal has been accepted - additional votes return an error
       check_error(
-        frontend_process(
-          frontend,
-          votej,
-          tls::make_verifier(member_certs[i])->der_cert_data()),
+        frontend_process(frontend, votej, member_certs[i]),
         StandardErrorCodes::INVALID_PARAMS);
     }
   }
@@ -752,7 +710,7 @@ TEST_CASE("Propose raw writes")
       StubNodeState node;
       // manually add a member in state active (not recommended)
       const Cert member_cert = {1, 2, 3};
-      REQUIRE(
+      CHECK(
         test_raw_writes(
           network,
           gen,
@@ -781,15 +739,15 @@ TEST_CASE("Propose raw writes")
       Store::Tx tx;
       const auto next_mid =
         tx.get_view(network.values)->get(ValueIds::NEXT_MEMBER_ID);
-      REQUIRE(next_mid);
-      REQUIRE(*next_mid == n_members + 1);
+      CHECK(next_mid);
+      CHECK(*next_mid == n_members + 1);
       const auto m = tx.get_view(network.members)->get(n_members);
-      REQUIRE(m);
-      REQUIRE(m->status == MemberStatus::ACTIVE);
+      CHECK(m);
+      CHECK(m->status == MemberStatus::ACTIVE);
       const auto member_id =
         tx.get_view(network.member_certs)->get(member_cert);
-      REQUIRE(member_id);
-      REQUIRE(*member_id == n_members);
+      CHECK(member_id);
+      CHECK(*member_id == n_members);
     }
   }
 
@@ -816,7 +774,7 @@ TEST_CASE("Propose raw writes")
           const auto sensitive_put =
             "return Calls:call('raw_puts', Puts:put('"s + sensitive_table +
             "', 9, {'aaa'}))"s;
-          REQUIRE(
+          CHECK(
             test_raw_writes(
               network,
               gen,
@@ -862,25 +820,25 @@ TEST_CASE("Remove proposal")
   {
     Store::Tx tx;
     auto proposal = tx.get_view(network.proposals)->get(proposal_id);
-    REQUIRE(!proposal);
+    CHECK(!proposal);
   }
 
   {
     json proposej = create_json_req(Propose::In{proposal_script, 0}, "propose");
     Response<Propose::Out> r =
-      frontend_process(frontend, proposej, member_caller);
+      frontend_process(frontend, proposej, member_cert);
 
-    REQUIRE(r.result.id == proposal_id);
-    REQUIRE(!r.result.completed);
+    CHECK(r.result.id == proposal_id);
+    CHECK(!r.result.completed);
   }
 
   // check that the proposal is there
   {
     Store::Tx tx;
     auto proposal = tx.get_view(network.proposals)->get(proposal_id);
-    REQUIRE(proposal);
-    REQUIRE(proposal->state == ProposalState::OPEN);
-    REQUIRE(proposal->script.text.value() == proposal_script.text.value());
+    CHECK(proposal);
+    CHECK(proposal->state == ProposalState::OPEN);
+    CHECK(proposal->script.text.value() == proposal_script.text.value());
   }
 
   SUBCASE("Attempt withdraw proposal with non existing id")
@@ -890,7 +848,7 @@ TEST_CASE("Remove proposal")
     json withdrawj = create_json_req(param, "withdraw");
 
     check_error(
-      frontend_process(frontend, withdrawj, member_caller),
+      frontend_process(frontend, withdrawj, member_cert),
       StandardErrorCodes::INVALID_PARAMS);
   }
 
@@ -901,7 +859,7 @@ TEST_CASE("Remove proposal")
     json withdrawj = create_json_req(param, "withdraw");
 
     check_error(
-      frontend_process(frontend, withdrawj, caller.cert),
+      frontend_process(frontend, withdrawj, cert),
       CCFErrorCodes::INVALID_CALLER_ID);
   }
 
@@ -911,14 +869,14 @@ TEST_CASE("Remove proposal")
     param["id"] = proposal_id;
     json withdrawj = create_json_req(param, "withdraw");
 
-    check_success(frontend_process(frontend, withdrawj, member_caller));
+    check_success(frontend_process(frontend, withdrawj, member_cert));
 
     // check that the proposal is now withdrawn
     {
       Store::Tx tx;
       auto proposal = tx.get_view(network.proposals)->get(proposal_id);
-      REQUIRE(proposal.has_value());
-      REQUIRE(proposal->state == ProposalState::WITHDRAWN);
+      CHECK(proposal.has_value());
+      CHECK(proposal->state == ProposalState::WITHDRAWN);
     }
   }
 }
@@ -942,9 +900,9 @@ TEST_CASE("Complete proposal after initial rejection")
     ccf::SignedReq sr(proposej);
 
     Store::Tx tx;
-    Response<Propose::Out> r = frontend_process(
-      frontend, proposej, tls::make_verifier(member_certs[0])->der_cert_data());
-    REQUIRE(r.result.completed == false);
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, member_certs[0]);
+    CHECK(r.result.completed == false);
   }
 
   {
@@ -955,10 +913,7 @@ TEST_CASE("Complete proposal after initial rejection")
     )xxx");
     const auto votej = create_json_req_signed(Vote{0, vote}, "vote", kp);
 
-    check_success(
-      frontend_process(
-        frontend, votej, tls::make_verifier(member_certs[1])->der_cert_data()),
-      false);
+    check_success(frontend_process(frontend, votej, member_certs[1]), false);
   }
 
   {
@@ -966,28 +921,21 @@ TEST_CASE("Complete proposal after initial rejection")
     const auto completej = create_json_req(ProposalAction{0}, "complete");
 
     check_success(
-      frontend_process(
-        frontend,
-        completej,
-        tls::make_verifier(member_certs[1])->der_cert_data()),
-      false);
+      frontend_process(frontend, completej, member_certs[1]), false);
   }
 
   {
     INFO("Put value that makes vote agree");
     Store::Tx tx;
     tx.get_view(network.values)->put(123, 123);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    CHECK(tx.commit() == kv::CommitSuccess::OK);
   }
 
   {
     INFO("Try again to complete");
     const auto completej = create_json_req(ProposalAction{0}, "complete");
 
-    check_success(frontend_process(
-      frontend,
-      completej,
-      tls::make_verifier(member_certs[1])->der_cert_data()));
+    check_success(frontend_process(frontend, completej, member_certs[1]));
   }
 }
 
@@ -1015,19 +963,18 @@ TEST_CASE("Add user via proposed call")
   json proposej = create_json_req(Propose::In{proposal, user_cert}, "propose");
   ccf::SignedReq sr(proposej);
 
-  Response<Propose::Out> r = frontend_process(
-    frontend, proposej, tls::make_verifier(member_cert)->der_cert_data());
-  REQUIRE(r.result.completed);
-  REQUIRE(r.result.id == 0);
+  Response<Propose::Out> r = frontend_process(frontend, proposej, member_cert);
+  CHECK(r.result.completed);
+  CHECK(r.result.id == 0);
 
   Store::Tx tx1;
   const auto uid = tx1.get_view(network.values)->get(ValueIds::NEXT_USER_ID);
-  REQUIRE(uid);
-  REQUIRE(*uid == 1);
+  CHECK(uid);
+  CHECK(*uid == 1);
   const auto uid1 = tx1.get_view(network.user_certs)
                       ->get(tls::make_verifier(user_cert)->der_cert_data());
-  REQUIRE(uid1);
-  REQUIRE(*uid1 == 0);
+  CHECK(uid1);
+  CHECK(*uid1 == 0);
 }
 
 TEST_CASE("Passing members ballot with operator")
@@ -1082,7 +1029,7 @@ TEST_CASE("Passing members ballot with operator")
       proposej,
       tls::make_verifier(members[proposer_id])->der_cert_data());
 
-    REQUIRE(r.result.completed == false);
+    CHECK(r.result.completed == false);
 
     proposal_id = r.result.id;
   }
@@ -1092,10 +1039,9 @@ TEST_CASE("Passing members ballot with operator")
 
     const auto votej =
       create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
-    Response<bool> r = frontend_process(
-      frontend, votej, tls::make_verifier(operator_cert)->der_cert_data());
+    Response<bool> r = frontend_process(frontend, votej, operator_cert);
 
-    REQUIRE(r.result == false);
+    CHECK(r.result == false);
   }
 
   {
@@ -1103,10 +1049,9 @@ TEST_CASE("Passing members ballot with operator")
 
     const auto votej =
       create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
-    Response<bool> r = frontend_process(
-      frontend, votej, tls::make_verifier(members[voter_id])->der_cert_data());
+    Response<bool> r = frontend_process(frontend, votej, members[voter_id]);
 
-    REQUIRE(r.result == true);
+    CHECK(r.result == true);
   }
 
   {
@@ -1115,25 +1060,23 @@ TEST_CASE("Passing members ballot with operator")
     const auto readj = create_json_req_signed(
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
 
-    const Response<Proposal> proposal = get_proposal(
-      frontend,
-      proposal_id,
-      tls::make_verifier(members[proposer_id])->der_cert_data());
+    const Response<Proposal> proposal =
+      get_proposal(frontend, proposal_id, members[proposer_id]);
 
     const auto& votes = proposal.result.votes;
-    REQUIRE(votes.size() == 3);
+    CHECK(votes.size() == 3);
 
     const auto operator_vote = votes.find(operator_id);
-    REQUIRE(operator_vote != votes.end());
-    REQUIRE(operator_vote->second == vote_for);
+    CHECK(operator_vote != votes.end());
+    CHECK(operator_vote->second == vote_for);
 
     const auto proposer_vote = votes.find(proposer_id);
-    REQUIRE(proposer_vote != votes.end());
-    REQUIRE(proposer_vote->second == vote_for);
+    CHECK(proposer_vote != votes.end());
+    CHECK(proposer_vote->second == vote_for);
 
     const auto voter_vote = votes.find(voter_id);
-    REQUIRE(voter_vote != votes.end());
-    REQUIRE(voter_vote->second == vote_for);
+    CHECK(voter_vote != votes.end());
+    CHECK(voter_vote->second == vote_for);
   }
 }
 
@@ -1182,12 +1125,10 @@ TEST_CASE("Passing operator vote")
     INFO("Check node exists with status pending");
     auto read_values_j =
       create_json_req(read_params<int>(node_id, Tables::NODES), "read");
-    Response<NodeInfo> r = frontend_process(
-      frontend,
-      read_values_j,
-      tls::make_verifier(operator_cert)->der_cert_data());
+    Response<NodeInfo> r =
+      frontend_process(frontend, read_values_j, operator_cert);
 
-    REQUIRE(r.result.status == NodeStatus::PENDING);
+    CHECK(r.result.status == NodeStatus::PENDING);
   }
 
   {
@@ -1199,10 +1140,10 @@ TEST_CASE("Passing operator vote")
 
     json proposej =
       create_json_req(Propose::In{proposal, node_id, vote_for}, "propose");
-    Response<Propose::Out> r = frontend_process(
-      frontend, proposej, tls::make_verifier(operator_cert)->der_cert_data());
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, operator_cert);
 
-    REQUIRE(r.result.completed);
+    CHECK(r.result.completed);
     proposal_id = r.result.id;
   }
 
@@ -1218,11 +1159,11 @@ TEST_CASE("Passing operator vote")
       tls::make_verifier(operator_cert)->der_cert_data());
 
     const auto& votes = proposal.result.votes;
-    REQUIRE(votes.size() == 1);
+    CHECK(votes.size() == 1);
 
     const auto proposer_vote = votes.find(operator_id);
-    REQUIRE(proposer_vote != votes.end());
-    REQUIRE(proposer_vote->second == vote_for);
+    CHECK(proposer_vote != votes.end());
+    CHECK(proposer_vote->second == vote_for);
   }
 }
 
@@ -1271,11 +1212,9 @@ TEST_CASE("Members passing an operator vote")
     INFO("Check node exists with status pending");
     auto read_values_j =
       create_json_req(read_params<int>(node_id, Tables::NODES), "read");
-    Response<NodeInfo> r = frontend_process(
-      frontend,
-      read_values_j,
-      tls::make_verifier(operator_cert)->der_cert_data());
-    REQUIRE(r.result.status == NodeStatus::PENDING);
+    Response<NodeInfo> r =
+      frontend_process(frontend, read_values_j, operator_cert);
+    CHECK(r.result.status == NodeStatus::PENDING);
   }
 
   {
@@ -1287,10 +1226,10 @@ TEST_CASE("Members passing an operator vote")
 
     json proposej =
       create_json_req(Propose::In{proposal, node_id, vote_against}, "propose");
-    Response<Propose::Out> r = frontend_process(
-      frontend, proposej, tls::make_verifier(operator_cert)->der_cert_data());
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, operator_cert);
 
-    REQUIRE(!r.result.completed);
+    CHECK(!r.result.completed);
     proposal_id = r.result.id;
   }
 
@@ -1302,12 +1241,10 @@ TEST_CASE("Members passing an operator vote")
 
     const auto votej =
       create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
-    Response<bool> r = frontend_process(
-      frontend,
-      votej,
-      tls::make_verifier(members[first_voter_id])->der_cert_data());
+    Response<bool> r =
+      frontend_process(frontend, votej, members[first_voter_id]);
 
-    REQUIRE(r.result == false);
+    CHECK(r.result == false);
   }
 
   {
@@ -1315,12 +1252,10 @@ TEST_CASE("Members passing an operator vote")
 
     const auto votej =
       create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
-    Response<bool> r = frontend_process(
-      frontend,
-      votej,
-      tls::make_verifier(members[second_voter_id])->der_cert_data());
+    Response<bool> r =
+      frontend_process(frontend, votej, members[second_voter_id]);
 
-    REQUIRE(r.result == true);
+    CHECK(r.result == true);
   }
 
   {
@@ -1335,27 +1270,24 @@ TEST_CASE("Members passing an operator vote")
       tls::make_verifier(operator_cert)->der_cert_data());
 
     const auto& votes = proposal.result.votes;
-    REQUIRE(votes.size() == 3);
+    CHECK(votes.size() == 3);
 
     const auto proposer_vote = votes.find(operator_id);
-    REQUIRE(proposer_vote != votes.end());
-    REQUIRE(proposer_vote->second == vote_against);
+    CHECK(proposer_vote != votes.end());
+    CHECK(proposer_vote->second == vote_against);
 
     const auto first_vote = votes.find(first_voter_id);
-    REQUIRE(first_vote != votes.end());
-    REQUIRE(first_vote->second == vote_for);
+    CHECK(first_vote != votes.end());
+    CHECK(first_vote->second == vote_for);
 
     const auto second_vote = votes.find(second_voter_id);
-    REQUIRE(second_vote != votes.end());
-    REQUIRE(second_vote->second == vote_for);
+    CHECK(second_vote != votes.end());
+    CHECK(second_vote->second == vote_for);
   }
 }
 
 TEST_CASE("User data")
 {
-  // const Cert member_cert = {0};
-  // const Cert user_cert = {1};
-
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
   Store::Tx gen_tx;
@@ -1375,11 +1307,9 @@ TEST_CASE("User data")
 
   {
     INFO("user data is initially empty");
-    Response<ccf::UserInfo> read_response = frontend_process(
-      frontend,
-      read_user_info,
-      tls::make_verifier(member_cert)->der_cert_data());
-    REQUIRE(read_response.result.user_data.is_null());
+    Response<ccf::UserInfo> read_response =
+      frontend_process(frontend, read_user_info, member_cert);
+    CHECK(read_response.result.user_data.is_null());
   }
 
   {
@@ -1399,16 +1329,14 @@ TEST_CASE("User data")
       )xxx",
       user_id);
     const auto j_proposal = create_json_req(proposal, "propose");
-    Response<Propose::Out> propose_response = frontend_process(
-      frontend, j_proposal, tls::make_verifier(member_cert)->der_cert_data());
-    REQUIRE(propose_response.result.completed);
+    Response<Propose::Out> propose_response =
+      frontend_process(frontend, j_proposal, member_cert);
+    CHECK(propose_response.result.completed);
 
     INFO("user data object can be read");
-    Response<ccf::UserInfo> read_response = frontend_process(
-      frontend,
-      read_user_info,
-      tls::make_verifier(member_cert)->der_cert_data());
-    REQUIRE(read_response.result.user_data == user_data_object);
+    Response<ccf::UserInfo> read_response =
+      frontend_process(frontend, read_user_info, member_cert);
+    CHECK(read_response.result.user_data == user_data_object);
   }
 
   {
@@ -1423,16 +1351,14 @@ TEST_CASE("User data")
     proposal.parameter["id"] = user_id;
     proposal.parameter["data"] = user_data_string;
     const auto j_proposal = create_json_req(proposal, "propose");
-    Response<Propose::Out> propose_response = frontend_process(
-      frontend, j_proposal, tls::make_verifier(member_cert)->der_cert_data());
-    REQUIRE(propose_response.result.completed);
+    Response<Propose::Out> propose_response =
+      frontend_process(frontend, j_proposal, member_cert);
+    CHECK(propose_response.result.completed);
 
     INFO("user data object can be read");
-    Response<ccf::UserInfo> response = frontend_process(
-      frontend,
-      read_user_info,
-      tls::make_verifier(member_cert)->der_cert_data());
-    REQUIRE(response.result.user_data == user_data_string);
+    Response<ccf::UserInfo> response =
+      frontend_process(frontend, read_user_info, member_cert);
+    CHECK(response.result.user_data == user_data_string);
   }
 }
 

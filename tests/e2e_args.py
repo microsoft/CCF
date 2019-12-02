@@ -3,6 +3,7 @@
 import argparse
 import os
 import infra.path
+import infra.ccf
 import sys
 
 
@@ -115,10 +116,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default="ccf.io",
     )
     parser.add_argument(
-        "--participants-curve",
-        help="Curve to use for member and user identities (e.g. secp384r1)",
-        default="secp384r1",
-        choices=("secp384r1", "secp256k1", "ed25519"),
+        "--default-curve",
+        help="Curve to use for member and user identities",
+        default=infra.ccf.ParticipantsCurve.secp384r1.name,
+        type=lambda curve: infra.ccf.ParticipantsCurve[curve],
+        choices=list(infra.ccf.ParticipantsCurve),
     )
     add(parser)
 

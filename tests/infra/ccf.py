@@ -27,6 +27,15 @@ class ServiceStatus(Enum):
     CLOSED = 3
 
 
+class ParticipantsCurve(Enum):
+    secp384r1 = 1
+    secp256k1 = 2
+    ed25519 = 3
+
+    def __str__(self):
+        return self.name
+
+
 class Network:
     node_args_to_forward = [
         "enclave_type",
@@ -173,11 +182,9 @@ class Network:
         cmd = ["rm", "-f"] + glob("member*.pem")
         infra.proc.ccall(*cmd)
 
-        self.consortium = infra.consortium.Consortium(
-            [0, 1, 2], args.participants_curve
-        )
+        self.consortium = infra.consortium.Consortium([0, 1, 2], args.default_curve)
         self.initial_users = [0, 1, 2]
-        self.create_users(self.initial_users, args.participants_curve)
+        self.create_users(self.initial_users, args.default_curve)
 
         if args.gov_script:
             infra.proc.ccall("cp", args.gov_script, args.build_dir).check_returncode()
@@ -277,7 +284,7 @@ class Network:
         users = ["user{}".format(u) for u in users]
         for u in users:
             infra.proc.ccall(
-                "./keygenerator.sh", f"{u}", curve, log_output=False
+                "./keygenerator.sh", f"{u}", curve.name, log_output=False
             ).check_returncode()
 
     def get_members(self):
