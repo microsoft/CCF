@@ -123,11 +123,12 @@ namespace enclave
       flush();
     }
 
-    void msg(
+    void handle_message(
       http_method method,
       const std::string& path,
       const std::string& query,
-      std::vector<uint8_t> body) override
+      const http::HeaderMap& headers,
+      const std::vector<uint8_t>& body) override
     {
       LOG_INFO_FMT(
         "Processing msg({}, {}, {}, [{} bytes])",
@@ -263,11 +264,12 @@ namespace enclave
       LOG_FATAL_FMT("send() should not be called directly on HTTPClient");
     }
 
-    void msg(
+    void handle_message(
       http_method method,
       const std::string& path,
       const std::string& query,
-      std::vector<uint8_t> body) override
+      const http::HeaderMap& headers,
+      const std::vector<uint8_t>& body) override
     {
       handle_data_cb(body);
 
