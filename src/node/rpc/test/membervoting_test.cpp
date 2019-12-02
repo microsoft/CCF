@@ -336,10 +336,8 @@ TEST_CASE("Proposer ballot")
 
     const auto readj = create_json_req_signed(
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
-    const Response<Proposal> proposal = get_proposal(
-      frontend,
-      proposal_id,
-      tls::make_verifier(proposer_cert)->der_cert_data());
+    const Response<Proposal> proposal =
+      get_proposal(frontend, proposal_id, proposer_cert);
 
     const auto& votes = proposal.result.votes;
     CHECK(votes.size() == 2);
@@ -438,8 +436,8 @@ TEST_CASE("Add new members until there are 7")
     }
 
     // read initial proposal, as second member
-    const Response<Proposal> initial_read = get_proposal(
-      frontend, proposal_id, tls::make_verifier(voter_a_cert)->der_cert_data());
+    const Response<Proposal> initial_read =
+      get_proposal(frontend, proposal_id, voter_a_cert);
     CHECK(initial_read.result.proposer == proposer_id);
     CHECK(initial_read.result.script == proposal);
     CHECK(initial_read.result.parameter == cert_pem);
@@ -487,10 +485,8 @@ TEST_CASE("Add new members until there are 7")
           CCFErrorCodes::INVALID_CALLER_ID);
 
         // re-read proposal, as second member
-        const Response<Proposal> final_read = get_proposal(
-          frontend,
-          proposal_id,
-          tls::make_verifier(voter_a_cert)->der_cert_data());
+        const Response<Proposal> final_read =
+          get_proposal(frontend, proposal_id, voter_a_cert);
         CHECK(final_read.result.proposer == proposer_id);
         CHECK(final_read.result.script == proposal);
         CHECK(final_read.result.parameter == cert_pem);
@@ -1153,10 +1149,8 @@ TEST_CASE("Passing operator vote")
     const auto readj = create_json_req_signed(
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
 
-    const Response<Proposal> proposal = get_proposal(
-      frontend,
-      proposal_id,
-      tls::make_verifier(operator_cert)->der_cert_data());
+    const Response<Proposal> proposal =
+      get_proposal(frontend, proposal_id, operator_cert);
 
     const auto& votes = proposal.result.votes;
     CHECK(votes.size() == 1);
@@ -1264,10 +1258,8 @@ TEST_CASE("Members passing an operator vote")
     const auto readj = create_json_req_signed(
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
 
-    const Response<Proposal> proposal = get_proposal(
-      frontend,
-      proposal_id,
-      tls::make_verifier(operator_cert)->der_cert_data());
+    const Response<Proposal> proposal =
+      get_proposal(frontend, proposal_id, operator_cert);
 
     const auto& votes = proposal.result.votes;
     CHECK(votes.size() == 3);
