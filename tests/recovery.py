@@ -10,7 +10,6 @@ import e2e_args
 from random import seed
 import infra.ccf
 import infra.proc
-import infra.jsonrpc
 import infra.remote
 import json
 import suite.test_requirements as reqs

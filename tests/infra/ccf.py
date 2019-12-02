@@ -7,11 +7,12 @@ import logging
 from contextlib import contextmanager
 from glob import glob
 from enum import Enum
-import infra.jsonrpc
+import infra.clients
 import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
+import infra.jsonrpc
 import ssl
 import random
 

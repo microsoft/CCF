@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import e2e_args
 import infra.ccf
+import infra.jsonrpc
 
 import logging
 from time import gmtime, strftime

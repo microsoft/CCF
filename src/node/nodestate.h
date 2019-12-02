@@ -515,7 +515,8 @@ namespace ccf
         args.config.joining.target_host,
         args.config.joining.target_port);
 
-      join_client->send(jsonrpc::pack(join_rpc, jsonrpc::Pack::Text));
+      join_client->send_request(
+        join_rpc.method, jsonrpc::pack(join_rpc, jsonrpc::Pack::Text));
     }
 
     void join(const Join::In& args)

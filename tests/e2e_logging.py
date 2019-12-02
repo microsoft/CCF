@@ -1,17 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import os
-import getpass
-import time
-import logging
-import multiprocessing
-import shutil
-from random import seed
 import infra.ccf
-import infra.proc
 import infra.jsonrpc
 import infra.notification
-import infra.net
 import suite.test_requirements as reqs
 import e2e_args
 

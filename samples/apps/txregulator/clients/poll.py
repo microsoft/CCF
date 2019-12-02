@@ -8,7 +8,6 @@ import time
 import csv
 from loguru import logger as LOG
 import argparse
-from infra.jsonrpc import client
 
 import json
 
@@ -33,7 +32,7 @@ def run(args):
         format="msgpack",
         cert="user{}_cert.pem".format(args.regulator_name),
         key="user{}_privk.pem".format(args.regulator_name),
-        cafile="networkcert.pem",
+        ca="networkcert.pem",
     ) as reg_c:
         with client(
             host=args.host,
@@ -41,7 +40,7 @@ def run(args):
             format="msgpack",
             cert="user{}_cert.pem".format(args.bank_name),
             key="user{}_privk.pem".format(args.bank_name),
-            cafile="networkcert.pem",
+            ca="networkcert.pem",
         ) as c:
             while True:
                 time.sleep(1)
