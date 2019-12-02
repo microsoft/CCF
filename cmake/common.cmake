@@ -101,6 +101,7 @@ enable_language(ASM)
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/frame_generated.h
     COMMAND flatc --cpp ${CCF_DIR}/src/kv/frame.fbs
+    COMMAND flatc --python ${CCF_DIR}/src/kv/frame.fbs
     DEPENDS ${CCF_DIR}/src/kv/frame.fbs
 )
 
@@ -547,6 +548,7 @@ if("virtual" IN_LIST TARGET)
     CURL::libcurl
     secp256k1.host
   )
+  add_dependencies(cchost.virtual flatbuffers)
 endif()
 
 # Client executable
@@ -644,7 +646,7 @@ function(add_e2e_test)
       TEST ${PARSED_ARGS_NAME}
       APPEND
       PROPERTY
-        ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+        ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
     )
     if (${PARSED_ARGS_IS_SUITE})
       set_property(
@@ -709,7 +711,7 @@ function(add_perf_test)
     TEST ${PARSED_ARGS_NAME}
     APPEND
     PROPERTY
-      ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+      ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
   )
   set_property(
     TEST ${PARSED_ARGS_NAME}
