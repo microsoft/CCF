@@ -221,7 +221,9 @@ public:
   {
     std::cout << "  KV" << node_id << "->>Node" << node_id
               << ": replicate idx: " << idx << std::endl;
-    _nodes.at(node_id).raft->replicate({{idx, data, true}});
+    std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>> batch;
+    batch.emplace_back(idx, data, true);
+    _nodes.at(node_id).raft->replicate(batch);
   }
 
   void disconnect(raft::NodeId left, raft::NodeId right)

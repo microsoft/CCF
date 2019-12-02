@@ -34,7 +34,23 @@ public:
     if (store)
     {
       REQUIRE(entries.size() == 1);
-      return store->deserialise(std::get<1>(entries[0]).data(), std::get<1>(entries[0]).size());
+      return store->deserialise(std::get<1>(entries[0]));
+    }
+    return true;
+  }
+
+  bool replicate(
+    const std::vector<
+      std::tuple<SeqNo, std::shared_ptr<flatbuffers::DetachedBuffer>, bool>>&
+      entries) override
+  {
+    if (store)
+    {
+      REQUIRE(entries.size() == 1);
+      auto buffer = std::get<1>(entries[0]);
+      std::vector<uint8_t> datavec(
+        buffer->data(), buffer->data() + buffer->size());
+      return store->deserialise(datavec);
     }
     return true;
   }
@@ -215,6 +231,20 @@ public:
     return true;
   }
 
+  bool replicate(
+    const std::vector<
+      std::tuple<SeqNo, std::shared_ptr<flatbuffers::DetachedBuffer>, bool>>&
+      entries) override
+  {
+    for (auto& [version, data, committable] : entries)
+    {
+      count++;
+      if (committable)
+        store->compact(version);
+    }
+    return true;
+  }
+
   View get_view() override
   {
     return 2;
@@ -314,6 +344,20 @@ public:
   bool replicate(
     const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
     override
+  {
+    for (auto& [version, data, committable] : entries)
+    {
+      count++;
+      if (version == rollback_at)
+        store->rollback(rollback_to);
+    }
+    return true;
+  }
+
+  bool replicate(
+    const std::vector<
+      std::tuple<SeqNo, std::shared_ptr<flatbuffers::DetachedBuffer>, bool>>&
+      entries) override
   {
     for (auto& [version, data, committable] : entries)
     {

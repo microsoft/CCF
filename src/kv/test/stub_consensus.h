@@ -29,6 +29,20 @@ namespace kv
       return true;
     }
 
+    bool replicate(
+      const std::vector<
+        std::tuple<SeqNo, std::shared_ptr<flatbuffers::DetachedBuffer>, bool>>&
+        entries) override
+    {
+      for (auto&& [index, data, globally_committable] : entries)
+      {
+        auto datavec =
+          std::vector<uint8_t>(data->data(), data->data() + data->size());
+        replica.push_back(datavec);
+      }
+      return true;
+    }
+
     std::pair<std::vector<uint8_t>, bool> get_latest_data()
     {
       if (!replica.empty())
@@ -97,6 +111,14 @@ namespace kv
     bool replicate(
       const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
       override
+    {
+      return false;
+    }
+
+    bool replicate(
+      const std::vector<
+        std::tuple<SeqNo, std::shared_ptr<flatbuffers::DetachedBuffer>, bool>>&
+        entries) override
     {
       return false;
     }

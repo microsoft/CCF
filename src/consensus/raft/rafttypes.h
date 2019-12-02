@@ -31,8 +31,7 @@ namespace raft
   public:
     virtual ~Store() {}
     virtual S deserialise(
-      const uint8_t* data,
-      size_t size,
+      const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term = nullptr) = 0;
     virtual void compact(Index v) = 0;
@@ -49,14 +48,13 @@ namespace raft
     Adaptor(std::shared_ptr<T> x) : x(x) {}
 
     S deserialise(
-      const uint8_t* data,
-      size_t size,
+      const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term = nullptr)
     {
       auto p = x.lock();
       if (p)
-        return p->deserialise(data, size, public_only, term);
+        return p->deserialise(data, public_only, term);
 
       return S::FAILED;
     }

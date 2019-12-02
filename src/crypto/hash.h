@@ -14,11 +14,13 @@ namespace crypto
     static constexpr size_t SIZE = 256 / 8;
     Sha256Hash();
     Sha256Hash(std::initializer_list<CBuffer> il);
+    Sha256Hash(const uint8_t* data, size_t size);
 
     uint8_t h[SIZE];
 
     static void mbedtls_sha256(std::initializer_list<CBuffer> il, uint8_t* h);
     static void evercrypt_sha256(std::initializer_list<CBuffer> il, uint8_t* h);
+    static void evercrypt_sha256(const uint8_t* data, size_t size, uint8_t* h);
 
     friend std::ostream& operator<<(
       std::ostream& os, const crypto::Sha256Hash& h)

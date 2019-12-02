@@ -56,6 +56,14 @@ namespace raft
       return raft->replicate(entries);
     }
 
+    bool replicate(
+      const std::vector<
+        std::tuple<SeqNo, std::shared_ptr<flatbuffers::DetachedBuffer>, bool>>&
+        entries) override
+    {
+      return raft->replicate(entries);
+    }
+
     View get_view() override
     {
       return raft->get_term();

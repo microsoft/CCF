@@ -127,6 +127,7 @@ namespace kv
 
     virtual ~TxHistory() {}
     virtual void append(const std::vector<uint8_t>& data) = 0;
+    virtual void append(const uint8_t* data, size_t size) = 0;
     virtual bool verify(Term* term = nullptr) = 0;
     virtual void rollback(Version v) = 0;
     virtual void compact(Version v) = 0;
@@ -140,8 +141,15 @@ namespace kv
     virtual void add_result(
       RequestID id,
       kv::Version version,
-      const std::vector<uint8_t>& data_replicated,
+      const std::vector<uint8_t>& replicated,
       const std::vector<uint8_t>& all_data) = 0;
+    virtual void add_result(
+      RequestID id,
+      kv::Version version,
+      const uint8_t* replicated,
+      size_t replicated_size,
+      const uint8_t* all_data,
+      size_t all_data_size) = 0;
     virtual void add_result(RequestID id, kv::Version version) = 0;
     virtual void add_response(
       RequestID id, const std::vector<uint8_t>& response) = 0;
@@ -215,6 +223,10 @@ namespace kv
     }
 
     virtual bool replicate(
+      const std::vector<
+        std::tuple<SeqNo, std::shared_ptr<flatbuffers::DetachedBuffer>, bool>>&
+        entries) = 0;
+    virtual bool replicate(
       const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>&
         entries) = 0;
     virtual View get_view() = 0;
@@ -246,7 +258,7 @@ namespace kv
   {
     CommitSuccess success;
     TxHistory::RequestID reqid;
-    DetachedFlatbuffer buffer;
+    std::shared_ptr<flatbuffers::DetachedBuffer> buffer;
   };
 
   using PendingTx = std::function<PendingTxInfo()>;
@@ -281,8 +293,7 @@ namespace kv
     virtual std::shared_ptr<TxHistory> get_history() = 0;
     virtual std::shared_ptr<AbstractTxEncryptor> get_encryptor() = 0;
     virtual DeserialiseSuccess deserialise(
-      const uint8_t* data,
-      size_t size,
+      const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;

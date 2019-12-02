@@ -86,10 +86,8 @@ static void deserialise(picobench::state& s)
   }
   tx.commit();
 
-  auto stub_consensus_data = consensus->get_latest_data().first;
   s.start_timer();
-  auto rc = kv_store2.deserialise(
-    stub_consensus_data.data(), stub_consensus_data.size());
+  auto rc = kv_store2.deserialise(consensus->get_latest_data().first);
   if (rc != kv::DeserialiseSuccess::PASS)
     throw std::logic_error(
       "Transaction deserialisation failed: " + std::to_string(rc));

@@ -44,9 +44,28 @@ void crypto::Sha256Hash::evercrypt_sha256(
   EverCrypt_Hash_free(state);
 }
 
+void crypto::Sha256Hash::evercrypt_sha256(
+  const uint8_t* data, size_t size, uint8_t* h)
+{
+  EverCrypt_Hash_state_s* state =
+    EverCrypt_Hash_create(Spec_Hash_Definitions_SHA2_256);
+  EverCrypt_Hash_init(state);
+
+  EverCrypt_Hash_update_multi(state, const_cast<uint8_t*>(data), size);
+  EverCrypt_Hash_update_last(state, const_cast<uint8_t*>(data), size);
+
+  EverCrypt_Hash_finish(state, h);
+  EverCrypt_Hash_free(state);
+}
+
 crypto::Sha256Hash::Sha256Hash() : h{0} {}
 
 crypto::Sha256Hash::Sha256Hash(initializer_list<CBuffer> il) : h{0}
 {
   evercrypt_sha256(il, h);
+}
+
+crypto::Sha256Hash::Sha256Hash(const uint8_t* data, size_t size) : h{0}
+{
+  evercrypt_sha256(data, size, h);
 }

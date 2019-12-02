@@ -1021,7 +1021,7 @@ namespace kv
         {
           auto data = serialise();
 
-          if (data.size() == 0)
+          if (data->size() == 0)
           {
             auto h = store->get_history();
             if (h != nullptr)
@@ -1035,9 +1035,9 @@ namespace kv
 
           return store->commit(
             version,
-            [data_ = data,
+            [data = std::move(data),
              req_id = std::move(req_id)]() -> PendingTx::result_type {
-              return {CommitSuccess::OK, std::move(req_id), data_};
+              return {CommitSuccess::OK, std::move(req_id), std::move(data)};
             },
             false);
         }
@@ -1121,7 +1121,8 @@ namespace kv
       return version;
     }
 
-    DetachedFlatbuffer serialise(bool include_reads = false)
+    std::shared_ptr<flatbuffers::DetachedBuffer> serialise(
+      bool include_reads = false)
     {
       if (!committed)
         throw std::logic_error("Transaction not yet committed");
@@ -1143,7 +1144,7 @@ namespace kv
 
       if (!changes)
       {
-        FlatbufferSerialiser fbs({}, {});
+        frame::FlatbufferSerialiser fbs({}, {});
         return fbs.get_flatbuffer();
       }
       // Retrieve encryptor.
@@ -1177,7 +1178,7 @@ namespace kv
       }
 
       // Return serialised Tx.
-      FlatbufferSerialiser fbs(
+      frame::FlatbufferSerialiser fbs(
         replicated ? std::move(replicated_serialiser.get_raw_data()) :
                      std::move(std::vector<uint8_t>(0)),
         derived ? std::move(derived_serialiser.get_raw_data()) :
@@ -1493,12 +1494,11 @@ namespace kv
     }
 
     DeserialiseSuccess deserialise(
-      const uint8_t* data,
-      size_t size,
+      const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term = nullptr) override
     {
-      FlatbufferDeserialiser fbd(data);
+      frame::FlatbufferDeserialiser fbd(data.data());
       auto frames = fbd.get_frames();
       Version v;
       OrderedViews<S, D> views;
@@ -1637,8 +1637,7 @@ namespace kv
           }
           success = DeserialiseSuccess::PASS_SIGNATURE;
         }
-        std::vector<uint8_t> dv(data, data + size);
-        h->append(dv);
+        h->append(data);
       }
 
       return success;
@@ -1692,18 +1691,16 @@ namespace kv
     {
       auto r = get_consensus();
       if (!r)
-      {
-        auto p_tx_ = pending_tx();
-        p_tx_.buffer.destroy();
         return CommitSuccess::OK;
-      }
 
       LOG_DEBUG_FMT(
         "Store::commit {}{}",
         version,
         (globally_committable ? " globally_committable" : ""));
 
-      std::vector<std::tuple<Version, std::vector<uint8_t>, bool>> batch;
+      std::vector<
+        std::tuple<Version, std::shared_ptr<flatbuffers::DetachedBuffer>, bool>>
+        batch;
       Version previous_last_replicated = 0;
       Version next_last_replicated = 0;
       Version previous_rollback_count = 0;
@@ -1733,19 +1730,23 @@ namespace kv
           if (p_tx_.success != CommitSuccess::OK)
             LOG_DEBUG_FMT("Failed Tx commit {}", last_replicated + offset);
 
-          auto datavec = p_tx_.buffer.to_vec();
-
-          p_tx_.buffer.destroy();
-
           if (h)
           {
-            h->add_result(p_tx_.reqid, version, datavec, datavec);
+            auto replicated = frame::replicated(p_tx_.buffer->data());
+
+            h->add_result(
+              p_tx_.reqid,
+              version,
+              replicated.first,
+              replicated.second,
+              p_tx_.buffer->data(),
+              p_tx_.buffer->size());
           }
 
           LOG_DEBUG_FMT(
-            "Batching {} ({})", last_replicated + offset, datavec.size());
+            "Batching {} ({})", last_replicated + offset, p_tx_.buffer->size());
           batch.emplace_back(
-            last_replicated + offset, std::move(datavec), committable_);
+            last_replicated + offset, p_tx_.buffer, committable_);
           pending_txs.erase(search);
         }
 

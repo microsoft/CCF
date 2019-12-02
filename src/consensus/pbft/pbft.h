@@ -328,6 +328,14 @@ namespace pbft
     }
 
     bool replicate(
+      const std::vector<
+        std::tuple<SeqNo, std::shared_ptr<flatbuffers::DetachedBuffer>, bool>>&
+        entries) override
+    {
+      return true;
+    }
+
+    bool replicate(
       const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
       override
     {

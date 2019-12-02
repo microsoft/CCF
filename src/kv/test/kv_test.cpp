@@ -458,11 +458,9 @@ TEST_CASE("Clone schema")
   clone.clone_schema(store);
   clone.set_encryptor(encryptor);
 
-  auto serialised_ws = buffer.to_vec();
-  REQUIRE(
-    clone.deserialise(serialised_ws.data(), serialised_ws.size()) ==
-    kv::DeserialiseSuccess::PASS);
-  buffer.destroy();
+  auto serialised_ws =
+    std::vector<uint8_t>(buffer->data(), buffer->data() + buffer->size());
+  REQUIRE(clone.deserialise(serialised_ws) == kv::DeserialiseSuccess::PASS);
 }
 
 TEST_CASE("Deserialise return status")
@@ -488,11 +486,9 @@ TEST_CASE("Deserialise return status")
     auto [success, reqid, buffer] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    auto serialised_ws = buffer.to_vec();
-    REQUIRE(
-      store.deserialise(serialised_ws.data(), serialised_ws.size()) ==
-      kv::DeserialiseSuccess::PASS);
-    buffer.destroy();
+    auto serialised_ws =
+      std::vector<uint8_t>(buffer->data(), buffer->data() + buffer->size());
+    REQUIRE(store.deserialise(serialised_ws) == kv::DeserialiseSuccess::PASS);
   }
 
   {
@@ -503,11 +499,11 @@ TEST_CASE("Deserialise return status")
     auto [success, reqid, buffer] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    auto serialised_ws = buffer.to_vec();
+    auto serialised_ws =
+      std::vector<uint8_t>(buffer->data(), buffer->data() + buffer->size());
     REQUIRE(
-      store.deserialise(serialised_ws.data(), serialised_ws.size()) ==
+      store.deserialise(serialised_ws) ==
       kv::DeserialiseSuccess::PASS_SIGNATURE);
-    buffer.destroy();
   }
 
   INFO("Signature transactions with additional contents should fail");
@@ -520,11 +516,9 @@ TEST_CASE("Deserialise return status")
     auto [success, reqid, buffer] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    auto serialised_ws = buffer.to_vec();
-    REQUIRE(
-      store.deserialise(serialised_ws.data(), serialised_ws.size()) ==
-      kv::DeserialiseSuccess::FAILED);
-    buffer.destroy();
+    auto serialised_ws =
+      std::vector<uint8_t>(buffer->data(), buffer->data() + buffer->size());
+    REQUIRE(store.deserialise(serialised_ws) == kv::DeserialiseSuccess::FAILED);
   }
 }
 

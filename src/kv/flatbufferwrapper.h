@@ -2,117 +2,89 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/logger.h"
-
 #include <frame_generated.h>
 
 namespace kv
 {
-  struct DetachedFlatbuffer
+  namespace frame
   {
-  private:
-    uint8_t* d;
-    size_t s;
-    size_t offset;
-
-  public:
-    DetachedFlatbuffer(uint8_t* data_, size_t size_, size_t offset_) :
-      d(data_),
-      s(size_),
-      offset(offset_)
-    {}
-
-    const uint8_t* data()
+    // These static functions provide access to the Frame internals without the
+    // need to create a deserialiser
+    static const Frame* root(const uint8_t* data)
     {
-      return d + offset;
+      return GetFrame(data);
     }
 
-    size_t size()
+    static const std::pair<const uint8_t*, size_t> replicated(
+      const uint8_t* data)
     {
-      return s;
+      auto frame = GetFrame(data);
+      return {frame->replicated()->Data(), frame->replicated()->size()};
     }
 
-    std::vector<uint8_t> to_vec()
+    static const std::pair<const uint8_t*, size_t> derived(const uint8_t* data)
     {
-      return std::move(std::vector<uint8_t>(d + offset, d + s));
+      auto frame = GetFrame(data);
+      return {frame->derived()->Data(), frame->derived()->size()};
     }
 
-    const Frame* root()
+    class FlatbufferSerialiser
     {
-      flatbuffers::BufferRef<Frame> ref(const_cast<uint8_t*>(d + offset), s);
-      return ref.GetRoot();
-    }
+    private:
+      flatbuffers::FlatBufferBuilder builder;
+      flatbuffers::Offset<Frame> frame;
 
-    void destroy()
+    public:
+      FlatbufferSerialiser(
+        const std::vector<uint8_t>& replicated,
+        const std::vector<uint8_t>& derived)
+      {
+        auto fb_replicated = builder.CreateVector(replicated);
+        auto fb_derived = builder.CreateVector(derived);
+
+        frame = CreateFrame(builder, fb_replicated, fb_derived);
+        builder.Finish(frame);
+      }
+
+      std::shared_ptr<flatbuffers::DetachedBuffer> get_flatbuffer()
+      {
+        return std::make_shared<flatbuffers::DetachedBuffer>(builder.Release());
+      }
+    };
+
+    class FlatbufferDeserialiser
     {
-      delete[] d;
-    }
-  };
+    private:
+      const Frame* frame;
 
-  class FlatbufferSerialiser
-  {
-  private:
-    flatbuffers::FlatBufferBuilder builder;
-    flatbuffers::Offset<Frame> frame;
+    public:
+      FlatbufferDeserialiser(const uint8_t* frame_) : frame(GetFrame(frame_)) {}
 
-  public:
-    FlatbufferSerialiser(
-      const std::vector<uint8_t>& replicated,
-      const std::vector<uint8_t>& derived)
-    {
-      auto fb_replicated = builder.CreateVector(replicated);
-      auto fb_derived = builder.CreateVector(derived);
+      std::vector<std::pair<const uint8_t*, size_t>> get_frames()
+      {
+        return {{frame->replicated()->Data(), frame->replicated()->size()},
+                {frame->derived()->Data(), frame->derived()->size()}};
+      }
 
-      frame = CreateFrame(builder, fb_replicated, fb_derived);
-      builder.Finish(frame);
-    }
+      const uint8_t* replicated()
+      {
+        return frame->replicated()->Data();
+      }
 
-    DetachedFlatbuffer get_flatbuffer()
-    {
-      size_t size;
-      size_t offset;
-      auto data = builder.ReleaseRaw(size, offset);
-      return {data, size, offset};
-    }
-  };
+      size_t replicated_size()
+      {
+        return frame->replicated()->size();
+      }
 
-  class FlatbufferDeserialiser
-  {
-  private:
-    const Frame* frame;
+      const uint8_t* derived()
+      {
+        return frame->derived()->Data();
+      }
 
-  public:
-    FlatbufferDeserialiser(const uint8_t* frame_) : frame(GetFrame(frame_)) {}
-
-    const Frame* get_frame()
-    {
-      return frame;
-    }
-
-    std::vector<std::pair<const uint8_t*, size_t>> get_frames()
-    {
-      return {{frame->replicated()->Data(), frame->replicated()->size()},
-              {frame->derived()->Data(), frame->derived()->size()}};
-    }
-
-    const uint8_t* replicated()
-    {
-      return frame->replicated()->Data();
-    }
-
-    size_t replicated_size()
-    {
-      return frame->replicated()->size();
-    }
-
-    const uint8_t* derived()
-    {
-      return frame->derived()->Data();
-    }
-
-    size_t derived_size()
-    {
-      return frame->derived()->size();
-    }
-  };
+      size_t derived_size()
+      {
+        return frame->derived()->size();
+      }
+    };
+  }
 }
