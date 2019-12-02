@@ -2,27 +2,18 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "http.h"
+#include "framedtlsendpoint.h"
 #include "node/rpc/jsonrpc.h"
 #include "rpcmap.h"
-#include "tlsframedendpoint.h"
 
 namespace enclave
 {
-#ifdef HTTP
-  using ServerEndpoint = HTTPEndpoint<http::ResponseHeaderEmitter>;
-#else
-  using ServerEndpoint = FramedTLSEndpoint;
-#endif
-
-  class RPCEndpoint : public ServerEndpoint
+  class RPCEndpoint : public FramedTLSEndpoint
   {
   private:
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RpcHandler> handler;
-    ccf::ActorsType actor;
     size_t session_id;
-    CBuffer caller;
 
   public:
     RPCEndpoint(
@@ -30,7 +21,7 @@ namespace enclave
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      ServerEndpoint(session_id, writer_factory, move(ctx)),
+      FramedTLSEndpoint(session_id, writer_factory, move(ctx)),
       rpc_map(rpc_map_),
       session_id(session_id)
     {}

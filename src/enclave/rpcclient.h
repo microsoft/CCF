@@ -2,42 +2,26 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclavetypes.h"
-#include "http.h"
-#include "tlsframedendpoint.h"
+#include "clientendpoint.h"
+#include "framedtlsendpoint.h"
 
 namespace enclave
 {
-#ifdef HTTP
-  using ClientEndpoint = HTTPEndpoint<http::RequestHeaderEmitter>;
-#else
-  using ClientEndpoint = FramedTLSEndpoint;
-#endif
-
-  class RPCClient : public ClientEndpoint
+  class RPCClient : public FramedTLSEndpoint, public ClientEndpoint
   {
-    using HandleDataCallback =
-      std::function<bool(const std::vector<uint8_t>& data)>;
-
-  private:
-    HandleDataCallback handle_data_cb;
-
   public:
     RPCClient(
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      ClientEndpoint(session_id, writer_factory, move(ctx))
+      FramedTLSEndpoint(session_id, writer_factory, move(ctx)),
+      ClientEndpoint(session_id, writer_factory)
     {}
 
-    void connect(
-      const std::string& hostname,
-      const std::string& service,
-      const HandleDataCallback f)
+    void send_request(
+      const std::string& path, const std::vector<uint8_t>& data) override
     {
-      RINGBUFFER_WRITE_MESSAGE(
-        tls::tls_connect, to_host, session_id, hostname, service);
-      handle_data_cb = f;
+      send(data);
     }
 
     bool handle_data(const std::vector<uint8_t>& data) override
