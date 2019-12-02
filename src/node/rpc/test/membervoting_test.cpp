@@ -370,7 +370,7 @@ struct NewMember
   Cert cert;
 };
 
-TEST_CASE("Add new members until there are 7")
+TEST_CASE("Add new members until there are 7 then reject")
 {
   constexpr auto initial_members = 3;
   constexpr auto n_new_members = 7;

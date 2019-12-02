@@ -6,7 +6,7 @@ import time
 import logging
 from contextlib import contextmanager
 from glob import glob
-from enum import Enum
+from enum import Enum, IntEnum
 import infra.clients
 import infra.path
 import infra.proc
@@ -27,13 +27,16 @@ class ServiceStatus(Enum):
     CLOSED = 3
 
 
-class ParticipantsCurve(Enum):
-    secp384r1 = 1
-    secp256k1 = 2
-    ed25519 = 3
+class ParticipantsCurve(IntEnum):
+    secp384r1 = 0
+    secp256k1 = 1
+    ed25519 = 2
 
     def __str__(self):
         return self.name
+
+    def next(self):
+        return ParticipantsCurve((self.value + 1) % len(ParticipantsCurve))
 
 
 class Network:

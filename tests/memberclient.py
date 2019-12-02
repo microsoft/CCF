@@ -50,8 +50,9 @@ def run(args):
 
         LOG.info("Proposal to add a new member (with different curve)")
         infra.proc.ccall(
-            "./keygenerator.sh", "member3", infra.ccf.ParticipantsCurve.secp256k1.name
+            "./keygenerator.sh", "member3", infra.ccf.ParticipantsCurve(args.default_curve).next().name
         )
+
         script = """
         tables, member_cert = ...
         return Calls:call("new_member", member_cert)
