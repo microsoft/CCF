@@ -18,18 +18,20 @@ public:
     http_method method;
     std::string path;
     std::string query;
+    enclave::http::HeaderMap headers;
     std::vector<uint8_t> body;
   };
 
   std::queue<Msg> received;
 
-  virtual void msg(
+  virtual void handle_message(
     http_method method,
     const std::string& path,
     const std::string& query,
-    std::vector<uint8_t> body) override
+    const enclave::http::HeaderMap& headers,
+    const std::vector<uint8_t>& body) override
   {
-    received.emplace(Msg{method, path, query, body});
+    received.emplace(Msg{method, path, query, headers, body});
   }
 };
 
@@ -200,25 +202,45 @@ TEST_CASE("URL parsing")
 
 TEST_CASE("Pessimal transport")
 {
-  StubProc sp;
-  enclave::http::Parser p(HTTP_REQUEST, sp);
-
-  const auto r0 = s_to_v(request_0);
-  auto req = build_post_request(r0);
-
-  size_t done = 0;
-  while (done < req.size())
+  const enclave::http::HeaderMap h = {{"foo", "bar"}, {"baz", "42"}};
+  for (const auto& headers : {enclave::http::default_headers(), {}, h})
   {
-    // Simulate dreadful transport - send between 1 and 8 bytes at a time
-    size_t next = (rand() % 8) + 1;
-    next = std::min(next, req.size() - done);
-    auto parsed = p.execute(req.data() + done, next);
-    CHECK(parsed == next);
-    done += next;
-  }
+    StubProc sp;
+    enclave::http::Parser p(HTTP_REQUEST, sp);
 
-  CHECK(!sp.received.empty());
-  const auto& m = sp.received.front();
-  CHECK(m.method == HTTP_POST);
-  CHECK(m.body == r0);
+    auto builder = enclave::http::Request(HTTP_POST);
+    builder.clear_headers();
+    for (const auto& it : headers)
+    {
+      builder.set_header(it.first, it.second);
+    }
+
+    const auto r0 = s_to_v(request_0);
+    auto req = builder.build_request(r0);
+
+    size_t done = 0;
+    while (done < req.size())
+    {
+      // Simulate dreadful transport - send between 1 and 8 bytes at a time
+      size_t next = (rand() % 8) + 1;
+      next = std::min(next, req.size() - done);
+      auto parsed = p.execute(req.data() + done, next);
+      CHECK(parsed == next);
+      done += next;
+    }
+
+    CHECK(!sp.received.empty());
+    const auto& m = sp.received.front();
+    CHECK(m.method == HTTP_POST);
+    CHECK(m.body == r0);
+
+    // Check each specified header is present and matches. May include other
+    // auto-inserted headers - these are ignored
+    for (const auto& it : headers)
+    {
+      const auto found = m.headers.find(it.first);
+      CHECK(found != m.headers.end());
+      CHECK(found->second == it.second);
+    }
+  }
 }
