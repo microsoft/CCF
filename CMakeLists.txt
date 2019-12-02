@@ -261,6 +261,7 @@ if(BUILD_TESTS)
   target_include_directories(merkle_mem PRIVATE
     ${EVERCRYPT_INC}
     src)
+  add_dependencies(merkle_mem flatbuffers)
 
   if (NOT PBFT)
     # Raft driver and scenario test

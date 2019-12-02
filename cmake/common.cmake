@@ -517,6 +517,7 @@ if("sgx" IN_LIST TARGET)
     CURL::libcurl
     secp256k1.host
   )
+  add_dependencies(cchost flatbuffers)
   enable_quote_code(cchost)
 endif()
 
@@ -555,6 +556,7 @@ target_link_libraries(client PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
   secp256k1.host
 )
+add_dependencies(client flatbuffers)
 
 # Lua for host and enclave
 add_enclave_library_c(lua.enclave "${LUA_SOURCES}")
