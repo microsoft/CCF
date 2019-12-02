@@ -6,6 +6,7 @@
 #include "tlsendpoint.h"
 
 #include <http-parser/http_parser.h>
+#include <map>
 
 namespace enclave
 {
@@ -14,11 +15,12 @@ namespace enclave
     class MsgProcessor
     {
     public:
-      virtual void msg(
+      virtual void handle_message(
         http_method method,
         const std::string& path,
         const std::string& query,
-        std::vector<uint8_t> body) = 0;
+        const HeaderMap& headers,
+        const std::vector<uint8_t>& body) = 0;
     };
 
     enum State
@@ -29,6 +31,11 @@ namespace enclave
 
     static int on_msg_begin(http_parser* parser);
     static int on_url(http_parser* parser, const char* at, size_t length);
+    static int on_header_field(
+      http_parser* parser, const char* at, size_t length);
+    static int on_header_value(
+      http_parser* parser, const char* at, size_t length);
+    static int on_headers_complete(http_parser* parser);
     static int on_req(http_parser* parser, const char* at, size_t length);
     static int on_msg_end(http_parser* parser);
 
@@ -54,6 +61,16 @@ namespace enclave
       std::vector<uint8_t> buf;
       std::string path = "";
       std::string query = "";
+      HeaderMap headers;
+
+      std::pair<std::string, std::string> partial_parsed_header = {};
+
+      void complete_header()
+      {
+        headers.emplace(partial_parsed_header);
+        partial_parsed_header.first.clear();
+        partial_parsed_header.second.clear();
+      }
 
     public:
       Parser(http_parser_type type, MsgProcessor& proc_) : proc(proc_)
@@ -62,6 +79,9 @@ namespace enclave
 
         settings.on_message_begin = on_msg_begin;
         settings.on_url = on_url;
+        settings.on_header_field = on_header_field;
+        settings.on_header_value = on_header_value;
+        settings.on_headers_complete = on_headers_complete;
         settings.on_body = on_req;
         settings.on_message_complete = on_msg_end;
 
@@ -122,7 +142,8 @@ namespace enclave
         if (state == IN_MESSAGE)
         {
           LOG_TRACE_FMT("Done with message");
-          proc.msg(http_method(parser.method), path, query, std::move(buf));
+          proc.handle_message(
+            http_method(parser.method), path, query, headers, buf);
           state = DONE;
         }
         else
@@ -149,6 +170,26 @@ namespace enclave
 
         query = extract_url_field(url, UF_QUERY, at);
       }
+
+      void header_field(const char* at, size_t length)
+      {
+        if (!partial_parsed_header.second.empty())
+        {
+          complete_header();
+        }
+
+        partial_parsed_header.first.append(at, length);
+      }
+
+      void header_value(const char* at, size_t length)
+      {
+        partial_parsed_header.second.append(at, length);
+      }
+
+      void headers_complete()
+      {
+        complete_header();
+      }
     };
 
     static int on_msg_begin(http_parser* parser)
@@ -162,6 +203,29 @@ namespace enclave
     {
       Parser* p = reinterpret_cast<Parser*>(parser->data);
       p->parse_url(at, length);
+      return 0;
+    }
+
+    static int on_header_field(
+      http_parser* parser, const char* at, size_t length)
+    {
+      Parser* p = reinterpret_cast<Parser*>(parser->data);
+      p->header_field(at, length);
+      return 0;
+    }
+
+    static int on_header_value(
+      http_parser* parser, const char* at, size_t length)
+    {
+      Parser* p = reinterpret_cast<Parser*>(parser->data);
+      p->header_value(at, length);
+      return 0;
+    }
+
+    static int on_headers_complete(http_parser* parser)
+    {
+      Parser* p = reinterpret_cast<Parser*>(parser->data);
+      p->headers_complete();
       return 0;
     }
 

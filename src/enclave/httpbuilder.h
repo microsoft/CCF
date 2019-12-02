@@ -12,6 +12,15 @@ namespace enclave
 {
   namespace http
   {
+    using HeaderMap = std::map<std::string, std::string>;
+
+    static HeaderMap default_headers()
+    {
+      HeaderMap headers;
+      headers["Content-Type"] = "application/json";
+      return headers;
+    }
+
     static http_method http_method_from_str(const char* s)
     {
 #define XX(num, name, string) \
@@ -31,6 +40,7 @@ namespace enclave
       http_method method;
       std::string path = "/";
       std::map<std::string, std::string> query_params = {};
+      HeaderMap headers = default_headers();
 
     public:
       Request(http_method m = HTTP_POST) : method(m) {}
@@ -53,6 +63,16 @@ namespace enclave
         query_params[k] = v;
       }
 
+      void set_header(const std::string& k, const std::string& v)
+      {
+        headers[k] = v;
+      }
+
+      void clear_headers()
+      {
+        headers.clear();
+      }
+
       std::vector<uint8_t> build_request(
         const std::vector<uint8_t>& body, bool header_only = false)
       {
@@ -72,12 +92,21 @@ namespace enclave
           std::string_view() :
           std::string_view((char const*)body.data(), body.size());
 
+        std::string header_string;
+        for (const auto& it : headers)
+        {
+          header_string += fmt::format("{}: {}\r\n", it.first, it.second);
+        }
+
         const auto h = fmt::format(
           "{} {} HTTP/1.1\r\n"
-          "Content-Type: application/json\r\n"
-          "Content-Length: {}\r\n\r\n{}",
+          "{}"
+          "Content-Length: {}\r\n"
+          "\r\n"
+          "{}",
           http_method_str(method),
           uri,
+          header_string,
           body.size(),
           body_view);
 
