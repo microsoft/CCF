@@ -49,8 +49,8 @@ namespace tls
       if ((own_cert_.n > 0) && (own_pkey_.size() > 0))
       {
         Pem pem_cert(own_cert_);
-        auto raw = pem_cert.raw();
-        int rc = mbedtls_x509_crt_parse(&own_cert, raw.data(), raw.size());
+        int rc =
+          mbedtls_x509_crt_parse(&own_cert, pem_cert.data(), pem_cert.size());
 
         if (rc != 0)
         {
@@ -59,7 +59,7 @@ namespace tls
         }
 
         rc = mbedtls_pk_parse_key(
-          &own_pkey, own_pkey_.data(), own_pkey_.size() + 1, pw.p, pw.n);
+          &own_pkey, own_pkey_.data(), own_pkey_.size(), pw.p, pw.n);
         if (rc != 0)
         {
           throw std::logic_error("Could not parse key: " + error_string(rc));

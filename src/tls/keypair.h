@@ -513,7 +513,7 @@ namespace tls
     mbedtls_pk_init(ctx.get());
 
     int rc = mbedtls_pk_parse_public_key(
-      ctx.get(), public_pem.data(), public_pem.size() + 1);
+      ctx.get(), public_pem.data(), public_pem.size());
 
     if (rc != 0)
     {
@@ -1041,7 +1041,7 @@ namespace tls
 
     // keylen is +1 to include terminating null byte
     int rc =
-      mbedtls_pk_parse_key(key.get(), pkey.data(), pkey.size() + 1, pw.p, pw.n);
+      mbedtls_pk_parse_key(key.get(), pkey.data(), pkey.size(), pw.p, pw.n);
     if (rc != 0)
     {
       throw std::logic_error("Could not parse key: " + error_string(rc));

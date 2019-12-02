@@ -45,17 +45,10 @@ namespace tls
       return reinterpret_cast<const uint8_t*>(s.data());
     }
 
-    std::vector<uint8_t> raw() const
-    {
-      const auto cert_data = data();
-      auto cert_len = strlen((char*)cert_data) + 1;
-
-      return {cert_data, cert_data + cert_len};
-    }
-
     size_t size() const
     {
-      return s.size();
+      // +1 for null termination
+      return s.size() + 1;
     }
   };
 }
