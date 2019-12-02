@@ -250,7 +250,8 @@ void submit_ack(
   const tls::Pem& key)
 {
   // member using its own certificate reads its member id
-  auto verifier = tls::make_verifier(raw_cert);
+  auto pem_cert = tls::Pem(raw_cert);
+  auto verifier = tls::make_verifier(pem_cert.raw());
   Response<ObjectId> read_id = json::from_msgpack(tls_connection.call(
     "read", read_params(verifier->der_cert_data(), Tables::MEMBER_CERTS)));
   const auto member_id = read_id.result;

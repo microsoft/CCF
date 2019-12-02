@@ -4,15 +4,21 @@
 
 set -e
 
-DEFAULT_TYPE="ec"
-EDWARDS_TYPE="ed"
-
 DEFAULT_CURVE="secp384r1"
+EDWARDS_CURVE="ed25519"
+FAST_CURVE="secp256k1"
+SUPPORTED_CURVES="$DEFAULT_CURVE|$EDWARDS_CURVE|$FAST_CURVE"
+
+DIGEST_SHA384="sha384"
+DIGEST_SHA256="sha256"
+DIGEST_SHA512="sha512"
 
 if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
   echo "Generates private key and self-signed certificates for CCF participants."
   echo "Usage:"""
   echo "  $0 participant [curve=$DEFAULT_CURVE]"
+  echo ""
+  echo "Supported curves are: $SUPPORTED_CURVES"
   exit 0
 fi
 
@@ -23,31 +29,34 @@ fi
 
 curve=${2:-$DEFAULT_CURVE}
 
-# Because openssl CLI interface for EC key differs from Ed, detect which
-# interface to use based on first letters of the specified curve
-if [[ "$curve" == ${EDWARDS_TYPE}* ]]; then
-    type=$EDWARDS_TYPE
+if ! [[ "$curve" =~ ^($SUPPORTED_CURVES)$ ]]; then
+    echo "$curve curve is not in $SUPPORTED_CURVES"
+    exit 1
+fi
+
+if [ "$curve" == "$DEFAULT_CURVE" ]; then
+    digest="$DIGEST_SHA384"
+elif [ "$curve" ==  "$EDWARDS_CURVE" ]; then
+    digest="$DIGEST_SHA512"
 else
-    type=$DEFAULT_TYPE
+    digest="$DIGEST_SHA256"
 fi
 
 cert="$1"_cert.pem
 privk="$1"_privk.pem
 
-echo "Curve type: $type"
 echo "Curve: $curve"
 echo "Generating private key and certificate for participant \"$1\"..."
 
-if [ "$type" == $DEFAULT_TYPE ]; then
+# Because openssl CLI interface for ec key differs from Ed, detect which
+# interface to use based on first letters of the specified curve
+if ! [ "$curve" == $EDWARDS_CURVE ]; then
     openssl ecparam -out "$privk" -name "$curve" -genkey
-elif [ "$type" == $EDWARDS_TYPE ]; then
-    openssl genpkey -out "$privk" -algorithm "$curve"
 else
-    echo "Curve type $type not supported"
-    exit 1
+    openssl genpkey -out "$privk" -algorithm "$curve"
 fi
 
-openssl req -new -key "$privk" -x509 -nodes -days 365 -out "$cert" -subj=/CN="$1"
+openssl req -new -key "$privk" -x509 -nodes -days 365 -out "$cert" -"$digest" -subj=/CN="$1"
 
 echo "Certificate generated at: $cert (to be registed in CCF)"
 echo "Private key generated at: $privk"
