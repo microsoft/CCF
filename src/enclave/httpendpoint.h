@@ -137,6 +137,31 @@ namespace enclave
         query,
         body.size());
 
+      LOG_INFO_FMT("Headers:");
+      for (auto const& h : headers)
+      {
+        LOG_INFO_FMT("{}: {}", h.first, h.second);
+      }
+      LOG_INFO_FMT("Done.");
+
+      // TODO:
+      // 0. Read https://tools.ietf.org/html/draft-cavage-http-signatures-12
+
+
+      // 1. Check if authorization header exists
+      auto auth = headers.find("Authorization")
+      if (auth != headers.end())
+      {
+        LOG_FAIL_FMT("Authorization header exists!");
+        LOG_FAIL_FMT("Value is {}", auth.second);
+
+
+      }
+      // 2. If it exists, it should contain the signature scheme
+      // 3. Parse the algorithm, headers and signature
+      // 4. Find the headers, i.e. date and digest
+      // 5. Create the SignedReq object (but for now, verify the signature inline)
+
       try
       {
         const auto first_slash = path.find_first_of('/');
