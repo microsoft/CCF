@@ -803,7 +803,8 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
         ledger_writer->write_pre_prepare(pp);
       }
 
-      Prepare* p = new Prepare(v, pp->seqno(), pp->digest(), nullptr, pp->is_signed());
+      Prepare* p =
+        new Prepare(v, pp->seqno(), pp->digest(), nullptr, pp->is_signed());
       int send_node_id = (send_only_to_self ? node_id : All_replicas);
       send(p, send_node_id);
       pc.add_mine(p);
@@ -1065,7 +1066,6 @@ void Replica::set_f(ccf::NodeId f)
 
 void Replica::emit_signature_on_next_pp(int64_t version)
 {
-  //signature_offset = next_pp_seqno;
   sign_next = true;
   signed_version = version;
 }
@@ -1858,7 +1858,6 @@ void Replica::execute_prepared(bool committed)
 
     if (global_commit_cb != nullptr && pp->is_signed())
     {
-      //int64_t max_signed_version = std::max(pp->get_ctx(), signed_version.load());
       LOG_INFO_FMT(
         "Global_commit: {}, signed_version: {}",
         pp->get_ctx(),

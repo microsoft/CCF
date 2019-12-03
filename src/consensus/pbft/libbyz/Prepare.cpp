@@ -40,7 +40,7 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
       std::end(rep().batch_digest_signature),
       0);
   }
-  
+
 #endif
 
   rep().id = node->id();
