@@ -1145,7 +1145,7 @@ namespace kv
       if (!changes)
       {
         frame::FlatbufferSerialiser fbs({}, {});
-        return fbs.get_flatbuffer();
+        return fbs.get_detached_buffer();
       }
       // Retrieve encryptor.
       auto map = view_list.begin()->second.map;
@@ -1183,7 +1183,7 @@ namespace kv
                      std::move(std::vector<uint8_t>(0)),
         derived ? std::move(derived_serialiser.get_raw_data()) :
                   std::move(std::vector<uint8_t>(0)));
-      return fbs.get_flatbuffer();
+      return fbs.get_detached_buffer();
     }
 
     // Used by frontend for reserved transactions
