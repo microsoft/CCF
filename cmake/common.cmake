@@ -29,15 +29,19 @@ function(enable_coverage name)
   endif()
 endfunction()
 
-set(SERVICE_IDENTITY_CURVE_CHOICE "secp384r1" CACHE STRING "One of secp384r1, curve25519, secp256k1_mbedtls, secp256k1_bitcoin")
+set(SERVICE_IDENTITY_CURVE_CHOICE "secp384r1" CACHE STRING "One of secp384r1, ed25519, secp256k1_mbedtls, secp256k1_bitcoin")
 if (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp384r1")
   add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP384R1)
-elseif (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "curve25519")
-  add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_CURVE25519)
+  set(DEFAULT_PARTICIPANTS_CURVE "secp384r1")
+elseif (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "ed25519")
+  add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_ED25519)
+  set(DEFAULT_PARTICIPANTS_CURVE "ed25519")
 elseif (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_mbedtls")
   add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_MBEDTLS)
+  set(DEFAULT_PARTICIPANTS_CURVE "secp256k1")
 elseif (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_bitcoin")
   add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_BITCOIN)
+  set(DEFAULT_PARTICIPANTS_CURVE "secp256k1")
 else ()
   message(FATAL_ERROR "Unsupported curve choice ${SERVICE_IDENTITY_CURVE_CHOICE}")
 endif ()
@@ -153,6 +157,7 @@ add_custom_command(
 )
 
 configure_file(${CCF_DIR}/tests/tests.sh ${CMAKE_CURRENT_BINARY_DIR}/tests.sh COPYONLY)
+configure_file(${CCF_DIR}/tests/keygenerator.sh ${CMAKE_CURRENT_BINARY_DIR}/keygenerator.sh COPYONLY)
 configure_file(${CCF_DIR}/tests/cimetrics_env.sh ${CMAKE_CURRENT_BINARY_DIR}/cimetrics_env.sh COPYONLY)
 configure_file(${CCF_DIR}/tests/upload_pico_metrics.py ${CMAKE_CURRENT_BINARY_DIR}/upload_pico_metrics.py COPYONLY)
 
@@ -481,14 +486,6 @@ function(add_unit_test name)
   )
 endfunction()
 
-# Keygenerator Executable
-add_executable(keygenerator ${CCF_DIR}/src/keygenerator/main.cpp)
-use_client_mbedtls(keygenerator)
-target_link_libraries(keygenerator PRIVATE
-  ${CMAKE_THREAD_LIBS_INIT}
-  secp256k1.host
-)
-
 if("sgx" IN_LIST TARGET)
   # Host Executable
   add_executable(cchost
@@ -511,7 +508,6 @@ if("sgx" IN_LIST TARGET)
     ccfcrypto.host
     evercrypt.host
     CURL::libcurl
-    secp256k1.host
   )
   enable_quote_code(cchost)
 endif()
@@ -540,7 +536,6 @@ if("virtual" IN_LIST TARGET)
     ccfcrypto.host
     evercrypt.host
     CURL::libcurl
-    secp256k1.host
   )
 endif()
 
@@ -578,6 +573,7 @@ set(CCF_NETWORK_TEST_ARGS
   -l ${TEST_HOST_LOGGING_LEVEL}
   -g ${CCF_DIR}/src/runtime_config/gov.lua
   --consensus ${CONSENSUS_ARG}
+  --default-curve ${DEFAULT_PARTICIPANTS_CURVE}
 )
 
 # SNIPPET: Lua generic application
