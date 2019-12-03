@@ -16,23 +16,24 @@ add_enclave_lib(smallbankenc
 if(BUILD_TESTS)
   ## Small Bank end to end and performance test
   if (PBFT)
-    set(SMALL_BANK_SIGNED_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_20k.json)
-    set(SMALL_BANK_SIGNED_ITERATIONS 20000)
+    set(SMALL_BANK_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_20k.json)
+    set(SMALL_BANK_ITERATIONS 20000)
   else ()
-    set(SMALL_BANK_SIGNED_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank.json)
-    set(SMALL_BANK_SIGNED_ITERATIONS 200000)
+    set(SMALL_BANK_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank.json)
+    set(SMALL_BANK_ITERATIONS 200000)
   endif ()
   add_perf_test(
     NAME small_bank_client_test
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
     CLIENT_BIN ./small_bank_client
-    VERIFICATION_FILE ${SMALL_BANK_SIGNED_VERIFICATION_FILE}
-    ITERATIONS ${SMALL_BANK_SIGNED_ITERATIONS}
+    VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
+    ITERATIONS ${SMALL_BANK_ITERATIONS}
+    LABEL Small_Bank_ClientCpp
     ADDITIONAL_ARGS
-      --label Small_Bank_ClientCpp
       --max-writes-ahead 1000
       --metrics-file small_bank_metrics.json
   )
+
   if (PBFT)
     set(SMALL_BANK_SIGNED_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_20k.json)
     set(SMALL_BANK_SIGNED_ITERATIONS 20000)
@@ -51,8 +52,8 @@ if(BUILD_TESTS)
       CLIENT_BIN ./small_bank_client
       VERIFICATION_FILE ${SMALL_BANK_SIGNED_VERIFICATION_FILE}
       ITERATIONS ${SMALL_BANK_SIGNED_ITERATIONS}
+      LABEL Small_Bank_Client_Sigs
       ADDITIONAL_ARGS
-        --label Small_Bank_Client_Sigs
         --max-writes-ahead 1000
         --sign
         --metrics-file small_bank_sigs_metrics.json
@@ -65,8 +66,8 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
       CLIENT_BIN ./small_bank_client
       ITERATIONS ${SMALL_BANK_SIGNED_ITERATIONS}
+      LABEL Small_Bank_ClientSigs_Forwarding
       ADDITIONAL_ARGS
-        --label Small_Bank_ClientSigs_Forwarding
         --max-writes-ahead 1000
         --metrics-file small_bank_fwd_metrics.json
         -n localhost -n localhost

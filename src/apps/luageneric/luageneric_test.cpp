@@ -11,6 +11,7 @@
 #include "node/rpc/jsonrpc.h"
 #include "node/rpc/test/node_stub.h"
 #include "runtime_config/default_whitelists.h"
+#include "tls/keypair.h"
 
 #include <iostream>
 #include <map>
@@ -22,6 +23,8 @@ using namespace ccf;
 using namespace std;
 using namespace jsonrpc;
 using namespace nlohmann;
+
+auto kp = tls::make_key_pair();
 
 namespace ccf
 {
@@ -75,6 +78,9 @@ void set_lua_logger()
   logger::config::loggers().emplace_back(std::make_unique<LuaLogger>());
 }
 
+auto user_caller = kp -> self_sign("CN=name");
+auto user_caller_der = tls::make_verifier(user_caller) -> der_cert_data();
+
 auto init_frontend(
   NetworkTables& network,
   GenesisGenerator& gen,
@@ -82,12 +88,11 @@ auto init_frontend(
   const int n_users,
   const int n_members)
 {
-  // create users with fake certs (no crypto here)
   for (uint8_t i = 0; i < n_users; i++)
-    gen.add_user({i});
+    gen.add_user(user_caller);
 
   for (uint8_t i = 0; i < n_members; i++)
-    gen.add_member({i});
+    gen.add_member(kp->self_sign("CN=name_member"));
 
   set_whitelists(gen);
 
@@ -127,8 +132,8 @@ auto make_pc(const string& method, const Params& params)
 template <typename F, typename K, typename V>
 void check_store_load(F frontend, K k, V v)
 {
-  const Cert u0 = {0};
-  const enclave::SessionContext user_session(enclave::InvalidSessionId, u0);
+  const enclave::SessionContext user_session(
+    enclave::InvalidSessionId, user_caller_der);
 
   // store
   const auto store_packed = make_pc("store", {{"k", k}, {"v", v}});
@@ -153,8 +158,8 @@ TEST_CASE("simple lua apps")
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, gen, notifier, 1, 3);
   set_lua_logger();
-  const Cert u0 = {0};
-  const enclave::SessionContext user_session(enclave::InvalidSessionId, u0);
+  const enclave::SessionContext user_session(
+    enclave::InvalidSessionId, user_caller_der);
 
   SUBCASE("missing lua arg")
   {
@@ -284,8 +289,8 @@ TEST_CASE("simple bank")
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, gen, notifier, 1, 3);
   set_lua_logger();
-  const Cert u0 = {0};
-  const enclave::SessionContext user_session(enclave::InvalidSessionId, u0);
+  const enclave::SessionContext user_session(
+    enclave::InvalidSessionId, user_caller_der);
 
   constexpr auto create_method = "SB_create";
   constexpr auto create = R"xxx(
@@ -405,8 +410,8 @@ TEST_CASE("pre-populated environment")
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, gen, notifier, 1, 3);
   set_lua_logger();
-  const Cert u0 = {0};
-  const enclave::SessionContext user_session(enclave::InvalidSessionId, u0);
+  const enclave::SessionContext user_session(
+    enclave::InvalidSessionId, user_caller_der);
 
   {
     constexpr auto log_trace_method = "log_trace";

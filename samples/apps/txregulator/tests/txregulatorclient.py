@@ -13,13 +13,13 @@ from loguru import logger as LOG
 
 
 class AppUser:
-    def __init__(self, network, name, country):
+    def __init__(self, network, name, country, curve):
         self.name = name
         self.country = country
 
         primary, _ = network.find_primary()
 
-        network.create_users([self.name])
+        network.create_users([self.name], curve)
         network.consortium.add_users(primary, [self.name])
 
         with primary.user_client(user_id=self.name) as client:
@@ -46,10 +46,10 @@ def run(args):
                 data = f.readlines()
             script = "".join(data)
 
-        manager = AppUser(network, "manager", "GB")
-        regulator = AppUser(network, "auditor", "GB")
+        manager = AppUser(network, "manager", "GB", args.default_curve)
+        regulator = AppUser(network, "auditor", "GB", args.default_curve)
         banks = [
-            AppUser(network, f"bank{country}", country)
+            AppUser(network, f"bank{country}", country, args.default_curve)
             for country in ("US", "GB", "GR", "FR")
         ]
         transactions = []

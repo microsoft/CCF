@@ -6,7 +6,7 @@ import time
 import logging
 from contextlib import contextmanager
 from glob import glob
-from enum import Enum
+from enum import Enum, IntEnum
 import infra.clients
 import infra.path
 import infra.proc
@@ -25,6 +25,18 @@ class ServiceStatus(Enum):
     OPENING = 1
     OPEN = 2
     CLOSED = 3
+
+
+class ParticipantsCurve(IntEnum):
+    secp384r1 = 0
+    secp256k1 = 1
+    ed25519 = 2
+
+    def __str__(self):
+        return self.name
+
+    def next(self):
+        return ParticipantsCurve((self.value + 1) % len(ParticipantsCurve))
 
 
 class Network:
@@ -173,9 +185,9 @@ class Network:
         cmd = ["rm", "-f"] + glob("member*.pem")
         infra.proc.ccall(*cmd)
 
-        self.consortium = infra.consortium.Consortium([0, 1, 2])
+        self.consortium = infra.consortium.Consortium([0, 1, 2], args.default_curve)
         self.initial_users = [0, 1, 2]
-        self.create_users(self.initial_users)
+        self.create_users(self.initial_users, args.default_curve)
 
         if args.gov_script:
             infra.proc.ccall("cp", args.gov_script, args.build_dir).check_returncode()
@@ -271,10 +283,12 @@ class Network:
 
         return new_node
 
-    def create_users(self, users):
+    def create_users(self, users, curve):
         users = ["user{}".format(u) for u in users]
         for u in users:
-            infra.proc.ccall("./keygenerator", "--name={}".format(u)).check_returncode()
+            infra.proc.ccall(
+                "./keygenerator.sh", f"{u}", curve.name, log_output=False
+            ).check_returncode()
 
     def get_members(self):
         return self.consortium.members

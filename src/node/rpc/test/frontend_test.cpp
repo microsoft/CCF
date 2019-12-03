@@ -261,34 +261,29 @@ std::optional<SignedReq> get_signed_req(CallerId caller_id)
   return client_sig_view->get(caller_id);
 }
 
-// caller used throughout
-auto ca = kp -> self_sign("CN=name");
-auto verifier = tls::make_verifier(ca);
-auto user_caller = verifier -> der_cert_data();
+// callers used throughout
+auto user_caller = kp -> self_sign("CN=name");
+auto user_caller_der = tls::make_verifier(user_caller) -> der_cert_data();
 
-auto ca_mem = kp -> self_sign("CN=name_member");
-auto verifier_mem = tls::make_verifier(ca_mem);
-auto member_caller = verifier_mem -> der_cert_data();
+auto member_caller = kp -> self_sign("CN=name_member");
+auto member_caller_der = tls::make_verifier(member_caller) -> der_cert_data();
 
-auto ca_node = kp -> self_sign("CN=node");
-auto verifier_node = tls::make_verifier(ca_node);
-auto node_caller = verifier_node -> der_cert_data();
+auto node_caller = kp -> self_sign("CN=node");
+auto node_caller_der = tls::make_verifier(node_caller) -> der_cert_data();
 
-auto ca_nos = kp -> self_sign("CN=nostore_user");
-auto verifier_nos = tls::make_verifier(ca_nos);
-auto nos_caller = verifier_nos -> der_cert_data();
+auto nos_caller = kp -> self_sign("CN=nostore_user");
+auto nos_caller_der = tls::make_verifier(nos_caller) -> der_cert_data();
 
 auto kp_other = tls::make_key_pair();
-auto ca_inv = kp_other -> self_sign("CN=name");
-auto verifier_inv = tls::make_verifier(ca_inv);
-auto invalid_caller = verifier_inv -> der_cert_data();
+auto invalid_caller = kp_other -> self_sign("CN=name");
+auto invalid_caller_der = tls::make_verifier(invalid_caller) -> der_cert_data();
 
 const enclave::SessionContext user_session(
-  enclave::InvalidSessionId, user_caller);
+  enclave::InvalidSessionId, user_caller_der);
 const enclave::SessionContext invalid_session(
-  enclave::InvalidSessionId, invalid_caller);
+  enclave::InvalidSessionId, invalid_caller_der);
 const enclave::SessionContext member_session(
-  enclave::InvalidSessionId, member_caller);
+  enclave::InvalidSessionId, member_caller_der);
 
 UserId user_id = INVALID_ID;
 UserId invalid_user_id = INVALID_ID;
@@ -304,6 +299,10 @@ void prepare_callers()
   // It is necessary to set a consensus before committing the first transaction,
   // so that the KV batching done before calling into replicate() stays in
   // order.
+
+  // First, clear all previous callers since the same callers cannot be added
+  // twice to a store
+  network.tables->clear();
   auto backup_consensus = std::make_shared<kv::PrimaryStubConsensus>();
   network.tables->set_consensus(backup_consensus);
 
@@ -311,8 +310,7 @@ void prepare_callers()
   network.tables->set_encryptor(encryptor);
   network2.tables->set_encryptor(encryptor);
 
-  Store::Tx gen_tx;
-  GenesisGenerator g(network, gen_tx);
+  GenesisGenerator g(network, tx);
   g.init_values();
   user_id = g.add_user(user_caller);
   invalid_user_id = g.add_user(invalid_caller);
@@ -325,6 +323,7 @@ void prepare_callers()
 void add_callers_primary_store()
 {
   Store::Tx gen_tx;
+  network2.tables->clear();
   GenesisGenerator g(network2, gen_tx);
   g.init_values();
   user_id = g.add_user(user_caller);
@@ -784,7 +783,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto response = jsonrpc::unpack(
     user_frontend_primary.process_forwarded(fwd_ctx), default_pack);
 
-  CHECK(user_frontend_primary.last_caller_cert == user_caller);
+  CHECK(user_frontend_primary.last_caller_cert == user_caller_der);
   CHECK(user_frontend_primary.last_caller_id == 0);
 }
 
@@ -825,7 +824,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   auto response = jsonrpc::unpack(
     member_frontend_primary.process_forwarded(fwd_ctx), default_pack);
 
-  CHECK(member_frontend_primary.last_caller_cert == member_caller);
+  CHECK(member_frontend_primary.last_caller_cert == member_caller_der);
   CHECK(member_frontend_primary.last_caller_id == 0);
 }
 
