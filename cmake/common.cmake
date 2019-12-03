@@ -666,7 +666,7 @@ function(add_perf_test)
 
   cmake_parse_arguments(PARSE_ARGV 0 PARSED_ARGS
     ""
-    "NAME;PYTHON_SCRIPT;CLIENT_BIN;ITERATIONS;VERIFICATION_FILE"
+    "NAME;PYTHON_SCRIPT;CLIENT_BIN;ITERATIONS;VERIFICATION_FILE;LABEL"
     "ADDITIONAL_ARGS"
   )
 
@@ -681,6 +681,16 @@ function(add_perf_test)
     unset(VERIFICATION_ARG)
   endif()
 
+  if(PARSED_ARGS_LABEL)
+    if(PBFT)
+      set(LABEL_ARG --label ${PARSED_ARGS_LABEL}_PBFT)
+    else()
+      set(LABEL_ARG --label ${PARSED_ARGS_LABEL})
+    endif()
+  else()
+    unset(LABEL_ARG)
+  endif()
+
   add_test(
     NAME ${PARSED_ARGS_NAME}
     COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
@@ -691,6 +701,7 @@ function(add_perf_test)
       ${PARSED_ARGS_ADDITIONAL_ARGS}
       --write-tx-times
       ${VERIFICATION_ARG}
+      ${LABEL_ARG}
   )
 
   ## Make python test client framework importable
