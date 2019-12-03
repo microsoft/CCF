@@ -21,7 +21,6 @@ def wait_for_index_globally_committed(index, term, nodes):
     """
     Wait for a specific version at a specific term to be committed on all nodes.
     """
-
     for _ in range(infra.ccf.Network.replication_delay):
         up_to_date_f = []
         for f in nodes:

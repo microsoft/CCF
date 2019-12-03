@@ -368,7 +368,6 @@ namespace pbft
       kv::Version version = store->current_version();
       if (message_receiver_base != nullptr)
       {
-        LOG_INFO << "AAAAAA emitting sig:" << version << std::endl;
         message_receiver_base->emit_signature_on_next_pp(version);
       }
     }
