@@ -172,7 +172,7 @@ public:
   bool calculate_digest(Digest& d);
   // Effects: calculates the digest.
 
-  bool set_digest();
+  bool set_digest(int64_t signed_version = std::numeric_limits<int64_t>::min());
   // Effects: calculates and sets the digest.
 
   bool is_signed();

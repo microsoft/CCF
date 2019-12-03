@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ds/ringbuffer_types.h"
+#include "kv/kvtypes.h"
 
 namespace pbft
 {
@@ -31,6 +32,7 @@ namespace pbft
     virtual ~Store() {}
     virtual void compact(Index v) = 0;
     virtual void rollback(Index v) = 0;
+    virtual kv::Version current_version() = 0;
   };
 
   template <typename T>
@@ -46,14 +48,28 @@ namespace pbft
     {
       auto p = x.lock();
       if (p)
+      {
         p->compact(v);
+      }
     }
 
     void rollback(Index v)
     {
       auto p = x.lock();
       if (p)
+      {
         p->rollback(v);
+      }
+    }
+
+    kv::Version current_version()
+    {
+      auto p = x.lock();
+      if (p)
+      {
+        return p->current_version();
+      }
+      return kv::NoVersion;
     }
   };
 }

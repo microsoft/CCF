@@ -137,15 +137,26 @@ public:
   int my_id() const;
 
   Seqno signature_offset = 0;
-  int64_t signed_version = 0;
+  std::atomic<bool> sign_next = false;
+  std::atomic<int64_t> signed_version = 0;
   Seqno next_expected_sig_offset()
   {
     return signature_offset;
   }
 
+  void set_next_expected_sig_offset()
+  {
+    signature_offset = (next_pp_seqno + sig_req_offset());
+  }
+
   Seqno sig_req_offset()
   {
     return node_info.general_info.max_requests_between_signatures;
+  }
+
+  bool should_sign_next_and_reset()
+  {
+    return sign_next.exchange(false);
   }
 
   bool shutdown();

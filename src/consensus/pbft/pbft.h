@@ -353,12 +353,18 @@ namespace pbft
       message_receiver_base->set_f(f);
     }
 
-    void emit_signature(kv::Version version) override
+    void emit_signature() override
     {
+      kv::Version version = store->current_version();
       if (message_receiver_base != nullptr)
       {
         message_receiver_base->emit_signature_on_next_pp(version);
       }
+    }
+
+    ConsensusType type() override
+    {
+      return ConsensusType::Pbft;
     }
   };
 }

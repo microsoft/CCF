@@ -182,8 +182,10 @@ bool Pre_prepare::is_signed()
   return true;
 }
 
-bool Pre_prepare::set_digest()
+bool Pre_prepare::set_digest(int64_t signed_version)
 {
+  rep().ctx = std::max(rep().ctx, signed_version);
+
   Digest d;
   if (!calculate_digest(d))
   {
@@ -194,10 +196,10 @@ bool Pre_prepare::set_digest()
 
 #ifdef SIGN_BATCH
   if (
-    ((rep().seqno - replica->next_expected_sig_offset()) %
-     replica->sig_req_offset()) == 0 ||
-    node->f() == 0)
+    replica->should_sign_next_and_reset() ||
+    (rep().seqno == replica->next_expected_sig_offset()) || node->f() == 0)
   {
+    replica->set_next_expected_sig_offset();
     node->gen_signature(
       d.digest(), d.digest_size(), rep().batch_digest_signature);
   }

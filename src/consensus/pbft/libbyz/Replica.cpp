@@ -245,11 +245,12 @@ bool Replica::compare_execution_results(
   }
 
   auto tx_ctx = pre_prepare->get_ctx();
-  if (tx_ctx != info.ctx)
+  if (tx_ctx != info.ctx && info.ctx != std::numeric_limits<int64_t>::min())
   {
     LOG_FAIL << "User ctx between execution and the pre_prepare message "
                 "does not match, seqno:"
-             << pre_prepare->seqno() << std::endl;
+             << pre_prepare->seqno() << ", tx_ctx:" << tx_ctx
+             << ", info.ctx:" << info.ctx << std::endl;
     return false;
   }
   return true;
@@ -642,7 +643,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       LOG_DEBUG << "adding to plog from pre prepare: " << next_pp_seqno
                 << std::endl;
       pp->set_merkle_root_and_ctx(info.merkle_root, info.ctx);
-      pp->set_digest();
+      pp->set_digest(signed_version.load());
       plog.fetch(next_pp_seqno).add_mine(pp);
 
       requests_per_batch.insert({next_pp_seqno, requests_in_batch});
@@ -802,7 +803,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
         ledger_writer->write_pre_prepare(pp);
       }
 
-      Prepare* p = new Prepare(v, pp->seqno(), pp->digest());
+      Prepare* p = new Prepare(v, pp->seqno(), pp->digest(), nullptr, pp->is_signed());
       int send_node_id = (send_only_to_self ? node_id : All_replicas);
       send(p, send_node_id);
       pc.add_mine(p);
@@ -1064,7 +1065,8 @@ void Replica::set_f(ccf::NodeId f)
 
 void Replica::emit_signature_on_next_pp(int64_t version)
 {
-  signature_offset = next_pp_seqno;
+  //signature_offset = next_pp_seqno;
+  sign_next = true;
   signed_version = version;
 }
 
@@ -1651,7 +1653,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       }
       execute_tentative(pp, info);
 
-      Prepare* p = new Prepare(v, i, d);
+      Prepare* p = new Prepare(v, i, d, nullptr, pp->is_signed());
       pc.add_mine(p);
       send(p, All_replicas);
     }
@@ -1828,6 +1830,7 @@ void Replica::execute_prepared(bool committed)
           reply_size >= SMALL_REPLY_THRESHOLD && request.replier() != id() &&
           request.replier() >= 0)
         {
+          LOG_INFO << "FOOBAR" << std::endl;
           // Send empty reply.
           Reply empty(
             view(),
@@ -1855,11 +1858,13 @@ void Replica::execute_prepared(bool committed)
 
     if (global_commit_cb != nullptr && pp->is_signed())
     {
-      int64_t max_signed_version = std::max(pp->get_ctx(), signed_version);
-      LOG_TRACE << "Global_commit:" << pp->get_ctx()
-                << ", signed_version:" << signed_version << std::endl;
+      //int64_t max_signed_version = std::max(pp->get_ctx(), signed_version.load());
+      LOG_INFO_FMT(
+        "Global_commit: {}, signed_version: {}",
+        pp->get_ctx(),
+        global_commit_ctx);
 
-      global_commit_cb(max_signed_version, pp->view(), global_commit_ctx);
+      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_ctx);
       signed_version = 0;
     }
   }

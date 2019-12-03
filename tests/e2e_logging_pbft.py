@@ -37,12 +37,10 @@ def run(args):
                 check_commit(
                     c.rpc("LOG_record", {"id": 42, "msg": msg}),
                     result=True,
-                    force_sign=True,
                 )
                 check_commit(
                     c.rpc("LOG_record", {"id": 43, "msg": msg2}),
                     result=True,
-                    force_sign=True,
                 )
                 check(c.rpc("LOG_get", {"id": 42}), result={"msg": msg})
                 check(c.rpc("LOG_get", {"id": 43}), result={"msg": msg2})
@@ -58,7 +56,6 @@ def run(args):
                     check_commit(
                         c.rpc("LOG_record", {"id": id, "msg": long_msg}),
                         result=True,
-                        force_sign=True,
                     )
                     check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg})
                 id += 1
