@@ -84,6 +84,16 @@ namespace kv
     {
       return;
     }
+
+    void emit_signature() override
+    {
+      return;
+    }
+
+    ConsensusType type() override
+    {
+      return ConsensusType::Raft;
+    }
   };
 
   class BackupStubConsensus : public StubConsensus

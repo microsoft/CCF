@@ -4,6 +4,7 @@
 
 #include "consensus/consensustypes.h"
 #include "crypto/hash.h"
+#include "enclave/consensus_type.h"
 
 #include <array>
 #include <chrono>
@@ -239,6 +240,8 @@ namespace kv
     virtual void suspend_replication(kv::Version) {}
 
     virtual void set_f(ccf::NodeId f) = 0;
+    virtual void emit_signature() = 0;
+    virtual ConsensusType type() = 0;
   };
 
   using PendingTx = std::function<

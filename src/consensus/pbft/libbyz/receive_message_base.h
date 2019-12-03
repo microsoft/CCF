@@ -30,4 +30,5 @@ public:
   virtual void send(Message* m, int i) = 0;
   virtual Seqno get_last_executed() const = 0;
   virtual int my_id() const = 0;
+  virtual void emit_signature_on_next_pp(int64_t version) = 0;
 };

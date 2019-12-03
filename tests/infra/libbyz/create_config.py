@@ -23,6 +23,7 @@ def create_config_file(f, replicas, clients):
         "view_timeout": 5000,  # view change timeout (ms)
         "status_timeout": 100,  # status timeout for retransmissions (ms)
         "recovery_timeout": 9999250000,  # recovery timeout (ms)
+        "max_requests_between_signatures": 50,  # the maximum requests before we sign a batch
         "principal_info": nodes_json,
     }
 

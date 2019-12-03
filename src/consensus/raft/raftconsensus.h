@@ -113,5 +113,16 @@ namespace raft
     {
       return;
     }
+
+    void emit_signature() override
+    {
+      throw std::logic_error(
+        "Method should not be called when using raft consensus");
+    }
+
+    ConsensusType type() override
+    {
+      return ConsensusType::Raft;
+    }
   };
 }

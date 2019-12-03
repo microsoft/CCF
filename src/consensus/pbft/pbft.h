@@ -155,6 +155,7 @@ namespace pbft
       general_info.view_timeout = 5000;
       general_info.status_timeout = 100;
       general_info.recovery_timeout = 9999250000;
+      general_info.max_requests_between_signatures = 50;
 
       // TODO(#pbft): We do not need this in the long run
       std::string privk =
@@ -293,6 +294,16 @@ namespace pbft
       return message_receiver_base->primary();
     }
 
+    bool is_primary() override
+    {
+      return message_receiver_base->is_primary();
+    }
+
+    bool is_backup() override
+    {
+      return !message_receiver_base->is_primary();
+    }
+
     void add_configuration(
       SeqNo seqno,
       std::unordered_set<kv::NodeId> config,
@@ -350,6 +361,20 @@ namespace pbft
     void set_f(ccf::NodeId f) override
     {
       message_receiver_base->set_f(f);
+    }
+
+    void emit_signature() override
+    {
+      kv::Version version = store->current_version();
+      if (message_receiver_base != nullptr)
+      {
+        message_receiver_base->emit_signature_on_next_pp(version);
+      }
+    }
+
+    ConsensusType type() override
+    {
+      return ConsensusType::Pbft;
     }
   };
 }

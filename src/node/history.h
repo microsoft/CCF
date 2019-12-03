@@ -444,10 +444,12 @@ namespace ccf
     void emit_signature() override
     {
 #ifndef PBFT
-      // Signatures are only emitted when Raft is used as consensus
+      // Signatures are only emitted when there is a consensus
       auto consensus = store.get_consensus();
       if (!consensus)
+      {
         return;
+      }
 
       auto version = store.next_version();
       auto view = consensus->get_view();
