@@ -28,15 +28,15 @@ namespace tls
   {
     secp384r1 = 1,
 #ifdef MOD_MBEDTLS
-    curve25519 = 2,
+    ed25519 = 2,
 #endif
     secp256k1_mbedtls = 3,
     secp256k1_bitcoin = 4,
 
 #if SERVICE_IDENTITY_CURVE_CHOICE_SECP384R1
     service_identity_curve_choice = secp384r1,
-#elif SERVICE_IDENTITY_CURVE_CHOICE_CURVE25519
-    service_identity_curve_choice = curve25519,
+#elif SERVICE_IDENTITY_CURVE_CHOICE_ED25519
+    service_identity_curve_choice = ed25519,
 #elif SERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_MBEDTLS
     service_identity_curve_choice = secp256k1_mbedtls,
 #elif SERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_BITCOIN
@@ -79,7 +79,7 @@ namespace tls
         return MBEDTLS_ECP_DP_SECP384R1;
       }
 #ifdef MOD_MBEDTLS
-      case CurveImpl::curve25519:
+      case CurveImpl::ed25519:
       {
         return MBEDTLS_ECP_DP_CURVE25519;
       }
@@ -513,7 +513,7 @@ namespace tls
     mbedtls_pk_init(ctx.get());
 
     int rc = mbedtls_pk_parse_public_key(
-      ctx.get(), public_pem.data(), public_pem.size() + 1);
+      ctx.get(), public_pem.data(), public_pem.size());
 
     if (rc != 0)
     {
@@ -808,7 +808,7 @@ namespace tls
           entropy->get_data()) != 0)
         return {};
 
-      auto len = strlen((char*)buf) + 1;
+      auto len = strlen((char*)buf) + 1; // For null termination
       std::vector<uint8_t> pem(buf, buf + len);
       return pem;
     }
@@ -821,8 +821,9 @@ namespace tls
     {
       SignCsr sign;
 
-      Pem pemCsr(csr);
-      if (mbedtls_x509_csr_parse(&sign.csr, pemCsr.data(), pemCsr.size()) != 0)
+      Pem pem_csr(csr);
+      if (
+        mbedtls_x509_csr_parse(&sign.csr, pem_csr.data(), pem_csr.size()) != 0)
         return {};
 
       char subject[512];
@@ -899,7 +900,7 @@ namespace tls
           sign.entropy->get_data()) != 0)
         return {};
 
-      auto len = strlen((char*)buf) + 1;
+      auto len = strlen((char*)buf) + 1; // For null termination
       std::vector<uint8_t> pem(buf, buf + len);
       return pem;
     }
@@ -1040,7 +1041,7 @@ namespace tls
 
     // keylen is +1 to include terminating null byte
     int rc =
-      mbedtls_pk_parse_key(key.get(), pkey.data(), pkey.size() + 1, pw.p, pw.n);
+      mbedtls_pk_parse_key(key.get(), pkey.data(), pkey.size(), pw.p, pw.n);
     if (rc != 0)
     {
       throw std::logic_error("Could not parse key: " + error_string(rc));

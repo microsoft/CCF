@@ -59,7 +59,7 @@ namespace tls
         }
 
         rc = mbedtls_pk_parse_key(
-          &own_pkey, own_pkey_.data(), own_pkey_.size() + 1, pw.p, pw.n);
+          &own_pkey, own_pkey_.data(), own_pkey_.size(), pw.p, pw.n);
         if (rc != 0)
         {
           throw std::logic_error("Could not parse key: " + error_string(rc));

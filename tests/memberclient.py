@@ -48,8 +48,13 @@ def run(args):
         return Calls:call("raw_puts", p)
         """
 
-        LOG.info("Proposal to add a new member")
-        infra.proc.ccall("./keygenerator", "--name=member3")
+        LOG.info("Proposal to add a new member (with different curve)")
+        infra.proc.ccall(
+            "./keygenerator.sh",
+            "member3",
+            infra.ccf.ParticipantsCurve(args.default_curve).next().name,
+        )
+
         script = """
         tables, member_cert = ...
         return Calls:call("new_member", member_cert)

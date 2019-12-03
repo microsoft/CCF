@@ -12,7 +12,7 @@
 
 namespace tls
 {
-  // convenience class ensuring null termination of PEM-encoded certificates as
+  // Convenience class ensuring null termination of PEM-encoded certificates as
   // required by mbedTLS
   class Pem
   {
@@ -23,6 +23,7 @@ namespace tls
 
     Pem(CBuffer b)
     {
+      // TODO: https://github.com/microsoft/CCF/issues/601
       if (b.n == 0)
         throw std::logic_error("Got PEM of size 0.");
 
@@ -46,7 +47,8 @@ namespace tls
 
     size_t size() const
     {
-      return s.size();
+      // +1 for null termination
+      return s.size() + 1;
     }
   };
 }
