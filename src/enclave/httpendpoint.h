@@ -7,6 +7,9 @@
 #include "httpparser.h"
 #include "rpcmap.h"
 
+#include <algorithm>
+#include <mbedtls/base64.h>
+
 namespace enclave
 {
   class HTTPEndpoint : public TLSEndpoint, public http::MsgProcessor
@@ -147,20 +150,139 @@ namespace enclave
       // TODO:
       // 0. Read https://tools.ietf.org/html/draft-cavage-http-signatures-12
 
-
       // 1. Check if authorization header exists
-      auto auth = headers.find("Authorization")
+      auto auth = headers.find("Authorization");
       if (auth != headers.end())
       {
         LOG_FAIL_FMT("Authorization header exists!");
-        LOG_FAIL_FMT("Value is {}", auth.second);
+        LOG_FAIL_FMT("Value is: {}", auth->second);
 
+        auto authz_header = auth->second;
+        auto next_comma = authz_header.find(",");
 
+        std::string signature = {};
+        std::string algo = {};
+        std::vector<std::string> sign_over_fields;
+        bool last_key = false;
+
+        while (next_comma != std::string::npos ||
+               !last_key) // TODO: Maximum size as well?
+        {
+          auto token = authz_header.substr(0, next_comma);
+          LOG_FAIL_FMT("*******");
+          LOG_FAIL_FMT("token is: {}", token);
+
+          if (next_comma == std::string::npos)
+          {
+            LOG_FAIL_FMT(">>> No more commas!!!");
+            last_key = true;
+          }
+
+          // TODO: Read Key
+          auto eq_pos = token.find("=");
+          if (eq_pos != std::string::npos)
+          {
+            auto key = token.substr(0, eq_pos);
+            auto value = token.substr(eq_pos + 1, std::string::npos);
+            // Remove inverted commas
+            value.erase(
+              std::remove(value.begin(), value.end(), '"'), value.end());
+            LOG_FAIL_FMT("Key is: {}", key);
+            LOG_FAIL_FMT("Value is: {}", value);
+            if (key == "algorithm")
+            {
+              algo = value;
+            }
+            else if (key == "signature")
+            {
+              signature = value;
+            }
+            else if (key == "headers")
+            {
+              auto h_pos = value.find(" ");
+              bool last_h = false;
+              while (h_pos != std::string::npos || !last_h)
+              {
+                auto h = value.substr(0, h_pos);
+                LOG_FAIL_FMT("Signed header: {}", h);
+
+                if (h_pos == std::string::npos)
+                  last_h = true;
+
+                sign_over_fields.emplace_back(value);
+
+                if (!last_key)
+                {
+                  value = value.substr(h_pos + 1);
+                  h_pos = value.find(" ");
+                }
+              }
+            }
+            else
+            {
+              LOG_FAIL_FMT("Authz key {} not supported", key);
+            }
+          }
+
+          if (!last_key)
+          {
+            authz_header = authz_header.substr(next_comma + 1);
+            LOG_FAIL_FMT("remaining authz_header: {}", authz_header);
+            next_comma = authz_header.find(",");
+          }
+
+          // // TODO: There must be a much better way to do this!
+          // if (last_key)
+          // {
+          //   break;
+          // }
+
+          // if (next_comma == std::string::npos)
+          // {
+          //   last_key = true;
+          // }
+        }
+
+        std::vector<uint8_t> decoded_signature(
+          1000); // TODO: Find a suitable number for this
+        size_t len_written;
+        std::vector<uint8_t> signature_raw(signature.begin(), signature.end());
+        // std::cout << "Signature is (encoded): ";
+        // for (auto const& c : signature)
+        //   std::cout << std::hex << (int)c;
+        // std::cout << std::dec << std::endl;
+
+        auto rc = mbedtls_base64_decode(
+          decoded_signature.data(),
+          decoded_signature.size(),
+          &len_written,
+          signature_raw.data(),
+          signature_raw.size());
+        if (rc != 0)
+        {
+          LOG_FAIL_FMT(fmt::format(
+            "Could not decode base64 HTTP signature: {}",
+            tls::error_string(rc)));
+        }
+
+        decoded_signature.resize(
+          len_written); // TODO: Not necessary if decoded_signature size was set
+                        // properly
+
+        LOG_FAIL_FMT("Finished parsing authz header:");
+        LOG_FAIL_FMT("Algo is: {}", algo);
+        // LOG_FAIL_FMT("Signature is (decoded): {}", signature_raw);
+        // std::cout << "Signature is (decoded): ";
+        // for (auto const& c : decoded_signature)
+        //   std::cout << std::hex << (int)c;
+        // std::cout << std::dec << std::endl;
+        LOG_FAIL_FMT("# signed over fields: {}", sign_over_fields.size());
       }
       // 2. If it exists, it should contain the signature scheme
       // 3. Parse the algorithm, headers and signature
       // 4. Find the headers, i.e. date and digest
-      // 5. Create the SignedReq object (but for now, verify the signature inline)
+      // 5. Create the SignedReq object (but for now, verify the signature
+      // inline)
 
       try
       {
