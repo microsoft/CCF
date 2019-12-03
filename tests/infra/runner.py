@@ -147,7 +147,11 @@ def run(build_directory, get_command, args):
 
                     tx_rates.get_metrics()
                     for remote_client in clients:
-                        remote_client.print_and_upload_result(args.label, metrics)
+                        # TODO: For now we don't display CI results from PBFT perf runs on CIMetrics
+                        upload_metrics = None if args.consensus == "pbft" else metrics
+                        remote_client.print_and_upload_result(
+                            args.label, upload_metrics
+                        )
                         remote_client.stop()
 
                     LOG.info(f"Rates:\n{tx_rates}")
