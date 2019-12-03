@@ -1857,7 +1857,7 @@ void Replica::execute_prepared(bool committed)
 
     if (global_commit_cb != nullptr && pp->is_signed())
     {
-      LOG_INFO_FMT(
+      LOG_TRACE_FMT(
         "Global_commit: {}, signed_version: {}",
         pp->get_ctx(),
         global_commit_ctx);
