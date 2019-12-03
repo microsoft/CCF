@@ -16,8 +16,7 @@ using TRaft = raft::Raft<raft::LedgerStubProxy, raft::ChannelStubProxy>;
 using Store = raft::LoggingStubStore;
 using StoreSig = raft::LoggingStubStoreSig;
 using Adaptor = raft::Adaptor<Store, kv::DeserialiseSuccess>;
-using BatchType =
-  std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>;
+using Batch = std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>;
 
 TEST_CASE("Single node startup" * doctest::test_suite("single"))
 {
@@ -79,7 +78,7 @@ TEST_CASE("Single node commit" * doctest::test_suite("single"))
 
   for (size_t i = 1; i <= 5; ++i)
   {
-    BatchType batch;
+    Batch batch;
     std::vector<uint8_t> entry = {1, 2, 3};
     batch.emplace_back(i, entry, true);
     r0.replicate(batch);
@@ -329,13 +328,13 @@ TEST_CASE("Multiple nodes append entries" * doctest::test_suite("multiple"))
   REQUIRE(r2.channels->sent_msg_count() == 0);
 
   INFO("Try to replicate on a follower, and fail");
-  BatchType batch_follower;
+  Batch batch_follower;
   std::vector<uint8_t> entry = {1, 2, 3};
   batch_follower.emplace_back(1, entry, true);
   REQUIRE_FALSE(r1.replicate(batch_follower));
 
   INFO("Tell the leader to replicate a message");
-  BatchType batch_leader;
+  Batch batch_leader;
   batch_leader.emplace_back(1, entry, true);
   REQUIRE(r0.replicate(batch_leader));
   REQUIRE(r0.ledger->ledger.size() == 1);
@@ -433,7 +432,7 @@ TEST_CASE("Multiple nodes, late join" * doctest::test_suite("multiple"))
   REQUIRE(r0.channels->sent_msg_count() == 0);
   REQUIRE(r1.channels->sent_msg_count() == 0);
 
-  BatchType batch;
+  Batch batch;
   std::vector<uint8_t> entry = {1, 2, 3};
   batch.emplace_back(1, entry, true);
   REQUIRE(r0.replicate(batch));
@@ -535,9 +534,9 @@ TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> first_entry = {1, 1, 1};
     std::vector<uint8_t> second_entry = {2, 2, 2};
-    BatchType batch1;
+    Batch batch1;
     batch1.emplace_back(1, first_entry, true);
-    BatchType batch2;
+    Batch batch2;
     batch2.emplace_back(2, second_entry, true);
     REQUIRE(r0.replicate(batch1));
     REQUIRE(r0.replicate(batch2));
@@ -560,7 +559,7 @@ TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   INFO("Replicate one more entry but send AE all entries");
   {
     std::vector<uint8_t> third_entry = {3, 3, 3};
-    BatchType batch;
+    Batch batch;
     batch.emplace_back(3, third_entry, true);
     REQUIRE(r0.replicate(batch));
     REQUIRE(r0.ledger->ledger.size() == 3);
@@ -590,7 +589,7 @@ TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   INFO("Replicate one more entry (normal behaviour)");
   {
     std::vector<uint8_t> fourth_entry = {4, 4, 4};
-    BatchType batch;
+    Batch batch;
     batch.emplace_back(4, fourth_entry, true);
     REQUIRE(r0.replicate(batch));
     REQUIRE(r0.ledger->ledger.size() == 4);
@@ -603,7 +602,7 @@ TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   INFO("Replicate one more entry without AE response from previous entry");
   {
     std::vector<uint8_t> fifth_entry = {5, 5, 5};
-    BatchType batch;
+    Batch batch;
     batch.emplace_back(5, fifth_entry, true);
     REQUIRE(r0.replicate(batch));
     REQUIRE(r0.ledger->ledger.size() == 5);
@@ -700,7 +699,7 @@ TEST_CASE("Exceed append entries limit")
 
   for (size_t i = 1; i <= num_big_entries; ++i)
   {
-    BatchType batch;
+    Batch batch;
     batch.emplace_back(i, data, true);
     REQUIRE(r0.replicate(batch));
     REQUIRE(
@@ -719,7 +718,7 @@ TEST_CASE("Exceed append entries limit")
   std::vector<uint8_t> smaller_data(data_size, 1);
   for (size_t i = num_big_entries + 1; i <= individual_entries; ++i)
   {
-    BatchType batch;
+    Batch batch;
     batch.emplace_back(i, smaller_data, true);
     REQUIRE(r0.replicate(batch));
     dispatch_all(nodes, r0.channels->sent_append_entries);
@@ -839,7 +838,7 @@ TEST_CASE(
 
   INFO("Node 0 compacts twice but Nodes 1 and 2 only once");
   {
-    BatchType batch1;
+    Batch batch1;
     batch1.emplace_back(1, first_entry, true);
     REQUIRE(r0.replicate(batch1));
     REQUIRE(r0.ledger->ledger.size() == 1);
@@ -855,7 +854,7 @@ TEST_CASE(
     REQUIRE(
       1 == dispatch_all(nodes, r2.channels->sent_append_entries_response));
 
-    BatchType batch2;
+    Batch batch2;
     batch2.emplace_back(2, second_entry, true);
     REQUIRE(r0.replicate(batch2));
     REQUIRE(r0.ledger->ledger.size() == 2);
@@ -950,7 +949,7 @@ TEST_CASE(
     "Node 1 and Node 2 proceed to compact at idx 2, where Node 0 has "
     "compacted for a previous term");
   {
-    BatchType batch2;
+    Batch batch2;
     batch2.emplace_back(2, second_entry, true);
     REQUIRE(r1.replicate(batch2));
     REQUIRE(r1.ledger->ledger.size() == 2);
@@ -969,7 +968,7 @@ TEST_CASE(
     REQUIRE(r0.channels->sent_append_entries_response.size() == 0);
 
     INFO("Another entry from Node 1 so that Node 2 can also compact");
-    BatchType batch3;
+    Batch batch3;
     batch3.emplace_back(3, third_entry, true);
     REQUIRE(r1.replicate(batch3));
     REQUIRE(r1.ledger->ledger.size() == 3);

@@ -554,7 +554,7 @@ TEST_CASE("Test flatbuffers")
 
   kv::frame::FlatbufferSerialiser fb_serialiser(replicated_data, derived_data);
 
-  auto buffer = fb_serialiser.get_flatbuffer();
+  auto buffer = fb_serialiser.get_detached_buffer();
 
   kv::frame::FlatbufferDeserialiser db_deserialiser(buffer->data());
 

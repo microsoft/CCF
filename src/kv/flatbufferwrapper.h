@@ -46,7 +46,7 @@ namespace kv
         builder.Finish(frame);
       }
 
-      std::shared_ptr<flatbuffers::DetachedBuffer> get_flatbuffer()
+      std::shared_ptr<flatbuffers::DetachedBuffer> get_detached_buffer()
       {
         return std::make_shared<flatbuffers::DetachedBuffer>(builder.Release());
       }

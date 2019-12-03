@@ -112,7 +112,7 @@ class Transaction:
     def __del__(self):
         self._file.close()
 
-    def upack_flatbuffer(self, data):
+    def unpack_flatbuffer(self, data):
         frame = kv.Frame.Frame.GetRootAsFrame(data, 0)
         self._flatbuffer_data = []
         for i in range(frame.ReplicatedLength()):
@@ -136,7 +136,7 @@ class Transaction:
         self._next_offset += self._total_size
         self._next_offset += LEDGER_TRANSACTION_SIZE
         transaction_data = _byte_read_safe(self._file, self._total_size)
-        self.upack_flatbuffer(transaction_data)
+        self.unpack_flatbuffer(transaction_data)
 
         # read the AES GCM header
         buffer = self._byte_read_fb(GcmHeader.size())
