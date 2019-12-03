@@ -156,7 +156,9 @@ public:
 
   bool should_sign_next_and_reset()
   {
-    return sign_next.exchange(false);
+    bool val = sign_next;
+    sign_next = false;
+    return val;
   }
 
   bool shutdown();

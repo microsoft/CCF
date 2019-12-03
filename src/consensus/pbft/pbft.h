@@ -294,6 +294,16 @@ namespace pbft
       return message_receiver_base->primary();
     }
 
+    bool is_primary() override
+    {
+      return message_receiver_base->is_primary();
+    }
+
+    bool is_backup() override
+    {
+      return !message_receiver_base->is_primary();
+    }
+
     void add_configuration(
       SeqNo seqno,
       std::unordered_set<kv::NodeId> config,
@@ -358,6 +368,7 @@ namespace pbft
       kv::Version version = store->current_version();
       if (message_receiver_base != nullptr)
       {
+        LOG_INFO << "AAAAAA emitting sig:" << version << std::endl;
         message_receiver_base->emit_signature_on_next_pp(version);
       }
     }
