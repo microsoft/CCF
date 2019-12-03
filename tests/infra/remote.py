@@ -96,10 +96,10 @@ class CmdMixin(object):
     def _print_upload_perf(self, name, metrics, lines):
         for line in lines:
             LOG.debug(line.decode())
-            res = re.search("=> (.*)tx/s", line.decode())
-            if res:
-                results_uploaded = True
-                metrics.put(name, float(res.group(1)))
+            if metrics is not None:
+                res = re.search("=> (.*)tx/s", line.decode())
+                if res:
+                    metrics.put(name, float(res.group(1)))
 
 
 class SSHRemote(CmdMixin):
