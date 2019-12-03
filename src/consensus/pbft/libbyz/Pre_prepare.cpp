@@ -274,11 +274,7 @@ bool Pre_prepare::pre_verify()
   if (check_digest())
   {
 #ifdef SIGN_BATCH
-    if (
-      std::none_of(
-        std::begin(rep().batch_digest_signature),
-        std::end(rep().batch_digest_signature),
-        [](int i) { return i != 0; }) == false)
+    if (is_signed())
     {
       if (!node->get_principal(sender)->verify_signature(
             rep().digest.digest(),

@@ -1830,7 +1830,6 @@ void Replica::execute_prepared(bool committed)
           reply_size >= SMALL_REPLY_THRESHOLD && request.replier() != id() &&
           request.replier() >= 0)
         {
-          LOG_INFO << "FOOBAR" << std::endl;
           // Send empty reply.
           Reply empty(
             view(),
