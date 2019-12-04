@@ -127,6 +127,7 @@ public:
   size_t num_correct_replicas() const;
   size_t f() const;
   void set_f(ccf::NodeId f);
+  void emit_signature_on_next_pp(int64_t version);
   View view() const;
   bool is_primary() const;
   int primary() const;
@@ -134,6 +135,31 @@ public:
   void send(Message* m, int i);
   Seqno get_last_executed() const;
   int my_id() const;
+
+  Seqno signature_offset = 0;
+  std::atomic<bool> sign_next = false;
+  std::atomic<int64_t> signed_version = 0;
+  Seqno next_expected_sig_offset()
+  {
+    return signature_offset;
+  }
+
+  void set_next_expected_sig_offset()
+  {
+    signature_offset = (next_pp_seqno + sig_req_offset());
+  }
+
+  Seqno sig_req_offset()
+  {
+    return node_info.general_info.max_requests_between_signatures;
+  }
+
+  bool should_sign_next_and_reset()
+  {
+    bool val = sign_next;
+    sign_next = false;
+    return val;
+  }
 
   bool shutdown();
   // Effects: Shuts down replica writing a checkpoint to disk.

@@ -383,12 +383,24 @@ namespace ccf
 
       auto make_signature =
         [this](Store::Tx& tx, const nlohmann::json& params) {
-          update_history();
+          update_consensus();
 
-          if (history != nullptr)
+          if (consensus != nullptr)
           {
-            history->emit_signature();
-            return jsonrpc::success(true);
+            if (consensus->type() == ConsensusType::Raft)
+            {
+              update_history();
+
+              if (history != nullptr)
+              {
+                history->emit_signature();
+                return jsonrpc::success(true);
+              }
+            }
+            else if (consensus->type() == ConsensusType::Pbft)
+            {
+              consensus->emit_signature();
+            }
           }
 
           return jsonrpc::error(
@@ -1001,7 +1013,16 @@ namespace ccf
                 if (
                   history && consensus->is_primary() &&
                   (cv % sig_max_tx == sig_max_tx / 2))
-                  history->emit_signature();
+                {
+                  if (consensus->type() == ConsensusType::Raft)
+                  {
+                    history->emit_signature();
+                  }
+                  else
+                  {
+                    consensus->emit_signature();
+                  }
+                }
               }
 
               return result;
@@ -1066,7 +1087,14 @@ namespace ccf
         ms_to_sig = sig_max_ms;
         if (history && tables.commit_gap() > 0)
         {
-          history->emit_signature();
+          if (consensus->type() == ConsensusType::Raft)
+          {
+            history->emit_signature();
+          }
+          else
+          {
+            consensus->emit_signature();
+          }
         }
       }
     }

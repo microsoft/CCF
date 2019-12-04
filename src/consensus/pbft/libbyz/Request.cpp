@@ -83,7 +83,6 @@ void Request::authenticate(int act_len, bool read_only)
     rep().extra |= 2;
     auth_type = Auth_type::unknown;
     set_size(old_size + node->principal()->sig_size());
-    node->gen_signature(contents(), sizeof(Request_rep), contents() + old_size);
   }
   else
   {
@@ -118,7 +117,6 @@ void Request::re_authenticate(bool change, Principal* p)
   else
   {
     auth_type = Auth_type::unknown;
-    node->gen_signature(contents(), sizeof(Request_rep), contents() + old_size);
   }
 }
 
@@ -135,7 +133,6 @@ void Request::sign(int act_len)
 
   int old_size = sizeof(Request_rep) + act_len;
   set_size(old_size + node->principal()->sig_size());
-  node->gen_signature(contents(), sizeof(Request_rep), contents() + old_size);
 }
 
 Request::Request(Request_rep* contents) : Message(contents) {}
