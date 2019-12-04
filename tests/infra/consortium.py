@@ -250,10 +250,9 @@ class Consortium:
         tables, code_digest = ...
         return Calls:call("new_code", code_digest)
         """
-        result = self._member_client_rpc_as_json(
-            member_id, remote_node, "add_code", f"--new-code-id={new_code_id}",
-        )
-        self.vote_using_majority(remote_node, result["result"]["id"])
+        code_digest = list(bytearray.fromhex(new_code_id))
+        result, error = self.propose(member_id, remote_node, script, code_digest)
+        self.vote_using_majority(remote_node, result["id"])
 
     def check_for_service(self, remote_node, status):
         """
