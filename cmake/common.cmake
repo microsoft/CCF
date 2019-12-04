@@ -663,6 +663,10 @@ endfunction()
 
 ## Helper for building end-to-end perf tests using the python infrastucture
 function(add_perf_test)
+  ## Perf tests currently use C++ clients which are not sending HTTP - disable
+  if(HTTP)
+    return()
+  endif()
 
   cmake_parse_arguments(PARSE_ARGV 0 PARSED_ARGS
     ""
