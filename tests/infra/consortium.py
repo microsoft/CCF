@@ -75,8 +75,9 @@ class Consortium:
                 "--accept" if accept else "--reject",
                 "--force-unsigned" if force_unsigned else "",
             )
-            if j_result.get("error") is not None:
-                return (False, j_result["error"])
+
+        if j_result.get("error") is not None:
+            return (False, j_result["error"])
 
         # If the proposal was accepted, wait for it to be globally committed
         # This is particularly useful for the open network proposal to wait
