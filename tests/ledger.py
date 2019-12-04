@@ -100,7 +100,8 @@ class Transaction:
     _next_offset = 0
     _public_domain = None
     _file_size = 0
-    _flatbuffer_data = None
+    _fb_replicated = []
+    _fb_derived = []
     gcm_header = None
 
     def __init__(self, filename):
@@ -114,19 +115,16 @@ class Transaction:
 
     def unpack_flatbuffer(self, data):
         frame = kv.Frame.Frame.GetRootAsFrame(data, 0)
-        self._flatbuffer_data = []
-        for i in range(frame.ReplicatedLength()):
-            self._flatbuffer_data.append(frame.Replicated(i))
-        for i in range(frame.DerivedLength()):
-            self._flatbuffer_data.append(frame.Derived(i))
+        self._fb_replicated = frame.ReplicatedAsNumpy()
+        self._fb_derived = frame.DerivedAsNumpy()
 
-    def _byte_read_fb(self, num_of_bytes):
-        ret = bytes(self._flatbuffer_data[:num_of_bytes])
+    def _byte_read_fb_replicated(self, num_of_bytes):
+        ret = self._fb_replicated[:num_of_bytes]
         if len(ret) != num_of_bytes:
             raise ValueError(
                 "Failed to read precise number of bytes: %u" % num_of_bytes
             )
-        self._flatbuffer_data = self._flatbuffer_data[num_of_bytes:]
+        self._fb_replicated = self._fb_replicated[num_of_bytes:]
         return ret
 
     def _read_header(self):
@@ -139,16 +137,16 @@ class Transaction:
         self.unpack_flatbuffer(transaction_data)
 
         # read the AES GCM header
-        buffer = self._byte_read_fb(GcmHeader.size())
+        buffer = self._byte_read_fb_replicated(GcmHeader.size())
         self.gcm_header = GcmHeader(buffer)
 
         # read the size of the public domain
-        buffer = self._byte_read_fb(LEDGER_DOMAIN_SIZE)
+        buffer = self._byte_read_fb_replicated(LEDGER_DOMAIN_SIZE)
         self._public_domain_size = to_uint_64(buffer)
 
     def get_public_domain(self):
         if self._public_domain == None:
-            buffer = io.BytesIO(self._byte_read_fb(self._public_domain_size))
+            buffer = io.BytesIO(self._byte_read_fb_replicated(self._public_domain_size))
             self._public_domain = LedgerDomain(buffer)
         return self._public_domain
 
