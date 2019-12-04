@@ -290,52 +290,52 @@ if(BUILD_TESTS)
       add_e2e_test(
         NAME voting_history_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
+    endif ()
 
-      ## Lua sample app (tx regulator) end to end test
+    ## Lua sample app (tx regulator) end to end test
+    add_e2e_test(
+      NAME lua_txregulator_test
+      PYTHON_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
+      ADDITIONAL_ARGS
+        --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
+        --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
+
+    ## Receipts end to end test
+    add_e2e_test(
+      NAME receipts_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
+    )
+
+    if(QUOTES_ENABLED)
       add_e2e_test(
-        NAME lua_txregulator_test
-        PYTHON_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
+        NAME governance_tests
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
         ADDITIONAL_ARGS
-          --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
-          --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
-
-      ## Receipts end to end test
-      add_e2e_test(
-        NAME receipts_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
+          --oesign ${OESIGN}
       )
-
-      if(QUOTES_ENABLED)
-        add_e2e_test(
-          NAME governance_tests
-          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-          ADDITIONAL_ARGS
-            --oesign ${OESIGN}
-        )
-      endif()
-
-      add_e2e_test(
-        NAME recovery_tests
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-        ADDITIONAL_ARGS
-          ${RECOVERY_ARGS}
-      )
-
-      add_e2e_test(
-        NAME test_suite
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-        IS_SUITE TRUE
-        ADDITIONAL_ARGS
-        --test-duration 100
-        --enforce-reqs
-      )
-
-      add_e2e_test(
-        NAME lua_end_to_end_batched
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
-        ADDITIONAL_ARGS
-          --app-script ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua)
     endif()
+
+    add_e2e_test(
+      NAME recovery_tests
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+      ADDITIONAL_ARGS
+        ${RECOVERY_ARGS}
+    )
+
+    add_e2e_test(
+      NAME test_suite
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+      IS_SUITE TRUE
+      ADDITIONAL_ARGS
+      --test-duration 100
+      --enforce-reqs
+    )
+
+    add_e2e_test(
+      NAME lua_end_to_end_batched
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
+      ADDITIONAL_ARGS
+        --app-script ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua)
 
     add_e2e_test(
       NAME end_to_end_logging
