@@ -410,7 +410,7 @@ namespace ccf
 
     void append(const uint8_t* data, size_t size) override
     {
-      crypto::Sha256Hash h(data, size);
+      crypto::Sha256Hash h({{data, size}});
       log_hash(h, APPEND);
       tree.append(h);
     }
