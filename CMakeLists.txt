@@ -377,6 +377,7 @@ if(BUILD_TESTS)
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
       )
 
+      if(NOT HTTP)
       add_e2e_test(
         NAME code_update_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
@@ -390,6 +391,7 @@ if(BUILD_TESTS)
           # until https://github.com/microsoft/CCF/issues/480 is fixed
           --election-timeout 5000
       )
+      endif()
     endif()
 
   else()
