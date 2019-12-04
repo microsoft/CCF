@@ -62,7 +62,7 @@ namespace enclave
       auto auth_scheme = auth_header_value.substr(0, next_space);
       if (auth_scheme != AUTH_SCHEME)
       {
-        LOG_FATAL_FMT("{} is the only supported scheme", AUTH_SCHEME);
+        LOG_FAIL_FMT("{} is the only supported scheme", AUTH_SCHEME);
         return false;
       }
       auth_header_value = auth_header_value.substr(next_space + 1);
@@ -98,22 +98,23 @@ namespace enclave
       auto digest = headers.find(HTTP_HEADER_DIGEST);
       if (digest == headers.end())
       {
-        throw std::logic_error(
-          fmt::format("HTTP header does not contain {}", HTTP_HEADER_DIGEST));
+        LOG_FAIL_FMT("HTTP header does not contain {}", HTTP_HEADER_DIGEST);
+        return false;
       }
 
       auto equal_pos = digest->second.find("=");
       if (equal_pos == std::string::npos)
       {
-        throw std::logic_error(fmt::format(
-          "{} header does not contain key=value", HTTP_HEADER_DIGEST));
+        LOG_FAIL_FMT(
+          "{} header does not contain key=value", HTTP_HEADER_DIGEST);
+        return false;
       }
 
       auto sha_key = digest->second.substr(0, equal_pos);
       if (sha_key != DIGEST_SHA256)
       {
-        throw std::logic_error(
-          fmt::format("Only {} digest is supported", DIGEST_SHA256));
+        LOG_FAIL_FMT("Only {} digest is supported", DIGEST_SHA256);
+        return false;
       }
 
       auto raw_digest = raw_from_b64(digest->second.substr(equal_pos + 1));
@@ -124,8 +125,9 @@ namespace enclave
 
       if (raw_digest != body_digest)
       {
-        throw std::logic_error(fmt::format(
-          "Request body does not match {} header", HTTP_HEADER_DIGEST));
+        LOG_FAIL_FMT(
+          "Request body does not match {} header", HTTP_HEADER_DIGEST);
+        return false;
       }
 
       return true;
@@ -161,7 +163,8 @@ namespace enclave
       return strings;
     }
 
-    SignatureParams parse_signature_params(std::string_view& auth_header_value)
+    std::optional<SignatureParams> parse_signature_params(
+      std::string_view& auth_header_value)
     {
       SignatureParams sig_params = {};
 
@@ -192,8 +195,8 @@ namespace enclave
             sig_params.signature_algorithm = v;
             if (v != SIGN_ALGORITHM)
             {
-              throw std::logic_error(
-                fmt::format("Signature algorithm {} is not supported", v));
+              LOG_FAIL_FMT("Signature algorithm {} is not supported", v);
+              return {};
             }
           }
           else if (k == SIGN_PARAMS_SIGNATURE)
@@ -212,21 +215,21 @@ namespace enclave
         }
         else
         {
-          throw std::logic_error(fmt::format(
-            "Authorization parameter {} does not contain \"=\"", p));
+          LOG_FAIL_FMT("Authorization parameter {} does not contain \"=\"", p);
+          return {};
         }
       }
 
       return sig_params;
     }
 
-    std::vector<uint8_t> construct_raw_signed_string(
+    std::optional<std::vector<uint8_t>> construct_raw_signed_string(
       const std::vector<std::string_view>& signed_headers)
     {
       std::string signed_string = {};
       for (auto& f : signed_headers)
       {
-        // Signed headers are listed in lowercase in Authorization headers
+        // Signed headers are listed lowercase in Authorization headers
         // Uppercase first letter to find corresponding HTTP header
         auto f_ = std::string(f);
         f_[0] = std::toupper(f_[0]);
@@ -234,8 +237,8 @@ namespace enclave
         auto h = headers.find(f_);
         if (h == headers.end())
         {
-          throw std::logic_error(
-            fmt::format("Signed header {} does not exist in request", f_));
+          LOG_FAIL_FMT("Signed header {} does not exist", f_);
+          return {};
         }
         signed_string.append(f);
         signed_string.append(": ");
@@ -244,9 +247,9 @@ namespace enclave
       }
       signed_string.pop_back(); // Remove the last \n
 
-      LOG_FAIL_FMT("Signed string is {}", signed_string);
-
-      return {signed_string.begin(), signed_string.end()};
+      auto ret =
+        std::vector<uint8_t>({signed_string.begin(), signed_string.end()});
+      return ret;
     }
 
   public:
@@ -265,24 +268,39 @@ namespace enclave
 
         if (!verify_digest())
         {
-          throw std::logic_error("Digest does not match request body");
+          throw std::logic_error(
+            fmt::format("Error verifying HTTP {} header", HTTP_HEADER_DIGEST));
         }
 
         if (!parse_auth_scheme(authz_header))
         {
-          throw std::logic_error("Cannot parse authorization header");
+          throw std::logic_error(fmt::format(
+            "Error parsing {} scheme. Only {} is supported",
+            HTTP_HEADER_AUTHORIZATION,
+            AUTH_SCHEME));
         }
 
         auto parsed_sign_params = parse_signature_params(authz_header);
+        if (!parsed_sign_params.has_value())
+        {
+          throw std::logic_error(
+            fmt::format("Error parsing {} fields", HTTP_HEADER_AUTHORIZATION));
+        }
 
         auto signed_raw =
-          construct_raw_signed_string(parsed_sign_params.signed_headers);
+          construct_raw_signed_string(parsed_sign_params->signed_headers);
+        if (!signed_raw.has_value())
+        {
+          throw std::logic_error(
+            fmt::format("Error constructing signed string"));
+        }
 
-        auto sig_raw = raw_from_b64(parsed_sign_params.signature);
-
-        ccf::SignedReq ret = {sig_raw, signed_raw, MBEDTLS_MD_SHA256};
+        auto sig_raw = raw_from_b64(parsed_sign_params->signature);
+        ccf::SignedReq ret = {sig_raw, signed_raw.value(), MBEDTLS_MD_SHA256};
         return ret;
       }
+
+      // The request does not contain the Authorization header
       return {};
     }
   };

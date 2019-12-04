@@ -8,9 +8,6 @@
 #include "httpsig.h"
 #include "rpcmap.h"
 
-#include <algorithm>
-#include <mbedtls/base64.h>
-
 namespace enclave
 {
   class HTTPEndpoint : public TLSEndpoint, public http::MsgProcessor
