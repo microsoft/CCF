@@ -397,11 +397,11 @@ if(BUILD_TESTS)
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
   endif()
 
-  if (NOT HTTP)
-    if (BUILD_SMALLBANK)
-      include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
-    endif()
+  if (BUILD_SMALLBANK)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
+  endif()
 
+  if(NOT HTTP)
     add_e2e_test(
       NAME election_tests
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
