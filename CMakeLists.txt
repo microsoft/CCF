@@ -272,14 +272,14 @@ if(BUILD_TESTS)
           ${CMAKE_SOURCE_DIR}/tests/raft_scenarios ${CMAKE_SOURCE_DIR})
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
+    # Member client end to end tests
+    add_e2e_test(
+      NAME member_client_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
+    )
+
     # These tests use C++ clients sending framed JSON-RPC, so do not work with HTTP
     if (NOT HTTP)
-      # Member client end to end tests
-      add_e2e_test(
-        NAME member_client_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
-      )
-
       ## Logging client end to end test
       add_e2e_test(
         NAME logging_client_test
