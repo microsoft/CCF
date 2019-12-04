@@ -74,7 +74,7 @@ def verify_sig(raw_cert, sig, req):
             raw_cert, backend=default_backend()
         )
         pub_key = cert.public_key()
-        hash_alg = ec.ECDSA(hashes.SHA256()) # TODO: Works for now!
+        hash_alg = ec.ECDSA(hashes.SHA256())  # TODO: Works for now!
         ## TODO:
         # 1. Serialise the hash to use
         # 2. Serialise the whole request
