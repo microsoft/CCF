@@ -116,9 +116,8 @@ class Consortium:
         return res[1]
 
     def withdraw(self, member_id, remote_node, proposal_id):
-        return self._member_client_rpc_as_json(
-            member_id, remote_node, "withdraw", f"--proposal-id={proposal_id}"
-        )
+        with remote_node.member_client(member_id=member_id) as c:
+            return c.do("withdraw", {"id": proposal_id})
 
     def ack(self, member_id, remote_node):
         return self._member_client_rpc_as_json(member_id, remote_node, "ack")
