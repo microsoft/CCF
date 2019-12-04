@@ -5,6 +5,7 @@
 #include "clientendpoint.h"
 #include "ds/logger.h"
 #include "httpparser.h"
+#include "httpsig.h"
 #include "rpcmap.h"
 
 #include <algorithm>
@@ -147,240 +148,142 @@ namespace enclave
       }
       LOG_INFO_FMT("Done.");
 
-      // TODO:
-      // 0. Read https://tools.ietf.org/html/draft-cavage-http-signatures-12
+      auto http_sig_v = HttpSignatureVerifier(headers, body);
+      auto sig_params = http_sig_v.parse();
 
-      // 1. Check if authorization header exists
-      auto auth = headers.find("Authorization");
-      if (auth != headers.end())
+      if (sig_params.has_value())
       {
-        LOG_FAIL_FMT("Authorization header exists!");
-        LOG_FAIL_FMT("Value is: {}", auth->second);
-        auto authz_header = auth->second;
-
-        // Find scheme:
-        auto next_space = authz_header.find(" ");
-        if (next_space == std::string::npos)
-        {
-          LOG_FATAL_FMT("Authz header only contains one field!");
-        }
-        auto auth_scheme = authz_header.substr(0, next_space);
-        if (auth_scheme == "Signature")
-        {
-          LOG_FAIL_FMT("Scheme is signature");
-        }
-        else
-        {
-          LOG_FATAL_FMT("Signature is only support scheme");
-        }
-
-        authz_header = authz_header.substr(next_space + 1);
-        auto next_comma = authz_header.find(",");
-
-        std::string signature = {};
-        std::string algo = {};
-        std::vector<std::string> sign_over_fields;
-        bool last_key = false;
-
-        while (next_comma != std::string::npos ||
-               !last_key) // TODO: Maximum size as well?
-        {
-          auto token = authz_header.substr(0, next_comma);
-          LOG_FAIL_FMT("*******");
-          LOG_FAIL_FMT("token is: {}", token);
-
-          if (next_comma == std::string::npos)
-          {
-            LOG_FAIL_FMT(">>> No more commas!!!");
-            last_key = true;
-          }
-
-          // Read key="value"
-          auto eq_pos = token.find("=");
-          if (eq_pos != std::string::npos)
-          {
-            auto key = token.substr(0, eq_pos);
-            auto value = token.substr(eq_pos + 1, std::string::npos);
-            // Remove inverted commas
-            value.erase(
-              std::remove(value.begin(), value.end(), '"'), value.end());
-            LOG_FAIL_FMT("Key is: {}", key);
-            LOG_FAIL_FMT("Value is: {}", value);
-
-            if (key == "keyId")
-            {
-              LOG_FAIL_FMT("keyId is ignored");
-            }
-            else if (key == "algorithm")
-            {
-              algo = value;
-            }
-            else if (key == "signature")
-            {
-              signature = value;
-            }
-            else if (key == "headers")
-            {
-              auto h_pos = value.find(" ");
-              bool last_h = false;
-              // TODO: There should be a function that provides this.
-              // Inputs: a string to parse, a delimiter
-              // Outputs: a vector of strings
-              while (h_pos != std::string::npos || !last_h)
-              {
-                auto h = value.substr(0, h_pos);
-                LOG_FAIL_FMT("Signed header: {}", h);
-
-                if (h_pos == std::string::npos)
-                  last_h = true;
-
-                sign_over_fields.emplace_back(h);
-
-                if (!last_key)
-                {
-                  value = value.substr(h_pos + 1);
-                  h_pos = value.find(" ");
-                }
-              }
-            }
-            else
-            {
-              LOG_FAIL_FMT("Authz key {} not supported", key);
-            }
-          }
-
-          if (!last_key)
-          {
-            authz_header = authz_header.substr(next_comma + 1);
-            LOG_FAIL_FMT("remaining authz_header: {}", authz_header);
-            next_comma = authz_header.find(",");
-          }
-        }
-
-        std::vector<uint8_t> decoded_signature(
-          1000); // TODO: Find a suitable number for this
-        size_t len_written;
-        std::vector<uint8_t> signature_raw(signature.begin(), signature.end());
-
-        auto rc = mbedtls_base64_decode(
-          decoded_signature.data(),
-          decoded_signature.size(),
-          &len_written,
-          signature_raw.data(),
-          signature_raw.size());
-        if (rc != 0)
-        {
-          LOG_FAIL_FMT(fmt::format(
-            "Could not decode base64 HTTP signature: {}",
-            tls::error_string(rc)));
-        }
-
-        decoded_signature.resize(
-          len_written); // TODO: Not necessary if decoded_signature size was set
-                        // properly
-
-        LOG_FAIL_FMT("Finished parsing authz header:");
-        LOG_FAIL_FMT("Algo is: {}", algo);
-        LOG_FAIL_FMT("# signed over fields: {}", sign_over_fields.size());
-
-        // Construct string that was signed:
-        std::string signed_string = {};
-        for (auto& f : sign_over_fields)
-        {
-          // TODO: field -> Field (not great!)
-          auto f_ = f;
-          f_[0] = std::toupper(f_[0]);
-
-          auto h = headers.find(f_);
-          if (h != headers.end())
-          {
-            LOG_FAIL_FMT("Signed header {} exists in request", f);
-          }
-          else
-          {
-            LOG_FAIL_FMT("Signed header {} does not exist in request", f);
-          }
-          signed_string.append(f);
-          signed_string.append(": ");
-          signed_string.append(h->second);
-          signed_string.append("\n");
-        }
-        signed_string.pop_back(); // Remove the last \n
-        LOG_FAIL_FMT("Signed string is: \"{}\"", signed_string);
-        std::vector<uint8_t> raw_signed_string(
-          signed_string.begin(), signed_string.end());
-
-        // TODO: Verify digest
-        // SHA-256=5dakh6Y5UpnUxpzRJpEQ+SIssMKvWwrPQ5OjsB0IXP4=
-
-        // TODO: Extract hash
-        // Base64 decode
-        auto digest = headers.find("Digest");
-        if (digest == headers.end())
-          LOG_FATAL_FMT("Authz does not contain digest!");
-
-        LOG_FAIL_FMT("Report digest is: {}", digest->second);
-        auto equal_pos = digest->second.find("=");
-        if (equal_pos == std::string::npos)
-        {
-          LOG_FATAL_FMT("No sha=value in digest header!");
-        }
-        auto sha_key = digest->second.substr(0, equal_pos);
-        if (sha_key != "SHA-256")
-        {
-          LOG_FATAL_FMT("sha value is not SHA-256");
-        }
-        auto sha_digest = digest->second.substr(equal_pos + 1);
-        std::vector<uint8_t> decoded_digest(
-          1000); // TODO: Find a suitable number for this
-        size_t len_written_d;
-        std::vector<uint8_t> digest_raw(sha_digest.begin(), sha_digest.end());
-
-        rc = mbedtls_base64_decode(
-          decoded_digest.data(),
-          decoded_digest.size(),
-          &len_written_d,
-          digest_raw.data(),
-          digest_raw.size());
-        if (rc != 0)
-        {
-          LOG_FAIL_FMT(fmt::format(
-            "Could not decode base64 HTTP signature: {}",
-            tls::error_string(rc)));
-        }
-
-        decoded_digest.resize(
-          len_written_d); // TODO: Not necessary if decoded_signature size was
-                          // set properly
-
-        tls::HashBytes hash_;
-        tls::do_hash(body.data(), body.size(), hash_, MBEDTLS_MD_SHA256);
-        LOG_FAIL_FMT(
-          "Calculated digest is: {}", std::string(hash_.begin(), hash_.end()));
-
-        if (decoded_digest != hash_)
-        {
-          LOG_FAIL_FMT("Hashes don't match!!!");
-        }
-        else
-        {
-          LOG_FAIL_FMT("Hashes match :)");
-        }
-
-        // Verify signature
-        std::optional<mbedtls_md_type_t> md = {};
-        if (algo == "ecdsa-sha256")
-          md = MBEDTLS_MD_SHA256;
-
-        if (tls::make_verifier(peer_cert())
-              ->verify(raw_signed_string, decoded_signature, md))
-        {
-          LOG_FAIL_FMT("Signature verified!");
-        }
+        LOG_FAIL_FMT("Signed headers #: {}", sig_params->signed_headers.size());
+        LOG_FAIL_FMT("Signature: {}", sig_params->signature);
+        LOG_FAIL_FMT("Algo: {}", sig_params->algo);
       }
-      // 2. If it exists, it should contain the signature scheme
-      // TODO: Create the SignedReq object (but for now, verify the signature
-      // inline)
+
+      // std::vector<uint8_t> decoded_signature(
+      //   1000); // TODO: Find a suitable number for this
+      // size_t len_written;
+      // std::vector<uint8_t> signature_raw(
+      //   sig_params.signature.begin(), sig_params.signature.end());
+
+      // auto rc = mbedtls_base64_decode(
+      //   decoded_signature.data(),
+      //   decoded_signature.size(),
+      //   &len_written,
+      //   signature_raw.data(),
+      //   signature_raw.size());
+      // if (rc != 0)
+      // {
+      //   LOG_FAIL_FMT(fmt::format(
+      //     "Could not decode base64 HTTP signature: {}",
+      //     tls::error_string(rc)));
+      // }
+
+      // decoded_signature.resize(
+      //   len_written); // TODO: Not necessary if decoded_signature size was
+      //   set
+      //                 // properly
+
+      // LOG_FAIL_FMT("Finished parsing authz header:");
+      // LOG_FAIL_FMT("Algo is: {}", algo);
+      // LOG_FAIL_FMT("# signed over fields: {}", sign_over_fields.size());
+
+      // // Construct string that was signed:
+      // std::string signed_string = {};
+      // for (auto& f : sig_params.sign_over_fields)
+      // {
+      //   // TODO: field -> Field (not great!)
+      //   auto f_ = f;
+      //   f_[0] = std::toupper(f_[0]);
+
+      //   auto h = headers.find(f_);
+      //   if (h != headers.end())
+      //   {
+      //     LOG_FAIL_FMT("Signed header {} exists in request", f);
+      //   }
+      //   else
+      //   {
+      //     LOG_FAIL_FMT("Signed header {} does not exist in request", f);
+      //   }
+      //   signed_string.append(f);
+      //   signed_string.append(": ");
+      //   signed_string.append(h->second);
+      //   signed_string.append("\n");
+      // }
+      // signed_string.pop_back(); // Remove the last \n
+      // LOG_FAIL_FMT("Signed string is: \"{}\"", signed_string);
+      // std::vector<uint8_t> raw_signed_string(
+      //   signed_string.begin(), signed_string.end());
+
+      // // TODO: Verify digest
+      // // SHA-256=5dakh6Y5UpnUxpzRJpEQ+SIssMKvWwrPQ5OjsB0IXP4=
+
+      // // TODO: Extract hash
+      // // Base64 decode
+      // auto digest = headers.find("Digest");
+      // if (digest == headers.end())
+      //   LOG_FATAL_FMT("Authz does not contain digest!");
+
+      // LOG_FAIL_FMT("Report digest is: {}", digest->second);
+      // auto equal_pos = digest->second.find("=");
+      // if (equal_pos == std::string::npos)
+      // {
+      //   LOG_FATAL_FMT("No sha=value in digest header!");
+      // }
+      // auto sha_key = digest->second.substr(0, equal_pos);
+      // if (sha_key != "SHA-256")
+      // {
+      //   LOG_FATAL_FMT("sha value is not SHA-256");
+      // }
+      // auto sha_digest = digest->second.substr(equal_pos + 1);
+      // std::vector<uint8_t> decoded_digest(
+      //   1000); // TODO: Find a suitable number for this
+      // size_t len_written_d;
+      // std::vector<uint8_t> digest_raw(sha_digest.begin(), sha_digest.end());
+
+      // rc = mbedtls_base64_decode(
+      //   decoded_digest.data(),
+      //   decoded_digest.size(),
+      //   &len_written_d,
+      //   digest_raw.data(),
+      //   digest_raw.size());
+      // if (rc != 0)
+      // {
+      //   LOG_FAIL_FMT(fmt::format(
+      //     "Could not decode base64 HTTP signature: {}",
+      //     tls::error_string(rc)));
+      // }
+
+      // decoded_digest.resize(
+      //   len_written_d); // TODO: Not necessary if decoded_signature size was
+      //                   // set properly
+
+      // tls::HashBytes hash_;
+      // tls::do_hash(body.data(), body.size(), hash_, MBEDTLS_MD_SHA256);
+      // LOG_FAIL_FMT(
+      //   "Calculated digest is: {}", std::string(hash_.begin(), hash_.end()));
+
+      // if (decoded_digest != hash_)
+      // {
+      //   LOG_FAIL_FMT("Hashes don't match!!!");
+      // }
+      // else
+      // {
+      //   LOG_FAIL_FMT("Hashes match :)");
+      // }
+
+      // // Verify signature
+      // std::optional<mbedtls_md_type_t> md = {};
+      // if (algo == "ecdsa-sha256")
+      //   md = MBEDTLS_MD_SHA256;
+
+      // if (tls::make_verifier(peer_cert())
+      //       ->verify(raw_signed_string, decoded_signature, md))
+      // {
+      //   LOG_FAIL_FMT("Signature verified!");
+      // }
+      // // }
+      // // 2. If it exists, it should contain the signature scheme
+      // // TODO: Create the SignedReq object (but for now, verify the signature
+      // // inline)
 
       try
       {
