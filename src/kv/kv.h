@@ -1493,6 +1493,12 @@ namespace kv
       bool public_only = false,
       Term* term = nullptr) override
     {
+      // This will return FAILED if the serialised transaction is being
+      // applied out of order.
+      // Processing transactions locally and also deserialising to the
+      // same store will result in a store version mismatch and
+      // deserialisation will then fail.
+
       frame::FlatbufferDeserialiser fbd(data.data());
       auto frames = fbd.get_frames();
       Version v;
@@ -1500,45 +1506,69 @@ namespace kv
       bool first_serialiser = true;
       auto e = get_encryptor();
 
+      // create the first deserialiser
+      D d(
+        e,
+        public_only ? kv::SecurityDomain::PUBLIC :
+                      std::optional<kv::SecurityDomain>());
+
       for (auto& [frame, size] : frames)
       {
+        // find the first buffer that has data to deserialise
         if (size > 0)
         {
-          // This will return FAILED if the serialised transaction is being
-          // applied out of order.
-          // Processing transactions locally and also deserialising to the
-          // same store will result in a store version mismatch and
-          // deserialisation will then fail.
-          D d(
-            e,
-            public_only ? kv::SecurityDomain::PUBLIC :
-                          std::optional<kv::SecurityDomain>());
-
           if (!d.init(frame, size))
           {
             LOG_FAIL_FMT("Initialisation of deserialise object failed");
             return DeserialiseSuccess::FAILED;
           }
 
+          v = d.template deserialise_version<Version>();
+          // Throw away any local commits that have not propagated via the
+          // consensus.
+          rollback(v - 1);
+
+          // Make sure this is the next transaction.
+          auto cv = current_version();
+          if (cv != (v - 1))
+          {
+            LOG_FAIL_FMT(
+              "Tried to deserialise {} but current_version is {}", v, cv);
+            return DeserialiseSuccess::FAILED;
+          }
+          // initialized first deserialiser
+          break;
+        }
+      }
+
+      // Deserialised transactions express read dependencies as versions,
+      // rather than with the actual value read. As a result, they don't
+      // need snapshot isolation on the map state, and so do not need to
+      // lock all the maps before creating the transaction.
+      std::lock_guard<SpinLock> mguard(maps_lock);
+
+      for (auto& [frame, size] : frames)
+      {
+        if (size > 0)
+        {
           if (first_serialiser)
           {
             first_serialiser = false;
-            v = d.template deserialise_version<Version>();
-            // Throw away any local commits that have not propagated via the
-            // consensus.
-            rollback(v - 1);
-
-            // Make sure this is the next transaction.
-            auto cv = current_version();
-            if (cv != (v - 1))
-            {
-              LOG_FAIL_FMT(
-                "Tried to deserialise {} but current_version is {}", v, cv);
-              return DeserialiseSuccess::FAILED;
-            }
           }
           else
           {
+            // create next deserialiser
+            D d(
+              e,
+              public_only ? kv::SecurityDomain::PUBLIC :
+                            std::optional<kv::SecurityDomain>());
+
+            if (!d.init(frame, size))
+            {
+              LOG_FAIL_FMT("Initialisation of deserialise object failed");
+              return DeserialiseSuccess::FAILED;
+            }
+
             Version v_ = d.template deserialise_version<Version>();
             LOG_DEBUG_FMT("Deserialising {}", v_);
             if (v != v_)
@@ -1547,12 +1577,6 @@ namespace kv
               return DeserialiseSuccess::FAILED;
             }
           }
-
-          // Deserialised transactions express read dependencies as versions,
-          // rather than with the actual value read. As a result, they don't
-          // need snapshot isolation on the map state, and so do not need to
-          // lock all the maps before creating the transaction.
-          std::lock_guard<SpinLock> mguard(maps_lock);
 
           for (auto r = d.start_map(); r.has_value(); r = d.start_map())
           {
