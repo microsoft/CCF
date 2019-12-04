@@ -27,9 +27,7 @@ public:
 
   DummyConsensus(Store* store_) : store(store_) {}
 
-  bool replicate(
-    const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
-    override
+  bool replicate(const kv::BatchVector& entries) override
   {
     if (store)
     {
@@ -39,15 +37,12 @@ public:
     return true;
   }
 
-  bool replicate(
-    const std::vector<
-      std::tuple<SeqNo, std::shared_ptr<flatbuffers::DetachedBuffer>, bool>>&
-      entries) override
+  bool replicate(const kv::BatchDetachedBuffer& entries) override
   {
     if (store)
     {
       REQUIRE(entries.size() == 1);
-      auto buffer = std::get<1>(entries[0]);
+      auto& buffer = std::get<1>(entries[0]);
       std::vector<uint8_t> datavec(
         buffer->data(), buffer->data() + buffer->size());
       return store->deserialise(datavec);
@@ -218,9 +213,7 @@ public:
 
   CompactingConsensus(Store* store_) : store(store_) {}
 
-  bool replicate(
-    const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
-    override
+  bool replicate(const kv::BatchVector& entries) override
   {
     for (auto& [version, data, committable] : entries)
     {
@@ -231,10 +224,7 @@ public:
     return true;
   }
 
-  bool replicate(
-    const std::vector<
-      std::tuple<SeqNo, std::shared_ptr<flatbuffers::DetachedBuffer>, bool>>&
-      entries) override
+  bool replicate(const kv::BatchDetachedBuffer& entries) override
   {
     for (auto& [version, data, committable] : entries)
     {
@@ -341,9 +331,7 @@ public:
     rollback_to(rollback_to_)
   {}
 
-  bool replicate(
-    const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
-    override
+  bool replicate(const kv::BatchVector& entries) override
   {
     for (auto& [version, data, committable] : entries)
     {
@@ -354,10 +342,7 @@ public:
     return true;
   }
 
-  bool replicate(
-    const std::vector<
-      std::tuple<SeqNo, std::shared_ptr<flatbuffers::DetachedBuffer>, bool>>&
-      entries) override
+  bool replicate(const kv::BatchDetachedBuffer& entries) override
   {
     for (auto& [version, data, committable] : entries)
     {

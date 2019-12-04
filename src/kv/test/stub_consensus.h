@@ -18,9 +18,7 @@ namespace kv
   public:
     StubConsensus() : Consensus(0), replica() {}
 
-    bool replicate(
-      const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
-      override
+    bool replicate(const BatchVector& entries) override
     {
       for (auto&& [index, data, globally_committable] : entries)
       {
@@ -29,10 +27,7 @@ namespace kv
       return true;
     }
 
-    bool replicate(
-      const std::vector<
-        std::tuple<SeqNo, std::shared_ptr<flatbuffers::DetachedBuffer>, bool>>&
-        entries) override
+    bool replicate(const BatchDetachedBuffer& entries) override
     {
       for (auto&& [index, data, globally_committable] : entries)
       {
@@ -118,17 +113,12 @@ namespace kv
       return false;
     }
 
-    bool replicate(
-      const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
-      override
+    bool replicate(const BatchVector& entries) override
     {
       return false;
     }
 
-    bool replicate(
-      const std::vector<
-        std::tuple<SeqNo, std::shared_ptr<flatbuffers::DetachedBuffer>, bool>>&
-        entries) override
+    bool replicate(const BatchDetachedBuffer& entries) override
     {
       return false;
     }

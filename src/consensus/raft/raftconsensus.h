@@ -49,17 +49,12 @@ namespace raft
       raft->force_become_leader(seqno, view, terms, commit_seqno);
     }
 
-    bool replicate(
-      const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
-      override
+    bool replicate(const kv::BatchVector& entries) override
     {
       return raft->replicate(entries);
     }
 
-    bool replicate(
-      const std::vector<
-        std::tuple<SeqNo, std::shared_ptr<flatbuffers::DetachedBuffer>, bool>>&
-        entries) override
+    bool replicate(const kv::BatchDetachedBuffer& entries) override
     {
       return raft->replicate(entries);
     }

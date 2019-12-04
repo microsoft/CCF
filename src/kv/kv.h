@@ -1034,12 +1034,7 @@ namespace kv
           }
 
           return store->commit(
-            version,
-            [data = std::move(data),
-             req_id = std::move(req_id)]() -> PendingTx::result_type {
-              return {CommitSuccess::OK, std::move(req_id), std::move(data)};
-            },
-            false);
+            version, MovePendingTx(std::move(data), std::move(req_id)), false);
         }
         catch (const std::exception& e)
         {
@@ -1121,7 +1116,7 @@ namespace kv
       return version;
     }
 
-    std::shared_ptr<flatbuffers::DetachedBuffer> serialise(
+    std::unique_ptr<flatbuffers::DetachedBuffer> serialise(
       bool include_reads = false)
     {
       if (!committed)
@@ -1183,7 +1178,7 @@ namespace kv
                      std::move(std::vector<uint8_t>(0)),
         derived ? std::move(derived_serialiser.get_raw_data()) :
                   std::move(std::vector<uint8_t>(0)));
-      return fbs.get_detached_buffer();
+      return std::move(fbs.get_detached_buffer());
     }
 
     // Used by frontend for reserved transactions
@@ -1557,7 +1552,6 @@ namespace kv
           // rather than with the actual value read. As a result, they don't
           // need snapshot isolation on the map state, and so do not need to
           // lock all the maps before creating the transaction.
-          std::unordered_set<std::string> present;
           std::lock_guard<SpinLock> mguard(maps_lock);
 
           for (auto r = d.start_map(); r.has_value(); r = d.start_map())
@@ -1698,9 +1692,7 @@ namespace kv
         version,
         (globally_committable ? " globally_committable" : ""));
 
-      std::vector<
-        std::tuple<Version, std::shared_ptr<flatbuffers::DetachedBuffer>, bool>>
-        batch;
+      BatchDetachedBuffer batch;
       Version previous_last_replicated = 0;
       Version next_last_replicated = 0;
       Version previous_rollback_count = 0;
@@ -1710,7 +1702,9 @@ namespace kv
         if (globally_committable && version > last_committable)
           last_committable = version;
 
-        pending_txs.insert({version, {pending_tx, globally_committable}});
+        pending_txs.insert(
+          {version,
+           std::make_pair(std::move(pending_tx), globally_committable)});
 
         auto h = get_history();
 
@@ -1746,7 +1740,7 @@ namespace kv
           LOG_DEBUG_FMT(
             "Batching {} ({})", last_replicated + offset, p_tx_.buffer->size());
           batch.emplace_back(
-            last_replicated + offset, p_tx_.buffer, committable_);
+            last_replicated + offset, std::move(p_tx_.buffer), committable_);
           pending_txs.erase(search);
         }
 
