@@ -4,7 +4,10 @@
 add_client_exe(small_bank_client
   SRCS ${CMAKE_CURRENT_LIST_DIR}/clients/small_bank_client.cpp
 )
-target_link_libraries(small_bank_client PRIVATE secp256k1.host)
+target_link_libraries(small_bank_client PRIVATE
+  secp256k1.host
+  http_parser.host
+)
 
 # SmallBank application
 add_enclave_lib(smallbankenc

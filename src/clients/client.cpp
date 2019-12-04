@@ -66,14 +66,22 @@ std::vector<uint8_t> make_rpc_raw(
   {
     auto client = RpcTlsClient(host, port, tls_ca, cert);
 
+#ifdef HTTP
+    const auto body_j = nlohmann::json::parse(req);
+    const auto method = body_j[jsonrpc::METHOD];
+    auto r = enclave::http::Request(HTTP_POST);
+    r.set_path(method);
+    const auto request = r.build_request(req);
+    res = client.call_raw(request);
+#else
     // write framed data
     vector<uint8_t> len(4);
     auto p = len.data();
     auto size = len.size();
     serialized::write(p, size, (uint32_t)req.size());
     client.write(CBuffer(len));
-
     res = client.call_raw(req);
+#endif
   }
   catch (const logic_error& err)
   {
@@ -161,7 +169,11 @@ int main(int argc, char** argv)
     response = make_rpc(
       server_address.hostname,
       server_address.port,
+#ifdef HTTP
+      Pack::Text,
+#else
       Pack::MsgPack,
+#endif
       ca_file,
       client_cert_file,
       client_pk_file,

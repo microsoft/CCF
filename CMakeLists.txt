@@ -24,6 +24,7 @@ target_link_libraries(memberclient PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
   ccfcrypto.host
   secp256k1.host
+  http_parser.host
 )
 
 # Logging Client executable
@@ -31,6 +32,7 @@ add_executable(logging_client src/clients/logging_client.cpp)
 use_client_mbedtls(logging_client)
 target_link_libraries(logging_client PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
+  http_parser.host
 )
 
 add_enclave_lib(loggingenc ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem SRCS src/apps/logging/logging.cpp src/apps/logging/stub_for_code_signing.cpp)

@@ -545,6 +545,7 @@ use_client_mbedtls(client)
 target_link_libraries(client PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
   secp256k1.host
+  http_parser.host
 )
 
 # Lua for host and enclave
