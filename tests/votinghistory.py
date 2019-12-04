@@ -13,6 +13,7 @@ from coincurve.context import GLOBAL_CONTEXT
 
 import cryptography.x509
 from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 
 from loguru import logger as LOG
@@ -67,11 +68,16 @@ def verify_recover_secp256k1_bc(
 
 def verify_sig(raw_cert, sig, req):
     try:
+        LOG.success(sig)
+        LOG.success(req)
         cert = cryptography.x509.load_der_x509_certificate(
             raw_cert, backend=default_backend()
         )
         pub_key = cert.public_key()
-        hash_alg = ec.ECDSA(cert.signature_hash_algorithm)
+        hash_alg = ec.ECDSA(hashes.SHA256()) # TODO: Works for now!
+        ## TODO:
+        # 1. Serialise the hash to use
+        # 2. Serialise the whole request
         pub_key.verify(sig, req, hash_alg)
     except cryptography.exceptions.InvalidSignature as e:
         # we support a non-standard curve, which is also being
