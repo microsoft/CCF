@@ -99,5 +99,5 @@ jobs:
         env: ${{ parameters.env[target] }}
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build.CFT.cmake_args }} ${{ parameters.build.http.cmake_args }}'
         ctest_filter: '${{ parameters.test[target].ctest_args }}'
-        suffix: 'HTTP'
+        suffix: '${{ target }}_HTTP'
         depends_on: ${{ parameters.static_check_job_name }}
