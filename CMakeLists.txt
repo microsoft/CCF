@@ -401,15 +401,12 @@ if(BUILD_TESTS)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
   endif()
 
-  if(NOT HTTP)
-    add_e2e_test(
-      NAME election_tests
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-      ADDITIONAL_ARGS
-        --election-timeout 2000
-    )
-  endif()
-
+  add_e2e_test(
+    NAME election_tests
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+    ADDITIONAL_ARGS
+      --election-timeout 2000
+  )
 
   if (EXTENSIVE_TESTS)
     set_tests_properties(recovery_tests PROPERTIES TIMEOUT 2000)
