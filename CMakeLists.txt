@@ -272,7 +272,7 @@ if(BUILD_TESTS)
           ${CMAKE_SOURCE_DIR}/tests/raft_scenarios ${CMAKE_SOURCE_DIR})
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
-    # These tests use C++ clients sending framed JSON-RPC, so do not worth with HTTP
+    # These tests use C++ clients sending framed JSON-RPC, so do not work with HTTP
     if (NOT HTTP)
       # Member client end to end tests
       add_e2e_test(
