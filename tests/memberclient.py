@@ -130,6 +130,7 @@ def run(args):
 
         LOG.debug("New member ACK")
         result = network.consortium.ack(3, primary)
+        assert result.error is None, result.error
 
         LOG.info("New member is now active and send an accept node proposal")
         result, _ = network.consortium.propose(3, primary, script, 0)
