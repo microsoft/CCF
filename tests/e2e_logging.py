@@ -59,7 +59,8 @@ def test_update_lua(network, args):
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None):
     LOG.info("Running transactions against logging app")
-    primary, backup = network.find_primary_and_any_backup()
+    # primary, backup = network.find_primary_and_any_backup()
+    primary, _ = network.find_primary()
 
     with primary.node_client(format="json") as mc:
         check_commit = infra.checker.Checker(mc, notifications_queue)
@@ -106,7 +107,7 @@ def test(network, args, notifications_queue=None):
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
+    hosts = ["localhost"]
 
     with infra.notification.notification_server(args.notify_server) as notifications:
         # Lua apps do not support notifications
