@@ -3,6 +3,7 @@
 #pragma once
 
 #include "httpparser.h"
+#include "node/clientsignatures.h"
 
 #include <fmt/format_header_only.h>
 #include <mbedtls/base64.h>
@@ -18,8 +19,11 @@ namespace enclave
   //
   class HttpSignatureVerifier
   {
+  private:
     static constexpr auto HTTP_HEADER_AUTHORIZATION = "Authorization";
     static constexpr auto HTTP_HEADER_DIGEST = "Digest";
+
+    static constexpr auto DIGEST_SHA256 = "SHA-256";
 
     static constexpr auto AUTH_SCHEME = "Signature";
     static constexpr auto SIGN_PARAMS_KEYID = "keyId";
@@ -35,9 +39,9 @@ namespace enclave
 
     struct SignatureParams
     {
-      std::string signature = {};
-      std::string algo = {};
-      std::vector<std::string> signed_headers;
+      std::string_view signature = {};
+      std::string_view algo = {};
+      std::vector<std::string_view> signed_headers;
     };
 
     bool parse_auth_scheme(std::string_view& auth_header_value)
@@ -142,6 +146,100 @@ namespace enclave
       return sig_params;
     }
 
+    std::vector<uint8_t> construct_raw_signed_string(
+      const std::vector<std::string_view>& signed_headers)
+    {
+      std::string signed_string = {};
+      for (auto& f : signed_headers)
+      {
+        // Signed headers are listed in lowercase in Authorization headers
+        // Uppercase first letter to find corresponding HTTP header
+        auto f_ = std::string(f);
+        f_[0] = std::toupper(f_[0]);
+
+        auto h = headers.find(f_);
+        if (h == headers.end())
+        {
+          throw std::logic_error(
+            fmt::format("Signed header {} does not exist in request", f_));
+        }
+        signed_string.append(f);
+        signed_string.append(": ");
+        signed_string.append(h->second);
+        signed_string.append("\n");
+      }
+      signed_string.pop_back(); // Remove the last \n
+
+      LOG_FAIL_FMT("Signed string is {}", signed_string);
+
+      return {signed_string.begin(), signed_string.end()};
+    }
+
+    // TODO: This should move to a specific base64 encoding-decoding file
+    std::vector<uint8_t> raw_from_b64(const std::string_view& b64_string)
+    {
+      // TODO: Calculate the size of decoded bytes based on size of input base64
+      // string
+      std::vector<uint8_t> decoded(255);
+      size_t len_written;
+      std::vector<uint8_t> raw(b64_string.begin(), b64_string.end());
+
+      auto rc = mbedtls_base64_decode(
+        decoded.data(), decoded.size(), &len_written, raw.data(), raw.size());
+      if (rc != 0)
+      {
+        LOG_FAIL_FMT(fmt::format(
+          "Could not decode base64 string: {}", tls::error_string(rc)));
+      }
+
+      // TODO: Remove when size of decoded bytes is calculated properly
+      decoded.resize(len_written);
+
+      return decoded;
+    }
+
+    bool verify_digest()
+    {
+      // First, retrieve digest from header
+      auto digest = headers.find(HTTP_HEADER_DIGEST);
+      if (digest == headers.end())
+      {
+        throw std::logic_error(
+          fmt::format("HTTP header does not contain {}", HTTP_HEADER_DIGEST));
+      }
+
+      auto equal_pos = digest->second.find("=");
+      if (equal_pos == std::string::npos)
+      {
+        throw std::logic_error(fmt::format(
+          "{} header does not contain key=value", HTTP_HEADER_DIGEST));
+      }
+
+      auto sha_key = digest->second.substr(0, equal_pos);
+      if (sha_key != DIGEST_SHA256)
+      {
+        throw std::logic_error(
+          fmt::format("Only {} digest is supported", DIGEST_SHA256));
+      }
+
+      auto raw_digest = raw_from_b64(digest->second.substr(equal_pos + 1));
+
+      // Then, hash the request body
+      tls::HashBytes body_digest;
+      tls::do_hash(body.data(), body.size(), body_digest, MBEDTLS_MD_SHA256);
+      LOG_FAIL_FMT(
+        "Calculated digest is: {}",
+        std::string(body_digest.begin(), body_digest.end()));
+
+      if (raw_digest != body_digest)
+      {
+        throw std::logic_error(fmt::format(
+          "Request body does not match {} header", HTTP_HEADER_DIGEST));
+      }
+
+      return true;
+    }
+
   public:
     HttpSignatureVerifier(
       const http::HeaderMap& headers_, const std::vector<uint8_t>& body_) :
@@ -149,19 +247,32 @@ namespace enclave
       body(body_)
     {}
 
-    std::optional<SignatureParams> parse()
+    std::optional<ccf::SignedReq> parse()
     {
       auto auth = headers.find(HTTP_HEADER_AUTHORIZATION);
       if (auth != headers.end())
       {
         std::string_view authz_header = auth->second;
 
+        if (!verify_digest())
+        {
+          throw std::logic_error("Digest does not match request body");
+        }
+
         if (!parse_auth_scheme(authz_header))
         {
           throw std::logic_error("Cannot parse authorization header");
         }
 
-        return parse_signature_params(authz_header);
+        auto parsed_sign_params = parse_signature_params(authz_header);
+        auto signed_raw =
+          construct_raw_signed_string(parsed_sign_params.signed_headers);
+
+        auto sig_raw = raw_from_b64(parsed_sign_params.signature);
+
+        LOG_FAIL_FMT("Returning sig_raw and signed_raw");
+        ccf::SignedReq ret = {sig_raw, signed_raw};
+        return ret;
       }
       return {};
     }
