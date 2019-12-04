@@ -527,7 +527,7 @@ TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::vector<uint8_t> second_entry = {2, 2, 2};
 
     REQUIRE(r0.replicate(Batch{BatchTuple(1, first_entry, true)}));
-    REQUIRE(r0.replicate(Batch{BatchTuple(1, second_entry, true)}));
+    REQUIRE(r0.replicate(Batch{BatchTuple(2, second_entry, true)}));
     REQUIRE(r0.ledger->ledger.size() == 2);
     r0.periodic(ms(10));
     REQUIRE(r0.channels->sent_append_entries.size() == 1);
@@ -547,7 +547,7 @@ TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   INFO("Replicate one more entry but send AE all entries");
   {
     std::vector<uint8_t> third_entry = {3, 3, 3};
-    REQUIRE(r0.replicate(Batch{BatchTuple(1, third_entry, true)}));
+    REQUIRE(r0.replicate(Batch{BatchTuple(3, third_entry, true)}));
     REQUIRE(r0.ledger->ledger.size() == 3);
 
     // Simulate that the append entries was not deserialised successfully
@@ -575,7 +575,7 @@ TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   INFO("Replicate one more entry (normal behaviour)");
   {
     std::vector<uint8_t> fourth_entry = {4, 4, 4};
-    REQUIRE(r0.replicate(Batch{BatchTuple(1, fourth_entry, true)}));
+    REQUIRE(r0.replicate(Batch{BatchTuple(4, fourth_entry, true)}));
     REQUIRE(r0.ledger->ledger.size() == 4);
     r0.periodic(ms(10));
     REQUIRE(r0.channels->sent_append_entries.size() == 1);
@@ -586,7 +586,7 @@ TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   INFO("Replicate one more entry without AE response from previous entry");
   {
     std::vector<uint8_t> fifth_entry = {5, 5, 5};
-    REQUIRE(r0.replicate(Batch{BatchTuple(1, fifth_entry, true)}));
+    REQUIRE(r0.replicate(Batch{BatchTuple(5, fifth_entry, true)}));
     REQUIRE(r0.ledger->ledger.size() == 5);
     r0.periodic(ms(10));
     REQUIRE(r0.channels->sent_append_entries.size() == 1);
@@ -830,7 +830,7 @@ TEST_CASE(
     REQUIRE(
       1 == dispatch_all(nodes, r2.channels->sent_append_entries_response));
 
-    REQUIRE(r0.replicate(Batch{BatchTuple(1, second_entry, true)}));
+    REQUIRE(r0.replicate(Batch{BatchTuple(2, second_entry, true)}));
     REQUIRE(r0.ledger->ledger.size() == 2);
     r0.periodic(ms(10));
     REQUIRE(r0.channels->sent_append_entries.size() == 2);
@@ -923,7 +923,7 @@ TEST_CASE(
     "Node 1 and Node 2 proceed to compact at idx 2, where Node 0 has "
     "compacted for a previous term");
   {
-    REQUIRE(r1.replicate(Batch{BatchTuple(1, second_entry, true)}));
+    REQUIRE(r1.replicate(Batch{BatchTuple(2, second_entry, true)}));
     REQUIRE(r1.ledger->ledger.size() == 2);
     r1.periodic(ms(10));
     REQUIRE(r1.channels->sent_append_entries.size() == 2);
@@ -940,7 +940,7 @@ TEST_CASE(
     REQUIRE(r0.channels->sent_append_entries_response.size() == 0);
 
     INFO("Another entry from Node 1 so that Node 2 can also compact");
-    REQUIRE(r1.replicate(Batch{BatchTuple(1, third_entry, true)}));
+    REQUIRE(r1.replicate(Batch{BatchTuple(3, third_entry, true)}));
     REQUIRE(r1.ledger->ledger.size() == 3);
     r1.periodic(ms(10));
     REQUIRE(r1.channels->sent_append_entries.size() == 2);
