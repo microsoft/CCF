@@ -9,6 +9,7 @@
 #include <mbedtls/base64.h>
 #include <optional>
 #include <string>
+#include <tls/keypair.h> // TODO: Only used for hashing
 
 namespace enclave
 {
@@ -17,6 +18,11 @@ namespace enclave
   //
   // Tested with RequestClient in tests/infra/clients.py
   //
+  // TODO:
+  //    - Only supports public key crytography (i.e. no HMAC)
+  //    - Only supports SHA-256 as digest algorithm
+  //    - Only supports ecdsa-sha256 as signature algorithm
+  //    - keyId is ignored
   class HttpSignatureVerifier
   {
   private:
@@ -30,6 +36,7 @@ namespace enclave
     static constexpr auto SIGN_PARAMS_SIGNATURE = "signature";
     static constexpr auto SIGN_PARAMS_ALGORITHM = "algorithm";
     static constexpr auto SIGN_PARAMS_HEADERS = "headers";
+    static constexpr auto SIGN_ALGORITHM = "ecdsa-sha256";
 
     static constexpr auto SIGN_PARAMS_DELIMITER = ",";
     static constexpr auto SIGN_PARAMS_HEADERS_DELIMITER = " ";
@@ -40,7 +47,7 @@ namespace enclave
     struct SignatureParams
     {
       std::string_view signature = {};
-      std::string_view algo = {};
+      std::string_view signature_algorithm = {};
       std::vector<std::string_view> signed_headers;
     };
 
@@ -49,7 +56,7 @@ namespace enclave
       auto next_space = auth_header_value.find(" ");
       if (next_space == std::string::npos)
       {
-        LOG_FAIL_FMT("Authz header only contains one field!");
+        LOG_FAIL_FMT("Authorization header only contains one field!");
         return false;
       }
       auto auth_scheme = auth_header_value.substr(0, next_space);
@@ -60,119 +67,6 @@ namespace enclave
       }
       auth_header_value = auth_header_value.substr(next_space + 1);
       return true;
-    }
-
-    // Parses a delimited string with no delimiter at the end
-    // (e.g. "foo,bar,baz") and returns a vector parsed strings
-    std::vector<std::string_view> parse_delimited_string(
-      std::string_view& s, const std::string& delimiter)
-    {
-      std::vector<std::string_view> strings;
-
-      auto next_delimiter = s.find(delimiter);
-      bool last_string;
-
-      while (next_delimiter != std::string::npos || !last_string)
-      {
-        auto token = s.substr(0, next_delimiter);
-        if (next_delimiter == std::string::npos)
-        {
-          last_string = true;
-        }
-
-        strings.emplace_back(token);
-
-        if (!last_string)
-        {
-          s = s.substr(next_delimiter + 1);
-          next_delimiter = s.find(delimiter);
-        }
-      }
-
-      return strings;
-    }
-
-    SignatureParams parse_signature_params(std::string_view& auth_header_value)
-    {
-      SignatureParams sig_params = {};
-
-      auto next_comma = auth_header_value.find(SIGN_PARAMS_DELIMITER);
-      bool last_key = false;
-
-      auto parsed_params =
-        parse_delimited_string(auth_header_value, SIGN_PARAMS_DELIMITER);
-
-      for (auto& p : parsed_params)
-      {
-        auto eq_pos = p.find("=");
-        if (eq_pos != std::string::npos)
-        {
-          auto k = p.substr(0, eq_pos);
-          auto v = p.substr(eq_pos + 1);
-
-          // Remove inverted commas around value
-          v.remove_prefix(1);
-          v.remove_suffix(1);
-
-          if (k == SIGN_PARAMS_KEYID)
-          {
-            // keyId is ignored
-          }
-          else if (k == SIGN_PARAMS_ALGORITHM)
-          {
-            sig_params.algo = v;
-          }
-          else if (k == SIGN_PARAMS_SIGNATURE)
-          {
-            sig_params.signature = v;
-          }
-          else if (k == SIGN_PARAMS_HEADERS)
-          {
-            auto parsed_signed_headers =
-              parse_delimited_string(v, SIGN_PARAMS_HEADERS_DELIMITER);
-            for (const auto& h : parsed_signed_headers)
-            {
-              sig_params.signed_headers.emplace_back(h);
-            }
-          }
-        }
-        else
-        {
-          throw std::logic_error(fmt::format(
-            "Authorization parameter {} does not contain \"=\"", p));
-        }
-      }
-
-      return sig_params;
-    }
-
-    std::vector<uint8_t> construct_raw_signed_string(
-      const std::vector<std::string_view>& signed_headers)
-    {
-      std::string signed_string = {};
-      for (auto& f : signed_headers)
-      {
-        // Signed headers are listed in lowercase in Authorization headers
-        // Uppercase first letter to find corresponding HTTP header
-        auto f_ = std::string(f);
-        f_[0] = std::toupper(f_[0]);
-
-        auto h = headers.find(f_);
-        if (h == headers.end())
-        {
-          throw std::logic_error(
-            fmt::format("Signed header {} does not exist in request", f_));
-        }
-        signed_string.append(f);
-        signed_string.append(": ");
-        signed_string.append(h->second);
-        signed_string.append("\n");
-      }
-      signed_string.pop_back(); // Remove the last \n
-
-      LOG_FAIL_FMT("Signed string is {}", signed_string);
-
-      return {signed_string.begin(), signed_string.end()};
     }
 
     // TODO: This should move to a specific base64 encoding-decoding file
@@ -227,9 +121,6 @@ namespace enclave
       // Then, hash the request body
       tls::HashBytes body_digest;
       tls::do_hash(body.data(), body.size(), body_digest, MBEDTLS_MD_SHA256);
-      LOG_FAIL_FMT(
-        "Calculated digest is: {}",
-        std::string(body_digest.begin(), body_digest.end()));
 
       if (raw_digest != body_digest)
       {
@@ -238,6 +129,124 @@ namespace enclave
       }
 
       return true;
+    }
+
+    // Parses a delimited string with no delimiter at the end
+    // (e.g. "foo,bar,baz") and returns a vector parsed string views (e.g.
+    // ["foo", "bar", "baz"])
+    std::vector<std::string_view> parse_delimited_string(
+      std::string_view& s, const std::string& delimiter)
+    {
+      std::vector<std::string_view> strings;
+      bool last_string;
+
+      auto next_delimiter = s.find(delimiter);
+      while (next_delimiter != std::string::npos || !last_string)
+      {
+        auto token = s.substr(0, next_delimiter);
+        if (next_delimiter == std::string::npos)
+        {
+          last_string = true;
+        }
+
+        strings.emplace_back(token);
+
+        if (!last_string)
+        {
+          s = s.substr(next_delimiter + 1);
+          next_delimiter = s.find(delimiter);
+        }
+      }
+
+      return strings;
+    }
+
+    SignatureParams parse_signature_params(std::string_view& auth_header_value)
+    {
+      SignatureParams sig_params = {};
+
+      auto next_comma = auth_header_value.find(SIGN_PARAMS_DELIMITER);
+      bool last_key = false;
+
+      auto parsed_params =
+        parse_delimited_string(auth_header_value, SIGN_PARAMS_DELIMITER);
+
+      for (auto& p : parsed_params)
+      {
+        auto eq_pos = p.find("=");
+        if (eq_pos != std::string::npos)
+        {
+          auto k = p.substr(0, eq_pos);
+          auto v = p.substr(eq_pos + 1);
+
+          // Remove inverted commas around value
+          v.remove_prefix(v.find_first_of("\"") + 1);
+          v.remove_suffix(v.size() - v.find_last_of("\""));
+
+          if (k == SIGN_PARAMS_KEYID)
+          {
+            // keyId is ignored
+          }
+          else if (k == SIGN_PARAMS_ALGORITHM)
+          {
+            sig_params.signature_algorithm = v;
+            if (v != SIGN_ALGORITHM)
+            {
+              throw std::logic_error(
+                fmt::format("Signature algorithm {} is not supported", v));
+            }
+          }
+          else if (k == SIGN_PARAMS_SIGNATURE)
+          {
+            sig_params.signature = v;
+          }
+          else if (k == SIGN_PARAMS_HEADERS)
+          {
+            auto parsed_signed_headers =
+              parse_delimited_string(v, SIGN_PARAMS_HEADERS_DELIMITER);
+            for (const auto& h : parsed_signed_headers)
+            {
+              sig_params.signed_headers.emplace_back(h);
+            }
+          }
+        }
+        else
+        {
+          throw std::logic_error(fmt::format(
+            "Authorization parameter {} does not contain \"=\"", p));
+        }
+      }
+
+      return sig_params;
+    }
+
+    std::vector<uint8_t> construct_raw_signed_string(
+      const std::vector<std::string_view>& signed_headers)
+    {
+      std::string signed_string = {};
+      for (auto& f : signed_headers)
+      {
+        // Signed headers are listed in lowercase in Authorization headers
+        // Uppercase first letter to find corresponding HTTP header
+        auto f_ = std::string(f);
+        f_[0] = std::toupper(f_[0]);
+
+        auto h = headers.find(f_);
+        if (h == headers.end())
+        {
+          throw std::logic_error(
+            fmt::format("Signed header {} does not exist in request", f_));
+        }
+        signed_string.append(f);
+        signed_string.append(": ");
+        signed_string.append(h->second);
+        signed_string.append("\n");
+      }
+      signed_string.pop_back(); // Remove the last \n
+
+      LOG_FAIL_FMT("Signed string is {}", signed_string);
+
+      return {signed_string.begin(), signed_string.end()};
     }
 
   public:
@@ -265,13 +274,13 @@ namespace enclave
         }
 
         auto parsed_sign_params = parse_signature_params(authz_header);
+
         auto signed_raw =
           construct_raw_signed_string(parsed_sign_params.signed_headers);
 
         auto sig_raw = raw_from_b64(parsed_sign_params.signature);
 
-        LOG_FAIL_FMT("Returning sig_raw and signed_raw");
-        ccf::SignedReq ret = {sig_raw, signed_raw};
+        ccf::SignedReq ret = {sig_raw, signed_raw, MBEDTLS_MD_SHA256};
         return ret;
       }
       return {};

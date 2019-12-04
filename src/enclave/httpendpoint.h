@@ -200,8 +200,8 @@ namespace enclave
 
         parse_rpc_context(rpc_ctx, json_rpc);
 
-        // TODO: For now, set this here  as parse_rpc_context() resets
-        // rpc_ctx.signed_request on a HTTP endpoint.
+        // TODO: For now, set this here as parse_rpc_context() resets
+        // rpc_ctx.signed_request for a HTTP endpoint.
         auto http_sig_v = HttpSignatureVerifier(headers, body);
         auto signed_req = http_sig_v.parse();
         if (signed_req.has_value())

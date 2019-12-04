@@ -5,6 +5,7 @@
 #include "entities.h"
 #include "rpc/jsonrpc.h"
 
+#include <mbedtls/md.h>
 #include <msgpack-c/msgpack.hpp>
 #include <vector>
 
@@ -18,9 +19,12 @@ namespace ccf
     // the encoded json-rpc sent by the client
     std::vector<uint8_t> req = {};
 
+    // the hashing algorithm used (not serialised)
+    std::optional<mbedtls_md_type_t> md = {};
+
     bool operator==(const SignedReq& other) const
     {
-      return (sig == other.sig) && (req == other.req);
+      return (sig == other.sig) && (req == other.req) && (md == other.md);
     }
 
     MSGPACK_DEFINE(sig, req);
