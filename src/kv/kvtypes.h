@@ -4,8 +4,8 @@
 
 #include "consensus/consensustypes.h"
 #include "crypto/hash.h"
-#include "flatbufferwrapper.h"
 #include "enclave/consensus_type.h"
+#include "flatbufferwrapper.h"
 
 #include <array>
 #include <chrono>
