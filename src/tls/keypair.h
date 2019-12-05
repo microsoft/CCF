@@ -156,11 +156,19 @@ namespace tls
     const uint8_t* data_ptr,
     size_t data_size,
     HashBytes& o_hash,
-    std::optional<mbedtls_md_type_t> md_type = {})
+    mbedtls_md_type_t md_type_ = MBEDTLS_MD_NONE)
   {
     const auto ec = get_ec_from_context(ctx);
-    auto md = md_type.value_or(get_md_for_ec(ec));
-    const auto md_info = mbedtls_md_info_from_type(md);
+    mbedtls_md_type_t md_type;
+    if (md_type_ != MBEDTLS_MD_NONE)
+    {
+      md_type = md_type_;
+    }
+    else
+    {
+      md_type = get_md_for_ec(ec);
+    }
+    const auto md_info = mbedtls_md_info_from_type(md_type);
     const auto hash_size = mbedtls_md_get_size(md_info);
 
     if (o_hash.size() < hash_size)
@@ -308,8 +316,8 @@ namespace tls
      * @param contents_size size of contents
      * @param sig address of signature
      * @param sig_size size of signature
-     * @param md_type Digest algorithm to use (optional). Derived from the
-     * public key if not specified.
+     * @param md_type Digest algorithm to use. Derived from the
+     * public key if MBEDTLS_MD_NONE.
      *
      * @return Whether the signature matches the contents and the key
      */
@@ -318,7 +326,7 @@ namespace tls
       size_t contents_size,
       const uint8_t* sig,
       size_t sig_size,
-      std::optional<mbedtls_md_type_t> md_type = {})
+      mbedtls_md_type_t md_type = MBEDTLS_MD_NONE)
     {
       HashBytes hash;
       do_hash(*ctx, contents, contents_size, hash, md_type);
@@ -1179,15 +1187,15 @@ namespace tls
      *
      * @param contents Sequence of bytes that was signed
      * @param signature Signature as a sequence of bytes
-     * @param md_type Digest algorithm to use (optional). Derived from the
-     * public key if not specified.
+     * @param md_type Digest algorithm to use. Derived from the
+     * public key if MBEDTLS_MD_NONE.
      *
      * @return Whether the signature matches the contents and the key
      */
     bool verify(
       const std::vector<uint8_t>& contents,
       const std::vector<uint8_t>& signature,
-      std::optional<mbedtls_md_type_t> md_type = {}) const
+      mbedtls_md_type_t md_type = {}) const
     {
       HashBytes hash;
       do_hash(cert.pk, contents.data(), contents.size(), hash, md_type);

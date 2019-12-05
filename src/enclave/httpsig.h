@@ -176,6 +176,8 @@ namespace enclave
 
       for (auto& p : parsed_params)
       {
+        LOG_FAIL_FMT(p);
+
         auto eq_pos = p.find("=");
         if (eq_pos != std::string::npos)
         {
@@ -209,6 +211,7 @@ namespace enclave
               parse_delimited_string(v, SIGN_PARAMS_HEADERS_DELIMITER);
             for (const auto& h : parsed_signed_headers)
             {
+              LOG_FAIL_FMT(h);
               sig_params.signed_headers.emplace_back(h);
             }
           }
@@ -246,6 +249,8 @@ namespace enclave
         signed_string.append("\n");
       }
       signed_string.pop_back(); // Remove the last \n
+
+      LOG_FAIL_FMT("signed_string {}", signed_string);
 
       auto ret =
         std::vector<uint8_t>({signed_string.begin(), signed_string.end()});
@@ -296,7 +301,9 @@ namespace enclave
         }
 
         auto sig_raw = raw_from_b64(parsed_sign_params->signature);
-        ccf::SignedReq ret = {sig_raw, signed_raw.value(), MBEDTLS_MD_SHA256};
+        auto raw_req = std::vector<uint8_t>({body.begin(), body.end()});
+        ccf::SignedReq ret = {
+          sig_raw, signed_raw.value(), raw_req, MBEDTLS_MD_SHA256};
         return ret;
       }
 

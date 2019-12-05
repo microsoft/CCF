@@ -14,7 +14,6 @@ import tempfile
 import base64
 import requests
 from requests_http_signature import HTTPSignatureAuth
-from enum import IntEnum
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import asymmetric
@@ -415,7 +414,7 @@ class RequestClient:
                 timeout=self.request_timeout,
                 # key_id needs to be specified but is unused
                 auth=HTTPSignatureAuth(
-                    algorithm="ecdsa-sha256", key=k.read(), key_id="tls"
+                    algorithm="ecdsa-sha256", key=k.read(), key_id="tls",
                 ),
             )
             self.stream.update(rep.content)
