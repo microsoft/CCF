@@ -439,8 +439,8 @@ TEST_CASE("replicated and derived table serialisation")
 
     auto replicated = kv::frame::replicated(buffer->data());
     auto derived = kv::frame::derived(buffer->data());
-    REQUIRE(replicated.second > 0);
-    REQUIRE(derived.second == 0);
+    REQUIRE(replicated.n > 0);
+    REQUIRE(derived.n == 0);
   }
 
   {
@@ -459,8 +459,8 @@ TEST_CASE("replicated and derived table serialisation")
 
     auto replicated = kv::frame::replicated(buffer->data());
     auto derived = kv::frame::derived(buffer->data());
-    REQUIRE(replicated.second == 0);
-    REQUIRE(derived.second > 0);
+    REQUIRE(replicated.n == 0);
+    REQUIRE(derived.n > 0);
   }
 
   {
@@ -484,8 +484,8 @@ TEST_CASE("replicated and derived table serialisation")
 
     auto replicated = kv::frame::replicated(buffer->data());
     auto derived = kv::frame::derived(buffer->data());
-    REQUIRE(replicated.second > 0);
-    REQUIRE(derived.second > 0);
+    REQUIRE(replicated.n > 0);
+    REQUIRE(derived.n > 0);
   }
 }
 
@@ -559,7 +559,7 @@ TEST_CASE("Test flatbuffers")
   kv::frame::FlatbufferDeserialiser db_deserialiser(buffer->data());
 
   auto replicated = kv::frame::replicated(buffer->data());
-  CHECK(replicated.second == replicated_data.size());
+  CHECK(replicated.n == replicated_data.size());
 
   CHECK(db_deserialiser.replicated_size() == replicated_data.size());
 }

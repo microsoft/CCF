@@ -1755,8 +1755,8 @@ namespace kv
             h->add_result(
               p_tx_.reqid,
               version,
-              replicated.first,
-              replicated.second,
+              replicated.p,
+              replicated.n,
               p_tx_.buffer->data(),
               p_tx_.buffer->size());
           }

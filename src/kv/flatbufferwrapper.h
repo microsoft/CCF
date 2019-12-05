@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/buffer.h"
+
 #include <frame_generated.h>
 
 namespace kv
@@ -15,14 +17,13 @@ namespace kv
       return GetFrame(data);
     }
 
-    static const std::pair<const uint8_t*, size_t> replicated(
-      const uint8_t* data)
+    static const CBuffer replicated(const uint8_t* data)
     {
       auto frame = GetFrame(data);
       return {frame->replicated()->Data(), frame->replicated()->size()};
     }
 
-    static const std::pair<const uint8_t*, size_t> derived(const uint8_t* data)
+    static const CBuffer derived(const uint8_t* data)
     {
       auto frame = GetFrame(data);
       return {frame->derived()->Data(), frame->derived()->size()};
@@ -60,7 +61,7 @@ namespace kv
     public:
       FlatbufferDeserialiser(const uint8_t* frame_) : frame(GetFrame(frame_)) {}
 
-      std::vector<std::pair<const uint8_t*, size_t>> get_frames()
+      std::vector<CBuffer> get_frames()
       {
         return {{frame->replicated()->Data(), frame->replicated()->size()},
                 {frame->derived()->Data(), frame->derived()->size()}};
