@@ -12,7 +12,7 @@ namespace enclave
 {
   namespace http
   {
-    using HeaderMap = std::map<std::string, std::string>;
+    using HeaderMap = std::map<std::string, std::string, std::less<>>;
 
     static HeaderMap default_headers()
     {

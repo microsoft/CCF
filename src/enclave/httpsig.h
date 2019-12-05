@@ -26,8 +26,9 @@ namespace enclave
   class HttpSignatureVerifier
   {
   private:
-    static constexpr auto HTTP_HEADER_AUTHORIZATION = "Authorization";
-    static constexpr auto HTTP_HEADER_DIGEST = "Digest";
+    // All HTTP headers are expected to be lowercase
+    static constexpr auto HTTP_HEADER_AUTHORIZATION = "authorization";
+    static constexpr auto HTTP_HEADER_DIGEST = "digest";
 
     static constexpr auto DIGEST_SHA256 = "SHA-256";
 
@@ -78,7 +79,7 @@ namespace enclave
       // Obtain the size of the output buffer
       auto rc =
         mbedtls_base64_decode(nullptr, 0, &len_written, raw.data(), raw.size());
-      if (rc != 0)
+      if (rc != MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL)
       {
         LOG_FAIL_FMT(fmt::format(
           "Could not obtain length of decoded base64 buffer: {}",
@@ -233,17 +234,12 @@ namespace enclave
       const std::vector<std::string_view>& signed_headers)
     {
       std::string signed_string = {};
-      for (auto& f : signed_headers)
+      for (const auto f : signed_headers)
       {
-        // Signed headers are listed lowercase in Authorization headers
-        // Uppercase first letter to find corresponding HTTP header
-        auto f_ = std::string(f);
-        f_[0] = std::toupper(f_[0]);
-
-        auto h = headers.find(f_);
+        const auto h = headers.find(f);
         if (h == headers.end())
         {
-          LOG_FAIL_FMT("Signed header {} does not exist", f_);
+          LOG_FAIL_FMT("Signed header {} does not exist", f);
           return {};
         }
         signed_string.append(f);
