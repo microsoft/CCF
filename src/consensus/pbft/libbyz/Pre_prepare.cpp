@@ -124,8 +124,13 @@ Pre_prepare::Pre_prepare(
   auth_src_offset = 0;
 #else
   set_size(old_size + node->sig_size());
-  node->gen_signature(
-    contents(), sizeof(Pre_prepare_rep), contents() + old_size);
+#endif
+
+#ifdef SIGN_BATCH
+  std::fill(
+    std::begin(rep().batch_digest_signature),
+    std::end(rep().batch_digest_signature),
+    0);
 #endif
 
   trim();
@@ -165,8 +170,22 @@ bool Pre_prepare::check_digest()
   return d == rep().digest;
 }
 
-bool Pre_prepare::set_digest()
+bool Pre_prepare::is_signed()
 {
+#ifdef SIGN_BATCH
+  return (
+    std::none_of(
+      std::begin(rep().batch_digest_signature),
+      std::end(rep().batch_digest_signature),
+      [](int i) { return i != 0; }) == false);
+#endif
+  return true;
+}
+
+bool Pre_prepare::set_digest(int64_t signed_version)
+{
+  rep().ctx = std::max(rep().ctx, signed_version);
+
   Digest d;
   if (!calculate_digest(d))
   {
@@ -176,8 +195,14 @@ bool Pre_prepare::set_digest()
   rep().digest = d;
 
 #ifdef SIGN_BATCH
-  node->gen_signature(
-    d.digest(), d.digest_size(), rep().batch_digest_signature);
+  if (
+    replica->should_sign_next_and_reset() ||
+    (rep().seqno == replica->next_expected_sig_offset()) || node->f() == 0)
+  {
+    replica->set_next_expected_sig_offset();
+    node->gen_signature(
+      d.digest(), d.digest_size(), rep().batch_digest_signature);
+  }
 #endif
 
   return true;
@@ -249,13 +274,17 @@ bool Pre_prepare::pre_verify()
   if (check_digest())
   {
 #ifdef SIGN_BATCH
-    if (!node->get_principal(sender)->verify_signature(
-          rep().digest.digest(),
-          rep().digest.digest_size(),
-          (const char*)get_digest_sig().data()))
+    if (is_signed())
     {
-      LOG_DEBUG << "failed to verify signature on the digest" << std::endl;
-      return false;
+      if (!node->get_principal(sender)->verify_signature(
+            rep().digest.digest(),
+            rep().digest.digest_size(),
+            (const char*)get_digest_sig().data()))
+      {
+        LOG_INFO << "failed to verify signature on the digest, seqno:"
+                 << rep().seqno << std::endl;
+        return false;
+      }
     }
 #endif
 

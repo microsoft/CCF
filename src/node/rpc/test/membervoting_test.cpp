@@ -30,9 +30,11 @@ using namespace nlohmann;
 
 // used throughout
 auto kp = tls::make_key_pair();
-auto ca_mem = kp -> self_sign("CN=name_member");
-auto verifier_mem = tls::make_verifier(ca_mem);
+auto member_cert = kp -> self_sign("CN=name_member");
+auto verifier_mem = tls::make_verifier(member_cert);
 auto member_caller = verifier_mem -> der_cert_data();
+auto user_cert = kp -> self_sign("CN=name_user");
+
 auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
 
 constexpr auto default_pack = jsonrpc::Pack::MsgPack;
@@ -121,11 +123,12 @@ json frontend_process(
 {
   auto serialized_request = pack(j_request, default_pack);
 
-  const enclave::SessionContext session(0, caller);
+  const enclave::SessionContext session(
+    0, tls::make_verifier(caller)->der_cert_data());
   const auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
   auto serialized_response = frontend.process(rpc_ctx);
 
-  REQUIRE(serialized_response.has_value());
+  CHECK(serialized_response.has_value());
 
   return unpack(serialized_response.value(), default_pack);
 }
@@ -147,11 +150,7 @@ nlohmann::json get_proposal(
 
 std::vector<uint8_t> get_cert_data(uint64_t member_id, tls::KeyPairPtr& kp_mem)
 {
-  std::vector<uint8_t> ca_mem =
-    kp_mem->self_sign("CN=new member" + to_string(member_id));
-  auto v_mem = tls::make_verifier(ca_mem);
-  std::vector<uint8_t> cert_data = v_mem->der_cert_data();
-  return cert_data;
+  return kp_mem->self_sign("CN=new member" + to_string(member_id));
 }
 
 auto init_frontend(
@@ -178,7 +177,6 @@ auto init_frontend(
 TEST_CASE("Member query/read")
 {
   // initialize the network state
-  const Cert member_cert = {0};
   NetworkTables network;
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
@@ -372,7 +370,7 @@ struct NewMember
   Cert cert;
 };
 
-TEST_CASE("Add new members until there are 7, then reject")
+TEST_CASE("Add new members until there are 7 then reject")
 {
   constexpr auto initial_members = 3;
   constexpr auto n_new_members = 7;
@@ -385,7 +383,7 @@ TEST_CASE("Add new members until there are 7, then reject")
   StubNodeState node;
   // add three initial active members
   // the proposer
-  auto proposer_id = gen.add_member(member_caller, MemberStatus::ACTIVE);
+  auto proposer_id = gen.add_member(member_cert, MemberStatus::ACTIVE);
 
   // the voters
   const auto voter_a_cert = get_cert_data(1, kp);
@@ -407,8 +405,9 @@ TEST_CASE("Add new members until there are 7, then reject")
     new_member.id = initial_members + i++;
 
     // new member certificate
-    auto v = tls::make_verifier(
-      new_member.kp->self_sign(fmt::format("CN=new member{}", new_member.id)));
+    auto cert_pem =
+      new_member.kp->self_sign(fmt::format("CN=new member{}", new_member.id));
+    auto v = tls::make_verifier(cert_pem);
     const auto _cert = v->raw();
     new_member.cert = {_cert->raw.p, _cert->raw.p + _cert->raw.len};
 
@@ -425,11 +424,11 @@ TEST_CASE("Add new members until there are 7, then reject")
     )xxx");
 
     const auto proposej =
-      create_json_req(Propose::In{proposal, new_member.cert}, "propose");
+      create_json_req(Propose::In{proposal, cert_pem}, "propose");
 
     {
       Response<Propose::Out> r =
-        frontend_process(frontend, proposej, member_caller);
+        frontend_process(frontend, proposej, member_cert);
 
       // the proposal should be accepted, but not succeed immediately
       CHECK(r.result.id == proposal_id);
@@ -441,7 +440,7 @@ TEST_CASE("Add new members until there are 7, then reject")
       get_proposal(frontend, proposal_id, voter_a_cert);
     CHECK(initial_read.result.proposer == proposer_id);
     CHECK(initial_read.result.script == proposal);
-    CHECK(initial_read.result.parameter == new_member.cert);
+    CHECK(initial_read.result.parameter == cert_pem);
 
     // vote as second member
     Script vote_ballot(fmt::format(
@@ -490,7 +489,7 @@ TEST_CASE("Add new members until there are 7, then reject")
           get_proposal(frontend, proposal_id, voter_a_cert);
         CHECK(final_read.result.proposer == proposer_id);
         CHECK(final_read.result.script == proposal);
-        CHECK(final_read.result.parameter == new_member.cert);
+        CHECK(final_read.result.parameter == cert_pem);
 
         const auto my_vote = final_read.result.votes.find(voter_a);
         CHECK(my_vote != final_read.result.votes.end());
@@ -789,7 +788,8 @@ TEST_CASE("Propose raw writes")
 TEST_CASE("Remove proposal")
 {
   NewMember caller;
-  auto v = tls::make_verifier(caller.kp->self_sign("CN=new member"));
+  auto cert = caller.kp->self_sign("CN=new member");
+  auto v = tls::make_verifier(cert);
   caller.cert = v->der_cert_data();
 
   NetworkTables network;
@@ -799,8 +799,8 @@ TEST_CASE("Remove proposal")
   gen.init_values();
 
   StubNodeState node;
-  gen.add_member(member_caller, MemberStatus::ACTIVE);
-  gen.add_member(caller.cert, MemberStatus::ACTIVE);
+  gen.add_member(member_cert, MemberStatus::ACTIVE);
+  gen.add_member(cert, MemberStatus::ACTIVE);
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
@@ -822,7 +822,7 @@ TEST_CASE("Remove proposal")
   {
     json proposej = create_json_req(Propose::In{proposal_script, 0}, "propose");
     Response<Propose::Out> r =
-      frontend_process(frontend, proposej, member_caller);
+      frontend_process(frontend, proposej, member_cert);
 
     CHECK(r.result.id == proposal_id);
     CHECK(!r.result.completed);
@@ -832,7 +832,7 @@ TEST_CASE("Remove proposal")
   {
     Store::Tx tx;
     auto proposal = tx.get_view(network.proposals)->get(proposal_id);
-    REQUIRE(proposal);
+    CHECK(proposal);
     CHECK(proposal->state == ProposalState::OPEN);
     CHECK(proposal->script.text.value() == proposal_script.text.value());
   }
@@ -844,7 +844,7 @@ TEST_CASE("Remove proposal")
     json withdrawj = create_json_req(param, "withdraw");
 
     check_error(
-      frontend_process(frontend, withdrawj, member_caller),
+      frontend_process(frontend, withdrawj, member_cert),
       StandardErrorCodes::INVALID_PARAMS);
   }
 
@@ -855,7 +855,7 @@ TEST_CASE("Remove proposal")
     json withdrawj = create_json_req(param, "withdraw");
 
     check_error(
-      frontend_process(frontend, withdrawj, caller.cert),
+      frontend_process(frontend, withdrawj, cert),
       CCFErrorCodes::INVALID_CALLER_ID);
   }
 
@@ -865,7 +865,7 @@ TEST_CASE("Remove proposal")
     param["id"] = proposal_id;
     json withdrawj = create_json_req(param, "withdraw");
 
-    check_success(frontend_process(frontend, withdrawj, member_caller));
+    check_success(frontend_process(frontend, withdrawj, member_cert));
 
     // check that the proposal is now withdrawn
     {
@@ -965,11 +965,11 @@ TEST_CASE("Add user via proposed call")
 
   Store::Tx tx1;
   const auto uid = tx1.get_view(network.values)->get(ValueIds::NEXT_USER_ID);
-  REQUIRE(uid);
+  CHECK(uid);
   CHECK(*uid == 1);
   const auto uid1 = tx1.get_view(network.user_certs)
                       ->get(tls::make_verifier(user_cert)->der_cert_data());
-  REQUIRE(uid1);
+  CHECK(uid1);
   CHECK(*uid1 == 0);
 }
 
@@ -1020,8 +1020,10 @@ TEST_CASE("Passing members ballot with operator")
     )xxx");
     const auto proposej = create_json_req(
       Propose::In{proposal, proposed_member, vote_for}, "propose");
-    Response<Propose::Out> r =
-      frontend_process(frontend, proposej, members[proposer_id]);
+    Response<Propose::Out> r = frontend_process(
+      frontend,
+      proposej,
+      tls::make_verifier(members[proposer_id])->der_cert_data());
 
     CHECK(r.result.completed == false);
 
@@ -1278,9 +1280,6 @@ TEST_CASE("Members passing an operator vote")
 
 TEST_CASE("User data")
 {
-  const Cert member_cert = {0};
-  const Cert user_cert = {1};
-
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
   Store::Tx gen_tx;

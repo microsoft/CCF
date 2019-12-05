@@ -15,11 +15,13 @@ from loguru import logger as LOG
 
 
 class Consortium:
-    def __init__(self, members):
+    def __init__(self, members, curve):
         self.members = members
         members = [f"member{m}" for m in members]
         for m in members:
-            infra.proc.ccall("./keygenerator", "--name={}".format(m)).check_returncode()
+            infra.proc.ccall(
+                "./keygenerator.sh", f"{m}", curve.name, log_output=False
+            ).check_returncode()
         self.status = infra.ccf.ServiceStatus.OPEN
 
     def get_members_certs(self):
