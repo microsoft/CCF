@@ -141,7 +141,9 @@ namespace tls
     const auto hash_size = mbedtls_md_get_size(md_info);
 
     if (o_hash.size() < hash_size)
+    {
       o_hash.resize(hash_size);
+    }
 
     return mbedtls_md(md_info, data_ptr, data_size, o_hash.data());
   }

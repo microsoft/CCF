@@ -4,9 +4,9 @@
 
 #include "httpparser.h"
 #include "node/clientsignatures.h"
+#include "tls/base64.h"
 
 #include <fmt/format_header_only.h>
-#include <mbedtls/base64.h>
 #include <optional>
 #include <string>
 #include <tls/keypair.h> // TODO: Only used for hashing
@@ -70,35 +70,6 @@ namespace enclave
       return true;
     }
 
-    // TODO: This should move to a specific base64 encoding-decoding file
-    std::vector<uint8_t> raw_from_b64(const std::string_view& b64_string)
-    {
-      size_t len_written;
-      std::vector<uint8_t> raw(b64_string.begin(), b64_string.end());
-
-      // Obtain the size of the output buffer
-      auto rc =
-        mbedtls_base64_decode(nullptr, 0, &len_written, raw.data(), raw.size());
-      if (rc != MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL)
-      {
-        LOG_FAIL_FMT(fmt::format(
-          "Could not obtain length of decoded base64 buffer: {}",
-          tls::error_string(rc)));
-      }
-
-      std::vector<uint8_t> decoded(len_written);
-
-      rc = mbedtls_base64_decode(
-        decoded.data(), decoded.size(), &len_written, raw.data(), raw.size());
-      if (rc != 0)
-      {
-        LOG_FAIL_FMT(fmt::format(
-          "Could not decode base64 string: {}", tls::error_string(rc)));
-      }
-
-      return decoded;
-    }
-
     bool verify_digest()
     {
       // First, retrieve digest from header
@@ -124,7 +95,7 @@ namespace enclave
         return false;
       }
 
-      auto raw_digest = raw_from_b64(digest->second.substr(equal_pos + 1));
+      auto raw_digest = tls::raw_from_b64(digest->second.substr(equal_pos + 1));
 
       // Then, hash the request body
       tls::HashBytes body_digest;
@@ -297,7 +268,7 @@ namespace enclave
             fmt::format("Error constructing signed string"));
         }
 
-        auto sig_raw = raw_from_b64(parsed_sign_params->signature);
+        auto sig_raw = tls::raw_from_b64(parsed_sign_params->signature);
         auto raw_req = std::vector<uint8_t>({body.begin(), body.end()});
         ccf::SignedReq ret = {
           sig_raw, signed_raw.value(), raw_req, MBEDTLS_MD_SHA256};
