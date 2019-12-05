@@ -72,22 +72,28 @@ namespace enclave
     // TODO: This should move to a specific base64 encoding-decoding file
     std::vector<uint8_t> raw_from_b64(const std::string_view& b64_string)
     {
-      // TODO: Calculate the size of decoded bytes based on size of input base64
-      // string
-      std::vector<uint8_t> decoded(255);
       size_t len_written;
       std::vector<uint8_t> raw(b64_string.begin(), b64_string.end());
 
-      auto rc = mbedtls_base64_decode(
+      // Obtain the size of the output buffer
+      auto rc =
+        mbedtls_base64_decode(nullptr, 0, &len_written, raw.data(), raw.size());
+      if (rc != 0)
+      {
+        LOG_FAIL_FMT(fmt::format(
+          "Could not obtain length of decoded base64 buffer: {}",
+          tls::error_string(rc)));
+      }
+
+      std::vector<uint8_t> decoded(len_written);
+
+      rc = mbedtls_base64_decode(
         decoded.data(), decoded.size(), &len_written, raw.data(), raw.size());
       if (rc != 0)
       {
         LOG_FAIL_FMT(fmt::format(
           "Could not decode base64 string: {}", tls::error_string(rc)));
       }
-
-      // TODO: Remove when size of decoded bytes is calculated properly
-      decoded.resize(len_written);
 
       return decoded;
     }
