@@ -187,7 +187,7 @@ namespace enclave
         std::transform(f.begin(), f.end(), f.begin(), [](unsigned char c) {
           return std::tolower(c);
         });
-        partial_parsed_header.first = f;
+        partial_parsed_header.first.append(f);
       }
 
       void header_value(const char* at, size_t length)

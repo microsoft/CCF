@@ -44,6 +44,14 @@ std::vector<uint8_t> s_to_v(char const* s)
   return std::vector<uint8_t>(d, d + strlen(s));
 }
 
+std::string to_lowercase(std::string s)
+{
+  std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+    return std::tolower(c);
+  });
+  return s;
+}
+
 using namespace enclave::http;
 
 TEST_CASE("Complete request")
@@ -234,11 +242,17 @@ TEST_CASE("Pessimal transport")
     CHECK(m.method == HTTP_POST);
     CHECK(m.body == r0);
 
+    std::cout << "Headers in request: " << std::endl;
+    for (auto const& h : m.headers)
+    {
+      std::cout << h.first << std::endl;
+    }
+
     // Check each specified header is present and matches. May include other
     // auto-inserted headers - these are ignored
     for (const auto& it : headers)
     {
-      const auto found = m.headers.find(it.first);
+      const auto found = m.headers.find(to_lowercase(it.first));
       CHECK(found != m.headers.end());
       CHECK(found->second == it.second);
     }

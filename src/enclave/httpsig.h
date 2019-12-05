@@ -268,18 +268,18 @@ namespace enclave
       {
         std::string_view authz_header = auth->second;
 
-        if (!verify_digest())
-        {
-          throw std::logic_error(
-            fmt::format("Error verifying HTTP {} header", HTTP_HEADER_DIGEST));
-        }
-
         if (!parse_auth_scheme(authz_header))
         {
           throw std::logic_error(fmt::format(
             "Error parsing {} scheme. Only {} is supported",
             HTTP_HEADER_AUTHORIZATION,
             AUTH_SCHEME));
+        }
+
+        if (!verify_digest())
+        {
+          throw std::logic_error(
+            fmt::format("Error verifying HTTP {} header", HTTP_HEADER_DIGEST));
         }
 
         auto parsed_sign_params = parse_signature_params(authz_header);
