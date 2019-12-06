@@ -27,6 +27,8 @@ target_link_libraries(memberclient PRIVATE
   http_parser.host
 )
 
+add_dependencies(memberclient flatbuffers)
+
 # Logging Client executable
 add_executable(logging_client src/clients/logging_client.cpp)
 use_client_mbedtls(logging_client)
@@ -196,6 +198,8 @@ if(BUILD_TESTS)
       ${PARSED_ARGS_INCLUDE_DIRS}
     )
 
+    add_dependencies(${name} flatbuffers)
+
     target_link_libraries(${name} PRIVATE
       ${CMAKE_THREAD_LIBS_INIT}
       ${PARSED_ARGS_LINK_LIBS}
@@ -259,6 +263,7 @@ if(BUILD_TESTS)
   target_include_directories(merkle_mem PRIVATE
     ${EVERCRYPT_INC}
     src)
+  add_dependencies(merkle_mem flatbuffers)
 
   if (NOT PBFT)
     # Raft driver and scenario test
@@ -267,6 +272,7 @@ if(BUILD_TESTS)
     use_client_mbedtls(raft_driver)
     target_include_directories(raft_driver PRIVATE
       src/raft)
+    add_dependencies(raft_driver flatbuffers)
     add_test(
       NAME raft_scenario_test
       COMMAND
@@ -274,27 +280,36 @@ if(BUILD_TESTS)
           ${CMAKE_SOURCE_DIR}/tests/raft_scenarios ${CMAKE_SOURCE_DIR})
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
-    # These tests use C++ clients sending framed JSON-RPC, so do not worth with HTTP
-    if (NOT HTTP)
-      # Member client end to end tests
-      add_e2e_test(
-        NAME member_client_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
-      )
-
-      ## Logging client end to end test
-      add_e2e_test(
-        NAME logging_client_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
-      )
-
-      # TODO: Enable this test once HTTP client-signatures are in
       ## Storing signed votes test
-      add_e2e_test(
-        NAME voting_history_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py
-      )
-    endif ()
+    add_e2e_test(
+      NAME voting_history_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
+
+    # Member client end to end tests
+    add_e2e_test(
+      NAME member_client_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
+    )
+
+    ## Logging client end to end test
+    add_e2e_test(
+      NAME logging_client_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
+    )
+
+    ## Lua sample app (tx regulator) end to end test
+    add_e2e_test(
+      NAME lua_txregulator_test
+      PYTHON_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
+      ADDITIONAL_ARGS
+        --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
+        --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
+
+    ## Receipts end to end test
+    add_e2e_test(
+      NAME receipts_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
+    )
 
     ## Lua sample app (tx regulator) end to end test
     add_e2e_test(

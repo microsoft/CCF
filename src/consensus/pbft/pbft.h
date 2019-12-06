@@ -338,9 +338,12 @@ namespace pbft
       ITimer::handle_timeouts(elapsed);
     }
 
-    bool replicate(
-      const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
-      override
+    bool replicate(const kv::BatchDetachedBuffer& entries) override
+    {
+      return true;
+    }
+
+    bool replicate(const kv::BatchVector& entries) override
     {
       return true;
     }

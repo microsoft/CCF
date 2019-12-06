@@ -44,6 +44,14 @@ std::vector<uint8_t> s_to_v(char const* s)
   return std::vector<uint8_t>(d, d + strlen(s));
 }
 
+std::string to_lowercase(std::string s)
+{
+  std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+    return std::tolower(c);
+  });
+  return s;
+}
+
 using namespace enclave::http;
 
 TEST_CASE("Complete request")
@@ -238,7 +246,7 @@ TEST_CASE("Pessimal transport")
     // auto-inserted headers - these are ignored
     for (const auto& it : headers)
     {
-      const auto found = m.headers.find(it.first);
+      const auto found = m.headers.find(to_lowercase(it.first));
       CHECK(found != m.headers.end());
       CHECK(found->second == it.second);
     }

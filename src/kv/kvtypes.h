@@ -5,6 +5,7 @@
 #include "consensus/consensustypes.h"
 #include "crypto/hash.h"
 #include "enclave/consensus_type.h"
+#include "flatbufferwrapper.h"
 
 #include <array>
 #include <chrono>
@@ -26,6 +27,12 @@ namespace kv
   using Term = uint64_t;
   using NodeId = uint64_t;
   static const Version NoVersion = std::numeric_limits<Version>::min();
+
+  using BatchVector =
+    std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>;
+  using BatchDetachedBuffer = std::vector<
+    std::
+      tuple<kv::Version, std::unique_ptr<flatbuffers::DetachedBuffer>, bool>>;
 
   enum CommitSuccess
   {
@@ -57,25 +64,6 @@ namespace kv
     ALL = 0,
     NONE,
     SOME
-  };
-
-  struct SerialisedMaps
-  {
-    std::vector<uint8_t> replicated;
-    std::vector<uint8_t> derived;
-
-    SerialisedMaps() = default;
-
-    SerialisedMaps(
-      std::vector<uint8_t>&& replicated_, std::vector<uint8_t>&& derived_) :
-      replicated(std::move(replicated_)),
-      derived(std::move(derived_))
-    {}
-
-    bool empty()
-    {
-      return replicated.empty() && derived.empty();
-    }
   };
 
   class KvSerialiserException : public std::exception
@@ -127,6 +115,7 @@ namespace kv
 
     virtual ~TxHistory() {}
     virtual void append(const std::vector<uint8_t>& data) = 0;
+    virtual void append(const uint8_t* data, size_t size) = 0;
     virtual bool verify(Term* term = nullptr) = 0;
     virtual void rollback(Version v) = 0;
     virtual void compact(Version v) = 0;
@@ -140,8 +129,15 @@ namespace kv
     virtual void add_result(
       RequestID id,
       kv::Version version,
-      const std::vector<uint8_t>& data_replicated,
+      const std::vector<uint8_t>& replicated,
       const std::vector<uint8_t>& all_data) = 0;
+    virtual void add_result(
+      RequestID id,
+      kv::Version version,
+      const uint8_t* replicated,
+      size_t replicated_size,
+      const uint8_t* all_data,
+      size_t all_data_size) = 0;
     virtual void add_result(RequestID id, kv::Version version) = 0;
     virtual void add_response(
       RequestID id, const std::vector<uint8_t>& response) = 0;
@@ -214,9 +210,8 @@ namespace kv
       state = Primary;
     }
 
-    virtual bool replicate(
-      const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>&
-        entries) = 0;
+    virtual bool replicate(const BatchDetachedBuffer& entries) = 0;
+    virtual bool replicate(const BatchVector& entries) = 0;
     virtual View get_view() = 0;
 
     virtual View get_view(SeqNo seqno) = 0;
@@ -244,8 +239,59 @@ namespace kv
     virtual ConsensusType type() = 0;
   };
 
-  using PendingTx = std::function<
-    std::tuple<CommitSuccess, TxHistory::RequestID, SerialisedMaps>()>;
+  struct PendingTxInfo
+  {
+    CommitSuccess success;
+    TxHistory::RequestID reqid;
+    std::unique_ptr<flatbuffers::DetachedBuffer> buffer;
+
+    PendingTxInfo(
+      CommitSuccess success_,
+      TxHistory::RequestID reqid_,
+      std::unique_ptr<flatbuffers::DetachedBuffer> buffer_) :
+      success(success_),
+      reqid(std::move(reqid_)),
+      buffer(std::move(buffer_))
+    {}
+  };
+
+  using PendingTx = std::function<PendingTxInfo()>;
+
+  class MovePendingTx
+  {
+  private:
+    std::unique_ptr<flatbuffers::DetachedBuffer> buffer;
+    kv::TxHistory::RequestID req_id;
+
+  public:
+    MovePendingTx(
+      std::unique_ptr<flatbuffers::DetachedBuffer> buffer_,
+      kv::TxHistory::RequestID req_id_) :
+      buffer(std::move(buffer_)),
+      req_id(std::move(req_id_))
+    {}
+
+    MovePendingTx(MovePendingTx&& other) = default;
+    MovePendingTx& operator=(MovePendingTx&& other) = default;
+
+    MovePendingTx(const MovePendingTx& other)
+    {
+      throw std::logic_error(
+        "Calling copy constructor of MovePendingTx is not permitted");
+    }
+    MovePendingTx& operator=(const MovePendingTx& other)
+    {
+      throw std::logic_error(
+        "Calling copy asignment operator of MovePendingTx is not "
+        "permitted");
+    }
+
+    PendingTxInfo operator()()
+    {
+      return PendingTxInfo(
+        CommitSuccess::OK, std::move(req_id), std::move(buffer));
+    }
+  };
 
   class AbstractTxEncryptor
   {

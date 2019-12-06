@@ -105,6 +105,7 @@ enable_language(ASM)
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/frame_generated.h
     COMMAND flatc --cpp ${CCF_DIR}/src/kv/frame.fbs
+    COMMAND flatc --python ${CCF_DIR}/src/kv/frame.fbs
     DEPENDS ${CCF_DIR}/src/kv/frame.fbs
 )
 
@@ -388,6 +389,8 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       ${EVERCRYPT_INC}
       ${CMAKE_CURRENT_BINARY_DIR}
     )
+    add_dependencies(${name} flatbuffers)
+
     if (PBFT)
       target_link_libraries(${name} PRIVATE
         -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
@@ -432,6 +435,8 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       ${OE_INCLUDE_DIR}
       ${CMAKE_CURRENT_BINARY_DIR}
     )
+    add_dependencies(${virt_name} flatbuffers)
+
     if (PBFT)
       target_link_libraries(${virt_name} PRIVATE
         -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
@@ -509,6 +514,7 @@ if("sgx" IN_LIST TARGET)
     evercrypt.host
     CURL::libcurl
   )
+  add_dependencies(cchost flatbuffers)
   enable_quote_code(cchost)
 endif()
 
@@ -537,6 +543,7 @@ if("virtual" IN_LIST TARGET)
     evercrypt.host
     CURL::libcurl
   )
+  add_dependencies(cchost.virtual flatbuffers)
 endif()
 
 # Client executable
@@ -547,6 +554,7 @@ target_link_libraries(client PRIVATE
   secp256k1.host
   http_parser.host
 )
+add_dependencies(client flatbuffers)
 
 # Lua for host and enclave
 add_enclave_library_c(lua.enclave "${LUA_SOURCES}")
@@ -602,6 +610,7 @@ function(add_client_exe name)
     ${CMAKE_THREAD_LIBS_INIT}
   )
 
+  add_dependencies(${name} flatbuffers)
   target_include_directories(${name} PRIVATE
     ${CCF_DIR}/samples/perf_client
     ${PARSED_ARGS_INCLUDE_DIRS}
@@ -634,7 +643,7 @@ function(add_e2e_test)
       TEST ${PARSED_ARGS_NAME}
       APPEND
       PROPERTY
-        ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+        ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
     )
     if (${PARSED_ARGS_IS_SUITE})
       set_property(
@@ -710,7 +719,7 @@ function(add_perf_test)
     TEST ${PARSED_ARGS_NAME}
     APPEND
     PROPERTY
-      ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+      ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
   )
   set_property(
     TEST ${PARSED_ARGS_NAME}
