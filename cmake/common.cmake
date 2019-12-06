@@ -692,10 +692,14 @@ function(add_perf_test)
   endif()
 
   if(PARSED_ARGS_LABEL)
+    set(LABEL_ARG --label ${PARSED_ARGS_LABEL})
+
     if(PBFT)
-      set(LABEL_ARG --label ${PARSED_ARGS_LABEL}_PBFT)
-    else()
-      set(LABEL_ARG --label ${PARSED_ARGS_LABEL})
+      set(LABEL_ARG ${LABEL_ARG}_PBFT)
+    endif()
+
+    if(HTTP)
+      set(LABEL_ARG ${LABEL_ARG}_HTTP)
     endif()
   else()
     unset(LABEL_ARG)
@@ -727,4 +731,12 @@ function(add_perf_test)
     PROPERTY
       LABELS perf
   )
+  if (HTTP)
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY
+        ENVIRONMENT "HTTP=ON"
+    )
+  endif()
 endfunction()
