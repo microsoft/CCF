@@ -285,8 +285,23 @@ namespace raft
       create_and_remove_node_state();
     }
 
-    bool replicate(
-      const std::vector<std::tuple<Index, std::vector<uint8_t>, bool>>& entries)
+    template <typename T>
+    size_t replicate_to_ledger(const T& data)
+    {
+      ledger->put_entry(data->data(), data->size());
+      return data->size();
+    }
+
+    template <>
+    size_t replicate_to_ledger<std::vector<uint8_t>>(
+      const std::vector<uint8_t>& data)
+    {
+      ledger->put_entry(data);
+      return data.size();
+    }
+
+    template <typename T>
+    bool replicate(const std::vector<std::tuple<Index, T, bool>>& entries)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -315,12 +330,11 @@ namespace raft
           committable_indices.push_back(index);
 
         last_idx = index;
-        ledger->put_entry(data);
+        auto s = replicate_to_ledger(data);
+        entry_size_not_limited += s;
+        entry_count++;
 
         term_history.update(index, current_term);
-
-        entry_size_not_limited += data.size();
-        entry_count++;
         if (entry_size_not_limited >= append_entries_size_limit)
         {
           update_batch_size();
