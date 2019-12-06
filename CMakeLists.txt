@@ -26,6 +26,8 @@ target_link_libraries(memberclient PRIVATE
   secp256k1.host
 )
 
+add_dependencies(memberclient flatbuffers)
+
 # Logging Client executable
 add_executable(logging_client src/clients/logging_client.cpp)
 use_client_mbedtls(logging_client)
@@ -194,6 +196,8 @@ if(BUILD_TESTS)
       ${PARSED_ARGS_INCLUDE_DIRS}
     )
 
+    add_dependencies(${name} flatbuffers)
+
     target_link_libraries(${name} PRIVATE
       ${CMAKE_THREAD_LIBS_INIT}
       ${PARSED_ARGS_LINK_LIBS}
@@ -257,6 +261,7 @@ if(BUILD_TESTS)
   target_include_directories(merkle_mem PRIVATE
     ${EVERCRYPT_INC}
     src)
+  add_dependencies(merkle_mem flatbuffers)
 
   if (NOT PBFT)
     # Raft driver and scenario test
@@ -265,6 +270,7 @@ if(BUILD_TESTS)
     use_client_mbedtls(raft_driver)
     target_include_directories(raft_driver PRIVATE
       src/raft)
+    add_dependencies(raft_driver flatbuffers)
     add_test(
       NAME raft_scenario_test
       COMMAND

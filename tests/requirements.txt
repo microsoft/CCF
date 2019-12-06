@@ -7,3 +7,4 @@ coincurve
 psutil
 cimetrics>=0.2.1
 requests-http-signature
+flatbuffers

@@ -117,6 +117,8 @@ namespace ccf
 
     void append(const std::vector<uint8_t>&) override {}
 
+    void append(const uint8_t*, size_t) override {}
+
     bool verify(kv::Term* term = nullptr) override
     {
       return true;
@@ -154,8 +156,16 @@ namespace ccf
     void add_result(
       kv::TxHistory::RequestID id,
       kv::Version version,
-      const std::vector<uint8_t>& data_replicated,
+      const std::vector<uint8_t>& replicated,
       const std::vector<uint8_t>& all_data) override
+    {}
+    virtual void add_result(
+      RequestID id,
+      kv::Version version,
+      const uint8_t* replicated,
+      size_t replicated_size,
+      const uint8_t* all_data,
+      size_t all_data_size) override
     {}
     void add_result(RequestID id, kv::Version version) override {}
     void add_response(
@@ -395,7 +405,12 @@ namespace ccf
 
     void append(const std::vector<uint8_t>& data) override
     {
-      crypto::Sha256Hash h({data});
+      append(data.data(), data.size());
+    }
+
+    void append(const uint8_t* data, size_t size) override
+    {
+      crypto::Sha256Hash h({{data, size}});
       log_hash(h, APPEND);
       tree.append(h);
     }
@@ -492,10 +507,27 @@ namespace ccf
     void add_result(
       kv::TxHistory::RequestID id,
       kv::Version version,
-      const std::vector<uint8_t>& data_replicated,
+      const std::vector<uint8_t>& replicated,
       const std::vector<uint8_t>& all_data) override
     {
-      append(all_data);
+      add_result(
+        id,
+        version,
+        replicated.data(),
+        replicated.size(),
+        all_data.data(),
+        all_data.size());
+    }
+
+    void add_result(
+      RequestID id,
+      kv::Version version,
+      const uint8_t* replicated,
+      size_t replicated_size,
+      const uint8_t* all_data,
+      size_t all_data_size) override
+    {
+      append(all_data, all_data_size);
       auto root = get_root();
       LOG_DEBUG << fmt::format(
                      "HISTORY: add_result {0} {1} {2}", id, version, root)
