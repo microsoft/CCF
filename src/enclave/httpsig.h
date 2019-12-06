@@ -118,7 +118,7 @@ namespace enclave
       std::string_view& s, const std::string& delimiter)
     {
       std::vector<std::string_view> strings;
-      bool last_string;
+      bool last_string = false;
 
       auto next_delimiter = s.find(delimiter);
       while (next_delimiter != std::string::npos || !last_string)
@@ -145,9 +145,6 @@ namespace enclave
       std::string_view& auth_header_value)
     {
       SignatureParams sig_params = {};
-
-      auto next_comma = auth_header_value.find(SIGN_PARAMS_DELIMITER);
-      bool last_key = false;
 
       auto parsed_params =
         parse_delimited_string(auth_header_value, SIGN_PARAMS_DELIMITER);
