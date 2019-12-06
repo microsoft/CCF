@@ -278,6 +278,11 @@ if(BUILD_TESTS)
           ${CMAKE_SOURCE_DIR}/tests/raft_scenarios ${CMAKE_SOURCE_DIR})
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
+      ## Storing signed votes test
+    add_e2e_test(
+      NAME voting_history_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
+
     # TODO: All end-to-end tests should be supported once large messages work with HTTP
     if (NOT HTTP)
       # Member client end to end tests
@@ -291,11 +296,6 @@ if(BUILD_TESTS)
         NAME logging_client_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
       )
-
-      ## Storing signed votes test
-      add_e2e_test(
-        NAME voting_history_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
 
       ## Lua sample app (tx regulator) end to end test
       add_e2e_test(

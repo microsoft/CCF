@@ -10,12 +10,31 @@ import msgpack
 import coincurve
 from coincurve._libsecp256k1 import ffi, lib
 from coincurve.context import GLOBAL_CONTEXT
+from enum import IntEnum
+import sys
+import os
+import base64
 
 import cryptography.x509
 from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 
 from loguru import logger as LOG
+
+# As per mbedtls md_type_t
+class SignedReqDigest(IntEnum):
+    MD_NONE = 0
+    MD_MD2 = 1
+    MD_MD4 = 2
+    MD_MD5 = 3
+    MD_SHA1 = 4
+    MD_SHA224 = 5
+    MD_SHA256 = 6
+    MD_SHA384 = 7
+    MD_SHA512 = 8
+    MD_RIPEMD160 = 9
+
 
 # This function calls the native API and does not rely on the
 # imported library's implementation. Though not being used by
@@ -65,13 +84,30 @@ def verify_recover_secp256k1_bc(
         raise RuntimeError("Failed to verify SECP256K1 bitcoin signature")
 
 
-def verify_sig(raw_cert, sig, req):
+def verify_sig(raw_cert, sig, req, raw_req, md):
     try:
         cert = cryptography.x509.load_der_x509_certificate(
             raw_cert, backend=default_backend()
         )
+
+        digest = (
+            hashes.SHA256()
+            if md == SignedReqDigest.MD_SHA256
+            else cert.signature_hash_algorithm
+        )
+
+        # For HTTP, also verify that the digest matches the hash of the body
+        if os.getenv("HTTP"):
+            h = hashes.Hash(digest, backend=default_backend())
+            h.update(raw_req)
+            raw_req_digest = h.finalize()
+            header_digest = base64.b64decode(req.decode().split("SHA-256=")[1])
+            assert (
+                header_digest == raw_req_digest
+            ), "Digest header does not match request body"
+
         pub_key = cert.public_key()
-        hash_alg = ec.ECDSA(cert.signature_hash_algorithm)
+        hash_alg = ec.ECDSA(digest)
         pub_key.verify(sig, req, hash_alg)
     except cryptography.exceptions.InvalidSignature as e:
         # we support a non-standard curve, which is also being
@@ -146,7 +182,9 @@ def run(args):
                 cert = members[member_id]
                 sig = signed_request[0][0]
                 req = signed_request[0][1]
-                verify_sig(cert, sig, req)
+                raw_req = signed_request[0][2]
+                digest = signed_request[0][3]
+                verify_sig(cert, sig, req, raw_req, digest)
                 verified_votes += 1
 
     assert verified_votes >= 2

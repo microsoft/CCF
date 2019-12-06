@@ -5,8 +5,11 @@
 #include "httpbuilder.h"
 #include "tlsendpoint.h"
 
+#include <algorithm>
+#include <cctype>
 #include <http-parser/http_parser.h>
 #include <map>
+#include <string>
 
 namespace enclave
 {
@@ -178,7 +181,13 @@ namespace enclave
           complete_header();
         }
 
-        partial_parsed_header.first.append(at, length);
+        // HTTP headers are stored lowercase as it is easier to verify HTTP
+        // signatures later on
+        auto f = std::string(at, length);
+        std::transform(f.begin(), f.end(), f.begin(), [](unsigned char c) {
+          return std::tolower(c);
+        });
+        partial_parsed_header.first.append(f);
       }
 
       void header_value(const char* at, size_t length)
