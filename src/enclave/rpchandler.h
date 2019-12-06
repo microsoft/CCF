@@ -33,6 +33,7 @@ namespace enclave
     {
       std::vector<uint8_t> result;
       crypto::Sha256Hash merkle_root;
+      crypto::Sha256Hash r_merkle_root;
       kv::Version version;
     };
 

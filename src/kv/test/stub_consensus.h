@@ -101,7 +101,11 @@ namespace kv
 
     ConsensusType type() override
     {
+#ifdef PBFT
+      return ConsensusType::Pbft;
+#else
       return ConsensusType::Raft;
+#endif
     }
   };
 

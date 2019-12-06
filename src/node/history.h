@@ -115,9 +115,16 @@ namespace ccf
       signatures(signatures_)
     {}
 
-    void append(const std::vector<uint8_t>&) override {}
+    void append(
+      const std::vector<uint8_t>&, const std::vector<uint8_t>&) override
+    {}
 
-    void append(const uint8_t*, size_t) override {}
+    void append(
+      const uint8_t* replicated,
+      size_t replicated_size,
+      const uint8_t* all_data,
+      size_t all_data_size) override
+    {}
 
     bool verify(kv::Term* term = nullptr) override
     {
@@ -182,6 +189,11 @@ namespace ccf
     void clear_on_response() override {}
 
     crypto::Sha256Hash get_root() override
+    {
+      return crypto::Sha256Hash();
+    }
+
+    crypto::Sha256Hash get_r_root() override
     {
       return crypto::Sha256Hash();
     }
@@ -342,6 +354,7 @@ namespace ccf
     Store& store;
     NodeId id;
     T tree;
+    T r_tree;
 
     tls::KeyPair& kp;
     Signatures& signatures;
@@ -368,6 +381,14 @@ namespace ccf
       signatures(sig_),
       nodes(nodes_)
     {}
+
+    bool update_r_tree()
+    {
+      auto consensus = store.get_consensus();
+      if (!consensus || consensus->type() == ConsensusType::Pbft)
+        return true;
+      return false;
+    }
 
     void register_on_result(ResultCallbackHandler func) override
     {
@@ -403,14 +424,33 @@ namespace ccf
       return tree.get_root();
     }
 
-    void append(const std::vector<uint8_t>& data) override
+    crypto::Sha256Hash get_r_root() override
     {
-      append(data.data(), data.size());
+      return r_tree.get_root();
     }
 
-    void append(const uint8_t* data, size_t size) override
+    void append(
+      const std::vector<uint8_t>& replicated,
+      const std::vector<uint8_t>& all_data) override
     {
-      crypto::Sha256Hash h({{data, size}});
+      append(
+        replicated.data(), replicated.size(), all_data.data(), all_data.size());
+    }
+
+    void append(
+      const uint8_t* replicated,
+      size_t replicated_size,
+      const uint8_t* all_data,
+      size_t all_data_size) override
+    {
+      if (update_r_tree())
+      {
+        crypto::Sha256Hash rh({{replicated, replicated_size}});
+        log_hash(rh, APPEND);
+        r_tree.append(rh);
+      }
+
+      crypto::Sha256Hash h({{all_data, all_data_size}});
       log_hash(h, APPEND);
       tree.append(h);
     }
@@ -447,6 +487,12 @@ namespace ccf
     {
       tree.retract(v);
       log_hash(tree.get_root(), ROLLBACK);
+
+      if (update_r_tree())
+      {
+        r_tree.retract(v);
+        log_hash(r_tree.get_root(), ROLLBACK);
+      }
     }
 
     void compact(kv::Version v) override
@@ -454,6 +500,13 @@ namespace ccf
       if (v > MAX_HISTORY_LEN)
         tree.flush(v - MAX_HISTORY_LEN);
       log_hash(tree.get_root(), COMPACT);
+
+      if (update_r_tree())
+      {
+        if (v > MAX_HISTORY_LEN)
+          r_tree.flush(v - MAX_HISTORY_LEN);
+        log_hash(r_tree.get_root(), COMPACT);
+      }
     }
 
     void emit_signature() override
@@ -527,12 +580,13 @@ namespace ccf
       const uint8_t* all_data,
       size_t all_data_size) override
     {
-      append(all_data, all_data_size);
+      append(replicated, replicated_size, all_data, all_data_size);
       auto root = get_root();
       LOG_DEBUG << fmt::format(
                      "HISTORY: add_result {0} {1} {2}", id, version, root)
                 << std::endl;
 #ifdef PBFT
+      auto r_root = get_r_root();
       results[id] = {version, root};
       if (on_result.has_value())
         on_result.value()({id, version, root});

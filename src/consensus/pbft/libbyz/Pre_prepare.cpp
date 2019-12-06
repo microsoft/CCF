@@ -20,6 +20,7 @@ Pre_prepare::Pre_prepare(
   rep().view = v;
   rep().seqno = s;
   rep().merkle_root.fill(0);
+  rep().r_merkle_root.fill(0);
 
   START_CC(pp_digest_cycles);
   INCR_OP(pp_digest);
@@ -232,6 +233,10 @@ bool Pre_prepare::calculate_digest(Digest& d)
     d.update_last(context, (char*)&(rep().seqno), sizeof(Seqno));
     d.update_last(
       context, (const char*)rep().merkle_root.data(), rep().merkle_root.size());
+    d.update_last(
+      context,
+      (const char*)rep().r_merkle_root.data(),
+      rep().r_merkle_root.size());
     d.update_last(context, (char*)&rep().ctx, sizeof(rep().ctx));
 
     Request req;
@@ -389,13 +394,19 @@ bool Pre_prepare::convert(Message* m1, Pre_prepare*& m2)
   return true;
 }
 
-void Pre_prepare::set_merkle_root_and_ctx(
-  const std::array<uint8_t, MERKLE_ROOT_SIZE>& merkle_root, int64_t ctx)
+void Pre_prepare::set_merkle_roots_and_ctx(
+  const std::array<uint8_t, MERKLE_ROOT_SIZE>& merkle_root,
+  const std::array<uint8_t, MERKLE_ROOT_SIZE>& r_merkle_root,
+  int64_t ctx)
 {
   std::copy(
     std::begin(merkle_root),
     std::end(merkle_root),
     std::begin(rep().merkle_root));
+  std::copy(
+    std::begin(r_merkle_root),
+    std::end(r_merkle_root),
+    std::begin(rep().r_merkle_root));
   rep().ctx = ctx;
 }
 
@@ -403,6 +414,12 @@ const std::array<uint8_t, MERKLE_ROOT_SIZE>& Pre_prepare::get_merkle_root()
   const
 {
   return rep().merkle_root;
+}
+
+const std::array<uint8_t, MERKLE_ROOT_SIZE>& Pre_prepare::get_r_merkle_root()
+  const
+{
+  return rep().r_merkle_root;
 }
 
 int64_t Pre_prepare::get_ctx() const

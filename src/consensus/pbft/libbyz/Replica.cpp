@@ -235,10 +235,23 @@ bool Replica::compare_execution_results(
   const ByzInfo& info, Pre_prepare* pre_prepare)
 {
   auto& pp_root = pre_prepare->get_merkle_root();
+  auto& r_pp_root = pre_prepare->get_r_merkle_root();
   if (!std::equal(
         std::begin(pp_root), std::end(pp_root), std::begin(info.merkle_root)))
   {
     LOG_FAIL << "Merkle root between execution and the pre_prepare message "
+                "does not match, seqno:"
+             << pre_prepare->seqno() << std::endl;
+    return false;
+  }
+
+  if (!std::equal(
+        std::begin(r_pp_root),
+        std::end(r_pp_root),
+        std::begin(info.r_merkle_root)))
+  {
+    LOG_FAIL << "Merkle root for replicated data between execution and the "
+                "pre_prepare message "
                 "does not match, seqno:"
              << pre_prepare->seqno() << std::endl;
     return false;
@@ -642,7 +655,8 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       // pre-prepare is constructed.
       LOG_DEBUG << "adding to plog from pre prepare: " << next_pp_seqno
                 << std::endl;
-      pp->set_merkle_root_and_ctx(info.merkle_root, info.ctx);
+      pp->set_merkle_roots_and_ctx(
+        info.merkle_root, info.r_merkle_root, info.ctx);
       pp->set_digest(signed_version.load());
       plog.fetch(next_pp_seqno).add_mine(pp);
 

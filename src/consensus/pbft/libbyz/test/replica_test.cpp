@@ -197,6 +197,8 @@ ExecCommand exec_command = [](
 
   info.merkle_root.fill(0);
   ((Long*)(info.merkle_root.data()))[0] = counter;
+  info.r_merkle_root.fill(0);
+  ((Long*)(info.r_merkle_root.data()))[0] = counter;
   info.ctx = counter;
 
   if (total_requests_executed != counter)

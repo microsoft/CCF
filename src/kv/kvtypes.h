@@ -102,6 +102,7 @@ namespace kv
       RequestID rid;
       Version version;
       crypto::Sha256Hash merkle_root;
+      crypto::Sha256Hash r_merkle_root;
     };
 
     struct ResponseCallbackArgs
@@ -114,8 +115,14 @@ namespace kv
     using ResponseCallbackHandler = std::function<bool(ResponseCallbackArgs)>;
 
     virtual ~TxHistory() {}
-    virtual void append(const std::vector<uint8_t>& data) = 0;
-    virtual void append(const uint8_t* data, size_t size) = 0;
+    virtual void append(
+      const std::vector<uint8_t>& replicated,
+      const std::vector<uint8_t>& all_data) = 0;
+    virtual void append(
+      const uint8_t* replicated,
+      size_t replicated_size,
+      const uint8_t* all_data,
+      size_t all_data_size) = 0;
     virtual bool verify(Term* term = nullptr) = 0;
     virtual void rollback(Version v) = 0;
     virtual void compact(Version v) = 0;
@@ -146,6 +153,7 @@ namespace kv
     virtual void clear_on_result() = 0;
     virtual void clear_on_response() = 0;
     virtual crypto::Sha256Hash get_root() = 0;
+    virtual crypto::Sha256Hash get_r_root() = 0;
     virtual std::vector<uint8_t> get_receipt(Version v) = 0;
     virtual bool verify_receipt(const std::vector<uint8_t>& receipt) = 0;
   };

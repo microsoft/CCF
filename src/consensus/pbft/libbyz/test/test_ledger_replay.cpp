@@ -44,7 +44,9 @@ public:
     auto request = reinterpret_cast<fake_req*>(inb->contents);
     info.ctx = request->ctx;
     info.merkle_root.fill(0);
+    info.r_merkle_root.fill(0);
     info.merkle_root.data()[0] = request->rt;
+    info.r_merkle_root.data()[0] = request->rt;
     return 0;
   };
 };
@@ -144,9 +146,12 @@ TEST_CASE("Test Ledger Replay")
       ByzInfo info;
       info.ctx = fr->ctx;
       info.merkle_root.fill(0);
+      info.r_merkle_root.fill(0);
       info.merkle_root.data()[0] = fr->rt;
+      info.r_merkle_root.data()[0] = fr->rt;
 
-      pp->set_merkle_root_and_ctx(info.merkle_root, info.ctx);
+      pp->set_merkle_roots_and_ctx(
+        info.merkle_root, info.r_merkle_root, info.ctx);
 
       ledger_writer.write_pre_prepare(pp.get());
     }
