@@ -16,7 +16,9 @@ add_enclave_lib(smallbankenc
   SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp
 )
 
-if(BUILD_TESTS)
+
+## Perf tests currently use C++ clients which do not send HTTP - disabled in HTTP build
+if(BUILD_TESTS AND HTTP)
   ## Small Bank end to end and performance test
   if (PBFT)
     set(SMALL_BANK_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_20k.json)

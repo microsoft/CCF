@@ -118,12 +118,23 @@ class Consortium:
         return res[1]
 
     def withdraw(self, member_id, remote_node, proposal_id):
-        return self._member_client_rpc_as_json(
-            member_id, remote_node, "withdraw", f"--proposal-id={proposal_id}"
-        )
+        with remote_node.member_client(member_id=member_id) as c:
+            return c.do("withdraw", {"id": proposal_id})
 
     def ack(self, member_id, remote_node):
-        return self._member_client_rpc_as_json(member_id, remote_node, "ack")
+        # NB: member_id must match CCF's assigned member_id, as returned by whoAmI
+        with remote_node.member_client(member_id=member_id) as c:
+            # Member fetches current nonce
+            nonce_response = c.do(
+                "read", {"key": member_id, "table": "ccf.member_acks"}
+            )
+            assert nonce_response.error is None, nonce_response.error
+            nonce = nonce_response.result["next_nonce"]
+
+            # Member signs nonce and sends ack
+            # TODO: Sign nonce - currently verification is disabled in memberfrontend.h
+            signed_nonce = [42]
+            return c.do("ack", {"sig": signed_nonce})
 
     def get_proposals(self, member_id, remote_node):
         script = """
@@ -241,10 +252,9 @@ class Consortium:
         tables, code_digest = ...
         return Calls:call("new_code", code_digest)
         """
-        result = self._member_client_rpc_as_json(
-            member_id, remote_node, "add_code", f"--new-code-id={new_code_id}",
-        )
-        self.vote_using_majority(remote_node, result["result"]["id"])
+        code_digest = list(bytearray.fromhex(new_code_id))
+        result, error = self.propose(member_id, remote_node, script, code_digest)
+        self.vote_using_majority(remote_node, result["id"])
 
     def check_for_service(self, remote_node, status):
         """
