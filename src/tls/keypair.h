@@ -127,6 +127,28 @@ namespace tls
   }
 
   /**
+   * Hash the given data, with the specified digest algorithm
+   *
+   * @return 0 on success
+   */
+  inline int do_hash(
+    const uint8_t* data_ptr,
+    size_t data_size,
+    HashBytes& o_hash,
+    mbedtls_md_type_t md_type)
+  {
+    const auto md_info = mbedtls_md_info_from_type(md_type);
+    const auto hash_size = mbedtls_md_get_size(md_info);
+
+    if (o_hash.size() < hash_size)
+    {
+      o_hash.resize(hash_size);
+    }
+
+    return mbedtls_md(md_info, data_ptr, data_size, o_hash.data());
+  }
+
+  /**
    * Hash the given data, with an algorithm chosen by key type
    *
    * @return 0 on success
@@ -135,10 +157,19 @@ namespace tls
     const mbedtls_pk_context& ctx,
     const uint8_t* data_ptr,
     size_t data_size,
-    HashBytes& o_hash)
+    HashBytes& o_hash,
+    mbedtls_md_type_t md_type_ = MBEDTLS_MD_NONE)
   {
     const auto ec = get_ec_from_context(ctx);
-    const auto md_type = get_md_for_ec(ec);
+    mbedtls_md_type_t md_type;
+    if (md_type_ != MBEDTLS_MD_NONE)
+    {
+      md_type = md_type_;
+    }
+    else
+    {
+      md_type = get_md_for_ec(ec);
+    }
     const auto md_info = mbedtls_md_info_from_type(md_type);
     const auto hash_size = mbedtls_md_get_size(md_info);
 
@@ -287,6 +318,8 @@ namespace tls
      * @param contents_size size of contents
      * @param sig address of signature
      * @param sig_size size of signature
+     * @param md_type Digest algorithm to use. Derived from the
+     * public key if MBEDTLS_MD_NONE.
      *
      * @return Whether the signature matches the contents and the key
      */
@@ -294,10 +327,11 @@ namespace tls
       const uint8_t* contents,
       size_t contents_size,
       const uint8_t* sig,
-      size_t sig_size)
+      size_t sig_size,
+      mbedtls_md_type_t md_type = MBEDTLS_MD_NONE)
     {
       HashBytes hash;
-      do_hash(*ctx, contents, contents_size, hash);
+      do_hash(*ctx, contents, contents_size, hash, md_type);
 
       return verify_hash(hash.data(), hash.size(), sig, sig_size);
     }
@@ -1156,15 +1190,18 @@ namespace tls
      *
      * @param contents Sequence of bytes that was signed
      * @param signature Signature as a sequence of bytes
+     * @param md_type Digest algorithm to use. Derived from the
+     * public key if MBEDTLS_MD_NONE.
      *
      * @return Whether the signature matches the contents and the key
      */
     bool verify(
       const std::vector<uint8_t>& contents,
-      const std::vector<uint8_t>& signature) const
+      const std::vector<uint8_t>& signature,
+      mbedtls_md_type_t md_type = {}) const
     {
       HashBytes hash;
-      do_hash(cert.pk, contents.data(), contents.size(), hash);
+      do_hash(cert.pk, contents.data(), contents.size(), hash, md_type);
 
       return verify_hash(hash, signature);
     }
