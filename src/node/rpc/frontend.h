@@ -400,6 +400,7 @@ namespace ccf
             else if (consensus->type() == ConsensusType::Pbft)
             {
               consensus->emit_signature();
+              return jsonrpc::success(true);
             }
           }
 
