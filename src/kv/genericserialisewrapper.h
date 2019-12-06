@@ -297,17 +297,17 @@ namespace kv
       unhandled_op(KvOperationType::KOT_NOT_SUPPORTED)
     {}
 
-    bool init(const std::vector<uint8_t>& buffer)
+    bool init(const uint8_t* data, size_t size)
     {
       current_reader = &public_reader;
-      auto data_ = buffer.data();
-      auto size_ = buffer.size();
+      auto data_ = data;
+      auto size_ = size;
 
       // If the kv store has no encryptor, assume that the serialised tx is
       // public only with no header
       if (!crypto_util)
       {
-        public_reader.init(buffer.data(), buffer.size());
+        public_reader.init(data, size);
         return true;
       }
 
@@ -336,7 +336,7 @@ namespace kv
       if (!crypto_util->decrypt(
             {data_, data_ + size_},
             {data_public, data_public + public_domain_length},
-            {buffer.data(), buffer.data() + crypto_util->get_header_length()},
+            {data, data + crypto_util->get_header_length()},
             decrypted_buffer,
             version))
       {

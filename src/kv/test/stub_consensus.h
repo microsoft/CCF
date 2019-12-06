@@ -18,13 +18,22 @@ namespace kv
   public:
     StubConsensus() : Consensus(0), replica() {}
 
-    bool replicate(
-      const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
-      override
+    bool replicate(const BatchVector& entries) override
     {
       for (auto&& [index, data, globally_committable] : entries)
       {
         replica.push_back(data);
+      }
+      return true;
+    }
+
+    bool replicate(const BatchDetachedBuffer& entries) override
+    {
+      for (auto&& [index, data, globally_committable] : entries)
+      {
+        auto datavec =
+          std::vector<uint8_t>(data->data(), data->data() + data->size());
+        replica.push_back(datavec);
       }
       return true;
     }
@@ -104,9 +113,12 @@ namespace kv
       return false;
     }
 
-    bool replicate(
-      const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
-      override
+    bool replicate(const BatchVector& entries) override
+    {
+      return false;
+    }
+
+    bool replicate(const BatchDetachedBuffer& entries) override
     {
       return false;
     }

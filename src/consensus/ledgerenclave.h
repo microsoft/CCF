@@ -36,6 +36,19 @@ namespace consensus
     }
 
     /**
+     * Put a single entry to be written the ledger, when primary.
+     *
+     * @param data Serialised entry start
+     * @param size Serialised entry size
+     */
+    void put_entry(const uint8_t* data, size_t size)
+    {
+      serializer::ByteRange byte_range = {data, size};
+      // write the message
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_append, to_host, byte_range);
+    }
+
+    /**
      * Record a single entry to the ledger, when backup.
      *
      * @param data Serialised entries

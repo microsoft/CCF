@@ -167,6 +167,7 @@ def run(args):
     # so that we always have the correct cert for a member on a given transaction
     members = {}
     verified_votes = 0
+
     for tr in l:
         tables = tr.get_public_domain().get_tables()
         members_table = tables["ccf.member_certs"]
