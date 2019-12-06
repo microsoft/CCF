@@ -311,20 +311,6 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
     )
 
-    ## Lua sample app (tx regulator) end to end test
-    add_e2e_test(
-      NAME lua_txregulator_test
-      PYTHON_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
-      ADDITIONAL_ARGS
-        --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
-        --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
-
-    ## Receipts end to end test
-    add_e2e_test(
-      NAME receipts_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
-    )
-
     if(QUOTES_ENABLED)
       add_e2e_test(
         NAME governance_tests
