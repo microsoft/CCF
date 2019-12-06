@@ -327,8 +327,12 @@ class CurlClient:
             self.stream.update(rc.stdout)
         return request.id
 
-    # TODO: Untested
+    # TODO: https://github.com/microsoft/CCF/issues/612
     def signed_request(self, request):
+        raise NotImplementedError(
+            "Signed requests are not yet implemented with curl. Make sure to unset CURL_CLIENT envvar."
+        )
+
         with tempfile.NamedTemporaryFile() as nf:
             msg = getattr(request, "to_{}".format(self.format))()
             LOG.debug("Going to send {}".format(msg))
