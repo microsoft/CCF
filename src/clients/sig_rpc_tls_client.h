@@ -7,7 +7,7 @@
 #include <nlohmann/json.hpp>
 #include <tls/keypair.h>
 
-class SigRpcTlsClient : public RpcTlsClient
+class SigJsonRpcTlsClient : public RpcTlsClient
 {
 private:
   tls::KeyPairPtr key_pair;
@@ -15,7 +15,7 @@ private:
 public:
   // Forward common arguments directly to base class
   template <typename... Ts>
-  SigRpcTlsClient(const tls::Pem& priv_key_, Ts&&... ts) :
+  SigJsonRpcTlsClient(const tls::Pem& priv_key_, Ts&&... ts) :
     RpcTlsClient(ts...),
     key_pair(tls::make_key_pair(priv_key_))
   {}
@@ -42,3 +42,36 @@ public:
     return gen_rpc_raw(sj, {j["id"]});
   }
 };
+
+class SigHttpRpcTlsClient : public HttpRpcTlsClient
+{
+private:
+  tls::KeyPairPtr key_pair;
+
+public:
+  template <typename... Ts>
+  SigHttpRpcTlsClient(const tls::Pem& priv_key_, Ts&&... ts) :
+    HttpRpcTlsClient(ts...),
+    key_pair(tls::make_key_pair(priv_key_))
+  {}
+
+  PreparedRpc gen_rpc(
+    const std::string& method, const nlohmann::json& params) override
+  {
+    const auto body_j = json_rpc(method, params);
+    const auto body_v = nlohmann::json::to_msgpack(body_j);
+    auto r = enclave::http::Request(HTTP_POST);
+    r.set_path(body_j["method"]);
+
+    // TODO: Use httpsig.h, add signature header to this request
+
+    const auto request = r.build_request(body_v);
+    return {request, body_j["id"]};
+  }
+};
+
+#ifdef HTTP
+using SigRpcTlsClient = SigHttpRpcTlsClient;
+#else
+using SigRpcTlsClient = SigJsonRpcTlsClient;
+#endif
