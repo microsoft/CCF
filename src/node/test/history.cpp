@@ -236,7 +236,7 @@ TEST_CASE("Check signing works across rollback")
 
     if (consensus->type() == ConsensusType::Raft)
     {
-      // check that the replicated tree is not beign updated
+      // check that the replicated tree is not being updated
       REQUIRE(r_pr_str == empty_hash_str);
     }
     else
