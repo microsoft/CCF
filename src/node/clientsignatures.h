@@ -15,8 +15,7 @@ namespace ccf
 {
   struct SignedReq
   {
-    // the signature of the msgpack-encoded json-rpc (via the client's private
-    // key)
+    // signature
     std::vector<uint8_t> sig = {};
     // the signed content
     std::vector<uint8_t> req = {};
@@ -24,7 +23,7 @@ namespace ccf
     // the request body
     std::vector<uint8_t> raw_req = {};
 
-    // the hashing algorithm used (not serialised)
+    // the hashing algorithm used
     mbedtls_md_type_t md = MBEDTLS_MD_NONE;
 
     bool operator==(const SignedReq& other) const

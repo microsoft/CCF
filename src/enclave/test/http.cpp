@@ -242,12 +242,6 @@ TEST_CASE("Pessimal transport")
     CHECK(m.method == HTTP_POST);
     CHECK(m.body == r0);
 
-    std::cout << "Headers in request: " << std::endl;
-    for (auto const& h : m.headers)
-    {
-      std::cout << h.first << std::endl;
-    }
-
     // Check each specified header is present and matches. May include other
     // auto-inserted headers - these are ignored
     for (const auto& it : headers)
