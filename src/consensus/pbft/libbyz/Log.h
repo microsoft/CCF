@@ -78,8 +78,7 @@ inline Seqno Log<T>::max_seqno() const
 
 template <class T>
 Log<T>::Log(int sz, Seqno h) : head(h), max_size(sz)
-{
-}
+{}
 
 template <class T>
 void Log<T>::clear(Seqno h)
