@@ -345,7 +345,7 @@ void Big_req_table::mark_stable(Seqno ls)
     }
     else
     {
-      ++it;
+      it++;
     }
   }
 }
