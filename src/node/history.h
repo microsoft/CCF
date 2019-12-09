@@ -275,6 +275,12 @@ namespace ccf
   public:
     MerkleTreeHistory(MerkleTreeHistory const&) = delete;
 
+    MerkleTreeHistory(const std::vector<uint8_t>& serialised)
+    {
+      tree = mt_deserialize(
+        const_cast<uint8_t*>(serialised.data()), serialised.size());
+    }
+
     MerkleTreeHistory()
     {
       ::hash ih(init_hash());
@@ -333,6 +339,13 @@ namespace ccf
     bool verify(const Receipt& r)
     {
       return r.verify(tree);
+    }
+
+    std::vector<uint8_t> serialise()
+    {
+      std::vector<uint8_t> output(mt_serialize_size(tree));
+      mt_serialize(tree, output.data(), output.capacity());
+      return output;
     }
   };
 
