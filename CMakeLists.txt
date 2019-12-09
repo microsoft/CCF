@@ -429,7 +429,7 @@ if(BUILD_TESTS)
       LABEL logging_scenario_perf_test
       ADDITIONAL_ARGS
         --package libloggingenc
-        --scenario-file ${CMAKE_CURRENT_LIST_DIR}/tests
+        --scenario-file ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
         --repetitions 1000
     )
   endif()
