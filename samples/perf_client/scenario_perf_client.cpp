@@ -17,7 +17,7 @@ private:
 
   void prepare_transactions() override
   {
-    constexpr transactions_element_name = "transactions";
+    constexpr auto transactions_element_name = "transactions";
 
     const auto transactions = scenario_json[transactions_element_name];
     if (!transactions.is_array())

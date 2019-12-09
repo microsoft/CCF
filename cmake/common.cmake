@@ -555,6 +555,16 @@ target_link_libraries(client PRIVATE
 )
 add_dependencies(client flatbuffers)
 
+# Perf scenario executable
+add_executable(scenario_perf_client
+  ${CCF_DIR}/samples/perf_client/scenario_perf_client.cpp
+)
+use_client_mbedtls(scenario_perf_client)
+target_link_libraries(scenario_perf_client PRIVATE
+  ${CMAKE_THREAD_LIBS_INIT}
+  secp256k1.host
+)
+
 # Lua for host and enclave
 add_enclave_library_c(lua.enclave "${LUA_SOURCES}")
 target_compile_definitions(lua.enclave PRIVATE NO_IO)
