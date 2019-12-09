@@ -599,9 +599,6 @@ add_enclave_lib(luagenericenc ${CCF_DIR}/src/apps/luageneric/oe_sign.conf ${CCF_
 
 # Samples
 
-# Common options
-set(TEST_ITERATIONS 200000)
-
 ## Helper for building clients inheriting from perf_client
 function(add_client_exe name)
 
@@ -685,14 +682,9 @@ function(add_perf_test)
 
   cmake_parse_arguments(PARSE_ARGV 0 PARSED_ARGS
     ""
-    "NAME;PYTHON_SCRIPT;CLIENT_BIN;ITERATIONS;VERIFICATION_FILE;LABEL"
+    "NAME;PYTHON_SCRIPT;CLIENT_BIN;VERIFICATION_FILE;LABEL"
     "ADDITIONAL_ARGS"
   )
-
-  ## Use default value if undefined
-  if(NOT PARSED_ARGS_ITERATIONS)
-    set(PARSED_ARGS_ITERATIONS ${TEST_ITERATIONS})
-  endif()
 
   if(PARSED_ARGS_VERIFICATION_FILE)
     set(VERIFICATION_ARG "--verify ${PARSED_ARGS_VERIFICATION_FILE}")
@@ -715,12 +707,11 @@ function(add_perf_test)
     COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
       -b .
       -c ${PARSED_ARGS_CLIENT_BIN}
-      -i ${PARSED_ARGS_ITERATIONS}
       ${CCF_NETWORK_TEST_ARGS}
-      ${PARSED_ARGS_ADDITIONAL_ARGS}
       --write-tx-times
       ${VERIFICATION_ARG}
       ${LABEL_ARG}
+      ${PARSED_ARGS_ADDITIONAL_ARGS}
   )
 
   ## Make python test client framework importable
