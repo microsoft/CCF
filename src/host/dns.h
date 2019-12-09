@@ -56,7 +56,11 @@ namespace asynchost
              service.c_str(),
              &hints)) < 0)
         {
-          LOG_FAIL_FMT("uv_getaddrinfo failed: {}", uv_strerror(rc));
+          LOG_FAIL_FMT(
+            "uv_getaddrinfo for host:service [{}:{}] failed with error {}",
+            host,
+            service,
+            uv_strerror(rc));
           delete resolver;
           return false;
         }
