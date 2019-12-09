@@ -421,19 +421,20 @@ if(BUILD_TESTS)
         --election-timeout 2000
     )
 
-    # Logging scenario perf test
-    add_perf_test(
-      NAME logging_scenario_perf_test
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/perfclient.py
-      CLIENT_BIN ./scenario_perf_client
-      LABEL logging_scenario_perf_test
-      ADDITIONAL_ARGS
-        --package libloggingenc
-        --scenario-file ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-        --repetitions 1000
-    )
+    if (NOT PBFT)
+      # Logging scenario perf test
+      add_perf_test(
+        NAME logging_scenario_perf_test
+        PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/perfclient.py
+        CLIENT_BIN ./scenario_perf_client
+        LABEL logging_scenario_perf_test
+        ADDITIONAL_ARGS
+          --package libloggingenc
+          --scenario-file ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+          --repetitions 1000
+      )
+    endif()
   endif()
-
 
   if (EXTENSIVE_TESTS)
     set_tests_properties(recovery_tests PROPERTIES TIMEOUT 2000)
