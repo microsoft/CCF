@@ -80,9 +80,11 @@ if __name__ == "__main__":
             required=True,
         )
 
-    def get_command(host_arg, port_arg):
-        return ["host:", host_arg, "port:", port_arg]
+    args, unknown_args = cli_args(add, accept_unknown=True)
 
-    args = cli_args(add)
+    unknown_args = [term for arg in unknown_args for term in arg.split(" ")]
 
-    infra.runner.run(args.build_dir, args.package, get_command, args)
+    def get_command(*args):
+        return [*args] + unknown_args
+
+    infra.runner.run(args.build_dir, get_command, args)
