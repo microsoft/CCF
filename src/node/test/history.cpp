@@ -217,16 +217,16 @@ TEST_CASE("Check signing works across rollback")
 
   INFO("Check merkle roots are updating");
   {
-    auto primary_root = primary_history->get_root();
+    auto primary_root = primary_history->get_full_state_root();
     auto pr_str = fmt::format("{}", primary_root);
-    auto backup_root = backup_history->get_root();
+    auto backup_root = backup_history->get_full_state_root();
     auto bk_str = fmt::format("{}", backup_root);
 
     REQUIRE(pr_str == bk_str);
 
-    auto r_primary_root = primary_history->get_r_root();
+    auto r_primary_root = primary_history->get_replicated_state_root();
     auto r_pr_str = fmt::format("{}", r_primary_root);
-    auto r_backup_root = backup_history->get_r_root();
+    auto r_backup_root = backup_history->get_replicated_state_root();
     auto r_bk_str = fmt::format("{}", r_backup_root);
 
     REQUIRE(r_pr_str == r_bk_str);

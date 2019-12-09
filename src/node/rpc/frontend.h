@@ -781,19 +781,21 @@ namespace ccf
     {
       // TODO(#PBFT): Refactor this with process_forwarded().
       Store::Tx tx;
-      crypto::Sha256Hash merkle_root;
-      crypto::Sha256Hash r_merkle_root;
+      crypto::Sha256Hash full_state_merkle_root;
+      crypto::Sha256Hash replicated_state_merkle_root;
       kv::Version version = kv::NoVersion;
 
       update_consensus();
 
       bool has_updated_merkle_roots = false;
 
-      auto cb =
-        [&merkle_root, &r_merkle_root, &version, &has_updated_merkle_roots](
-          kv::TxHistory::ResultCallbackArgs args) -> bool {
-        merkle_root = args.merkle_root;
-        r_merkle_root = args.r_merkle_root;
+      auto cb = [&full_state_merkle_root,
+                 &replicated_state_merkle_root,
+                 &version,
+                 &has_updated_merkle_roots](
+                  kv::TxHistory::ResultCallbackArgs args) -> bool {
+        full_state_merkle_root = args.full_state_merkle_root;
+        replicated_state_merkle_root = args.replicated_state_merkle_root;
         if (args.version != kv::NoVersion)
         {
           version = args.version;
@@ -815,8 +817,8 @@ namespace ccf
 
       if (!has_updated_merkle_roots)
       {
-        merkle_root = history->get_root();
-        r_merkle_root = history->get_r_root();
+        full_state_merkle_root = history->get_full_state_root();
+        replicated_state_merkle_root = history->get_replicated_state_root();
       }
 
       // TODO(#PBFT): Add RPC response to history based on Request ID
@@ -824,8 +826,8 @@ namespace ccf
       //   history->add_response(reqid, rv);
 
       return {jsonrpc::pack(rep.value(), ctx.pack.value()),
-              merkle_root,
-              r_merkle_root,
+              full_state_merkle_root,
+              replicated_state_merkle_root,
               version};
     }
 

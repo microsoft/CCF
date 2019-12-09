@@ -101,8 +101,8 @@ namespace kv
     {
       RequestID rid;
       Version version;
-      crypto::Sha256Hash merkle_root;
-      crypto::Sha256Hash r_merkle_root;
+      crypto::Sha256Hash full_state_merkle_root;
+      crypto::Sha256Hash replicated_state_merkle_root;
     };
 
     struct ResponseCallbackArgs
@@ -152,8 +152,8 @@ namespace kv
     virtual void register_on_response(ResponseCallbackHandler func) = 0;
     virtual void clear_on_result() = 0;
     virtual void clear_on_response() = 0;
-    virtual crypto::Sha256Hash get_root() = 0;
-    virtual crypto::Sha256Hash get_r_root() = 0;
+    virtual crypto::Sha256Hash get_full_state_root() = 0;
+    virtual crypto::Sha256Hash get_replicated_state_root() = 0;
     virtual std::vector<uint8_t> get_receipt(Version v) = 0;
     virtual bool verify_receipt(const std::vector<uint8_t>& receipt) = 0;
   };
