@@ -52,7 +52,7 @@ namespace enclave
             return;
           }
         }
-        catch(const std::exception& e)
+        catch (const std::exception& e)
         {
           LOG_FAIL_FMT("Error parsing request: {}", e.what());
           return;
