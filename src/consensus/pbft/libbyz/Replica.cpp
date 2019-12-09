@@ -241,8 +241,8 @@ bool Replica::compare_execution_results(
         std::end(pp_root),
         std::begin(info.full_state_merkle_root)))
   {
-    LOG_FAIL << "Merkle root between execution and the pre_prepare message "
-                "does not match, seqno:"
+    LOG_FAIL << "Full state merkle root between execution and the pre_prepare "
+                "message does not match, seqno:"
              << pre_prepare->seqno() << std::endl;
     return false;
   }
@@ -252,9 +252,8 @@ bool Replica::compare_execution_results(
         std::end(r_pp_root),
         std::begin(info.replicated_state_merkle_root)))
   {
-    LOG_FAIL << "Merkle root for replicated data between execution and the "
-                "pre_prepare message "
-                "does not match, seqno:"
+    LOG_FAIL << "Replicated state merkle root between execution and the "
+                "pre_prepare message does not match, seqno:"
              << pre_prepare->seqno() << std::endl;
     return false;
   }
