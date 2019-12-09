@@ -29,13 +29,20 @@ private:
     }
 
     // Reserve space for transactions
-    prepared_txs.resize(transactions.size());
+    prepared_txs.resize(transactions.size() * repetitions);
 
-    for (size_t i = 0; i < transactions.size(); ++i)
+    for (size_t r = 0; r < repetitions; ++r)
     {
-      const auto& transaction = transactions[i];
+      for (size_t i = 0; i < transactions.size(); ++i)
+      {
+        const auto& transaction = transactions[i];
 
-      add_prepared_tx(transaction["method"], transaction["params"], true, i);
+        add_prepared_tx(
+          transaction["method"],
+          transaction["params"],
+          true,
+          r * repetitions + i);
+      }
     }
   }
 
