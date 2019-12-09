@@ -36,7 +36,6 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         default="metrics.json",
         help="Path to json file where the transaction rate metrics will be saved to",
     )
-    parser.add_argument("-t", "--threads", help="Number of client threads", default=1)
     parser.add_argument(
         "-f",
         "--fixed-seed",
@@ -51,13 +50,6 @@ def cli_args(add=lambda x: None, accept_unknown=False):
     )
     parser.add_argument(
         "--config", help="Path to config for client binary", default=default_config_path
-    )
-
-    parser.add_argument(
-        "-i", "--iterations", help="Number of transactions", required=True, type=int
-    )
-    parser.add_argument(
-        "--sign", help="Sign all client transactions", action="store_true"
     )
 
     return e2e_args.cli_args(add=add, parser=parser, accept_unknown=accept_unknown)
@@ -80,9 +72,11 @@ if __name__ == "__main__":
             required=True,
         )
 
-    def get_command(host_arg, port_arg):
-        return ["host:", host_arg, "port:", port_arg]
+    args, unknown_args = cli_args(add, accept_unknown=True)
 
-    args = cli_args(add)
+    unknown_args = [term for arg in unknown_args for term in arg.split(" ")]
 
-    infra.runner.run(args.build_dir, args.package, get_command, args)
+    def get_command(*args):
+        return [*args] + unknown_args
+
+    infra.runner.run(args.build_dir, get_command, args)
