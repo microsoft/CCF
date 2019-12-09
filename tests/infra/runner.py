@@ -39,8 +39,6 @@ def get_command_args(args, get_command):
     command_args = []
     if args.label:
         command_args.append("--label={}".format(args.label))
-    if args.sign:
-        command_args.append("--sign")
     return get_command(*command_args)
 
 
@@ -68,7 +66,6 @@ def configure_remote_client(args, client_id, client_host, node, command_args):
             node.rpc_port,
             args.workspace,
             args.label,
-            args.iterations,
             args.config,
             command_args,
             remote_impl,
