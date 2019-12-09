@@ -4,47 +4,44 @@
 
 set -e
 
-# TODO:
-# - Support for inline string input
+# Loop through all arguments and find request data
+next_is_data=false
+for item in "$@" ; do
+    if [ "$next_is_data" == true ]; then
+        request=$item
+        next_is_data=false
+    fi
+    if [ "$item" == "-d" ] || [ "$items" == "--data-binary" ]; then
+        next_is_data=true
+    fi
+done
 
-req=$1
+if [ -z "$request" ]; then
+    echo "No request found in arguments"
+    exit 1
+fi
 
-# Args:
-# - private key
-# - headers to sign
-# - host and port
-# - Passthrough to curl: URI, --cacert, --key, --cert, -data-binary
+if [ $(echo "$request" | cut -c1) == "@" ]; then
+    request="${request:1}"
+    request=$(cat "$request")
+fi
 
 # Get date
 date=$(date "+%a, %d %b %Y %H:%M:%S %Z")
-echo "$date"
 
-# Compute digest
-req_digest=$(echo -n $(cat $req) | openssl dgst -sha256 -binary | openssl base64)
-echo $req_digest
+req_digest=$(echo -n $request | openssl dgst -sha256 -binary | openssl base64)
 
 # Construct string to sign
 string_to_sign="date: $date
 digest: SHA-256=$req_digest"
-echo -n $string_to_sign > string_to_sign
-echo "$string_to_sign"
 
-echo ""
-echo ""
-echo ""
-echo ""
-
-# Create signature
+# Compute signature
 signed_raw=$(echo -n "$string_to_sign" | openssl dgst -sha256 -sign member1_privk.pem | openssl base64 -A)
-echo $signed_raw
 
 curl \
 -H "Date: $date" \
 -H "Digest: SHA-256=$req_digest" \
--H "Authorization: Signature keyId=\"lala\",algorithm=\"ecdsa-sha256\",headers=\"date digest\",signature=\"$signed_raw\"" \
--H "Content-Type: application/json" \
--d @$req \
---key member1_privk.pem \
---cert member1_cert.pem \
---cacert networkcert.pem \
-https://127.47.192.242:42503/members/vote
+-H "Authorization: Signature keyId=\"tls\",algorithm=\"ecdsa-sha256\",headers=\"date digest\",signature=\"$signed_raw\"" \
+"$@"
+
+echo ""
