@@ -13,6 +13,39 @@
 
 namespace enclave
 {
+  std::optional<std::vector<uint8_t>> construct_raw_signed_string(
+    const http::HeaderMap& headers,
+    const std::vector<std::string_view>& headers_to_sign)
+  {
+    std::string signed_string = {};
+
+    bool first = true;
+
+    for (const auto f : headers_to_sign)
+    {
+      const auto h = headers.find(f);
+      if (h == headers.end())
+      {
+        LOG_FAIL_FMT("Signed header {} does not exist", f);
+        return {};
+      }
+
+      if (!first)
+      {
+        signed_string.append("\n");
+      }
+      first = false;
+
+      signed_string.append(f);
+      signed_string.append(": ");
+      signed_string.append(h->second);
+    }
+
+    auto ret =
+      std::vector<uint8_t>({signed_string.begin(), signed_string.end()});
+    return ret;
+  }
+
   // Implements verification of "Signature" scheme from
   // https://tools.ietf.org/html/draft-cavage-http-signatures-12
   //
@@ -198,30 +231,6 @@ namespace enclave
       return sig_params;
     }
 
-    std::optional<std::vector<uint8_t>> construct_raw_signed_string(
-      const std::vector<std::string_view>& signed_headers)
-    {
-      std::string signed_string = {};
-      for (const auto f : signed_headers)
-      {
-        const auto h = headers.find(f);
-        if (h == headers.end())
-        {
-          LOG_FAIL_FMT("Signed header {} does not exist", f);
-          return {};
-        }
-        signed_string.append(f);
-        signed_string.append(": ");
-        signed_string.append(h->second);
-        signed_string.append("\n");
-      }
-      signed_string.pop_back(); // Remove the last \n
-
-      auto ret =
-        std::vector<uint8_t>({signed_string.begin(), signed_string.end()});
-      return ret;
-    }
-
   public:
     HttpSignatureVerifier(
       const http::HeaderMap& headers_, const std::vector<uint8_t>& body_) :
@@ -257,8 +266,8 @@ namespace enclave
             fmt::format("Error parsing {} fields", HTTP_HEADER_AUTHORIZATION));
         }
 
-        auto signed_raw =
-          construct_raw_signed_string(parsed_sign_params->signed_headers);
+        auto signed_raw = construct_raw_signed_string(
+          headers, parsed_sign_params->signed_headers);
         if (!signed_raw.has_value())
         {
           throw std::logic_error(
