@@ -399,7 +399,7 @@ void ClientProxy<T, C>::retransmit()
     }
 
     LOG_DEBUG << "Client_proxy retransmitting request, rid:"
-             << out_req->request_id() << std::endl;
+              << out_req->request_id() << std::endl;
 
     if (
       out_req->is_read_only() || n_retrans > thresh ||
