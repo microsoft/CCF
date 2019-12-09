@@ -398,7 +398,7 @@ void ClientProxy<T, C>::retransmit()
       }
     }
 
-    LOG_INFO << "Client_proxy retransmitting request, rid:"
+    LOG_DEBUG << "Client_proxy retransmitting request, rid:"
              << out_req->request_id() << std::endl;
 
     if (

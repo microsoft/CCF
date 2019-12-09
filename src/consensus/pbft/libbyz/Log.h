@@ -98,7 +98,7 @@ T& Log<T>::fetch(Seqno seqno)
 template <class T>
 void Log<T>::truncate(Seqno new_head)
 {
-  for (auto it = std::begin(elems); it != std::end(elems);)
+  for (auto it = elems.begin(); it != elems.end();)
   {
     if (it->first < new_head)
     {
