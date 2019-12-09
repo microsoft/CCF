@@ -5,25 +5,34 @@
 #include "entities.h"
 #include "rpc/jsonrpc.h"
 
+#include <mbedtls/md.h>
 #include <msgpack-c/msgpack.hpp>
 #include <vector>
+
+MSGPACK_ADD_ENUM(mbedtls_md_type_t);
 
 namespace ccf
 {
   struct SignedReq
   {
-    // the signature of the msgpack-encoded json-rpc (via the client's private
-    // key)
+    // signature
     std::vector<uint8_t> sig = {};
-    // the encoded json-rpc sent by the client
+    // the signed content
     std::vector<uint8_t> req = {};
+
+    // the request body
+    std::vector<uint8_t> raw_req = {};
+
+    // the hashing algorithm used
+    mbedtls_md_type_t md = MBEDTLS_MD_NONE;
 
     bool operator==(const SignedReq& other) const
     {
-      return (sig == other.sig) && (req == other.req);
+      return (sig == other.sig) && (req == other.req) && (md == other.md) &&
+        (raw_req == other.raw_req);
     }
 
-    MSGPACK_DEFINE(sig, req);
+    MSGPACK_DEFINE(sig, req, raw_req, md);
   };
   // this maps client-id to latest SignedReq
   using ClientSignatures = Store::Map<CallerId, SignedReq>;
@@ -38,6 +47,10 @@ namespace ccf
     {
       j["req"] = nlohmann::json::from_msgpack(sr.req);
     }
+    if (!sr.raw_req.empty())
+    {
+      j["raw_req"] = sr.raw_req;
+    }
   }
 
   inline void from_json(const nlohmann::json& j, SignedReq& sr)
@@ -51,6 +64,11 @@ namespace ccf
     if (req_it != j.end())
     {
       assign_j(sr.req, nlohmann::json::to_msgpack(req_it.value()));
+    }
+    auto raw_req_it = j.find("raw_req");
+    if (raw_req_it != j.end())
+    {
+      assign_j(sr.raw_req, j["raw_req"]);
     }
   }
 

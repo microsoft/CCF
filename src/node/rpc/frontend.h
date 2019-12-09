@@ -316,10 +316,6 @@ namespace ccf
       const CallerId caller_id,
       const SignedReq& signed_request)
     {
-#ifdef HTTP
-      return true; // TODO: use Authorize header
-#endif
-
       if (!client_signatures)
       {
         return false;
@@ -332,7 +328,8 @@ namespace ccf
         verifiers.emplace(
           std::make_pair(caller_id, tls::make_verifier(caller_cert)));
       }
-      if (!verifiers[caller_id]->verify(signed_request.req, signed_request.sig))
+      if (!verifiers[caller_id]->verify(
+            signed_request.req, signed_request.sig, signed_request.md))
       {
         return false;
       }
