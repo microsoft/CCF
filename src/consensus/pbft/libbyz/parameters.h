@@ -12,7 +12,7 @@ const int Max_num_replicas = 32;
 // Interval in sequence space between "checkpoint" states, i.e.,
 // states that are checkpointed and for which Checkpoint messages are
 // sent.
-const int checkpoint_interval = 256;
+const int checkpoint_interval = 64;
 
 // Maximum number of messages for which protocol can be
 // simultaneously in progress, i.e., messages with sequence number

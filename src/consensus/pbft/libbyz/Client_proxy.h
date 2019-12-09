@@ -100,11 +100,14 @@ private:
   int rtimeout; // Timeout period in msecs
 
   // Maximum retransmission timeout in msecs
-  static const int Max_rtimeout = 3000;
+  static const int Max_rtimeout = 10000;
 
   // Minimum retransmission timeout after retransmission
   // in msecs
-  static const int Min_rtimeout = 2000;
+  static const int Min_rtimeout = 5000;
+
+  // The retransmit timeouts are high due to issues with retransmission
+  // https://github.com/microsoft/CCF/issues/617
 
   void increase_retransmission_timeout();
   void decrease_retransmission_timeout();
@@ -131,8 +134,8 @@ ClientProxy<T, C>::ClientProxy(IMessageReceiveBase& my_replica) :
   head(nullptr),
   tail(nullptr),
   n_retrans(0),
-  rtimeout(150),
-  rtimer(new ITimer(rtimeout, rtimer_handler, this)),
+  rtimeout(Max_rtimeout),
+  rtimer(new ITimer(Max_rtimeout, rtimer_handler, this)),
   primary_only_execution(my_replica.f() == 0)
 {}
 
@@ -394,6 +397,9 @@ void ClientProxy<T, C>::retransmit()
         ctx->t_reps.clear();
       }
     }
+
+    LOG_DEBUG << "Client_proxy retransmitting request, rid:"
+              << out_req->request_id() << std::endl;
 
     if (
       out_req->is_read_only() || n_retrans > thresh ||

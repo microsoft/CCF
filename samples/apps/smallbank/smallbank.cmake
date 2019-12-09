@@ -16,12 +16,12 @@ add_enclave_lib(smallbankenc
 if(BUILD_TESTS)
   ## Small Bank end to end and performance test
   if (PBFT)
-    set(SMALL_BANK_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_20k.json)
-    set(SMALL_BANK_ITERATIONS 20000)
-  else ()
+    set(SMALL_BANK_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_50k.json)
+    set(SMALL_BANK_ITERATIONS 50000)
+  else()
     set(SMALL_BANK_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank.json)
     set(SMALL_BANK_ITERATIONS 200000)
-  endif ()
+  endif()
   add_perf_test(
     NAME small_bank_client_test
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
