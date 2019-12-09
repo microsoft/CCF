@@ -29,7 +29,7 @@ private:
     }
 
     // Reserve space for transactions
-    prepared_txs.resize(transactions.size() * repetitions);
+    prepared_txs.reserve(transactions.size() * repetitions);
 
     for (size_t r = 0; r < repetitions; ++r)
     {
@@ -38,10 +38,7 @@ private:
         const auto& transaction = transactions[i];
 
         add_prepared_tx(
-          transaction["method"],
-          transaction["params"],
-          true,
-          r * repetitions + i);
+          transaction["method"], transaction["params"], true, std::nullopt);
       }
     }
   }
