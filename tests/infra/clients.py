@@ -327,31 +327,18 @@ class CurlClient:
             self.stream.update(rc.stdout)
         return request.id
 
-    # TODO: https://github.com/microsoft/CCF/issues/612
     def signed_request(self, request):
-        raise NotImplementedError(
-            "Signed requests are not yet implemented with curl. Make sure to unset CURL_CLIENT envvar."
-        )
-
         with tempfile.NamedTemporaryFile() as nf:
             msg = getattr(request, "to_{}".format(self.format))()
             LOG.debug("Going to send {}".format(msg))
             nf.write(msg)
             nf.flush()
-            dgst = subprocess.run(
-                ["openssl", "dgst", "-sha256", "-sign", self.key, nf.name],
-                check=True,
-                capture_output=True,
-            )
-            subprocess.run(["cat", nf.name], check=True)
             cmd = [
-                "curl",
-                "-v",
+                "./scurl.sh",
+                "--fail",
                 f"https://{self.host}:{self.port}/{request.method}",
                 "-H",
                 "Content-Type: application/json",
-                "-H",
-                f"Authorize: {base64.b64encode(dgst.stdout).decode()}",
                 "--data-binary",
                 f"@{nf.name}",
             ]
@@ -363,9 +350,10 @@ class CurlClient:
                 cmd.extend(["--cert", self.cert])
             LOG.debug(f"Running: {' '.join(cmd)}")
             rc = subprocess.run(cmd, capture_output=True)
-            LOG.debug(f"Received {rc.stdout.decode()}")
             if rc.returncode != 0:
                 LOG.debug(f"ERR {rc.stderr.decode()}")
+                raise RuntimeError("Signed Curl failed")
+
             self.stream.update(rc.stdout)
         return request.id
 
