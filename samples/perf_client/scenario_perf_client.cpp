@@ -15,6 +15,31 @@ private:
   std::string scenario_file;
   nlohmann::json scenario_json;
 
+  void pre_creation_hook() override
+  {
+    scenario_json = files::slurp_json(scenario_file);
+  }
+
+  void send_creation_transactions(
+    const std::shared_ptr<RpcTlsClient>& connection) override
+  {
+    constexpr auto setup_element_name = "setup";
+
+    const auto setup = scenario_json[setup_element_name];
+    if (!setup.is_array())
+    {
+      throw std::runtime_error(fmt::format(
+        "Expected scenario to contain a '{}' field containing an array of "
+        "transaction objects",
+        setup_element_name));
+    }
+
+    for (const auto& transaction : setup)
+    {
+      connection->call(transaction["method"], transaction["params"]);
+    }
+  }
+
   void prepare_transactions() override
   {
     constexpr auto transactions_element_name = "transactions";
@@ -41,11 +66,6 @@ private:
           transaction["method"], transaction["params"], true, std::nullopt);
       }
     }
-  }
-
-  void pre_creation_hook() override
-  {
-    scenario_json = files::slurp_json(scenario_file);
   }
 
 public:
