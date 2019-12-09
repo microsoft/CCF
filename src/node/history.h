@@ -491,7 +491,12 @@ namespace ccf
           auto sig_view = sig.get_view(signatures);
           crypto::Sha256Hash root = tree.get_root();
           Signature sig_value(
-            id, version, view, commit, kp.sign_hash(root.h, root.SIZE));
+            id,
+            version,
+            view,
+            commit,
+            kp.sign_hash(root.h, root.SIZE),
+            tree.serialise);
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
         },
