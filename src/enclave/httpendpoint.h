@@ -5,6 +5,7 @@
 #include "clientendpoint.h"
 #include "ds/logger.h"
 #include "httpparser.h"
+#include "httpsig.h"
 #include "rpcmap.h"
 
 namespace enclave
@@ -195,6 +196,16 @@ namespace enclave
         }
 
         parse_rpc_context(rpc_ctx, json_rpc);
+
+        // TODO: For now, set this here as parse_rpc_context() resets
+        // rpc_ctx.signed_request for a HTTP endpoint.
+        auto http_sig_v = HttpSignatureVerifier(headers, body);
+        auto signed_req = http_sig_v.parse();
+        if (signed_req.has_value())
+        {
+          rpc_ctx.signed_request = signed_req;
+        }
+
         // TODO: This is temporary; while we have a full RPC object inside the
         // body, it should match the dispatch details specified in the URI
         const auto expected = fmt::format("{}/{}", actor_s, method_s);

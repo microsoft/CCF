@@ -26,6 +26,8 @@ target_link_libraries(memberclient PRIVATE
   secp256k1.host
 )
 
+add_dependencies(memberclient flatbuffers)
+
 # Logging Client executable
 add_executable(logging_client src/clients/logging_client.cpp)
 use_client_mbedtls(logging_client)
@@ -33,7 +35,13 @@ target_link_libraries(logging_client PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
 )
 
-add_enclave_lib(loggingenc ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem SRCS src/apps/logging/logging.cpp src/apps/logging/stub_for_code_signing.cpp)
+add_enclave_lib(loggingenc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+  SRCS
+    src/apps/logging/logging.cpp
+    src/apps/logging/stub_for_code_signing.cpp
+)
 
 if(BUILD_TESTS)
   # Tests
@@ -194,6 +202,8 @@ if(BUILD_TESTS)
       ${PARSED_ARGS_INCLUDE_DIRS}
     )
 
+    add_dependencies(${name} flatbuffers)
+
     target_link_libraries(${name} PRIVATE
       ${CMAKE_THREAD_LIBS_INIT}
       ${PARSED_ARGS_LINK_LIBS}
@@ -257,6 +267,7 @@ if(BUILD_TESTS)
   target_include_directories(merkle_mem PRIVATE
     ${EVERCRYPT_INC}
     src)
+  add_dependencies(merkle_mem flatbuffers)
 
   if (NOT PBFT)
     # Raft driver and scenario test
@@ -265,21 +276,27 @@ if(BUILD_TESTS)
     use_client_mbedtls(raft_driver)
     target_include_directories(raft_driver PRIVATE
       src/raft)
+    add_dependencies(raft_driver flatbuffers)
     add_test(
       NAME raft_scenario_test
       COMMAND
         ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py ./raft_driver
           ${CMAKE_SOURCE_DIR}/tests/raft_scenarios ${CMAKE_SOURCE_DIR})
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
-
     # Member client end to end tests
     add_e2e_test(
       NAME member_client_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
     )
-
-    # These tests use C++ clients sending framed JSON-RPC, so do not work with HTTP
+   
+    ## Receipts end to end test
+    add_e2e_test(
+      NAME receipts_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
+    )
+    
     if (NOT HTTP)
+      # These tests use C++ clients sending framed JSON-RPC, so do not work with HTTP
       ## Logging client end to end test
       add_e2e_test(
         NAME logging_client_test
@@ -291,7 +308,14 @@ if(BUILD_TESTS)
       add_e2e_test(
         NAME voting_history_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py
-      )
+
+      ## Lua sample app (tx regulator) end to end test
+      add_e2e_test(
+        NAME lua_txregulator_test
+        PYTHON_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
+        ADDITIONAL_ARGS
+          --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
+          --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
     endif ()
 
     ## Lua sample app (tx regulator) end to end test
@@ -409,6 +433,22 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS
       --election-timeout 2000
   )
+
+  if (NOT HTTP)
+    if (NOT PBFT)
+      # Logging scenario perf test
+      add_perf_test(
+        NAME logging_scenario_perf_test
+        PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/perfclient.py
+        CLIENT_BIN ./scenario_perf_client
+        LABEL logging_scenario_perf_test
+        ADDITIONAL_ARGS
+          --package libloggingenc
+          --scenario-file ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+          --repetitions 1000
+      )
+    endif()
+  endif()
 
   if (EXTENSIVE_TESTS)
     set_tests_properties(recovery_tests PROPERTIES TIMEOUT 2000)

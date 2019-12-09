@@ -451,15 +451,16 @@ TEST_CASE("Clone schema")
   auto [view1, view2] = tx1.get_view(public_map, private_map);
   view1->put(42, "aardvark");
   view2->put(14, "alligator");
-  auto [success, reqid, serialised] = tx1.commit_reserved();
+  auto [success, reqid, buffer] = tx1.commit_reserved();
   REQUIRE(success == kv::CommitSuccess::OK);
 
   Store clone;
   clone.clone_schema(store);
   clone.set_encryptor(encryptor);
 
-  REQUIRE(
-    clone.deserialise(serialised.replicated) == kv::DeserialiseSuccess::PASS);
+  auto serialised_ws =
+    std::vector<uint8_t>(buffer->data(), buffer->data() + buffer->size());
+  REQUIRE(clone.deserialise(serialised_ws) == kv::DeserialiseSuccess::PASS);
 }
 
 TEST_CASE("Deserialise return status")
@@ -482,11 +483,12 @@ TEST_CASE("Deserialise return status")
     Store::Tx tx(store.next_version());
     auto data_view = tx.get_view(data);
     data_view->put(42, 42);
-    auto [success, reqid, serialised] = tx.commit_reserved();
+    auto [success, reqid, buffer] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    REQUIRE(
-      store.deserialise(serialised.replicated) == kv::DeserialiseSuccess::PASS);
+    auto serialised_ws =
+      std::vector<uint8_t>(buffer->data(), buffer->data() + buffer->size());
+    REQUIRE(store.deserialise(serialised_ws) == kv::DeserialiseSuccess::PASS);
   }
 
   {
@@ -494,11 +496,13 @@ TEST_CASE("Deserialise return status")
     auto sig_view = tx.get_view(signatures);
     ccf::Signature sigv(0, 2);
     sig_view->put(0, sigv);
-    auto [success, reqid, serialised] = tx.commit_reserved();
+    auto [success, reqid, buffer] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
+    auto serialised_ws =
+      std::vector<uint8_t>(buffer->data(), buffer->data() + buffer->size());
     REQUIRE(
-      store.deserialise(serialised.replicated) ==
+      store.deserialise(serialised_ws) ==
       kv::DeserialiseSuccess::PASS_SIGNATURE);
   }
 
@@ -509,12 +513,12 @@ TEST_CASE("Deserialise return status")
     ccf::Signature sigv(0, 2);
     sig_view->put(0, sigv);
     data_view->put(43, 43);
-    auto [success, reqid, serialised] = tx.commit_reserved();
+    auto [success, reqid, buffer] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    REQUIRE(
-      store.deserialise(serialised.replicated) ==
-      kv::DeserialiseSuccess::FAILED);
+    auto serialised_ws =
+      std::vector<uint8_t>(buffer->data(), buffer->data() + buffer->size());
+    REQUIRE(store.deserialise(serialised_ws) == kv::DeserialiseSuccess::FAILED);
   }
 }
 
