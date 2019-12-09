@@ -15,6 +15,41 @@ private:
   std::string scenario_file;
   nlohmann::json scenario_json;
 
+  void send_verbose_transactions(
+    const std::shared_ptr<RpcTlsClient>& connection, char const* element_name)
+  {
+    const auto it = scenario_json.find(element_name);
+
+    if (it != scenario_json.end())
+    {
+      const auto transactions = *it;
+      if (!transactions.is_array())
+      {
+        throw std::runtime_error(fmt::format(
+          "Expected scenario to contain '{}' field containing an array of "
+          "transaction objects",
+          element_name));
+      }
+
+      std::cout << fmt::format(
+                     "Sending {} {} transactions",
+                     transactions.size(),
+                     element_name)
+                << std::endl;
+      for (const auto& transaction : transactions)
+      {
+        const auto method = transaction["method"];
+        const auto params = transaction["params"];
+
+        std::cout << fmt::format("Sending {}: {}", method, params.dump(2))
+                  << std::endl;
+        const auto response =
+          nlohmann::json::from_msgpack(connection->call(method, params));
+        std::cout << fmt::format("Response: {}", response.dump(2)) << std::endl;
+      }
+    }
+  }
+
   void pre_creation_hook() override
   {
     scenario_json = files::slurp_json(scenario_file);
@@ -23,21 +58,13 @@ private:
   void send_creation_transactions(
     const std::shared_ptr<RpcTlsClient>& connection) override
   {
-    constexpr auto setup_element_name = "setup";
+    send_verbose_transactions(connection, "setup");
+  }
 
-    const auto setup = scenario_json[setup_element_name];
-    if (!setup.is_array())
-    {
-      throw std::runtime_error(fmt::format(
-        "Expected scenario to contain a '{}' field containing an array of "
-        "transaction objects",
-        setup_element_name));
-    }
-
-    for (const auto& transaction : setup)
-    {
-      connection->call(transaction["method"], transaction["params"]);
-    }
+  void post_timing_body_hook() override
+  {
+    const auto connection = create_connection();
+    send_verbose_transactions(connection, "cleanup");
   }
 
   void prepare_transactions() override
@@ -48,7 +75,7 @@ private:
     if (!transactions.is_array())
     {
       throw std::runtime_error(fmt::format(
-        "Expected scenario to contain a '{}' field containing an array of "
+        "Expected scenario to contain '{}' field containing an array of "
         "transaction objects",
         transactions_element_name));
     }
