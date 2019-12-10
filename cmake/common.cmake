@@ -157,9 +157,11 @@ add_custom_command(
     COMMENT "Generating code from EDL, and renaming to .cpp"
 )
 
-# Copy all utilities from tests directory
-file(GLOB TEST_UTILITIES ${CCF_DIR}/tests/*.sh)
-file(COPY ${TEST_UTILITIES} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+# Copy utilities from tests directory
+set(CCF_UTILITIES tests.sh keygenerator.sh cimetrics_env.sh upload_pico_metrics.py scurl.sh)
+foreach(UTILITY ${CCF_UTILITIES})
+  configure_file(${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)
+endforeach()
 
 if("sgx" IN_LIST TARGET)
   # If OE was built with LINK_SGX=1, then we also need to link SGX
