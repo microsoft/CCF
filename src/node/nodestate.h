@@ -1096,7 +1096,7 @@ namespace ccf
       // If a domain is passed at node creation, record domain in SAN for node
       // hostname authentication over TLS. Otherwise, record IP in SAN.
       bool san_is_ip = config.domain.empty();
-      return {san_is_ip ? config.node_info_network.host : config.domain,
+      return {san_is_ip ? config.node_info_network.rpchost : config.domain,
               san_is_ip};
     }
 
@@ -1310,7 +1310,7 @@ namespace ccf
               }
               case NodeStatus::TRUSTED:
               {
-                add_node(node_id, ni.value.host, ni.value.nodeport);
+                add_node(node_id, ni.value.nodehost, ni.value.nodeport);
                 configure = true;
                 break;
               }
@@ -1420,11 +1420,11 @@ namespace ccf
           std::unordered_set<NodeId> configuration;
           for (auto& [node_id, ni] : w)
           {
-            add_node(node_id, ni.value.host, ni.value.nodeport);
+            add_node(node_id, ni.value.nodehost, ni.value.nodeport);
             consensus->add_configuration(
               version,
               configuration,
-              {node_id, ni.value.host, ni.value.nodeport});
+              {node_id, ni.value.nodehost, ni.value.nodeport});
           }
         });
 
