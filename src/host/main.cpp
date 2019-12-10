@@ -104,7 +104,7 @@ int main(int argc, char** argv)
   std::string quote_file("quote.bin");
   app.add_option("-q,--quote-file", quote_file, "SGX quote file", true);
 
-  size_t sig_max_tx = 1000;
+  size_t sig_max_tx = 5000;
   app.add_option(
     "--sig-max-tx",
     sig_max_tx,
