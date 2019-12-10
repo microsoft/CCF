@@ -44,7 +44,7 @@ namespace enclave
     static constexpr auto SIGN_PARAMS_DELIMITER = ",";
     static constexpr auto SIGN_PARAMS_HEADERS_DELIMITER = " ";
 
-    const std::string& verb;
+    std::string verb;
     const std::string& path;
     const std::string& query;
     const http::HeaderMap& headers;
@@ -220,11 +220,9 @@ namespace enclave
 
       for (const auto f : signed_headers)
       {
-        value.clear();
         if (f == SIGN_HEADER_REQUEST_TARGET)
         {
-          LOG_FAIL_FMT("{} detected", SIGN_HEADER_REQUEST_TARGET);
-          value.append(fmt::format("{} {}", verb, path));
+          value = fmt::format("{} {}", verb, path);
           if (!query.empty())
           {
             value.append(fmt::format("?{}", query));
@@ -260,8 +258,6 @@ namespace enclave
         return {};
       }
 
-      LOG_FAIL_FMT("Signed string: {}", signed_string);
-
       auto ret =
         std::vector<uint8_t>({signed_string.begin(), signed_string.end()});
       return ret;
@@ -280,9 +276,11 @@ namespace enclave
       headers(headers_),
       body(body_)
     {
-      LOG_FAIL_FMT("Verb: {}", verb);
-      LOG_FAIL_FMT("Path: {}", path);
-      LOG_FAIL_FMT("Query: {}", query);
+      // Store verb as lowercase
+      std::transform(
+        verb.begin(), verb.end(), verb.begin(), [](unsigned char c) {
+          return std::tolower(c);
+        });
     }
 
     std::optional<ccf::SignedReq> parse()
