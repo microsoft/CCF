@@ -2,13 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "enclave/httpbuilder.h"
+#include "enclave/httpparser.h"
 #include "tls_client.h"
 
 #include <fmt/format_header_only.h>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <thread>
 
-class RpcTlsClient : public TlsClient
+class JsonRpcTlsClient : public TlsClient
 {
 public:
   uint32_t id = 0;
@@ -22,7 +25,7 @@ public:
 
   using TlsClient::TlsClient;
 
-  RpcTlsClient(
+  JsonRpcTlsClient(
     const std::string& host,
     const std::string& port,
     std::shared_ptr<tls::CA> node_ca = nullptr,
@@ -53,14 +56,10 @@ public:
    * @return serialized transaction
    */
   virtual PreparedRpc gen_rpc(
-    const std::string& method, const nlohmann::json& params)
+    const std::string& method,
+    const nlohmann::json& params = nlohmann::json::array())
   {
     return gen_rpc_raw(json_rpc(method, params));
-  }
-
-  virtual PreparedRpc gen_rpc(const std::string& method)
-  {
-    return gen_rpc_raw(json_rpc(method, nlohmann::json::array()));
   }
 
   nlohmann::json json_rpc(
@@ -113,7 +112,7 @@ public:
     return call(method, nlohmann::json::object());
   }
 
-  std::vector<uint8_t> read_rpc()
+  virtual std::vector<uint8_t> read_rpc()
   {
     // read len
     uint32_t len;
@@ -140,3 +139,61 @@ public:
     prefix = prefix_;
   }
 };
+
+class HttpRpcTlsClient : public JsonRpcTlsClient,
+                         public enclave::http::MsgProcessor
+{
+  enclave::http::Parser parser;
+  std::vector<uint8_t> message_body;
+
+public:
+  HttpRpcTlsClient(
+    const std::string& host,
+    const std::string& port,
+    std::shared_ptr<tls::CA> node_ca = nullptr,
+    std::shared_ptr<tls::Cert> cert = nullptr) :
+    JsonRpcTlsClient(host, port, node_ca, cert),
+    parser(HTTP_RESPONSE, *this)
+  {}
+
+  virtual PreparedRpc gen_rpc(
+    const std::string& method,
+    const nlohmann::json& params = nlohmann::json::array()) override
+  {
+    const auto body_j = json_rpc(method, params);
+    const auto body_v = nlohmann::json::to_msgpack(body_j);
+    auto r = enclave::http::Request(HTTP_POST);
+    r.set_path(body_j["method"]);
+    const auto request = r.build_request(body_v);
+    return {request, body_j["id"]};
+  }
+
+  virtual std::vector<uint8_t> read_rpc() override
+  {
+    message_body.clear();
+
+    while (message_body.empty())
+    {
+      const auto next = read_all();
+      parser.execute(next.data(), next.size());
+    }
+
+    return message_body;
+  }
+
+  virtual void handle_message(
+    http_method method,
+    const std::string& path,
+    const std::string& query,
+    const enclave::http::HeaderMap& headers,
+    const std::vector<uint8_t>& body) override
+  {
+    message_body = body;
+  }
+};
+
+#ifdef HTTP
+using RpcTlsClient = HttpRpcTlsClient;
+#else
+using RpcTlsClient = JsonRpcTlsClient;
+#endif

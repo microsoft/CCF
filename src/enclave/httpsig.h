@@ -13,6 +13,91 @@
 
 namespace enclave
 {
+  // All HTTP headers are expected to be lowercase
+  static constexpr auto HTTP_HEADER_AUTHORIZATION = "authorization";
+  static constexpr auto HTTP_HEADER_DIGEST = "digest";
+
+  static constexpr auto DIGEST_SHA256 = "SHA-256";
+
+  static constexpr auto AUTH_SCHEME = "Signature";
+  static constexpr auto SIGN_PARAMS_KEYID = "keyId";
+  static constexpr auto SIGN_PARAMS_SIGNATURE = "signature";
+  static constexpr auto SIGN_PARAMS_ALGORITHM = "algorithm";
+  static constexpr auto SIGN_PARAMS_HEADERS = "headers";
+  static constexpr auto SIGN_ALGORITHM = "ecdsa-sha256";
+
+  static constexpr auto SIGN_HEADER_REQUEST_TARGET = "(request-target)";
+
+  static constexpr auto SIGN_PARAMS_DELIMITER = ",";
+  static constexpr auto SIGN_PARAMS_HEADERS_DELIMITER = " ";
+
+  std::optional<std::vector<uint8_t>> construct_raw_signed_string(
+    std::string verb,
+    const std::string& path,
+    const std::string& query,
+    const http::HeaderMap& headers,
+    const std::vector<std::string_view>& headers_to_sign)
+  {
+    std::string signed_string = {};
+    std::string value = {};
+    bool has_digest = false;
+    bool first = true;
+
+    for (const auto f : headers_to_sign)
+    {
+      if (f == SIGN_HEADER_REQUEST_TARGET)
+      {
+        // Store verb as lowercase
+        std::transform(
+          verb.begin(), verb.end(), verb.begin(), [](unsigned char c) {
+            return std::tolower(c);
+          });
+        value = fmt::format("{} {}", verb, path);
+        if (!query.empty())
+        {
+          value.append(fmt::format("?{}", query));
+        }
+      }
+      else
+      {
+        const auto h = headers.find(f);
+        if (h == headers.end())
+        {
+          LOG_FAIL_FMT("Signed header {} does not exist", f);
+          return {};
+        }
+
+        value = h->second;
+
+        // Digest field should be signed.
+        if (f == HTTP_HEADER_DIGEST)
+        {
+          has_digest = true;
+        }
+      }
+
+      if (!first)
+      {
+        signed_string.append("\n");
+      }
+      first = false;
+
+      signed_string.append(f);
+      signed_string.append(": ");
+      signed_string.append(value);
+    }
+
+    if (!has_digest)
+    {
+      LOG_FAIL_FMT("{} is not signed", HTTP_HEADER_DIGEST);
+      return {};
+    }
+
+    auto ret =
+      std::vector<uint8_t>({signed_string.begin(), signed_string.end()});
+    return ret;
+  }
+
   // Implements verification of "Signature" scheme from
   // https://tools.ietf.org/html/draft-cavage-http-signatures-12
   //
@@ -26,25 +111,7 @@ namespace enclave
   class HttpSignatureVerifier
   {
   private:
-    // All HTTP headers are expected to be lowercase
-    static constexpr auto HTTP_HEADER_AUTHORIZATION = "authorization";
-    static constexpr auto HTTP_HEADER_DIGEST = "digest";
-
-    static constexpr auto DIGEST_SHA256 = "SHA-256";
-
-    static constexpr auto AUTH_SCHEME = "Signature";
-    static constexpr auto SIGN_PARAMS_KEYID = "keyId";
-    static constexpr auto SIGN_PARAMS_SIGNATURE = "signature";
-    static constexpr auto SIGN_PARAMS_ALGORITHM = "algorithm";
-    static constexpr auto SIGN_PARAMS_HEADERS = "headers";
-    static constexpr auto SIGN_ALGORITHM = "ecdsa-sha256";
-
-    static constexpr auto SIGN_HEADER_REQUEST_TARGET = "(request-target)";
-
-    static constexpr auto SIGN_PARAMS_DELIMITER = ",";
-    static constexpr auto SIGN_PARAMS_HEADERS_DELIMITER = " ";
-
-    std::string verb;
+    const std::string& verb;
     const std::string& path;
     const std::string& query;
     const http::HeaderMap& headers;
@@ -211,58 +278,6 @@ namespace enclave
       return sig_params;
     }
 
-    std::optional<std::vector<uint8_t>> construct_raw_signed_string(
-      const std::vector<std::string_view>& signed_headers)
-    {
-      std::string signed_string = {};
-      std::string value = {};
-      bool has_digest = false;
-
-      for (const auto f : signed_headers)
-      {
-        if (f == SIGN_HEADER_REQUEST_TARGET)
-        {
-          value = fmt::format("{} {}", verb, path);
-          if (!query.empty())
-          {
-            value.append(fmt::format("?{}", query));
-          }
-        }
-        else
-        {
-          const auto h = headers.find(f);
-          if (h == headers.end())
-          {
-            LOG_FAIL_FMT("Signed header {} does not exist", f);
-            return {};
-          }
-
-          value = h->second;
-
-          // Digest field should be signed.
-          if (f == HTTP_HEADER_DIGEST)
-          {
-            has_digest = true;
-          }
-        }
-        signed_string.append(f);
-        signed_string.append(": ");
-        signed_string.append(value);
-        signed_string.append("\n");
-      }
-      signed_string.pop_back(); // Remove the last \n
-
-      if (!has_digest)
-      {
-        LOG_FAIL_FMT("{} is not signed", HTTP_HEADER_DIGEST);
-        return {};
-      }
-
-      auto ret =
-        std::vector<uint8_t>({signed_string.begin(), signed_string.end()});
-      return ret;
-    }
-
   public:
     HttpSignatureVerifier(
       const std::string& verb_,
@@ -275,13 +290,7 @@ namespace enclave
       query(query_),
       headers(headers_),
       body(body_)
-    {
-      // Store verb as lowercase
-      std::transform(
-        verb.begin(), verb.end(), verb.begin(), [](unsigned char c) {
-          return std::tolower(c);
-        });
-    }
+    {}
 
     std::optional<ccf::SignedReq> parse()
     {
@@ -311,8 +320,8 @@ namespace enclave
             fmt::format("Error parsing {} fields", HTTP_HEADER_AUTHORIZATION));
         }
 
-        auto signed_raw =
-          construct_raw_signed_string(parsed_sign_params->signed_headers);
+        auto signed_raw = construct_raw_signed_string(
+          verb, path, query, headers, parsed_sign_params->signed_headers);
         if (!signed_raw.has_value())
         {
           throw std::logic_error(
