@@ -91,7 +91,7 @@ class Response:
     def _from_parsed(self, parsed):
         unexpected = parsed.keys() - self._attrs
         if unexpected:
-            raise ValueError("Unexpected keys in response: {}".format(unexpected))
+            raise ValueError(f"Unexpected keys in response: {unexpected}")
         for attr, value in parsed.items():
             setattr(self, attr, value)
 
@@ -189,7 +189,7 @@ class Stream:
 
     def update(self, msg):
         r = Response(0)
-        getattr(r, "from_{}".format(self.format))(msg)
+        getattr(r, f"from_{self.format}")(msg)
         self.pending[r.id] = r
 
 
@@ -274,7 +274,7 @@ class FramedTLSJSONRPCClient:
         return self.client.disconnect()
 
     def request(self, request):
-        self.client.send(getattr(request, "to_{}".format(self.format))())
+        self.client.send(getattr(request, f"to_{self.format}")())
         return request.id
 
     def tick(self):
@@ -295,23 +295,29 @@ class CurlClient:
         self.cert = cert
         self.key = key
         self.ca = ca
-        self.format = format
-        self.stream = Stream(version, self.format)
+        self.format = "json"
+        self.stream = Stream(version, "json")
 
-    def request(self, request):
+    def _request(self, request, is_signed=False):
         with tempfile.NamedTemporaryFile() as nf:
-            msg = getattr(request, "to_{}".format(self.format))()
-            LOG.debug("Going to send {}".format(msg))
+            msg = getattr(request, f"to_{self.format}")()
+            LOG.debug(f"Going to send {msg}")
             nf.write(msg)
             nf.flush()
-            cmd = [
-                "curl",
+            if is_signed:
+                cmd = ["./scurl.sh"]
+            else:
+                cmd = ["curl"]
+
+            cmd += [
                 f"https://{self.host}:{self.port}/{request.method}",
                 "-H",
                 "Content-Type: application/json",
                 "--data-binary",
                 f"@{nf.name}",
+                "-w \\n%{http_code}",
             ]
+
             if self.ca:
                 cmd.extend(["--cacert", self.ca])
             if self.key:
@@ -320,54 +326,26 @@ class CurlClient:
                 cmd.extend(["--cert", self.cert])
             LOG.debug(f"Running: {' '.join(cmd)}")
             rc = subprocess.run(cmd, capture_output=True)
-            LOG.debug(f"Received {rc.stdout}")
+
             if rc.returncode != 0:
                 LOG.error(rc.stderr)
-                raise RuntimeError("Curl failed")
-            self.stream.update(rc.stdout)
+                raise RuntimeError(f"Curl failed with return code {rc.returncode}")
+
+            # The response status code is displayed on the last line of
+            # the output (via -w option)
+            rep, status_code = rc.stdout.decode().rsplit("\n", 1)
+            if int(status_code) != 200:
+                LOG.error(rep)
+                raise RuntimeError(f"Curl failed with status code {status_code}")
+
+            self.stream.update(rep.encode())
         return request.id
 
-    # TODO: https://github.com/microsoft/CCF/issues/612
+    def request(self, request):
+        return self._request(request, is_signed=False)
+
     def signed_request(self, request):
-        raise NotImplementedError(
-            "Signed requests are not yet implemented with curl. Make sure to unset CURL_CLIENT envvar."
-        )
-
-        with tempfile.NamedTemporaryFile() as nf:
-            msg = getattr(request, "to_{}".format(self.format))()
-            LOG.debug("Going to send {}".format(msg))
-            nf.write(msg)
-            nf.flush()
-            dgst = subprocess.run(
-                ["openssl", "dgst", "-sha256", "-sign", self.key, nf.name],
-                check=True,
-                capture_output=True,
-            )
-            subprocess.run(["cat", nf.name], check=True)
-            cmd = [
-                "curl",
-                "-v",
-                f"https://{self.host}:{self.port}/{request.method}",
-                "-H",
-                "Content-Type: application/json",
-                "-H",
-                f"Authorize: {base64.b64encode(dgst.stdout).decode()}",
-                "--data-binary",
-                f"@{nf.name}",
-            ]
-            if self.ca:
-                cmd.extend(["--cacert", self.ca])
-            if self.key:
-                cmd.extend(["--key", self.key])
-            if self.cert:
-                cmd.extend(["--cert", self.cert])
-            LOG.debug(f"Running: {' '.join(cmd)}")
-            rc = subprocess.run(cmd, capture_output=True)
-            LOG.debug(f"Received {rc.stdout.decode()}")
-            if rc.returncode != 0:
-                LOG.debug(f"ERR {rc.stderr.decode()}")
-            self.stream.update(rc.stdout)
-        return request.id
+        return self._request(request, is_signed=True)
 
     def response(self, id):
         return self.stream.response(id)
@@ -394,6 +372,7 @@ class RequestClient:
         self.cert = cert
         self.key = key
         self.ca = ca
+        self.format = "json"
         self.stream = Stream(version, "json")
         self.request_timeout = request_timeout
 
@@ -454,7 +433,7 @@ class CCFClient:
             f"{self.prefix}/{method}", params, *args, **kwargs
         )
         if self.description:
-            description = " ({})".format(self.description)
+            description = f" ({self.description})"
         for logger in self.rpc_loggers:
             logger.log_request(r, self.name, description)
 
@@ -466,7 +445,7 @@ class CCFClient:
             f"{self.prefix}/{method}", params, *args, **kwargs
         )
         if self.description:
-            description = " ({}) [signed]".format(self.description)
+            description = f" ({self.description}) [signed]"
         for logger in self.rpc_loggers:
             logger.log_request(r, self.name, description)
 
