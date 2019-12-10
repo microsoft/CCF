@@ -44,10 +44,17 @@ namespace enclave
           buf.size(),
           std::string(buf.begin(), buf.end()));
 
-        // TODO: This should return an error to the client if this fails
-        if (p.execute(buf.data(), buf.size()) == 0)
+        try
         {
-          LOG_FAIL_FMT("Failed to parse request");
+          if (p.execute(buf.data(), buf.size()) == 0)
+          {
+            LOG_FAIL_FMT("Failed to parse request");
+            return;
+          }
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT("Error parsing request: {}", e.what());
           return;
         }
       }

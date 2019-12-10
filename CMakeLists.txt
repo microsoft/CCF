@@ -352,6 +352,7 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME end_to_end_logging
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+      CURL_CLIENT TRUE
     )
 
     add_e2e_test(
