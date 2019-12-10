@@ -24,6 +24,7 @@ target_link_libraries(memberclient PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
   ccfcrypto.host
   secp256k1.host
+  http_parser.host
 )
 
 add_dependencies(memberclient flatbuffers)
@@ -33,6 +34,7 @@ add_executable(logging_client src/clients/logging_client.cpp)
 use_client_mbedtls(logging_client)
 target_link_libraries(logging_client PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
+  http_parser.host
 )
 
 add_enclave_lib(loggingenc
@@ -284,70 +286,71 @@ if(BUILD_TESTS)
           ${CMAKE_SOURCE_DIR}/tests/raft_scenarios ${CMAKE_SOURCE_DIR})
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
-      ## Storing signed votes test
+    ## Storing signed votes test
     add_e2e_test(
       NAME voting_history_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
 
-    # TODO: All end-to-end tests should be supported once large messages work with HTTP
+    # TODO: Sends an ACK via C++ memberclient, which must be signed.
+    # ACK should be sent from Python, AND HTTP memberclient should sign
     if (NOT HTTP)
       # Member client end to end tests
       add_e2e_test(
         NAME member_client_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
       )
-
-      ## Logging client end to end test
-      add_e2e_test(
-        NAME logging_client_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
-      )
-
-      ## Lua sample app (tx regulator) end to end test
-      add_e2e_test(
-        NAME lua_txregulator_test
-        PYTHON_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
-        ADDITIONAL_ARGS
-          --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
-          --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
-
-      ## Receipts end to end test
-      add_e2e_test(
-        NAME receipts_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
-      )
-
-      if(QUOTES_ENABLED)
-        add_e2e_test(
-          NAME governance_tests
-          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-          ADDITIONAL_ARGS
-            --oesign ${OESIGN}
-        )
-      endif()
-
-      add_e2e_test(
-        NAME recovery_tests
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-        ADDITIONAL_ARGS
-          ${RECOVERY_ARGS}
-      )
-
-      add_e2e_test(
-        NAME test_suite
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-        IS_SUITE TRUE
-        ADDITIONAL_ARGS
-        --test-duration 100
-        --enforce-reqs
-      )
-
-      add_e2e_test(
-        NAME lua_end_to_end_batched
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
-        ADDITIONAL_ARGS
-          --app-script ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua)
     endif()
+
+    ## Logging client end to end test
+    add_e2e_test(
+      NAME logging_client_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
+    )
+
+    ## Lua sample app (tx regulator) end to end test
+    add_e2e_test(
+      NAME lua_txregulator_test
+      PYTHON_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
+      ADDITIONAL_ARGS
+        --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
+        --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
+
+    ## Receipts end to end test
+    add_e2e_test(
+      NAME receipts_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
+    )
+
+    if(QUOTES_ENABLED)
+      add_e2e_test(
+        NAME governance_tests
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+        ADDITIONAL_ARGS
+          --oesign ${OESIGN}
+      )
+    endif()
+
+    add_e2e_test(
+      NAME recovery_tests
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+      ADDITIONAL_ARGS
+        ${RECOVERY_ARGS}
+    )
+
+    add_e2e_test(
+      NAME test_suite
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+      IS_SUITE TRUE
+      ADDITIONAL_ARGS
+      --test-duration 100
+      --enforce-reqs
+    )
+
+    add_e2e_test(
+      NAME lua_end_to_end_batched
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
+      ADDITIONAL_ARGS
+        --app-script ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua)
 
     add_e2e_test(
       NAME end_to_end_logging
@@ -410,31 +413,29 @@ if(BUILD_TESTS)
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
   endif()
 
-  if (NOT HTTP)
-    if (BUILD_SMALLBANK)
-      include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
-    endif()
+  if (BUILD_SMALLBANK)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
+  endif()
 
-    add_e2e_test(
-      NAME election_tests
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+  add_e2e_test(
+    NAME election_tests
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+    ADDITIONAL_ARGS
+      --election-timeout 2000
+  )
+
+  if (NOT PBFT)
+    # Logging scenario perf test
+    add_perf_test(
+      NAME logging_scenario_perf_test
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/perfclient.py
+      CLIENT_BIN ./scenario_perf_client
+      LABEL logging_scenario_perf_test
       ADDITIONAL_ARGS
-        --election-timeout 2000
+        --package libloggingenc
+        --scenario-file ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+        --repetitions 1000
     )
-
-    if (NOT PBFT)
-      # Logging scenario perf test
-      add_perf_test(
-        NAME logging_scenario_perf_test
-        PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/perfclient.py
-        CLIENT_BIN ./scenario_perf_client
-        LABEL logging_scenario_perf_test
-        ADDITIONAL_ARGS
-          --package libloggingenc
-          --scenario-file ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-          --repetitions 1000
-      )
-    endif()
   endif()
 
   if (EXTENSIVE_TESTS)

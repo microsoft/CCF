@@ -553,6 +553,7 @@ use_client_mbedtls(client)
 target_link_libraries(client PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
   secp256k1.host
+  http_parser.host
 )
 add_dependencies(client flatbuffers)
 
@@ -564,7 +565,9 @@ use_client_mbedtls(scenario_perf_client)
 target_link_libraries(scenario_perf_client PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
   secp256k1.host
+  http_parser.host
 )
+add_dependencies(scenario_perf_client flatbuffers)
 
 # Lua for host and enclave
 add_enclave_library_c(lua.enclave "${LUA_SOURCES}")
@@ -702,10 +705,14 @@ function(add_perf_test)
   endif()
 
   if(PARSED_ARGS_LABEL)
+    set(LABEL_ARG --label ${PARSED_ARGS_LABEL})
+
     if(PBFT)
-      set(LABEL_ARG --label ${PARSED_ARGS_LABEL}_PBFT)
-    else()
-      set(LABEL_ARG --label ${PARSED_ARGS_LABEL})
+      set(LABEL_ARG ${LABEL_ARG}_PBFT)
+    endif()
+
+    if(HTTP)
+      set(LABEL_ARG ${LABEL_ARG}_HTTP)
     endif()
   else()
     unset(LABEL_ARG)
@@ -736,4 +743,12 @@ function(add_perf_test)
     PROPERTY
       LABELS perf
   )
+  if (HTTP)
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY
+        ENVIRONMENT "HTTP=ON"
+    )
+  endif()
 endfunction()
