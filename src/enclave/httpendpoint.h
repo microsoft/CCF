@@ -206,7 +206,7 @@ namespace enclave
 
         // TODO: For now, set this here as parse_rpc_context() resets
         // rpc_ctx.signed_request for a HTTP endpoint.
-        auto http_sig_v = HttpSignatureVerifier(
+        auto http_sig_v = http::HttpSignatureVerifier(
           std::string(http_method_str(verb)), path, query, headers, body);
         auto signed_req = http_sig_v.parse();
         if (signed_req.has_value())

@@ -87,7 +87,7 @@ public:
     }
 
     std::string query = "";
-    const auto signing_string = enclave::construct_raw_signed_string(
+    const auto signing_string = enclave::http::construct_raw_signed_string(
       http_method_str(HTTP_POST), method, query, headers, headers_to_sign);
     if (!signing_string.has_value())
     {
