@@ -182,6 +182,14 @@ namespace enclave
           {
             auto parsed_signed_headers =
               parse_delimited_string(v, SIGN_PARAMS_HEADERS_DELIMITER);
+
+            if (parsed_signed_headers.size() == 0)
+            {
+              LOG_FAIL_FMT(
+                "No headers specified in {} field", SIGN_PARAMS_HEADERS);
+              return {};
+            }
+
             for (const auto& h : parsed_signed_headers)
             {
               sig_params.signed_headers.emplace_back(h);
@@ -202,6 +210,8 @@ namespace enclave
       const std::vector<std::string_view>& signed_headers)
     {
       std::string signed_string = {};
+      bool has_digest = false;
+
       for (const auto f : signed_headers)
       {
         const auto h = headers.find(f);
@@ -210,12 +220,25 @@ namespace enclave
           LOG_FAIL_FMT("Signed header {} does not exist", f);
           return {};
         }
+
+        // Digest field should be signed.
+        if (f == HTTP_HEADER_DIGEST)
+        {
+          has_digest = true;
+        }
+
         signed_string.append(f);
         signed_string.append(": ");
         signed_string.append(h->second);
         signed_string.append("\n");
       }
       signed_string.pop_back(); // Remove the last \n
+
+      if (!has_digest)
+      {
+        LOG_FAIL_FMT("{} is not signed", HTTP_HEADER_DIGEST);
+        return {};
+      }
 
       auto ret =
         std::vector<uint8_t>({signed_string.begin(), signed_string.end()});

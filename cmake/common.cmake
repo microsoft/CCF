@@ -157,10 +157,11 @@ add_custom_command(
     COMMENT "Generating code from EDL, and renaming to .cpp"
 )
 
-configure_file(${CCF_DIR}/tests/tests.sh ${CMAKE_CURRENT_BINARY_DIR}/tests.sh COPYONLY)
-configure_file(${CCF_DIR}/tests/keygenerator.sh ${CMAKE_CURRENT_BINARY_DIR}/keygenerator.sh COPYONLY)
-configure_file(${CCF_DIR}/tests/cimetrics_env.sh ${CMAKE_CURRENT_BINARY_DIR}/cimetrics_env.sh COPYONLY)
-configure_file(${CCF_DIR}/tests/upload_pico_metrics.py ${CMAKE_CURRENT_BINARY_DIR}/upload_pico_metrics.py COPYONLY)
+# Copy utilities from tests directory
+set(CCF_UTILITIES tests.sh keygenerator.sh cimetrics_env.sh upload_pico_metrics.py scurl.sh)
+foreach(UTILITY ${CCF_UTILITIES})
+  configure_file(${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)
+endforeach()
 
 if("sgx" IN_LIST TARGET)
   # If OE was built with LINK_SGX=1, then we also need to link SGX
@@ -630,7 +631,7 @@ endfunction()
 function(add_e2e_test)
   cmake_parse_arguments(PARSE_ARGV 0 PARSED_ARGS
     ""
-    "NAME;PYTHON_SCRIPT;IS_SUITE"
+    "NAME;PYTHON_SCRIPT;IS_SUITE;CURL_CLIENT"
     "ADDITIONAL_ARGS"
   )
 
@@ -673,6 +674,14 @@ function(add_e2e_test)
         PROPERTY
           ENVIRONMENT "HTTP=ON"
       )
+      if (${PARSED_ARGS_CURL_CLIENT})
+        set_property(
+          TEST ${PARSED_ARGS_NAME}
+          APPEND
+          PROPERTY
+            ENVIRONMENT "CURL_CLIENT=ON"
+        )
+      endif()
     endif()
   endif()
 endfunction()
