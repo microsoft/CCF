@@ -48,7 +48,8 @@ namespace ccf
                             const NodeId& nid, const NodeInfo& ni) {
         if (
           node_info_network.nodeport == ni.nodeport &&
-          node_info_network.host == ni.host && ni.status != NodeStatus::RETIRED)
+          node_info_network.nodehost == ni.nodehost &&
+          ni.status != NodeStatus::RETIRED)
         {
           duplicate_node_id = nid;
           return false;
@@ -76,7 +77,7 @@ namespace ccf
           fmt::format(
             "A node with the same node host {} and port {} already exists "
             "(node id: {})",
-            in.node_info_network.host,
+            in.node_info_network.nodehost,
             in.node_info_network.nodeport,
             conflicting_node_id.value()));
       }
