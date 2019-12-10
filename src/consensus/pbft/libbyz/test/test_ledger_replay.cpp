@@ -43,8 +43,10 @@ public:
                                ByzInfo& info) {
     auto request = reinterpret_cast<fake_req*>(inb->contents);
     info.ctx = request->ctx;
-    info.merkle_root.fill(0);
-    info.merkle_root.data()[0] = request->rt;
+    info.full_state_merkle_root.fill(0);
+    info.replicated_state_merkle_root.fill(0);
+    info.full_state_merkle_root.data()[0] = request->rt;
+    info.replicated_state_merkle_root.data()[0] = request->rt;
     return 0;
   };
 };
@@ -143,10 +145,15 @@ TEST_CASE("Test Ledger Replay")
       // imitate exec command
       ByzInfo info;
       info.ctx = fr->ctx;
-      info.merkle_root.fill(0);
-      info.merkle_root.data()[0] = fr->rt;
+      info.full_state_merkle_root.fill(0);
+      info.replicated_state_merkle_root.fill(0);
+      info.full_state_merkle_root.data()[0] = fr->rt;
+      info.replicated_state_merkle_root.data()[0] = fr->rt;
 
-      pp->set_merkle_root_and_ctx(info.merkle_root, info.ctx);
+      pp->set_merkle_roots_and_ctx(
+        info.full_state_merkle_root,
+        info.replicated_state_merkle_root,
+        info.ctx);
 
       ledger_writer.write_pre_prepare(pp.get());
     }
