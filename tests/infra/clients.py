@@ -379,7 +379,7 @@ class RequestClient:
     def request(self, request):
         rep = requests.post(
             f"https://{self.host}:{self.port}/{request.method}",
-            json=request.to_dict(),  # TODO: For REST queries, use data= instead
+            json=request.to_dict(),
             cert=(self.cert, self.key),
             verify=self.ca,
             timeout=self.request_timeout,
@@ -391,13 +391,16 @@ class RequestClient:
         with open(self.key, "rb") as k:
             rep = requests.post(
                 f"https://{self.host}:{self.port}/{request.method}",
-                json=request.to_dict(),  # TODO: For REST queries, use data= instead
+                json=request.to_dict(),
                 cert=(self.cert, self.key),
                 verify=self.ca,
                 timeout=self.request_timeout,
                 # key_id needs to be specified but is unused
                 auth=HTTPSignatureAuth(
-                    algorithm="ecdsa-sha256", key=k.read(), key_id="tls",
+                    algorithm="ecdsa-sha256",
+                    key=k.read(),
+                    key_id="tls",
+                    headers=["(request-target)", "Date"],
                 ),
             )
             self.stream.update(rep.content)
