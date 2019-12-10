@@ -28,9 +28,6 @@ public:
   // head equal to "h". The log only maintains elements with sequence
   // number higher than "head" and lower than "tail" = "head"+"max_size"-1
 
-  ~Log();
-  // Effects: Delete log and all associated storage.
-
   void clear(Seqno h);
   // Effects: Calls "clear" for all elements in log and sets head to "h"
 
@@ -56,20 +53,10 @@ public:
   // Effects: logs state for debugging
 
 protected:
-  unsigned mod(Seqno s) const;
-  // Effects: Computes "s" modulo the size of the log.
-
   Seqno head;
   int max_size;
-  T* elems;
-  Seqno mask;
+  std::map<Seqno, T> elems;
 };
-
-template <class T>
-inline unsigned Log<T>::mod(Seqno s) const
-{
-  return s & mask;
-}
 
 template <class T>
 inline bool Log<T>::within_range(Seqno seqno) const
@@ -91,24 +78,12 @@ inline Seqno Log<T>::max_seqno() const
 
 template <class T>
 Log<T>::Log(int sz, Seqno h) : head(h), max_size(sz)
-{
-  elems = new T[sz];
-  mask = max_size - 1;
-}
-
-template <class T>
-Log<T>::~Log()
-{
-  delete[] elems;
-}
+{}
 
 template <class T>
 void Log<T>::clear(Seqno h)
 {
-  for (int i = 0; i < max_size; i++)
-  {
-    elems[i].clear();
-  }
+  elems.clear();
 
   head = h;
 }
@@ -117,28 +92,22 @@ template <class T>
 T& Log<T>::fetch(Seqno seqno)
 {
   PBFT_ASSERT(within_range(seqno), "Invalid argument\n");
-  return elems[mod(seqno)];
+  return elems[seqno];
 }
 
 template <class T>
 void Log<T>::truncate(Seqno new_head)
 {
-  if (new_head <= head)
+  for (auto it = elems.begin(); it != elems.end();)
   {
-    return;
-  }
-
-  int i = head;
-  int max = new_head;
-  if (new_head - head >= max_size)
-  {
-    i = 0;
-    max = max_size;
-  }
-
-  for (; i < max; i++)
-  {
-    elems[mod(i)].clear();
+    if (it->first < new_head)
+    {
+      it = elems.erase(it);
+    }
+    else
+    {
+      ++it;
+    }
   }
 
   head = new_head;
@@ -150,7 +119,7 @@ void Log<T>::dump_state(std::ostream& os)
   os << " head:" << head << std::endl;
   for (Seqno n = head; n < head + max_size; n++)
   {
-    auto& entry = elems[mod(n)];
+    auto& entry = elems[n];
     if (!entry.is_empty())
     {
       os << "seqno: " << n;

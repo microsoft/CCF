@@ -125,11 +125,19 @@ namespace pbft
 
       auto rep = frontend->process_pbft(ctx);
 
-      static_assert(sizeof(info.merkle_root) == sizeof(crypto::Sha256Hash));
+      static_assert(
+        sizeof(info.full_state_merkle_root) == sizeof(crypto::Sha256Hash));
+      static_assert(
+        sizeof(info.replicated_state_merkle_root) ==
+        sizeof(crypto::Sha256Hash));
       std::copy(
-        std::begin(rep.merkle_root.h),
-        std::end(rep.merkle_root.h),
-        std::begin(info.merkle_root));
+        std::begin(rep.full_state_merkle_root.h),
+        std::end(rep.full_state_merkle_root.h),
+        std::begin(info.full_state_merkle_root));
+      std::copy(
+        std::begin(rep.replicated_state_merkle_root.h),
+        std::end(rep.replicated_state_merkle_root.h),
+        std::begin(info.replicated_state_merkle_root));
       info.ctx = rep.version;
 
       outb->size = rep.result.size();

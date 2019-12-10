@@ -32,7 +32,8 @@ namespace enclave
     struct ProcessPbftResp
     {
       std::vector<uint8_t> result;
-      crypto::Sha256Hash merkle_root;
+      crypto::Sha256Hash full_state_merkle_root;
+      crypto::Sha256Hash replicated_state_merkle_root;
       kv::Version version;
     };
 

@@ -37,7 +37,13 @@ target_link_libraries(logging_client PRIVATE
   http_parser.host
 )
 
-add_enclave_lib(loggingenc ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem SRCS src/apps/logging/logging.cpp src/apps/logging/stub_for_code_signing.cpp)
+add_enclave_lib(loggingenc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+  SRCS
+    src/apps/logging/logging.cpp
+    src/apps/logging/stub_for_code_signing.cpp
+)
 
 if(BUILD_TESTS)
   # Tests
@@ -412,6 +418,20 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS
       --election-timeout 2000
   )
+
+  if (NOT PBFT)
+    # Logging scenario perf test
+    add_perf_test(
+      NAME logging_scenario_perf_test
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/perfclient.py
+      CLIENT_BIN ./scenario_perf_client
+      LABEL logging_scenario_perf_test
+      ADDITIONAL_ARGS
+        --package libloggingenc
+        --scenario-file ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+        --repetitions 1000
+    )
+  endif()
 
   if (EXTENSIVE_TESTS)
     set_tests_properties(recovery_tests PROPERTIES TIMEOUT 2000)

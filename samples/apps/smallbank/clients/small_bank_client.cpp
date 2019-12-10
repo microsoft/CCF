@@ -232,8 +232,8 @@ private:
           "No result in verification response: " + response.dump());
       }
 
-      auto expected_balance = balance_it->get<size_t>();
-      auto actual_balance = result_it->get<size_t>();
+      auto expected_balance = balance_it->get<int64_t>();
+      auto actual_balance = result_it->get<int64_t>();
       if (expected_balance != actual_balance)
       {
         throw std::runtime_error(
