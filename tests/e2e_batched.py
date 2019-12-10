@@ -21,7 +21,8 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
     LOG.info(f"Running batch submission of {batch_size} new entries")
     primary, _ = network.find_primary()
 
-    with primary.user_client() as c:
+    # Set extended timeout, since some of these successful transactions will take many seconds
+    with primary.user_client(request_timeout=30) as c:
         check = infra.checker.Checker()
 
         message_ids = [next(id_gen) for _ in range(batch_size)]
@@ -104,7 +105,11 @@ def run_to_destruction(args):
                 network = test(network, args, batch_size=10, write_size_multiplier=wsm)
                 wsm += 5000
         except Exception as e:
+            sleep_time = 3
             LOG.info(f"Large write set caused an exception, as expected")
+            LOG.info(f"Exception was: {e}")
+            LOG.info(f"Waiting {sleep_time}s for node to terminate")
+
             time.sleep(3)
             assert (
                 network.nodes[0].remote.remote.proc.poll() is not None
