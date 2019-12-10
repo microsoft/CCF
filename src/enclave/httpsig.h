@@ -39,9 +39,14 @@ namespace enclave
     static constexpr auto SIGN_PARAMS_HEADERS = "headers";
     static constexpr auto SIGN_ALGORITHM = "ecdsa-sha256";
 
+    static constexpr auto SIGN_HEADER_REQUEST_TARGET = "(request-target)";
+
     static constexpr auto SIGN_PARAMS_DELIMITER = ",";
     static constexpr auto SIGN_PARAMS_HEADERS_DELIMITER = " ";
 
+    const std::string& verb;
+    const std::string& path;
+    const std::string& query;
     const http::HeaderMap& headers;
     const std::vector<uint8_t>& body;
 
@@ -210,26 +215,41 @@ namespace enclave
       const std::vector<std::string_view>& signed_headers)
     {
       std::string signed_string = {};
+      std::string value = {};
       bool has_digest = false;
 
       for (const auto f : signed_headers)
       {
-        const auto h = headers.find(f);
-        if (h == headers.end())
+        value.clear();
+        if (f == SIGN_HEADER_REQUEST_TARGET)
         {
-          LOG_FAIL_FMT("Signed header {} does not exist", f);
-          return {};
+          LOG_FAIL_FMT("{} detected", SIGN_HEADER_REQUEST_TARGET);
+          value.append(fmt::format("{} {}", verb, path));
+          if (!query.empty())
+          {
+            value.append(fmt::format("?{}", query));
+          }
         }
-
-        // Digest field should be signed.
-        if (f == HTTP_HEADER_DIGEST)
+        else
         {
-          has_digest = true;
-        }
+          const auto h = headers.find(f);
+          if (h == headers.end())
+          {
+            LOG_FAIL_FMT("Signed header {} does not exist", f);
+            return {};
+          }
 
+          value = h->second;
+
+          // Digest field should be signed.
+          if (f == HTTP_HEADER_DIGEST)
+          {
+            has_digest = true;
+          }
+        }
         signed_string.append(f);
         signed_string.append(": ");
-        signed_string.append(h->second);
+        signed_string.append(value);
         signed_string.append("\n");
       }
       signed_string.pop_back(); // Remove the last \n
@@ -240,6 +260,8 @@ namespace enclave
         return {};
       }
 
+      LOG_FAIL_FMT("Signed string: {}", signed_string);
+
       auto ret =
         std::vector<uint8_t>({signed_string.begin(), signed_string.end()});
       return ret;
@@ -247,10 +269,21 @@ namespace enclave
 
   public:
     HttpSignatureVerifier(
-      const http::HeaderMap& headers_, const std::vector<uint8_t>& body_) :
+      const std::string& verb_,
+      const std::string& path_,
+      const std::string& query_,
+      const http::HeaderMap& headers_,
+      const std::vector<uint8_t>& body_) :
+      verb(verb_),
+      path(path_),
+      query(query_),
       headers(headers_),
       body(body_)
-    {}
+    {
+      LOG_FAIL_FMT("Verb: {}", verb);
+      LOG_FAIL_FMT("Path: {}", path);
+      LOG_FAIL_FMT("Query: {}", query);
+    }
 
     std::optional<ccf::SignedReq> parse()
     {
