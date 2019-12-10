@@ -182,6 +182,13 @@ namespace enclave
           {
             auto parsed_signed_headers =
               parse_delimited_string(v, SIGN_PARAMS_HEADERS_DELIMITER);
+
+            if (parsed_signed_headers.size() == 0)
+            {
+              LOG_FAIL_FMT("No headers specified in {} field", SIGN_PARAMS_HEADERS);
+              return {};
+            }
+
             for (const auto& h : parsed_signed_headers)
             {
               sig_params.signed_headers.emplace_back(h);
