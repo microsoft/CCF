@@ -552,7 +552,7 @@ namespace ccf
             view,
             commit,
             kp.sign_hash(root.h, root.SIZE),
-            tree.serialise());
+            full_state_tree.serialise());
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
         },
