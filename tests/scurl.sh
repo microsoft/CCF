@@ -56,5 +56,3 @@ curl \
 -H "Digest: SHA-256=$req_digest" \
 -H "Authorization: Signature keyId=\"tls\",algorithm=\"ecdsa-sha256\",headers=\"date digest\",signature=\"$signed_raw\"" \
 "$@"
-
-echo ""
