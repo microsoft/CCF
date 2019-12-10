@@ -717,7 +717,7 @@ namespace ccf
       // When reaching the end of the private ledger, make sure the same
       // ledger has been read and swap in private state
       auto h = dynamic_cast<MerkleTxHistory*>(recovery_history.get());
-      if (h->get_root() != recovery_root)
+      if (h->get_full_state_root() != recovery_root)
       {
         LOG_FATAL_FMT(
           "Root of public store does not match root of private store");
@@ -807,7 +807,7 @@ namespace ccf
       // Record real store version and root
       recovery_v = network.tables->current_version();
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
-      recovery_root = h->get_root();
+      recovery_root = h->get_full_state_root();
 
       LOG_DEBUG_FMT("Recovery store successfully setup: {}", recovery_v);
     }

@@ -156,7 +156,7 @@ static void append(picobench::state& s)
   for (auto _ : s)
   {
     (void)_;
-    history->append(txs[idx++]);
+    history->append({}, txs[idx++]);
     clobber_memory();
   }
   s.stop_timer();
@@ -196,7 +196,7 @@ static void append_compact(picobench::state& s)
   for (auto _ : s)
   {
     (void)_;
-    history->append(txs[idx++]);
+    history->append({}, txs[idx++]);
     if (idx % 1000)
       history->compact(idx);
     clobber_memory();

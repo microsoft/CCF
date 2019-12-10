@@ -1655,7 +1655,8 @@ namespace kv
           }
           success = DeserialiseSuccess::PASS_SIGNATURE;
         }
-        h->append(data);
+        auto rep = frame::replicated(data.data());
+        h->append(rep.p, rep.n, data.data(), data.size());
       }
 
       return success;
