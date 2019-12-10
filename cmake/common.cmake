@@ -566,6 +566,7 @@ target_link_libraries(scenario_perf_client PRIVATE
   secp256k1.host
   http_parser.host
 )
+add_dependencies(scenario_perf_client flatbuffers)
 
 # Lua for host and enclave
 add_enclave_library_c(lua.enclave "${LUA_SOURCES}")
