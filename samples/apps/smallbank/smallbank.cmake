@@ -16,9 +16,7 @@ add_enclave_lib(smallbankenc
   SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp
 )
 
-
-## Perf tests currently use C++ clients which do not send HTTP - disabled in HTTP build
-if(BUILD_TESTS AND HTTP)
+if(BUILD_TESTS)
   ## Small Bank end to end and performance test
   if (PBFT)
     set(SMALL_BANK_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_50k.json)
@@ -50,7 +48,10 @@ if(BUILD_TESTS AND HTTP)
     set(SMALL_BANK_SIGNED_ITERATIONS 2000)
   endif ()
 
-  if(NOT PBFT)
+  # These tests require client-signed signatures:
+  # - PBFT doesn't yet verify these correctly
+  # - HTTP C++ perf clients don't currently sign correctly
+  if(NOT PBFT AND NOT HTTP)
     add_perf_test(
       NAME small_bank_sigs_client_test
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py

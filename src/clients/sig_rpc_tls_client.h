@@ -65,7 +65,7 @@ public:
     auto r = enclave::http::Request(HTTP_POST);
     r.set_path(body_j["method"]);
 
-    // TODO: Use httpsig.h, add signature header to this request
+    // TODO: This currently fails to verify - investigate why
     // NB: This is not a particularly interesting signature, just a minimal PoC.
     // Expect most HTTP authorization signing to be done by existing
     // libraries/clients
@@ -104,9 +104,6 @@ public:
     r.set_header("authorization", auth_value);
 
     const auto request = r.build_request(body_v);
-    std::cout << "Sending request:" << std::endl;
-    std::cout << std::string((char const*)request.data(), request.size())
-              << std::endl;
     return {request, body_j["id"]};
   }
 };
