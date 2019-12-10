@@ -274,7 +274,7 @@ class FramedTLSJSONRPCClient:
         return self.client.disconnect()
 
     def request(self, request):
-        self.client.send(getattr(request, "to_{self.format}")())
+        self.client.send(getattr(request, f"to_{self.format}")())
         return request.id
 
     def tick(self):
