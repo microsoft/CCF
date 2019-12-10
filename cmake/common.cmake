@@ -631,7 +631,7 @@ endfunction()
 function(add_e2e_test)
   cmake_parse_arguments(PARSE_ARGV 0 PARSED_ARGS
     ""
-    "NAME;PYTHON_SCRIPT;IS_SUITE"
+    "NAME;PYTHON_SCRIPT;IS_SUITE;CURL_CLIENT"
     "ADDITIONAL_ARGS"
   )
 
@@ -674,6 +674,14 @@ function(add_e2e_test)
         PROPERTY
           ENVIRONMENT "HTTP=ON"
       )
+      if (${PARSED_ARGS_CURL_CLIENT})
+        set_property(
+          TEST ${PARSED_ARGS_NAME}
+          APPEND
+          PROPERTY
+            ENVIRONMENT "CURL_CLIENT=ON"
+        )
+      endif()
     endif()
   endif()
 endfunction()
