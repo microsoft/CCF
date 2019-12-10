@@ -185,7 +185,8 @@ namespace enclave
 
             if (parsed_signed_headers.size() == 0)
             {
-              LOG_FAIL_FMT("No headers specified in {} field", SIGN_PARAMS_HEADERS);
+              LOG_FAIL_FMT(
+                "No headers specified in {} field", SIGN_PARAMS_HEADERS);
               return {};
             }
 
