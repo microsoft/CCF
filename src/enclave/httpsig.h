@@ -13,6 +13,22 @@
 
 namespace enclave
 {
+  // All HTTP headers are expected to be lowercase
+  static constexpr auto HTTP_HEADER_AUTHORIZATION = "authorization";
+  static constexpr auto HTTP_HEADER_DIGEST = "digest";
+
+  static constexpr auto DIGEST_SHA256 = "SHA-256";
+
+  static constexpr auto AUTH_SCHEME = "Signature";
+  static constexpr auto SIGN_PARAMS_KEYID = "keyId";
+  static constexpr auto SIGN_PARAMS_SIGNATURE = "signature";
+  static constexpr auto SIGN_PARAMS_ALGORITHM = "algorithm";
+  static constexpr auto SIGN_PARAMS_HEADERS = "headers";
+  static constexpr auto SIGN_ALGORITHM = "ecdsa-sha256";
+
+  static constexpr auto SIGN_PARAMS_DELIMITER = ",";
+  static constexpr auto SIGN_PARAMS_HEADERS_DELIMITER = " ";
+
   std::optional<std::vector<uint8_t>> construct_raw_signed_string(
     const http::HeaderMap& headers,
     const std::vector<std::string_view>& headers_to_sign)
@@ -20,6 +36,7 @@ namespace enclave
     std::string signed_string = {};
 
     bool first = true;
+    bool has_digest = false;
 
     for (const auto f : headers_to_sign)
     {
@@ -28,6 +45,12 @@ namespace enclave
       {
         LOG_FAIL_FMT("Signed header {} does not exist", f);
         return {};
+      }
+
+      // Digest field should be signed.
+      if (f == HTTP_HEADER_DIGEST)
+      {
+        has_digest = true;
       }
 
       if (!first)
@@ -39,6 +62,12 @@ namespace enclave
       signed_string.append(f);
       signed_string.append(": ");
       signed_string.append(h->second);
+    }
+
+    if (!has_digest)
+    {
+      LOG_FAIL_FMT("{} is not signed", HTTP_HEADER_DIGEST);
+      return {};
     }
 
     auto ret =
@@ -59,22 +88,6 @@ namespace enclave
   class HttpSignatureVerifier
   {
   private:
-    // All HTTP headers are expected to be lowercase
-    static constexpr auto HTTP_HEADER_AUTHORIZATION = "authorization";
-    static constexpr auto HTTP_HEADER_DIGEST = "digest";
-
-    static constexpr auto DIGEST_SHA256 = "SHA-256";
-
-    static constexpr auto AUTH_SCHEME = "Signature";
-    static constexpr auto SIGN_PARAMS_KEYID = "keyId";
-    static constexpr auto SIGN_PARAMS_SIGNATURE = "signature";
-    static constexpr auto SIGN_PARAMS_ALGORITHM = "algorithm";
-    static constexpr auto SIGN_PARAMS_HEADERS = "headers";
-    static constexpr auto SIGN_ALGORITHM = "ecdsa-sha256";
-
-    static constexpr auto SIGN_PARAMS_DELIMITER = ",";
-    static constexpr auto SIGN_PARAMS_HEADERS_DELIMITER = " ";
-
     const http::HeaderMap& headers;
     const std::vector<uint8_t>& body;
 
@@ -215,6 +228,14 @@ namespace enclave
           {
             auto parsed_signed_headers =
               parse_delimited_string(v, SIGN_PARAMS_HEADERS_DELIMITER);
+
+            if (parsed_signed_headers.size() == 0)
+            {
+              LOG_FAIL_FMT(
+                "No headers specified in {} field", SIGN_PARAMS_HEADERS);
+              return {};
+            }
+
             for (const auto& h : parsed_signed_headers)
             {
               sig_params.signed_headers.emplace_back(h);

@@ -36,7 +36,7 @@ fi
 
 if [ "$curve" == "$DEFAULT_CURVE" ]; then
     digest="$DIGEST_SHA384"
-elif [ "$curve" ==  "$EDWARDS_CURVE" ]; then
+elif [ "$curve" == "$EDWARDS_CURVE" ]; then
     digest="$DIGEST_SHA512"
 else
     digest="$DIGEST_SHA256"
