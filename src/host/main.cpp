@@ -327,6 +327,7 @@ int main(int argc, char** argv)
   ccf_config.signature_intervals = {sig_max_tx, sig_max_ms};
   ccf_config.node_info_network = {rpc_address.hostname,
                                   public_rpc_address.hostname,
+                                  node_address.hostname,
                                   node_address.port,
                                   rpc_address.port};
   ccf_config.domain = domain;
