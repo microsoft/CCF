@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "../base64.h"
 #include "../keypair.h"
 
 #include <chrono>
@@ -335,5 +336,18 @@ TEST_CASE("Recoverable signatures")
     CHECK(recovered.verify(contents, norm_sig));
     corrupt(norm_sig);
     CHECK_FALSE(recovered.verify(contents, norm_sig));
+  }
+}
+
+TEST_CASE("base64")
+{
+  for (size_t length = 1; length < 20; ++length)
+  {
+    std::vector<uint8_t> raw(length);
+    std::generate(raw.begin(), raw.end(), rand);
+
+    const auto encoded = tls::b64_from_raw(raw.data(), raw.size());
+    const auto decoded = tls::raw_from_b64(encoded);
+    REQUIRE(decoded == raw);
   }
 }
