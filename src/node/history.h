@@ -334,6 +334,7 @@ namespace ccf
     {
       if (!mt_flush_to_pre(tree, index))
         throw std::logic_error("Precondition to mt_flush_to violated");
+      LOG_TRACE_FMT("mt_flush_to index={}", index);
       mt_flush_to(tree, index);
     }
 
@@ -356,6 +357,7 @@ namespace ccf
 
     std::vector<uint8_t> serialise()
     {
+      LOG_TRACE_FMT("mt_serialize_size {}", mt_serialize_size(tree));
       std::vector<uint8_t> output(mt_serialize_size(tree));
       mt_serialize(tree, output.data(), output.capacity());
       return output;
