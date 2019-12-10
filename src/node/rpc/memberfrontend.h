@@ -514,15 +514,13 @@ namespace ccf
             jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
             fmt::format("No ACK record exists for caller {}", args.caller_id));
 
-        const auto rs = args.params.get<RawSignature>();
-#ifndef HTTP
         auto verifier = tls::make_verifier(
           std::vector<uint8_t>(args.rpc_ctx.session.caller_cert));
+        const auto rs = args.params.get<RawSignature>();
         if (!verifier->verify(last_ma->next_nonce, rs.sig))
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             "Signature is not valid");
-#endif
 
         MemberAck next_ma{rs.sig, rng->random(SIZE_NONCE)};
         mas->put(args.caller_id, next_ma);

@@ -122,19 +122,8 @@ class Consortium:
             return c.do("withdraw", {"id": proposal_id})
 
     def ack(self, member_id, remote_node):
-        # NB: member_id must match CCF's assigned member_id, as returned by whoAmI
-        with remote_node.member_client(member_id=member_id) as c:
-            # Member fetches current nonce
-            nonce_response = c.do(
-                "read", {"key": member_id, "table": "ccf.member_acks"}
-            )
-            assert nonce_response.error is None, nonce_response.error
-            nonce = nonce_response.result["next_nonce"]
-
-            # Member signs nonce and sends ack
-            # TODO: Sign nonce - currently verification is disabled in memberfrontend.h
-            signed_nonce = [42]
-            return c.do("ack", {"sig": signed_nonce})
+        # TODO: Produce signed ack here
+        return self._member_client_rpc_as_json(member_id, remote_node, "ack")
 
     def get_proposals(self, member_id, remote_node):
         script = """
