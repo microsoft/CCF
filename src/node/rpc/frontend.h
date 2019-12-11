@@ -211,6 +211,8 @@ namespace ccf
     ClientSignatures* client_signatures;
     Certs* certs;
     CT* callers;
+    // nullptr if running with Raft
+    pbft::PbftMetaData* pbft_metadata;
     std::optional<Handler> default_handler;
     std::unordered_map<std::string, Handler> handlers;
     kv::Consensus* consensus;
@@ -352,6 +354,8 @@ namespace ccf
       client_signatures(client_sigs_),
       certs(certs_),
       callers(callers_),
+      pbft_metadata(
+        tables.get<pbft::PbftMetaData>(pbft::Tables::PBFT_METADATA)),
       consensus(nullptr),
       history(nullptr)
     {
@@ -774,7 +778,9 @@ namespace ccf
      *
      * @param ctx Context for this RPC
      */
-    ProcessPbftResp process_pbft(enclave::RPCContext& ctx) override
+    ProcessPbftResp process_pbft(
+      enclave::RPCContext& ctx,
+      const std::vector<uint8_t>& serialised_req) override
     {
       // TODO(#PBFT): Refactor this with process_forwarded().
       Store::Tx tx;
@@ -783,6 +789,9 @@ namespace ccf
       kv::Version version = kv::NoVersion;
 
       update_consensus();
+
+      auto req_view = tx.get_view(*pbft_metadata);
+      req_view->put(0, {serialised_req, pbft::DataType::REQUEST});
 
       bool has_updated_merkle_roots = false;
 

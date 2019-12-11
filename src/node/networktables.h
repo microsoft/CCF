@@ -5,6 +5,7 @@
 #include "certs.h"
 #include "clientsignatures.h"
 #include "codeid.h"
+#include "consensus/pbft/pbftmetadata.h"
 #include "consensus/pbft/pbfttables.h"
 #include "consensus/raft/rafttables.h"
 #include "entities.h"
@@ -71,6 +72,11 @@ namespace ccf
     Secrets& secrets_table;
     Signatures& signatures;
 
+    //
+    // Pbft related tables
+    //
+    pbft::PbftMetaData* pbft_metadata;
+
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::Raft) :
       tables(
         (consensus_type == ConsensusType::Raft) ?
@@ -110,8 +116,15 @@ namespace ccf
       secrets_table(
         tables->create<Secrets>(Tables::SECRETS, kv::SecurityDomain::PUBLIC)),
       signatures(tables->create<Signatures>(
-        Tables::SIGNATURES, kv::SecurityDomain::PUBLIC))
-    {}
+        Tables::SIGNATURES, kv::SecurityDomain::PUBLIC)),
+      pbft_metadata(nullptr)
+    {
+      if (consensus_type == ConsensusType::Pbft)
+      {
+        pbft_metadata =
+          &tables->create<pbft::PbftMetaData>(pbft::Tables::PBFT_METADATA);
+      }
+    }
 
     /** Returns a tuple of all tables that are possibly accessible from scripts
      * (app and gov). More fine-grained access control is applied via

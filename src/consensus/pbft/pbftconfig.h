@@ -104,7 +104,9 @@ namespace pbft
                                  Seqno total_requests_executed,
                                  ByzInfo& info) {
       ccf_req request;
-      request.deserialise({inb->contents, inb->contents + inb->size});
+      std::vector<uint8_t> serialised_req(
+        inb->contents, inb->contents + inb->size);
+      request.deserialise(serialised_req);
 
       LOG_DEBUG_FMT("PBFT exec_command() for frontend {}", request.actor);
 
@@ -123,7 +125,7 @@ namespace pbft
       const auto n = ctx.method.find_last_of('/');
       ctx.method = ctx.method.substr(n + 1, ctx.method.size());
 
-      auto rep = frontend->process_pbft(ctx);
+      auto rep = frontend->process_pbft(ctx, serialised_req);
 
       static_assert(
         sizeof(info.full_state_merkle_root) == sizeof(crypto::Sha256Hash));
