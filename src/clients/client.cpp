@@ -47,10 +47,12 @@ std::vector<uint8_t> make_rpc_raw(
       std::make_shared<tls::Cert>(tls_ca, client_cert, pk_pem, nullb, auth);
   }
 
+  const auto req_j = unpack(req, Pack::Text);
+
   switch (pack)
   {
     case Pack::MsgPack:
-      req = nlohmann::json::to_msgpack(unpack(req, Pack::Text));
+      req = nlohmann::json::to_msgpack(req_j);
       break;
 
     case Pack::Text:
@@ -66,14 +68,21 @@ std::vector<uint8_t> make_rpc_raw(
   {
     auto client = RpcTlsClient(host, port, tls_ca, cert);
 
+#ifdef HTTP
+    const auto method = req_j[jsonrpc::METHOD];
+    auto r = enclave::http::Request(HTTP_POST);
+    r.set_path(method);
+    const auto request = r.build_request(req);
+    res = client.call_raw(request);
+#else
     // write framed data
     vector<uint8_t> len(4);
     auto p = len.data();
     auto size = len.size();
     serialized::write(p, size, (uint32_t)req.size());
     client.write(CBuffer(len));
-
     res = client.call_raw(req);
+#endif
   }
   catch (const logic_error& err)
   {
@@ -135,16 +144,24 @@ int main(int argc, char** argv)
     server_address,
     "--rpc-address",
     "Remote node JSON-RPC server address");
-  app.add_option("--ca", ca_file, "Network CA", true);
+  app.add_option("--ca", ca_file, "Network CA", true)
+    ->required(true)
+    ->check(CLI::ExistingFile);
 
   std::string req = "@rpc.json";
   std::string client_cert_file;
   std::string client_pk_file;
   app.add_option("--req", req, "RPC request data, '@' allowed", true);
-  app.add_option(
-    "--cert", client_cert_file, "Client certificate in PEM format", true);
-  app.add_option(
-    "--pk", client_pk_file, "Client private key  in PEM format", true);
+  app
+    .add_option(
+      "--cert", client_cert_file, "Client certificate in PEM format", true)
+    ->required(true)
+    ->check(CLI::ExistingFile);
+  app
+    .add_option(
+      "--pk", client_pk_file, "Client private key in PEM format", true)
+    ->required(true)
+    ->check(CLI::ExistingFile);
 
   CLI11_PARSE(app, argc, argv);
 

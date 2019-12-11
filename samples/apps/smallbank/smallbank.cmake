@@ -4,7 +4,10 @@
 add_client_exe(small_bank_client
   SRCS ${CMAKE_CURRENT_LIST_DIR}/clients/small_bank_client.cpp
 )
-target_link_libraries(small_bank_client PRIVATE secp256k1.host)
+target_link_libraries(small_bank_client PRIVATE
+  secp256k1.host
+  http_parser.host
+)
 
 # SmallBank application
 add_enclave_lib(smallbankenc
@@ -45,7 +48,10 @@ if(BUILD_TESTS)
     set(SMALL_BANK_SIGNED_ITERATIONS 2000)
   endif ()
 
-  if(NOT PBFT)
+  # These tests require client-signed signatures:
+  # - PBFT doesn't yet verify these correctly
+  # - HTTP C++ perf clients don't currently sign correctly
+  if(NOT PBFT AND NOT HTTP)
     add_perf_test(
       NAME small_bank_sigs_client_test
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py

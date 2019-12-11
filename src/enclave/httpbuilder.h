@@ -17,7 +17,7 @@ namespace enclave
     static HeaderMap default_headers()
     {
       HeaderMap headers;
-      headers["Content-Type"] = "application/json";
+      headers["content-type"] = "application/json";
       return headers;
     }
 
@@ -63,6 +63,11 @@ namespace enclave
         query_params[k] = v;
       }
 
+      HeaderMap get_headers() const
+      {
+        return headers;
+      }
+
       void set_header(const std::string& k, const std::string& v)
       {
         headers[k] = v;
@@ -101,7 +106,7 @@ namespace enclave
         const auto h = fmt::format(
           "{} {} HTTP/1.1\r\n"
           "{}"
-          "Content-Length: {}\r\n"
+          "content-length: {}\r\n"
           "\r\n"
           "{}",
           http_method_str(method),
