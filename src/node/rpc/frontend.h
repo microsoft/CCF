@@ -788,6 +788,10 @@ namespace ccf
 
       update_consensus();
 
+      if (pbft_requests == nullptr)
+      {
+        throw std::logic_error("pbft requests table has not been initialised!");
+      }
       auto req_view = tx.get_view(*pbft_requests);
       req_view->put(
         0,

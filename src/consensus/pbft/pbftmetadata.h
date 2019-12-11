@@ -22,19 +22,5 @@ namespace pbft
 
   using PbftRequests = ccf::Store::Map<size_t, Request>;
 
-  inline void to_json(nlohmann::json& j, const Request& r)
-  {
-    j["actor"] = r.actor;
-    j["caller_id"] = r.caller_id;
-    j["caller_cert"] = r.caller_cert;
-    j["raw"] = r.raw;
-  }
-
-  inline void from_json(const nlohmann::json& j, Request& r)
-  {
-    r.actor = j["actor"];
-    r.caller_id = j["caller_id"];
-    assign_j(r.caller_cert, j["caller_cert"]);
-    assign_j(r.raw, j["raw"]);
-  }
+  DECLARE_JSON_REQUIRED_FIELDS(Request, actor, caller_id, caller_cert, raw);
 }
