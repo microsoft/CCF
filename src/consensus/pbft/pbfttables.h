@@ -8,7 +8,7 @@ namespace pbft
 {
   struct Tables
   {
-    static constexpr auto PBFT_REQUESTS = "pbft.requests";
+    static constexpr auto PBFT_REQUESTS = "ccf.pbft.requests";
   };
 
   static constexpr auto replicate_type_pbft = kv::ReplicateType::SOME;
