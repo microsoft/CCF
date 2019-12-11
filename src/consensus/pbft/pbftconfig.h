@@ -104,9 +104,7 @@ namespace pbft
                                  Seqno total_requests_executed,
                                  ByzInfo& info) {
       ccf_req request;
-      std::vector<uint8_t> serialised_req(
-        inb->contents, inb->contents + inb->size);
-      request.deserialise(serialised_req);
+      request.deserialise({inb->contents, inb->contents + inb->size});
 
       LOG_DEBUG_FMT("PBFT exec_command() for frontend {}", request.actor);
 
