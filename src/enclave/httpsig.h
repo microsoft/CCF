@@ -5,11 +5,11 @@
 #include "httpparser.h"
 #include "node/clientsignatures.h"
 #include "tls/base64.h"
+#include "tls/keypair.h" // TODO: Only used for hashing
 
 #include <fmt/format_header_only.h>
 #include <optional>
 #include <string>
-#include <tls/keypair.h> // TODO: Only used for hashing
 
 namespace enclave
 {

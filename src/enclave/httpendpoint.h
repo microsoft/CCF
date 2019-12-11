@@ -7,6 +7,7 @@
 #include "httpparser.h"
 #include "httpsig.h"
 #include "rpcmap.h"
+#include "wsupgrade.h"
 
 namespace enclave
 {
@@ -14,6 +15,7 @@ namespace enclave
   {
   protected:
     http::Parser p;
+    bool is_websocket = false;
 
   public:
     HTTPEndpoint(
@@ -31,32 +33,45 @@ namespace enclave
 
       LOG_TRACE_FMT("recv called with {} bytes", size);
 
-      while (true)
+      if (!is_websocket)
       {
-        auto buf = read(4096, false);
-        if (buf.size() == 0)
+        while (true)
         {
-          return;
-        }
-
-        LOG_TRACE_FMT(
-          "Going to parse {} bytes: \n[{}]",
-          buf.size(),
-          std::string(buf.begin(), buf.end()));
-
-        try
-        {
-          if (p.execute(buf.data(), buf.size()) == 0)
+          auto buf = read(4096, false);
+          if (buf.size() == 0)
           {
-            LOG_FAIL_FMT("Failed to parse request");
+            return;
+          }
+
+          LOG_TRACE_FMT(
+            "Going to parse {} bytes: \n[{}]",
+            buf.size(),
+            std::string(buf.begin(), buf.end()));
+
+          try
+          {
+            if (p.execute(buf.data(), buf.size()) == 0)
+            {
+              LOG_FAIL_FMT("Failed to parse request");
+              return;
+            }
+          }
+          catch (const std::exception& e)
+          {
+            LOG_FAIL_FMT("Error parsing request: {}", e.what());
             return;
           }
         }
-        catch (const std::exception& e)
-        {
-          LOG_FAIL_FMT("Error parsing request: {}", e.what());
-          return;
-        }
+      }
+      else
+      {
+        // TODO: For now, close the connection
+        // TODO: Check if the parser can still be used once the connection has
+        // been upgraded to websocket
+        LOG_FAIL_FMT(
+          "Receiving data after endpoint has been upgraded to websocket.");
+        LOG_FAIL_FMT("Closing connection.");
+        close();
       }
     }
   };
@@ -100,6 +115,8 @@ namespace enclave
       http_status status = HTTP_STATUS_OK,
       const std::string& content_type = "application/json")
     {
+      // TODO: Create a response builder as well
+
       if (data.empty() && status == HTTP_STATUS_OK)
       {
         status = HTTP_STATUS_NO_CONTENT;
@@ -126,6 +143,7 @@ namespace enclave
         http_status_str(status),
         content_type,
         data.size());
+
       send_buffered(std::vector<uint8_t>(hdr.begin(), hdr.end()));
       send_buffered(data);
       flush();
@@ -147,6 +165,17 @@ namespace enclave
 
       try
       {
+        // Check if the client requested upgrade to websocket
+        auto ws_upgrader = http::WebSocketUpgrader(headers);
+        auto upgrade_resp = ws_upgrader.upgrade_if_necessary();
+        if (upgrade_resp.has_value())
+        {
+          LOG_TRACE_FMT("Upgraded to websocket");
+          send_raw(upgrade_resp.value());
+          is_websocket = true;
+          return;
+        }
+
         const auto first_slash = path.find_first_of('/');
         const auto second_slash = path.find_first_of('/', first_slash + 1);
 
