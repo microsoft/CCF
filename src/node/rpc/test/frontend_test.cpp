@@ -20,7 +20,10 @@
 #ifdef PBFT
 #  include "consensus/pbft/pbftconfig.h"
 #  include "node/history.h"
+std::vector<ITimer*> ITimer::timers;
+Time ITimer::min_deadline = Long_max;
 Time ITimer::_relative_current_time = 0;
+long long clock_mhz = 1;
 #endif
 #include <iostream>
 #include <string>

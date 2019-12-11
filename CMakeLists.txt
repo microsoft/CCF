@@ -149,10 +149,17 @@ if(BUILD_TESTS)
       secp256k1.host
     )
     if (PBFT)
-      target_link_libraries(frontend_test PRIVATE
-        -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
-        libcommontest
-      )
+      if("sgx" IN_LIST TARGET)
+        target_link_libraries(frontend_test PRIVATE
+          -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
+          libbyz.enclave
+        )
+      else()
+        target_link_libraries(frontend_test PRIVATE
+          -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
+          libbyz.host
+        )
+      endif()
     endif()
 
   if(NOT PBFT)
