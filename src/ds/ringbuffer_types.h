@@ -60,7 +60,6 @@ namespace ringbuffer
         m, std::forward<Ts>(ts)...);
     }
 
-  protected:
     // If a call to prepare or write_bytes fails, this returned value will be
     // empty. Otherwise it is an opaque marker that the implementation can use
     // to track progress between writes in the same message.

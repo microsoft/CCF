@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "../messaging.h"
 
+#include "../pending_queue.h"
 #include "../ringbuffer.h"
 #include "../serialized.h"
 
@@ -464,16 +465,26 @@ TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
     const size_t n_read =
       processor_inside.read_n(target_writes, circuit.read_from_outside());
     REQUIRE(n_read > 0);
-    std::cout << "Read " << n_read << " messages" << std::endl;
 
     while (write_to_inside.try_write(big_message, message_body))
     {
       ++i;
     }
 
-    std::cout << "Wrote " << i - last_progress << " messages" << std::endl;
-
     REQUIRE(i > last_progress);
     last_progress = i;
   }
+
+  // Read any remaining messages
+  const size_t n_read =
+    processor_inside.read_n(target_writes, circuit.read_from_outside());
+  REQUIRE(n_read > 0);
+
+  // PendingQueueWriter also avoids deadlock
+  ringbuffer::WriterFactory base_factory(circuit);
+  ringbuffer::PendingQueueFactory<ringbuffer::WriterFactory> pending_factory(
+    base_factory);
+
+  auto pending_writer = pending_factory.create_writer_to_inside();
+  pending_writer->write(finish);
 }

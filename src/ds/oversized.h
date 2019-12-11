@@ -144,7 +144,6 @@ namespace oversized
           " <= " + std::to_string(sizeof(InitialFragmentHeader)) + ")");
     }
 
-  protected:
     virtual WriteMarker prepare(
       ringbuffer::Message m,
       size_t total_size,
