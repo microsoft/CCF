@@ -10,35 +10,31 @@
 
 namespace pbft
 {
-  enum class DataType
+  struct Request
   {
-    REQUEST = 0,
-    PRE_PREPARE = 1
+    uint64_t actor;
+    uint64_t caller_id;
+    std::vector<uint8_t> caller_cert;
+    std::vector<uint8_t> raw;
+
+    MSGPACK_DEFINE(actor, caller_id, caller_cert, raw);
   };
-}
 
-MSGPACK_ADD_ENUM(pbft::DataType);
+  using PbftRequests = ccf::Store::Map<size_t, Request>;
 
-namespace pbft
-{
-  struct PbftMeta
+  inline void to_json(nlohmann::json& j, const Request& r)
   {
-    std::vector<uint8_t> metadata;
-    DataType data_type;
-
-    MSGPACK_DEFINE(metadata, data_type);
-  };
-  using PbftMetaData = ccf::Store::Map<size_t, PbftMeta>;
-
-  inline void to_json(nlohmann::json& j, const PbftMeta& md)
-  {
-    j["metadata"] = md.metadata;
-    j["data_type"] = md.data_type;
+    j["actor"] = r.actor;
+    j["caller_id"] = r.caller_id;
+    j["caller_cert"] = r.caller_cert;
+    j["raw"] = r.raw;
   }
 
-  inline void from_json(const nlohmann::json& j, PbftMeta& md)
+  inline void from_json(const nlohmann::json& j, Request& r)
   {
-    assign_j(md.metadata, j["metadata"]);
-    md.data_type = j["data_type"];
+    r.actor = j["actor"];
+    r.caller_id = j["caller_id"];
+    assign_j(r.caller_cert, j["caller_cert"]);
+    assign_j(r.raw, j["raw"]);
   }
 }

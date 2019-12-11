@@ -75,7 +75,7 @@ namespace ccf
     //
     // Pbft related tables
     //
-    pbft::PbftMetaData* pbft_metadata;
+    pbft::PbftRequests* pbft_requests;
 
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::Raft) :
       tables(
@@ -117,14 +117,11 @@ namespace ccf
         tables->create<Secrets>(Tables::SECRETS, kv::SecurityDomain::PUBLIC)),
       signatures(tables->create<Signatures>(
         Tables::SIGNATURES, kv::SecurityDomain::PUBLIC)),
-      pbft_metadata(nullptr)
-    {
-      if (consensus_type == ConsensusType::Pbft)
-      {
-        pbft_metadata =
-          &tables->create<pbft::PbftMetaData>(pbft::Tables::PBFT_METADATA);
-      }
-    }
+      pbft_requests(
+        (consensus_type == ConsensusType::Pbft) ?
+          &tables->create<pbft::PbftRequests>(pbft::Tables::PBFT_REQUESTS) :
+          nullptr)
+    {}
 
     /** Returns a tuple of all tables that are possibly accessible from scripts
      * (app and gov). More fine-grained access control is applied via

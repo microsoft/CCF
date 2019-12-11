@@ -125,7 +125,7 @@ namespace pbft
       const auto n = ctx.method.find_last_of('/');
       ctx.method = ctx.method.substr(n + 1, ctx.method.size());
 
-      auto rep = frontend->process_pbft(ctx, serialised_req);
+      auto rep = frontend->process_pbft(ctx);
 
       static_assert(
         sizeof(info.full_state_merkle_root) == sizeof(crypto::Sha256Hash));

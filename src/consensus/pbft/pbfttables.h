@@ -8,10 +8,10 @@ namespace pbft
 {
   struct Tables
   {
-    static constexpr auto PBFT_METADATA = "pbft.metadata";
+    static constexpr auto PBFT_REQUESTS = "pbft.requests";
   };
 
   static constexpr auto replicate_type_pbft = kv::ReplicateType::SOME;
   static const std::unordered_set<std::string> replicated_tables_pbft = {
-    Tables::PBFT_METADATA};
+    Tables::PBFT_REQUESTS};
 }

@@ -361,7 +361,6 @@ void add_callers_pbft_store()
   GenesisGenerator g(pbft_network, gen_tx);
   g.init_values();
   user_id = g.add_user(user_caller);
-  member_id = g.add_member(member_caller);
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 
@@ -373,27 +372,24 @@ TEST_CASE("process_pbft")
   const auto serialized_call = jsonrpc::pack(simple_call, default_pack);
   auto actor = ActorsType::users;
   pbft::ccf_req request = {actor, user_id, user_caller_der, serialized_call};
-  auto serialized_req = request.serialise();
 
   const enclave::SessionContext session(
     enclave::InvalidSessionId, user_id, user_caller_der);
   auto ctx = enclave::make_rpc_context(session, request.request);
-  frontend.process_pbft(ctx, serialized_req);
+  ctx.actor = (ccf::ActorsType)request.actor;
+  frontend.process_pbft(ctx);
 
   Store::Tx tx;
-  auto pbft_metadata = tx.get_view(*pbft_network.pbft_metadata);
+  auto pbft_metadata = tx.get_view(*pbft_network.pbft_requests);
   auto request_value = pbft_metadata->get(0);
   REQUIRE(request_value.has_value());
-  REQUIRE(request_value.value().data_type == pbft::DataType::REQUEST);
 
-  pbft::ccf_req deserialised_request;
-  auto metadata = request_value.value().metadata;
-  deserialised_request.deserialise(
-    {metadata.data(), metadata.data() + metadata.size()});
+  auto deserialised_request = request_value.value();
   REQUIRE(deserialised_request.actor == actor);
   REQUIRE(deserialised_request.caller_id == user_id);
+  REQUIRE(deserialised_request.caller_cert == user_caller_der);
   auto deserialised_simple_call =
-    jsonrpc::unpack(deserialised_request.request, default_pack);
+    jsonrpc::unpack(deserialised_request.raw, default_pack);
   REQUIRE(
     deserialised_simple_call[jsonrpc::METHOD] == simple_call[jsonrpc::METHOD]);
 }
