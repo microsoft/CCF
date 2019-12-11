@@ -414,3 +414,66 @@ TEST_CASE("Multiple threads" * doctest::test_suite("messaging"))
     }
   }
 }
+
+TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
+{
+  enum : Message
+  {
+    big_message = Const::msg_min,
+    finish
+  };
+
+  constexpr auto circuit_size = 1 << 6;
+  Circuit circuit(circuit_size);
+
+  BufferProcessor processor_inside;
+
+  auto finish_handler = [&processor_inside](const uint8_t* data, size_t size) {
+    processor_inside.set_finished();
+  };
+  DISPATCHER_SET_MESSAGE_HANDLER(processor_inside, finish, finish_handler);
+
+  auto big_message_handler = [](const uint8_t* data, size_t size) {};
+  DISPATCHER_SET_MESSAGE_HANDLER(
+    processor_inside, big_message, big_message_handler);
+
+  auto write_to_inside = circuit.write_to_inside();
+
+  std::vector<uint8_t> message_body(circuit_size / 3);
+  std::iota(message_body.begin(), message_body.end(), 0);
+
+  // If we continually write to a ringbuffer which is not being read, it will
+  // eventually fill up and writes will fail
+  constexpr size_t target_writes = circuit_size * 2;
+  size_t i = 0;
+  for (; i <= target_writes; ++i)
+  {
+    const bool succeeded = write_to_inside.try_write(big_message, message_body);
+    if (!succeeded)
+    {
+      break;
+    }
+  }
+
+  REQUIRE(i < target_writes);
+
+  // Read progress enables write progress
+  size_t last_progress = i;
+  while (i <= target_writes)
+  {
+    const size_t n_read =
+      processor_inside.read_n(target_writes, circuit.read_from_outside());
+    REQUIRE(n_read > 0);
+    std::cout << "Read " << n_read << " messages" << std::endl;
+
+    while (write_to_inside.try_write(big_message, message_body))
+    {
+      ++i;
+    }
+
+    std::cout << "Wrote " << i - last_progress << " messages" << std::endl;
+
+    REQUIRE(i > last_progress);
+    last_progress = i;
+  }
+}
