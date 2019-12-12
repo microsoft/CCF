@@ -3,7 +3,9 @@
 #define PICOBENCH_IMPLEMENT
 #include "../history.h"
 
+#define FMT_HEADER_ONLY
 #include <algorithm>
+#include <fmt/format.h>
 #include <picobench/picobench.hpp>
 #include <random>
 
@@ -181,6 +183,42 @@ static void serialise_deserialise(picobench::state& s)
   s.stop_timer();
 }
 
+static void serialised_size(picobench::state& s)
+{
+  ccf::MerkleTreeHistory t;
+  vector<crypto::Sha256Hash> hashes;
+  std::random_device r;
+
+  for (size_t i = 0; i < s.iterations(); ++i)
+  {
+    crypto::Sha256Hash h;
+    for (size_t j = 0; j < crypto::Sha256Hash::SIZE; j++)
+      h.h[j] = r();
+
+    hashes.emplace_back(h);
+  }
+
+  size_t index = 0;
+
+  for (auto _ : s)
+  {
+    (void)_;
+    t.append(hashes[index++]);
+  }
+  s.start_timer();
+  auto buf = t.serialise();
+  auto bph = ((float)buf.size()) / index;
+  std::cout << fmt::format(
+                 "mt_serialize n={} : {} bytes, {} bytes/hash, {}% overhead",
+                 index,
+                 buf.size(),
+                 bph,
+                 (bph - crypto::Sha256Hash::SIZE) * 100 /
+                   crypto::Sha256Hash::SIZE)
+            << std::endl;
+  s.stop_timer();
+}
+
 const std::vector<int> sizes = {1000, 10000};
 
 PICOBENCH_SUITE("append_retract");
@@ -193,6 +231,11 @@ PICOBENCH_SUITE("append_get_receipt_verify_v");
 PICOBENCH(append_get_receipt_verify_v).iterations(sizes).samples(10).baseline();
 PICOBENCH_SUITE("serialise_deserialise");
 PICOBENCH(serialise_deserialise).iterations(sizes).samples(10).baseline();
+PICOBENCH_SUITE("serialised_size");
+PICOBENCH(serialised_size)
+  .iterations({1, 2, 10, 100, 1000, 10000})
+  .samples(1)
+  .baseline();
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char* argv[])
