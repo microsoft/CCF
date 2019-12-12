@@ -23,13 +23,14 @@ namespace ringbuffer
     {
       Message m;
       size_t marker;
+      bool finished;
       std::vector<uint8_t> buffer;
 
-      PendingMessage(
-        Message m_, size_t marker_, std::vector<uint8_t>&& buffer_) :
+      PendingMessage(Message m_, std::vector<uint8_t>&& buffer_) :
         m(m_),
-        marker(marker_),
-        buffer(buffer_)
+        buffer(buffer_),
+        marker(0),
+        finished(false)
       {}
     };
 
@@ -60,7 +61,7 @@ namespace ringbuffer
         // Prepare failed, no space in buffer - so add to queue
       }
 
-      pending.emplace_back(m, 0, std::vector<uint8_t>(total_size));
+      pending.emplace_back(m, std::vector<uint8_t>(total_size));
 
       auto& msg = pending.back();
       msg.marker = (size_t)msg.buffer.data();
@@ -74,14 +75,15 @@ namespace ringbuffer
     {
       if (marker.has_value())
       {
-        for (const auto& it : pending)
+        for (auto& it : pending)
         {
           // NB: finish is passed the _initial_ WriteMarker, so we compare
           // against it.buffer.data() rather than it.marker
           if ((size_t)it.buffer.data() == marker.value())
           {
-            // This is a pending write. All data should now be written. No work
-            // to do for finish
+            // This is a pending write. Mark as completed, so we can later flush
+            // it
+            it.finished = true;
             return;
           }
         }
@@ -134,9 +136,39 @@ namespace ringbuffer
       return writer_impl->write_bytes(marker, bytes, size);
     }
 
+    // Returns true if flush completed and there are no more pending messages.
+    // False means 0 or more pending messages were written, but some remain
     bool try_flush_pending()
     {
-      return false;
+      while (!pending.empty())
+      {
+        const auto& next = pending.front();
+        if (!next.finished)
+        {
+          // If we reached an in-progress pending message, stop - we can't flush
+          // this or anything after it
+          break;
+        }
+
+        // Try to write this pending message to the underlying writer
+        const auto marker =
+          writer_impl->prepare(next.m, next.buffer.size(), false, nullptr);
+
+        if (!marker.has_value())
+        {
+          // No space - stop flushing
+          break;
+        }
+
+        writer_impl->write_bytes(
+          marker, next.buffer.data(), next.buffer.size());
+        writer_impl->finish(marker);
+
+        // This pending message was successfully written - pop it and continue
+        pending.pop_front();
+      }
+
+      return pending.empty();
     }
   };
 
