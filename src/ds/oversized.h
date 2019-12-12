@@ -6,6 +6,7 @@
 #include "ringbuffer.h"
 #include "serialized.h"
 
+#include <fmt/format_header_only.h>
 #include <unordered_map>
 
 namespace oversized
@@ -63,12 +64,14 @@ namespace oversized
           {
             throw ringbuffer::message_error(
               message_id,
-              "Too much data for oversized fragmented message. Message " +
-                std::to_string(message_id) + " asked for " +
-                std::to_string(partial.total_size) +
-                " bytes, has already written " +
-                std::to_string(partial.received) + ", but has sent a further " +
-                std::to_string(size));
+              fmt::format(
+                "Too much data for oversized fragmented message. Message {} "
+                "asked for {} bytes, has already written {}, but has sent a "
+                "further {}",
+                message_id,
+                partial.total_size,
+                partial.received,
+                size));
           }
 
           ::memcpy(partial.data + partial.received, data, size);
@@ -131,17 +134,18 @@ namespace oversized
       fragment_progress({})
     {
       if (max_fragment_size >= max_total_size)
-        throw std::logic_error(
-          "Fragment sizes must be smaller than total max (" +
-          std::to_string(max_fragment_size) +
-          " >= " + std::to_string(max_total_size) + ")");
+        throw std::logic_error(fmt::format(
+          "Fragment sizes must be smaller than total max: {} >= {}",
+          max_fragment_size,
+          max_total_size));
 
-      if (max_fragment_size <= sizeof(InitialFragmentHeader))
-        throw std::logic_error(
+      constexpr auto header_size = sizeof(InitialFragmentHeader);
+      if (max_fragment_size <= header_size)
+        throw std::logic_error(fmt::format(
           "Fragment size must be large enough to contain the header for the "
-          "initial fragment, and some additional payload data (" +
-          std::to_string(max_fragment_size) +
-          " <= " + std::to_string(sizeof(InitialFragmentHeader)) + ")");
+          "initial fragment, and some additional payload data: {} <= {}",
+          max_fragment_size,
+          header_size));
     }
 
     virtual WriteMarker prepare(
@@ -164,19 +168,20 @@ namespace oversized
 
       if (total_size > max_total_size)
       {
-        throw std::logic_error(
-          "Requested a write of " + std::to_string(total_size) +
-          " bytes, max allowed is " + std::to_string(max_total_size));
+        throw std::logic_error(fmt::format(
+          "Requested a write of {} bytes, max allowed is {}",
+          total_size,
+          max_total_size));
       }
 
       // Need to split this message into multiple fragments
 
       if (!wait)
       {
-        throw std::logic_error(
-          "Requested write of " + std::to_string(total_size) +
-          " bytes will be split into multiple fragments: caller must wait for "
-          "these to complete");
+        throw std::logic_error(fmt::format(
+          "Requested write of {} bytes will be split into multiple fragments: "
+          "caller must wait for these to complete",
+          total_size));
       }
 
       // Prepare space for the first fragment, getting an id for all related
