@@ -30,11 +30,9 @@ namespace enclave
       static constexpr auto WEBSOCKET_HANDSHAKE_GUID =
         "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
-      const http::HeaderMap& headers;
-
       // Constructs base64 acccept string (as per
       // https://tools.ietf.org/html/rfc6455#section-1.3)
-      std::optional<std::string> construct_accept_string(
+      static std::optional<std::string> construct_accept_string(
         const std::string& client_key)
       {
         const auto string_to_hash =
@@ -52,9 +50,10 @@ namespace enclave
       }
 
     public:
-      WebSocketUpgrader(const http::HeaderMap& headers_) : headers(headers_) {}
+      WebSocketUpgrader() {}
 
-      std::optional<std::vector<uint8_t>> upgrade_if_necessary()
+      static std::optional<std::vector<uint8_t>> upgrade_if_necessary(
+        const http::HeaderMap& headers)
       {
         auto const upgrade_header = headers.find(HTTP_HEADER_UPGRADE);
         if (upgrade_header != headers.end())

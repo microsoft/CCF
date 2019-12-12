@@ -166,8 +166,9 @@ namespace enclave
       try
       {
         // Check if the client requested upgrade to websocket
-        auto ws_upgrader = http::WebSocketUpgrader(headers);
-        auto upgrade_resp = ws_upgrader.upgrade_if_necessary();
+        auto upgrade_resp =
+          http::WebSocketUpgrader::upgrade_if_necessary(headers);
+        // auto upgrade_resp = ws_upgrader.upgrade_if_necessary();
         if (upgrade_resp.has_value())
         {
           LOG_TRACE_FMT("Upgraded to websocket");
@@ -235,9 +236,9 @@ namespace enclave
 
         // TODO: For now, set this here as parse_rpc_context() resets
         // rpc_ctx.signed_request for a HTTP endpoint.
-        auto http_sig_v = http::HttpSignatureVerifier(
+        auto signed_req = http::HttpSignatureVerifier::parse(
           std::string(http_method_str(verb)), path, query, headers, body);
-        auto signed_req = http_sig_v.parse();
+        // auto signed_req = http_sig_v.parse();
         if (signed_req.has_value())
         {
           rpc_ctx.signed_request = signed_req;
