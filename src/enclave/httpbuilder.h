@@ -176,8 +176,6 @@ namespace enclave
             get_header_string());
         }
 
-        LOG_FAIL_FMT("Sending HTTP response: {}", rep);
-
         return std::vector<uint8_t>(rep.begin(), rep.end());
       }
     };

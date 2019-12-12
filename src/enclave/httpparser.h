@@ -97,14 +97,6 @@ namespace enclave
         auto parsed =
           http_parser_execute(&parser, &settings, (const char*)data, size);
 
-        // TODO: Do something more clever here? Return this to the caller (i.e.
-        // HTTPEndpoint recv()) which can change the status of is_websocket
-        // accordingly?
-        if (parser.upgrade == 1)
-        {
-          LOG_FAIL_FMT("Upgraded!");
-        }
-
         LOG_TRACE_FMT("Parsed {} bytes", parsed);
 
         auto err = HTTP_PARSER_ERRNO(&parser);

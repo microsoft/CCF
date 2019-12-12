@@ -13,7 +13,6 @@ namespace enclave
 {
   namespace http
   {
-    // TODO: Do we actually need a class for this? or just an inline function?
     class WebSocketUpgrader
     {
     private:

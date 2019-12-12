@@ -65,9 +65,8 @@ namespace enclave
       }
       else
       {
-        // TODO: For now, close the connection
-        // TODO: Check if the parser can still be used once the connection has
-        // been upgraded to websocket
+        // TODO: For now, close the connection if it has been upgraded to
+        // websocket
         LOG_FAIL_FMT(
           "Receiving data after endpoint has been upgraded to websocket.");
         LOG_FAIL_FMT("Closing connection.");
@@ -148,7 +147,7 @@ namespace enclave
 
       try
       {
-        // Check if the client requested upgrade to websocket, and finish
+        // Check if the client requested upgrade to websocket, and complete
         // handshake if necessary
         auto upgrade_resp =
           http::WebSocketUpgrader::upgrade_if_necessary(headers);
