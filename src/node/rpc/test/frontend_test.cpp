@@ -383,7 +383,7 @@ TEST_CASE("process_pbft")
   frontend.process_pbft(ctx);
 
   Store::Tx tx;
-  auto pbft_metadata = tx.get_view(*pbft_network.pbft_requests);
+  auto pbft_metadata = tx.get_view(pbft_network.pbft_requests);
   auto request_value = pbft_metadata->get(0);
   REQUIRE(request_value.has_value());
 

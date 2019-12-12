@@ -211,6 +211,7 @@ namespace ccf
     ClientSignatures* client_signatures;
     Certs* certs;
     CT* callers;
+    pbft::PbftRequests* pbft_requests;
     std::optional<Handler> default_handler;
     std::unordered_map<std::string, Handler> handlers;
     kv::Consensus* consensus;
@@ -354,6 +355,8 @@ namespace ccf
       client_signatures(client_sigs_),
       certs(certs_),
       callers(callers_),
+      pbft_requests(
+        tables.get<pbft::PbftRequests>(pbft::Tables::PBFT_REQUESTS)),
       consensus(nullptr),
       history(nullptr)
     {
@@ -786,12 +789,6 @@ namespace ccf
 
       update_consensus();
 
-      auto pbft_requests =
-        tables.get<pbft::PbftRequests>(pbft::Tables::PBFT_REQUESTS);
-      if (pbft_requests == nullptr)
-      {
-        throw std::logic_error("pbft requests table has not been initialised!");
-      }
       auto req_view = tx.get_view(*pbft_requests);
       req_view->put(
         0,

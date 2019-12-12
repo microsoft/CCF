@@ -75,7 +75,7 @@ namespace ccf
     //
     // Pbft related tables
     //
-    pbft::PbftRequests* pbft_requests;
+    pbft::PbftRequests& pbft_requests;
 
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::Raft) :
       tables(
@@ -118,9 +118,7 @@ namespace ccf
       signatures(tables->create<Signatures>(
         Tables::SIGNATURES, kv::SecurityDomain::PUBLIC)),
       pbft_requests(
-        (consensus_type == ConsensusType::Pbft) ?
-          &tables->create<pbft::PbftRequests>(pbft::Tables::PBFT_REQUESTS) :
-          nullptr)
+        tables->create<pbft::PbftRequests>(pbft::Tables::PBFT_REQUESTS))
     {}
 
     /** Returns a tuple of all tables that are possibly accessible from scripts
