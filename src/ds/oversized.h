@@ -175,8 +175,8 @@ namespace oversized
       {
         throw std::logic_error(
           "Requested write of " + std::to_string(total_size) +
-          " bytes will be split into multiple fragments: caller must be wait "
-          "for these to complete");
+          " bytes will be split into multiple fragments: caller must wait for "
+          "these to complete");
       }
 
       // Prepare space for the first fragment, getting an id for all related

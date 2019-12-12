@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #include "../oversized.h"
 
+#include "../pending_queue.h"
+
 #include <algorithm>
 #include <doctest/doctest.h>
 #include <functional>
@@ -14,6 +16,7 @@ enum : ringbuffer::Message
   DEFINE_RINGBUFFER_MSG_TYPE(ascending),
   DEFINE_RINGBUFFER_MSG_TYPE(descending),
   DEFINE_RINGBUFFER_MSG_TYPE(unfragmented),
+  DEFINE_RINGBUFFER_MSG_TYPE(random_contents),
   DEFINE_RINGBUFFER_MSG_TYPE(finish),
 };
 
@@ -442,5 +445,40 @@ TEST_CASE("Nesting" * doctest::test_suite("oversized"))
     oversized::FragmentReconstructor fr(disp);
     disp.dispatch(type, payload.data(), payload.size());
     REQUIRE(core_received);
+  }
+}
+
+TEST_CASE("Pending" * doctest::test_suite("oversized"))
+{
+  using namespace ringbuffer;
+
+  constexpr auto circuit_size = 1 << 8;
+  Circuit circuit(circuit_size);
+
+  // Create factory for oversized writers
+  constexpr auto max_fragment_size = circuit_size / 5;
+  constexpr auto max_total_size = circuit_size * 4;
+  oversized::WriterConfig writer_config{max_fragment_size, max_total_size};
+  oversized::WriterFactory oversized_factory(&circuit, writer_config);
+
+  // Wrap this in a pending factory
+  PendingQueueFactory pending_factory(oversized_factory);
+  auto writer = pending_factory.create_pending_writer_to_inside();
+
+  // Build some large messages
+  constexpr auto num_messages = 10;
+  std::vector<std::vector<uint8_t>> messages;
+  for (size_t i = 0; i < num_messages; ++i)
+  {
+    auto& message = messages.emplace_back(max_total_size);
+    for (auto& n : message)
+    {
+      n = rand();
+    }
+  }
+
+  for (const auto& message : messages)
+  {
+    writer->write(random_contents, message);
   }
 }
