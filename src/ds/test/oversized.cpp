@@ -500,5 +500,33 @@ TEST_CASE("Pending" * doctest::test_suite("oversized"))
     writer->write(random_contents, message);
   }
 
-  REQUIRE(true);
+  decltype(messages) received;
+  auto random_handler = [&](const uint8_t* data, size_t size) {
+    received.emplace_back(data, data + size);
+  };
+
+  messaging::BufferProcessor processor_inside;
+  DISPATCHER_SET_MESSAGE_HANDLER(
+    processor_inside, random_contents, random_handler);
+
+  oversized::FragmentReconstructor reconstructor(
+    processor_inside.get_dispatcher());
+
+  // Read them all, by flushing repeatedly
+  size_t total_read = 0;
+  while (true)
+  {
+    const bool done_flushing = true;
+    // const auto done_flushing = pending_writer->try_flush_pending(); // TODO
+
+    REQUIRE(
+      processor_inside.read_n(num_messages, circuit.read_from_outside()) > 0);
+
+    if (received.size() == messages.size())
+    {
+      REQUIRE(done_flushing);
+      REQUIRE(received == messages);
+      break;
+    }
+  }
 }
