@@ -460,11 +460,10 @@ TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
 
   // Read progress enables write progress
   size_t last_progress = i;
-  while (i <= target_writes)
+  while (i < target_writes)
   {
-    const size_t n_read =
-      processor_inside.read_n(target_writes, circuit.read_from_outside());
-    REQUIRE(n_read > 0);
+    REQUIRE(
+      processor_inside.read_n(target_writes, circuit.read_from_outside()) > 0);
 
     while (write_to_inside.try_write(big_message, message_body))
     {
@@ -476,14 +475,46 @@ TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
   }
 
   // Read remaining messages
-  const size_t n_read =
-    processor_inside.read_n(target_writes, circuit.read_from_outside());
-  REQUIRE(n_read > 0);
+  REQUIRE(
+    processor_inside.read_n(target_writes, circuit.read_from_outside()) > 0);
 
   // PendingQueueWriter also avoids deadlock
   ringbuffer::WriterFactory base_factory(circuit);
   ringbuffer::PendingQueueFactory pending_factory(base_factory);
 
-  auto pending_writer = pending_factory.create_writer_to_inside();
-  pending_writer->write(finish);
+  auto pending_writer = pending_factory.create_pending_writer_to_inside();
+
+  // More than the circuit size can be written, since overflows are queued
+  i = 0;
+  for (; i < target_writes; ++i)
+  {
+    const bool succeeded = pending_writer->try_write(big_message, message_body);
+    if (!succeeded)
+    {
+      break;
+    }
+  }
+
+  REQUIRE(i == target_writes);
+
+  // To read all these pending messages, the pending queue must be flushed
+  // multiple times
+  size_t total_read = 0;
+  while (true)
+  {
+    const size_t n_read =
+      processor_inside.read_n(target_writes, circuit.read_from_outside());
+    REQUIRE(n_read > 0);
+    total_read += n_read;
+
+    if (!pending_writer->try_flush_pending())
+    {
+      break;
+    }
+  }
+
+  // Read remaining messages
+  const size_t n_read =
+    processor_inside.read_n(target_writes, circuit.read_from_outside());
+  REQUIRE(n_read > 0);
 }
