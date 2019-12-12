@@ -288,6 +288,12 @@ namespace ccf
   public:
     MerkleTreeHistory(MerkleTreeHistory const&) = delete;
 
+    MerkleTreeHistory(const std::vector<uint8_t>& serialised)
+    {
+      tree = mt_deserialize(
+        const_cast<uint8_t*>(serialised.data()), serialised.size());
+    }
+
     MerkleTreeHistory()
     {
       ::hash ih(init_hash());
@@ -328,6 +334,7 @@ namespace ccf
     {
       if (!mt_flush_to_pre(tree, index))
         throw std::logic_error("Precondition to mt_flush_to violated");
+      LOG_TRACE_FMT("mt_flush_to index={}", index);
       mt_flush_to(tree, index);
     }
 
@@ -346,6 +353,14 @@ namespace ccf
     bool verify(const Receipt& r)
     {
       return r.verify(tree);
+    }
+
+    std::vector<uint8_t> serialise()
+    {
+      LOG_TRACE_FMT("mt_serialize_size {}", mt_serialize_size(tree));
+      std::vector<uint8_t> output(mt_serialize_size(tree));
+      mt_serialize(tree, output.data(), output.capacity());
+      return output;
     }
   };
 
@@ -534,7 +549,12 @@ namespace ccf
           auto sig_view = sig.get_view(signatures);
           crypto::Sha256Hash root = full_state_tree.get_root();
           Signature sig_value(
-            id, version, view, commit, kp.sign_hash(root.h, root.SIZE));
+            id,
+            version,
+            view,
+            commit,
+            kp.sign_hash(root.h, root.SIZE),
+            full_state_tree.serialise());
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
         },

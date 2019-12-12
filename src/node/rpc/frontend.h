@@ -226,9 +226,11 @@ namespace ccf
 
     void update_consensus()
     {
-      if (consensus != tables.get_consensus().get())
+      auto c = tables.get_consensus().get();
+
+      if (consensus != c)
       {
-        consensus = tables.get_consensus().get();
+        consensus = c;
       }
     }
 

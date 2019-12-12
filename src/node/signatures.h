@@ -16,8 +16,9 @@ namespace ccf
     ObjectId index;
     ObjectId term;
     ObjectId commit;
+    std::vector<uint8_t> tree;
 
-    MSGPACK_DEFINE(MSGPACK_BASE(RawSignature), node, index, term, commit);
+    MSGPACK_DEFINE(MSGPACK_BASE(RawSignature), node, index, term, commit, tree);
 
     Signature() {}
 
@@ -33,12 +34,14 @@ namespace ccf
       ObjectId index_,
       ObjectId term_,
       ObjectId commit_,
-      const std::vector<uint8_t> sig_) :
+      const std::vector<uint8_t> sig_,
+      const std::vector<uint8_t> tree_) :
       RawSignature{sig_},
       node(node_),
       index(index_),
       term(term_),
-      commit(commit_)
+      commit(commit_),
+      tree(tree_)
     {}
   };
   DECLARE_JSON_TYPE_WITH_BASE(Signature, RawSignature)
