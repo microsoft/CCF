@@ -475,15 +475,14 @@ TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
     last_progress = i;
   }
 
-  // Read any remaining messages
+  // Read remaining messages
   const size_t n_read =
     processor_inside.read_n(target_writes, circuit.read_from_outside());
   REQUIRE(n_read > 0);
 
   // PendingQueueWriter also avoids deadlock
   ringbuffer::WriterFactory base_factory(circuit);
-  ringbuffer::PendingQueueFactory<ringbuffer::WriterFactory> pending_factory(
-    base_factory);
+  ringbuffer::PendingQueueFactory pending_factory(base_factory);
 
   auto pending_writer = pending_factory.create_writer_to_inside();
   pending_writer->write(finish);

@@ -63,13 +63,13 @@ namespace ringbuffer
     }
   };
 
-  template <typename FactoryImpl>
-  class PendingQueueFactory : public ringbuffer::AbstractWriterFactory
+  class PendingQueueFactory : public AbstractWriterFactory
   {
-    FactoryImpl& factory_impl;
+    AbstractWriterFactory& factory_impl;
 
   public:
-    PendingQueueFactory(FactoryImpl& factory) : factory_impl(factory) {}
+    PendingQueueFactory(AbstractWriterFactory& factory) : factory_impl(factory)
+    {}
 
     std::unique_ptr<ringbuffer::AbstractWriter> create_writer_to_outside()
       override
