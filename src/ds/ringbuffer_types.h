@@ -118,8 +118,8 @@ namespace ringbuffer
   public:
     virtual ~AbstractWriterFactory() = default;
 
-    virtual std::unique_ptr<AbstractWriter> create_writer_to_outside() = 0;
-    virtual std::unique_ptr<AbstractWriter> create_writer_to_inside() = 0;
+    virtual std::shared_ptr<AbstractWriter> create_writer_to_outside() = 0;
+    virtual std::shared_ptr<AbstractWriter> create_writer_to_inside() = 0;
   };
 
   /// Useful machinery

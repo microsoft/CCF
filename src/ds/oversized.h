@@ -111,7 +111,7 @@ namespace oversized
   class Writer : public ringbuffer::AbstractWriter
   {
   private:
-    std::unique_ptr<AbstractWriter> underlying_writer;
+    std::shared_ptr<AbstractWriter> underlying_writer;
 
     const size_t max_fragment_size;
     const size_t max_total_size;
@@ -128,8 +128,9 @@ namespace oversized
     std::optional<FragmentProgress> fragment_progress;
 
   public:
-    Writer(std::unique_ptr<AbstractWriter>&& writer, size_t f, size_t t = -1) :
-      underlying_writer(std::move(writer)),
+    Writer(
+      const std::shared_ptr<AbstractWriter>& writer, size_t f, size_t t = -1) :
+      underlying_writer(writer),
       max_fragment_size(f),
       max_total_size(t),
       fragment_progress({})
@@ -327,29 +328,29 @@ namespace oversized
       config(config_)
     {}
 
-    std::unique_ptr<oversized::Writer> create_oversized_writer_to_outside()
+    std::shared_ptr<oversized::Writer> create_oversized_writer_to_outside()
     {
-      return std::make_unique<oversized::Writer>(
+      return std::make_shared<oversized::Writer>(
         factory_impl.create_writer_to_outside(),
         config.max_fragment_size,
         config.max_total_size);
     }
 
-    std::unique_ptr<oversized::Writer> create_oversized_writer_to_inside()
+    std::shared_ptr<oversized::Writer> create_oversized_writer_to_inside()
     {
-      return std::make_unique<oversized::Writer>(
+      return std::make_shared<oversized::Writer>(
         factory_impl.create_writer_to_inside(),
         config.max_fragment_size,
         config.max_total_size);
     }
 
-    std::unique_ptr<ringbuffer::AbstractWriter> create_writer_to_outside()
+    std::shared_ptr<ringbuffer::AbstractWriter> create_writer_to_outside()
       override
     {
       return create_oversized_writer_to_outside();
     }
 
-    std::unique_ptr<ringbuffer::AbstractWriter> create_writer_to_inside()
+    std::shared_ptr<ringbuffer::AbstractWriter> create_writer_to_inside()
       override
     {
       return create_oversized_writer_to_inside();

@@ -455,16 +455,16 @@ namespace ringbuffer
   public:
     WriterFactory(ringbuffer::Circuit& c) : raw_circuit(c) {}
 
-    std::unique_ptr<ringbuffer::AbstractWriter> create_writer_to_outside()
+    std::shared_ptr<ringbuffer::AbstractWriter> create_writer_to_outside()
       override
     {
-      return std::make_unique<Writer>(raw_circuit.read_from_inside());
+      return std::make_shared<Writer>(raw_circuit.read_from_inside());
     }
 
-    std::unique_ptr<ringbuffer::AbstractWriter> create_writer_to_inside()
+    std::shared_ptr<ringbuffer::AbstractWriter> create_writer_to_inside()
       override
     {
-      return std::make_unique<Writer>(raw_circuit.read_from_outside());
+      return std::make_shared<Writer>(raw_circuit.read_from_outside());
     }
   };
 }

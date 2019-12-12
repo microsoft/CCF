@@ -4,6 +4,8 @@
 
 #include <deque>
 #include <fmt/format_header_only.h>
+#include <memory>
+#include <vector>
 
 namespace ringbuffer
 {
@@ -17,7 +19,7 @@ namespace ringbuffer
   class PendingQueueWriter : public AbstractWriter
   {
   private:
-    std::unique_ptr<AbstractWriter> underlying_writer;
+    std::shared_ptr<AbstractWriter> underlying_writer;
 
     struct PendingMessage
     {
@@ -37,8 +39,8 @@ namespace ringbuffer
     std::deque<PendingMessage> pending;
 
   public:
-    PendingQueueWriter(std::unique_ptr<AbstractWriter>&& writer) :
-      underlying_writer(std::move(writer))
+    PendingQueueWriter(const std::shared_ptr<AbstractWriter>& writer) :
+      underlying_writer(writer)
     {}
 
     virtual WriteMarker prepare(
@@ -176,31 +178,78 @@ namespace ringbuffer
   {
     AbstractWriterFactory& factory_impl;
 
-  public:
-    PendingQueueFactory(AbstractWriterFactory& impl) : factory_impl(impl)
-    {}
+    // Could be set, but needs custom hash() + operator<, so vector is simpler
+    using WriterSet =
+      std::vector<std::weak_ptr<ringbuffer::PendingQueueWriter>>;
 
-    std::unique_ptr<ringbuffer::PendingQueueWriter>
+    WriterSet writers_to_outside;
+    WriterSet writers_to_inside;
+
+    std::shared_ptr<ringbuffer::PendingQueueWriter> add_writer(
+      const std::shared_ptr<ringbuffer::AbstractWriter>& underlying,
+      WriterSet& writers)
+    {
+      auto new_writer = std::make_shared<PendingQueueWriter>(underlying);
+      writers.emplace_back(new_writer);
+      return new_writer;
+    }
+
+    bool flush_all(WriterSet& writers)
+    {
+      bool all_empty = true;
+
+      auto it = writers.begin();
+      while (it != writers.end())
+      {
+        auto shared_ptr = it->lock();
+        if (shared_ptr)
+        {
+          all_empty &= shared_ptr->try_flush_pending();
+          ++it;
+        }
+        else
+        {
+          it = writers.erase(it);
+        }
+      }
+
+      return all_empty;
+    }
+
+  public:
+    PendingQueueFactory(AbstractWriterFactory& impl) : factory_impl(impl) {}
+
+    std::shared_ptr<ringbuffer::PendingQueueWriter>
     create_pending_writer_to_outside()
     {
-      return std::make_unique<PendingQueueWriter>(
-        factory_impl.create_writer_to_outside());
+      return add_writer(
+        factory_impl.create_writer_to_outside(), writers_to_outside);
     }
 
-    std::unique_ptr<ringbuffer::PendingQueueWriter>
+    bool flush_all_outbound()
+    {
+      return flush_all(writers_to_outside);
+    }
+
+    std::shared_ptr<ringbuffer::PendingQueueWriter>
     create_pending_writer_to_inside()
     {
-      return std::make_unique<PendingQueueWriter>(
-        factory_impl.create_writer_to_inside());
+      return add_writer(
+        factory_impl.create_writer_to_inside(), writers_to_inside);
     }
 
-    std::unique_ptr<ringbuffer::AbstractWriter> create_writer_to_outside()
+    bool flush_all_inbound()
+    {
+      return flush_all(writers_to_inside);
+    }
+
+    std::shared_ptr<ringbuffer::AbstractWriter> create_writer_to_outside()
       override
     {
       return create_pending_writer_to_outside();
     }
 
-    std::unique_ptr<ringbuffer::AbstractWriter> create_writer_to_inside()
+    std::shared_ptr<ringbuffer::AbstractWriter> create_writer_to_inside()
       override
     {
       return create_pending_writer_to_inside();
