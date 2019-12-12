@@ -68,7 +68,7 @@ namespace ccf
   class Seal : public AbstractSeal
   {
   private:
-    std::unique_ptr<ringbuffer::AbstractWriter> to_host;
+    ringbuffer::WriterPtr to_host;
 
 #ifndef VIRTUAL_ENCLAVE
     static constexpr oe_seal_policy_t policy = OE_SEAL_POLICY_UNIQUE;

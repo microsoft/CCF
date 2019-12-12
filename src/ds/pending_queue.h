@@ -19,7 +19,7 @@ namespace ringbuffer
   class PendingQueueWriter : public AbstractWriter
   {
   private:
-    std::shared_ptr<AbstractWriter> underlying_writer;
+    WriterPtr underlying_writer;
 
     struct PendingMessage
     {
@@ -39,7 +39,7 @@ namespace ringbuffer
     std::deque<PendingMessage> pending;
 
   public:
-    PendingQueueWriter(const std::shared_ptr<AbstractWriter>& writer) :
+    PendingQueueWriter(const WriterPtr& writer) :
       underlying_writer(writer)
     {}
 

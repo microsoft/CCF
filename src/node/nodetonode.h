@@ -17,7 +17,7 @@ namespace ccf
   private:
     NodeId self;
     std::unique_ptr<ChannelManager> channels;
-    std::unique_ptr<ringbuffer::AbstractWriter> to_host;
+    ringbuffer::WriterPtr to_host;
 
     void establish_channel(NodeId to)
     {

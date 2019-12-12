@@ -111,7 +111,7 @@ namespace oversized
   class Writer : public ringbuffer::AbstractWriter
   {
   private:
-    std::shared_ptr<AbstractWriter> underlying_writer;
+    ringbuffer::WriterPtr underlying_writer;
 
     const size_t max_fragment_size;
     const size_t max_total_size;
@@ -128,8 +128,7 @@ namespace oversized
     std::optional<FragmentProgress> fragment_progress;
 
   public:
-    Writer(
-      const std::shared_ptr<AbstractWriter>& writer, size_t f, size_t t = -1) :
+    Writer(const ringbuffer::WriterPtr& writer, size_t f, size_t t = -1) :
       underlying_writer(writer),
       max_fragment_size(f),
       max_total_size(t),

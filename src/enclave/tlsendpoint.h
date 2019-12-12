@@ -14,7 +14,7 @@ namespace enclave
   class TLSEndpoint : public Endpoint
   {
   protected:
-    std::unique_ptr<ringbuffer::AbstractWriter> to_host;
+    ringbuffer::WriterPtr to_host;
     size_t session_id;
 
     enum Status
