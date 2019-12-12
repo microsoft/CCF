@@ -9,7 +9,6 @@ project(ccf C CXX)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
-set(TEST_HOST_LOGGING_LEVEL "info")
 set(ENV{BETTER_EXCEPTIONS} 1)
 
 option(BUILD_TESTS "Build tests" ON)
