@@ -24,7 +24,7 @@ namespace asynchost
 
     messaging::BufferProcessor& bp;
     ringbuffer::Reader& r;
-    ringbuffer::PendingQueueFactory& pqf;
+    ringbuffer::NonBlockingWriterFactory& pqf;
 
     // Sealed secrets file path
     std::string sealed_secrets_file;
@@ -33,7 +33,7 @@ namespace asynchost
     HandleRingbufferImpl(
       messaging::BufferProcessor& bp,
       ringbuffer::Reader& r,
-      ringbuffer::PendingQueueFactory& pqf) :
+      ringbuffer::NonBlockingWriterFactory& pqf) :
       bp(bp),
       r(r),
       pqf(pqf)

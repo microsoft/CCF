@@ -3,8 +3,8 @@
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/logger.h"
+#include "ds/nonblocking.h"
 #include "ds/oversized.h"
-#include "ds/pending_queue.h"
 #include "enclave.h"
 #include "handle_ringbuffer.h"
 #include "nodeconnections.h"
@@ -291,7 +291,7 @@ int main(int argc, char** argv)
   // To prevent deadlock, all blocking writes from the host to the ringbuffer
   // will be queued if the ringbuffer is full
   ringbuffer::WriterFactory base_factory(circuit);
-  ringbuffer::PendingQueueFactory queuing_factory(base_factory);
+  ringbuffer::NonBlockingWriterFactory queuing_factory(base_factory);
 
   // Factory for creating writers which will handle writing of large messages
   oversized::WriterConfig writer_config{(size_t)(1 << max_fragment_size),

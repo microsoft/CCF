@@ -16,7 +16,7 @@ namespace ringbuffer
   // pending queue. These pending message must be flushed regularly, attempting
   // again to write to the ringbuffer.
 
-  class PendingQueueWriter : public AbstractWriter
+  class NonBlockingWriter : public AbstractWriter
   {
   private:
     WriterPtr underlying_writer;
@@ -39,9 +39,7 @@ namespace ringbuffer
     std::deque<PendingMessage> pending;
 
   public:
-    PendingQueueWriter(const WriterPtr& writer) :
-      underlying_writer(writer)
-    {}
+    NonBlockingWriter(const WriterPtr& writer) : underlying_writer(writer) {}
 
     virtual WriteMarker prepare(
       ringbuffer::Message m,
@@ -174,22 +172,21 @@ namespace ringbuffer
     }
   };
 
-  class PendingQueueFactory : public AbstractWriterFactory
+  class NonBlockingWriterFactory : public AbstractWriterFactory
   {
     AbstractWriterFactory& factory_impl;
 
     // Could be set, but needs custom hash() + operator<, so vector is simpler
-    using WriterSet =
-      std::vector<std::weak_ptr<ringbuffer::PendingQueueWriter>>;
+    using WriterSet = std::vector<std::weak_ptr<ringbuffer::NonBlockingWriter>>;
 
     WriterSet writers_to_outside;
     WriterSet writers_to_inside;
 
-    std::shared_ptr<ringbuffer::PendingQueueWriter> add_writer(
+    std::shared_ptr<ringbuffer::NonBlockingWriter> add_writer(
       const std::shared_ptr<ringbuffer::AbstractWriter>& underlying,
       WriterSet& writers)
     {
-      auto new_writer = std::make_shared<PendingQueueWriter>(underlying);
+      auto new_writer = std::make_shared<NonBlockingWriter>(underlying);
       writers.emplace_back(new_writer);
       return new_writer;
     }
@@ -217,10 +214,11 @@ namespace ringbuffer
     }
 
   public:
-    PendingQueueFactory(AbstractWriterFactory& impl) : factory_impl(impl) {}
+    NonBlockingWriterFactory(AbstractWriterFactory& impl) : factory_impl(impl)
+    {}
 
-    std::shared_ptr<ringbuffer::PendingQueueWriter>
-    create_pending_writer_to_outside()
+    std::shared_ptr<ringbuffer::NonBlockingWriter>
+    create_non_blocking_writer_to_outside()
     {
       return add_writer(
         factory_impl.create_writer_to_outside(), writers_to_outside);
@@ -231,8 +229,8 @@ namespace ringbuffer
       return flush_all(writers_to_outside);
     }
 
-    std::shared_ptr<ringbuffer::PendingQueueWriter>
-    create_pending_writer_to_inside()
+    std::shared_ptr<ringbuffer::NonBlockingWriter>
+    create_non_blocking_writer_to_inside()
     {
       return add_writer(
         factory_impl.create_writer_to_inside(), writers_to_inside);
@@ -246,13 +244,13 @@ namespace ringbuffer
     std::shared_ptr<ringbuffer::AbstractWriter> create_writer_to_outside()
       override
     {
-      return create_pending_writer_to_outside();
+      return create_non_blocking_writer_to_outside();
     }
 
     std::shared_ptr<ringbuffer::AbstractWriter> create_writer_to_inside()
       override
     {
-      return create_pending_writer_to_inside();
+      return create_non_blocking_writer_to_inside();
     }
   };
 }

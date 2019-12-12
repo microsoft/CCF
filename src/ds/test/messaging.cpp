@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "../messaging.h"
 
-#include "../pending_queue.h"
+#include "../nonblocking.h"
 #include "../ringbuffer.h"
 #include "../serialized.h"
 
@@ -478,17 +478,19 @@ TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
   REQUIRE(
     processor_inside.read_n(target_writes, circuit.read_from_outside()) > 0);
 
-  // PendingQueueWriter also avoids deadlock
+  // NonBlockingWriter also avoids deadlock
   ringbuffer::WriterFactory base_factory(circuit);
-  ringbuffer::PendingQueueFactory pending_factory(base_factory);
+  ringbuffer::NonBlockingWriterFactory non_blocking_factory(base_factory);
 
-  auto pending_writer = pending_factory.create_pending_writer_to_inside();
+  auto non_blocking_writer =
+    non_blocking_factory.create_non_blocking_writer_to_inside();
 
   // More than the circuit size can be written, since overflows are queued
   i = 0;
   for (; i < target_writes; ++i)
   {
-    const bool succeeded = pending_writer->try_write(big_message, message_body);
+    const bool succeeded =
+      non_blocking_writer->try_write(big_message, message_body);
     if (!succeeded)
     {
       break;
@@ -507,7 +509,7 @@ TEST_CASE("Deadlock" * doctest::test_suite("messaging"))
     REQUIRE(n_read > 0);
     total_read += n_read;
 
-    if (!pending_writer->try_flush_pending())
+    if (!non_blocking_writer->try_flush_pending())
     {
       break;
     }

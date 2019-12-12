@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "../oversized.h"
 
-#include "../pending_queue.h"
+#include "../nonblocking.h"
 
 #include <algorithm>
 #include <doctest/doctest.h>
@@ -459,7 +459,7 @@ TEST_CASE("Nesting" * doctest::test_suite("oversized"))
   }
 }
 
-TEST_CASE("Pending" * doctest::test_suite("oversized"))
+TEST_CASE("Non-blocking" * doctest::test_suite("oversized"))
 {
   using namespace ringbuffer;
 
@@ -475,10 +475,11 @@ TEST_CASE("Pending" * doctest::test_suite("oversized"))
 
   // ...wrapped in a writer which will queue rather than blocking
   // indefinitely...
-  ringbuffer::PendingQueueFactory pending_factory(basic_factory);
+  ringbuffer::NonBlockingWriterFactory non_blocking_factory(basic_factory);
 
   // ...wrapped in a writer which will split large messages into fragments
-  oversized::WriterFactory oversized_factory(pending_factory, writer_config);
+  oversized::WriterFactory oversized_factory(
+    non_blocking_factory, writer_config);
 
   auto writer = oversized_factory.create_writer_to_inside();
 
@@ -515,7 +516,7 @@ TEST_CASE("Pending" * doctest::test_suite("oversized"))
   // Read them all, by flushing repeatedly
   while (true)
   {
-    const bool done_flushing = pending_factory.flush_all_inbound();
+    const bool done_flushing = non_blocking_factory.flush_all_inbound();
 
     size_t n_read =
       processor_inside.read_n(num_messages, circuit.read_from_outside());
