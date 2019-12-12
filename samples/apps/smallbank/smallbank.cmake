@@ -30,7 +30,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
     CLIENT_BIN ./small_bank_client
     VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
-    LABEL Small_Bank_ClientCpp
+    LABEL "Small_Bank_ClientCpp${TESTS_SUFFIX}"
     ADDITIONAL_ARGS
       --transactions ${SMALL_BANK_ITERATIONS}
       --max-writes-ahead 1000
@@ -57,7 +57,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
       CLIENT_BIN ./small_bank_client
       VERIFICATION_FILE ${SMALL_BANK_SIGNED_VERIFICATION_FILE}
-      LABEL Small_Bank_Client_Sigs
+      LABEL "Small_Bank_Client_Sigs${TESTS_SUFFIX}"
       ADDITIONAL_ARGS
         --transactions ${SMALL_BANK_SIGNED_ITERATIONS}
         --max-writes-ahead 1000
@@ -71,7 +71,7 @@ if(BUILD_TESTS)
       NAME small_bank_sigs_forwarding
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
       CLIENT_BIN ./small_bank_client
-      LABEL Small_Bank_ClientSigs_Forwarding
+      LABEL "Small_Bank_ClientSigs_Forwarding${TESTS_SUFFIX}"
       ADDITIONAL_ARGS
         --transactions ${SMALL_BANK_SIGNED_ITERATIONS}
         --max-writes-ahead 1000

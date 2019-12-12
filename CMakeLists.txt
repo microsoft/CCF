@@ -45,6 +45,12 @@ add_enclave_lib(loggingenc
     src/apps/logging/stub_for_code_signing.cpp
 )
 
+if ($ENV{TESTS_SUFFIX})
+  set(TESTS_SUFFIX "_$ENV{TESTS_SUFFIX}")
+else()
+  set(TESTS_SUFFIX "")
+endif()
+
 if(BUILD_TESTS)
   # Tests
   enable_testing()

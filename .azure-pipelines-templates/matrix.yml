@@ -88,7 +88,7 @@ jobs:
         env: ${{ parameters.env.SGX }}
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
         ctest_filter: '${{ parameters.test.perf.ctest_args }}'
-        suffix: 'Perf'
+        suffix: '${{ consensus }}_Perf'
         depends_on: ${{ parameters.static_check_job_name }}
 
   # HTTP build (behind a toggle for now), only on CFT
