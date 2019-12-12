@@ -307,7 +307,8 @@ int main(int argc, char** argv)
   });
 
   // handle outbound messages from the enclave
-  asynchost::HandleRingbuffer handle_ringbuffer(bp, circuit.read_from_inside());
+  asynchost::HandleRingbuffer handle_ringbuffer(
+    bp, circuit.read_from_inside(), queuing_factory);
 
   // graceful shutdown on sigterm
   asynchost::Sigterm sigterm(writer_factory);

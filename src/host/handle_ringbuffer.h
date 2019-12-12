@@ -24,15 +24,19 @@ namespace asynchost
 
     messaging::BufferProcessor& bp;
     ringbuffer::Reader& r;
+    ringbuffer::PendingQueueFactory& pqf;
 
     // Sealed secrets file path
     std::string sealed_secrets_file;
 
   public:
     HandleRingbufferImpl(
-      messaging::BufferProcessor& bp, ringbuffer::Reader& r) :
+      messaging::BufferProcessor& bp,
+      ringbuffer::Reader& r,
+      ringbuffer::PendingQueueFactory& pqf) :
       bp(bp),
-      r(r)
+      r(r),
+      pqf(pqf)
     {
       // Register message handler for log message from enclave
       DISPATCHER_SET_MESSAGE_HANDLER(
@@ -101,10 +105,16 @@ namespace asynchost
 
     void every()
     {
-      // This flushes the enclave to host ringbuffer on each libuv loop
-      // iteration.
+      // On each uv loop iteration...
+
+      // ...read (and process) all outbound ringbuffer messages...
       while (bp.read_n(max_messages, r) > 0)
+      {
         continue;
+      }
+
+      // ...flush any pending inbound messages...
+      pqf.flush_all_inbound();
     }
   };
 
