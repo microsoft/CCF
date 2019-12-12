@@ -24,7 +24,7 @@ namespace asynchost
 
     messaging::BufferProcessor& bp;
     ringbuffer::Reader& r;
-    ringbuffer::NonBlockingWriterFactory& pqf;
+    ringbuffer::NonBlockingWriterFactory& nbwf;
 
     // Sealed secrets file path
     std::string sealed_secrets_file;
@@ -33,10 +33,10 @@ namespace asynchost
     HandleRingbufferImpl(
       messaging::BufferProcessor& bp,
       ringbuffer::Reader& r,
-      ringbuffer::NonBlockingWriterFactory& pqf) :
+      ringbuffer::NonBlockingWriterFactory& nbwf) :
       bp(bp),
       r(r),
-      pqf(pqf)
+      nbwf(nbwf)
     {
       // Register message handler for log message from enclave
       DISPATCHER_SET_MESSAGE_HANDLER(
@@ -114,7 +114,7 @@ namespace asynchost
       }
 
       // ...flush any pending inbound messages...
-      pqf.flush_all_inbound();
+      nbwf.flush_all_inbound();
     }
   };
 

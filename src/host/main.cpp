@@ -291,12 +291,12 @@ int main(int argc, char** argv)
   // To prevent deadlock, all blocking writes from the host to the ringbuffer
   // will be queued if the ringbuffer is full
   ringbuffer::WriterFactory base_factory(circuit);
-  ringbuffer::NonBlockingWriterFactory queuing_factory(base_factory);
+  ringbuffer::NonBlockingWriterFactory non_blocking_factory(base_factory);
 
   // Factory for creating writers which will handle writing of large messages
   oversized::WriterConfig writer_config{(size_t)(1 << max_fragment_size),
                                         (size_t)(1 << max_msg_size)};
-  oversized::WriterFactory writer_factory(queuing_factory, writer_config);
+  oversized::WriterFactory writer_factory(non_blocking_factory, writer_config);
 
   // reconstruct oversized messages sent to the host
   oversized::FragmentReconstructor fr(bp.get_dispatcher());
@@ -308,7 +308,7 @@ int main(int argc, char** argv)
 
   // handle outbound messages from the enclave
   asynchost::HandleRingbuffer handle_ringbuffer(
-    bp, circuit.read_from_inside(), queuing_factory);
+    bp, circuit.read_from_inside(), non_blocking_factory);
 
   // graceful shutdown on sigterm
   asynchost::Sigterm sigterm(writer_factory);
