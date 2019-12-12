@@ -115,8 +115,6 @@ namespace enclave
       http_status status = HTTP_STATUS_OK,
       const std::string& content_type = "application/json")
     {
-      // TODO: Create a response builder as well
-
       if (data.empty() && status == HTTP_STATUS_OK)
       {
         status = HTTP_STATUS_NO_CONTENT;
@@ -124,27 +122,12 @@ namespace enclave
 
       if (status == HTTP_STATUS_NO_CONTENT)
       {
-        const auto first_line = fmt::format(
-          "HTTP/1.1 {} {}\r\n"
-          "\r\n",
-          status,
-          http_status_str(status));
-
-        send_raw(std::vector<uint8_t>(first_line.begin(), first_line.end()));
+        send_raw(http::Response(status).build_response_header());
         return;
       }
 
-      auto hdr = fmt::format(
-        "HTTP/1.1 {} {}\r\n"
-        "Content-Type: {}\r\n"
-        "Content-Length: {}\r\n"
-        "\r\n",
-        status,
-        http_status_str(status),
-        content_type,
-        data.size());
-
-      send_buffered(std::vector<uint8_t>(hdr.begin(), hdr.end()));
+      send_buffered(http::Response(status).build_response_header(
+        data.size(), content_type));
       send_buffered(data);
       flush();
     }
@@ -165,10 +148,10 @@ namespace enclave
 
       try
       {
-        // Check if the client requested upgrade to websocket
+        // Check if the client requested upgrade to websocket, and finish
+        // handshake if necessary
         auto upgrade_resp =
           http::WebSocketUpgrader::upgrade_if_necessary(headers);
-        // auto upgrade_resp = ws_upgrader.upgrade_if_necessary();
         if (upgrade_resp.has_value())
         {
           LOG_TRACE_FMT("Upgraded to websocket");
@@ -238,7 +221,6 @@ namespace enclave
         // rpc_ctx.signed_request for a HTTP endpoint.
         auto signed_req = http::HttpSignatureVerifier::parse(
           std::string(http_method_str(verb)), path, query, headers, body);
-        // auto signed_req = http_sig_v.parse();
         if (signed_req.has_value())
         {
           rpc_ctx.signed_request = signed_req;

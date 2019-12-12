@@ -73,23 +73,12 @@ namespace enclave
               "Error constructing {} header", HTTP_HEADER_WEBSOCKET_ACCEPT));
           }
 
-          // TODO: Use response builder instead
-          auto hdr = fmt::format(
-            "HTTP/1.1 {} {}\r\n"
-            "{}: {}\r\n"
-            "{}: {}\r\n"
-            "{}: {}\r\n"
-            "\r\n",
-            HTTP_STATUS_SWITCHING_PROTOCOLS,
-            http_status_str(HTTP_STATUS_SWITCHING_PROTOCOLS),
-            HTTP_HEADER_UPGRADE,
-            UPGRADE_HEADER_WEBSOCKET,
-            HTTP_HEADER_CONNECTION,
-            CONNECTION_HEADER_UPGRADE,
-            HTTP_HEADER_WEBSOCKET_ACCEPT,
-            accept_string.value());
+          auto r = Response(HTTP_STATUS_SWITCHING_PROTOCOLS);
+          r.set_header(HTTP_HEADER_UPGRADE, UPGRADE_HEADER_WEBSOCKET);
+          r.set_header(HTTP_HEADER_CONNECTION, CONNECTION_HEADER_UPGRADE);
+          r.set_header(HTTP_HEADER_WEBSOCKET_ACCEPT, accept_string.value());
 
-          return std::vector<uint8_t>(hdr.begin(), hdr.end());
+          return r.build_response_header();
         }
         else
         {
