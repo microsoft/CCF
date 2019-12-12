@@ -40,7 +40,10 @@ class ClientProxy
   // the state machine, collect replies (and receipts), and send them back to
   // the clients. TODO: add support for sending receipts to clients.
 public:
-  ClientProxy(IMessageReceiveBase& my_replica);
+  ClientProxy(
+    IMessageReceiveBase& my_replica,
+    int min_rtimeout = 2000,
+    int max_rtimeout = 3000);
   // Effects: Creates a new ClientProxy object
 
   using ReplyCallback = std::function<bool(
@@ -100,14 +103,11 @@ private:
   int rtimeout; // Timeout period in msecs
 
   // Maximum retransmission timeout in msecs
-  static const int Max_rtimeout = 10000;
+  int max_rtimeout;
 
   // Minimum retransmission timeout after retransmission
   // in msecs
-  static const int Min_rtimeout = 5000;
-
-  // The retransmit timeouts are high due to issues with retransmission
-  // https://github.com/microsoft/CCF/issues/617
+  int min_rtimeout;
 
   void increase_retransmission_timeout();
   void decrease_retransmission_timeout();
@@ -128,14 +128,17 @@ private:
 };
 
 template <class T, class C>
-ClientProxy<T, C>::ClientProxy(IMessageReceiveBase& my_replica) :
+ClientProxy<T, C>::ClientProxy(
+  IMessageReceiveBase& my_replica, int min_rtimeout_, int max_rtimeout_) :
+  min_rtimeout(min_rtimeout_),
+  max_rtimeout(max_rtimeout_),
   my_replica(my_replica),
   out_reqs(Max_outstanding),
   head(nullptr),
   tail(nullptr),
   n_retrans(0),
-  rtimeout(Max_rtimeout),
-  rtimer(new ITimer(Max_rtimeout, rtimer_handler, this)),
+  rtimeout(max_rtimeout_),
+  rtimer(new ITimer(max_rtimeout, rtimer_handler, this)),
   primary_only_execution(my_replica.f() == 0)
 {}
 
@@ -346,9 +349,9 @@ template <class T, class C>
 void ClientProxy<T, C>::increase_retransmission_timeout()
 {
   rtimeout = rtimeout * 2;
-  if (rtimeout > Max_rtimeout)
+  if (rtimeout > max_rtimeout)
   {
-    rtimeout = Max_rtimeout;
+    rtimeout = max_rtimeout;
   }
   rtimer->adjust(rtimeout);
 }
@@ -357,9 +360,9 @@ template <class T, class C>
 void ClientProxy<T, C>::decrease_retransmission_timeout()
 {
   rtimeout = rtimeout - 100;
-  if (rtimeout < Min_rtimeout)
+  if (rtimeout < min_rtimeout)
   {
-    rtimeout = Min_rtimeout;
+    rtimeout = min_rtimeout;
   }
   rtimer->adjust(rtimeout);
 }
