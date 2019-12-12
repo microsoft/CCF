@@ -461,35 +461,44 @@ TEST_CASE("Nesting" * doctest::test_suite("oversized"))
 
 TEST_CASE("Pending" * doctest::test_suite("oversized"))
 {
-  // using namespace ringbuffer;
+  using namespace ringbuffer;
 
-  // constexpr auto circuit_size = 1 << 8;
-  // Circuit circuit(circuit_size);
+  constexpr auto circuit_size = 1 << 8;
+  Circuit circuit(circuit_size);
 
-  // // Create factory for oversized writers
-  // constexpr auto max_fragment_size = circuit_size / 5;
-  // constexpr auto max_total_size = circuit_size * 4;
-  // oversized::WriterConfig writer_config{max_fragment_size, max_total_size};
-  // oversized::WriterFactory oversized_factory(&circuit, writer_config);
+  constexpr auto max_fragment_size = circuit_size / 5;
+  constexpr auto max_total_size = circuit_size * 4;
+  oversized::WriterConfig writer_config{max_fragment_size, max_total_size};
 
-  // // Wrap this in a pending factory
-  // PendingQueueFactory pending_factory(oversized_factory);
-  // auto writer = pending_factory.create_pending_writer_to_inside();
+  // We want a basic writer...
+  ringbuffer::WriterFactory basic_factory(circuit);
 
-  // // Build some large messages
-  // constexpr auto num_messages = 10;
-  // std::vector<std::vector<uint8_t>> messages;
-  // for (size_t i = 0; i < num_messages; ++i)
-  // {
-  //   auto& message = messages.emplace_back(max_total_size);
-  //   for (auto& n : message)
-  //   {
-  //     n = rand();
-  //   }
-  // }
+  // ...wrapped in a writer which will queue rather than blocking
+  // indefinitely...
+  ringbuffer::PendingQueueFactory pending_factory(basic_factory);
 
-  // for (const auto& message : messages)
-  // {
-  //   writer->write(random_contents, message);
-  // }
+  // ...wrapped in a writer which will split large messages into fragments
+  oversized::WriterFactory oversized_factory(pending_factory, writer_config);
+
+  auto writer = oversized_factory.create_writer_to_inside();
+
+  // Build some large messages
+  constexpr auto num_messages = 10;
+  std::vector<std::vector<uint8_t>> messages;
+  for (size_t i = 0; i < num_messages; ++i)
+  {
+    auto& message = messages.emplace_back(max_total_size);
+    for (auto& n : message)
+    {
+      n = rand();
+    }
+  }
+
+  // Write them all
+  for (const auto& message : messages)
+  {
+    writer->write(random_contents, message);
+  }
+
+  REQUIRE(true);
 }
