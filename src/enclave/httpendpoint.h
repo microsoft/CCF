@@ -154,8 +154,8 @@ namespace enclave
         if (upgrade_resp.has_value())
         {
           LOG_TRACE_FMT("Upgraded to websocket");
-          send_raw(upgrade_resp.value());
           is_websocket = true;
+          send_raw(upgrade_resp.value());
           return;
         }
 
