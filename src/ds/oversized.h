@@ -108,9 +108,10 @@ namespace oversized
   };
 #pragma pack(pop)
 
-  class Writer : public ringbuffer::Writer
+  class Writer : public ringbuffer::AbstractWriter
   {
-    using Base = ringbuffer::Writer;
+  private:
+    std::unique_ptr<AbstractWriter> underlying_writer;
 
     const size_t max_fragment_size;
     const size_t max_total_size;
@@ -127,8 +128,8 @@ namespace oversized
     std::optional<FragmentProgress> fragment_progress;
 
   public:
-    Writer(const ringbuffer::Reader& r, size_t f, size_t t = -1) :
-      Base(r),
+    Writer(std::unique_ptr<AbstractWriter>&& writer, size_t f, size_t t = -1) :
+      underlying_writer(std::move(writer)),
       max_fragment_size(f),
       max_total_size(t),
       fragment_progress({})
@@ -160,10 +161,10 @@ namespace oversized
         throw std::logic_error("This Writer is already preparing a message");
       }
 
-      // Small enough to be handled directly by Base
+      // Small enough to be handled directly by underlying writer
       if (total_size <= max_fragment_size)
       {
-        return Base::prepare(m, total_size, wait, identifier);
+        return underlying_writer->prepare(m, total_size, wait, identifier);
       }
 
       if (total_size > max_total_size)
@@ -180,14 +181,15 @@ namespace oversized
       {
         throw std::logic_error(fmt::format(
           "Requested write of {} bytes will be split into multiple fragments: "
-          "caller must wait for these to complete",
+          "caller must wait for these to complete as fragment writes will be "
+          "blocking",
           total_size));
       }
 
       // Prepare space for the first fragment, getting an id for all related
       // fragments
       size_t outer_id;
-      const auto marker = Base::prepare(
+      const auto marker = underlying_writer->prepare(
         OversizedMessage::fragment, max_fragment_size, wait, &outer_id);
       if (!marker.has_value())
       {
@@ -196,8 +198,8 @@ namespace oversized
 
       // Write the header
       InitialFragmentHeader header = {outer_id, m, total_size};
-      auto next =
-        Base::write_bytes(marker, (const uint8_t*)&header, sizeof(header));
+      auto next = underlying_writer->write_bytes(
+        marker, (const uint8_t*)&header, sizeof(header));
 
       // Track progress in current oversized message
       fragment_progress = {
@@ -225,15 +227,15 @@ namespace oversized
         }
 
         // Finish the final fragment message
-        Base::finish(fragment_progress->marker);
+        underlying_writer->finish(fragment_progress->marker);
 
         // Clean up, ready for next call to prepare
         fragment_progress = {};
       }
       else
       {
-        // We were writing a small message - get Base to finish it
-        Base::finish(marker);
+        // We were writing a small message - get underlying writer to finish it
+        underlying_writer->finish(marker);
       }
     }
 
@@ -248,12 +250,12 @@ namespace oversized
       if (!fragment_progress.has_value())
       {
         // Writing a small message - nothing to do here
-        return Base::write_bytes(marker, bytes, size);
+        return underlying_writer->write_bytes(marker, bytes, size);
       }
 
       // Append as much as possible into the current prepared buffer
       auto write_size = std::min(size, fragment_progress->remainder);
-      auto next = Base::write_bytes(marker, bytes, write_size);
+      auto next = underlying_writer->write_bytes(marker, bytes, write_size);
       bytes += write_size;
       size -= write_size;
 
@@ -263,7 +265,8 @@ namespace oversized
         // Prepare a new fragment
         const auto id = fragment_progress->identifier;
         const auto frag_size = std::min(size + sizeof(id), max_fragment_size);
-        next = Base::prepare(OversizedMessage::fragment, frag_size, true);
+        next = underlying_writer->prepare(
+          OversizedMessage::fragment, frag_size, true);
 
         if (!next.has_value())
         {
@@ -282,7 +285,7 @@ namespace oversized
         }
 
         // Finish the previous fragment
-        Base::finish(fragment_progress->marker);
+        underlying_writer->finish(fragment_progress->marker);
 
         // Update progress tracking to reference the new fragment
         write_size = frag_size - sizeof(id);
@@ -290,10 +293,11 @@ namespace oversized
         fragment_progress->remainder = write_size;
 
         // Write the id of the oversized message
-        next = Base::write_bytes(next, (const uint8_t*)&id, sizeof(id));
+        next =
+          underlying_writer->write_bytes(next, (const uint8_t*)&id, sizeof(id));
 
         // Write some fragment payload
-        next = Base::write_bytes(next, bytes, write_size);
+        next = underlying_writer->write_bytes(next, bytes, write_size);
         bytes += write_size;
         size -= write_size;
         fragment_progress->remainder -= write_size;
@@ -313,32 +317,42 @@ namespace oversized
   // for every Writer
   class WriterFactory : public ringbuffer::AbstractWriterFactory
   {
-    ringbuffer::Circuit* raw_circuit;
+    AbstractWriterFactory& factory_impl;
 
     const WriterConfig config;
 
   public:
-    WriterFactory(ringbuffer::Circuit* circuit_, const WriterConfig& config_) :
-      raw_circuit(circuit_),
+    WriterFactory(AbstractWriterFactory& impl, const WriterConfig& config_) :
+      factory_impl(impl),
       config(config_)
     {}
+
+    std::unique_ptr<oversized::Writer> create_oversized_writer_to_outside()
+    {
+      return std::make_unique<oversized::Writer>(
+        factory_impl.create_writer_to_outside(),
+        config.max_fragment_size,
+        config.max_total_size);
+    }
+
+    std::unique_ptr<oversized::Writer> create_oversized_writer_to_inside()
+    {
+      return std::make_unique<oversized::Writer>(
+        factory_impl.create_writer_to_inside(),
+        config.max_fragment_size,
+        config.max_total_size);
+    }
 
     std::unique_ptr<ringbuffer::AbstractWriter> create_writer_to_outside()
       override
     {
-      return std::make_unique<oversized::Writer>(
-        raw_circuit->read_from_inside(),
-        config.max_fragment_size,
-        config.max_total_size);
+      return create_oversized_writer_to_outside();
     }
 
     std::unique_ptr<ringbuffer::AbstractWriter> create_writer_to_inside()
       override
     {
-      return std::make_unique<oversized::Writer>(
-        raw_circuit->read_from_outside(),
-        config.max_fragment_size,
-        config.max_total_size);
+      return create_oversized_writer_to_inside();
     }
   };
 }

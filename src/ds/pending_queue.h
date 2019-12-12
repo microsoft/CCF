@@ -17,7 +17,7 @@ namespace ringbuffer
   class PendingQueueWriter : public AbstractWriter
   {
   private:
-    std::unique_ptr<AbstractWriter> writer_impl;
+    std::unique_ptr<AbstractWriter> underlying_writer;
 
     struct PendingMessage
     {
@@ -38,7 +38,7 @@ namespace ringbuffer
 
   public:
     PendingQueueWriter(std::unique_ptr<AbstractWriter>&& writer) :
-      writer_impl(std::move(writer))
+      underlying_writer(std::move(writer))
     {}
 
     virtual WriteMarker prepare(
@@ -51,7 +51,7 @@ namespace ringbuffer
       {
         // No currently pending messages - try to write to underlying buffer
         const auto marker =
-          writer_impl->prepare(m, total_size, false, identifier);
+          underlying_writer->prepare(m, total_size, false, identifier);
 
         if (marker.has_value())
         {
@@ -89,7 +89,7 @@ namespace ringbuffer
         }
       }
 
-      writer_impl->finish(marker);
+      underlying_writer->finish(marker);
     }
 
     virtual WriteMarker write_bytes(
@@ -133,7 +133,7 @@ namespace ringbuffer
 
       // Otherwise, this was successfully prepared on the underlying
       // implementation - delegate to it for remaining writes
-      return writer_impl->write_bytes(marker, bytes, size);
+      return underlying_writer->write_bytes(marker, bytes, size);
     }
 
     // Returns true if flush completed and there are no more pending messages.
@@ -151,8 +151,8 @@ namespace ringbuffer
         }
 
         // Try to write this pending message to the underlying writer
-        const auto marker =
-          writer_impl->prepare(next.m, next.buffer.size(), false, nullptr);
+        const auto marker = underlying_writer->prepare(
+          next.m, next.buffer.size(), false, nullptr);
 
         if (!marker.has_value())
         {
@@ -160,9 +160,9 @@ namespace ringbuffer
           break;
         }
 
-        writer_impl->write_bytes(
+        underlying_writer->write_bytes(
           marker, next.buffer.data(), next.buffer.size());
-        writer_impl->finish(marker);
+        underlying_writer->finish(marker);
 
         // This pending message was successfully written - pop it and continue
         pending.pop_front();
@@ -177,7 +177,7 @@ namespace ringbuffer
     AbstractWriterFactory& factory_impl;
 
   public:
-    PendingQueueFactory(AbstractWriterFactory& factory) : factory_impl(factory)
+    PendingQueueFactory(AbstractWriterFactory& impl) : factory_impl(impl)
     {}
 
     std::unique_ptr<ringbuffer::PendingQueueWriter>
