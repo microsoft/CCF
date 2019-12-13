@@ -434,6 +434,7 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS
         --package libloggingenc
         --scenario-file ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+        --max-writes-ahead 1000
         --repetitions 1000
     )
   endif()

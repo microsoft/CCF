@@ -69,6 +69,7 @@ If the network has not yet been opened by members (see :ref:`Opening the Network
 If the network has already been opened to users, members need to trust the joining node before it can become part of the network (see :ref:`Trusting a New Node`).
 
 .. note:: When starting up the network or when joining an existing network, the network secrets required to decrypt the ledger are sealed and written to a file so that the network can later be recovered. See :ref:`Catastrophic Recovery` for more details on how to recover a crashed network.
+.. note:: CCF nodes can be started by using IP Addresses (both IPv4 and IPV6 are supported) or by specifying domain names. If domain names are to be used then ``--domain=<node domain name>`` should be passed to the node at startup. Once a DNS has been setup it will then be possible to connect to the node over TLS by using the node's domain name.
 
 Opening a Network to Users
 --------------------------

@@ -3,7 +3,9 @@
 #define PICOBENCH_IMPLEMENT
 #include "../history.h"
 
+#define FMT_HEADER_ONLY
 #include <algorithm>
+#include <fmt/format.h>
 #include <picobench/picobench.hpp>
 #include <random>
 
@@ -153,6 +155,52 @@ static void append_get_receipt_verify_v(picobench::state& s)
   s.stop_timer();
 }
 
+static void serialise_deserialise(picobench::state& s)
+{
+  ccf::MerkleTreeHistory t;
+  std::random_device r;
+
+  for (size_t i = 0; i < s.iterations(); ++i)
+  {
+    crypto::Sha256Hash h;
+    for (size_t j = 0; j < crypto::Sha256Hash::SIZE; j++)
+      h.h[j] = r();
+    t.append(h);
+  }
+
+  s.start_timer();
+  auto buf = t.serialise();
+  auto ds = ccf::MerkleTreeHistory(buf);
+  s.stop_timer();
+}
+
+static void serialised_size(picobench::state& s)
+{
+  ccf::MerkleTreeHistory t;
+  std::random_device r;
+
+  for (size_t i = 0; i < s.iterations(); ++i)
+  {
+    crypto::Sha256Hash h;
+    for (size_t j = 0; j < crypto::Sha256Hash::SIZE; j++)
+      h.h[j] = r();
+    t.append(h);
+  }
+
+  s.start_timer();
+  auto buf = t.serialise();
+  s.stop_timer();
+  auto bph = ((float)buf.size()) / s.iterations();
+  std::cout << fmt::format(
+                 "mt_serialize n={} : {} bytes, {} bytes/hash, {}% overhead",
+                 s.iterations(),
+                 buf.size(),
+                 bph,
+                 (bph - crypto::Sha256Hash::SIZE) * 100 /
+                   crypto::Sha256Hash::SIZE)
+            << std::endl;
+}
+
 const std::vector<int> sizes = {1000, 10000};
 
 PICOBENCH_SUITE("append_retract");
@@ -163,6 +211,15 @@ PICOBENCH_SUITE("append_get_receipt_verify");
 PICOBENCH(append_get_receipt_verify).iterations(sizes).samples(10).baseline();
 PICOBENCH_SUITE("append_get_receipt_verify_v");
 PICOBENCH(append_get_receipt_verify_v).iterations(sizes).samples(10).baseline();
+PICOBENCH_SUITE("serialise_deserialise");
+PICOBENCH(serialise_deserialise).iterations(sizes).samples(10).baseline();
+// Checks the size of serialised tree, timing results are irrelevant here
+// and since we run a single sample probably not that accurate anyway
+PICOBENCH_SUITE("serialised_size");
+PICOBENCH(serialised_size)
+  .iterations({1, 2, 10, 100, 1000, 10000})
+  .samples(1)
+  .baseline();
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char* argv[])
