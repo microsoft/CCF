@@ -16,7 +16,7 @@ namespace enclave
     HandleDataCallback handle_data_cb;
 
     size_t session_id;
-    std::unique_ptr<ringbuffer::AbstractWriter> to_host;
+    ringbuffer::WriterPtr to_host;
 
   public:
     ClientEndpoint(

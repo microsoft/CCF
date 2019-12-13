@@ -171,7 +171,7 @@ namespace asynchost
     std::unordered_map<size_t, TCP> incoming;
     std::unordered_map<ccf::NodeId, TCP> associated;
     size_t next_id = 1;
-    std::unique_ptr<ringbuffer::AbstractWriter> to_enclave;
+    ringbuffer::WriterPtr to_enclave;
 
   public:
     NodeConnections(

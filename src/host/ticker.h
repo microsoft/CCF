@@ -12,7 +12,7 @@ namespace asynchost
   class TickerImpl
   {
   private:
-    std::unique_ptr<ringbuffer::AbstractWriter> to_enclave;
+    ringbuffer::WriterPtr to_enclave;
     std::chrono::time_point<std::chrono::system_clock> last;
 
   public:
