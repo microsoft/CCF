@@ -108,7 +108,6 @@ namespace enclave
             http_errno_description(err)));
         }
 
-        // TODO: check for http->upgrade to support websockets
         return parsed;
       }
 
