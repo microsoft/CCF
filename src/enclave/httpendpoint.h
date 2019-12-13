@@ -7,6 +7,7 @@
 #include "httpparser.h"
 #include "httpsig.h"
 #include "rpcmap.h"
+#include "wsupgrade.h"
 
 namespace enclave
 {
@@ -14,6 +15,7 @@ namespace enclave
   {
   protected:
     http::Parser p;
+    bool is_websocket = false;
 
   public:
     HTTPEndpoint(
@@ -31,32 +33,44 @@ namespace enclave
 
       LOG_TRACE_FMT("recv called with {} bytes", size);
 
-      while (true)
+      if (!is_websocket)
       {
-        auto buf = read(4096, false);
-        if (buf.size() == 0)
+        while (true)
         {
-          return;
-        }
-
-        LOG_TRACE_FMT(
-          "Going to parse {} bytes: \n[{}]",
-          buf.size(),
-          std::string(buf.begin(), buf.end()));
-
-        try
-        {
-          if (p.execute(buf.data(), buf.size()) == 0)
+          auto buf = read(4096, false);
+          if (buf.size() == 0)
           {
-            LOG_FAIL_FMT("Failed to parse request");
+            return;
+          }
+
+          LOG_TRACE_FMT(
+            "Going to parse {} bytes: \n[{}]",
+            buf.size(),
+            std::string(buf.begin(), buf.end()));
+
+          try
+          {
+            if (p.execute(buf.data(), buf.size()) == 0)
+            {
+              LOG_FAIL_FMT("Failed to parse request");
+              return;
+            }
+          }
+          catch (const std::exception& e)
+          {
+            LOG_FAIL_FMT("Error parsing request: {}", e.what());
             return;
           }
         }
-        catch (const std::exception& e)
-        {
-          LOG_FAIL_FMT("Error parsing request: {}", e.what());
-          return;
-        }
+      }
+      else
+      {
+        // TODO: For now, close the connection if it has been upgraded to
+        // websocket
+        LOG_FAIL_FMT(
+          "Receiving data after endpoint has been upgraded to websocket.");
+        LOG_FAIL_FMT("Closing connection.");
+        close();
       }
     }
   };
@@ -107,26 +121,12 @@ namespace enclave
 
       if (status == HTTP_STATUS_NO_CONTENT)
       {
-        const auto first_line = fmt::format(
-          "HTTP/1.1 {} {}\r\n"
-          "\r\n",
-          status,
-          http_status_str(status));
-
-        send_raw(std::vector<uint8_t>(first_line.begin(), first_line.end()));
+        send_raw(http::Response(status).build_response_header());
         return;
       }
 
-      auto hdr = fmt::format(
-        "HTTP/1.1 {} {}\r\n"
-        "Content-Type: {}\r\n"
-        "Content-Length: {}\r\n"
-        "\r\n",
-        status,
-        http_status_str(status),
-        content_type,
-        data.size());
-      send_buffered(std::vector<uint8_t>(hdr.begin(), hdr.end()));
+      send_buffered(http::Response(status).build_response_header(
+        data.size(), content_type));
       send_buffered(data);
       flush();
     }
@@ -147,6 +147,18 @@ namespace enclave
 
       try
       {
+        // Check if the client requested upgrade to websocket, and complete
+        // handshake if necessary
+        auto upgrade_resp =
+          http::WebSocketUpgrader::upgrade_if_necessary(headers);
+        if (upgrade_resp.has_value())
+        {
+          LOG_TRACE_FMT("Upgraded to websocket");
+          is_websocket = true;
+          send_raw(upgrade_resp.value());
+          return;
+        }
+
         const auto first_slash = path.find_first_of('/');
         const auto second_slash = path.find_first_of('/', first_slash + 1);
 
@@ -206,9 +218,8 @@ namespace enclave
 
         // TODO: For now, set this here as parse_rpc_context() resets
         // rpc_ctx.signed_request for a HTTP endpoint.
-        auto http_sig_v = http::HttpSignatureVerifier(
+        auto signed_req = http::HttpSignatureVerifier::parse(
           std::string(http_method_str(verb)), path, query, headers, body);
-        auto signed_req = http_sig_v.parse();
         if (signed_req.has_value())
         {
           rpc_ctx.signed_request = signed_req;
