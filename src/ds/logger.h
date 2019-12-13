@@ -231,9 +231,9 @@ namespace logger
       return the_msg;
     }
 
-    static inline std::unique_ptr<ringbuffer::AbstractWriter>& writer()
+    static inline ringbuffer::WriterPtr& writer()
     {
-      static std::unique_ptr<ringbuffer::AbstractWriter> the_writer;
+      static ringbuffer::WriterPtr the_writer;
       return the_writer;
     }
 

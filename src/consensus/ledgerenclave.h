@@ -17,7 +17,7 @@ namespace consensus
     static constexpr size_t FRAME_SIZE = sizeof(uint32_t);
 
   private:
-    std::unique_ptr<ringbuffer::AbstractWriter> to_host;
+    ringbuffer::WriterPtr to_host;
 
   public:
     LedgerEnclave(ringbuffer::AbstractWriterFactory& writer_factory_) :
