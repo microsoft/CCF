@@ -16,6 +16,7 @@ jobs:
       parameters:
         ctest_filter: ${{ parameters.ctest_filter }}
         suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }} ${{ parameters.protocol }} tests'
+        suite_label_suffix: '${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.suffix }}_${{ parameters.protocol }}'
     - ${{ if and(eq(parameters.target, 'NoSGX'), eq(parameters.suffix, '')) }}:
       - template: coverage.yml
         parameters:

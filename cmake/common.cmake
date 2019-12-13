@@ -705,17 +705,9 @@ function(add_perf_test)
   endif()
 
   if(PARSED_ARGS_LABEL)
-    set(LABEL_ARG --label ${PARSED_ARGS_LABEL})
-
-    if(PBFT)
-      set(LABEL_ARG ${LABEL_ARG}_PBFT)
-    endif()
-
-    if(HTTP)
-      set(LABEL_ARG ${LABEL_ARG}_HTTP)
-    endif()
+    set(LABEL_ARG "--label ${PARSED_ARGS_LABEL}_${TESTS_SUFFIX}")
   else()
-    unset(LABEL_ARG)
+    set(LABEL_ARG "--label ${PARSED_ARGS_NAME}_${TESTS_SUFFIX}")
   endif()
 
   add_test(

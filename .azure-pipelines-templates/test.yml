@@ -7,7 +7,7 @@ steps:
     ./tests.sh -VV --timeout 240 --no-compress-output -T Test ${{ parameters.ctest_filter }}
   env:
     METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
-    TESTS_SUFFIX: ${{ parameters.suite_name_suffix }}
+    TESTS_SUFFIX: ${{ parameters.suite_label_suffix }}
   displayName: CTest
   workingDirectory: build
 
