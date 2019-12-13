@@ -267,9 +267,6 @@ class Network:
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(1, primary, new_node.node_id)
-                if os.getenv("HTTP"):
-                    LOG.warning("Sleeping 3 seconds before continuing (HTTP)...")
-                    time.sleep(3)
             if args.consensus != "pbft":
                 new_node.wait_for_node_to_join()
         except (ValueError, TimeoutError):
