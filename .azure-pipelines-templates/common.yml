@@ -15,12 +15,12 @@ jobs:
     - template: test.yml
       parameters:
         ctest_filter: ${{ parameters.ctest_filter }}
-        suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }} tests'
+        suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }} ${{ parameters.protocol }} tests'
     - ${{ if and(eq(parameters.target, 'NoSGX'), eq(parameters.suffix, '')) }}:
       - template: coverage.yml
         parameters:
           consensus: ${{ parameters.consensus }}
-    - ${{ if and(eq(parameters.suffix, 'Perf'), eq(parameters.consensus, 'CFT')) }}:
+    - ${{ if eq(parameters.suffix, 'Perf') }}:
       - template: push_perf_data.yml
         parameters:
           consensus: ${{ parameters.consensus }}
