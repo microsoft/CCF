@@ -42,7 +42,10 @@ parameters:
     SGX:
       ctest_args: '-LE "benchmark|perf"'
     perf:
-      ctest_args: '-L "benchmark|perf"'
+      CFT:
+        ctest_args: '-L "benchmark|perf"'
+      BFT:
+        ctest_args: '-L "perf"'
     san:
       ctest_args: '-LE "benchmark|perf|suite"'
 
@@ -94,6 +97,6 @@ jobs:
         protocol: FTCP
         env: ${{ parameters.env.SGX }}
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-        ctest_filter: '${{ parameters.test.perf.ctest_args }}'
-        suffix: '${{ consensus }}_Perf'
+        ctest_filter: '${{ parameters.test.perf[consensus].ctest_args }}'
+        suffix: 'Perf'
         depends_on: ${{ parameters.static_check_job_name }}
