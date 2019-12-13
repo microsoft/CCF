@@ -100,9 +100,20 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Temporary directory where nodes store their logs, ledgers, quotes, etc.",
         default=infra.path.default_workspace(),
     )
+
     default_label = os.path.splitext(os.path.basename(sys.argv[0]))[0]
+
+    class Label(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string=None):
+            setattr(
+                namespace, self.dest, "{}_{}".format(values, os.getenv("TESTS_SUFFIX"))
+            )
+
     parser.add_argument(
-        "--label", help="Unique identifier for the test", default=default_label
+        "--label",
+        help="Unique identifier for the test",
+        default=default_label,
+        action=Label,
     )
     parser.add_argument(
         "--enforce-reqs",

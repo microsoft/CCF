@@ -7,12 +7,6 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 
 project(ccf C CXX)
 
-if ($ENV{TESTS_SUFFIX})
-  set(TESTS_SUFFIX "_$ENV{TESTS_SUFFIX}")
-else()
-  set(TESTS_SUFFIX "")
-endif()
-
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
 option(BUILD_TESTS "Build tests" ON)
