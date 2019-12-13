@@ -1,6 +1,6 @@
 jobs:
-- job: BuildAndTest_${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.suffix }}
-  displayName: 'Build and Test ${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }}'
+- job: BuildAndTest_${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.suffix }}_${{ parameters.protocol }}
+  displayName: 'Build and Test ${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }} ${{ parameters.protocol }}'
   dependsOn: ${{ parameters.depends_on }}
 
   ${{ insert }}: ${{ parameters.env }}
