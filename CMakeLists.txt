@@ -170,7 +170,7 @@ if(BUILD_TESTS)
     endif()
 
     add_unit_test(luageneric_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/luageneric_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/test/luageneric_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/luageneric.cpp)
     target_include_directories(luageneric_test PRIVATE
       ${LUA_DIR})
