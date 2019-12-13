@@ -7,13 +7,18 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 
 project(ccf C CXX)
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
+if ($ENV{TESTS_SUFFIX})
+  set(TESTS_SUFFIX "_$ENV{TESTS_SUFFIX}")
+else()
+  set(TESTS_SUFFIX "")
+endif()
 
-set(ENV{BETTER_EXCEPTIONS} 1)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
+# TODO: remove once FTCP support is disabled
 # MemberClient executable
 add_executable(memberclient src/clients/memberclient.cpp)
 use_client_mbedtls(memberclient)
@@ -26,6 +31,7 @@ target_link_libraries(memberclient PRIVATE
 
 add_dependencies(memberclient flatbuffers)
 
+# TODO: remove once FTCP support is disabled
 # Logging Client executable
 add_executable(logging_client src/clients/logging_client.cpp)
 use_client_mbedtls(logging_client)
@@ -42,15 +48,9 @@ add_enclave_lib(loggingenc
     src/apps/logging/stub_for_code_signing.cpp
 )
 
-if ($ENV{TESTS_SUFFIX})
-  set(TESTS_SUFFIX "_$ENV{TESTS_SUFFIX}")
-else()
-  set(TESTS_SUFFIX "")
-endif()
-
 if(BUILD_TESTS)
-  # Tests
   enable_testing()
+  set(ENV{BETTER_EXCEPTIONS} 1)
 
   # Unit tests
   add_unit_test(map_test
@@ -59,7 +59,7 @@ if(BUILD_TESTS)
   add_unit_test(json_schema
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp)
 
-    add_unit_test(logger_json_test
+  add_unit_test(logger_json_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/logger_json_test.cpp)
 
   add_unit_test(kv_test
@@ -189,43 +189,6 @@ if(BUILD_TESTS)
     ${LUA_DIR})
   target_link_libraries(lua_test PRIVATE
     lua.host)
-
-  ## Picobench wrapper
-  function(add_picobench name)
-    cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS
-      ""
-      ""
-      "SRCS;INCLUDE_DIRS;LINK_LIBS"
-    )
-
-    add_executable(${name}
-      ${PARSED_ARGS_SRCS}
-    )
-
-    target_include_directories(${name} PRIVATE
-      src
-      ${PARSED_ARGS_INCLUDE_DIRS}
-    )
-
-    add_dependencies(${name} flatbuffers)
-
-    target_link_libraries(${name} PRIVATE
-      ${CMAKE_THREAD_LIBS_INIT}
-      ${PARSED_ARGS_LINK_LIBS}
-    )
-
-    # -Wall -Werror catches a number of warnings in picobench
-    target_include_directories(${name} SYSTEM PRIVATE 3rdparty)
-
-    add_test(
-      NAME ${name}
-      COMMAND bash -c "$<TARGET_FILE:${name}> --samples=1000 --out-fmt=csv --output=${name}.csv && cat ${name}.csv"
-    )
-
-    use_client_mbedtls(${name})
-
-    set_property(TEST ${name} PROPERTY LABELS benchmark)
-  endfunction()
 
   ## Picobench benchmarks
   add_picobench(map_bench
