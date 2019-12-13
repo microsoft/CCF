@@ -411,7 +411,7 @@ namespace client
         const auto it = expected.find("randomise");
         if (it != expected.end())
         {
-          const auto expected_randomise = it->get<bool>();
+          expected_randomise = it->get<bool>();
         }
 
         if (expected_randomise != randomise)
