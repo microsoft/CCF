@@ -12,7 +12,7 @@ namespace asynchost
   class SigtermImpl
   {
   private:
-    std::unique_ptr<ringbuffer::AbstractWriter> to_enclave;
+    ringbuffer::WriterPtr to_enclave;
 
   public:
     SigtermImpl(ringbuffer::AbstractWriterFactory& writer_factory) :

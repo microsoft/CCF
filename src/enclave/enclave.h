@@ -24,6 +24,7 @@ namespace enclave
   {
   private:
     ringbuffer::Circuit* circuit;
+    ringbuffer::WriterFactory basic_writer_factory;
     oversized::WriterFactory writer_factory;
     ccf::NetworkState network;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
@@ -45,7 +46,8 @@ namespace enclave
       const ConsensusType& consensus_type_,
       const raft::Config& raft_config) :
       circuit(enclave_config->circuit),
-      writer_factory(circuit, enclave_config->writer_config),
+      basic_writer_factory(*circuit),
+      writer_factory(basic_writer_factory, enclave_config->writer_config),
       network(consensus_type_),
       n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
       notifier(writer_factory),
