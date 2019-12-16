@@ -5,11 +5,11 @@
 #include "httpparser.h"
 #include "node/clientsignatures.h"
 #include "tls/base64.h"
+#include "tls/keypair.h" // TODO: Only used for hashing
 
 #include <fmt/format_header_only.h>
 #include <optional>
 #include <string>
-#include <tls/keypair.h> // TODO: Only used for hashing
 
 namespace enclave
 {
@@ -113,12 +113,6 @@ namespace enclave
     class HttpSignatureVerifier
     {
     private:
-      const std::string& verb;
-      const std::string& path;
-      const std::string& query;
-      const http::HeaderMap& headers;
-      const std::vector<uint8_t>& body;
-
       struct SignatureParams
       {
         std::string_view signature = {};
@@ -126,7 +120,7 @@ namespace enclave
         std::vector<std::string_view> signed_headers;
       };
 
-      bool parse_auth_scheme(std::string_view& auth_header_value)
+      static bool parse_auth_scheme(std::string_view& auth_header_value)
       {
         auto next_space = auth_header_value.find(" ");
         if (next_space == std::string::npos)
@@ -144,7 +138,8 @@ namespace enclave
         return true;
       }
 
-      bool verify_digest()
+      static bool verify_digest(
+        const http::HeaderMap& headers, const std::vector<uint8_t>& body)
       {
         // First, retrieve digest from header
         auto digest = headers.find(HTTP_HEADER_DIGEST);
@@ -189,7 +184,7 @@ namespace enclave
       // Parses a delimited string with no delimiter at the end
       // (e.g. "foo,bar,baz") and returns a vector parsed string views (e.g.
       // ["foo", "bar", "baz"])
-      std::vector<std::string_view> parse_delimited_string(
+      static std::vector<std::string_view> parse_delimited_string(
         std::string_view& s, const std::string& delimiter)
       {
         std::vector<std::string_view> strings;
@@ -216,7 +211,7 @@ namespace enclave
         return strings;
       }
 
-      std::optional<SignatureParams> parse_signature_params(
+      static std::optional<SignatureParams> parse_signature_params(
         std::string_view& auth_header_value)
       {
         SignatureParams sig_params = {};
@@ -283,20 +278,14 @@ namespace enclave
       }
 
     public:
-      HttpSignatureVerifier(
-        const std::string& verb_,
-        const std::string& path_,
-        const std::string& query_,
-        const http::HeaderMap& headers_,
-        const std::vector<uint8_t>& body_) :
-        verb(verb_),
-        path(path_),
-        query(query_),
-        headers(headers_),
-        body(body_)
-      {}
+      HttpSignatureVerifier() {}
 
-      std::optional<ccf::SignedReq> parse()
+      static std::optional<ccf::SignedReq> parse(
+        const std::string& verb,
+        const std::string& path,
+        const std::string& query,
+        const http::HeaderMap& headers,
+        const std::vector<uint8_t>& body)
       {
         auto auth = headers.find(HTTP_HEADER_AUTHORIZATION);
         if (auth != headers.end())
@@ -311,7 +300,7 @@ namespace enclave
               AUTH_SCHEME));
           }
 
-          if (!verify_digest())
+          if (!verify_digest(headers, body))
           {
             throw std::logic_error(fmt::format(
               "Error verifying HTTP {} header", HTTP_HEADER_DIGEST));

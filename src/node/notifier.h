@@ -13,7 +13,7 @@ namespace ccf
   class Notifier : public ccf::AbstractNotifier
   {
   private:
-    std::unique_ptr<ringbuffer::AbstractWriter> to_host;
+    ringbuffer::WriterPtr to_host;
     std::shared_ptr<kv::Consensus> consensus = nullptr;
 
   public:

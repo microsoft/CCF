@@ -104,7 +104,7 @@ namespace asynchost
     std::unordered_map<int64_t, TCP> sockets;
     int64_t next_id = 1;
 
-    std::unique_ptr<ringbuffer::AbstractWriter> to_enclave;
+    ringbuffer::WriterPtr to_enclave;
 
   public:
     RPCConnections(ringbuffer::AbstractWriterFactory& writer_factory) :

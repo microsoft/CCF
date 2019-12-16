@@ -17,6 +17,7 @@ from requests_http_signature import HTTPSignatureAuth
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import asymmetric
+from websocket import create_connection
 
 from loguru import logger as LOG
 
@@ -413,6 +414,50 @@ class RequestClient:
         pass
 
 
+class WSClient:
+    def __init__(
+        self,
+        host,
+        port,
+        cert,
+        key,
+        ca,
+        version,
+        format,
+        connection_timeout,
+        request_timeout,
+    ):
+        self.host = host
+        self.port = port
+        self.cert = cert
+        self.key = key
+        self.ca = ca
+        self.format = "json"
+        self.stream = Stream(version, "json")
+        self.request_timeout = request_timeout
+
+    def request(self, request):
+        ws = create_connection(
+            f"wss://{self.host}:{self.port}",
+            sslopt={"certfile": self.cert, "keyfile": self.key, "ca_certs": self.ca},
+        )
+        # TODO: Support sending data over websocket
+        # ws.send(request.to_json())
+        # res = ws.recv()
+        # ws.close()
+        # self.stream.update(rep.content)
+        return request.id
+
+    def signed_request(self, request):
+        raise NotImplementedError("Signed requests not yet implemented over WebSockets")
+
+    def response(self, id):
+        return self.stream.response(id)
+
+    def disconnect(self):
+        pass
+
+
 class CCFClient:
     def __init__(self, *args, **kwargs):
         self.prefix = kwargs.pop("prefix")
@@ -423,6 +468,8 @@ class CCFClient:
         if os.getenv("HTTP"):
             if os.getenv("CURL_CLIENT"):
                 self.client_impl = CurlClient(*args, **kwargs)
+            elif os.getenv("WEBSOCKETS_CLIENT"):
+                self.client_impl = WSClient(*args, **kwargs)
             else:
                 self.client_impl = RequestClient(*args, **kwargs)
         else:
