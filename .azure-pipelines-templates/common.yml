@@ -1,6 +1,6 @@
 jobs:
-- job: BuildAndTest_${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.suffix }}
-  displayName: 'Build and Test ${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }}'
+- job: BuildAndTest_${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.protocol }}_${{ parameters.suffix }}
+  displayName: 'Build and Test ${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.protocol }} ${{ parameters.suffix }}'
   dependsOn: ${{ parameters.depends_on }}
 
   ${{ insert }}: ${{ parameters.env }}
@@ -12,15 +12,16 @@ jobs:
     - template: build.yml
       parameters:
         cmake_args: '${{ parameters.cmake_args }}'
+        suite_label_suffix: '${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.protocol }}_${{ parameters.suffix }}'
     - template: test.yml
       parameters:
         ctest_filter: ${{ parameters.ctest_filter }}
-        suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }} tests'
+        suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.protocol }} ${{ parameters.suffix }} tests'
     - ${{ if and(eq(parameters.target, 'NoSGX'), eq(parameters.suffix, '')) }}:
       - template: coverage.yml
         parameters:
           consensus: ${{ parameters.consensus }}
-    - ${{ if and(eq(parameters.suffix, 'Perf'), eq(parameters.consensus, 'CFT')) }}:
+    - ${{ if eq(parameters.suffix, 'Perf') }}:
       - template: push_perf_data.yml
         parameters:
           consensus: ${{ parameters.consensus }}

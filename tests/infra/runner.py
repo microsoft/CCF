@@ -37,8 +37,6 @@ def number_of_local_nodes(args):
 
 def get_command_args(args, get_command):
     command_args = []
-    if args.label:
-        command_args.append("--label={}".format(args.label))
     return get_command(*command_args)
 
 
