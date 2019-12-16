@@ -103,9 +103,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
 
     default_label = os.path.splitext(os.path.basename(sys.argv[0]))[0]
     parser.add_argument(
-        "--label",
-        help="Unique identifier for the test",
-        default=default_label
+        "--label", help="Unique identifier for the test", default=default_label
     )
     parser.add_argument(
         "--enforce-reqs",
