@@ -13,7 +13,7 @@ namespace pbft
   struct Request
   {
     uint64_t actor;
-    ccf::CallerId caller_id;
+    uint64_t caller_id;
     std::vector<uint8_t> caller_cert;
     std::vector<uint8_t> raw;
 
@@ -52,7 +52,7 @@ namespace pbft
       auto size_ = serialized_req.size();
 
       actor = serialized::read<uint64_t>(data_, size_);
-      caller_id = serialized::read<ccf::CallerId>(data_, size_);
+      caller_id = serialized::read<uint64_t>(data_, size_);
       auto includes_caller = serialized::read<bool>(data_, size_);
       if (includes_caller)
       {
@@ -67,6 +67,7 @@ namespace pbft
   // don't want to store the requests in the kv over time, we just want to get
   // them into the ledger
   using PbftRequests = ccf::Store::Map<size_t, Request>;
+
   DECLARE_JSON_TYPE(Request);
   DECLARE_JSON_REQUIRED_FIELDS(Request, actor, caller_id, caller_cert, raw);
 }
