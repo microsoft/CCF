@@ -102,18 +102,10 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
 
     default_label = os.path.splitext(os.path.basename(sys.argv[0]))[0]
-
-    class Label(argparse.Action):
-        def __call__(self, parser, namespace, values, option_string=None):
-            setattr(
-                namespace, self.dest, "{}_{}".format(values, os.getenv("TESTS_SUFFIX"))
-            )
-
     parser.add_argument(
         "--label",
         help="Unique identifier for the test",
-        default=default_label,
-        action=Label,
+        default=default_label
     )
     parser.add_argument(
         "--enforce-reqs",

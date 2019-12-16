@@ -7,6 +7,9 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 
 project(ccf C CXX)
 
+set(TESTS_SUFFIX $ENV{TESTS_SUFFIX})
+set(ENV{BETTER_EXCEPTIONS} 1)
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
 option(BUILD_TESTS "Build tests" ON)
@@ -44,7 +47,6 @@ add_enclave_lib(loggingenc
 
 if(BUILD_TESTS)
   enable_testing()
-  set(ENV{BETTER_EXCEPTIONS} 1)
 
   # Unit tests
   add_unit_test(map_test
