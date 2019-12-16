@@ -239,7 +239,6 @@ namespace timing
         }
         this_thread::sleep_for(10us);
         success = try_get_commit(net_client, local, global, term, record);
-        target = at_least.has_value() ? max(*at_least, local) : local;
       }
 
       return global;

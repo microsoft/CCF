@@ -215,6 +215,7 @@ namespace client
     bool write_tx_times = false;
     bool randomise = false;
     bool check_responses = false;
+    bool relax_commit_target = false;
     ///@}
 
     // Everything else has empty stubs and can optionally be overridden. This

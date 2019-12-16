@@ -694,7 +694,7 @@ function(add_perf_test)
 
   cmake_parse_arguments(PARSE_ARGV 0 PARSED_ARGS
     ""
-    "NAME;PYTHON_SCRIPT;CLIENT_BIN;VERIFICATION_FILE;LABEL"
+    "NAME;PYTHON_SCRIPT;CLIENT_BIN;VERIFICATION_FILE;LABEL;"
     "ADDITIONAL_ARGS"
   )
 
@@ -720,6 +720,7 @@ function(add_perf_test)
       ${VERIFICATION_ARG}
       --label ${LABEL_ARG}
       ${PARSED_ARGS_ADDITIONAL_ARGS}
+      ${RELAX_COMMIT_TARGET}
   )
 
   ## Make python test client framework importable

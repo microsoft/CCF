@@ -140,15 +140,16 @@ if(BUILD_TESTS)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/test/http.cpp)
   target_link_libraries(http_test PRIVATE http_parser.host)
 
-  if(NOT PBFT)
-    add_unit_test(frontend_test
+  add_unit_test(frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp)
     target_link_libraries(frontend_test PRIVATE
       ${CMAKE_THREAD_LIBS_INIT}
       evercrypt.host
       lua.host
-      secp256k1.host)
+      secp256k1.host
+    )
 
+  if(NOT PBFT)
     add_unit_test(membervoting_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/membervoting_test.cpp)
     target_link_libraries(membervoting_test PRIVATE

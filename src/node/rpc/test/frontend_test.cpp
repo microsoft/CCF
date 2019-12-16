@@ -17,6 +17,10 @@
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
 
+#ifdef PBFT
+#  include "consensus/pbft/pbftrequests.h"
+#  include "node/history.h"
+#endif
 #include <iostream>
 #include <string>
 
@@ -227,7 +231,20 @@ ccf::NetworkState network;
 ccf::NetworkState network2;
 auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
 
-ccf::StubNodeState node;
+#ifdef PBFT
+ccf::NetworkState pbft_network(ConsensusType::Pbft);
+auto history_kp = tls::make_key_pair();
+
+auto history = std::make_shared<ccf::NullTxHistory>(
+  *pbft_network.tables,
+  0,
+  *history_kp,
+  pbft_network.signatures,
+  pbft_network.nodes);
+
+#endif
+
+ccf::StubNodeState stub_node;
 
 std::vector<uint8_t> sign_json(nlohmann::json j)
 {
@@ -331,6 +348,52 @@ void add_callers_primary_store()
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 
+#ifdef PBFT
+
+void add_callers_pbft_store()
+{
+  Store::Tx gen_tx;
+  pbft_network.tables->set_encryptor(encryptor);
+  pbft_network.tables->clear();
+  pbft_network.tables->set_history(history);
+
+  GenesisGenerator g(pbft_network, gen_tx);
+  g.init_values();
+  user_id = g.add_user(user_caller);
+  CHECK(g.finalize() == kv::CommitSuccess::OK);
+}
+
+TEST_CASE("process_pbft")
+{
+  add_callers_pbft_store();
+  TestUserFrontend frontend(*pbft_network.tables);
+  auto simple_call = create_simple_json();
+  const auto serialized_call = jsonrpc::pack(simple_call, default_pack);
+  auto actor = ActorsType::users;
+  pbft::Request request = {actor, user_id, user_caller_der, serialized_call};
+
+  const enclave::SessionContext session(
+    enclave::InvalidSessionId, user_id, user_caller_der);
+  auto ctx = enclave::make_rpc_context(session, request.raw);
+  ctx.actor = (ccf::ActorsType)request.actor;
+  frontend.process_pbft(ctx);
+
+  Store::Tx tx;
+  auto pbft_metadata = tx.get_view(pbft_network.pbft_requests);
+  auto request_value = pbft_metadata->get(0);
+  REQUIRE(request_value.has_value());
+
+  auto deserialised_request = request_value.value();
+  REQUIRE(deserialised_request.actor == actor);
+  REQUIRE(deserialised_request.caller_id == user_id);
+  REQUIRE(deserialised_request.caller_cert == user_caller_der);
+  auto deserialised_simple_call =
+    jsonrpc::unpack(deserialised_request.raw, default_pack);
+  REQUIRE(
+    deserialised_simple_call[jsonrpc::METHOD] == simple_call[jsonrpc::METHOD]);
+}
+#else
+
 TEST_CASE("SignedReq to and from json")
 {
   ccf::SignedReq sr;
@@ -416,7 +479,7 @@ TEST_CASE("process")
     CHECK(value.sig == signed_call[jsonrpc::SIG]);
   }
   // TODO: verify_client_signature
-#ifndef HTTP
+#  ifndef HTTP
   SUBCASE("signature not verified")
   {
     const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
@@ -433,7 +496,7 @@ TEST_CASE("process")
     const auto signed_resp = get_signed_req(invalid_user_id);
     CHECK(!signed_resp.has_value());
   }
-#endif
+#  endif
 }
 
 TEST_CASE("MinimalHandleFuction")
@@ -494,7 +557,7 @@ TEST_CASE("Member caller")
   auto simple_call = create_simple_json();
   std::vector<uint8_t> serialized_call =
     jsonrpc::pack(simple_call, default_pack);
-  TestMemberFrontend frontend(*network.tables, network, node);
+  TestMemberFrontend frontend(*network.tables, network, stub_node);
 
   SUBCASE("valid caller")
   {
@@ -712,8 +775,8 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
 {
   prepare_callers();
 
-  TestForwardingNodeFrontEnd node_frontend_backup(network, node);
-  TestForwardingNodeFrontEnd node_frontend_primary(network2, node);
+  TestForwardingNodeFrontEnd node_frontend_backup(network, stub_node);
+  TestForwardingNodeFrontEnd node_frontend_primary(network2, stub_node);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
@@ -793,9 +856,9 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   add_callers_primary_store();
 
   TestForwardingMemberFrontEnd member_frontend_backup(
-    *network.tables, network, node);
+    *network.tables, network, stub_node);
   TestForwardingMemberFrontEnd member_frontend_primary(
-    *network2.tables, network2, node);
+    *network2.tables, network2, stub_node);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
@@ -876,6 +939,8 @@ TEST_CASE("App-defined errors")
     CHECK(msg.find(TestAppErrorFrontEnd::bar_msg) != std::string::npos);
   }
 }
+
+#endif
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
