@@ -3,6 +3,7 @@
 import cimetrics.upload
 import collections
 import csv
+import os
 from loguru import logger as LOG
 
 benchmark_specs = {
