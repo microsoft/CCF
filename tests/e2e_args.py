@@ -100,6 +100,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Temporary directory where nodes store their logs, ledgers, quotes, etc.",
         default=infra.path.default_workspace(),
     )
+
     default_label = os.path.splitext(os.path.basename(sys.argv[0]))[0]
     parser.add_argument(
         "--label", help="Unique identifier for the test", default=default_label

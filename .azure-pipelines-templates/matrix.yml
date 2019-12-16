@@ -1,6 +1,7 @@
 parameters:
   consensus: ['CFT', 'BFT']
   target: ['NoSGX', 'SGX']
+  protocol: ['FTCP', 'HTTP']
 
   env:
     NoSGX:
@@ -30,7 +31,9 @@ parameters:
       cmake_args: '-DSERVICE_IDENTITY_CURVE_CHOICE=secp256k1_bitcoin'
     san:
       cmake_args: '-DSAN=ON'
-    http:
+    FTCP:
+      cmake_args: ''
+    HTTP:
       cmake_args: '-DHTTP=ON'
 
   test:
@@ -39,7 +42,10 @@ parameters:
     SGX:
       ctest_args: '-LE "benchmark|perf"'
     perf:
-      ctest_args: '-L "benchmark|perf"'
+      CFT:
+        ctest_args: '-L "benchmark|perf"'
+      BFT:
+        ctest_args: '-L "perf"'
     san:
       ctest_args: '-LE "benchmark|perf|suite"'
 
@@ -57,15 +63,17 @@ jobs:
   # Debug builds with code coverage, run all tests except performance
   - ${{ each target in parameters.target }}:
     - ${{ each consensus in parameters.consensus }}:
-      - template: common.yml
-        parameters:
-          target: ${{ target }}
-          consensus: ${{ consensus }}
-          env: ${{ parameters.env[target] }}
-          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-          ctest_filter: '${{ parameters.test[target].ctest_args }}'
-          suffix: ''
-          depends_on: ${{ parameters.static_check_job_name }}
+      - ${{ each protocol in parameters.protocol }}:
+        - template: common.yml
+          parameters:
+            target: ${{ target }}
+            consensus: ${{ consensus }}
+            protocol: ${{ protocol }}
+            env: ${{ parameters.env[target] }}
+            cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
+            ctest_filter: '${{ parameters.test[target].ctest_args }}'
+            suffix: ''
+            depends_on: ${{ parameters.static_check_job_name }}
 
   # SAN builds (ASAN & UBSAN), run all tests except performance
   - ${{ each consensus in parameters.consensus }}:
@@ -73,6 +81,7 @@ jobs:
       parameters:
         target: ${{ parameters.san_target }}
         consensus: ${{ consensus }}
+        protocol: FTCP
         env: '${{ parameters.env.NoSGX_SAN }}'
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build[parameters.san_target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
         ctest_filter: '${{ parameters.test.san.ctest_args }}'
@@ -85,20 +94,9 @@ jobs:
       parameters:
         target: SGX
         consensus: ${{ consensus }}
+        protocol: FTCP
         env: ${{ parameters.env.SGX }}
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-        ctest_filter: '${{ parameters.test.perf.ctest_args }}'
+        ctest_filter: '${{ parameters.test.perf[consensus].ctest_args }}'
         suffix: 'Perf'
-        depends_on: ${{ parameters.static_check_job_name }}
-
-  # HTTP build (behind a toggle for now), only on CFT
-  - ${{ each target in parameters.target }}:
-    - template: common.yml
-      parameters:
-        target: ${{ target }}
-        consensus: CFT
-        env: ${{ parameters.env[target] }}
-        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build.CFT.cmake_args }} ${{ parameters.build.http.cmake_args }}'
-        ctest_filter: '${{ parameters.test[target].ctest_args }}'
-        suffix: '${{ target }}_HTTP'
         depends_on: ${{ parameters.static_check_job_name }}

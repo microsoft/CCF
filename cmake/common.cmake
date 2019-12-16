@@ -705,17 +705,9 @@ function(add_perf_test)
   endif()
 
   if(PARSED_ARGS_LABEL)
-    set(LABEL_ARG --label ${PARSED_ARGS_LABEL})
-
-    if(PBFT)
-      set(LABEL_ARG ${LABEL_ARG}_PBFT)
-    endif()
-
-    if(HTTP)
-      set(LABEL_ARG ${LABEL_ARG}_HTTP)
-    endif()
+    set(LABEL_ARG "${PARSED_ARGS_LABEL}_${TESTS_SUFFIX}")
   else()
-    unset(LABEL_ARG)
+    set(LABEL_ARG "${PARSED_ARGS_NAME}_${TESTS_SUFFIX}")
   endif()
 
   add_test(
@@ -726,7 +718,7 @@ function(add_perf_test)
       ${CCF_NETWORK_TEST_ARGS}
       --write-tx-times
       ${VERIFICATION_ARG}
-      ${LABEL_ARG}
+      --label ${LABEL_ARG}
       ${PARSED_ARGS_ADDITIONAL_ARGS}
   )
 
@@ -752,3 +744,40 @@ function(add_perf_test)
     )
   endif()
 endfunction()
+
+  ## Picobench wrapper
+  function(add_picobench name)
+    cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS
+      ""
+      ""
+      "SRCS;INCLUDE_DIRS;LINK_LIBS"
+    )
+
+    add_executable(${name}
+      ${PARSED_ARGS_SRCS}
+    )
+
+    target_include_directories(${name} PRIVATE
+      src
+      ${PARSED_ARGS_INCLUDE_DIRS}
+    )
+
+    add_dependencies(${name} flatbuffers)
+
+    target_link_libraries(${name} PRIVATE
+      ${CMAKE_THREAD_LIBS_INIT}
+      ${PARSED_ARGS_LINK_LIBS}
+    )
+
+    # -Wall -Werror catches a number of warnings in picobench
+    target_include_directories(${name} SYSTEM PRIVATE 3rdparty)
+
+    add_test(
+      NAME ${name}
+      COMMAND bash -c "$<TARGET_FILE:${name}> --samples=1000 --out-fmt=csv --output=${name}.csv && cat ${name}.csv"
+    )
+
+    use_client_mbedtls(${name})
+
+    set_property(TEST ${name} PROPERTY LABELS benchmark)
+  endfunction()
