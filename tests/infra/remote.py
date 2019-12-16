@@ -99,6 +99,7 @@ class CmdMixin(object):
             if metrics is not None:
                 res = re.search("=> (.*)tx/s", line.decode())
                 if res:
+                    LOG.success(f"METRICS: {name} = {float(res.group(1))}")
                     metrics.put(name, float(res.group(1)))
 
 
@@ -314,7 +315,7 @@ class SSHRemote(CmdMixin):
         try:
             _, stdout, _ = client.exec_command(f"tail -{lines} {self.out}")
             if stdout.channel.recv_exit_status() == 0:
-                LOG.success(f"Result for {self.name}:")
+                LOG.success(f"Result for {self.name}, uploaded under {name}:")
                 self._print_upload_perf(name, metrics, stdout.read().splitlines())
                 return
         finally:
@@ -474,7 +475,7 @@ class LocalRemote(CmdMixin):
         with open(self.out, "rb") as out:
             lines = out.read().splitlines()
             result = lines[-line:]
-            LOG.success(f"Result for {self.name}:")
+            LOG.success(f"Result for {self.name}, uploaded under {name}:")
             self._print_upload_perf(name, metrics, result)
 
 

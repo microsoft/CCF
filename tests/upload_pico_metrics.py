@@ -3,6 +3,7 @@
 import cimetrics.upload
 import collections
 import csv
+import os
 from loguru import logger as LOG
 
 benchmark_specs = {
@@ -54,33 +55,37 @@ if __name__ == "__main__":
     found_metrics = collections.defaultdict(list)
 
     for filename, specs in benchmark_specs.items():
-        with open(filename, newline="") as f:
-            LOG.debug(f"Examining {filename}")
-            reader = csv.DictReader(f)
-            for i, entry in enumerate(reader):
-                for spec in specs:
-                    match = True
-                    for k, v in spec.items():
-                        if k == "_name":
-                            continue
-                        entry_value = entry.get(k)
-                        if entry_value != v:
-                            match = False
-                            break
+        if os.path.exists(filename):
+            with open(filename, newline="") as f:
+                LOG.debug(f"Examining {filename}")
+                reader = csv.DictReader(f)
+                for i, entry in enumerate(reader):
+                    for spec in specs:
+                        match = True
+                        for k, v in spec.items():
+                            if k == "_name":
+                                continue
+                            entry_value = entry.get(k)
+                            if entry_value != v:
+                                match = False
+                                break
 
-                    if match:
-                        LOG.trace(f"Found match at line {i} for {spec}")
-                        dimension = int(entry["D"])
-                        total_time = int(entry["Total ns"])
-                        ops_per_sec = dimension * (1000000000.0 / total_time)
-                        LOG.trace(f"Calculated {ops_per_sec:.2f} ops/sec")
-                        name = spec.get("_name") or spec.get("Suite") or "UNNAMED"
-                        found_metrics[name].append(float(format(ops_per_sec, ".2f")))
+                        if match:
+                            LOG.trace(f"Found match at line {i} for {spec}")
+                            dimension = int(entry["D"])
+                            total_time = int(entry["Total ns"])
+                            ops_per_sec = dimension * (1000000000.0 / total_time)
+                            LOG.trace(f"Calculated {ops_per_sec:.2f} ops/sec")
+                            name = spec.get("_name") or spec.get("Suite") or "UNNAMED"
+                            found_metrics[name].append(
+                                float(format(ops_per_sec, ".2f"))
+                            )
 
-    with cimetrics.upload.metrics() as metrics:
-        for name, results in found_metrics.items():
-            many_results = len(results) > 1
-            for i, result in enumerate(results):
-                upload_name = f"{name}_{i}" if many_results else name
-                LOG.debug(f"Uploading metric: {upload_name} = {result}")
-                metrics.put(upload_name, result)
+    if found_metrics:
+        with cimetrics.upload.metrics() as metrics:
+            for name, results in found_metrics.items():
+                many_results = len(results) > 1
+                for i, result in enumerate(results):
+                    upload_name = f"{name}_{i}" if many_results else name
+                    LOG.debug(f"Uploading metric: {upload_name} = {result}")
+                    metrics.put(upload_name, result)
