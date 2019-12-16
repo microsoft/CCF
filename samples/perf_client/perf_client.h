@@ -509,11 +509,6 @@ namespace client
         "--check-responses",
         check_responses,
         "Check every JSON response for errors. Potentially slow");
-      app.add_flag(
-        "--relax-commit-target",
-        relax_commit_target,
-        "Don't update the commit target based on getCommit when waiting for "
-        "the transactions to globally commit");
     }
 
     void init_connection()
@@ -583,8 +578,7 @@ namespace client
           throw std::logic_error("Unexpected call to wait_for_global_commit");
         }
 
-        auto commit = timing->wait_for_global_commit(
-          {highest_local_commit}, relax_commit_target);
+        auto commit = timing->wait_for_global_commit({highest_local_commit});
 
         if (verbosity >= 1)
         {

@@ -710,10 +710,6 @@ function(add_perf_test)
     set(LABEL_ARG "${PARSED_ARGS_NAME}_${TESTS_SUFFIX}")
   endif()
 
-  if(CONSENSUS_ARG STREQUAL "pbft")
-    set(RELAX_COMMIT_TARGET "--relax-commit-target")
-  endif()
-
   add_test(
     NAME ${PARSED_ARGS_NAME}
     COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
