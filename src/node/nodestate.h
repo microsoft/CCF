@@ -162,7 +162,7 @@ namespace ccf
     // kv store, replication, and I/O
     //
     ringbuffer::AbstractWriterFactory& writer_factory;
-    std::unique_ptr<ringbuffer::AbstractWriter> to_host;
+    ringbuffer::WriterPtr to_host;
     raft::Config raft_config;
 
     NetworkState& network;

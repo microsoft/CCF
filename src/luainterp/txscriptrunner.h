@@ -207,8 +207,6 @@ namespace ccf
       virtual void setup_environment(
         lua::Interpreter& li, const std::optional<Script>& env_script) const
       {
-        auto l = li.get_state();
-
         if (env_script)
         {
           load(li, *env_script);

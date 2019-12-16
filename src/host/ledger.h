@@ -26,7 +26,7 @@ namespace asynchost
     FILE* file;
     std::vector<size_t> positions;
     size_t total_len;
-    std::unique_ptr<ringbuffer::AbstractWriter> to_enclave;
+    ringbuffer::WriterPtr to_enclave;
 
   public:
     Ledger(
