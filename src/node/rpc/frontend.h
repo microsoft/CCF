@@ -789,14 +789,6 @@ namespace ccf
 
       update_consensus();
 
-      auto req_view = tx.get_view(*pbft_requests);
-      req_view->put(
-        0,
-        {ctx.actor,
-         ctx.session.fwd.value().caller_id,
-         ctx.session.caller_cert,
-         ctx.raw});
-
       bool has_updated_merkle_roots = false;
 
       auto cb = [&full_state_merkle_root,
@@ -820,6 +812,14 @@ namespace ccf
       }
 
       history->register_on_result(cb);
+
+      auto req_view = tx.get_view(*pbft_requests);
+      req_view->put(
+        0,
+        {ctx.actor,
+         ctx.session.fwd.value().caller_id,
+         ctx.session.caller_cert,
+         ctx.raw});
 
       auto rep = process_json(ctx, tx, ctx.session.fwd->caller_id);
 

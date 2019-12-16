@@ -129,7 +129,8 @@ def run(build_directory, get_command, args):
                 with cimetrics.upload.metrics() as metrics:
                     tx_rates = infra.rates.TxRates(primary)
                     while True:
-                        if not tx_rates.process_next():
+                        if args.consensus == "pbft" or not tx_rates.process_next():
+                            # if pbft then check the client file every time, don't rely on getCommit for termination
                             stop_waiting = True
                             for i, remote_client in enumerate(clients):
                                 done = remote_client.check_done()

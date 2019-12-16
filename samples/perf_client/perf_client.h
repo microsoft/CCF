@@ -215,6 +215,7 @@ namespace client
     bool write_tx_times = false;
     bool randomise = false;
     bool check_responses = false;
+    bool relax_commit_target = false;
     ///@}
 
     // Everything else has empty stubs and can optionally be overridden. This
@@ -508,6 +509,11 @@ namespace client
         "--check-responses",
         check_responses,
         "Check every JSON response for errors. Potentially slow");
+      app.add_flag(
+        "--relax-commit-target",
+        relax_commit_target,
+        "Don't update the commit target based on getCommit when waiting for "
+        "the transactions to globally commit");
     }
 
     void init_connection()
@@ -577,7 +583,8 @@ namespace client
           throw std::logic_error("Unexpected call to wait_for_global_commit");
         }
 
-        auto commit = timing->wait_for_global_commit({highest_local_commit});
+        auto commit = timing->wait_for_global_commit(
+          {highest_local_commit}, relax_commit_target);
 
         if (verbosity >= 1)
         {

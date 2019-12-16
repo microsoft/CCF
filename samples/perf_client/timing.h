@@ -216,7 +216,9 @@ namespace timing
     // Repeatedly calls getCommit RPC until local and global_commit match, then
     // returns that commit. Calls received_response for each response.
     size_t wait_for_global_commit(
-      std::optional<size_t> at_least = {}, bool record = true)
+      std::optional<size_t> at_least = {},
+      bool relax_commit_target = false,
+      bool record = true)
     {
       size_t local = 0u;
       size_t global = 0u;
@@ -224,6 +226,7 @@ namespace timing
 
       bool success = try_get_commit(net_client, local, global, term, true);
       auto target = at_least.has_value() ? max(*at_least, local) : local;
+      bool update_commit_target = !relax_commit_target;
 
       using LastPrinted = std::pair<decltype(target), decltype(global)>;
       std::optional<LastPrinted> last_printed = std::nullopt;
@@ -239,7 +242,8 @@ namespace timing
         }
         this_thread::sleep_for(10us);
         success = try_get_commit(net_client, local, global, term, record);
-        target = at_least.has_value() ? max(*at_least, local) : local;
+        if (update_commit_target)
+          target = at_least.has_value() ? max(*at_least, local) : local;
       }
 
       return global;

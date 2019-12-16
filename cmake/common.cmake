@@ -708,6 +708,7 @@ function(add_perf_test)
     set(LABEL_ARG --label ${PARSED_ARGS_LABEL})
 
     if(PBFT)
+      set(RELAX_COMMIT_TARGET "--relax-commit-target")
       set(LABEL_ARG ${LABEL_ARG}_PBFT)
     endif()
 
@@ -728,6 +729,7 @@ function(add_perf_test)
       ${VERIFICATION_ARG}
       ${LABEL_ARG}
       ${PARSED_ARGS_ADDITIONAL_ARGS}
+      ${RELAX_COMMIT_TARGET}
   )
 
   ## Make python test client framework importable

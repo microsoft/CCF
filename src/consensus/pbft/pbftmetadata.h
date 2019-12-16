@@ -22,5 +22,6 @@ namespace pbft
 
   using PbftRequests = ccf::Store::Map<size_t, Request>;
 
+  DECLARE_JSON_TYPE(Request);
   DECLARE_JSON_REQUIRED_FIELDS(Request, actor, caller_id, caller_cert, raw);
 }
