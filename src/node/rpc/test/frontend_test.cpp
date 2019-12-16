@@ -18,7 +18,7 @@
 #include "node_stub.h"
 
 #ifdef PBFT
-#  include "consensus/pbft/pbftmetadata.h"
+#  include "consensus/pbft/pbftrequests.h"
 #  include "node/history.h"
 #endif
 #include <iostream>

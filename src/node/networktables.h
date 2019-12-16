@@ -5,7 +5,7 @@
 #include "certs.h"
 #include "clientsignatures.h"
 #include "codeid.h"
-#include "consensus/pbft/pbftmetadata.h"
+#include "consensus/pbft/pbftrequests.h"
 #include "consensus/pbft/pbfttables.h"
 #include "consensus/raft/rafttables.h"
 #include "entities.h"
