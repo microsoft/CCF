@@ -705,9 +705,9 @@ function(add_perf_test)
   endif()
 
   if(PARSED_ARGS_LABEL)
-    set(LABEL_ARG "--label ${PARSED_ARGS_LABEL}_$ENV{TESTS_SUFFIX}")
+    set(LABEL_ARG "--label ${PARSED_ARGS_LABEL}_${TESTS_SUFFIX}")
   else()
-    set(LABEL_ARG "--label ${PARSED_ARGS_NAME}_$ENV{TESTS_SUFFIX}")
+    set(LABEL_ARG "--label ${PARSED_ARGS_NAME}_${TESTS_SUFFIX}")
   endif()
 
   add_test(
