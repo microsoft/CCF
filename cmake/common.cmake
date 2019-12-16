@@ -705,9 +705,9 @@ function(add_perf_test)
   endif()
 
   if(PARSED_ARGS_LABEL)
-    set(LABEL_ARG "--label ${PARSED_ARGS_LABEL}_${TESTS_SUFFIX}")
+    set(LABEL_ARG "${PARSED_ARGS_LABEL}_${TESTS_SUFFIX}")
   else()
-    set(LABEL_ARG "--label ${PARSED_ARGS_NAME}_${TESTS_SUFFIX}")
+    set(LABEL_ARG "${PARSED_ARGS_NAME}_${TESTS_SUFFIX}")
   endif()
 
   add_test(
@@ -718,7 +718,7 @@ function(add_perf_test)
       ${CCF_NETWORK_TEST_ARGS}
       --write-tx-times
       ${VERIFICATION_ARG}
-      ${LABEL_ARG}
+      --label ${LABEL_ARG}
       ${PARSED_ARGS_ADDITIONAL_ARGS}
   )
 
