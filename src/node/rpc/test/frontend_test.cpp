@@ -18,12 +18,8 @@
 #include "node_stub.h"
 
 #ifdef PBFT
-#  include "consensus/pbft/pbftconfig.h"
+#  include "consensus/pbft/pbftmetadata.h"
 #  include "node/history.h"
-std::vector<ITimer*> ITimer::timers;
-Time ITimer::min_deadline = Long_max;
-Time ITimer::_relative_current_time = 0;
-long long clock_mhz = 1;
 #endif
 #include <iostream>
 #include <string>
@@ -374,11 +370,11 @@ TEST_CASE("process_pbft")
   auto simple_call = create_simple_json();
   const auto serialized_call = jsonrpc::pack(simple_call, default_pack);
   auto actor = ActorsType::users;
-  pbft::ccf_req request = {actor, user_id, user_caller_der, serialized_call};
+  pbft::Request request = {actor, user_id, user_caller_der, serialized_call};
 
   const enclave::SessionContext session(
     enclave::InvalidSessionId, user_id, user_caller_der);
-  auto ctx = enclave::make_rpc_context(session, request.request);
+  auto ctx = enclave::make_rpc_context(session, request.raw);
   ctx.actor = (ccf::ActorsType)request.actor;
   frontend.process_pbft(ctx);
 
