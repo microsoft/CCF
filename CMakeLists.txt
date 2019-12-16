@@ -8,7 +8,7 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 project(ccf C CXX)
 
 set(TESTS_SUFFIX $ENV{TESTS_SUFFIX})
-message(STATUS "Setting TESTS_SUFFIX to '${TESTS_SUFFIX}'")
+message(STATUS "Setting TESTS_SUFFIX on performance tests to '${TESTS_SUFFIX}'")
 set(ENV{BETTER_EXCEPTIONS} 1)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
