@@ -1,6 +1,7 @@
 jobs:
 - job: CIMetrics
   displayName: 'CI Metrics'
+  dependsOn: ${{ parameters.depends_on }}
 
   steps:
     - checkout: self
@@ -9,12 +10,14 @@ jobs:
     - script: ./cimetrics_env.sh python -m cimetrics.plot
       env:
         METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
+      workingDirectory: tests
       displayName: 'Plot cimetrics'
       condition: eq(variables['Build.Reason'], 'PullRequest')
 
     - script: ./cimetrics_env.sh python -m cimetrics.github_pr
       env:
         GITHUB_TOKEN: $(GITHUB_TOKEN)
+      workingDirectory: tests
       displayName: 'Post cimetrics graphs as PR comment'
       condition: eq(variables['Build.Reason'], 'PullRequest')
 
