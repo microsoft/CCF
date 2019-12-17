@@ -1,7 +1,8 @@
 jobs:
 - job: CIMetrics
   displayName: 'CI Metrics'
-  dependsOn: ['BuildAndTest_SGX_CFT_FTCP_Perf', 'BuildAndTest_SGX_BFT_FTCP_Perf']
+  
+  ${{ insert }}: ${{ parameters.env }}
 
   steps:
     - checkout: self
