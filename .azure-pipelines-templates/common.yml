@@ -8,7 +8,6 @@ jobs:
   steps:
     - checkout: self
       clean: true
-      submodules: true
     - template: build.yml
       parameters:
         cmake_args: '${{ parameters.cmake_args }}'
