@@ -289,17 +289,34 @@ class FramedTLSJSONRPCClient:
 
 # We keep this around in a limited fashion still, because
 # the resulting logs nicely illustrate manual usage in a way using requests doesn't
+class CurlClientSSLException(Exception):
+    pass
+
+
 class CurlClient:
-    def __init__(self, host, port, cert, key, ca, version, format, *args, **kwargs):
+    def __init__(
+        self,
+        host,
+        port,
+        cert,
+        key,
+        ca,
+        version,
+        format,
+        connection_timeout,
+        *args,
+        **kwargs,
+    ):
         self.host = host
         self.port = port
         self.cert = cert
         self.key = key
         self.ca = ca
         self.format = "json"
+        self.connection_timeout = connection_timeout
         self.stream = Stream(version, "json")
 
-    def _request(self, request, is_signed=False):
+    def _just_request(self, request, is_signed=False):
         with tempfile.NamedTemporaryFile() as nf:
             msg = getattr(request, f"to_{self.format}")()
             LOG.debug(f"Going to send {msg}")
@@ -329,6 +346,8 @@ class CurlClient:
             rc = subprocess.run(cmd, capture_output=True)
 
             if rc.returncode != 0:
+                if rc.returncode == 60:
+                    raise CurlClientSSLException
                 LOG.error(rc.stderr)
                 raise RuntimeError(f"Curl failed with return code {rc.returncode}")
 
@@ -341,6 +360,17 @@ class CurlClient:
 
             self.stream.update(rep.encode())
         return request.id
+
+    def _request(self, request, is_signed=False):
+        while self.connection_timeout >= 0:
+            try:
+                rid = self._just_request(request, is_signed)
+                self._request = self._just_request
+                return rid
+            except CurlClientSSLException:
+                if self.connection_timeout < 0:
+                    raise
+            self.connection_timeout -= 0.1
 
     def request(self, request):
         return self._request(request, is_signed=False)
@@ -377,7 +407,6 @@ class RequestClient:
         self.stream = Stream(version, "json")
         self.request_timeout = request_timeout
         self.connection_timeout = connection_timeout
-        self.connected = False
 
     def _just_request(self, request):
         rep = requests.post(
@@ -391,18 +420,15 @@ class RequestClient:
         return request.id
 
     def request(self, request):
-        if self.connected:
-            return self._just_request(request)
-        else:
-            while self.connection_timeout >= 0:
-                try:
-                    rid = self._just_request(request)
-                    self.connected = True
-                    return rid
-                except requests.exceptions.ReadTimeout:
-                    if self.connection_timeout < 0:
-                        raise
-                self.connection_timeout -= 0.1
+        while self.connection_timeout >= 0:
+            try:
+                rid = self._just_request(request)
+                self.request = self._just_request
+                return rid
+            except requests.exceptions.ReadTimeout:
+                if self.connection_timeout < 0:
+                    raise
+            self.connection_timeout -= 0.1
 
     def signed_request(self, request):
         with open(self.key, "rb") as k:
