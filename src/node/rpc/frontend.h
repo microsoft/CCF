@@ -211,6 +211,7 @@ namespace ccf
     ClientSignatures* client_signatures;
     Certs* certs;
     CT* callers;
+    pbft::PbftRequests* pbft_requests;
     std::optional<Handler> default_handler;
     std::unordered_map<std::string, Handler> handlers;
     kv::Consensus* consensus;
@@ -354,6 +355,8 @@ namespace ccf
       client_signatures(client_sigs_),
       certs(certs_),
       callers(callers_),
+      pbft_requests(
+        tables.get<pbft::PbftRequests>(pbft::Tables::PBFT_REQUESTS)),
       consensus(nullptr),
       history(nullptr)
     {
@@ -809,6 +812,14 @@ namespace ccf
       }
 
       history->register_on_result(cb);
+
+      auto req_view = tx.get_view(*pbft_requests);
+      req_view->put(
+        0,
+        {ctx.actor,
+         ctx.session.fwd.value().caller_id,
+         ctx.session.caller_cert,
+         ctx.raw});
 
       auto rep = process_json(ctx, tx, ctx.session.fwd->caller_id);
 

@@ -3,6 +3,7 @@
 #pragma once
 #include "consensus/pbft/libbyz/libbyz.h"
 #include "consensus/pbft/libbyz/pbft_assert.h"
+#include "consensus/pbft/pbftrequests.h"
 #include "enclave/rpcmap.h"
 #include "pbftdeps.h"
 
@@ -15,58 +16,6 @@ namespace pbft
     virtual ~AbstractPbftConfig() = default;
     virtual void set_service_mem(char* sm) = 0;
     virtual ExecCommand get_exec_command() = 0;
-    virtual size_t message_size() = 0;
-  };
-
-  struct ccf_req
-  {
-    uint64_t actor;
-    uint64_t caller_id;
-    std::vector<uint8_t> caller_cert;
-    std::vector<uint8_t> request;
-
-    std::vector<uint8_t> serialise()
-    {
-      bool include_caller = false;
-      size_t size =
-        sizeof(actor) + sizeof(caller_id) + sizeof(bool) + request.size();
-      if (!caller_cert.empty())
-      {
-        size += sizeof(size_t) + caller_cert.size();
-        include_caller = true;
-      }
-
-      std::vector<uint8_t> serialized_req(size);
-      auto data_ = serialized_req.data();
-      auto size_ = serialized_req.size();
-      serialized::write(data_, size_, actor);
-      serialized::write(data_, size_, caller_id);
-      serialized::write(data_, size_, include_caller);
-      if (include_caller)
-      {
-        serialized::write(data_, size_, caller_cert.size());
-        serialized::write(data_, size_, caller_cert.data(), caller_cert.size());
-      }
-      serialized::write(data_, size_, request.data(), request.size());
-
-      return serialized_req;
-    }
-
-    void deserialise(const std::vector<uint8_t>& serialized_req)
-    {
-      auto data_ = serialized_req.data();
-      auto size_ = serialized_req.size();
-
-      actor = serialized::read<uint64_t>(data_, size_);
-      caller_id = serialized::read<uint64_t>(data_, size_);
-      auto includes_caller = serialized::read<bool>(data_, size_);
-      if (includes_caller)
-      {
-        auto caller_size = serialized::read<size_t>(data_, size_);
-        caller_cert = serialized::read(data_, size_, caller_size);
-      }
-      request = serialized::read(data_, size_, size_);
-    }
   };
 
   class PbftConfigCcf : public AbstractPbftConfig
@@ -87,11 +36,6 @@ namespace pbft
       return exec_command;
     }
 
-    size_t message_size() override
-    {
-      return sizeof(ccf_req);
-    }
-
   private:
     std::shared_ptr<enclave::RPCMap> rpc_map;
 
@@ -103,7 +47,7 @@ namespace pbft
                                  bool ro,
                                  Seqno total_requests_executed,
                                  ByzInfo& info) {
-      ccf_req request;
+      pbft::Request request;
       request.deserialise({inb->contents, inb->contents + inb->size});
 
       LOG_DEBUG_FMT("PBFT exec_command() for frontend {}", request.actor);
@@ -118,7 +62,7 @@ namespace pbft
       // TODO: Should serialise context directly, rather than reconstructing
       const enclave::SessionContext session(
         enclave::InvalidSessionId, request.caller_id, request.caller_cert);
-      auto ctx = enclave::make_rpc_context(session, request.request);
+      auto ctx = enclave::make_rpc_context(session, request.raw);
       ctx.actor = (ccf::ActorsType)request.actor;
       const auto n = ctx.method.find_last_of('/');
       ctx.method = ctx.method.substr(n + 1, ctx.method.size());
