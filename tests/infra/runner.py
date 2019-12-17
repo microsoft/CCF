@@ -141,9 +141,7 @@ def run(build_directory, get_command, args):
 
                     tx_rates.get_metrics()
                     for remote_client in clients:
-                        remote_client.print_and_upload_result(
-                            args.label, metrics
-                        )
+                        remote_client.print_and_upload_result(args.label, metrics)
                         remote_client.stop()
 
                     LOG.info(f"Rates:\n{tx_rates}")
