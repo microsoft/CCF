@@ -13,6 +13,10 @@ parameters:
     NoSGX_SAN:
       container: nosgx
       pool: Ubuntu-1804-D16s_v3
+    CIMetrics:
+      container: nosgx
+      pool: Ubuntu-1804-D8s_v3
+      dependsOn: ['BuildAndTest_SGX_CFT_FTCP_Perf', 'BuildAndTest_SGX_BFT_FTCP_Perf']
 
   build:
     common:
@@ -100,3 +104,7 @@ jobs:
         ctest_filter: '${{ parameters.test.perf[consensus].ctest_args }}'
         suffix: 'Perf'
         depends_on: ${{ parameters.static_check_job_name }}
+  
+  - template: cimetrics.yml
+    parameters:
+      env: ${{ parameters.env.CIMetrics }}
