@@ -100,3 +100,5 @@ jobs:
         ctest_filter: '${{ parameters.test.perf[consensus].ctest_args }}'
         suffix: 'Perf'
         depends_on: ${{ parameters.static_check_job_name }}
+  
+  - template: cimetrics.yml
