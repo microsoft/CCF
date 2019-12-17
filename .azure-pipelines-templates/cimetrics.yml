@@ -1,7 +1,7 @@
 jobs:
 - job: CIMetrics
   displayName: 'CI Metrics'
-  dependsOn: ${{ parameters.depends_on }}
+  dependsOn: ['BuildAndTest_SGX_CFT_FTCP_Perf', 'BuildAndTest_SGX_BFT_FTCP_Perf']
 
   steps:
     - checkout: self

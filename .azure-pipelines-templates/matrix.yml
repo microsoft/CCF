@@ -102,4 +102,3 @@ jobs:
         depends_on: ${{ parameters.static_check_job_name }}
   
   - template: cimetrics.yml
-      depends_on: ['BuildAndTest_SGX_CFT_FTCP_Perf', 'BuildAndTest_SGX_BFT_FTCP_Perf']
