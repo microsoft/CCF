@@ -376,8 +376,10 @@ class RequestClient:
         self.format = "json"
         self.stream = Stream(version, "json")
         self.request_timeout = request_timeout
+        self.connection_timeout = connection_timeout
+        self.connected = False
 
-    def request(self, request):
+    def _just_request(self, request):
         rep = requests.post(
             f"https://{self.host}:{self.port}/{request.method}",
             json=request.to_dict(),
@@ -387,6 +389,20 @@ class RequestClient:
         )
         self.stream.update(rep.content)
         return request.id
+
+    def request(self, request):
+        if self.connected:
+            return self._just_request(request)
+        else:
+            while self.connection_timeout >= 0:
+                try:
+                    rid = self._just_request(request)
+                    self.connected = True
+                    return rid
+                except requests.exceptions.ReadTimeout:
+                    if self.connection_timeout < 0:
+                        raise
+                self.connection_timeout -= 0.1
 
     def signed_request(self, request):
         with open(self.key, "rb") as k:
