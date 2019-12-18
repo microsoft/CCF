@@ -425,7 +425,7 @@ class RequestClient:
                 rid = self._just_request(request)
                 self.request = self._just_request
                 return rid
-            except requests.exceptions.ReadTimeout:
+            except requests.exceptions.SSLError:
                 if self.connection_timeout < 0:
                     raise
             self.connection_timeout -= 0.1
