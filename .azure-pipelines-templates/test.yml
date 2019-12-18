@@ -7,7 +7,6 @@ steps:
     NO_TESTS=$(./tests.sh -N -T Test ${{ parameters.ctest_filter }} | grep -c "Total Tests: 0")
     echo "##vso[task.setvariable variable=noTests]$NO_TESTS"
     ./tests.sh -VV --timeout 240 --no-compress-output -T Test ${{ parameters.ctest_filter }}
-    grep 'No tests were found'
   env:
     METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
   displayName: CTest
