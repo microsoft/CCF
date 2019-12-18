@@ -5,7 +5,7 @@ parameters:
 steps:
 - script: |
     NO_TESTS=$(./tests.sh -N -T Test ${{ parameters.ctest_filter }} | grep -c "Total Tests: 0")
-    echo "##vso[task.setvariable variable=noTests;isOutput=true]$NO_TESTS"
+    echo "##vso[task.setvariable variable=noTests]$NO_TESTS"
     ./tests.sh -VV --timeout 240 --no-compress-output -T Test ${{ parameters.ctest_filter }}
     grep 'No tests were found'
   env:
