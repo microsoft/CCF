@@ -8,7 +8,6 @@ steps:
   env:
     METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
   displayName: CTest
-  name: CTest
   workingDirectory: build
 
 - script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) ${{ parameters.suite_name_suffix }}" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
