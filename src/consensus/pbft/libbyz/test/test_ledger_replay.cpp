@@ -7,8 +7,11 @@
 #include "Node.h"
 #include "Replica.h"
 #include "Request.h"
-#include "consensus/ledgerenclave.h"
+#include "consensus/pbft/pbftinfo.h"
+#include "consensus/pbft/pbfttables.h"
+#include "consensus/pbft/pbfttypes.h"
 #include "host/ledger.h"
+#include "kv/test/stub_consensus.h"
 #include "network_mock.h"
 
 #include <cstdio>
@@ -16,11 +19,6 @@
 
 // power of 2 since ringbuffer circuit size depends on total_requests
 static constexpr size_t total_requests = 32;
-// circuit shift calculated based on the size of the entries, which is the
-// same for this test
-static constexpr size_t circuit_size_shift = 16;
-static constexpr size_t circuit_size =
-  (1 << circuit_size_shift) * total_requests;
 
 class ExecutionMock
 {
@@ -77,8 +75,7 @@ NodeInfo get_node_info()
 }
 
 void create_replica(
-  std::vector<char>& service_mem,
-  std::unique_ptr<consensus::LedgerEnclave> ledger)
+  std::vector<char>& service_mem, pbft::Store* store, pbft::PbftInfo* pbft_info)
 {
   auto node_info = get_node_info();
 
@@ -87,7 +84,8 @@ void create_replica(
     service_mem.data(),
     service_mem.size(),
     Create_Mock_Network(),
-    std::move(ledger));
+    store,
+    pbft_info);
   replica->init_state();
   for (auto& pi : node_info.general_info.principal_info)
   {
@@ -104,24 +102,34 @@ TEST_CASE("Test Ledger Replay")
   std::vector<char> service_mem(mem_size, 0);
   ExecutionMock exec_mock(0);
 
-  // initiate replica with ledger enclave to be used on replay
-  ringbuffer::Circuit replay_circuit(circuit_size);
-  auto wf_rplay = ringbuffer::WriterFactory(replay_circuit);
+  auto store = std::make_shared<ccf::Store>(
+    pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
+  auto consensus = std::make_shared<kv::StubConsensus>();
+  store->set_consensus(consensus);
+  auto& pbft_info = store->create<pbft::PbftInfo>(
+    pbft::Tables::PBFT_INFO, kv::SecurityDomain::PUBLIC);
+  auto& derived_map = store->create<std::string, std::string>(
+    "derived_map", kv::SecurityDomain::PUBLIC);
+  auto replica_store = std::make_unique<pbft::Adaptor<ccf::Store>>(store);
 
-  auto replay_ledger_io = std::make_unique<consensus::LedgerEnclave>(wf_rplay);
-
-  create_replica(service_mem, std::move(replay_ledger_io));
+  create_replica(service_mem, replica_store.get(), &pbft_info);
   replica->register_exec(exec_mock.exec_command);
 
-  // initial ledger enclave is used by the LedgerWriter to simulate writting
-  // entries to the ledger
-  ringbuffer::Circuit init_circuit(circuit_size);
-  auto wf = ringbuffer::WriterFactory(init_circuit);
-  auto initial_ledger_io = std::make_unique<consensus::LedgerEnclave>(wf);
-
+  auto write_consensus = std::make_shared<kv::StubConsensus>();
   INFO("Create dummy pre-prepares and write them to ledger");
   {
-    LedgerWriter ledger_writer(std::move(initial_ledger_io));
+    auto write_store = std::make_shared<ccf::Store>(
+      pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
+    write_store->set_consensus(write_consensus);
+    auto& write_pbft_info = write_store->create<pbft::PbftInfo>(
+      pbft::Tables::PBFT_INFO, kv::SecurityDomain::PUBLIC);
+    auto& write_derived_map = write_store->create<std::string, std::string>(
+      "derived_map", kv::SecurityDomain::PUBLIC);
+
+    auto write_pbft_store =
+      std::make_unique<pbft::Adaptor<ccf::Store>>(write_store);
+
+    LedgerWriter ledger_writer(write_pbft_store.get(), &write_pbft_info);
 
     Req_queue rqueue;
     for (size_t i = 1; i < total_requests; i++)
@@ -141,6 +149,23 @@ TEST_CASE("Test Ledger Replay")
       rqueue.append(request);
       size_t num_requests = 1;
       auto pp = std::make_unique<Pre_prepare>(1, i, rqueue, num_requests);
+
+      ccf::Store::Tx tx;
+      auto req_view = tx.get_view(write_pbft_info);
+      req_view->put(
+        0,
+        {pbft::InfoType::REQUEST,
+         {},
+         {0,
+          0,
+          {},
+          {(const uint8_t*)request->contents(),
+           (const uint8_t*)request->contents() + request->size()}}});
+
+      auto der_view = tx.get_view(write_derived_map);
+      der_view->put("key1", "value1");
+
+      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
       // imitate exec command
       ByzInfo info;
@@ -163,124 +188,56 @@ TEST_CASE("Test Ledger Replay")
 
   INFO("Read the ledger entries and replay them out of order and in order");
   {
-    std::vector<uint8_t> initial_ledger;
-    std::vector<size_t> positions;
-    size_t total_len = 0;
-    size_t num_msgs = 0;
-    // We can get the entries that would have been written to the ledger file
-    // from the circuit and put them in initial_ledger for them to be replayed.
-    // Replay expects the entries to be preceeded by the entry frame indicating
-    // the size of the entry that follows, and that is simulated here.
-    init_circuit.read_from_inside().read(
-      -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
-        switch (m)
-        {
-          case consensus::ledger_append:
-          {
-            positions.push_back(total_len);
-            size_t framed_entry_size = size + sizeof(uint32_t);
-            total_len += framed_entry_size;
-            initial_ledger.reserve(total_len);
-            uint32_t s = (uint32_t)size;
-
-            initial_ledger.insert(
-              end(initial_ledger),
-              (uint8_t*)&s,
-              (uint8_t*)&s + sizeof(uint32_t));
-            initial_ledger.insert(end(initial_ledger), data, data + size);
-          }
-          break;
-          default:
-            INFO(
-              "We should only encounter ledger_append or ledger_truncate "
-              "messages");
-            REQUIRE(false);
-        }
-        ++num_msgs;
-      });
-    REQUIRE(num_msgs == (total_requests - 1));
-
-    // check that nothing gets executed out of order
-    INFO("replay entries 5 till 9 should fail");
-    auto first = initial_ledger.begin() + positions.at(4);
-    auto last = initial_ledger.end();
-    std::vector<uint8_t> vec_5_9(first, last);
-    CHECK(!replica->apply_ledger_data(vec_5_9));
-
-    INFO("replay entries 1 till 3");
-    first = initial_ledger.begin();
-    last = initial_ledger.begin() + positions.at(3);
-    std::vector<uint8_t> vec_1_3(first, last);
-    CHECK(replica->apply_ledger_data(vec_1_3));
-
-    INFO("replay entries 2 till 3 should fail");
-    first = initial_ledger.begin() + positions.at(1);
-    last = initial_ledger.begin() + positions.at(3);
-    std::vector<uint8_t> vec_2_3(first, last);
-    CHECK(!replica->apply_ledger_data(vec_2_3));
-
-    INFO("replay the rest of the pre-prepares in batches of 4");
-    for (size_t i = 3; i < total_requests - 1; i += 4)
+    replica->activate_pbft_local_hooks();
+    // ledgerenclave work
+    std::vector<std::vector<uint8_t>> entries;
+    while (true)
     {
-      auto until = i + 4;
-      first = initial_ledger.begin() + positions.at(i);
-      if (until >= positions.size())
+      auto ret = write_consensus->get_earliest_data();
+      if (!ret.second)
       {
-        last = initial_ledger.end();
+        break;
       }
-      else
+      // TODO: when deserialise will be called by pbft, in that place pbft will
+      // have to also append the write set to the ledger
+      entries.emplace_back(ret.first);
+    }
+    // apply out of order first
+    REQUIRE(
+      store->deserialise(entries.back()) == kv::DeserialiseSuccess::FAILED);
+
+    ccf::Store::Tx tx;
+    auto info_view = tx.get_view(pbft_info);
+    auto info = info_view->get(0);
+    REQUIRE(!info.has_value());
+
+    REQUIRE(entries.size() > 0);
+
+    Seqno seqno = 1;
+    // apply all of the data in order
+    for (const auto& entry : entries)
+    {
+      REQUIRE(store->deserialise(entry) == kv::DeserialiseSuccess::PASS);
+      ccf::Store::Tx tx;
+      auto info_view = tx.get_view(pbft_info);
+      auto info = info_view->get(0);
+      REQUIRE(info.has_value());
+      if (info.value().type == pbft::InfoType::REQUEST)
       {
-        last = initial_ledger.begin() + positions.at(until);
+        REQUIRE(info.value().request.raw.size() > 0);
       }
-      std::vector<uint8_t> vec(first, last);
-      CHECK(replica->apply_ledger_data(vec));
+      else if (info.value().type == pbft::InfoType::PRE_PREPARE)
+      {
+        REQUIRE(info.value().pre_prepare.seqno == seqno);
+        seqno++;
+      }
+      // no derived data should have gotten deserialised
+      auto der_view = tx.get_view(derived_map);
+      auto derived_val = der_view->get("key1");
+      REQUIRE(!derived_val.has_value());
     }
 
-    std::vector<uint8_t> replay_ledger;
-    std::vector<size_t> positions_replay;
-    size_t total_len_replay = 0;
-    // Same as above we get the entries that would have been written to the
-    // ledger on replay. We also take into account the fact that truncate will
-    // have been called when the entries were played out of order
-    replay_circuit.read_from_inside().read(
-      -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
-        switch (m)
-        {
-          case consensus::ledger_append:
-          {
-            positions_replay.push_back(total_len_replay);
-            size_t framed_entry_size = size + sizeof(uint32_t);
-            total_len_replay += framed_entry_size;
-            replay_ledger.reserve(total_len_replay);
-
-            uint32_t s = (uint32_t)size;
-
-            replay_ledger.insert(
-              end(replay_ledger),
-              (uint8_t*)&s,
-              (uint8_t*)&s + sizeof(uint32_t));
-            replay_ledger.insert(end(replay_ledger), data, data + size);
-          }
-          break;
-          case consensus::ledger_truncate:
-          {
-            auto last_idx = serialized::read<size_t>(data, size);
-            total_len_replay = positions_replay.at(last_idx);
-            positions_replay.resize(last_idx);
-
-            replay_ledger.resize(total_len_replay);
-
-            break;
-          }
-          default:
-            INFO(
-              "We should only encounter ledger_append or ledger_truncate "
-              "messages");
-            REQUIRE(false);
-        }
-      });
-
-    CHECK(std::equal(
-      initial_ledger.begin(), initial_ledger.end(), replay_ledger.begin()));
+    auto last_executed = replica->get_last_executed();
+    REQUIRE(last_executed == total_requests - 1);
   }
 }

@@ -10,6 +10,23 @@
 
 namespace pbft
 {
+  enum class InfoType
+  {
+    REQUEST = 0,
+    PRE_PREPARE = 1,
+    VIEW_CHANGE = 2
+  };
+  DECLARE_JSON_ENUM(
+    InfoType,
+    {{InfoType::REQUEST, "REQUEST"},
+     {InfoType::PRE_PREPARE, "PRE_PREPARE"},
+     {InfoType::VIEW_CHANGE, "VIEW_CHANGE"}});
+}
+
+MSGPACK_ADD_ENUM(pbft::InfoType);
+
+namespace pbft
+{
   struct Request
   {
     uint64_t actor;
@@ -63,11 +80,37 @@ namespace pbft
     }
   };
 
-  // size_t is used as the key of the table. This key will always be 0 since we
-  // don't want to store the requests in the kv over time, we just want to get
-  // them into the ledger
-  using PbftRequests = ccf::Store::Map<size_t, Request>;
-
   DECLARE_JSON_TYPE(Request);
   DECLARE_JSON_REQUIRED_FIELDS(Request, actor, caller_id, caller_cert, raw);
+
+  struct PrePrepare
+  {
+    int64_t seqno;
+    int message_size;
+    int16_t num_big_requests;
+    std::vector<uint8_t> contents;
+
+    MSGPACK_DEFINE(seqno, message_size, num_big_requests, contents);
+  };
+
+  DECLARE_JSON_TYPE(PrePrepare);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    PrePrepare, seqno, message_size, num_big_requests, contents);
+
+  struct Info
+  {
+    pbft::InfoType type;
+    PrePrepare pre_prepare;
+    Request request;
+
+    MSGPACK_DEFINE(type, pre_prepare, request);
+  };
+
+  DECLARE_JSON_TYPE(Info);
+  DECLARE_JSON_REQUIRED_FIELDS(Info, type, pre_prepare, request);
+
+  // size_t is used as the key of the table. This key will always be 0 since we
+  // don't want to store the info in the kv over time, we just want to get
+  // them into the ledger
+  using PbftInfo = ccf::Store::Map<size_t, Info>;
 }

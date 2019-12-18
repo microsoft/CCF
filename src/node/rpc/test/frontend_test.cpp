@@ -18,7 +18,7 @@
 #include "node_stub.h"
 
 #ifdef PBFT
-#  include "consensus/pbft/pbftrequests.h"
+#  include "consensus/pbft/pbftinfo.h"
 #  include "node/history.h"
 #endif
 #include <iostream>
@@ -379,16 +379,18 @@ TEST_CASE("process_pbft")
   frontend.process_pbft(ctx);
 
   Store::Tx tx;
-  auto pbft_metadata = tx.get_view(pbft_network.pbft_requests);
-  auto request_value = pbft_metadata->get(0);
+  auto pbft_info = tx.get_view(pbft_network.pbft_info);
+  auto request_value = pbft_info->get(0);
   REQUIRE(request_value.has_value());
 
-  auto deserialised_request = request_value.value();
-  REQUIRE(deserialised_request.actor == actor);
-  REQUIRE(deserialised_request.caller_id == user_id);
-  REQUIRE(deserialised_request.caller_cert == user_caller_der);
+  pbft::Info deserialised_info = request_value.value();
+
+  REQUIRE(deserialised_info.type == pbft::InfoType::REQUEST);
+  REQUIRE(deserialised_info.request.actor == actor);
+  REQUIRE(deserialised_info.request.caller_id == user_id);
+  REQUIRE(deserialised_info.request.caller_cert == user_caller_der);
   auto deserialised_simple_call =
-    jsonrpc::unpack(deserialised_request.raw, default_pack);
+    jsonrpc::unpack(deserialised_info.request.raw, default_pack);
   REQUIRE(
     deserialised_simple_call[jsonrpc::METHOD] == simple_call[jsonrpc::METHOD]);
 }

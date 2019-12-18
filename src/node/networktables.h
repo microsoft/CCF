@@ -5,7 +5,7 @@
 #include "certs.h"
 #include "clientsignatures.h"
 #include "codeid.h"
-#include "consensus/pbft/pbftrequests.h"
+#include "consensus/pbft/pbftinfo.h"
 #include "consensus/pbft/pbfttables.h"
 #include "consensus/raft/rafttables.h"
 #include "entities.h"
@@ -75,7 +75,7 @@ namespace ccf
     //
     // Pbft related tables
     //
-    pbft::PbftRequests& pbft_requests;
+    pbft::PbftInfo& pbft_info;
 
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::Raft) :
       tables(
@@ -117,8 +117,7 @@ namespace ccf
         tables->create<Secrets>(Tables::SECRETS, kv::SecurityDomain::PUBLIC)),
       signatures(tables->create<Signatures>(
         Tables::SIGNATURES, kv::SecurityDomain::PUBLIC)),
-      pbft_requests(
-        tables->create<pbft::PbftRequests>(pbft::Tables::PBFT_REQUESTS))
+      pbft_info(tables->create<pbft::PbftInfo>(pbft::Tables::PBFT_INFO))
     {}
 
     /** Returns a tuple of all tables that are possibly accessible from scripts

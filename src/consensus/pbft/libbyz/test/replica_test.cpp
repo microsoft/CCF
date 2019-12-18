@@ -382,6 +382,7 @@ int main(int argc, char** argv)
     0,
     network,
     nullptr,
+    nullptr,
     &message_receive_base);
 
   Byz_start_replica();

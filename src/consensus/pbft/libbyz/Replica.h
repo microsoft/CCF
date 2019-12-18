@@ -8,7 +8,6 @@
 #include "Big_req_table.h"
 #include "Certificate.h"
 #include "Digest.h"
-#include "LedgerReplay.h"
 #include "LedgerWriter.h"
 #include "Log.h"
 #include "Network_open.h"
@@ -60,7 +59,8 @@ public:
     char* mem,
     size_t nbytes,
     INetwork* network,
-    std::unique_ptr<consensus::LedgerEnclave> ledger = nullptr);
+    pbft::Store* store_ = nullptr,
+    pbft::PbftInfo* pbft_info = nullptr);
   // Requires: "mem" is vm page aligned and nbytes is a multiple of the
   // vm page size.
   // Effects: Create a new server replica using the information in
@@ -124,10 +124,16 @@ public:
   void register_global_commit(global_commit_handler_cb cb, void* ctx);
   // Effects:: Registers a handler that is called when a batch is committed
 
+  template <typename T>
+  std::unique_ptr<T> create_message(
+    const uint8_t* message_data, size_t data_size);
+
   size_t num_correct_replicas() const;
   size_t f() const;
   void set_f(ccf::NodeId f);
   void emit_signature_on_next_pp(int64_t version);
+  void activate_pbft_local_hooks();
+  void deactivate_pbft_local_hooks();
   View view() const;
   bool is_primary() const;
   int primary() const;
@@ -184,9 +190,9 @@ public:
   // Compare the merkle root and batch ctx between the pre-prepare and the
   // the corresponding fields in info after execution
 
-  bool apply_ledger_data(const std::vector<uint8_t>& data);
-  // Effects: Entries are deserialized and requests are executed if they are
-  // able to If not any requests are cleared from the request queues
+  void apply_ledger_data(pbft::InfoType type, const pbft::Info& info);
+  // Effects: Requests are stored in queue and pre-prepares are executed if they
+  // are able to If not any requests are cleared from the request queues
 
   void init_state();
   void recv_start();
@@ -422,12 +428,20 @@ private:
   reply_handler_cb rep_cb;
   void* rep_cb_ctx;
 
+  pbft::PbftInfo* pbft_info;
+
+  std::function<void(
+    kv::Version, const pbft::PbftInfo::State&, const pbft::PbftInfo::Write&)>
+    playback_local_hook;
+  // local commit hook to be used when replaying the ledger
+  // when requests and pre-prepares are deserialised the hook will be triggered
+  // and pre-prepares will be applied
+
   // used to callback when we have committed a batch
   global_commit_handler_cb global_commit_cb;
   void* global_commit_ctx;
 
   std::unique_ptr<LedgerWriter> ledger_writer;
-  std::unique_ptr<LedgerReplay> ledger_replay;
 
   // State abstraction manages state checkpointing and digesting
   State state;

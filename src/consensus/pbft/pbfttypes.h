@@ -30,9 +30,14 @@ namespace pbft
   {
   public:
     virtual ~Store() {}
+    virtual kv::CommitSuccess commit(
+      kv::Version version,
+      kv::PendingTx pending_tx,
+      bool globally_committable) = 0;
     virtual void compact(Index v) = 0;
     virtual void rollback(Index v) = 0;
     virtual kv::Version current_version() = 0;
+    virtual kv::Version next_version() = 0;
   };
 
   template <typename T>
@@ -43,6 +48,17 @@ namespace pbft
 
   public:
     Adaptor(std::shared_ptr<T> x) : x(x) {}
+
+    kv::CommitSuccess commit(
+      kv::Version version, kv::PendingTx pending_tx, bool globally_committable)
+    {
+      auto p = x.lock();
+      if (p)
+      {
+        return p->commit(version, pending_tx, globally_committable);
+      }
+      return kv::CommitSuccess::CONFLICT;
+    }
 
     void compact(Index v)
     {
@@ -68,6 +84,16 @@ namespace pbft
       if (p)
       {
         return p->current_version();
+      }
+      return kv::NoVersion;
+    }
+
+    kv::Version next_version()
+    {
+      auto p = x.lock();
+      if (p)
+      {
+        return p->next_version();
       }
       return kv::NoVersion;
     }
