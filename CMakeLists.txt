@@ -2,21 +2,21 @@
 # Licensed under the Apache 2.0 License.
 cmake_minimum_required(VERSION 3.11)
 
-add_definitions(-DOE_API_VERSION=2)
-
 set(CCF_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 include(${CCF_DIR}/cmake/preproject.cmake)
 
 project(ccf C CXX)
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
-
-set(TEST_HOST_LOGGING_LEVEL "info")
+set(TESTS_SUFFIX $ENV{TESTS_SUFFIX})
+message(STATUS "Setting TESTS_SUFFIX on performance tests to '${TESTS_SUFFIX}'")
 set(ENV{BETTER_EXCEPTIONS} 1)
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
+# TODO: remove once FTCP support is disabled
 # MemberClient executable
 add_executable(memberclient src/clients/memberclient.cpp)
 use_client_mbedtls(memberclient)
@@ -24,20 +24,29 @@ target_link_libraries(memberclient PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
   ccfcrypto.host
   secp256k1.host
+  http_parser.host
 )
 
+add_dependencies(memberclient flatbuffers)
+
+# TODO: remove once FTCP support is disabled
 # Logging Client executable
 add_executable(logging_client src/clients/logging_client.cpp)
 use_client_mbedtls(logging_client)
 target_link_libraries(logging_client PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
+  http_parser.host
 )
 
-# SNIPPET: Logging application
-add_enclave_lib(loggingenc ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem SRCS src/apps/logging/logging.cpp src/apps/logging/stub_for_code_signing.cpp)
+add_enclave_lib(loggingenc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+  SRCS
+    src/apps/logging/logging.cpp
+    src/apps/logging/stub_for_code_signing.cpp
+)
 
 if(BUILD_TESTS)
-  # Tests
   enable_testing()
 
   # Unit tests
@@ -47,7 +56,7 @@ if(BUILD_TESTS)
   add_unit_test(json_schema
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp)
 
-    add_unit_test(logger_json_test
+  add_unit_test(logger_json_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/logger_json_test.cpp)
 
   add_unit_test(kv_test
@@ -131,15 +140,16 @@ if(BUILD_TESTS)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/test/http.cpp)
   target_link_libraries(http_test PRIVATE http_parser.host)
 
-  if(NOT PBFT)
-    add_unit_test(frontend_test
+  add_unit_test(frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp)
     target_link_libraries(frontend_test PRIVATE
       ${CMAKE_THREAD_LIBS_INIT}
       evercrypt.host
       lua.host
-      secp256k1.host)
+      secp256k1.host
+    )
 
+  if(NOT PBFT)
     add_unit_test(membervoting_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/membervoting_test.cpp)
     target_link_libraries(membervoting_test PRIVATE
@@ -161,7 +171,7 @@ if(BUILD_TESTS)
     endif()
 
     add_unit_test(luageneric_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/luageneric_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/test/luageneric_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/luageneric.cpp)
     target_include_directories(luageneric_test PRIVATE
       ${LUA_DIR})
@@ -177,41 +187,6 @@ if(BUILD_TESTS)
     ${LUA_DIR})
   target_link_libraries(lua_test PRIVATE
     lua.host)
-
-  ## Picobench wrapper
-  function(add_picobench name)
-    cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS
-      ""
-      ""
-      "SRCS;INCLUDE_DIRS;LINK_LIBS"
-    )
-
-    add_executable(${name}
-      ${PARSED_ARGS_SRCS}
-    )
-
-    target_include_directories(${name} PRIVATE
-      src
-      ${PARSED_ARGS_INCLUDE_DIRS}
-    )
-
-    target_link_libraries(${name} PRIVATE
-      ${CMAKE_THREAD_LIBS_INIT}
-      ${PARSED_ARGS_LINK_LIBS}
-    )
-
-    # -Wall -Werror catches a number of warnings in picobench
-    target_include_directories(${name} SYSTEM PRIVATE 3rdparty)
-
-    add_test(
-      NAME ${name}
-      COMMAND bash -c "$<TARGET_FILE:${name}> --samples=1000 --out-fmt=csv --output=${name}.csv && cat ${name}.csv"
-    )
-
-    use_client_mbedtls(${name})
-
-    set_property(TEST ${name} PROPERTY LABELS benchmark)
-  endfunction()
 
   ## Picobench benchmarks
   add_picobench(map_bench
@@ -258,6 +233,7 @@ if(BUILD_TESTS)
   target_include_directories(merkle_mem PRIVATE
     ${EVERCRYPT_INC}
     src)
+  add_dependencies(merkle_mem flatbuffers)
 
   if (NOT PBFT)
     # Raft driver and scenario test
@@ -266,6 +242,7 @@ if(BUILD_TESTS)
     use_client_mbedtls(raft_driver)
     target_include_directories(raft_driver PRIVATE
       src/raft)
+    add_dependencies(raft_driver flatbuffers)
     add_test(
       NAME raft_scenario_test
       COMMAND
@@ -273,135 +250,160 @@ if(BUILD_TESTS)
           ${CMAKE_SOURCE_DIR}/tests/raft_scenarios ${CMAKE_SOURCE_DIR})
     set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
+    ## Storing signed votes test
+    add_e2e_test(
+      NAME voting_history_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
+
+    # TODO: Sends an ACK via C++ memberclient, which must be signed.
+    # ACK should be sent from Python, AND HTTP memberclient should sign
     if (NOT HTTP)
       # Member client end to end tests
       add_e2e_test(
         NAME member_client_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
       )
+    endif()
 
-      ## Logging client end to end test
+    ## Logging client end to end test
+    add_e2e_test(
+      NAME logging_client_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
+    )
+
+    ## Lua sample app (tx regulator) end to end test
+    add_e2e_test(
+      NAME lua_txregulator_test
+      PYTHON_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
+      ADDITIONAL_ARGS
+        --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
+        --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
+
+    ## Receipts end to end test
+    add_e2e_test(
+      NAME receipts_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
+    )
+
+    if(QUOTES_ENABLED)
       add_e2e_test(
-        NAME logging_client_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
+        NAME governance_tests
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+        ADDITIONAL_ARGS
+          --oesign ${OESIGN}
+      )
+    endif()
+
+    add_e2e_test(
+      NAME recovery_tests
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+      ADDITIONAL_ARGS
+        ${RECOVERY_ARGS}
+    )
+
+    add_e2e_test(
+      NAME test_suite
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+      IS_SUITE TRUE
+      ADDITIONAL_ARGS
+      --test-duration 100
+      --enforce-reqs
+    )
+
+    add_e2e_test(
+      NAME lua_end_to_end_batched
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
+      ADDITIONAL_ARGS
+        --app-script ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua)
+
+    add_e2e_test(
+      NAME end_to_end_logging
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+      CURL_CLIENT TRUE
+    )
+
+    add_e2e_test(
+      NAME lua_end_to_end_logging
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+      ADDITIONAL_ARGS
+        --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
+    )
+
+    add_e2e_test(
+      NAME end_to_end_scenario
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
+      ADDITIONAL_ARGS
+        --scenario ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
+    )
+
+    if (NOT SAN)
+      add_e2e_test(
+        NAME connections
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+      )
+    endif()
+
+    add_e2e_test(
+      NAME schema_tests
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+      ADDITIONAL_ARGS
+      -p libloggingenc
+      --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
+    )
+
+    if(QUOTES_ENABLED)
+      add_e2e_test(
+        NAME reconfiguration_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
       )
 
-      if (NOT SAN)
-        add_e2e_test(
-          NAME connections
-          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-        )
-      endif()
-
-      ## Storing signed votes test
       add_e2e_test(
-        NAME voting_history_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
-
-      ## Lua sample app (tx regulator) end to end test
-      add_e2e_test(
-        NAME lua_txregulator_test
-        PYTHON_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
+        NAME code_update_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
         ADDITIONAL_ARGS
-          --app-script ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
-          --datafile ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv)
-
-      if(QUOTES_ENABLED)
-        add_e2e_test(
-          NAME governance_tests
-          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-          ADDITIONAL_ARGS
-            --oesign ${OESIGN}
-        )
-
-        add_e2e_test(
-          NAME reconfiguration_test
-          PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-        )
-
-        add_e2e_test(
-         NAME code_update_test
-         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-         ADDITIONAL_ARGS
-           --oesign ${OESIGN}
-           --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
-           --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
-           # TODO: This test spins up many nodes that go through the join protocol
-           # Since oe_verify_report can take quite a long time to execute (~2s)
-           # and trigger Raft elections, the election timeout should stay high
-           # until https://github.com/microsoft/CCF/issues/480 is fixed
-           --election-timeout 5000
-        )
-      endif()
-
-      add_e2e_test(
-        NAME end_to_end_logging
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-      )
-
-      add_e2e_test(
-        NAME lua_end_to_end_logging
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-        ADDITIONAL_ARGS
-          --app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua)
-
-      add_e2e_test(
-        NAME end_to_end_scenario
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
-        ADDITIONAL_ARGS
-          --scenario ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
-      )
-
-      add_e2e_test(
-        NAME election_tests
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-        ADDITIONAL_ARGS
-          --election-timeout 2000
-      )
-
-      add_e2e_test(
-        NAME recovery_tests
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-        ADDITIONAL_ARGS
-          ${RECOVERY_ARGS}
-      )
-
-      add_e2e_test(
-        NAME schema_tests
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
-        ADDITIONAL_ARGS
-        -p libloggingenc
-        --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
-        )
-
-      add_e2e_test(
-        NAME test_suite
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-        IS_SUITE TRUE
-        ADDITIONAL_ARGS
-        --test-duration 100
-        --enforce-reqs
-      )
-
-      if (BUILD_SMALLBANK)
-        include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
-      endif()
-
-    else()
-      add_e2e_test(
-        NAME end_to_end_http
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_http.py
+          --oesign ${OESIGN}
+          --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+          --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+          # TODO: This test spins up many nodes that go through the join protocol
+          # Since oe_verify_report can take quite a long time to execute (~2s)
+          # and trigger Raft elections, the election timeout should stay high
+          # until https://github.com/microsoft/CCF/issues/480 is fixed
+          --election-timeout 5000
       )
     endif()
 
   else()
     message(STATUS "Using PBFT as consensus")
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
+  endif()
 
-    if (BUILD_SMALLBANK)
-      include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
-      include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/tpcc/tpcc.cmake)
-    endif()
+  if (BUILD_SMALLBANK)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
+  endif()
+
+  # TODO: Fix signed HTTP RPCs with PBFT
+  if (NOT (HTTP AND PBFT))
+    add_e2e_test(
+      NAME election_tests
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+      ADDITIONAL_ARGS
+        --election-timeout 2000
+    )
+  endif()
+
+  if (NOT PBFT)
+    # Logging scenario perf test
+    add_perf_test(
+      NAME logging_scenario_perf_test
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/perfclient.py
+      CLIENT_BIN ./scenario_perf_client
+      LABEL logging_scenario_perf_test
+      ADDITIONAL_ARGS
+        --package libloggingenc
+        --scenario-file ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+        --max-writes-ahead 1000
+        --repetitions 1000
+    )
   endif()
 
   if (EXTENSIVE_TESTS)

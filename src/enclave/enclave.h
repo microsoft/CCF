@@ -12,7 +12,6 @@
 #include "node/nodetypes.h"
 #include "node/notifier.h"
 #include "node/rpc/forwarder.h"
-#include "node/rpc/memberfrontend.h"
 #include "node/rpc/nodefrontend.h"
 #include "node/timer.h"
 #include "rpcclient.h"
@@ -25,6 +24,7 @@ namespace enclave
   {
   private:
     ringbuffer::Circuit* circuit;
+    ringbuffer::WriterFactory basic_writer_factory;
     oversized::WriterFactory writer_factory;
     ccf::NetworkState network;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
@@ -37,21 +37,26 @@ namespace enclave
 
     CCFConfig ccf_config;
     StartType start_type;
+    ConsensusType consensus_type;
 
   public:
     Enclave(
       EnclaveConfig* enclave_config,
       const CCFConfig::SignatureIntervals& signature_intervals,
+      const ConsensusType& consensus_type_,
       const raft::Config& raft_config) :
       circuit(enclave_config->circuit),
-      writer_factory(circuit, enclave_config->writer_config),
+      basic_writer_factory(*circuit),
+      writer_factory(basic_writer_factory, enclave_config->writer_config),
+      network(consensus_type_),
       n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
       notifier(writer_factory),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
       node(writer_factory, network, rpcsessions, notifier, timers),
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
-        rpcsessions, n2n_channels, rpc_map))
+        rpcsessions, n2n_channels, rpc_map)),
+      consensus_type(consensus_type_)
     {
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
@@ -97,7 +102,7 @@ namespace enclave
       start_type = start_type_;
       ccf_config = ccf_config_;
 
-      auto r = node.create({start_type, ccf_config_});
+      auto r = node.create({start_type, consensus_type, ccf_config});
       if (!r.second)
         return false;
 

@@ -3,6 +3,7 @@
 import argparse
 import os
 import infra.path
+import infra.ccf
 import sys
 
 
@@ -86,6 +87,9 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=100000,
     )
     parser.add_argument(
+        "--consensus", help="Consensus", default="raft", choices=("raft", "pbft"),
+    )
+    parser.add_argument(
         "--pdb", help="Break to debugger on exception", action="store_true"
     )
     parser.add_argument(
@@ -96,6 +100,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Temporary directory where nodes store their logs, ledgers, quotes, etc.",
         default=infra.path.default_workspace(),
     )
+
     default_label = os.path.splitext(os.path.basename(sys.argv[0]))[0]
     parser.add_argument(
         "--label", help="Unique identifier for the test", default=default_label
@@ -107,7 +112,16 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=False,
     )
     parser.add_argument(
-        "--pbft", help="Opens network the PBFT way", action="store_true",
+        "--domain",
+        help="Domain name used for node certificate verification",
+        default="ccf.io",
+    )
+    parser.add_argument(
+        "--default-curve",
+        help="Curve to use for member and user identities",
+        default=infra.ccf.ParticipantsCurve.secp384r1.name,
+        type=lambda curve: infra.ccf.ParticipantsCurve[curve],
+        choices=list(infra.ccf.ParticipantsCurve),
     )
     add(parser)
 

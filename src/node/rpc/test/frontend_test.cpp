@@ -17,6 +17,10 @@
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
 
+#ifdef PBFT
+#  include "consensus/pbft/pbftrequests.h"
+#  include "node/history.h"
+#endif
 #include <iostream>
 #include <string>
 
@@ -227,7 +231,20 @@ ccf::NetworkState network;
 ccf::NetworkState network2;
 auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
 
-ccf::StubNodeState node;
+#ifdef PBFT
+ccf::NetworkState pbft_network(ConsensusType::Pbft);
+auto history_kp = tls::make_key_pair();
+
+auto history = std::make_shared<ccf::NullTxHistory>(
+  *pbft_network.tables,
+  0,
+  *history_kp,
+  pbft_network.signatures,
+  pbft_network.nodes);
+
+#endif
+
+ccf::StubNodeState stub_node;
 
 std::vector<uint8_t> sign_json(nlohmann::json j)
 {
@@ -261,34 +278,29 @@ std::optional<SignedReq> get_signed_req(CallerId caller_id)
   return client_sig_view->get(caller_id);
 }
 
-// caller used throughout
-auto ca = kp -> self_sign("CN=name");
-auto verifier = tls::make_verifier(ca);
-auto user_caller = verifier -> raw_cert_data();
+// callers used throughout
+auto user_caller = kp -> self_sign("CN=name");
+auto user_caller_der = tls::make_verifier(user_caller) -> der_cert_data();
 
-auto ca_mem = kp -> self_sign("CN=name_member");
-auto verifier_mem = tls::make_verifier(ca_mem);
-auto member_caller = verifier_mem -> raw_cert_data();
+auto member_caller = kp -> self_sign("CN=name_member");
+auto member_caller_der = tls::make_verifier(member_caller) -> der_cert_data();
 
-auto ca_node = kp -> self_sign("CN=node");
-auto verifier_node = tls::make_verifier(ca_node);
-auto node_caller = verifier_node -> raw_cert_data();
+auto node_caller = kp -> self_sign("CN=node");
+auto node_caller_der = tls::make_verifier(node_caller) -> der_cert_data();
 
-auto ca_nos = kp -> self_sign("CN=nostore_user");
-auto verifier_nos = tls::make_verifier(ca_nos);
-auto nos_caller = verifier_nos -> raw_cert_data();
+auto nos_caller = kp -> self_sign("CN=nostore_user");
+auto nos_caller_der = tls::make_verifier(nos_caller) -> der_cert_data();
 
 auto kp_other = tls::make_key_pair();
-auto ca_inv = kp_other -> self_sign("CN=name");
-auto verifier_inv = tls::make_verifier(ca_inv);
-auto invalid_caller = verifier_inv -> raw_cert_data();
+auto invalid_caller = kp_other -> self_sign("CN=name");
+auto invalid_caller_der = tls::make_verifier(invalid_caller) -> der_cert_data();
 
 const enclave::SessionContext user_session(
-  enclave::InvalidSessionId, user_caller);
+  enclave::InvalidSessionId, user_caller_der);
 const enclave::SessionContext invalid_session(
-  enclave::InvalidSessionId, invalid_caller);
+  enclave::InvalidSessionId, invalid_caller_der);
 const enclave::SessionContext member_session(
-  enclave::InvalidSessionId, member_caller);
+  enclave::InvalidSessionId, member_caller_der);
 
 UserId user_id = INVALID_ID;
 UserId invalid_user_id = INVALID_ID;
@@ -304,6 +316,10 @@ void prepare_callers()
   // It is necessary to set a consensus before committing the first transaction,
   // so that the KV batching done before calling into replicate() stays in
   // order.
+
+  // First, clear all previous callers since the same callers cannot be added
+  // twice to a store
+  network.tables->clear();
   auto backup_consensus = std::make_shared<kv::PrimaryStubConsensus>();
   network.tables->set_consensus(backup_consensus);
 
@@ -311,8 +327,7 @@ void prepare_callers()
   network.tables->set_encryptor(encryptor);
   network2.tables->set_encryptor(encryptor);
 
-  Store::Tx gen_tx;
-  GenesisGenerator g(network, gen_tx);
+  GenesisGenerator g(network, tx);
   g.init_values();
   user_id = g.add_user(user_caller);
   invalid_user_id = g.add_user(invalid_caller);
@@ -325,12 +340,59 @@ void prepare_callers()
 void add_callers_primary_store()
 {
   Store::Tx gen_tx;
+  network2.tables->clear();
   GenesisGenerator g(network2, gen_tx);
   g.init_values();
   user_id = g.add_user(user_caller);
   member_id = g.add_member(member_caller);
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
+
+#ifdef PBFT
+
+void add_callers_pbft_store()
+{
+  Store::Tx gen_tx;
+  pbft_network.tables->set_encryptor(encryptor);
+  pbft_network.tables->clear();
+  pbft_network.tables->set_history(history);
+
+  GenesisGenerator g(pbft_network, gen_tx);
+  g.init_values();
+  user_id = g.add_user(user_caller);
+  CHECK(g.finalize() == kv::CommitSuccess::OK);
+}
+
+TEST_CASE("process_pbft")
+{
+  add_callers_pbft_store();
+  TestUserFrontend frontend(*pbft_network.tables);
+  auto simple_call = create_simple_json();
+  const auto serialized_call = jsonrpc::pack(simple_call, default_pack);
+  auto actor = ActorsType::users;
+  pbft::Request request = {actor, user_id, user_caller_der, serialized_call};
+
+  const enclave::SessionContext session(
+    enclave::InvalidSessionId, user_id, user_caller_der);
+  auto ctx = enclave::make_rpc_context(session, request.raw);
+  ctx.actor = (ccf::ActorsType)request.actor;
+  frontend.process_pbft(ctx);
+
+  Store::Tx tx;
+  auto pbft_metadata = tx.get_view(pbft_network.pbft_requests);
+  auto request_value = pbft_metadata->get(0);
+  REQUIRE(request_value.has_value());
+
+  auto deserialised_request = request_value.value();
+  REQUIRE(deserialised_request.actor == actor);
+  REQUIRE(deserialised_request.caller_id == user_id);
+  REQUIRE(deserialised_request.caller_cert == user_caller_der);
+  auto deserialised_simple_call =
+    jsonrpc::unpack(deserialised_request.raw, default_pack);
+  REQUIRE(
+    deserialised_simple_call[jsonrpc::METHOD] == simple_call[jsonrpc::METHOD]);
+}
+#else
 
 TEST_CASE("SignedReq to and from json")
 {
@@ -416,7 +478,8 @@ TEST_CASE("process")
     CHECK(value.req.empty());
     CHECK(value.sig == signed_call[jsonrpc::SIG]);
   }
-
+  // TODO: verify_client_signature
+#  ifndef HTTP
   SUBCASE("signature not verified")
   {
     const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
@@ -433,6 +496,7 @@ TEST_CASE("process")
     const auto signed_resp = get_signed_req(invalid_user_id);
     CHECK(!signed_resp.has_value());
   }
+#  endif
 }
 
 TEST_CASE("MinimalHandleFuction")
@@ -493,7 +557,7 @@ TEST_CASE("Member caller")
   auto simple_call = create_simple_json();
   std::vector<uint8_t> serialized_call =
     jsonrpc::pack(simple_call, default_pack);
-  TestMemberFrontend frontend(*network.tables, network, node);
+  TestMemberFrontend frontend(*network.tables, network, stub_node);
 
   SUBCASE("valid caller")
   {
@@ -711,8 +775,8 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
 {
   prepare_callers();
 
-  TestForwardingNodeFrontEnd node_frontend_backup(network, node);
-  TestForwardingNodeFrontEnd node_frontend_primary(network2, node);
+  TestForwardingNodeFrontEnd node_frontend_backup(network, stub_node);
+  TestForwardingNodeFrontEnd node_frontend_primary(network2, stub_node);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
@@ -782,7 +846,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto response = jsonrpc::unpack(
     user_frontend_primary.process_forwarded(fwd_ctx), default_pack);
 
-  CHECK(user_frontend_primary.last_caller_cert == user_caller);
+  CHECK(user_frontend_primary.last_caller_cert == user_caller_der);
   CHECK(user_frontend_primary.last_caller_id == 0);
 }
 
@@ -792,9 +856,9 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   add_callers_primary_store();
 
   TestForwardingMemberFrontEnd member_frontend_backup(
-    *network.tables, network, node);
+    *network.tables, network, stub_node);
   TestForwardingMemberFrontEnd member_frontend_primary(
-    *network2.tables, network2, node);
+    *network2.tables, network2, stub_node);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
@@ -823,7 +887,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   auto response = jsonrpc::unpack(
     member_frontend_primary.process_forwarded(fwd_ctx), default_pack);
 
-  CHECK(member_frontend_primary.last_caller_cert == member_caller);
+  CHECK(member_frontend_primary.last_caller_cert == member_caller_der);
   CHECK(member_frontend_primary.last_caller_id == 0);
 }
 
@@ -875,6 +939,8 @@ TEST_CASE("App-defined errors")
     CHECK(msg.find(TestAppErrorFrontEnd::bar_msg) != std::string::npos);
   }
 }
+
+#endif
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)

@@ -19,7 +19,7 @@ namespace asynchost
       bool async)
     {
       struct addrinfo hints;
-      hints.ai_family = PF_INET;
+      hints.ai_family = AF_UNSPEC;
       hints.ai_socktype = SOCK_STREAM;
       hints.ai_protocol = IPPROTO_TCP;
       hints.ai_flags = 0;
@@ -40,7 +40,12 @@ namespace asynchost
              service.c_str(),
              &hints)) < 0)
         {
-          LOG_FAIL_FMT("uv_getaddrinfo failed (async): {}", uv_strerror(rc));
+          LOG_FAIL_FMT(
+            "uv_getaddrinfo for host:service [{}:{}] failed (async) with error "
+            "{}",
+            host,
+            service,
+            uv_strerror(rc));
           delete resolver;
           return false;
         }
@@ -56,7 +61,11 @@ namespace asynchost
              service.c_str(),
              &hints)) < 0)
         {
-          LOG_FAIL_FMT("uv_getaddrinfo failed: {}", uv_strerror(rc));
+          LOG_FAIL_FMT(
+            "uv_getaddrinfo for host:service [{}:{}] failed with error {}",
+            host,
+            service,
+            uv_strerror(rc));
           delete resolver;
           return false;
         }

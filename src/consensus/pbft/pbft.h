@@ -105,12 +105,28 @@ namespace pbft
     std::unique_ptr<ClientProxy<kv::TxHistory::RequestID, void>> client_proxy;
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
     SeqNo global_commit_seqno;
+    View last_commit_view;
     std::unique_ptr<pbft::Store> store;
+
+    struct view_change_info
+    {
+      view_change_info(View view_, SeqNo min_global_commit_) :
+        min_global_commit(min_global_commit_),
+        view(view_)
+      {}
+
+      SeqNo min_global_commit;
+      View view;
+    };
+
+    std::vector<view_change_info> view_change_list;
 
     struct register_global_commit_info
     {
       pbft::Store* store;
       SeqNo* global_commit_seqno;
+      View* last_commit_view;
+      std::vector<view_change_info>* view_change_list;
     } register_global_commit_ctx;
 
   public:
@@ -125,7 +141,9 @@ namespace pbft
       channels(channels_),
       rpcsessions(rpcsessions_),
       global_commit_seqno(1),
-      store(std::move(store_))
+      last_commit_view(0),
+      store(std::move(store_)),
+      view_change_list(1, view_change_info(0, 0))
     {
       // configure replica
       GeneralInfo general_info;
@@ -137,6 +155,7 @@ namespace pbft
       general_info.view_timeout = 5000;
       general_info.status_timeout = 100;
       general_info.recovery_timeout = 9999250000;
+      general_info.max_requests_between_signatures = 50;
 
       // TODO(#pbft): We do not need this in the long run
       std::string privk =
@@ -185,7 +204,7 @@ namespace pbft
       LOG_INFO_FMT("PBFT setting up client proxy");
       client_proxy =
         std::make_unique<ClientProxy<kv::TxHistory::RequestID, void>>(
-          *message_receiver_base);
+          *message_receiver_base, 5000, 10000);
 
       auto reply_handler_cb = [](Reply* m, void* ctx) {
         auto cp =
@@ -195,18 +214,25 @@ namespace pbft
       message_receiver_base->register_reply_handler(
         reply_handler_cb, client_proxy.get());
 
-      auto global_commit_cb = [](kv::Version version, void* ctx) {
+      auto global_commit_cb = [](kv::Version version, ::View view, void* ctx) {
         auto p = static_cast<register_global_commit_info*>(ctx);
         if (version == kv::NoVersion || version < *p->global_commit_seqno)
         {
           return;
         }
         *p->global_commit_seqno = version;
+
+        if (*p->last_commit_view < view)
+        {
+          p->view_change_list->emplace_back(view, version);
+        }
         p->store->compact(version);
       };
 
       register_global_commit_ctx.store = store.get();
       register_global_commit_ctx.global_commit_seqno = &global_commit_seqno;
+      register_global_commit_ctx.last_commit_view = &last_commit_view;
+      register_global_commit_ctx.view_change_list = &view_change_list;
 
       message_receiver_base->register_global_commit(
         global_commit_cb, &register_global_commit_ctx);
@@ -214,7 +240,7 @@ namespace pbft
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
-      ccf_req request = {
+      pbft::Request request = {
         args.actor, args.caller_id, args.caller_cert, args.request};
       auto serialized_req = request.serialise();
 
@@ -239,17 +265,23 @@ namespace pbft
         client_proxy.get());
     }
 
-    // TODO(#PBFT): PBFT consensus should implement the following functions to
-    // return meaningful information to clients (e.g. global commit, term/view)
-    // https://github.com/microsoft/CCF/issues/57
     View get_view() override
     {
-      return 2;
+      return message_receiver_base->view() + 2;
     }
 
     View get_view(SeqNo seqno) override
     {
-      return 2;
+      for (auto rit = view_change_list.rbegin(); rit != view_change_list.rend();
+           ++rit)
+      {
+        view_change_info& info = *rit;
+        if (info.min_global_commit <= seqno)
+        {
+          return info.view + 2;
+        }
+      }
+      throw std::logic_error("should never be here");
     }
 
     SeqNo get_commit_seqno() override
@@ -259,7 +291,17 @@ namespace pbft
 
     kv::NodeId primary() override
     {
-      return 0;
+      return message_receiver_base->primary();
+    }
+
+    bool is_primary() override
+    {
+      return message_receiver_base->is_primary();
+    }
+
+    bool is_backup() override
+    {
+      return !message_receiver_base->is_primary();
     }
 
     void add_configuration(
@@ -296,9 +338,12 @@ namespace pbft
       ITimer::handle_timeouts(elapsed);
     }
 
-    bool replicate(
-      const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
-      override
+    bool replicate(const kv::BatchDetachedBuffer& entries) override
+    {
+      return true;
+    }
+
+    bool replicate(const kv::BatchVector& entries) override
     {
       return true;
     }
@@ -319,6 +364,20 @@ namespace pbft
     void set_f(ccf::NodeId f) override
     {
       message_receiver_base->set_f(f);
+    }
+
+    void emit_signature() override
+    {
+      kv::Version version = store->current_version();
+      if (message_receiver_base != nullptr)
+      {
+        message_receiver_base->emit_signature_on_next_pp(version);
+      }
+    }
+
+    ConsensusType type() override
+    {
+      return ConsensusType::Pbft;
     }
   };
 }

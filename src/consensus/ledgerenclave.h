@@ -17,7 +17,7 @@ namespace consensus
     static constexpr size_t FRAME_SIZE = sizeof(uint32_t);
 
   private:
-    std::unique_ptr<ringbuffer::AbstractWriter> to_host;
+    ringbuffer::WriterPtr to_host;
 
   public:
     LedgerEnclave(ringbuffer::AbstractWriterFactory& writer_factory_) :
@@ -33,6 +33,19 @@ namespace consensus
     {
       // write the message
       RINGBUFFER_WRITE_MESSAGE(consensus::ledger_append, to_host, entry);
+    }
+
+    /**
+     * Put a single entry to be written the ledger, when primary.
+     *
+     * @param data Serialised entry start
+     * @param size Serialised entry size
+     */
+    void put_entry(const uint8_t* data, size_t size)
+    {
+      serializer::ByteRange byte_range = {data, size};
+      // write the message
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_append, to_host, byte_range);
     }
 
     /**

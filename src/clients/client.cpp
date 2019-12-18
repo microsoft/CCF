@@ -20,7 +20,6 @@ std::vector<uint8_t> make_rpc_raw(
   const string& host,
   const string& port,
   Pack pack,
-  const string& sni,
   const string& ca_file,
   const string& req_arg,
   const string& client_cert_file = "",
@@ -37,7 +36,6 @@ std::vector<uint8_t> make_rpc_raw(
   std::vector<uint8_t> req(req_str.begin(), req_str.end());
 
   auto tls_ca = std::make_shared<tls::CA>(ca);
-
   auto cert = std::shared_ptr<tls::Cert>(nullptr);
 
   if (!client_cert_file.empty() && !client_pk_file.empty())
@@ -45,14 +43,16 @@ std::vector<uint8_t> make_rpc_raw(
     const auto client_cert = files::slurp(client_cert_file);
     const auto client_pk = files::slurp(client_pk_file);
     const tls::Pem pk_pem(client_pk);
-    cert = std::make_shared<tls::Cert>(
-      sni, tls_ca, client_cert, pk_pem, nullb, auth);
+    cert =
+      std::make_shared<tls::Cert>(tls_ca, client_cert, pk_pem, nullb, auth);
   }
+
+  const auto req_j = unpack(req, Pack::Text);
 
   switch (pack)
   {
     case Pack::MsgPack:
-      req = nlohmann::json::to_msgpack(unpack(req, Pack::Text));
+      req = nlohmann::json::to_msgpack(req_j);
       break;
 
     case Pack::Text:
@@ -66,16 +66,23 @@ std::vector<uint8_t> make_rpc_raw(
   vector<uint8_t> res;
   try
   {
-    auto client = RpcTlsClient(host, port, sni, tls_ca, cert);
+    auto client = RpcTlsClient(host, port, tls_ca, cert);
 
+#ifdef HTTP
+    const auto method = req_j[jsonrpc::METHOD];
+    auto r = enclave::http::Request(HTTP_POST);
+    r.set_path(method);
+    const auto request = r.build_request(req);
+    res = client.call_raw(request);
+#else
     // write framed data
     vector<uint8_t> len(4);
     auto p = len.data();
     auto size = len.size();
     serialized::write(p, size, (uint32_t)req.size());
     client.write(CBuffer(len));
-
     res = client.call_raw(req);
+#endif
   }
   catch (const logic_error& err)
   {
@@ -90,7 +97,6 @@ nlohmann::json make_rpc(
   const string& host,
   const string& port,
   Pack pack,
-  const string& sni,
   const string& ca_file,
   const string& client_cert_file,
   const string& client_pk_file,
@@ -98,15 +104,7 @@ nlohmann::json make_rpc(
   tls::Auth auth = tls::auth_required)
 {
   auto s = make_rpc_raw(
-    host,
-    port,
-    pack,
-    sni,
-    ca_file,
-    req_arg,
-    client_cert_file,
-    client_pk_file,
-    auth);
+    host, port, pack, ca_file, req_arg, client_cert_file, client_pk_file, auth);
 
   try
   {
@@ -127,16 +125,9 @@ nlohmann::json make_rpc(
   return nlohmann::json();
 }
 
-CLI::Option* add_request_arg(CLI::App* app, std::string& req)
-{
-  return app->add_option("--req", req, "RPC request data, '@' allowed", true);
-}
-
 int main(int argc, char** argv)
 {
   CLI::App app{"Generic RPC client"};
-
-  app.require_subcommand(1, 1);
 
   bool pretty_print = false;
   app.add_flag(
@@ -148,70 +139,51 @@ int main(int argc, char** argv)
   std::string ca_file = "networkcert.pem";
 
   cli::ParsedAddress server_address;
-  auto server_addr_opt = cli::add_address_option(
+  cli::add_address_option(
     app,
     server_address,
     "--rpc-address",
     "Remote node JSON-RPC server address");
-  app.add_option("--ca", ca_file, "Network CA", true);
 
-  auto member_rpc = app.add_subcommand("memberrpc", "Member RPC");
+  app.add_option("--ca", ca_file, "Network CA", true)
+    ->required(true)
+    ->check(CLI::ExistingFile);
 
-  std::string req_mem = "@memberrpc.json";
-  std::string member_cert_file = "member1_cert.pem";
-  std::string member_pk_file = "member1_privk.pem";
-  add_request_arg(member_rpc, req_mem);
-  member_rpc->add_option(
-    "--cert", member_cert_file, "Member's certificate", true);
-  member_rpc->add_option("--pk", member_pk_file, "Member's private key", true);
-
-  auto user_rpc = app.add_subcommand("userrpc", "User RPC");
-
-  std::string req_user = "@userrpc.json";
-  std::string user_cert_file = "user1_cert.pem";
-  std::string user_pk_file = "user1_privk.pem";
-  add_request_arg(user_rpc, req_user);
-  user_rpc->add_option("--cert", user_cert_file, "User's certificate", true);
-  user_rpc->add_option("--pk", user_pk_file, "User's private key", true);
+  std::string req = "@rpc.json";
+  std::string client_cert_file;
+  std::string client_pk_file;
+  app.add_option("--req", req, "RPC request data, '@' allowed", true);
+  app
+    .add_option(
+      "--cert", client_cert_file, "Client certificate in PEM format", true)
+    ->required(true)
+    ->check(CLI::ExistingFile);
+  app
+    .add_option(
+      "--pk", client_pk_file, "Client private key in PEM format", true)
+    ->required(true)
+    ->check(CLI::ExistingFile);
 
   CLI11_PARSE(app, argc, argv);
 
   try
   {
-    host = server_address.hostname;
-    port = server_address.port;
-
     nlohmann::json response;
 
-    cout << fmt::format("Sending RPC to {}:{}", host, port) << endl;
+    cout << fmt::format(
+              "Sending RPC to {}:{}",
+              server_address.hostname,
+              server_address.port)
+         << endl;
 
-    if (*member_rpc)
-    {
-      cout << "Doing member RPC:" << endl;
-      response = make_rpc(
-        host,
-        port,
-        Pack::MsgPack,
-        "members",
-        ca_file,
-        member_cert_file,
-        member_pk_file,
-        req_mem);
-    }
-
-    if (*user_rpc)
-    {
-      cout << "Doing user RPC:" << endl;
-      response = make_rpc(
-        host,
-        port,
-        Pack::MsgPack,
-        "users",
-        ca_file,
-        user_cert_file,
-        user_pk_file,
-        req_user);
-    }
+    response = make_rpc(
+      server_address.hostname,
+      server_address.port,
+      Pack::MsgPack,
+      ca_file,
+      client_cert_file,
+      client_pk_file,
+      req);
 
     if (pretty_print)
     {

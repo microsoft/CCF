@@ -24,7 +24,7 @@ namespace enclave
       map.emplace(T, handler_);
     }
 
-    ccf::ActorsType resolve(std::string& name)
+    ccf::ActorsType resolve(const std::string& name)
     {
       auto search = actors_map.find(name);
       if (search == actors_map.end())
@@ -50,5 +50,4 @@ namespace enclave
 
 #define REGISTER_FRONTEND(rpc_map, name, fe) \
   rpc_map->register_frontend<ccf::ActorsType::name>(#name, fe)
-
 }

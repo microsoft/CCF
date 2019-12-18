@@ -13,11 +13,11 @@
 #include "genesisgen.h"
 #include "history.h"
 #include "networkstate.h"
-#include "node/nodetonode.h"
 #include "nodetonode.h"
 #include "notifier.h"
 #include "rpc/consts.h"
 #include "rpc/frontend.h"
+#include "rpc/memberfrontend.h"
 #include "rpc/serialization.h"
 #include "seal.h"
 #include "timer.h"
@@ -162,7 +162,7 @@ namespace ccf
     // kv store, replication, and I/O
     //
     ringbuffer::AbstractWriterFactory& writer_factory;
-    std::unique_ptr<ringbuffer::AbstractWriter> to_host;
+    ringbuffer::WriterPtr to_host;
     raft::Config raft_config;
 
     NetworkState& network;
@@ -241,7 +241,7 @@ namespace ccf
     }
 
     std::vector<uint8_t> serialize_create_request(
-      const CreateNew::In& args, std::vector<uint8_t>& quote)
+      const CreateNew::In& args, const std::vector<uint8_t>& quote)
     {
       jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> create_rpc;
 
@@ -273,7 +273,7 @@ namespace ccf
       return jsonrpc::pack(sj, jsonrpc::Pack::Text);
     }
 
-    void send_create_request(std::vector<uint8_t>& packed)
+    void send_create_request(const std::vector<uint8_t>& packed)
     {
       constexpr auto actor = ccf::ActorsType::members;
 
@@ -295,12 +295,9 @@ namespace ccf
     }
 
     bool create_and_send_request(
-      const CreateNew::In& args, std::vector<uint8_t>& quote)
+      const CreateNew::In& args, const std::vector<uint8_t>& quote)
     {
-      auto rpc = serialize_create_request(args, quote);
-
-      send_create_request(rpc);
-
+      send_create_request(serialize_create_request(args, quote));
       return true;
     }
 
@@ -312,10 +309,8 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::initialized);
 
-      // Generate node key pair
-      std::stringstream name;
-      name << "CN=" << Actors::NODES;
-      node_cert = node_kp->self_sign(name.str());
+      create_node_cert(args.config);
+      open_node_frontend();
 
       // Generate quote over node certificate
       // TODO: https://github.com/microsoft/CCF/issues/59
@@ -333,8 +328,9 @@ namespace ccf
         case StartType::New:
         {
           network.secrets = std::make_unique<NetworkSecrets>(
-            "CN=The CA", std::make_unique<Seal>(writer_factory));
-          self = 0; // The first nodes id is always 0
+            "CN=CCF Network", std::make_unique<Seal>(writer_factory));
+
+          self = 0; // The first node id is always 0
 
 #ifdef PBFT
           setup_pbft();
@@ -344,8 +340,12 @@ namespace ccf
           setup_history();
           setup_encryptor();
 
-          // Become the primary and force replication.
+          // Become the primary and force replication
           consensus->force_become_primary();
+
+          // Open member frontend for members to configure and open the
+          // network
+          open_member_frontend();
 
           if (!create_and_send_request(args, quote))
           {
@@ -353,12 +353,7 @@ namespace ccf
               "Genesis transaction could not be committed");
           }
 
-          // Accept node connections for other nodes to join
-          accept_node_connections();
-
-          // Accept members connections for members to configure and open the
-          // network
-          accept_member_connections();
+          accept_network_tls_connections(args.config);
 
           sm.advance(State::partOfNetwork);
 
@@ -371,7 +366,12 @@ namespace ccf
           // sent by the primary via the kv store
           raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
 
+          // TLS connections are not endorsed by the network until the node has
+          // joined
+          accept_node_tls_connections();
+
           sm.advance(State::pending);
+
           return Success<CreateNew::Out>({node_cert, quote});
         }
         case StartType::Recover:
@@ -380,17 +380,15 @@ namespace ccf
 
           // Create temporary network secrets but do not seal yet
           network.secrets = std::make_unique<NetworkSecrets>(
-            "CN=The CA", std::make_unique<Seal>(writer_factory), false);
+            "CN=CCF Network", std::make_unique<Seal>(writer_factory), false);
           setup_history();
           setup_encryptor();
 
           // Accept members connections for members to finish recovery once the
           // public ledger has been read
-          accept_member_connections();
+          open_member_frontend();
 
-          // Accept node connections for operators to check the state of the
-          // network
-          accept_node_connections();
+          accept_network_tls_connections(args.config);
 
           sm.advance(State::readingPublicLedger);
 
@@ -399,9 +397,8 @@ namespace ccf
         }
         default:
         {
-          throw std::logic_error(
-            "Node was started in unknown mode " +
-            std::to_string(args.start_type));
+          throw std::logic_error(fmt::format(
+            "Node was started in unknown mode {}", args.start_type));
         }
       }
     }
@@ -413,7 +410,7 @@ namespace ccf
     {
       auto tls_ca = std::make_shared<tls::CA>(args.config.joining.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
-        Actors::NODES, tls_ca, node_cert, node_kp->private_key_pem(), nullb);
+        tls_ca, node_cert, node_kp->private_key_pem());
 
       // Create RPC client and connect to remote node
       auto join_client =
@@ -422,7 +419,7 @@ namespace ccf
       join_client->connect(
         args.config.joining.target_host,
         args.config.joining.target_port,
-        [this](const std::vector<uint8_t>& data) {
+        [this, args](const std::vector<uint8_t>& data) {
           std::lock_guard<SpinLock> guard(lock);
           if (!sm.check(State::pending))
             return false;
@@ -465,8 +462,10 @@ namespace ccf
             setup_history();
             setup_encryptor();
 
-            accept_node_connections();
-            accept_member_connections();
+            open_member_frontend();
+
+            accept_network_tls_connections(args.config);
+
             if (public_only)
               sm.advance(State::partOfPublicNetwork);
             else
@@ -516,7 +515,8 @@ namespace ccf
         args.config.joining.target_host,
         args.config.joining.target_port);
 
-      join_client->send(jsonrpc::pack(join_rpc, jsonrpc::Pack::Text));
+      join_client->send_request(
+        join_rpc.method, jsonrpc::pack(join_rpc, jsonrpc::Pack::Text));
     }
 
     void join(const Join::In& args)
@@ -717,7 +717,7 @@ namespace ccf
       // When reaching the end of the private ledger, make sure the same
       // ledger has been read and swap in private state
       auto h = dynamic_cast<MerkleTxHistory*>(recovery_history.get());
-      if (h->get_root() != recovery_root)
+      if (h->get_full_state_root() != recovery_root)
       {
         LOG_FATAL_FMT(
           "Root of public store does not match root of private store");
@@ -748,9 +748,6 @@ namespace ccf
           throw std::logic_error(
             "Could not commit transaction when finishing network recovery");
       }
-
-      if (consensus->is_backup())
-        accept_node_connections();
 
       sm.advance(State::partOfNetwork);
     }
@@ -810,7 +807,7 @@ namespace ccf
       // Record real store version and root
       recovery_v = network.tables->current_version();
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
-      recovery_root = h->get_root();
+      recovery_root = h->get_full_state_root();
 
       LOG_DEBUG_FMT("Recovery store successfully setup: {}", recovery_v);
     }
@@ -1070,7 +1067,7 @@ namespace ccf
         {
           GetQuotes::Quote quote;
           quote.node_id = nid;
-          quote.raw = std::string(ni.quote.begin(), ni.quote.end());
+          quote.raw = ni.quote;
 
 #ifdef GET_QUOTE
           oe_report_t parsed_quote = {0};
@@ -1094,46 +1091,68 @@ namespace ccf
     };
 
   private:
-    void accept_member_connections()
+    tls::SubjectAltName get_subject_alt_name(const CCFConfig& config)
     {
-      auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
-      auto members_keypair = tls::make_key_pair();
-
-      auto members_privkey = members_keypair->private_key_pem();
-      auto members_cert =
-        nw->sign_csr(members_keypair->create_csr("CN=members"), "CN=The CA");
-
-      // Accept member connections.
-      rpcsessions->add_cert(
-        ccf::Actors::MEMBERS, nullb, members_cert, members_privkey);
+      // If a domain is passed at node creation, record domain in SAN for node
+      // hostname authentication over TLS. Otherwise, record IP in SAN.
+      bool san_is_ip = config.domain.empty();
+      return {san_is_ip ? config.node_info_network.rpchost : config.domain,
+              san_is_ip};
     }
 
-    void accept_node_connections()
+    void create_node_cert(const CCFConfig& config)
     {
-      auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
-      auto nodes_keypair = tls::make_key_pair();
-
-      auto nodes_privkey = nodes_keypair->private_key_pem();
-      auto nodes_cert =
-        nw->sign_csr(nodes_keypair->create_csr("CN=nodes"), "CN=The CA");
-
-      // Accept node connections.
-      rpcsessions->add_cert(
-        ccf::Actors::NODES, nullb, nodes_cert, nodes_privkey);
+      node_cert =
+        node_kp->self_sign("CN=CCF node", get_subject_alt_name(config));
     }
 
-    void accept_user_connections()
+    void accept_node_tls_connections()
     {
+      // Accept TLS connections, presenting self-signed (i.e. non-endorsed) node
+      // certificate. Once the node is part of the network, this certificate
+      // should be replaced with network-endorsed counterpart
+      rpcsessions->set_cert(node_cert, node_kp->private_key_pem());
+      LOG_INFO_FMT("Node TLS connections now accepted");
+    }
+
+    void accept_network_tls_connections(const CCFConfig& config)
+    {
+      // Accept TLS connections, presenting node certificate signed by network
+      // certificate
       auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
-      auto users_keypair = tls::make_key_pair();
 
-      auto users_privkey = users_keypair->private_key_pem();
-      auto users_cert =
-        nw->sign_csr(users_keypair->create_csr("CN=users"), "CN=The CA");
+      auto endorsed_node_cert = nw->sign_csr(
+        node_kp->create_csr(fmt::format("CN=CCF node {}", self)),
+        fmt::format("CN={}", "CCF Network"),
+        get_subject_alt_name(config));
 
-      // Accept user connections.
-      rpcsessions->add_cert(
-        ccf::Actors::USERS, nullb, users_cert, users_privkey);
+      rpcsessions->set_cert(endorsed_node_cert, node_kp->private_key_pem());
+      LOG_INFO_FMT("Network TLS connections now accepted");
+    }
+
+    void open_frontend(ccf::ActorsType actor)
+    {
+      auto fe = rpc_map->find(actor);
+      if (!fe.has_value())
+      {
+        throw std::logic_error(fmt::format("Cannot open {} frontend", actor));
+      }
+      fe.value()->open();
+    }
+
+    void open_node_frontend()
+    {
+      open_frontend(ActorsType::nodes);
+    }
+
+    void open_member_frontend()
+    {
+      open_frontend(ActorsType::members);
+    }
+
+    void open_user_frontend()
+    {
+      open_frontend(ActorsType::users);
     }
 
     void backup_finish_recovery()
@@ -1181,7 +1200,7 @@ namespace ccf
         {
           this->consensus->set_f(
             1); // TODO: we should make f come from a KV table
-          accept_user_connections();
+          open_user_frontend();
           LOG_INFO_FMT("Now accepting user transactions");
         }
       });
@@ -1291,7 +1310,7 @@ namespace ccf
               }
               case NodeStatus::TRUSTED:
               {
-                add_node(node_id, ni.value.host, ni.value.nodeport);
+                add_node(node_id, ni.value.nodehost, ni.value.nodeport);
                 configure = true;
                 break;
               }
@@ -1401,11 +1420,11 @@ namespace ccf
           std::unordered_set<NodeId> configuration;
           for (auto& [node_id, ni] : w)
           {
-            add_node(node_id, ni.value.host, ni.value.nodeport);
+            add_node(node_id, ni.value.nodehost, ni.value.nodeport);
             consensus->add_configuration(
               version,
               configuration,
-              {node_id, ni.value.host, ni.value.nodeport});
+              {node_id, ni.value.nodehost, ni.value.nodeport});
           }
         });
 

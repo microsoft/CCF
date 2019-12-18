@@ -27,10 +27,19 @@ Other members are then allowed to vote for the proposal, using the proposal id r
 
 The user is successfully added once a :term:`quorum` of members have accepted the proposal (``"result":true"``).
 
+The user can then make RPCs, for example ``whoAmI`` to retrieve the unique caller ID assigned to them by CCF:
+
+.. code-block:: bash
+
+    ./client --rpc-address rpc_ip:rpc_port --ca network_cert --cert new_user_cert --pk new_user_privk --req '{"jsonrpc": "2.0", "id": 0, "method": "users/whoAmI"}'
+    {"commit":26,"global_commit":26,"id":0,"jsonrpc":"2.0","result":{"caller_id":3},"term":2}
+
+For each user CCF also stores arbitrary user-data in a JSON object, which can only be written to by members, subject to the standard proposal-vote governance mechanism. This lets members define initial metadata for certain users; for example to grant specific privileges, associate a human-readable name, or categorise the users. This user-data can then be read (but not written) by user-facing apps.
+
 Registering the Lua Application
 -------------------------------
 
-.. note:: This section only applies when deploying Lua applications (i.e. using the ``libluageneric.so.signed`` enclave library). For C++ applications, this step should be skipped.
+.. note:: This section only applies when deploying Lua applications (i.e. using the ``libluagenericenc.so.signed`` enclave library). For C++ applications, this step should be skipped.
 
 Before opening the CCF network to users, members should vote to register the Lua application defining the user-specific business logic (see for example :ref:`Logging (Lua)`):
 
@@ -71,4 +80,4 @@ Other members are then allowed to vote for the proposal, using the proposal id r
     $ memberclient --cert member3_cert --privk member3_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 2 --accept
     {"commit":19,"global_commit":18,"id":0,"jsonrpc":"2.0","result":true,"term":2}
 
-Once a quorum of members have approved the network opening (``"result":true``), the network is opened to users (see :ref:`Example App` for a simple business logic and :term:`JSON-RPC` transactions). It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).
+Once a quorum of members have approved the network opening (``"result":true``), the network is opened to users (see :ref:`Example Application` for a simple business logic and :term:`JSON-RPC` transactions). It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).

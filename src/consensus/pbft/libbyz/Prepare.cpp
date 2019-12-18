@@ -11,7 +11,7 @@
 #include "Replica.h"
 #include "pbft_assert.h"
 
-Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst) :
+Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
   Message(
     Prepare_tag,
     sizeof(Prepare_rep)
@@ -28,8 +28,19 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst) :
   rep().digest = d;
 
 #ifdef SIGN_BATCH
-  node->gen_signature(
-    d.digest(), d.digest_size(), rep().batch_digest_signature);
+  if (is_signed)
+  {
+    node->gen_signature(
+      d.digest(), d.digest_size(), rep().batch_digest_signature);
+  }
+  else
+  {
+    std::fill(
+      std::begin(rep().batch_digest_signature),
+      std::end(rep().batch_digest_signature),
+      0);
+  }
+
 #endif
 
   rep().id = node->id();

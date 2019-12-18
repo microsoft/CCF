@@ -87,7 +87,10 @@ Replica::Replica(
   rep_cb(nullptr),
   global_commit_cb(nullptr),
   state(this, mem, nbytes),
-  vi(node_id, 0)
+  vi(
+    node_id,
+    0,
+    64) // make this dynamic - https://github.com/microsoft/CCF/issues/385
 {
   // Fail if node is not a replica.
   if (!is_replica(id()))
@@ -212,18 +215,14 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
 {
   if (size > Max_message_size)
   {
-    LOG_DEBUG
-      << "Received message will not be processed, size exceeds message limits: "
-      << size << std::endl;
-    return;
+    LOG_FAIL << "Received message size exceeds message: " << size << std::endl;
   }
-  Message* m = new Message(Max_message_size);
+  uint64_t alloc_size = std::max(size, (uint32_t)Max_message_size);
+  Message* m = new Message(alloc_size);
   // TODO: remove this memcpy
   memcpy(m->contents(), data, size);
   if (pre_verify(m))
   {
-    PBFT_ASSERT(
-      Max_message_size >= size, "size must be less than Max_message_size");
     recv_process_one_msg(m);
   }
   else
@@ -235,22 +234,37 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
 bool Replica::compare_execution_results(
   const ByzInfo& info, Pre_prepare* pre_prepare)
 {
-  auto& pp_root = pre_prepare->get_merkle_root();
+  auto& pp_root = pre_prepare->get_full_state_merkle_root();
+  auto& r_pp_root = pre_prepare->get_replicated_state_merkle_root();
   if (!std::equal(
-        std::begin(pp_root), std::end(pp_root), std::begin(info.merkle_root)))
+        std::begin(pp_root),
+        std::end(pp_root),
+        std::begin(info.full_state_merkle_root)))
   {
-    LOG_FAIL << "Merkle root between execution and the pre_prepare message "
-                "does not match, seqno:"
+    LOG_FAIL << "Full state merkle root between execution and the pre_prepare "
+                "message does not match, seqno:"
+             << pre_prepare->seqno() << std::endl;
+    return false;
+  }
+
+  if (!std::equal(
+        std::begin(r_pp_root),
+        std::end(r_pp_root),
+        std::begin(info.replicated_state_merkle_root)))
+  {
+    LOG_FAIL << "Replicated state merkle root between execution and the "
+                "pre_prepare message does not match, seqno:"
              << pre_prepare->seqno() << std::endl;
     return false;
   }
 
   auto tx_ctx = pre_prepare->get_ctx();
-  if (tx_ctx != info.ctx)
+  if (tx_ctx != info.ctx && info.ctx != std::numeric_limits<int64_t>::min())
   {
     LOG_FAIL << "User ctx between execution and the pre_prepare message "
                 "does not match, seqno:"
-             << pre_prepare->seqno() << std::endl;
+             << pre_prepare->seqno() << ", tx_ctx:" << tx_ctx
+             << ", info.ctx:" << info.ctx << std::endl;
     return false;
   }
   return true;
@@ -291,7 +305,8 @@ bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
 
       if (global_commit_cb != nullptr)
       {
-        global_commit_cb(executable_pp->get_ctx(), global_commit_ctx);
+        global_commit_cb(
+          executable_pp->get_ctx(), executable_pp->view(), global_commit_ctx);
       }
 
       last_executed++;
@@ -516,6 +531,14 @@ void Replica::handle(Request* m)
 {
   bool ro = m->is_read_only();
 
+  Digest rd = m->digest();
+  LOG_TRACE << "Received request with rid: " << m->request_id()
+            << " id:" << id() << " primary:" << primary()
+            << " with cid: " << m->client_id()
+            << " current seqno: " << next_pp_seqno
+            << " last executed: " << last_executed << " digest: " << rd.hash()
+            << std::endl;
+
   if (has_complete_new_view())
   {
     LOG_TRACE << "Received request with rid: " << m->request_id()
@@ -633,8 +656,11 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       // pre-prepare is constructed.
       LOG_DEBUG << "adding to plog from pre prepare: " << next_pp_seqno
                 << std::endl;
-      pp->set_merkle_root_and_ctx(info.merkle_root, info.ctx);
-      pp->set_digest();
+      pp->set_merkle_roots_and_ctx(
+        info.full_state_merkle_root,
+        info.replicated_state_merkle_root,
+        info.ctx);
+      pp->set_digest(signed_version.load());
       plog.fetch(next_pp_seqno).add_mine(pp);
 
       requests_per_batch.insert({next_pp_seqno, requests_in_batch});
@@ -729,6 +755,11 @@ void Replica::handle(Pre_prepare* m)
 
   b.contents = m->choices(b.size);
 
+  LOG_TRACE << "Received pre prepare with seqno: " << ms
+            << ", in_wv:" << (in_wv(m) ? "true" : "false")
+            << ", low_bound:" << low_bound << ", has complete_new_view:"
+            << (has_complete_new_view() ? "true" : "false") << std::endl;
+
   if (in_wv(m) && ms > low_bound && has_complete_new_view())
   {
     LOG_TRACE << "processing pre prepare with seqno: " << ms << std::endl;
@@ -789,7 +820,8 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
         ledger_writer->write_pre_prepare(pp);
       }
 
-      Prepare* p = new Prepare(v, pp->seqno(), pp->digest());
+      Prepare* p =
+        new Prepare(v, pp->seqno(), pp->digest(), nullptr, pp->is_signed());
       int send_node_id = (send_only_to_self ? node_id : All_replicas);
       send(p, send_node_id);
       pc.add_mine(p);
@@ -1047,6 +1079,12 @@ void Replica::set_f(ccf::NodeId f)
   }
 
   Node::set_f(f);
+}
+
+void Replica::emit_signature_on_next_pp(int64_t version)
+{
+  sign_next = true;
+  signed_version = version;
 }
 
 View Replica::view() const
@@ -1340,7 +1378,7 @@ void Replica::handle(Status* m)
 void Replica::handle(View_change* m)
 {
   LOG_INFO << "Received view change for " << m->view() << " from " << m->id()
-           << "\n";
+           << ", v:" << v << std::endl;
 
   if (m->id() == primary() && m->view() > v)
   {
@@ -1385,7 +1423,7 @@ void Replica::handle(View_change* m)
 void Replica::handle(New_view* m)
 {
   LOG_INFO << "Received new view for " << m->view() << " from " << m->id()
-           << "\n";
+           << std::endl;
   vi.add(m);
 }
 
@@ -1580,7 +1618,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   if (primary(v) == id())
   {
     New_view* nv = vi.my_new_view();
-    LOG_INFO << "Sending new view for " << nv->view() << "\n";
+    LOG_INFO << "Sending new view for " << nv->view() << std::endl;
     send(nv, All_replicas);
   }
 
@@ -1632,7 +1670,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       }
       execute_tentative(pp, info);
 
-      Prepare* p = new Prepare(v, i, d);
+      Prepare* p = new Prepare(v, i, d, nullptr, pp->is_signed());
       pc.add_mine(p);
       send(p, All_replicas);
     }
@@ -1675,7 +1713,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   {
     start_vtimer_if_request_waiting();
   }
-  LOG_INFO << "Done with process new view " << v << "\n";
+  LOG_INFO << "Done with process new view " << v << std::endl;
 }
 
 Pre_prepare* Replica::prepared_pre_prepare(Seqno n)
@@ -1834,10 +1872,15 @@ void Replica::execute_prepared(bool committed)
       }
     }
 
-    if (global_commit_cb != nullptr)
+    if (global_commit_cb != nullptr && pp->is_signed())
     {
-      LOG_TRACE << "Global_commit:" << pp->get_ctx() << std::endl;
-      global_commit_cb(pp->get_ctx(), global_commit_ctx);
+      LOG_TRACE_FMT(
+        "Global_commit: {}, signed_version: {}",
+        pp->get_ctx(),
+        global_commit_ctx);
+
+      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_ctx);
+      signed_version = 0;
     }
   }
 }

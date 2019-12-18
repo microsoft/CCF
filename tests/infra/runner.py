@@ -9,7 +9,6 @@ from random import seed
 import infra.ccf
 import infra.proc
 import infra.remote_client
-import infra.jsonrpc
 import infra.rates
 import os
 import re
@@ -27,7 +26,7 @@ def number_of_local_nodes(args):
     on 2-core VMs, we start only one node, but on 4 core, we want to start 2.
     Not 3, because the client is typically running two threads.
     """
-    if args.pbft:
+    if args.consensus == "pbft":
         return 4
 
     if multiprocessing.cpu_count() > 2:
@@ -38,10 +37,6 @@ def number_of_local_nodes(args):
 
 def get_command_args(args, get_command):
     command_args = []
-    if args.label:
-        command_args.append("--label={}".format(args.label))
-    if args.sign:
-        command_args.append("--sign")
     return get_command(*command_args)
 
 
@@ -69,7 +64,6 @@ def configure_remote_client(args, client_id, client_host, node, command_args):
             node.rpc_port,
             args.workspace,
             args.label,
-            args.iterations,
             args.config,
             command_args,
             remote_impl,
@@ -133,31 +127,27 @@ def run(build_directory, get_command, args):
                 with cimetrics.upload.metrics() as metrics:
                     tx_rates = infra.rates.TxRates(primary)
                     while True:
-                        if not tx_rates.process_next():
-                            stop_waiting = True
-                            for i, remote_client in enumerate(clients):
-                                done = remote_client.check_done()
-                                # all the clients need to be done
-                                LOG.info(
-                                    f"Client {i} has {'completed' if done else 'not completed'} running"
-                                )
-                                stop_waiting = stop_waiting and done
-                            if stop_waiting:
-                                break
+                        stop_waiting = True
+                        for i, remote_client in enumerate(clients):
+                            done = remote_client.check_done()
+                            # all the clients need to be done
+                            LOG.info(
+                                f"Client {i} has {'completed' if done else 'not completed'} running"
+                            )
+                            stop_waiting = stop_waiting and done
+                        if stop_waiting:
+                            break
                         time.sleep(1)
 
-                    # For now we will not collect metrics with PBFT as the messages that
-                    # can be created when collecting the metrics is too large.
-                    # https://github.com/microsoft/CCF/issues/534
-                    if not args.pbft:
-                        tx_rates.get_metrics()
-                        for remote_client in clients:
-                            remote_client.print_and_upload_result(args.label, metrics)
-                            remote_client.stop()
+                    tx_rates.get_metrics()
+                    for remote_client in clients:
+                        remote_client.print_and_upload_result(args.label, metrics)
+                        remote_client.stop()
 
-                        LOG.info(f"Rates:\n{tx_rates}")
-                        tx_rates.save_results(args.metrics_file)
+                    LOG.info(f"Rates:\n{tx_rates}")
+                    tx_rates.save_results(args.metrics_file)
 
             except Exception:
                 for remote_client in clients:
                     remote_client.stop()
+                raise

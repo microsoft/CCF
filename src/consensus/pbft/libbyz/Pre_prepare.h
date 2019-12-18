@@ -24,7 +24,8 @@ struct Pre_prepare_rep : public Message_rep
 {
   View view;
   Seqno seqno;
-  std::array<uint8_t, MERKLE_ROOT_SIZE> merkle_root;
+  std::array<uint8_t, MERKLE_ROOT_SIZE> full_state_merkle_root;
+  std::array<uint8_t, MERKLE_ROOT_SIZE> replicated_state_merkle_root;
   int64_t ctx; // a context provided when a the batch is executed
                // the contents are opaque
   Digest digest; // digest of request set concatenated with
@@ -56,8 +57,6 @@ class Pre_prepare : public Message
   // Pre_prepare messages
   //
 public:
-  Pre_prepare() : Message() {}
-
   Pre_prepare(View v, Seqno s, Req_queue& reqs, size_t& requests_in_batch);
   // Effects: Creates a new signed Pre_prepare message with view
   // number "v", sequence number "s", the requests in "reqs" (up to a
@@ -92,10 +91,15 @@ public:
   Digest& digest() const;
   // Effects: Fetches the digest from the message.
 
-  void set_merkle_root_and_ctx(
-    const std::array<uint8_t, MERKLE_ROOT_SIZE>& merkle_root, int64_t ctx);
+  void set_merkle_roots_and_ctx(
+    const std::array<uint8_t, MERKLE_ROOT_SIZE>& full_state_merkle_root,
+    const std::array<uint8_t, MERKLE_ROOT_SIZE>& replicated_state_merkle_root,
+    int64_t ctx);
 
-  const std::array<uint8_t, MERKLE_ROOT_SIZE>& get_merkle_root() const;
+  const std::array<uint8_t, MERKLE_ROOT_SIZE>& get_full_state_merkle_root()
+    const;
+  const std::array<uint8_t, MERKLE_ROOT_SIZE>&
+  get_replicated_state_merkle_root() const;
 
   int64_t get_ctx() const;
 
@@ -172,8 +176,11 @@ public:
   bool calculate_digest(Digest& d);
   // Effects: calculates the digest.
 
-  bool set_digest();
+  bool set_digest(int64_t signed_version = std::numeric_limits<int64_t>::min());
   // Effects: calculates and sets the digest.
+
+  bool is_signed();
+  // Effects: checks if there is a signature over the pre_prepare message
 
   static bool convert(Message* m1, Pre_prepare*& m2);
   // Effects: If "m1" has the right size and tag, casts "m1" to a

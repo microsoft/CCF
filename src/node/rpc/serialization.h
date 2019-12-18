@@ -67,6 +67,12 @@ namespace ccf
   DECLARE_JSON_TYPE(GetNetworkInfo::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetNetworkInfo::Out, nodes, primary_id)
 
+  DECLARE_JSON_TYPE(CallerInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(CallerInfo, caller_id);
+
+  DECLARE_JSON_TYPE(WhoIs::In)
+  DECLARE_JSON_REQUIRED_FIELDS(WhoIs::In, cert);
+
   DECLARE_JSON_TYPE(ListMethods::Out)
   DECLARE_JSON_REQUIRED_FIELDS(ListMethods::Out, methods)
 
@@ -74,4 +80,14 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(GetSchema::In, method)
   DECLARE_JSON_TYPE(GetSchema::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetSchema::Out, params_schema, result_schema)
+
+  DECLARE_JSON_TYPE(GetReceipt::In)
+  DECLARE_JSON_REQUIRED_FIELDS(GetReceipt::In, commit)
+  DECLARE_JSON_TYPE(GetReceipt::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(GetReceipt::Out, receipt)
+
+  DECLARE_JSON_TYPE(VerifyReceipt::In)
+  DECLARE_JSON_REQUIRED_FIELDS(VerifyReceipt::In, receipt)
+  DECLARE_JSON_TYPE(VerifyReceipt::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(VerifyReceipt::Out, valid)
 }

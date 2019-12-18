@@ -24,7 +24,6 @@ class TlsClient
 private:
   std::string host;
   std::string port;
-  std::string sni;
   std::shared_ptr<tls::CA> node_ca;
   std::shared_ptr<tls::Cert> cert;
 
@@ -38,12 +37,10 @@ public:
   TlsClient(
     const std::string& host,
     const std::string& port,
-    const std::string& sni = "users",
     std::shared_ptr<tls::CA> node_ca = nullptr,
     std::shared_ptr<tls::Cert> cert = nullptr) :
     host(host),
     port(port),
-    sni(sni),
     node_ca(node_ca),
     cert(cert)
   {
@@ -94,7 +91,6 @@ public:
     if (err)
       throw std::logic_error(tls::error_string(err));
 
-    err = mbedtls_ssl_set_hostname(&ssl, sni.c_str());
     if (err)
       throw std::logic_error(tls::error_string(err));
 
@@ -164,8 +160,24 @@ public:
     return true;
   }
 
-  std::string get_sni() const
+  std::vector<uint8_t> read_all()
   {
-    return sni;
+    constexpr auto read_size = 4096;
+    std::vector<uint8_t> buf(read_size);
+    auto ret = mbedtls_ssl_read(&ssl, buf.data(), buf.size());
+    if (ret > 0)
+    {
+      buf.resize(ret);
+    }
+    else if (ret == 0)
+    {
+      throw std::logic_error("Underlying transport closed");
+    }
+    else
+    {
+      throw std::logic_error(tls::error_string(ret));
+    }
+
+    return buf;
   }
 };

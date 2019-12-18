@@ -29,7 +29,7 @@ namespace asynchost
 
       void on_read(size_t len, uint8_t*& incoming)
       {
-        LOG_DEBUG_FMT("node {} received {}", node, len);
+        LOG_DEBUG_FMT("from node {} received {}", node, len);
 
         pending.insert(pending.end(), incoming, incoming + len);
 
@@ -50,7 +50,7 @@ namespace asynchost
 
           if (size < msg_size)
           {
-            LOG_DEBUG_FMT("node {} has {}/{}", node, size, msg_size);
+            LOG_DEBUG_FMT("from node {} have {}/{}", node, size, msg_size);
             break;
           }
 
@@ -63,7 +63,10 @@ namespace asynchost
             associate(header.from_node);
 
           LOG_DEBUG_FMT(
-            "node in: node {}, size {}, type {}", node, msg_size, msg_type);
+            "node in: from node {}, size {}, type {}",
+            node,
+            msg_size,
+            msg_type);
 
           RINGBUFFER_WRITE_MESSAGE(
             ccf::node_inbound,
@@ -95,7 +98,7 @@ namespace asynchost
 
       void on_disconnect()
       {
-        LOG_DEBUG_FMT("node incoming disconnect {}, {}", id, node);
+        LOG_DEBUG_FMT("node incoming disconnect {}, from {}", id, node);
 
         parent.incoming.erase(id);
 
@@ -168,7 +171,7 @@ namespace asynchost
     std::unordered_map<size_t, TCP> incoming;
     std::unordered_map<ccf::NodeId, TCP> associated;
     size_t next_id = 1;
-    std::unique_ptr<ringbuffer::AbstractWriter> to_enclave;
+    ringbuffer::WriterPtr to_enclave;
 
   public:
     NodeConnections(

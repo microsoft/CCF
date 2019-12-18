@@ -13,8 +13,5 @@ namespace enclave
 
     virtual void recv(const uint8_t* data, size_t size) = 0;
     virtual void send(const std::vector<uint8_t>& data) = 0;
-    virtual void close() = 0;
-
-    virtual bool handle_data(const std::vector<uint8_t>& data) = 0;
   };
 }

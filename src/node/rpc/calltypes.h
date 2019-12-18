@@ -68,6 +68,26 @@ namespace ccf
     };
   };
 
+  struct CallerInfo
+  {
+    CallerId caller_id;
+  };
+
+  struct WhoAmI
+  {
+    using Out = CallerInfo;
+  };
+
+  struct WhoIs
+  {
+    struct In
+    {
+      std::vector<uint8_t> cert;
+    };
+
+    using Out = CallerInfo;
+  };
+
   struct ListMethods
   {
     struct Out
@@ -87,6 +107,32 @@ namespace ccf
     {
       ds::json::JsonSchema params_schema = {};
       ds::json::JsonSchema result_schema = {};
+    };
+  };
+
+  struct GetReceipt
+  {
+    struct In
+    {
+      int64_t commit = 0;
+    };
+
+    struct Out
+    {
+      std::vector<std::uint8_t> receipt = {};
+    };
+  };
+
+  struct VerifyReceipt
+  {
+    struct In
+    {
+      std::vector<std::uint8_t> receipt = {};
+    };
+
+    struct Out
+    {
+      bool valid = false;
     };
   };
 }

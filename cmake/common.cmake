@@ -1,7 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
+
 set(MSGPACK_INCLUDE_DIR ${CCF_DIR}/3rdparty/msgpack-c)
+set(FLATBUFFERS_INCLUDE_DIR ${CCF_DIR}/3rdparty/flatbuffers/include)
 
 set(default_build_type "RelWithDebInfo")
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -26,15 +29,19 @@ function(enable_coverage name)
   endif()
 endfunction()
 
-set(SERVICE_IDENTITY_CURVE_CHOICE "secp384r1" CACHE STRING "One of secp384r1, curve25519, secp256k1_mbedtls, secp256k1_bitcoin")
+set(SERVICE_IDENTITY_CURVE_CHOICE "secp384r1" CACHE STRING "One of secp384r1, ed25519, secp256k1_mbedtls, secp256k1_bitcoin")
 if (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp384r1")
   add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP384R1)
-elseif (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "curve25519")
-  add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_CURVE25519)
+  set(DEFAULT_PARTICIPANTS_CURVE "secp384r1")
+elseif (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "ed25519")
+  add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_ED25519)
+  set(DEFAULT_PARTICIPANTS_CURVE "ed25519")
 elseif (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_mbedtls")
   add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_MBEDTLS)
+  set(DEFAULT_PARTICIPANTS_CURVE "secp256k1")
 elseif (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_bitcoin")
   add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_BITCOIN)
+  set(DEFAULT_PARTICIPANTS_CURVE "secp256k1")
 else ()
   message(FATAL_ERROR "Unsupported curve choice ${SERVICE_IDENTITY_CURVE_CHOICE}")
 endif ()
@@ -95,6 +102,17 @@ endif()
 
 enable_language(ASM)
 
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/frame_generated.h
+    COMMAND flatc --cpp ${CCF_DIR}/src/kv/frame.fbs
+    COMMAND flatc --python ${CCF_DIR}/src/kv/frame.fbs
+    DEPENDS ${CCF_DIR}/src/kv/frame.fbs
+)
+
+add_custom_target(flatbuffers ALL
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/frame_generated.h
+)
+
 include_directories(
   ${CCF_DIR}/src
 )
@@ -104,6 +122,8 @@ include_directories(
   ${CCF_DIR}/3rdparty
   ${CCF_DIR}/3rdparty/evercrypt-msr
   ${MSGPACK_INCLUDE_DIR}
+  ${FLATBUFFERS_INCLUDE_DIR}
+  ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 set(TARGET "sgx;virtual" CACHE STRING "One of sgx, virtual, or 'sgx;virtual'")
@@ -111,11 +131,10 @@ set(TARGET "sgx;virtual" CACHE STRING "One of sgx, virtual, or 'sgx;virtual'")
 set(OE_PREFIX "/opt/openenclave" CACHE PATH "Path to Open Enclave install")
 message(STATUS "Open Enclave prefix set to ${OE_PREFIX}")
 
-set(CLIENT_MBEDTLS_PREFIX "/usr/local" CACHE PATH "Prefix to the mbedtls install the client should use")
-message(STATUS "Client mbedtls prefix set to ${CLIENT_MBEDTLS_PREFIX}")
+find_package(MbedTLS REQUIRED)
 
-set(CLIENT_MBEDTLS_INCLUDE_DIR "${CLIENT_MBEDTLS_PREFIX}/include")
-set(CLIENT_MBEDTLS_LIB_DIR "${CLIENT_MBEDTLS_PREFIX}/lib")
+set(CLIENT_MBEDTLS_INCLUDE_DIR "${MBEDTLS_INCLUDE_DIRS}")
+set(CLIENT_MBEDTLS_LIBRARIES "${MBEDTLS_LIBRARIES}")
 
 set(OE_INCLUDE_DIR "${OE_PREFIX}/include")
 set(OE_LIB_DIR "${OE_PREFIX}/lib/openenclave")
@@ -138,9 +157,11 @@ add_custom_command(
     COMMENT "Generating code from EDL, and renaming to .cpp"
 )
 
-configure_file(${CCF_DIR}/tests/tests.sh ${CMAKE_CURRENT_BINARY_DIR}/tests.sh COPYONLY)
-configure_file(${CCF_DIR}/tests/cimetrics_env.sh ${CMAKE_CURRENT_BINARY_DIR}/cimetrics_env.sh COPYONLY)
-configure_file(${CCF_DIR}/tests/upload_pico_metrics.py ${CMAKE_CURRENT_BINARY_DIR}/upload_pico_metrics.py COPYONLY)
+# Copy utilities from tests directory
+set(CCF_UTILITIES tests.sh keygenerator.sh cimetrics_env.sh upload_pico_metrics.py scurl.sh)
+foreach(UTILITY ${CCF_UTILITIES})
+  configure_file(${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)
+endforeach()
 
 if("sgx" IN_LIST TARGET)
   # If OE was built with LINK_SGX=1, then we also need to link SGX
@@ -235,11 +256,6 @@ set(OE_ENCLAVE_SYSCALL "${OE_LIB_DIR}/enclave/liboesyscall.a")
 set(OE_ENCLAVE_LIBC "${OE_LIB_DIR}/enclave/liboelibc.a")
 set(OE_ENCLAVE_LIBCXX "${OE_LIB_DIR}/enclave/liboelibcxx.a")
 set(OE_HOST_LIBRARY "${OE_LIB_DIR}/host/liboehost.a")
-
-set(CLIENT_MBEDTLS_LIBRARIES
-  "${CLIENT_MBEDTLS_LIB_DIR}/libmbedtls.a"
-  "${CLIENT_MBEDTLS_LIB_DIR}/libmbedx509.a"
-  "${CLIENT_MBEDTLS_LIB_DIR}/libmbedcrypto.a")
 
 # The OE libraries must be listed in a specific order. Issue #887 on github
 set(ENCLAVE_LIBS
@@ -374,6 +390,8 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       ${EVERCRYPT_INC}
       ${CMAKE_CURRENT_BINARY_DIR}
     )
+    add_dependencies(${name} flatbuffers)
+
     if (PBFT)
       target_link_libraries(${name} PRIVATE
         -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
@@ -418,6 +436,8 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       ${OE_INCLUDE_DIR}
       ${CMAKE_CURRENT_BINARY_DIR}
     )
+    add_dependencies(${virt_name} flatbuffers)
+
     if (PBFT)
       target_link_libraries(${virt_name} PRIVATE
         -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
@@ -456,7 +476,7 @@ function(add_unit_test name)
       -lc++
       -lc++abi
       ccfcrypto.host)
-
+  add_dependencies(${name} flatbuffers)
   use_client_mbedtls(${name})
   add_san(${name})
 
@@ -471,14 +491,6 @@ function(add_unit_test name)
       LABELS unit_test
   )
 endfunction()
-
-# Keygenerator Executable
-add_executable(keygenerator ${CCF_DIR}/src/keygenerator/main.cpp)
-use_client_mbedtls(keygenerator)
-target_link_libraries(keygenerator PRIVATE
-  ${CMAKE_THREAD_LIBS_INIT}
-  secp256k1.host
-)
 
 if("sgx" IN_LIST TARGET)
   # Host Executable
@@ -502,8 +514,8 @@ if("sgx" IN_LIST TARGET)
     ccfcrypto.host
     evercrypt.host
     CURL::libcurl
-    secp256k1.host
   )
+  add_dependencies(cchost flatbuffers)
   enable_quote_code(cchost)
 endif()
 
@@ -531,8 +543,8 @@ if("virtual" IN_LIST TARGET)
     ccfcrypto.host
     evercrypt.host
     CURL::libcurl
-    secp256k1.host
   )
+  add_dependencies(cchost.virtual flatbuffers)
 endif()
 
 # Client executable
@@ -541,7 +553,21 @@ use_client_mbedtls(client)
 target_link_libraries(client PRIVATE
   ${CMAKE_THREAD_LIBS_INIT}
   secp256k1.host
+  http_parser.host
 )
+add_dependencies(client flatbuffers)
+
+# Perf scenario executable
+add_executable(scenario_perf_client
+  ${CCF_DIR}/samples/perf_client/scenario_perf_client.cpp
+)
+use_client_mbedtls(scenario_perf_client)
+target_link_libraries(scenario_perf_client PRIVATE
+  ${CMAKE_THREAD_LIBS_INIT}
+  secp256k1.host
+  http_parser.host
+)
+add_dependencies(scenario_perf_client flatbuffers)
 
 # Lua for host and enclave
 add_enclave_library_c(lua.enclave "${LUA_SOURCES}")
@@ -558,9 +584,9 @@ set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Common test args for Python scripts starting up CCF networks
 if(PBFT)
-  set(PBFT_ARG "--pbft")
+  set(CONSENSUS_ARG "pbft")
 else()
-  unset(PBFT_ARG)
+  set(CONSENSUS_ARG "raft")
 endif()
 
 set(CCF_NETWORK_TEST_ARGS
@@ -568,16 +594,14 @@ set(CCF_NETWORK_TEST_ARGS
   ${TEST_ENCLAVE_TYPE}
   -l ${TEST_HOST_LOGGING_LEVEL}
   -g ${CCF_DIR}/src/runtime_config/gov.lua
-  ${PBFT_ARG}
+  --consensus ${CONSENSUS_ARG}
+  --default-curve ${DEFAULT_PARTICIPANTS_CURVE}
 )
 
-# Lua generic app
+# SNIPPET: Lua generic application
 add_enclave_lib(luagenericenc ${CCF_DIR}/src/apps/luageneric/oe_sign.conf ${CCF_DIR}/src/apps/sample_key.pem SRCS ${CCF_DIR}/src/apps/luageneric/luageneric.cpp)
 
 # Samples
-
-# Common options
-set(TEST_ITERATIONS 200000)
 
 ## Helper for building clients inheriting from perf_client
 function(add_client_exe name)
@@ -596,6 +620,7 @@ function(add_client_exe name)
     ${CMAKE_THREAD_LIBS_INIT}
   )
 
+  add_dependencies(${name} flatbuffers)
   target_include_directories(${name} PRIVATE
     ${CCF_DIR}/samples/perf_client
     ${PARSED_ARGS_INCLUDE_DIRS}
@@ -609,7 +634,7 @@ endfunction()
 function(add_e2e_test)
   cmake_parse_arguments(PARSE_ARGV 0 PARSED_ARGS
     ""
-    "NAME;PYTHON_SCRIPT;IS_SUITE"
+    "NAME;PYTHON_SCRIPT;IS_SUITE;CURL_CLIENT"
     "ADDITIONAL_ARGS"
   )
 
@@ -628,7 +653,7 @@ function(add_e2e_test)
       TEST ${PARSED_ARGS_NAME}
       APPEND
       PROPERTY
-        ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+        ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
     )
     if (${PARSED_ARGS_IS_SUITE})
       set_property(
@@ -652,6 +677,14 @@ function(add_e2e_test)
         PROPERTY
           ENVIRONMENT "HTTP=ON"
       )
+      if (${PARSED_ARGS_CURL_CLIENT})
+        set_property(
+          TEST ${PARSED_ARGS_NAME}
+          APPEND
+          PROPERTY
+            ENVIRONMENT "CURL_CLIENT=ON"
+        )
+      endif()
     endif()
   endif()
 endfunction()
@@ -661,14 +694,9 @@ function(add_perf_test)
 
   cmake_parse_arguments(PARSE_ARGV 0 PARSED_ARGS
     ""
-    "NAME;PYTHON_SCRIPT;CLIENT_BIN;ITERATIONS;VERIFICATION_FILE"
+    "NAME;PYTHON_SCRIPT;CLIENT_BIN;VERIFICATION_FILE;LABEL;"
     "ADDITIONAL_ARGS"
   )
-
-  ## Use default value if undefined
-  if(NOT PARSED_ARGS_ITERATIONS)
-    set(PARSED_ARGS_ITERATIONS ${TEST_ITERATIONS})
-  endif()
 
   if(PARSED_ARGS_VERIFICATION_FILE)
     set(VERIFICATION_ARG "--verify ${PARSED_ARGS_VERIFICATION_FILE}")
@@ -676,16 +704,23 @@ function(add_perf_test)
     unset(VERIFICATION_ARG)
   endif()
 
+  if(PARSED_ARGS_LABEL)
+    set(LABEL_ARG "${PARSED_ARGS_LABEL}_${TESTS_SUFFIX}")
+  else()
+    set(LABEL_ARG "${PARSED_ARGS_NAME}_${TESTS_SUFFIX}")
+  endif()
+
   add_test(
     NAME ${PARSED_ARGS_NAME}
     COMMAND ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT}
       -b .
       -c ${PARSED_ARGS_CLIENT_BIN}
-      -i ${PARSED_ARGS_ITERATIONS}
       ${CCF_NETWORK_TEST_ARGS}
-      ${PARSED_ARGS_ADDITIONAL_ARGS}
       --write-tx-times
       ${VERIFICATION_ARG}
+      --label ${LABEL_ARG}
+      ${PARSED_ARGS_ADDITIONAL_ARGS}
+      ${RELAX_COMMIT_TARGET}
   )
 
   ## Make python test client framework importable
@@ -693,7 +728,7 @@ function(add_perf_test)
     TEST ${PARSED_ARGS_NAME}
     APPEND
     PROPERTY
-      ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+      ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
   )
   set_property(
     TEST ${PARSED_ARGS_NAME}
@@ -701,4 +736,49 @@ function(add_perf_test)
     PROPERTY
       LABELS perf
   )
+  if (HTTP)
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY
+        ENVIRONMENT "HTTP=ON"
+    )
+  endif()
 endfunction()
+
+  ## Picobench wrapper
+  function(add_picobench name)
+    cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS
+      ""
+      ""
+      "SRCS;INCLUDE_DIRS;LINK_LIBS"
+    )
+
+    add_executable(${name}
+      ${PARSED_ARGS_SRCS}
+    )
+
+    target_include_directories(${name} PRIVATE
+      src
+      ${PARSED_ARGS_INCLUDE_DIRS}
+    )
+
+    add_dependencies(${name} flatbuffers)
+
+    target_link_libraries(${name} PRIVATE
+      ${CMAKE_THREAD_LIBS_INIT}
+      ${PARSED_ARGS_LINK_LIBS}
+    )
+
+    # -Wall -Werror catches a number of warnings in picobench
+    target_include_directories(${name} SYSTEM PRIVATE 3rdparty)
+
+    add_test(
+      NAME ${name}
+      COMMAND bash -c "$<TARGET_FILE:${name}> --samples=1000 --out-fmt=csv --output=${name}.csv && cat ${name}.csv"
+    )
+
+    use_client_mbedtls(${name})
+
+    set_property(TEST ${name} PROPERTY LABELS benchmark)
+  endfunction()

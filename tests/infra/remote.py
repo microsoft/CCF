@@ -96,10 +96,11 @@ class CmdMixin(object):
     def _print_upload_perf(self, name, metrics, lines):
         for line in lines:
             LOG.debug(line.decode())
-            res = re.search("=> (.*)tx/s", line.decode())
-            if res:
-                results_uploaded = True
-                metrics.put(name, float(res.group(1)))
+            if metrics is not None:
+                res = re.search("=> (.*)tx/s", line.decode())
+                if res:
+                    LOG.success(f"METRICS: {name} = {float(res.group(1))}")
+                    metrics.put(name, float(res.group(1)))
 
 
 class SSHRemote(CmdMixin):
@@ -280,7 +281,7 @@ class SSHRemote(CmdMixin):
 
     def _dbg(self):
         cmd = " ".join(self.cmd)
-        return f"cd {self.root} && {DBG} --args ./{cmd}"
+        return f"cd {self.root} && {DBG} --args {cmd}"
 
     def _connect_new(self):
         client = paramiko.SSHClient()
@@ -314,7 +315,7 @@ class SSHRemote(CmdMixin):
         try:
             _, stdout, _ = client.exec_command(f"tail -{lines} {self.out}")
             if stdout.channel.recv_exit_status() == 0:
-                LOG.success(f"Result for {self.name}:")
+                LOG.success(f"Result for {self.name}, uploaded under {name}:")
                 self._print_upload_perf(name, metrics, stdout.read().splitlines())
                 return
         finally:
@@ -474,7 +475,7 @@ class LocalRemote(CmdMixin):
         with open(self.out, "rb") as out:
             lines = out.read().splitlines()
             result = lines[-line:]
-            LOG.success(f"Result for {self.name}:")
+            LOG.success(f"Result for {self.name}, uploaded under {name}:")
             self._print_upload_perf(name, metrics, result)
 
 
@@ -511,6 +512,7 @@ class CCFRemote(object):
         sig_max_tx=1000,
         sig_max_ms=1000,
         election_timeout=1000,
+        consensus="raft",
         memory_reserve_startup=0,
         notify_server=None,
         gov_script=None,
@@ -555,6 +557,7 @@ class CCFRemote(object):
             f"--node-cert-file={self.pem}",
             f"--host-log-level={host_log_level}",
             f"--raft-election-timeout-ms={election_timeout}",
+            f"--consensus={consensus}",
         ]
 
         if json_log_path:

@@ -21,6 +21,8 @@ namespace enclave
     virtual void set_cmd_forwarder(
       std::shared_ptr<AbstractForwarder> cmd_forwarder_) = 0;
     virtual void tick(std::chrono::milliseconds elapsed_ms_count) {}
+    virtual void open() = 0;
+    virtual bool is_open() = 0;
 
     // Used by rpcendpoint to process incoming client RPCs
     virtual std::optional<std::vector<uint8_t>> process(
@@ -30,7 +32,8 @@ namespace enclave
     struct ProcessPbftResp
     {
       std::vector<uint8_t> result;
-      crypto::Sha256Hash merkle_root;
+      crypto::Sha256Hash full_state_merkle_root;
+      crypto::Sha256Hash replicated_state_merkle_root;
       kv::Version version;
     };
 

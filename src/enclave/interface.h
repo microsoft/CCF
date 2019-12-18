@@ -5,6 +5,7 @@
 #pragma once
 
 #include "consensus/raft/rafttypes.h"
+#include "consensus_type.h"
 #include "ds/buffer.h"
 #include "ds/logger.h"
 #include "ds/oversized.h"
@@ -34,6 +35,7 @@ struct CCFConfig
 {
   raft::Config raft_config = {};
   ccf::NodeInfoNetwork node_info_network = {};
+  std::string domain;
 
   struct SignatureIntervals
   {
@@ -61,7 +63,12 @@ struct CCFConfig
   Joining joining = {};
 
   MSGPACK_DEFINE(
-    raft_config, node_info_network, signature_intervals, genesis, joining);
+    raft_config,
+    node_info_network,
+    domain,
+    signature_intervals,
+    genesis,
+    joining);
 };
 
 /// General administrative messages

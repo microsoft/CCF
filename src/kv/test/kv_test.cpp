@@ -1,20 +1,20 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "../../ds/logger.h"
-#include "../../enclave/appinterface.h"
-#include "../../node/encryptor.h"
 #include "../kv.h"
 #include "../kvserialiser.h"
 #include "../node/entities.h"
 #include "../node/history.h"
+#include "ds/logger.h"
+#include "enclave/appinterface.h"
+#include "node/encryptor.h"
 
 #include <doctest/doctest.h>
 #include <msgpack-c/msgpack.hpp>
 #include <string>
 #include <vector>
 
-using namespace ccfapp;
+using namespace ccf;
 
 TEST_CASE("Map creation")
 {
@@ -446,20 +446,21 @@ TEST_CASE("Clone schema")
 
   auto& public_map =
     store.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
-  auto& private_map =
-    store.create<size_t, std::string>("private", kv::SecurityDomain::PRIVATE);
+  auto& private_map = store.create<size_t, std::string>("private");
   Store::Tx tx1(store.next_version());
   auto [view1, view2] = tx1.get_view(public_map, private_map);
   view1->put(42, "aardvark");
   view2->put(14, "alligator");
-  auto [success, reqid, serialised] = tx1.commit_reserved();
+  auto [success, reqid, buffer] = tx1.commit_reserved();
   REQUIRE(success == kv::CommitSuccess::OK);
 
   Store clone;
   clone.clone_schema(store);
   clone.set_encryptor(encryptor);
 
-  REQUIRE(clone.deserialise(serialised) == kv::DeserialiseSuccess::PASS);
+  auto serialised_ws =
+    std::vector<uint8_t>(buffer->data(), buffer->data() + buffer->size());
+  REQUIRE(clone.deserialise(serialised_ws) == kv::DeserialiseSuccess::PASS);
 }
 
 TEST_CASE("Deserialise return status")
@@ -482,10 +483,12 @@ TEST_CASE("Deserialise return status")
     Store::Tx tx(store.next_version());
     auto data_view = tx.get_view(data);
     data_view->put(42, 42);
-    auto [success, reqid, serialised] = tx.commit_reserved();
+    auto [success, reqid, buffer] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    REQUIRE(store.deserialise(serialised) == kv::DeserialiseSuccess::PASS);
+    auto serialised_ws =
+      std::vector<uint8_t>(buffer->data(), buffer->data() + buffer->size());
+    REQUIRE(store.deserialise(serialised_ws) == kv::DeserialiseSuccess::PASS);
   }
 
   {
@@ -493,11 +496,14 @@ TEST_CASE("Deserialise return status")
     auto sig_view = tx.get_view(signatures);
     ccf::Signature sigv(0, 2);
     sig_view->put(0, sigv);
-    auto [success, reqid, serialised] = tx.commit_reserved();
+    auto [success, reqid, buffer] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
+    auto serialised_ws =
+      std::vector<uint8_t>(buffer->data(), buffer->data() + buffer->size());
     REQUIRE(
-      store.deserialise(serialised) == kv::DeserialiseSuccess::PASS_SIGNATURE);
+      store.deserialise(serialised_ws) ==
+      kv::DeserialiseSuccess::PASS_SIGNATURE);
   }
 
   INFO("Signature transactions with additional contents should fail");
@@ -507,10 +513,12 @@ TEST_CASE("Deserialise return status")
     ccf::Signature sigv(0, 2);
     sig_view->put(0, sigv);
     data_view->put(43, 43);
-    auto [success, reqid, serialised] = tx.commit_reserved();
+    auto [success, reqid, buffer] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    REQUIRE(store.deserialise(serialised) == kv::DeserialiseSuccess::FAILED);
+    auto serialised_ws =
+      std::vector<uint8_t>(buffer->data(), buffer->data() + buffer->size());
+    REQUIRE(store.deserialise(serialised_ws) == kv::DeserialiseSuccess::FAILED);
   }
 }
 
@@ -520,13 +528,13 @@ TEST_CASE("map swap between stores")
   Store s1;
   s1.set_encryptor(encryptor);
 
-  auto& d1 = s1.create<size_t, size_t>("data", kv::SecurityDomain::PRIVATE);
+  auto& d1 = s1.create<size_t, size_t>("data");
   auto& pd1 =
     s1.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
 
   Store s2;
   s2.set_encryptor(encryptor);
-  auto& d2 = s2.create<size_t, size_t>("data", kv::SecurityDomain::PRIVATE);
+  auto& d2 = s2.create<size_t, size_t>("data");
   auto& pd2 =
     s2.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
 
@@ -620,15 +628,13 @@ TEST_CASE("private recovery map swap")
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   Store s1;
   s1.set_encryptor(encryptor);
-  auto& priv1 =
-    s1.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE);
+  auto& priv1 = s1.create<size_t, size_t>("private");
   auto& pub1 =
     s1.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
 
   Store s2;
   s2.set_encryptor(encryptor);
-  auto& priv2 =
-    s2.create<size_t, size_t>("private", kv::SecurityDomain::PRIVATE);
+  auto& priv2 = s2.create<size_t, size_t>("private");
   auto& pub2 =
     s2.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
 

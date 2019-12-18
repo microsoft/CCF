@@ -5,6 +5,7 @@
 #include "ds/buffer.h"
 #include "ds/histogram.h"
 #include "ds/json_schema.h"
+#include "ds/spinlock.h"
 #include "enclave/rpchandler.h"
 #include "forwarder.h"
 #include "jsonrpc.h"
@@ -17,6 +18,7 @@
 #include "serialization.h"
 
 #include <fmt/format_header_only.h>
+#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -86,9 +88,11 @@ namespace ccf
       ReadWrite rw,
       const nlohmann::json& params_schema = nlohmann::json::object(),
       const nlohmann::json& result_schema = nlohmann::json::object(),
-      Forwardable forwardable = Forwardable::CanForward)
+      Forwardable forwardable = Forwardable::CanForward,
+      bool execute_locally = false)
     {
-      handlers[method] = {f, rw, params_schema, result_schema, forwardable};
+      handlers[method] = {
+        f, rw, params_schema, result_schema, forwardable, execute_locally};
     }
 
     void install(
@@ -128,7 +132,8 @@ namespace ccf
       const std::string& method,
       F&& f,
       ReadWrite rw,
-      Forwardable forwardable = Forwardable::CanForward)
+      Forwardable forwardable = Forwardable::CanForward,
+      bool execute_locally = false)
     {
       auto params_schema = nlohmann::json::object();
       if constexpr (!std::is_same_v<In, void>)
@@ -148,7 +153,8 @@ namespace ccf
         rw,
         params_schema,
         result_schema,
-        forwardable);
+        forwardable,
+        execute_locally);
     }
 
     template <typename T, typename... Ts>
@@ -171,9 +177,25 @@ namespace ccf
       default_handler = {f, rw};
     }
 
+    /** Populate out with all supported methods
+     *
+     * This is virtual since the default handler may do its own dispatch
+     * internally, so derived implementations must be able to populate the list
+     * with the supported methods however it constructs them.
+     */
+    virtual void list_methods(Store::Tx& tx, ListMethods::Out& out)
+    {
+      for (const auto& handler : handlers)
+      {
+        out.methods.push_back(handler.first);
+      }
+    }
+
   private:
     // TODO: replace with an lru map
     std::map<CallerId, tls::VerifierPtr> verifiers;
+    SpinLock lock;
+    bool is_open_ = false;
 
     struct Handler
     {
@@ -182,12 +204,14 @@ namespace ccf
       nlohmann::json params_schema;
       nlohmann::json result_schema;
       Forwardable forwardable;
+      bool execute_locally = false;
     };
 
     Nodes* nodes;
     ClientSignatures* client_signatures;
     Certs* certs;
     CT* callers;
+    pbft::PbftRequests* pbft_requests;
     std::optional<Handler> default_handler;
     std::unordered_map<std::string, Handler> handlers;
     kv::Consensus* consensus;
@@ -203,9 +227,11 @@ namespace ccf
 
     void update_consensus()
     {
-      if (consensus != tables.get_consensus().get())
+      auto c = tables.get_consensus().get();
+
+      if (consensus != c)
       {
-        consensus = tables.get_consensus().get();
+        consensus = c;
       }
     }
 
@@ -293,10 +319,6 @@ namespace ccf
       const CallerId caller_id,
       const SignedReq& signed_request)
     {
-#ifdef HTTP
-      return true; // TODO: use Authorize header
-#endif
-
       if (!client_signatures)
       {
         return false;
@@ -309,7 +331,8 @@ namespace ccf
         verifiers.emplace(
           std::make_pair(caller_id, tls::make_verifier(caller_cert)));
       }
-      if (!verifiers[caller_id]->verify(signed_request.req, signed_request.sig))
+      if (!verifiers[caller_id]->verify(
+            signed_request.req, signed_request.sig, signed_request.md))
       {
         return false;
       }
@@ -332,6 +355,8 @@ namespace ccf
       client_signatures(client_sigs_),
       certs(certs_),
       callers(callers_),
+      pbft_requests(
+        tables.get<pbft::PbftRequests>(pbft::Tables::PBFT_REQUESTS)),
       consensus(nullptr),
       history(nullptr)
     {
@@ -360,12 +385,25 @@ namespace ccf
 
       auto make_signature =
         [this](Store::Tx& tx, const nlohmann::json& params) {
-          update_history();
+          update_consensus();
 
-          if (history != nullptr)
+          if (consensus != nullptr)
           {
-            history->emit_signature();
-            return jsonrpc::success(true);
+            if (consensus->type() == ConsensusType::Raft)
+            {
+              update_history();
+
+              if (history != nullptr)
+              {
+                history->emit_signature();
+                return jsonrpc::success(true);
+              }
+            }
+            else if (consensus->type() == ConsensusType::Pbft)
+            {
+              consensus->emit_signature();
+              return jsonrpc::success(true);
+            }
           }
 
           return jsonrpc::error(
@@ -416,18 +454,51 @@ namespace ccf
           return jsonrpc::success(out);
         };
 
-      auto list_methods = [this](Store::Tx& tx, const nlohmann::json& params) {
-        ListMethods::Out out;
-
-        for (const auto& handler : handlers)
+      auto who_am_i = [this](const RequestArgs& args) {
+        if (certs == nullptr)
         {
-          out.methods.push_back(handler.first);
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            fmt::format(
+              "This frontend does not support {}", GeneralProcs::WHO_AM_I));
         }
 
-        std::sort(out.methods.begin(), out.methods.end());
-
-        return jsonrpc::success(out);
+        return jsonrpc::success(WhoAmI::Out{args.caller_id});
       };
+
+      auto who_is = [this](Store::Tx& tx, const nlohmann::json& params) {
+        const WhoIs::In in = params;
+
+        if (certs == nullptr)
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            fmt::format(
+              "This frontend does not support {}", GeneralProcs::WHO_IS));
+        }
+        auto certs_view = tx.get_view(*certs);
+        auto caller_id = certs_view->get(in.cert);
+
+        if (!caller_id.has_value())
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            "Certificate not recognised");
+        }
+
+        return jsonrpc::success(WhoIs::Out{caller_id.value()});
+      };
+
+      auto list_methods_fn =
+        [this](Store::Tx& tx, const nlohmann::json& params) {
+          ListMethods::Out out;
+
+          list_methods(tx, out);
+
+          std::sort(out.methods.begin(), out.methods.end());
+
+          return jsonrpc::success(out);
+        };
 
       auto get_schema = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetSchema::In>();
@@ -446,20 +517,90 @@ namespace ccf
         return jsonrpc::success(out);
       };
 
+      auto get_receipt = [this](Store::Tx& tx, const nlohmann::json& params) {
+        const auto in = params.get<GetReceipt::In>();
+
+        update_history();
+
+        if (history != nullptr)
+        {
+          try
+          {
+            auto p = history->get_receipt(in.commit);
+            const GetReceipt::Out out{p};
+
+            return jsonrpc::success(out);
+          }
+          catch (const std::exception& e)
+          {
+            return jsonrpc::error(
+              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+              fmt::format(
+                "Unable to produce receipt for commit {} : {}",
+                in.commit,
+                e.what()));
+          }
+        }
+
+        return jsonrpc::error(
+          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          "Unable to produce receipt");
+      };
+
+      auto verify_receipt =
+        [this](Store::Tx& tx, const nlohmann::json& params) {
+          const auto in = params.get<VerifyReceipt::In>();
+
+          update_history();
+
+          if (history != nullptr)
+          {
+            try
+            {
+              bool v = history->verify_receipt(in.receipt);
+              const VerifyReceipt::Out out{v};
+
+              return jsonrpc::success(out);
+            }
+            catch (const std::exception& e)
+            {
+              return jsonrpc::error(
+                jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+                fmt::format("Unable to verify receipt: {}", e.what()));
+            }
+          }
+
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            "Unable to verify receipt");
+        };
+
       install_with_auto_schema<GetCommit>(
         GeneralProcs::GET_COMMIT, get_commit, Read);
       install_with_auto_schema<void, GetMetrics::Out>(
-        GeneralProcs::GET_METRICS, get_metrics, Read);
+        GeneralProcs::GET_METRICS,
+        get_metrics,
+        Read,
+        Forwardable::CanForward,
+        true);
       install_with_auto_schema<void, bool>(
         GeneralProcs::MK_SIGN, make_signature, Write);
       install_with_auto_schema<void, GetPrimaryInfo::Out>(
         GeneralProcs::GET_PRIMARY_INFO, get_primary_info, Read);
       install_with_auto_schema<void, GetNetworkInfo::Out>(
         GeneralProcs::GET_NETWORK_INFO, get_network_info, Read);
+      install_with_auto_schema<void, WhoAmI::Out>(
+        GeneralProcs::WHO_AM_I, who_am_i, Read);
+      install_with_auto_schema<WhoIs::In, WhoIs::Out>(
+        GeneralProcs::WHO_IS, who_is, Read);
       install_with_auto_schema<void, ListMethods::Out>(
-        GeneralProcs::LIST_METHODS, list_methods, Read);
+        GeneralProcs::LIST_METHODS, list_methods_fn, Read);
       install_with_auto_schema<GetSchema>(
         GeneralProcs::GET_SCHEMA, get_schema, Read);
+      install_with_auto_schema<GetReceipt>(
+        GeneralProcs::GET_RECEIPT, get_receipt, Read);
+      install_with_auto_schema<VerifyReceipt>(
+        GeneralProcs::VERIFY_RECEIPT, verify_receipt, Read);
     }
 
     void set_sig_intervals(size_t sig_max_tx_, size_t sig_max_ms_) override
@@ -473,6 +614,18 @@ namespace ccf
       std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder_) override
     {
       cmd_forwarder = cmd_forwarder_;
+    }
+
+    void open() override
+    {
+      std::lock_guard<SpinLock> mguard(lock);
+      is_open_ = true;
+    }
+
+    bool is_open() override
+    {
+      std::lock_guard<SpinLock> mguard(lock);
+      return is_open_;
     }
 
     /** Process a serialised command with the associated RPC context
@@ -540,6 +693,12 @@ namespace ccf
       }
 
 #ifdef PBFT
+      auto rep = process_if_local_node_rpc(ctx, tx, caller_id.value());
+      if (rep.has_value())
+      {
+        auto rv = jsonrpc::pack(rep.value(), ctx.pack.value());
+        return rv;
+      }
       kv::TxHistory::RequestID reqid;
 
       update_history();
@@ -624,21 +783,26 @@ namespace ccf
     {
       // TODO(#PBFT): Refactor this with process_forwarded().
       Store::Tx tx;
-      crypto::Sha256Hash merkle_root;
+      crypto::Sha256Hash full_state_merkle_root;
+      crypto::Sha256Hash replicated_state_merkle_root;
       kv::Version version = kv::NoVersion;
 
       update_consensus();
 
-      bool has_updated_merkle_root = false;
+      bool has_updated_merkle_roots = false;
 
-      auto cb = [&merkle_root, &version, &has_updated_merkle_root](
+      auto cb = [&full_state_merkle_root,
+                 &replicated_state_merkle_root,
+                 &version,
+                 &has_updated_merkle_roots](
                   kv::TxHistory::ResultCallbackArgs args) -> bool {
-        merkle_root = args.merkle_root;
+        full_state_merkle_root = args.full_state_merkle_root;
+        replicated_state_merkle_root = args.replicated_state_merkle_root;
         if (args.version != kv::NoVersion)
         {
           version = args.version;
         }
-        has_updated_merkle_root = true;
+        has_updated_merkle_roots = true;
         return true;
       };
 
@@ -649,21 +813,32 @@ namespace ccf
 
       history->register_on_result(cb);
 
+      auto req_view = tx.get_view(*pbft_requests);
+      req_view->put(
+        0,
+        {ctx.actor,
+         ctx.session.fwd.value().caller_id,
+         ctx.session.caller_cert,
+         ctx.raw});
+
       auto rep = process_json(ctx, tx, ctx.session.fwd->caller_id);
 
       history->clear_on_result();
 
-      if (!has_updated_merkle_root)
+      if (!has_updated_merkle_roots)
       {
-        merkle_root = history->get_root();
+        full_state_merkle_root = history->get_full_state_root();
+        replicated_state_merkle_root = history->get_replicated_state_root();
       }
 
       // TODO(#PBFT): Add RPC response to history based on Request ID
       // if (history)
       //   history->add_response(reqid, rv);
 
-      return {
-        jsonrpc::pack(rep.value(), ctx.pack.value()), merkle_root, version};
+      return {jsonrpc::pack(rep.value(), ctx.pack.value()),
+              full_state_merkle_root,
+              replicated_state_merkle_root,
+              version};
     }
 
     /** Process a serialised input forwarded from another node
@@ -720,6 +895,19 @@ namespace ccf
       }
 
       return jsonrpc::pack(rep.value(), ctx.pack.value());
+    }
+
+    std::optional<nlohmann::json> process_if_local_node_rpc(
+      const enclave::RPCContext& ctx, Store::Tx& tx, CallerId caller_id)
+    {
+      Handler* handler = nullptr;
+      auto search = handlers.find(ctx.method);
+      if (search != handlers.end() && search->second.execute_locally)
+      {
+        auto rep = process_json(ctx, tx, caller_id);
+        return rep;
+      }
+      return std::nullopt;
     }
 
     std::optional<nlohmann::json> process_json(
@@ -844,7 +1032,16 @@ namespace ccf
                 if (
                   history && consensus->is_primary() &&
                   (cv % sig_max_tx == sig_max_tx / 2))
-                  history->emit_signature();
+                {
+                  if (consensus->type() == ConsensusType::Raft)
+                  {
+                    history->emit_signature();
+                  }
+                  else
+                  {
+                    consensus->emit_signature();
+                  }
+                }
               }
 
               return result;
@@ -909,7 +1106,14 @@ namespace ccf
         ms_to_sig = sig_max_ms;
         if (history && tables.commit_gap() > 0)
         {
-          history->emit_signature();
+          if (consensus->type() == ConsensusType::Raft)
+          {
+            history->emit_signature();
+          }
+          else
+          {
+            consensus->emit_signature();
+          }
         }
       }
     }

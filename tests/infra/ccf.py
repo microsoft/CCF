@@ -6,12 +6,13 @@ import time
 import logging
 from contextlib import contextmanager
 from glob import glob
-from enum import Enum
-import infra.jsonrpc
+from enum import Enum, IntEnum
+import infra.clients
 import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
+import infra.jsonrpc
 import ssl
 import random
 
@@ -26,6 +27,18 @@ class ServiceStatus(Enum):
     CLOSED = 3
 
 
+class ParticipantsCurve(IntEnum):
+    secp384r1 = 0
+    secp256k1 = 1
+    ed25519 = 2
+
+    def __str__(self):
+        return self.name
+
+    def next(self):
+        return ParticipantsCurve((self.value + 1) % len(ParticipantsCurve))
+
+
 class Network:
     node_args_to_forward = [
         "enclave_type",
@@ -34,6 +47,7 @@ class Network:
         "sig_max_tx",
         "sig_max_ms",
         "election_timeout",
+        "consensus",
         "memory_reserve_startup",
         "notify_server",
         "json_log_path",
@@ -101,12 +115,13 @@ class Network:
         )
 
         # If the network is opening, node are trusted without consortium approval
-        if self.status == ServiceStatus.OPENING and not args.pbft:
-            try:
-                node.wait_for_node_to_join()
-            except TimeoutError:
-                LOG.error(f"New node {node.node_id} failed to join the network")
-                raise
+        if self.status == ServiceStatus.OPENING:
+            if args.consensus != "pbft":
+                try:
+                    node.wait_for_node_to_join()
+                except TimeoutError:
+                    LOG.error(f"New node {node.node_id} failed to join the network")
+                    raise
             node.network_state = infra.node.NodeNetworkState.joined
 
     def _start_all_nodes(
@@ -170,9 +185,9 @@ class Network:
         cmd = ["rm", "-f"] + glob("member*.pem")
         infra.proc.ccall(*cmd)
 
-        self.consortium = infra.consortium.Consortium([1, 2, 3])
-        self.initial_users = [1, 2, 3]
-        self.create_users(self.initial_users)
+        self.consortium = infra.consortium.Consortium([0, 1, 2], args.default_curve)
+        self.initial_users = [0, 1, 2]
+        self.create_users(self.initial_users, args.default_curve)
 
         if args.gov_script:
             infra.proc.ccall("cp", args.gov_script, args.build_dir).check_returncode()
@@ -180,7 +195,7 @@ class Network:
 
         primary = self._start_all_nodes(args)
 
-        if not args.pbft:
+        if args.consensus != "pbft":
             self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
 
@@ -194,7 +209,7 @@ class Network:
         LOG.info("Initial set of users added")
 
         self.consortium.open_network(
-            member_id=1, remote_node=primary, pbft_open=not args.pbft
+            member_id=1, remote_node=primary, pbft_open=args.consensus != "pbft"
         )
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
@@ -252,7 +267,7 @@ class Network:
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(1, primary, new_node.node_id)
-            if not args.pbft:
+            if args.consensus != "pbft":
                 new_node.wait_for_node_to_join()
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {new_node.node_id} failed to join the network")
@@ -260,15 +275,17 @@ class Network:
             return None
 
         new_node.network_state = infra.node.NodeNetworkState.joined
-        if not args.pbft:
+        if args.consensus != "pbft":
             self.wait_for_all_nodes_to_catch_up(primary)
 
         return new_node
 
-    def create_users(self, users):
+    def create_users(self, users, curve):
         users = ["user{}".format(u) for u in users]
         for u in users:
-            infra.proc.ccall("./keygenerator", "--name={}".format(u)).check_returncode()
+            infra.proc.ccall(
+                "./keygenerator.sh", f"{u}", curve.name, log_output=False
+            ).check_returncode()
 
     def get_members(self):
         return self.consortium.members
@@ -317,7 +334,9 @@ class Network:
                 with node.node_client() as c:
                     id = c.request("getPrimaryInfo", {})
                     res = c.response(id)
-                    if res.error is None:
+                    if res is None:
+                        pass
+                    elif res.error is None:
                         primary_id = res.result["primary_id"]
                         term = res.term
                         break

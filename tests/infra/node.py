@@ -6,7 +6,8 @@ from enum import Enum
 import infra.remote
 import infra.net
 import infra.path
-import infra.jsonrpc
+import infra.clients
+import time
 
 from loguru import logger as LOG
 
@@ -174,9 +175,12 @@ class Node:
         """
         for _ in range(timeout):
             with self.node_client() as mc:
-                rep = mc.do("getCommit", {})
-                if rep.error == None and rep.result is not None:
-                    return
+                try:
+                    rep = mc.do("getCommit", {})
+                    if rep.error == None and rep.result is not None:
+                        return
+                except:
+                    pass
             time.sleep(1)
         raise TimeoutError(f"Node {self.node_id} failed to join the network")
 
@@ -184,40 +188,40 @@ class Node:
         return self.remote.get_sealed_secrets()
 
     def user_client(self, format="msgpack", user_id=1, **kwargs):
-        return infra.jsonrpc.client(
+        return infra.clients.client(
             self.host,
             self.rpc_port,
             cert="user{}_cert.pem".format(user_id),
             key="user{}_privk.pem".format(user_id),
-            cafile="networkcert.pem",
+            ca="networkcert.pem",
             description="node {} (user)".format(self.node_id),
             format=format,
             prefix="users",
             **kwargs,
         )
 
-    def node_client(self, timeout=3, **kwargs):
-        return infra.jsonrpc.client(
+    def node_client(self, format="msgpack", timeout=3, **kwargs):
+        return infra.clients.client(
             self.host,
             self.rpc_port,
-            "nodes",
             cert=None,
             key=None,
-            cafile="networkcert.pem",
+            ca="networkcert.pem",
             description="node {} (node)".format(self.node_id),
+            format=format,
             prefix="nodes",
             **kwargs,
         )
 
-    def member_client(self, member_id=1, **kwargs):
-        return infra.jsonrpc.client(
+    def member_client(self, format="msgpack", member_id=1, **kwargs):
+        return infra.clients.client(
             self.host,
             self.rpc_port,
-            "members",
             cert="member{}_cert.pem".format(member_id),
             key="member{}_privk.pem".format(member_id),
-            cafile="networkcert.pem",
+            ca="networkcert.pem",
             description="node {} (member)".format(self.node_id),
+            format=format,
             prefix="members",
             **kwargs,
         )

@@ -48,7 +48,8 @@ namespace ccf
                             const NodeId& nid, const NodeInfo& ni) {
         if (
           node_info_network.nodeport == ni.nodeport &&
-          node_info_network.host == ni.host && ni.status != NodeStatus::RETIRED)
+          node_info_network.nodehost == ni.nodehost &&
+          ni.status != NodeStatus::RETIRED)
         {
           duplicate_node_id = nid;
           return false;
@@ -76,7 +77,7 @@ namespace ccf
           fmt::format(
             "A node with the same node host {} and port {} already exists "
             "(node id: {})",
-            in.node_info_network.host,
+            in.node_info_network.nodehost,
             in.node_info_network.nodeport,
             conflicting_node_id.value()));
       }
@@ -130,14 +131,25 @@ namespace ccf
       auto accept = [this](RequestArgs& args) {
         const auto in = args.params.get<JoinNetworkNodeToNode::In>();
 
+        if (
+          !this->node.is_part_of_network() &&
+          !this->node.is_part_of_public_network())
+        {
+          return jsonrpc::error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            "Target node should be part of network to accept new nodes");
+        }
+
         auto [nodes_view, service_view] =
           args.tx.get_view(this->network.nodes, this->network.service);
 
         auto active_service = service_view->get(0);
         if (!active_service.has_value())
+        {
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             "No service is available to accept new node");
+        }
 
         // Convert caller cert from DER to PEM as PEM certificates
         // are quoted
@@ -157,11 +169,13 @@ namespace ccf
           auto existing_node_id =
             check_node_exists(args.tx, caller_pem_raw, joining_node_status);
           if (existing_node_id.has_value())
+          {
             return jsonrpc::success<JoinNetworkNodeToNode::Out>(
               {joining_node_status,
                existing_node_id.value(),
                {this->network.secrets->get_current(),
                 this->network.secrets->get_current_version()}});
+          }
 
           return add_node(args.tx, caller_pem_raw, in, joining_node_status);
         }

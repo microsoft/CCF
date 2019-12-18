@@ -221,7 +221,7 @@ public:
   {
     std::cout << "  KV" << node_id << "->>Node" << node_id
               << ": replicate idx: " << idx << std::endl;
-    _nodes.at(node_id).raft->replicate({{idx, data, true}});
+    _nodes.at(node_id).raft->replicate(kv::BatchVector{{idx, data, true}});
   }
 
   void disconnect(raft::NodeId left, raft::NodeId right)

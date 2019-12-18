@@ -28,7 +28,6 @@ class CCFRemoteClient(object):
         node_port,
         workspace,
         label,
-        iterations,
         config,
         command_args,
         remote_class,
@@ -56,7 +55,6 @@ class CCFRemoteClient(object):
         cmd = [
             self.BIN,
             f"--rpc-address={node_host}:{node_port}",
-            f"--transactions={iterations}",
             f"--config={os.path.basename(config)}",
         ] + client_command_args
 

@@ -4,6 +4,8 @@
 
 #include "consensus/consensustypes.h"
 #include "crypto/hash.h"
+#include "enclave/consensus_type.h"
+#include "flatbufferwrapper.h"
 
 #include <array>
 #include <chrono>
@@ -25,6 +27,12 @@ namespace kv
   using Term = uint64_t;
   using NodeId = uint64_t;
   static const Version NoVersion = std::numeric_limits<Version>::min();
+
+  using BatchVector =
+    std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>;
+  using BatchDetachedBuffer = std::vector<
+    std::
+      tuple<kv::Version, std::unique_ptr<flatbuffers::DetachedBuffer>, bool>>;
 
   enum CommitSuccess
   {
@@ -51,6 +59,27 @@ namespace kv
     PASS_SIGNATURE = 2
   };
 
+  enum ReplicateType
+  {
+    ALL = 0,
+    NONE,
+    SOME
+  };
+
+  class KvSerialiserException : public std::exception
+  {
+  private:
+    std::string msg;
+
+  public:
+    KvSerialiserException(const std::string& msg_) : msg(msg_) {}
+
+    virtual const char* what() const throw()
+    {
+      return msg.c_str();
+    }
+  };
+
   class TxHistory
   {
   public:
@@ -72,7 +101,8 @@ namespace kv
     {
       RequestID rid;
       Version version;
-      crypto::Sha256Hash merkle_root;
+      crypto::Sha256Hash full_state_merkle_root;
+      crypto::Sha256Hash replicated_state_merkle_root;
     };
 
     struct ResponseCallbackArgs
@@ -85,7 +115,14 @@ namespace kv
     using ResponseCallbackHandler = std::function<bool(ResponseCallbackArgs)>;
 
     virtual ~TxHistory() {}
-    virtual void append(const std::vector<uint8_t>& data) = 0;
+    virtual void append(
+      const std::vector<uint8_t>& replicated,
+      const std::vector<uint8_t>& all_data) = 0;
+    virtual void append(
+      const uint8_t* replicated,
+      size_t replicated_size,
+      const uint8_t* all_data,
+      size_t all_data_size) = 0;
     virtual bool verify(Term* term = nullptr) = 0;
     virtual void rollback(Version v) = 0;
     virtual void compact(Version v) = 0;
@@ -97,7 +134,17 @@ namespace kv
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request) = 0;
     virtual void add_result(
-      RequestID id, kv::Version version, const std::vector<uint8_t>& data) = 0;
+      RequestID id,
+      kv::Version version,
+      const std::vector<uint8_t>& replicated,
+      const std::vector<uint8_t>& all_data) = 0;
+    virtual void add_result(
+      RequestID id,
+      kv::Version version,
+      const uint8_t* replicated,
+      size_t replicated_size,
+      const uint8_t* all_data,
+      size_t all_data_size) = 0;
     virtual void add_result(RequestID id, kv::Version version) = 0;
     virtual void add_response(
       RequestID id, const std::vector<uint8_t>& response) = 0;
@@ -105,7 +152,10 @@ namespace kv
     virtual void register_on_response(ResponseCallbackHandler func) = 0;
     virtual void clear_on_result() = 0;
     virtual void clear_on_response() = 0;
-    virtual crypto::Sha256Hash get_root() = 0;
+    virtual crypto::Sha256Hash get_full_state_root() = 0;
+    virtual crypto::Sha256Hash get_replicated_state_root() = 0;
+    virtual std::vector<uint8_t> get_receipt(Version v) = 0;
+    virtual bool verify_receipt(const std::vector<uint8_t>& receipt) = 0;
   };
 
   class Consensus
@@ -168,9 +218,8 @@ namespace kv
       state = Primary;
     }
 
-    virtual bool replicate(
-      const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>&
-        entries) = 0;
+    virtual bool replicate(const BatchDetachedBuffer& entries) = 0;
+    virtual bool replicate(const BatchVector& entries) = 0;
     virtual View get_view() = 0;
 
     virtual View get_view(SeqNo seqno) = 0;
@@ -194,10 +243,63 @@ namespace kv
     virtual void suspend_replication(kv::Version) {}
 
     virtual void set_f(ccf::NodeId f) = 0;
+    virtual void emit_signature() = 0;
+    virtual ConsensusType type() = 0;
   };
 
-  using PendingTx = std::function<
-    std::tuple<CommitSuccess, TxHistory::RequestID, std::vector<uint8_t>>()>;
+  struct PendingTxInfo
+  {
+    CommitSuccess success;
+    TxHistory::RequestID reqid;
+    std::unique_ptr<flatbuffers::DetachedBuffer> buffer;
+
+    PendingTxInfo(
+      CommitSuccess success_,
+      TxHistory::RequestID reqid_,
+      std::unique_ptr<flatbuffers::DetachedBuffer> buffer_) :
+      success(success_),
+      reqid(std::move(reqid_)),
+      buffer(std::move(buffer_))
+    {}
+  };
+
+  using PendingTx = std::function<PendingTxInfo()>;
+
+  class MovePendingTx
+  {
+  private:
+    std::unique_ptr<flatbuffers::DetachedBuffer> buffer;
+    kv::TxHistory::RequestID req_id;
+
+  public:
+    MovePendingTx(
+      std::unique_ptr<flatbuffers::DetachedBuffer> buffer_,
+      kv::TxHistory::RequestID req_id_) :
+      buffer(std::move(buffer_)),
+      req_id(std::move(req_id_))
+    {}
+
+    MovePendingTx(MovePendingTx&& other) = default;
+    MovePendingTx& operator=(MovePendingTx&& other) = default;
+
+    MovePendingTx(const MovePendingTx& other)
+    {
+      throw std::logic_error(
+        "Calling copy constructor of MovePendingTx is not permitted");
+    }
+    MovePendingTx& operator=(const MovePendingTx& other)
+    {
+      throw std::logic_error(
+        "Calling copy asignment operator of MovePendingTx is not "
+        "permitted");
+    }
+
+    PendingTxInfo operator()()
+    {
+      return PendingTxInfo(
+        CommitSuccess::OK, std::move(req_id), std::move(buffer));
+    }
+  };
 
   class AbstractTxEncryptor
   {
@@ -254,6 +356,7 @@ namespace kv
     virtual bool deserialise(D& d, Version version) = 0;
     virtual Version start_order() = 0;
     virtual Version end_order() = 0;
+    virtual bool is_replicated() = 0;
   };
 
   template <class S, class D>
@@ -272,6 +375,7 @@ namespace kv
     virtual void lock() = 0;
     virtual void unlock() = 0;
     virtual SecurityDomain get_security_domain() = 0;
+    virtual bool is_replicated() = 0;
     virtual void clear() = 0;
 
     virtual AbstractMap<S, D>* clone(AbstractStore* store) = 0;

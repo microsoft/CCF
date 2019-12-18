@@ -18,7 +18,7 @@ extern "C"
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
 
-using namespace ccfapp;
+using namespace ccf;
 
 class DummyConsensus : public kv::StubConsensus
 {
@@ -27,14 +27,25 @@ public:
 
   DummyConsensus(Store* store_) : store(store_) {}
 
-  bool replicate(
-    const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
-    override
+  bool replicate(const kv::BatchVector& entries) override
   {
     if (store)
     {
       REQUIRE(entries.size() == 1);
       return store->deserialise(std::get<1>(entries[0]));
+    }
+    return true;
+  }
+
+  bool replicate(const kv::BatchDetachedBuffer& entries) override
+  {
+    if (store)
+    {
+      REQUIRE(entries.size() == 1);
+      auto& buffer = std::get<1>(entries[0]);
+      std::vector<uint8_t> datavec(
+        buffer->data(), buffer->data() + buffer->size());
+      return store->deserialise(datavec);
     }
     return true;
   }
@@ -186,11 +197,52 @@ TEST_CASE("Check signing works across rollback")
   }
 
   primary_store.rollback(1);
+  if (consensus->type() == ConsensusType::Pbft)
+  {
+    backup_store.rollback(1);
+  }
 
   INFO("Issue signature, and verify successfully on backup");
   {
     primary_history->emit_signature();
-    REQUIRE(backup_store.current_version() == 2);
+    if (consensus->type() == ConsensusType::Pbft)
+    {
+      REQUIRE(backup_store.current_version() == 1);
+    }
+    else
+    {
+      REQUIRE(backup_store.current_version() == 2);
+    }
+  }
+
+  INFO("Check merkle roots are updating");
+  {
+    auto primary_root = primary_history->get_full_state_root();
+    auto pr_str = fmt::format("{}", primary_root);
+    auto backup_root = backup_history->get_full_state_root();
+    auto bk_str = fmt::format("{}", backup_root);
+
+    REQUIRE(pr_str == bk_str);
+
+    auto r_primary_root = primary_history->get_replicated_state_root();
+    auto r_pr_str = fmt::format("{}", r_primary_root);
+    auto r_backup_root = backup_history->get_replicated_state_root();
+    auto r_bk_str = fmt::format("{}", r_backup_root);
+
+    REQUIRE(r_pr_str == r_bk_str);
+
+    auto empty_hash = crypto::Sha256Hash();
+    auto empty_hash_str = fmt::format("{}", empty_hash);
+
+    if (consensus->type() == ConsensusType::Raft)
+    {
+      // check that the replicated tree is not being updated
+      REQUIRE(r_pr_str == empty_hash_str);
+    }
+    else
+    {
+      REQUIRE(r_pr_str != empty_hash_str);
+    }
   }
 }
 
@@ -202,9 +254,18 @@ public:
 
   CompactingConsensus(Store* store_) : store(store_) {}
 
-  bool replicate(
-    const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
-    override
+  bool replicate(const kv::BatchVector& entries) override
+  {
+    for (auto& [version, data, committable] : entries)
+    {
+      count++;
+      if (committable)
+        store->compact(version);
+    }
+    return true;
+  }
+
+  bool replicate(const kv::BatchDetachedBuffer& entries) override
   {
     for (auto& [version, data, committable] : entries)
     {
@@ -311,9 +372,18 @@ public:
     rollback_to(rollback_to_)
   {}
 
-  bool replicate(
-    const std::vector<std::tuple<SeqNo, std::vector<uint8_t>, bool>>& entries)
-    override
+  bool replicate(const kv::BatchVector& entries) override
+  {
+    for (auto& [version, data, committable] : entries)
+    {
+      count++;
+      if (version == rollback_at)
+        store->rollback(rollback_to);
+    }
+    return true;
+  }
+
+  bool replicate(const kv::BatchDetachedBuffer& entries) override
   {
     for (auto& [version, data, committable] : entries)
     {

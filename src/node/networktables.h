@@ -1,9 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "calltypes.h"
 #include "certs.h"
 #include "clientsignatures.h"
 #include "codeid.h"
+#include "consensus/pbft/pbftrequests.h"
+#include "consensus/pbft/pbfttables.h"
+#include "consensus/raft/rafttables.h"
 #include "entities.h"
 #include "members.h"
 #include "nodes.h"
@@ -68,8 +72,18 @@ namespace ccf
     Secrets& secrets_table;
     Signatures& signatures;
 
-    NetworkTables() :
-      tables(std::make_shared<Store>()),
+    //
+    // Pbft related tables
+    //
+    pbft::PbftRequests& pbft_requests;
+
+    NetworkTables(const ConsensusType& consensus_type = ConsensusType::Raft) :
+      tables(
+        (consensus_type == ConsensusType::Raft) ?
+          std::make_shared<Store>(
+            raft::replicate_type_raft, raft::replicated_tables_raft) :
+          std::make_shared<Store>(
+            pbft::replicate_type_pbft, pbft::replicated_tables_pbft)),
       members(
         tables->create<Members>(Tables::MEMBERS, kv::SecurityDomain::PUBLIC)),
       member_certs(tables->create<Certs>(
@@ -102,7 +116,9 @@ namespace ccf
       secrets_table(
         tables->create<Secrets>(Tables::SECRETS, kv::SecurityDomain::PUBLIC)),
       signatures(tables->create<Signatures>(
-        Tables::SIGNATURES, kv::SecurityDomain::PUBLIC))
+        Tables::SIGNATURES, kv::SecurityDomain::PUBLIC)),
+      pbft_requests(
+        tables->create<pbft::PbftRequests>(pbft::Tables::PBFT_REQUESTS))
     {}
 
     /** Returns a tuple of all tables that are possibly accessible from scripts

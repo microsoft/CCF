@@ -28,7 +28,6 @@ namespace ccf
     static constexpr auto MEMBERS = "members";
     static constexpr auto USERS = "users";
     static constexpr auto NODES = "nodes";
-    static constexpr auto MANAGEMENT = "management";
   };
 
   enum ActorsType : uint64_t

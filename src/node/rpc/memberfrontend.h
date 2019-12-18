@@ -18,6 +18,15 @@
 
 namespace ccf
 {
+  struct SetUserData
+  {
+    UserId user_id;
+    nlohmann::json user_data = nullptr;
+  };
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SetUserData)
+  DECLARE_JSON_REQUIRED_FIELDS(SetUserData, user_id)
+  DECLARE_JSON_OPTIONAL_FIELDS(SetUserData, user_data)
+
   class MemberRpcFrontend : public RpcFrontend<Members>
   {
   protected:
@@ -72,22 +81,38 @@ namespace ccf
         // add a new member
         {"new_member",
          [this](Store::Tx& tx, const nlohmann::json& args) {
-           const Cert cert = args;
-           auto mc = tx.get_view(this->network.member_certs);
-           // the cert needs to be unique
-           if (mc->get(cert))
-             throw std::logic_error("Certificate already exists");
+           const Cert pem_cert = args;
+           GenesisGenerator g(this->network, tx);
+           auto new_member_id = g.add_member(pem_cert, MemberStatus::ACCEPTED);
 
-           const auto id = get_next_id(
-             tx.get_view(this->network.values), ValueIds::NEXT_MEMBER_ID);
-           // store cert
-           mc->put(cert, id);
-           // set state to ACCEPTED
-           tx.get_view(this->network.members)
-             ->put(id, {cert, MemberStatus::ACCEPTED});
-           // create nonce for ACK
-           tx.get_view(this->network.member_acks)
-             ->put(id, {rng->random(SIZE_NONCE)});
+           auto ack = tx.get_view(this->network.member_acks);
+           ack->put(new_member_id, {rng->random(SIZE_NONCE)});
+
+           return true;
+         }},
+        // add a new user
+        {"new_user",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
+           const Cert pem_cert = args;
+
+           GenesisGenerator g(this->network, tx);
+           g.add_user(pem_cert);
+
+           return true;
+         }},
+        {"set_user_data",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
+           const auto parsed = args.get<SetUserData>();
+           auto users_view = tx.get_view(this->network.users);
+           auto user_info = users_view->get(parsed.user_id);
+           if (!user_info.has_value())
+           {
+             throw std::logic_error(
+               fmt::format("{} is not a valid user ID", parsed.user_id));
+           }
+
+           user_info->user_data = parsed.user_data;
+           users_view->put(parsed.user_id, *user_info);
            return true;
          }},
         // accept a node
@@ -375,11 +400,9 @@ namespace ccf
         if (!check_member_active(args.tx, args.caller_id))
           return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
 
-#ifndef HTTP
         if (!args.rpc_ctx.signed_request.has_value())
           return jsonrpc::error(
             jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED, "Votes must be signed");
-#endif
 
         const auto vote = args.params.get<Vote>();
         auto proposals = args.tx.get_view(this->network.proposals);

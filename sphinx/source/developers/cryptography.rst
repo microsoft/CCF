@@ -47,6 +47,6 @@ Authenticated encryption in CCF relies on AES256-GCM. Ledger authentication reli
 Public-key certificates, signatures, and ephemeral Diffie-Hellman key exchanges all rely on
 elliptic curves. They can be configured to use one of the following implementations:
 
- * curve25519/ed25519 from `project Everest <https://project-everest.github.io/>`_.
- * secp384r1 or secp256r1 from `mbedTLS <https://tls.mbed.org/>`_.
+ * ed25519 from `project Everest <https://project-everest.github.io/>`_.
+ * secp384r1 from `mbedTLS <https://tls.mbed.org/>`_.
  * secp256k1 from `bitcoin core <https://github.com/bitcoin-core/secp256k1>`_.

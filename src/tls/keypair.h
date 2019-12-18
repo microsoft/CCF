@@ -2,10 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../crypto/hash.h"
-#include "../ds/logger.h"
+#include "asn1_san.h"
 #include "cert.h"
+#include "crypto/hash.h"
 #include "csr.h"
+#include "ds/logger.h"
 #include "entropy.h"
 #include "error_string.h"
 #include "secp256k1/include/secp256k1.h"
@@ -27,15 +28,15 @@ namespace tls
   {
     secp384r1 = 1,
 #ifdef MOD_MBEDTLS
-    curve25519 = 2,
+    ed25519 = 2,
 #endif
     secp256k1_mbedtls = 3,
     secp256k1_bitcoin = 4,
 
 #if SERVICE_IDENTITY_CURVE_CHOICE_SECP384R1
     service_identity_curve_choice = secp384r1,
-#elif SERVICE_IDENTITY_CURVE_CHOICE_CURVE25519
-    service_identity_curve_choice = curve25519,
+#elif SERVICE_IDENTITY_CURVE_CHOICE_ED25519
+    service_identity_curve_choice = ed25519,
 #elif SERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_MBEDTLS
     service_identity_curve_choice = secp256k1_mbedtls,
 #elif SERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_BITCOIN
@@ -78,7 +79,7 @@ namespace tls
         return MBEDTLS_ECP_DP_SECP384R1;
       }
 #ifdef MOD_MBEDTLS
-      case CurveImpl::curve25519:
+      case CurveImpl::ed25519:
       {
         return MBEDTLS_ECP_DP_CURVE25519;
       }
@@ -126,6 +127,28 @@ namespace tls
   }
 
   /**
+   * Hash the given data, with the specified digest algorithm
+   *
+   * @return 0 on success
+   */
+  inline int do_hash(
+    const uint8_t* data_ptr,
+    size_t data_size,
+    HashBytes& o_hash,
+    mbedtls_md_type_t md_type)
+  {
+    const auto md_info = mbedtls_md_info_from_type(md_type);
+    const auto hash_size = mbedtls_md_get_size(md_info);
+
+    if (o_hash.size() < hash_size)
+    {
+      o_hash.resize(hash_size);
+    }
+
+    return mbedtls_md(md_info, data_ptr, data_size, o_hash.data());
+  }
+
+  /**
    * Hash the given data, with an algorithm chosen by key type
    *
    * @return 0 on success
@@ -134,10 +157,19 @@ namespace tls
     const mbedtls_pk_context& ctx,
     const uint8_t* data_ptr,
     size_t data_size,
-    HashBytes& o_hash)
+    HashBytes& o_hash,
+    mbedtls_md_type_t md_type_ = MBEDTLS_MD_NONE)
   {
     const auto ec = get_ec_from_context(ctx);
-    const auto md_type = get_md_for_ec(ec);
+    mbedtls_md_type_t md_type;
+    if (md_type_ != MBEDTLS_MD_NONE)
+    {
+      md_type = md_type_;
+    }
+    else
+    {
+      md_type = get_md_for_ec(ec);
+    }
     const auto md_info = mbedtls_md_info_from_type(md_type);
     const auto hash_size = mbedtls_md_get_size(md_info);
 
@@ -286,6 +318,8 @@ namespace tls
      * @param contents_size size of contents
      * @param sig address of signature
      * @param sig_size size of signature
+     * @param md_type Digest algorithm to use. Derived from the
+     * public key if MBEDTLS_MD_NONE.
      *
      * @return Whether the signature matches the contents and the key
      */
@@ -293,10 +327,11 @@ namespace tls
       const uint8_t* contents,
       size_t contents_size,
       const uint8_t* sig,
-      size_t sig_size)
+      size_t sig_size,
+      mbedtls_md_type_t md_type = MBEDTLS_MD_NONE)
     {
       HashBytes hash;
-      do_hash(*ctx, contents, contents_size, hash);
+      do_hash(*ctx, contents, contents_size, hash, md_type);
 
       return verify_hash(hash.data(), hash.size(), sig, sig_size);
     }
@@ -512,7 +547,7 @@ namespace tls
     mbedtls_pk_init(ctx.get());
 
     int rc = mbedtls_pk_parse_public_key(
-      ctx.get(), public_pem.data(), public_pem.size() + 1);
+      ctx.get(), public_pem.data(), public_pem.size());
 
     if (rc != 0)
     {
@@ -569,6 +604,12 @@ namespace tls
       return std::make_shared<PublicKey>(std::move(ctx));
     }
   }
+
+  struct SubjectAltName
+  {
+    std::string san;
+    bool is_ip;
+  };
 
   class KeyPair : public PublicKey
   {
@@ -801,18 +842,22 @@ namespace tls
           entropy->get_data()) != 0)
         return {};
 
-      auto len = strlen((char*)buf) + 1;
+      auto len = strlen((char*)buf) + 1; // For null termination
       std::vector<uint8_t> pem(buf, buf + len);
       return pem;
     }
 
     std::vector<uint8_t> sign_csr(
-      CBuffer csr, const std::string& issuer, bool ca = false)
+      CBuffer csr,
+      const std::string& issuer,
+      const std::optional<SubjectAltName> subject_alt_name = std::nullopt,
+      bool ca = false)
     {
       SignCsr sign;
 
-      Pem pemCsr(csr);
-      if (mbedtls_x509_csr_parse(&sign.csr, pemCsr.data(), pemCsr.size()) != 0)
+      Pem pem_csr(csr);
+      if (
+        mbedtls_x509_csr_parse(&sign.csr, pem_csr.data(), pem_csr.size()) != 0)
         return {};
 
       char subject[512];
@@ -844,9 +889,12 @@ namespace tls
       if (mbedtls_x509write_crt_set_serial(&sign.crt, &sign.serial) != 0)
         return {};
 
+      // TODO: macOS certificates require 825-day maximum validity
+      // (https://support.apple.com/en-us/HT210176)
+      // &sign.crt, "20010101000000", "21001231235959") != 0)
       if (
         mbedtls_x509write_crt_set_validity(
-          &sign.crt, "20010101000000", "21001231235959") != 0)
+          &sign.crt, "20191101000000", "20211231235959") != 0)
         return {};
 
       if (
@@ -860,6 +908,20 @@ namespace tls
       if (mbedtls_x509write_crt_set_authority_key_identifier(&sign.crt) != 0)
         return {};
 
+      // Because mbedtls does not support parsing x509v3 extensions from a
+      // CSR (https://github.com/ARMmbed/mbedtls/issues/2912), the CA sets the
+      // SAN directly instead of reading it from the CSR
+      if (subject_alt_name.has_value())
+      {
+        if (
+          x509write_crt_set_subject_alt_name(
+            &sign.crt,
+            subject_alt_name->san.c_str(),
+            (subject_alt_name->is_ip ? san_type::ip_address :
+                                       san_type::dns_name)) != 0)
+          return {};
+      }
+
       uint8_t buf[4096];
       memset(buf, 0, sizeof(buf));
 
@@ -872,15 +934,18 @@ namespace tls
           sign.entropy->get_data()) != 0)
         return {};
 
-      auto len = strlen((char*)buf) + 1;
+      auto len = strlen((char*)buf) + 1; // For null termination
       std::vector<uint8_t> pem(buf, buf + len);
       return pem;
     }
 
-    std::vector<uint8_t> self_sign(const std::string& name, bool ca = true)
+    std::vector<uint8_t> self_sign(
+      const std::string& name,
+      const std::optional<SubjectAltName> subject_alt_name = std::nullopt,
+      bool ca = true)
     {
       auto csr = create_csr(name);
-      return sign_csr(csr, name, ca);
+      return sign_csr(csr, name, subject_alt_name, ca);
     }
 
     // TODO: This should be removed
@@ -1010,7 +1075,7 @@ namespace tls
 
     // keylen is +1 to include terminating null byte
     int rc =
-      mbedtls_pk_parse_key(key.get(), pkey.data(), pkey.size() + 1, pw.p, pw.n);
+      mbedtls_pk_parse_key(key.get(), pkey.data(), pkey.size(), pw.p, pw.n);
     if (rc != 0)
     {
       throw std::logic_error("Could not parse key: " + error_string(rc));
@@ -1125,15 +1190,18 @@ namespace tls
      *
      * @param contents Sequence of bytes that was signed
      * @param signature Signature as a sequence of bytes
+     * @param md_type Digest algorithm to use. Derived from the
+     * public key if MBEDTLS_MD_NONE.
      *
      * @return Whether the signature matches the contents and the key
      */
     bool verify(
       const std::vector<uint8_t>& contents,
-      const std::vector<uint8_t>& signature) const
+      const std::vector<uint8_t>& signature,
+      mbedtls_md_type_t md_type = {}) const
     {
       HashBytes hash;
-      do_hash(cert.pk, contents.data(), contents.size(), hash);
+      do_hash(cert.pk, contents.data(), contents.size(), hash, md_type);
 
       return verify_hash(hash, signature);
     }
@@ -1143,7 +1211,7 @@ namespace tls
       return &cert;
     }
 
-    std::vector<uint8_t> raw_cert_data()
+    std::vector<uint8_t> der_cert_data()
     {
       const auto crt = raw();
       return {crt->raw.p, crt->raw.p + crt->raw.len};

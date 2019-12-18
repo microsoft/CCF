@@ -19,7 +19,8 @@ Pre_prepare::Pre_prepare(
 {
   rep().view = v;
   rep().seqno = s;
-  rep().merkle_root.fill(0);
+  rep().full_state_merkle_root.fill(0);
+  rep().replicated_state_merkle_root.fill(0);
 
   START_CC(pp_digest_cycles);
   INCR_OP(pp_digest);
@@ -124,8 +125,13 @@ Pre_prepare::Pre_prepare(
   auth_src_offset = 0;
 #else
   set_size(old_size + node->sig_size());
-  node->gen_signature(
-    contents(), sizeof(Pre_prepare_rep), contents() + old_size);
+#endif
+
+#ifdef SIGN_BATCH
+  std::fill(
+    std::begin(rep().batch_digest_signature),
+    std::end(rep().batch_digest_signature),
+    0);
 #endif
 
   trim();
@@ -165,8 +171,22 @@ bool Pre_prepare::check_digest()
   return d == rep().digest;
 }
 
-bool Pre_prepare::set_digest()
+bool Pre_prepare::is_signed()
 {
+#ifdef SIGN_BATCH
+  return (
+    std::none_of(
+      std::begin(rep().batch_digest_signature),
+      std::end(rep().batch_digest_signature),
+      [](int i) { return i != 0; }) == false);
+#endif
+  return true;
+}
+
+bool Pre_prepare::set_digest(int64_t signed_version)
+{
+  rep().ctx = std::max(rep().ctx, signed_version);
+
   Digest d;
   if (!calculate_digest(d))
   {
@@ -176,8 +196,14 @@ bool Pre_prepare::set_digest()
   rep().digest = d;
 
 #ifdef SIGN_BATCH
-  node->gen_signature(
-    d.digest(), d.digest_size(), rep().batch_digest_signature);
+  if (
+    replica->should_sign_next_and_reset() ||
+    (rep().seqno == replica->next_expected_sig_offset()) || node->f() == 0)
+  {
+    replica->set_next_expected_sig_offset();
+    node->gen_signature(
+      d.digest(), d.digest_size(), rep().batch_digest_signature);
+  }
 #endif
 
   return true;
@@ -206,7 +232,13 @@ bool Pre_prepare::calculate_digest(Digest& d)
     d.update_last(context, (char*)&(rep().view), sizeof(View));
     d.update_last(context, (char*)&(rep().seqno), sizeof(Seqno));
     d.update_last(
-      context, (const char*)rep().merkle_root.data(), rep().merkle_root.size());
+      context,
+      (const char*)rep().full_state_merkle_root.data(),
+      rep().full_state_merkle_root.size());
+    d.update_last(
+      context,
+      (const char*)rep().replicated_state_merkle_root.data(),
+      rep().replicated_state_merkle_root.size());
     d.update_last(context, (char*)&rep().ctx, sizeof(rep().ctx));
 
     Request req;
@@ -249,13 +281,17 @@ bool Pre_prepare::pre_verify()
   if (check_digest())
   {
 #ifdef SIGN_BATCH
-    if (!node->get_principal(sender)->verify_signature(
-          rep().digest.digest(),
-          rep().digest.digest_size(),
-          (const char*)get_digest_sig().data()))
+    if (is_signed())
     {
-      LOG_DEBUG << "failed to verify signature on the digest" << std::endl;
-      return false;
+      if (!node->get_principal(sender)->verify_signature(
+            rep().digest.digest(),
+            rep().digest.digest_size(),
+            (const char*)get_digest_sig().data()))
+      {
+        LOG_INFO << "failed to verify signature on the digest, seqno:"
+                 << rep().seqno << std::endl;
+        return false;
+      }
     }
 #endif
 
@@ -360,20 +396,32 @@ bool Pre_prepare::convert(Message* m1, Pre_prepare*& m2)
   return true;
 }
 
-void Pre_prepare::set_merkle_root_and_ctx(
-  const std::array<uint8_t, MERKLE_ROOT_SIZE>& merkle_root, int64_t ctx)
+void Pre_prepare::set_merkle_roots_and_ctx(
+  const std::array<uint8_t, MERKLE_ROOT_SIZE>& full_state_merkle_root,
+  const std::array<uint8_t, MERKLE_ROOT_SIZE>& replicated_state_merkle_root,
+  int64_t ctx)
 {
   std::copy(
-    std::begin(merkle_root),
-    std::end(merkle_root),
-    std::begin(rep().merkle_root));
+    std::begin(full_state_merkle_root),
+    std::end(full_state_merkle_root),
+    std::begin(rep().full_state_merkle_root));
+  std::copy(
+    std::begin(replicated_state_merkle_root),
+    std::end(replicated_state_merkle_root),
+    std::begin(rep().replicated_state_merkle_root));
   rep().ctx = ctx;
 }
 
-const std::array<uint8_t, MERKLE_ROOT_SIZE>& Pre_prepare::get_merkle_root()
-  const
+const std::array<uint8_t, MERKLE_ROOT_SIZE>& Pre_prepare::
+  get_full_state_merkle_root() const
 {
-  return rep().merkle_root;
+  return rep().full_state_merkle_root;
+}
+
+const std::array<uint8_t, MERKLE_ROOT_SIZE>& Pre_prepare::
+  get_replicated_state_merkle_root() const
+{
+  return rep().replicated_state_merkle_root;
 }
 
 int64_t Pre_prepare::get_ctx() const

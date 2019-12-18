@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
+#include "kv/flatbufferwrapper.h"
 #include "kv/kv.h"
 #include "kv/kvserialiser.h"
 #include "node/encryptor.h"
@@ -12,7 +13,7 @@
 #include <string>
 #include <vector>
 
-using namespace ccfapp;
+using namespace ccf;
 
 struct CustomClass
 {
@@ -111,8 +112,7 @@ TEST_CASE(
   Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
 
-  auto& priv_map = kv_store.create<std::string, std::string>(
-    "priv_map", kv::SecurityDomain::PRIVATE);
+  auto& priv_map = kv_store.create<std::string, std::string>("priv_map");
   kv_store_target.clone_schema(kv_store);
 
   INFO("Commit a private transaction without an encryptor throws an exception");
@@ -180,9 +180,8 @@ TEST_CASE(
 
   INFO("Deserialise transaction in target store");
   {
-    auto serial = consensus->get_latest_data();
     REQUIRE(
-      kv_store_target.deserialise(serial.first) !=
+      kv_store_target.deserialise(consensus->get_latest_data().first) !=
       kv::DeserialiseSuccess::FAILED);
 
     Store::Tx tx;
@@ -216,9 +215,8 @@ TEST_CASE(
     view_priv->put("privk1", "privv1");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
-    auto serial = consensus->get_latest_data();
     REQUIRE(
-      kv_store_target.deserialise(serial.first) !=
+      kv_store_target.deserialise(consensus->get_latest_data().first) !=
       kv::DeserialiseSuccess::FAILED);
 
     Store::Tx tx_target;
@@ -239,9 +237,8 @@ TEST_CASE(
     auto view_priv2 = tx2.get_view(priv_map);
     REQUIRE(view_priv2->get("privk1").has_value() == false);
 
-    auto serial = consensus->get_latest_data();
     REQUIRE(
-      kv_store_target.deserialise(serial.first) !=
+      kv_store_target.deserialise(consensus->get_latest_data().first) !=
       kv::DeserialiseSuccess::FAILED);
 
     Store::Tx tx_target;
@@ -276,11 +273,13 @@ TEST_CASE(
     view->put(k, v1);
     view->put(k2, v2);
 
-    auto [success, reqid, serialised] = tx.commit_reserved();
+    auto [success, reqid, buffer] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
     kv_store.compact(view->end_order());
 
-    REQUIRE(kv_store2.deserialise(serialised) == kv::DeserialiseSuccess::PASS);
+    std::vector<uint8_t> data_vec(
+      buffer->data(), buffer->data() + buffer->size());
+    REQUIRE(kv_store2.deserialise(data_vec) == kv::DeserialiseSuccess::PASS);
     Store::Tx tx2;
     auto view2 = tx2.get_view(map2);
     auto va = view2->get(k);
@@ -340,8 +339,8 @@ TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
 
     auto& public_map = kv_store.create<std::string, std::string>(
       "public_map", kv::SecurityDomain::PUBLIC);
-    auto& private_map = kv_store.create<std::string, std::string>(
-      "private_map", kv::SecurityDomain::PRIVATE);
+    auto& private_map =
+      kv_store.create<std::string, std::string>("private_map");
 
     kv_store_target.clone_schema(kv_store);
 
@@ -373,9 +372,9 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
 
   SUBCASE("baseline")
   {
-    auto r = std::make_shared<kv::StubConsensus>();
+    auto consensus = std::make_shared<kv::StubConsensus>();
     using Table = Store::Map<std::vector<int>, std::string>;
-    Store s0(r), s1;
+    Store s0(consensus), s1;
     auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
     s1.create<Table>("t");
 
@@ -384,15 +383,15 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     REQUIRE(
-      s1.deserialise(r->get_latest_data().first) !=
+      s1.deserialise(consensus->get_latest_data().first) !=
       kv::DeserialiseSuccess::FAILED);
   }
 
   SUBCASE("nlohmann")
   {
-    auto r = std::make_shared<kv::StubConsensus>();
+    auto consensus = std::make_shared<kv::StubConsensus>();
     using Table = Store::Map<nlohmann::json, nlohmann::json>;
-    Store s0(r), s1;
+    Store s0(consensus), s1;
     auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
     s1.create<Table>("t");
 
@@ -402,7 +401,165 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     REQUIRE(
-      s1.deserialise(r->get_latest_data().first) !=
+      s1.deserialise(consensus->get_latest_data().first) !=
       kv::DeserialiseSuccess::FAILED);
   }
+}
+
+TEST_CASE("replicated and derived table serialisation")
+{
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  std::unordered_set<std::string> replicated_tables = {
+    "data_replicated", "data_replicated_private"};
+  Store store(kv::ReplicateType::SOME, replicated_tables);
+  store.set_encryptor(encryptor);
+
+  auto& data_replicated =
+    store.create<size_t, size_t>("data_replicated", kv::SecurityDomain::PUBLIC);
+  auto& data_derived =
+    store.create<size_t, size_t>("data_derived", kv::SecurityDomain::PUBLIC);
+  auto& data_replicated_private =
+    store.create<size_t, size_t>("data_replicated_private");
+  auto& data_derived_private =
+    store.create<size_t, size_t>("data_derived_private");
+
+  {
+    Store::Tx tx(store.next_version());
+    auto [data_view, data_view_private] =
+      tx.get_view(data_replicated, data_replicated_private);
+    data_view->put(42, 42);
+    data_view_private->put(43, 43);
+    auto [success, reqid, buffer] = tx.commit_reserved();
+    REQUIRE(success == kv::CommitSuccess::OK);
+
+    std::vector<uint8_t> data_vec(
+      buffer->data(), buffer->data() + buffer->size());
+
+    REQUIRE(store.deserialise(data_vec) == kv::DeserialiseSuccess::PASS);
+
+    auto replicated = kv::frame::replicated(buffer->data());
+    auto derived = kv::frame::derived(buffer->data());
+    REQUIRE(replicated.n > 0);
+    REQUIRE(derived.n == 0);
+  }
+
+  {
+    Store::Tx tx(store.next_version());
+    auto [data_view, data_view_private] =
+      tx.get_view(data_derived, data_derived_private);
+    data_view->put(42, 42);
+    data_view_private->put(43, 43);
+    auto [success, reqid, buffer] = tx.commit_reserved();
+    REQUIRE(success == kv::CommitSuccess::OK);
+
+    std::vector<uint8_t> data_vec(
+      buffer->data(), buffer->data() + buffer->size());
+
+    REQUIRE(store.deserialise(data_vec) == kv::DeserialiseSuccess::PASS);
+
+    auto replicated = kv::frame::replicated(buffer->data());
+    auto derived = kv::frame::derived(buffer->data());
+    REQUIRE(replicated.n == 0);
+    REQUIRE(derived.n > 0);
+  }
+
+  {
+    Store::Tx tx(store.next_version());
+    auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] = tx.get_view(
+      data_replicated,
+      data_replicated_private,
+      data_derived,
+      data_derived_private);
+    data_view_r->put(42, 42);
+    data_view_d->put(42, 42);
+    data_view_r_p->put(43, 43);
+    data_view_d_p->put(43, 43);
+    auto [success, reqid, buffer] = tx.commit_reserved();
+    REQUIRE(success == kv::CommitSuccess::OK);
+
+    std::vector<uint8_t> data_vec(
+      buffer->data(), buffer->data() + buffer->size());
+
+    REQUIRE(store.deserialise(data_vec) == kv::DeserialiseSuccess::PASS);
+
+    auto replicated = kv::frame::replicated(buffer->data());
+    auto derived = kv::frame::derived(buffer->data());
+    REQUIRE(replicated.n > 0);
+    REQUIRE(derived.n > 0);
+  }
+}
+
+struct NonSerialisable
+{};
+
+namespace msgpack
+{
+  MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
+  {
+    namespace adaptor
+    {
+      // msgpack conversion for uint256_t
+      template <>
+      struct convert<NonSerialisable>
+      {
+        msgpack::object const& operator()(
+          msgpack::object const& o, NonSerialisable& ns) const
+        {
+          throw std::runtime_error("Deserialise failure");
+        }
+      };
+
+      template <>
+      struct pack<NonSerialisable>
+      {
+        template <typename Stream>
+        packer<Stream>& operator()(
+          msgpack::packer<Stream>& o, NonSerialisable const& ns) const
+        {
+          throw std::runtime_error("Serialise failure");
+        }
+      };
+    }
+  }
+}
+
+TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
+{
+  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  auto consensus = std::make_shared<kv::StubConsensus>();
+
+  Store store(consensus);
+  store.set_encryptor(encryptor);
+
+  auto& good_map = store.create<size_t, size_t>("good_map");
+  auto& bad_map = store.create<size_t, NonSerialisable>("bad_map");
+
+  {
+    Store::Tx tx;
+
+    auto good_view = tx.get_view(good_map);
+    good_view->put(1, 2);
+
+    auto bad_view = tx.get_view(bad_map);
+    bad_view->put(0, {});
+
+    REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
+  }
+}
+
+TEST_CASE("Test flatbuffers")
+{
+  std::vector<uint8_t> derived_data(10, 1);
+  std::vector<uint8_t> replicated_data(11, 0);
+
+  kv::frame::FlatbufferSerialiser fb_serialiser(replicated_data, derived_data);
+
+  auto buffer = fb_serialiser.get_detached_buffer();
+
+  kv::frame::FlatbufferDeserialiser db_deserialiser(buffer->data());
+
+  auto replicated = kv::frame::replicated(buffer->data());
+  CHECK(replicated.n == replicated_data.size());
+
+  CHECK(db_deserialiser.replicated_size() == replicated_data.size());
 }

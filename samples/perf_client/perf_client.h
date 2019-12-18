@@ -21,7 +21,6 @@
 
 namespace client
 {
-  constexpr auto users_sni = "users";
   constexpr auto perf_summary = "perf_summary.csv";
 
   bool pin_to_core(int core_id)
@@ -68,7 +67,7 @@ namespace client
         key = tls::Pem(raw_key);
 
         tls_cert = std::make_shared<tls::Cert>(
-          users_sni, std::make_shared<tls::CA>(ca), raw_cert, key, nullb);
+          std::make_shared<tls::CA>(ca), raw_cert, key);
 
         return true;
       }
@@ -151,15 +150,11 @@ namespace client
           key,
           server_address.hostname,
           server_address.port,
-          users_sni,
           nullptr,
           tls_cert) :
         std::make_shared<RpcTlsClient>(
-          server_address.hostname,
-          server_address.port,
-          users_sni,
-          nullptr,
-          tls_cert);
+          server_address.hostname, server_address.port, nullptr, tls_cert);
+      conn->set_prefix("users");
 
       // Report ciphersuite of first client (assume it is the same for each)
       if (verbosity >= 1 && is_first)
@@ -220,6 +215,7 @@ namespace client
     bool write_tx_times = false;
     bool randomise = false;
     bool check_responses = false;
+    bool relax_commit_target = false;
     ///@}
 
     // Everything else has empty stubs and can optionally be overridden. This
@@ -416,7 +412,7 @@ namespace client
         const auto it = expected.find("randomise");
         if (it != expected.end())
         {
-          const auto expected_randomise = it->get<bool>();
+          expected_randomise = it->get<bool>();
         }
 
         if (expected_randomise != randomise)

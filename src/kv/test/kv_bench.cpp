@@ -11,6 +11,7 @@
 #include <string>
 
 using namespace ccfapp;
+using namespace ccf;
 
 // Helper functions
 ccf::NetworkSecrets create_network_secrets()
@@ -85,9 +86,8 @@ static void deserialise(picobench::state& s)
   }
   tx.commit();
 
-  auto serial = consensus->get_latest_data();
   s.start_timer();
-  auto rc = kv_store2.deserialise(serial.first);
+  auto rc = kv_store2.deserialise(consensus->get_latest_data().first);
   if (rc != kv::DeserialiseSuccess::PASS)
     throw std::logic_error(
       "Transaction deserialisation failed: " + std::to_string(rc));

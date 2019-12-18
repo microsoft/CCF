@@ -16,7 +16,8 @@ public:
   virtual void receive_message(const uint8_t* data, uint32_t size) = 0;
   typedef void (*reply_handler_cb)(Reply* m, void* ctx);
   virtual void register_reply_handler(reply_handler_cb cb, void* ctx) = 0;
-  typedef void (*global_commit_handler_cb)(int64_t tx_ctx, void* cb_ctx);
+  typedef void (*global_commit_handler_cb)(
+    int64_t tx_ctx, View view, void* cb_ctx);
   virtual void register_global_commit(
     global_commit_handler_cb cb, void* ctx) = 0;
   virtual size_t num_correct_replicas() const = 0;
@@ -29,4 +30,5 @@ public:
   virtual void send(Message* m, int i) = 0;
   virtual Seqno get_last_executed() const = 0;
   virtual int my_id() const = 0;
+  virtual void emit_signature_on_next_pp(int64_t version) = 0;
 };

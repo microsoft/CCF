@@ -21,7 +21,9 @@ def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeou
     # Forcing a signature accelerates this process for common operations
     # (e.g. governance proposals)
     if mksign:
-        node_client.rpc("mkSign", params={})
+        r = node_client.rpc("mkSign", params={})
+        if r.error is not None:
+            raise RuntimeError(f"mkSign returned an error: {r.error}")
 
     for i in range(timeout * 10):
         r = node_client.rpc("getCommit", {"commit": commit_index})

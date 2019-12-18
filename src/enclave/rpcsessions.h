@@ -5,6 +5,8 @@
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "enclavetypes.h"
+#include "framedtlsendpoint.h"
+#include "httpendpoint.h"
 #include "rpcclient.h"
 #include "rpcendpoint.h"
 #include "rpchandler.h"
@@ -12,18 +14,25 @@
 #include "tls/client.h"
 #include "tls/context.h"
 #include "tls/server.h"
-#include "tlsframedendpoint.h"
 
 #include <limits>
 #include <unordered_map>
 
 namespace enclave
 {
+#ifdef HTTP
+  using ServerEndpointImpl = HTTPServerEndpoint;
+  using ClientEndpointImpl = HTTPClientEndpoint;
+#else
+  using ServerEndpointImpl = RPCEndpoint;
+  using ClientEndpointImpl = RPCClient;
+#endif
+
   class RPCSessions : public AbstractRPCResponder
   {
   private:
     std::shared_ptr<RPCMap> rpc_map;
-    std::vector<std::shared_ptr<tls::Cert>> certs;
+    std::shared_ptr<tls::Cert> cert;
 
     SpinLock lock;
     std::unordered_map<size_t, std::shared_ptr<Endpoint>> sessions;
@@ -43,20 +52,16 @@ namespace enclave
       rpc_map(rpc_map_)
     {}
 
-    void add_cert(
-      const std::string& sni, CBuffer ca_cert, CBuffer cert, const tls::Pem& pk)
+    void set_cert(CBuffer cert_, const tls::Pem& pk)
     {
       std::lock_guard<SpinLock> guard(lock);
-      auto hasCa = ca_cert != nullb;
-      auto the_cert = std::make_shared<tls::Cert>(
-        sni,
-        hasCa ? std::make_shared<tls::CA>(ca_cert) : nullptr,
-        cert,
-        pk,
-        nullb,
-        hasCa ? tls::auth_required : tls::auth_optional);
 
-      certs.push_back(std::move(the_cert));
+      // Caller authentication is done by each frontend by looking up
+      // the caller's certificate in the relevant store table. The caller
+      // certificate does not have to be signed by a known CA (nullptr,
+      // tls::auth_optional).
+      cert = std::make_shared<tls::Cert>(
+        nullptr, cert_, pk, nullb, tls::auth_optional);
     }
 
     void accept(size_t id)
@@ -68,9 +73,9 @@ namespace enclave
           "Duplicate conn ID received inside enclave: " + std::to_string(id));
 
       LOG_DEBUG_FMT("Accepting a session inside the enclave: {}", id);
-      auto ctx = std::make_unique<tls::Server>(certs);
+      auto ctx = std::make_unique<tls::Server>(cert);
 
-      auto session = std::make_shared<RPCEndpoint>(
+      auto session = std::make_shared<ServerEndpointImpl>(
         rpc_map, id, writer_factory, std::move(ctx));
       sessions.insert(std::make_pair(id, std::move(session)));
     }
@@ -99,7 +104,8 @@ namespace enclave
       sessions.erase(id);
     }
 
-    std::shared_ptr<RPCClient> create_client(std::shared_ptr<tls::Cert> cert)
+    std::shared_ptr<ClientEndpoint> create_client(
+      std::shared_ptr<tls::Cert> cert)
     {
       std::lock_guard<SpinLock> guard(lock);
       auto ctx = std::make_unique<tls::Client>(cert);
@@ -107,8 +113,8 @@ namespace enclave
 
       LOG_DEBUG_FMT("Creating a new client session inside the enclave: {}", id);
 
-      auto session =
-        std::make_shared<RPCClient>(id, writer_factory, std::move(ctx));
+      auto session = std::make_shared<ClientEndpointImpl>(
+        id, writer_factory, std::move(ctx));
       sessions.insert(std::make_pair(id, session));
       return session;
     }

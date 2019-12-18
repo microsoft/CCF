@@ -42,6 +42,7 @@ namespace ccf
      {Tables::MEMBERS,
       Tables::MEMBER_CERTS,
       Tables::MEMBER_ACKS,
+      Tables::USERS,
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,
       Tables::APP_SCRIPTS,
