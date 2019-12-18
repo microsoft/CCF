@@ -4,7 +4,7 @@ steps:
     gzip -vk *_metrics.json
   displayName: Compress tx time metrics
   workingDirectory: build
-  condition: eq(outputs['CTest.noTests'], '0')
+  condition: eq($(CTest.noTests), '0')
 
 - task: AzureCLI@1
   displayName: Push Performance Data
