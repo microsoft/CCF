@@ -4,10 +4,14 @@ parameters:
 
 steps:
 - script: |
+    NO_TESTS=$(./tests.sh -N -T Test ${{ parameters.ctest_filter }} | grep -c "Total Tests: 0")
+    echo "##vso[task.setvariable variable=noTests;isOutput=true]$NO_TESTS"
     ./tests.sh -VV --timeout 240 --no-compress-output -T Test ${{ parameters.ctest_filter }}
+    grep 'No tests were found'
   env:
     METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
   displayName: CTest
+  name: CTest
   workingDirectory: build
 
 - script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) ${{ parameters.suite_name_suffix }}" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
