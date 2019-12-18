@@ -54,17 +54,28 @@ class Consortium:
         force_unsigned=False,
         should_wait_for_global_commit=True,
     ):
-        script = """
-        tables, changes = ...
-        return true
-        """
-        with remote_node.member_client(format="json", member_id=member_id) as mc:
-            res = mc.rpc(
+        if os.getenv("HTTP"):
+            script = """
+            tables, changes = ...
+            return true
+            """
+            with remote_node.member_client(format="json", member_id=member_id) as mc:
+                res = mc.rpc(
+                    "vote",
+                    {"ballot": {"text": script}, "id": proposal_id},
+                    signed=not force_unsigned,
+                )
+                j_result = res.to_dict()
+
+        else:
+            j_result = self._member_client_rpc_as_json(
+                member_id,
+                remote_node,
                 "vote",
-                {"ballot": {"text": script}, "id": proposal_id},
-                signed=not force_unsigned,
+                f"--proposal-id={proposal_id}",
+                "--accept" if accept else "--reject",
+                "--force-unsigned" if force_unsigned else "",
             )
-            j_result = res.to_dict()
 
         if "error" in j_result:
             return (False, j_result["error"])
