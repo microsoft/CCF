@@ -193,7 +193,7 @@ TEST_CASE("Test Ledger Replay")
     std::vector<std::vector<uint8_t>> entries;
     while (true)
     {
-      auto ret = write_consensus->get_earliest_data();
+      auto ret = write_consensus->replay_data();
       if (!ret.second)
       {
         break;
