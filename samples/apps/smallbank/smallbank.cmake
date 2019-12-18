@@ -25,17 +25,20 @@ if(BUILD_TESTS)
     set(SMALL_BANK_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank.json)
     set(SMALL_BANK_ITERATIONS 200000)
   endif()
-  add_perf_test(
-    NAME small_bank_client_test
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
-    CLIENT_BIN ./small_bank_client
-    VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
-    LABEL Small_Bank_ClientCpp
-    ADDITIONAL_ARGS
-      --transactions ${SMALL_BANK_ITERATIONS}
-      --max-writes-ahead 1000
-      --metrics-file small_bank_metrics.json
-  )
+  # TODO: Fix signed HTTP RPCs with PBFT
+  if (NOT (PBFT AND HTTP))
+    add_perf_test(
+      NAME small_bank_client_test
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
+      CLIENT_BIN ./small_bank_client
+      VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
+      LABEL Small_Bank_ClientCpp
+      ADDITIONAL_ARGS
+        --transactions ${SMALL_BANK_ITERATIONS}
+        --max-writes-ahead 1000
+        --metrics-file small_bank_metrics.json
+    )
+  endif()
 
   if (PBFT)
     set(SMALL_BANK_SIGNED_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_20k.json)

@@ -16,7 +16,7 @@ parameters:
     CIMetrics:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
-      dependsOn: ['BuildAndTest_SGX_CFT_FTCP_Perf', 'BuildAndTest_SGX_BFT_FTCP_Perf']
+      dependsOn: ['BuildAndTest_SGX_CFT_FTCP_Perf', 'BuildAndTest_SGX_BFT_FTCP_Perf', 'BuildAndTest_SGX_CFT_HTTP_Perf', 'BuildAndTest_SGX_BFT_HTTP_Perf']
 
   build:
     common:
@@ -32,7 +32,10 @@ parameters:
     debug:
       cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DBUILD_SMALLBANK=OFF'
     perf:
-      cmake_args: '-DSERVICE_IDENTITY_CURVE_CHOICE=secp256k1_bitcoin'
+      FTCP:
+        cmake_args: '-DSERVICE_IDENTITY_CURVE_CHOICE=secp256k1_bitcoin'
+      HTTP:
+        cmake_args: ''
     san:
       cmake_args: '-DSAN=ON'
     FTCP:
@@ -94,16 +97,17 @@ jobs:
 
   # Optimised builds, only run performance tests
   - ${{ each consensus in parameters.consensus }}:
-    - template: common.yml
-      parameters:
-        target: SGX
-        consensus: ${{ consensus }}
-        protocol: FTCP
-        env: ${{ parameters.env.SGX }}
-        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-        ctest_filter: '${{ parameters.test.perf[consensus].ctest_args }}'
-        suffix: 'Perf'
-        depends_on: ${{ parameters.static_check_job_name }}
+    - ${{ each protocol in parameters.protocol }}:
+      - template: common.yml
+        parameters:
+          target: SGX
+          consensus: ${{ consensus }}
+          protocol: ${{ protocol }}
+          env: ${{ parameters.env.SGX }}
+          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf[protocol].cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
+          ctest_filter: '${{ parameters.test.perf[consensus].ctest_args }}'
+          suffix: 'Perf'
+          depends_on: ${{ parameters.static_check_job_name }}
   
   - template: cimetrics.yml
     parameters:

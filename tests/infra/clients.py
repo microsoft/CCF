@@ -208,16 +208,18 @@ class RPCLogger:
             )
         )
 
-    def log_response(self, response):
+    def log_response(self, id, response):
         LOG.debug(
             truncate(
                 "#{} {}".format(
-                    response.id,
+                    id,
                     {
                         k: v
                         for k, v in (response.__dict__ or {}).items()
                         if not k.startswith("_")
-                    },
+                    }
+                    if response
+                    else None,
                 )
             )
         )
@@ -233,10 +235,10 @@ class RPCFileLogger(RPCLogger):
             json.dump(request.to_dict(), f, indent=2)
             f.write(os.linesep)
 
-    def log_response(self, response):
+    def log_response(self, id, response):
         with open(self.path, "a") as f:
-            f.write("<< Response:" + os.linesep)
-            json.dump(response.to_dict(), f, indent=2)
+            f.write(f"<< Response {id} :" + os.linesep)
+            json.dump(response.to_dict() if response else "None", f, indent=2)
             f.write(os.linesep)
 
 
@@ -425,7 +427,7 @@ class RequestClient:
                 rid = self._just_request(request)
                 self.request = self._just_request
                 return rid
-            except requests.exceptions.ReadTimeout:
+            except requests.exceptions.SSLError:
                 if self.connection_timeout < 0:
                     raise
             self.connection_timeout -= 0.1
@@ -546,7 +548,7 @@ class CCFClient:
     def response(self, id):
         r = self.client_impl.response(id)
         for logger in self.rpc_loggers:
-            logger.log_response(r)
+            logger.log_response(id, r)
         return r
 
     def do(self, *args, **kwargs):
