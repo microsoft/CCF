@@ -334,7 +334,9 @@ class Network:
                 with node.node_client() as c:
                     id = c.request("getPrimaryInfo", {})
                     res = c.response(id)
-                    if res.error is None:
+                    if res is None:
+                        pass
+                    elif res.error is None:
                         primary_id = res.result["primary_id"]
                         term = res.term
                         break
