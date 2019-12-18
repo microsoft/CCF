@@ -45,7 +45,6 @@ class Consortium:
             r = mc.rpc("propose", {"parameter": params, "script": {"text": script}})
             return r.result, r.error
 
-    # TODO: Remove use of memberclient when client signatures are supported from JSON-RPC/HTTP
     def vote(
         self,
         member_id,
@@ -55,28 +54,17 @@ class Consortium:
         force_unsigned=False,
         should_wait_for_global_commit=True,
     ):
-        if os.getenv("HTTP"):
-            script = """
-            tables, changes = ...
-            return true
-            """
-            with remote_node.member_client(format="json", member_id=member_id) as mc:
-                res = mc.rpc(
-                    "vote",
-                    {"ballot": {"text": script}, "id": proposal_id},
-                    signed=not force_unsigned,
-                )
-                j_result = res.to_dict()
-
-        else:
-            j_result = self._member_client_rpc_as_json(
-                member_id,
-                remote_node,
+        script = """
+        tables, changes = ...
+        return true
+        """
+        with remote_node.member_client(format="json", member_id=member_id) as mc:
+            res = mc.rpc(
                 "vote",
-                f"--proposal-id={proposal_id}",
-                "--accept" if accept else "--reject",
-                "--force-unsigned" if force_unsigned else "",
+                {"ballot": {"text": script}, "id": proposal_id},
+                signed=not force_unsigned,
             )
+            j_result = res.to_dict()
 
         if "error" in j_result:
             return (False, j_result["error"])
