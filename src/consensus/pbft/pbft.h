@@ -138,7 +138,7 @@ namespace pbft
       std::unique_ptr<consensus::LedgerEnclave> ledger_,
       std::shared_ptr<enclave::RPCMap> rpc_map,
       std::shared_ptr<enclave::RPCSessions> rpcsessions_,
-      pbft::PbftInfo* pbft_info) :
+      pbft::PbftInfo& pbft_info) :
       Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
@@ -195,8 +195,8 @@ namespace pbft
         0,
         0,
         pbft_network.get(),
-        store.get(),
         pbft_info,
+        *store,
         &message_receiver_base);
       LOG_INFO_FMT("PBFT setup for local_id: {}", local_id);
 

@@ -4,7 +4,7 @@
 
 #include "Request.h"
 
-LedgerWriter::LedgerWriter(pbft::Store* store_, pbft::PbftInfo* pbft_info_) :
+LedgerWriter::LedgerWriter(pbft::Store& store_, pbft::PbftInfo& pbft_info_) :
   store(store_),
   pbft_info(pbft_info_)
 {}
@@ -47,13 +47,13 @@ void LedgerWriter::write_prepare(
 
 void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
 {
-  auto version = store->next_version();
+  auto version = store.next_version();
   LOG_TRACE << "Storing pre prepare at seqno " << pp->seqno() << std::endl;
-  store->commit(
+  store.commit(
     version,
     [version, pp, this]() {
       ccf::Store::Tx tx(version);
-      auto info_view = tx.get_view(*pbft_info);
+      auto info_view = tx.get_view(pbft_info);
       info_view->put(
         0,
         {pbft::InfoType::PRE_PREPARE,

@@ -31,6 +31,7 @@ extern "C"
 #include "pbft_assert.h"
 #include "stacktrace_utils.h"
 #include "test_message.h"
+#include "consensus/pbft/pbfttables.h"
 
 using std::cerr;
 
@@ -372,6 +373,12 @@ int main(int argc, char** argv)
     LOG_FATAL << "--transport {UDP || UDP_MT}" << std::endl;
   }
 
+  auto store = std::make_shared<ccf::Store>(
+    pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
+  auto& pbft_info = store->create<pbft::PbftInfo>(
+    pbft::Tables::PBFT_INFO, kv::SecurityDomain::PUBLIC);
+  auto replica_store = std::make_unique<pbft::Adaptor<ccf::Store>>(store);
+
   IMessageReceiveBase* message_receive_base;
   int used_bytes = Byz_init_replica(
     node_info,
@@ -381,8 +388,8 @@ int main(int argc, char** argv)
     0,
     0,
     network,
-    nullptr,
-    nullptr,
+    pbft_info,
+    *replica_store,
     &message_receive_base);
 
   Byz_start_replica();

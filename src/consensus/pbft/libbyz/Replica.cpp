@@ -71,8 +71,8 @@ Replica::Replica(
   char* mem,
   size_t nbytes,
   INetwork* network,
-  pbft::Store* store,
-  pbft::PbftInfo* pbft_info_) :
+  pbft::PbftInfo& pbft_info_,
+  pbft::Store& store) :
   Node(node_info),
   rqueue(),
   ro_rqueue(),
@@ -167,19 +167,16 @@ Replica::Replica(
   exec_command = nullptr;
   non_det_choices = 0;
 
-  if (store)
-  {
-    ledger_writer = std::make_unique<LedgerWriter>(store, pbft_info);
-    playback_local_hook = [this](
-                            kv::Version version,
-                            const pbft::PbftInfo::State& s,
-                            const pbft::PbftInfo::Write& w) {
-      for (auto& [key, value] : w)
-      {
-        apply_ledger_data(value.value.type, value.value);
-      }
-    };
-  }
+  ledger_writer = std::make_unique<LedgerWriter>(store, pbft_info);
+  playback_local_hook = [this](
+                          kv::Version version,
+                          const pbft::PbftInfo::State& s,
+                          const pbft::PbftInfo::Write& w) {
+    for (auto& [key, value] : w)
+    {
+      apply_ledger_data(value.value.type, value.value);
+    }
+  };
 }
 
 void Replica::register_exec(ExecCommand e)
@@ -1119,12 +1116,12 @@ void Replica::emit_signature_on_next_pp(int64_t version)
 
 void Replica::activate_pbft_local_hooks()
 {
-  pbft_info->set_local_hook(playback_local_hook);
+  pbft_info.set_local_hook(playback_local_hook);
 }
 
 void Replica::deactivate_pbft_local_hooks()
 {
-  pbft_info->set_local_hook(nullptr);
+  pbft_info.set_local_hook(nullptr);
 }
 
 View Replica::view() const

@@ -59,8 +59,8 @@ public:
     char* mem,
     size_t nbytes,
     INetwork* network,
-    pbft::Store* store_ = nullptr,
-    pbft::PbftInfo* pbft_info = nullptr);
+    pbft::PbftInfo& pbft_info,
+    pbft::Store& store_);
   // Requires: "mem" is vm page aligned and nbytes is a multiple of the
   // vm page size.
   // Effects: Create a new server replica using the information in
@@ -428,7 +428,7 @@ private:
   reply_handler_cb rep_cb;
   void* rep_cb_ctx;
 
-  pbft::PbftInfo* pbft_info;
+  pbft::PbftInfo& pbft_info;
 
   std::function<void(
     kv::Version, const pbft::PbftInfo::State&, const pbft::PbftInfo::Write&)>

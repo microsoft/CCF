@@ -75,7 +75,7 @@ NodeInfo get_node_info()
 }
 
 void create_replica(
-  std::vector<char>& service_mem, pbft::Store* store, pbft::PbftInfo* pbft_info)
+  std::vector<char>& service_mem, pbft::Store& store, pbft::PbftInfo& pbft_info)
 {
   auto node_info = get_node_info();
 
@@ -84,8 +84,8 @@ void create_replica(
     service_mem.data(),
     service_mem.size(),
     Create_Mock_Network(),
-    store,
-    pbft_info);
+    pbft_info,
+    store);
   replica->init_state();
   for (auto& pi : node_info.general_info.principal_info)
   {
@@ -112,7 +112,7 @@ TEST_CASE("Test Ledger Replay")
     "derived_map", kv::SecurityDomain::PUBLIC);
   auto replica_store = std::make_unique<pbft::Adaptor<ccf::Store>>(store);
 
-  create_replica(service_mem, replica_store.get(), &pbft_info);
+  create_replica(service_mem, *replica_store, pbft_info);
   replica->register_exec(exec_mock.exec_command);
 
   auto write_consensus = std::make_shared<kv::StubConsensus>();
@@ -129,7 +129,7 @@ TEST_CASE("Test Ledger Replay")
     auto write_pbft_store =
       std::make_unique<pbft::Adaptor<ccf::Store>>(write_store);
 
-    LedgerWriter ledger_writer(write_pbft_store.get(), &write_pbft_info);
+    LedgerWriter ledger_writer(*write_pbft_store, write_pbft_info);
 
     Req_queue rqueue;
     for (size_t i = 1; i < total_requests; i++)

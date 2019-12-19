@@ -27,6 +27,8 @@ extern "C"
 #include "pbft_assert.h"
 #include "stacktrace_utils.h"
 
+#include "consensus/pbft/pbfttables.h"
+
 using std::cerr;
 
 static const int Simple_size = 4096;
@@ -198,8 +200,14 @@ int main(int argc, char** argv)
     LOG_FATAL << "--transport {UDP || UDP_MT}" << std::endl;
   }
 
+    auto store = std::make_shared<ccf::Store>(
+    pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
+  auto& pbft_info = store->create<pbft::PbftInfo>(
+    pbft::Tables::PBFT_INFO, kv::SecurityDomain::PUBLIC);
+  auto replica_store = std::make_unique<pbft::Adaptor<ccf::Store>>(store);
+
   int used_bytes =
-    Byz_init_replica(node_info, mem, mem_size, exec_command, 0, 0, network);
+    Byz_init_replica(node_info, mem, mem_size, exec_command, 0, 0, network, pbft_info, *replica_store);
   Byz_start_replica();
   service_mem = mem + used_bytes;
   Byz_configure_principals();
