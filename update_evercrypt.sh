@@ -1,6 +1,6 @@
 #!/bin/bash
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT license.
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
 
 HACL_STAR_DIRECTORY=$1
 CCF_DIST_DIRECTORY="$HACL_STAR_DIRECTORY/dist/ccf"
