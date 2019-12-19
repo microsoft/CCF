@@ -123,12 +123,6 @@ public:
 
   KeyPair* get_keypair();
 
-  unsigned decrypt(
-    const uint8_t* senders_public_key, char* src, char* dst, unsigned dst_len);
-  // Effects: decrypts the cyphertext in "src" using this
-  // principal's private key and places up to "dst_len" bytes of the
-  // result in "dst". Returns the number of bytes placed in "dst".
-
 protected:
   std::string service_name;
   int node_id; // identifier of the current node.
