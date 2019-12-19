@@ -381,7 +381,7 @@ if(BUILD_TESTS)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
   endif()
 
-  # TODO: Find out why this breaks with HTTP
+  # TODO: Fix signed HTTP RPCs with PBFT
   if (NOT (HTTP AND PBFT))
     add_e2e_test(
       NAME election_tests

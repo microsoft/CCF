@@ -45,7 +45,6 @@ class Consortium:
             r = mc.rpc("propose", {"parameter": params, "script": {"text": script}})
             return r.result, r.error
 
-    # TODO: Remove use of memberclient when client signatures are supported from JSON-RPC/HTTP
     def vote(
         self,
         member_id,
