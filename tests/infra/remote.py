@@ -59,6 +59,7 @@ def sftp_session(hostname):
 
 def log_errors(out_path, err_path):
     error_filter = ["[fail ]", "[fatal]"]
+    error_lines = []
     try:
         errors = 0
         tail_lines = deque(maxlen=10)
@@ -68,6 +69,7 @@ def log_errors(out_path, err_path):
                 tail_lines.append(stripped_line)
                 if any(x in stripped_line for x in error_filter):
                     LOG.error("{}: {}".format(out_path, stripped_line))
+                    error_lines.append(stripped_line)
                     errors += 1
         if errors:
             LOG.info("{} errors found, printing end of output for context:", errors)
@@ -81,6 +83,7 @@ def log_errors(out_path, err_path):
                 LOG.exception("Could not read err output {}".format(err_path))
     except IOError:
         LOG.exception("Could not check output {} for errors".format(out_path))
+    return error_lines
 
 
 class CmdMixin(object):
@@ -259,12 +262,13 @@ class SSHRemote(CmdMixin):
         """
         LOG.info("[{}] closing".format(self.hostname))
         self.get_logs()
-        log_errors(
+        errors = log_errors(
             "{}_out_{}".format(self.hostname, self.name),
             "{}_err_{}".format(self.hostname, self.name),
         )
         self.client.close()
         self.proc_client.close()
+        return errors
 
     def setup(self):
         """
@@ -434,7 +438,7 @@ class LocalRemote(CmdMixin):
                 self.stdout.close()
             if self.stderr:
                 self.stderr.close()
-            log_errors(self.out, self.err)
+            return log_errors(self.out, self.err)
 
     def setup(self):
         """
@@ -664,8 +668,9 @@ class CCFRemote(object):
         return self.remote._dbg()
 
     def stop(self):
+        errors = []
         try:
-            self.remote.stop()
+            errors = self.remote.stop()
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.local_node_id))
         if self.profraw:
@@ -673,6 +678,7 @@ class CCFRemote(object):
                 self.remote.get(self.profraw)
             except Exception:
                 LOG.info(f"Could not retrieve {self.profraw}")
+        return errors
 
     def wait_for_stdout_line(self, line, timeout=5):
         return self.remote.wait_for_stdout_line(line, timeout)

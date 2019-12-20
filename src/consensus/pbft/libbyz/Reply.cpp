@@ -11,15 +11,16 @@
 #include "Statistics.h"
 #include "pbft_assert.h"
 
-Reply::Reply(View view, Request_id req, Seqno n, int replica) :
-  Message(Reply_tag, Max_message_size)
+Reply::Reply(
+  View view, Request_id req, Seqno n, int replica, uint32_t reply_size) :
+  Message(Reply_tag, sizeof(Reply_rep) + reply_size + MAC_size)
 {
   rep().v = view;
   rep().rid = req;
   rep().n = n;
   rep().replica = replica;
   rep().reply_size = 0;
-  set_size(sizeof(Reply_rep));
+  set_size(sizeof(Reply_rep) + reply_size + MAC_size);
 }
 
 Reply::Reply(Reply_rep* r) : Message(r) {}

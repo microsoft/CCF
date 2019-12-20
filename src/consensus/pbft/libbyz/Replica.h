@@ -142,6 +142,7 @@ public:
   void send(Message* m, int i);
   Seqno get_last_executed() const;
   int my_id() const;
+  char* create_response_message(int client_id, Request_id rid, uint32_t size);
 
   Seqno signature_offset = 0;
   std::atomic<bool> sign_next = false;
@@ -406,7 +407,6 @@ private:
   // Sets and logs to keep track of messages received. Their size
   // is equal to max_out.
   Req_queue rqueue; // For read-write requests.
-  Req_queue ro_rqueue; // For read-only requests
 
   Log<Prepared_cert> plog;
 

@@ -208,16 +208,18 @@ class RPCLogger:
             )
         )
 
-    def log_response(self, response):
+    def log_response(self, id, response):
         LOG.debug(
             truncate(
                 "#{} {}".format(
-                    response.id,
+                    id,
                     {
                         k: v
                         for k, v in (response.__dict__ or {}).items()
                         if not k.startswith("_")
-                    },
+                    }
+                    if response
+                    else None,
                 )
             )
         )
@@ -233,10 +235,10 @@ class RPCFileLogger(RPCLogger):
             json.dump(request.to_dict(), f, indent=2)
             f.write(os.linesep)
 
-    def log_response(self, response):
+    def log_response(self, id, response):
         with open(self.path, "a") as f:
-            f.write("<< Response:" + os.linesep)
-            json.dump(response.to_dict(), f, indent=2)
+            f.write(f"<< Response {id} :" + os.linesep)
+            json.dump(response.to_dict() if response else "None", f, indent=2)
             f.write(os.linesep)
 
 
@@ -289,17 +291,34 @@ class FramedTLSJSONRPCClient:
 
 # We keep this around in a limited fashion still, because
 # the resulting logs nicely illustrate manual usage in a way using requests doesn't
+class CurlClientSSLException(Exception):
+    pass
+
+
 class CurlClient:
-    def __init__(self, host, port, cert, key, ca, version, format, *args, **kwargs):
+    def __init__(
+        self,
+        host,
+        port,
+        cert,
+        key,
+        ca,
+        version,
+        format,
+        connection_timeout,
+        *args,
+        **kwargs,
+    ):
         self.host = host
         self.port = port
         self.cert = cert
         self.key = key
         self.ca = ca
         self.format = "json"
+        self.connection_timeout = connection_timeout
         self.stream = Stream(version, "json")
 
-    def _request(self, request, is_signed=False):
+    def _just_request(self, request, is_signed=False):
         with tempfile.NamedTemporaryFile() as nf:
             msg = getattr(request, f"to_{self.format}")()
             LOG.debug(f"Going to send {msg}")
@@ -329,6 +348,8 @@ class CurlClient:
             rc = subprocess.run(cmd, capture_output=True)
 
             if rc.returncode != 0:
+                if rc.returncode == 60:
+                    raise CurlClientSSLException
                 LOG.error(rc.stderr)
                 raise RuntimeError(f"Curl failed with return code {rc.returncode}")
 
@@ -341,6 +362,17 @@ class CurlClient:
 
             self.stream.update(rep.encode())
         return request.id
+
+    def _request(self, request, is_signed=False):
+        while self.connection_timeout >= 0:
+            try:
+                rid = self._just_request(request, is_signed)
+                self._request = self._just_request
+                return rid
+            except CurlClientSSLException:
+                if self.connection_timeout < 0:
+                    raise
+            self.connection_timeout -= 0.1
 
     def request(self, request):
         return self._request(request, is_signed=False)
@@ -376,8 +408,9 @@ class RequestClient:
         self.format = "json"
         self.stream = Stream(version, "json")
         self.request_timeout = request_timeout
+        self.connection_timeout = connection_timeout
 
-    def request(self, request):
+    def _just_request(self, request):
         rep = requests.post(
             f"https://{self.host}:{self.port}/{request.method}",
             json=request.to_dict(),
@@ -387,6 +420,17 @@ class RequestClient:
         )
         self.stream.update(rep.content)
         return request.id
+
+    def request(self, request):
+        while self.connection_timeout >= 0:
+            try:
+                rid = self._just_request(request)
+                self.request = self._just_request
+                return rid
+            except requests.exceptions.SSLError:
+                if self.connection_timeout < 0:
+                    raise
+            self.connection_timeout -= 0.1
 
     def signed_request(self, request):
         with open(self.key, "rb") as k:
@@ -504,7 +548,7 @@ class CCFClient:
     def response(self, id):
         r = self.client_impl.response(id)
         for logger in self.rpc_loggers:
-            logger.log_response(r)
+            logger.log_response(id, r)
         return r
 
     def do(self, *args, **kwargs):

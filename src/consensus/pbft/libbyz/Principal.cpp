@@ -56,36 +56,6 @@ bool Principal::verify_signature(
   return ret;
 }
 
-unsigned Principal::encrypt(
-  const char* src,
-  unsigned src_len,
-  char* dst,
-  unsigned dst_len,
-  KeyPair* sender_kp)
-{
-  // (1) how big is the encrypted message
-  // it will be as big as the message
-  // tag will Tag_size bytes
-  unsigned size = src_len;
-  if (dst_len < size + Tag_size)
-  {
-    return 0;
-  }
-
-  // (2) encrypt
-  // encrypt will memcpy the cipher text to dst
-  uint8_t tag[Tag_size];
-  sender_kp->encrypt(
-    raw_pub_key_enc.data(), (const uint8_t*)src, src_len, (uint8_t*)dst, tag);
-
-  // (3) advance dst by encrypted message size to write the tag at the end
-  dst += size;
-  // (4) write the tag at the end
-  memcpy(dst, tag, Tag_size);
-  // (5) return size of encrypted message plus the size of the tag
-  return size + Tag_size;
-}
-
 void random_nonce(unsigned* n)
 {
   epbft::IntelDRNG drng;

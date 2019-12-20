@@ -58,9 +58,11 @@ def test_add_as_many_pending_nodes(network, args):
 def test_add_node_untrusted_code(network, args):
     if args.enclave_type == "debug":
         LOG.info("Adding an invalid node (unknown code id)")
-        assert (
-            network.create_and_trust_node("libluagenericenc", "localhost", args) == None
-        ), "Adding node with unknown code id should fail"
+        try:
+            network.create_and_trust_node("libluagenericenc", "localhost", args)
+            assert False, "Adding node with unknown code id should fail"
+        except TimeoutError as err:
+            assert "CODE_ID_NOT_FOUND" in err.message, err.message
     else:
         LOG.warning("Skipping unknown code id test with virtual enclave")
     return network

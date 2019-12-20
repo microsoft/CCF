@@ -290,8 +290,7 @@ namespace ccf
 
     MerkleTreeHistory(const std::vector<uint8_t>& serialised)
     {
-      tree = mt_deserialize(
-        const_cast<uint8_t*>(serialised.data()), serialised.size());
+      tree = mt_deserialize(serialised.data(), serialised.size());
     }
 
     MerkleTreeHistory()
