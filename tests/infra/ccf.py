@@ -244,13 +244,17 @@ class Network:
                     else infra.node.NodeStatus.TRUSTED
                 ),
             )
-        except TimeoutError:
+        except TimeoutError as err:
             # The node can be safely discarded since it has not been
             # attributed a unique node_id by CCF
             LOG.error(f"New pending node {new_node.node_id} failed to join the network")
-            new_node.stop()
+            errors = new_node.stop()
+            if errors:
+                for error in errors:
+                    if "An error occurred while joining the network" in error:
+                        err.message = f"TimeoutError: {error.split('|', 1)[1]}"
             self.nodes.remove(new_node)
-            return None
+            raise
 
         return new_node
 
@@ -260,8 +264,6 @@ class Network:
         it so that it becomes part of the consensus protocol.
         """
         new_node = self.create_and_add_pending_node(lib_name, host, args, target_node)
-        if new_node is None:
-            return None
 
         primary, _ = self.find_primary()
         try:
@@ -272,7 +274,7 @@ class Network:
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {new_node.node_id} failed to join the network")
             new_node.stop()
-            return None
+            raise
 
         new_node.network_state = infra.node.NodeNetworkState.joined
         if args.consensus != "pbft":
