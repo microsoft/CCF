@@ -120,7 +120,7 @@ include_directories(
 include_directories(
   SYSTEM
   ${CCF_DIR}/3rdparty
-  ${CCF_DIR}/3rdparty/evercrypt-msr
+  ${CCF_DIR}/3rdparty/hacl-star
   ${MSGPACK_INCLUDE_DIR}
   ${FLATBUFFERS_INCLUDE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}

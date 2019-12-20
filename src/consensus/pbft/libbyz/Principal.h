@@ -13,11 +13,6 @@
 #include <string.h>
 #include <sys/time.h>
 
-extern "C"
-{
-#include "aes_gcm.h"
-}
-
 class Reply;
 
 // Sizes in bytes.
@@ -75,16 +70,6 @@ public:
   // "src_len" bytes starting at "src". If "allow_self" is false, it
   // always returns false if "this->id == node->id()"; otherwise,
   // returns true if signature is valid.
-
-  unsigned encrypt(
-    const char* src,
-    unsigned src_len,
-    char* dst,
-    unsigned dst_len,
-    KeyPair* sender_kp);
-  // Effects: Encrypts "src_len" bytes starting at "src" using this
-  // principal's public-key and places up to "dst_len" of the result in "dst".
-  // Returns the number of bytes placed in "dst".
 
   Request_id last_fetch_rid() const;
   void set_last_fetch_rid(Request_id r);
