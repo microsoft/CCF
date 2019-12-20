@@ -34,7 +34,6 @@ namespace pbft
     virtual void compact(Index v) = 0;
     virtual void rollback(Index v) = 0;
     virtual kv::Version current_version() = 0;
-    virtual kv::Version next_version() = 0;
     virtual void commit_pre_prepare(
       const pbft::PrePrepare& pp, pbft::PrePrepares& pbft_pre_prepares) = 0;
   };
@@ -99,16 +98,6 @@ namespace pbft
       if (p)
       {
         return p->current_version();
-      }
-      return kv::NoVersion;
-    }
-
-    kv::Version next_version()
-    {
-      auto p = x.lock();
-      if (p)
-      {
-        return p->next_version();
       }
       return kv::NoVersion;
     }
