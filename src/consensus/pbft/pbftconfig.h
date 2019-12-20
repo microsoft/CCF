@@ -15,6 +15,7 @@ namespace pbft
     static char* service_mem;
     virtual ~AbstractPbftConfig() = default;
     virtual void set_service_mem(char* sm) = 0;
+    virtual void set_receiver(IMessageReceiveBase* message_receive_base_) = 0;
     virtual ExecCommand get_exec_command() = 0;
   };
 
@@ -31,6 +32,11 @@ namespace pbft
       service_mem = sm;
     }
 
+    void set_receiver(IMessageReceiveBase* message_receive_base_) override
+    {
+      message_receive_base = message_receive_base_;
+    }
+
     ExecCommand get_exec_command() override
     {
       return exec_command;
@@ -39,11 +45,14 @@ namespace pbft
   private:
     std::shared_ptr<enclave::RPCMap> rpc_map;
 
+    IMessageReceiveBase* message_receive_base;
+
     ExecCommand exec_command = [this](
                                  Byz_req* inb,
-                                 Byz_rep* outb,
+                                 Byz_rep& outb,
                                  _Byz_buffer* non_det,
                                  int client,
+                                 Request_id rid,
                                  bool ro,
                                  Seqno total_requests_executed,
                                  ByzInfo& info) {
@@ -84,9 +93,12 @@ namespace pbft
         std::begin(info.replicated_state_merkle_root));
       info.ctx = rep.version;
 
-      outb->size = rep.result.size();
-      auto outb_ptr = (uint8_t*)outb->contents;
-      size_t outb_size = (size_t)outb->size;
+      outb.contents = message_receive_base->create_response_message(
+        client, rid, rep.result.size());
+
+      outb.size = rep.result.size();
+      auto outb_ptr = (uint8_t*)outb.contents;
+      size_t outb_size = (size_t)outb.size;
 
       serialized::write(
         outb_ptr, outb_size, rep.result.data(), rep.result.size());
