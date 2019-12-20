@@ -197,6 +197,7 @@ namespace pbft
       LOG_INFO_FMT("PBFT setup for local_id: {}", local_id);
 
       pbft_config->set_service_mem(mem + used_bytes);
+      pbft_config->set_receiver(message_receiver_base);
       pbft_network->set_receiver(message_receiver_base);
 
       Byz_start_replica();

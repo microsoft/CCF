@@ -18,7 +18,6 @@
 
 extern "C"
 {
-#include <evercrypt/EverCrypt_AEAD.h>
 #include <evercrypt/EverCrypt_Curve25519.h>
 #include <evercrypt/EverCrypt_Ed25519.h>
 #include <evercrypt/EverCrypt_Error.h>
@@ -197,82 +196,6 @@ public:
     // postcondition of EverCrypt_Ed25519_sign: signature length = 64
 
     return {sig, sig + signature_size};
-  }
-
-  void encrypt(
-    const uint8_t* recipients_public_key,
-    const uint8_t* message,
-    size_t message_length,
-    uint8_t* cipher_text,
-    uint8_t* tag)
-  {
-    // recipients_public_key = 32 bytes
-    // message = message_length bytes
-    // cipher_text = same length as message
-    // tag = 16 bytes
-
-    uint8_t shared_key[32];
-    uint8_t iv[16] = {
-      0}; // cwinter: we should put something meaningful in the IV
-
-    EverCrypt_Curve25519_ecdh(
-      shared_key, keys.private_, (uint8_t*)recipients_public_key);
-
-    EverCrypt_AEAD_state_s* st;
-    EverCrypt_AEAD_create_in(EverCrypt_AEAD_Vale_AES256_GCM, &st, shared_key);
-
-    auto rc = EverCrypt_AEAD_encrypt(
-      st, iv, 0, 0, (uint8_t*)message, message_length, cipher_text, tag);
-
-    EverCrypt_AEAD_free(st);
-
-    // wipe shared secret
-    memset(shared_key, 0, 32);
-
-    if (rc != EverCrypt_Error_Success)
-    {
-      LOG_FATAL << "encryption or tag authentication failed" << std::endl;
-    }
-  }
-
-  bool decrypt(
-    const uint8_t* senders_public_key /* 32 bytes */,
-    const uint8_t* message,
-    size_t message_length,
-    uint8_t* plain_text,
-    uint8_t* tag)
-  {
-    // senders_public_key = 32 bytes
-    // message = message_length bytes
-    // plain_text = same length as message
-    // tag = 16 bytes
-
-    uint8_t shared_key[32];
-    uint8_t iv[16] = {
-      0}; // cwinter: we should put something meaningful in the IV
-
-    EverCrypt_Curve25519_ecdh(
-      shared_key, keys.private_, (uint8_t*)senders_public_key);
-
-    EverCrypt_AEAD_state_s* st;
-    EverCrypt_AEAD_create_in(EverCrypt_AEAD_Vale_AES256_GCM, &st, shared_key);
-
-    auto rc = EverCrypt_AEAD_decrypt(
-      st, iv, 0, 0, (uint8_t*)message, message_length, tag, plain_text);
-
-    EverCrypt_AEAD_free(st);
-
-    // wipe shared secret
-    memset(shared_key, 0, 32);
-
-    if (rc != EverCrypt_Error_Success)
-    {
-      // don't throw because we cannot let malicious principals crash us
-      LOG_FAIL << "decryption or tag validation failed" << std::endl;
-      return false;
-    }
-
-    return true;
   }
 
 private:

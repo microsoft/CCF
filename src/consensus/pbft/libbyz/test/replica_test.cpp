@@ -177,16 +177,20 @@ void setup_client_proxy()
 }
 
 static char* service_mem = 0;
+static IMessageReceiveBase* message_receive_base;
 
 // Service specific functions.
 ExecCommand exec_command = [](
                              Byz_req* inb,
-                             Byz_rep* outb,
+                             Byz_rep& outb,
                              _Byz_buffer* non_det,
                              int client,
+                             Request_id rid,
                              bool ro,
                              Seqno total_requests_executed,
                              ByzInfo& info) {
+  outb.contents = message_receive_base->create_response_message(client, rid, 8);
+
   Long& counter = *(Long*)service_mem;
   Long* client_counter_arrays = (Long*)service_mem + sizeof(Long);
   auto client_counter = client_counter_arrays[client];
@@ -254,9 +258,9 @@ ExecCommand exec_command = [](
   if (request->option == 1)
   {
     PBFT_ASSERT(inb->size == 8, "Invalid request");
-    Byz_modify(outb->contents, Simple_size);
-    bzero(outb->contents, Simple_size);
-    outb->size = Simple_size;
+    Byz_modify(outb.contents, Simple_size);
+    bzero(outb.contents, Simple_size);
+    outb.size = Simple_size;
     return 0;
   }
 
@@ -264,9 +268,9 @@ ExecCommand exec_command = [](
     (request->option == 2 && inb->size == Simple_size) ||
       (request->option == 0 && inb->size == 8),
     "Invalid request");
-  Byz_modify(outb->contents, 8);
-  *((long long*)(outb->contents)) = 0;
-  outb->size = 8;
+  Byz_modify(outb.contents, 8);
+  *((long long*)(outb.contents)) = 0;
+  outb.size = 8;
   return 0;
 };
 
@@ -372,7 +376,6 @@ int main(int argc, char** argv)
     LOG_FATAL << "--transport {UDP || UDP_MT}" << std::endl;
   }
 
-  IMessageReceiveBase* message_receive_base;
   int used_bytes = Byz_init_replica(
     node_info,
     mem,
