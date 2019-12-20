@@ -23,6 +23,7 @@ extern "C"
 #include "Replica.h"
 #include "Statistics.h"
 #include "Timer.h"
+#include "consensus/pbft/pbfttables.h"
 #include "ds/files.h"
 #include "host/ledger.h"
 #include "libbyz.h"
@@ -31,7 +32,6 @@ extern "C"
 #include "pbft_assert.h"
 #include "stacktrace_utils.h"
 #include "test_message.h"
-#include "consensus/pbft/pbfttables.h"
 
 using std::cerr;
 
@@ -375,8 +375,10 @@ int main(int argc, char** argv)
 
   auto store = std::make_shared<ccf::Store>(
     pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
-  auto& pbft_info = store->create<pbft::PbftInfo>(
-    pbft::Tables::PBFT_INFO, kv::SecurityDomain::PUBLIC);
+  auto& pbft_requests = store->create<pbft::Requests>(
+    pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
+  auto& pbft_pre_prepares = store->create<pbft::PrePrepares>(
+    pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
   auto replica_store = std::make_unique<pbft::Adaptor<ccf::Store>>(store);
 
   IMessageReceiveBase* message_receive_base;
@@ -388,7 +390,8 @@ int main(int argc, char** argv)
     0,
     0,
     network,
-    pbft_info,
+    pbft_requests,
+    pbft_pre_prepares,
     *replica_store,
     &message_receive_base);
 

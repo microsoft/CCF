@@ -113,12 +113,14 @@ int Byz_init_replica(
   void (*comp_ndet)(Seqno, Byz_buffer*),
   int ndet_max_len,
   INetwork* network,
-  pbft::PbftInfo& pbft_info,
+  pbft::Requests& pbft_requests,
+  pbft::PrePrepares& pbft_pre_prepares,
   pbft::Store& store,
   IMessageReceiveBase** message_receiver)
 {
   // Initialize random number generator
-  replica = new Replica(node_info, mem, size, network, pbft_info, store);
+  replica = new Replica(
+    node_info, mem, size, network, pbft_requests, pbft_pre_prepares, store);
   node = replica;
 
   if (message_receiver != nullptr)

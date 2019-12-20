@@ -4,7 +4,8 @@
 
 #include "Prepared_cert.h"
 #include "View_change.h"
-#include "consensus/pbft/pbftinfo.h"
+#include "consensus/pbft/pbftpreprepares.h"
+#include "consensus/pbft/pbftrequests.h"
 #include "consensus/pbft/pbfttypes.h"
 #include "kv/kv.h"
 #include "ledger.h"
@@ -14,10 +15,10 @@ class LedgerWriter
 {
 private:
   pbft::Store& store;
-  pbft::PbftInfo& pbft_info;
+  pbft::PrePrepares& pbft_pre_prepares;
 
 public:
-  LedgerWriter(pbft::Store& store_, pbft::PbftInfo& pbft_info_);
+  LedgerWriter(pbft::Store& store_, pbft::PrePrepares& pbft_pre_prepares_);
   virtual ~LedgerWriter() = default;
   void write_prepare(const Prepared_cert& prepared_cert, Seqno seqno);
   void write_pre_prepare(Pre_prepare* pp);

@@ -59,7 +59,8 @@ public:
     char* mem,
     size_t nbytes,
     INetwork* network,
-    pbft::PbftInfo& pbft_info,
+    pbft::Requests& pbft_requests_,
+    pbft::PrePrepares& pbft_pre_prepares_,
     pbft::Store& store_);
   // Requires: "mem" is vm page aligned and nbytes is a multiple of the
   // vm page size.
@@ -190,8 +191,10 @@ public:
   // Compare the merkle root and batch ctx between the pre-prepare and the
   // the corresponding fields in info after execution
 
-  void apply_ledger_data(pbft::InfoType type, const pbft::Info& info);
-  // Effects: Requests are stored in queue and pre-prepares are executed if they
+  void playback_request(const pbft::Request& request);
+  // Effects: Requests are stored in queue
+  void playback_pre_prepare(const pbft::PrePrepare& pre_prepare);
+  // Effects: pre-prepares are executed if they
   // are able to If not any requests are cleared from the request queues
 
   void init_state();
@@ -428,13 +431,22 @@ private:
   reply_handler_cb rep_cb;
   void* rep_cb_ctx;
 
-  pbft::PbftInfo& pbft_info;
+  pbft::Requests& pbft_requests;
+  pbft::PrePrepares& pbft_pre_prepares;
 
   std::function<void(
-    kv::Version, const pbft::PbftInfo::State&, const pbft::PbftInfo::Write&)>
-    playback_local_hook;
+    kv::Version, const pbft::Requests::State&, const pbft::Requests::Write&)>
+    requests_local_hook;
   // local commit hook to be used when replaying the ledger
-  // when requests and pre-prepares are deserialised the hook will be triggered
+  // when requests are deserialised the hook will be triggered
+  // and requests will be applied
+  std::function<void(
+    kv::Version,
+    const pbft::PrePrepares::State&,
+    const pbft::PrePrepares::Write&)>
+    pre_prepares_local_hook;
+  // local commit hook to be used when replaying the ledger
+  // when pre-prepares are deserialised the hook will be triggered
   // and pre-prepares will be applied
 
   // used to callback when we have committed a batch

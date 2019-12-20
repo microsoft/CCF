@@ -5,7 +5,8 @@
 
 #pragma once
 
-#include "consensus/pbft/pbftinfo.h"
+#include "consensus/pbft/pbftpreprepares.h"
+#include "consensus/pbft/pbftrequests.h"
 #include "consensus/pbft/pbfttypes.h"
 #include "nodeinfo.h"
 
@@ -101,7 +102,8 @@ int Byz_init_replica(
   void (*comp_ndet)(Seqno, Byz_buffer*),
   int ndet_max_len,
   INetwork* network,
-  pbft::PbftInfo& pbft_info,
+  pbft::Requests& pbft_requests,
+  pbft::PrePrepares& pbft_pre_prepares,
   pbft::Store& store_,
   IMessageReceiveBase** message_receiver = nullptr);
 /* Requires: "mem" is vm page aligned and "size" is a multiple of the vm page

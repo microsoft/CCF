@@ -1407,7 +1407,9 @@ namespace ccf
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         rpc_map,
         rpcsessions,
-        *network.tables->get<pbft::PbftInfo>(pbft::Tables::PBFT_INFO));
+        *network.tables->get<pbft::Requests>(pbft::Tables::PBFT_REQUESTS),
+        *network.tables->get<pbft::PrePrepares>(
+          pbft::Tables::PBFT_PRE_PREPARES));
 
       network.tables->set_consensus(consensus);
 

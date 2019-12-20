@@ -4,9 +4,10 @@
 
 #include "Request.h"
 
-LedgerWriter::LedgerWriter(pbft::Store& store_, pbft::PbftInfo& pbft_info_) :
+LedgerWriter::LedgerWriter(
+  pbft::Store& store_, pbft::PrePrepares& pbft_pre_prepares_) :
   store(store_),
-  pbft_info(pbft_info_)
+  pbft_pre_prepares(pbft_pre_prepares_)
 {}
 
 void LedgerWriter::write_prepare(
@@ -53,16 +54,14 @@ void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
     version,
     [version, pp, this]() {
       ccf::Store::Tx tx(version);
-      auto info_view = tx.get_view(pbft_info);
-      info_view->put(
+      auto pp_view = tx.get_view(pbft_pre_prepares);
+      pp_view->put(
         0,
-        {pbft::InfoType::PRE_PREPARE,
-         {pp->seqno(),
-          pp->size(),
-          pp->num_big_reqs(),
-          {(const uint8_t*)pp->contents(),
-           (const uint8_t*)pp->contents() + pp->size()}},
-         {}});
+        {pp->seqno(),
+         pp->size(),
+         pp->num_big_reqs(),
+         {(const uint8_t*)pp->contents(),
+          (const uint8_t*)pp->contents() + pp->size()}});
       return tx.commit_reserved();
     },
     true);

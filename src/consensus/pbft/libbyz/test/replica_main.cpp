@@ -20,14 +20,13 @@ extern "C"
 #include "Replica.h"
 #include "Statistics.h"
 #include "Timer.h"
+#include "consensus/pbft/pbfttables.h"
 #include "ds/files.h"
 #include "libbyz.h"
 #include "network_impl.h"
 #include "nodeinfo.h"
 #include "pbft_assert.h"
 #include "stacktrace_utils.h"
-
-#include "consensus/pbft/pbfttables.h"
 
 using std::cerr;
 
@@ -200,14 +199,25 @@ int main(int argc, char** argv)
     LOG_FATAL << "--transport {UDP || UDP_MT}" << std::endl;
   }
 
-    auto store = std::make_shared<ccf::Store>(
+  auto store = std::make_shared<ccf::Store>(
     pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
-  auto& pbft_info = store->create<pbft::PbftInfo>(
-    pbft::Tables::PBFT_INFO, kv::SecurityDomain::PUBLIC);
+  auto& pbft_requests = store->create<pbft::Requests>(
+    pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
+  auto& pbft_pre_prepares = store->create<pbft::PrePrepares>(
+    pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
   auto replica_store = std::make_unique<pbft::Adaptor<ccf::Store>>(store);
 
-  int used_bytes =
-    Byz_init_replica(node_info, mem, mem_size, exec_command, 0, 0, network, pbft_info, *replica_store);
+  int used_bytes = Byz_init_replica(
+    node_info,
+    mem,
+    mem_size,
+    exec_command,
+    0,
+    0,
+    network,
+    pbft_requests,
+    pbft_pre_prepares,
+    *replica_store);
   Byz_start_replica();
   service_mem = mem + used_bytes;
   Byz_configure_principals();
