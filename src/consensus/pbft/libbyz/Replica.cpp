@@ -1064,7 +1064,7 @@ template <class T>
 std::unique_ptr<T> Replica::create_message(
   const uint8_t* message_data, size_t data_size)
 {
-  Message* m = new Message(Max_message_size);
+  Message* m = new Message(data_size);
   memcpy(m->contents(), message_data, data_size);
   T* msg_type;
   T::convert(m, msg_type);
