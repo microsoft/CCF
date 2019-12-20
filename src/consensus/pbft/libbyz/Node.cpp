@@ -271,30 +271,6 @@ void Node::gen_signature(
   STOP_CC(sig_gen_cycles);
 }
 
-unsigned Node::decrypt(
-  const uint8_t* senders_public_key, char* src, char* dst, unsigned dst_len)
-{
-  // decrypted message expected to be
-  // as big as encrypted message
-  // tag follows the encrypted message
-
-  // read tag that comes after the encrypted message
-  uint8_t tag[Tag_size];
-  memcpy(tag, src + dst_len, Tag_size);
-
-  // will memcpy into dst the decrypted message
-  bool ok = key_pair->decrypt(
-    senders_public_key, (const uint8_t*)src, dst_len, (uint8_t*)dst, tag);
-
-  if (ok)
-  {
-    // how much to advance
-    return dst_len + Tag_size;
-  }
-
-  return 0;
-}
-
 Request_id Node::new_rid()
 {
   return request_id_generator.next_rid();
