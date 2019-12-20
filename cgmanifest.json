@@ -104,8 +104,8 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/project-everest/evercrypt-msr",
-          "commitHash": "b407ad8aab77656cd6deb9b9bbfed70156638913"
+          "repositoryUrl": "https://github.com/project-everest/hacl-star",
+          "commitHash": "9f592178e2e8e4b884f5605a3747ece2bb42663d"
         }
       }
     },

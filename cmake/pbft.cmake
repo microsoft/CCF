@@ -43,7 +43,6 @@ set(PBFT_SRC
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/Pre_prepare_info.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/LedgerWriter.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/LedgerReplay.cpp
-  ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/aes_gcm.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/key_format.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/request_id_gen.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/New_principal.cpp
