@@ -58,8 +58,8 @@ void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
       pp_view->put(
         0,
         {pp->seqno(),
-         pp->size(),
          pp->num_big_reqs(),
+         pp->get_digest_sig(),
          {(const uint8_t*)pp->contents(),
           (const uint8_t*)pp->contents() + pp->size()}});
       return tx.commit_reserved();
