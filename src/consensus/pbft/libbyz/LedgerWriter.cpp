@@ -48,23 +48,13 @@ void LedgerWriter::write_prepare(
 
 void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
 {
-  auto version = store.next_version();
-  LOG_TRACE << "Storing pre prepare at seqno " << pp->seqno() << std::endl;
-  store.commit(
-    version,
-    [version, pp, this]() {
-      ccf::Store::Tx tx(version);
-      auto pp_view = tx.get_view(pbft_pre_prepares);
-      pp_view->put(
-        0,
-        {pp->seqno(),
-         pp->num_big_reqs(),
-         pp->get_digest_sig(),
-         {(const uint8_t*)pp->contents(),
-          (const uint8_t*)pp->contents() + pp->size()}});
-      return tx.commit_reserved();
-    },
-    true);
+  store.commit_pre_prepare(
+    {pp->seqno(),
+     pp->num_big_reqs(),
+     pp->get_digest_sig(),
+     {(const uint8_t*)pp->contents(),
+      (const uint8_t*)pp->contents() + pp->size()}},
+    pbft_pre_prepares);
 }
 
 void LedgerWriter::write_view_change(View_change* vc)

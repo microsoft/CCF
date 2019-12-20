@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/pbft/pbftpreprepares.h"
 #include "ds/ringbuffer_types.h"
 #include "kv/kvtypes.h"
 
@@ -30,14 +31,12 @@ namespace pbft
   {
   public:
     virtual ~Store() {}
-    virtual kv::CommitSuccess commit(
-      kv::Version version,
-      kv::PendingTx pending_tx,
-      bool globally_committable) = 0;
     virtual void compact(Index v) = 0;
     virtual void rollback(Index v) = 0;
     virtual kv::Version current_version() = 0;
     virtual kv::Version next_version() = 0;
+    virtual void commit_pre_prepare(
+      const pbft::PrePrepare& pp, pbft::PrePrepares& pbft_pre_prepares) = 0;
   };
 
   template <typename T>
@@ -49,15 +48,31 @@ namespace pbft
   public:
     Adaptor(std::shared_ptr<T> x) : x(x) {}
 
-    kv::CommitSuccess commit(
-      kv::Version version, kv::PendingTx pending_tx, bool globally_committable)
+    void commit_pre_prepare(
+      const pbft::PrePrepare& pp, pbft::PrePrepares& pbft_pre_prepares)
     {
-      auto p = x.lock();
-      if (p)
+      while (true)
       {
-        return p->commit(version, pending_tx, globally_committable);
+        auto p = x.lock();
+        if (p)
+        {
+          auto version = p->next_version();
+          LOG_TRACE_FMT("Storing pre prepare at seqno {}", pp.seqno);
+          auto success = p->commit(
+            version,
+            [&]() {
+              ccf::Store::Tx tx(version);
+              auto pp_view = tx.get_view(pbft_pre_prepares);
+              pp_view->put(0, pp);
+              return tx.commit_reserved();
+            },
+            false);
+          if (success == kv::CommitSuccess::OK)
+          {
+            break;
+          }
+        }
       }
-      return kv::CommitSuccess::CONFLICT;
     }
 
     void compact(Index v)
