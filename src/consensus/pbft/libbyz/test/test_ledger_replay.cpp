@@ -35,12 +35,15 @@ public:
 
   ExecCommand exec_command = [](
                                Byz_req* inb,
-                               Byz_rep* outb,
+                               Byz_rep& outb,
                                _Byz_buffer* non_det,
                                int client,
+                               Request_id rid,
                                bool ro,
                                Seqno total_requests_executed,
                                ByzInfo& info) {
+    outb.contents = replica->create_response_message(client, rid, 0);
+    outb.size = 0;
     auto request = reinterpret_cast<fake_req*>(inb->contents);
     info.ctx = request->ctx;
     info.full_state_merkle_root.fill(0);

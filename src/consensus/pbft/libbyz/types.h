@@ -51,4 +51,4 @@ struct ByzInfo
 };
 
 using ExecCommand = std::function<int(
-  Byz_req*, Byz_rep*, Byz_buffer*, int, bool, Seqno, ByzInfo&)>;
+  Byz_req*, Byz_rep&, Byz_buffer*, int, Request_id, bool, Seqno, ByzInfo&)>;

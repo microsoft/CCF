@@ -33,13 +33,14 @@ void Rep_info::count_request()
   (*total_processed)++;
 }
 
-char* Rep_info::new_reply(int pid, Request_id rid, Seqno n)
+char* Rep_info::new_reply(
+  int pid, Request_id rid, Seqno n, uint32_t message_size)
 {
-  auto r = std::make_unique<Reply>(0, rid, n, 0);
+  auto r = std::make_unique<Reply>(0, rid, n, 0, message_size);
   // TODO: fix to deal more gracefully with running out of memory
   PBFT_ASSERT(r != nullptr, "Out of memory");
 
-  r->set_size(Max_rep_size);
+  r->set_size(message_size);
   r->trim();
   char* ret = r->contents() + sizeof(Reply_rep);
   auto ret_insert = reps.insert({Key{(size_t)pid, rid, n}, std::move(r)});
