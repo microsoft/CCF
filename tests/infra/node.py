@@ -159,8 +159,9 @@ class Node:
 
     def stop(self):
         if self.remote:
-            self.remote.stop()
+            errors = self.remote.stop()
             self.network_state = NodeNetworkState.stopped
+            return errors
 
     def is_stopped(self):
         return self.network_state == NodeNetworkState.stopped
