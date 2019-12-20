@@ -41,10 +41,13 @@ def run(args):
         new_code_id = get_code_id(f"{args.patched_file_name}.so.signed")
 
         LOG.info(f"Adding a node with unsupported code id {new_code_id}")
-        assert (
+        try:
             network.create_and_trust_node(args.patched_file_name, "localhost", args)
-            == None
-        ), "Adding node with unsupported code id should fail"
+            assert (
+                False
+            ), f"Adding a node with unsupported code id {new_code_id} should fail"
+        except TimeoutError as err:
+            assert "CODE_ID_NOT_FOUND" in err.message, err.message
 
         network.consortium.add_new_code(1, primary, new_code_id)
 
