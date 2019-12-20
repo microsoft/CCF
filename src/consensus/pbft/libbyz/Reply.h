@@ -45,7 +45,7 @@ public:
 
   Reply(Reply_rep* r);
 
-  Reply(View view, Request_id req, Seqno n, int replica);
+  Reply(View view, Request_id req, Seqno n, int replica, uint32_t reply_size);
   // Effects: Creates a new (full) Reply message with an empty reply and no
   // authentication. The method store_reply and authenticate should
   // be used to finish message construction.

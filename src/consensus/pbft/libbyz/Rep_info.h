@@ -41,7 +41,7 @@ public:
   // how many individual requests have been processes since the
   // replica was initialized. Should be called once for each request.
 
-  char* new_reply(int pid, Request_id rid, Seqno n);
+  char* new_reply(int pid, Request_id rid, Seqno n, uint32_t message_size);
   // Effects: Allocates a new reply for request rid from
   // principal pid executed at sequence number n and returns a buffer
   // to store the reply to the command. The buffer can store up to

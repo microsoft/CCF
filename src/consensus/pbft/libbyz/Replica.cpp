@@ -74,7 +74,6 @@ Replica::Replica(
   std::unique_ptr<consensus::LedgerEnclave> ledger) :
   Node(node_info),
   rqueue(),
-  ro_rqueue(),
   plog(max_out),
   clog(max_out),
   elog(max_out * 2, 0),
@@ -543,17 +542,6 @@ void Replica::handle(Request* m)
   {
     LOG_TRACE << "Received request with rid: " << m->request_id()
               << " with cid: " << m->client_id() << std::endl;
-#if 0
-    // TODO: Fix execution of read-only requests
-    if (ro)
-    {
-      // Read-only requests.
-      if (execute_read_only(m) || !ro_rqueue.append(m))
-        delete m;
-
-      return;
-    }
-#endif
 
 #ifdef ENFORCE_EXACTLY_ONCE
     int client_id = m->client_id();
@@ -1120,6 +1108,12 @@ Seqno Replica::get_last_executed() const
 int Replica::my_id() const
 {
   return Node::id();
+}
+
+char* Replica::create_response_message(
+  int client_id, Request_id request_id, uint32_t size)
+{
+  return replies.new_reply(client_id, request_id, last_tentative_execute, size);
 }
 
 void Replica::handle(Status* m)
@@ -1700,13 +1694,6 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   else
   {
     PBFT_ASSERT(last_executed >= last_stable, "Invalid state");
-
-    // Execute any buffered read-only requests
-    for (Request* m = ro_rqueue.remove(); m != 0; m = ro_rqueue.remove())
-    {
-      execute_read_only(m);
-      delete m;
-    }
   }
 
   if (primary() != id() && rqueue.size() > 0)
@@ -1752,7 +1739,8 @@ bool Replica::execute_read_only(Request* request)
     // indicate that they were executed at sequence number zero because
     // they may execute at different sequence numbers provided the client
     // gets enough matching replies and the sequence numbers must match.
-    Reply* rep = new Reply(view(), request->request_id(), 0, node_id);
+    Reply* rep =
+      new Reply(view(), request->request_id(), 0, node_id, Max_message_size);
 
     // Obtain "in" and "out" buffers to call exec_command
     Byz_req inb;
@@ -1763,9 +1751,11 @@ bool Replica::execute_read_only(Request* request)
 
     // Execute command.
     int client_id = request->client_id();
+    int request_id = request->request_id();
     std::shared_ptr<Principal> cp = get_principal(client_id);
     ByzInfo info;
-    int error = exec_command(&inb, &outb, 0, client_id, true, 0, info);
+    int error =
+      exec_command(&inb, outb, 0, client_id, request_id, true, 0, info);
     right_pad_contents(outb);
 
     if (!error)
@@ -1932,34 +1922,26 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
 #ifdef ENFORCE_EXACTLY_ONCE
       outb.contents = replies.new_reply(client_id);
 #else
-      outb.contents = replies.new_reply(
-        client_id, request.request_id(), last_tentative_execute);
-      if (outb.contents == nullptr)
-      {
-        // to defend against a malicious primary that adds the same request id
-        // twice to the same batch
-        continue;
-      }
 #endif
-      outb.size = replies.new_reply_size();
       non_det.contents = pp->choices(non_det.size);
+      Request_id rid = request.request_id();
       // Execute command in a regular request.
       replies.count_request();
       LOG_TRACE << "before exec command with seqno: " << pp->seqno()
                 << std::endl;
       exec_command(
         &inb,
-        &outb,
+        outb,
         &non_det,
         client_id,
+        rid,
         false,
         replies.total_requests_processed(),
         info);
       right_pad_contents(outb);
       // Finish constructing the reply.
       LOG_DEBUG << "Executed from tentative exec: " << pp->seqno()
-                << " from client: " << client_id
-                << " rid: " << request.request_id()
+                << " from client: " << client_id << " rid: " << rid
                 << " commit_id: " << info.ctx << std::endl;
 
       if (info.ctx > max_local_commit_value)
@@ -1969,10 +1951,9 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
 
       info.ctx = max_local_commit_value;
 #ifdef ENFORCE_EXACTLY_ONCE
-      replies.end_reply(client_id, request.request_id(), outb.size);
+      replies.end_reply(client_id, rid, outb.size);
 #else
-      replies.end_reply(
-        client_id, request.request_id(), last_tentative_execute, outb.size);
+      replies.end_reply(client_id, rid, last_tentative_execute, outb.size);
 #endif
     }
     LOG_DEBUG << "Executed from tentative exec: " << pp->seqno()
@@ -2056,13 +2037,6 @@ void Replica::execute_committed(bool was_f_0)
           debug_slow_timer->start();
         }
 #endif
-
-        // Execute any buffered read-only requests
-        for (Request* m = ro_rqueue.remove(); m != 0; m = ro_rqueue.remove())
-        {
-          execute_read_only(m);
-          delete m;
-        }
 
         // Iterate over the requests in the message, marking the saved replies
         // as committed (i.e., non-tentative for each of them).
@@ -2273,13 +2247,6 @@ void Replica::new_state(Seqno c)
   if (last_tentative_execute > next_pp_seqno)
   {
     next_pp_seqno = last_tentative_execute;
-  }
-
-  // Execute any buffered read-only requests
-  for (Request* m = ro_rqueue.remove(); m != 0; m = ro_rqueue.remove())
-  {
-    execute_read_only(m);
-    delete m;
   }
 
   if (rqueue.size() > 0)
@@ -2816,7 +2783,6 @@ void Replica::handle(Reply_stable* m)
       state.start_check(last_executed);
 
       rqueue.clear();
-      ro_rqueue.clear();
     }
     return;
   }
@@ -3015,9 +2981,6 @@ void Replica::dump_state(std::ostream& os)
   os << "============== rqueue: " << std::endl;
   rqueue.dump_state(os);
 
-  os << "============== ro_rqueue: " << std::endl;
-  ro_rqueue.dump_state(os);
-
   os << "============== plog: " << std::endl;
   plog.dump_state(os);
 
@@ -3064,13 +3027,6 @@ void Replica::try_end_recovery()
     END_REC_STATS();
 
     recovering = false;
-
-    // Execute any buffered read-only requests
-    for (Request* m = ro_rqueue.remove(); m != 0; m = ro_rqueue.remove())
-    {
-      execute_read_only(m);
-      delete m;
-    }
   }
 }
 

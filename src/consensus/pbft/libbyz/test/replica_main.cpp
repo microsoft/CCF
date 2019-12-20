@@ -38,6 +38,7 @@ static int max_exec_count =
 static Timer t;
 
 static bool is_test = false;
+static IMessageReceiveBase* message_receiver = nullptr;
 
 static void dump_profile(int sig)
 {
@@ -55,12 +56,15 @@ static char* service_mem = 0;
 // Service specific functions.
 ExecCommand exec_command = [](
                              Byz_req* inb,
-                             Byz_rep* outb,
+                             Byz_rep& outb,
                              _Byz_buffer* non_det,
                              int client,
+                             Request_id rid,
                              bool ro,
                              Seqno n,
                              ByzInfo& info) {
+  outb.contents = message_receiver->create_response_message(client, rid, 8);
+
   Long& counter = *(Long*)service_mem;
 
   Byz_modify(&counter, sizeof(counter));
@@ -96,9 +100,9 @@ ExecCommand exec_command = [](
   if (inb->contents[0] == 1)
   {
     PBFT_ASSERT(inb->size == 8, "Invalid request");
-    Byz_modify(outb->contents, Simple_size);
-    bzero(outb->contents, Simple_size);
-    outb->size = Simple_size;
+    Byz_modify(outb.contents, Simple_size);
+    bzero(outb.contents, Simple_size);
+    outb.size = Simple_size;
     return 0;
   }
 
@@ -106,9 +110,9 @@ ExecCommand exec_command = [](
     (inb->contents[0] == 2 && inb->size == Simple_size) ||
       (inb->contents[0] == 0 && inb->size == 8),
     "Invalid request");
-  Byz_modify(outb->contents, 8);
-  *((long long*)(outb->contents)) = 0;
-  outb->size = 8;
+  Byz_modify(outb.contents, 8);
+  *((long long*)(outb.contents)) = 0;
+  outb.size = 8;
   return 0;
 };
 
@@ -198,8 +202,16 @@ int main(int argc, char** argv)
     LOG_FATAL << "--transport {UDP || UDP_MT}" << std::endl;
   }
 
-  int used_bytes =
-    Byz_init_replica(node_info, mem, mem_size, exec_command, 0, 0, network);
+  int used_bytes = Byz_init_replica(
+    node_info,
+    mem,
+    mem_size,
+    exec_command,
+    0,
+    0,
+    network,
+    nullptr,
+    &message_receiver);
   Byz_start_replica();
   service_mem = mem + used_bytes;
   Byz_configure_principals();
