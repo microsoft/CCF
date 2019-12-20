@@ -43,7 +43,9 @@ def run(args):
         LOG.info(f"Adding a node with unsupported code id {new_code_id}")
         try:
             network.create_and_trust_node(args.patched_file_name, "localhost", args)
-            assert False, f"Adding a node with unsupported code id {new_code_id} should fail"
+            assert (
+                False
+            ), f"Adding a node with unsupported code id {new_code_id} should fail"
         except TimeoutError as err:
             assert "CODE_ID_NOT_FOUND" in err.message, err.message
 
