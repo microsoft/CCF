@@ -4,10 +4,7 @@
 // Licensed under the MIT license.
 #pragma once
 
-#ifndef _Stable_estimator_h
-#  define _Stable_estimator_h 1
-
-#  include "types.h"
+#include "types.h"
 
 class Reply_stable;
 
@@ -78,5 +75,3 @@ inline Seqno Stable_estimator::estimate() const
 {
   return est;
 }
-
-#endif // _Stable_estimator_h

@@ -4,19 +4,16 @@
 // Licensed under the MIT license.
 #pragma once
 
-#ifndef _Checkpoint_h
-#  define _Checkpoint_h 1
-
-#  include "Digest.h"
-#  include "Message.h"
-#  include "types.h"
+#include "Digest.h"
+#include "Message.h"
+#include "types.h"
 class Principal;
 
 //
 // Checkpoint messages have the following format:
 //
-#  pragma pack(push)
-#  pragma pack(1)
+#pragma pack(push)
+#pragma pack(1)
 struct Checkpoint_rep : public Message_rep
 {
   Seqno seqno;
@@ -25,7 +22,7 @@ struct Checkpoint_rep : public Message_rep
   int padding;
   // Followed by a variable-sized signature.
 };
-#  pragma pack(pop)
+#pragma pack(pop)
 
 static_assert(
   sizeof(Checkpoint_rep) + max_sig_size < Max_message_size, "Invalid size");
@@ -109,5 +106,3 @@ inline bool Checkpoint::match(const Checkpoint* c) const
   PBFT_ASSERT(seqno() == c->seqno(), "Invalid argument");
   return digest() == c->digest();
 }
-
-#endif // _Checkpoint_h
