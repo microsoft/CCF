@@ -2,7 +2,6 @@
 // Copyright (c) 1999 Miguel Castro, Barbara Liskov.
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
-
 #pragma once
 
 #include <fstream>
