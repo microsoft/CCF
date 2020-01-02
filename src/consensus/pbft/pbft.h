@@ -134,6 +134,7 @@ namespace pbft
       std::unique_ptr<pbft::Store> store_,
       std::shared_ptr<ChannelProxy> channels_,
       NodeId id,
+      size_t sig_max_tx,
       std::unique_ptr<consensus::LedgerEnclave> ledger,
       std::shared_ptr<enclave::RPCMap> rpc_map,
       std::shared_ptr<enclave::RPCSessions> rpcsessions_) :
@@ -155,7 +156,8 @@ namespace pbft
       general_info.view_timeout = 5000;
       general_info.status_timeout = 100;
       general_info.recovery_timeout = 9999250000;
-      general_info.max_requests_between_signatures = 50;
+      general_info.max_requests_between_signatures =
+        sig_max_tx / Max_requests_in_batch;
 
       // TODO(#pbft): We do not need this in the long run
       std::string privk =
