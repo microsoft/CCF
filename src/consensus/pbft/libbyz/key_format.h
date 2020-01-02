@@ -3,6 +3,8 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
+#pragma once
+
 #include <fstream>
 #include <iomanip>
 #include <iostream>
