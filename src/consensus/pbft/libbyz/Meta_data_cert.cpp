@@ -9,7 +9,8 @@
 #include "Meta_data_d.h"
 #include "Node.h"
 
-Meta_data_cert::Meta_data_cert(size_t num_replicas) : num_replicas(num_replicas)
+Meta_data_cert::Meta_data_cert(size_t num_replicas, size_t f) :
+  num_replicas(num_replicas)
 {
   last_mdds = new Meta_data_d*[num_replicas];
   last_stables = new Seqno[num_replicas];
@@ -23,10 +24,14 @@ Meta_data_cert::Meta_data_cert(size_t num_replicas) : num_replicas(num_replicas)
   max_size = num_replicas * (max_out / checkpoint_interval + 1);
   vals = new Part_val[max_size];
   cur_size = 0;
-  correct = node->f() + 1;
+  correct = f + 1;
   c = -1;
   has_my_message = false;
 }
+
+Meta_data_cert::Meta_data_cert(size_t num_replicas) :
+  Meta_data_cert(num_replicas, node->f())
+{}
 
 Meta_data_cert::~Meta_data_cert()
 {

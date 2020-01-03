@@ -15,7 +15,9 @@
 #include "View_change_ack.h"
 #include "pbft_assert.h"
 
-View_info::VCA_info::VCA_info() : v(0), vacks(node->num_of_replicas(), nullptr)
+View_info::VCA_info::VCA_info(size_t num_of_replicas) :
+  v(0),
+  vacks(num_of_replicas, nullptr)
 {}
 
 void View_info::VCA_info::clear()
@@ -28,7 +30,8 @@ void View_info::VCA_info::clear()
   v = 0;
 }
 
-View_info::View_info(int ident, View vi, uint64_t num_replicas) :
+View_info::View_info(
+  int ident, View vi, uint64_t num_replicas, size_t num_of_replicas) :
   v(vi),
   id(ident),
   last_stable(0),
@@ -39,7 +42,7 @@ View_info::View_info(int ident, View vi, uint64_t num_replicas) :
 {
   last_views.resize(num_replicas);
   std::fill(std::begin(last_views), std::end(last_views), 0);
-  vacks.resize(1);
+  vacks.resize(1, VCA_info(num_of_replicas));
 }
 
 View_info::~View_info()
@@ -238,7 +241,7 @@ void View_info::discard_old_and_resize_if_needed()
   }
   if (vacks.size() != node->num_of_replicas())
   {
-    vacks.resize(node->num_of_replicas());
+    vacks.resize(node->num_of_replicas(), VCA_info(node->num_of_replicas()));
   }
 
   for (int i = 0; i < last_nvs.size(); i++)

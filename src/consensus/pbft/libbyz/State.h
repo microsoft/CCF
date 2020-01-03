@@ -120,7 +120,12 @@ private:
 class State
 {
 public:
-  State(Replica* replica, char* memory, size_t num_bytes);
+  State(
+    Replica* replica,
+    char* memory,
+    size_t num_bytes,
+    size_t num_of_replicas,
+    size_t f);
   // Requires: mem is Block aligned and contains an integral number of
   // Blocks.
   // Effects: Creates an object that handles state digesting and

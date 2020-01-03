@@ -27,7 +27,7 @@ class View_info
   // Holds information for the view-change protocol.
   //
 public:
-  View_info(int id, View v, uint64_t num_replicas);
+  View_info(int id, View v, uint64_t num_replicas, size_t num_of_replicas);
   // Effects: Create a view-info object for replica "id" with initial
   // view "v".
 
@@ -264,7 +264,7 @@ private:
   {
     View v;
     std::vector<View_change_ack*> vacks;
-    VCA_info();
+    VCA_info(size_t num_of_replicas);
     void clear();
   };
   std::vector<VCA_info> vacks;

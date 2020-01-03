@@ -51,7 +51,7 @@
 #include "pbft_assert.h"
 
 // Global replica object.
-Replica* replica;
+std::shared_ptr<Replica> replica;
 
 template <class T>
 void Replica::retransmit(T* m, Time cur, Time tsent, Principal* p)
@@ -77,7 +77,8 @@ Replica::Replica(
   plog(max_out),
   clog(max_out),
   elog(max_out * 2, 0),
-  stable_checkpoints(num_of_replicas()),
+  stable_checkpoints(node_info.general_info.num_replicas),
+  brt(node_info.general_info.num_replicas),
 #ifdef ENFORCE_EXACTLY_ONCE
   replies(mem, nbytes, num_principals),
 #else
@@ -85,11 +86,23 @@ Replica::Replica(
 #endif
   rep_cb(nullptr),
   global_commit_cb(nullptr),
-  state(this, mem, nbytes),
+  state(
+    this,
+    mem,
+    nbytes,
+    node_info.general_info.num_replicas,
+    node_info.general_info.max_faulty),
+  se(node_info.general_info.num_replicas),
+  rr_reps(
+    node_info.general_info.max_faulty,
+    node_info.general_info.max_faulty == 0 ?
+      1 :
+      node_info.general_info.num_replicas - node_info.general_info.max_faulty),
   vi(
     node_id,
     0,
-    64) // make this dynamic - https://github.com/microsoft/CCF/issues/385
+    64, // make this dynamic - https://github.com/microsoft/CCF/issues/385
+    node_info.general_info.num_replicas)
 {
   // Fail if node is not a replica.
   if (!is_replica(id()))
@@ -131,16 +144,19 @@ Replica::Replica(
 
   // Create timers and randomize times to avoid collisions.
 
-  vtimer = new ITimer(vt + (uint64_t)id() % 100, vtimer_handler, this);
-  stimer = new ITimer(st + (uint64_t)id() % 100, stimer_handler, this);
-  btimer =
-    new ITimer(max_pre_prepare_request_batch_wait_ms, btimer_handler, this);
+  vtimer =
+    std::make_unique<ITimer>(vt + (uint64_t)id() % 100, vtimer_handler, this);
+  stimer =
+    std::make_unique<ITimer>(st + (uint64_t)id() % 100, stimer_handler, this);
+  btimer = std::make_unique<ITimer>(
+    max_pre_prepare_request_batch_wait_ms, btimer_handler, this);
 
   cid_vtimer = 0;
   rid_vtimer = 0;
 
 #ifdef DEBUG_SLOW
-  debug_slow_timer = new ITimer(10 * 60 * 1000, debug_slow_timer_handler, this);
+  debug_slow_timer =
+    std::make_unique<ITimer>(10 * 60 * 1000, debug_slow_timer_handler, this);
   debug_slow_timer->start();
 #endif
 
@@ -148,12 +164,12 @@ Replica::Replica(
   // Skew recoveries. It is important for nodes to recover in the reverse order
   // of their node ids to avoid a view-change every recovery which would degrade
   // performance.
-  rtimer = new ITimer(rt, rec_timer_handler, this);
+  rtimer = std::make_unique<ITimer>(rt, rec_timer_handler, this);
   rec_ready = false;
   rtimer->start();
 #endif
 
-  ntimer = new ITimer(30000 / max_out, ntimer_handler, this);
+  ntimer = std::make_unique<ITimer>(30000 / max_out, ntimer_handler, this);
 
   recovering = false;
   qs = 0;
@@ -197,18 +213,7 @@ void Replica::compute_non_det(Seqno s, char* b, int* b_len)
   *b_len = buf.size;
 }
 
-Replica::~Replica()
-{
-  delete vtimer;
-#ifdef PROACTIVE_RECOVERY
-  delete rtimer;
-#endif
-  delete stimer;
-  delete btimer;
-#ifdef DEBUG_SLOW
-  delete debug_slow_timer;
-#endif
-}
+Replica::~Replica() {}
 
 void Replica::receive_message(const uint8_t* data, uint32_t size)
 {

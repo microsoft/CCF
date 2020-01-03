@@ -261,4 +261,4 @@ inline int cypher_size(char* dst, unsigned dst_len)
 }
 
 // Pointer to global node object.
-extern Node* node;
+extern std::shared_ptr<Node> node;

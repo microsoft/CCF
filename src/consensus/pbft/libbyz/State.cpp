@@ -252,7 +252,12 @@ template class Log<Checkpoint_rec>;
 //
 // State methods:
 //
-State::State(Replica* rep, char* memory, size_t num_bytes) :
+State::State(
+  Replica* rep,
+  char* memory,
+  size_t num_bytes,
+  size_t num_of_replicas,
+  size_t f) :
   replica(rep),
   mem((Block*)memory),
   nb(num_bytes / Block_size),
@@ -275,7 +280,7 @@ State::State(Replica* rep, char* memory, size_t num_bytes) :
   }
 
   fetching = false;
-  cert = std::make_unique<Meta_data_cert>(replica->num_of_replicas());
+  cert = std::make_unique<Meta_data_cert>(num_of_replicas, f);
   lreplier = 0;
 
   to_check = std::make_unique<CPartQueue>();

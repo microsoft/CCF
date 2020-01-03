@@ -9,9 +9,9 @@
 #include "Replica.h"
 #include "Reply_stable.h"
 
-Stable_estimator::Stable_estimator()
+Stable_estimator::Stable_estimator(size_t num_of_replicas)
 {
-  nv = node->num_of_replicas();
+  nv = num_of_replicas;
   vals = new Val[nv];
   est = -1;
 }

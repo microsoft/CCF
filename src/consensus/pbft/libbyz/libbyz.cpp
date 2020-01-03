@@ -21,14 +21,13 @@
 
 int Byz_init_client(const NodeInfo& node_info, INetwork* network)
 {
-  Client* client = new Client(node_info, network);
-  node = client;
+  node = std::make_shared<Client>(node_info, network);
   return 0;
 }
 
 void Byz_reset_client()
 {
-  ((Client*)node)->reset();
+  ((Client*)node.get())->reset();
 }
 
 int Byz_alloc_request(Byz_req* req, int size)
@@ -49,16 +48,16 @@ int Byz_alloc_request(Byz_req* req, int size)
 int Byz_send_request(Byz_req* req, bool ro)
 {
   Request* request = (Request*)req->opaque;
-  request->request_id() = ((Client*)node)->get_rid();
+  request->request_id() = ((Client*)node.get())->get_rid();
   request->authenticate(req->size, ro);
 
-  bool retval = ((Client*)node)->send_request(request);
+  bool retval = ((Client*)node.get())->send_request(request);
   return (retval) ? 0 : -1;
 }
 
 int Byz_recv_reply(Byz_rep* rep)
 {
-  Reply* reply = ((Client*)node)->recv_reply();
+  Reply* reply = ((Client*)node.get())->recv_reply();
   if (reply == NULL)
   {
     return -1;
@@ -117,12 +116,12 @@ int Byz_init_replica(
   IMessageReceiveBase** message_receiver)
 {
   // Initialize random number generator
-  replica = new Replica(node_info, mem, size, network, std::move(ledger));
+  replica = std::make_shared<Replica>(node_info, mem, size, network, std::move(ledger));
   node = replica;
 
   if (message_receiver != nullptr)
   {
-    *message_receiver = replica;
+    *message_receiver = replica.get();
   }
 
   // Register service-specific functions.

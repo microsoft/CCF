@@ -51,6 +51,11 @@ public:
   // from different replicas. If the complete argument is omitted (or
   // 0) it is taken to be 2f+1.
 
+  Certificate(
+    size_t f,
+    size_t num_correct_replicas,
+    std::function<int()> complete = nullptr);
+
   ~Certificate();
   // Effects: Deletes certificate and all the messages it contains.
 
@@ -284,8 +289,9 @@ inline bool Certificate<T>::Val_iter::get(T*& m, int& count)
 }
 
 template <class T>
-Certificate<T>::Certificate(std::function<int()> comp_) :
-  f(node->f()),
+Certificate<T>::Certificate(
+  size_t f_, size_t num_correct_replicas, std::function<int()> comp_) :
+  f(f_),
   comp(comp_)
 {
   max_size = f + 1;
@@ -298,12 +304,17 @@ Certificate<T>::Certificate(std::function<int()> comp_) :
   }
   else
   {
-    complete = node->num_correct_replicas();
+    complete = num_correct_replicas;
   }
   c = 0;
   mym = 0;
   t_sent = 0;
 }
+
+template <class T>
+Certificate<T>::Certificate(std::function<int()> comp_) :
+  Certificate(node->f(), node->num_correct_replicas(), comp_)
+{}
 
 template <class T>
 Certificate<T>::~Certificate()

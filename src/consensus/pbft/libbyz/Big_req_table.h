@@ -29,6 +29,8 @@ public:
   Big_req_table();
   // Effects: Creates an empty table.
 
+  Big_req_table(size_t num_of_replicas);
+
   ~Big_req_table();
   // Effects: Deletes table and any requests it references.
 

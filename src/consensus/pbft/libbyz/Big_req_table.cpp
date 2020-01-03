@@ -34,6 +34,15 @@ public:
   View maxv; // Maximum view in which this entry was marked useful
 };
 
+Big_req_table::Big_req_table(size_t num_of_replicas) :
+  breqs(max_out),
+  last_stable(0),
+  last_view(0),
+  unmatched(num_of_replicas)
+{
+  max_entries = max_out * Max_requests_in_batch;
+}
+
 Big_req_table::Big_req_table() :
   breqs(max_out),
   last_stable(0),
