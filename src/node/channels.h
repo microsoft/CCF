@@ -40,6 +40,38 @@ namespace ccf
     // Set to the latest successfully received nonce.
     std::atomic<SeqNo> local_recv_nonce{0};
 
+    bool verify_or_decrypt(
+      const GcmHdr& header,
+      CBuffer aad,
+      CBuffer cipher = nullb,
+      Buffer plain = {})
+    {
+      if (status != ESTABLISHED)
+      {
+        throw std::logic_error("Channel is not established for verifying");
+      }
+
+      auto local_nonce = local_recv_nonce.load();
+      auto recv_nonce = header.get_iv_int();
+
+      if (recv_nonce <= local_nonce)
+      {
+        // If the nonce received has already been processed, return
+        return false;
+      }
+
+      auto ret =
+        key->decrypt(header.get_iv(), header.tag, cipher, aad, plain.p);
+      if (ret)
+      {
+        // Set local recv nonce to received nonce only if verification is
+        // successful
+        local_recv_nonce.store(recv_nonce);
+      }
+
+      return ret;
+    }
+
   public:
     Channel() : status(INITIATED) {}
 
@@ -105,37 +137,7 @@ namespace ccf
 
     bool verify(const GcmHdr& header, CBuffer aad)
     {
-      if (status != ESTABLISHED)
-      {
-        throw std::logic_error("Channel is not established for verifying");
-      }
-
-      auto local_nonce = local_recv_nonce.load();
-      auto recv_nonce = header.get_iv_int();
-
-      LOG_FAIL_FMT("Local nonce is {}", local_nonce);
-      LOG_FAIL_FMT("Received nonce is {}", recv_nonce);
-
-      if (recv_nonce <= local_nonce)
-      {
-        // If the nonce received has already been processed, return
-        return false;
-      }
-
-      auto ret = key->decrypt(header.get_iv(), header.tag, nullb, aad, nullptr);
-      if (ret)
-      {
-        // Set local recv nonce to received nonce only if verification is
-        // successful
-        local_recv_nonce.store(recv_nonce);
-        LOG_FAIL_FMT("Setting recv IV to {}", recv_nonce);
-      }
-      else
-      {
-        LOG_FAIL_FMT("Verification failed!");
-      }
-
-      return ret;
+      return verify_or_decrypt(header, aad);
     }
 
     void encrypt(GcmHdr& header, CBuffer aad, CBuffer plain, Buffer cipher)
@@ -152,38 +154,7 @@ namespace ccf
     bool decrypt(
       const GcmHdr& header, CBuffer aad, CBuffer cipher, Buffer plain)
     {
-      if (status != ESTABLISHED)
-      {
-        throw std::logic_error("Channel is not established for decrypting");
-      }
-
-      auto local_nonce = local_recv_nonce.load();
-      auto recv_nonce = header.get_iv_int();
-
-      LOG_FAIL_FMT("Local nonce is {}", local_nonce);
-      LOG_FAIL_FMT("Received nonce is {}", recv_nonce);
-
-      if (recv_nonce <= local_nonce)
-      {
-        // If the nonce received has already been processed, return
-        return false;
-      }
-
-      auto ret =
-        key->decrypt(header.get_iv(), header.tag, cipher, aad, plain.p);
-      if (ret)
-      {
-        // Set local recv nonce to received nonce only if verification is
-        // successful
-        local_recv_nonce.store(recv_nonce);
-        LOG_FAIL_FMT("Setting recv IV to {}", recv_nonce);
-      }
-      else
-      {
-        LOG_FAIL_FMT("Decryption failed!");
-      }
-
-      return ret;
+      return verify_or_decrypt(header, aad, cipher, plain);
     }
   };
 

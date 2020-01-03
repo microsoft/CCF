@@ -105,7 +105,7 @@ namespace ccf
       n2n_channel.encrypt(hdr, asCb(msg), data, cipher);
 
       to_host->write(
-        node_outbound, to, NodeMsgType::forwarded_msg, msg, hdr.tag, cipher);
+        node_outbound, to, NodeMsgType::forwarded_msg, msg, hdr, cipher);
 
       return true;
     }
