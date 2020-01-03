@@ -32,7 +32,13 @@ namespace ccf
 
     // Used for AES GCM authentication/encryption
     std::unique_ptr<crypto::KeyAesGcm> key;
-    std::atomic<SeqNo> seqNo{0};
+
+    // Incremented for each tagged/encrypted message
+    std::atomic<SeqNo> send_nonce{1};
+
+    // Used to prevent replayed messages.
+    // Set to the latest successfully received nonce.
+    std::atomic<SeqNo> local_recv_nonce{0};
 
   public:
     Channel() : status(INITIATED) {}
@@ -40,7 +46,9 @@ namespace ccf
     std::optional<std::vector<uint8_t>> get_public()
     {
       if (status == ESTABLISHED)
+      {
         return {};
+      }
 
       return ctx.get_own_public();
     }
@@ -58,7 +66,9 @@ namespace ccf
     bool load_peer_public(const uint8_t* bytes, size_t size)
     {
       if (status == ESTABLISHED)
+      {
         return false;
+      }
 
       ctx.load_peer_public(bytes, size);
       return true;
@@ -75,7 +85,9 @@ namespace ccf
     void free_ctx()
     {
       if (status != ESTABLISHED)
+      {
         return;
+      }
 
       ctx.free_ctx();
     }
@@ -83,36 +95,95 @@ namespace ccf
     void tag(GcmHdr& header, CBuffer aad)
     {
       if (status != ESTABLISHED)
+      {
         throw std::logic_error("Channel is not established for tagging");
+      }
 
-      header.setIvSeq(seqNo.fetch_add(1));
-      key->encrypt(header.getIv(), nullb, aad, nullptr, header.tag);
+      header.set_iv_seq(send_nonce.fetch_add(1));
+      key->encrypt(header.get_iv(), nullb, aad, nullptr, header.tag);
     }
 
     bool verify(const GcmHdr& header, CBuffer aad)
     {
       if (status != ESTABLISHED)
+      {
         throw std::logic_error("Channel is not established for verifying");
+      }
 
-      return key->decrypt(header.getIv(), header.tag, nullb, aad, nullptr);
+      auto local_nonce = local_recv_nonce.load();
+      auto recv_nonce = header.get_iv_int();
+
+      LOG_FAIL_FMT("Local nonce is {}", local_nonce);
+      LOG_FAIL_FMT("Received nonce is {}", recv_nonce);
+
+      if (recv_nonce <= local_nonce)
+      {
+        // If the nonce received has already been processed, return
+        return false;
+      }
+
+      auto ret = key->decrypt(header.get_iv(), header.tag, nullb, aad, nullptr);
+      if (ret)
+      {
+        // Set local recv nonce to received nonce only if verification is
+        // successful
+        local_recv_nonce.store(recv_nonce);
+        LOG_FAIL_FMT("Setting recv IV to {}", recv_nonce);
+      }
+      else
+      {
+        LOG_FAIL_FMT("Verification failed!");
+      }
+
+      return ret;
     }
 
     void encrypt(GcmHdr& header, CBuffer aad, CBuffer plain, Buffer cipher)
     {
       if (status != ESTABLISHED)
+      {
         throw std::logic_error("Channel is not established for encrypting");
+      }
 
-      header.setIvSeq(seqNo.fetch_add(1));
-      key->encrypt(header.getIv(), plain, aad, cipher.p, header.tag);
+      header.set_iv_seq(send_nonce.fetch_add(1));
+      key->encrypt(header.get_iv(), plain, aad, cipher.p, header.tag);
     }
 
     bool decrypt(
       const GcmHdr& header, CBuffer aad, CBuffer cipher, Buffer plain)
     {
       if (status != ESTABLISHED)
+      {
         throw std::logic_error("Channel is not established for decrypting");
+      }
 
-      return key->decrypt(header.getIv(), header.tag, cipher, aad, plain.p);
+      auto local_nonce = local_recv_nonce.load();
+      auto recv_nonce = header.get_iv_int();
+
+      LOG_FAIL_FMT("Local nonce is {}", local_nonce);
+      LOG_FAIL_FMT("Received nonce is {}", recv_nonce);
+
+      if (recv_nonce <= local_nonce)
+      {
+        // If the nonce received has already been processed, return
+        return false;
+      }
+
+      auto ret =
+        key->decrypt(header.get_iv(), header.tag, cipher, aad, plain.p);
+      if (ret)
+      {
+        // Set local recv nonce to received nonce only if verification is
+        // successful
+        local_recv_nonce.store(recv_nonce);
+        LOG_FAIL_FMT("Setting recv IV to {}", recv_nonce);
+      }
+      else
+      {
+        LOG_FAIL_FMT("Decryption failed!");
+      }
+
+      return ret;
     }
   };
 
@@ -144,7 +215,9 @@ namespace ccf
     {
       const auto own_public_for_peer_ = get(peer_id).get_public();
       if (!own_public_for_peer_.has_value())
+      {
         return {};
+      }
 
       const auto& own_public_for_peer = own_public_for_peer_.value();
 

@@ -871,7 +871,7 @@ namespace ccf
             crypto::GcmCipher gcmcipher(serial.value().size());
 
             // Get random IV
-            auto iv = tls::create_entropy()->random(gcmcipher.hdr.getIv().n);
+            auto iv = tls::create_entropy()->random(gcmcipher.hdr.get_iv().n);
             std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
 
             joiner_key.encrypt(
@@ -1231,7 +1231,7 @@ namespace ccf
               crypto::KeyAesGcm fresh_key(raw_fresh_key);
 
               if (!fresh_key.decrypt(
-                    gcmcipher.hdr.getIv(),
+                    gcmcipher.hdr.get_iv(),
                     gcmcipher.hdr.tag,
                     gcmcipher.cipher,
                     CBuffer(),
