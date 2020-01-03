@@ -122,9 +122,6 @@ TEST_CASE("Test Ledger Replay")
     "derived_map", kv::SecurityDomain::PUBLIC);
   auto replica_store = std::make_unique<pbft::Adaptor<ccf::Store>>(store);
 
-  create_replica(service_mem, *replica_store, pbft_requests, pbft_pre_prepares);
-  replica->register_exec(exec_mock.exec_command);
-
   auto write_consensus = std::make_shared<kv::StubConsensus>();
   INFO("Create dummy pre-prepares and write them to ledger");
   {
@@ -141,7 +138,14 @@ TEST_CASE("Test Ledger Replay")
     auto write_pbft_store =
       std::make_unique<pbft::Adaptor<ccf::Store>>(write_store);
 
-    LedgerWriter ledger_writer(*write_pbft_store, write_pbft_pre_prepares);
+    // LedgerWriter ledger_writer(*write_pbft_store, write_pbft_pre_prepares);
+
+    create_replica(
+      service_mem,
+      *write_pbft_store,
+      write_pbft_requests,
+      write_pbft_pre_prepares);
+    replica->register_exec(exec_mock.exec_command);
 
     Req_queue rqueue;
     for (size_t i = 1; i < total_requests; i++)
@@ -158,9 +162,9 @@ TEST_CASE("Test Ledger Replay")
       request->authenticate(req.size, false);
       request->trim();
 
-      rqueue.append(request);
-      size_t num_requests = 1;
-      auto pp = std::make_unique<Pre_prepare>(1, i, rqueue, num_requests);
+      // rqueue.append(request);
+      // size_t num_requests = 1;
+      // auto pp = std::make_unique<Pre_prepare>(1, i, rqueue, num_requests);
 
       ccf::Store::Tx tx;
       auto req_view = tx.get_view(write_pbft_requests);
@@ -176,21 +180,21 @@ TEST_CASE("Test Ledger Replay")
       der_view->put("key1", "value1");
 
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+      replica->handle(request);
+      // // imitate exec command
+      // ByzInfo info;
+      // info.ctx = fr->ctx;
+      // info.full_state_merkle_root.fill(0);
+      // info.replicated_state_merkle_root.fill(0);
+      // info.full_state_merkle_root.data()[0] = fr->rt;
+      // info.replicated_state_merkle_root.data()[0] = fr->rt;
 
-      // imitate exec command
-      ByzInfo info;
-      info.ctx = fr->ctx;
-      info.full_state_merkle_root.fill(0);
-      info.replicated_state_merkle_root.fill(0);
-      info.full_state_merkle_root.data()[0] = fr->rt;
-      info.replicated_state_merkle_root.data()[0] = fr->rt;
+      // pp->set_merkle_roots_and_ctx(
+      //   info.full_state_merkle_root,
+      //   info.replicated_state_merkle_root,
+      //   info.ctx);
 
-      pp->set_merkle_roots_and_ctx(
-        info.full_state_merkle_root,
-        info.replicated_state_merkle_root,
-        info.ctx);
-
-      ledger_writer.write_pre_prepare(pp.get());
+      // ledger_writer.write_pre_prepare(pp.get());
     }
     // remove the requests that were not processed, only written to the ledger
     replica->big_reqs()->clear();
@@ -198,6 +202,9 @@ TEST_CASE("Test Ledger Replay")
 
   INFO("Read the ledger entries and replay them out of order and in order");
   {
+    create_replica(
+      service_mem, *replica_store, pbft_requests, pbft_pre_prepares);
+    replica->register_exec(exec_mock.exec_command);
     replica->activate_pbft_local_hooks();
     // ledgerenclave work
     std::vector<std::vector<uint8_t>> entries;
