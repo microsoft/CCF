@@ -82,7 +82,8 @@ void test_timer_handler(void* owner)
 
 void delayed_start_delay_time(void* owner)
 {
-  if ((get_replica()->id() % 2) == 0) // half the nodes including the primary
+  if ((get_replica()->id() % 2) == 0) // half the nodes
+                                      // including the primary
   {
     auto delay = 10 * 1000 * 1000; // sleep for 10 seconds
     LOG_INFO << "Sleeping for " << (delay / (1000 * 1000))
@@ -99,7 +100,8 @@ void delayed_start_delay_time(void* owner)
 void start_delay_timer()
 {
   auto delay = 5 * 1000; // sleep for 5 seconds
-  if ((get_replica()->id() % 2) == 0) // half the nodes including the primary
+  if ((get_replica()->id() % 2) == 0) // half the nodes
+                                      // including the primary
   {
     delay += 10 * 1000; // make sure that all the replicas do not sleep when
                         // enforcing the first view change
@@ -117,7 +119,7 @@ static size_t request_count = 0;
 void setup_client_proxy()
 {
   LOG_INFO << "Setting up client proxy " << std::endl;
-  client_proxy.reset(new ClientProxy<uint64_t, void>(*replica));
+  client_proxy.reset(new ClientProxy<uint64_t, void>(*get_replica()));
 
   auto cb = [](Reply* m, void* ctx) {
     auto cp = (ClientProxy<uint64_t, void>*)ctx;

@@ -85,13 +85,14 @@ void create_replica(
 {
   auto node_info = get_node_info();
 
-  replica = std::make_shared<Replica>(
+  replica = std::make_unique<Replica>(
     node_info,
     service_mem.data(),
     service_mem.size(),
     Create_Mock_Network(),
     std::move(ledger));
   set_node((Node*)replica.get());
+
   get_replica()->init_state();
   for (auto& pi : node_info.general_info.principal_info)
   {

@@ -5,13 +5,14 @@
 #pragma once
 
 #include <memory>
+
 class Node;
 class Replica;
 class Client;
 
 // Pointer to global replica object.
-extern std::shared_ptr<Replica> replica;
-extern std::shared_ptr<Client> client;
+extern std::unique_ptr<Replica> replica;
+extern std::unique_ptr<Client> client;
 
 extern Replica* get_replica();
 extern void set_node(Node* node);

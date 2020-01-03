@@ -5,10 +5,13 @@
 
 #include "globalstate.h"
 
-// Global replica object.
-std::shared_ptr<Replica> replica;
-std::shared_ptr<Client> client;
+#include "Client.h"
+#include "Node.h"
+#include "Replica.h"
 
+// Pointer to global replica object.
+std::unique_ptr<Replica> replica;
+std::unique_ptr<Client> client;
 Node* n;
 
 Replica* get_replica()

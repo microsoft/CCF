@@ -210,7 +210,7 @@ void Replica::compute_non_det(Seqno s, char* b, int* b_len)
   *b_len = buf.size;
 }
 
-Replica::~Replica() {}
+Replica::~Replica() = default;
 
 void Replica::receive_message(const uint8_t* data, uint32_t size)
 {
@@ -2869,7 +2869,7 @@ void Replica::start_vtimer_if_request_waiting()
 
 void Replica::vtimer_handler(void* owner)
 {
-  PBFT_ASSERT(replica, "replica is not initialized\n");
+  PBFT_ASSERT(get_replica(), "replica is not initialized\n");
 
   if (!get_replica()->delay_vc() && get_replica()->f() > 0)
   {
@@ -2902,7 +2902,7 @@ void Replica::stimer_handler(void* owner)
 
 void Replica::btimer_handler(void* owner)
 {
-  PBFT_ASSERT(replica, "replica is not initialized\n");
+  PBFT_ASSERT(get_replica(), "replica is not initialized\n");
   get_replica()->btimer->restop();
   if (get_replica()->primary() == get_replica()->node_id)
   {
@@ -2913,7 +2913,7 @@ void Replica::btimer_handler(void* owner)
 
 void Replica::rec_timer_handler(void* owner)
 {
-  PBFT_ASSERT(replica, "replica is not initialized\n");
+  PBFT_ASSERT(get_replica(), "replica is not initialized\n");
   static int rec_count = 0;
 
   get_replica()->rtimer->restart();

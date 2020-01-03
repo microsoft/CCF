@@ -22,7 +22,7 @@
 
 int Byz_init_client(const NodeInfo& node_info, INetwork* network)
 {
-  client = std::make_shared<Client>(node_info, network);
+  client = std::make_unique<Client>(node_info, network);
   set_node((Node*)client.get());
   return 0;
 }
@@ -119,7 +119,7 @@ int Byz_init_replica(
 {
   // Initialize random number generator
   replica =
-    std::make_shared<Replica>(node_info, mem, size, network, std::move(ledger));
+    std::make_unique<Replica>(node_info, mem, size, network, std::move(ledger));
   set_node((Node*)replica.get());
 
   if (message_receiver != nullptr)
