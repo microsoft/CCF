@@ -527,7 +527,7 @@ namespace ccf
       initiate_join(args);
 
       using namespace std::chrono_literals;
-      join_timer = timers.new_timer(1s, [this, args]() {
+      join_timer = timers.new_timer(2s, [this, args]() {
         if (sm.check(State::pending))
         {
           initiate_join(args);
