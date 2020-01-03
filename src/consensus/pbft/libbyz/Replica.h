@@ -20,6 +20,7 @@
 #include "Stable_estimator.h"
 #include "State.h"
 #include "View_info.h"
+#include "globalstate.h"
 #include "libbyz.h"
 #include "receive_message_base.h"
 #include "types.h"
@@ -498,9 +499,6 @@ private:
   std::unordered_map<Seqno, uint64_t> requests_per_batch;
   std::list<uint64_t> max_pending_reqs;
 };
-
-// Pointer to global replica object.
-extern std::shared_ptr<Replica> replica;
 
 inline int Replica::max_nd_bytes() const
 {

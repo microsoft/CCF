@@ -12,11 +12,11 @@
 #include "pbft_assert.h"
 
 Commit::Commit(View v, Seqno s) :
-  Message(Commit_tag, sizeof(Commit_rep) + node->auth_size())
+  Message(Commit_tag, sizeof(Commit_rep) + get_node()->auth_size())
 {
   rep().view = v;
   rep().seqno = s;
-  rep().id = node->id();
+  rep().id = get_node()->id();
   rep().padding = 0;
   auth_type = Auth_type::out;
   auth_len = sizeof(Commit_rep);
@@ -35,19 +35,19 @@ void Commit::re_authenticate(Principal* p)
 bool Commit::pre_verify()
 {
   // special case for f == 0
-  if (replica->f() == 0)
+  if (get_replica()->f() == 0)
   {
     return true;
   }
 
   // Commits must be sent by replicas.
-  if (!node->is_replica(id()) || id() == node->id())
+  if (!get_node()->is_replica(id()) || id() == get_node()->id())
   {
     return false;
   }
 
   // Check signature size.
-  if (size() - (int)sizeof(Commit_rep) < node->auth_size(id()))
+  if (size() - (int)sizeof(Commit_rep) < get_node()->auth_size(id()))
   {
     return false;
   }

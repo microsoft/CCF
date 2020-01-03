@@ -30,7 +30,7 @@ Meta_data_cert::Meta_data_cert(size_t num_replicas, size_t f) :
 }
 
 Meta_data_cert::Meta_data_cert(size_t num_replicas) :
-  Meta_data_cert(num_replicas, node->f())
+  Meta_data_cert(num_replicas, get_node()->f())
 {}
 
 Meta_data_cert::~Meta_data_cert()
@@ -71,7 +71,7 @@ bool Meta_data_cert::add(Meta_data_d* m, bool mine)
   if (mine || m->verify())
   {
     PBFT_ASSERT(
-      mine || m->id() != node->id(),
+      mine || m->id() != get_node()->id(),
       "verify should return false for messages from self");
 
     // Check if node already had a message in the certificate.
@@ -89,7 +89,8 @@ bool Meta_data_cert::add(Meta_data_d* m, bool mine)
 
     if (m->last_stable() > ls)
     {
-      ls = K_max<Seqno>(node->f() + 1, last_stables, num_replicas, Seqno_max);
+      ls = K_max<Seqno>(
+        get_node()->f() + 1, last_stables, num_replicas, Seqno_max);
     }
     else if (m->last_stable() < ls)
     {

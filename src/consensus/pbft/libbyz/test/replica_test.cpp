@@ -82,7 +82,7 @@ void test_timer_handler(void* owner)
 
 void delayed_start_delay_time(void* owner)
 {
-  if ((replica->id() % 2) == 0) // half the nodes including the primary
+  if ((get_replica()->id() % 2) == 0) // half the nodes including the primary
   {
     auto delay = 10 * 1000 * 1000; // sleep for 10 seconds
     LOG_INFO << "Sleeping for " << (delay / (1000 * 1000))
@@ -99,7 +99,7 @@ void delayed_start_delay_time(void* owner)
 void start_delay_timer()
 {
   auto delay = 5 * 1000; // sleep for 5 seconds
-  if ((replica->id() % 2) == 0) // half the nodes including the primary
+  if ((get_replica()->id() % 2) == 0) // half the nodes including the primary
   {
     delay += 10 * 1000; // make sure that all the replicas do not sleep when
                         // enforcing the first view change
@@ -123,7 +123,7 @@ void setup_client_proxy()
     auto cp = (ClientProxy<uint64_t, void>*)ctx;
     cp->recv_reply(m);
   };
-  replica->register_reply_handler(cb, client_proxy.get());
+  get_replica()->register_reply_handler(cb, client_proxy.get());
 
   auto req_timer_cb = [](void* ctx) {
     auto cp = (ClientProxy<uint64_t, void>*)ctx;

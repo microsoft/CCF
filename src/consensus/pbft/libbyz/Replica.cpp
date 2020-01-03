@@ -50,9 +50,6 @@
 #include "network.h"
 #include "pbft_assert.h"
 
-// Global replica object.
-std::shared_ptr<Replica> replica;
-
 template <class T>
 void Replica::retransmit(T* m, Time cur, Time tsent, Principal* p)
 {
@@ -663,7 +660,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
         ledger_writer->write_pre_prepare(pp);
       }
 
-      if (node->f() > 0)
+      if (get_node()->f() > 0)
       {
         send(pp, All_replicas);
       }
@@ -1130,7 +1127,7 @@ void Replica::handle(Status* m)
     Time current;
     Time t_sent = 0;
     current = ITimer::current_time();
-    std::shared_ptr<Principal> p = node->get_principal(m->id());
+    std::shared_ptr<Principal> p = get_node()->get_principal(m->id());
     if (!p)
     {
       return;
@@ -1557,7 +1554,7 @@ void Replica::handle(New_principal* m)
                      m->host_name(),
                      m->is_replica()};
 
-  node->add_principal(info);
+  get_node()->add_principal(info);
 }
 
 void Replica::handle(Network_open* m)
@@ -2874,22 +2871,22 @@ void Replica::vtimer_handler(void* owner)
 {
   PBFT_ASSERT(replica, "replica is not initialized\n");
 
-  if (!replica->delay_vc() && replica->f() > 0)
+  if (!get_replica()->delay_vc() && get_replica()->f() > 0)
   {
-    if (replica->rqueue.size() > 0)
+    if (get_replica()->rqueue.size() > 0)
     {
       LOG_INFO << "View change timer expired first rid: "
-               << replica->rqueue.first()->request_id()
-               << ", digest:" << replica->rqueue.first()->digest().hash()
-               << " first cid: " << replica->rqueue.first()->client_id()
+               << get_replica()->rqueue.first()->request_id()
+               << ", digest:" << get_replica()->rqueue.first()->digest().hash()
+               << " first cid: " << get_replica()->rqueue.first()->client_id()
                << std::endl;
     }
 
-    replica->send_view_change();
+    get_replica()->send_view_change();
   }
   else
   {
-    replica->vtimer->restart();
+    get_replica()->vtimer->restart();
   }
 }
 
@@ -2906,11 +2903,11 @@ void Replica::stimer_handler(void* owner)
 void Replica::btimer_handler(void* owner)
 {
   PBFT_ASSERT(replica, "replica is not initialized\n");
-  replica->btimer->restop();
-  if (replica->primary() == replica->node_id)
+  get_replica()->btimer->restop();
+  if (get_replica()->primary() == get_replica()->node_id)
   {
     ++stats.count_pre_prepare_batch_timer;
-    replica->send_pre_prepare(true);
+    get_replica()->send_pre_prepare(true);
   }
 }
 
@@ -2919,9 +2916,9 @@ void Replica::rec_timer_handler(void* owner)
   PBFT_ASSERT(replica, "replica is not initialized\n");
   static int rec_count = 0;
 
-  replica->rtimer->restart();
+  get_replica()->rtimer->restart();
 
-  if (!replica->rec_ready)
+  if (!get_replica()->rec_ready)
   {
     // Replica is not ready to recover
     return;
@@ -2929,28 +2926,29 @@ void Replica::rec_timer_handler(void* owner)
 
 #ifdef RECOVERY
   if (
-    replica->num_of_replicas() - 1 - rec_count % replica->num_of_replicas() ==
-    replica->id())
+    get_replica()->num_of_replicas() - 1 -
+      rec_count % get_replica()->num_of_replicas() ==
+    get_replica()->id())
   {
     // Start recovery:
     INIT_REC_STATS();
 
-    if (replica->recovering)
+    if (get_replica()->recovering)
     {
       INCR_OP(incomplete_recs);
       LOG_INFO << "* Starting recovery" << std::endl;
     }
 
     // Checkpoint
-    replica->shutdown();
+    get_replica()->shutdown();
 
-    replica->state.simulate_reboot();
+    get_replica()->state.simulate_reboot();
 
-    replica->recover();
+    get_replica()->recover();
   }
   else
   {
-    if (replica->recovering)
+    if (get_replica()->recovering)
     {
       INCR_OP(rec_overlaps);
     }

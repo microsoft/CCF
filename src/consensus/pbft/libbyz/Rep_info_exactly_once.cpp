@@ -78,14 +78,14 @@ char* Rep_info_exactly_once::new_reply(int pid)
   ireps[pid].tentative = true;
   ireps[pid].lsent = zero_time();
 
-  replica->modify(&r->rep(), sizeof(Reply_rep));
+  get_replica()->modify(&r->rep(), sizeof(Reply_rep));
   r->rep().reply_size = -1;
   return r->contents() + sizeof(Reply_rep);
 }
 
 void Rep_info_exactly_once::count_request()
 {
-  replica->modify(mem + size() - sizeof(Seqno), sizeof(Seqno));
+  get_replica()->modify(mem + size() - sizeof(Seqno), sizeof(Seqno));
   (*total_processed)++;
 }
 
@@ -154,7 +154,7 @@ void Rep_info_exactly_once::send_reply(int pid, View v, int id, bool tentative)
 
   STOP_CC(reply_auth_cycles);
 
-  node->send(r, pid);
+  get_node()->send(r, pid);
 
   // Undo changes. To ensure state matches across all replicas.
   rr.extra = 0;

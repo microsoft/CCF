@@ -41,7 +41,7 @@ New_principal::New_principal(
 bool New_principal::verify()
 {
   // Check if we are adding a known principal
-  std::shared_ptr<Principal> sender = node->get_principal(id());
+  std::shared_ptr<Principal> sender = get_node()->get_principal(id());
 
   return sender == nullptr;
 }

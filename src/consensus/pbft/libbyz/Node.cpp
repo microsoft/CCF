@@ -32,9 +32,6 @@
 #  define NDEBUG
 #endif
 
-// Pointer to global node instance.
-std::shared_ptr<Node> node;
-
 // Enable statistics
 #include "Statistics.h"
 

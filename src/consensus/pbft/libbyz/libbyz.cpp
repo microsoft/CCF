@@ -10,6 +10,7 @@
 #include "Reply.h"
 #include "Request.h"
 #include "Statistics.h"
+#include "globalstate.h"
 #include "receive_message_base.h"
 
 #include <random>
@@ -21,13 +22,14 @@
 
 int Byz_init_client(const NodeInfo& node_info, INetwork* network)
 {
-  node = std::make_shared<Client>(node_info, network);
+  client = std::make_shared<Client>(node_info, network);
+  set_node((Node*)client.get());
   return 0;
 }
 
 void Byz_reset_client()
 {
-  ((Client*)node.get())->reset();
+  ((Client*)get_node())->reset();
 }
 
 int Byz_alloc_request(Byz_req* req, int size)
@@ -48,16 +50,16 @@ int Byz_alloc_request(Byz_req* req, int size)
 int Byz_send_request(Byz_req* req, bool ro)
 {
   Request* request = (Request*)req->opaque;
-  request->request_id() = ((Client*)node.get())->get_rid();
+  request->request_id() = ((Client*)get_node())->get_rid();
   request->authenticate(req->size, ro);
 
-  bool retval = ((Client*)node.get())->send_request(request);
+  bool retval = ((Client*)get_node())->send_request(request);
   return (retval) ? 0 : -1;
 }
 
 int Byz_recv_reply(Byz_rep* rep)
 {
-  Reply* reply = ((Client*)node.get())->recv_reply();
+  Reply* reply = ((Client*)get_node())->recv_reply();
   if (reply == NULL)
   {
     return -1;
@@ -90,17 +92,17 @@ void Byz_free_reply(Byz_rep* rep)
 
 void Byz_configure_principals()
 {
-  node->configure_principals();
+  get_node()->configure_principals();
 }
 
 void Byz_add_principal(const PrincipalInfo& principal_info)
 {
-  node->add_principal(principal_info);
+  get_node()->add_principal(principal_info);
 }
 
 void Byz_start_replica()
 {
-  replica->recv_start();
+  get_replica()->recv_start();
   stats.zero_stats();
 }
 
@@ -116,8 +118,9 @@ int Byz_init_replica(
   IMessageReceiveBase** message_receiver)
 {
   // Initialize random number generator
-  replica = std::make_shared<Replica>(node_info, mem, size, network, std::move(ledger));
-  node = replica;
+  replica =
+    std::make_shared<Replica>(node_info, mem, size, network, std::move(ledger));
+  set_node((Node*)replica.get());
 
   if (message_receiver != nullptr)
   {
@@ -125,22 +128,22 @@ int Byz_init_replica(
   }
 
   // Register service-specific functions.
-  replica->register_exec(exec);
-  replica->register_nondet_choices(comp_ndet, ndet_max_len);
+  get_replica()->register_exec(exec);
+  get_replica()->register_nondet_choices(comp_ndet, ndet_max_len);
 
-  auto used_bytes = replica->used_state_bytes();
+  auto used_bytes = get_replica()->used_state_bytes();
   stats.zero_stats();
   return used_bytes;
 }
 
 void Byz_modify(void* mem, int size)
 {
-  replica->modify(mem, size);
+  get_replica()->modify(mem, size);
 }
 
 void Byz_replica_run()
 {
-  replica->recv();
+  get_replica()->recv();
 }
 
 void Byz_reset_stats()
