@@ -2,9 +2,7 @@
 // Copyright (c) 1999 Miguel Castro, Barbara Liskov.
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
-
-#ifndef _Checkpoint_h
-#define _Checkpoint_h 1
+#pragma once
 
 #include "Digest.h"
 #include "Message.h"
@@ -108,5 +106,3 @@ inline bool Checkpoint::match(const Checkpoint* c) const
   PBFT_ASSERT(seqno() == c->seqno(), "Invalid argument");
   return digest() == c->digest();
 }
-
-#endif // _Checkpoint_h

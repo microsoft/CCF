@@ -333,7 +333,7 @@ namespace ccf
           self = 0; // The first node id is always 0
 
 #ifdef PBFT
-          setup_pbft();
+          setup_pbft(args.config);
 #else
           setup_raft();
 #endif
@@ -455,7 +455,7 @@ namespace ccf
 
             self = resp->node_id;
 #ifdef PBFT
-            setup_pbft();
+            setup_pbft(args.config);
 #else
             setup_raft(public_only);
 #endif
@@ -1396,7 +1396,7 @@ namespace ccf
     }
 
 #ifdef PBFT
-    void setup_pbft()
+    void setup_pbft(const CCFConfig& config)
     {
       setup_n2n_channels();
 
@@ -1404,6 +1404,7 @@ namespace ccf
         std::make_unique<pbft::Adaptor<Store>>(network.tables),
         n2n_channels,
         self,
+        config.signature_intervals.sig_max_tx,
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         rpc_map,
         rpcsessions);
