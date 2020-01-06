@@ -6,6 +6,7 @@ add_definitions(-DSIGN_BATCH)
 set(SIGN_BATCH ON)
 
 set(PBFT_SRC
+  ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/globalstate.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/Client.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/Replica.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/Commit.cpp

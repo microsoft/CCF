@@ -41,7 +41,8 @@ public:
                                bool ro,
                                Seqno total_requests_executed,
                                ByzInfo& info) {
-    outb.contents = replica->create_response_message(client, rid, 0);
+    outb.contents =
+      pbft::GlobalState::get_replica().create_response_message(client, rid, 0);
     outb.size = 0;
     auto request = reinterpret_cast<fake_req*>(inb->contents);
     info.ctx = request->ctx;
@@ -86,7 +87,7 @@ void create_replica(
 {
   auto node_info = get_node_info();
 
-  replica = new Replica(
+  pbft::GlobalState::set_replica(std::make_unique<Replica>(
     node_info,
     service_mem.data(),
     service_mem.size(),
@@ -94,12 +95,14 @@ void create_replica(
     pbft_requests,
     pbft_pre_prepares,
     store);
-  replica->init_state();
+  
+  pbft::GlobalState::get_replica().init_state();
+
   for (auto& pi : node_info.general_info.principal_info)
   {
     if (pi.id != node_info.own_info.id)
     {
-      replica->add_principal(pi);
+      pbft::GlobalState::get_replica().add_principal(pi);
     }
   }
 }
@@ -197,7 +200,7 @@ TEST_CASE("Test Ledger Replay")
       // ledger_writer.write_pre_prepare(pp.get());
     }
     // remove the requests that were not processed, only written to the ledger
-    replica->big_reqs()->clear();
+    pbft::GlobalState::get_replica().big_reqs()->clear();
   }
 
   INFO("Read the ledger entries and replay them out of order and in order");

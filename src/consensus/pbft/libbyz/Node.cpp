@@ -32,16 +32,11 @@
 #  define NDEBUG
 #endif
 
-// Pointer to global node instance.
-Node* node = 0;
-
 // Enable statistics
 #include "Statistics.h"
 
 Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
 {
-  node = this;
-
   // Compute clock frequency.
   init_clock_mhz();
 
