@@ -11,9 +11,11 @@
 #include "pbft_assert.h"
 
 Query_stable::Query_stable() :
-  Message(Query_stable_tag, sizeof(Query_stable_rep) + node->auth_size())
+  Message(
+    Query_stable_tag,
+    sizeof(Query_stable_rep) + pbft::GlobalState::get_node().auth_size())
 {
-  rep().id = node->id();
+  rep().id = pbft::GlobalState::get_node().id();
   // TODO(#PBFT): Get a better random function for nonce
   rep().nonce = (uint64_t)this;
   auth_type = Auth_type::out;
@@ -31,13 +33,15 @@ void Query_stable::re_authenticate(Principal* p)
 bool Query_stable::verify()
 {
   // Query_stables must be sent by replicas.
-  if (!node->is_replica(id()))
+  if (!pbft::GlobalState::get_node().is_replica(id()))
   {
     return false;
   }
 
   // Check signature size.
-  if (size() - (int)sizeof(Query_stable_rep) < node->auth_size(id()))
+  if (
+    size() - (int)sizeof(Query_stable_rep) <
+    pbft::GlobalState::get_node().auth_size(id()))
   {
     return false;
   }

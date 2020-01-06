@@ -68,8 +68,8 @@ public:
   // Requires: "sig" is at least sig_size() bytes.
   // Effects: Checks a signature "sig" (from this principal) for
   // "src_len" bytes starting at "src". If "allow_self" is false, it
-  // always returns false if "this->id == node->id()"; otherwise,
-  // returns true if signature is valid.
+  // always returns false if "this->id == pbft::GlobalState::get_node().id()";
+  // otherwise, returns true if signature is valid.
 
   Request_id last_fetch_rid() const;
   void set_last_fetch_rid(Request_id r);

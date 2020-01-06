@@ -27,7 +27,7 @@ class View_info
   // Holds information for the view-change protocol.
   //
 public:
-  View_info(int id, View v, uint64_t num_replicas);
+  View_info(int id, View v, uint64_t num_replicas, size_t num_of_replicas);
   // Effects: Create a view-info object for replica "id" with initial
   // view "v".
 
@@ -264,7 +264,7 @@ private:
   {
     View v;
     std::vector<View_change_ack*> vacks;
-    VCA_info();
+    VCA_info(size_t num_of_replicas);
     void clear();
   };
   std::vector<VCA_info> vacks;
@@ -296,40 +296,40 @@ inline View View_info::view() const
 
 inline Pre_prepare* View_info::fetch_request(Seqno n, Digest& d)
 {
-  return last_nvs[node->primary(v)].fetch_request(n, d);
+  return last_nvs[pbft::GlobalState::get_node().primary(v)].fetch_request(n, d);
 }
 
 inline bool View_info::has_complete_new_view(View vi) const
 {
-  return last_nvs[node->primary(vi)].complete();
+  return last_nvs[pbft::GlobalState::get_node().primary(vi)].complete();
 }
 
 inline bool View_info::has_nv_message(View vi) const
 {
-  if (last_nvs[node->primary(vi)].view())
+  if (last_nvs[pbft::GlobalState::get_node().primary(vi)].view())
     return true;
   return false;
 }
 
 inline View_change_ack* View_info::my_vc_ack(int id)
 {
-  PBFT_ASSERT(node->is_replica(id), "Invalid argument");
+  PBFT_ASSERT(pbft::GlobalState::get_node().is_replica(id), "Invalid argument");
   return my_vacks[id];
 }
 
 inline void View_info::add_missing(Pre_prepare* pp)
 {
-  last_nvs[node->primary(view())].add_missing(pp);
+  last_nvs[pbft::GlobalState::get_node().primary(view())].add_missing(pp);
 }
 
 inline void View_info::add_missing(Digest& rd, Seqno n, int i)
 {
-  last_nvs[node->primary(view())].add_missing(rd, n, i);
+  last_nvs[pbft::GlobalState::get_node().primary(view())].add_missing(rd, n, i);
 }
 
 inline void View_info::add_missing(Prepare* p)
 {
-  last_nvs[node->primary(view())].add_missing(p);
+  last_nvs[pbft::GlobalState::get_node().primary(view())].add_missing(p);
 }
 
 inline View_info::OReq_info::OReq_info()
@@ -337,7 +337,7 @@ inline View_info::OReq_info::OReq_info()
   m = 0;
   v = -1;
   lv = -1;
-  ods = new ODigest_info[node->f() + 2];
+  ods = new ODigest_info[pbft::GlobalState::get_node().f() + 2];
 }
 
 inline View_info::OReq_info::~OReq_info()
@@ -353,7 +353,7 @@ inline void View_info::OReq_info::clear()
   v = -1;
   lv = -1;
   d.zero();
-  for (int i = 0; i < node->f() + 2; i++)
+  for (int i = 0; i < pbft::GlobalState::get_node().f() + 2; i++)
     ods[i].v = -1;
 }
 

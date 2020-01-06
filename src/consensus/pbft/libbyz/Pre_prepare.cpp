@@ -32,11 +32,13 @@ Pre_prepare::Pre_prepare(
   int n_big_reqs = 0;
   char* next_req = requests();
 #ifndef USE_PKEY
-  char* max_req =
-    next_req + msize() - replica->max_nd_bytes() - node->auth_size();
+  char* max_req = next_req + msize() -
+    pbft::GlobalState::get_replica().max_nd_bytes() -
+    pbft::GlobalState::get_node().auth_size();
 #else
-  char* max_req =
-    next_req + msize() - replica->max_nd_bytes() - node->sig_size();
+  char* max_req = next_req + msize() -
+    pbft::GlobalState::get_replica().max_nd_bytes() -
+    pbft::GlobalState::get_node().sig_size();
 #endif
 
   for (Request* req = reqs.first(); req != 0; req = reqs.first())
@@ -73,7 +75,8 @@ Pre_prepare::Pre_prepare(
         big_req_ds[n_big_reqs++] = req->digest();
 
         // Add request to replica's big reqs table.
-        replica->big_reqs()->add_pre_prepare(reqs.remove(), s, v);
+        pbft::GlobalState::get_replica().big_reqs()->add_pre_prepare(
+          reqs.remove(), s, v);
         max_req -= sizeof(Digest);
         requests_in_batch++;
       }
@@ -96,8 +99,9 @@ Pre_prepare::Pre_prepare(
   if (rep().rset_size > 0 || n_big_reqs > 0)
   {
     // Fill in the non-deterministic choices portion.
-    int non_det_size = replica->max_nd_bytes();
-    replica->compute_non_det(s, non_det_choices(), &non_det_size);
+    int non_det_size = pbft::GlobalState::get_replica().max_nd_bytes();
+    pbft::GlobalState::get_replica().compute_non_det(
+      s, non_det_choices(), &non_det_size);
     PBFT_ASSERT(ALIGNED(non_det_size), "Invalid non-deterministic choice");
     rep().non_det_size = non_det_size;
   }
@@ -118,13 +122,13 @@ Pre_prepare::Pre_prepare(
     rep().n_big_reqs * sizeof(Digest) + rep().non_det_size;
 
 #ifndef USE_PKEY
-  set_size(old_size + node->auth_size());
+  set_size(old_size + pbft::GlobalState::get_node().auth_size());
   auth_type = Auth_type::out;
   auth_len = sizeof(Pre_prepare_rep);
   auth_dst_offset = old_size;
   auth_src_offset = 0;
 #else
-  set_size(old_size + node->sig_size());
+  set_size(old_size + pbft::GlobalState::get_node().sig_size());
 #endif
 
 #ifdef SIGN_BATCH
@@ -157,7 +161,7 @@ void Pre_prepare::re_authenticate(Principal* p)
 
 int Pre_prepare::id() const
 {
-  return replica->primary(view());
+  return pbft::GlobalState::get_replica().primary(view());
 }
 
 bool Pre_prepare::check_digest()
@@ -197,11 +201,13 @@ bool Pre_prepare::set_digest(int64_t signed_version)
 
 #ifdef SIGN_BATCH
   if (
-    replica->should_sign_next_and_reset() ||
-    (rep().seqno == replica->next_expected_sig_offset()) || node->f() == 0)
+    pbft::GlobalState::get_replica().should_sign_next_and_reset() ||
+    (rep().seqno ==
+     pbft::GlobalState::get_replica().next_expected_sig_offset()) ||
+    pbft::GlobalState::get_node().f() == 0)
   {
-    replica->set_next_expected_sig_offset();
-    node->gen_signature(
+    pbft::GlobalState::get_replica().set_next_expected_sig_offset();
+    pbft::GlobalState::get_node().gen_signature(
       d.digest(), d.digest_size(), rep().batch_digest_signature);
   }
 #endif
@@ -215,11 +221,13 @@ bool Pre_prepare::calculate_digest(Digest& d)
 #ifndef USE_PKEY
   int min_size = sizeof(Pre_prepare_rep) + rep().rset_size +
     rep().n_big_reqs * sizeof(Digest) + rep().non_det_size +
-    node->auth_size(replica->primary(view()));
+    pbft::GlobalState::get_node().auth_size(
+      pbft::GlobalState::get_replica().primary(view()));
 #else
   int min_size = sizeof(Pre_prepare_rep) + rep().rset_size +
     rep().n_big_reqs * sizeof(Digest) + rep().non_det_size +
-    node->sig_size(replica->primary(view()));
+    pbft::GlobalState::get_node().sig_size(
+      pbft::GlobalState::get_replica().primary(view()));
 #endif
   if (size() >= min_size)
   {
@@ -271,7 +279,7 @@ bool Pre_prepare::calculate_digest(Digest& d)
 
 bool Pre_prepare::pre_verify()
 {
-  int sender = view() % replica->num_of_replicas();
+  int sender = view() % pbft::GlobalState::get_replica().num_of_replicas();
 
   if (rep().n_big_reqs > Max_requests_in_batch)
   {
@@ -283,10 +291,12 @@ bool Pre_prepare::pre_verify()
 #ifdef SIGN_BATCH
     if (is_signed())
     {
-      if (!node->get_principal(sender)->verify_signature(
-            rep().digest.digest(),
-            rep().digest.digest_size(),
-            (const char*)get_digest_sig().data()))
+      if (!pbft::GlobalState::get_node()
+             .get_principal(sender)
+             ->verify_signature(
+               rep().digest.digest(),
+               rep().digest.digest_size(),
+               (const char*)get_digest_sig().data()))
       {
         LOG_INFO << "failed to verify signature on the digest, seqno:"
                  << rep().seqno << std::endl;
@@ -302,7 +312,7 @@ bool Pre_prepare::pre_verify()
 #else
     if (d == rep().digest)
     {
-      Principal* ps = node->get_principal(sender);
+      Principal* ps = pbft::GlobalState::get_node().get_principal(sender);
       if (!ps)
       {
         return false;
@@ -369,7 +379,8 @@ bool Pre_prepare::Requests_iter::get_big_request(
   is_request_present = true;
   if (big_req < msg->num_big_reqs())
   {
-    Request* r = replica->big_reqs()->lookup(msg->big_req_digest(big_req));
+    Request* r = pbft::GlobalState::get_replica().big_reqs()->lookup(
+      msg->big_req_digest(big_req));
     big_req++;
     if (r == 0)
     {
