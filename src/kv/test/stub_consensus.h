@@ -46,7 +46,7 @@ namespace kv
         return std::make_pair(std::vector<uint8_t>(), false);
     }
 
-    std::pair<std::vector<uint8_t>, bool> replay_data()
+    std::pair<std::vector<uint8_t>, bool> pop_oldest_data()
     {
       if (!replica.empty())
       {

@@ -113,6 +113,7 @@ TEST_CASE("Test Ledger Replay")
   std::vector<char> service_mem(mem_size, 0);
   ExecutionMock exec_mock(0);
 
+  // initiate replica with stub consensus to be used on replay
   auto write_consensus = std::make_shared<kv::StubConsensus>();
   INFO("Create dummy pre-prepares and write them to ledger");
   {
@@ -196,7 +197,7 @@ TEST_CASE("Test Ledger Replay")
     std::vector<std::vector<uint8_t>> entries;
     while (true)
     {
-      auto ret = write_consensus->replay_data();
+      auto ret = write_consensus->pop_oldest_data();
       if (!ret.second)
       {
         break;

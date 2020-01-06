@@ -182,25 +182,6 @@ Replica::Replica(
   non_det_choices = 0;
 
   ledger_writer = std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map);
-  requests_local_hook = [this](
-                          kv::Version version,
-                          const pbft::RequestsMap::State& s,
-                          const pbft::RequestsMap::Write& w) {
-    for (auto& [key, value] : w)
-    {
-      playback_request(value.value);
-    }
-  };
-
-  pre_prepares_local_hook = [this](
-                              kv::Version version,
-                              const pbft::PrePreparesMap::State& s,
-                              const pbft::PrePreparesMap::Write& w) {
-    for (auto& [key, value] : w)
-    {
-      playback_pre_prepare(value.value);
-    }
-  };
 }
 
 void Replica::register_exec(ExecCommand e)
@@ -309,8 +290,7 @@ void Replica::playback_pre_prepare(const pbft::PrePrepare& pre_prepare)
   ByzInfo info;
   if (execute_tentative(executable_pp.get(), info))
   {
-    auto batch_info = compare_execution_results(info, executable_pp.get());
-    if (!batch_info)
+    if (!compare_execution_results(info, executable_pp.get()))
     {
       return;
     }
@@ -1105,8 +1085,25 @@ void Replica::emit_signature_on_next_pp(int64_t version)
 
 void Replica::activate_pbft_local_hooks()
 {
-  pbft_requests_map.set_local_hook(requests_local_hook);
-  pbft_pre_prepares_map.set_local_hook(pre_prepares_local_hook);
+  pbft_requests_map.set_local_hook([this](
+                                     kv::Version version,
+                                     const pbft::RequestsMap::State& s,
+                                     const pbft::RequestsMap::Write& w) {
+    for (auto& [key, value] : w)
+    {
+      playback_request(value.value);
+    }
+  });
+
+  pbft_pre_prepares_map.set_local_hook([this](
+                                         kv::Version version,
+                                         const pbft::PrePreparesMap::State& s,
+                                         const pbft::PrePreparesMap::Write& w) {
+    for (auto& [key, value] : w)
+    {
+      playback_pre_prepare(value.value);
+    }
+  });
 }
 
 void Replica::deactivate_pbft_local_hooks()

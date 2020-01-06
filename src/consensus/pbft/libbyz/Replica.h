@@ -435,23 +435,6 @@ private:
   pbft::RequestsMap& pbft_requests_map;
   pbft::PrePreparesMap& pbft_pre_prepares_map;
 
-  std::function<void(
-    kv::Version,
-    const pbft::RequestsMap::State&,
-    const pbft::RequestsMap::Write&)>
-    requests_local_hook;
-  // local commit hook to be used when replaying the ledger
-  // when requests are deserialised the hook will be triggered
-  // and requests will be applied
-  std::function<void(
-    kv::Version,
-    const pbft::PrePreparesMap::State&,
-    const pbft::PrePreparesMap::Write&)>
-    pre_prepares_local_hook;
-  // local commit hook to be used when replaying the ledger
-  // when pre-prepares are deserialised the hook will be triggered
-  // and pre-prepares will be applied
-
   // used to callback when we have committed a batch
   global_commit_handler_cb global_commit_cb;
   void* global_commit_ctx;
