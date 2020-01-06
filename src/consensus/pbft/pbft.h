@@ -348,14 +348,14 @@ namespace pbft
     }
 
     template <typename T>
-    size_t replicate_to_ledger(const T& data)
+    size_t write_to_ledger(const T& data)
     {
       ledger->put_entry(data->data(), data->size());
       return data->size();
     }
 
     template <>
-    size_t replicate_to_ledger<std::vector<uint8_t>>(
+    size_t write_to_ledger<std::vector<uint8_t>>(
       const std::vector<uint8_t>& data)
     {
       ledger->put_entry(data);
@@ -364,18 +364,18 @@ namespace pbft
 
     bool replicate(const kv::BatchDetachedBuffer& entries) override
     {
-      for (auto&& [index, data, globally_committable] : entries)
+      for (auto& [index, data, globally_committable] : entries)
       {
-        replicate_to_ledger(data);
+        write_to_ledger(data);
       }
       return true;
     }
 
     bool replicate(const kv::BatchVector& entries) override
     {
-      for (auto&& [index, data, globally_committable] : entries)
+      for (auto& [index, data, globally_committable] : entries)
       {
-        replicate_to_ledger(data);
+        write_to_ledger(data);
       }
       return true;
     }

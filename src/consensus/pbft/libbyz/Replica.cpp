@@ -275,7 +275,7 @@ void Replica::playback_request(const pbft::Request& request)
 {
   auto req =
     create_message<Request>(request.raw.data(), request.raw.size()).release();
-  if (!(req->size() > Request::big_req_thresh && brt.add_request(req)))
+  if (!brt.add_request(req))
   {
     rqueue.append(req);
   }

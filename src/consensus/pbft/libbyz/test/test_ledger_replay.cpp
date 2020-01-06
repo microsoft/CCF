@@ -32,7 +32,7 @@ public:
     int64_t ctx;
   };
 
-  ExecCommand exec_command = [](
+  ExecCommand exec_command = [this](
                                Byz_req* inb,
                                Byz_rep& outb,
                                _Byz_buffer* non_det,
@@ -41,6 +41,9 @@ public:
                                bool ro,
                                Seqno total_requests_executed,
                                ByzInfo& info) {
+    // increase total number of commands executed to compare with fake_req
+    command_counter++;
+
     outb.contents =
       pbft::GlobalState::get_replica().create_response_message(client, rid, 0);
     outb.size = 0;
@@ -50,6 +53,9 @@ public:
     info.replicated_state_merkle_root.fill(0);
     info.full_state_merkle_root.data()[0] = request->rt;
     info.replicated_state_merkle_root.data()[0] = request->rt;
+
+    REQUIRE(request->ctx == command_counter);
+    REQUIRE(request->rt == command_counter);
     return 0;
   };
 };
@@ -109,10 +115,6 @@ void create_replica(
 
 TEST_CASE("Test Ledger Replay")
 {
-  int mem_size = 400 * 8192;
-  std::vector<char> service_mem(mem_size, 0);
-  ExecutionMock exec_mock(0);
-
   // initiate replica with stub consensus to be used on replay
   auto write_consensus = std::make_shared<kv::StubConsensus>();
   INFO("Create dummy pre-prepares and write them to ledger");
@@ -130,6 +132,10 @@ TEST_CASE("Test Ledger Replay")
 
     auto write_pbft_store =
       std::make_unique<pbft::Adaptor<ccf::Store>>(write_store);
+
+    int mem_size = 400 * 8192;
+    std::vector<char> service_mem(mem_size, 0);
+    ExecutionMock exec_mock(0);
 
     create_replica(
       service_mem,
@@ -188,6 +194,10 @@ TEST_CASE("Test Ledger Replay")
     auto& derived_map = store->create<std::string, std::string>(
       "derived_map", kv::SecurityDomain::PUBLIC);
     auto replica_store = std::make_unique<pbft::Adaptor<ccf::Store>>(store);
+
+    int mem_size = 400 * 8192;
+    std::vector<char> service_mem(mem_size, 0);
+    ExecutionMock exec_mock(0);
 
     create_replica(
       service_mem, *replica_store, pbft_requests_map, pbft_pre_prepares_map);

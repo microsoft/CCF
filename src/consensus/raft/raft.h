@@ -286,14 +286,14 @@ namespace raft
     }
 
     template <typename T>
-    size_t replicate_to_ledger(const T& data)
+    size_t write_to_ledger(const T& data)
     {
       ledger->put_entry(data->data(), data->size());
       return data->size();
     }
 
     template <>
-    size_t replicate_to_ledger<std::vector<uint8_t>>(
+    size_t write_to_ledger<std::vector<uint8_t>>(
       const std::vector<uint8_t>& data)
     {
       ledger->put_entry(data);
@@ -315,7 +315,7 @@ namespace raft
 
       LOG_DEBUG_FMT("Replicating {} entries", entries.size());
 
-      for (auto&& [index, data, globally_committable] : entries)
+      for (auto& [index, data, globally_committable] : entries)
       {
         if (index != last_idx + 1)
           return false;
@@ -330,7 +330,7 @@ namespace raft
           committable_indices.push_back(index);
 
         last_idx = index;
-        auto s = replicate_to_ledger(data);
+        auto s = write_to_ledger(data);
         entry_size_not_limited += s;
         entry_count++;
 
