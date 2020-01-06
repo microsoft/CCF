@@ -14,6 +14,13 @@ namespace ccf
     std::vector<uint8_t> cert;
     std::vector<uint8_t> priv_key;
 
+    bool operator==(const NetworkIdentity& other) const
+    {
+      return cert == other.cert && priv_key == other.priv_key;
+    }
+
+    NetworkIdentity() {}
+
     NetworkIdentity(const std::string& name)
     {
       auto identity_key_pair = tls::make_key_pair();

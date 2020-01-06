@@ -17,6 +17,8 @@ namespace ccf
       return ledger_master == other.ledger_master;
     }
 
+    Secret() {}
+
     Secret(const std::vector<uint8_t>& ledger_master_) :
       ledger_master(ledger_master_)
     {}

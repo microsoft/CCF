@@ -255,7 +255,7 @@ namespace ccf
 
       create_rpc.params.gov_script = args.config.genesis.gov_script;
       create_rpc.params.node_cert = node_cert;
-      create_rpc.params.network_cert = network.secrets->get_current().cert;
+      create_rpc.params.network_cert = network.identity->cert;
       create_rpc.params.quote = quote;
       create_rpc.params.code_digest =
         std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
@@ -428,7 +428,12 @@ namespace ccf
         [this, args](const std::vector<uint8_t>& data) {
           std::lock_guard<SpinLock> guard(lock);
           if (!sm.check(State::pending))
+          {
+            LOG_FAIL_FMT("State is not pending anymore...");
             return false;
+          }
+
+          LOG_FAIL_FMT("State is pending...");
 
           auto j = jsonrpc::unpack(data, jsonrpc::Pack::Text);
 
@@ -455,6 +460,11 @@ namespace ccf
             network.identity = std::make_unique<NetworkIdentity>(
               resp->network_info.network_identity);
 
+            LOG_INFO_FMT(
+              "Joining at version {}, public_only: {}",
+              resp->network_info.version,
+              public_only);
+
             // In a private network, seal secrets immediately.
             network.secrets = std::make_unique<NetworkSecrets>(
               resp->network_info.version,
@@ -475,10 +485,16 @@ namespace ccf
 
             accept_network_tls_connections(args.config);
 
+            LOG_INFO_FMT("About to advance state...");
+
             if (public_only)
+            {
               sm.advance(State::partOfPublicNetwork);
+            }
             else
+            {
               sm.advance(State::partOfNetwork);
+            }
 
             join_timer.reset();
 
@@ -622,7 +638,7 @@ namespace ccf
 
       network.secrets->promote_secrets(0, last_index + 1);
 
-      g.create_service(network.secrets->get_current().cert, last_index + 1);
+      g.create_service(network.identity->cert, last_index + 1);
 
       g.retire_active_nodes();
 
@@ -1128,7 +1144,7 @@ namespace ccf
     {
       // Accept TLS connections, presenting node certificate signed by network
       // certificate
-      auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
+      auto nw = tls::make_key_pair({network.identity->priv_key});
 
       auto endorsed_node_cert = nw->sign_csr(
         node_kp->create_csr(fmt::format("CN=CCF node {}", self)),
@@ -1269,7 +1285,7 @@ namespace ccf
 
     void setup_n2n_channels()
     {
-      n2n_channels->initialize(self, {network.secrets->get_current().priv_key});
+      n2n_channels->initialize(self, {network.identity->priv_key});
     }
 
     void setup_cmd_forwarder()

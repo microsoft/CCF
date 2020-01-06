@@ -114,7 +114,8 @@ namespace ccf
           {node_status,
            joining_node_id,
            {this->network.secrets->get_current(),
-            this->network.secrets->get_current_version()}});
+            this->network.secrets->get_current_version(),
+            *this->network.identity.get()}});
       }
       else
       {
@@ -176,7 +177,8 @@ namespace ccf
               {joining_node_status,
                existing_node_id.value(),
                {this->network.secrets->get_current(),
-                this->network.secrets->get_current_version()}});
+                this->network.secrets->get_current_version(),
+                *this->network.identity.get()}});
           }
 
           return add_node(args.tx, caller_pem_raw, in, joining_node_status);
@@ -199,7 +201,8 @@ namespace ccf
               {node_status,
                existing_node_id.value(),
                {this->network.secrets->get_current(),
-                this->network.secrets->get_current_version()}});
+                this->network.secrets->get_current_version(),
+                *this->network.identity.get()}});
           }
           else if (node_status == NodeStatus::PENDING)
           {

@@ -23,7 +23,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(GetQuotes::Out, quotes)
 
   DECLARE_JSON_TYPE(NetworkIdentity)
-  DECLARE_JSON_REQUIRED_FIELS(NetworkIdentity, cert, priv_key)
+  DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)
   DECLARE_JSON_TYPE(Secret)
   DECLARE_JSON_REQUIRED_FIELDS(Secret, ledger_master)
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out::NetworkInfo)

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/json_schema.h"
+#include "node/identity.h"
 #include "node/nodeinfonetwork.h"
 #include "node/secret.h"
 
@@ -86,7 +87,7 @@ namespace ccf
         {
           return network_secrets == other.network_secrets &&
             version == other.version &&
-            network_identity = other.network_identity;
+            network_identity == other.network_identity;
         }
 
         bool operator!=(const NetworkInfo& other) const
