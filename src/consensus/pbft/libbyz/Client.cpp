@@ -26,8 +26,18 @@
 
 Client::Client(const NodeInfo& node_info, INetwork* network) :
   Node(node_info),
-  t_reps([this]() { return 2 * f() + 1; }),
-  c_reps([this]() { return f() + 1; })
+  t_reps(
+    node_info.general_info.max_faulty,
+    node_info.general_info.max_faulty == 0 ?
+      1 :
+      node_info.general_info.num_replicas - node_info.general_info.max_faulty,
+    [this]() { return 2 * f() + 1; }),
+  c_reps(
+    node_info.general_info.max_faulty,
+    node_info.general_info.max_faulty == 0 ?
+      1 :
+      node_info.general_info.num_replicas - node_info.general_info.max_faulty,
+    [this]() { return f() + 1; })
 {
   // Fail if node is a replica.
   LOG_INFO << "my id " << id() << std::endl;

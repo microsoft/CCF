@@ -42,7 +42,8 @@ public:
                                bool ro,
                                Seqno total_requests_executed,
                                ByzInfo& info) {
-    outb.contents = replica->create_response_message(client, rid, 0);
+    outb.contents =
+      pbft::GlobalState::get_replica().create_response_message(client, rid, 0);
     outb.size = 0;
     auto request = reinterpret_cast<fake_req*>(inb->contents);
     info.ctx = request->ctx;
@@ -85,18 +86,19 @@ void create_replica(
 {
   auto node_info = get_node_info();
 
-  replica = new Replica(
+  pbft::GlobalState::set_replica(std::make_unique<Replica>(
     node_info,
     service_mem.data(),
     service_mem.size(),
     Create_Mock_Network(),
-    std::move(ledger));
-  replica->init_state();
+    std::move(ledger)));
+
+  pbft::GlobalState::get_replica().init_state();
   for (auto& pi : node_info.general_info.principal_info)
   {
     if (pi.id != node_info.own_info.id)
     {
-      replica->add_principal(pi);
+      pbft::GlobalState::get_replica().add_principal(pi);
     }
   }
 }
@@ -114,7 +116,7 @@ TEST_CASE("Test Ledger Replay")
   auto replay_ledger_io = std::make_unique<consensus::LedgerEnclave>(wf_rplay);
 
   create_replica(service_mem, std::move(replay_ledger_io));
-  replica->register_exec(exec_mock.exec_command);
+  pbft::GlobalState::get_replica().register_exec(exec_mock.exec_command);
 
   // initial ledger enclave is used by the LedgerWriter to simulate writting
   // entries to the ledger
@@ -161,7 +163,7 @@ TEST_CASE("Test Ledger Replay")
       ledger_writer.write_pre_prepare(pp.get());
     }
     // remove the requests that were not processed, only written to the ledger
-    replica->big_reqs()->clear();
+    pbft::GlobalState::get_replica().big_reqs()->clear();
   }
 
   INFO("Read the ledger entries and replay them out of order and in order");
@@ -208,19 +210,19 @@ TEST_CASE("Test Ledger Replay")
     auto first = initial_ledger.begin() + positions.at(4);
     auto last = initial_ledger.end();
     std::vector<uint8_t> vec_5_9(first, last);
-    CHECK(!replica->apply_ledger_data(vec_5_9));
+    CHECK(!pbft::GlobalState::get_replica().apply_ledger_data(vec_5_9));
 
     INFO("replay entries 1 till 3");
     first = initial_ledger.begin();
     last = initial_ledger.begin() + positions.at(3);
     std::vector<uint8_t> vec_1_3(first, last);
-    CHECK(replica->apply_ledger_data(vec_1_3));
+    CHECK(pbft::GlobalState::get_replica().apply_ledger_data(vec_1_3));
 
     INFO("replay entries 2 till 3 should fail");
     first = initial_ledger.begin() + positions.at(1);
     last = initial_ledger.begin() + positions.at(3);
     std::vector<uint8_t> vec_2_3(first, last);
-    CHECK(!replica->apply_ledger_data(vec_2_3));
+    CHECK(!pbft::GlobalState::get_replica().apply_ledger_data(vec_2_3));
 
     INFO("replay the rest of the pre-prepares in batches of 4");
     for (size_t i = 3; i < total_requests - 1; i += 4)
@@ -236,7 +238,7 @@ TEST_CASE("Test Ledger Replay")
         last = initial_ledger.begin() + positions.at(until);
       }
       std::vector<uint8_t> vec(first, last);
-      CHECK(replica->apply_ledger_data(vec));
+      CHECK(pbft::GlobalState::get_replica().apply_ledger_data(vec));
     }
 
     std::vector<uint8_t> replay_ledger;

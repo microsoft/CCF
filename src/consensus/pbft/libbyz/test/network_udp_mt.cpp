@@ -334,7 +334,8 @@ MessageDesc* SenderThread::dequeue_for_client()
 void SenderThread::send_message(
   int sock, MessageDesc* message, unsigned short port_offset)
 {
-  std::shared_ptr<Principal> p = node->get_principal(message->pid);
+  std::shared_ptr<Principal> p =
+    pbft::GlobalState::get_node().get_principal(message->pid);
   if (p != nullptr)
   {
     sockaddr_in to = *(sockaddr_in*)p->address();

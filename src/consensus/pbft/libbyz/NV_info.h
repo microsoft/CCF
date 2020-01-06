@@ -76,9 +76,10 @@ public:
   // Effects: Mark this as complete in view "v".
 
   bool add(New_view* nv, View_info* parent);
-  // Requires: "nv.verify() || node->id() == node->primary(nv->view())"
-  // Effects: If "nv->view() <= view()", it does not modify this and
-  // deletes "nv".  Otherwise, it adds "nv" to this and if "view()
+  // Requires: "nv.verify() || pbft::GlobalState::get_node().id() ==
+  // pbft::GlobalState::get_node().primary(nv->view())" Effects: If "nv->view()
+  // <= view()", it does not modify this and deletes "nv".  Otherwise, it adds
+  // "nv" to this and if "view()
   // != 0", it deletes any new-view and view-change messages stored
   // in this. Returns true iff it adds "nv" to this.
 
@@ -228,7 +229,7 @@ private:
 
   void choose_ckpt(int index);
   // Requires: "c = sum->ckpts[index]" has n_proofs and n_le greater
-  // than or equal to "node->num_correct_replicas()"
+  // than or equal to "pbft::GlobalState::get_node().num_correct_replicas()"
   // Effects: If "c" has a higher max_stable, than  sum->ckpts[chosen]
   // make it the new chosen checkpoint. Otherwise, do nothing.
 

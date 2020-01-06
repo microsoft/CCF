@@ -19,7 +19,7 @@ New_view::New_view(View v) : Message(New_view_tag, Max_message_size)
   rep().max = -1;
 
   // Initialize vc_info
-  for (int i = 0; i < node->num_of_replicas(); i++)
+  for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
   {
     vc_info()[i].d.zero();
   }
@@ -27,7 +27,7 @@ New_view::New_view(View v) : Message(New_view_tag, Max_message_size)
 
 void New_view::add_view_change(int id, Digest& d)
 {
-  PBFT_ASSERT(node->is_replica(id), "Not a replica");
+  PBFT_ASSERT(pbft::GlobalState::get_node().is_replica(id), "Not a replica");
   PBFT_ASSERT(vc_info()[id].d == Digest(), "Duplicate");
 
   VC_info& vci = vc_info()[id];
@@ -50,7 +50,7 @@ void New_view::set_max(Seqno max)
 void New_view::pick(int id, Seqno n)
 {
   PBFT_ASSERT(min() >= 0, "Invalid state");
-  PBFT_ASSERT(node->is_replica(id), "Not a replica");
+  PBFT_ASSERT(pbft::GlobalState::get_node().is_replica(id), "Not a replica");
   PBFT_ASSERT(vc_info()[id].d != Digest(), "Invalid argument");
   PBFT_ASSERT(n >= min() && n <= min() + max_out, "Invalid argument");
 
@@ -59,7 +59,7 @@ void New_view::pick(int id, Seqno n)
 
 bool New_view::view_change(int id, Digest& d)
 {
-  if (id < 0 || id >= node->num_of_replicas())
+  if (id < 0 || id >= pbft::GlobalState::get_node().num_of_replicas())
   {
     return false;
   }
@@ -89,16 +89,20 @@ bool New_view::pre_verify()
   for (Seqno i = min(); i < max(); i++)
   {
     int vci = picked()[i - min()];
-    if (!node->is_replica(vci) || vc_info()[vci].d.is_zero())
+    if (
+      !pbft::GlobalState::get_node().is_replica(vci) ||
+      vc_info()[vci].d.is_zero())
     {
       return false;
     }
   }
 
   int old_size = sizeof(New_view_rep) +
-    sizeof(VC_info) * node->num_of_replicas() + max() - min();
+    sizeof(VC_info) * pbft::GlobalState::get_node().num_of_replicas() + max() -
+    min();
 
-  if (Max_message_size - old_size < node->sig_size(id()))
+  if (
+    Max_message_size - old_size < pbft::GlobalState::get_node().sig_size(id()))
   {
     return false;
   }

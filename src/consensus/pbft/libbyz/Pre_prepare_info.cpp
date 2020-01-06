@@ -19,7 +19,7 @@ void Pre_prepare_info::add(Pre_prepare* p)
   pp = p;
   mreqs = p->num_big_reqs();
   mrmap.reset();
-  Big_req_table* brt = replica->big_reqs();
+  Big_req_table* brt = pbft::GlobalState::get_replica().big_reqs();
 
   for (int i = 0; i < p->num_big_reqs(); i++)
   {
@@ -94,7 +94,8 @@ bool Pre_prepare_info::BRS_iter::get(Request*& r)
   {
     if (!mrmap.test(next) & ppi->mrmap.test(next))
     {
-      r = replica->big_reqs()->lookup(pp->big_req_digest(next));
+      r = pbft::GlobalState::get_replica().big_reqs()->lookup(
+        pp->big_req_digest(next));
       PBFT_ASSERT(r != 0, "Invalid state");
       next++;
       return true;
