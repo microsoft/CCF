@@ -78,16 +78,15 @@ namespace ccf
 
       struct NetworkInfo
       {
-        LedgerSecret network_secrets;
+        LedgerSecret ledger_secrets;
         int64_t version; // Current version of the network secrets
 
-        NetworkIdentity network_identity;
+        NetworkIdentity identity;
 
         bool operator==(const NetworkInfo& other) const
         {
-          return network_secrets == other.network_secrets &&
-            version == other.version &&
-            network_identity == other.network_identity;
+          return ledger_secrets == other.ledger_secrets &&
+            version == other.version && identity == other.identity;
         }
 
         bool operator!=(const NetworkInfo& other) const

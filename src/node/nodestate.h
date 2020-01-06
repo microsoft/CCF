@@ -458,7 +458,7 @@ namespace ccf
             bool public_only = (resp->network_info.version != 0);
 
             network.identity = std::make_unique<NetworkIdentity>(
-              resp->network_info.network_identity);
+              resp->network_info.identity);
 
             LOG_INFO_FMT(
               "Joining at version {}, public_only: {}",
@@ -468,7 +468,7 @@ namespace ccf
             // In a private network, seal secrets immediately.
             network.secrets = std::make_unique<LedgerSecrets>(
               resp->network_info.version,
-              resp->network_info.network_secrets,
+              resp->network_info.ledger_secrets,
               std::make_unique<Seal>(writer_factory),
               !public_only);
 

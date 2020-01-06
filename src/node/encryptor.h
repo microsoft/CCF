@@ -92,7 +92,7 @@ namespace ccf
       for (auto const& ns_ : ns.get_secrets())
       {
         encryption_keys.emplace_back(
-          std::make_pair(ns_.first, ns_.second->ledger_master));
+          std::make_pair(ns_.first, ns_.second->master));
       }
     }
 

@@ -20,20 +20,19 @@ namespace ccf
       const std::vector<uint8_t>& data) = 0;
   };
 
-  // Updated at re-keying and recovery
   struct LedgerSecret
   {
-    std::vector<uint8_t> ledger_master; // Referred to as "sd" in TR
+    std::vector<uint8_t> master; // Referred to as "sd" in TR
 
     bool operator==(const LedgerSecret& other) const
     {
-      return ledger_master == other.ledger_master;
+      return master == other.master;
     }
 
     LedgerSecret() {}
 
     LedgerSecret(const std::vector<uint8_t>& ledger_master_) :
-      ledger_master(ledger_master_)
+      master(ledger_master_)
     {}
   };
 
@@ -52,7 +51,7 @@ namespace ccf
     {
       if (seal && force_seal)
       {
-        if (!seal->seal(v, secret->ledger_master))
+        if (!seal->seal(v, secret->master))
         {
           throw std::logic_error(
             "Ledger secret could not be sealed: " + std::to_string(v));
@@ -109,7 +108,6 @@ namespace ccf
     }
 
     // Called when sealed secrets need to be stored during recovery
-    // TODO: This should not take a JSON object! :(
     std::vector<kv::Version> restore(const nlohmann::json& sealed_secrets)
     {
       std::vector<kv::Version> restored_versions;
@@ -188,7 +186,7 @@ namespace ccf
 
       for (auto const& ns_ : secrets_map)
       {
-        if (!seal->seal(ns_.first, ns_.second->ledger_master))
+        if (!seal->seal(ns_.first, ns_.second->master))
         {
           throw std::logic_error(
             "Network Secrets could not be sealed: " +
@@ -213,7 +211,7 @@ namespace ccf
         return {};
       }
 
-      return search->second->ledger_master;
+      return search->second->master;
     }
 
     std::map<kv::Version, std::unique_ptr<LedgerSecret>>& get_secrets()
