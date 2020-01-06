@@ -21,6 +21,7 @@ namespace ccf
       const std::vector<uint8_t>& data) = 0;
   };
 
+  // TODO: Rename this
   class NetworkSecrets
   {
     // Map of secrets that are valid from a specific version to the version of
@@ -34,15 +35,12 @@ namespace ccf
     void add_secret(
       kv::Version v, std::unique_ptr<Secret>&& secret, bool force_seal)
     {
-      // Seal new secrets
       if (seal && force_seal)
       {
-        // Serialise cert, priv_key and master
-        auto serialised_secret = secret->serialise();
-        if (!seal->seal(v, serialised_secret))
+        if (!seal->seal(v, secret->ledger_master))
         {
           throw std::logic_error(
-            "Network Secrets could not be sealed: " + std::to_string(v));
+            "Ledger secret could not be sealed: " + std::to_string(v));
         }
       }
 
@@ -52,23 +50,17 @@ namespace ccf
     }
 
   public:
-    NetworkSecrets() {}
+    // NetworkSecrets() {}
 
     // Called on startup to generate fresh network secrets
     NetworkSecrets(
-      const std::string& name,
-      std::unique_ptr<AbstractSeal> seal_ = nullptr,
-      bool force_seal = true) :
+      std::unique_ptr<AbstractSeal> seal_ = nullptr, bool force_seal = true) :
       seal(std::move(seal_))
     {
-      // Generate fresh network secrets
-      auto keys = tls::make_key_pair();
-      auto new_secret = std::make_unique<Secret>();
-      new_secret->cert = keys->self_sign(name);
-      const auto key_pem = keys->private_key_pem();
-      new_secret->priv_key =
-        std::vector<uint8_t>(key_pem.data(), key_pem.data() + key_pem.size());
-      new_secret->master = tls::create_entropy()->random(16);
+      // Generate fresh ledger encryption key
+      // TODO: Should the random be moved to secret.h?
+      auto new_secret =
+        std::make_unique<Secret>(tls::create_entropy()->random(16));
 
       add_secret(0, std::move(new_secret), force_seal);
     }
@@ -97,14 +89,14 @@ namespace ccf
         return false;
       }
 
-      auto new_secret = std::make_unique<Secret>();
-      new_secret->deserialise(serialised_secret);
+      auto new_secret = std::make_unique<Secret>(serialised_secret);
       add_secret(v, std::move(new_secret), false);
 
       return true;
     }
 
     // Called when sealed secrets need to be stored during recovery
+    // TODO: This should not take a JSON object! :(
     std::vector<kv::Version> restore(const nlohmann::json& sealed_secrets)
     {
       std::vector<kv::Version> restored_versions;
@@ -116,20 +108,23 @@ namespace ccf
         // Make sure that the secret to store does not already exist
         auto search = secrets_map.find(v);
         if (search != secrets_map.end())
+        {
           throw std::logic_error(
             "Cannot restore secrets that already exist: " + std::to_string(v));
+        }
 
         // Unseal each sealed data
         auto serialised_secrets = seal->unseal(it.value());
         if (!serialised_secrets.has_value())
+        {
           throw std::logic_error(
             "Secrets could not be unsealed : " + std::to_string(v));
+        }
 
         LOG_DEBUG_FMT("Secrets successfully unsealed at version {}", it.key());
 
         // Deserialise network secrets
-        auto new_secret = std::make_unique<Secret>();
-        new_secret->deserialise(serialised_secrets.value());
+        auto new_secret = std::make_unique<Secret>(serialised_secrets.value());
         add_secret(v, std::move(new_secret), false);
 
         restored_versions.push_back(v);
@@ -143,7 +138,9 @@ namespace ccf
     bool promote_secrets(kv::Version old_v, kv::Version new_v)
     {
       if (old_v == new_v)
+      {
         return true;
+      }
 
       auto search = secrets_map.find(new_v);
       if (search != secrets_map.end())
@@ -171,13 +168,14 @@ namespace ccf
     bool seal_all()
     {
       if (!seal)
+      {
+        // TODO: Throw an exception?
         return false;
+      }
 
       for (auto const& ns_ : secrets_map)
       {
-        // Serialise cert, priv_key and master
-        auto serialised_secret = ns_.second->serialise();
-        if (!seal->seal(ns_.first, serialised_secret))
+        if (!seal->seal(ns_.first, ns_.second->ledger_master))
         {
           throw std::logic_error(
             "Network Secrets could not be sealed: " +
@@ -202,7 +200,7 @@ namespace ccf
         return {};
       }
 
-      return search->second->serialise();
+      return search->second->ledger_master;
     }
 
     std::map<kv::Version, std::unique_ptr<Secret>>& get_secrets()

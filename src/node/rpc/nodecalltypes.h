@@ -80,10 +80,13 @@ namespace ccf
         Secret network_secrets;
         int64_t version; // Current version of the network secrets
 
+        NetworkIdentity network_identity;
+
         bool operator==(const NetworkInfo& other) const
         {
           return network_secrets == other.network_secrets &&
-            version == other.version;
+            version == other.version &&
+            network_identity = other.network_identity;
         }
 
         bool operator!=(const NetworkInfo& other) const

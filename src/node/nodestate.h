@@ -327,8 +327,10 @@ namespace ccf
       {
         case StartType::New:
         {
+          network.identity =
+            std::make_unique<NetworkIdentity>("CN=CCF Network");
           network.secrets = std::make_unique<NetworkSecrets>(
-            "CN=CCF Network", std::make_unique<Seal>(writer_factory));
+            std::make_unique<Seal>(writer_factory));
 
           self = 0; // The first node id is always 0
 
@@ -358,7 +360,7 @@ namespace ccf
           sm.advance(State::partOfNetwork);
 
           return Success<CreateNew::Out>(
-            {node_cert, quote, network.secrets->get_current().cert});
+            {node_cert, quote, network.identity->cert});
         }
         case StartType::Join:
         {
@@ -378,9 +380,12 @@ namespace ccf
         {
           node_info_network = args.config.node_info_network;
 
+          network.identity =
+            std::make_unique<NetworkIdentity>("CN=CCF Network");
           // Create temporary network secrets but do not seal yet
           network.secrets = std::make_unique<NetworkSecrets>(
-            "CN=CCF Network", std::make_unique<Seal>(writer_factory), false);
+            std::make_unique<Seal>(writer_factory), false);
+
           setup_history();
           setup_encryptor();
 
@@ -393,7 +398,7 @@ namespace ccf
           sm.advance(State::readingPublicLedger);
 
           return Success<CreateNew::Out>(
-            {node_cert, quote, network.secrets->get_current().cert});
+            {node_cert, quote, network.identity->cert});
         }
         default:
         {
@@ -408,9 +413,10 @@ namespace ccf
     //
     void initiate_join(const Join::In& args)
     {
-      auto tls_ca = std::make_shared<tls::CA>(args.config.joining.network_cert);
+      auto network_ca =
+        std::make_shared<tls::CA>(args.config.joining.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
-        tls_ca, node_cert, node_kp->private_key_pem());
+        network_ca, node_cert, node_kp->private_key_pem());
 
       // Create RPC client and connect to remote node
       auto join_client =
@@ -445,6 +451,9 @@ namespace ccf
             // If the current network secrets do not apply since the genesis,
             // the joining node can only join the public network
             bool public_only = (resp->network_info.version != 0);
+
+            network.identity = std::make_unique<NetworkIdentity>(
+              resp->network_info.network_identity);
 
             // In a private network, seal secrets immediately.
             network.secrets = std::make_unique<NetworkSecrets>(
