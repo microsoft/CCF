@@ -70,7 +70,7 @@ TEST_CASE("Add a node to an opening service")
   StubNodeState node;
   NodeRpcFrontend frontend(network, node);
 
-  network.secrets = std::make_unique<NetworkSecrets>("CN=The CA");
+  network.secrets = std::make_unique<LedgerSecrets>("CN=The CA");
 
   // Node certificate
   tls::KeyPairPtr kp = tls::make_key_pair();
@@ -157,7 +157,7 @@ TEST_CASE("Add a node to an open service")
   StubNodeState node;
   NodeRpcFrontend frontend(network, node);
 
-  network.secrets = std::make_unique<NetworkSecrets>("CN=The CA");
+  network.secrets = std::make_unique<LedgerSecrets>("CN=The CA");
 
   gen.create_service({});
   gen.open_service();

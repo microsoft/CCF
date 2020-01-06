@@ -2,11 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
-#include "../encryptor.h"
-
 #include "../../kv/kvtypes.h"
+#include "../encryptor.h"
 #include "../entities.h"
-#include "../node/networksecrets.h"
+#include "../node/ledgersecrets.h"
 
 #include <doctest/doctest.h>
 #include <random>
@@ -18,7 +17,7 @@ TEST_CASE("Simple encryption/decryption")
 {
   // Setting 1 NetworkSecret, valid for version 0+
   uint64_t node_id = 0;
-  auto secrets = ccf::NetworkSecrets();
+  auto secrets = ccf::LedgerSecrets();
   auto encryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -41,7 +40,7 @@ TEST_CASE("Simple encryption/decryption")
 TEST_CASE("Two ciphers from same plaintext are different")
 {
   uint64_t node_id = 0;
-  auto secrets = ccf::NetworkSecrets();
+  auto secrets = ccf::LedgerSecrets();
 
   auto encryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
 
@@ -67,7 +66,7 @@ TEST_CASE("Additional data")
 {
   // Setting 1 NetworkSecret, valid for version 0+
   uint64_t node_id = 0;
-  auto secrets = ccf::NetworkSecrets();
+  auto secrets = ccf::LedgerSecrets();
   auto encryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -101,9 +100,9 @@ TEST_CASE("Encryption/decryption with multiple network secrets")
   // Setting 2 Network Secrets, valid from version 0 and 4
   uint64_t node_id = 0;
   auto secrets =
-    ccf::NetworkSecrets(); // Create default secrets valid from version 0
+    ccf::LedgerSecrets(); // Create default secrets valid from version 0
   auto new_secret =
-    std::make_unique<ccf::Secret>(std::vector<uint8_t>(16, 0x1));
+    std::make_unique<ccf::LedgerSecret>(std::vector<uint8_t>(16, 0x1));
   secrets.get_secrets().emplace(
     4, std::move(new_secret)); // Create new secrets valid from version 4
 

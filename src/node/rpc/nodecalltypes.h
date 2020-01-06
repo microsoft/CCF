@@ -3,8 +3,8 @@
 #pragma once
 #include "ds/json_schema.h"
 #include "node/identity.h"
+#include "node/ledgersecrets.h"
 #include "node/nodeinfonetwork.h"
-#include "node/secret.h"
 
 #include <nlohmann/json.hpp>
 
@@ -78,7 +78,7 @@ namespace ccf
 
       struct NetworkInfo
       {
-        Secret network_secrets;
+        LedgerSecret network_secrets;
         int64_t version; // Current version of the network secrets
 
         NetworkIdentity network_identity;

@@ -14,15 +14,15 @@ using namespace ccfapp;
 using namespace ccf;
 
 // Helper functions
-ccf::NetworkSecrets create_network_secrets()
+ccf::LedgerSecrets create_network_secrets()
 {
-  // Because the ccf::NetworkSecrets() calls tls::KeyPair with the
+  // Because the ccf::LedgerSecrets() calls tls::KeyPair with the
   // old curve (MBEDTLS_ECP_DP_SECP384R1) by default which makes tx.commit() run
   // a lot slower with legacy curves, we use a dummy encryption key for this
   // benchmarks
-  auto secrets = ccf::NetworkSecrets();
+  auto secrets = ccf::LedgerSecrets();
   auto new_secret =
-    std::make_unique<ccf::Secret>(std::vector<uint8_t>(16, 0x1));
+    std::make_unique<ccf::LedgerSecret>(std::vector<uint8_t>(16, 0x1));
   secrets.get_secrets().emplace(
     0, std::move(new_secret)); // Create new secrets valid from version 0
 

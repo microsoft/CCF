@@ -3,7 +3,7 @@
 #pragma once
 
 #include "identity.h"
-#include "networksecrets.h"
+#include "ledgersecrets.h"
 #include "networktables.h"
 
 namespace ccf
@@ -11,7 +11,7 @@ namespace ccf
   struct NetworkState : public NetworkTables
   {
     std::unique_ptr<NetworkIdentity> identity;
-    std::unique_ptr<NetworkSecrets> secrets;
+    std::unique_ptr<LedgerSecrets> secrets;
 
     NetworkState(const ConsensusType& consensus_type) :
       NetworkTables(consensus_type)

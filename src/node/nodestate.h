@@ -329,7 +329,7 @@ namespace ccf
         {
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
-          network.secrets = std::make_unique<NetworkSecrets>(
+          network.secrets = std::make_unique<LedgerSecrets>(
             std::make_unique<Seal>(writer_factory));
 
           self = 0; // The first node id is always 0
@@ -383,7 +383,7 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           // Create temporary network secrets but do not seal yet
-          network.secrets = std::make_unique<NetworkSecrets>(
+          network.secrets = std::make_unique<LedgerSecrets>(
             std::make_unique<Seal>(writer_factory), false);
 
           setup_history();
@@ -466,7 +466,7 @@ namespace ccf
               public_only);
 
             // In a private network, seal secrets immediately.
-            network.secrets = std::make_unique<NetworkSecrets>(
+            network.secrets = std::make_unique<LedgerSecrets>(
               resp->network_info.version,
               resp->network_info.network_secrets,
               std::make_unique<Seal>(writer_factory),
@@ -873,7 +873,7 @@ namespace ccf
           ccf::SerialisedNetworkSecrets ns;
           ns.node_id = nid;
 
-          auto serial = network.secrets->get_serialised_secret(ns_idx);
+          auto serial = network.secrets->get_secret(ns_idx);
           if (serial.has_value())
           {
             LOG_DEBUG_FMT(

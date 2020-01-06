@@ -3,7 +3,6 @@
 #pragma once
 
 #include "kv/kvtypes.h"
-#include "secret.h"
 #include "tls/keypair.h"
 
 #include <algorithm>
@@ -21,19 +20,35 @@ namespace ccf
       const std::vector<uint8_t>& data) = 0;
   };
 
-  // TODO: Rename this
-  class NetworkSecrets
+  // Updated at re-keying and recovery
+  struct LedgerSecret
+  {
+    std::vector<uint8_t> ledger_master; // Referred to as "sd" in TR
+
+    bool operator==(const LedgerSecret& other) const
+    {
+      return ledger_master == other.ledger_master;
+    }
+
+    LedgerSecret() {}
+
+    LedgerSecret(const std::vector<uint8_t>& ledger_master_) :
+      ledger_master(ledger_master_)
+    {}
+  };
+
+  class LedgerSecrets
   {
     // Map of secrets that are valid from a specific version to the version of
     // the next entry in the map. The last entry in the map is valid for all
     // subsequent versions.
-    std::map<kv::Version, std::unique_ptr<Secret>> secrets_map;
+    std::map<kv::Version, std::unique_ptr<LedgerSecret>> secrets_map;
 
     std::unique_ptr<AbstractSeal> seal;
     kv::Version current_version = 0;
 
     void add_secret(
-      kv::Version v, std::unique_ptr<Secret>&& secret, bool force_seal)
+      kv::Version v, std::unique_ptr<LedgerSecret>&& secret, bool force_seal)
     {
       if (seal && force_seal)
       {
@@ -51,28 +66,28 @@ namespace ccf
 
   public:
     // Called on startup to generate fresh network secrets
-    NetworkSecrets(
+    LedgerSecrets(
       std::unique_ptr<AbstractSeal> seal_ = nullptr, bool force_seal = true) :
       seal(std::move(seal_))
     {
       // Generate fresh ledger encryption key
       // TODO: Should the random be moved to secret.h?
       auto new_secret =
-        std::make_unique<Secret>(tls::create_entropy()->random(16));
+        std::make_unique<LedgerSecret>(tls::create_entropy()->random(16));
 
       add_secret(0, std::move(new_secret), force_seal);
     }
 
     // Called when a node joins the network and get given the current network
     // secrets
-    NetworkSecrets(
+    LedgerSecrets(
       kv::Version v,
-      Secret& secret,
+      LedgerSecret& secret,
       std::unique_ptr<AbstractSeal> seal_ = nullptr,
       bool force_seal = true) :
       seal(std::move(seal_))
     {
-      auto new_secret = std::make_unique<Secret>(secret);
+      auto new_secret = std::make_unique<LedgerSecret>(secret);
       add_secret(v, std::move(new_secret), force_seal);
     }
 
@@ -87,7 +102,7 @@ namespace ccf
         return false;
       }
 
-      auto new_secret = std::make_unique<Secret>(serialised_secret);
+      auto new_secret = std::make_unique<LedgerSecret>(serialised_secret);
       add_secret(v, std::move(new_secret), false);
 
       return true;
@@ -122,7 +137,8 @@ namespace ccf
         LOG_DEBUG_FMT("Secrets successfully unsealed at version {}", it.key());
 
         // Deserialise network secrets
-        auto new_secret = std::make_unique<Secret>(serialised_secrets.value());
+        auto new_secret =
+          std::make_unique<LedgerSecret>(serialised_secrets.value());
         add_secret(v, std::move(new_secret), false);
 
         restored_versions.push_back(v);
@@ -167,8 +183,7 @@ namespace ccf
     {
       if (!seal)
       {
-        // TODO: Throw an exception?
-        return false;
+        throw std::logic_error("No seal set to seal ledger secrets");
       }
 
       for (auto const& ns_ : secrets_map)
@@ -184,24 +199,24 @@ namespace ccf
       return true;
     }
 
-    const Secret& get_current()
+    const LedgerSecret& get_current()
     {
       return *secrets_map.at(current_version).get();
     }
 
-    std::optional<std::vector<uint8_t>> get_serialised_secret(kv::Version v)
+    std::optional<std::vector<uint8_t>> get_secret(kv::Version v)
     {
       auto search = secrets_map.find(v);
       if (search == secrets_map.end())
       {
-        LOG_FAIL_FMT("get_serialised_secret() {} does not exist", v);
+        LOG_FAIL_FMT("Ledger secret at {} does not exist", v);
         return {};
       }
 
       return search->second->ledger_master;
     }
 
-    std::map<kv::Version, std::unique_ptr<Secret>>& get_secrets()
+    std::map<kv::Version, std::unique_ptr<LedgerSecret>>& get_secrets()
     {
       return secrets_map;
     }

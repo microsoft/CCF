@@ -5,7 +5,7 @@
 #include "crypto/symmkey.h"
 #include "entities.h"
 #include "kv/kvtypes.h"
-#include "node/networksecrets.h"
+#include "node/ledgersecrets.h"
 
 #include <atomic>
 
@@ -86,7 +86,7 @@ namespace ccf
     }
 
   public:
-    TxEncryptor(NodeId id_, NetworkSecrets& ns) : id(id_)
+    TxEncryptor(NodeId id_, LedgerSecrets& ns) : id(id_)
     {
       // Create map of existing encryption keys
       for (auto const& ns_ : ns.get_secrets())
