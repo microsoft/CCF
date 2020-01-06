@@ -133,8 +133,6 @@ TEST_CASE("Test Ledger Replay")
     auto write_pbft_store =
       std::make_unique<pbft::Adaptor<ccf::Store>>(write_store);
 
-    LedgerWriter ledger_writer(*write_pbft_store, write_pbft_pre_prepares_map);
-
     int mem_size = 400 * 8192;
     std::vector<char> service_mem(mem_size, 0);
     ExecutionMock exec_mock(0);
@@ -176,24 +174,8 @@ TEST_CASE("Test Ledger Replay")
 
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
-      rqueue.append(request);
-      size_t num_requests = 1;
-      auto pp = std::make_unique<Pre_prepare>(1, i, rqueue, num_requests);
-
-      // imitate exec command
-      ByzInfo info;
-      info.ctx = fr->ctx;
-      info.full_state_merkle_root.fill(0);
-      info.replicated_state_merkle_root.fill(0);
-      info.full_state_merkle_root.data()[0] = fr->rt;
-      info.replicated_state_merkle_root.data()[0] = fr->rt;
-
-      pp->set_merkle_roots_and_ctx(
-        info.full_state_merkle_root,
-        info.replicated_state_merkle_root,
-        info.ctx);
-
-      ledger_writer.write_pre_prepare(pp.get());
+      // replica handle request (creates and writes pre prepare to ledger)
+      pbft::GlobalState::get_replica().handle(request);
     }
     // remove the requests that were not processed, only written to the ledger
     pbft::GlobalState::get_replica().big_reqs()->clear();
