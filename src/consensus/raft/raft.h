@@ -707,8 +707,18 @@ namespace raft
       if (state != Leader)
         return;
 
-      auto r = channels->template recv_authenticated<AppendEntriesResponse>(
-        data, size);
+      AppendEntriesResponse r;
+
+      try
+      {
+        r = channels->template recv_authenticated<AppendEntriesResponse>(
+          data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT(err.what());
+        return;
+      }
 
       auto node = nodes.find(r.from_node);
       if (node == nodes.end())
@@ -790,7 +800,17 @@ namespace raft
 
     void recv_request_vote(const uint8_t* data, size_t size)
     {
-      auto r = channels->template recv_authenticated<RequestVote>(data, size);
+      RequestVote r;
+
+      try
+      {
+        r = channels->template recv_authenticated<RequestVote>(data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT(err.what());
+        return;
+      }
 
       // Ignore if we don't recognise the node.
       auto node = nodes.find(r.from_node);
@@ -879,8 +899,18 @@ namespace raft
         return;
       }
 
-      auto r =
-        channels->template recv_authenticated<RequestVoteResponse>(data, size);
+      RequestVoteResponse r;
+
+      try
+      {
+        r = channels->template recv_authenticated<RequestVoteResponse>(
+          data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT(err.what());
+        return;
+      }
 
       // Ignore if we don't recognise the node.
       auto node = nodes.find(r.from_node);

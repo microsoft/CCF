@@ -11,7 +11,7 @@ using namespace ccf;
 TEST_CASE("Client/Server key exchange")
 {
   Channel channel1, channel2;
-  SeqNo iv_seq1 = 0;
+  SeqNo iv_seq1 = 1;
 
   INFO("Trying to tag/verify before channel establishment");
   {
@@ -44,7 +44,7 @@ TEST_CASE("Client/Server key exchange")
     ccf::GcmHdr hdr;
 
     channel1.tag(hdr, msg);
-    REQUIRE(*reinterpret_cast<const uint64_t*>(hdr.getIv().p) == iv_seq1++);
+    REQUIRE(*reinterpret_cast<const uint64_t*>(hdr.get_iv().p) == iv_seq1++);
     REQUIRE(channel2.verify(hdr, msg));
   }
 
@@ -63,7 +63,7 @@ TEST_CASE("Client/Server key exchange")
     ccf::GcmHdr hdr;
 
     channel1.tag(hdr, msg);
-    REQUIRE(*reinterpret_cast<const uint64_t*>(hdr.getIv().p) == iv_seq1++);
+    REQUIRE(*reinterpret_cast<const uint64_t*>(hdr.get_iv().p) == iv_seq1++);
     msg[50] = 0xFF;
     REQUIRE_FALSE(channel2.verify(hdr, msg));
   }
@@ -74,7 +74,7 @@ TEST_CASE("Client/Server key exchange")
     ccf::GcmHdr hdr;
 
     channel1.tag(hdr, msg);
-    REQUIRE(*reinterpret_cast<const uint64_t*>(hdr.getIv().p) == iv_seq1++);
+    REQUIRE(*reinterpret_cast<const uint64_t*>(hdr.get_iv().p) == iv_seq1++);
     hdr.iv[4] = hdr.iv[4] + 1;
     REQUIRE_FALSE(channel2.verify(hdr, msg));
   }
@@ -87,7 +87,7 @@ TEST_CASE("Client/Server key exchange")
     ccf::GcmHdr hdr;
 
     channel1.encrypt(hdr, {}, plain, cipher);
-    REQUIRE(*reinterpret_cast<const uint64_t*>(hdr.getIv().p) == iv_seq1++);
+    REQUIRE(*reinterpret_cast<const uint64_t*>(hdr.get_iv().p) == iv_seq1++);
     REQUIRE(channel2.decrypt(hdr, {}, cipher, decrypted));
     REQUIRE(plain == decrypted);
   }
@@ -102,6 +102,64 @@ TEST_CASE("Client/Server key exchange")
     channel2.encrypt(hdr, {}, plain, cipher);
     REQUIRE(channel1.decrypt(hdr, {}, cipher, decrypted));
     REQUIRE(plain == decrypted);
+  }
+}
+
+TEST_CASE("Replay and out-of-order")
+{
+  Channel channel1, channel2;
+
+  INFO("Compute shared secret");
+  {
+    channel1.load_peer_public(
+      channel2.get_public().value().data(),
+      channel2.get_public().value().size());
+    channel2.load_peer_public(
+      channel1.get_public().value().data(),
+      channel1.get_public().value().size());
+    channel1.establish();
+    channel2.establish();
+  }
+
+  std::vector<uint8_t> msg(128, 0x42);
+  ccf::GcmHdr hdr;
+
+  INFO("First message");
+  {
+    channel1.tag(hdr, msg);
+    REQUIRE(channel2.verify(hdr, msg));
+  }
+
+  INFO("Replay message");
+  {
+    REQUIRE_FALSE(channel2.verify(hdr, msg));
+  }
+
+  INFO("Skip some messages and replay");
+  {
+    ccf::GcmHdr hdr2;
+    channel1.tag(hdr2, msg);
+    channel1.tag(hdr2, msg);
+    channel1.tag(hdr2, msg);
+
+    REQUIRE(channel2.verify(hdr2, msg));
+    REQUIRE_FALSE(channel2.verify(hdr, msg));
+  }
+
+  INFO("Replay and skip encrypted messages");
+  {
+    std::vector<uint8_t> cipher(128);
+    std::vector<uint8_t> decrypted(128);
+
+    channel1.encrypt(hdr, {}, msg, cipher);
+    REQUIRE(channel2.decrypt(hdr, {}, cipher, decrypted));
+    REQUIRE_FALSE(channel2.decrypt(hdr, {}, cipher, decrypted));
+
+    channel1.encrypt(hdr, {}, msg, cipher);
+    channel1.encrypt(hdr, {}, msg, cipher);
+
+    REQUIRE(channel2.decrypt(hdr, {}, cipher, decrypted));
+    REQUIRE_FALSE(channel2.decrypt(hdr, {}, cipher, decrypted));
   }
 }
 

@@ -25,10 +25,10 @@ TEST_CASE("ExtendedIv0")
   Buffer p{rawP, sizeof(rawP)};
   // test large IV
   GcmHeader<1234> h;
-  k.encrypt(h.getIv(), p, nullb, p.p, h.tag);
+  k.encrypt(h.get_iv(), p, nullb, p.p, h.tag);
 
   KeyAesGcm k2(getRawKey());
-  REQUIRE(k2.decrypt(h.getIv(), h.tag, p, nullb, p.p));
+  REQUIRE(k2.decrypt(h.get_iv(), h.tag, p, nullb, p.p));
 }
 
 TEST_CASE("SHA256 short consistency test")
