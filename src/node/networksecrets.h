@@ -50,8 +50,6 @@ namespace ccf
     }
 
   public:
-    // NetworkSecrets() {}
-
     // Called on startup to generate fresh network secrets
     NetworkSecrets(
       std::unique_ptr<AbstractSeal> seal_ = nullptr, bool force_seal = true) :
