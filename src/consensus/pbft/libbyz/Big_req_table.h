@@ -86,7 +86,7 @@ public:
 
 private:
   bool check_pcerts(BR_entry* bre);
-  // Requires: get_replica()->has_complete_new_view()
+  // Requires: pbft::GlobalState::get_replica().has_complete_new_view()
   // Effects: Returns true iff there is some pre-prepare in
   // bre->waiting that has f matching prepares in its prepared
   // certificate.

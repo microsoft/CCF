@@ -21,7 +21,7 @@ Meta_data_d::Meta_data_d(Request_id r, int l, size_t i, Seqno ls) :
   rep().ls = ls;
   rep().l = l;
   rep().i = i;
-  rep().id = get_replica()->id();
+  rep().id = pbft::GlobalState::get_replica().id();
 
   for (int k = 0; k < max_out / checkpoint_interval + 1; k++)
   {
@@ -76,8 +76,8 @@ bool Meta_data_d::verify()
 {
   // Meta-data must be sent by replicas.
   if (
-    !get_node()->is_replica(id()) || get_node()->id() == id() ||
-    last_stable() < 0)
+    !pbft::GlobalState::get_node().is_replica(id()) ||
+    pbft::GlobalState::get_node().id() == id() || last_stable() < 0)
   {
     return false;
   }
@@ -99,7 +99,8 @@ bool Meta_data_d::verify()
   }
 
   // Check principal exists
-  std::shared_ptr<Principal> p = get_node()->get_principal(id());
+  std::shared_ptr<Principal> p =
+    pbft::GlobalState::get_node().get_principal(id());
   if (p)
   {
     return true;

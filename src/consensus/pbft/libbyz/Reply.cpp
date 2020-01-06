@@ -143,7 +143,7 @@ void Reply::commit(Principal* p)
 bool Reply::pre_verify()
 {
   // Replies must be sent by replicas.
-  if (!get_node()->is_replica(id()))
+  if (!pbft::GlobalState::get_node().is_replica(id()))
   {
     return false;
   }
@@ -169,7 +169,8 @@ bool Reply::pre_verify()
   INCR_OP(reply_auth_ver);
   START_CC(reply_auth_ver_cycles);
 
-  std::shared_ptr<Principal> replica = get_node()->get_principal(rep().replica);
+  std::shared_ptr<Principal> replica =
+    pbft::GlobalState::get_node().get_principal(rep().replica);
   if (!replica)
   {
     return false;

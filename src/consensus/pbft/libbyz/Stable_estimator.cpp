@@ -47,8 +47,8 @@ bool Stable_estimator::add(Reply_stable* m, bool mine)
       val.lp = lp;
     }
 
-    const int nge = get_node()->f() + 1;
-    const int nle = 2 * get_node()->f() + 1;
+    const int nge = pbft::GlobalState::get_node().f() + 1;
+    const int nle = 2 * pbft::GlobalState::get_node().f() + 1;
     for (int i = 0; i < nv; i++)
     {
       if (i == id)
@@ -96,7 +96,7 @@ bool Stable_estimator::add(Reply_stable* m, bool mine)
 
 void Stable_estimator::mark_stale()
 {
-  for (int i = 0; i < get_node()->num_of_replicas(); i++)
+  for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
   {
     vals[i].clear();
   }
@@ -112,13 +112,16 @@ Seqno Stable_estimator::low_estimate()
 {
   Seqno lps[Max_num_replicas];
 
-  for (int i = 0; i < get_node()->num_of_replicas(); i++)
+  for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
   {
     lps[i] = vals[i].lp;
   }
 
-  Seqno mlp =
-    K_max(get_node()->f() + 1, lps, get_node()->num_of_replicas(), Seqno_max);
+  Seqno mlp = K_max(
+    pbft::GlobalState::get_node().f() + 1,
+    lps,
+    pbft::GlobalState::get_node().num_of_replicas(),
+    Seqno_max);
   return (mlp - max_out + checkpoint_interval - 2) / checkpoint_interval *
     checkpoint_interval;
 }

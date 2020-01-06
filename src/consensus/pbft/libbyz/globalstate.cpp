@@ -9,22 +9,36 @@
 #include "Node.h"
 #include "Replica.h"
 
-// Pointer to global replica object.
-std::unique_ptr<Replica> replica;
-std::unique_ptr<Client> client;
-Node* n;
-
-Replica* get_replica()
+namespace pbft
 {
-  return replica.get();
-}
+  std::unique_ptr<Replica> GlobalState::replica = nullptr;
+  std::unique_ptr<Client> GlobalState::client = nullptr;
 
-void set_node(Node* node)
-{
-  n = node;
-}
+  void GlobalState::set_replica(std::unique_ptr<Replica> r)
+  {
+    replica = std::move(r);
+  }
 
-Node* get_node()
-{
-  return n;
+  void GlobalState::set_client(std::unique_ptr<Client> c)
+  {
+    client = std::move(c);
+  }
+
+  Replica& GlobalState::get_replica()
+  {
+    return *replica.get();
+  }
+
+  Node& GlobalState::get_node()
+  {
+    if (replica)
+    {
+      return *(Node*)replica.get();
+    }
+    else if (client)
+    {
+      return *(Node*)client.get();
+    }
+    throw std::logic_error("Neither Replica nor Client have been initialized.");
+  }
 }

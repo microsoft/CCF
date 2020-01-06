@@ -126,7 +126,7 @@ View_change* NV_info::mark_stale(int id)
 
     clear();
 
-    if (ov > 0 && get_node()->primary(ov) == id)
+    if (ov > 0 && pbft::GlobalState::get_node().primary(ov) == id)
     {
       // The primary recreates its state to allow the construction of
       // a complete new-view for this view.
@@ -165,7 +165,7 @@ bool NV_info::add(New_view* m, View_info* parent)
   vi = parent;
 
   // Set vc_target.
-  for (int i = 0; i < get_node()->num_of_replicas(); i++)
+  for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
   {
     Digest vd;
     if (m->view_change(i, vd))
@@ -187,7 +187,8 @@ bool NV_info::can_add(View_change* m)
     return false;
   }
 
-  bool is_primary = get_node()->primary(v) == get_node()->id();
+  bool is_primary = pbft::GlobalState::get_node().primary(v) ==
+    pbft::GlobalState::get_node().id();
 
   if (!is_primary)
   {
@@ -208,7 +209,8 @@ void NV_info::add(std::unique_ptr<View_change> m)
   auto vc = vcs[vcid].vc.get();
   vc_cur++;
 
-  bool is_primary = get_node()->primary(v) == get_node()->id();
+  bool is_primary = pbft::GlobalState::get_node().primary(v) ==
+    pbft::GlobalState::get_node().id();
 #ifdef USE_PKEY_VIEW_CHANGES
   if (is_primary)
   {
@@ -216,7 +218,7 @@ void NV_info::add(std::unique_ptr<View_change> m)
     summarize(vc);
   }
 #else
-  if (is_primary && vcid == get_node()->id())
+  if (is_primary && vcid == pbft::GlobalState::get_node().id())
   {
     nv->add_view_change(vcid, vc->digest());
     summarize(vc);
@@ -230,8 +232,8 @@ void NV_info::add(std::unique_ptr<View_change> m)
     if (!check_new_view())
     {
       // Primary is faulty.
-      LOG_FAIL << "Primary " << get_node()->primary(v) << " is faulty"
-               << std::endl;
+      LOG_FAIL << "Primary " << pbft::GlobalState::get_node().primary(v)
+               << " is faulty" << std::endl;
     }
   }
 }
@@ -243,7 +245,8 @@ bool NV_info::add(View_change_ack* m)
   int vci = m->vc_id();
   int mid = m->id();
 
-  bool is_primary = get_node()->primary(v) == get_node()->id();
+  bool is_primary = pbft::GlobalState::get_node().primary(v) ==
+    pbft::GlobalState::get_node().id();
 
   if (is_complete)
   {
@@ -276,8 +279,10 @@ bool NV_info::add(View_change_ack* m)
     vcs[vci].ack_count++;
 
     if (
-      vcs[vci].ack_count == get_node()->num_correct_replicas() - 2 &&
-      get_node()->primary(v) == get_node()->id())
+      vcs[vci].ack_count ==
+        pbft::GlobalState::get_node().num_correct_replicas() - 2 &&
+      pbft::GlobalState::get_node().primary(v) ==
+        pbft::GlobalState::get_node().id())
     {
       // This view change has enough acks: add it to the new-view.
       auto vc = vcs[vci].vc.get();
@@ -344,8 +349,8 @@ void NV_info::summarize(View_change* vc)
     }
 
     if (
-      cur.n_proofs >= get_node()->f() + 1 &&
-      cur.n_le >= get_node()->num_correct_replicas())
+      cur.n_proofs >= pbft::GlobalState::get_node().f() + 1 &&
+      cur.n_le >= pbft::GlobalState::get_node().num_correct_replicas())
     {
       choose_ckpt(i);
     }
@@ -365,7 +370,7 @@ void NV_info::summarize(View_change* vc)
 
     // Search view-changes in new-view for proofs
     Digest d;
-    for (int i = 0; i < get_node()->num_of_replicas(); i++)
+    for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
     {
       if (nv->view_change(i) && vcs[i].vc->ckpt(vcn, d) && d == vclc)
       {
@@ -376,8 +381,8 @@ void NV_info::summarize(View_change* vc)
     ckpts.push_back(ns);
 
     if (
-      ns.n_proofs >= get_node()->f() + 1 &&
-      ns.n_le >= get_node()->num_correct_replicas())
+      ns.n_proofs >= pbft::GlobalState::get_node().f() + 1 &&
+      ns.n_le >= pbft::GlobalState::get_node().num_correct_replicas())
     {
       choose_ckpt(ckpts.size() - 1);
     }
@@ -386,19 +391,22 @@ void NV_info::summarize(View_change* vc)
   if (was_chosen && !is_complete)
   {
     summarize_reqs(vc);
-    get_replica()->send_status();
+    pbft::GlobalState::get_replica().send_status();
   }
 }
 
 void NV_info::choose_ckpt(int index)
 {
-  PBFT_ASSERT(get_node()->primary(v) == get_node()->id(), "Invalid state");
+  PBFT_ASSERT(
+    pbft::GlobalState::get_node().primary(v) ==
+      pbft::GlobalState::get_node().id(),
+    "Invalid state");
   PBFT_ASSERT(index >= 0 && index < ckpts.size(), "Out of bounds");
 
   Ckpt_sum& cur = ckpts[index];
   PBFT_ASSERT(
-    cur.n_proofs >= get_node()->f() + 1 &&
-      cur.n_le >= get_node()->num_correct_replicas(),
+    cur.n_proofs >= pbft::GlobalState::get_node().f() + 1 &&
+      cur.n_le >= pbft::GlobalState::get_node().num_correct_replicas(),
     "Invalid argument");
 
   if (chosen_ckpt < 0)
@@ -417,7 +425,7 @@ void NV_info::choose_ckpt(int index)
     }
 
     // Summarize requests for all view-change messages in new-view.
-    for (int i = 0; i < get_node()->num_of_replicas(); i++)
+    for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
     {
       if (nv->view_change(i))
       {
@@ -460,8 +468,9 @@ void NV_info::check_comp(Req_sum& cur, Seqno i, int j)
   PBFT_ASSERT(!is_complete, "Invalid state");
 
   if (
-    comp_reqs[i - base] < 0 && cur.n_proofs >= get_node()->f() + 1 &&
-    cur.n_le >= get_node()->num_correct_replicas())
+    comp_reqs[i - base] < 0 &&
+    cur.n_proofs >= pbft::GlobalState::get_node().f() + 1 &&
+    cur.n_le >= pbft::GlobalState::get_node().num_correct_replicas())
   {
     if (!cur.pp_info.is_complete())
     {
@@ -473,21 +482,24 @@ void NV_info::check_comp(Req_sum& cur, Seqno i, int j)
         if (opp)
         {
           cur.pp_info.add(opp->clone(v));
-          cur.n_pproofs = get_node()->num_of_replicas();
+          cur.n_pproofs = pbft::GlobalState::get_node().num_of_replicas();
         }
       }
     }
 
-    if (cur.n_pproofs <= get_node()->f() && vi->prepare(i, cur.d))
+    if (
+      cur.n_pproofs <= pbft::GlobalState::get_node().f() &&
+      vi->prepare(i, cur.d))
     {
       // If node sent a prepare for this digest in the past, we do not
       // need more positive proofs.
-      cur.n_pproofs = get_node()->num_of_replicas();
+      cur.n_pproofs = pbft::GlobalState::get_node().num_of_replicas();
     }
 
     if (
       cur.v < 0 ||
-      (cur.pp_info.is_complete() && cur.n_pproofs > get_node()->f()))
+      (cur.pp_info.is_complete() &&
+       cur.n_pproofs > pbft::GlobalState::get_node().f()))
     {
       comp_reqs[i - base] = j;
       n_complete++;
@@ -503,7 +515,9 @@ void NV_info::check_comp(Req_sum& cur, Seqno i, int j)
   {
     is_complete = true;
 
-    if (get_replica()->primary(v) == get_replica()->id())
+    if (
+      pbft::GlobalState::get_replica().primary(v) ==
+      pbft::GlobalState::get_replica().id())
     {
       make_new_view();
     }
@@ -516,7 +530,7 @@ void NV_info::check_comp(Req_sum& cur, Seqno i, int j)
       vc->ckpt(n, d);
       PBFT_ASSERT(!d.is_zero(), "Invalid state");
       Seqno ks = known_stable();
-      get_replica()->process_new_view(n, d, nv->max(), ks);
+      pbft::GlobalState::get_replica().process_new_view(n, d, nv->max(), ks);
     }
   }
 }
@@ -525,18 +539,21 @@ Seqno NV_info::known_stable()
 {
   PBFT_ASSERT(is_complete, "Invalid state");
 
-  Seqno* maxs = new Seqno[get_node()->num_of_replicas()];
+  Seqno* maxs = new Seqno[pbft::GlobalState::get_node().num_of_replicas()];
 
-  for (int i = 0; i < get_node()->num_of_replicas(); i++)
+  for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
   {
     maxs[i] = (vcs[i].vc != 0) ? vcs[i].vc->last_stable() : 0;
   }
 
-  Seqno max_stable1 =
-    K_max(get_node()->f() + 1, maxs, get_node()->num_of_replicas(), Seqno_max);
+  Seqno max_stable1 = K_max(
+    pbft::GlobalState::get_node().f() + 1,
+    maxs,
+    pbft::GlobalState::get_node().num_of_replicas(),
+    Seqno_max);
   PBFT_ASSERT(max_stable1 <= min, "Invalid state");
 
-  for (int i = 0; i < get_node()->num_of_replicas(); i++)
+  for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
   {
     Digest d;
     Seqno n;
@@ -551,9 +568,9 @@ Seqno NV_info::known_stable()
   }
 
   Seqno max_stable2 = K_max(
-    get_node()->num_correct_replicas(),
+    pbft::GlobalState::get_node().num_correct_replicas(),
     maxs,
-    get_node()->num_of_replicas(),
+    pbft::GlobalState::get_node().num_of_replicas(),
     Seqno_max);
   // TODO: should compute min differently so that I pick the
   // checkpoint (regardless of whether it is claimed stable) with
@@ -673,7 +690,7 @@ void NV_info::summarize_reqs(View_change* vc)
       Req_sum& cur = reqsi.emplace_back(rv, rd, n_le + 1, vc->id(), 0, 0);
 
       // Search view-changes for proofs
-      for (int j = 0; j < get_node()->num_of_replicas(); j++)
+      for (int j = 0; j < pbft::GlobalState::get_node().num_of_replicas(); j++)
       {
         if (vcs[j].req_sum)
         {
@@ -692,7 +709,10 @@ void NV_info::summarize_reqs(View_change* vc)
 
 void NV_info::make_new_view()
 {
-  PBFT_ASSERT(get_node()->primary(v) == get_node()->id(), "Invalid state");
+  PBFT_ASSERT(
+    pbft::GlobalState::get_node().primary(v) ==
+      pbft::GlobalState::get_node().id(),
+    "Invalid state");
   PBFT_ASSERT(is_complete, "Invalid state");
   PBFT_ASSERT(nv_sent == zero_time(), "Invalid state");
 
@@ -717,12 +737,16 @@ void NV_info::make_new_view()
 
   // Update replica's state to reflect new-view.
   Seqno ks = known_stable();
-  get_replica()->process_new_view(min, ckpts[chosen_ckpt].d, nv->max(), ks);
+  pbft::GlobalState::get_replica().process_new_view(
+    min, ckpts[chosen_ckpt].d, nv->max(), ks);
 }
 
 bool NV_info::check_new_view()
 {
-  PBFT_ASSERT(get_node()->primary(v) != get_node()->id(), "Invalid state");
+  PBFT_ASSERT(
+    pbft::GlobalState::get_node().primary(v) !=
+      pbft::GlobalState::get_node().id(),
+    "Invalid state");
 
   // Check chosen checkpoint.
   int cid = nv->which_picked(nv->min());
@@ -745,7 +769,7 @@ bool NV_info::check_new_view()
 
   // Search view-changes for proofs
   Digest dd;
-  for (int i = 0; i < get_node()->num_of_replicas(); i++)
+  for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
   {
     if (i != cid && vcs[i].vc)
     {
@@ -761,7 +785,8 @@ bool NV_info::check_new_view()
   }
 
   if (
-    n_proofs < get_node()->f() + 1 || n_le < get_node()->num_correct_replicas())
+    n_proofs < pbft::GlobalState::get_node().f() + 1 ||
+    n_le < pbft::GlobalState::get_node().num_correct_replicas())
   {
     return false;
   }
@@ -773,7 +798,7 @@ bool NV_info::check_new_view()
   // propose any pre-prepared or prepared request with sequence number
   // greater than or equal to nv->max().
   int n_lt = 0;
-  for (int i = 0; i < get_node()->num_of_replicas(); i++)
+  for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
   {
     auto vc = vcs[i].vc.get();
     if (vc == 0)
@@ -787,7 +812,7 @@ bool NV_info::check_new_view()
     }
   }
 
-  if (n_lt < get_node()->num_correct_replicas())
+  if (n_lt < pbft::GlobalState::get_node().num_correct_replicas())
   {
     return false;
   }
@@ -799,7 +824,7 @@ bool NV_info::check_new_view()
   {
     is_complete = true;
     Seqno ks = known_stable();
-    get_replica()->process_new_view(min, d, nv->max(), ks);
+    pbft::GlobalState::get_replica().process_new_view(min, d, nv->max(), ks);
     return true;
   }
 
@@ -825,7 +850,7 @@ bool NV_info::check_new_view()
     View v = vc->req(i, d);
     Req_sum& cur = reqs[i - base].emplace_back(v, d, 0, vc->id(), 0, 0);
     // Search view-changes for proofs
-    for (int j = 0; j < get_node()->num_of_replicas(); j++)
+    for (int j = 0; j < pbft::GlobalState::get_node().num_of_replicas(); j++)
     {
       if (vcs[j].vc && i > vcs[j].vc->last_stable())
       {
@@ -839,8 +864,8 @@ bool NV_info::check_new_view()
     }
 
     if (
-      cur.n_proofs < get_node()->f() + 1 ||
-      cur.n_le < get_node()->num_correct_replicas())
+      cur.n_proofs < pbft::GlobalState::get_node().f() + 1 ||
+      cur.n_le < pbft::GlobalState::get_node().num_correct_replicas())
     {
       return false;
     }
@@ -880,7 +905,9 @@ Pre_prepare* NV_info::fetch_request(Seqno n, Digest& d)
     d = pp->digest();
   }
 
-  if (get_node()->primary(v) == get_node()->id())
+  if (
+    pbft::GlobalState::get_node().primary(v) ==
+    pbft::GlobalState::get_node().id())
   {
     pp->re_authenticate();
   }
@@ -890,11 +917,13 @@ Pre_prepare* NV_info::fetch_request(Seqno n, Digest& d)
 
 void NV_info::set_received_vcs(Status* m)
 {
-  if (get_node()->primary(v) != get_node()->id())
+  if (
+    pbft::GlobalState::get_node().primary(v) !=
+    pbft::GlobalState::get_node().id())
   {
     // Not primary.
     Digest d;
-    for (int i = 0; i < get_node()->num_of_replicas(); i++)
+    for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
     {
       if (vcs[i].vc || !nv->view_change(i, d))
       {
@@ -904,7 +933,7 @@ void NV_info::set_received_vcs(Status* m)
   }
   else
   {
-    for (int i = 0; i < get_node()->num_of_replicas(); i++)
+    for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
     {
       if (vcs[i].vc && nv->view_change(i))
       {
@@ -934,12 +963,13 @@ void NV_info::set_missing_pps(Status* m)
     {
       Req_sum& cur = reqsi[j];
       if (
-        cur.v >= 0 && cur.v < vpp && cur.n_proofs >= get_node()->f() + 1 &&
-        cur.n_le >= get_node()->num_correct_replicas())
+        cur.v >= 0 && cur.v < vpp &&
+        cur.n_proofs >= pbft::GlobalState::get_node().f() + 1 &&
+        cur.n_le >= pbft::GlobalState::get_node().num_correct_replicas())
       {
         vpp = cur.v;
 
-        if (cur.n_pproofs <= get_node()->f())
+        if (cur.n_pproofs <= pbft::GlobalState::get_node().f())
         {
           need_proofs = true;
         }
@@ -1019,7 +1049,9 @@ void NV_info::add_missing(Prepare* p)
 
       if (cur.d == p->digest())
       {
-        if (cur.n_pproofs <= get_node()->f() && !cur.r_pproofs.test(p->id()))
+        if (
+          cur.n_pproofs <= pbft::GlobalState::get_node().f() &&
+          !cur.r_pproofs.test(p->id()))
         {
           cur.n_pproofs++;
           PBFT_ASSERT(
@@ -1039,12 +1071,13 @@ void NV_info::mark_stable(Seqno ls)
 {
   if (
     v > 0 && !is_complete && chosen_ckpt >= 0 && ls >= max &&
-    get_node()->primary(v) != get_node()->id())
+    pbft::GlobalState::get_node().primary(v) !=
+      pbft::GlobalState::get_node().id())
   {
     // If I am not the primary, I can use the fact that ls is stable
     // to trim the number of pre-prepares I need proofs for.
     is_complete = true;
-    get_replica()->process_new_view(ls, Digest(), ls, ls);
+    pbft::GlobalState::get_replica().process_new_view(ls, Digest(), ls, ls);
   }
 }
 
@@ -1055,7 +1088,7 @@ void NV_info::dump_state(std::ostream& os)
      << " nv_sent: " << nv_sent << std::endl;
 
   os << " View changes vcs: " << std::endl;
-  for (int i = 0; i < get_node()->num_of_replicas(); i++)
+  for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
   {
     os << " i: " << i << " vc: " << (void*)vcs[i].vc.get()
        << " ack_count: " << vcs[i].ack_count << " ack_reps: " << vcs[i].ack_reps

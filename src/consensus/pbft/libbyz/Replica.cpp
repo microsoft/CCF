@@ -660,7 +660,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
         ledger_writer->write_pre_prepare(pp);
       }
 
-      if (get_node()->f() > 0)
+      if (pbft::GlobalState::get_node().f() > 0)
       {
         send(pp, All_replicas);
       }
@@ -1127,7 +1127,8 @@ void Replica::handle(Status* m)
     Time current;
     Time t_sent = 0;
     current = ITimer::current_time();
-    std::shared_ptr<Principal> p = get_node()->get_principal(m->id());
+    std::shared_ptr<Principal> p =
+      pbft::GlobalState::get_node().get_principal(m->id());
     if (!p)
     {
       return;
@@ -1554,7 +1555,7 @@ void Replica::handle(New_principal* m)
                      m->host_name(),
                      m->is_replica()};
 
-  get_node()->add_principal(info);
+  pbft::GlobalState::get_node().add_principal(info);
 }
 
 void Replica::handle(Network_open* m)
@@ -2869,24 +2870,27 @@ void Replica::start_vtimer_if_request_waiting()
 
 void Replica::vtimer_handler(void* owner)
 {
-  PBFT_ASSERT(get_replica(), "replica is not initialized\n");
-
-  if (!get_replica()->delay_vc() && get_replica()->f() > 0)
+  if (
+    !pbft::GlobalState::get_replica().delay_vc() &&
+    pbft::GlobalState::get_replica().f() > 0)
   {
-    if (get_replica()->rqueue.size() > 0)
+    if (pbft::GlobalState::get_replica().rqueue.size() > 0)
     {
-      LOG_INFO << "View change timer expired first rid: "
-               << get_replica()->rqueue.first()->request_id()
-               << ", digest:" << get_replica()->rqueue.first()->digest().hash()
-               << " first cid: " << get_replica()->rqueue.first()->client_id()
-               << std::endl;
+      LOG_INFO
+        << "View change timer expired first rid: "
+        << pbft::GlobalState::get_replica().rqueue.first()->request_id()
+        << ", digest:"
+        << pbft::GlobalState::get_replica().rqueue.first()->digest().hash()
+        << " first cid: "
+        << pbft::GlobalState::get_replica().rqueue.first()->client_id()
+        << std::endl;
     }
 
-    get_replica()->send_view_change();
+    pbft::GlobalState::get_replica().send_view_change();
   }
   else
   {
-    get_replica()->vtimer->restart();
+    pbft::GlobalState::get_replica().vtimer->restart();
   }
 }
 
@@ -2902,23 +2906,23 @@ void Replica::stimer_handler(void* owner)
 
 void Replica::btimer_handler(void* owner)
 {
-  PBFT_ASSERT(get_replica(), "replica is not initialized\n");
-  get_replica()->btimer->restop();
-  if (get_replica()->primary() == get_replica()->node_id)
+  pbft::GlobalState::get_replica().btimer->restop();
+  if (
+    pbft::GlobalState::get_replica().primary() ==
+    pbft::GlobalState::get_replica().node_id)
   {
     ++stats.count_pre_prepare_batch_timer;
-    get_replica()->send_pre_prepare(true);
+    pbft::GlobalState::get_replica().send_pre_prepare(true);
   }
 }
 
 void Replica::rec_timer_handler(void* owner)
 {
-  PBFT_ASSERT(get_replica(), "replica is not initialized\n");
   static int rec_count = 0;
 
-  get_replica()->rtimer->restart();
+  pbft::GlobalState::get_replica().rtimer->restart();
 
-  if (!get_replica()->rec_ready)
+  if (!pbft::GlobalState::get_replica().rec_ready)
   {
     // Replica is not ready to recover
     return;
@@ -2926,29 +2930,29 @@ void Replica::rec_timer_handler(void* owner)
 
 #ifdef RECOVERY
   if (
-    get_replica()->num_of_replicas() - 1 -
-      rec_count % get_replica()->num_of_replicas() ==
-    get_replica()->id())
+    pbft::GlobalState::get_replica().num_of_replicas() - 1 -
+      rec_count % pbft::GlobalState::get_replica().num_of_replicas() ==
+    pbft::GlobalState::get_replica().id())
   {
     // Start recovery:
     INIT_REC_STATS();
 
-    if (get_replica()->recovering)
+    if (pbft::GlobalState::get_replica().recovering)
     {
       INCR_OP(incomplete_recs);
       LOG_INFO << "* Starting recovery" << std::endl;
     }
 
     // Checkpoint
-    get_replica()->shutdown();
+    pbft::GlobalState::get_replica().shutdown();
 
-    get_replica()->state.simulate_reboot();
+    pbft::GlobalState::get_replica().state.simulate_reboot();
 
-    get_replica()->recover();
+    pbft::GlobalState::get_replica().recover();
   }
   else
   {
-    if (get_replica()->recovering)
+    if (pbft::GlobalState::get_replica().recovering)
     {
       INCR_OP(rec_overlaps);
     }

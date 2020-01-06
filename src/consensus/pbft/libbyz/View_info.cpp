@@ -100,7 +100,7 @@ void View_info::add_incomplete(Seqno n, Digest const& d)
     // Remember last f()+2 digests.
     View minv = View_max;
     int mini = 0;
-    for (int i = 0; i < get_node()->f() + 2; i++)
+    for (int i = 0; i < pbft::GlobalState::get_node().f() + 2; i++)
     {
       if (ri.ods[i].d == ri.d)
       {
@@ -132,17 +132,18 @@ void View_info::send_proofs(Seqno n, View vi, int dest)
   if (oplog.within_range(n))
   {
     OReq_info& ri = oplog.fetch(n);
-    std::shared_ptr<Principal> p = get_node()->get_principal(dest);
+    std::shared_ptr<Principal> p =
+      pbft::GlobalState::get_node().get_principal(dest);
     if (!p)
     {
       return;
     }
-    for (int i = 0; i < get_node()->f() + 2; i++)
+    for (int i = 0; i < pbft::GlobalState::get_node().f() + 2; i++)
     {
       if (ri.ods[i].v >= vi)
       {
         Prepare prep(ri.ods[i].v, n, ri.ods[i].d, p.get());
-        get_node()->send(&prep, dest);
+        pbft::GlobalState::get_node().send(&prep, dest);
       }
     }
   }
@@ -193,7 +194,7 @@ bool View_info::prepare(Seqno n, Digest& d)
       return true;
     }
 
-    for (int i = 0; i < get_node()->f() + 2; i++)
+    for (int i = 0; i < pbft::GlobalState::get_node().f() + 2; i++)
     {
       if (ri.ods[i].d == d)
       {
@@ -216,9 +217,9 @@ void View_info::discard_old_and_resize_if_needed()
       last_vcs[i] = 0;
     }
   }
-  if (last_vcs.size() != get_node()->num_of_replicas())
+  if (last_vcs.size() != pbft::GlobalState::get_node().num_of_replicas())
   {
-    last_vcs.resize(get_node()->num_of_replicas());
+    last_vcs.resize(pbft::GlobalState::get_node().num_of_replicas());
   }
 
   for (int i = 0; i < my_vacks.size(); i++)
@@ -226,9 +227,9 @@ void View_info::discard_old_and_resize_if_needed()
     delete my_vacks[i];
     my_vacks[i] = 0;
   }
-  if (my_vacks.size() != get_node()->num_of_replicas())
+  if (my_vacks.size() != pbft::GlobalState::get_node().num_of_replicas())
   {
-    my_vacks.resize(get_node()->num_of_replicas());
+    my_vacks.resize(pbft::GlobalState::get_node().num_of_replicas());
   }
 
   for (int i = 0; i < vacks.size(); i++)
@@ -239,10 +240,11 @@ void View_info::discard_old_and_resize_if_needed()
       vacks[i].v = v;
     }
   }
-  if (vacks.size() != get_node()->num_of_replicas())
+  if (vacks.size() != pbft::GlobalState::get_node().num_of_replicas())
   {
     vacks.resize(
-      get_node()->num_of_replicas(), VCA_info(get_node()->num_of_replicas()));
+      pbft::GlobalState::get_node().num_of_replicas(),
+      VCA_info(pbft::GlobalState::get_node().num_of_replicas()));
   }
 
   for (int i = 0; i < last_nvs.size(); i++)
@@ -252,9 +254,9 @@ void View_info::discard_old_and_resize_if_needed()
       last_nvs[i].clear();
     }
   }
-  if (last_nvs.size() != get_node()->num_of_replicas())
+  if (last_nvs.size() != pbft::GlobalState::get_node().num_of_replicas())
   {
-    last_nvs.resize(get_node()->num_of_replicas());
+    last_nvs.resize(pbft::GlobalState::get_node().num_of_replicas());
   }
 }
 
@@ -277,7 +279,7 @@ void View_info::view_change(View vi, Seqno last_executed, State* state)
     }
   }
 
-  Big_req_table* brt = get_replica()->big_reqs();
+  Big_req_table* brt = pbft::GlobalState::get_replica().big_reqs();
 
   // Add request information to the message.
   for (Seqno i = last_stable + 1; i <= last_stable + max_out; i++)
@@ -308,20 +310,20 @@ void View_info::view_change(View vi, Seqno last_executed, State* state)
   vc_sent = ITimer::current_time();
 
   LOG_INFO << "Sending view change view: " << vc->view() << std::endl;
-  get_node()->send(vc.get(), Node::All_replicas);
+  pbft::GlobalState::get_node().send(vc.get(), Node::All_replicas);
 
   // Record that this message was sent.
   vc->trim();
   last_vcs[id] = std::move(vc);
   last_views[id] = v;
 
-  int primv = get_node()->primary(v);
+  int primv = pbft::GlobalState::get_node().primary(v);
   if (primv != id)
   {
 #ifndef USE_PKEY_VIEW_CHANGES
     // If we are not the primary, send view-change acks for messages in
     // last_vcs with view v.
-    for (int i = 0; i < get_node()->num_of_replicas(); i++)
+    for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
     {
       auto lvc = last_vcs[i];
       if (lvc && lvc->view() == v && i != id && i != primv)
@@ -331,7 +333,7 @@ void View_info::view_change(View vi, Seqno last_executed, State* state)
 
         LOG_INFO << "Sending view change ack for " << vack->view() << " from "
                  << i << "\n";
-        get_node()->send(vack, primv);
+        pbft::GlobalState::get_node().send(vack, primv);
       }
     }
 #endif
@@ -359,12 +361,13 @@ void View_info::view_change(View vi, Seqno last_executed, State* state)
     }
 #ifndef USE_PKEY_VIEW_CHANGES
     // Move any view-change acks for messages in "n" to "n"
-    for (int i = 0; i < get_node()->num_of_replicas(); i++)
+    for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
     {
       VCA_info& vaci = vacks[i];
       if (vaci.v == v)
       {
-        for (int j = 0; j < get_node()->num_of_replicas(); j++)
+        for (int j = 0; j < pbft::GlobalState::get_node().num_of_replicas();
+             j++)
         {
           if (vaci.vacks[j] && n.add(vaci.vacks[j]))
             vaci.vacks[j] = 0;
@@ -386,7 +389,7 @@ bool View_info::add(std::unique_ptr<View_change> vc)
   }
 
   // Try to match vc with a new-view message.
-  NV_info& n = last_nvs[get_node()->primary(vcv)];
+  NV_info& n = last_nvs[pbft::GlobalState::get_node().primary(vcv)];
   bool stored = false;
   if (n.view() == vcv)
   {
@@ -398,10 +401,10 @@ bool View_info::add(std::unique_ptr<View_change> vc)
     }
 
 #ifndef USE_PKEY_VIEW_CHANGES
-    if (stored && id == get_node()->primary(v) && vcv == v)
+    if (stored && id == pbft::GlobalState::get_node().primary(v) && vcv == v)
     {
       // Try to add any buffered view-change acks that match vc to "n"
-      for (int i = 0; i < get_node()->num_of_replicas(); i++)
+      for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
       {
         VCA_info& vaci = vacks[i];
         if (vaci.v == v && vaci.vacks[vci] && n.add(vaci.vacks[vci]))
@@ -427,7 +430,7 @@ bool View_info::add(std::unique_ptr<View_change> vc)
       stored = true;
 
 #ifndef USE_PKEY_VIEW_CHANGES
-      int primv = get_node()->primary(v);
+      int primv = pbft::GlobalState::get_node().primary(v);
       if (id != primv && vci != primv && vcv == v)
       {
         // Send view-change ack.
@@ -437,7 +440,7 @@ bool View_info::add(std::unique_ptr<View_change> vc)
         PBFT_ASSERT(my_vacks[vci] == 0, "Invalid state");
 
         my_vacks[vci] = vack;
-        get_node()->send(vack, primv);
+        pbft::GlobalState::get_node().send(vack, primv);
       }
 #endif
     }
@@ -485,7 +488,7 @@ void View_info::add(View_change_ack* vca)
 
   if (vca->verify())
   {
-    int primvcv = get_node()->primary(vcv);
+    int primvcv = pbft::GlobalState::get_node().primary(vcv);
 
     NV_info& n = last_nvs[primvcv];
     if (n.view() == vcv && n.add(vca))
@@ -518,18 +521,21 @@ void View_info::add(View_change_ack* vca)
 inline View View_info::k_max(int k) const
 {
   return K_max<View>(
-    k, last_views.data(), get_node()->num_of_replicas(), View_max);
+    k,
+    last_views.data(),
+    pbft::GlobalState::get_node().num_of_replicas(),
+    View_max);
 }
 
 View View_info::max_view() const
 {
-  View ret = k_max(get_node()->f() + 1);
+  View ret = k_max(pbft::GlobalState::get_node().f() + 1);
   return ret;
 }
 
 View View_info::max_maj_view() const
 {
-  View ret = k_max(get_node()->num_correct_replicas());
+  View ret = k_max(pbft::GlobalState::get_node().num_correct_replicas());
   return ret;
 }
 
@@ -537,7 +543,7 @@ void View_info::set_received_vcs(Status* m)
 {
   PBFT_ASSERT(m->view() == v, "Invalid argument");
 
-  NV_info& nvi = last_nvs[get_node()->primary(v)];
+  NV_info& nvi = last_nvs[pbft::GlobalState::get_node().primary(v)];
   if (nvi.view() == v)
   {
     // There is a new-view message for the current view.
@@ -559,9 +565,9 @@ void View_info::set_missing_pps(Status* m)
 {
   PBFT_ASSERT(m->view() == view(), "Invalid argument");
 
-  if (last_nvs[get_node()->primary(view())].new_view())
+  if (last_nvs[pbft::GlobalState::get_node().primary(view())].new_view())
   {
-    last_nvs[get_node()->primary(view())].set_missing_pps(m);
+    last_nvs[pbft::GlobalState::get_node().primary(view())].set_missing_pps(m);
   }
 }
 
@@ -570,7 +576,7 @@ View_change* View_info::my_view_change(Time& t)
   View_change* myvc;
   if (last_vcs[id] == 0)
   {
-    myvc = last_nvs[get_node()->primary(v)].view_change(id);
+    myvc = last_nvs[pbft::GlobalState::get_node().primary(v)].view_change(id);
   }
   else
   {
@@ -588,7 +594,7 @@ View_change* View_info::view_change(int rid)
   View_change* vc = nullptr;
   if (last_vcs[rid] == 0)
   {
-    vc = last_nvs[get_node()->primary(v)].view_change(rid);
+    vc = last_nvs[pbft::GlobalState::get_node().primary(v)].view_change(rid);
   }
   else
   {
@@ -614,7 +620,7 @@ void View_info::mark_stable(Seqno ls)
   last_stable = ls;
   oplog.truncate(last_stable + 1);
 
-  last_nvs[get_node()->primary(v)].mark_stable(ls);
+  last_nvs[pbft::GlobalState::get_node().primary(v)].mark_stable(ls);
 }
 
 void View_info::clear()
@@ -684,9 +690,9 @@ bool View_info::restart(FILE* in, View rv, Seqno ls, bool corrupt)
 #ifndef INSIDE_ENCLAVE
   v = rv;
   last_stable = ls;
-  id = get_node()->id();
+  id = pbft::GlobalState::get_node().id();
 
-  for (int i = 0; i < get_node()->num_of_replicas(); i++)
+  for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
   {
     last_views[i] = v;
   }
@@ -746,7 +752,7 @@ bool View_info::restart(FILE* in, View rv, Seqno ls, bool corrupt)
   ab++;
   if (is_complete)
   {
-    last_nvs[get_node()->primary(v)].make_complete(v);
+    last_nvs[pbft::GlobalState::get_node().primary(v)].make_complete(v);
   }
 
   return ret & (ab == rb);
@@ -885,15 +891,15 @@ void View_info::dump_state(std::ostream& os)
   os << "oplog:" << std::endl;
   oplog.dump_state(os);
 
-  os << "last_nvs for primary: " << get_node()->primary(v) << " v: " << v
-     << std::endl;
-  last_nvs[get_node()->primary(v)].dump_state(os);
+  os << "last_nvs for primary: " << pbft::GlobalState::get_node().primary(v)
+     << " v: " << v << std::endl;
+  last_nvs[pbft::GlobalState::get_node().primary(v)].dump_state(os);
   os << std::endl;
 
   os << "other entries in last_nvs: " << std::endl;
   for (int i = 0; i < last_nvs.size(); i++)
   {
-    if (i == get_node()->primary(v))
+    if (i == pbft::GlobalState::get_node().primary(v))
     {
       continue;
     }

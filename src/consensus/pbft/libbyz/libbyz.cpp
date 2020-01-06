@@ -22,14 +22,13 @@
 
 int Byz_init_client(const NodeInfo& node_info, INetwork* network)
 {
-  client = std::make_unique<Client>(node_info, network);
-  set_node((Node*)client.get());
+  pbft::GlobalState::set_client(std::make_unique<Client>(node_info, network));
   return 0;
 }
 
 void Byz_reset_client()
 {
-  ((Client*)get_node())->reset();
+  ((Client&)pbft::GlobalState::get_node()).reset();
 }
 
 int Byz_alloc_request(Byz_req* req, int size)
@@ -50,16 +49,16 @@ int Byz_alloc_request(Byz_req* req, int size)
 int Byz_send_request(Byz_req* req, bool ro)
 {
   Request* request = (Request*)req->opaque;
-  request->request_id() = ((Client*)get_node())->get_rid();
+  request->request_id() = ((Client&)pbft::GlobalState::get_node()).get_rid();
   request->authenticate(req->size, ro);
 
-  bool retval = ((Client*)get_node())->send_request(request);
+  bool retval = ((Client&)pbft::GlobalState::get_node()).send_request(request);
   return (retval) ? 0 : -1;
 }
 
 int Byz_recv_reply(Byz_rep* rep)
 {
-  Reply* reply = ((Client*)get_node())->recv_reply();
+  Reply* reply = ((Client&)pbft::GlobalState::get_node()).recv_reply();
   if (reply == NULL)
   {
     return -1;
@@ -92,17 +91,17 @@ void Byz_free_reply(Byz_rep* rep)
 
 void Byz_configure_principals()
 {
-  get_node()->configure_principals();
+  pbft::GlobalState::get_node().configure_principals();
 }
 
 void Byz_add_principal(const PrincipalInfo& principal_info)
 {
-  get_node()->add_principal(principal_info);
+  pbft::GlobalState::get_node().add_principal(principal_info);
 }
 
 void Byz_start_replica()
 {
-  get_replica()->recv_start();
+  pbft::GlobalState::get_replica().recv_start();
   stats.zero_stats();
 }
 
@@ -118,32 +117,32 @@ int Byz_init_replica(
   IMessageReceiveBase** message_receiver)
 {
   // Initialize random number generator
-  replica =
-    std::make_unique<Replica>(node_info, mem, size, network, std::move(ledger));
-  set_node((Node*)replica.get());
+  pbft::GlobalState::set_replica(std::make_unique<Replica>(
+    node_info, mem, size, network, std::move(ledger)));
 
   if (message_receiver != nullptr)
   {
-    *message_receiver = replica.get();
+    *message_receiver = &pbft::GlobalState::get_replica();
   }
 
   // Register service-specific functions.
-  get_replica()->register_exec(exec);
-  get_replica()->register_nondet_choices(comp_ndet, ndet_max_len);
+  pbft::GlobalState::get_replica().register_exec(exec);
+  pbft::GlobalState::get_replica().register_nondet_choices(
+    comp_ndet, ndet_max_len);
 
-  auto used_bytes = get_replica()->used_state_bytes();
+  auto used_bytes = pbft::GlobalState::get_replica().used_state_bytes();
   stats.zero_stats();
   return used_bytes;
 }
 
 void Byz_modify(void* mem, int size)
 {
-  get_replica()->modify(mem, size);
+  pbft::GlobalState::get_replica().modify(mem, size);
 }
 
 void Byz_replica_run()
 {
-  get_replica()->recv();
+  pbft::GlobalState::get_replica().recv();
 }
 
 void Byz_reset_stats()

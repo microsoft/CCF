@@ -153,9 +153,9 @@ void View_change::re_authenticate(Principal* p)
 
     // Compute authenticator and update size.
 #ifdef USE_PKEY_VIEW_CHANGES
-    set_size(old_size + get_node()->sig_size());
+    set_size(old_size + pbft::GlobalState::get_node().sig_size());
 #else
-    set_size(old_size + get_node()->auth_size());
+    set_size(old_size + pbft::GlobalState::get_node().auth_size());
 #endif
 
 #ifdef SIGN_BATCH
@@ -165,14 +165,15 @@ void View_change::re_authenticate(Principal* p)
     rep().digest = Digest(contents(), old_size);
 
 #ifdef SIGN_BATCH
-    get_node()->gen_signature(
+    pbft::GlobalState::get_node().gen_signature(
       rep().digest.digest(),
       rep().digest.digest_size(),
       rep().digest_signature);
 #endif
 
 #ifdef USE_PKEY_VIEW_CHANGES
-    get_node()->gen_signature(contents(), old_size, contents() + old_size);
+    pbft::GlobalState::get_node().gen_signature(
+      contents(), old_size, contents() + old_size);
 #else
     auth_type = Auth_type::out;
     auth_len = old_size;
@@ -186,8 +187,8 @@ bool View_change::pre_verify()
 {
   int nreqs = rep().n_reqs;
   if (
-    !get_node()->is_replica(id()) || nreqs < 0 || nreqs > max_out ||
-    view() <= 0)
+    !pbft::GlobalState::get_node().is_replica(id()) || nreqs < 0 ||
+    nreqs > max_out || view() <= 0)
   {
     return false;
   }
@@ -212,12 +213,12 @@ bool View_change::pre_verify()
   int old_size = sizeof(View_change_rep) + sizeof(Req_info) * nreqs;
 
 #ifdef USE_PKEY_VIEW_CHANGES
-  if (size() - old_size < get_node()->sig_size(id()))
+  if (size() - old_size < pbft::GlobalState::get_node().sig_size(id()))
   {
     return false;
   }
 #else
-  if (size() - old_size < get_node()->auth_size(id()))
+  if (size() - old_size < pbft::GlobalState::get_node().auth_size(id()))
   {
     return false;
   }

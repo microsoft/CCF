@@ -10,10 +10,20 @@ class Node;
 class Replica;
 class Client;
 
-// Pointer to global replica object.
-extern std::unique_ptr<Replica> replica;
-extern std::unique_ptr<Client> client;
+namespace pbft
+{
+  class GlobalState
+  {
+  private:
+    // Pointer to global replica object.
+    static std::unique_ptr<Replica> replica;
+    static std::unique_ptr<Client> client;
 
-extern Replica* get_replica();
-extern void set_node(Node* node);
-extern Node* get_node();
+  public:
+    GlobalState();
+    static void set_replica(std::unique_ptr<Replica> r);
+    static void set_client(std::unique_ptr<Client> c);
+    static Replica& get_replica();
+    static Node& get_node();
+  };
+}
