@@ -28,7 +28,7 @@ int Byz_init_client(const NodeInfo& node_info, INetwork* network)
 
 void Byz_reset_client()
 {
-  ((Client&)pbft::GlobalState::get_node()).reset();
+  pbft::GlobalState::get_client().reset();
 }
 
 int Byz_alloc_request(Byz_req* req, int size)
@@ -49,16 +49,16 @@ int Byz_alloc_request(Byz_req* req, int size)
 int Byz_send_request(Byz_req* req, bool ro)
 {
   Request* request = (Request*)req->opaque;
-  request->request_id() = ((Client&)pbft::GlobalState::get_node()).get_rid();
+  request->request_id() = pbft::GlobalState::get_client().get_rid();
   request->authenticate(req->size, ro);
 
-  bool retval = ((Client&)pbft::GlobalState::get_node()).send_request(request);
+  bool retval = pbft::GlobalState::get_client().send_request(request);
   return (retval) ? 0 : -1;
 }
 
 int Byz_recv_reply(Byz_rep* rep)
 {
-  Reply* reply = ((Client&)pbft::GlobalState::get_node()).recv_reply();
+  Reply* reply = pbft::GlobalState::get_client().recv_reply();
   if (reply == NULL)
   {
     return -1;

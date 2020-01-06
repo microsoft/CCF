@@ -16,17 +16,34 @@ namespace pbft
 
   void GlobalState::set_replica(std::unique_ptr<Replica> r)
   {
+    if (client)
+    {
+      throw std::logic_error(
+        "Trying to initialize Replica but Client is already set.");
+    }
     replica = std::move(r);
   }
 
   void GlobalState::set_client(std::unique_ptr<Client> c)
   {
+    if (replica)
+    {
+      throw std::logic_error(
+        "Trying to initialize Client but Replica is already set");
+    }
     client = std::move(c);
   }
 
   Replica& GlobalState::get_replica()
   {
+    assert(replica != nullptr);
     return *replica.get();
+  }
+
+  Client& GlobalState::get_client()
+  {
+    assert(client != nullptr);
+    return *client.get();
   }
 
   Node& GlobalState::get_node()

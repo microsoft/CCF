@@ -20,10 +20,10 @@ namespace pbft
     static std::unique_ptr<Client> client;
 
   public:
-    GlobalState();
     static void set_replica(std::unique_ptr<Replica> r);
     static void set_client(std::unique_ptr<Client> c);
     static Replica& get_replica();
+    static Client& get_client();
     static Node& get_node();
   };
 }
