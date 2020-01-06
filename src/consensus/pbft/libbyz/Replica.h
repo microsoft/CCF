@@ -60,8 +60,8 @@ public:
     char* mem,
     size_t nbytes,
     INetwork* network,
-    pbft::Requests& pbft_requests_,
-    pbft::PrePrepares& pbft_pre_prepares_,
+    pbft::RequestsMap& pbft_requests_map_,
+    pbft::PrePreparesMap& pbft_pre_prepares_map_,
     pbft::Store& store_);
   // Requires: "mem" is vm page aligned and nbytes is a multiple of the
   // vm page size.
@@ -432,19 +432,21 @@ private:
   reply_handler_cb rep_cb;
   void* rep_cb_ctx;
 
-  pbft::Requests& pbft_requests;
-  pbft::PrePrepares& pbft_pre_prepares;
+  pbft::RequestsMap& pbft_requests_map;
+  pbft::PrePreparesMap& pbft_pre_prepares_map;
 
   std::function<void(
-    kv::Version, const pbft::Requests::State&, const pbft::Requests::Write&)>
+    kv::Version,
+    const pbft::RequestsMap::State&,
+    const pbft::RequestsMap::Write&)>
     requests_local_hook;
   // local commit hook to be used when replaying the ledger
   // when requests are deserialised the hook will be triggered
   // and requests will be applied
   std::function<void(
     kv::Version,
-    const pbft::PrePrepares::State&,
-    const pbft::PrePrepares::Write&)>
+    const pbft::PrePreparesMap::State&,
+    const pbft::PrePreparesMap::Write&)>
     pre_prepares_local_hook;
   // local commit hook to be used when replaying the ledger
   // when pre-prepares are deserialised the hook will be triggered

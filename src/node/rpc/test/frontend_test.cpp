@@ -379,8 +379,8 @@ TEST_CASE("process_pbft")
   frontend.process_pbft(ctx);
 
   Store::Tx tx;
-  auto pbft_requests = tx.get_view(pbft_network.pbft_requests);
-  auto request_value = pbft_requests->get(0);
+  auto pbft_requests_map = tx.get_view(pbft_network.pbft_requests_map);
+  auto request_value = pbft_requests_map->get(0);
   REQUIRE(request_value.has_value());
 
   pbft::Request deserialised_req = request_value.value();

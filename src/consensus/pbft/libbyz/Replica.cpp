@@ -68,8 +68,8 @@ Replica::Replica(
   char* mem,
   size_t nbytes,
   INetwork* network,
-  pbft::Requests& pbft_requests_,
-  pbft::PrePrepares& pbft_pre_prepares_,
+  pbft::RequestsMap& pbft_requests_map_,
+  pbft::PrePreparesMap& pbft_pre_prepares_map_,
   pbft::Store& store) :
   Node(node_info),
   rqueue(),
@@ -78,8 +78,8 @@ Replica::Replica(
   elog(max_out * 2, 0),
   stable_checkpoints(node_info.general_info.num_replicas),
   brt(node_info.general_info.num_replicas),
-  pbft_requests(pbft_requests_),
-  pbft_pre_prepares(pbft_pre_prepares_),
+  pbft_requests_map(pbft_requests_map_),
+  pbft_pre_prepares_map(pbft_pre_prepares_map_),
 #ifdef ENFORCE_EXACTLY_ONCE
   replies(mem, nbytes, num_principals),
 #else
@@ -181,11 +181,11 @@ Replica::Replica(
   exec_command = nullptr;
   non_det_choices = 0;
 
-  ledger_writer = std::make_unique<LedgerWriter>(store, pbft_pre_prepares);
+  ledger_writer = std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map);
   requests_local_hook = [this](
                           kv::Version version,
-                          const pbft::Requests::State& s,
-                          const pbft::Requests::Write& w) {
+                          const pbft::RequestsMap::State& s,
+                          const pbft::RequestsMap::Write& w) {
     for (auto& [key, value] : w)
     {
       playback_request(value.value);
@@ -194,8 +194,8 @@ Replica::Replica(
 
   pre_prepares_local_hook = [this](
                               kv::Version version,
-                              const pbft::PrePrepares::State& s,
-                              const pbft::PrePrepares::Write& w) {
+                              const pbft::PrePreparesMap::State& s,
+                              const pbft::PrePreparesMap::Write& w) {
     for (auto& [key, value] : w)
     {
       playback_pre_prepare(value.value);
@@ -1105,14 +1105,14 @@ void Replica::emit_signature_on_next_pp(int64_t version)
 
 void Replica::activate_pbft_local_hooks()
 {
-  pbft_requests.set_local_hook(requests_local_hook);
-  pbft_pre_prepares.set_local_hook(pre_prepares_local_hook);
+  pbft_requests_map.set_local_hook(requests_local_hook);
+  pbft_pre_prepares_map.set_local_hook(pre_prepares_local_hook);
 }
 
 void Replica::deactivate_pbft_local_hooks()
 {
-  pbft_requests.set_local_hook(nullptr);
-  pbft_pre_prepares.set_local_hook(nullptr);
+  pbft_requests_map.set_local_hook(nullptr);
+  pbft_pre_prepares_map.set_local_hook(nullptr);
 }
 
 View Replica::view() const

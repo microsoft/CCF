@@ -5,9 +5,9 @@
 #include "Request.h"
 
 LedgerWriter::LedgerWriter(
-  pbft::Store& store_, pbft::PrePrepares& pbft_pre_prepares_) :
+  pbft::Store& store_, pbft::PrePreparesMap& pbft_pre_prepares_map_) :
   store(store_),
-  pbft_pre_prepares(pbft_pre_prepares_)
+  pbft_pre_prepares_map(pbft_pre_prepares_map_)
 {}
 
 void LedgerWriter::write_prepare(
@@ -54,7 +54,7 @@ void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
      pp->get_digest_sig(),
      {(const uint8_t*)pp->contents(),
       (const uint8_t*)pp->contents() + pp->size()}},
-    pbft_pre_prepares);
+    pbft_pre_prepares_map);
 }
 
 void LedgerWriter::write_view_change(View_change* vc)

@@ -29,5 +29,5 @@ namespace pbft
   // size_t is used as the key of the table. This key will always be 0 since we
   // don't want to store the pre prepare in the kv over time, we just want to
   // get them into the ledger
-  using PrePrepares = ccf::Store::Map<size_t, PrePrepare>;
+  using PrePreparesMap = ccf::Store::Map<size_t, PrePrepare>;
 }

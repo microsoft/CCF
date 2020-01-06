@@ -35,7 +35,8 @@ namespace pbft
     virtual void rollback(Index v) = 0;
     virtual kv::Version current_version() = 0;
     virtual void commit_pre_prepare(
-      const pbft::PrePrepare& pp, pbft::PrePrepares& pbft_pre_prepares) = 0;
+      const pbft::PrePrepare& pp,
+      pbft::PrePreparesMap& pbft_pre_prepares_map) = 0;
   };
 
   template <typename T>
@@ -48,7 +49,7 @@ namespace pbft
     Adaptor(std::shared_ptr<T> x) : x(x) {}
 
     void commit_pre_prepare(
-      const pbft::PrePrepare& pp, pbft::PrePrepares& pbft_pre_prepares)
+      const pbft::PrePrepare& pp, pbft::PrePreparesMap& pbft_pre_prepares_map)
     {
       while (true)
       {
@@ -61,7 +62,7 @@ namespace pbft
             version,
             [&]() {
               ccf::Store::Tx tx(version);
-              auto pp_view = tx.get_view(pbft_pre_prepares);
+              auto pp_view = tx.get_view(pbft_pre_prepares_map);
               pp_view->put(0, pp);
               return tx.commit_reserved();
             },

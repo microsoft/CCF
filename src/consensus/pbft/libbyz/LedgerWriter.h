@@ -15,10 +15,11 @@ class LedgerWriter
 {
 private:
   pbft::Store& store;
-  pbft::PrePrepares& pbft_pre_prepares;
+  pbft::PrePreparesMap& pbft_pre_prepares_map;
 
 public:
-  LedgerWriter(pbft::Store& store_, pbft::PrePrepares& pbft_pre_prepares_);
+  LedgerWriter(
+    pbft::Store& store_, pbft::PrePreparesMap& pbft_pre_prepares_map_);
   virtual ~LedgerWriter() = default;
   void write_prepare(const Prepared_cert& prepared_cert, Seqno seqno);
   void write_pre_prepare(Pre_prepare* pp);

@@ -82,8 +82,8 @@ NodeInfo get_node_info()
 void create_replica(
   std::vector<char>& service_mem,
   pbft::Store& store,
-  pbft::Requests& pbft_requests,
-  pbft::PrePrepares& pbft_pre_prepares)
+  pbft::RequestsMap& pbft_requests_map,
+  pbft::PrePreparesMap& pbft_pre_prepares_map)
 {
   auto node_info = get_node_info();
 
@@ -92,8 +92,8 @@ void create_replica(
     service_mem.data(),
     service_mem.size(),
     Create_Mock_Network(),
-    pbft_requests,
-    pbft_pre_prepares,
+    pbft_requests_map,
+    pbft_pre_prepares_map,
     store));
 
   pbft::GlobalState::get_replica().init_state();
@@ -119,10 +119,11 @@ TEST_CASE("Test Ledger Replay")
     auto write_store = std::make_shared<ccf::Store>(
       pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
     write_store->set_consensus(write_consensus);
-    auto& write_pbft_requests = write_store->create<pbft::Requests>(
+    auto& write_pbft_requests_map = write_store->create<pbft::RequestsMap>(
       pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
-    auto& write_pbft_pre_prepares = write_store->create<pbft::PrePrepares>(
-      pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
+    auto& write_pbft_pre_prepares_map =
+      write_store->create<pbft::PrePreparesMap>(
+        pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
     auto& write_derived_map = write_store->create<std::string, std::string>(
       "derived_map", kv::SecurityDomain::PUBLIC);
 
@@ -132,8 +133,8 @@ TEST_CASE("Test Ledger Replay")
     create_replica(
       service_mem,
       *write_pbft_store,
-      write_pbft_requests,
-      write_pbft_pre_prepares);
+      write_pbft_requests_map,
+      write_pbft_pre_prepares_map);
     pbft::GlobalState::get_replica().register_exec(exec_mock.exec_command);
 
     Req_queue rqueue;
@@ -152,7 +153,7 @@ TEST_CASE("Test Ledger Replay")
       request->trim();
 
       ccf::Store::Tx tx;
-      auto req_view = tx.get_view(write_pbft_requests);
+      auto req_view = tx.get_view(write_pbft_requests_map);
       req_view->put(
         0,
         {0,
@@ -179,16 +180,16 @@ TEST_CASE("Test Ledger Replay")
       pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
     auto consensus = std::make_shared<kv::StubConsensus>();
     store->set_consensus(consensus);
-    auto& pbft_requests = store->create<pbft::Requests>(
+    auto& pbft_requests_map = store->create<pbft::RequestsMap>(
       pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
-    auto& pbft_pre_prepares = store->create<pbft::PrePrepares>(
+    auto& pbft_pre_prepares_map = store->create<pbft::PrePreparesMap>(
       pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
     auto& derived_map = store->create<std::string, std::string>(
       "derived_map", kv::SecurityDomain::PUBLIC);
     auto replica_store = std::make_unique<pbft::Adaptor<ccf::Store>>(store);
 
     create_replica(
-      service_mem, *replica_store, pbft_requests, pbft_pre_prepares);
+      service_mem, *replica_store, pbft_requests_map, pbft_pre_prepares_map);
     pbft::GlobalState::get_replica().register_exec(exec_mock.exec_command);
     pbft::GlobalState::get_replica().activate_pbft_local_hooks();
     // ledgerenclave work
@@ -209,11 +210,11 @@ TEST_CASE("Test Ledger Replay")
       store->deserialise(entries.back()) == kv::DeserialiseSuccess::FAILED);
 
     ccf::Store::Tx tx;
-    auto req_view = tx.get_view(pbft_requests);
+    auto req_view = tx.get_view(pbft_requests_map);
     auto req = req_view->get(0);
     REQUIRE(!req.has_value());
 
-    auto pp_view = tx.get_view(pbft_pre_prepares);
+    auto pp_view = tx.get_view(pbft_pre_prepares_map);
     auto pp = pp_view->get(0);
     REQUIRE(!pp.has_value());
 
@@ -229,7 +230,7 @@ TEST_CASE("Test Ledger Replay")
       if (iterations % 2)
       {
         // odd entries are pre prepares
-        auto pp_view = tx.get_view(pbft_pre_prepares);
+        auto pp_view = tx.get_view(pbft_pre_prepares_map);
         auto pp = pp_view->get(0);
         REQUIRE(pp.has_value());
         REQUIRE(pp.value().seqno == seqno);
@@ -238,7 +239,7 @@ TEST_CASE("Test Ledger Replay")
       else
       {
         // even entries are requests
-        auto req_view = tx.get_view(pbft_requests);
+        auto req_view = tx.get_view(pbft_requests_map);
         auto req = req_view->get(0);
         REQUIRE(req.has_value());
         REQUIRE(req.value().raw.size() > 0);

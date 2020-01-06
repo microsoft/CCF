@@ -102,8 +102,8 @@ int Byz_init_replica(
   void (*comp_ndet)(Seqno, Byz_buffer*),
   int ndet_max_len,
   INetwork* network,
-  pbft::Requests& pbft_requests,
-  pbft::PrePrepares& pbft_pre_prepares,
+  pbft::RequestsMap& pbft_requests_map,
+  pbft::PrePreparesMap& pbft_pre_prepares_map,
   pbft::Store& store_,
   IMessageReceiveBase** message_receiver = nullptr);
 /* Requires: "mem" is vm page aligned and "size" is a multiple of the vm page
