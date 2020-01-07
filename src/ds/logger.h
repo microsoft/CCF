@@ -42,7 +42,6 @@ namespace logger
     AbstractLogger(std::string log_path_) : log_path(log_path_)
     {
       f.open(log_path, std::ios_base::app);
-      f.setstate(std::ios_base::badbit);
     }
     virtual ~AbstractLogger() = default;
 

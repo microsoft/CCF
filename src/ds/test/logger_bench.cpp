@@ -146,4 +146,5 @@ auto json_reject_fmt = log_rejected_fmt<LoggerKind::JSON>;
 PICOBENCH(json_reject_fmt).iterations(sizes).samples(10);
 
 auto log_all = log_accepted<LoggerKind::All, false>;
-PICOBENCH(log_all).iterations(sizes).samples(10);
+// This spams the output, so repeat for fewer iterations
+PICOBENCH(log_all).iterations({100}).samples(10);
