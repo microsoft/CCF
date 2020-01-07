@@ -43,7 +43,6 @@ set(PBFT_SRC
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/Big_req_table.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/Pre_prepare_info.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/LedgerWriter.cpp
-  ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/LedgerReplay.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/key_format.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/request_id_gen.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/New_principal.cpp
@@ -66,6 +65,7 @@ if("sgx" IN_LIST TARGET)
     ${PARSED_ARGS_INCLUDE_DIRS}
     ${EVERCRYPT_INC}
   )
+  add_dependencies(libbyz.enclave flatbuffers)
 endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -84,6 +84,7 @@ if("virtual" IN_LIST TARGET)
   target_compile_options(libbyz.host PRIVATE -stdlib=libc++)
   set_property(TARGET libbyz.host PROPERTY POSITION_INDEPENDENT_CODE ON)
   target_include_directories(libbyz.host PRIVATE SYSTEM ${EVERCRYPT_INC})
+  add_dependencies(libbyz.host flatbuffers)
 
   add_library(libcommontest STATIC
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/network_udp.cpp

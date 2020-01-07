@@ -68,7 +68,9 @@ Replica::Replica(
   char* mem,
   size_t nbytes,
   INetwork* network,
-  std::unique_ptr<consensus::LedgerEnclave> ledger) :
+  pbft::RequestsMap& pbft_requests_map_,
+  pbft::PrePreparesMap& pbft_pre_prepares_map_,
+  pbft::Store& store) :
   Node(node_info),
   rqueue(),
   plog(max_out),
@@ -76,6 +78,8 @@ Replica::Replica(
   elog(max_out * 2, 0),
   stable_checkpoints(node_info.general_info.num_replicas),
   brt(node_info.general_info.num_replicas),
+  pbft_requests_map(pbft_requests_map_),
+  pbft_pre_prepares_map(pbft_pre_prepares_map_),
 #ifdef ENFORCE_EXACTLY_ONCE
   replies(mem, nbytes, num_principals),
 #else
@@ -177,11 +181,7 @@ Replica::Replica(
   exec_command = nullptr;
   non_det_choices = 0;
 
-  if (ledger)
-  {
-    ledger_replay = std::make_unique<LedgerReplay>();
-    ledger_writer = std::make_unique<LedgerWriter>(std::move(ledger));
-  }
+  ledger_writer = std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map);
 }
 
 void Replica::register_exec(ExecCommand e)
@@ -271,64 +271,59 @@ bool Replica::compare_execution_results(
   return true;
 }
 
-bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
+void Replica::playback_request(const pbft::Request& request)
 {
-  PBFT_ASSERT(ledger_replay, "ledger_replay should be initialized");
-
-  if (data.empty())
+  auto req =
+    create_message<Request>(request.raw.data(), request.raw.size()).release();
+  if (!brt.add_request(req))
   {
-    LOG_FAIL << "Received empty entries" << std::endl;
-    return false;
+    rqueue.append(req);
   }
+}
 
-  auto executable_pps = ledger_replay->process_data(
-    data, rqueue, brt, *ledger_writer.get(), last_executed);
+void Replica::playback_pre_prepare(const pbft::PrePrepare& pre_prepare)
+{
+  auto executable_pp = create_message<Pre_prepare>(
+    pre_prepare.contents.data(), pre_prepare.contents.size());
+  auto seqno = executable_pp->seqno();
 
-  for (auto& executable_pp : executable_pps)
+  ByzInfo info;
+  if (execute_tentative(executable_pp.get(), info))
   {
-    auto seqno = executable_pp->seqno();
-
-    ByzInfo info;
-    if (execute_tentative(executable_pp.get(), info))
+    if (!compare_execution_results(info, executable_pp.get()))
     {
-      auto batch_info = compare_execution_results(info, executable_pp.get());
-      if (!batch_info)
-      {
-        return false;
-      }
-
-      next_pp_seqno = seqno;
-
-      if (seqno > last_prepared)
-      {
-        last_prepared = seqno;
-      }
-
-      if (global_commit_cb != nullptr)
-      {
-        global_commit_cb(
-          executable_pp->get_ctx(), executable_pp->view(), global_commit_ctx);
-      }
-
-      last_executed++;
-
-      if (last_executed % checkpoint_interval == 0)
-      {
-        mark_stable(last_executed, true);
-      }
+      return;
     }
-    else
+
+    next_pp_seqno = seqno;
+
+    if (seqno > last_prepared)
     {
-      LOG_DEBUG << "Received entries could not be processed. Received seqno: "
-                << seqno
-                << ". Truncating ledger to last executed: " << last_executed
-                << std::endl;
-      ledger_replay->clear_requests(rqueue, brt);
-      ledger_writer->truncate(last_executed);
-      return false;
+      last_prepared = seqno;
+    }
+
+    if (global_commit_cb != nullptr)
+    {
+      global_commit_cb(
+        executable_pp->get_ctx(), executable_pp->view(), global_commit_ctx);
+    }
+
+    last_executed++;
+
+    if (last_executed % checkpoint_interval == 0)
+    {
+      mark_stable(last_executed, true);
     }
   }
-  return true;
+  else
+  {
+    LOG_DEBUG << "Received entries could not be processed. Received seqno: "
+              << seqno
+              << ". Truncating ledger to last executed: " << last_executed
+              << std::endl;
+    rqueue.clear();
+    brt.clear();
+  }
 }
 
 void Replica::init_state()
@@ -1035,6 +1030,17 @@ void Replica::register_global_commit(global_commit_handler_cb cb, void* ctx)
   global_commit_ctx = ctx;
 }
 
+template <class T>
+std::unique_ptr<T> Replica::create_message(
+  const uint8_t* message_data, size_t data_size)
+{
+  Message* m = new Message(data_size);
+  std::copy(message_data, message_data + data_size, m->contents());
+  T* msg_type;
+  T::convert(m, msg_type);
+  return std::unique_ptr<T>(msg_type);
+}
+
 void Replica::handle(Reply* m)
 {
   if (rep_cb != nullptr)
@@ -1075,6 +1081,35 @@ void Replica::emit_signature_on_next_pp(int64_t version)
 {
   sign_next = true;
   signed_version = version;
+}
+
+void Replica::activate_pbft_local_hooks()
+{
+  pbft_requests_map.set_local_hook([this](
+                                     kv::Version version,
+                                     const pbft::RequestsMap::State& s,
+                                     const pbft::RequestsMap::Write& w) {
+    for (auto& [key, value] : w)
+    {
+      playback_request(value.value);
+    }
+  });
+
+  pbft_pre_prepares_map.set_local_hook([this](
+                                         kv::Version version,
+                                         const pbft::PrePreparesMap::State& s,
+                                         const pbft::PrePreparesMap::Write& w) {
+    for (auto& [key, value] : w)
+    {
+      playback_pre_prepare(value.value);
+    }
+  });
+}
+
+void Replica::deactivate_pbft_local_hooks()
+{
+  pbft_requests_map.set_local_hook(nullptr);
+  pbft_pre_prepares_map.set_local_hook(nullptr);
 }
 
 View Replica::view() const

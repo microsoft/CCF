@@ -23,6 +23,7 @@ extern "C"
 #include "Replica.h"
 #include "Statistics.h"
 #include "Timer.h"
+#include "consensus/pbft/pbfttables.h"
 #include "ds/files.h"
 #include "host/ledger.h"
 #include "libbyz.h"
@@ -380,6 +381,14 @@ int main(int argc, char** argv)
     LOG_FATAL << "--transport {UDP || UDP_MT}" << std::endl;
   }
 
+  auto store = std::make_shared<ccf::Store>(
+    pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
+  auto& pbft_requests_map = store->create<pbft::RequestsMap>(
+    pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
+  auto& pbft_pre_prepares_map = store->create<pbft::PrePreparesMap>(
+    pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
+  auto replica_store = std::make_unique<pbft::Adaptor<ccf::Store>>(store);
+
   int used_bytes = Byz_init_replica(
     node_info,
     mem,
@@ -388,7 +397,9 @@ int main(int argc, char** argv)
     0,
     0,
     network,
-    nullptr,
+    pbft_requests_map,
+    pbft_pre_prepares_map,
+    *replica_store,
     &message_receive_base);
 
   Byz_start_replica();

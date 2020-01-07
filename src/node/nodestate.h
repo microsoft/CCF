@@ -1407,7 +1407,10 @@ namespace ccf
         config.signature_intervals.sig_max_tx,
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         rpc_map,
-        rpcsessions);
+        rpcsessions,
+        *network.tables->get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS),
+        *network.tables->get<pbft::PrePreparesMap>(
+          pbft::Tables::PBFT_PRE_PREPARES));
 
       network.tables->set_consensus(consensus);
 

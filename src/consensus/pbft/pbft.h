@@ -107,6 +107,7 @@ namespace pbft
     SeqNo global_commit_seqno;
     View last_commit_view;
     std::unique_ptr<pbft::Store> store;
+    std::unique_ptr<consensus::LedgerEnclave> ledger;
 
     struct view_change_info
     {
@@ -135,12 +136,15 @@ namespace pbft
       std::shared_ptr<ChannelProxy> channels_,
       NodeId id,
       size_t sig_max_tx,
-      std::unique_ptr<consensus::LedgerEnclave> ledger,
+      std::unique_ptr<consensus::LedgerEnclave> ledger_,
       std::shared_ptr<enclave::RPCMap> rpc_map,
-      std::shared_ptr<enclave::RPCSessions> rpcsessions_) :
+      std::shared_ptr<enclave::RPCSessions> rpcsessions_,
+      pbft::RequestsMap& pbft_requests_map,
+      pbft::PrePreparesMap& pbft_pre_prepares_map) :
       Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
+      ledger(std::move(ledger_)),
       global_commit_seqno(1),
       last_commit_view(0),
       store(std::move(store_)),
@@ -194,7 +198,9 @@ namespace pbft
         0,
         0,
         pbft_network.get(),
-        std::move(ledger),
+        pbft_requests_map,
+        pbft_pre_prepares_map,
+        *store,
         &message_receiver_base);
       LOG_INFO_FMT("PBFT setup for local_id: {}", local_id);
 
@@ -341,13 +347,36 @@ namespace pbft
       ITimer::handle_timeouts(elapsed);
     }
 
+    template <typename T>
+    size_t write_to_ledger(const T& data)
+    {
+      ledger->put_entry(data->data(), data->size());
+      return data->size();
+    }
+
+    template <>
+    size_t write_to_ledger<std::vector<uint8_t>>(
+      const std::vector<uint8_t>& data)
+    {
+      ledger->put_entry(data);
+      return data.size();
+    }
+
     bool replicate(const kv::BatchDetachedBuffer& entries) override
     {
+      for (auto& [index, data, globally_committable] : entries)
+      {
+        write_to_ledger(data);
+      }
       return true;
     }
 
     bool replicate(const kv::BatchVector& entries) override
     {
+      for (auto& [index, data, globally_committable] : entries)
+      {
+        write_to_ledger(data);
+      }
       return true;
     }
 

@@ -113,12 +113,20 @@ int Byz_init_replica(
   void (*comp_ndet)(Seqno, Byz_buffer*),
   int ndet_max_len,
   INetwork* network,
-  std::unique_ptr<consensus::LedgerEnclave> ledger,
+  pbft::RequestsMap& pbft_requests_map,
+  pbft::PrePreparesMap& pbft_pre_prepares_map,
+  pbft::Store& store,
   IMessageReceiveBase** message_receiver)
 {
   // Initialize random number generator
   pbft::GlobalState::set_replica(std::make_unique<Replica>(
-    node_info, mem, size, network, std::move(ledger)));
+    node_info,
+    mem,
+    size,
+    network,
+    pbft_requests_map,
+    pbft_pre_prepares_map,
+    store));
 
   if (message_receiver != nullptr)
   {

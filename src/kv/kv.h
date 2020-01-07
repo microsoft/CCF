@@ -1499,7 +1499,9 @@ namespace kv
       // same store will result in a store version mismatch and
       // deserialisation will then fail.
 
-      frame::FlatbufferDeserialiser fbd(data.data());
+      bool ignore_derived =
+        consensus ? (consensus->type() == ConsensusType::Pbft) : false;
+      frame::FlatbufferDeserialiser fbd(data.data(), ignore_derived);
       auto frames = fbd.get_frames();
       Version v;
       OrderedViews<S, D> views;
@@ -1507,7 +1509,7 @@ namespace kv
       auto e = get_encryptor();
 
       // create the first deserialiser
-      D d(
+      auto d = std::make_unique<D>(
         e,
         public_only ? kv::SecurityDomain::PUBLIC :
                       std::optional<kv::SecurityDomain>());
@@ -1517,13 +1519,13 @@ namespace kv
         // find the first buffer that has data to deserialise
         if (size > 0)
         {
-          if (!d.init(frame, size))
+          if (!d->init(frame, size))
           {
             LOG_FAIL_FMT("Initialisation of deserialise object failed");
             return DeserialiseSuccess::FAILED;
           }
 
-          v = d.template deserialise_version<Version>();
+          v = d->template deserialise_version<Version>();
           // Throw away any local commits that have not propagated via the
           // consensus.
           rollback(v - 1);
@@ -1558,18 +1560,18 @@ namespace kv
           else
           {
             // create next deserialiser
-            D d(
+            d = std::make_unique<D>(
               e,
               public_only ? kv::SecurityDomain::PUBLIC :
                             std::optional<kv::SecurityDomain>());
 
-            if (!d.init(frame, size))
+            if (!d->init(frame, size))
             {
               LOG_FAIL_FMT("Initialisation of deserialise object failed");
               return DeserialiseSuccess::FAILED;
             }
 
-            Version v_ = d.template deserialise_version<Version>();
+            Version v_ = d->template deserialise_version<Version>();
             LOG_DEBUG_FMT("Deserialising {}", v_);
             if (v != v_)
             {
@@ -1578,7 +1580,7 @@ namespace kv
             }
           }
 
-          for (auto r = d.start_map(); r.has_value(); r = d.start_map())
+          for (auto r = d->start_map(); r.has_value(); r = d->start_map())
           {
             const auto map_name = r.value();
 
@@ -1597,7 +1599,7 @@ namespace kv
             }
 
             auto view = search->second->create_view(v);
-            if (!view->deserialise(d, v))
+            if (!view->deserialise(*d, v))
             {
               LOG_FAIL_FMT(
                 "Could not deserialise Tx for map {} at version {}",
@@ -1610,7 +1612,7 @@ namespace kv
                                std::unique_ptr<AbstractTxView<S, D>>(view)};
           }
 
-          if (!d.end())
+          if (!d->end())
           {
             LOG_FAIL_FMT("Unexpected content in Tx at version {}", v);
             return DeserialiseSuccess::FAILED;
