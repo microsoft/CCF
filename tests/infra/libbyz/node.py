@@ -7,9 +7,7 @@ import paramiko
 
 
 class Node:
-    def __init__(
-        self, node_id, port, public_key_sig, private_key, is_replica
-    ):
+    def __init__(self, node_id, port, public_key_sig, private_key, is_replica):
         self.id = node_id
         self.port = port
         self.public_key_sig = public_key_sig
