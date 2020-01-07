@@ -7,6 +7,13 @@
 
 #include <cstddef>
 
+// keypair parameters
+static constexpr size_t SHA512_BYTES = 512 / 8;
+
+static constexpr size_t key_size = 32; // in bytes
+static constexpr size_t signature_size = 512 / 8; // in bytes
+
+// replica parameters
 const int Max_num_replicas = 32;
 
 // Interval in sequence space between "checkpoint" states, i.e.,

@@ -10,6 +10,7 @@
 #include "Message_tags.h"
 #include "Principal.h"
 #include "Statistics.h"
+#include "globalstate.h"
 #include "key_format.h"
 #include "network.h"
 #include "nodeinfo.h"
@@ -259,6 +260,3 @@ inline int cypher_size(char* dst, unsigned dst_len)
 
   return Nonce_size + Tag_size;
 }
-
-// Pointer to global node object.
-extern Node* node;

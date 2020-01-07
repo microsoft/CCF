@@ -70,7 +70,8 @@ TEST_CASE("Add a node to an opening service")
   StubNodeState node;
   NodeRpcFrontend frontend(network, node);
 
-  network.secrets = std::make_unique<NetworkSecrets>("CN=The CA");
+  network.ledger_secrets = std::make_unique<LedgerSecrets>();
+  network.identity = std::make_unique<NetworkIdentity>();
 
   // Node certificate
   tls::KeyPairPtr kp = tls::make_key_pair();
@@ -99,7 +100,9 @@ TEST_CASE("Add a node to an opening service")
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller));
 
     CHECK(
-      response->network_info.network_secrets == network.secrets->get_current());
+      response->network_info.ledger_secrets ==
+      network.ledger_secrets->get_current());
+    CHECK(response->network_info.identity == *network.identity.get());
     CHECK(response->network_info.version == 0);
     CHECK(response->node_status == NodeStatus::TRUSTED);
 
@@ -124,7 +127,9 @@ TEST_CASE("Add a node to an opening service")
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller));
 
     CHECK(
-      response->network_info.network_secrets == network.secrets->get_current());
+      response->network_info.ledger_secrets ==
+      network.ledger_secrets->get_current());
+    CHECK(response->network_info.identity == *network.identity.get());
     CHECK(response->network_info.version == 0);
     CHECK(response->node_status == NodeStatus::TRUSTED);
   }
@@ -157,7 +162,8 @@ TEST_CASE("Add a node to an open service")
   StubNodeState node;
   NodeRpcFrontend frontend(network, node);
 
-  network.secrets = std::make_unique<NetworkSecrets>("CN=The CA");
+  network.ledger_secrets = std::make_unique<LedgerSecrets>();
+  network.identity = std::make_unique<NetworkIdentity>();
 
   gen.create_service({});
   gen.open_service();
@@ -231,7 +237,9 @@ TEST_CASE("Add a node to an open service")
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller));
 
     CHECK(
-      response->network_info.network_secrets == network.secrets->get_current());
+      response->network_info.ledger_secrets ==
+      network.ledger_secrets->get_current());
+    CHECK(response->network_info.identity == *network.identity.get());
     CHECK(response->network_info.version == 0);
     CHECK(response->node_status == NodeStatus::TRUSTED);
   }

@@ -3,7 +3,6 @@
 #pragma once
 #include "consensus/pbft/libbyz/libbyz.h"
 #include "consensus/pbft/libbyz/pbft_assert.h"
-#include "consensus/pbft/pbftrequests.h"
 #include "enclave/rpcmap.h"
 #include "pbftdeps.h"
 

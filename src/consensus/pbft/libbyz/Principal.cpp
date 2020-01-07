@@ -41,7 +41,7 @@ bool Principal::verify_signature(
   const char* src, unsigned src_len, const char* sig, bool allow_self)
 {
   // Principal never verifies its own authenticator.
-  if ((id == node->id()) && !allow_self)
+  if ((id == pbft::GlobalState::get_node().id()) && !allow_self)
   {
     return false;
   }

@@ -46,6 +46,20 @@ namespace kv
         return std::make_pair(std::vector<uint8_t>(), false);
     }
 
+    std::pair<std::vector<uint8_t>, bool> pop_oldest_data()
+    {
+      if (!replica.empty())
+      {
+        auto pair = std::make_pair(replica.front(), true);
+        replica.erase(replica.begin());
+        return pair;
+      }
+      else
+      {
+        return std::make_pair(std::vector<uint8_t>(), false);
+      }
+    }
+
     size_t number_of_replicas()
     {
       return replica.size();

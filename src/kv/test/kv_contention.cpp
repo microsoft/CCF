@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #include "../kv.h"
 #include "../kvserialiser.h"
+#include "ds/logger.h"
+#include "enclave/appinterface.h"
 
 #include <atomic>
 #include <chrono>
 #include <doctest/doctest.h>
-#include <ds/logger.h>
-#include <enclave/appinterface.h>
 #include <string>
 #include <thread>
 #include <vector>

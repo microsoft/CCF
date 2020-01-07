@@ -87,7 +87,7 @@ namespace tls
     std::vector<uint8_t> get_own_public()
     {
       // Note that this function returns a vector of bytes size
-      // MBEDTLS_X25519_KEY_SIZE_BYTES + 1 with the first byte represents the
+      // MBEDTLS_X25519_KEY_SIZE_BYTES + 1 where the first byte represents the
       // size of the public key
       return own_public;
     }

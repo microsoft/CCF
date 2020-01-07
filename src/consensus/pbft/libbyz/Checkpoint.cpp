@@ -13,16 +13,20 @@
 
 Checkpoint::Checkpoint(Seqno s, Digest& d, bool stable) :
 #ifndef USE_PKEY_CHECKPOINTS
-  Message(Checkpoint_tag, sizeof(Checkpoint_rep) + node->auth_size())
+  Message(
+    Checkpoint_tag,
+    sizeof(Checkpoint_rep) + pbft::GlobalState::get_node().auth_size())
 {
 #else
-  Message(Checkpoint_tag, sizeof(Checkpoint_rep) + node->sig_size())
+  Message(
+    Checkpoint_tag,
+    sizeof(Checkpoint_rep) + pbft::GlobalState::get_node().sig_size())
 {
 #endif
   rep().extra = (stable) ? 1 : 0;
   rep().seqno = s;
   rep().digest = d;
-  rep().id = node->id();
+  rep().id = pbft::GlobalState::get_node().id();
   rep().padding = 0;
 
 #ifndef USE_PKEY_CHECKPOINTS
@@ -30,7 +34,7 @@ Checkpoint::Checkpoint(Seqno s, Digest& d, bool stable) :
   auth_len = sizeof(Checkpoint_rep);
   auth_src_offset = 0;
 #else
-  node->gen_signature(
+  pbft::GlobalState::get_node().gen_signature(
     contents(), sizeof(Checkpoint_rep), contents() + sizeof(Checkpoint_rep));
 #endif
 }
@@ -47,7 +51,7 @@ void Checkpoint::re_authenticate(Principal* p, bool stable)
   if (rep().extra != 1 && stable)
   {
     rep().extra = 1;
-    node->gen_signature(
+    pbft::GlobalState::get_node().gen_signature(
       contents(), sizeof(Checkpoint_rep), contents() + sizeof(Checkpoint_rep));
   }
 #endif
@@ -56,13 +60,15 @@ void Checkpoint::re_authenticate(Principal* p, bool stable)
 bool Checkpoint::pre_verify()
 {
   // Checkpoints must be sent by replicas.
-  if (!node->is_replica(id()))
+  if (!pbft::GlobalState::get_node().is_replica(id()))
   {
     return false;
   }
 
   // Check signature size.
-  if (size() - (int)sizeof(Checkpoint_rep) < node->auth_size(id()))
+  if (
+    size() - (int)sizeof(Checkpoint_rep) <
+    pbft::GlobalState::get_node().auth_size(id()))
   {
     return false;
   }

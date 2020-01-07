@@ -29,7 +29,7 @@ Rep_info::Rep_info(char* m, int sz) : reps(Max_num_replicas)
 
 void Rep_info::count_request()
 {
-  replica->modify(mem, sizeof(Seqno));
+  pbft::GlobalState::get_replica().modify(mem, sizeof(Seqno));
   (*total_processed)++;
 }
 
@@ -109,7 +109,7 @@ void Rep_info::send_reply(int pid, Request_id rid, Seqno n, View v, int id)
     r->auth_src_offset = 0;
     r->auth_dst_offset = old_size;
 
-    node->send(r, pid);
+    pbft::GlobalState::get_node().send(r, pid);
     reps.erase(it);
     return;
   }

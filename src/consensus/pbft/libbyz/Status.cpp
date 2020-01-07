@@ -20,7 +20,7 @@ Status::Status(View v, Seqno ls, Seqno le, bool hnvi, bool hnvm) :
   rep().v = v;
   rep().ls = ls;
   rep().le = le;
-  rep().id = node->id();
+  rep().id = pbft::GlobalState::get_node().id();
   rep().brsz = 0;
 
   if (hnvi)
@@ -49,7 +49,7 @@ void Status::authenticate()
     old_size += rep().sz * 2 + rep().brsz * sizeof(BR_info);
   }
 
-  set_size(old_size + node->auth_size());
+  set_size(old_size + pbft::GlobalState::get_node().auth_size());
   auth_type = Auth_type::out;
   auth_len = old_size;
   auth_src_offset = 0;
@@ -57,10 +57,13 @@ void Status::authenticate()
 
 bool Status::pre_verify()
 {
-  if (!node->is_replica(id()) || id() == node->id() || view() < 0)
+  if (
+    !pbft::GlobalState::get_node().is_replica(id()) ||
+    id() == pbft::GlobalState::get_node().id() || view() < 0)
   {
     std::shared_ptr<Principal> sender =
-      node->get_principal(id()); // the one who sent the message
+      pbft::GlobalState::get_node().get_principal(
+        id()); // the one who sent the message
 
     if (sender == nullptr)
     {
@@ -81,7 +84,7 @@ bool Status::pre_verify()
       info.host_name = "host_name";
       info.is_replica = true;
 
-      node->add_principal(info);
+      pbft::GlobalState::get_node().add_principal(info);
       return true;
     }
 
@@ -99,7 +102,7 @@ bool Status::pre_verify()
     old_size += rep().sz * 2 + rep().brsz * sizeof(BR_info);
   }
 
-  if (size() - old_size < node->auth_size(id()))
+  if (size() - old_size < pbft::GlobalState::get_node().auth_size(id()))
   {
     return false;
   }
