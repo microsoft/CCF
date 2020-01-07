@@ -63,11 +63,11 @@ namespace pbft
     }
   };
 
+  DECLARE_JSON_TYPE(Request);
+  DECLARE_JSON_REQUIRED_FIELDS(Request, actor, caller_id, caller_cert, raw);
+
   // size_t is used as the key of the table. This key will always be 0 since we
   // don't want to store the requests in the kv over time, we just want to get
   // them into the ledger
-  using PbftRequests = ccf::Store::Map<size_t, Request>;
-
-  DECLARE_JSON_TYPE(Request);
-  DECLARE_JSON_REQUIRED_FIELDS(Request, actor, caller_id, caller_cert, raw);
+  using RequestsMap = ccf::Store::Map<size_t, Request>;
 }

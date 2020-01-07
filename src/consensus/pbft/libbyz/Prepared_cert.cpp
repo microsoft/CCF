@@ -8,7 +8,8 @@
 #include "Node.h"
 
 Prepared_cert::Prepared_cert() :
-  prepare_cert([]() { return node->num_correct_replicas() - 1; }),
+  prepare_cert(
+    []() { return pbft::GlobalState::get_node().num_correct_replicas() - 1; }),
   primary(false)
 {}
 
@@ -26,7 +27,9 @@ bool Prepared_cert::is_pp_correct()
     Prepare* val;
     while (viter.get(val, vc))
     {
-      if (vc >= node->f() && pp_info.pre_prepare()->match(val))
+      if (
+        vc >= pbft::GlobalState::get_node().f() &&
+        pp_info.pre_prepare()->match(val))
       {
         return true;
       }
@@ -58,7 +61,7 @@ bool Prepared_cert::add(Pre_prepare* m)
         Prepare* val;
         while (viter.get(val, vc))
         {
-          if (vc >= node->f() && m->match(val))
+          if (vc >= pbft::GlobalState::get_node().f() && m->match(val))
           {
             pp_info.add(m);
             return true;

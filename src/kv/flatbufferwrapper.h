@@ -57,14 +57,27 @@ namespace kv
     {
     private:
       const Frame* frame;
+      bool ignore_derived;
 
     public:
-      FlatbufferDeserialiser(const uint8_t* frame_) : frame(GetFrame(frame_)) {}
+      FlatbufferDeserialiser(
+        const uint8_t* frame_, bool ignore_derived_ = false) :
+        frame(GetFrame(frame_)),
+        ignore_derived(ignore_derived_)
+      {}
 
       std::vector<CBuffer> get_frames()
       {
-        return {{frame->replicated()->Data(), frame->replicated()->size()},
-                {frame->derived()->Data(), frame->derived()->size()}};
+        if (ignore_derived)
+        {
+          return {{frame->replicated()->Data(), frame->replicated()->size()},
+                  {nullptr, 0}};
+        }
+        else
+        {
+          return {{frame->replicated()->Data(), frame->replicated()->size()},
+                  {frame->derived()->Data(), frame->derived()->size()}};
+        }
       }
 
       const uint8_t* replicated()

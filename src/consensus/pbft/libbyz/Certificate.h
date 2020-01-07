@@ -51,6 +51,11 @@ public:
   // from different replicas. If the complete argument is omitted (or
   // 0) it is taken to be 2f+1.
 
+  Certificate(
+    size_t f,
+    size_t num_correct_replicas,
+    std::function<int()> complete = nullptr);
+
   ~Certificate();
   // Effects: Deletes certificate and all the messages it contains.
 
@@ -284,8 +289,9 @@ inline bool Certificate<T>::Val_iter::get(T*& m, int& count)
 }
 
 template <class T>
-Certificate<T>::Certificate(std::function<int()> comp_) :
-  f(node->f()),
+Certificate<T>::Certificate(
+  size_t f_, size_t num_correct_replicas, std::function<int()> comp_) :
+  f(f_),
   comp(comp_)
 {
   max_size = f + 1;
@@ -298,12 +304,20 @@ Certificate<T>::Certificate(std::function<int()> comp_) :
   }
   else
   {
-    complete = node->num_correct_replicas();
+    complete = num_correct_replicas;
   }
   c = 0;
   mym = 0;
   t_sent = 0;
 }
+
+template <class T>
+Certificate<T>::Certificate(std::function<int()> comp_) :
+  Certificate(
+    pbft::GlobalState::get_node().f(),
+    pbft::GlobalState::get_node().num_correct_replicas(),
+    comp_)
+{}
 
 template <class T>
 Certificate<T>::~Certificate()
@@ -314,7 +328,7 @@ Certificate<T>::~Certificate()
 template <class T>
 void Certificate<T>::reset_f()
 {
-  f = node->f();
+  f = pbft::GlobalState::get_node().f();
   max_size = f + 1;
   delete[] vals;
   vals = new Message_val[max_size];
@@ -326,14 +340,14 @@ void Certificate<T>::reset_f()
   }
   else
   {
-    complete = node->num_correct_replicas();
+    complete = pbft::GlobalState::get_node().num_correct_replicas();
   }
 }
 
 template <class T>
 bool Certificate<T>::add(T* m)
 {
-  if (bmap.none() && f != node->f())
+  if (bmap.none() && f != pbft::GlobalState::get_node().f())
   {
     reset_f();
   }
@@ -353,7 +367,7 @@ bool Certificate<T>::add(T* m)
     return true;
   }
 
-  if (node->is_replica(id) && !bmap.test(id))
+  if (pbft::GlobalState::get_node().is_replica(id) && !bmap.test(id))
   {
     // "m" was sent by a replica that does not have a message in
     // the certificate
@@ -361,7 +375,8 @@ bool Certificate<T>::add(T* m)
     {
       // add "m" to the certificate
       PBFT_ASSERT(
-        id != node->id(), "verify should return false for messages from self");
+        id != pbft::GlobalState::get_node().id(),
+        "verify should return false for messages from self");
 
       bmap.set(id);
       if (c)
@@ -433,10 +448,11 @@ bool Certificate<T>::add(T* m)
 template <class T>
 bool Certificate<T>::add_mine(T* m)
 {
-  PBFT_ASSERT(m->id() == node->id(), "Invalid argument");
+  PBFT_ASSERT(
+    m->id() == pbft::GlobalState::get_node().id(), "Invalid argument");
   PBFT_ASSERT(m->full(), "Invalid argument");
 
-  if (bmap.none() && f != node->f())
+  if (bmap.none() && f != pbft::GlobalState::get_node().f())
   {
     reset_f();
   }
@@ -581,7 +597,9 @@ bool Certificate<T>::decode(FILE* in)
   for (int i = 0; i < cur_size; i++)
   {
     sz += fread(&vals[i].count, sizeof(int), 1, in);
-    if (vals[i].count < 0 || vals[i].count > node->num_of_replicas())
+    if (
+      vals[i].count < 0 ||
+      vals[i].count > pbft::GlobalState::get_node().num_of_replicas())
       return false;
 
     if (vals[i].count)

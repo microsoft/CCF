@@ -50,9 +50,6 @@
 #include "network.h"
 #include "pbft_assert.h"
 
-// Global replica object.
-Replica* replica;
-
 template <class T>
 void Replica::retransmit(T* m, Time cur, Time tsent, Principal* p)
 {
@@ -71,13 +68,18 @@ Replica::Replica(
   char* mem,
   size_t nbytes,
   INetwork* network,
-  std::unique_ptr<consensus::LedgerEnclave> ledger) :
+  pbft::RequestsMap& pbft_requests_map_,
+  pbft::PrePreparesMap& pbft_pre_prepares_map_,
+  pbft::Store& store) :
   Node(node_info),
   rqueue(),
   plog(max_out),
   clog(max_out),
   elog(max_out * 2, 0),
-  stable_checkpoints(num_of_replicas()),
+  stable_checkpoints(node_info.general_info.num_replicas),
+  brt(node_info.general_info.num_replicas),
+  pbft_requests_map(pbft_requests_map_),
+  pbft_pre_prepares_map(pbft_pre_prepares_map_),
 #ifdef ENFORCE_EXACTLY_ONCE
   replies(mem, nbytes, num_principals),
 #else
@@ -85,11 +87,23 @@ Replica::Replica(
 #endif
   rep_cb(nullptr),
   global_commit_cb(nullptr),
-  state(this, mem, nbytes),
+  state(
+    this,
+    mem,
+    nbytes,
+    node_info.general_info.num_replicas,
+    node_info.general_info.max_faulty),
+  se(node_info.general_info.num_replicas),
+  rr_reps(
+    node_info.general_info.max_faulty,
+    node_info.general_info.max_faulty == 0 ?
+      1 :
+      node_info.general_info.num_replicas - node_info.general_info.max_faulty),
   vi(
     node_id,
     0,
-    64) // make this dynamic - https://github.com/microsoft/CCF/issues/385
+    64, // make this dynamic - https://github.com/microsoft/CCF/issues/385
+    node_info.general_info.num_replicas)
 {
   // Fail if node is not a replica.
   if (!is_replica(id()))
@@ -131,16 +145,19 @@ Replica::Replica(
 
   // Create timers and randomize times to avoid collisions.
 
-  vtimer = new ITimer(vt + (uint64_t)id() % 100, vtimer_handler, this);
-  stimer = new ITimer(st + (uint64_t)id() % 100, stimer_handler, this);
-  btimer =
-    new ITimer(max_pre_prepare_request_batch_wait_ms, btimer_handler, this);
+  vtimer =
+    std::make_unique<ITimer>(vt + (uint64_t)id() % 100, vtimer_handler, this);
+  stimer =
+    std::make_unique<ITimer>(st + (uint64_t)id() % 100, stimer_handler, this);
+  btimer = std::make_unique<ITimer>(
+    max_pre_prepare_request_batch_wait_ms, btimer_handler, this);
 
   cid_vtimer = 0;
   rid_vtimer = 0;
 
 #ifdef DEBUG_SLOW
-  debug_slow_timer = new ITimer(10 * 60 * 1000, debug_slow_timer_handler, this);
+  debug_slow_timer =
+    std::make_unique<ITimer>(10 * 60 * 1000, debug_slow_timer_handler, this);
   debug_slow_timer->start();
 #endif
 
@@ -148,12 +165,12 @@ Replica::Replica(
   // Skew recoveries. It is important for nodes to recover in the reverse order
   // of their node ids to avoid a view-change every recovery which would degrade
   // performance.
-  rtimer = new ITimer(rt, rec_timer_handler, this);
+  rtimer = std::make_unique<ITimer>(rt, rec_timer_handler, this);
   rec_ready = false;
   rtimer->start();
 #endif
 
-  ntimer = new ITimer(30000 / max_out, ntimer_handler, this);
+  ntimer = std::make_unique<ITimer>(30000 / max_out, ntimer_handler, this);
 
   recovering = false;
   qs = 0;
@@ -164,11 +181,7 @@ Replica::Replica(
   exec_command = nullptr;
   non_det_choices = 0;
 
-  if (ledger)
-  {
-    ledger_replay = std::make_unique<LedgerReplay>();
-    ledger_writer = std::make_unique<LedgerWriter>(std::move(ledger));
-  }
+  ledger_writer = std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map);
 }
 
 void Replica::register_exec(ExecCommand e)
@@ -197,18 +210,7 @@ void Replica::compute_non_det(Seqno s, char* b, int* b_len)
   *b_len = buf.size;
 }
 
-Replica::~Replica()
-{
-  delete vtimer;
-#ifdef PROACTIVE_RECOVERY
-  delete rtimer;
-#endif
-  delete stimer;
-  delete btimer;
-#ifdef DEBUG_SLOW
-  delete debug_slow_timer;
-#endif
-}
+Replica::~Replica() = default;
 
 void Replica::receive_message(const uint8_t* data, uint32_t size)
 {
@@ -269,64 +271,59 @@ bool Replica::compare_execution_results(
   return true;
 }
 
-bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
+void Replica::playback_request(const pbft::Request& request)
 {
-  PBFT_ASSERT(ledger_replay, "ledger_replay should be initialized");
-
-  if (data.empty())
+  auto req =
+    create_message<Request>(request.raw.data(), request.raw.size()).release();
+  if (!brt.add_request(req))
   {
-    LOG_FAIL << "Received empty entries" << std::endl;
-    return false;
+    rqueue.append(req);
   }
+}
 
-  auto executable_pps = ledger_replay->process_data(
-    data, rqueue, brt, *ledger_writer.get(), last_executed);
+void Replica::playback_pre_prepare(const pbft::PrePrepare& pre_prepare)
+{
+  auto executable_pp = create_message<Pre_prepare>(
+    pre_prepare.contents.data(), pre_prepare.contents.size());
+  auto seqno = executable_pp->seqno();
 
-  for (auto& executable_pp : executable_pps)
+  ByzInfo info;
+  if (execute_tentative(executable_pp.get(), info))
   {
-    auto seqno = executable_pp->seqno();
-
-    ByzInfo info;
-    if (execute_tentative(executable_pp.get(), info))
+    if (!compare_execution_results(info, executable_pp.get()))
     {
-      auto batch_info = compare_execution_results(info, executable_pp.get());
-      if (!batch_info)
-      {
-        return false;
-      }
-
-      next_pp_seqno = seqno;
-
-      if (seqno > last_prepared)
-      {
-        last_prepared = seqno;
-      }
-
-      if (global_commit_cb != nullptr)
-      {
-        global_commit_cb(
-          executable_pp->get_ctx(), executable_pp->view(), global_commit_ctx);
-      }
-
-      last_executed++;
-
-      if (last_executed % checkpoint_interval == 0)
-      {
-        mark_stable(last_executed, true);
-      }
+      return;
     }
-    else
+
+    next_pp_seqno = seqno;
+
+    if (seqno > last_prepared)
     {
-      LOG_DEBUG << "Received entries could not be processed. Received seqno: "
-                << seqno
-                << ". Truncating ledger to last executed: " << last_executed
-                << std::endl;
-      ledger_replay->clear_requests(rqueue, brt);
-      ledger_writer->truncate(last_executed);
-      return false;
+      last_prepared = seqno;
+    }
+
+    if (global_commit_cb != nullptr)
+    {
+      global_commit_cb(
+        executable_pp->get_ctx(), executable_pp->view(), global_commit_ctx);
+    }
+
+    last_executed++;
+
+    if (last_executed % checkpoint_interval == 0)
+    {
+      mark_stable(last_executed, true);
     }
   }
-  return true;
+  else
+  {
+    LOG_DEBUG << "Received entries could not be processed. Received seqno: "
+              << seqno
+              << ". Truncating ledger to last executed: " << last_executed
+              << std::endl;
+    rqueue.clear();
+    brt.clear();
+  }
 }
 
 void Replica::init_state()
@@ -658,7 +655,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
         ledger_writer->write_pre_prepare(pp);
       }
 
-      if (node->f() > 0)
+      if (pbft::GlobalState::get_node().f() > 0)
       {
         send(pp, All_replicas);
       }
@@ -1033,6 +1030,17 @@ void Replica::register_global_commit(global_commit_handler_cb cb, void* ctx)
   global_commit_ctx = ctx;
 }
 
+template <class T>
+std::unique_ptr<T> Replica::create_message(
+  const uint8_t* message_data, size_t data_size)
+{
+  Message* m = new Message(data_size);
+  std::copy(message_data, message_data + data_size, m->contents());
+  T* msg_type;
+  T::convert(m, msg_type);
+  return std::unique_ptr<T>(msg_type);
+}
+
 void Replica::handle(Reply* m)
 {
   if (rep_cb != nullptr)
@@ -1073,6 +1081,35 @@ void Replica::emit_signature_on_next_pp(int64_t version)
 {
   sign_next = true;
   signed_version = version;
+}
+
+void Replica::activate_pbft_local_hooks()
+{
+  pbft_requests_map.set_local_hook([this](
+                                     kv::Version version,
+                                     const pbft::RequestsMap::State& s,
+                                     const pbft::RequestsMap::Write& w) {
+    for (auto& [key, value] : w)
+    {
+      playback_request(value.value);
+    }
+  });
+
+  pbft_pre_prepares_map.set_local_hook([this](
+                                         kv::Version version,
+                                         const pbft::PrePreparesMap::State& s,
+                                         const pbft::PrePreparesMap::Write& w) {
+    for (auto& [key, value] : w)
+    {
+      playback_pre_prepare(value.value);
+    }
+  });
+}
+
+void Replica::deactivate_pbft_local_hooks()
+{
+  pbft_requests_map.set_local_hook(nullptr);
+  pbft_pre_prepares_map.set_local_hook(nullptr);
 }
 
 View Replica::view() const
@@ -1125,7 +1162,8 @@ void Replica::handle(Status* m)
     Time current;
     Time t_sent = 0;
     current = ITimer::current_time();
-    std::shared_ptr<Principal> p = node->get_principal(m->id());
+    std::shared_ptr<Principal> p =
+      pbft::GlobalState::get_node().get_principal(m->id());
     if (!p)
     {
       return;
@@ -1552,7 +1590,7 @@ void Replica::handle(New_principal* m)
                      m->host_name(),
                      m->is_replica()};
 
-  node->add_principal(info);
+  pbft::GlobalState::get_node().add_principal(info);
 }
 
 void Replica::handle(Network_open* m)
@@ -2867,24 +2905,27 @@ void Replica::start_vtimer_if_request_waiting()
 
 void Replica::vtimer_handler(void* owner)
 {
-  PBFT_ASSERT(replica, "replica is not initialized\n");
-
-  if (!replica->delay_vc() && replica->f() > 0)
+  if (
+    !pbft::GlobalState::get_replica().delay_vc() &&
+    pbft::GlobalState::get_replica().f() > 0)
   {
-    if (replica->rqueue.size() > 0)
+    if (pbft::GlobalState::get_replica().rqueue.size() > 0)
     {
-      LOG_INFO << "View change timer expired first rid: "
-               << replica->rqueue.first()->request_id()
-               << ", digest:" << replica->rqueue.first()->digest().hash()
-               << " first cid: " << replica->rqueue.first()->client_id()
-               << std::endl;
+      LOG_INFO
+        << "View change timer expired first rid: "
+        << pbft::GlobalState::get_replica().rqueue.first()->request_id()
+        << ", digest:"
+        << pbft::GlobalState::get_replica().rqueue.first()->digest().hash()
+        << " first cid: "
+        << pbft::GlobalState::get_replica().rqueue.first()->client_id()
+        << std::endl;
     }
 
-    replica->send_view_change();
+    pbft::GlobalState::get_replica().send_view_change();
   }
   else
   {
-    replica->vtimer->restart();
+    pbft::GlobalState::get_replica().vtimer->restart();
   }
 }
 
@@ -2900,23 +2941,23 @@ void Replica::stimer_handler(void* owner)
 
 void Replica::btimer_handler(void* owner)
 {
-  PBFT_ASSERT(replica, "replica is not initialized\n");
-  replica->btimer->restop();
-  if (replica->primary() == replica->node_id)
+  pbft::GlobalState::get_replica().btimer->restop();
+  if (
+    pbft::GlobalState::get_replica().primary() ==
+    pbft::GlobalState::get_replica().node_id)
   {
     ++stats.count_pre_prepare_batch_timer;
-    replica->send_pre_prepare(true);
+    pbft::GlobalState::get_replica().send_pre_prepare(true);
   }
 }
 
 void Replica::rec_timer_handler(void* owner)
 {
-  PBFT_ASSERT(replica, "replica is not initialized\n");
   static int rec_count = 0;
 
-  replica->rtimer->restart();
+  pbft::GlobalState::get_replica().rtimer->restart();
 
-  if (!replica->rec_ready)
+  if (!pbft::GlobalState::get_replica().rec_ready)
   {
     // Replica is not ready to recover
     return;
@@ -2924,28 +2965,29 @@ void Replica::rec_timer_handler(void* owner)
 
 #ifdef RECOVERY
   if (
-    replica->num_of_replicas() - 1 - rec_count % replica->num_of_replicas() ==
-    replica->id())
+    pbft::GlobalState::get_replica().num_of_replicas() - 1 -
+      rec_count % pbft::GlobalState::get_replica().num_of_replicas() ==
+    pbft::GlobalState::get_replica().id())
   {
     // Start recovery:
     INIT_REC_STATS();
 
-    if (replica->recovering)
+    if (pbft::GlobalState::get_replica().recovering)
     {
       INCR_OP(incomplete_recs);
       LOG_INFO << "* Starting recovery" << std::endl;
     }
 
     // Checkpoint
-    replica->shutdown();
+    pbft::GlobalState::get_replica().shutdown();
 
-    replica->state.simulate_reboot();
+    pbft::GlobalState::get_replica().state.simulate_reboot();
 
-    replica->recover();
+    pbft::GlobalState::get_replica().recover();
   }
   else
   {
-    if (replica->recovering)
+    if (pbft::GlobalState::get_replica().recovering)
     {
       INCR_OP(rec_overlaps);
     }

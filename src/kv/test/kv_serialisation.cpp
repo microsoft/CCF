@@ -470,10 +470,10 @@ TEST_CASE("replicated and derived table serialisation")
       data_replicated_private,
       data_derived,
       data_derived_private);
-    data_view_r->put(42, 42);
-    data_view_d->put(42, 42);
-    data_view_r_p->put(43, 43);
-    data_view_d_p->put(43, 43);
+    data_view_r->put(44, 44);
+    data_view_r_p->put(45, 45);
+    data_view_d->put(46, 46);
+    data_view_d_p->put(47, 47);
     auto [success, reqid, buffer] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
@@ -486,6 +486,34 @@ TEST_CASE("replicated and derived table serialisation")
     auto derived = kv::frame::derived(buffer->data());
     REQUIRE(replicated.n > 0);
     REQUIRE(derived.n > 0);
+  }
+
+  INFO("check that everything got deserialised correctly");
+  {
+    Store::Tx tx;
+    auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] = tx.get_view(
+      data_replicated,
+      data_replicated_private,
+      data_derived,
+      data_derived_private);
+
+    // replicated
+    auto replicated_pub = data_view_r->get(44);
+    REQUIRE(replicated_pub.has_value());
+    REQUIRE(replicated_pub.value() == 44);
+
+    auto replicated_priv = data_view_r_p->get(45);
+    REQUIRE(replicated_priv.has_value());
+    REQUIRE(replicated_priv.value() == 45);
+
+    // derived
+    auto derived_pub = data_view_d->get(46);
+    REQUIRE(derived_pub.has_value());
+    REQUIRE(derived_pub.value() == 46);
+
+    auto derived_priv = data_view_d_p->get(47);
+    REQUIRE(derived_priv.has_value());
+    REQUIRE(derived_priv.value() == 47);
   }
 }
 

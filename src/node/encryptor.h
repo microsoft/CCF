@@ -59,8 +59,8 @@ namespace ccf
 
     void set_iv(crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr)
     {
-      gcm_hdr.setIvId(id);
-      gcm_hdr.setIvSeq(seqNo.fetch_add(1));
+      gcm_hdr.set_iv_id(id);
+      gcm_hdr.set_iv_seq(seqNo.fetch_add(1));
     }
 
     const crypto::KeyAesGcm& get_encryption_key(kv::Version version)
@@ -122,7 +122,7 @@ namespace ccf
       set_iv(gcm_hdr);
 
       get_encryption_key(version).encrypt(
-        gcm_hdr.getIv(), plain, additional_data, cipher.data(), gcm_hdr.tag);
+        gcm_hdr.get_iv(), plain, additional_data, cipher.data(), gcm_hdr.tag);
 
       serialised_header = std::move(gcm_hdr.serialise());
     }
@@ -151,7 +151,7 @@ namespace ccf
       plain.resize(cipher.size());
 
       auto ret = get_encryption_key(version).decrypt(
-        gcm_hdr.getIv(), gcm_hdr.tag, cipher, additional_data, plain.data());
+        gcm_hdr.get_iv(), gcm_hdr.tag, cipher, additional_data, plain.data());
 
       if (!ret)
         plain.resize(0);

@@ -15,7 +15,7 @@ class Stable_estimator
   // any non-faulty replica by collecting reply-stable messages.
   //
 public:
-  Stable_estimator();
+  Stable_estimator(size_t num_of_replicas);
   // Effects: Creates a stable information with no information.
 
   ~Stable_estimator();
