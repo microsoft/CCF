@@ -117,7 +117,17 @@
           "commitHash": "bf9eb67ab9371755c6bcece13cadc7693bcbf264"
         }
       }
-    }
+    },
+    {
+      "Component": {
+        "Type": "other",
+        "Other": {
+          "Name": "QuickJS",
+          "Version": "2020-01-05",
+          "DownloadUrl": "https://bellard.org/quickjs/quickjs-2020-01-05.tar.xz"
+        }
+      }
+    },
   ],
   "Version": 1
 }
