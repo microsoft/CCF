@@ -67,7 +67,8 @@ TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
       std::vector<std::tuple<size_t, size_t, size_t>> writes;
       for (size_t j = 0u; j < tx_size; ++j)
       {
-        writes.push_back({rand() % args->maps.size(), rand() % max_k, rand()});
+        writes.push_back(
+          {rand() % args->maps.size(), rand() % max_k, rand() % max_k});
       }
 
       // Keep trying until you're able to commit it
@@ -84,7 +85,16 @@ TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 
         for (const auto& [map_i, k, v] : writes)
         {
-          views[map_i]->put(k, v);
+          auto view = views[map_i];
+          const auto value = view->get(v);
+          if (value.has_value())
+          {
+            view->put(k, *value);
+          }
+          else
+          {
+            view->put(k, v);
+          }
         }
 
         // Try to commit
