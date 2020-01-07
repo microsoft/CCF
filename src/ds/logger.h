@@ -42,6 +42,7 @@ namespace logger
     AbstractLogger(std::string log_path_) : log_path(log_path_)
     {
       f.open(log_path, std::ios_base::app);
+      f.setstate(std::ios_base::badbit);
     }
     virtual ~AbstractLogger() = default;
 
@@ -65,8 +66,11 @@ namespace logger
     void dump(const std::string& msg)
     {
       f << msg << std::endl;
-      if (!f)
-        throw std::logic_error("Failed to write to file: " + log_path);
+    }
+
+    virtual std::ostream& get_stream()
+    {
+      return f;
     }
   };
 
@@ -174,6 +178,11 @@ namespace logger
     void write(const std::string& log_line) override
     {
       std::cout << log_line << std::flush;
+    }
+
+    std::ostream& get_stream() override
+    {
+      return std::cout;
     }
   };
 
