@@ -1586,7 +1586,6 @@ void Replica::handle(New_principal* m)
                      m->port(),
                      m->ip(),
                      m->pubk_sig(),
-                     m->pubk_enc(),
                      m->host_name(),
                      m->is_replica()};
 

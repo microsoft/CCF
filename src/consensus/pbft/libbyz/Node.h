@@ -115,14 +115,9 @@ public:
   // Effects: Returns the size in bytes of a signature for principal
   // "id" (or current principal if "id" is negative.)
 
-  void gen_signature(const char* src, unsigned src_len, char* sig);
-  void gen_signature(
-    const char* src, unsigned src_len, KeyPair::Signature& sig);
-  // Requires: "sig" is at least sig_size() bytes long.
-  // Effects: Generates a signature "sig" (from this principal) for
-  // "src_len" bytes starting at "src" and puts the result in "sig".
+  void gen_signature(const char* src, unsigned src_len, uint8_t* sig);
 
-  KeyPair* get_keypair();
+  tls::KeyPair* get_keypair();
 
 protected:
   std::string service_name;
@@ -135,7 +130,7 @@ protected:
   size_t threshold; // Number of correct replicas. It must be
                     // threshold == 2*max_faulty+1.
 
-  std::unique_ptr<KeyPair> key_pair;
+  std::unique_ptr<tls::KeyPair> key_pair;
 
   // Map from principal identifiers to Principal*. The first "num_replicas"
   // principals correspond to the replicas.
@@ -246,7 +241,7 @@ inline unsigned Node::sig_size(int id) const
   return p->sig_size();
 }
 
-inline KeyPair* Node::get_keypair()
+inline tls::KeyPair* Node::get_keypair()
 {
   return key_pair.get();
 }

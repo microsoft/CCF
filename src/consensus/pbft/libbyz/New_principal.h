@@ -23,9 +23,6 @@ struct New_principal_rep : public Message_rep
   uint32_t pubk_sig_len;
   char pubk_sig[128];
 
-  uint32_t pubk_enc_len;
-  char pubk_enc[128];
-
   uint32_t host_name_len;
   char host_name[128];
 
@@ -43,7 +40,6 @@ public:
     short port,
     std::string ip,
     std::string pubk_sig,
-    std::string pubk_enc,
     std::string host_name,
     bool is_replica);
 
@@ -51,7 +47,6 @@ public:
   short port() const;
   std::string ip() const;
   std::string pubk_sig() const;
-  std::string pubk_enc() const;
   std::string host_name() const;
   bool is_replica() const;
 

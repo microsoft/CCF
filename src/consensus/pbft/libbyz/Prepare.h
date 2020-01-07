@@ -7,7 +7,7 @@
 
 #include "Digest.h"
 #include "Message.h"
-#include "keypair.h"
+#include "tls/keypair.h"
 #include "types.h"
 
 class Principal;
@@ -25,7 +25,7 @@ struct Prepare_rep : public Message_rep
   int id; // id of the replica that generated the message.
 
 #ifdef SIGN_BATCH
-  KeyPair::Signature batch_digest_signature;
+  std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> batch_digest_signature;
 #endif
 
   int padding;
@@ -67,7 +67,7 @@ public:
   // Effects: Fetches the digest from the message.
 
 #ifdef SIGN_BATCH
-  std::array<uint8_t, signature_size>& digest_sig() const;
+  std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& digest_sig() const;
 #endif
 
   bool is_proof() const;
@@ -117,7 +117,7 @@ inline Digest& Prepare::digest() const
 }
 
 #ifdef SIGN_BATCH
-inline std::array<uint8_t, signature_size>& Prepare::digest_sig() const
+inline std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& Prepare::digest_sig() const
 {
   return rep().batch_digest_signature;
 }

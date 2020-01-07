@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/pbft/libbyz/parameters.h"
 #include "node/entities.h"
 #include "node/rpc/jsonrpc.h"
+#include "tls/keypair.h"
 
 #include <array>
 #include <msgpack-c/msgpack.hpp>
@@ -16,7 +16,7 @@ namespace pbft
   {
     int64_t seqno;
     int16_t num_big_requests;
-    std::array<uint8_t, signature_size> digest_sig;
+    std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> digest_sig;
     std::vector<uint8_t> contents;
 
     MSGPACK_DEFINE(seqno, num_big_requests, digest_sig, contents);

@@ -1410,7 +1410,9 @@ namespace ccf
         rpcsessions,
         *network.tables->get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS),
         *network.tables->get<pbft::PrePreparesMap>(
-          pbft::Tables::PBFT_PRE_PREPARES));
+          pbft::Tables::PBFT_PRE_PREPARES),
+        node_kp->private_key_pem(),
+        node_kp->public_key_pem());
 
       network.tables->set_consensus(consensus);
 
@@ -1425,10 +1427,16 @@ namespace ccf
           for (auto& [node_id, ni] : w)
           {
             add_node(node_id, ni.value.nodehost, ni.value.nodeport);
+
+            auto pk_ptr = tls::make_public_key(ni.value.cert);
+
             consensus->add_configuration(
               version,
               configuration,
-              {node_id, ni.value.nodehost, ni.value.nodeport});
+              {node_id,
+               ni.value.nodehost,
+               ni.value.nodeport,
+               pk_ptr->public_key_pem().str()});
           }
         });
 

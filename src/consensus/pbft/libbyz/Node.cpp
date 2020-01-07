@@ -42,9 +42,8 @@ Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
 
   replica_count = 0;
 
-  uint8_t privk[Asym_key_size];
-  format::from_hex(node_info.privk, privk, Asym_key_size);
-  key_pair = std::make_unique<KeyPair>(privk);
+  key_pair =
+    std::make_unique<tls::KeyPair>(tls::parse_private_key(node_info.privk));
 
   service_name = node_info.general_info.service_name;
 
@@ -121,21 +120,19 @@ void Node::add_principal(const PrincipalInfo& principal_info)
   Addr a;
   bzero((char*)&a, sizeof(a));
   a.sin_family = AF_INET;
-  uint8_t pks[Asym_key_size];
-  uint8_t pke[Asym_key_size];
 
-  format::from_hex(principal_info.pubk_sig, pks, Asym_key_size);
-  format::from_hex(principal_info.pubk_enc, pke, Asym_key_size);
 #ifndef INSIDE_ENCLAVE
   a.sin_addr.s_addr = inet_addr(principal_info.ip.c_str());
   a.sin_port = htons(principal_info.port);
 #endif
   auto new_principals = std::make_shared<Principal_map>(*principals);
 
-  new_principals->insert(
-    {principal_info.id,
-     std::make_shared<Principal>(
-       principal_info.id, a, principal_info.is_replica, pks, pke)});
+  new_principals->insert({principal_info.id,
+                          std::make_shared<Principal>(
+                            principal_info.id,
+                            a,
+                            principal_info.is_replica,
+                            principal_info.pubk_sig)});
 
   std::atomic_store(&atomic_principals, new_principals);
 
@@ -243,25 +240,14 @@ Message* Node::recv()
   return m;
 }
 
-void Node::gen_signature(const char* src, unsigned src_len, char* sig)
+void Node::gen_signature(const char* src, unsigned src_len, uint8_t* sig)
 {
   INCR_OP(num_sig_gen);
   START_CC(sig_gen_cycles);
 
-  auto signature = key_pair->sign((uint8_t*)src, src_len);
+  auto signature = key_pair->sign(CBuffer{(uint8_t*)src, src_len});
 
   memcpy(sig, &signature[0], signature.size());
-
-  STOP_CC(sig_gen_cycles);
-}
-
-void Node::gen_signature(
-  const char* src, unsigned src_len, KeyPair::Signature& sig)
-{
-  INCR_OP(num_sig_gen);
-  START_CC(sig_gen_cycles);
-
-  key_pair->sign((uint8_t*)src, src_len, sig);
 
   STOP_CC(sig_gen_cycles);
 }

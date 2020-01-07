@@ -67,7 +67,7 @@ struct View_change_rep : public Message_rep
 
 #ifdef SIGN_BATCH
   // signature of the digest of the entire message.
-  KeyPair::Signature digest_signature;
+  std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> digest_signature;
 #endif
 
   /*
@@ -118,7 +118,7 @@ public:
   // authenticator).
 
 #ifdef SIGN_BATCH
-  KeyPair::Signature& signature();
+  std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& signature();
 #endif
 
   Seqno last_stable() const;
@@ -220,13 +220,6 @@ inline Digest& View_change::digest()
 {
   return rep().digest;
 }
-
-#ifdef SIGN_BATCH
-inline KeyPair::Signature& View_change::signature()
-{
-  return rep().digest_signature;
-}
-#endif
 
 inline Seqno View_change::last_stable() const
 {

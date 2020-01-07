@@ -208,7 +208,7 @@ bool Pre_prepare::set_digest(int64_t signed_version)
   {
     pbft::GlobalState::get_replica().set_next_expected_sig_offset();
     pbft::GlobalState::get_node().gen_signature(
-      d.digest(), d.digest_size(), rep().batch_digest_signature);
+      d.digest(), d.digest_size(), rep().batch_digest_signature.data());
   }
 #endif
 

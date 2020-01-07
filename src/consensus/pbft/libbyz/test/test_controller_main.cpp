@@ -54,9 +54,6 @@ int main(int argc, char** argv)
   std::string pubk_sig;
   app.add_option("--pubk_sig", pubk_sig, "pubk_sig");
 
-  std::string pubk_enc;
-  app.add_option("--pubk_enc", pubk_enc, "pubk_enc");
-
   std::string host_name;
   app.add_option("--host_name", host_name, "host_name");
 
@@ -86,7 +83,7 @@ int main(int argc, char** argv)
     exit(1);
   }
 
-  New_principal msg(id, port, ip, pubk_sig, pubk_enc, host_name, is_replica);
+  New_principal msg(id, port, ip, pubk_sig, host_name, is_replica);
 
   result = sendto(
     sock,

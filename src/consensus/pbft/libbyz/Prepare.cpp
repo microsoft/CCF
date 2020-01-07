@@ -31,7 +31,7 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
   if (is_signed)
   {
     pbft::GlobalState::get_node().gen_signature(
-      d.digest(), d.digest_size(), rep().batch_digest_signature);
+      d.digest(), d.digest_size(), rep().batch_digest_signature.data());
   }
   else
   {
@@ -53,7 +53,9 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
     auth_src_offset = 0;
 #else
     pbft::GlobalState::get_node().gen_signature(
-      contents(), sizeof(Prepare_rep), contents() + sizeof(Prepare_rep));
+      contents(),
+      sizeof(Prepare_rep),
+      (uint8_t*)(contents() + sizeof(Prepare_rep)));
 #endif
   }
   else

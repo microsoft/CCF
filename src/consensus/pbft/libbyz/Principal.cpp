@@ -13,8 +13,7 @@
 #include <stdlib.h>
 #include <strings.h>
 
-Principal::Principal(
-  int i, Addr a, bool is_rep, const uint8_t* pub_key_sig, uint8_t* pub_key_enc)
+Principal::Principal(int i, Addr a, bool is_rep, const std::string& pub_key_sig)
 {
   id = i;
   addr = a;
@@ -22,9 +21,9 @@ Principal::Principal(
   replica = is_rep;
 
   ssize = Sig_size;
-  public_key_sig = std::make_unique<PublicKey>(pub_key_sig);
-  std::copy(
-    pub_key_enc, pub_key_enc + Asym_key_size, std::begin(raw_pub_key_enc));
+  public_key_sig = std::make_unique<tls::PublicKey>(
+    tls::parse_public_key(tls::Pem(pub_key_sig)));
+  public_key_pem = pub_key_sig;
 
   for (int j = 0; j < 4; j++)
   {

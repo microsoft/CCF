@@ -123,8 +123,8 @@ public:
 
   struct PrePrepareProof
   {
-    std::array<uint8_t, Asym_key_size> public_key;
-    std::array<uint8_t, signature_size> signature;
+    std::string public_key;
+    std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> signature;
   };
 
   const std::unordered_map<int, PrePrepareProof>& get_pre_prepared_cert_proof()
@@ -142,7 +142,7 @@ inline bool Prepared_cert::add(Prepare* m)
 {
 #ifdef SIGN_BATCH
   int id = m->id();
-  std::array<uint8_t, signature_size>& digest_sig = m->digest_sig();
+  std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& digest_sig = m->digest_sig();
   PrePrepareProof proof;
   std::copy(
     std::begin(digest_sig), std::end(digest_sig), std::begin(proof.signature));
@@ -153,12 +153,8 @@ inline bool Prepared_cert::add(Prepare* m)
 #ifdef SIGN_BATCH
   if (result)
   {
-    const std::array<uint8_t, Asym_key_size>& pub_sig =
-      pbft::GlobalState::get_node().get_principal(id)->get_pub_key_enc();
-
-    std::copy(
-      std::begin(pub_sig), std::end(pub_sig), std::begin(proof.public_key));
-
+    proof.public_key =
+      pbft::GlobalState::get_node().get_principal(id)->get_pub_key_sig();
     pre_prepare_proof.insert({id, proof});
   }
 #endif
