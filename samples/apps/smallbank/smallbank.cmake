@@ -60,7 +60,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
       CLIENT_BIN ./small_bank_client
       VERIFICATION_FILE ${SMALL_BANK_SIGNED_VERIFICATION_FILE}
-      LABEL "SB sig"
+      LABEL "SB_sig"
       ADDITIONAL_ARGS
         --transactions ${SMALL_BANK_SIGNED_ITERATIONS}
         --max-writes-ahead 1000
@@ -74,7 +74,7 @@ if(BUILD_TESTS)
       NAME small_bank_sigs_forwarding
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
       CLIENT_BIN ./small_bank_client
-      LABEL "SB sig fwd"
+      LABEL "SB_sig_fwd"
       ADDITIONAL_ARGS
         --transactions ${SMALL_BANK_SIGNED_ITERATIONS}
         --max-writes-ahead 1000
