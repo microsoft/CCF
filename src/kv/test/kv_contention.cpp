@@ -63,12 +63,14 @@ TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 
     for (size_t i = 0u; i < tx_count; ++i)
     {
-      // Generate a set of random writes to random maps
-      std::vector<std::tuple<size_t, size_t, size_t>> writes;
+      // Generate a set of random reads and writes across our maps
+      std::vector<std::tuple<size_t, size_t, size_t, size_t>> writes;
       for (size_t j = 0u; j < tx_size; ++j)
       {
-        writes.push_back(
-          {rand() % args->maps.size(), rand() % max_k, rand() % max_k});
+        writes.push_back({rand() % args->maps.size(),
+                          rand() % max_k,
+                          rand() % args->maps.size(),
+                          rand() % max_k});
       }
 
       // Keep trying until you're able to commit it
@@ -83,19 +85,17 @@ TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
           views.push_back(tx.get_view(*map));
         }
 
-        for (const auto& [map_i, k, v] : writes)
+        for (const auto& [from_map, from_k, to_map, to_k] : writes)
         {
-          auto view = views[map_i];
-          const auto value = view->get(v);
-          if (value.has_value())
-          {
-            view->put(k, *value);
-          }
-          else
-          {
-            view->put(k, v);
-          }
+          auto from_view = views[from_map];
+          const auto v = from_view->get(from_k).value_or(from_k);
+
+          auto to_view = views[to_map];
+          to_view->put(to_k, v);
         }
+
+        // Yield now, to increase the chance of conflicts
+        std::this_thread::yield();
 
         // Try to commit
         const auto result = tx.commit();
@@ -175,9 +175,9 @@ TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   const auto timeout = std::chrono::seconds(30);
   while (compact_state.load() == Running)
   {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     const auto elapsed = Clock::now() - start;
     REQUIRE(elapsed < timeout);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
 
   REQUIRE(compact_state.load() == Done);
