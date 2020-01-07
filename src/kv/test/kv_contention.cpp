@@ -27,7 +27,7 @@ TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   constexpr size_t thread_count = 16;
   std::thread tx_threads[thread_count] = {};
 
-  constexpr size_t tx_count = 500;
+  constexpr size_t tx_count = 100;
   constexpr size_t tx_size = 100;
 
   // Keep atomic count of running threads
