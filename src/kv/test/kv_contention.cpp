@@ -27,7 +27,7 @@ TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   constexpr size_t thread_count = 16;
   std::thread tx_threads[thread_count] = {};
 
-  constexpr size_t tx_count = 100;
+  constexpr size_t tx_count = 500;
   constexpr size_t tx_size = 100;
 
   // Keep atomic count of running threads
@@ -52,43 +52,70 @@ TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
     for (size_t j = 0u; j < thread_count; ++j)
     {
       if (i == 0u || rand() % 2)
+      {
         args[j].maps.push_back(&map);
+      }
     }
   }
 
   auto thread_fn = [](void* a) {
     auto args = static_cast<ThreadArgs*>(a);
 
-    for (size_t i = 0u; i < tx_count; ++i)
+    for (size_t tx_n = 0; tx_n < tx_count; ++tx_n)
     {
-      // Start a transaction over selected maps
-      Store::Tx tx;
-
-      std::vector<MapType::TxView*> views;
-      for (const auto map : args->maps)
-        views.push_back(tx.get_view(*map));
-
-      // Write random ks and vs to random maps
+      // Generate a set of random writes to random maps
+      std::vector<std::tuple<size_t, size_t, size_t>> writes;
       for (size_t j = 0u; j < tx_size; ++j)
-        views[rand() % views.size()]->put(rand() % max_k, rand());
+      {
+        writes.push_back({rand() % args->maps.size(), rand() % max_k, rand()});
+      }
 
-      // Try to commit, don't actually care if it succeeds
-      tx.commit();
+      // Keep trying until you're able to commit it
+      while (true)
+      {
+        // Start a transaction over selected maps
+        Store::Tx tx;
+
+        std::vector<MapType::TxView*> views;
+        for (const auto map : args->maps)
+        {
+          views.push_back(tx.get_view(*map));
+        }
+
+        for (const auto& [map_i, k, v] : writes)
+        {
+          views[map_i]->put(k, v);
+        }
+
+        // Try to commit
+        const auto result = tx.commit();
+        if (result == kv::CommitSuccess::OK)
+        {
+          break;
+        }
+      }
     }
 
+    // Notify that this thread has finished
     --*args->counter;
   };
 
   // Start a thread which continually compacts at the latest version, until all
   // tx_threads have finished
   std::thread compact_thread;
-  std::atomic<size_t> compact_state(0); // 3 states: not started, running, done
+  enum CompacterState
+  {
+    NotStarted,
+    Running,
+    Done
+  };
+  std::atomic<CompacterState> compact_state(NotStarted);
 
   struct CompactArgs
   {
     Store* kv_store;
     std::atomic<size_t>* tx_counter;
-    std::atomic<size_t>* compact_state;
+    decltype(compact_state)* compact_state;
   } ca{&kv_store, &active_tx_threads, &compact_state};
 
   // Start compact thread
@@ -98,17 +125,23 @@ TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
         auto ca = static_cast<CompactArgs*>(a);
         auto& store = *ca->kv_store;
 
-        ca->compact_state->store(1);
+        ca->compact_state->store(Running);
 
         while (ca->tx_counter->load() > 0)
         {
           store.compact(store.current_version());
         }
 
-        ca->compact_state->store(2);
+        // Ensure store is compacted one last time _after_ all threads have
+        // finished
+        store.compact(store.current_version());
+
+        ca->compact_state->store(Done);
       },
       &ca);
   }
+
+  const auto initial_version = kv_store.commit_version();
 
   // Start tx threads
   for (size_t i = 0u; i < thread_count; ++i)
@@ -119,24 +152,31 @@ TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
     tx_threads[i] = std::thread(thread_fn, &args[i]);
   }
 
-  // Simple watchdog loop on this main thread. Wait for the compact thread to
-  // start, and then it has either completed or it is still running and
-  // increasing the compacted version
-  while (compact_state.load() == 0)
+  // Wait for the compact thread to start
+  while (compact_state.load() == NotStarted)
   {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
 
-  auto last_compacted = kv_store.commit_version();
-  while (compact_state.load() == 1)
+  // Wait for the compact thread to finish, with an overall timeout to detect
+  // deadlock
+  using Clock = std::chrono::system_clock;
+  const auto start = Clock::now();
+  const auto timeout = std::chrono::seconds(20);
+  while (compact_state.load() == Running)
   {
-    std::this_thread::sleep_for(std::chrono::milliseconds(400));
-    auto now_compacted = kv_store.commit_version();
-    REQUIRE(now_compacted > last_compacted);
-    last_compacted = now_compacted;
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    const auto elapsed = Clock::now() - start;
+    REQUIRE(elapsed < timeout);
   }
 
-  REQUIRE(compact_state.load() == 2);
+  REQUIRE(compact_state.load() == Done);
+
+  // Sanity check that all transactions were compacted
+  const auto now_compacted = kv_store.commit_version();
+  REQUIRE(now_compacted > initial_version);
+  const auto expected = initial_version + (tx_count * thread_count);
+  REQUIRE(now_compacted == expected);
 
   // Wait for tx threads to complete
   for (size_t i = 0u; i < thread_count; ++i)
