@@ -61,7 +61,7 @@ TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   auto thread_fn = [](void* a) {
     auto args = static_cast<ThreadArgs*>(a);
 
-    for (size_t tx_n = 0; tx_n < tx_count; ++tx_n)
+    for (size_t i = 0u; i < tx_count; ++i)
     {
       // Generate a set of random writes to random maps
       std::vector<std::tuple<size_t, size_t, size_t>> writes;
