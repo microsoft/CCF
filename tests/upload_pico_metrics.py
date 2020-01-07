@@ -37,13 +37,13 @@ benchmark_specs = {
     ],
     "tls_bench.csv": [
         {
-            "_name": "secp256k1 verify",
+            "_name": "secp256k1 verify^",
             "Suite": "verify",
             "Benchmark": "verify_256k1_bitc_1k",
             "D": "1",
         },
         {
-            "_name": "secp256k1 sign",
+            "_name": "secp256k1 sign^",
             "Suite": "sign",
             "Benchmark": "sign_256k1_bitc_1k",
             "D": "1",
