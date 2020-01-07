@@ -13,13 +13,9 @@
 using namespace ccfapp;
 using namespace ccf;
 
-// Helper functions
+// Helper functions to use a dummy encryption key
 ccf::LedgerSecrets create_ledger_secrets()
 {
-  // Because the ccf::LedgerSecrets() calls tls::KeyPair with the
-  // old curve (MBEDTLS_ECP_DP_SECP384R1) by default which makes tx.commit() run
-  // a lot slower with legacy curves, we use a dummy encryption key for this
-  // benchmarks
   auto secrets = ccf::LedgerSecrets();
   auto new_secret =
     std::make_unique<ccf::LedgerSecret>(std::vector<uint8_t>(16, 0x1));
@@ -34,7 +30,7 @@ template <kv::SecurityDomain SD>
 static void serialise(picobench::state& s)
 {
   Store kv_store;
-  auto secrets = create_network_secrets();
+  auto secrets = create_ledger_secrets();
   auto encryptor = std::make_shared<ccf::TxEncryptor>(0x1, secrets);
   kv_store.set_encryptor(encryptor);
 
@@ -64,7 +60,7 @@ static void deserialise(picobench::state& s)
   Store kv_store(consensus);
   Store kv_store2;
 
-  auto secrets = create_network_secrets();
+  auto secrets = create_ledger_secrets();
   auto encryptor = std::make_shared<ccf::TxEncryptor>(0x1, secrets);
   kv_store.set_encryptor(encryptor);
   kv_store2.set_encryptor(encryptor);

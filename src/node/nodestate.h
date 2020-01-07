@@ -454,8 +454,8 @@ namespace ccf
             // the joining node can only join the public network
             bool public_only = (resp->network_info.version != 0);
 
-            network.identity = std::make_unique<NetworkIdentity>(
-              resp->network_info.identity);
+            network.identity =
+              std::make_unique<NetworkIdentity>(resp->network_info.identity);
 
             LOG_INFO_FMT(
               "Joining at version {}, public_only: {}",

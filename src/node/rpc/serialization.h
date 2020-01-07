@@ -28,10 +28,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(LedgerSecret, master)
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out::NetworkInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
-    JoinNetworkNodeToNode::Out::NetworkInfo,
-    ledger_secrets,
-    version,
-    identity)
+    JoinNetworkNodeToNode::Out::NetworkInfo, ledger_secrets, version, identity)
 
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::In)
   DECLARE_JSON_REQUIRED_FIELDS(
