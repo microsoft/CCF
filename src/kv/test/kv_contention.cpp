@@ -162,7 +162,7 @@ TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   // deadlock
   using Clock = std::chrono::system_clock;
   const auto start = Clock::now();
-  const auto timeout = std::chrono::seconds(20);
+  const auto timeout = std::chrono::seconds(30);
   while (compact_state.load() == Running)
   {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
