@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "enclave/appinterface.h"
-#include "quickjs.h"
 #include "node/rpc/userfrontend.h"
+#include "quickjs.h"
 
 #include <memory>
 #include <vector>
@@ -35,8 +35,8 @@ namespace ccfapp
       }
 
       auto default_handler = [this](RequestArgs& args) {
-        JSRuntime *rt = JS_NewRuntime();
-        JSContext *ctx = JS_NewContext(rt);
+        JSRuntime* rt = JS_NewRuntime();
+        JSContext* ctx = JS_NewContext(rt);
 
         if (args.method == UserScriptIds::ENV_HANDLER)
           return jsonrpc::error(
