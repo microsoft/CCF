@@ -195,9 +195,6 @@ if(BUILD_TESTS)
   add_picobench(logger_bench
     SRCS src/ds/test/logger_bench.cpp
   )
-  add_picobench(logger_json_bench
-    SRCS src/ds/test/logger_json_bench.cpp
-  )
   add_picobench(json_bench
     SRCS src/ds/test/json_bench.cpp
   )
