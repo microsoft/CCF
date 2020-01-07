@@ -14,7 +14,7 @@ using namespace ccfapp;
 using namespace ccf;
 
 // Helper functions
-ccf::LedgerSecrets create_network_secrets()
+ccf::LedgerSecrets create_ledger_secrets()
 {
   // Because the ccf::LedgerSecrets() calls tls::KeyPair with the
   // old curve (MBEDTLS_ECP_DP_SECP384R1) by default which makes tx.commit() run

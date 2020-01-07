@@ -3,7 +3,6 @@
 #pragma once
 
 #include "kv/kvtypes.h"
-#include "tls/keypair.h"
 
 #include <algorithm>
 #include <nlohmann/json.hpp>
@@ -70,10 +69,8 @@ namespace ccf
       seal(std::move(seal_))
     {
       // Generate fresh ledger encryption key
-      // TODO: Should the random be moved to secret.h?
       auto new_secret =
         std::make_unique<LedgerSecret>(tls::create_entropy()->random(16));
-
       add_secret(0, std::move(new_secret), force_seal);
     }
 
@@ -91,17 +88,16 @@ namespace ccf
     }
 
     // Called when a backup is given past network secrets via the store
-    bool set_secret(
-      kv::Version v, const std::vector<uint8_t>& serialised_secret)
+    bool set_secret(kv::Version v, const std::vector<uint8_t>& secret)
     {
       auto search = secrets_map.find(v);
       if (search != secrets_map.end())
       {
-        LOG_FAIL_FMT("set_secret(): secrets already exist {}", v);
+        LOG_FAIL_FMT("Ledger secrets at {} already exists", v);
         return false;
       }
 
-      auto new_secret = std::make_unique<LedgerSecret>(serialised_secret);
+      auto new_secret = std::make_unique<LedgerSecret>(secret);
       add_secret(v, std::move(new_secret), false);
 
       return true;
@@ -125,8 +121,8 @@ namespace ccf
         }
 
         // Unseal each sealed data
-        auto serialised_secrets = seal->unseal(it.value());
-        if (!serialised_secrets.has_value())
+        auto s = seal->unseal(it.value());
+        if (!s.has_value())
         {
           throw std::logic_error(
             "Secrets could not be unsealed : " + std::to_string(v));
@@ -134,9 +130,7 @@ namespace ccf
 
         LOG_DEBUG_FMT("Secrets successfully unsealed at version {}", it.key());
 
-        // Deserialise network secrets
-        auto new_secret =
-          std::make_unique<LedgerSecret>(serialised_secrets.value());
+        auto new_secret = std::make_unique<LedgerSecret>(s.value());
         add_secret(v, std::move(new_secret), false);
 
         restored_versions.push_back(v);

@@ -329,7 +329,7 @@ namespace ccf
         {
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
-          network.secrets = std::make_unique<LedgerSecrets>(
+          network.ledger_secrets = std::make_unique<LedgerSecrets>(
             std::make_unique<Seal>(writer_factory));
 
           self = 0; // The first node id is always 0
@@ -383,7 +383,7 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           // Create temporary network secrets but do not seal yet
-          network.secrets = std::make_unique<LedgerSecrets>(
+          network.ledger_secrets = std::make_unique<LedgerSecrets>(
             std::make_unique<Seal>(writer_factory), false);
 
           setup_history();
@@ -429,11 +429,8 @@ namespace ccf
           std::lock_guard<SpinLock> guard(lock);
           if (!sm.check(State::pending))
           {
-            LOG_FAIL_FMT("State is not pending anymore...");
             return false;
           }
-
-          LOG_FAIL_FMT("State is pending...");
 
           auto j = jsonrpc::unpack(data, jsonrpc::Pack::Text);
 
@@ -466,7 +463,7 @@ namespace ccf
               public_only);
 
             // In a private network, seal secrets immediately.
-            network.secrets = std::make_unique<LedgerSecrets>(
+            network.ledger_secrets = std::make_unique<LedgerSecrets>(
               resp->network_info.version,
               resp->network_info.ledger_secrets,
               std::make_unique<Seal>(writer_factory),
@@ -484,8 +481,6 @@ namespace ccf
             open_member_frontend();
 
             accept_network_tls_connections(args.config);
-
-            LOG_INFO_FMT("About to advance state...");
 
             if (public_only)
             {
@@ -636,7 +631,7 @@ namespace ccf
       ledger_truncate(last_index);
       LOG_INFO_FMT("Truncating ledger to last signed index: {}", last_index);
 
-      network.secrets->promote_secrets(0, last_index + 1);
+      network.ledger_secrets->promote_secrets(0, last_index + 1);
 
       g.create_service(network.identity->cert, last_index + 1);
 
@@ -759,7 +754,7 @@ namespace ccf
         consensus->resume_replication();
 
       // Seal all known network secrets
-      network.secrets->seal_all();
+      network.ledger_secrets->seal_all();
 
       // Open the service
       if (consensus->is_primary())
@@ -823,7 +818,7 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
         std::make_shared<NullTxEncryptor>();
 #else
-        std::make_shared<TxEncryptor>(self, *network.secrets);
+        std::make_shared<TxEncryptor>(self, *network.ledger_secrets);
 #endif
 
       recovery_store->set_history(recovery_history);
@@ -846,7 +841,7 @@ namespace ccf
       LOG_INFO_FMT("Initiating end of recovery (primary)");
 
       // Unseal past network secrets
-      auto past_secrets_idx = network.secrets->restore(sealed_secrets);
+      auto past_secrets_idx = network.ledger_secrets->restore(sealed_secrets);
 
       // Emit signature to certify transactions that happened on public
       // network
@@ -873,7 +868,7 @@ namespace ccf
           ccf::SerialisedNetworkSecrets ns;
           ns.node_id = nid;
 
-          auto serial = network.secrets->get_secret(ns_idx);
+          auto serial = network.ledger_secrets->get_secret(ns_idx);
           if (serial.has_value())
           {
             LOG_DEBUG_FMT(
@@ -1267,7 +1262,7 @@ namespace ccf
               }
 
               has_secrets = true;
-              if (!network.secrets->set_secret(v, plain_nw_secret_at_v))
+              if (!network.ledger_secrets->set_secret(v, plain_nw_secret_at_v))
               {
                 throw std::logic_error(
                   "Cannot set secrets because they already exist!");
@@ -1386,7 +1381,7 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
         std::make_shared<NullTxEncryptor>();
 #else
-        std::make_shared<TxEncryptor>(self, *network.secrets);
+        std::make_shared<TxEncryptor>(self, *network.ledger_secrets);
 #endif
 
       network.tables->set_encryptor(encryptor);

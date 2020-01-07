@@ -30,5 +30,4 @@ namespace ccf
         privk_pem.data(), privk_pem.data() + privk_pem.size());
     }
   };
-
 }

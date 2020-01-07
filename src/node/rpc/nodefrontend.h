@@ -113,8 +113,8 @@ namespace ccf
         return jsonrpc::success<JoinNetworkNodeToNode::Out>(
           {node_status,
            joining_node_id,
-           {this->network.secrets->get_current(),
-            this->network.secrets->get_current_version(),
+           {this->network.ledger_secrets->get_current(),
+            this->network.ledger_secrets->get_current_version(),
             *this->network.identity.get()}});
       }
       else
@@ -176,8 +176,8 @@ namespace ccf
             return jsonrpc::success<JoinNetworkNodeToNode::Out>(
               {joining_node_status,
                existing_node_id.value(),
-               {this->network.secrets->get_current(),
-                this->network.secrets->get_current_version(),
+               {this->network.ledger_secrets->get_current(),
+                this->network.ledger_secrets->get_current_version(),
                 *this->network.identity.get()}});
           }
 
@@ -200,8 +200,8 @@ namespace ccf
             return jsonrpc::success<JoinNetworkNodeToNode::Out>(
               {node_status,
                existing_node_id.value(),
-               {this->network.secrets->get_current(),
-                this->network.secrets->get_current_version(),
+               {this->network.ledger_secrets->get_current(),
+                this->network.ledger_secrets->get_current_version(),
                 *this->network.identity.get()}});
           }
           else if (node_status == NodeStatus::PENDING)

@@ -70,7 +70,7 @@ TEST_CASE("Add a node to an opening service")
   StubNodeState node;
   NodeRpcFrontend frontend(network, node);
 
-  network.secrets = std::make_unique<LedgerSecrets>();
+  network.ledger_secrets = std::make_unique<LedgerSecrets>();
   network.identity = std::make_unique<NetworkIdentity>();
 
   // Node certificate
@@ -100,7 +100,8 @@ TEST_CASE("Add a node to an opening service")
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller));
 
     CHECK(
-      response->network_info.ledger_secrets == network.secrets->get_current());
+      response->network_info.ledger_secrets ==
+      network.ledger_secrets->get_current());
     CHECK(response->network_info.identity == *network.identity.get());
     CHECK(response->network_info.version == 0);
     CHECK(response->node_status == NodeStatus::TRUSTED);
@@ -126,7 +127,8 @@ TEST_CASE("Add a node to an opening service")
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller));
 
     CHECK(
-      response->network_info.ledger_secrets == network.secrets->get_current());
+      response->network_info.ledger_secrets ==
+      network.ledger_secrets->get_current());
     CHECK(response->network_info.identity == *network.identity.get());
     CHECK(response->network_info.version == 0);
     CHECK(response->node_status == NodeStatus::TRUSTED);
@@ -150,95 +152,98 @@ TEST_CASE("Add a node to an opening service")
   }
 }
 
-// TEST_CASE("Add a node to an open service")
-// {
-//   NetworkState network;
-//   Store::Tx gen_tx;
-//   GenesisGenerator gen(network, gen_tx);
-//   gen.init_values();
+TEST_CASE("Add a node to an open service")
+{
+  NetworkState network;
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
+  gen.init_values();
 
-//   StubNodeState node;
-//   NodeRpcFrontend frontend(network, node);
+  StubNodeState node;
+  NodeRpcFrontend frontend(network, node);
 
-//   network.secrets = std::make_unique<LedgerSecrets>("CN=The CA");
+  network.ledger_secrets = std::make_unique<LedgerSecrets>();
+  network.identity = std::make_unique<NetworkIdentity>();
 
-//   gen.create_service({});
-//   gen.open_service();
-//   gen.finalize();
+  gen.create_service({});
+  gen.open_service();
+  gen.finalize();
 
-//   // Node certificate
-//   tls::KeyPairPtr kp = tls::make_key_pair();
-//   auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
-//   Cert caller = v->der_cert_data();
+  // Node certificate
+  tls::KeyPairPtr kp = tls::make_key_pair();
+  auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
+  Cert caller = v->der_cert_data();
 
-//   std::optional<NodeInfo> node_info;
-//   Store::Tx tx;
+  std::optional<NodeInfo> node_info;
+  Store::Tx tx;
 
-//   JoinNetworkNodeToNode::In join_input;
+  JoinNetworkNodeToNode::In join_input;
 
-//   INFO("Add node once service is open");
-//   {
-//     auto response_j =
-//       frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+  INFO("Add node once service is open");
+  {
+    auto response_j =
+      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
 
-//     CHECK(response_j[RESULT].find("network_info") == response_j[RESULT].end());
-//     auto response = jsonrpc::Response<JoinNetworkNodeToNode::Out>(response_j);
+    CHECK(response_j[RESULT].find("network_info") == response_j[RESULT].end());
+    auto response = jsonrpc::Response<JoinNetworkNodeToNode::Out>(response_j);
 
-//     auto node_id = response->node_id;
+    auto node_id = response->node_id;
 
-//     auto nodes_view = tx.get_view(network.nodes);
-//     node_info = nodes_view->get(node_id);
-//     CHECK(node_info.has_value());
-//     CHECK(node_info->status == NodeStatus::PENDING);
-//     CHECK(
-//       v->cert_pem().str() ==
-//       std::string({node_info->cert.data(),
-//                    node_info->cert.data() + node_info->cert.size()}));
-//   }
+    auto nodes_view = tx.get_view(network.nodes);
+    node_info = nodes_view->get(node_id);
+    CHECK(node_info.has_value());
+    CHECK(node_info->status == NodeStatus::PENDING);
+    CHECK(
+      v->cert_pem().str() ==
+      std::string({node_info->cert.data(),
+                   node_info->cert.data() + node_info->cert.size()}));
+  }
 
-//   INFO(
-//     "Adding a different node with the same node network details should fail");
-//   {
-//     tls::KeyPairPtr kp = tls::make_key_pair();
-//     auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
-//     Cert caller = v->der_cert_data();
+  INFO(
+    "Adding a different node with the same node network details should fail");
+  {
+    tls::KeyPairPtr kp = tls::make_key_pair();
+    auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
+    Cert caller = v->der_cert_data();
 
-//     // Network node info is empty (same as before)
-//     JoinNetworkNodeToNode::In join_input;
+    // Network node info is empty (same as before)
+    JoinNetworkNodeToNode::In join_input;
 
-//     auto response_j =
-//       frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+    auto response_j =
+      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
 
-//     check_error(response_j, StandardErrorCodes::INVALID_PARAMS);
-//     check_error_message(response_j, "A node with the same node host");
-//   }
+    check_error(response_j, StandardErrorCodes::INVALID_PARAMS);
+    check_error_message(response_j, "A node with the same node host");
+  }
 
-//   INFO("Try to join again without being trusted");
-//   {
-//     auto response_j =
-//       frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+  INFO("Try to join again without being trusted");
+  {
+    auto response_j =
+      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
 
-//     // The network secrets are still not available to the joining node
-//     CHECK(response_j[RESULT].find("network_info") == response_j[RESULT].end());
-//   }
+    // The network secrets are still not available to the joining node
+    CHECK(response_j[RESULT].find("network_info") == response_j[RESULT].end());
+  }
 
-//   INFO("Trust node and attempt to join");
-//   {
-//     // In a real scenario, nodes are trusted via member governance.
-//     node_info->status = NodeStatus::TRUSTED;
-//     auto nodes_view = tx.get_view(network.nodes);
-//     nodes_view->put(0, node_info.value());
-//     CHECK(tx.commit() == kv::CommitSuccess::OK);
+  INFO("Trust node and attempt to join");
+  {
+    // In a real scenario, nodes are trusted via member governance.
+    node_info->status = NodeStatus::TRUSTED;
+    auto nodes_view = tx.get_view(network.nodes);
+    nodes_view->put(0, node_info.value());
+    CHECK(tx.commit() == kv::CommitSuccess::OK);
 
-//     auto response = jsonrpc::Response<JoinNetworkNodeToNode::Out>(
-//       frontend_process(frontend, join_input, NodeProcs::JOIN, caller));
+    auto response = jsonrpc::Response<JoinNetworkNodeToNode::Out>(
+      frontend_process(frontend, join_input, NodeProcs::JOIN, caller));
 
-//     CHECK(
-//       response->network_info.ledger_secrets == network.secrets->get_current());
-//     CHECK(response->network_info.version == 0);
-//     CHECK(response->node_status == NodeStatus::TRUSTED);
-//   }
-// }
+    CHECK(
+      response->network_info.ledger_secrets ==
+      network.ledger_secrets->get_current());
+    CHECK(response->network_info.identity == *network.identity.get());
+    CHECK(response->network_info.version == 0);
+    CHECK(response->node_status == NodeStatus::TRUSTED);
+  }
+}
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
