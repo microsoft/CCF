@@ -340,6 +340,7 @@ endfunction()
 
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/secp256k1.cmake)
+include(${CCF_DIR}/cmake/quickjs.cmake)
 
 find_package(CURL REQUIRED)
 
@@ -389,6 +390,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       ${PARSED_ARGS_INCLUDE_DIRS}
       ${EVERCRYPT_INC}
       ${CMAKE_CURRENT_BINARY_DIR}
+      ${QUICKJS_INC}
     )
     add_dependencies(${name} flatbuffers)
 
@@ -402,6 +404,8 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       -nostdlib -nodefaultlibs -nostartfiles
       -Wl,--no-undefined
       -Wl,-Bstatic,-Bsymbolic,--export-dynamic,-pie
+      quickjs.enclave
+      -lgcc
       ${PARSED_ARGS_LINK_LIBS}
       ${ENCLAVE_LIBS}
       http_parser.enclave
@@ -435,6 +439,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       ${EVERCRYPT_INC}
       ${OE_INCLUDE_DIR}
       ${CMAKE_CURRENT_BINARY_DIR}
+      ${QUICKJS_INC}
     )
     add_dependencies(${virt_name} flatbuffers)
 
@@ -455,6 +460,7 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       ${CMAKE_THREAD_LIBS_INIT}
       secp256k1.host
       http_parser.host
+      quickjs.host
     )
     enable_coverage(${virt_name})
     use_client_mbedtls(${virt_name})
@@ -600,6 +606,9 @@ set(CCF_NETWORK_TEST_ARGS
 
 # SNIPPET: Lua generic application
 add_enclave_lib(luagenericenc ${CCF_DIR}/src/apps/luageneric/oe_sign.conf ${CCF_DIR}/src/apps/sample_key.pem SRCS ${CCF_DIR}/src/apps/luageneric/luageneric.cpp)
+
+add_enclave_lib(jsgenericenc ${CCF_DIR}/src/apps/jsgeneric/oe_sign.conf ${CCF_DIR}/src/apps/sample_key.pem SRCS ${CCF_DIR}/src/apps/jsgeneric/jsgeneric.cpp)
+
 
 # Samples
 
