@@ -34,11 +34,20 @@ public:
   View maxv; // Maximum view in which this entry was marked useful
 };
 
+Big_req_table::Big_req_table(size_t num_of_replicas) :
+  breqs(max_out),
+  last_stable(0),
+  last_view(0),
+  unmatched(num_of_replicas)
+{
+  max_entries = max_out * Max_requests_in_batch;
+}
+
 Big_req_table::Big_req_table() :
   breqs(max_out),
   last_stable(0),
   last_view(0),
-  unmatched(node->num_of_replicas())
+  unmatched(pbft::GlobalState::get_node().num_of_replicas())
 {
   max_entries = max_out * Max_requests_in_batch;
 }
@@ -184,14 +193,17 @@ void Big_req_table::add_pre_prepare(Request* r, Seqno n, View v)
 
 bool Big_req_table::check_pcerts(BR_entry* bre)
 {
-  PBFT_ASSERT(replica->has_complete_new_view(), "Invalid state");
+  PBFT_ASSERT(
+    pbft::GlobalState::get_replica().has_complete_new_view(), "Invalid state");
 
   for (int i = 0; i < bre->waiting.size(); i++)
   {
     Waiting_pp wp = bre->waiting[i];
-    if (replica->plog.within_range(wp.n) && wp.v >= last_view)
+    if (
+      pbft::GlobalState::get_replica().plog.within_range(wp.n) &&
+      wp.v >= last_view)
     {
-      Prepared_cert& pc = replica->plog.fetch(wp.n);
+      Prepared_cert& pc = pbft::GlobalState::get_replica().plog.fetch(wp.n);
       if (pc.is_pp_correct())
       {
         return true;
@@ -244,7 +256,8 @@ bool Big_req_table::add_request(Request* r, bool verified)
 
     if (
       bre->r == 0 &&
-      (verified || !replica->has_complete_new_view() || check_pcerts(bre)))
+      (verified || !pbft::GlobalState::get_replica().has_complete_new_view() ||
+       check_pcerts(bre)))
     {
       bre->r = r;
 
@@ -259,21 +272,23 @@ bool Big_req_table::add_request(Request* r, bool verified)
         View v = wp.v;
         waiting.pop_back();
 
-        if (replica->has_complete_new_view())
+        if (pbft::GlobalState::get_replica().has_complete_new_view())
         {
           // Missing pre-prepare is in replica's plog.
-          if (v >= last_view && replica->plog.within_range(n))
+          if (
+            v >= last_view &&
+            pbft::GlobalState::get_replica().plog.within_range(n))
           {
             PBFT_ASSERT(n > last_stable, "Invalid state");
-            Prepared_cert& pc = replica->plog.fetch(n);
+            Prepared_cert& pc = pbft::GlobalState::get_replica().plog.fetch(n);
             pc.add(bre->rd, i);
-            replica->send_prepare(n);
+            pbft::GlobalState::get_replica().send_prepare(n);
           }
         }
         else
         {
           // Missing pre-prepare is in replica's view-info
-          replica->vi.add_missing(bre->rd, n, i);
+          pbft::GlobalState::get_replica().vi.add_missing(bre->rd, n, i);
         }
       }
 

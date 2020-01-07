@@ -31,20 +31,25 @@ namespace crypto
       memcpy(iv, data.data() + sizeof(tag), sizeof(iv));
     }
 
-    void setIvId(uint64_t id)
+    void set_iv_id(uint64_t id)
     {
       *reinterpret_cast<uint32_t*>(iv + IV_DELIMITER) =
         static_cast<uint32_t>(id);
     }
 
-    void setIvSeq(uint64_t seq)
+    void set_iv_seq(uint64_t seq)
     {
       *reinterpret_cast<uint64_t*>(iv) = seq;
     }
 
-    CBuffer getIv() const
+    CBuffer get_iv() const
     {
       return {iv, SIZE_IV};
+    }
+
+    uint64_t get_iv_int() const
+    {
+      return *reinterpret_cast<const uint64_t*>(iv);
     }
 
     std::vector<uint8_t> serialise()

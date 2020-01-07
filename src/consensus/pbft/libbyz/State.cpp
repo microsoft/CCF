@@ -252,7 +252,12 @@ template class Log<Checkpoint_rec>;
 //
 // State methods:
 //
-State::State(Replica* rep, char* memory, size_t num_bytes) :
+State::State(
+  Replica* rep,
+  char* memory,
+  size_t num_bytes,
+  size_t num_of_replicas,
+  size_t f) :
   replica(rep),
   mem((Block*)memory),
   nb(num_bytes / Block_size),
@@ -275,7 +280,7 @@ State::State(Replica* rep, char* memory, size_t num_bytes) :
   }
 
   fetching = false;
-  cert = std::make_unique<Meta_data_cert>(replica->num_of_replicas());
+  cert = std::make_unique<Meta_data_cert>(num_of_replicas, f);
   lreplier = 0;
 
   to_check = std::make_unique<CPartQueue>();
@@ -624,7 +629,7 @@ void State::start_fetch(Seqno le, Seqno c, Digest* cd, bool stable)
     // TODO: check if we can remove the code to keep
     // old checkpointa
     keep_ckpts = false;
-    lreplier = rand() % replica->num_of_replicas();
+    lreplier = rand() % pbft::GlobalState::get_replica().num_of_replicas();
 
     // Update partition information to reflect last modification
     // rather than last checkpointed modification.
@@ -659,8 +664,8 @@ void State::send_fetch(bool change_replier)
   START_CC(fetch_cycles);
 
   last_fetch_t = ITimer::current_time();
-  Request_id rid = replica->new_rid();
-  replica->principal()->set_last_fetch_rid(rid);
+  Request_id rid = pbft::GlobalState::get_replica().new_rid();
+  pbft::GlobalState::get_replica().principal()->set_last_fetch_rid(rid);
 
   PBFT_ASSERT(stalep[flevel]->size() > 0, "Invalid state");
   FPart& p = stalep[flevel]->back();
@@ -673,8 +678,9 @@ void State::send_fetch(bool change_replier)
     {
       do
       {
-        lreplier = (lreplier + 1) % replica->num_of_replicas();
-      } while (lreplier == replica->id());
+        lreplier =
+          (lreplier + 1) % pbft::GlobalState::get_replica().num_of_replicas();
+      } while (lreplier == pbft::GlobalState::get_replica().id());
     }
     replier = lreplier;
   }
@@ -695,7 +701,7 @@ void State::send_fetch(bool change_replier)
 
   // Send fetch to all.
   Fetch f(rid, p.lu, flevel, p.index, p.c, replier);
-  replica->send(&f, Node::All_replicas);
+  pbft::GlobalState::get_replica().send(&f, Node::All_replicas);
   LOG_TRACE << "Sending fetch message: rid=" << rid << " lu=" << p.lu << " ("
             << flevel << "," << p.index << ") c=" << p.c << " rep=" << replier
             << std::endl;
@@ -727,7 +733,8 @@ void State::send_fetch(bool change_replier)
 
 bool State::handle(Fetch* m, Seqno ls)
 {
-  std::shared_ptr<Principal> pi = replica->get_principal(m->id());
+  std::shared_ptr<Principal> pi =
+    pbft::GlobalState::get_replica().get_principal(m->id());
   if (pi == nullptr)
   {
     delete m;
@@ -752,7 +759,7 @@ bool State::handle(Fetch* m, Seqno ls)
               << " lu=" << m->last_uptodate() << " lm=" << ptree[l][i].lm
               << std::endl;
 
-    if (rc >= 0 && m->replier() == replica->id())
+    if (rc >= 0 && m->replier() == pbft::GlobalState::get_replica().id())
     {
       Seqno chosen = -1;
       if (
@@ -780,7 +787,7 @@ bool State::handle(Fetch* m, Seqno ls)
           if (data != nullptr)
           {
             Data d(i, p.lm, data);
-            replica->send(&d, m->id());
+            pbft::GlobalState::get_replica().send(&d, m->id());
             LOG_TRACE << "Sending data i=" << i << " lm=" << p.lm << std::endl;
           }
         }
@@ -806,7 +813,7 @@ bool State::handle(Fetch* m, Seqno ls)
               md.add_sub_part(j, q.d);
             }
           }
-          replica->send(&md, m->id());
+          pbft::GlobalState::get_replica().send(&md, m->id());
           LOG_TRACE << "Sending meta-data l=" << l - 1 << " i=" << i
                     << " lm=" << p.lm << std::endl;
         }
@@ -834,7 +841,7 @@ bool State::handle(Fetch* m, Seqno ls)
       {
         mdd.authenticate(pi.get());
         LOG_TRACE << "Sending meta-data-d l=" << l << " i=" << i << std::endl;
-        replica->send(&mdd, m->id());
+        pbft::GlobalState::get_replica().send(&mdd, m->id());
       }
     }
   }
@@ -978,7 +985,8 @@ void State::handle(Meta_data* m)
   INCR_CNT(meta_data_bytes, m->size());
   START_CC(fetch_cycles);
 
-  Request_id crid = replica->principal()->last_fetch_rid();
+  Request_id crid =
+    pbft::GlobalState::get_replica().principal()->last_fetch_rid();
   LOG_TRACE << "Got meta_data index " << m->index() << " from " << m->id()
             << " rid=" << m->request_id() << " crid=" << crid << std::endl;
   if (
@@ -1059,7 +1067,8 @@ void State::handle(Meta_data_d* m)
 
   LOG_TRACE << "Got meta_data_d from " << m->id() << "index" << m->index()
             << std::endl;
-  Request_id crid = replica->principal()->last_fetch_rid();
+  Request_id crid =
+    pbft::GlobalState::get_replica().principal()->last_fetch_rid();
   if (fetching && m->request_id() == crid && flevel == m->level())
   {
     FPart& wp = stalep[flevel]->back();
@@ -1232,7 +1241,7 @@ void State::done_with_level()
 
       STOP_CC(fetch_cycles);
 
-      replica->new_state(lc);
+      pbft::GlobalState::get_replica().new_state(lc);
 
       return;
     }
@@ -1315,7 +1324,9 @@ void State::check_state()
 
     while (lchecked < max)
     {
-      if (count % poll_cnt == 0 && replica->has_messages(0))
+      if (
+        count % poll_cnt == 0 &&
+        pbft::GlobalState::get_replica().has_messages(0))
       {
         STOP_CC(check_time);
         return;
@@ -1347,7 +1358,7 @@ void State::check_state()
   {
     checking = false;
     refetch_level = 0;
-    replica->try_end_recovery();
+    pbft::GlobalState::get_replica().try_end_recovery();
   }
 }
 

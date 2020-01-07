@@ -37,7 +37,7 @@ struct New_view_rep : public Message_rep
      // indexed by replica identifier. If a replica's entry has a null
      // digest, its view-change is not part of those selected to form
      // the new-view.
-     VC_info vc_info[node->num_of_replicas()];
+     VC_info vc_info[pbft::GlobalState::get_node().num_of_replicas()];
 
      // picked contains identifiers of replicas from whose view-change
      // message a checkpoint value or request was picked for propagation
@@ -111,7 +111,7 @@ public:
   // returns false.
 
   bool view_change(int id);
-  // Requires: id >= 0 && id < node->num_of_replicas())
+  // Requires: id >= 0 && id < pbft::GlobalState::get_node().num_of_replicas())
   // Effects: Same as view_change(int id, Digest& d) but does not set
   // digest.
 
@@ -155,7 +155,8 @@ inline VC_info* New_view::vc_info()
 inline uint8_t* New_view::picked()
 {
   // Effects: Returns a pointer to the picked array.
-  return (uint8_t*)(vc_info() + node->num_of_replicas());
+  return (
+    uint8_t*)(vc_info() + pbft::GlobalState::get_node().num_of_replicas());
 }
 
 inline View New_view::view() const
@@ -165,7 +166,7 @@ inline View New_view::view() const
 
 inline int New_view::id() const
 {
-  return node->primary(view());
+  return pbft::GlobalState::get_node().primary(view());
 }
 
 inline Seqno New_view::min() const

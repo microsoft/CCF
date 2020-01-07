@@ -28,11 +28,7 @@ extern "C"
 #include "epbft_drng.h"
 #include "parameters.h"
 
-static constexpr size_t SHA512_BYTES = 512 / 8;
 using SHA512 = std::array<uint8_t, SHA512_BYTES>;
-
-static constexpr size_t key_size = 32; // in bytes
-static constexpr size_t signature_size = 512 / 8; // in bytes
 
 class KeyPair
 {

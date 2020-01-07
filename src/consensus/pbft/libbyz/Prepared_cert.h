@@ -154,7 +154,7 @@ inline bool Prepared_cert::add(Prepare* m)
   if (result)
   {
     const std::array<uint8_t, Asym_key_size>& pub_sig =
-      node->get_principal(id)->get_pub_key_enc();
+      pbft::GlobalState::get_node().get_principal(id)->get_pub_key_enc();
 
     std::copy(
       std::begin(pub_sig), std::end(pub_sig), std::begin(proof.public_key));
@@ -168,14 +168,19 @@ inline bool Prepared_cert::add(Prepare* m)
 inline bool Prepared_cert::add_mine(Prepare* m)
 {
   PBFT_ASSERT(
-    node->id() != node->primary(m->view()) || node->f() == 0,
+    pbft::GlobalState::get_node().id() !=
+        pbft::GlobalState::get_node().primary(m->view()) ||
+      pbft::GlobalState::get_node().f() == 0,
     "Invalid Argument");
   return prepare_cert.add_mine(m);
 }
 
 inline bool Prepared_cert::add_mine(Pre_prepare* m)
 {
-  PBFT_ASSERT(node->id() == node->primary(m->view()), "Invalid Argument");
+  PBFT_ASSERT(
+    pbft::GlobalState::get_node().id() ==
+      pbft::GlobalState::get_node().primary(m->view()),
+    "Invalid Argument");
   PBFT_ASSERT(!pp_info.pre_prepare(), "Invalid state");
   pp_info.add_complete(m);
   primary = true;
@@ -280,7 +285,9 @@ inline void Prepared_cert::mark_stale()
 {
   if (!is_complete())
   {
-    if (node->primary() != node->id())
+    if (
+      pbft::GlobalState::get_node().primary() !=
+      pbft::GlobalState::get_node().id())
     {
       pp_info.clear();
     }

@@ -5,7 +5,9 @@
 
 #pragma once
 
-#include "consensus/ledgerenclave.h"
+#include "consensus/pbft/pbftpreprepares.h"
+#include "consensus/pbft/pbftrequests.h"
+#include "consensus/pbft/pbfttypes.h"
 #include "nodeinfo.h"
 
 /* Because of FILE parameter */
@@ -100,7 +102,9 @@ int Byz_init_replica(
   void (*comp_ndet)(Seqno, Byz_buffer*),
   int ndet_max_len,
   INetwork* network,
-  std::unique_ptr<consensus::LedgerEnclave> ledger = nullptr,
+  pbft::RequestsMap& pbft_requests_map,
+  pbft::PrePreparesMap& pbft_pre_prepares_map,
+  pbft::Store& store_,
   IMessageReceiveBase** message_receiver = nullptr);
 /* Requires: "mem" is vm page aligned and "size" is a multiple of the vm page
    size.

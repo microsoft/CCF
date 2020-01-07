@@ -21,6 +21,8 @@ class Meta_data_cert
   //
 
 public:
+  Meta_data_cert(size_t num_replicas, size_t f);
+
   Meta_data_cert(size_t num_replicas);
   // Effects: Creates an empty Meta_data_cert.
 

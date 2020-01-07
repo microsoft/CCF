@@ -379,16 +379,17 @@ TEST_CASE("process_pbft")
   frontend.process_pbft(ctx);
 
   Store::Tx tx;
-  auto pbft_metadata = tx.get_view(pbft_network.pbft_requests);
-  auto request_value = pbft_metadata->get(0);
+  auto pbft_requests_map = tx.get_view(pbft_network.pbft_requests_map);
+  auto request_value = pbft_requests_map->get(0);
   REQUIRE(request_value.has_value());
 
-  auto deserialised_request = request_value.value();
-  REQUIRE(deserialised_request.actor == actor);
-  REQUIRE(deserialised_request.caller_id == user_id);
-  REQUIRE(deserialised_request.caller_cert == user_caller_der);
+  pbft::Request deserialised_req = request_value.value();
+
+  REQUIRE(deserialised_req.actor == actor);
+  REQUIRE(deserialised_req.caller_id == user_id);
+  REQUIRE(deserialised_req.caller_cert == user_caller_der);
   auto deserialised_simple_call =
-    jsonrpc::unpack(deserialised_request.raw, default_pack);
+    jsonrpc::unpack(deserialised_req.raw, default_pack);
   REQUIRE(
     deserialised_simple_call[jsonrpc::METHOD] == simple_call[jsonrpc::METHOD]);
 }
