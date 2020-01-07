@@ -526,8 +526,10 @@ namespace ccf
 
       initiate_join(args);
 
+      // TODO: Timeout can be decreased once
+      // https://github.com/microsoft/CCF/issues/480 is addressed
       using namespace std::chrono_literals;
-      join_timer = timers.new_timer(2s, [this, args]() {
+      join_timer = timers.new_timer(4s, [this, args]() {
         if (sm.check(State::pending))
         {
           initiate_join(args);

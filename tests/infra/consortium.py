@@ -280,8 +280,10 @@ class Consortium:
 
         return True
 
+    # TODO: The default timeout here is relatively large, according to the join
+    # timer defined in nodestate.h
     def wait_for_node_to_exist_in_store(
-        self, remote_node, node_id, node_status=None, timeout=3
+        self, remote_node, node_id, node_status=None, timeout=6
     ):
         exists = False
         for _ in range(timeout):
