@@ -58,6 +58,16 @@ inline void from_json(const nlohmann::json& j, GeneralInfo& gi)
   gi.principal_info = std::move(temp);
 }
 
+struct PrivateKey
+{
+  std::string privk;
+};
+
+inline void from_json(const nlohmann::json& j, PrivateKey& pk)
+{
+  pk.privk = j["privk"];
+}
+
 struct NodeInfo
 {
   // personal info

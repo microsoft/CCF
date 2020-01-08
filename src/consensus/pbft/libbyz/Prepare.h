@@ -25,7 +25,7 @@ struct Prepare_rep : public Message_rep
   int id; // id of the replica that generated the message.
 
 #ifdef SIGN_BATCH
-  std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> batch_digest_signature;
+  tls::PbftSignature batch_digest_signature;
 #endif
 
   int padding;
@@ -67,7 +67,7 @@ public:
   // Effects: Fetches the digest from the message.
 
 #ifdef SIGN_BATCH
-  std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& digest_sig() const;
+  tls::PbftSignature& digest_sig() const;
 #endif
 
   bool is_proof() const;
@@ -115,13 +115,6 @@ inline Digest& Prepare::digest() const
 {
   return rep().digest;
 }
-
-#ifdef SIGN_BATCH
-inline std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& Prepare::digest_sig() const
-{
-  return rep().batch_digest_signature;
-}
-#endif
 
 inline bool Prepare::is_proof() const
 {

@@ -21,6 +21,10 @@ Pre_prepare::Pre_prepare(
   rep().seqno = s;
   rep().full_state_merkle_root.fill(0);
   rep().replicated_state_merkle_root.fill(0);
+#ifdef SIGN_BATCH
+  rep().batch_digest_signature.fill(0);
+  rep().padding.fill(0);
+#endif
 
   START_CC(pp_digest_cycles);
   INCR_OP(pp_digest);
@@ -130,14 +134,6 @@ Pre_prepare::Pre_prepare(
 #else
   set_size(old_size + pbft::GlobalState::get_node().sig_size());
 #endif
-
-#ifdef SIGN_BATCH
-  std::fill(
-    std::begin(rep().batch_digest_signature),
-    std::end(rep().batch_digest_signature),
-    0);
-#endif
-
   trim();
 }
 
@@ -208,7 +204,7 @@ bool Pre_prepare::set_digest(int64_t signed_version)
   {
     pbft::GlobalState::get_replica().set_next_expected_sig_offset();
     pbft::GlobalState::get_node().gen_signature(
-      d.digest(), d.digest_size(), rep().batch_digest_signature.data());
+      d.digest(), d.digest_size(), rep().batch_digest_signature);
   }
 #endif
 

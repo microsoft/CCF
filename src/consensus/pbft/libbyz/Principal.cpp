@@ -20,7 +20,7 @@ Principal::Principal(int i, Addr a, bool is_rep, const std::string& pub_key_sig)
   last_fetch = 0;
   replica = is_rep;
 
-  ssize = Sig_size;
+  ssize = tls::PbftSignatureSize;
   public_key_sig = std::make_unique<tls::PublicKey>(
     tls::parse_public_key(tls::Pem(pub_key_sig)));
   public_key_pem = pub_key_sig;

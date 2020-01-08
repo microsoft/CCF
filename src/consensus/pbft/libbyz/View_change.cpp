@@ -168,12 +168,12 @@ void View_change::re_authenticate(Principal* p)
     pbft::GlobalState::get_node().gen_signature(
       rep().digest.digest(),
       rep().digest.digest_size(),
-      rep().digest_signature.data());
+      rep().digest_signature);
 #endif
 
 #ifdef USE_PKEY_VIEW_CHANGES
     pbft::GlobalState::get_node().gen_signature(
-      contents(), old_size, (uint8_t*)(contents() + old_size));
+      contents(), old_size, contents() + old_size);
 #else
     auth_type = Auth_type::out;
     auth_len = old_size;
@@ -184,7 +184,7 @@ void View_change::re_authenticate(Principal* p)
 }
 
 #ifdef SIGN_BATCH
-std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& View_change::signature()
+tls::PbftSignature& View_change::signature()
 {
   return rep().digest_signature;
 }
@@ -256,8 +256,7 @@ bool View_change::verify_digest()
   digest().zero(); // zero digest
 
 #ifdef SIGN_BATCH
-  std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> previous_digest_signature =
-    rep().digest_signature;
+  tls::PbftSignature previous_digest_signature = rep().digest_signature;
   rep().digest_signature.fill(0);
 #endif
 

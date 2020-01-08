@@ -26,8 +26,6 @@ const int Key_size = 16;
 const int Key_size_u = Key_size / sizeof(unsigned);
 
 const int Tag_size = 16;
-const int Sig_size = 64;
-const int Asym_key_size = 32;
 
 class Principal : public IPrincipal
 {
@@ -81,7 +79,7 @@ private:
   bool replica;
   std::unique_ptr<tls::PublicKey> public_key_sig;
   std::string public_key_pem;
-  int ssize; // signature size
+  size_t ssize; // signature size
   unsigned
     kin[Key_size_u]; // session key for incoming messages from this principal
   unsigned

@@ -131,8 +131,7 @@ if("virtual" IN_LIST TARGET)
   enable_testing()
 
   function(pbft_add_executable name)
-
-    target_link_libraries(${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+    target_link_libraries(${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host)
     use_libbyz(${name})
     add_san(${name})
 

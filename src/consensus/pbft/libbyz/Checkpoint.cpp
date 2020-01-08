@@ -35,9 +35,7 @@ Checkpoint::Checkpoint(Seqno s, Digest& d, bool stable) :
   auth_src_offset = 0;
 #else
   pbft::GlobalState::get_node().gen_signature(
-    contents(),
-    sizeof(Checkpoint_rep),
-    (uint8_t*)(contents() + sizeof(Checkpoint_rep)));
+    contents(), sizeof(Checkpoint_rep), contents() + sizeof(Checkpoint_rep));
 #endif
 }
 
@@ -54,9 +52,7 @@ void Checkpoint::re_authenticate(Principal* p, bool stable)
   {
     rep().extra = 1;
     pbft::GlobalState::get_node().gen_signature(
-      contents(),
-      sizeof(Checkpoint_rep),
-      (uint8_t*)(contents() + sizeof(Checkpoint_rep)));
+      contents(), sizeof(Checkpoint_rep), contents() + sizeof(Checkpoint_rep));
   }
 #endif
 }

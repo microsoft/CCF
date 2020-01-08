@@ -58,11 +58,10 @@ def create_nodes(args):
 
             values = line.split(",")
             port = values[0].strip()
-            public_key_sig = values[1].strip()
-            private_key = values[2].strip()
-            print(private_key)
+            private_key = values[1].strip()
+
             if i < servers:
-                node = Node(i, port, public_key_sig, private_key, True)
+                node = Node(i, port, private_key, True)
                 node.set_private_ip(args.ip)
                 node.set_machine_name(
                     args.machine_name + "-" + str(i) + "-server-" + args.transport
@@ -71,7 +70,7 @@ def create_nodes(args):
 
                 nodes.append(node)
             elif i < clients + servers:
-                node = Node(i, port, public_key_sig, private_key, False)
+                node = Node(i, port, private_key, False)
                 node.set_private_ip(args.ip)
                 node.set_machine_name(
                     args.machine_name + "-" + str(i) + "-client-" + args.transport
@@ -251,7 +250,7 @@ def get_extra_args(args):
 if __name__ == "__main__":
     """
     Format of test config file should be:
-    port, public_key_sig, private_key
+    port, private_key
     <comma separated values for servers>
     <comma separated values for clients>
     """

@@ -240,14 +240,29 @@ Message* Node::recv()
   return m;
 }
 
-void Node::gen_signature(const char* src, unsigned src_len, uint8_t* sig)
+void Node::gen_signature(const char* src, unsigned src_len, char* sig)
 {
   INCR_OP(num_sig_gen);
   START_CC(sig_gen_cycles);
 
-  auto signature = key_pair->sign(CBuffer{(uint8_t*)src, src_len});
+  std::vector<uint8_t> signature = key_pair->sign((uint8_t*)src, src_len);
+  LOG_INFO_FMT("signature size: {}", signature.size());
+  LOG_INFO_FMT("max size: {}", MBEDTLS_ECDSA_MAX_LEN);
+  std::copy(signature.begin(), signature.end(), sig);
 
-  memcpy(sig, &signature[0], signature.size());
+  STOP_CC(sig_gen_cycles);
+}
+
+void Node::gen_signature(
+  const char* src, unsigned src_len, tls::PbftSignature& sig)
+{
+  INCR_OP(num_sig_gen);
+  START_CC(sig_gen_cycles);
+
+  size_t sig_size;
+  key_pair->sign((uint8_t*)src, src_len, &sig_size, sig.data());
+  LOG_INFO_FMT("signature size is: {}", sig_size);
+  assert(sig_size <= sig.size());
 
   STOP_CC(sig_gen_cycles);
 }

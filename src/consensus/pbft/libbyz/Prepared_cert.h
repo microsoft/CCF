@@ -124,7 +124,7 @@ public:
   struct PrePrepareProof
   {
     std::string public_key;
-    std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> signature;
+    tls::PbftSignature signature;
   };
 
   const std::unordered_map<int, PrePrepareProof>& get_pre_prepared_cert_proof()
@@ -142,7 +142,7 @@ inline bool Prepared_cert::add(Prepare* m)
 {
 #ifdef SIGN_BATCH
   int id = m->id();
-  std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& digest_sig = m->digest_sig();
+  tls::PbftSignature& digest_sig = m->digest_sig();
   PrePrepareProof proof;
   std::copy(
     std::begin(digest_sig), std::end(digest_sig), std::begin(proof.signature));

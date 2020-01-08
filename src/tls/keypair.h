@@ -63,6 +63,8 @@ namespace tls
     "-----BEGIN CERTIFICATE-----\n";
   static constexpr auto PEM_CERTIFICATE_FOOTER = "-----END CERTIFICATE-----\n";
 
+  using PbftSignature = std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>;
+  static constexpr auto PbftSignatureSize = MBEDTLS_ECDSA_MAX_LEN;
   // Helper to access elliptic curve id from context
   inline mbedtls_ecp_group_id get_ec_from_context(const mbedtls_pk_context& ctx)
   {
@@ -746,6 +748,14 @@ namespace tls
       return sign_hash(hash.data(), hash.size());
     }
 
+    std::vector<uint8_t> sign(uint8_t* p, size_t s) const
+    {
+      HashBytes hash;
+      do_hash(*ctx, p, s, hash);
+
+      return sign_hash(hash.data(), hash.size());
+    }
+
     /**
      * Write signature over hash of data, and the size of that signature to
      * specified locations.
@@ -765,6 +775,14 @@ namespace tls
     {
       HashBytes hash;
       do_hash(*ctx, d.p, d.rawSize(), hash);
+
+      return sign_hash(hash.data(), hash.size(), sig_size, sig);
+    }
+
+    int sign(uint8_t* p, size_t s, size_t* sig_size, uint8_t* sig) const
+    {
+      HashBytes hash;
+      do_hash(*ctx, p, s, hash);
 
       return sign_hash(hash.data(), hash.size(), sig_size, sig);
     }

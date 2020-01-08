@@ -67,7 +67,7 @@ struct View_change_rep : public Message_rep
 
 #ifdef SIGN_BATCH
   // signature of the digest of the entire message.
-  std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN> digest_signature;
+  tls::PbftSignature digest_signature;
 #endif
 
   /*
@@ -118,7 +118,7 @@ public:
   // authenticator).
 
 #ifdef SIGN_BATCH
-  std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>& signature();
+  tls::PbftSignature& signature();
 #endif
 
   Seqno last_stable() const;

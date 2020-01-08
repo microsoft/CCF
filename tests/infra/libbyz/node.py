@@ -7,10 +7,9 @@ import paramiko
 
 
 class Node:
-    def __init__(self, node_id, port, public_key_sig, private_key, is_replica):
+    def __init__(self, node_id, port, private_key, is_replica):
         self.id = node_id
         self.port = port
-        self.public_key_sig = public_key_sig
         self.private_key = private_key
         self.is_replica = is_replica
         self.client_exe = "client-test"
@@ -38,7 +37,7 @@ class Node:
             "id": int(self.id),
             "port": int(self.port),
             "ip": self.private_ip,
-            "pubk_sig": self.public_key_sig,
+            "pubk_sig": "",
             "host_name": self.machine_name,
             "is_replica": self.is_replica,
         }
