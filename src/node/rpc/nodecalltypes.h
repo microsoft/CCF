@@ -2,8 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/json_schema.h"
+#include "node/identity.h"
+#include "node/ledgersecrets.h"
 #include "node/nodeinfonetwork.h"
-#include "node/secret.h"
 
 #include <nlohmann/json.hpp>
 
@@ -77,13 +78,15 @@ namespace ccf
 
       struct NetworkInfo
       {
-        Secret network_secrets;
+        LedgerSecret ledger_secrets;
         int64_t version; // Current version of the network secrets
+
+        NetworkIdentity identity;
 
         bool operator==(const NetworkInfo& other) const
         {
-          return network_secrets == other.network_secrets &&
-            version == other.version;
+          return ledger_secrets == other.ledger_secrets &&
+            version == other.version && identity == other.identity;
         }
 
         bool operator!=(const NetworkInfo& other) const

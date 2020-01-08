@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/logger.h"
 #include "kv/kvtypes.h"
-#include "secret.h"
-#include "tls/keypair.h"
+#include "tls/entropy.h"
 
 #include <algorithm>
 #include <nlohmann/json.hpp>
@@ -21,28 +21,41 @@ namespace ccf
       const std::vector<uint8_t>& data) = 0;
   };
 
-  class NetworkSecrets
+  struct LedgerSecret
+  {
+    std::vector<uint8_t> master; // Referred to as "sd" in TR
+
+    bool operator==(const LedgerSecret& other) const
+    {
+      return master == other.master;
+    }
+
+    LedgerSecret() {}
+
+    LedgerSecret(const std::vector<uint8_t>& ledger_master_) :
+      master(ledger_master_)
+    {}
+  };
+
+  class LedgerSecrets
   {
     // Map of secrets that are valid from a specific version to the version of
     // the next entry in the map. The last entry in the map is valid for all
     // subsequent versions.
-    std::map<kv::Version, std::unique_ptr<Secret>> secrets_map;
+    std::map<kv::Version, std::unique_ptr<LedgerSecret>> secrets_map;
 
     std::unique_ptr<AbstractSeal> seal;
     kv::Version current_version = 0;
 
     void add_secret(
-      kv::Version v, std::unique_ptr<Secret>&& secret, bool force_seal)
+      kv::Version v, std::unique_ptr<LedgerSecret>&& secret, bool force_seal)
     {
-      // Seal new secrets
       if (seal && force_seal)
       {
-        // Serialise cert, priv_key and master
-        auto serialised_secret = secret->serialise();
-        if (!seal->seal(v, serialised_secret))
+        if (!seal->seal(v, secret->master))
         {
           throw std::logic_error(
-            "Network Secrets could not be sealed: " + std::to_string(v));
+            "Ledger secret could not be sealed: " + std::to_string(v));
         }
       }
 
@@ -52,53 +65,41 @@ namespace ccf
     }
 
   public:
-    NetworkSecrets() {}
-
     // Called on startup to generate fresh network secrets
-    NetworkSecrets(
-      const std::string& name,
-      std::unique_ptr<AbstractSeal> seal_ = nullptr,
-      bool force_seal = true) :
+    LedgerSecrets(
+      std::unique_ptr<AbstractSeal> seal_ = nullptr, bool force_seal = true) :
       seal(std::move(seal_))
     {
-      // Generate fresh network secrets
-      auto keys = tls::make_key_pair();
-      auto new_secret = std::make_unique<Secret>();
-      new_secret->cert = keys->self_sign(name);
-      const auto key_pem = keys->private_key_pem();
-      new_secret->priv_key =
-        std::vector<uint8_t>(key_pem.data(), key_pem.data() + key_pem.size());
-      new_secret->master = tls::create_entropy()->random(16);
-
+      // Generate fresh ledger encryption key
+      auto new_secret =
+        std::make_unique<LedgerSecret>(tls::create_entropy()->random(16));
       add_secret(0, std::move(new_secret), force_seal);
     }
 
     // Called when a node joins the network and get given the current network
     // secrets
-    NetworkSecrets(
+    LedgerSecrets(
       kv::Version v,
-      Secret& secret,
+      LedgerSecret& secret,
       std::unique_ptr<AbstractSeal> seal_ = nullptr,
       bool force_seal = true) :
       seal(std::move(seal_))
     {
-      auto new_secret = std::make_unique<Secret>(secret);
+      auto new_secret = std::make_unique<LedgerSecret>(secret);
       add_secret(v, std::move(new_secret), force_seal);
     }
 
     // Called when a backup is given past network secrets via the store
-    bool set_secret(
-      kv::Version v, const std::vector<uint8_t>& serialised_secret)
+    bool set_secret(kv::Version v, const std::vector<uint8_t>& secret)
     {
       auto search = secrets_map.find(v);
       if (search != secrets_map.end())
       {
-        LOG_FAIL_FMT("set_secret(): secrets already exist {}", v);
+        LOG_FAIL_FMT("Ledger secrets at {} already exists", v);
         return false;
       }
 
-      auto new_secret = std::make_unique<Secret>();
-      new_secret->deserialise(serialised_secret);
+      auto new_secret = std::make_unique<LedgerSecret>(secret);
       add_secret(v, std::move(new_secret), false);
 
       return true;
@@ -116,20 +117,22 @@ namespace ccf
         // Make sure that the secret to store does not already exist
         auto search = secrets_map.find(v);
         if (search != secrets_map.end())
+        {
           throw std::logic_error(
             "Cannot restore secrets that already exist: " + std::to_string(v));
+        }
 
         // Unseal each sealed data
-        auto serialised_secrets = seal->unseal(it.value());
-        if (!serialised_secrets.has_value())
+        auto s = seal->unseal(it.value());
+        if (!s.has_value())
+        {
           throw std::logic_error(
             "Secrets could not be unsealed : " + std::to_string(v));
+        }
 
         LOG_DEBUG_FMT("Secrets successfully unsealed at version {}", it.key());
 
-        // Deserialise network secrets
-        auto new_secret = std::make_unique<Secret>();
-        new_secret->deserialise(serialised_secrets.value());
+        auto new_secret = std::make_unique<LedgerSecret>(s.value());
         add_secret(v, std::move(new_secret), false);
 
         restored_versions.push_back(v);
@@ -143,7 +146,9 @@ namespace ccf
     bool promote_secrets(kv::Version old_v, kv::Version new_v)
     {
       if (old_v == new_v)
+      {
         return true;
+      }
 
       auto search = secrets_map.find(new_v);
       if (search != secrets_map.end())
@@ -171,13 +176,13 @@ namespace ccf
     bool seal_all()
     {
       if (!seal)
-        return false;
+      {
+        throw std::logic_error("No seal set to seal ledger secrets");
+      }
 
       for (auto const& ns_ : secrets_map)
       {
-        // Serialise cert, priv_key and master
-        auto serialised_secret = ns_.second->serialise();
-        if (!seal->seal(ns_.first, serialised_secret))
+        if (!seal->seal(ns_.first, ns_.second->master))
         {
           throw std::logic_error(
             "Network Secrets could not be sealed: " +
@@ -188,24 +193,24 @@ namespace ccf
       return true;
     }
 
-    const Secret& get_current()
+    const LedgerSecret& get_current()
     {
       return *secrets_map.at(current_version).get();
     }
 
-    std::optional<std::vector<uint8_t>> get_serialised_secret(kv::Version v)
+    std::optional<std::vector<uint8_t>> get_secret(kv::Version v)
     {
       auto search = secrets_map.find(v);
       if (search == secrets_map.end())
       {
-        LOG_FAIL_FMT("get_serialised_secret() {} does not exist", v);
+        LOG_FAIL_FMT("Ledger secret at {} does not exist", v);
         return {};
       }
 
-      return search->second->serialise();
+      return search->second->master;
     }
 
-    std::map<kv::Version, std::unique_ptr<Secret>>& get_secrets()
+    std::map<kv::Version, std::unique_ptr<LedgerSecret>>& get_secrets()
     {
       return secrets_map;
     }
