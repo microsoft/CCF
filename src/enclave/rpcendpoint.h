@@ -46,17 +46,17 @@ namespace enclave
         data.size());
 
       const SessionContext session(session_id, peer_cert());
-      RPCContext rpc_ctx(session);
+      std::optional<jsonrpc::Pack> pack = jsonrpc::Pack::Text;
 
-      auto [success, rpc] = jsonrpc::unpack_rpc(data, rpc_ctx.pack);
+      auto [success, rpc] = jsonrpc::unpack_rpc(data, pack);
       if (!success)
       {
-        send(jsonrpc::pack(rpc, rpc_ctx.pack.value()));
+        send(jsonrpc::pack(rpc, pack.value()));
         return true;
       }
       LOG_TRACE_FMT("Deserialised");
 
-      parse_rpc_context(rpc_ctx, rpc);
+      JsonRpcContext rpc_ctx(session, pack.value(), rpc);
       rpc_ctx.raw = data;
 
       auto prefixed_method = rpc_ctx.method;

@@ -374,7 +374,7 @@ TEST_CASE("process_pbft")
 
   const enclave::SessionContext session(
     enclave::InvalidSessionId, user_id, user_caller_der);
-  auto ctx = enclave::make_rpc_context(session, request.raw);
+  auto ctx = enclave::JsonRpcContext(session, request.raw);
   ctx.actor = (ccf::ActorsType)request.actor;
   frontend.process_pbft(ctx);
 
@@ -415,7 +415,7 @@ TEST_CASE("process_json")
   auto simple_call = create_simple_json();
 
   const auto serialized_call = jsonrpc::pack(simple_call, default_pack);
-  const auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+  const auto rpc_ctx = enclave::JsonRpcContext(user_session, serialized_call);
 
   Store::Tx tx;
   CallerId caller_id(0);
@@ -433,8 +433,7 @@ TEST_CASE("process")
   SUBCASE("without signature")
   {
     const auto serialized_call = jsonrpc::pack(simple_call, default_pack);
-    const auto rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_call);
+    const auto rpc_ctx = enclave::JsonRpcContext(user_session, serialized_call);
 
     const auto serialized_response = frontend.process(rpc_ctx).value();
     auto response = jsonrpc::unpack(serialized_response, default_pack);
@@ -447,8 +446,7 @@ TEST_CASE("process")
   SUBCASE("with signature")
   {
     const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
-    const auto rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_call);
+    const auto rpc_ctx = enclave::JsonRpcContext(user_session, serialized_call);
 
     const auto serialized_response = frontend.process(rpc_ctx).value();
     auto response = jsonrpc::unpack(serialized_response, default_pack);
@@ -466,8 +464,7 @@ TEST_CASE("process")
   {
     TestReqNotStoredFrontend frontend_nostore(*network.tables);
     const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
-    const auto rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_call);
+    const auto rpc_ctx = enclave::JsonRpcContext(user_session, serialized_call);
 
     const auto serialized_response = frontend_nostore.process(rpc_ctx).value();
     const auto response = jsonrpc::unpack(serialized_response, default_pack);
@@ -485,7 +482,7 @@ TEST_CASE("process")
   {
     const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
     const auto invalid_rpc_ctx =
-      enclave::make_rpc_context(invalid_session, serialized_call);
+      enclave::JsonRpcContext(invalid_session, serialized_call);
 
     const auto serialized_response = frontend.process(invalid_rpc_ctx).value();
     const auto response = jsonrpc::unpack(serialized_response, default_pack);
@@ -512,7 +509,7 @@ TEST_CASE("MinimalHandleFuction")
   const auto signed_call = create_signed_json(echo_call);
   const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
 
-  const auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+  const auto rpc_ctx = enclave::JsonRpcContext(user_session, serialized_call);
   auto response =
     jsonrpc::unpack(frontend.process(rpc_ctx).value(), default_pack);
   CHECK(response[jsonrpc::RESULT] == echo_call[jsonrpc::PARAMS]);
@@ -530,8 +527,7 @@ TEST_CASE("User caller")
 
   SUBCASE("valid caller")
   {
-    const auto rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_call);
+    const auto rpc_ctx = enclave::JsonRpcContext(user_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx).value();
     auto response = jsonrpc::unpack(serialized_response, default_pack);
@@ -541,7 +537,7 @@ TEST_CASE("User caller")
   SUBCASE("invalid caller")
   {
     const auto member_rpc_ctx =
-      enclave::make_rpc_context(member_session, serialized_call);
+      enclave::JsonRpcContext(member_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(member_rpc_ctx).value();
     auto response = jsonrpc::unpack(serialized_response, default_pack);
@@ -563,7 +559,7 @@ TEST_CASE("Member caller")
   SUBCASE("valid caller")
   {
     const auto member_rpc_ctx =
-      enclave::make_rpc_context(member_session, serialized_call);
+      enclave::JsonRpcContext(member_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(member_rpc_ctx).value();
     auto response = jsonrpc::unpack(serialized_response, default_pack);
@@ -572,8 +568,7 @@ TEST_CASE("Member caller")
 
   SUBCASE("invalid caller")
   {
-    const auto rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_call);
+    const auto rpc_ctx = enclave::JsonRpcContext(user_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx).value();
     auto response = jsonrpc::unpack(serialized_response, default_pack);
@@ -593,7 +588,7 @@ TEST_CASE("No certs table")
     jsonrpc::pack(simple_call, default_pack);
   TestNoCertsFrontend frontend(*network.tables);
 
-  const auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+  const auto rpc_ctx = enclave::JsonRpcContext(user_session, serialized_call);
   std::vector<uint8_t> serialized_response = frontend.process(rpc_ctx).value();
   auto response = jsonrpc::unpack(serialized_response, default_pack);
   CHECK(response[jsonrpc::RESULT] == true);
@@ -611,7 +606,7 @@ TEST_CASE("Signed read requests can be executed on backup")
   auto signed_call = create_signed_json();
   auto serialized_signed_call = jsonrpc::pack(signed_call, default_pack);
   const auto rpc_ctx =
-    enclave::make_rpc_context(user_session, serialized_signed_call);
+    enclave::JsonRpcContext(user_session, serialized_signed_call);
   auto response =
     jsonrpc::unpack(frontend.process(rpc_ctx).value(), default_pack);
 
@@ -637,7 +632,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   auto write_req = create_simple_json();
   auto serialized_call = jsonrpc::pack(write_req, default_pack);
 
-  const auto ctx = enclave::make_rpc_context(user_session, serialized_call);
+  const auto ctx = enclave::JsonRpcContext(user_session, serialized_call);
 
   {
     INFO("Backup frontend without forwarder does not forward");
@@ -686,7 +681,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     {
       INFO("Invalid caller");
       auto response = jsonrpc::unpack(
-        user_frontend_primary.process_forwarded(fwd_ctx), default_pack);
+        user_frontend_primary.process_forwarded(*fwd_ctx), default_pack);
       CHECK(
         response[jsonrpc::ERR][jsonrpc::CODE] ==
         static_cast<jsonrpc::ErrorBaseType>(
@@ -697,7 +692,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
       INFO("Valid caller");
       add_callers_primary_store();
       auto response = jsonrpc::unpack(
-        user_frontend_primary.process_forwarded(fwd_ctx), default_pack);
+        user_frontend_primary.process_forwarded(*fwd_ctx), default_pack);
       CHECK(response[jsonrpc::RESULT] == true);
     }
   }
@@ -719,7 +714,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     // Processing forwarded response by a backup frontend (here, the same
     // frontend that the command was originally issued to)
     auto response = jsonrpc::unpack(
-      user_frontend_backup.process_forwarded(fwd_ctx), default_pack);
+      user_frontend_backup.process_forwarded(*fwd_ctx), default_pack);
 
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
@@ -734,7 +729,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     auto signed_call = create_signed_json();
     auto serialized_signed_call = jsonrpc::pack(signed_call, default_pack);
     const auto signed_ctx =
-      enclave::make_rpc_context(user_session, serialized_signed_call);
+      enclave::JsonRpcContext(user_session, serialized_signed_call);
     const auto r = user_frontend_backup.process(signed_ctx);
     REQUIRE(!r.has_value());
     REQUIRE(channel_stub->size() == 1);
@@ -745,7 +740,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
         ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
         .value();
 
-    user_frontend_primary.process_forwarded(fwd_ctx);
+    user_frontend_primary.process_forwarded(*fwd_ctx);
 
     Store::Tx tx;
     auto client_sig_view = tx.get_view(network2.user_client_signatures);
@@ -794,7 +789,7 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
 
   const enclave::SessionContext node_session(
     enclave::InvalidSessionId, node_caller);
-  const auto ctx = enclave::make_rpc_context(node_session, serialized_call);
+  const auto ctx = enclave::JsonRpcContext(node_session, serialized_call);
   const auto r = node_frontend_backup.process(ctx);
   REQUIRE(!r.has_value());
   REQUIRE(channel_stub->size() == 1);
@@ -806,7 +801,7 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
       .value();
 
   auto response = jsonrpc::unpack(
-    node_frontend_primary.process_forwarded(fwd_ctx), default_pack);
+    node_frontend_primary.process_forwarded(*fwd_ctx), default_pack);
 
   CHECK(node_frontend_primary.last_caller_cert == node_caller);
   CHECK(node_frontend_primary.last_caller_id == INVALID_ID);
@@ -833,7 +828,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto write_req = create_simple_json();
   auto serialized_call = jsonrpc::pack(write_req, default_pack);
 
-  const auto ctx = enclave::make_rpc_context(user_session, serialized_call);
+  const auto ctx = enclave::JsonRpcContext(user_session, serialized_call);
   const auto r = user_frontend_backup.process(ctx);
   REQUIRE(!r.has_value());
   REQUIRE(channel_stub->size() == 1);
@@ -845,7 +840,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
       .value();
 
   auto response = jsonrpc::unpack(
-    user_frontend_primary.process_forwarded(fwd_ctx), default_pack);
+    user_frontend_primary.process_forwarded(*fwd_ctx), default_pack);
 
   CHECK(user_frontend_primary.last_caller_cert == user_caller_der);
   CHECK(user_frontend_primary.last_caller_id == 0);
@@ -874,7 +869,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   auto write_req = create_simple_json();
   auto serialized_call = jsonrpc::pack(write_req, default_pack);
 
-  const auto ctx = enclave::make_rpc_context(member_session, serialized_call);
+  const auto ctx = enclave::JsonRpcContext(member_session, serialized_call);
   const auto r = member_frontend_backup.process(ctx);
   REQUIRE(!r.has_value());
   REQUIRE(channel_stub->size() == 1);
@@ -886,7 +881,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
       .value();
 
   auto response = jsonrpc::unpack(
-    member_frontend_primary.process_forwarded(fwd_ctx), default_pack);
+    member_frontend_primary.process_forwarded(*fwd_ctx), default_pack);
 
   CHECK(member_frontend_primary.last_caller_cert == member_caller_der);
   CHECK(member_frontend_primary.last_caller_id == 0);
@@ -902,8 +897,7 @@ TEST_CASE("App-defined errors")
     foo_call[jsonrpc::METHOD] = "foo";
     std::vector<uint8_t> serialized_foo = jsonrpc::pack(foo_call, default_pack);
 
-    const auto rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_foo);
+    const auto rpc_ctx = enclave::JsonRpcContext(user_session, serialized_foo);
     std::vector<uint8_t> serialized_foo_response =
       frontend.process(rpc_ctx).value();
     auto foo_response = jsonrpc::unpack(serialized_foo_response, default_pack);
@@ -923,8 +917,7 @@ TEST_CASE("App-defined errors")
     bar_call[jsonrpc::METHOD] = "bar";
     std::vector<uint8_t> serialized_bar = jsonrpc::pack(bar_call, default_pack);
 
-    const auto rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_bar);
+    const auto rpc_ctx = enclave::JsonRpcContext(user_session, serialized_bar);
     std::vector<uint8_t> serialized_bar_response =
       frontend.process(rpc_ctx).value();
     auto bar_response = jsonrpc::unpack(serialized_bar_response, default_pack);

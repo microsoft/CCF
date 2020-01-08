@@ -137,12 +137,12 @@ void check_store_load(F frontend, K k, V v)
 
   // store
   const auto store_packed = make_pc("store", {{"k", k}, {"v", v}});
-  const auto store_ctx = enclave::make_rpc_context(user_session, store_packed);
+  const auto store_ctx = enclave::JsonRpcContext(user_session, store_packed);
   check_success(frontend->process(store_ctx).value(), true);
 
   // load and check that we get the right result
   const auto load_packed = make_pc("load", {{"k", k}});
-  const auto load_ctx = enclave::make_rpc_context(user_session, load_packed);
+  const auto load_ctx = enclave::JsonRpcContext(user_session, load_packed);
   check_success(frontend->process(load_ctx).value(), v);
 }
 
@@ -178,7 +178,7 @@ TEST_CASE("simple lua apps")
 
     // call "missing"
     const auto packed = make_pc("missing", {});
-    const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+    const auto rpc_ctx = enclave::JsonRpcContext(user_session, packed);
     const auto response = check_error(
       frontend->process(rpc_ctx).value(), CCFErrorCodes::SCRIPT_ERROR);
     const auto error_msg = response[ERR][MESSAGE].get<string>();
@@ -196,7 +196,7 @@ TEST_CASE("simple lua apps")
     // call "echo" function with "hello"
     const string verb = "hello";
     const auto packed = make_pc("echo", {{"verb", verb}});
-    const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+    const auto rpc_ctx = enclave::JsonRpcContext(user_session, packed);
     check_success(frontend->process(rpc_ctx).value(), verb);
   }
 
@@ -235,7 +235,7 @@ TEST_CASE("simple lua apps")
 
     // (3) attempt to read non-existing key (set of integers)
     const auto packed = make_pc("load", {{"k", set{5, 6, 7}}});
-    const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+    const auto rpc_ctx = enclave::JsonRpcContext(user_session, packed);
     check_error(
       frontend->process(rpc_ctx).value(), StandardErrorCodes::INVALID_PARAMS);
   }
@@ -261,7 +261,7 @@ TEST_CASE("simple lua apps")
 
     // (1) read out members table
     const auto packed = make_pc("get_members", {});
-    const auto get_ctx = enclave::make_rpc_context(user_session, packed);
+    const auto get_ctx = enclave::JsonRpcContext(user_session, packed);
     // expect to see 3 members in state active
     map<string, MemberInfo> expected = {{"0", {{}, MemberStatus::ACTIVE}},
                                         {"1", {{}, MemberStatus::ACTIVE}},
@@ -271,7 +271,7 @@ TEST_CASE("simple lua apps")
     // (2) try to write to members table
     const auto put_packed = make_pc(
       "put_member", {{"k", 99}, {"v", MemberInfo{{}, MemberStatus::ACTIVE}}});
-    const auto put_ctx = enclave::make_rpc_context(user_session, put_packed);
+    const auto put_ctx = enclave::JsonRpcContext(user_session, put_packed);
     check_error(
       frontend->process(put_ctx).value(), CCFErrorCodes::SCRIPT_ERROR);
   }
@@ -352,11 +352,11 @@ TEST_CASE("simple bank")
     const auto create_packed =
       make_pc(create_method, {{"dst", 1}, {"amt", 123}});
     const auto create_ctx =
-      enclave::make_rpc_context(user_session, create_packed);
+      enclave::JsonRpcContext(user_session, create_packed);
     check_success<bool>(frontend->process(create_ctx).value(), true);
 
     const auto read_packed = make_pc(read_method, {{"account", 1}});
-    const auto read_ctx = enclave::make_rpc_context(user_session, read_packed);
+    const auto read_ctx = enclave::JsonRpcContext(user_session, read_packed);
     check_success(frontend->process(read_ctx).value(), 123);
   }
 
@@ -364,17 +364,17 @@ TEST_CASE("simple bank")
     const auto create_packed =
       make_pc(create_method, {{"dst", 2}, {"amt", 999}});
     const auto create_ctx =
-      enclave::make_rpc_context(user_session, create_packed);
+      enclave::JsonRpcContext(user_session, create_packed);
     check_success<bool>(frontend->process(create_ctx).value(), true);
 
     const auto read_packed = make_pc(read_method, {{"account", 2}});
-    const auto read_ctx = enclave::make_rpc_context(user_session, read_packed);
+    const auto read_ctx = enclave::JsonRpcContext(user_session, read_packed);
     check_success(frontend->process(read_ctx).value(), 999);
   }
 
   {
     const auto read_packed = make_pc(read_method, {{"account", 3}});
-    const auto read_ctx = enclave::make_rpc_context(user_session, read_packed);
+    const auto read_ctx = enclave::JsonRpcContext(user_session, read_packed);
     check_error(
       frontend->process(read_ctx).value(), StandardErrorCodes::INVALID_PARAMS);
   }
@@ -383,17 +383,15 @@ TEST_CASE("simple bank")
     const auto transfer_packed =
       make_pc(transfer_method, {{"src", 1}, {"dst", 2}, {"amt", 5}});
     const auto transfer_ctx =
-      enclave::make_rpc_context(user_session, transfer_packed);
+      enclave::JsonRpcContext(user_session, transfer_packed);
     check_success<bool>(frontend->process(transfer_ctx).value(), true);
 
     const auto read1_packed = make_pc(read_method, {{"account", 1}});
-    const auto read1_ctx =
-      enclave::make_rpc_context(user_session, read1_packed);
+    const auto read1_ctx = enclave::JsonRpcContext(user_session, read1_packed);
     check_success(frontend->process(read1_ctx).value(), 123 - 5);
 
     const auto read2_packed = make_pc(read_method, {{"account", 2}});
-    const auto read2_ctx =
-      enclave::make_rpc_context(user_session, read2_packed);
+    const auto read2_ctx = enclave::JsonRpcContext(user_session, read2_packed);
     check_success(frontend->process(read2_ctx).value(), 999 + 5);
   }
 }
@@ -424,7 +422,7 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto packed = make_pc(log_trace_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      const auto rpc_ctx = enclave::JsonRpcContext(user_session, packed);
       check_success(frontend->process(rpc_ctx).value(), true);
     }
 
@@ -438,7 +436,7 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto packed = make_pc(log_debug_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      const auto rpc_ctx = enclave::JsonRpcContext(user_session, packed);
       check_success(frontend->process(rpc_ctx).value(), true);
     }
 
@@ -452,7 +450,7 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto packed = make_pc(log_info_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      const auto rpc_ctx = enclave::JsonRpcContext(user_session, packed);
       check_success(frontend->process(rpc_ctx).value(), true);
     }
 
@@ -466,7 +464,7 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto packed = make_pc(log_fail_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      const auto rpc_ctx = enclave::JsonRpcContext(user_session, packed);
       check_success(frontend->process(rpc_ctx).value(), true);
     }
 
@@ -479,7 +477,7 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto packed = make_pc(log_fatal_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      const auto rpc_ctx = enclave::JsonRpcContext(user_session, packed);
       check_error(
         frontend->process(rpc_ctx).value(),
         jsonrpc::StandardErrorCodes::INTERNAL_ERROR);
@@ -490,7 +488,7 @@ TEST_CASE("pre-populated environment")
     set_handler(network, log_throws_nil_method, {log_throws_nil});
     {
       const auto packed = make_pc(log_throws_nil_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      const auto rpc_ctx = enclave::JsonRpcContext(user_session, packed);
       check_error(
         frontend->process(rpc_ctx).value(),
         jsonrpc::StandardErrorCodes::INTERNAL_ERROR);
@@ -502,7 +500,7 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto packed = make_pc(log_throws_bool_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      const auto rpc_ctx = enclave::JsonRpcContext(user_session, packed);
       check_error(
         frontend->process(rpc_ctx).value(),
         jsonrpc::StandardErrorCodes::INTERNAL_ERROR);
@@ -515,7 +513,7 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto packed = make_pc(log_no_throw_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      const auto rpc_ctx = enclave::JsonRpcContext(user_session, packed);
       check_success(frontend->process(rpc_ctx).value(), true);
     }
   }
@@ -555,7 +553,7 @@ TEST_CASE("pre-populated environment")
       using StdEC = jsonrpc::StandardErrorCodes;
       using CCFEC = jsonrpc::CCFErrorCodes;
       const auto packed = make_pc(invalid_params_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      const auto rpc_ctx = enclave::JsonRpcContext(user_session, packed);
       const Response<std::vector<EBT>> r =
         json::from_msgpack(frontend->process(rpc_ctx).value());
 

@@ -286,7 +286,7 @@ namespace ccf
 
       const enclave::SessionContext node_session(
         enclave::InvalidSessionId, node_cert);
-      auto ctx = enclave::make_rpc_context(node_session, packed);
+      auto ctx = enclave::JsonRpcContext(node_session, packed);
 
       ctx.is_create_request = true;
       ctx.actor = actor;

@@ -204,9 +204,9 @@ namespace enclave
         }
 
         const SessionContext session(session_id, peer_cert());
-        RPCContext rpc_ctx(session);
+        std::optional<jsonrpc::Pack> pack;
 
-        auto [success, json_rpc] = jsonrpc::unpack_rpc(body, rpc_ctx.pack);
+        auto [success, json_rpc] = jsonrpc::unpack_rpc(body, pack);
         if (!success)
         {
           send_response(
@@ -214,10 +214,9 @@ namespace enclave
           return;
         }
 
-        parse_rpc_context(rpc_ctx, json_rpc);
+        JsonRpcContext rpc_ctx(session, pack.value(), json_rpc);
 
-        // TODO: For now, set this here as parse_rpc_context() resets
-        // rpc_ctx.signed_request for a HTTP endpoint.
+        // TODO: For now, set this here
         auto signed_req = http::HttpSignatureVerifier::parse(
           std::string(http_method_str(verb)), path, query, headers, body);
         if (signed_req.has_value())

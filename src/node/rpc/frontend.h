@@ -26,7 +26,7 @@ namespace ccf
 {
   struct RequestArgs
   {
-    const enclave::RPCContext& rpc_ctx;
+    const enclave::RpcContext& rpc_ctx;
     Store::Tx& tx;
     CallerId caller_id;
     const std::string& method;
@@ -264,7 +264,7 @@ namespace ccf
     }
 
     std::optional<nlohmann::json> forward_or_redirect_json(
-      const enclave::RPCContext& ctx, Forwardable forwardable)
+      const enclave::RpcContext& ctx, Forwardable forwardable)
     {
       if (
         cmd_forwarder && forwardable == Forwardable::CanForward &&
@@ -638,7 +638,7 @@ namespace ccf
      * to-be-executed by consensus), else the response (may contain error)
      */
     std::optional<std::vector<uint8_t>> process(
-      const enclave::RPCContext& ctx) override
+      const enclave::RpcContext& ctx) override
     {
       update_consensus();
 
@@ -779,7 +779,7 @@ namespace ccf
      *
      * @param ctx Context for this RPC
      */
-    ProcessPbftResp process_pbft(enclave::RPCContext& ctx) override
+    ProcessPbftResp process_pbft(enclave::RpcContext& ctx) override
     {
       // TODO(#PBFT): Refactor this with process_forwarded().
       Store::Tx tx;
@@ -850,7 +850,7 @@ namespace ccf
      *
      * @return Serialised reply to send back to forwarder node
      */
-    std::vector<uint8_t> process_forwarded(enclave::RPCContext& ctx) override
+    std::vector<uint8_t> process_forwarded(enclave::RpcContext& ctx) override
     {
       if (!ctx.session.fwd.has_value())
       {
@@ -898,7 +898,7 @@ namespace ccf
     }
 
     std::optional<nlohmann::json> process_if_local_node_rpc(
-      const enclave::RPCContext& ctx, Store::Tx& tx, CallerId caller_id)
+      const enclave::RpcContext& ctx, Store::Tx& tx, CallerId caller_id)
     {
       Handler* handler = nullptr;
       auto search = handlers.find(ctx.method);
@@ -911,7 +911,7 @@ namespace ccf
     }
 
     std::optional<nlohmann::json> process_json(
-      const enclave::RPCContext& ctx, Store::Tx& tx, CallerId caller_id)
+      const enclave::RpcContext& ctx, Store::Tx& tx, CallerId caller_id)
     {
       const auto rpc_version = ctx.unpacked_rpc.at(jsonrpc::JSON_RPC);
       if (rpc_version != jsonrpc::RPC_VERSION)

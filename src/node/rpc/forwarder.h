@@ -14,7 +14,7 @@ namespace ccf
     virtual ~ForwardedRpcHandler() {}
 
     virtual std::vector<uint8_t> process_forwarded(
-      enclave::RPCContext& fwd_ctx) = 0;
+      enclave::RpcContext& fwd_ctx) = 0;
   };
 
   template <typename ChannelProxy>
@@ -44,7 +44,7 @@ namespace ccf
     }
 
     bool forward_command(
-      const enclave::RPCContext& rpc_ctx,
+      const enclave::RpcContext& rpc_ctx,
       NodeId to,
       CallerId caller_id,
       const std::vector<uint8_t>& caller_cert)
@@ -80,7 +80,7 @@ namespace ccf
       return n2n_channels->send_encrypted(to, plain, msg);
     }
 
-    std::optional<std::tuple<enclave::RPCContext, NodeId>>
+    std::optional<std::tuple<std::unique_ptr<enclave::RpcContext>, NodeId>>
     recv_forwarded_command(const uint8_t* data, size_t size)
     {
       std::pair<ForwardedHeader, std::vector<uint8_t>> r;
@@ -114,11 +114,11 @@ namespace ccf
       const enclave::SessionContext session(
         client_session_id, caller_id, caller_cert);
 
-      auto context = enclave::make_rpc_context(session, rpc);
-      context.actor = actor;
-      context.method = method;
+      auto context = std::make_unique<enclave::JsonRpcContext>(session, rpc);
+      context->actor = actor;
+      context->method = method;
 
-      return std::make_tuple(context, r.first.from_node);
+      return std::make_tuple(std::move(context), r.first.from_node);
     }
 
     bool send_forwarded_response(
@@ -179,14 +179,14 @@ namespace ccf
               return;
             }
 
-            auto [ctx, from_node] = r.value();
+            auto [ctx, from_node] = std::move(r.value());
 
-            auto handler = rpc_map->find(ctx.actor);
+            auto handler = rpc_map->find(ctx->actor);
             if (!handler.has_value())
             {
               LOG_FAIL_FMT(
                 "Failed to process forwarded command: no handler for actor {}",
-                ctx.actor);
+                ctx->actor);
               return;
             }
 
@@ -197,14 +197,14 @@ namespace ccf
               LOG_FAIL_FMT(
                 "Failed to process forwarded command: handler is not a "
                 "ForwardedRpcHandler",
-                ctx.actor);
+                ctx->actor);
               return;
             }
 
             if (!send_forwarded_response(
-                  ctx.session.fwd->client_session_id,
+                  ctx->session.fwd->client_session_id,
                   from_node,
-                  fwd_handler->process_forwarded(ctx)))
+                  fwd_handler->process_forwarded(*ctx)))
             {
               LOG_FAIL_FMT(
                 "Could not send forwarded response to {}", from_node);
