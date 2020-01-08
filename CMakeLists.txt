@@ -195,9 +195,6 @@ if(BUILD_TESTS)
   add_picobench(logger_bench
     SRCS src/ds/test/logger_bench.cpp
   )
-  add_picobench(logger_json_bench
-    SRCS src/ds/test/logger_json_bench.cpp
-  )
   add_picobench(json_bench
     SRCS src/ds/test/json_bench.cpp
   )
@@ -397,7 +394,7 @@ if(BUILD_TESTS)
       NAME logging_scenario_perf_test
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/perfclient.py
       CLIENT_BIN ./scenario_perf_client
-      LABEL logging_scenario_perf_test
+      LABEL log_scenario
       ADDITIONAL_ARGS
         --package libloggingenc
         --scenario-file ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json

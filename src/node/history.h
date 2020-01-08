@@ -568,7 +568,7 @@ namespace ccf
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request) override
     {
-      LOG_DEBUG << fmt::format("HISTORY: add_request {0}", id) << std::endl;
+      LOG_DEBUG_FMT("HISTORY: add_request {0}", id);
       requests[id] = request;
 
       auto consensus = store.get_consensus();
@@ -604,9 +604,7 @@ namespace ccf
     {
       append(replicated, replicated_size, all_data, all_data_size);
       auto root = get_full_state_root();
-      LOG_DEBUG << fmt::format(
-                     "HISTORY: add_result {0} {1} {2}", id, version, root)
-                << std::endl;
+      LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
 #ifdef PBFT
       results[id] = {version, root};
       if (on_result.has_value())
@@ -617,9 +615,7 @@ namespace ccf
     void add_result(kv::TxHistory::RequestID id, kv::Version version) override
     {
       auto root = get_full_state_root();
-      LOG_DEBUG << fmt::format(
-                     "HISTORY: add_result {0} {1} {2}", id, version, root)
-                << std::endl;
+      LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
 #ifdef PBFT
       results[id] = {version, root};
       if (on_result.has_value())
@@ -631,7 +627,7 @@ namespace ccf
       kv::TxHistory::RequestID id,
       const std::vector<uint8_t>& response) override
     {
-      LOG_DEBUG << fmt::format("HISTORY: add_response {0}", id) << std::endl;
+      LOG_DEBUG_FMT("HISTORY: add_response {0}", id);
       responses[id] = response;
     }
 

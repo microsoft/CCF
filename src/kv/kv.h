@@ -1007,7 +1007,7 @@ namespace kv
 
       if (!success)
       {
-        LOG_FAIL_FMT("Could not commit transaction {}", version);
+        LOG_FAIL_FMT("Could not commit transaction due to conflict");
         return CommitSuccess::CONFLICT;
       }
       else
