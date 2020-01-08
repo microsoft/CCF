@@ -84,9 +84,8 @@ namespace enclave
     RpcContext(const SessionContext& s) : session(s) {}
     virtual ~RpcContext() {}
 
-    using PackedResponse = std::pair<bool, std::vector<uint8_t>>;
-    virtual PackedResponse error_response(
-      RpcError error, const std::string& msg) = 0;
+    virtual std::vector<uint8_t> error_response(
+      int error, const std::string& msg) const = 0;
   };
 
   class JsonRpcContext : public RpcContext
@@ -134,15 +133,15 @@ namespace enclave
       const SessionContext& s, const std::vector<uint8_t>& packed) :
       RpcContext(s)
     {
-      std::optional<jsonrpc::Pack> pack;
+      std::optional<jsonrpc::Pack> pack_format;
 
-      auto [success, rpc] = jsonrpc::unpack_rpc(packed, pack);
+      auto [success, rpc] = jsonrpc::unpack_rpc(packed, pack_format);
       if (!success)
       {
         throw std::logic_error(fmt::format("Failed to unpack: {}", rpc.dump()));
       }
 
-      init(pack.value(), rpc);
+      init(pack_format.value(), rpc);
       raw = packed;
     }
 
@@ -153,10 +152,10 @@ namespace enclave
       init(p, rpc);
     }
 
-    PackedResponse error_response(
-      RpcError error, const std::string& msg) override
+    std::vector<uint8_t> error_response(
+      int error, const std::string& msg) const override
     {
-      return {};
+      return jsonrpc::pack(jsonrpc::error_response(seq_no, msg), pack.value());
     }
   };
 }

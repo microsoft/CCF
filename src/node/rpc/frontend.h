@@ -285,15 +285,14 @@ namespace ccf
 
           if (info)
           {
-            return jsonrpc::error_response(
-              ctx.seq_no,
-              jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
+            return ctx.error_response(
+              (int)jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
               info->pubhost + ":" + info->rpcport);
           }
         }
-        return jsonrpc::error_response(
-          ctx.seq_no,
-          jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
+
+        return ctx.error_response(
+          (int)jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
           "Not primary, primary unknown.");
       }
     }
@@ -657,12 +656,9 @@ namespace ccf
 
       if (!caller_id.has_value())
       {
-        return jsonrpc::pack(
-          jsonrpc::error_response(
-            0,
-            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
-            invalid_caller_error_message()),
-          ctx.pack.value());
+        return ctx.error_response(
+          (int)jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
+          invalid_caller_error_message());
       }
 
       if (ctx.signed_request.has_value())
@@ -674,12 +670,9 @@ namespace ccf
             caller_id.value(),
             ctx.signed_request.value()))
         {
-          return jsonrpc::pack(
-            jsonrpc::error_response(
-              ctx.seq_no,
-              jsonrpc::CCFErrorCodes::INVALID_CLIENT_SIGNATURE,
-              "Failed to verify client signature."),
-            ctx.pack.value());
+          return ctx.error_response(
+            (int)jsonrpc::CCFErrorCodes::INVALID_CLIENT_SIGNATURE,
+            "Failed to verify client signature.");
         }
 
         // Client signature is only recorded on the primary
@@ -713,24 +706,18 @@ namespace ccf
               ctx.raw))
         {
           LOG_FAIL_FMT("Adding request {} failed", ctx.seq_no);
-          return jsonrpc::pack(
-            jsonrpc::error_response(
-              ctx.seq_no,
-              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-              "PBFT could not process request."),
-            ctx.pack.value());
+          return ctx.error_response(
+            (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            "PBFT could not process request.");
         }
         tx.set_req_id(reqid);
         return std::nullopt;
       }
       else
       {
-        return jsonrpc::pack(
-          jsonrpc::error_response(
-            ctx.seq_no,
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            "PBFT is not yet ready."),
-          ctx.pack.value());
+        return ctx.error_response(
+          (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          "PBFT is not yet ready.");
       }
 #else
       auto rep = process_json(ctx, tx, caller_id.value());
@@ -761,12 +748,9 @@ namespace ccf
           }
         }
 
-        return jsonrpc::pack(
-          jsonrpc::error_response(
-            ctx.seq_no,
-            jsonrpc::CCFErrorCodes::RPC_NOT_FORWARDED,
-            "RPC could not be forwarded to primary."),
-          ctx.pack.value());
+        return ctx.error_response(
+          (int)jsonrpc::CCFErrorCodes::RPC_NOT_FORWARDED,
+          "RPC could not be forwarded to primary.");
       }
 
       auto rv = jsonrpc::pack(rep.value(), ctx.pack.value());
@@ -916,9 +900,8 @@ namespace ccf
       const auto rpc_version = ctx.unpacked_rpc.at(jsonrpc::JSON_RPC);
       if (rpc_version != jsonrpc::RPC_VERSION)
       {
-        return jsonrpc::error_response(
-          ctx.seq_no,
-          jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+        return ctx.error_response(
+          (int)jsonrpc::StandardErrorCodes::INVALID_REQUEST,
           fmt::format(
             "Unexpected JSON-RPC version. Must be string \"{}\", received {}",
             jsonrpc::RPC_VERSION,
@@ -930,9 +913,8 @@ namespace ccf
         params_it != ctx.unpacked_rpc.end() &&
         (!params_it->is_array() && !params_it->is_object()))
       {
-        return jsonrpc::error_response(
-          ctx.seq_no,
-          jsonrpc::StandardErrorCodes::INVALID_REQUEST,
+        return ctx.error_response(
+          (int)jsonrpc::StandardErrorCodes::INVALID_REQUEST,
           fmt::format(
             "If present, parameters must be an array or object. Received: {}",
             params_it->dump()));
@@ -954,10 +936,8 @@ namespace ccf
       }
       else
       {
-        return jsonrpc::error_response(
-          ctx.seq_no,
-          jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-          ctx.method);
+        return ctx.error_response(
+          (int)jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND, ctx.method);
       }
 
       update_history();
@@ -1008,15 +988,17 @@ namespace ccf
 
           if (!tx_result.first)
           {
-            return jsonrpc::error_response(ctx.seq_no, tx_result.second);
+            return tx_result.second;
           }
 
           switch (tx.commit())
           {
             case kv::CommitSuccess::OK:
             {
+              // TODO: How do we inject these fields into response of unknown
+              // format?
               nlohmann::json result =
-                jsonrpc::result_response(ctx.seq_no, tx_result.second);
+                jsonrpc::unpack(tx_result.second, ctx.pack.value());
 
               auto cv = tx.commit_version();
               if (cv == 0)
@@ -1044,7 +1026,7 @@ namespace ccf
                 }
               }
 
-              return result;
+              return jsonrpc::pack(result, ctx.pack.value());
             }
 
             case kv::CommitSuccess::CONFLICT:
@@ -1054,24 +1036,22 @@ namespace ccf
 
             case kv::CommitSuccess::NO_REPLICATE:
             {
-              return jsonrpc::error_response(
-                ctx.seq_no,
-                jsonrpc::CCFErrorCodes::TX_FAILED_TO_REPLICATE,
+              return ctx.error_response(
+                (int)jsonrpc::CCFErrorCodes::TX_FAILED_TO_REPLICATE,
                 "Transaction failed to replicate.");
             }
           }
         }
         catch (const RpcException& e)
         {
-          return jsonrpc::error_response(
-            ctx.seq_no, static_cast<jsonrpc::CCFErrorCodes>(e.error_id), e.msg);
+          return ctx.error_response((int)e.error_id, e.msg);
         }
         catch (JsonParseError& e)
         {
           e.pointer_elements.push_back(jsonrpc::PARAMS);
           const auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
-          return jsonrpc::error_response(
-            ctx.seq_no, jsonrpc::StandardErrorCodes::PARSE_ERROR, err);
+          return ctx.error_response(
+            (int)jsonrpc::StandardErrorCodes::PARSE_ERROR, err);
         }
         catch (const kv::KvSerialiserException& e)
         {
@@ -1082,8 +1062,8 @@ namespace ccf
         }
         catch (const std::exception& e)
         {
-          return jsonrpc::error_response(
-            ctx.seq_no, jsonrpc::StandardErrorCodes::INTERNAL_ERROR, e.what());
+          return ctx.error_response(
+            (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR, e.what());
         }
       }
     }
