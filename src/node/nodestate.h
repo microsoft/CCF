@@ -255,7 +255,7 @@ namespace ccf
 
       create_rpc.params.gov_script = args.config.genesis.gov_script;
       create_rpc.params.node_cert = node_cert;
-      create_rpc.params.network_cert = network.secrets->get_current().cert;
+      create_rpc.params.network_cert = network.identity->cert;
       create_rpc.params.quote = quote;
       create_rpc.params.code_digest =
         std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
@@ -327,8 +327,10 @@ namespace ccf
       {
         case StartType::New:
         {
-          network.secrets = std::make_unique<NetworkSecrets>(
-            "CN=CCF Network", std::make_unique<Seal>(writer_factory));
+          network.identity =
+            std::make_unique<NetworkIdentity>("CN=CCF Network");
+          network.ledger_secrets = std::make_unique<LedgerSecrets>(
+            std::make_unique<Seal>(writer_factory));
 
           self = 0; // The first node id is always 0
 
@@ -358,7 +360,7 @@ namespace ccf
           sm.advance(State::partOfNetwork);
 
           return Success<CreateNew::Out>(
-            {node_cert, quote, network.secrets->get_current().cert});
+            {node_cert, quote, network.identity->cert});
         }
         case StartType::Join:
         {
@@ -378,9 +380,12 @@ namespace ccf
         {
           node_info_network = args.config.node_info_network;
 
+          network.identity =
+            std::make_unique<NetworkIdentity>("CN=CCF Network");
           // Create temporary network secrets but do not seal yet
-          network.secrets = std::make_unique<NetworkSecrets>(
-            "CN=CCF Network", std::make_unique<Seal>(writer_factory), false);
+          network.ledger_secrets = std::make_unique<LedgerSecrets>(
+            std::make_unique<Seal>(writer_factory), false);
+
           setup_history();
           setup_encryptor();
 
@@ -393,7 +398,7 @@ namespace ccf
           sm.advance(State::readingPublicLedger);
 
           return Success<CreateNew::Out>(
-            {node_cert, quote, network.secrets->get_current().cert});
+            {node_cert, quote, network.identity->cert});
         }
         default:
         {
@@ -408,9 +413,10 @@ namespace ccf
     //
     void initiate_join(const Join::In& args)
     {
-      auto tls_ca = std::make_shared<tls::CA>(args.config.joining.network_cert);
+      auto network_ca =
+        std::make_shared<tls::CA>(args.config.joining.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
-        tls_ca, node_cert, node_kp->private_key_pem());
+        network_ca, node_cert, node_kp->private_key_pem());
 
       // Create RPC client and connect to remote node
       auto join_client =
@@ -422,7 +428,9 @@ namespace ccf
         [this, args](const std::vector<uint8_t>& data) {
           std::lock_guard<SpinLock> guard(lock);
           if (!sm.check(State::pending))
+          {
             return false;
+          }
 
           auto j = jsonrpc::unpack(data, jsonrpc::Pack::Text);
 
@@ -446,10 +454,18 @@ namespace ccf
             // the joining node can only join the public network
             bool public_only = (resp->network_info.version != 0);
 
-            // In a private network, seal secrets immediately.
-            network.secrets = std::make_unique<NetworkSecrets>(
+            network.identity =
+              std::make_unique<NetworkIdentity>(resp->network_info.identity);
+
+            LOG_INFO_FMT(
+              "Joining at version {}, public_only: {}",
               resp->network_info.version,
-              resp->network_info.network_secrets,
+              public_only);
+
+            // In a private network, seal secrets immediately.
+            network.ledger_secrets = std::make_unique<LedgerSecrets>(
+              resp->network_info.version,
+              resp->network_info.ledger_secrets,
               std::make_unique<Seal>(writer_factory),
               !public_only);
 
@@ -467,9 +483,13 @@ namespace ccf
             accept_network_tls_connections(args.config);
 
             if (public_only)
+            {
               sm.advance(State::partOfPublicNetwork);
+            }
             else
+            {
               sm.advance(State::partOfNetwork);
+            }
 
             join_timer.reset();
 
@@ -611,9 +631,9 @@ namespace ccf
       ledger_truncate(last_index);
       LOG_INFO_FMT("Truncating ledger to last signed index: {}", last_index);
 
-      network.secrets->promote_secrets(0, last_index + 1);
+      network.ledger_secrets->promote_secrets(0, last_index + 1);
 
-      g.create_service(network.secrets->get_current().cert, last_index + 1);
+      g.create_service(network.identity->cert, last_index + 1);
 
       g.retire_active_nodes();
 
@@ -734,7 +754,7 @@ namespace ccf
         consensus->resume_replication();
 
       // Seal all known network secrets
-      network.secrets->seal_all();
+      network.ledger_secrets->seal_all();
 
       // Open the service
       if (consensus->is_primary())
@@ -798,7 +818,7 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
         std::make_shared<NullTxEncryptor>();
 #else
-        std::make_shared<TxEncryptor>(self, *network.secrets);
+        std::make_shared<TxEncryptor>(self, *network.ledger_secrets);
 #endif
 
       recovery_store->set_history(recovery_history);
@@ -821,7 +841,7 @@ namespace ccf
       LOG_INFO_FMT("Initiating end of recovery (primary)");
 
       // Unseal past network secrets
-      auto past_secrets_idx = network.secrets->restore(sealed_secrets);
+      auto past_secrets_idx = network.ledger_secrets->restore(sealed_secrets);
 
       // Emit signature to certify transactions that happened on public
       // network
@@ -848,7 +868,7 @@ namespace ccf
           ccf::SerialisedNetworkSecrets ns;
           ns.node_id = nid;
 
-          auto serial = network.secrets->get_serialised_secret(ns_idx);
+          auto serial = network.ledger_secrets->get_secret(ns_idx);
           if (serial.has_value())
           {
             LOG_DEBUG_FMT(
@@ -1119,7 +1139,7 @@ namespace ccf
     {
       // Accept TLS connections, presenting node certificate signed by network
       // certificate
-      auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
+      auto nw = tls::make_key_pair({network.identity->priv_key});
 
       auto endorsed_node_cert = nw->sign_csr(
         node_kp->create_csr(fmt::format("CN=CCF node {}", self)),
@@ -1242,7 +1262,7 @@ namespace ccf
               }
 
               has_secrets = true;
-              if (!network.secrets->set_secret(v, plain_nw_secret_at_v))
+              if (!network.ledger_secrets->set_secret(v, plain_nw_secret_at_v))
               {
                 throw std::logic_error(
                   "Cannot set secrets because they already exist!");
@@ -1260,7 +1280,7 @@ namespace ccf
 
     void setup_n2n_channels()
     {
-      n2n_channels->initialize(self, {network.secrets->get_current().priv_key});
+      n2n_channels->initialize(self, {network.identity->priv_key});
     }
 
     void setup_cmd_forwarder()
@@ -1361,7 +1381,7 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
         std::make_shared<NullTxEncryptor>();
 #else
-        std::make_shared<TxEncryptor>(self, *network.secrets);
+        std::make_shared<TxEncryptor>(self, *network.ledger_secrets);
 #endif
 
       network.tables->set_encryptor(encryptor);
