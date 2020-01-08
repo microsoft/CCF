@@ -321,7 +321,7 @@ class Network:
         primary, term = self.find_primary()
         for n in self.nodes:
             self.consortium.wait_for_node_to_exist_in_store(
-                primary, n.node_id, infra.node.NodeStatus.TRUSTED, timeout
+                primary, n.node_id, timeout, infra.node.NodeStatus.TRUSTED
             )
 
     def _get_node_by_id(self, node_id):
