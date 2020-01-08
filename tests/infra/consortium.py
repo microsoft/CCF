@@ -281,7 +281,7 @@ class Consortium:
         return True
 
     def wait_for_node_to_exist_in_store(
-        self, remote_node, node_id, node_status=None, timeout=3
+        self, remote_node, node_id, timeout, node_status=None,
     ):
         exists = False
         for _ in range(timeout):
