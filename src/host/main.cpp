@@ -239,8 +239,8 @@ int main(int argc, char** argv)
   join->add_option(
     "--join-timer",
     join_timer,
-    "Frequency at which the joining node will try to join an existing network "
-    "(ms)",
+    "Duration after which the joining node will resend join requests to "
+    "existing network (ms)",
     true);
 
   cli::ParsedAddress target_rpc_address;
