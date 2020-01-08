@@ -52,6 +52,7 @@ class Network:
         "notify_server",
         "json_log_path",
         "gov_script",
+        "join_timer",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -243,6 +244,9 @@ class Network:
                     if self.status == ServiceStatus.OPEN
                     else infra.node.NodeStatus.TRUSTED
                 ),
+                # When the service is open, it takes a joining node at least 2 join
+                # attempts to retrieve the network secrets
+                timeout=int(args.join_timer * 3 / 1000),
             )
         except TimeoutError as err:
             # The node can be safely discarded since it has not been
