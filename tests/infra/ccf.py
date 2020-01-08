@@ -15,6 +15,7 @@ import infra.consortium
 import infra.jsonrpc
 import ssl
 import random
+from math import ceil
 
 from loguru import logger as LOG
 
@@ -241,7 +242,7 @@ class Network:
                 new_node.node_id,
                 # When the service is open, it takes a joining node at least 2 join
                 # attempts to retrieve the network secrets
-                timeout=int(args.join_timer * 3 / 1000),
+                timeout=ceil(args.join_timer * 3 / 1000),
                 node_status=(
                     infra.node.NodeStatus.PENDING
                     if self.status == ServiceStatus.OPEN
