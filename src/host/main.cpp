@@ -424,9 +424,6 @@ int main(int argc, char** argv)
 
 #ifdef GET_QUOTE
   files::dump(quote, quote_file);
-
-  if (!enclave.verify_quote(quote, node_cert))
-    LOG_FATAL_FMT("Verification of local node quote failed");
 #endif
 
   // Start a thread which will ECall and process messages inside the enclave
