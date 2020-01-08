@@ -556,7 +556,7 @@ class CCFRemote(object):
             f"--enclave-type={enclave_type}",
             f"--node-address={host}:{node_port}",
             f"--rpc-address={host}:{rpc_port}",
-            f"--public-rpc-address={host}:{rpc_port}",
+            f"--public-rpc-address={pubhost}:{rpc_port}",
             f"--ledger-file={self.ledger_file_name}",
             f"--node-cert-file={self.pem}",
             f"--host-log-level={host_log_level}",
