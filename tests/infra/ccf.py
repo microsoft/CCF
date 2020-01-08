@@ -239,14 +239,14 @@ class Network:
             self.consortium.wait_for_node_to_exist_in_store(
                 primary,
                 new_node.node_id,
-                (
+                # When the service is open, it takes a joining node at least 2 join
+                # attempts to retrieve the network secrets
+                timeout=int(args.join_timer * 3 / 1000),
+                node_status=(
                     infra.node.NodeStatus.PENDING
                     if self.status == ServiceStatus.OPEN
                     else infra.node.NodeStatus.TRUSTED
                 ),
-                # When the service is open, it takes a joining node at least 2 join
-                # attempts to retrieve the network secrets
-                timeout=int(args.join_timer * 3 / 1000),
             )
         except TimeoutError as err:
             # The node can be safely discarded since it has not been
@@ -321,7 +321,7 @@ class Network:
         primary, term = self.find_primary()
         for n in self.nodes:
             self.consortium.wait_for_node_to_exist_in_store(
-                primary, n.node_id, infra.node.NodeStatus.TRUSTED
+                primary, n.node_id, infra.node.NodeStatus.TRUSTED, timeout
             )
 
     def _get_node_by_id(self, node_id):
