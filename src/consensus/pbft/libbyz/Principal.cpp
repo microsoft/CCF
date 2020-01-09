@@ -40,7 +40,11 @@ Principal::Principal(
 }
 
 bool Principal::verify_signature(
-  const char* src, unsigned src_len, const uint8_t* sig, bool allow_self)
+  const char* src,
+  unsigned src_len,
+  const uint8_t* sig,
+  const size_t sig_size,
+  bool allow_self)
 {
   // Principal never verifies its own authenticator.
   if ((id == pbft::GlobalState::get_node().id()) && !allow_self)
@@ -51,7 +55,7 @@ bool Principal::verify_signature(
   INCR_OP(num_sig_ver);
   START_CC(sig_ver_cycles);
 
-  bool ret = verifier->verify((uint8_t*)src, src_len, sig, sig_size());
+  bool ret = verifier->verify((uint8_t*)src, src_len, sig, sig_size);
 
   STOP_CC(sig_ver_cycles);
   return ret;

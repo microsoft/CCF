@@ -55,6 +55,7 @@ public:
     const char* src,
     unsigned src_len,
     const uint8_t* sig,
+    const size_t sig_size,
     bool allow_self = false);
   // Requires: "sig" is at least sig_size() bytes.
   // Effects: Checks a signature "sig" (from this principal) for

@@ -19,6 +19,7 @@ struct Checkpoint_rep : public Message_rep
   Seqno seqno;
   Digest digest;
   int id; // id of the replica that generated the message.
+  size_t sig_size;
   int padding;
   // Followed by a variable-sized signature.
 };

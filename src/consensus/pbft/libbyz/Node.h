@@ -115,8 +115,8 @@ public:
   // Effects: Returns the size in bytes of a signature for principal
   // "id" (or current principal if "id" is negative.)
 
-  void gen_signature(const char* src, unsigned src_len, char* sig);
-  void gen_signature(
+  size_t gen_signature(const char* src, unsigned src_len, char* sig);
+  size_t gen_signature(
     const char* src, unsigned src_len, tls::PbftSignature& sig);
 
 protected:

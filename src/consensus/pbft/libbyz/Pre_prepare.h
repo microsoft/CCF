@@ -35,6 +35,7 @@ struct Pre_prepare_rep : public Message_rep
   short non_det_size; // size in bytes of non-deterministic choices
 
 #ifdef SIGN_BATCH
+  size_t sig_size;
   tls::PbftSignature batch_digest_signature;
   static constexpr size_t padding_size =
     ALIGNED_SIZE(tls::PbftSignatureSize) - tls::PbftSignatureSize;

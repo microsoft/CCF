@@ -32,6 +32,7 @@ View_change::View_change(View v, Seqno ls, int id) :
   rep().n_reqs = 0;
 
   rep().digest.zero();
+  rep().sig_size = 0;
 
 #ifdef SIGN_BATCH
   rep().digest_signature.fill(0);
@@ -166,14 +167,14 @@ void View_change::re_authenticate(Principal* p)
     rep().digest = Digest(contents(), old_size);
 
 #ifdef SIGN_BATCH
-    pbft::GlobalState::get_node().gen_signature(
+    rep().sig_size = pbft::GlobalState::get_node().gen_signature(
       rep().digest.digest(),
       rep().digest.digest_size(),
       rep().digest_signature);
 #endif
 
 #ifdef USE_PKEY_VIEW_CHANGES
-    pbft::GlobalState::get_node().gen_signature(
+    rep().sig_size = pbft::GlobalState::get_node().gen_signature(
       contents(), old_size, contents() + old_size);
 #else
     auth_type = Auth_type::out;

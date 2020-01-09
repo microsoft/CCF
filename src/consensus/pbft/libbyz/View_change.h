@@ -65,6 +65,8 @@ struct View_change_rep : public Message_rep
   // digest of the entire message (except authenticator) with d zeroed.
   Digest digest;
 
+  size_t sig_size;
+
 #ifdef SIGN_BATCH
   // signature of the digest of the entire message.
   tls::PbftSignature digest_signature;

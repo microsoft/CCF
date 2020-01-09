@@ -132,6 +132,7 @@ Pre_prepare::Pre_prepare(
 #endif
 
 #ifdef SIGN_BATCH
+  rep().sig_size = 0;
   std::fill(
     std::begin(rep().batch_digest_signature),
     std::end(rep().batch_digest_signature),
@@ -207,8 +208,12 @@ bool Pre_prepare::set_digest(int64_t signed_version)
     pbft::GlobalState::get_node().f() == 0)
   {
     pbft::GlobalState::get_replica().set_next_expected_sig_offset();
-    pbft::GlobalState::get_node().gen_signature(
+    Digest dd = d;
+    LOG_INFO_FMT(
+      "Signing pre-prepare with seqno {} and digest {}", rep().seqno, d.hash());
+    auto ss = pbft::GlobalState::get_node().gen_signature(
       d.digest(), d.digest_size(), rep().batch_digest_signature);
+    rep().sig_size = ss;
   }
 #endif
 
@@ -302,10 +307,16 @@ bool Pre_prepare::pre_verify()
         return true;
       }
 
+      Digest dd = rep().digest;
+      LOG_INFO_FMT(
+        "Verifying signature for pre prepare with seqno {} and digest {}",
+        rep().seqno,
+        dd.hash());
       if (!sender_principal->verify_signature(
             rep().digest.digest(),
             rep().digest.digest_size(),
-            get_digest_sig().data()))
+            get_digest_sig().data(),
+            rep().sig_size))
       {
         LOG_INFO << "failed to verify signature on the digest, seqno:"
                  << rep().seqno << std::endl;

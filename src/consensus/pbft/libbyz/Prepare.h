@@ -23,7 +23,7 @@ struct Prepare_rep : public Message_rep
   Seqno seqno;
   Digest digest;
   int id; // id of the replica that generated the message.
-
+  size_t sig_size;
 #ifdef SIGN_BATCH
   tls::PbftSignature batch_digest_signature;
 #endif
