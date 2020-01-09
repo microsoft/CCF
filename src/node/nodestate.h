@@ -1067,7 +1067,6 @@ namespace ccf
       active_service->status = ServiceStatus::OPEN;
       service_view->put(0, active_service.value());
 
-      LOG_INFO_FMT("Changing network status from OPENING to OPEN");
       return true;
     }
 
@@ -1220,10 +1219,9 @@ namespace ccf
                                         const Service::Write& w) {
         if (w.at(0).value.status == ServiceStatus::OPEN)
         {
-          this->consensus->set_f(
-            1); // TODO: we should make f come from a KV table
+          this->consensus->set_f(1);
           open_user_frontend();
-          LOG_INFO_FMT("Now accepting user transactions");
+          LOG_INFO_FMT("Network is OPEN, now accepting user transactions");
         }
       });
 
