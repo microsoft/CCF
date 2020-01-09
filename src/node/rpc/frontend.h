@@ -992,7 +992,7 @@ namespace ccf
         {
           func(args);
 
-          if (!ctx.response_is_error())
+          if (ctx.response_is_error())
           {
             return ctx.serialise_response();
           }

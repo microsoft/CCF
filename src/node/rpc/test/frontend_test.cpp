@@ -466,11 +466,12 @@ TEST_CASE("process")
     CHECK(response[jsonrpc::RESULT] == true);
 
     auto signed_resp = get_signed_req(user_id);
-    CHECK(signed_resp.has_value());
+    REQUIRE(signed_resp.has_value());
     auto value = signed_resp.value();
     CHECK(value.req.empty());
     CHECK(value.sig == signed_call[jsonrpc::SIG]);
   }
+
   // TODO: verify_client_signature
 #  ifndef HTTP
   SUBCASE("signature not verified")
@@ -886,7 +887,6 @@ TEST_CASE("App-defined errors")
 
     const auto msg =
       foo_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
-    std::cout << foo_response.dump(2) << std::endl;
     CHECK(msg.find("FOO") != std::string::npos);
   }
 
