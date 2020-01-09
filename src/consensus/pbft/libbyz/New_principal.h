@@ -21,7 +21,7 @@ struct New_principal_rep : public Message_rep
   char ip[32];
 
   uint32_t cert_len;
-  char cert[128];
+  std::vector<uint8_t> cert;
 
   uint32_t host_name_len;
   char host_name[128];
@@ -39,14 +39,14 @@ public:
     NodeId id,
     short port,
     std::string ip,
-    std::string cert,
+    std::vector<uint8_t> cert,
     std::string host_name,
     bool is_replica);
 
   NodeId id() const;
   short port() const;
   std::string ip() const;
-  std::string cert() const;
+  std::vector<uint8_t> cert() const;
   std::string host_name() const;
   bool is_replica() const;
 

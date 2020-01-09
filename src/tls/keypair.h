@@ -1316,9 +1316,10 @@ namespace tls
     int rc = mbedtls_x509_crt_parse(&cert, cert_pem.data(), cert_pem.size());
     if (rc)
     {
+      LOG_DEBUG_FMT("failed to parse certificate {}", error_string(rc));
       std::stringstream s;
-      s << "Failed to parse certificate: " << rc;
-      throw std::invalid_argument(s.str());
+      // s << "Failed to parse certificate: " << rc;
+      // throw std::invalid_argument(s.str());
     }
 
     const auto curve = get_ec_from_context(cert.pk);

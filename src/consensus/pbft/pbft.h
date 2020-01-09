@@ -142,7 +142,7 @@ namespace pbft
       pbft::RequestsMap& pbft_requests_map,
       pbft::PrePreparesMap& pbft_pre_prepares_map,
       const std::string& privk_pem,
-      const std::string& cert) :
+      const std::vector<uint8_t>& cert) :
       Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),

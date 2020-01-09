@@ -1420,7 +1420,6 @@ namespace ccf
     void setup_pbft(const CCFConfig& config)
     {
       setup_n2n_channels();
-      std::string cert_string(node_cert.begin(), node_cert.end());
       consensus = std::make_shared<PbftConsensusType>(
         std::make_unique<pbft::Adaptor<Store>>(network.tables),
         n2n_channels,
@@ -1433,7 +1432,7 @@ namespace ccf
         *network.tables->get<pbft::PrePreparesMap>(
           pbft::Tables::PBFT_PRE_PREPARES),
         node_kp->private_key_pem().str(),
-        cert_string);
+        node_cert);
 
       network.tables->set_consensus(consensus);
 
@@ -1448,12 +1447,11 @@ namespace ccf
           for (auto& [node_id, ni] : w)
           {
             add_node(node_id, ni.value.nodehost, ni.value.nodeport);
-            std::string pem_str(ni.value.cert.begin(), ni.value.cert.end());
 
             consensus->add_configuration(
               version,
               configuration,
-              {node_id, ni.value.nodehost, ni.value.nodeport, pem_str});
+              {node_id, ni.value.nodehost, ni.value.nodeport, ni.value.cert});
           }
         });
 

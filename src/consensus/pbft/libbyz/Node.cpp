@@ -264,6 +264,8 @@ void Node::gen_signature(
   key_pair->sign(CBuffer{(uint8_t*)src, src_len}, &sig_size, sig.data());
   assert(sig_size <= sig.size());
 
+  // std::fill(sig.begin() + sig_size + 1, sig.end(), 0);
+
   STOP_CC(sig_gen_cycles);
 }
 

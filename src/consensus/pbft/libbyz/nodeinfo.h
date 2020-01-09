@@ -16,7 +16,7 @@ struct PrincipalInfo
   NodeId id;
   short port;
   std::string ip;
-  std::string cert;
+  std::vector<uint8_t> cert;
   std::string host_name;
   bool is_replica;
 };

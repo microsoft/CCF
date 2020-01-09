@@ -123,7 +123,7 @@ public:
 
   struct PrePrepareProof
   {
-    std::string cert;
+    std::vector<uint8_t> cert;
     tls::PbftSignature signature;
   };
 

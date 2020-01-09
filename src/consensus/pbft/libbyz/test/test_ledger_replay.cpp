@@ -66,10 +66,9 @@ NodeInfo get_node_info()
   auto kp = tls::make_key_pair();
   std::vector<PrincipalInfo> principal_info;
 
-  auto node_cert = kp->self_sign("CN=CCF node", tls::SubjectAltName());
-  std::string cert_string(node_cert.begin(), node_cert.end());
+  auto node_cert = kp->self_sign("CN=CCF node");
 
-  PrincipalInfo pi = {0, (short)(3000), "ip", cert_string, "name-1", true};
+  PrincipalInfo pi = {0, (short)(3000), "ip", node_cert, "name-1", true};
   principal_info.emplace_back(pi);
 
   GeneralInfo gi = {

@@ -13,7 +13,8 @@
 #include <stdlib.h>
 #include <strings.h>
 
-Principal::Principal(int i, Addr a, bool is_rep, const std::string& cert_)
+Principal::Principal(
+  int i, Addr a, bool is_rep, const std::vector<uint8_t>& cert_)
 {
   id = i;
   addr = a;
@@ -23,8 +24,7 @@ Principal::Principal(int i, Addr a, bool is_rep, const std::string& cert_)
   ssize = tls::PbftSignatureSize;
   if (!cert_.empty())
   {
-    std::vector<uint8_t> v(cert_.begin(), cert_.end());
-    verifier = tls::make_verifier(v);
+    verifier = tls::make_verifier(cert_);
     cert = cert_;
   }
 
@@ -51,7 +51,7 @@ bool Principal::verify_signature(
   INCR_OP(num_sig_ver);
   START_CC(sig_ver_cycles);
 
-  bool ret = verifier->verify((uint8_t*)src, (size_t)src_len, sig, sig_size());
+  bool ret = verifier->verify((uint8_t*)src, src_len, sig, sig_size());
 
   STOP_CC(sig_ver_cycles);
   return ret;
