@@ -1086,26 +1086,6 @@ namespace tls
     return std::move(key);
   }
 
-  inline std::unique_ptr<mbedtls_pk_context> parse_public_key(
-    const Pem& public_pem)
-  {
-    auto key = std::make_unique<mbedtls_pk_context>();
-    mbedtls_pk_init(key.get());
-
-    int rc = mbedtls_pk_parse_public_key(
-      key.get(), public_pem.data(), public_pem.size());
-
-    if (rc != 0)
-    {
-      throw std::logic_error(fmt::format(
-        "Could not parse public key PEM: {}\n\n(Key: {})",
-        error_string(rc),
-        public_pem.str()));
-    }
-
-    return std::move(key);
-  }
-
   /**
    * Create a new public / private key pair on specified curve and
    * implementation

@@ -68,13 +68,6 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
   }
 }
 
-#ifdef SIGN_BATCH
-tls::PbftSignature& Prepare::digest_sig() const
-{
-  return rep().batch_digest_signature;
-}
-#endif
-
 void Prepare::re_authenticate(Principal* p)
 {
   if (rep().extra == 0)

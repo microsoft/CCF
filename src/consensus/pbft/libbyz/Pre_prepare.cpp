@@ -295,7 +295,7 @@ bool Pre_prepare::pre_verify()
         pbft::GlobalState::get_node().get_principal(sender);
 
       if (
-        !sender_principal->has_certificate_configured() &&
+        !sender_principal->has_certificate_set() &&
         pbft::GlobalState::get_node().f() == 0)
       {
         // we have not configured this node yet

@@ -330,9 +330,12 @@ int main(int argc, char** argv)
   PrivateKey privk_j = files::slurp_json(privk_file);
   NodeInfo node_info;
   tls::KeyPairPtr kp = tls::make_key_pair(privk_j.privk);
+  auto node_cert = kp->self_sign("CN=CCF node", tls::SubjectAltName());
+  std::string cert_string(node_cert.begin(), node_cert.end());
+
   for (auto& pi : general_info.principal_info)
   {
-    pi.pubk_sig = kp->public_key_pem().str();
+    pi.cert = cert_string;
   }
 
   for (auto& pi : general_info.principal_info)

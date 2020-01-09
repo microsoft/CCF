@@ -142,7 +142,7 @@ namespace pbft
       pbft::RequestsMap& pbft_requests_map,
       pbft::PrePreparesMap& pbft_pre_prepares_map,
       const tls::Pem& privk_pem,
-      const tls::Pem& pubk_pem) :
+      const tls::Pem& cert) :
       Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
@@ -170,7 +170,7 @@ namespace pbft
       my_info.id = local_id;
       my_info.port = 0;
       my_info.ip = "256.256.256.256"; // Invalid
-      my_info.pubk_sig = pubk_pem.str();
+      my_info.cert = cert.str();
       my_info.host_name = "machineB";
       my_info.is_replica = true;
 
@@ -320,7 +320,7 @@ namespace pbft
       info.id = node_conf.node_id;
       info.port = short(atoi(node_conf.port.c_str()));
       info.ip = "256.256.256.256"; // Invalid
-      info.pubk_sig = node_conf.cert;
+      info.cert = node_conf.cert;
       info.host_name = node_conf.host_name;
       info.is_replica = true;
       Byz_add_principal(info);

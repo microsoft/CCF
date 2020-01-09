@@ -37,7 +37,7 @@ class Node:
             "id": int(self.id),
             "port": int(self.port),
             "ip": self.private_ip,
-            "pubk_sig": "",
+            "cert": "",
             "host_name": self.machine_name,
             "is_replica": self.is_replica,
         }

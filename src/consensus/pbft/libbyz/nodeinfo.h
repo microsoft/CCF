@@ -14,7 +14,7 @@ struct PrincipalInfo
   NodeId id;
   short port;
   std::string ip;
-  std::string pubk_sig;
+  std::string cert;
   std::string host_name;
   bool is_replica;
 };
@@ -24,7 +24,7 @@ inline void from_json(const nlohmann::json& j, PrincipalInfo& pi)
   pi.id = j["id"];
   pi.port = j["port"];
   pi.ip = j["ip"];
-  pi.pubk_sig = j["pubk_sig"];
+  pi.cert = j["cert"];
   pi.host_name = j["host_name"];
   pi.is_replica = j["is_replica"];
 }

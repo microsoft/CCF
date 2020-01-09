@@ -225,6 +225,13 @@ inline Digest& View_change::digest()
   return rep().digest;
 }
 
+#ifdef SIGN_BATCH
+inline tls::PbftSignature& View_change::signature()
+{
+  return rep().digest_signature;
+}
+#endif
+
 inline Seqno View_change::last_stable() const
 {
   return rep().last_stable_ckpt;

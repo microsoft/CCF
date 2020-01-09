@@ -1582,12 +1582,8 @@ void Replica::handle(New_principal* m)
   LOG_INFO << "recevied new message to add principal, id:" << m->id()
            << std::endl;
 
-  PrincipalInfo info{m->id(),
-                     m->port(),
-                     m->ip(),
-                     m->pubk_sig(),
-                     m->host_name(),
-                     m->is_replica()};
+  PrincipalInfo info{
+    m->id(), m->port(), m->ip(), m->cert(), m->host_name(), m->is_replica()};
 
   pbft::GlobalState::get_node().add_principal(info);
 }

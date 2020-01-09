@@ -123,7 +123,7 @@ public:
 
   struct PrePrepareProof
   {
-    std::string public_key;
+    std::string cert;
     tls::PbftSignature signature;
   };
 
@@ -153,8 +153,7 @@ inline bool Prepared_cert::add(Prepare* m)
 #ifdef SIGN_BATCH
   if (result)
   {
-    proof.public_key =
-      pbft::GlobalState::get_node().get_principal(id)->get_pub_key_sig();
+    proof.cert = pbft::GlobalState::get_node().get_principal(id)->get_cert();
     pre_prepare_proof.insert({id, proof});
   }
 #endif

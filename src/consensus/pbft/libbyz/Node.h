@@ -4,12 +4,12 @@
 // Licensed under the MIT license.
 #pragma once
 
-#include "consensus/consensustypes.h"
 #include "ITimer.h"
 #include "Message.h"
 #include "Message_tags.h"
 #include "Principal.h"
 #include "Statistics.h"
+#include "consensus/consensustypes.h"
 #include "globalstate.h"
 #include "key_format.h"
 #include "network.h"

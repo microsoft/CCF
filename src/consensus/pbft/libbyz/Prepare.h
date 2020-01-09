@@ -117,6 +117,13 @@ inline Digest& Prepare::digest() const
   return rep().digest;
 }
 
+#ifdef SIGN_BATCH
+inline tls::PbftSignature& Prepare::digest_sig() const
+{
+  return rep().batch_digest_signature;
+}
+#endif
+
 inline bool Prepare::is_proof() const
 {
   return rep().extra != 0;

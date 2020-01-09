@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <strings.h>
 
-Principal::Principal(int i, Addr a, bool is_rep, const std::string& pub_key_sig)
+Principal::Principal(int i, Addr a, bool is_rep, const std::string& cert_)
 {
   id = i;
   addr = a;
@@ -21,11 +21,11 @@ Principal::Principal(int i, Addr a, bool is_rep, const std::string& pub_key_sig)
   replica = is_rep;
 
   ssize = tls::PbftSignatureSize;
-  if (!pub_key_sig.empty())
+  if (!cert_.empty())
   {
-    std::vector<uint8_t> v(pub_key_sig.begin(), pub_key_sig.end());
+    std::vector<uint8_t> v(cert_.begin(), cert_.end());
     verifier = tls::make_verifier(v);
-    public_key_pem = pub_key_sig;
+    cert = cert_;
   }
 
   for (int j = 0; j < 4; j++)

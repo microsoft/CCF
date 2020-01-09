@@ -116,9 +116,9 @@ void Node::add_principal(const PrincipalInfo& principal_info)
     LOG_INFO << "Principal with id: " << principal_info.id
              << " has already been configured" << std::endl;
     auto principal = it->second;
-    if (principal->get_pub_key_sig().empty())
+    if (principal->get_cert().empty())
     {
-      principal->set_certificate(principal_info.pubk_sig);
+      principal->set_certificate(principal_info.cert);
     }
     return;
   }
@@ -132,12 +132,10 @@ void Node::add_principal(const PrincipalInfo& principal_info)
 #endif
   auto new_principals = std::make_shared<Principal_map>(*principals);
 
-  new_principals->insert({principal_info.id,
-                          std::make_shared<Principal>(
-                            principal_info.id,
-                            a,
-                            principal_info.is_replica,
-                            principal_info.pubk_sig)});
+  new_principals->insert(
+    {principal_info.id,
+     std::make_shared<Principal>(
+       principal_info.id, a, principal_info.is_replica, principal_info.cert)});
 
   std::atomic_store(&atomic_principals, new_principals);
 
@@ -250,8 +248,7 @@ void Node::gen_signature(const char* src, unsigned src_len, char* sig)
   INCR_OP(num_sig_gen);
   START_CC(sig_gen_cycles);
 
-  std::vector<uint8_t> signature =
-    key_pair->sign(CBuffer{(uint8_t*)src, src_len});
+  auto signature = key_pair->sign(CBuffer{(uint8_t*)src, src_len});
   std::copy(signature.begin(), signature.end(), sig);
 
   STOP_CC(sig_gen_cycles);

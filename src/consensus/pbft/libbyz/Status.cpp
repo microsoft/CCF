@@ -74,7 +74,7 @@ bool Status::pre_verify()
       info.id = id();
       info.port = 0;
       info.ip = "256.256.256.256"; // Invalid
-      info.pubk_sig = "";
+      info.cert = "";
       info.host_name = "host_name";
       info.is_replica = true;
 

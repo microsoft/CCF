@@ -184,13 +184,6 @@ void View_change::re_authenticate(Principal* p)
   }
 }
 
-#ifdef SIGN_BATCH
-tls::PbftSignature& View_change::signature()
-{
-  return rep().digest_signature;
-}
-#endif
-
 bool View_change::pre_verify()
 {
   int nreqs = rep().n_reqs;
