@@ -259,6 +259,8 @@ namespace ccf
       create_rpc.params.node_cert = node_cert;
       create_rpc.params.network_cert = network.identity->cert;
       create_rpc.params.quote = quote;
+      create_rpc.params.public_encryption_key =
+        node_encrypt_kp->public_key_pem().raw();
       create_rpc.params.code_digest =
         std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
       create_rpc.params.node_info_network = args.config.node_info_network;
@@ -516,8 +518,10 @@ namespace ccf
       std::stringstream ss;
       ss << "nodes/" << ccf::NodeProcs::JOIN;
       join_rpc.method = ss.str();
-      join_rpc.params.raw_fresh_key = raw_fresh_key;
+      join_rpc.params.raw_fresh_key = raw_fresh_key; // TODO: Delete
       join_rpc.params.node_info_network = args.config.node_info_network;
+      join_rpc.params.public_encryption_key =
+        node_encrypt_kp->public_key_pem().raw();
 
       // TODO: For now, regenerate the quote from when the node started. This
       // is OK since the quote generation will change as part of
@@ -650,8 +654,11 @@ namespace ccf
       quote = quote_opt.value();
 #endif
 
-      self =
-        g.add_node({node_info_network, node_cert, quote, NodeStatus::PENDING});
+      self = g.add_node({node_info_network,
+                         node_cert,
+                         quote,
+                         node_encrypt_kp->public_key_pem().raw(),
+                         NodeStatus::PENDING});
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
@@ -1149,7 +1156,8 @@ namespace ccf
         fmt::format("CN={}", "CCF Network"),
         get_subject_alt_name(config));
 
-      rpcsessions->set_cert(endorsed_node_cert, node_sign_kp->private_key_pem());
+      rpcsessions->set_cert(
+        endorsed_node_cert, node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Network TLS connections now accepted");
     }
 

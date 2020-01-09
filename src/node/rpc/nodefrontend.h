@@ -102,8 +102,13 @@ namespace ccf
 
       nodes_view->put(
         joining_node_id,
-        {in.node_info_network, caller_pem_raw, in.quote, node_status});
+        {in.node_info_network,
+         caller_pem_raw,
+         in.quote,
+         in.public_encryption_key,
+         node_status});
 
+      // TODO: Remove this
       this->node.set_joiner_key(joining_node_id, in.raw_fresh_key);
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);

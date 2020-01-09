@@ -73,7 +73,8 @@ namespace tls
       own_public.resize(len);
     }
 
-    KeyExchangeContext(KeyPairPtr own_kp, PublicKeyPtr peer_pubk) : entropy(create_entropy())
+    KeyExchangeContext(KeyPairPtr own_kp, PublicKeyPtr peer_pubk) :
+      entropy(create_entropy())
     {
       mbedtls_ecdh_init(&ctx);
 
@@ -85,7 +86,9 @@ namespace tls
       }
 
       rc = mbedtls_ecdh_get_params(
-        &ctx, mbedtls_pk_ec(*peer_pubk->get_raw_context()), MBEDTLS_ECDH_THEIRS);
+        &ctx,
+        mbedtls_pk_ec(*peer_pubk->get_raw_context()),
+        MBEDTLS_ECDH_THEIRS);
       if (rc != 0)
       {
         throw std::logic_error(error_string(rc));

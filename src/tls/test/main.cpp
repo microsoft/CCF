@@ -359,7 +359,8 @@ TEST_CASE("Encrypt and decrypt with KeyPair")
     // auto kp2 = tls::make_key_pair(kp->private_key_pem());
     // CHECK(kp2->verify(contents, signature));
 
-    // // Signatures won't necessarily be identical due to entropy, but should be
+    // // Signatures won't necessarily be identical due to entropy, but should
+    // be
     // // mutually verifiable
     // for (auto i = 0; i < 10; ++i)
     // {

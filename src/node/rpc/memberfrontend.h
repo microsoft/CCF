@@ -456,8 +456,11 @@ namespace ccf
 
         // Generate quote over node certificate
         // TODO: https://github.com/microsoft/CCF/issues/59
-        size_t self = g.add_node(
-          {in.node_info_network, in.node_cert, in.quote, NodeStatus::TRUSTED});
+        size_t self = g.add_node({in.node_info_network,
+                                  in.node_cert,
+                                  in.quote,
+                                  in.public_encryption_key,
+                                  NodeStatus::TRUSTED});
 
         if (self != 0)
         {
