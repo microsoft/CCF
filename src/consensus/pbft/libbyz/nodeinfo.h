@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "node/rpc/jsonrpc.h"
+
 #include <nlohmann/json.hpp>
 
 using NodeId = uint64_t;
@@ -19,15 +21,9 @@ struct PrincipalInfo
   bool is_replica;
 };
 
-inline void from_json(const nlohmann::json& j, PrincipalInfo& pi)
-{
-  pi.id = j["id"];
-  pi.port = j["port"];
-  pi.ip = j["ip"];
-  pi.cert = j["cert"];
-  pi.host_name = j["host_name"];
-  pi.is_replica = j["is_replica"];
-}
+DECLARE_JSON_TYPE(PrincipalInfo);
+DECLARE_JSON_REQUIRED_FIELDS(
+  PrincipalInfo, id, port, ip, cert, host_name, is_replica);
 
 struct GeneralInfo
 {
@@ -43,30 +39,27 @@ struct GeneralInfo
   std::vector<PrincipalInfo> principal_info;
 };
 
-inline void from_json(const nlohmann::json& j, GeneralInfo& gi)
-{
-  gi.num_replicas = j["num_replicas"];
-  gi.num_clients = j["num_clients"];
-  gi.max_faulty = j["max_faulty"];
-  gi.service_name = j["service_name"];
-  gi.auth_timeout = j["auth_timeout"];
-  gi.view_timeout = j["view_timeout"];
-  gi.status_timeout = j["status_timeout"];
-  gi.recovery_timeout = j["recovery_timeout"];
-  gi.max_requests_between_signatures = j["max_requests_between_signatures"];
-  std::vector<PrincipalInfo> temp = j["principal_info"];
-  gi.principal_info = std::move(temp);
-}
+DECLARE_JSON_TYPE(GeneralInfo);
+DECLARE_JSON_REQUIRED_FIELDS(
+  GeneralInfo,
+  num_replicas,
+  num_clients,
+  max_faulty,
+  service_name,
+  auth_timeout,
+  view_timeout,
+  status_timeout,
+  recovery_timeout,
+  max_requests_between_signatures,
+  principal_info);
 
 struct PrivateKey
 {
   std::string privk;
 };
 
-inline void from_json(const nlohmann::json& j, PrivateKey& pk)
-{
-  pk.privk = j["privk"];
-}
+DECLARE_JSON_TYPE(PrivateKey);
+DECLARE_JSON_REQUIRED_FIELDS(PrivateKey, privk);
 
 struct NodeInfo
 {

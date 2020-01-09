@@ -302,8 +302,6 @@ bool Pre_prepare::pre_verify()
         return true;
       }
 
-      LOG_INFO_FMT("Verifying signature for node{}", sender);
-
       if (!sender_principal->verify_signature(
             rep().digest.digest(),
             rep().digest.digest_size(),

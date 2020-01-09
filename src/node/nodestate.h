@@ -1431,7 +1431,7 @@ namespace ccf
         *network.tables->get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS),
         *network.tables->get<pbft::PrePreparesMap>(
           pbft::Tables::PBFT_PRE_PREPARES),
-        node_kp->private_key_pem(),
+        node_kp->private_key_pem().str(),
         cert_string);
 
       network.tables->set_consensus(consensus);

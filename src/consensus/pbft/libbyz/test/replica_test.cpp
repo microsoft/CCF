@@ -327,6 +327,7 @@ int main(int argc, char** argv)
   }
 
   GeneralInfo general_info = files::slurp_json(config_file);
+  // as to not add double escapes on newline when slurping from file
   PrivateKey privk_j = files::slurp_json(privk_file);
   NodeInfo node_info;
   tls::KeyPairPtr kp = tls::make_key_pair(privk_j.privk);
@@ -342,7 +343,7 @@ int main(int argc, char** argv)
   {
     if (pi.id == id)
     {
-      node_info = {pi, privk_j.privk.c_str(), general_info};
+      node_info = {pi, privk_j.privk, general_info};
       break;
     }
   }

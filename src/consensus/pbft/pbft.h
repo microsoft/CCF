@@ -141,8 +141,8 @@ namespace pbft
       std::shared_ptr<enclave::RPCSessions> rpcsessions_,
       pbft::RequestsMap& pbft_requests_map,
       pbft::PrePreparesMap& pbft_pre_prepares_map,
-      const tls::Pem& privk_pem,
-      const tls::Pem& cert) :
+      const std::string& privk_pem,
+      const std::string& cert) :
       Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
@@ -170,11 +170,11 @@ namespace pbft
       my_info.id = local_id;
       my_info.port = 0;
       my_info.ip = "256.256.256.256"; // Invalid
-      my_info.cert = cert.str();
+      my_info.cert = cert;
       my_info.host_name = "machineB";
       my_info.is_replica = true;
 
-      ::NodeInfo node_info = {my_info, privk_pem.str(), general_info};
+      ::NodeInfo node_info = {my_info, privk_pem, general_info};
 
       int mem_size = 40 * 8192;
       mem = (char*)malloc(mem_size);

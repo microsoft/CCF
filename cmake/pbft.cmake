@@ -96,7 +96,6 @@ if("virtual" IN_LIST TARGET)
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/Statistics.cpp
   )
   target_compile_options(libcommontest PRIVATE -stdlib=libc++)
-  use_client_mbedtls(libcommontest)
 
   target_include_directories(libcommontest PRIVATE
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz
@@ -112,8 +111,7 @@ if("virtual" IN_LIST TARGET)
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test
     ${EVERCRYPT_INC}
   )
-  use_client_mbedtls(libcommontest.mock)
-  target_link_libraries(libcommontest.mock PRIVATE libcommontest)
+
   target_compile_options(libcommontest.mock PRIVATE -stdlib=libc++)
 
   function(use_libbyz name)
