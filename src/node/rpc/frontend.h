@@ -9,7 +9,6 @@
 #include "enclave/rpchandler.h"
 #include "forwarder.h"
 #include "jsonrpc.h"
-#include "metrics.h"
 #include "node/certs.h"
 #include "node/clientsignatures.h"
 #include "node/nodes.h"
@@ -33,6 +32,23 @@ namespace ccf
     const nlohmann::json& params;
   };
 
+  using HandleFunction = std::function<void(RequestArgs& args)>;
+
+  static enclave::RpcResponse make_success(nlohmann::json&& result_payload)
+  {
+    return enclave::RpcResponse{std::move(result_payload)};
+  }
+
+  static enclave::RpcResponse make_success(const nlohmann::json& result_payload)
+  {
+    return enclave::RpcResponse{result_payload};
+  }
+
+  static enclave::RpcResponse make_error(int code, const std::string& msg = "")
+  {
+    return enclave::RpcResponse{enclave::ErrorDetails{code, msg}};
+  }
+
   template <typename CT = void>
   class RpcFrontend : public enclave::RpcHandler, public ForwardedRpcHandler
   {
@@ -50,29 +66,8 @@ namespace ccf
       DoNotForward
     };
 
-  private:
-    using HandleFunction = std::function<void(RequestArgs& args)>;
-
-    using MinimalHandleResult = enclave::HandlerResponse;
-
-    using MinimalHandleFunction0 = std::function<MinimalHandleResult(
-      Store::Tx& tx, const nlohmann::json& params)>;
-
-    using MinimalHandleFunction1 = std::function<MinimalHandleResult(
-      Store::Tx& tx, CallerId caller_id, const nlohmann::json& params)>;
-
   protected:
     Store& tables;
-
-    static MinimalHandleResult make_success(nlohmann::json&& result_payload)
-    {
-      return enclave::HandlerResponse{std::move(result_payload)};
-    }
-
-    static MinimalHandleResult make_error(int code, const std::string& msg = "")
-    {
-      return enclave::HandlerResponse{enclave::ErrorDetails{code, msg}};
-    }
 
     void disable_request_storing()
     {
@@ -122,38 +117,6 @@ namespace ccf
         nlohmann::json::object(),
         nlohmann::json::object(),
         forwardable);
-    }
-
-    /** Install MinimalHandleFunctions for method name
-     *
-     * For simple app methods which require minimal arguments, this creates a
-     * wrapper to reduce handler complexity and repetition.
-     *
-     * @param method Method name
-     * @param f Method implementation
-     */
-    template <typename... Ts>
-    void install(
-      const std::string& method, MinimalHandleFunction0 f, Ts&&... ts)
-    {
-      install(
-        method,
-        [f](RequestArgs& args) {
-          args.rpc_ctx.set_response(f(args.tx, args.params));
-        },
-        std::forward<Ts>(ts)...);
-    }
-
-    template <typename... Ts>
-    void install(
-      const std::string& method, MinimalHandleFunction1 f, Ts&&... ts)
-    {
-      install(
-        method,
-        [f](RequestArgs& args) {
-          args.rpc_ctx.set_response(f(args.tx, args.caller_id, args.params));
-        },
-        std::forward<Ts>(ts)...);
     }
 
     template <typename In, typename Out, typename F>
@@ -220,6 +183,16 @@ namespace ccf
       }
     }
 
+    kv::Consensus* get_consensus() const
+    {
+      return consensus;
+    }
+
+    kv::TxHistory* get_history() const
+    {
+      return history;
+    }
+
   private:
     // TODO: replace with an lru map
     std::map<CallerId, tls::VerifierPtr> verifiers;
@@ -248,11 +221,9 @@ namespace ccf
     kv::TxHistory* history;
 
     size_t sig_max_tx = 1000;
-    size_t tx_count = 0;
     std::chrono::milliseconds sig_max_ms = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
     bool request_storing_disabled = false;
-    metrics::Metrics metrics;
 
     void update_consensus()
     {
@@ -387,249 +358,7 @@ namespace ccf
         tables.get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
       consensus(nullptr),
       history(nullptr)
-    {
-      auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
-        const auto in = params.get<GetCommit::In>();
-
-        kv::Version commit = in.commit.value_or(tables.commit_version());
-
-        update_consensus();
-
-        if (consensus != nullptr)
-        {
-          auto term = consensus->get_view(commit);
-          return make_success(GetCommit::Out{term, commit});
-        }
-
-        return make_error(
-          (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-          "Failed to get commit info from Consensus");
-      };
-
-      auto get_metrics = [this](Store::Tx& tx, const nlohmann::json& params) {
-        auto result = metrics.get_metrics();
-        return make_success(result);
-      };
-
-      auto make_signature =
-        [this](Store::Tx& tx, const nlohmann::json& params) {
-          update_consensus();
-
-          if (consensus != nullptr)
-          {
-            if (consensus->type() == ConsensusType::Raft)
-            {
-              update_history();
-
-              if (history != nullptr)
-              {
-                history->emit_signature();
-                return make_success(true);
-              }
-            }
-            else if (consensus->type() == ConsensusType::Pbft)
-            {
-              consensus->emit_signature();
-              return make_success(true);
-            }
-          }
-
-          return make_error(
-            (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            "Failed to trigger signature");
-        };
-
-      auto get_primary_info = [this](
-                                Store::Tx& tx, const nlohmann::json& params) {
-        if ((nodes != nullptr) && (consensus != nullptr))
-        {
-          NodeId primary_id = consensus->primary();
-
-          auto nodes_view = tx.get_view(*nodes);
-          auto info = nodes_view->get(primary_id);
-
-          if (info)
-          {
-            GetPrimaryInfo::Out out;
-            out.primary_id = primary_id;
-            out.primary_host = info->pubhost;
-            out.primary_port = info->rpcport;
-            return make_success(out);
-          }
-        }
-
-        return make_error(
-          (int)jsonrpc::CCFErrorCodes::TX_PRIMARY_UNKNOWN, "Primary unknown.");
-      };
-
-      auto get_network_info =
-        [this](Store::Tx& tx, const nlohmann::json& params) {
-          GetNetworkInfo::Out out;
-          if (consensus != nullptr)
-          {
-            out.primary_id = consensus->primary();
-          }
-
-          auto nodes_view = tx.get_view(*nodes);
-          nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
-            if (ni.status == ccf::NodeStatus::TRUSTED)
-            {
-              out.nodes.push_back({nid, ni.pubhost, ni.rpcport});
-            }
-            return true;
-          });
-
-          return make_success(out);
-        };
-
-      auto who_am_i = [this](const RequestArgs& args) {
-        if (certs == nullptr)
-        {
-          return make_error(
-            (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            fmt::format(
-              "This frontend does not support {}", GeneralProcs::WHO_AM_I));
-        }
-
-        return make_success(WhoAmI::Out{args.caller_id});
-      };
-
-      auto who_is = [this](Store::Tx& tx, const nlohmann::json& params) {
-        const WhoIs::In in = params;
-
-        if (certs == nullptr)
-        {
-          return make_error(
-            (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            fmt::format(
-              "This frontend does not support {}", GeneralProcs::WHO_IS));
-        }
-        auto certs_view = tx.get_view(*certs);
-        auto caller_id = certs_view->get(in.cert);
-
-        if (!caller_id.has_value())
-        {
-          return make_error(
-            (int)jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Certificate not recognised");
-        }
-
-        return make_success(WhoIs::Out{caller_id.value()});
-      };
-
-      auto list_methods_fn =
-        [this](Store::Tx& tx, const nlohmann::json& params) {
-          ListMethods::Out out;
-
-          list_methods(tx, out);
-
-          std::sort(out.methods.begin(), out.methods.end());
-
-          return make_success(out);
-        };
-
-      auto get_schema = [this](Store::Tx& tx, const nlohmann::json& params) {
-        const auto in = params.get<GetSchema::In>();
-
-        const auto it = handlers.find(in.method);
-        if (it == handlers.end())
-        {
-          return make_error(
-            (int)jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            fmt::format("Method {} not recognised", in.method));
-        }
-
-        const GetSchema::Out out{it->second.params_schema,
-                                 it->second.result_schema};
-
-        return make_success(out);
-      };
-
-      auto get_receipt = [this](Store::Tx& tx, const nlohmann::json& params) {
-        const auto in = params.get<GetReceipt::In>();
-
-        update_history();
-
-        if (history != nullptr)
-        {
-          try
-          {
-            auto p = history->get_receipt(in.commit);
-            const GetReceipt::Out out{p};
-
-            return make_success(out);
-          }
-          catch (const std::exception& e)
-          {
-            return make_error(
-              (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-              fmt::format(
-                "Unable to produce receipt for commit {} : {}",
-                in.commit,
-                e.what()));
-          }
-        }
-
-        return make_error(
-          (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-          "Unable to produce receipt");
-      };
-
-      auto verify_receipt =
-        [this](Store::Tx& tx, const nlohmann::json& params) {
-          const auto in = params.get<VerifyReceipt::In>();
-
-          update_history();
-
-          if (history != nullptr)
-          {
-            try
-            {
-              bool v = history->verify_receipt(in.receipt);
-              const VerifyReceipt::Out out{v};
-
-              return make_success(out);
-            }
-            catch (const std::exception& e)
-            {
-              return make_error(
-                (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-                fmt::format("Unable to verify receipt: {}", e.what()));
-            }
-          }
-
-          return make_error(
-            (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            "Unable to verify receipt");
-        };
-
-      install_with_auto_schema<GetCommit>(
-        GeneralProcs::GET_COMMIT, get_commit, Read);
-      install_with_auto_schema<void, GetMetrics::Out>(
-        GeneralProcs::GET_METRICS,
-        get_metrics,
-        Read,
-        Forwardable::CanForward,
-        true);
-      install_with_auto_schema<void, bool>(
-        GeneralProcs::MK_SIGN, make_signature, Write);
-      install_with_auto_schema<void, GetPrimaryInfo::Out>(
-        GeneralProcs::GET_PRIMARY_INFO, get_primary_info, Read);
-      install_with_auto_schema<void, GetNetworkInfo::Out>(
-        GeneralProcs::GET_NETWORK_INFO, get_network_info, Read);
-      install_with_auto_schema<void, WhoAmI::Out>(
-        GeneralProcs::WHO_AM_I, who_am_i, Read);
-      install_with_auto_schema<WhoIs::In, WhoIs::Out>(
-        GeneralProcs::WHO_IS, who_is, Read);
-      install_with_auto_schema<void, ListMethods::Out>(
-        GeneralProcs::LIST_METHODS, list_methods_fn, Read);
-      install_with_auto_schema<GetSchema>(
-        GeneralProcs::GET_SCHEMA, get_schema, Read);
-      install_with_auto_schema<GetReceipt>(
-        GeneralProcs::GET_RECEIPT, get_receipt, Read);
-      install_with_auto_schema<VerifyReceipt>(
-        GeneralProcs::VERIFY_RECEIPT, verify_receipt, Read);
-    }
+    {}
 
     void set_sig_intervals(size_t sig_max_tx_, size_t sig_max_ms_) override
     {
@@ -1000,8 +729,6 @@ namespace ccf
       auto func = handler->func;
       auto args = RequestArgs{ctx, tx, caller_id, ctx.method, params};
 
-      tx_count++;
-
       while (true)
       {
         try
@@ -1097,9 +824,6 @@ namespace ccf
 
     void tick(std::chrono::milliseconds elapsed) override
     {
-      metrics.track_tx_rates(elapsed, tx_count);
-      // reset tx_counter for next tick interval
-      tx_count = 0;
       // TODO(#refactoring): move this to NodeState::tick
       update_consensus();
       if ((consensus != nullptr) && consensus->is_primary())

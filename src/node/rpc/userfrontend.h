@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "frontend.h"
+#include "commonfrontend.h"
 #include "node/clientsignatures.h"
 
 namespace ccf
 {
-  class UserRpcFrontend : public RpcFrontend<Users>
+  class UserRpcFrontend : public CommonFrontend<Users>
   {
   public:
     UserRpcFrontend(Store& tables_) :

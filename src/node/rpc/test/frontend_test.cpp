@@ -10,6 +10,7 @@
 #include "node/entities.h"
 #include "node/genesisgen.h"
 #include "node/networkstate.h"
+#include "node/rpc/handleradapter.h"
 #include "node/rpc/jsonrpc.h"
 #include "node/rpc/memberfrontend.h"
 #include "node/rpc/nodefrontend.h"
@@ -67,13 +68,13 @@ public:
       auto j = params;
       return make_success(std::move(j));
     };
-    install("echo_function", echo_function, Read);
+    install("echo_function", handler_adapter(echo_function), Read);
 
     auto get_caller_function =
       [this](Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
         return make_success(caller_id);
       };
-    install("get_caller", get_caller_function, Read);
+    install("get_caller", handler_adapter(get_caller_function), Read);
   }
 };
 

@@ -61,7 +61,7 @@ namespace enclave
     std::string msg;
   };
 
-  struct HandlerResponse
+  struct RpcResponse
   {
     std::variant<ErrorDetails, nlohmann::json> result;
   };
@@ -71,7 +71,7 @@ namespace enclave
   protected:
     size_t request_index = 0;
 
-    mutable HandlerResponse response;
+    mutable RpcResponse response;
 
   public:
     SessionContext session;
@@ -132,7 +132,7 @@ namespace enclave
       return std::get_if<nlohmann::json>(&response.result);
     }
 
-    void set_response(HandlerResponse&& r) const
+    void set_response(RpcResponse&& r) const
     {
       response = std::move(r);
     }

@@ -3,14 +3,14 @@
 #pragma once
 
 #include "crypto/hash.h"
-#include "frontend.h"
+#include "commonfrontend.h"
 #include "node/entities.h"
 #include "node/networkstate.h"
 #include "node/quoteverification.h"
 
 namespace ccf
 {
-  class NodeRpcFrontend : public RpcFrontend<>
+  class NodeRpcFrontend : public CommonFrontend<>
   {
   private:
     NetworkState& network;

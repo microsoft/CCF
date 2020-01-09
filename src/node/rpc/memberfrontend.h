@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "frontend.h"
+#include "commonfrontend.h"
 #include "luainterp/txscriptrunner.h"
 #include "node/genesisgen.h"
 #include "node/nodes.h"
@@ -27,7 +27,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(SetUserData, user_id)
   DECLARE_JSON_OPTIONAL_FIELDS(SetUserData, user_data)
 
-  class MemberRpcFrontend : public RpcFrontend<Members>
+  class MemberRpcFrontend : public CommonFrontend<Members>
   {
   protected:
     std::string invalid_caller_error_message() const override
