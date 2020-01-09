@@ -74,7 +74,7 @@ class Node:
         self.network_state = NodeNetworkState.joined
 
     def join(
-        self, lib_name, enclave_type, workspace, label, target_rpc_address, **kwargs
+        self, lib_name, enclave_type, workspace, label, target_rpc_address, **kwargs,
     ):
         self._start(
             infra.remote.StartType.join,

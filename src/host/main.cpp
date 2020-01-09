@@ -235,6 +235,14 @@ int main(int argc, char** argv)
       true)
     ->check(CLI::ExistingFile);
 
+  size_t join_timer = 1000;
+  join->add_option(
+    "--join-timer",
+    join_timer,
+    "Duration after which the joining node will resend join requests to "
+    "existing network (ms)",
+    true);
+
   cli::ParsedAddress target_rpc_address;
   cli::add_address_option(
     *join,
@@ -371,6 +379,7 @@ int main(int argc, char** argv)
     ccf_config.joining.target_host = target_rpc_address.hostname;
     ccf_config.joining.target_port = target_rpc_address.port;
     ccf_config.joining.network_cert = files::slurp(network_cert_file);
+    ccf_config.joining.join_timer = join_timer;
   }
   else if (*recover)
   {
@@ -415,9 +424,6 @@ int main(int argc, char** argv)
 
 #ifdef GET_QUOTE
   files::dump(quote, quote_file);
-
-  if (!enclave.verify_quote(quote, node_cert))
-    LOG_FATAL_FMT("Verification of local node quote failed");
 #endif
 
   // Start a thread which will ECall and process messages inside the enclave

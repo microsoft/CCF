@@ -86,10 +86,10 @@ def run(args):
     ) as network:
         network.start_and_join(args)
         test_add_node_from_backup(network, args)
-        test_add_as_many_pending_nodes(network, args)
         test_add_node(network, args)
         test_add_node_untrusted_code(network, args)
         test_retire_node(network, args)
+        test_add_as_many_pending_nodes(network, args)
         test_add_node(network, args)
 
 

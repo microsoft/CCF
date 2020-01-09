@@ -511,6 +511,7 @@ class CCFRemote(object):
         label,
         target_rpc_address=None,
         members_certs=None,
+        join_timer=None,
         host_log_level="info",
         ignore_quote=False,
         sig_max_tx=1000,
@@ -613,6 +614,7 @@ class CCFRemote(object):
                 "join",
                 "--network-cert-file=networkcert.pem",
                 f"--target-rpc-address={target_rpc_address}",
+                f"--join-timer={join_timer}",
             ]
             data_files += ["networkcert.pem"]
         elif start_type == StartType.recover:

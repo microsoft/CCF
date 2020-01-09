@@ -123,6 +123,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         type=lambda curve: infra.ccf.ParticipantsCurve[curve],
         choices=list(infra.ccf.ParticipantsCurve),
     )
+    parser.add_argument(
+        "--join-timer",
+        help="Timer period when tyring to join an existing network (ms)",
+        type=int,
+        default=4000,
+    )
     add(parser)
 
     if accept_unknown:

@@ -15,6 +15,7 @@ import infra.consortium
 import infra.jsonrpc
 import ssl
 import random
+from math import ceil
 
 from loguru import logger as LOG
 
@@ -52,6 +53,7 @@ class Network:
         "notify_server",
         "json_log_path",
         "gov_script",
+        "join_timer",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -238,7 +240,10 @@ class Network:
             self.consortium.wait_for_node_to_exist_in_store(
                 primary,
                 new_node.node_id,
-                (
+                # When the service is open, it takes a joining node at least 2 join
+                # attempts to retrieve the network secrets
+                timeout=ceil(args.join_timer * 3 / 1000),
+                node_status=(
                     infra.node.NodeStatus.PENDING
                     if self.status == ServiceStatus.OPEN
                     else infra.node.NodeStatus.TRUSTED
@@ -317,7 +322,7 @@ class Network:
         primary, term = self.find_primary()
         for n in self.nodes:
             self.consortium.wait_for_node_to_exist_in_store(
-                primary, n.node_id, infra.node.NodeStatus.TRUSTED
+                primary, n.node_id, timeout, infra.node.NodeStatus.TRUSTED
             )
 
     def _get_node_by_id(self, node_id):
