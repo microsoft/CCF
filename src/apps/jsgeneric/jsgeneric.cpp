@@ -53,8 +53,6 @@ namespace ccfapp
             "No handler script found for method '" + args.method + "'");
 
         const nlohmann::json response = {};
-        std::string code = "function add (a, b) { return a + b; }; add(4, 5)";
-        JS_Eval(ctx, code.data(), code.size(), "table_name::key", JS_EVAL_TYPE_GLOBAL);
         /*
         const auto response = tsr->run<nlohmann::json>(
           args.tx,
