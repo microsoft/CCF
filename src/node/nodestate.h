@@ -1067,6 +1067,7 @@ namespace ccf
       active_service->status = ServiceStatus::OPEN;
       service_view->put(0, active_service.value());
 
+      LOG_INFO_FMT("Changing network status from OPENING to OPEN");
       return true;
     }
 
