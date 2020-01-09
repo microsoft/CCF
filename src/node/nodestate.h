@@ -862,29 +862,32 @@ namespace ccf
         });
 
       // For all nodes in the new network, write all past network secrets to
-      // the secrets table, encrypted with the respective ephemeral keys
+      // the secrets table, encrypted with the respective public keys
       for (auto const& ns_idx : past_secrets_idx)
       {
         ccf::PastNetworkSecrets past_secrets;
+        past_secrets.primary_public_encryption_key =
+          node_encrypt_kp->public_key_pem().raw();
         for (auto [nid, ni] : new_backups)
         {
           ccf::SerialisedNetworkSecrets ns;
           ns.node_id = nid;
 
-          auto serial = network.ledger_secrets->get_secret(ns_idx);
-          if (serial.has_value())
+          auto secret = network.ledger_secrets->get_secret(ns_idx);
+          if (secret.has_value())
           {
             LOG_DEBUG_FMT(
-              "Writing network secret {} of size {} to backup {} in secrets "
-              "table",
+              "Writing network secret {} to backup {} in secrets table",
               ns_idx,
-              serial.value().size(),
               nid);
 
-            // TODO: Fix this, nullkey for now
-            auto empty_key = std::vector<uint8_t>(128, 0);
-            crypto::KeyAesGcm joiner_key(empty_key);
-            crypto::GcmCipher gcmcipher(serial.value().size());
+            // Encrypt secrets with backup public key
+            auto backup_pubk = tls::make_public_key(ni.encryption_pub_key);
+            auto n2n_ctx =
+              tls::KeyExchangeContext(node_encrypt_kp, backup_pubk);
+            crypto::KeyAesGcm joiner_key(n2n_ctx.compute_shared_secret());
+
+            crypto::GcmCipher gcmcipher(secret.value().size());
 
             // Get random IV
             auto iv = tls::create_entropy()->random(gcmcipher.hdr.get_iv().n);
@@ -892,7 +895,7 @@ namespace ccf
 
             joiner_key.encrypt(
               iv,
-              CBuffer(serial.value().data(), serial.value().size()),
+              CBuffer(secret.value().data(), secret.value().size()),
               CBuffer(),
               gcmcipher.cipher.data(),
               gcmcipher.hdr.tag);
@@ -1236,9 +1239,13 @@ namespace ccf
               std::vector<uint8_t> plain_nw_secret_at_v(
                 gcmcipher.cipher.size());
 
-              // Fix this, null key for now
-              auto empty_key = std::vector<uint8_t>(128, 0);
-              crypto::KeyAesGcm fresh_key(empty_key);
+              auto primary_pubk = tls::make_public_key(
+                past_secrets.value.primary_public_encryption_key);
+
+              auto n2n_ctx =
+                tls::KeyExchangeContext(node_encrypt_kp, primary_pubk);
+              crypto::KeyAesGcm fresh_key(
+                n2n_ctx.compute_shared_secret()); // TODO: Rename this
 
               if (!fresh_key.decrypt(
                     gcmcipher.hdr.get_iv(),

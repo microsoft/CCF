@@ -25,13 +25,17 @@ namespace ccf
 
   struct PastNetworkSecrets
   {
+    // TODO: Since ECDSA does not support asymmetric encryption out of the box,
+    // pass the public key for now
+    std::vector<uint8_t> primary_public_encryption_key;
     std::vector<SerialisedNetworkSecrets> secrets;
 
-    MSGPACK_DEFINE(secrets);
+    MSGPACK_DEFINE(primary_public_encryption_key, secrets);
   };
 
   DECLARE_JSON_TYPE(PastNetworkSecrets)
-  DECLARE_JSON_REQUIRED_FIELDS(PastNetworkSecrets, secrets)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    PastNetworkSecrets, primary_public_encryption_key, secrets)
 
   // This map is used to communicate past network secrets from the primary to
   // the backups (e.g. during recovery)
