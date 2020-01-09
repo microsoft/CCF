@@ -6,6 +6,7 @@
 #include "node/entities.h"
 #include "node/rpc/jsonrpc.h"
 
+#include <variant>
 #include <vector>
 
 namespace enclave
@@ -54,9 +55,23 @@ namespace enclave
   {
   };
 
+  struct ErrorDetails
+  {
+    int code;
+    std::string msg;
+  };
+
+  struct HandlerResponse
+  {
+    std::variant<ErrorDetails, nlohmann::json> result;
+  };
+
   class RpcContext
   {
+  protected:
     size_t request_index = 0;
+
+    mutable HandlerResponse response;
 
   public:
     SessionContext session;
@@ -90,6 +105,39 @@ namespace enclave
     {
       return request_index;
     }
+
+    // TODO: This is obviously non-const. Should pass RpcContext without const&
+    void set_response_error(int code, const std::string& msg = "") const
+    {
+      response.result = ErrorDetails{code, msg};
+    }
+
+    ErrorDetails* get_response_error() const
+    {
+      return std::get_if<ErrorDetails>(&response.result);
+    }
+
+    bool response_is_error() const
+    {
+      return get_response_error() != nullptr;
+    }
+
+    void set_response_result(nlohmann::json&& j) const
+    {
+      response.result = std::move(j);
+    }
+
+    nlohmann::json* get_response_result() const
+    {
+      return std::get_if<nlohmann::json>(&response.result);
+    }
+
+    void set_response(HandlerResponse&& r) const
+    {
+      response = std::move(r);
+    }
+
+    virtual std::vector<uint8_t> serialise_response() const = 0;
 
     virtual std::vector<uint8_t> result_response(
       const nlohmann::json& result) const = 0;
@@ -170,6 +218,34 @@ namespace enclave
       RpcContext(s)
     {
       init(p, rpc);
+    }
+
+    virtual std::vector<uint8_t> serialise_response() const override
+    {
+      if (response_is_error())
+      {
+        const auto error = get_response_error();
+        nlohmann::json error_element;
+        if (
+          error->code < (int)jsonrpc::StandardErrorCodes::SERVER_ERROR_START &&
+          error->code >= (int)jsonrpc::StandardErrorCodes::SERVER_ERROR_END)
+        {
+          error_element =
+            jsonrpc::Error((jsonrpc::CCFErrorCodes)error->code, error->msg);
+        }
+        else
+        {
+          error_element = jsonrpc::Error(
+            (jsonrpc::StandardErrorCodes)error->code, error->msg);
+        }
+
+        return pack(jsonrpc::error_response(seq_no, error_element));
+      }
+      else
+      {
+        const auto payload = get_response_result();
+        return pack(jsonrpc::result_response(seq_no, *payload));
+      }
     }
 
     virtual std::vector<uint8_t> result_response(

@@ -51,24 +51,24 @@ namespace ccf
     };
 
   private:
-    using HandlerResult = std::pair<bool, std::vector<uint8_t>>;
+    using HandleFunction = std::function<void(RequestArgs& args)>;
 
-    using HandleFunction = std::function<HandlerResult(RequestArgs& args)>;
+    using MinimalHandleResult = enclave::HandlerResponse;
 
-    using MinimalHandleFunction = std::function<std::pair<bool, nlohmann::json>(
+    using MinimalHandleFunction = std::function<MinimalHandleResult(
       Store::Tx& tx, const nlohmann::json& params)>;
 
   protected:
     Store& tables;
 
-    static HandlerResult result_success(std::vector<uint8_t>&& response)
+    static MinimalHandleResult make_success(nlohmann::json&& result_payload)
     {
-      return {true, std::move(response)};
+      return enclave::HandlerResponse{std::move(result_payload)};
     }
 
-    static HandlerResult result_error(std::vector<uint8_t>&& response)
+    static MinimalHandleResult make_error(int code, const std::string& msg = "")
     {
-      return {false, std::move(response)};
+      return enclave::HandlerResponse{enclave::ErrorDetails{code, msg}};
     }
 
     void disable_request_storing()
@@ -134,7 +134,9 @@ namespace ccf
     {
       install(
         method,
-        [f](RequestArgs& args) { return f(args.tx, args.params); },
+        [f](RequestArgs& args) {
+          args.rpc_ctx.set_response(f(args.tx, args.params));
+        },
         std::forward<Ts>(ts)...);
     }
 
@@ -380,17 +382,17 @@ namespace ccf
         if (consensus != nullptr)
         {
           auto term = consensus->get_view(commit);
-          return jsonrpc::success(GetCommit::Out{term, commit});
+          return make_success(GetCommit::Out{term, commit});
         }
 
-        return jsonrpc::error(
-          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+        return make_error(
+          (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
           "Failed to get commit info from Consensus");
       };
 
       auto get_metrics = [this](Store::Tx& tx, const nlohmann::json& params) {
         auto result = metrics.get_metrics();
-        return jsonrpc::success(result);
+        return make_success(result);
       };
 
       auto make_signature =
@@ -406,27 +408,28 @@ namespace ccf
               if (history != nullptr)
               {
                 history->emit_signature();
-                return jsonrpc::success(true);
+                return make_success(true);
               }
             }
             else if (consensus->type() == ConsensusType::Pbft)
             {
               consensus->emit_signature();
-              return jsonrpc::success(true);
+              return make_success(true);
             }
           }
 
-          return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          return make_error(
+            (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             "Failed to trigger signature");
         };
 
-      auto get_primary_info = [this](const RequestArgs& args) {
+      auto get_primary_info = [this](
+                                Store::Tx& tx, const nlohmann::json& params) {
         if ((nodes != nullptr) && (consensus != nullptr))
         {
           NodeId primary_id = consensus->primary();
 
-          auto nodes_view = args.tx.get_view(*nodes);
+          auto nodes_view = tx.get_view(*nodes);
           auto info = nodes_view->get(primary_id);
 
           if (info)
@@ -435,12 +438,12 @@ namespace ccf
             out.primary_id = primary_id;
             out.primary_host = info->pubhost;
             out.primary_port = info->rpcport;
-            return result_success(args.rpc_ctx.result_response(out));
+            return make_success(out);
           }
         }
 
-        return result_error(args.rpc_ctx.error_response(
-          (int)jsonrpc::CCFErrorCodes::TX_PRIMARY_UNKNOWN, "Primary unknown."));
+        return make_error(
+          (int)jsonrpc::CCFErrorCodes::TX_PRIMARY_UNKNOWN, "Primary unknown.");
       };
 
       auto get_network_info =
@@ -460,19 +463,19 @@ namespace ccf
             return true;
           });
 
-          return jsonrpc::success(out);
+          return make_success(out);
         };
 
       auto who_am_i = [this](const RequestArgs& args) {
         if (certs == nullptr)
         {
-          return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          return make_error(
+            (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             fmt::format(
               "This frontend does not support {}", GeneralProcs::WHO_AM_I));
         }
 
-        return jsonrpc::success(WhoAmI::Out{args.caller_id});
+        return make_success(WhoAmI::Out{args.caller_id});
       };
 
       auto who_is = [this](Store::Tx& tx, const nlohmann::json& params) {
@@ -480,8 +483,8 @@ namespace ccf
 
         if (certs == nullptr)
         {
-          return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          return make_error(
+            (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             fmt::format(
               "This frontend does not support {}", GeneralProcs::WHO_IS));
         }
@@ -490,12 +493,12 @@ namespace ccf
 
         if (!caller_id.has_value())
         {
-          return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+          return make_error(
+            (int)jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             "Certificate not recognised");
         }
 
-        return jsonrpc::success(WhoIs::Out{caller_id.value()});
+        return make_success(WhoIs::Out{caller_id.value()});
       };
 
       auto list_methods_fn =
@@ -506,7 +509,7 @@ namespace ccf
 
           std::sort(out.methods.begin(), out.methods.end());
 
-          return jsonrpc::success(out);
+          return make_success(out);
         };
 
       auto get_schema = [this](Store::Tx& tx, const nlohmann::json& params) {
@@ -515,15 +518,15 @@ namespace ccf
         const auto it = handlers.find(in.method);
         if (it == handlers.end())
         {
-          return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+          return make_error(
+            (int)jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             fmt::format("Method {} not recognised", in.method));
         }
 
         const GetSchema::Out out{it->second.params_schema,
                                  it->second.result_schema};
 
-        return jsonrpc::success(out);
+        return make_success(out);
       };
 
       auto get_receipt = [this](Store::Tx& tx, const nlohmann::json& params) {
@@ -538,12 +541,12 @@ namespace ccf
             auto p = history->get_receipt(in.commit);
             const GetReceipt::Out out{p};
 
-            return jsonrpc::success(out);
+            return make_success(out);
           }
           catch (const std::exception& e)
           {
-            return jsonrpc::error(
-              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            return make_error(
+              (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
               fmt::format(
                 "Unable to produce receipt for commit {} : {}",
                 in.commit,
@@ -551,8 +554,8 @@ namespace ccf
           }
         }
 
-        return jsonrpc::error(
-          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+        return make_error(
+          (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
           "Unable to produce receipt");
       };
 
@@ -569,18 +572,18 @@ namespace ccf
               bool v = history->verify_receipt(in.receipt);
               const VerifyReceipt::Out out{v};
 
-              return jsonrpc::success(out);
+              return make_success(out);
             }
             catch (const std::exception& e)
             {
-              return jsonrpc::error(
-                jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+              return make_error(
+                (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
                 fmt::format("Unable to verify receipt: {}", e.what()));
             }
           }
 
-          return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          return make_error(
+            (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             "Unable to verify receipt");
         };
 
@@ -987,24 +990,26 @@ namespace ccf
       {
         try
         {
-          auto tx_result = func(args);
+          func(args);
 
-          if (!tx_result.first)
+          if (!ctx.response_is_error())
           {
-            return tx_result.second;
+            return ctx.serialise_response();
           }
 
           switch (tx.commit())
           {
             case kv::CommitSuccess::OK:
             {
+              auto serialised = ctx.serialise_response();
+
               // TODO: How do we inject these fields into response of unknown
               // format?
               const auto& json_context =
                 dynamic_cast<const enclave::JsonRpcContext&>(ctx);
 
-              nlohmann::json result = jsonrpc::unpack(
-                tx_result.second, json_context.pack_format.value());
+              nlohmann::json result =
+                jsonrpc::unpack(serialised, json_context.pack_format.value());
 
               auto cv = tx.commit_version();
               if (cv == 0)

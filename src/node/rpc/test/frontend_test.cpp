@@ -39,7 +39,7 @@ public:
   TestUserFrontend(Store& tables) : UserRpcFrontend(tables)
   {
     auto empty_function = [this](RequestArgs& args) {
-      return result_success(args.rpc_ctx.result_response(true));
+      args.rpc_ctx.set_response_result(true);
     };
     install("empty_function", empty_function, Read);
   }
@@ -51,7 +51,7 @@ public:
   TestReqNotStoredFrontend(Store& tables) : UserRpcFrontend(tables)
   {
     auto empty_function = [this](RequestArgs& args) {
-      return result_success(args.rpc_ctx.result_response(true));
+      args.rpc_ctx.set_response_result(true);
     };
     install("empty_function", empty_function, Read);
     disable_request_storing();
@@ -66,7 +66,7 @@ public:
     MemberRpcFrontend(network, node)
   {
     auto empty_function = [this](RequestArgs& args) {
-      return result_success(args.rpc_ctx.result_response(true));
+      args.rpc_ctx.set_response_result(true);
     };
     install("empty_function", empty_function, Read);
   }
@@ -78,7 +78,7 @@ public:
   TestNoCertsFrontend(Store& tables) : RpcFrontend(tables)
   {
     auto empty_function = [this](RequestArgs& args) {
-      return result_success(args.rpc_ctx.result_response(true));
+      args.rpc_ctx.set_response_result(true);
     };
     install("empty_function", empty_function, Read);
   }
@@ -109,7 +109,7 @@ public:
   {
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
-      return result_success(args.rpc_ctx.result_response(true));
+      args.rpc_ctx.set_response_result(true);
     };
 
     // Note that this a Write function so that a backup executing this command
@@ -128,7 +128,7 @@ public:
   {
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
-      return result_success(args.rpc_ctx.result_response(true));
+      args.rpc_ctx.set_response_result(true);
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
@@ -146,7 +146,7 @@ public:
   {
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
-      return result_success(args.rpc_ctx.result_response(true));
+      args.rpc_ctx.set_response_result(true);
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
@@ -160,7 +160,7 @@ public:
   TestNoForwardingFrontEnd(Store& tables) : RpcFrontend(tables)
   {
     auto empty_function = [this](RequestArgs& args) {
-      return result_success(args.rpc_ctx.result_response(true));
+      args.rpc_ctx.set_response_result(true);
     };
     // Note that this a Write function that cannot be forwarded
     install("empty_function", empty_function, Write, Forwardable::DoNotForward);
@@ -194,6 +194,8 @@ namespace userapp
   }
 }
 
+// TODO: Restore Minimal handler lambda tests
+
 class TestAppErrorFrontEnd : public ccf::RpcFrontend<Users>
 {
 public:
@@ -202,16 +204,16 @@ public:
   TestAppErrorFrontEnd(Store& tables) : RpcFrontend(tables)
   {
     auto foo = [this](RequestArgs& args) {
-      return result_error(
-        args.rpc_ctx.error_response((int)userapp::AppError::Foo));
+      args.rpc_ctx.set_response_error((int)userapp::AppError::Foo);
     };
     install("foo", foo, Read);
 
     auto bar = [this](RequestArgs& args) {
-      return result_error(
-        args.rpc_ctx.error_response((int)userapp::AppError::Bar, bar_msg));
+      args.rpc_ctx.set_response_error((int)userapp::AppError::Bar, bar_msg);
     };
     install("bar", bar, Read);
+
+    // TODO: Test error returned from Minimal handler lambda
   }
 };
 
