@@ -182,8 +182,6 @@ namespace ccf
     //
     // join protocol
     //
-    std::vector<uint8_t> raw_fresh_key;
-    std::map<NodeId, std::vector<uint8_t>> joiners_fresh_keys;
     jsonrpc::SeqNo join_seq_no = 1;
     std::shared_ptr<Timer> join_timer;
 
@@ -368,10 +366,6 @@ namespace ccf
         }
         case StartType::Join:
         {
-          // Generate fresh key to encrypt/decrypt historical network secrets
-          // sent by the primary via the kv store
-          raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
-
           // TLS connections are not endorsed by the network until the node has
           // joined
           accept_node_tls_connections();
@@ -518,7 +512,6 @@ namespace ccf
       std::stringstream ss;
       ss << "nodes/" << ccf::NodeProcs::JOIN;
       join_rpc.method = ss.str();
-      join_rpc.params.raw_fresh_key = raw_fresh_key; // TODO: Delete
       join_rpc.params.node_info_network = args.config.node_info_network;
       join_rpc.params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
@@ -888,16 +881,9 @@ namespace ccf
               serial.value().size(),
               nid);
 
-            // Encrypt network secrets with joiner's fresh key
-            auto search = joiners_fresh_keys.find(nid);
-            if (search == joiners_fresh_keys.end())
-            {
-              LOG_FAIL_FMT("No fresh key for joiner {}", nid);
-              continue;
-            }
-
-            crypto::KeyAesGcm joiner_key(
-              CBuffer(search->second.data(), search->second.size()));
+            // TODO: Fix this, nullkey for now
+            auto empty_key = std::vector<uint8_t>(128, 0);
+            crypto::KeyAesGcm joiner_key(empty_key);
             crypto::GcmCipher gcmcipher(serial.value().size());
 
             // Get random IV
@@ -1079,15 +1065,6 @@ namespace ccf
       return true;
     }
 
-    // Used from nodefrontend.h to set the joiner's fresh key to encrypt past
-    // network secrets
-    void set_joiner_key(
-      NodeId joiner_id, const std::vector<uint8_t>& raw_key) override
-    {
-      LOG_DEBUG_FMT("Setting fresh key for joiner {}", joiner_id);
-      joiners_fresh_keys.emplace(joiner_id, raw_key);
-    }
-
     void node_quotes(Store::Tx& tx, GetQuotes::Out& result) override
     {
       auto nodes_view = tx.get_view(network.nodes);
@@ -1259,7 +1236,9 @@ namespace ccf
               std::vector<uint8_t> plain_nw_secret_at_v(
                 gcmcipher.cipher.size());
 
-              crypto::KeyAesGcm fresh_key(raw_fresh_key);
+              // Fix this, null key for now
+              auto empty_key = std::vector<uint8_t>(128, 0);
+              crypto::KeyAesGcm fresh_key(empty_key);
 
               if (!fresh_key.decrypt(
                     gcmcipher.hdr.get_iv(),
@@ -1283,7 +1262,6 @@ namespace ccf
         }
         if (has_secrets)
         {
-          raw_fresh_key.clear();
           backup_finish_recovery();
         }
       });

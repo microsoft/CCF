@@ -68,8 +68,6 @@ namespace ccf
   {
     struct In
     {
-      // TODO: Remove
-      std::vector<uint8_t> raw_fresh_key;
       NodeInfoNetwork node_info_network;
       std::vector<uint8_t> quote;
       std::vector<uint8_t> public_encryption_key;
