@@ -154,7 +154,8 @@ namespace ccf
     SpinLock lock;
 
     NodeId self;
-    tls::KeyPairPtr node_kp;
+    tls::KeyPairPtr node_sign_kp;
+    tls::KeyPairPtr node_encrypt_kp;
     std::vector<uint8_t> node_cert;
     CodeDigest node_code_id;
 
@@ -209,7 +210,8 @@ namespace ccf
       Timers& timers) :
       sm(State::uninitialized),
       self(INVALID_ID),
-      node_kp(tls::make_key_pair()),
+      node_sign_kp(tls::make_key_pair()),
+      node_encrypt_kp(tls::make_key_pair()),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
@@ -264,7 +266,7 @@ namespace ccf
       nlohmann::json j = create_rpc;
       auto contents = nlohmann::json::to_msgpack(j);
 
-      auto sig_contents = node_kp->sign(contents);
+      auto sig_contents = node_sign_kp->sign(contents);
 
       nlohmann::json sj;
       sj["req"] = j;
@@ -416,7 +418,7 @@ namespace ccf
       auto network_ca =
         std::make_shared<tls::CA>(args.config.joining.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
-        network_ca, node_cert, node_kp->private_key_pem());
+        network_ca, node_cert, node_sign_kp->private_key_pem());
 
       // Create RPC client and connect to remote node
       auto join_client =
@@ -811,7 +813,7 @@ namespace ccf
       recovery_history = std::make_shared<MerkleTxHistory>(
         *recovery_store.get(),
         self,
-        *node_kp,
+        *node_sign_kp,
         *recovery_signature_map,
         *recovery_nodes_map);
 
@@ -1124,7 +1126,7 @@ namespace ccf
     void create_node_cert(const CCFConfig& config)
     {
       node_cert =
-        node_kp->self_sign("CN=CCF node", get_subject_alt_name(config));
+        node_sign_kp->self_sign("CN=CCF node", get_subject_alt_name(config));
     }
 
     void accept_node_tls_connections()
@@ -1132,7 +1134,7 @@ namespace ccf
       // Accept TLS connections, presenting self-signed (i.e. non-endorsed) node
       // certificate. Once the node is part of the network, this certificate
       // should be replaced with network-endorsed counterpart
-      rpcsessions->set_cert(node_cert, node_kp->private_key_pem());
+      rpcsessions->set_cert(node_cert, node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Node TLS connections now accepted");
     }
 
@@ -1143,11 +1145,11 @@ namespace ccf
       auto nw = tls::make_key_pair({network.identity->priv_key});
 
       auto endorsed_node_cert = nw->sign_csr(
-        node_kp->create_csr(fmt::format("CN=CCF node {}", self)),
+        node_sign_kp->create_csr(fmt::format("CN=CCF node {}", self)),
         fmt::format("CN={}", "CCF Network"),
         get_subject_alt_name(config));
 
-      rpcsessions->set_cert(endorsed_node_cert, node_kp->private_key_pem());
+      rpcsessions->set_cert(endorsed_node_cert, node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Network TLS connections now accepted");
     }
 
@@ -1366,7 +1368,7 @@ namespace ccf
       history = std::make_shared<MerkleTxHistory>(
         *network.tables.get(),
         self,
-        *node_kp,
+        *node_sign_kp,
         network.signatures,
         network.nodes);
 

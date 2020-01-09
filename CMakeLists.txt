@@ -130,6 +130,8 @@ if(BUILD_TESTS)
   add_unit_test(keyexchange_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/keyexchange.cpp)
   use_client_mbedtls(keyexchange_test)
+  target_link_libraries(keyexchange_test PRIVATE
+    secp256k1.host)
 
   add_unit_test(channels_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp)

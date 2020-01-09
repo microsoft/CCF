@@ -339,6 +339,37 @@ TEST_CASE("Recoverable signatures")
   }
 }
 
+TEST_CASE("Encrypt and decrypt with KeyPair")
+{
+  for (const auto curve : supported_curves)
+  {
+    INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
+    auto kp = tls::make_key_pair(curve); // TODO: Keypair or public key?
+    vector<uint8_t> contents(contents_.begin(), contents_.end());
+    const vector<uint8_t> cipher = kp->encrypt(contents);
+
+    std::cout << "cipher:";
+    for (auto const& c : cipher)
+    {
+      std::cout << std::hex << (int)c;
+    }
+    std::cout << std::dec << std::endl;
+    // CHECK(kp->decrypt(cipher));
+
+    // auto kp2 = tls::make_key_pair(kp->private_key_pem());
+    // CHECK(kp2->verify(contents, signature));
+
+    // // Signatures won't necessarily be identical due to entropy, but should be
+    // // mutually verifiable
+    // for (auto i = 0; i < 10; ++i)
+    // {
+    //   const auto new_sig = kp2->sign(contents);
+    //   CHECK(kp->verify(contents, new_sig));
+    //   CHECK(kp2->verify(contents, new_sig));
+    // }
+  }
+}
+
 TEST_CASE("base64")
 {
   for (size_t length = 1; length < 20; ++length)

@@ -369,6 +369,54 @@ namespace tls
       return rc == 0;
     }
 
+    // std::vector<uint8_t> encrypt(
+    //   PublicKeyPtr peer_public, const std::vector<uint8_t>& contents)
+    // {
+
+    //   int rc = mbedtls_ecdh_calc_secret(
+    //     ctx.get(),
+    //     &len,
+    //     shared_secret.data(),
+    //     shared_secret.size(),
+    //     entropy->get_rng(),
+    //     entropy->get_data());
+
+    // EntropyPtr entropy = create_entropy();
+
+    // // TODO: What size to use?
+    // uint8_t cipher[4096];
+    // size_t written = 4096;
+
+    // if (
+    //   encrypt(contents.data(), contents.size(), &written, written, cipher)
+    //   != 0)
+    // {
+    //   return {};
+    // }
+
+    // return {cipher, cipher + written};
+    // }
+
+    // int encrypt(
+    //   const uint8_t* contents,
+    //   size_t contents_size,
+    //   size_t* written,
+    //   size_t cipher_size,
+    //   uint8_t* cipher)
+    // {
+    //   EntropyPtr entropy = create_entropy();
+
+    //   return mbedtls_pk_encrypt(
+    //     ctx.get(),
+    //     contents,
+    //     contents_size,
+    //     cipher,
+    //     written,
+    //     cipher_size,
+    //     entropy->get_rng(),
+    //     entropy->get_data());
+    // }
+
     /**
      * Get the public key in PEM format
      */
@@ -408,6 +456,12 @@ namespace tls
       // ASN.1 key is written to end of buffer
       uint8_t* first = buf + buf_size - written;
       return {first, buf + buf_size};
+    }
+
+    // TODO: This should be removed
+    mbedtls_pk_context* get_raw_context() const
+    {
+      return ctx.get();
     }
 
     virtual ~PublicKey()
@@ -796,13 +850,12 @@ namespace tls
       size_t* sig_size,
       uint8_t* sig) const
     {
-      int rc = 0;
       EntropyPtr entropy = create_entropy();
 
       const auto ec = get_ec_from_context(*ctx);
       const auto md_type = get_md_for_ec(ec);
 
-      rc = mbedtls_pk_sign(
+      return mbedtls_pk_sign(
         ctx.get(),
         md_type,
         hash,
@@ -811,8 +864,6 @@ namespace tls
         sig_size,
         entropy->get_rng(),
         entropy->get_data());
-
-      return rc;
     }
 
     /**
@@ -948,10 +999,41 @@ namespace tls
       return sign_csr(csr, name, subject_alt_name, ca);
     }
 
-    // TODO: This should be removed
-    mbedtls_pk_context* get_raw_context() const
+    std::vector<uint8_t> decrypt(const std::vector<uint8_t>& cipher)
     {
-      return ctx.get();
+      EntropyPtr entropy = create_entropy();
+
+      // TODO: What size to use?
+      uint8_t contents[4096];
+      size_t written = 4096;
+
+      if (
+        decrypt(cipher.data(), cipher.size(), &written, written, contents) != 0)
+      {
+        return {};
+      }
+
+      return {contents, contents + written};
+    }
+
+    int decrypt(
+      const uint8_t* cipher,
+      size_t cipher_size,
+      size_t* written,
+      size_t content_size,
+      uint8_t* contents)
+    {
+      EntropyPtr entropy = create_entropy();
+
+      return mbedtls_pk_decrypt(
+        ctx.get(),
+        cipher,
+        cipher_size,
+        contents,
+        written,
+        content_size,
+        entropy->get_rng(),
+        entropy->get_data());
     }
   };
 
