@@ -10,6 +10,7 @@
  */
 
 #include "parameters.h"
+#include "tls/keypair.h"
 
 #include <array>
 #include <cstdint>

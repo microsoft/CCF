@@ -33,7 +33,8 @@ struct Reply_rep : public Message_rep
 };
 #pragma pack(pop)
 static_assert(
-  sizeof(Reply_rep) + max_sig_size < Max_message_size, "Invalid size");
+  sizeof(Reply_rep) + tls::PbftSignatureSize < Max_message_size,
+  "Invalid size");
 
 class Reply : public Message
 {

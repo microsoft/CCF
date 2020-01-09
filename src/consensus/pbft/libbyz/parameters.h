@@ -24,8 +24,6 @@ const int max_out = 512;
 
 static const size_t Max_requests_in_batch = 256;
 
-static constexpr size_t max_sig_size = 64; // in bytes
-
 static const size_t num_senders = 2;
 // number of sender threads
 

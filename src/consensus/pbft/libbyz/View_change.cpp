@@ -35,6 +35,7 @@ View_change::View_change(View v, Seqno ls, int id) :
 
 #ifdef SIGN_BATCH
   rep().digest_signature.fill(0);
+  rep().padding.fill(0);
 #endif
 
   PBFT_ASSERT(ALIGNED(req_info()), "Improperly aligned pointer");

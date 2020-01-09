@@ -139,7 +139,8 @@ if("virtual" IN_LIST TARGET)
     target_link_libraries(${name} PRIVATE
         -stdlib=libc++
         -lc++
-        -lc++abi)
+        -lc++abi
+        secp256k1.host)
 
   endfunction()
 

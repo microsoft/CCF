@@ -21,9 +21,12 @@ Principal::Principal(int i, Addr a, bool is_rep, const std::string& pub_key_sig)
   replica = is_rep;
 
   ssize = tls::PbftSignatureSize;
-  public_key_sig = std::make_unique<tls::PublicKey>(
-    tls::parse_public_key(tls::Pem(pub_key_sig)));
-  public_key_pem = pub_key_sig;
+  if (!pub_key_sig.empty())
+  {
+    std::vector<uint8_t> v(pub_key_sig.begin(), pub_key_sig.end());
+    verifier = tls::make_verifier(v);
+    public_key_pem = pub_key_sig;
+  }
 
   for (int j = 0; j < 4; j++)
   {
@@ -37,7 +40,7 @@ Principal::Principal(int i, Addr a, bool is_rep, const std::string& pub_key_sig)
 }
 
 bool Principal::verify_signature(
-  const char* src, unsigned src_len, const char* sig, bool allow_self)
+  const char* src, unsigned src_len, const uint8_t* sig, bool allow_self)
 {
   // Principal never verifies its own authenticator.
   if ((id == pbft::GlobalState::get_node().id()) && !allow_self)
@@ -48,8 +51,7 @@ bool Principal::verify_signature(
   INCR_OP(num_sig_ver);
   START_CC(sig_ver_cycles);
 
-  bool ret =
-    public_key_sig->verify((uint8_t*)src, src_len, (uint8_t*)sig, sig_size());
+  bool ret = verifier->verify((uint8_t*)src, (size_t)src_len, sig, sig_size());
 
   STOP_CC(sig_ver_cycles);
   return ret;

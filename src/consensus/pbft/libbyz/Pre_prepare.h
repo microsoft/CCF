@@ -48,7 +48,7 @@ struct Pre_prepare_rep : public Message_rep
 #pragma pack(pop)
 static_assert(
   sizeof(Pre_prepare_rep) + sizeof(Digest) * Max_requests_in_batch +
-      max_sig_size <
+      tls::PbftSignatureSize <
     Max_message_size,
   "Invalid size");
 

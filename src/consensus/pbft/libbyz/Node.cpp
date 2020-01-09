@@ -115,6 +115,11 @@ void Node::add_principal(const PrincipalInfo& principal_info)
   {
     LOG_INFO << "Principal with id: " << principal_info.id
              << " has already been configured" << std::endl;
+    auto principal = it->second;
+    if (principal->get_pub_key_sig().empty())
+    {
+      principal->set_certificate(principal_info.pubk_sig);
+    }
     return;
   }
   Addr a;
@@ -245,9 +250,8 @@ void Node::gen_signature(const char* src, unsigned src_len, char* sig)
   INCR_OP(num_sig_gen);
   START_CC(sig_gen_cycles);
 
-  std::vector<uint8_t> signature = key_pair->sign((uint8_t*)src, src_len);
-  LOG_INFO_FMT("signature size: {}", signature.size());
-  LOG_INFO_FMT("max size: {}", MBEDTLS_ECDSA_MAX_LEN);
+  std::vector<uint8_t> signature =
+    key_pair->sign(CBuffer{(uint8_t*)src, src_len});
   std::copy(signature.begin(), signature.end(), sig);
 
   STOP_CC(sig_gen_cycles);
@@ -260,9 +264,10 @@ void Node::gen_signature(
   START_CC(sig_gen_cycles);
 
   size_t sig_size;
-  key_pair->sign((uint8_t*)src, src_len, &sig_size, sig.data());
-  LOG_INFO_FMT("signature size is: {}", sig_size);
+  key_pair->sign(CBuffer{(uint8_t*)src, src_len}, &sig_size, sig.data());
   assert(sig_size <= sig.size());
+
+  std::fill(sig.begin() + sig_size, sig.end(), 0);
 
   STOP_CC(sig_gen_cycles);
 }

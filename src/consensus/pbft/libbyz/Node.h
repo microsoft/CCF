@@ -4,7 +4,7 @@
 // Licensed under the MIT license.
 #pragma once
 
-#include "../src/consensus/consensustypes.h"
+#include "consensus/consensustypes.h"
 #include "ITimer.h"
 #include "Message.h"
 #include "Message_tags.h"
@@ -103,7 +103,7 @@ public:
   //
   // Authenticator generation and verification:
   //
-  int auth_size(int id = -1) const;
+  size_t auth_size(int id = -1) const;
   // Effects: Returns the size in bytes of an authenticator for principal
   // "id" (or current principal if "id" is negative.)
 
@@ -118,8 +118,6 @@ public:
   void gen_signature(const char* src, unsigned src_len, char* sig);
   void gen_signature(
     const char* src, unsigned src_len, tls::PbftSignature& sig);
-
-  tls::KeyPair* get_keypair();
 
 protected:
   std::string service_name;
@@ -221,7 +219,7 @@ inline int Node::primary() const
 }
 
 // TODO: check this is correct
-inline int Node::auth_size(int id) const
+inline size_t Node::auth_size(int id) const
 {
   if (id < 0)
     id = node_id;
@@ -241,11 +239,6 @@ inline unsigned Node::sig_size(int id) const
 
   std::shared_ptr<Principal>& p = it->second;
   return p->sig_size();
-}
-
-inline tls::KeyPair* Node::get_keypair()
-{
-  return key_pair.get();
 }
 
 inline int cypher_size(char* dst, unsigned dst_len)

@@ -70,14 +70,11 @@ bool Status::pre_verify()
       // Received message from unknown sender
       LOG_INFO << "Request from unknown pricipal, id:" << id() << std::endl;
 
-      std::string pubk_sig =
-        "aad14ecb5d7ca8caf5ee68d2762721a3d4fdb09b1ae4a699daf74985193b7d42";
-
       PrincipalInfo info;
       info.id = id();
       info.port = 0;
       info.ip = "256.256.256.256"; // Invalid
-      info.pubk_sig = pubk_sig;
+      info.pubk_sig = "";
       info.host_name = "host_name";
       info.is_replica = true;
 

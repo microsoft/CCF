@@ -21,10 +21,6 @@ Pre_prepare::Pre_prepare(
   rep().seqno = s;
   rep().full_state_merkle_root.fill(0);
   rep().replicated_state_merkle_root.fill(0);
-#ifdef SIGN_BATCH
-  rep().batch_digest_signature.fill(0);
-  rep().padding.fill(0);
-#endif
 
   START_CC(pp_digest_cycles);
   INCR_OP(pp_digest);
@@ -133,6 +129,14 @@ Pre_prepare::Pre_prepare(
   auth_src_offset = 0;
 #else
   set_size(old_size + pbft::GlobalState::get_node().sig_size());
+#endif
+
+#ifdef SIGN_BATCH
+  std::fill(
+    std::begin(rep().batch_digest_signature),
+    std::end(rep().batch_digest_signature),
+    0);
+  std::fill(std::begin(rep().padding), std::end(rep().padding), 0);
 #endif
   trim();
 }
@@ -287,12 +291,23 @@ bool Pre_prepare::pre_verify()
 #ifdef SIGN_BATCH
     if (is_signed())
     {
-      if (!pbft::GlobalState::get_node()
-             .get_principal(sender)
-             ->verify_signature(
-               rep().digest.digest(),
-               rep().digest.digest_size(),
-               (const char*)get_digest_sig().data()))
+      auto sender_principal =
+        pbft::GlobalState::get_node().get_principal(sender);
+
+      if (
+        !sender_principal->has_certificate_configured() &&
+        pbft::GlobalState::get_node().f() == 0)
+      {
+        // we have not configured this node yet
+        return true;
+      }
+
+      LOG_INFO_FMT("Verifying signature for node{}", sender);
+
+      if (!sender_principal->verify_signature(
+            rep().digest.digest(),
+            rep().digest.digest_size(),
+            get_digest_sig().data()))
       {
         LOG_INFO << "failed to verify signature on the digest, seqno:"
                  << rep().seqno << std::endl;

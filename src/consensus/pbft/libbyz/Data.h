@@ -22,7 +22,7 @@ struct Data_rep : public Message_rep
 };
 #pragma pack(pop)
 static_assert(
-  sizeof(Data_rep) + max_sig_size < Max_message_size, "Invalid size");
+  sizeof(Data_rep) + tls::PbftSignatureSize < Max_message_size, "Invalid size");
 
 class Data : public Message
 {

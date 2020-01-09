@@ -68,6 +68,9 @@ struct View_change_rep : public Message_rep
 #ifdef SIGN_BATCH
   // signature of the digest of the entire message.
   tls::PbftSignature digest_signature;
+  static constexpr size_t padding_size =
+    ALIGNED_SIZE(tls::PbftSignatureSize) - tls::PbftSignatureSize;
+  std::array<uint8_t, padding_size> padding;
 #endif
 
   /*
@@ -80,7 +83,8 @@ struct View_change_rep : public Message_rep
 #pragma pack(pop)
 
 static_assert(
-  sizeof(View_change_rep) + sizeof(Req_info) * max_out + max_sig_size <
+  sizeof(View_change_rep) + sizeof(Req_info) * max_out +
+      tls::PbftSignatureSize <
     Max_message_size,
   "Invalid size");
 

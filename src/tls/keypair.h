@@ -366,7 +366,7 @@ namespace tls
         mbedtls_pk_verify(ctx.get(), md_type, hash, hash_size, sig, sig_size);
 
       if (rc)
-        LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
+        LOG_DEBUG_FMT("Failed to verify signature: {}", error_string(rc));
 
       return rc == 0;
     }
@@ -748,14 +748,6 @@ namespace tls
       return sign_hash(hash.data(), hash.size());
     }
 
-    std::vector<uint8_t> sign(uint8_t* p, size_t s) const
-    {
-      HashBytes hash;
-      do_hash(*ctx, p, s, hash);
-
-      return sign_hash(hash.data(), hash.size());
-    }
-
     /**
      * Write signature over hash of data, and the size of that signature to
      * specified locations.
@@ -775,14 +767,6 @@ namespace tls
     {
       HashBytes hash;
       do_hash(*ctx, d.p, d.rawSize(), hash);
-
-      return sign_hash(hash.data(), hash.size(), sig_size, sig);
-    }
-
-    int sign(uint8_t* p, size_t s, size_t* sig_size, uint8_t* sig) const
-    {
-      HashBytes hash;
-      do_hash(*ctx, p, s, hash);
 
       return sign_hash(hash.data(), hash.size(), sig_size, sig);
     }
@@ -1200,7 +1184,7 @@ namespace tls
         &cert.pk, md_type, hash, hash_size, signature, signature_size);
 
       if (rc)
-        LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
+        LOG_DEBUG_FMT("Failed to verify signature: {}", error_string(rc));
 
       return rc == 0;
     }
@@ -1222,6 +1206,14 @@ namespace tls
         hash.data(), hash.size(), signature.data(), signature.size());
     }
 
+    bool verify_hash(
+      const std::vector<uint8_t>& hash,
+      const uint8_t* sig,
+      size_t sig_size) const
+    {
+      return verify_hash(hash.data(), hash.size(), sig, sig_size);
+    }
+
     /**
      * Verify that a signature was produced on contents with the private key
      * associated with the public key contained in the certificate.
@@ -1238,10 +1230,25 @@ namespace tls
       const std::vector<uint8_t>& signature,
       mbedtls_md_type_t md_type = {}) const
     {
-      HashBytes hash;
-      do_hash(cert.pk, contents.data(), contents.size(), hash, md_type);
+      return verify(
+        contents.data(),
+        contents.size(),
+        signature.data(),
+        signature.size(),
+        md_type);
+    }
 
-      return verify_hash(hash, signature);
+    bool verify(
+      const uint8_t* contents,
+      size_t contents_size,
+      const uint8_t* sig,
+      size_t sig_size,
+      mbedtls_md_type_t md_type = {}) const
+    {
+      HashBytes hash;
+      do_hash(cert.pk, contents, contents_size, hash, md_type);
+
+      return verify_hash(hash, sig, sig_size);
     }
 
     const mbedtls_x509_crt* raw()
