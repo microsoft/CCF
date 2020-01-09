@@ -56,11 +56,10 @@ namespace enclave
 
   class RpcContext
   {
+    size_t request_index = 0;
+
   public:
     SessionContext session;
-
-    // Packing format of original request, should be used to pack response
-    std::optional<jsonrpc::Pack> pack = std::nullopt;
 
     // TODO: Avoid unnecessary copies
     std::vector<uint8_t> raw = {};
@@ -75,8 +74,6 @@ namespace enclave
     // Method indicates specific handler for this request
     std::string method = {};
 
-    uint64_t seq_no = {};
-
     nlohmann::json params = {};
 
     bool is_create_request = false;
@@ -84,15 +81,30 @@ namespace enclave
     RpcContext(const SessionContext& s) : session(s) {}
     virtual ~RpcContext() {}
 
+    void set_request_index(size_t ri)
+    {
+      request_index = ri;
+    }
+
+    size_t get_request_index() const
+    {
+      return request_index;
+    }
+
+    virtual std::vector<uint8_t> result_response(
+      const nlohmann::json& result) const = 0;
+
     virtual std::vector<uint8_t> error_response(
-      int error, const std::string& msg) const = 0;
+      int error, const std::string& msg = "") const = 0;
   };
 
   class JsonRpcContext : public RpcContext
   {
+    uint64_t seq_no = {};
+
     void init(jsonrpc::Pack p, const nlohmann::json& rpc)
     {
-      pack = p;
+      pack_format = p;
 
       const auto sig_it = rpc.find(jsonrpc::SIG);
       if (sig_it != rpc.end())
@@ -128,20 +140,28 @@ namespace enclave
       }
     }
 
+    std::vector<uint8_t> pack(const nlohmann::json& j) const
+    {
+      return jsonrpc::pack(j, pack_format.value());
+    }
+
   public:
+    // Packing format of original request, should be used to pack response
+    std::optional<jsonrpc::Pack> pack_format = std::nullopt;
+
     JsonRpcContext(
       const SessionContext& s, const std::vector<uint8_t>& packed) :
       RpcContext(s)
     {
-      std::optional<jsonrpc::Pack> pack_format;
+      std::optional<jsonrpc::Pack> p;
 
-      auto [success, rpc] = jsonrpc::unpack_rpc(packed, pack_format);
+      auto [success, rpc] = jsonrpc::unpack_rpc(packed, p);
       if (!success)
       {
         throw std::logic_error(fmt::format("Failed to unpack: {}", rpc.dump()));
       }
 
-      init(pack_format.value(), rpc);
+      init(p.value(), rpc);
       raw = packed;
     }
 
@@ -152,10 +172,28 @@ namespace enclave
       init(p, rpc);
     }
 
+    virtual std::vector<uint8_t> result_response(
+      const nlohmann::json& result) const override
+    {
+      return pack(jsonrpc::result_response(seq_no, result));
+    }
+
     std::vector<uint8_t> error_response(
       int error, const std::string& msg) const override
     {
-      return jsonrpc::pack(jsonrpc::error_response(seq_no, msg), pack.value());
+      nlohmann::json error_element;
+      if (
+        error < (int)jsonrpc::StandardErrorCodes::SERVER_ERROR_START &&
+        error >= (int)jsonrpc::StandardErrorCodes::SERVER_ERROR_END)
+      {
+        error_element = jsonrpc::Error((jsonrpc::CCFErrorCodes)error, msg);
+      }
+      else
+      {
+        error_element = jsonrpc::Error((jsonrpc::StandardErrorCodes)error, msg);
+      }
+
+      return pack(jsonrpc::error_response(seq_no, error_element));
     }
   };
 }

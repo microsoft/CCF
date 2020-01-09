@@ -39,7 +39,7 @@ public:
   TestUserFrontend(Store& tables) : UserRpcFrontend(tables)
   {
     auto empty_function = [this](RequestArgs& args) {
-      return jsonrpc::success(true);
+      return result_success(args.rpc_ctx.result_response(true));
     };
     install("empty_function", empty_function, Read);
   }
@@ -51,22 +51,10 @@ public:
   TestReqNotStoredFrontend(Store& tables) : UserRpcFrontend(tables)
   {
     auto empty_function = [this](RequestArgs& args) {
-      return jsonrpc::success(true);
+      return result_success(args.rpc_ctx.result_response(true));
     };
     install("empty_function", empty_function, Read);
     disable_request_storing();
-  }
-};
-
-class TestMinimalHandleFunction : public ccf::UserRpcFrontend
-{
-public:
-  TestMinimalHandleFunction(Store& tables) : UserRpcFrontend(tables)
-  {
-    auto echo_function = [this](Store::Tx& tx, const nlohmann::json& params) {
-      return jsonrpc::success(params);
-    };
-    install("echo_function", echo_function, Read);
   }
 };
 
@@ -78,7 +66,7 @@ public:
     MemberRpcFrontend(network, node)
   {
     auto empty_function = [this](RequestArgs& args) {
-      return jsonrpc::success(true);
+      return result_success(args.rpc_ctx.result_response(true));
     };
     install("empty_function", empty_function, Read);
   }
@@ -90,7 +78,7 @@ public:
   TestNoCertsFrontend(Store& tables) : RpcFrontend(tables)
   {
     auto empty_function = [this](RequestArgs& args) {
-      return jsonrpc::success(true);
+      return result_success(args.rpc_ctx.result_response(true));
     };
     install("empty_function", empty_function, Read);
   }
@@ -121,7 +109,7 @@ public:
   {
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
-      return jsonrpc::success(true);
+      return result_success(args.rpc_ctx.result_response(true));
     };
 
     // Note that this a Write function so that a backup executing this command
@@ -140,7 +128,7 @@ public:
   {
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
-      return jsonrpc::success(true);
+      return result_success(args.rpc_ctx.result_response(true));
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
@@ -158,7 +146,7 @@ public:
   {
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
-      return jsonrpc::success(true);
+      return result_success(args.rpc_ctx.result_response(true));
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
@@ -172,7 +160,7 @@ public:
   TestNoForwardingFrontEnd(Store& tables) : RpcFrontend(tables)
   {
     auto empty_function = [this](RequestArgs& args) {
-      return jsonrpc::success(true);
+      return result_success(args.rpc_ctx.result_response(true));
     };
     // Note that this a Write function that cannot be forwarded
     install("empty_function", empty_function, Write, Forwardable::DoNotForward);
@@ -214,12 +202,14 @@ public:
   TestAppErrorFrontEnd(Store& tables) : RpcFrontend(tables)
   {
     auto foo = [this](RequestArgs& args) {
-      return jsonrpc::error(userapp::AppError::Foo);
+      return result_error(
+        args.rpc_ctx.error_response((int)userapp::AppError::Foo));
     };
     install("foo", foo, Read);
 
     auto bar = [this](RequestArgs& args) {
-      return jsonrpc::error(userapp::AppError::Bar, bar_msg);
+      return result_error(
+        args.rpc_ctx.error_response((int)userapp::AppError::Bar, bar_msg));
     };
     install("bar", bar, Read);
   }
@@ -408,7 +398,7 @@ TEST_CASE("SignedReq to and from json")
   REQUIRE(sr.req.empty());
 }
 
-TEST_CASE("process_json")
+TEST_CASE("process_command")
 {
   prepare_callers();
   TestUserFrontend frontend(*network.tables);
@@ -419,8 +409,11 @@ TEST_CASE("process_json")
 
   Store::Tx tx;
   CallerId caller_id(0);
-  auto response = frontend.process_json(rpc_ctx, tx, caller_id).value();
-  CHECK(response[jsonrpc::RESULT] == true);
+  auto response = frontend.process_command(rpc_ctx, tx, caller_id);
+  REQUIRE(response.has_value());
+
+  auto j_result = jsonrpc::unpack(response.value(), default_pack);
+  CHECK(j_result[jsonrpc::RESULT] == true);
 }
 
 TEST_CASE("process")
@@ -495,24 +488,6 @@ TEST_CASE("process")
     CHECK(!signed_resp.has_value());
   }
 #  endif
-}
-
-TEST_CASE("MinimalHandleFuction")
-{
-  prepare_callers();
-  TestMinimalHandleFunction frontend(*network.tables);
-  auto echo_call = create_simple_json();
-  echo_call[jsonrpc::METHOD] = "echo_function";
-  echo_call[jsonrpc::PARAMS] = {{"data", {"nested", "Some string"}},
-                                {"other", "Another string"}};
-
-  const auto signed_call = create_signed_json(echo_call);
-  const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
-
-  const auto rpc_ctx = enclave::JsonRpcContext(user_session, serialized_call);
-  auto response =
-    jsonrpc::unpack(frontend.process(rpc_ctx).value(), default_pack);
-  CHECK(response[jsonrpc::RESULT] == echo_call[jsonrpc::PARAMS]);
 }
 
 // callers
@@ -909,6 +884,7 @@ TEST_CASE("App-defined errors")
 
     const auto msg =
       foo_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
+    std::cout << foo_response.dump(2) << std::endl;
     CHECK(msg.find("FOO") != std::string::npos);
   }
 

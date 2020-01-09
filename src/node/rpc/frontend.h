@@ -51,14 +51,25 @@ namespace ccf
     };
 
   private:
-    using HandleFunction =
-      std::function<std::pair<bool, nlohmann::json>(RequestArgs& args)>;
+    using HandlerResult = std::pair<bool, std::vector<uint8_t>>;
+
+    using HandleFunction = std::function<HandlerResult(RequestArgs& args)>;
 
     using MinimalHandleFunction = std::function<std::pair<bool, nlohmann::json>(
       Store::Tx& tx, const nlohmann::json& params)>;
 
   protected:
     Store& tables;
+
+    static HandlerResult result_success(std::vector<uint8_t>&& response)
+    {
+      return {true, std::move(response)};
+    }
+
+    static HandlerResult result_error(std::vector<uint8_t>&& response)
+    {
+      return {false, std::move(response)};
+    }
 
     void disable_request_storing()
     {
@@ -410,28 +421,27 @@ namespace ccf
             "Failed to trigger signature");
         };
 
-      auto get_primary_info =
-        [this](Store::Tx& tx, const nlohmann::json& params) {
-          if ((nodes != nullptr) && (consensus != nullptr))
+      auto get_primary_info = [this](const RequestArgs& args) {
+        if ((nodes != nullptr) && (consensus != nullptr))
+        {
+          NodeId primary_id = consensus->primary();
+
+          auto nodes_view = args.tx.get_view(*nodes);
+          auto info = nodes_view->get(primary_id);
+
+          if (info)
           {
-            NodeId primary_id = consensus->primary();
-
-            auto nodes_view = tx.get_view(*nodes);
-            auto info = nodes_view->get(primary_id);
-
-            if (info)
-            {
-              GetPrimaryInfo::Out out;
-              out.primary_id = primary_id;
-              out.primary_host = info->pubhost;
-              out.primary_port = info->rpcport;
-              return jsonrpc::success(out);
-            }
+            GetPrimaryInfo::Out out;
+            out.primary_id = primary_id;
+            out.primary_host = info->pubhost;
+            out.primary_port = info->rpcport;
+            return result_success(args.rpc_ctx.result_response(out));
           }
+        }
 
-          return jsonrpc::error(
-            jsonrpc::CCFErrorCodes::TX_PRIMARY_UNKNOWN, "Primary unknown.");
-        };
+        return result_error(args.rpc_ctx.error_response(
+          (int)jsonrpc::CCFErrorCodes::TX_PRIMARY_UNKNOWN, "Primary unknown."));
+      };
 
       auto get_network_info =
         [this](Store::Tx& tx, const nlohmann::json& params) {
@@ -689,8 +699,7 @@ namespace ccf
       auto rep = process_if_local_node_rpc(ctx, tx, caller_id.value());
       if (rep.has_value())
       {
-        auto rv = jsonrpc::pack(rep.value(), ctx.pack.value());
-        return rv;
+        return rep.value();
       }
       kv::TxHistory::RequestID reqid;
 
@@ -720,7 +729,7 @@ namespace ccf
           "PBFT is not yet ready.");
       }
 #else
-      auto rep = process_json(ctx, tx, caller_id.value());
+      auto rep = process_command(ctx, tx, caller_id.value());
 
       // If necessary, forward the RPC to the current primary
       if (!rep.has_value())
@@ -753,9 +762,7 @@ namespace ccf
           "RPC could not be forwarded to primary.");
       }
 
-      auto rv = jsonrpc::pack(rep.value(), ctx.pack.value());
-
-      return rv;
+      return rep.value();
 #endif
     }
 
@@ -805,7 +812,7 @@ namespace ccf
          ctx.session.caller_cert,
          ctx.raw});
 
-      auto rep = process_json(ctx, tx, ctx.session.fwd->caller_id);
+      auto rep = process_command(ctx, tx, ctx.session.fwd->caller_id);
 
       history->clear_on_result();
 
@@ -819,7 +826,7 @@ namespace ccf
       // if (history)
       //   history->add_response(reqid, rv);
 
-      return {jsonrpc::pack(rep.value(), ctx.pack.value()),
+      return {rep.value(),
               full_state_merkle_root,
               replicated_state_merkle_root,
               version};
@@ -852,12 +859,9 @@ namespace ccf
         auto caller = callers_view->get(ctx.session.fwd->caller_id);
         if (!caller.has_value())
         {
-          return jsonrpc::pack(
-            jsonrpc::error_response(
-              0,
-              jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
-              invalid_caller_error_message()),
-            ctx.pack.value());
+          return ctx.error_response(
+            (int)jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
+            invalid_caller_error_message());
         }
         ctx.session.caller_cert = caller.value().cert;
       }
@@ -870,15 +874,15 @@ namespace ccf
           tx, ctx.session.fwd->caller_id, ctx.signed_request.value());
       }
 
-      auto rep = process_json(ctx, tx, ctx.session.fwd->caller_id);
+      auto rep = process_command(ctx, tx, ctx.session.fwd->caller_id);
       if (!rep.has_value())
       {
-        // This should never be called when process_json is called with a
+        // This should never be called when process_command is called with a
         // forwarded RPC context
         throw std::logic_error("Forwarded RPC cannot be forwarded");
       }
 
-      return jsonrpc::pack(rep.value(), ctx.pack.value());
+      return rep.value();
     }
 
     std::optional<nlohmann::json> process_if_local_node_rpc(
@@ -888,13 +892,12 @@ namespace ccf
       auto search = handlers.find(ctx.method);
       if (search != handlers.end() && search->second.execute_locally)
       {
-        auto rep = process_json(ctx, tx, caller_id);
-        return rep;
+        return process_command(ctx, tx, caller_id);
       }
       return std::nullopt;
     }
 
-    std::optional<nlohmann::json> process_json(
+    std::optional<std::vector<uint8_t>> process_command(
       const enclave::RpcContext& ctx, Store::Tx& tx, CallerId caller_id)
     {
       const auto rpc_version = ctx.unpacked_rpc.at(jsonrpc::JSON_RPC);
@@ -997,8 +1000,11 @@ namespace ccf
             {
               // TODO: How do we inject these fields into response of unknown
               // format?
-              nlohmann::json result =
-                jsonrpc::unpack(tx_result.second, ctx.pack.value());
+              const auto& json_context =
+                dynamic_cast<const enclave::JsonRpcContext&>(ctx);
+
+              nlohmann::json result = jsonrpc::unpack(
+                tx_result.second, json_context.pack_format.value());
 
               auto cv = tx.commit_version();
               if (cv == 0)
@@ -1026,7 +1032,7 @@ namespace ccf
                 }
               }
 
-              return jsonrpc::pack(result, ctx.pack.value());
+              return jsonrpc::pack(result, json_context.pack_format.value());
             }
 
             case kv::CommitSuccess::CONFLICT:

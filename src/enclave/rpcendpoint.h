@@ -62,12 +62,9 @@ namespace enclave
       auto prefixed_method = rpc_ctx.method;
       if (prefixed_method.empty())
       {
-        send(jsonrpc::pack(
-          jsonrpc::error_response(
-            rpc_ctx.seq_no,
-            jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-            "No method specified"),
-          rpc_ctx.pack.value()));
+        send(rpc_ctx.error_response(
+          (int)jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
+          "No method specified"));
         return true;
       }
 
@@ -84,12 +81,9 @@ namespace enclave
       auto actor = rpc_map->resolve(actor_s);
       if (actor == ccf::ActorsType::unknown)
       {
-        send(jsonrpc::pack(
-          jsonrpc::error_response(
-            rpc_ctx.seq_no,
-            jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-            fmt::format("No such prefix: {}", actor_s)),
-          rpc_ctx.pack.value()));
+        send(rpc_ctx.error_response(
+          (int)jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
+          fmt::format("No such prefix: {}", actor_s)));
         return true;
       }
       rpc_ctx.actor = actor;
@@ -103,12 +97,9 @@ namespace enclave
 
       if (!search.value()->is_open())
       {
-        send(jsonrpc::pack(
-          jsonrpc::error_response(
-            rpc_ctx.seq_no,
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            fmt::format("Service is not open to {}", actor_s)),
-          rpc_ctx.pack.value()));
+        send(rpc_ctx.error_response(
+          (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          fmt::format("Service is not open to {}", actor_s)));
         return false;
       }
 
