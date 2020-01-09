@@ -58,6 +58,25 @@ public:
   }
 };
 
+class TestMinimalHandleFunction : public ccf::UserRpcFrontend
+{
+public:
+  TestMinimalHandleFunction(Store& tables) : UserRpcFrontend(tables)
+  {
+    auto echo_function = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto j = params;
+      return make_success(std::move(j));
+    };
+    install("echo_function", echo_function, Read);
+
+    auto get_caller_function =
+      [this](Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
+        return make_success(caller_id);
+      };
+    install("get_caller", get_caller_function, Read);
+  }
+};
+
 class TestMemberFrontend : public ccf::MemberRpcFrontend
 {
 public:
@@ -491,6 +510,39 @@ TEST_CASE("process")
     CHECK(!signed_resp.has_value());
   }
 #  endif
+}
+
+TEST_CASE("MinimalHandleFuction")
+{
+  prepare_callers();
+  TestMinimalHandleFunction frontend(*network.tables);
+  {
+    auto echo_call = create_simple_json();
+    echo_call[jsonrpc::METHOD] = "echo_function";
+    echo_call[jsonrpc::PARAMS] = {{"data", {"nested", "Some string"}},
+                                  {"other", "Another string"}};
+
+    const auto signed_call = create_signed_json(echo_call);
+    const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
+
+    const auto rpc_ctx = enclave::JsonRpcContext(user_session, serialized_call);
+    auto response =
+      jsonrpc::unpack(frontend.process(rpc_ctx).value(), default_pack);
+    CHECK(response[jsonrpc::RESULT] == echo_call[jsonrpc::PARAMS]);
+  }
+
+  {
+    auto get_caller = create_simple_json();
+    get_caller[jsonrpc::METHOD] = "get_caller";
+
+    const auto signed_call = create_signed_json(get_caller);
+    const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
+
+    const auto rpc_ctx = enclave::JsonRpcContext(user_session, serialized_call);
+    auto response =
+      jsonrpc::unpack(frontend.process(rpc_ctx).value(), default_pack);
+    CHECK(response[jsonrpc::RESULT] == user_id);
+  }
 }
 
 // callers

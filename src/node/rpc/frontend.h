@@ -55,8 +55,11 @@ namespace ccf
 
     using MinimalHandleResult = enclave::HandlerResponse;
 
-    using MinimalHandleFunction = std::function<MinimalHandleResult(
+    using MinimalHandleFunction0 = std::function<MinimalHandleResult(
       Store::Tx& tx, const nlohmann::json& params)>;
+
+    using MinimalHandleFunction1 = std::function<MinimalHandleResult(
+      Store::Tx& tx, CallerId caller_id, const nlohmann::json& params)>;
 
   protected:
     Store& tables;
@@ -121,7 +124,7 @@ namespace ccf
         forwardable);
     }
 
-    /** Install MinimalHandleFunction for method name
+    /** Install MinimalHandleFunctions for method name
      *
      * For simple app methods which require minimal arguments, this creates a
      * wrapper to reduce handler complexity and repetition.
@@ -130,12 +133,25 @@ namespace ccf
      * @param f Method implementation
      */
     template <typename... Ts>
-    void install(const std::string& method, MinimalHandleFunction f, Ts&&... ts)
+    void install(
+      const std::string& method, MinimalHandleFunction0 f, Ts&&... ts)
     {
       install(
         method,
         [f](RequestArgs& args) {
           args.rpc_ctx.set_response(f(args.tx, args.params));
+        },
+        std::forward<Ts>(ts)...);
+    }
+
+    template <typename... Ts>
+    void install(
+      const std::string& method, MinimalHandleFunction1 f, Ts&&... ts)
+    {
+      install(
+        method,
+        [f](RequestArgs& args) {
+          args.rpc_ctx.set_response(f(args.tx, args.caller_id, args.params));
         },
         std::forward<Ts>(ts)...);
     }
