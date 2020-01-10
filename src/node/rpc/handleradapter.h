@@ -3,7 +3,7 @@
 #pragma once
 
 #include "enclave/rpccontext.h"
-#include "frontend.h"
+#include "handlerregistry.h"
 
 namespace ccf
 {

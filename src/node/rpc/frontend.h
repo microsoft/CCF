@@ -1,20 +1,17 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "commonhandlerregistry.h"
 #include "consts.h"
 #include "ds/buffer.h"
-#include "ds/histogram.h"
-#include "ds/json_schema.h"
 #include "ds/spinlock.h"
 #include "enclave/rpchandler.h"
 #include "forwarder.h"
 #include "jsonrpc.h"
-#include "node/certs.h"
 #include "node/clientsignatures.h"
 #include "node/nodes.h"
 #include "nodeinterface.h"
 #include "rpcexception.h"
-#include "serialization.h"
 
 #include <fmt/format_header_only.h>
 #include <mutex>
@@ -23,51 +20,12 @@
 
 namespace ccf
 {
-  struct RequestArgs
-  {
-    const enclave::RpcContext& rpc_ctx;
-    Store::Tx& tx;
-    CallerId caller_id;
-    const std::string& method;
-    const nlohmann::json& params;
-  };
-
-  using HandleFunction = std::function<void(RequestArgs& args)>;
-
-  static enclave::RpcResponse make_success(nlohmann::json&& result_payload)
-  {
-    return enclave::RpcResponse{std::move(result_payload)};
-  }
-
-  static enclave::RpcResponse make_success(const nlohmann::json& result_payload)
-  {
-    return enclave::RpcResponse{result_payload};
-  }
-
-  static enclave::RpcResponse make_error(int code, const std::string& msg = "")
-  {
-    return enclave::RpcResponse{enclave::ErrorDetails{code, msg}};
-  }
-
   template <typename CT = void>
   class RpcFrontend : public enclave::RpcHandler, public ForwardedRpcHandler
   {
-  public:
-    enum ReadWrite
-    {
-      Read,
-      Write,
-      MayWrite
-    };
-
-    enum class Forwardable
-    {
-      CanForward,
-      DoNotForward
-    };
-
   protected:
     Store& tables;
+    HandlerRegistry& handlers;
 
     void disable_request_storing()
     {
@@ -79,143 +37,16 @@ namespace ccf
       return "Could not find matching actor certificate";
     }
 
-    /** Install HandleFunction for method name
-     *
-     * If an implementation is already installed for that method, it will be
-     * replaced.
-     *
-     * @param method Method name
-     * @param f Method implementation
-     * @param rw Flag if method will Read, Write, MayWrite
-     * @param params_schema JSON schema for params object in requests
-     * @param result_schema JSON schema for result object in responses
-     * @param forwardable Allow method to be forwarded to primary
-     */
-    void install(
-      const std::string& method,
-      HandleFunction f,
-      ReadWrite rw,
-      const nlohmann::json& params_schema = nlohmann::json::object(),
-      const nlohmann::json& result_schema = nlohmann::json::object(),
-      Forwardable forwardable = Forwardable::CanForward,
-      bool execute_locally = false)
-    {
-      handlers[method] = {
-        f, rw, params_schema, result_schema, forwardable, execute_locally};
-    }
-
-    void install(
-      const std::string& method,
-      HandleFunction f,
-      ReadWrite rw,
-      Forwardable forwardable)
-    {
-      install(
-        method,
-        f,
-        rw,
-        nlohmann::json::object(),
-        nlohmann::json::object(),
-        forwardable);
-    }
-
-    template <typename In, typename Out, typename F>
-    void install_with_auto_schema(
-      const std::string& method,
-      F&& f,
-      ReadWrite rw,
-      Forwardable forwardable = Forwardable::CanForward,
-      bool execute_locally = false)
-    {
-      auto params_schema = nlohmann::json::object();
-      if constexpr (!std::is_same_v<In, void>)
-      {
-        params_schema = ds::json::build_schema<In>(method + "/params");
-      }
-
-      auto result_schema = nlohmann::json::object();
-      if constexpr (!std::is_same_v<Out, void>)
-      {
-        result_schema = ds::json::build_schema<Out>(method + "/result");
-      }
-
-      install(
-        method,
-        std::forward<F>(f),
-        rw,
-        params_schema,
-        result_schema,
-        forwardable,
-        execute_locally);
-    }
-
-    template <typename T, typename... Ts>
-    void install_with_auto_schema(const std::string& method, Ts&&... ts)
-    {
-      install_with_auto_schema<typename T::In, typename T::Out>(
-        method, std::forward<Ts>(ts)...);
-    }
-
-    /** Set a default HandleFunction
-     *
-     * The default HandleFunction is only invoked if no specific HandleFunction
-     * was found.
-     *
-     * @param f Method implementation
-     * @param rw Flag if method will Read, Write, MayWrite
-     */
-    void set_default(HandleFunction f, ReadWrite rw)
-    {
-      default_handler = {f, rw};
-    }
-
-    /** Populate out with all supported methods
-     *
-     * This is virtual since the default handler may do its own dispatch
-     * internally, so derived implementations must be able to populate the list
-     * with the supported methods however it constructs them.
-     */
-    virtual void list_methods(Store::Tx& tx, ListMethods::Out& out)
-    {
-      for (const auto& handler : handlers)
-      {
-        out.methods.push_back(handler.first);
-      }
-    }
-
-    kv::Consensus* get_consensus() const
-    {
-      return consensus;
-    }
-
-    kv::TxHistory* get_history() const
-    {
-      return history;
-    }
-
   private:
     // TODO: replace with an lru map
     std::map<CallerId, tls::VerifierPtr> verifiers;
     SpinLock lock;
     bool is_open_ = false;
 
-    struct Handler
-    {
-      HandleFunction func;
-      ReadWrite rw;
-      nlohmann::json params_schema;
-      nlohmann::json result_schema;
-      Forwardable forwardable;
-      bool execute_locally = false;
-    };
-
     Nodes* nodes;
     ClientSignatures* client_signatures;
-    Certs* certs;
     CT* callers;
     pbft::RequestsMap* pbft_requests_map;
-    std::optional<Handler> default_handler;
-    std::unordered_map<std::string, Handler> handlers;
     kv::Consensus* consensus;
     std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder;
     kv::TxHistory* history;
@@ -232,6 +63,7 @@ namespace ccf
       if (consensus != c)
       {
         consensus = c;
+        handlers.set_consensus(consensus);
       }
     }
 
@@ -242,32 +74,15 @@ namespace ccf
       // frontend calls into Consensus.
       // if (history == nullptr)
       history = tables.get_history().get();
-    }
-
-    std::optional<CallerId> valid_caller(
-      Store::Tx& tx, const std::vector<uint8_t>& caller)
-    {
-      if (certs == nullptr)
-      {
-        return INVALID_ID;
-      }
-
-      if (caller.empty())
-      {
-        return {};
-      }
-
-      auto certs_view = tx.get_view(*certs);
-      auto caller_id = certs_view->get(caller);
-
-      return caller_id;
+      handlers.set_history(history);
     }
 
     std::optional<nlohmann::json> forward_or_redirect_json(
-      const enclave::RpcContext& ctx, Forwardable forwardable)
+      const enclave::RpcContext& ctx, HandlerRegistry::Forwardable forwardable)
     {
       if (
-        cmd_forwarder && forwardable == Forwardable::CanForward &&
+        cmd_forwarder &&
+        forwardable == HandlerRegistry::Forwardable::CanForward &&
         !ctx.session.fwd.has_value())
       {
         return std::nullopt;
@@ -341,19 +156,20 @@ namespace ccf
 
   public:
     RpcFrontend(Store& tables_) :
-      RpcFrontend(tables_, nullptr, nullptr, nullptr)
+      RpcFrontend(tables_, CommonHandlerRegistry(tables_, nodes, nullptr))
     {}
 
     RpcFrontend(
       Store& tables_,
-      ClientSignatures* client_sigs_,
-      Certs* certs_,
-      CT* callers_) :
+      HandlerRegistry& handlers_,
+      ClientSignatures* client_sigs_ = nullptr,
+      Certs* certs_ = nullptr,
+      CT* callers_ = nullptr) :
       tables(tables_),
       nodes(tables.get<Nodes>(Tables::NODES)),
       client_signatures(client_sigs_),
-      certs(certs_),
       callers(callers_),
+      handlers(handlers_),
       pbft_requests_map(
         tables.get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
       consensus(nullptr),
@@ -377,6 +193,8 @@ namespace ccf
     {
       std::lock_guard<SpinLock> mguard(lock);
       is_open_ = true;
+
+      handlers.init_handlers(tables);
     }
 
     bool is_open() override
@@ -409,7 +227,7 @@ namespace ccf
       }
       else
       {
-        caller_id = valid_caller(tx, ctx.session.caller_cert);
+        caller_id = handlers.valid_caller(tx, ctx.session.caller_cert);
       }
 
       if (!caller_id.has_value())
@@ -555,7 +373,7 @@ namespace ccf
       auto req_view = tx.get_view(*pbft_requests_map);
       req_view->put(
         0,
-        {ctx.actor,
+        {(size_t)ctx.actor,
          ctx.session.fwd.value().caller_id,
          ctx.session.caller_cert,
          ctx.raw});
@@ -636,9 +454,8 @@ namespace ccf
     std::optional<nlohmann::json> process_if_local_node_rpc(
       const enclave::RpcContext& ctx, Store::Tx& tx, CallerId caller_id)
     {
-      Handler* handler = nullptr;
-      auto search = handlers.find(ctx.method);
-      if (search != handlers.end() && search->second.execute_locally)
+      auto handler = handlers.find_handler(ctx.method);
+      if (handler != nullptr && handler->execute_locally)
       {
         return process_command(ctx, tx, caller_id);
       }
@@ -675,17 +492,8 @@ namespace ccf
         nlohmann::json(nullptr) :
         *params_it;
 
-      Handler* handler = nullptr;
-      auto search = handlers.find(ctx.method);
-      if (search != handlers.end())
-      {
-        handler = &search->second;
-      }
-      else if (default_handler)
-      {
-        handler = &default_handler.value();
-      }
-      else
+      auto handler = handlers.find_handler(ctx.method);
+      if (handler == nullptr)
       {
         return ctx.error_response(
           (int)jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND, ctx.method);
@@ -702,18 +510,18 @@ namespace ccf
       {
         switch (handler->rw)
         {
-          case Read:
+          case HandlerRegistry::Read:
           {
             break;
           }
 
-          case Write:
+          case HandlerRegistry::Write:
           {
             return forward_or_redirect_json(ctx, handler->forwardable);
             break;
           }
 
-          case MayWrite:
+          case HandlerRegistry::MayWrite:
           {
             bool readonly = ctx.unpacked_rpc.value(jsonrpc::READONLY, true);
             if (!readonly)
@@ -826,6 +634,9 @@ namespace ccf
     {
       // TODO(#refactoring): move this to NodeState::tick
       update_consensus();
+
+      handlers.tick(elapsed);
+
       if ((consensus != nullptr) && consensus->is_primary())
       {
         if (elapsed < ms_to_sig)

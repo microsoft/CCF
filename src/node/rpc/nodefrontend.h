@@ -3,19 +3,20 @@
 #pragma once
 
 #include "crypto/hash.h"
-#include "commonfrontend.h"
+#include "frontend.h"
 #include "node/entities.h"
 #include "node/networkstate.h"
 #include "node/quoteverification.h"
 
 namespace ccf
 {
-  class NodeRpcFrontend : public CommonFrontend<>
+  class NodeHandlers : public CommonHandlerRegistry
   {
   private:
     NetworkState& network;
     AbstractNodeState& node;
-    Signatures* signatures;
+
+    Signatures* signatures = nullptr;
 
     std::optional<NodeId> check_node_exists(
       Store::Tx& tx,
@@ -125,12 +126,17 @@ namespace ccf
     }
 
   public:
-    NodeRpcFrontend(NetworkState& network, AbstractNodeState& node) :
-      RpcFrontend<>(*network.tables),
+    NodeHandlers(NetworkState& network, AbstractNodeState& node) :
       network(network),
-      node(node),
-      signatures(tables.get<Signatures>(Tables::SIGNATURES))
+      node(node)
+    {}
+
+    void init_handlers(Store& tables_) override
     {
+      CommonHandlerRegistry::init_handlers(tables_);
+
+      signatures = tables->get<Signatures>(Tables::SIGNATURES);
+
       auto accept = [this](RequestArgs& args) {
         const auto in = args.params.get<JoinNetworkNodeToNode::In>();
 
@@ -275,5 +281,17 @@ namespace ccf
       install_with_auto_schema<GetQuotes>(
         NodeProcs::GET_QUOTES, get_quotes, Read);
     }
+  };
+
+  class NodeRpcFrontend : public RpcFrontend<>
+  {
+  protected:
+    NodeHandlers node_handlers;
+
+  public:
+    NodeRpcFrontend(NetworkState& network, AbstractNodeState& node) :
+      RpcFrontend<>(*network.tables, node_handlers),
+      node_handlers(network, node)
+    {}
   };
 }

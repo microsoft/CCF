@@ -2,36 +2,69 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "frontend.h"
+#include "consts.h"
 #include "handleradapter.h"
+#include "handlerregistry.h"
 #include "metrics.h"
+#include "node/certs.h"
 
 namespace ccf
 {
-  /* Extends the core RpcFrontend concept with methods which should be present
+  /*
+   * Extends the basic HandlerRegistry with methods which should be present
    * on all frontends
    */
-  template <typename CT = void>
-  class CommonFrontend : public RpcFrontend<>
+  class CommonHandlerRegistry : public HandlerRegistry
   {
   private:
-    using Base = RpcFrontend<>;
-
     metrics::Metrics metrics;
     size_t tx_count = 0;
 
-  public:
-    template <typename... Ts>
-    CommonFrontend(Ts&&... ts) : Base(std::forward<Ts>(ts)...)
+    const std::string certs_name;
+
+    Nodes* nodes = nullptr;
+    Certs* certs = nullptr;
+
+  protected:
+    Store* tables = nullptr;
+
+    std::optional<CallerId> valid_caller(
+      Store::Tx& tx, const std::vector<uint8_t>& caller) override
     {
-      tables.commit_version();
+      if (certs == nullptr)
+      {
+        return INVALID_ID;
+      }
+
+      if (caller.empty())
+      {
+        return {};
+      }
+
+      auto certs_view = tx.get_view(*certs);
+      auto caller_id = certs_view->get(caller);
+
+      return caller_id;
+    }
+
+  public:
+    CommonHandlerRegistry(const std::string& cn = "") : certs_name(cn) {}
+
+    void init_handlers(Store& tables_) override
+    {
+      tables = &tables_;
+      nodes = tables->get<Nodes>(Tables::NODES);
+
+      if (!certs_name.empty())
+      {
+        certs = tables->get<Certs>(certs_name);
+      }
 
       auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetCommit::In>();
 
-        kv::Version commit = in.commit.value_or(tables.commit_version());
+        kv::Version commit = in.commit.value_or(tables->commit_version());
 
-        auto consensus = get_consensus();
         if (consensus != nullptr)
         {
           auto term = consensus->get_view(commit);
@@ -50,12 +83,10 @@ namespace ccf
 
       auto make_signature =
         [this](Store::Tx& tx, const nlohmann::json& params) {
-          auto consensus = get_consensus();
           if (consensus != nullptr)
           {
             if (consensus->type() == ConsensusType::Raft)
             {
-              auto history = get_history();
               if (history != nullptr)
               {
                 history->emit_signature();
@@ -74,9 +105,45 @@ namespace ccf
             "Failed to trigger signature");
         };
 
+      auto who_am_i =
+        [this](
+          Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
+          if (certs == nullptr)
+          {
+            return make_error(
+              (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+              fmt::format(
+                "This frontend does not support {}", GeneralProcs::WHO_AM_I));
+          }
+
+          return make_success(WhoAmI::Out{caller_id});
+        };
+
+      auto who_is = [this](Store::Tx& tx, const nlohmann::json& params) {
+        const WhoIs::In in = params;
+
+        if (certs == nullptr)
+        {
+          return make_error(
+            (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            fmt::format(
+              "This frontend does not support {}", GeneralProcs::WHO_IS));
+        }
+        auto certs_view = tx.get_view(*certs);
+        auto caller_id = certs_view->get(in.cert);
+
+        if (!caller_id.has_value())
+        {
+          return make_error(
+            (int)jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            "Certificate not recognised");
+        }
+
+        return make_success(WhoIs::Out{caller_id.value()});
+      };
+
       auto get_primary_info = [this](
                                 Store::Tx& tx, const nlohmann::json& params) {
-        auto consensus = get_consensus();
         if ((nodes != nullptr) && (consensus != nullptr))
         {
           NodeId primary_id = consensus->primary();
@@ -101,7 +168,6 @@ namespace ccf
       auto get_network_info =
         [this](Store::Tx& tx, const nlohmann::json& params) {
           GetNetworkInfo::Out out;
-          auto consensus = get_consensus();
           if (consensus != nullptr)
           {
             out.primary_id = consensus->primary();
@@ -118,41 +184,6 @@ namespace ccf
 
           return make_success(out);
         };
-
-      auto who_am_i = [this](const RequestArgs& args) {
-        if (certs == nullptr)
-        {
-          return make_error(
-            (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            fmt::format(
-              "This frontend does not support {}", GeneralProcs::WHO_AM_I));
-        }
-
-        return make_success(WhoAmI::Out{args.caller_id});
-      };
-
-      auto who_is = [this](Store::Tx& tx, const nlohmann::json& params) {
-        const WhoIs::In in = params;
-
-        if (certs == nullptr)
-        {
-          return make_error(
-            (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            fmt::format(
-              "This frontend does not support {}", GeneralProcs::WHO_IS));
-        }
-        auto certs_view = tx.get_view(*certs);
-        auto caller_id = certs_view->get(in.cert);
-
-        if (!caller_id.has_value())
-        {
-          return make_error(
-            (int)jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Certificate not recognised");
-        }
-
-        return make_success(WhoIs::Out{caller_id.value()});
-      };
 
       auto list_methods_fn =
         [this](Store::Tx& tx, const nlohmann::json& params) {
@@ -185,7 +216,6 @@ namespace ccf
       auto get_receipt = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetReceipt::In>();
 
-        auto history = get_history();
         if (history != nullptr)
         {
           try
@@ -215,7 +245,6 @@ namespace ccf
         [this](Store::Tx& tx, const nlohmann::json& params) {
           const auto in = params.get<VerifyReceipt::In>();
 
-          auto history = get_history();
           if (history != nullptr)
           {
             try
@@ -248,6 +277,10 @@ namespace ccf
         true);
       install_with_auto_schema<void, bool>(
         GeneralProcs::MK_SIGN, handler_adapter(make_signature), Write);
+      install_with_auto_schema<void, WhoAmI::Out>(
+        GeneralProcs::WHO_AM_I, handler_adapter(who_am_i), Read);
+      install_with_auto_schema<WhoIs::In, WhoIs::Out>(
+        GeneralProcs::WHO_IS, handler_adapter(who_is), Read);
       install_with_auto_schema<void, GetPrimaryInfo::Out>(
         GeneralProcs::GET_PRIMARY_INFO,
         handler_adapter(get_primary_info),
@@ -256,10 +289,6 @@ namespace ccf
         GeneralProcs::GET_NETWORK_INFO,
         handler_adapter(get_network_info),
         Read);
-      install_with_auto_schema<void, WhoAmI::Out>(
-        GeneralProcs::WHO_AM_I, handler_adapter(who_am_i), Read);
-      install_with_auto_schema<WhoIs::In, WhoIs::Out>(
-        GeneralProcs::WHO_IS, handler_adapter(who_is), Read);
       install_with_auto_schema<void, ListMethods::Out>(
         GeneralProcs::LIST_METHODS, handler_adapter(list_methods_fn), Read);
       install_with_auto_schema<GetSchema>(
@@ -270,18 +299,17 @@ namespace ccf
         GeneralProcs::VERIFY_RECEIPT, handler_adapter(verify_receipt), Read);
     }
 
-    std::optional<std::vector<uint8_t>> process_command(
-      const enclave::RpcContext& ctx, Store::Tx& tx, CallerId caller_id)
-    {
-      auto result = Base::process_command(ctx, tx, caller_id);
+    // TODO: How does this get called?
+    // std::optional<std::vector<uint8_t>> process_command(
+    //   const enclave::RpcContext& ctx, Store::Tx& tx, CallerId caller_id)
+    // {
+    //   if (result.has_value())
+    //   {
+    //     ++tx_count;
+    //   }
 
-      if (result.has_value())
-      {
-        ++tx_count;
-      }
-
-      return result;
-    }
+    //   return result;
+    // }
 
     void tick(std::chrono::milliseconds elapsed) override
     {
@@ -290,7 +318,7 @@ namespace ccf
       // reset tx_counter for next tick interval
       tx_count = 0;
 
-      Base::tick(elapsed);
+      HandlerRegistry::tick(elapsed);
     }
   };
 }

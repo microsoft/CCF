@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "commonfrontend.h"
+#include "frontend.h"
 #include "luainterp/txscriptrunner.h"
 #include "node/genesisgen.h"
 #include "node/nodes.h"
@@ -27,14 +27,8 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(SetUserData, user_id)
   DECLARE_JSON_OPTIONAL_FIELDS(SetUserData, user_data)
 
-  class MemberRpcFrontend : public CommonFrontend<Members>
+  class MemberHandlers : public CommonHandlerRegistry
   {
-  protected:
-    std::string invalid_caller_error_message() const override
-    {
-      return "Could not find matching member certificate";
-    }
-
   private:
     Script get_script(Store::Tx& tx, std::string name)
     {
@@ -288,17 +282,17 @@ namespace ccf
     static constexpr auto SIZE_NONCE = 16;
 
   public:
-    MemberRpcFrontend(NetworkTables& network, AbstractNodeState& node) :
-      RpcFrontend(
-        *network.tables,
-        &network.member_client_signatures,
-        &network.member_certs,
-        &network.members),
+    MemberHandlers(NetworkTables& network, AbstractNodeState& node) :
       network(network),
       node(node),
       tsr(network),
       rng(tls::create_entropy())
+    {}
+
+    void init_handlers(Store& tables_) override
     {
+      CommonHandlerRegistry::init_handlers(tables_);
+
       auto read = [this](RequestArgs& args) {
         if (!check_member_status(
               args.tx,
@@ -553,5 +547,27 @@ namespace ccf
       install_with_auto_schema<void, bool>(
         MemberProcs::UPDATE_ACK_NONCE, update_ack_nonce, Write);
     }
+  };
+
+  class MemberRpcFrontend : public RpcFrontend<Members>
+  {
+  protected:
+    std::string invalid_caller_error_message() const override
+    {
+      return "Could not find matching member certificate";
+    }
+
+    MemberHandlers member_handlers;
+
+  public:
+    MemberRpcFrontend(NetworkTables& network, AbstractNodeState& node) :
+      RpcFrontend<Members>(
+        *network.tables,
+        member_handlers,
+        &network.member_client_signatures,
+        &network.member_certs,
+        &network.members),
+      member_handlers(network, node)
+    {}
   };
 } // namespace ccf
