@@ -7,7 +7,6 @@
 
 namespace ccf
 {
-  template <typename Registry = CommonHandlerRegistry>
   class UserRpcFrontend : public RpcFrontend
   {
   protected:
@@ -16,17 +15,15 @@ namespace ccf
       return "Could not find matching user certificate";
     }
 
-    Registry registry;
     Users* users;
 
   public:
-    UserRpcFrontend(Store& tables_) :
+    UserRpcFrontend(Store& tables, HandlerRegistry& registry) :
       RpcFrontend(
-        tables_,
+        tables,
         registry,
-        tables_.get<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
-      registry(Tables::USER_CERTS),
-      users(tables_.get<Users>(Tables::USERS))
+        tables.get<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
+      users(tables.get<Users>(Tables::USERS))
     {}
 
     std::vector<uint8_t> get_cert_to_forward(

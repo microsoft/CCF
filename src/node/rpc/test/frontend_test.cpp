@@ -34,60 +34,6 @@ using namespace ccfapp;
 using namespace ccf;
 using namespace std;
 
-class TestUserFrontend : public UserRpcFrontend<>
-{
-public:
-  TestUserFrontend(Store& tables) : UserRpcFrontend(tables)
-  {
-    registry.init_handlers(tables);
-
-    auto empty_function = [this](RequestArgs& args) {
-      args.rpc_ctx.set_response_result(true);
-    };
-    registry.install("empty_function", empty_function, HandlerRegistry::Read);
-  }
-};
-
-class TestReqNotStoredFrontend : public UserRpcFrontend<>
-{
-public:
-  TestReqNotStoredFrontend(Store& tables) : UserRpcFrontend(tables)
-  {
-    registry.init_handlers(tables);
-
-    auto empty_function = [this](RequestArgs& args) {
-      args.rpc_ctx.set_response_result(true);
-    };
-    registry.install("empty_function", empty_function, HandlerRegistry::Read);
-    disable_request_storing();
-  }
-};
-
-class TestMinimalHandleFunction : public UserRpcFrontend<>
-{
-public:
-  TestMinimalHandleFunction(Store& tables) : UserRpcFrontend(tables)
-  {
-    registry.init_handlers(tables);
-
-    auto echo_function = [this](Store::Tx& tx, const nlohmann::json& params) {
-      auto j = params;
-      return make_success(std::move(j));
-    };
-    registry.install(
-      "echo_function", handler_adapter(echo_function), HandlerRegistry::Read);
-
-    auto get_caller_function =
-      [this](Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
-        return make_success(caller_id);
-      };
-    registry.install(
-      "get_caller",
-      handler_adapter(get_caller_function),
-      HandlerRegistry::Read);
-  }
-};
-
 template <
   HandlerRegistry::ReadWrite RW,
   HandlerRegistry::Forwardable FW = HandlerRegistry::Forwardable::CanForward>
@@ -115,6 +61,66 @@ public:
   {
     install(std::forward<Ts>(ts)...);
   }
+};
+
+class TestUserFrontend : public UserRpcFrontend
+{
+  TestRegistry<HandlerRegistry::Read> test_registry;
+
+public:
+  TestUserFrontend(Store& tables) :
+    UserRpcFrontend(tables, test_registry),
+    test_registry(tables, Tables::USER_CERTS)
+  {}
+};
+
+class TestReqNotStoredFrontend : public UserRpcFrontend
+{
+  TestRegistry<HandlerRegistry::Read> test_registry;
+
+public:
+  TestReqNotStoredFrontend(Store& tables) :
+    UserRpcFrontend(tables, test_registry),
+    test_registry(tables, Tables::USER_CERTS)
+  {
+    disable_request_storing();
+  }
+};
+
+class TestMinimalHandleFunction : public UserRpcFrontend
+{
+  class MinimalHandlers : public HandlerRegistry
+  {
+  public:
+    void init_handlers(Store& tables) override
+    {
+      HandlerRegistry::init_handlers(tables);
+
+      auto echo_function = [this](Store::Tx& tx, const nlohmann::json& params) {
+        auto j = params;
+        return make_success(std::move(j));
+      };
+      install(
+        "echo_function", handler_adapter(echo_function), HandlerRegistry::Read);
+
+      auto get_caller_function =
+        [this](
+          Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
+          return make_success(caller_id);
+        };
+      install(
+        "get_caller",
+        handler_adapter(get_caller_function),
+        HandlerRegistry::Read);
+    }
+  };
+
+  MinimalHandlers min_handlers;
+
+public:
+  TestMinimalHandleFunction(Store& tables) :
+    UserRpcFrontend(tables, min_handlers)
+  {}
 };
 
 class TestMemberFrontend : public RpcFrontend
@@ -157,7 +163,8 @@ public:
   }
 };
 
-class TestForwardingUserFrontEnd : public RpcFrontend, public RpcContextRecorder
+class TestForwardingUserFrontEnd : public UserRpcFrontend,
+                                   public RpcContextRecorder
 {
   // Note that this is a HandlerRegistry::Write function so that a backup
   // executing this command will forward it to the primary
@@ -165,12 +172,13 @@ class TestForwardingUserFrontEnd : public RpcFrontend, public RpcContextRecorder
 
 public:
   TestForwardingUserFrontEnd(Store& tables) :
-    RpcFrontend(tables, test_registry),
+    UserRpcFrontend(tables, test_registry),
     test_registry(tables, Tables::USER_CERTS)
   {}
 };
 
-class TestForwardingNodeFrontEnd : public RpcFrontend, public RpcContextRecorder
+class TestForwardingNodeFrontEnd : public UserRpcFrontend,
+                                   public RpcContextRecorder
 {
   // Note that this is a HandlerRegistry::Write function so that a backup
   // executing this command will forward it to the primary
@@ -178,12 +186,12 @@ class TestForwardingNodeFrontEnd : public RpcFrontend, public RpcContextRecorder
 
 public:
   TestForwardingNodeFrontEnd(Store& tables) :
-    RpcFrontend(tables, test_registry),
+    UserRpcFrontend(tables, test_registry),
     test_registry(tables)
   {}
 };
 
-class TestForwardingMemberFrontEnd : public RpcFrontend,
+class TestForwardingMemberFrontEnd : public UserRpcFrontend,
                                      public RpcContextRecorder
 {
   // Note that this is a HandlerRegistry::Write function so that a backup
@@ -191,13 +199,14 @@ class TestForwardingMemberFrontEnd : public RpcFrontend,
   TestRegistry<HandlerRegistry::Write> test_registry;
 
 public:
+  // TODO: Should be Members, not Users
   TestForwardingMemberFrontEnd(Store& tables) :
-    RpcFrontend(tables, test_registry),
+    UserRpcFrontend(tables, test_registry),
     test_registry(tables)
   {}
 };
 
-class TestNoForwardingFrontEnd : public RpcFrontend
+class TestNoForwardingFrontEnd : public UserRpcFrontend
 {
   // Note that this is a HandlerRegistry::Write function so that a backup
   // executing this command will forward it to the primary
@@ -208,7 +217,7 @@ class TestNoForwardingFrontEnd : public RpcFrontend
 
 public:
   TestNoForwardingFrontEnd(Store& tables) :
-    RpcFrontend(tables, test_registry),
+    UserRpcFrontend(tables, test_registry),
     test_registry(tables)
   {}
 };
@@ -709,7 +718,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
 
   {
-    INFO("HandlerRegistry::Read command is not forwarded to primary");
+    INFO("Read command is not forwarded to primary");
     TestUserFrontend user_frontend_backup_read(*network.tables);
     REQUIRE(channel_stub->is_empty());
 
@@ -722,7 +731,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   }
 
   {
-    INFO("HandlerRegistry::Write command on backup is forwarded to primary");
+    INFO("Write command on backup is forwarded to primary");
     REQUIRE(channel_stub->is_empty());
 
     const auto r = user_frontend_backup.process(ctx);
