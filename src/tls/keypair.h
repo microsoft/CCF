@@ -63,8 +63,6 @@ namespace tls
     "-----BEGIN CERTIFICATE-----\n";
   static constexpr auto PEM_CERTIFICATE_FOOTER = "-----END CERTIFICATE-----\n";
 
-  using PbftSignature = std::array<uint8_t, MBEDTLS_ECDSA_MAX_LEN>;
-  static constexpr auto PbftSignatureSize = MBEDTLS_ECDSA_MAX_LEN;
   // Helper to access elliptic curve id from context
   inline mbedtls_ecp_group_id get_ec_from_context(const mbedtls_pk_context& ctx)
   {
@@ -1316,10 +1314,9 @@ namespace tls
     int rc = mbedtls_x509_crt_parse(&cert, cert_pem.data(), cert_pem.size());
     if (rc)
     {
-      LOG_DEBUG_FMT("failed to parse certificate {}", error_string(rc));
       std::stringstream s;
-      // s << "Failed to parse certificate: " << rc;
-      // throw std::invalid_argument(s.str());
+      s << "Failed to parse certificate: " << rc;
+      throw std::invalid_argument(s.str());
     }
 
     const auto curve = get_ec_from_context(cert.pk);

@@ -26,7 +26,7 @@ struct Checkpoint_rep : public Message_rep
 #pragma pack(pop)
 
 static_assert(
-  sizeof(Checkpoint_rep) + tls::PbftSignatureSize < Max_message_size,
+  sizeof(Checkpoint_rep) + pbft_max_signature_size < Max_message_size,
   "Invalid size");
 
 class Checkpoint : public Message

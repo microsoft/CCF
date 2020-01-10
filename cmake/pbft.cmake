@@ -65,7 +65,7 @@ if("sgx" IN_LIST TARGET)
     ${PARSED_ARGS_INCLUDE_DIRS}
     ${EVERCRYPT_INC}
   )
-  use_client_mbedtls(libbyz.enclave)
+  use_oe_mbedtls(libbyz.enclave)
   add_dependencies(libbyz.enclave flatbuffers)
 endif()
 

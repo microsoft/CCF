@@ -124,7 +124,7 @@ public:
   struct PrePrepareProof
   {
     std::vector<uint8_t> cert;
-    tls::PbftSignature signature;
+    PbftSignature signature;
   };
 
   const std::unordered_map<int, PrePrepareProof>& get_pre_prepared_cert_proof()
@@ -142,7 +142,7 @@ inline bool Prepared_cert::add(Prepare* m)
 {
 #ifdef SIGN_BATCH
   int id = m->id();
-  tls::PbftSignature& digest_sig = m->digest_sig();
+  PbftSignature& digest_sig = m->digest_sig();
   PrePrepareProof proof;
   std::copy(
     std::begin(digest_sig), std::end(digest_sig), std::begin(proof.signature));

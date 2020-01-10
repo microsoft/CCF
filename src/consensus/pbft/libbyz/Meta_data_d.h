@@ -37,7 +37,7 @@ struct Meta_data_d_rep : public Message_rep
 #pragma pack(pop)
 
 static_assert(
-  sizeof(Meta_data_d_rep) + tls::PbftSignatureSize < Max_message_size,
+  sizeof(Meta_data_d_rep) + pbft_max_signature_size < Max_message_size,
   "Invalid size");
 
 class Meta_data_d : public Message

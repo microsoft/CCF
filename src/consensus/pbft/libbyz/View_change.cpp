@@ -251,7 +251,7 @@ bool View_change::verify_digest()
   digest().zero(); // zero digest
 
 #ifdef SIGN_BATCH
-  tls::PbftSignature previous_digest_signature = rep().digest_signature;
+  PbftSignature previous_digest_signature = rep().digest_signature;
   rep().digest_signature.fill(0);
 #endif
 

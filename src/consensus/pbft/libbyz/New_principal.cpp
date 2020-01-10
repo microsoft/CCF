@@ -14,7 +14,7 @@ New_principal::New_principal(
   NodeId id,
   short port,
   std::string ip,
-  std::vector<uint8_t> cert,
+  std::string cert,
   std::string host_name,
   bool is_replica) :
   Message(New_principal_tag, sizeof(New_principal_rep))
@@ -26,7 +26,7 @@ New_principal::New_principal(
   memcpy(rep().ip, ip.data(), ip.size());
 
   rep().cert_len = cert.size();
-  rep().cert = cert;
+  memcpy(rep().cert, cert.data(), cert.size());
 
   rep().host_name_len = host_name.size();
   memcpy(rep().host_name, host_name.data(), host_name.size());
@@ -76,9 +76,9 @@ std::string New_principal::ip() const
   return std::string(rep().ip, rep().ip_len);
 }
 
-std::vector<uint8_t> New_principal::cert() const
+std::string New_principal::cert() const
 {
-  return rep().cert;
+  return std::string(rep().cert, rep().cert + rep().cert_len);
 }
 
 std::string New_principal::host_name() const

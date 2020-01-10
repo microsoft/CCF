@@ -40,7 +40,7 @@ struct Meta_data_rep : public Message_rep
 
 static_assert(
   sizeof(Meta_data_rep) + sizeof(Part_info) * PChildren +
-      tls::PbftSignatureSize <
+      pbft_max_signature_size <
     Max_message_size,
   "Invalid size");
 

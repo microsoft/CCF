@@ -31,7 +31,7 @@ struct Fetch_rep : public Message_rep
 #pragma pack(pop)
 
 static_assert(
-  sizeof(Fetch_rep) + tls::PbftSignatureSize < Max_message_size,
+  sizeof(Fetch_rep) + pbft_max_signature_size < Max_message_size,
   "Invalid size");
 
 class Fetch : public Message

@@ -21,7 +21,7 @@ Principal::Principal(
   last_fetch = 0;
   replica = is_rep;
 
-  ssize = tls::PbftSignatureSize;
+  ssize = pbft_max_signature_size;
   if (!cert_.empty())
   {
     verifier = tls::make_verifier(cert_);

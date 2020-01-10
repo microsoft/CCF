@@ -117,7 +117,7 @@ public:
 
   size_t gen_signature(const char* src, unsigned src_len, char* sig);
   size_t gen_signature(
-    const char* src, unsigned src_len, tls::PbftSignature& sig);
+    const char* src, unsigned src_len, PbftSignature& sig);
 
 protected:
   std::string service_name;

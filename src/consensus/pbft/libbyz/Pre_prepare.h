@@ -36,9 +36,9 @@ struct Pre_prepare_rep : public Message_rep
 
 #ifdef SIGN_BATCH
   size_t sig_size;
-  tls::PbftSignature batch_digest_signature;
+  PbftSignature batch_digest_signature;
   static constexpr size_t padding_size =
-    ALIGNED_SIZE(tls::PbftSignatureSize) - tls::PbftSignatureSize;
+    ALIGNED_SIZE(pbft_max_signature_size) - pbft_max_signature_size;
   std::array<uint8_t, padding_size> padding;
 #endif
 
@@ -49,7 +49,7 @@ struct Pre_prepare_rep : public Message_rep
 #pragma pack(pop)
 static_assert(
   sizeof(Pre_prepare_rep) + sizeof(Digest) * Max_requests_in_batch +
-      tls::PbftSignatureSize <
+      pbft_max_signature_size <
     Max_message_size,
   "Invalid size");
 
@@ -142,7 +142,7 @@ public:
   friend class Requests_iter;
 
 #ifdef SIGN_BATCH
-  tls::PbftSignature& get_digest_sig() const
+  PbftSignature& get_digest_sig() const
   {
     return rep().batch_digest_signature;
   }

@@ -25,7 +25,7 @@ struct Prepare_rep : public Message_rep
   int id; // id of the replica that generated the message.
   size_t sig_size;
 #ifdef SIGN_BATCH
-  tls::PbftSignature batch_digest_signature;
+  PbftSignature batch_digest_signature;
 #endif
 
   int padding;
@@ -34,7 +34,7 @@ struct Prepare_rep : public Message_rep
 #pragma pack(pop)
 
 static_assert(
-  sizeof(Prepare_rep) + tls::PbftSignatureSize < Max_message_size,
+  sizeof(Prepare_rep) + pbft_max_signature_size < Max_message_size,
   "Invalid size");
 
 class Prepare : public Message
@@ -68,7 +68,7 @@ public:
   // Effects: Fetches the digest from the message.
 
 #ifdef SIGN_BATCH
-  tls::PbftSignature& digest_sig() const;
+  PbftSignature& digest_sig() const;
 #endif
 
   bool is_proof() const;
@@ -118,7 +118,7 @@ inline Digest& Prepare::digest() const
 }
 
 #ifdef SIGN_BATCH
-inline tls::PbftSignature& Prepare::digest_sig() const
+inline PbftSignature& Prepare::digest_sig() const
 {
   return rep().batch_digest_signature;
 }

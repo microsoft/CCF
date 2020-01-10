@@ -69,9 +69,9 @@ struct View_change_rep : public Message_rep
 
 #ifdef SIGN_BATCH
   // signature of the digest of the entire message.
-  tls::PbftSignature digest_signature;
+  PbftSignature digest_signature;
   static constexpr size_t padding_size =
-    ALIGNED_SIZE(tls::PbftSignatureSize) - tls::PbftSignatureSize;
+    ALIGNED_SIZE(pbft_max_signature_size) - pbft_max_signature_size;
   std::array<uint8_t, padding_size> padding;
 #endif
 
@@ -86,7 +86,7 @@ struct View_change_rep : public Message_rep
 
 static_assert(
   sizeof(View_change_rep) + sizeof(Req_info) * max_out +
-      tls::PbftSignatureSize <
+      pbft_max_signature_size <
     Max_message_size,
   "Invalid size");
 
@@ -124,7 +124,7 @@ public:
   // authenticator).
 
 #ifdef SIGN_BATCH
-  tls::PbftSignature& signature();
+  PbftSignature& signature();
 #endif
 
   Seqno last_stable() const;
@@ -228,7 +228,7 @@ inline Digest& View_change::digest()
 }
 
 #ifdef SIGN_BATCH
-inline tls::PbftSignature& View_change::signature()
+inline PbftSignature& View_change::signature()
 {
   return rep().digest_signature;
 }

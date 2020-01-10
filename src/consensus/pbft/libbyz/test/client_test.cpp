@@ -115,7 +115,7 @@ int main(int argc, char** argv)
 
   for (auto& pi : general_info.principal_info)
   {
-    pi.cert = node_cert();
+    pi.cert = node_cert;
   }
 
   for (auto& pi : general_info.principal_info)
