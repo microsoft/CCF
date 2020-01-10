@@ -66,7 +66,6 @@ namespace ccfapp
         }
         //TODO: load modules from module table here?
 
-
         const nlohmann::json response = {};
 
         std::string code = "function add (a, b) { return a + b; }; add(4, 5); \"hello\"";

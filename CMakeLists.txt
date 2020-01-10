@@ -321,7 +321,7 @@ if(BUILD_TESTS)
 
     add_e2e_test(
       NAME qjs
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js.py
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js.py -s ${CMAKE_SOURCE_DIR}/tests/str.js
       CURL_CLIENT TRUE
     )
 

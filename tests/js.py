@@ -8,54 +8,6 @@ import e2e_args
 
 from loguru import logger as LOG
 
-
-@reqs.lua_generic_app
-def test_update_lua(network, args):
-    if args.package == "libluagenericenc":
-        LOG.info("Updating Lua application")
-        primary, term = network.find_primary()
-
-        check = infra.checker.Checker()
-
-        # Create a new lua application file (minimal app)
-        # TODO: Writing to file will not be required when memberclient is deprecated
-        new_app_file = "new_lua_app.lua"
-        with open(new_app_file, "w") as qfile:
-            qfile.write(
-                """
-                            return {
-                            ping = [[
-                                tables, args = ...
-                                return {result = "pong"}
-                            ]],
-                            }"""
-            )
-
-        network.consortium.set_lua_app(
-            member_id=1, remote_node=primary, app_script=new_app_file
-        )
-        with primary.user_client(format="json") as c:
-            check(c.rpc("ping", params={}), result="pong")
-
-            LOG.debug("Check that former endpoints no longer exists")
-            for endpoint in [
-                "LOG_record",
-                "LOG_record_pub",
-                "LOG_get",
-                "LOG_get_pub",
-            ]:
-                check(
-                    c.rpc(endpoint, params={}),
-                    error=lambda e: e is not None
-                    and e["code"] == infra.jsonrpc.ErrorCode.METHOD_NOT_FOUND.value,
-                )
-    else:
-        LOG.warning("Skipping Lua app update as application is not Lua")
-
-    return network
-
-
-@reqs.supports_methods("mkSign", "LOG_record", "LOG_get")
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None):
     LOG.info("Running transactions against logging app")
@@ -108,30 +60,14 @@ def test(network, args, notifications_queue=None):
 def run(args):
     hosts = ["localhost", "localhost"]
 
-    with infra.notification.notification_server(args.notify_server) as notifications:
-        # Lua apps do not support notifications
-        # https://github.com/microsoft/CCF/issues/415
-        notifications_queue = (
-            notifications.get_queue() if args.package == "libloggingenc" else None
-        )
-
-        with infra.ccf.network(
-            hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
-        ) as network:
-            network.start_and_join(args)
-            network = test(network, args, notifications_queue)
-            network = test_update_lua(network, args)
+    with infra.ccf.network(
+        hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
+    ) as network:
+        network.start_and_join(args)
+        network = test(network, args, None)
 
 
 if __name__ == "__main__":
-
     args = e2e_args.cli_args()
     args.package = "libjsgenericenc"
-
-    notify_server_host = "localhost"
-    args.notify_server = (
-        notify_server_host
-        + ":"
-        + str(infra.net.probably_free_local_port(notify_server_host))
-    )
     run(args)
