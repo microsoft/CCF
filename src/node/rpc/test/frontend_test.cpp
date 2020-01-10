@@ -34,54 +34,54 @@ using namespace ccfapp;
 using namespace ccf;
 using namespace std;
 
-class TestUserFrontend : public UserRpcFrontend
+class TestUserFrontend : public UserRpcFrontend<>
 {
 public:
   TestUserFrontend(Store& tables) : UserRpcFrontend(tables)
   {
-    init_handlers(tables);
+    registry.init_handlers(tables);
 
     auto empty_function = [this](RequestArgs& args) {
       args.rpc_ctx.set_response_result(true);
     };
-    install("empty_function", empty_function, HandlerRegistry::Read);
+    registry.install("empty_function", empty_function, HandlerRegistry::Read);
   }
 };
 
-class TestReqNotStoredFrontend : public UserRpcFrontend
+class TestReqNotStoredFrontend : public UserRpcFrontend<>
 {
 public:
   TestReqNotStoredFrontend(Store& tables) : UserRpcFrontend(tables)
   {
-    init_handlers(tables);
+    registry.init_handlers(tables);
 
     auto empty_function = [this](RequestArgs& args) {
       args.rpc_ctx.set_response_result(true);
     };
-    install("empty_function", empty_function, HandlerRegistry::Read);
+    registry.install("empty_function", empty_function, HandlerRegistry::Read);
     disable_request_storing();
   }
 };
 
-class TestMinimalHandleFunction : public UserRpcFrontend
+class TestMinimalHandleFunction : public UserRpcFrontend<>
 {
 public:
   TestMinimalHandleFunction(Store& tables) : UserRpcFrontend(tables)
   {
-    init_handlers(tables);
+    registry.init_handlers(tables);
 
     auto echo_function = [this](Store::Tx& tx, const nlohmann::json& params) {
       auto j = params;
       return make_success(std::move(j));
     };
-    install(
+    registry.install(
       "echo_function", handler_adapter(echo_function), HandlerRegistry::Read);
 
     auto get_caller_function =
       [this](Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
         return make_success(caller_id);
       };
-    install(
+    registry.install(
       "get_caller",
       handler_adapter(get_caller_function),
       HandlerRegistry::Read);
@@ -91,17 +91,18 @@ public:
 template <
   HandlerRegistry::ReadWrite RW,
   HandlerRegistry::Forwardable FW = HandlerRegistry::Forwardable::CanForward>
-class TestRegistry : public HandlerRegistry
+class TestRegistry : public CertsOnlyHandlerRegistry
 {
 public:
-  TestRegistry(Store& tables)
+  TestRegistry(Store& tables, const std::string& certs_name = "") :
+    CertsOnlyHandlerRegistry(certs_name)
   {
     init_handlers(tables);
   }
 
   void init_handlers(Store& tables)
   {
-    HandlerRegistry::init_handlers(tables);
+    CertsOnlyHandlerRegistry::init_handlers(tables);
 
     auto empty_function = [this](RequestArgs& args) {
       args.rpc_ctx.set_response_result(true);
@@ -124,7 +125,7 @@ public:
   TestMemberFrontend(NetworkState& network) :
     RpcFrontend(
       *network.tables, test_registry, &network.member_client_signatures),
-    test_registry(tables)
+    test_registry(tables, Tables::MEMBER_CERTS)
   {}
 };
 
@@ -165,7 +166,7 @@ class TestForwardingUserFrontEnd : public RpcFrontend, public RpcContextRecorder
 public:
   TestForwardingUserFrontEnd(Store& tables) :
     RpcFrontend(tables, test_registry),
-    test_registry(tables)
+    test_registry(tables, Tables::USER_CERTS)
   {}
 };
 

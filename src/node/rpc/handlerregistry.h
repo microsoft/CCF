@@ -71,6 +71,11 @@ namespace ccf
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
 
+  public:
+    HandlerRegistry() {}
+
+    virtual ~HandlerRegistry() {}
+
     /** Install HandleFunction for method name
      *
      * If an implementation is already installed for that method, it will be
@@ -174,11 +179,6 @@ namespace ccf
         out.methods.push_back(handler.first);
       }
     }
-
-  public:
-    HandlerRegistry() {}
-
-    virtual ~HandlerRegistry() {}
 
     virtual void init_handlers(Store& tables) {}
 

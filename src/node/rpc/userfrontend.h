@@ -7,7 +7,8 @@
 
 namespace ccf
 {
-  class UserRpcFrontend : public RpcFrontend, public CommonHandlerRegistry
+  template <typename Registry = CommonHandlerRegistry>
+  class UserRpcFrontend : public RpcFrontend
   {
   protected:
     std::string invalid_caller_error_message() const override
@@ -15,15 +16,16 @@ namespace ccf
       return "Could not find matching user certificate";
     }
 
+    Registry registry;
     Users* users;
 
   public:
     UserRpcFrontend(Store& tables_) :
       RpcFrontend(
         tables_,
-        *this,
+        registry,
         tables_.get<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
-      CommonHandlerRegistry(Tables::USER_CERTS),
+      registry(Tables::USER_CERTS),
       users(tables_.get<Users>(Tables::USERS))
     {}
 
