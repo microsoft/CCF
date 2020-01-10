@@ -107,7 +107,7 @@ TEST_CASE("Encryption/decryption with multiple network secrets")
   secrets.get_secrets().emplace(
     4, std::move(new_secret)); // Create new secrets valid from version 4
 
-  auto encryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
+  auto encryptor = std::make_shared<ccf::RecoveryTxEncryptor>(node_id, secrets);
 
   INFO("Encryption with key at version 0");
   {

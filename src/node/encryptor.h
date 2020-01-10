@@ -13,7 +13,7 @@ namespace ccf
 {
   using SeqNo = uint64_t;
 
-  // NullTxEncryptor does not decrypt or verify integrity
+  // Warning: NullTxEncryptor does not encrypt or decrypt
   class NullTxEncryptor : public kv::AbstractTxEncryptor
   {
   public:
@@ -46,16 +46,11 @@ namespace ccf
     }
   };
 
-  class TxEncryptor : public kv::AbstractTxEncryptor
+  class BaseTxEncryptor : public kv::AbstractTxEncryptor
   {
   private:
     NodeId id;
     std::atomic<SeqNo> seqNo{0};
-
-    // Encryption keys are set when TxEncryptor object is created and are used
-    // to determine which key to use for encryption/decryption when
-    // committing/deserialising depending on the version
-    std::vector<std::pair<kv::Version, crypto::KeyAesGcm>> encryption_keys;
 
     void set_iv(crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr)
     {
@@ -63,40 +58,11 @@ namespace ccf
       gcm_hdr.set_iv_seq(seqNo.fetch_add(1));
     }
 
-    const crypto::KeyAesGcm& get_encryption_key(kv::Version version)
-    {
-      // Encryption key for a given version is the one with the highest version
-      // that is lower than the given version (e.g. if encryption_keys contains
-      // two keys for version 0 and 10 then the key associated with version 0
-      // is used for version [0..9] and version 10 for versions 10+)
-      auto search = std::upper_bound(
-        encryption_keys.rbegin(),
-        encryption_keys.rend(),
-        version,
-        [](kv::Version a, std::pair<kv::Version, crypto::KeyAesGcm> const& b) {
-          return b.first <= a;
-        });
-
-      LOG_FAIL_FMT("Using version {}, key {}", version, search->first);
-
-      if (search == encryption_keys.rend())
-        throw std::logic_error(
-          "TxEncryptor: encrypt version is not valid: " +
-          std::to_string(version));
-
-      return search->second;
-    }
+    virtual const crypto::KeyAesGcm& get_encryption_key(
+      kv::Version version) = 0;
 
   public:
-    TxEncryptor(NodeId id_, LedgerSecrets& ns) : id(id_)
-    {
-      // Create map of existing encryption keys
-      for (auto const& ns_ : ns.get_secrets())
-      {
-        encryption_keys.emplace_back(
-          std::make_pair(ns_.first, ns_.second->master));
-      }
-    }
+    BaseTxEncryptor(NodeId id_) : id(id_) {}
 
     /**
      * Encrypt data and return serialised GCM header and cipher.
@@ -120,7 +86,6 @@ namespace ccf
       crypto::GcmHeader<crypto::GCM_SIZE_IV> gcm_hdr;
       cipher.resize(plain.size());
 
-      // Set IV
       set_iv(gcm_hdr);
 
       LOG_FAIL_FMT("Encryption");
@@ -171,6 +136,74 @@ namespace ccf
     size_t get_header_length() override
     {
       return crypto::GcmHeader<crypto::GCM_SIZE_IV>::RAW_DATA_SIZE;
+    }
+  };
+
+  // The TxEncryptor is used for encrypting private transactions during normal
+  // operation.
+  class TxEncryptor : public BaseTxEncryptor
+  {
+  private:
+    crypto::KeyAesGcm encryption_key;
+
+    const crypto::KeyAesGcm& get_encryption_key(kv::Version version) override
+    {
+      return encryption_key;
+    }
+
+  public:
+    TxEncryptor(NodeId id_, LedgerSecrets& ls) :
+      BaseTxEncryptor(id_),
+      encryption_key(ls.get_current().master)
+    {}
+  };
+
+  // The RecoveryTxEncryptor is used during recovery to decrypt private ledger
+  // entries. It contains the collection of ledger keys since the beginning of
+  // time and uses the appropriate one based on the kv version.
+  class RecoveryTxEncryptor : public BaseTxEncryptor
+  {
+  private:
+    // Encryption keys are set when TxEncryptor object is created and are used
+    // to determine which key to use for encryption/decryption when
+    // committing/deserialising depending on the version
+    std::vector<std::pair<kv::Version, crypto::KeyAesGcm>> encryption_keys;
+
+  protected:
+    const crypto::KeyAesGcm& get_encryption_key(kv::Version version) override
+    {
+      // Encryption key for a given version is the one with the highest version
+      // that is lower than the given version (e.g. if encryption_keys contains
+      // two keys for version 0 and 10 then the key associated with version 0
+      // is used for version [0..9] and version 10 for versions 10+)
+      auto search = std::upper_bound(
+        encryption_keys.rbegin(),
+        encryption_keys.rend(),
+        version,
+        [](kv::Version a, std::pair<kv::Version, crypto::KeyAesGcm> const& b) {
+          return b.first <= a;
+        });
+
+      LOG_FAIL_FMT("Using version {}, key {}", version, search->first);
+
+      if (search == encryption_keys.rend())
+      {
+        throw std::logic_error(
+          "TxEncryptor: encrypt version is not valid: " +
+          std::to_string(version));
+      }
+
+      return search->second;
+    }
+
+  public:
+    RecoveryTxEncryptor(NodeId id_, LedgerSecrets& ls) : BaseTxEncryptor(id_)
+    {
+      // Create map of existing encryption keys
+      for (auto const& s : ls.get_secrets())
+      {
+        encryption_keys.emplace_back(std::make_pair(s.first, s.second->master));
+      }
     }
   };
 }

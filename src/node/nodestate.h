@@ -821,7 +821,7 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
         std::make_shared<NullTxEncryptor>();
 #else
-        std::make_shared<TxEncryptor>(self, *network.ledger_secrets);
+        std::make_shared<RecoveryTxEncryptor>(self, *network.ledger_secrets);
 #endif
 
       recovery_store->set_history(recovery_history);
