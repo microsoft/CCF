@@ -5,6 +5,7 @@ import os
 import socket
 import time
 import math
+import json
 import create_config
 from node import LocalNode
 from subprocess import PIPE, Popen, run
@@ -56,9 +57,9 @@ def create_nodes(args):
             if line[0] == "#":
                 continue
 
-            values = line.split(",")
-            port = values[0].strip()
-            private_key = values[1].strip()
+            line_info = json.loads(line)
+            port = str(line_info["port"])
+            private_key = line_info["privk"]
 
             if i < servers:
                 node = Node(i, port, private_key, True)

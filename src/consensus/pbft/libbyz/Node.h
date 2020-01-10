@@ -116,8 +116,7 @@ public:
   // "id" (or current principal if "id" is negative.)
 
   size_t gen_signature(const char* src, unsigned src_len, char* sig);
-  size_t gen_signature(
-    const char* src, unsigned src_len, PbftSignature& sig);
+  size_t gen_signature(const char* src, unsigned src_len, PbftSignature& sig);
 
 protected:
   std::string service_name;

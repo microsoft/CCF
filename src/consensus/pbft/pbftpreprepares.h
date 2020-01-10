@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/pbft/libbyz/parameters.h"
 #include "node/entities.h"
 #include "node/rpc/jsonrpc.h"
-#include "consensus/pbft/libbyz/parameters.h"
 
 #include <array>
 #include <msgpack-c/msgpack.hpp>
