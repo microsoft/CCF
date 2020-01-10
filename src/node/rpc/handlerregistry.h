@@ -4,6 +4,7 @@
 
 #include "ds/json_schema.h"
 #include "enclave/rpccontext.h"
+#include "node/certs.h"
 #include "serialization.h"
 
 #include <functional>
@@ -212,6 +213,52 @@ namespace ccf
     void set_history(kv::TxHistory* h)
     {
       history = h;
+    }
+  };
+
+  /*
+   * Minor extension to HandlerRegistry, potentially restricting access to set
+   * of callers defined in named Certs table
+   */
+  class CertsOnlyHandlerRegistry : public HandlerRegistry
+  {
+  protected:
+    const std::string certs_name;
+
+    Certs* certs = nullptr;
+
+    std::optional<CallerId> valid_caller(
+      Store::Tx& tx, const std::vector<uint8_t>& caller) override
+    {
+      if (certs == nullptr)
+      {
+        return INVALID_ID;
+      }
+
+      if (caller.empty())
+      {
+        return {};
+      }
+
+      auto certs_view = tx.get_view(*certs);
+      auto caller_id = certs_view->get(caller);
+
+      return caller_id;
+    }
+
+  public:
+    CertsOnlyHandlerRegistry(const std::string& certs_name_) :
+      certs_name(certs_name_)
+    {}
+
+    void init_handlers(Store& tables) override
+    {
+      HandlerRegistry::init_handlers(tables);
+
+      if (!certs_name.empty())
+      {
+        certs = tables.get<Certs>(certs_name);
+      }
     }
   };
 }

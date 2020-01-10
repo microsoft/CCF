@@ -127,6 +127,7 @@ namespace ccf
 
   public:
     NodeHandlers(NetworkState& network, AbstractNodeState& node) :
+      CommonHandlerRegistry(""),
       network(network),
       node(node)
     {}
@@ -283,14 +284,14 @@ namespace ccf
     }
   };
 
-  class NodeRpcFrontend : public RpcFrontend<>
+  class NodeRpcFrontend : public RpcFrontend
   {
   protected:
     NodeHandlers node_handlers;
 
   public:
     NodeRpcFrontend(NetworkState& network, AbstractNodeState& node) :
-      RpcFrontend<>(*network.tables, node_handlers),
+      RpcFrontend(*network.tables, node_handlers),
       node_handlers(network, node)
     {}
   };

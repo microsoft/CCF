@@ -283,6 +283,7 @@ namespace ccf
 
   public:
     MemberHandlers(NetworkTables& network, AbstractNodeState& node) :
+      CommonHandlerRegistry(Tables::MEMBER_CERTS),
       network(network),
       node(node),
       tsr(network),
@@ -549,7 +550,7 @@ namespace ccf
     }
   };
 
-  class MemberRpcFrontend : public RpcFrontend<Members>
+  class MemberRpcFrontend : public RpcFrontend
   {
   protected:
     std::string invalid_caller_error_message() const override
@@ -558,16 +559,36 @@ namespace ccf
     }
 
     MemberHandlers member_handlers;
+    Members* members;
 
   public:
     MemberRpcFrontend(NetworkTables& network, AbstractNodeState& node) :
-      RpcFrontend<Members>(
-        *network.tables,
-        member_handlers,
-        &network.member_client_signatures,
-        &network.member_certs,
-        &network.members),
-      member_handlers(network, node)
+      RpcFrontend(
+        *network.tables, member_handlers, &network.member_client_signatures),
+      member_handlers(network, node),
+      members(&network.members)
     {}
+
+    std::vector<uint8_t> get_cert_to_forward(
+      const enclave::RpcContext& ctx) override
+    {
+      // Caller cert can be looked up on receiver - so don't forward it
+      return {};
+    }
+
+    bool lookup_forwarded_caller_cert(
+      enclave::RpcContext& ctx, Store::Tx& tx) override
+    {
+      // Lookup the caller member's certificate from the forwarded caller id
+      auto members_view = tx.get_view(*members);
+      auto caller = members_view->get(ctx.session.fwd->caller_id);
+      if (!caller.has_value())
+      {
+        return false;
+      }
+
+      ctx.session.caller_cert = caller.value().cert;
+      return true;
+    }
   };
 } // namespace ccf

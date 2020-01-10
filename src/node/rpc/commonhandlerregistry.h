@@ -6,7 +6,6 @@
 #include "handleradapter.h"
 #include "handlerregistry.h"
 #include "metrics.h"
-#include "node/certs.h"
 
 namespace ccf
 {
@@ -14,7 +13,7 @@ namespace ccf
    * Extends the basic HandlerRegistry with methods which should be present
    * on all frontends
    */
-  class CommonHandlerRegistry : public HandlerRegistry
+  class CommonHandlerRegistry : public CertsOnlyHandlerRegistry
   {
   private:
     metrics::Metrics metrics;
@@ -23,42 +22,21 @@ namespace ccf
     const std::string certs_name;
 
     Nodes* nodes = nullptr;
-    Certs* certs = nullptr;
 
   protected:
     Store* tables = nullptr;
 
-    std::optional<CallerId> valid_caller(
-      Store::Tx& tx, const std::vector<uint8_t>& caller) override
-    {
-      if (certs == nullptr)
-      {
-        return INVALID_ID;
-      }
-
-      if (caller.empty())
-      {
-        return {};
-      }
-
-      auto certs_view = tx.get_view(*certs);
-      auto caller_id = certs_view->get(caller);
-
-      return caller_id;
-    }
-
   public:
-    CommonHandlerRegistry(const std::string& cn = "") : certs_name(cn) {}
+    CommonHandlerRegistry(const std::string& certs_name) :
+      CertsOnlyHandlerRegistry(certs_name)
+    {}
 
     void init_handlers(Store& tables_) override
     {
+      CertsOnlyHandlerRegistry::init_handlers(tables_);
+
       tables = &tables_;
       nodes = tables->get<Nodes>(Tables::NODES);
-
-      if (!certs_name.empty())
-      {
-        certs = tables->get<Certs>(certs_name);
-      }
 
       auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetCommit::In>();

@@ -34,11 +34,13 @@ using namespace ccfapp;
 using namespace ccf;
 using namespace std;
 
-class TestUserFrontend : public ccf::UserRpcFrontend
+class TestUserFrontend : public UserRpcFrontend
 {
 public:
   TestUserFrontend(Store& tables) : UserRpcFrontend(tables)
   {
+    init_handlers(tables);
+
     auto empty_function = [this](RequestArgs& args) {
       args.rpc_ctx.set_response_result(true);
     };
@@ -46,11 +48,13 @@ public:
   }
 };
 
-class TestReqNotStoredFrontend : public ccf::UserRpcFrontend
+class TestReqNotStoredFrontend : public UserRpcFrontend
 {
 public:
   TestReqNotStoredFrontend(Store& tables) : UserRpcFrontend(tables)
   {
+    init_handlers(tables);
+
     auto empty_function = [this](RequestArgs& args) {
       args.rpc_ctx.set_response_result(true);
     };
@@ -59,11 +63,13 @@ public:
   }
 };
 
-class TestMinimalHandleFunction : public ccf::UserRpcFrontend
+class TestMinimalHandleFunction : public UserRpcFrontend
 {
 public:
   TestMinimalHandleFunction(Store& tables) : UserRpcFrontend(tables)
   {
+    init_handlers(tables);
+
     auto echo_function = [this](Store::Tx& tx, const nlohmann::json& params) {
       auto j = params;
       return make_success(std::move(j));
@@ -85,11 +91,18 @@ public:
 template <
   HandlerRegistry::ReadWrite RW,
   HandlerRegistry::Forwardable FW = HandlerRegistry::Forwardable::CanForward>
-class TestRegistry : public ccf::HandlerRegistry
+class TestRegistry : public HandlerRegistry
 {
 public:
+  TestRegistry(Store& tables)
+  {
+    init_handlers(tables);
+  }
+
   void init_handlers(Store& tables)
   {
+    HandlerRegistry::init_handlers(tables);
+
     auto empty_function = [this](RequestArgs& args) {
       args.rpc_ctx.set_response_result(true);
     };
@@ -103,20 +116,27 @@ public:
   }
 };
 
-class TestMemberFrontend : public ccf::RpcFrontend<Members>
+class TestMemberFrontend : public RpcFrontend
 {
   TestRegistry<HandlerRegistry::Read> test_registry;
 
 public:
-  TestMemberFrontend(Store& tables) : RpcFrontend(tables, test_registry) {}
+  TestMemberFrontend(NetworkState& network) :
+    RpcFrontend(
+      *network.tables, test_registry, &network.member_client_signatures),
+    test_registry(tables)
+  {}
 };
 
-class TestNoCertsFrontend : public ccf::RpcFrontend<Users>
+class TestNoCertsFrontend : public RpcFrontend
 {
   TestRegistry<HandlerRegistry::Read> test_registry;
 
 public:
-  TestNoCertsFrontend(Store& tables) : RpcFrontend(tables, test_registry) {}
+  TestNoCertsFrontend(Store& tables) :
+    RpcFrontend(tables, test_registry),
+    test_registry(tables)
+  {}
 };
 
 //
@@ -136,31 +156,33 @@ public:
   }
 };
 
-class TestForwardingUserFrontEnd : public ccf::RpcFrontend<Users>,
-                                   public RpcContextRecorder
+class TestForwardingUserFrontEnd : public RpcFrontend, public RpcContextRecorder
 {
   // Note that this is a HandlerRegistry::Write function so that a backup
   // executing this command will forward it to the primary
   TestRegistry<HandlerRegistry::Write> test_registry;
 
 public:
-  TestForwardingUserFrontEnd(Store& tables) : RpcFrontend(tables, test_registry)
+  TestForwardingUserFrontEnd(Store& tables) :
+    RpcFrontend(tables, test_registry),
+    test_registry(tables)
   {}
 };
 
-class TestForwardingNodeFrontEnd : public ccf::RpcFrontend<>,
-                                   public RpcContextRecorder
+class TestForwardingNodeFrontEnd : public RpcFrontend, public RpcContextRecorder
 {
   // Note that this is a HandlerRegistry::Write function so that a backup
   // executing this command will forward it to the primary
   TestRegistry<HandlerRegistry::Write> test_registry;
 
 public:
-  TestForwardingNodeFrontEnd(Store& tables) : RpcFrontend(tables, test_registry)
+  TestForwardingNodeFrontEnd(Store& tables) :
+    RpcFrontend(tables, test_registry),
+    test_registry(tables)
   {}
 };
 
-class TestForwardingMemberFrontEnd : public ccf::RpcFrontend<Members>,
+class TestForwardingMemberFrontEnd : public RpcFrontend,
                                      public RpcContextRecorder
 {
   // Note that this is a HandlerRegistry::Write function so that a backup
@@ -169,11 +191,12 @@ class TestForwardingMemberFrontEnd : public ccf::RpcFrontend<Members>,
 
 public:
   TestForwardingMemberFrontEnd(Store& tables) :
-    RpcFrontend(tables, test_registry)
+    RpcFrontend(tables, test_registry),
+    test_registry(tables)
   {}
 };
 
-class TestNoForwardingFrontEnd : public ccf::RpcFrontend<Users>
+class TestNoForwardingFrontEnd : public RpcFrontend
 {
   // Note that this is a HandlerRegistry::Write function so that a backup
   // executing this command will forward it to the primary
@@ -183,7 +206,9 @@ class TestNoForwardingFrontEnd : public ccf::RpcFrontend<Users>
     test_registry;
 
 public:
-  TestNoForwardingFrontEnd(Store& tables) : RpcFrontend(tables, test_registry)
+  TestNoForwardingFrontEnd(Store& tables) :
+    RpcFrontend(tables, test_registry),
+    test_registry(tables)
   {}
 };
 
@@ -214,14 +239,16 @@ namespace userapp
   }
 }
 
-class TestAppErrorFrontEnd : public ccf::RpcFrontend<Users>
+class TestAppErrorFrontEnd : public RpcFrontend
 {
   TestRegistry<HandlerRegistry::Read> test_registry;
 
 public:
   static constexpr auto bar_msg = "Bar is broken";
 
-  TestAppErrorFrontEnd(Store& tables) : RpcFrontend(tables, test_registry)
+  TestAppErrorFrontEnd(Store& tables) :
+    RpcFrontend(tables, test_registry),
+    test_registry(tables)
   {
     auto foo = [this](RequestArgs& args) {
       args.rpc_ctx.set_response_error((int)userapp::AppError::Foo);
@@ -239,15 +266,15 @@ public:
 
 // used throughout
 auto kp = tls::make_key_pair();
-ccf::NetworkState network;
-ccf::NetworkState network2;
-auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+NetworkState network;
+NetworkState network2;
+auto encryptor = std::make_shared<NullTxEncryptor>();
 
 #ifdef PBFT
-ccf::NetworkState pbft_network(ConsensusType::Pbft);
+NetworkState pbft_network(ConsensusType::Pbft);
 auto history_kp = tls::make_key_pair();
 
-auto history = std::make_shared<ccf::NullTxHistory>(
+auto history = std::make_shared<NullTxHistory>(
   *pbft_network.tables,
   0,
   *history_kp,
@@ -385,7 +412,7 @@ TEST_CASE("process_pbft")
   const enclave::SessionContext session(
     enclave::InvalidSessionId, user_id, user_caller_der);
   auto ctx = enclave::JsonRpcContext(session, request.raw);
-  ctx.actor = (ccf::ActorsType)request.actor;
+  ctx.actor = (ActorsType)request.actor;
   frontend.process_pbft(ctx);
 
   Store::Tx tx;
@@ -407,7 +434,7 @@ TEST_CASE("process_pbft")
 
 TEST_CASE("SignedReq to and from json")
 {
-  ccf::SignedReq sr;
+  SignedReq sr;
   REQUIRE(sr.sig.empty());
   REQUIRE(sr.req.empty());
 
@@ -466,9 +493,9 @@ TEST_CASE("process")
     CHECK(response[jsonrpc::RESULT] == true);
 
     auto signed_resp = get_signed_req(user_id);
-    CHECK(signed_resp.has_value());
+    REQUIRE(signed_resp.has_value());
     auto value = signed_resp.value();
-    ccf::SignedReq signed_req(signed_call);
+    SignedReq signed_req(signed_call);
     CHECK(value.req == signed_req.req);
     CHECK(value.sig == signed_req.sig);
   }
@@ -583,7 +610,7 @@ TEST_CASE("Member caller")
   auto simple_call = create_simple_json();
   std::vector<uint8_t> serialized_call =
     jsonrpc::pack(simple_call, default_pack);
-  TestMemberFrontend frontend(*network.tables);
+  TestMemberFrontend frontend(network);
 
   SUBCASE("valid caller")
   {

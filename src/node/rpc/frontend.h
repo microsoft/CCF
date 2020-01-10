@@ -20,7 +20,6 @@
 
 namespace ccf
 {
-  template <typename CT = void>
   class RpcFrontend : public enclave::RpcHandler, public ForwardedRpcHandler
   {
   protected:
@@ -45,7 +44,6 @@ namespace ccf
 
     Nodes* nodes;
     ClientSignatures* client_signatures;
-    CT* callers;
     pbft::RequestsMap* pbft_requests_map;
     kv::Consensus* consensus;
     std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder;
@@ -155,20 +153,13 @@ namespace ccf
     }
 
   public:
-    RpcFrontend(Store& tables_) :
-      RpcFrontend(tables_, CommonHandlerRegistry(tables_, nodes, nullptr))
-    {}
-
     RpcFrontend(
       Store& tables_,
       HandlerRegistry& handlers_,
-      ClientSignatures* client_sigs_ = nullptr,
-      Certs* certs_ = nullptr,
-      CT* callers_ = nullptr) :
+      ClientSignatures* client_sigs_ = nullptr) :
       tables(tables_),
       nodes(tables.get<Nodes>(Tables::NODES)),
       client_signatures(client_sigs_),
-      callers(callers_),
       handlers(handlers_),
       pbft_requests_map(
         tables.get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
@@ -304,18 +295,10 @@ namespace ccf
         {
           auto primary_id = consensus->primary();
 
-          // Only forward caller certificate if frontend cannot retrieve caller
-          // cert from caller id
-          std::vector<uint8_t> forwarded_caller_cert;
-          if constexpr (std::is_same_v<CT, void>)
-          {
-            forwarded_caller_cert = ctx.session.caller_cert;
-          }
-
           if (
             primary_id != NoNode && cmd_forwarder &&
             cmd_forwarder->forward_command(
-              ctx, primary_id, caller_id.value(), forwarded_caller_cert))
+              ctx, primary_id, caller_id.value(), get_cert_to_forward(ctx)))
           {
             // Indicate that the RPC has been forwarded to primary
             LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
@@ -330,6 +313,12 @@ namespace ccf
 
       return rep.value();
 #endif
+    }
+
+    virtual std::vector<uint8_t> get_cert_to_forward(
+      const enclave::RpcContext& ctx)
+    {
+      return ctx.session.caller_cert;
     }
 
     /** Process a serialised command with the associated RPC context via PBFT
@@ -417,19 +406,11 @@ namespace ccf
 
       Store::Tx tx;
 
-      if constexpr (!std::is_same_v<CT, void>)
+      if (!lookup_forwarded_caller_cert(ctx, tx))
       {
-        // For frontends with valid callers (user and member frontends), lookup
-        // the caller certificate from the forwarded caller id
-        auto callers_view = tx.get_view(*callers);
-        auto caller = callers_view->get(ctx.session.fwd->caller_id);
-        if (!caller.has_value())
-        {
-          return ctx.error_response(
-            (int)jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
-            invalid_caller_error_message());
-        }
-        ctx.session.caller_cert = caller.value().cert;
+        return ctx.error_response(
+          (int)jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
+          invalid_caller_error_message());
       }
 
       // Store client signature. It is assumed that the forwarder node has
@@ -658,6 +639,15 @@ namespace ccf
           }
         }
       }
+    }
+
+    // Return false if frontend believes it should be able to look up caller
+    // certs, but couldn't find caller. Default behaviour is that there are no
+    // caller certs, so nothing is changed but we return true
+    virtual bool lookup_forwarded_caller_cert(
+      enclave::RpcContext& ctx, Store::Tx& tx)
+    {
+      return true;
     }
   };
 }
