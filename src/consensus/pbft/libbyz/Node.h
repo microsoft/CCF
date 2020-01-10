@@ -117,6 +117,10 @@ public:
 
   size_t gen_signature(const char* src, unsigned src_len, char* sig);
   size_t gen_signature(const char* src, unsigned src_len, PbftSignature& sig);
+  // Requires: "sig" is at least pbft_max_signature_size bytes long.
+  // Effects: Generates a signature "sig" (from this principal) for
+  // "src_len" bytes starting at "src" and puts the result in "sig" and
+  // returns the length of the signature
 
 protected:
   std::string service_name;

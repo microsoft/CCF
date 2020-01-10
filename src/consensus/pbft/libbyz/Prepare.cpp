@@ -36,10 +36,7 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
   }
   else
   {
-    std::fill(
-      std::begin(rep().batch_digest_signature),
-      std::end(rep().batch_digest_signature),
-      0);
+    rep().batch_digest_signature.fill(0);
   }
 
 #endif

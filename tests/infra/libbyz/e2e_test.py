@@ -50,9 +50,6 @@ def create_nodes(args):
     clients = args.clients
     with open(args.test_config, "r") as test_config:
         lines = [line.strip() for line in test_config]
-        # remove header
-        lines.pop(0)
-
         for i, line in enumerate(lines):
             if line[0] == "#":
                 continue
