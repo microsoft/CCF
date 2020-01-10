@@ -35,9 +35,7 @@ namespace ccfapp
       }
 
       auto default_handler = [this](RequestArgs& args) {
-        JSRuntime* rt = JS_NewRuntime();
-        JSContext* ctx = JS_NewContext(rt);
-
+        /*
         if (args.method == UserScriptIds::ENV_HANDLER)
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
@@ -51,8 +49,37 @@ namespace ccfapp
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
             "No handler script found for method '" + args.method + "'");
+        */
+
+        JSRuntime* rt = JS_NewRuntime();
+        if (rt == nullptr)
+        {
+          throw std::runtime_error("Failed to initialise QuickJS runtime");
+        }
+        //TODO: set memory limit with JS_SetMemoryLimit
+
+        JSContext* ctx = JS_NewContext(rt);
+        if (ctx == nullptr)
+        {
+          JS_FreeRuntime(rt);
+          throw std::runtime_error("Failed to initialise QuickJS context");
+        }
+        //TODO: load modules from module table here?
+
 
         const nlohmann::json response = {};
+
+        std::string code = "function add (a, b) { return a + b; }; add(4, 5); \"hello\"";
+        JSValue val = JS_Eval(ctx, code.data(), code.size(), "table_name::key", JS_EVAL_TYPE_GLOBAL);
+
+        if (JS_VALUE_GET_TAG(val) == JS_TAG_STRING)
+          LOG_INFO_FMT("Ran, returned a string"); //TODO: print and maybe free?
+        else
+          LOG_INFO_FMT("Ran, but returned not a string");
+
+        JS_FreeContext(ctx);
+        JS_FreeRuntime(rt);
+        
         /*
         const auto response = tsr->run<nlohmann::json>(
           args.tx,

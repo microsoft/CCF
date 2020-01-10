@@ -320,6 +320,12 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
+      NAME qjs
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js.py
+      CURL_CLIENT TRUE
+    )
+
+    add_e2e_test(
       NAME lua_end_to_end_logging
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       ADDITIONAL_ARGS
