@@ -169,6 +169,10 @@ namespace ccf
          [this](Store::Tx& tx, const nlohmann::json& args) {
            return node.open_network(tx);
          }},
+        {"rekey_ledger",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
+           return node.rekey_ledger(tx);
+         }},
       };
 
     bool complete_proposal(Store::Tx& tx, const ObjectId id)

@@ -45,6 +45,7 @@ namespace ccf
     node_cert,
     network_cert,
     quote,
+    public_encryption_key,
     code_digest,
     node_info_network)
 

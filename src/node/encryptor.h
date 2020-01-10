@@ -77,6 +77,8 @@ namespace ccf
           return b.first <= a;
         });
 
+      LOG_FAIL_FMT("Using version {}, key {}", version, search->first);
+
       if (search == encryption_keys.rend())
         throw std::logic_error(
           "TxEncryptor: encrypt version is not valid: " +
@@ -121,6 +123,7 @@ namespace ccf
       // Set IV
       set_iv(gcm_hdr);
 
+      LOG_FAIL_FMT("Encryption");
       get_encryption_key(version).encrypt(
         gcm_hdr.get_iv(), plain, additional_data, cipher.data(), gcm_hdr.tag);
 
@@ -150,6 +153,7 @@ namespace ccf
       gcm_hdr.deserialise(serialised_header);
       plain.resize(cipher.size());
 
+      LOG_FAIL_FMT("Decryption");
       auto ret = get_encryption_key(version).decrypt(
         gcm_hdr.get_iv(), gcm_hdr.tag, cipher, additional_data, plain.data());
 

@@ -865,12 +865,12 @@ namespace ccf
       // the secrets table, encrypted with the respective public keys
       for (auto const& ns_idx : past_secrets_idx)
       {
-        ccf::PastNetworkSecrets past_secrets;
+        ccf::EncryptedLedgerSecrets past_secrets;
         past_secrets.primary_public_encryption_key =
           node_encrypt_kp->public_key_pem().raw();
         for (auto [nid, ni] : new_backups)
         {
-          ccf::SerialisedNetworkSecrets ns;
+          ccf::EncryptedLedgerSecret ns;
           ns.node_id = nid;
 
           auto secret = network.ledger_secrets->get_secret(ns_idx);
@@ -881,26 +881,26 @@ namespace ccf
               ns_idx,
               nid);
 
-            // Encrypt secrets with backup public key
+            // Encrypt secrets with a shared secret derived from backup public
+            // key
             auto backup_pubk = tls::make_public_key(ni.encryption_pub_key);
-            auto n2n_ctx =
-              tls::KeyExchangeContext(node_encrypt_kp, backup_pubk);
-            crypto::KeyAesGcm joiner_key(n2n_ctx.compute_shared_secret());
+            crypto::KeyAesGcm backup_shared_secret(
+              tls::KeyExchangeContext(node_encrypt_kp, backup_pubk)
+                .compute_shared_secret());
 
             crypto::GcmCipher gcmcipher(secret.value().size());
 
-            // Get random IV
             auto iv = tls::create_entropy()->random(gcmcipher.hdr.get_iv().n);
             std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
 
-            joiner_key.encrypt(
+            backup_shared_secret.encrypt(
               iv,
               CBuffer(secret.value().data(), secret.value().size()),
               CBuffer(),
               gcmcipher.cipher.data(),
               gcmcipher.hdr.tag);
 
-            ns.serial_ns = gcmcipher.serialise();
+            ns.encrypted_secret = gcmcipher.serialise();
             past_secrets.secrets.emplace_back(std::move(ns));
           }
           else
@@ -1068,6 +1068,93 @@ namespace ccf
       return true;
     }
 
+    bool rekey_ledger(Store::Tx& tx) override
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      sm.expect(State::partOfNetwork);
+
+      LOG_FAIL_FMT("Ledger rekeying...");
+
+      // Create new ledger secrets
+      auto new_ledger_secret =
+        LedgerSecret(tls::create_entropy()->random(16)); // TODO: 16?
+
+      broadcast_ledger_secrets(tx, new_ledger_secret);
+
+      // TODO: Write new secrets for all backups
+
+      LOG_FAIL_FMT("Ledger rekey");
+
+      return true;
+    }
+
+    // TODO: Should be private
+    // TODO: Refactor this with recovery code on leader when finishing recovery
+    bool broadcast_ledger_secrets(
+      Store::Tx& tx, const LedgerSecret& new_ledger_secret)
+    {
+      // First, get the list of all active nodes, including self
+      std::map<NodeId, NodeInfo> active_nodes;
+
+      auto [nodes_view, secrets_view] =
+        tx.get_view(network.nodes, network.secrets_table);
+
+      nodes_view->foreach(
+        [&active_nodes, this](const NodeId& nid, const NodeInfo& ni) {
+          if (ni.status != ccf::NodeStatus::RETIRED)
+            active_nodes[nid] = ni;
+          return true;
+        });
+
+      // For all nodes in the new network, write new ledger secret to
+      // the secrets table, encrypted with their respective public keys
+      ccf::EncryptedLedgerSecrets past_secrets;
+
+      past_secrets.primary_public_encryption_key =
+        node_encrypt_kp->public_key_pem().raw();
+
+      for (auto [nid, ni] : active_nodes)
+      {
+        ccf::EncryptedLedgerSecret ns;
+        ns.node_id = nid;
+
+        // auto secret = network.ledger_secrets->get_secret(ns_idx);
+        // new_ledger_secret;
+        LOG_DEBUG_FMT(
+          "Writing new ledger secret to backup {} in secrets table", nid);
+
+        // Encrypt secrets with a shared secret derived from backup public
+        // key
+        LOG_INFO_FMT(
+          "Size of backup public encryption key: {}",
+          ni.encryption_pub_key.size());
+        auto backup_pubk = tls::make_public_key(ni.encryption_pub_key);
+        crypto::KeyAesGcm backup_shared_secret(
+          tls::KeyExchangeContext(node_encrypt_kp, backup_pubk)
+            .compute_shared_secret());
+
+        crypto::GcmCipher gcmcipher(new_ledger_secret.master.size());
+
+        auto iv = tls::create_entropy()->random(gcmcipher.hdr.get_iv().n);
+        std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
+
+        backup_shared_secret.encrypt(
+          iv,
+          new_ledger_secret.master,
+          nullb,
+          gcmcipher.cipher.data(),
+          gcmcipher.hdr.tag);
+
+        ns.encrypted_secret = gcmcipher.serialise();
+        past_secrets.secrets.emplace_back(std::move(ns));
+      }
+
+      // TODO: For now, indicate that the secrets are rekeying with no-version
+      secrets_view->put(kv::NoVersion, past_secrets);
+
+      return true;
+    }
+
     void node_quotes(Store::Tx& tx, GetQuotes::Out& result) override
     {
       auto nodes_view = tx.get_view(network.nodes);
@@ -1222,9 +1309,26 @@ namespace ccf
                                              const Secrets::Write& w) {
         // If in backup mode in a public network, if new secrets are written
         // to the secrets table for our entry, decrypt these secrets and
-        // initiate end of recovery protocol
-        if (!(consensus->is_backup() && is_part_of_public_network()))
-          return;
+        // // initiate end of recovery protocol
+        // if (!consensus->is_backup()) // && is_part_of_public_network()))
+        // {
+        //   return;
+        // }
+
+        LOG_FAIL_FMT("Hook for secrets table!");
+
+        // TODO: Here, there are 2 modes:
+        // 1. Either we are in public network and we are expected to get given
+        // historial secrets
+        // 2. Either we are in normal mode and we are expected new secrets
+        // (re-keying)
+
+        // Common:
+        // - Loop through secrets and checks which one is for us
+        // - Decrypt secret
+
+        // Difference
+        // - Version is derived from version parameter when rekeying
 
         bool has_secrets = false;
 
@@ -1234,24 +1338,25 @@ namespace ccf
           {
             if (nw_secrets_at_v.node_id == self)
             {
+              LOG_FAIL_FMT("Secret for self!");
+
               crypto::GcmCipher gcmcipher;
-              gcmcipher.deserialise(nw_secrets_at_v.serial_ns);
+              gcmcipher.deserialise(nw_secrets_at_v.encrypted_secret);
               std::vector<uint8_t> plain_nw_secret_at_v(
                 gcmcipher.cipher.size());
 
               auto primary_pubk = tls::make_public_key(
                 past_secrets.value.primary_public_encryption_key);
 
-              auto n2n_ctx =
-                tls::KeyExchangeContext(node_encrypt_kp, primary_pubk);
-              crypto::KeyAesGcm fresh_key(
-                n2n_ctx.compute_shared_secret()); // TODO: Rename this
+              crypto::KeyAesGcm primary_shared_key(
+                tls::KeyExchangeContext(node_encrypt_kp, primary_pubk)
+                  .compute_shared_secret());
 
-              if (!fresh_key.decrypt(
+              if (!primary_shared_key.decrypt(
                     gcmcipher.hdr.get_iv(),
                     gcmcipher.hdr.tag,
                     gcmcipher.cipher,
-                    CBuffer(),
+                    nullb,
                     plain_nw_secret_at_v.data()))
               {
                 throw std::logic_error(
@@ -1259,7 +1364,15 @@ namespace ccf
               }
 
               has_secrets = true;
-              if (!network.ledger_secrets->set_secret(v, plain_nw_secret_at_v))
+
+              kv::Version version_to_use = v;
+              if (v == kv::NoVersion)
+              {
+                version_to_use = version;
+              }
+              LOG_FAIL_FMT("Version to use is {}", version_to_use);
+              if (!network.ledger_secrets->set_secret(
+                    version_to_use, plain_nw_secret_at_v))
               {
                 throw std::logic_error(
                   "Cannot set secrets because they already exist!");
@@ -1267,7 +1380,9 @@ namespace ccf
             }
           }
         }
-        if (has_secrets)
+
+        // When recovering
+        if (has_secrets && is_part_of_public_network())
         {
           backup_finish_recovery();
         }

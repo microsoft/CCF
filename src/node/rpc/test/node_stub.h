@@ -18,6 +18,11 @@ namespace ccf
       return true;
     }
 
+    bool rekey_ledger(Store::Tx& tx) override
+    {
+      return true;
+    }
+
     bool is_part_of_public_network() const override
     {
       return true;

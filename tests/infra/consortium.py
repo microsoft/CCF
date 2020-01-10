@@ -202,6 +202,14 @@ class Consortium:
         self.vote_using_majority(remote_node, result["id"], pbft_open)
         self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN)
 
+    def rekey_ledger(self, member_id, remote_node):
+        script = """
+        tables = ...
+        return Calls:call("rekey_ledger")
+        """
+        result, error = self.propose(member_id, remote_node, script)
+        self.vote_using_majority(remote_node, result["id"])
+
     def add_users(self, remote_node, users):
         for u in users:
             user_cert = []
