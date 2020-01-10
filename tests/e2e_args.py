@@ -114,7 +114,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--domain",
         help="Domain name used for node certificate verification",
-        default="ccf.io",
+        default="example.com",
     )
     parser.add_argument(
         "--default-curve",
