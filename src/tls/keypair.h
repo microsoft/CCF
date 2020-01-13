@@ -1298,14 +1298,14 @@ namespace tls
   };
 
   using VerifierPtr = std::shared_ptr<Verifier>;
-
+  using VerifierUniquePtr = std::unique_ptr<Verifier>;
   /**
    * Construct Verifier from a certificate in PEM format
    *
    * @param public_pem Sequence of bytes containing the certificate in PEM
    * format
    */
-  inline VerifierPtr make_verifier(
+  inline VerifierUniquePtr make_unique_verifier(
     const std::vector<uint8_t>& cert_pem,
     bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
@@ -1323,11 +1323,18 @@ namespace tls
 
     if (curve == MBEDTLS_ECP_DP_SECP256K1 && use_bitcoin_impl)
     {
-      return std::make_shared<Verifier_k1Bitcoin>(cert);
+      return std::make_unique<Verifier_k1Bitcoin>(cert);
     }
     else
     {
-      return std::make_shared<Verifier>(cert);
+      return std::make_unique<Verifier>(cert);
     }
+  }
+
+  inline VerifierPtr make_verifier(
+    const std::vector<uint8_t>& cert_pem,
+    bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
+  {
+    return make_unique_verifier(cert_pem, use_bitcoin_impl);
   }
 }

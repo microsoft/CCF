@@ -107,14 +107,6 @@ public:
   // Effects: Returns the size in bytes of an authenticator for principal
   // "id" (or current principal if "id" is negative.)
 
-  //
-  // Signature generation:
-  //
-  unsigned sig_size(int id = -1) const;
-  // Requires: id < 0 | id >= num_principals
-  // Effects: Returns the size in bytes of a signature for principal
-  // "id" (or current principal if "id" is negative.)
-
   size_t gen_signature(const char* src, unsigned src_len, char* sig);
   size_t gen_signature(const char* src, unsigned src_len, PbftSignature& sig);
   // Requires: "sig" is at least pbft_max_signature_size bytes long.
@@ -227,21 +219,6 @@ inline size_t Node::auth_size(int id) const
   if (id < 0)
     id = node_id;
   return UMAC_size + UNonce_size;
-}
-
-inline unsigned Node::sig_size(int id) const
-{
-  if (id < 0)
-  {
-    id = node_id;
-  }
-
-  auto principals = get_principals();
-  auto it = principals->find(id);
-  PBFT_ASSERT(it != principals->end(), "Invalid argument");
-
-  std::shared_ptr<Principal>& p = it->second;
-  return p->sig_size();
 }
 
 inline int cypher_size(char* dst, unsigned dst_len)

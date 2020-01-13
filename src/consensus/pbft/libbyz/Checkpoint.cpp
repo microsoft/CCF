@@ -18,16 +18,16 @@ Checkpoint::Checkpoint(Seqno s, Digest& d, bool stable) :
     sizeof(Checkpoint_rep) + pbft::GlobalState::get_node().auth_size())
 {
 #else
-  Message(
-    Checkpoint_tag,
-    sizeof(Checkpoint_rep) + pbft::GlobalState::get_node().sig_size())
+  Message(Checkpoint_tag, sizeof(Checkpoint_rep) + pbft_max_signature_size)
 {
 #endif
   rep().extra = (stable) ? 1 : 0;
   rep().seqno = s;
   rep().digest = d;
   rep().id = pbft::GlobalState::get_node().id();
+#ifdef USE_PKEY_CHECKPOINTS
   rep().sig_size = 0;
+#endif
   rep().padding = 0;
 
 #ifndef USE_PKEY_CHECKPOINTS
@@ -52,6 +52,7 @@ void Checkpoint::re_authenticate(Principal* p, bool stable)
   if (rep().extra != 1 && stable)
   {
     rep().extra = 1;
+    rep().sig_size = 0;
     rep().sig_size = pbft::GlobalState::get_node().gen_signature(
       contents(), sizeof(Checkpoint_rep), contents() + sizeof(Checkpoint_rep));
   }

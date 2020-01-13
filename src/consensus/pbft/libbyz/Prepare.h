@@ -23,9 +23,16 @@ struct Prepare_rep : public Message_rep
   Seqno seqno;
   Digest digest;
   int id; // id of the replica that generated the message.
-  size_t sig_size;
 #ifdef SIGN_BATCH
+  size_t digest_sig_size;
   PbftSignature batch_digest_signature;
+  static constexpr size_t padding_size =
+    ALIGNED_SIZE(pbft_max_signature_size) - pbft_max_signature_size;
+  std::array<uint8_t, padding_size> digest_padding;
+#endif
+
+#ifdef USE_PKEY
+  size_t prepare_sig_size;
 #endif
 
   int padding;

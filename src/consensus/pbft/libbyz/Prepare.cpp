@@ -19,26 +19,30 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
       + ((dst) ? MAC_size : pbft::GlobalState::get_node().auth_size()))
 {
 #else
-      + ((dst) ? MAC_size : pbft::GlobalState::get_node().sig_size()))
+      + ((dst) ? MAC_size : pbft_max_signature_size)
 {
 #endif
   rep().extra = (dst) ? 1 : 0;
   rep().view = v;
   rep().seqno = s;
   rep().digest = d;
-  rep().sig_size = 0;
 
 #ifdef SIGN_BATCH
+  rep().digest_sig_size = 0;
+  rep().digest_padding.fill(0);
   if (is_signed)
   {
-    rep().sig_size = pbft::GlobalState::get_node().gen_signature(
+    rep().digest_sig_size = pbft::GlobalState::get_node().gen_signature(
       d.digest(), d.digest_size(), rep().batch_digest_signature);
   }
   else
   {
     rep().batch_digest_signature.fill(0);
   }
+#endif
 
+#ifdef USE_PKEY
+  rep().prepare_sig_size = 0;
 #endif
 
   rep().id = pbft::GlobalState::get_node().id();
@@ -50,7 +54,7 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
     auth_len = sizeof(Prepare_rep);
     auth_src_offset = 0;
 #else
-    rep().sig_size = pbft::GlobalState::get_node().gen_signature(
+    rep().prepare_sig_size = pbft::GlobalState::get_node().gen_signature(
       contents(), sizeof(Prepare_rep), contents() + sizeof(Prepare_rep));
 #endif
   }
@@ -121,8 +125,7 @@ bool Prepare::pre_verify()
 #else
     if (
       view() % pbft::GlobalState::get_replica().num_of_replicas() == id() ||
-      size() - (int)sizeof(Prepare_rep) <
-        pbft::GlobalState::get_node().sig_size(id()))
+      size() - (int)sizeof(Prepare_rep) < pbft_max_signature_size)
     {
       return false;
     }

@@ -65,14 +65,17 @@ struct View_change_rep : public Message_rep
   // digest of the entire message (except authenticator) with d zeroed.
   Digest digest;
 
-  size_t sig_size;
-
 #ifdef SIGN_BATCH
+  size_t digest_sig_size;
   // signature of the digest of the entire message.
   PbftSignature digest_signature;
   static constexpr size_t padding_size =
     ALIGNED_SIZE(pbft_max_signature_size) - pbft_max_signature_size;
   std::array<uint8_t, padding_size> padding;
+#endif
+
+#ifdef USE_PKEY_VIEW_CHANGES
+  size_t vc_sig_size;
 #endif
 
   /*

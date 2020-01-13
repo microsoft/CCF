@@ -24,7 +24,7 @@ Principal::Principal(
   ssize = pbft_max_signature_size;
   if (!cert_.empty())
   {
-    verifier = tls::make_verifier(cert_);
+    verifier = std::move(tls::make_unique_verifier(cert_));
     cert = cert_;
   }
 

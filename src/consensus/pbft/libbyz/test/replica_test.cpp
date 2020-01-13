@@ -100,7 +100,7 @@ void delayed_start_delay_time(void* owner)
 
 void start_delay_timer()
 {
-  auto delay = 5 * 1000; // sleep for 5 seconds
+  auto delay = 5 * 1000; // sleep in 5 seconds
   if ((pbft::GlobalState::get_replica().id() % 2) == 0) // half the nodes
                                                         // including the primary
   {

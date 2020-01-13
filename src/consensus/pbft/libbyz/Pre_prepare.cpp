@@ -37,8 +37,7 @@ Pre_prepare::Pre_prepare(
     pbft::GlobalState::get_node().auth_size();
 #else
   char* max_req = next_req + msize() -
-    pbft::GlobalState::get_replica().max_nd_bytes() -
-    pbft::GlobalState::get_node().sig_size();
+    pbft::GlobalState::get_replica().max_nd_bytes() - pbft_max_signature_size;
 #endif
 
   for (Request* req = reqs.first(); req != 0; req = reqs.first())
@@ -128,7 +127,7 @@ Pre_prepare::Pre_prepare(
   auth_dst_offset = old_size;
   auth_src_offset = 0;
 #else
-  set_size(old_size + pbft::GlobalState::get_node().sig_size());
+  set_size(old_size + pbft_max_signature_size);
 #endif
 
 #ifdef SIGN_BATCH
@@ -224,8 +223,7 @@ bool Pre_prepare::calculate_digest(Digest& d)
 #else
   int min_size = sizeof(Pre_prepare_rep) + rep().rset_size +
     rep().n_big_reqs * sizeof(Digest) + rep().non_det_size +
-    pbft::GlobalState::get_node().sig_size(
-      pbft::GlobalState::get_replica().primary(view()));
+    pbft_max_signature_size;
 #endif
   if (size() >= min_size)
   {
