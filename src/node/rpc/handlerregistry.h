@@ -33,9 +33,11 @@ namespace ccf
     return enclave::RpcResponse{result_payload};
   }
 
-  static enclave::RpcResponse make_error(int code, const std::string& msg = "")
+  template <typename ErrorCode>
+  static enclave::RpcResponse make_error(
+    ErrorCode code, const std::string& msg = "")
   {
-    return enclave::RpcResponse{enclave::ErrorDetails{code, msg}};
+    return enclave::RpcResponse{enclave::ErrorDetails{(int)code, msg}};
   }
 
   class HandlerRegistry

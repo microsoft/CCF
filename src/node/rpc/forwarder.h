@@ -186,7 +186,7 @@ namespace ccf
             {
               LOG_FAIL_FMT(
                 "Failed to process forwarded command: no handler for actor {}",
-                ctx->actor);
+                (int)ctx->actor);
               return;
             }
 
@@ -197,7 +197,7 @@ namespace ccf
               LOG_FAIL_FMT(
                 "Failed to process forwarded command: handler is not a "
                 "ForwardedRpcHandler",
-                ctx->actor);
+                (int)ctx->actor);
               return;
             }
 

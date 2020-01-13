@@ -198,7 +198,7 @@ namespace enclave
         if (!search.value()->is_open())
         {
           send_response(
-            fmt::format("Session '{}' is not open.\n", actor),
+            fmt::format("Session '{}' is not open.\n", actor_s),
             HTTP_STATUS_NOT_FOUND);
           return;
         }

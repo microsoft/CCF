@@ -91,7 +91,7 @@ namespace enclave
       auto search = rpc_map->find(actor);
       if (!search.has_value())
       {
-        LOG_TRACE_FMT("No frontend found for actor {}", actor);
+        LOG_TRACE_FMT("No frontend found for actor {}", actor_s);
         return false;
       }
 

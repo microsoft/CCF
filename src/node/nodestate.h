@@ -1156,7 +1156,8 @@ namespace ccf
       auto fe = rpc_map->find(actor);
       if (!fe.has_value())
       {
-        throw std::logic_error(fmt::format("Cannot open {} frontend", actor));
+        throw std::logic_error(
+          fmt::format("Cannot open {} frontend", (int)actor));
       }
       fe.value()->open();
     }

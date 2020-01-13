@@ -31,7 +31,7 @@ namespace ccf
   using HandlerParamsOnly = std::function<enclave::RpcResponse(
     Store::Tx& tx, const nlohmann::json& params)>;
 
-  HandleFunction handler_adapter(const HandlerParamsOnly& f)
+  static HandleFunction handler_adapter(const HandlerParamsOnly& f)
   {
     return [f](RequestArgs& args) {
       args.rpc_ctx.set_response(f(args.tx, args.params));
@@ -41,7 +41,7 @@ namespace ccf
   using HandlerParamsAndCaller = std::function<enclave::RpcResponse(
     Store::Tx& tx, CallerId caller_id, const nlohmann::json& params)>;
 
-  HandleFunction handler_adapter(const HandlerParamsAndCaller& f)
+  static HandleFunction handler_adapter(const HandlerParamsAndCaller& f)
   {
     return [f](RequestArgs& args) {
       args.rpc_ctx.set_response(f(args.tx, args.caller_id, args.params));
