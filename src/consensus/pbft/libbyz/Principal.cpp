@@ -21,7 +21,6 @@ Principal::Principal(
   last_fetch = 0;
   replica = is_rep;
 
-  ssize = pbft_max_signature_size;
   if (!cert_.empty())
   {
     verifier = std::move(tls::make_unique_verifier(cert_));

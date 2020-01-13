@@ -78,7 +78,6 @@ private:
   bool replica;
   tls::VerifierUniquePtr verifier;
   std::vector<uint8_t> cert;
-  size_t ssize; // signature size
   unsigned
     kin[Key_size_u]; // session key for incoming messages from this principal
   unsigned
