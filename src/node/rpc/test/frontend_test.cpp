@@ -169,7 +169,7 @@ public:
 
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
-      return jsonrpc::success(true);
+      args.rpc_ctx.set_response_result(true);
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
@@ -189,7 +189,7 @@ public:
 
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
-      return jsonrpc::success(true);
+      args.rpc_ctx.set_response_result(true);
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
@@ -209,7 +209,7 @@ public:
 
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
-      return jsonrpc::success(true);
+      args.rpc_ctx.set_response_result(true);
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
@@ -218,7 +218,7 @@ public:
 };
 
 class TestNoForwardingFrontEnd : public UserRpcFrontend,
-                                   public RpcContextRecorder
+                                 public RpcContextRecorder
 {
 public:
   TestNoForwardingFrontEnd(Store& tables) : UserRpcFrontend(tables)
@@ -227,7 +227,7 @@ public:
 
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
-      return jsonrpc::success(true);
+      args.rpc_ctx.set_response_result(true);
     };
     // Note that this is a Write function that cannot be forwarded
     handlers.install(
