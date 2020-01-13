@@ -188,6 +188,5 @@ if("virtual" IN_LIST TARGET)
     NAME test_UDP_with_delay
     COMMAND
       python3 ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/e2e_test.py --ip 127.0.0.1 --servers 4 --clients 2 --test-config ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/test_config --with-delays
-      --run-time 50
   )
 endif()
