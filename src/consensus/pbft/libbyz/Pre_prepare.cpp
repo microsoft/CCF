@@ -295,7 +295,7 @@ bool Pre_prepare::pre_verify()
         pbft::GlobalState::get_node().f() == 0)
       {
         // Do not verify signature of first pre-prepare since node certificate
-        // required for verification is contained in the pre-prepar requests
+        // required for verification is contained in the pre-prepare requests
         return true;
       }
 

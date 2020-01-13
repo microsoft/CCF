@@ -1579,7 +1579,7 @@ void Replica::write_view_change_to_ledger()
 
 void Replica::handle(New_principal* m)
 {
-  LOG_INFO << "recevied new message to add principal, id:" << m->id()
+  LOG_INFO << "received new message to add principal, id:" << m->id()
            << std::endl;
 
   std::vector<uint8_t> cert(m->cert().begin(), m->cert().end());
