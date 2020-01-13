@@ -141,7 +141,3 @@ inline void Principal::set_last_fetch_rid(Request_id r)
 {
   last_fetch = r;
 }
-
-void random_nonce(unsigned* n);
-// Requires: k is an array of at least Nonce_size bytes.
-// Effects: Places a new random nonce with size Nonce_size bytes in n.

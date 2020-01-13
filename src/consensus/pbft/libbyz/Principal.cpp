@@ -8,7 +8,6 @@
 #include "Node.h"
 #include "Reply.h"
 #include "crypt.h"
-#include "epbft_drng.h"
 
 #include <stdlib.h>
 #include <strings.h>
@@ -58,10 +57,4 @@ bool Principal::verify_signature(
 
   STOP_CC(sig_ver_cycles);
   return ret;
-}
-
-void random_nonce(unsigned* n)
-{
-  epbft::IntelDRNG drng;
-  drng.rng(0, (unsigned char*)n, Nonce_size);
 }
