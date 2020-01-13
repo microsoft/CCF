@@ -1100,6 +1100,7 @@ namespace kv
         for (auto it = views.begin(); it != views.end(); ++it)
           it->second.view->commit(version);
 
+      
         for (auto it = views.begin(); it != views.end(); ++it)
           it->second.view->post_commit();
       }
