@@ -54,7 +54,7 @@ public:
     const uint8_t* sig,
     const size_t sig_size,
     bool allow_self = false);
-  // Requires: "sig" is at least pbft_max_signature_size bytes.
+  // Requires: "sig" is at most pbft_max_signature_size bytes.
   // Effects: Checks a signature "sig" (from this principal) for
   // "src_len" bytes starting at "src". If "allow_self" is false, it
   // always returns false if "this->id == pbft::GlobalState::get_node().id()";
