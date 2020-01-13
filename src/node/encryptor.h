@@ -191,6 +191,8 @@ namespace ccf
           return b.first <= a;
         });
 
+      LOG_FAIL_FMT("size of encryption keys: {}", encryption_keys.size());
+
       LOG_FAIL_FMT("Using version {}, key {}", version, search->first);
 
       if (search == encryption_keys.rend())

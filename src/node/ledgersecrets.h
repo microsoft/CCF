@@ -198,7 +198,7 @@ namespace ccf
       return *secrets_map.at(current_version).get();
     }
 
-    std::optional<std::vector<uint8_t>> get_secret(kv::Version v)
+    std::optional<LedgerSecret> get_secret(kv::Version v)
     {
       auto search = secrets_map.find(v);
       if (search == secrets_map.end())
@@ -207,7 +207,7 @@ namespace ccf
         return {};
       }
 
-      return search->second->master;
+      return *search->second.get();
     }
 
     std::map<kv::Version, std::unique_ptr<LedgerSecret>>& get_secrets()

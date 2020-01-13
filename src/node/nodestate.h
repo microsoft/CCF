@@ -177,7 +177,8 @@ namespace ccf
     Timers& timers;
 
     std::shared_ptr<kv::TxHistory> history;
-    std::shared_ptr<RecoveryTxEncryptor> encryptor; // TODO: Wrong encryptor type!!
+    std::shared_ptr<RecoveryTxEncryptor>
+      encryptor; // TODO: Wrong encryptor type!!
 
     //
     // join protocol
@@ -754,7 +755,9 @@ namespace ccf
 
       // On backups, resume replication
       if (!consensus->is_primary())
+      {
         consensus->resume_replication();
+      }
 
       // Seal all known network secrets
       network.ledger_secrets->seal_all();
@@ -765,11 +768,15 @@ namespace ccf
         Store::Tx tx;
         GenesisGenerator g(network, tx);
         if (!g.open_service())
+        {
           throw std::logic_error("Service could not be opened");
+        }
 
         if (g.finalize() != kv::CommitSuccess::OK)
+        {
           throw std::logic_error(
             "Could not commit transaction when finishing network recovery");
+        }
       }
 
       sm.advance(State::partOfNetwork);
@@ -850,61 +857,21 @@ namespace ccf
       // network
       history->emit_signature();
 
-      // Write past network secrets to backups via secrets table
-      GenesisGenerator g(network, tx);
-      auto new_backups = g.get_active_nodes(self);
-
-      auto secrets_view = tx.get_view(network.secrets);
-
       // For all nodes in the new network, write all past network secrets to
       // the secrets table, encrypted with the respective public keys
-      for (auto const& ns_idx : past_secrets_idx)
+      for (auto const& secret_idx : past_secrets_idx)
       {
-        ccf::EncryptedLedgerSecrets past_secrets;
-        past_secrets.primary_public_encryption_key =
-          node_encrypt_kp->public_key_pem().raw();
-        for (auto [nid, ni] : new_backups)
+        auto secret = network.ledger_secrets->get_secret(secret_idx);
+        if (!secret.has_value())
         {
-          ccf::EncryptedLedgerSecret ns;
-          ns.node_id = nid;
-
-          auto secret = network.ledger_secrets->get_secret(ns_idx);
-          if (secret.has_value())
-          {
-            LOG_DEBUG_FMT(
-              "Writing network secret {} to backup {} in secrets table",
-              ns_idx,
-              nid);
-
-            // Encrypt secrets with a shared secret derived from backup public
-            // key
-            auto backup_pubk = tls::make_public_key(ni.encryption_pub_key);
-            crypto::KeyAesGcm backup_shared_secret(
-              tls::KeyExchangeContext(node_encrypt_kp, backup_pubk)
-                .compute_shared_secret());
-
-            crypto::GcmCipher gcmcipher(secret.value().size());
-
-            auto iv = tls::create_entropy()->random(gcmcipher.hdr.get_iv().n);
-            std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
-
-            backup_shared_secret.encrypt(
-              iv,
-              CBuffer(secret.value().data(), secret.value().size()),
-              CBuffer(),
-              gcmcipher.cipher.data(),
-              gcmcipher.hdr.tag);
-
-            ns.encrypted_secret = gcmcipher.serialise();
-            past_secrets.secrets.emplace_back(std::move(ns));
-          }
-          else
-          {
-            LOG_FAIL_FMT("Network secrets have not been restored: {}", ns_idx);
-            return false;
-          }
+          LOG_FAIL_FMT(
+            "Network secrets have not been restored: {}", secret_idx);
+          return false;
         }
-        secrets_view->put(ns_idx, past_secrets);
+
+        // Do not broadcast the ledger secrets to self since they were already
+        // restored from sealed file
+        broadcast_ledger_secret(tx, secret.value(), secret_idx, false);
       }
 
       // Setup new temporary store and record current version/root
@@ -1074,69 +1041,9 @@ namespace ccf
       auto new_ledger_secret =
         LedgerSecret(tls::create_entropy()->random(16)); // TODO: 16?
 
-      broadcast_ledger_secrets(tx, new_ledger_secret);
+      broadcast_ledger_secret(tx, new_ledger_secret);
 
-      LOG_FAIL_FMT("Ledger rekey");
-
-      return true;
-    }
-
-    // TODO: Should be private
-    // TODO: Refactor this with recovery code on leader when finishing recovery
-    bool broadcast_ledger_secrets(
-      Store::Tx& tx, const LedgerSecret& new_ledger_secret)
-    {
-      GenesisGenerator g(network, tx);
-      auto trusted_nodes = g.get_active_nodes();
-
-      // For all nodes in the new network, write new ledger secret to
-      // the secrets table, encrypted with their respective public keys
-      ccf::EncryptedLedgerSecrets secret_set;
-
-      secret_set.primary_public_encryption_key =
-        node_encrypt_kp->public_key_pem().raw();
-
-      auto secrets_view = tx.get_view(network.secrets);
-
-      for (auto [nid, ni] : trusted_nodes)
-      {
-        ccf::EncryptedLedgerSecret ns;
-        ns.node_id = nid;
-
-        // auto secret = network.ledger_secrets->get_secret(ns_idx);
-        // new_ledger_secret;
-        LOG_DEBUG_FMT(
-          "Writing new ledger secret to backup {} in secrets table", nid);
-
-        // Encrypt secrets with a shared secret derived from backup public
-        // key
-        LOG_INFO_FMT(
-          "Size of backup public encryption key: {}",
-          ni.encryption_pub_key.size());
-
-        auto backup_pubk = tls::make_public_key(ni.encryption_pub_key);
-        crypto::KeyAesGcm backup_shared_secret(
-          tls::KeyExchangeContext(node_encrypt_kp, backup_pubk)
-            .compute_shared_secret());
-
-        crypto::GcmCipher gcmcipher(new_ledger_secret.master.size());
-
-        auto iv = tls::create_entropy()->random(gcmcipher.hdr.get_iv().n);
-        std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
-
-        backup_shared_secret.encrypt(
-          iv,
-          new_ledger_secret.master,
-          nullb,
-          gcmcipher.cipher.data(),
-          gcmcipher.hdr.tag);
-
-        ns.encrypted_secret = gcmcipher.serialise();
-        secret_set.secrets.emplace_back(std::move(ns));
-      }
-
-      // TODO: For now, indicate that the secrets are rekeying with no-version
-      secrets_view->put(kv::NoVersion, secret_set);
+      LOG_FAIL_FMT("Ledger rekey done. Waiting for hook...");
 
       return true;
     }
@@ -1237,6 +1144,52 @@ namespace ccf
     void open_user_frontend()
     {
       open_frontend(ActorsType::users);
+    }
+
+    void broadcast_ledger_secret(
+      Store::Tx& tx,
+      const LedgerSecret& secret,
+      kv::Version version = kv::NoVersion,
+      bool include_self = true)
+    {
+      GenesisGenerator g(network, tx);
+      auto secrets_view = tx.get_view(network.secrets);
+
+      LOG_FAIL_FMT("Includes self: {}", include_self);
+      auto trusted_nodes = g.get_trusted_nodes(
+        include_self ? std::nullopt : std::make_optional(self));
+
+      ccf::EncryptedLedgerSecrets secret_set;
+      secret_set.primary_public_encryption_key =
+        node_encrypt_kp->public_key_pem().raw();
+
+      for (auto [nid, ni] : trusted_nodes)
+      {
+        ccf::EncryptedLedgerSecret secret_for_node;
+        secret_for_node.node_id = nid;
+
+        LOG_FAIL_FMT(
+          "Writing new ledger secret to backup {} in secrets table", nid);
+
+        // Encrypt secrets with a shared secret derived from backup public
+        // key
+        auto backup_pubk = tls::make_public_key(ni.encryption_pub_key);
+        crypto::KeyAesGcm backup_shared_secret(
+          tls::KeyExchangeContext(node_encrypt_kp, backup_pubk)
+            .compute_shared_secret());
+
+        crypto::GcmCipher gcmcipher(secret.master.size());
+        auto iv = tls::create_entropy()->random(gcmcipher.hdr.get_iv().n);
+        std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
+
+        backup_shared_secret.encrypt(
+          iv, secret.master, nullb, gcmcipher.cipher.data(), gcmcipher.hdr.tag);
+
+        secret_for_node.encrypted_secret = gcmcipher.serialise();
+        secret_set.secrets.emplace_back(std::move(secret_for_node));
+      }
+
+      secrets_view->put(version, secret_set);
     }
 
     void backup_finish_recovery()
@@ -1361,7 +1314,7 @@ namespace ccf
                     version_to_use, plain_secret))
               {
                 throw std::logic_error(
-                  "Cannot set secrets because they already exist!");
+                  "Cannot set secrets because they already exist");
               }
 
               // TODO: Seal secrets
@@ -1369,8 +1322,12 @@ namespace ccf
               // TODO: Ugly but works for now. The whole structure of the code
               // should be changed, perhaps like the history (belongs to the KV)
               // Do we need a separate encryptor and ledger secrets?
-              encryptor->update_encryption_key(
-                version_to_use + 1, LedgerSecret(plain_secret));
+              // Necessary since during recovery, backups should not do this
+              if (!(consensus->is_backup() && is_part_of_public_network()))
+              {
+                encryptor->update_encryption_key(
+                  version_to_use + 1, LedgerSecret(plain_secret));
+              }
             }
           }
         }

@@ -147,21 +147,28 @@ namespace ccf
       return node_id;
     }
 
-    auto get_active_nodes(std::optional<NodeId> self = std::nullopt)
+    auto get_trusted_nodes(std::optional<NodeId> self = std::nullopt)
     {
-      // Returns the list of active nodes. If self is set, self is not included
+      // Returns the list of trusted nodes. If self is set, self is not included
       // in the list of returned nodes.
       std::map<NodeId, NodeInfo> active_nodes;
 
       auto [nodes_view, secrets_view] =
         tx.get_view(tables.nodes, tables.secrets);
 
+      LOG_FAIL_FMT("get_trusted_nodes");
+      if (self.has_value())
+      {
+        LOG_FAIL_FMT("self is {}", self.value());
+      }
+
       nodes_view->foreach(
         [&active_nodes, self, this](const NodeId& nid, const NodeInfo& ni) {
           if (
-            ni.status != ccf::NodeStatus::RETIRED &&
+            ni.status == ccf::NodeStatus::TRUSTED &&
             (!self.has_value() || self.value() != nid))
           {
+            LOG_FAIL_FMT("Adding trusted node {}", nid);
             active_nodes[nid] = ni;
           }
           return true;

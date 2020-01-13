@@ -14,7 +14,7 @@ namespace ccf
     NodeId node_id;
 
     // Encrypted secret for each backup
-    std::vector<uint8_t> encrypted_secret;
+    std::vector<uint8_t> encrypted_secret = {};
 
     MSGPACK_DEFINE(node_id, encrypted_secret);
   };
@@ -26,8 +26,8 @@ namespace ccf
   {
     // TODO: Since ECDSA does not support asymmetric encryption out of the box,
     // pass the public key for now
-    std::vector<uint8_t> primary_public_encryption_key;
-    std::vector<EncryptedLedgerSecret> secrets;
+    std::vector<uint8_t> primary_public_encryption_key = {};
+    std::vector<EncryptedLedgerSecret> secrets = {};
 
     MSGPACK_DEFINE(primary_public_encryption_key, secrets);
   };
