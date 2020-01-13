@@ -73,8 +73,7 @@ public:
     auto empty_function = [this](RequestArgs& args) {
       args.rpc_ctx.set_response_result(true);
     };
-    user_handlers.install(
-      "empty_function", empty_function, HandlerRegistry::Read);
+    install("empty_function", empty_function, HandlerRegistry::Read);
   }
 };
 
@@ -88,8 +87,7 @@ public:
     auto empty_function = [this](RequestArgs& args) {
       args.rpc_ctx.set_response_result(true);
     };
-    user_handlers.install(
-      "empty_function", empty_function, HandlerRegistry::Read);
+    install("empty_function", empty_function, HandlerRegistry::Read);
     disable_request_storing();
   }
 };
@@ -105,17 +103,19 @@ public:
       auto j = params;
       return make_success(std::move(j));
     };
-    user_handlers.install(
+    install(
       "echo_function", handler_adapter(echo_function), HandlerRegistry::Read);
 
     auto get_caller_function =
       [this](Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
         return make_success(caller_id);
       };
-    user_handlers.install(
+    install(
       "get_caller",
       handler_adapter(get_caller_function),
       HandlerRegistry::Read);
+
+    // TODO: Test error returned from Minimal handler lambda
   }
 };
 
@@ -173,7 +173,7 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    handlers.install("empty_function", empty_function, HandlerRegistry::Write);
+    install("empty_function", empty_function, HandlerRegistry::Write);
   }
 };
 
@@ -230,7 +230,7 @@ public:
       args.rpc_ctx.set_response_result(true);
     };
     // Note that this is a Write function that cannot be forwarded
-    handlers.install(
+    install(
       "empty_function",
       empty_function,
       HandlerRegistry::Write,
@@ -240,29 +240,12 @@ public:
 
 namespace userapp
 {
-  enum class AppError : jsonrpc::ErrorBaseType
+  enum AppError : jsonrpc::ErrorBaseType
   {
     Foo = static_cast<jsonrpc::ErrorBaseType>(
       jsonrpc::CCFErrorCodes::APP_ERROR_START),
     Bar = Foo - 1
   };
-
-  inline std::string get_error_prefix(AppError ec)
-  {
-    switch (ec)
-    {
-      case (AppError::Foo):
-      {
-        return "FOO: ";
-      }
-      case (AppError::Bar):
-      {
-        return "BAR: ";
-      }
-    }
-
-    throw std::logic_error("Missing case");
-  }
 }
 
 class TestAppErrorFrontEnd : public RpcFrontend
@@ -277,16 +260,14 @@ public:
     test_registry(tables)
   {
     auto foo = [this](RequestArgs& args) {
-      args.rpc_ctx.set_response_error((int)userapp::AppError::Foo);
+      args.rpc_ctx.set_response_error(userapp::AppError::Foo);
     };
     test_registry.install_public("foo", foo, HandlerRegistry::Read);
 
     auto bar = [this](RequestArgs& args) {
-      args.rpc_ctx.set_response_error((int)userapp::AppError::Bar, bar_msg);
+      args.rpc_ctx.set_response_error(userapp::AppError::Bar, bar_msg);
     };
     test_registry.install_public("bar", bar, HandlerRegistry::Read);
-
-    // TODO: Test error returned from Minimal handler lambda
   }
 };
 
@@ -990,12 +971,11 @@ TEST_CASE("App-defined errors")
 
     CHECK(foo_response[jsonrpc::ERR] != nullptr);
     CHECK(
-      foo_response[jsonrpc::ERR][jsonrpc::CODE].get<jsonrpc::ErrorBaseType>() ==
-      static_cast<jsonrpc::ErrorBaseType>(userapp::AppError::Foo));
+      foo_response[jsonrpc::ERR][jsonrpc::CODE].get<userapp::AppError>() ==
+      userapp::AppError::Foo);
 
     const auto msg =
       foo_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
-    CHECK(msg.find("FOO") != std::string::npos);
   }
 
   {
@@ -1010,12 +990,11 @@ TEST_CASE("App-defined errors")
 
     CHECK(bar_response[jsonrpc::ERR] != nullptr);
     CHECK(
-      bar_response[jsonrpc::ERR][jsonrpc::CODE].get<jsonrpc::ErrorBaseType>() ==
-      static_cast<jsonrpc::ErrorBaseType>(userapp::AppError::Bar));
+      bar_response[jsonrpc::ERR][jsonrpc::CODE].get<userapp::AppError>() ==
+      userapp::AppError::Bar);
 
     const auto msg =
       bar_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
-    CHECK(msg.find("BAR") != std::string::npos);
     CHECK(msg.find(TestAppErrorFrontEnd::bar_msg) != std::string::npos);
   }
 }

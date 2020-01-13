@@ -225,20 +225,7 @@ namespace enclave
       if (response_is_error())
       {
         const auto error = get_response_error();
-        nlohmann::json error_element;
-        if (
-          error->code < (int)jsonrpc::StandardErrorCodes::SERVER_ERROR_START &&
-          error->code >= (int)jsonrpc::StandardErrorCodes::SERVER_ERROR_END)
-        {
-          error_element =
-            jsonrpc::Error((jsonrpc::CCFErrorCodes)error->code, error->msg);
-        }
-        else
-        {
-          error_element = jsonrpc::Error(
-            (jsonrpc::StandardErrorCodes)error->code, error->msg);
-        }
-
+        nlohmann::json error_element = jsonrpc::Error(error->code, error->msg);
         return pack(jsonrpc::error_response(seq_no, error_element));
       }
       else
@@ -257,18 +244,7 @@ namespace enclave
     std::vector<uint8_t> error_response(
       int error, const std::string& msg) const override
     {
-      nlohmann::json error_element;
-      if (
-        error < (int)jsonrpc::StandardErrorCodes::SERVER_ERROR_START &&
-        error >= (int)jsonrpc::StandardErrorCodes::SERVER_ERROR_END)
-      {
-        error_element = jsonrpc::Error((jsonrpc::CCFErrorCodes)error, msg);
-      }
-      else
-      {
-        error_element = jsonrpc::Error((jsonrpc::StandardErrorCodes)error, msg);
-      }
-
+      nlohmann::json error_element = jsonrpc::Error(error, msg);
       return pack(jsonrpc::error_response(seq_no, error_element));
     }
   };

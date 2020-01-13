@@ -49,5 +49,13 @@ namespace ccf
       ctx.session.caller_cert = caller.value().cert;
       return true;
     }
+
+    // This is simply so apps can write install(...); rather than
+    // user_handlers.install(...);
+    template <typename... Ts>
+    void install(Ts&&... ts)
+    {
+      user_handlers.install(std::forward<Ts>(ts)...);
+    }
   };
 }
