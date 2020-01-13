@@ -65,62 +65,58 @@ public:
 
 class TestUserFrontend : public UserRpcFrontend
 {
-  TestRegistry<HandlerRegistry::Read> test_registry;
-
 public:
-  TestUserFrontend(Store& tables) :
-    UserRpcFrontend(tables, test_registry),
-    test_registry(tables, Tables::USER_CERTS)
-  {}
+  TestUserFrontend(Store& tables) : UserRpcFrontend(tables)
+  {
+    user_handlers.init_handlers(tables);
+
+    auto empty_function = [this](RequestArgs& args) {
+      args.rpc_ctx.set_response_result(true);
+    };
+    user_handlers.install(
+      "empty_function", empty_function, HandlerRegistry::Read);
+  }
 };
 
 class TestReqNotStoredFrontend : public UserRpcFrontend
 {
-  TestRegistry<HandlerRegistry::Read> test_registry;
-
 public:
-  TestReqNotStoredFrontend(Store& tables) :
-    UserRpcFrontend(tables, test_registry),
-    test_registry(tables, Tables::USER_CERTS)
+  TestReqNotStoredFrontend(Store& tables) : UserRpcFrontend(tables)
   {
+    user_handlers.init_handlers(tables);
+
+    auto empty_function = [this](RequestArgs& args) {
+      args.rpc_ctx.set_response_result(true);
+    };
+    user_handlers.install(
+      "empty_function", empty_function, HandlerRegistry::Read);
     disable_request_storing();
   }
 };
 
 class TestMinimalHandleFunction : public UserRpcFrontend
 {
-  class MinimalHandlers : public HandlerRegistry
-  {
-  public:
-    void init_handlers(Store& tables) override
-    {
-      HandlerRegistry::init_handlers(tables);
-
-      auto echo_function = [this](Store::Tx& tx, const nlohmann::json& params) {
-        auto j = params;
-        return make_success(std::move(j));
-      };
-      install(
-        "echo_function", handler_adapter(echo_function), HandlerRegistry::Read);
-
-      auto get_caller_function =
-        [this](
-          Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
-          return make_success(caller_id);
-        };
-      install(
-        "get_caller",
-        handler_adapter(get_caller_function),
-        HandlerRegistry::Read);
-    }
-  };
-
-  MinimalHandlers min_handlers;
-
 public:
-  TestMinimalHandleFunction(Store& tables) :
-    UserRpcFrontend(tables, min_handlers)
-  {}
+  TestMinimalHandleFunction(Store& tables) : UserRpcFrontend(tables)
+  {
+    user_handlers.init_handlers(tables);
+
+    auto echo_function = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto j = params;
+      return make_success(std::move(j));
+    };
+    user_handlers.install(
+      "echo_function", handler_adapter(echo_function), HandlerRegistry::Read);
+
+    auto get_caller_function =
+      [this](Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
+        return make_success(caller_id);
+      };
+    user_handlers.install(
+      "get_caller",
+      handler_adapter(get_caller_function),
+      HandlerRegistry::Read);
+  }
 };
 
 class TestMemberFrontend : public RpcFrontend
@@ -166,60 +162,80 @@ public:
 class TestForwardingUserFrontEnd : public UserRpcFrontend,
                                    public RpcContextRecorder
 {
-  // Note that this is a HandlerRegistry::Write function so that a backup
-  // executing this command will forward it to the primary
-  TestRegistry<HandlerRegistry::Write> test_registry;
-
 public:
-  TestForwardingUserFrontEnd(Store& tables) :
-    UserRpcFrontend(tables, test_registry),
-    test_registry(tables, Tables::USER_CERTS)
-  {}
+  TestForwardingUserFrontEnd(Store& tables) : UserRpcFrontend(tables)
+  {
+    handlers.init_handlers(tables);
+
+    auto empty_function = [this](RequestArgs& args) {
+      record_ctx(args);
+      return jsonrpc::success(true);
+    };
+    // Note that this a Write function so that a backup executing this command
+    // will forward it to the primary
+    handlers.install("empty_function", empty_function, HandlerRegistry::Write);
+  }
 };
 
-class TestForwardingNodeFrontEnd : public UserRpcFrontend,
+class TestForwardingNodeFrontEnd : public NodeRpcFrontend,
                                    public RpcContextRecorder
 {
-  // Note that this is a HandlerRegistry::Write function so that a backup
-  // executing this command will forward it to the primary
-  TestRegistry<HandlerRegistry::Write> test_registry;
-
 public:
-  TestForwardingNodeFrontEnd(Store& tables) :
-    UserRpcFrontend(tables, test_registry),
-    test_registry(tables)
-  {}
+  TestForwardingNodeFrontEnd(
+    ccf::NetworkState& network, ccf::StubNodeState& node) :
+    NodeRpcFrontend(network, node)
+  {
+    handlers.init_handlers(*network.tables);
+
+    auto empty_function = [this](RequestArgs& args) {
+      record_ctx(args);
+      return jsonrpc::success(true);
+    };
+    // Note that this a Write function so that a backup executing this command
+    // will forward it to the primary
+    handlers.install("empty_function", empty_function, HandlerRegistry::Write);
+  }
 };
 
-class TestForwardingMemberFrontEnd : public UserRpcFrontend,
+class TestForwardingMemberFrontEnd : public MemberRpcFrontend,
                                      public RpcContextRecorder
 {
-  // Note that this is a HandlerRegistry::Write function so that a backup
-  // executing this command will forward it to the primary
-  TestRegistry<HandlerRegistry::Write> test_registry;
-
 public:
-  // TODO: Should be Members, not Users
-  TestForwardingMemberFrontEnd(Store& tables) :
-    UserRpcFrontend(tables, test_registry),
-    test_registry(tables)
-  {}
+  TestForwardingMemberFrontEnd(
+    Store& tables, ccf::NetworkState& network, ccf::StubNodeState& node) :
+    MemberRpcFrontend(network, node)
+  {
+    handlers.init_handlers(*network.tables);
+
+    auto empty_function = [this](RequestArgs& args) {
+      record_ctx(args);
+      return jsonrpc::success(true);
+    };
+    // Note that this a Write function so that a backup executing this command
+    // will forward it to the primary
+    handlers.install("empty_function", empty_function, HandlerRegistry::Write);
+  }
 };
 
-class TestNoForwardingFrontEnd : public UserRpcFrontend
+class TestNoForwardingFrontEnd : public UserRpcFrontend,
+                                   public RpcContextRecorder
 {
-  // Note that this is a HandlerRegistry::Write function so that a backup
-  // executing this command will forward it to the primary
-  TestRegistry<
-    HandlerRegistry::Write,
-    HandlerRegistry::Forwardable::DoNotForward>
-    test_registry;
-
 public:
-  TestNoForwardingFrontEnd(Store& tables) :
-    UserRpcFrontend(tables, test_registry),
-    test_registry(tables)
-  {}
+  TestNoForwardingFrontEnd(Store& tables) : UserRpcFrontend(tables)
+  {
+    handlers.init_handlers(tables);
+
+    auto empty_function = [this](RequestArgs& args) {
+      record_ctx(args);
+      return jsonrpc::success(true);
+    };
+    // Note that this is a Write function that cannot be forwarded
+    handlers.install(
+      "empty_function",
+      empty_function,
+      HandlerRegistry::Write,
+      HandlerRegistry::Forwardable::DoNotForward);
+  }
 };
 
 namespace userapp
@@ -292,6 +308,8 @@ auto history = std::make_shared<NullTxHistory>(
   pbft_network.nodes);
 
 #endif
+
+StubNodeState stub_node;
 
 std::vector<uint8_t> sign_json(nlohmann::json j)
 {
@@ -548,7 +566,7 @@ TEST_CASE("process")
 #  endif
 }
 
-TEST_CASE("MinimalHandleFuction")
+TEST_CASE("MinimalHandleFunction")
 {
   prepare_callers();
   TestMinimalHandleFunction frontend(*network.tables);
@@ -839,8 +857,8 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
 {
   prepare_callers();
 
-  TestForwardingNodeFrontEnd node_frontend_backup(*network.tables);
-  TestForwardingNodeFrontEnd node_frontend_primary(*network2.tables);
+  TestForwardingNodeFrontEnd node_frontend_backup(network, stub_node);
+  TestForwardingNodeFrontEnd node_frontend_primary(network2, stub_node);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
@@ -919,8 +937,10 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   prepare_callers();
   add_callers_primary_store();
 
-  TestForwardingMemberFrontEnd member_frontend_backup(*network.tables);
-  TestForwardingMemberFrontEnd member_frontend_primary(*network2.tables);
+  TestForwardingMemberFrontEnd member_frontend_backup(
+    *network.tables, network, stub_node);
+  TestForwardingMemberFrontEnd member_frontend_primary(
+    *network2.tables, network2, stub_node);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(

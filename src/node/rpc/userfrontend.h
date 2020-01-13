@@ -15,14 +15,16 @@ namespace ccf
       return "Could not find matching user certificate";
     }
 
+    CommonHandlerRegistry user_handlers;
     Users* users;
 
   public:
-    UserRpcFrontend(Store& tables, HandlerRegistry& registry) :
+    UserRpcFrontend(Store& tables) :
       RpcFrontend(
         tables,
-        registry,
+        user_handlers,
         tables.get<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
+      user_handlers(Tables::USER_CERTS),
       users(tables.get<Users>(Tables::USERS))
     {}
 
