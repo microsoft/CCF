@@ -14,8 +14,7 @@ from loguru import logger as LOG
 @reqs.at_least_n_nodes(2)
 def test(network, args):
     LOG.info("Rekey ledger after running some transactions")
-    # primary, backup = network.find_primary_and_any_backup()
-    primary, _ = network.find_primary()
+    primary, backup = network.find_primary()
 
     with primary.node_client(format="json") as mc:
         check_commit = infra.checker.Checker(mc)
@@ -32,13 +31,17 @@ def test(network, args):
 
         network.consortium.rekey_ledger(member_id=1, remote_node=primary)
 
-        time.sleep(5)
+        with primary.user_client(format="json") as c:
+            for i in range(1, 1):
+                check_commit(
+                    c.rpc("LOG_record", {"id": i, "msg": f"{msg} #{i}"}), result=True
+                )
 
     return network
 
 
 def run(args):
-    hosts = ["localhost"]
+    hosts = ["localhost", "localhost"]
 
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,

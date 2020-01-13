@@ -144,18 +144,25 @@ namespace ccf
   class TxEncryptor : public BaseTxEncryptor
   {
   private:
-    crypto::KeyAesGcm encryption_key;
+    std::unique_ptr<crypto::KeyAesGcm> encryption_key;
 
     const crypto::KeyAesGcm& get_encryption_key(kv::Version version) override
     {
-      return encryption_key;
+      return *encryption_key.get();
     }
 
   public:
     TxEncryptor(NodeId id_, LedgerSecrets& ls) :
       BaseTxEncryptor(id_),
-      encryption_key(ls.get_current().master)
+      encryption_key(
+        std::make_unique<crypto::KeyAesGcm>(ls.get_current().master))
     {}
+
+    void update_encryption_key(LedgerSecret ls)
+    {
+      LOG_FAIL_FMT("Encryptor updated");
+      encryption_key = std::make_unique<crypto::KeyAesGcm>(ls.master);
+    }
   };
 
   // The RecoveryTxEncryptor is used during recovery to decrypt private ledger
@@ -204,6 +211,12 @@ namespace ccf
       {
         encryption_keys.emplace_back(std::make_pair(s.first, s.second->master));
       }
+    }
+
+    void update_encryption_key(kv::Version version, LedgerSecret ls)
+    {
+      LOG_FAIL_FMT("Encryptor updated, version {}", version);
+      encryption_keys.emplace_back(std::make_pair(version, ls.master));
     }
   };
 }

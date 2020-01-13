@@ -147,6 +147,29 @@ namespace ccf
       return node_id;
     }
 
+    auto get_active_nodes(std::optional<NodeId> self = std::nullopt)
+    {
+      // Returns the list of active nodes. If self is set, self is not included
+      // in the list of returned nodes.
+      std::map<NodeId, NodeInfo> active_nodes;
+
+      auto [nodes_view, secrets_view] =
+        tx.get_view(tables.nodes, tables.secrets);
+
+      nodes_view->foreach(
+        [&active_nodes, self, this](const NodeId& nid, const NodeInfo& ni) {
+          if (
+            ni.status != ccf::NodeStatus::RETIRED &&
+            (!self.has_value() || self.value() != nid))
+          {
+            active_nodes[nid] = ni;
+          }
+          return true;
+        });
+
+      return active_nodes;
+    }
+
     void create_service(
       const std::vector<uint8_t>& network_cert, kv::Version version = 1)
     {
