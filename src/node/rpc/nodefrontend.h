@@ -127,7 +127,7 @@ namespace ccf
 
   public:
     NodeHandlers(NetworkState& network, AbstractNodeState& node) :
-      CommonHandlerRegistry(""),
+      CommonHandlerRegistry(),
       network(network),
       node(node)
     {}

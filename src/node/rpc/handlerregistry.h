@@ -71,6 +71,8 @@ namespace ccf
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
 
+    Certs* certs = nullptr;
+
   public:
     HandlerRegistry() {}
 
@@ -202,34 +204,6 @@ namespace ccf
     virtual std::optional<CallerId> valid_caller(
       Store::Tx& tx, const std::vector<uint8_t>& caller)
     {
-      return INVALID_ID;
-    }
-
-    void set_consensus(kv::Consensus* c)
-    {
-      consensus = c;
-    }
-
-    void set_history(kv::TxHistory* h)
-    {
-      history = h;
-    }
-  };
-
-  /*
-   * Minor extension to HandlerRegistry, potentially restricting access to set
-   * of callers defined in named Certs table
-   */
-  class CertsOnlyHandlerRegistry : public HandlerRegistry
-  {
-  protected:
-    const std::string certs_name;
-
-    Certs* certs = nullptr;
-
-    std::optional<CallerId> valid_caller(
-      Store::Tx& tx, const std::vector<uint8_t>& caller) override
-    {
       if (certs == nullptr)
       {
         return INVALID_ID;
@@ -246,19 +220,24 @@ namespace ccf
       return caller_id;
     }
 
-  public:
-    CertsOnlyHandlerRegistry(const std::string& certs_name_) :
-      certs_name(certs_name_)
-    {}
-
-    void init_handlers(Store& tables) override
+    void set_consensus(kv::Consensus* c)
     {
-      HandlerRegistry::init_handlers(tables);
+      consensus = c;
+    }
 
-      if (!certs_name.empty())
-      {
-        certs = tables.get<Certs>(certs_name);
-      }
+    void set_history(kv::TxHistory* h)
+    {
+      history = h;
+    }
+
+    virtual void restrict_to_certs(Certs* c)
+    {
+      certs = c;
+    }
+
+    void restrict_to_certs(Store& tables, const std::string& certs_table_name)
+    {
+      restrict_to_certs(tables.get<Certs>(certs_table_name));
     }
   };
 }

@@ -15,18 +15,22 @@ namespace ccf
       return "Could not find matching user certificate";
     }
 
-    CommonHandlerRegistry user_handlers;
     Users* users;
 
   public:
-    UserRpcFrontend(Store& tables) :
+    UserRpcFrontend(Store& tables, HandlerRegistry& h) :
       RpcFrontend(
         tables,
-        user_handlers,
+        h,
         tables.get<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
-      user_handlers(Tables::USER_CERTS),
       users(tables.get<Users>(Tables::USERS))
     {}
+
+    void open() override
+    {
+      handlers.restrict_to_certs(tables, Tables::USER_CERTS);
+      RpcFrontend::open();
+    }
 
     std::vector<uint8_t> get_cert_to_forward(
       const enclave::RpcContext& ctx) override
@@ -51,11 +55,23 @@ namespace ccf
     }
 
     // This is simply so apps can write install(...); rather than
-    // user_handlers.install(...);
+    // handlers.install(...);
     template <typename... Ts>
     void install(Ts&&... ts)
     {
-      user_handlers.install(std::forward<Ts>(ts)...);
+      handlers.install(std::forward<Ts>(ts)...);
     }
+  };
+
+  class SimpleUserRpcFrontend : public UserRpcFrontend
+  {
+  protected:
+    CommonHandlerRegistry common_handlers;
+
+  public:
+    SimpleUserRpcFrontend(Store& tables) :
+      UserRpcFrontend(tables, common_handlers),
+      common_handlers()
+    {}
   };
 }

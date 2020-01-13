@@ -95,6 +95,9 @@ namespace ccfapp
     {}
   };
 
+  class LuaHandlerRegistry
+  {};
+
   class Lua : public ccf::UserRpcFrontend
   {
   private:

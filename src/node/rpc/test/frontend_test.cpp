@@ -34,41 +34,12 @@ using namespace ccfapp;
 using namespace ccf;
 using namespace std;
 
-template <
-  HandlerRegistry::ReadWrite RW,
-  HandlerRegistry::Forwardable FW = HandlerRegistry::Forwardable::CanForward>
-class TestRegistry : public CertsOnlyHandlerRegistry
+class TestUserFrontend : public SimpleUserRpcFrontend
 {
 public:
-  TestRegistry(Store& tables, const std::string& certs_name = "") :
-    CertsOnlyHandlerRegistry(certs_name)
+  TestUserFrontend(Store& tables) : SimpleUserRpcFrontend(tables)
   {
-    init_handlers(tables);
-  }
-
-  void init_handlers(Store& tables)
-  {
-    CertsOnlyHandlerRegistry::init_handlers(tables);
-
-    auto empty_function = [this](RequestArgs& args) {
-      args.rpc_ctx.set_response_result(true);
-    };
-    install("empty_function", empty_function, RW, FW);
-  }
-
-  template <typename... Ts>
-  void install_public(Ts&&... ts)
-  {
-    install(std::forward<Ts>(ts)...);
-  }
-};
-
-class TestUserFrontend : public UserRpcFrontend
-{
-public:
-  TestUserFrontend(Store& tables) : UserRpcFrontend(tables)
-  {
-    user_handlers.init_handlers(tables);
+    open();
 
     auto empty_function = [this](RequestArgs& args) {
       args.rpc_ctx.set_response_result(true);
@@ -77,12 +48,12 @@ public:
   }
 };
 
-class TestReqNotStoredFrontend : public UserRpcFrontend
+class TestReqNotStoredFrontend : public SimpleUserRpcFrontend
 {
 public:
-  TestReqNotStoredFrontend(Store& tables) : UserRpcFrontend(tables)
+  TestReqNotStoredFrontend(Store& tables) : SimpleUserRpcFrontend(tables)
   {
-    user_handlers.init_handlers(tables);
+    open();
 
     auto empty_function = [this](RequestArgs& args) {
       args.rpc_ctx.set_response_result(true);
@@ -92,12 +63,12 @@ public:
   }
 };
 
-class TestMinimalHandleFunction : public UserRpcFrontend
+class TestMinimalHandleFunction : public SimpleUserRpcFrontend
 {
 public:
-  TestMinimalHandleFunction(Store& tables) : UserRpcFrontend(tables)
+  TestMinimalHandleFunction(Store& tables) : SimpleUserRpcFrontend(tables)
   {
-    user_handlers.init_handlers(tables);
+    open();
 
     auto echo_function = [this](Store::Tx& tx, const nlohmann::json& params) {
       auto j = params;
@@ -119,27 +90,37 @@ public:
   }
 };
 
-class TestMemberFrontend : public RpcFrontend
+class TestMemberFrontend : public MemberRpcFrontend
 {
-  TestRegistry<HandlerRegistry::Read> test_registry;
-
 public:
-  TestMemberFrontend(NetworkState& network) :
-    RpcFrontend(
-      *network.tables, test_registry, &network.member_client_signatures),
-    test_registry(tables, Tables::MEMBER_CERTS)
-  {}
+  TestMemberFrontend(ccf::NetworkState& network, ccf::StubNodeState& node) :
+    MemberRpcFrontend(network, node)
+  {
+    open();
+
+    auto empty_function = [this](RequestArgs& args) {
+      args.rpc_ctx.set_response_result(true);
+    };
+    member_handlers.install(
+      "empty_function", empty_function, HandlerRegistry::Read);
+  }
 };
 
 class TestNoCertsFrontend : public RpcFrontend
 {
-  TestRegistry<HandlerRegistry::Read> test_registry;
+  HandlerRegistry handlers;
 
 public:
-  TestNoCertsFrontend(Store& tables) :
-    RpcFrontend(tables, test_registry),
-    test_registry(tables)
-  {}
+  TestNoCertsFrontend(Store& tables) : RpcFrontend(tables, handlers)
+  {
+    open();
+    handlers.restrict_to_certs(nullptr);
+
+    auto empty_function = [this](RequestArgs& args) {
+      args.rpc_ctx.set_response_result(true);
+    };
+    handlers.install("empty_function", empty_function, HandlerRegistry::Read);
+  }
 };
 
 //
@@ -159,13 +140,13 @@ public:
   }
 };
 
-class TestForwardingUserFrontEnd : public UserRpcFrontend,
+class TestForwardingUserFrontEnd : public SimpleUserRpcFrontend,
                                    public RpcContextRecorder
 {
 public:
-  TestForwardingUserFrontEnd(Store& tables) : UserRpcFrontend(tables)
+  TestForwardingUserFrontEnd(Store& tables) : SimpleUserRpcFrontend(tables)
   {
-    handlers.init_handlers(tables);
+    open();
 
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
@@ -185,7 +166,7 @@ public:
     ccf::NetworkState& network, ccf::StubNodeState& node) :
     NodeRpcFrontend(network, node)
   {
-    handlers.init_handlers(*network.tables);
+    open();
 
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
@@ -205,7 +186,7 @@ public:
     Store& tables, ccf::NetworkState& network, ccf::StubNodeState& node) :
     MemberRpcFrontend(network, node)
   {
-    handlers.init_handlers(*network.tables);
+    open();
 
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
@@ -217,13 +198,13 @@ public:
   }
 };
 
-class TestNoForwardingFrontEnd : public UserRpcFrontend,
+class TestNoForwardingFrontEnd : public SimpleUserRpcFrontend,
                                  public RpcContextRecorder
 {
 public:
-  TestNoForwardingFrontEnd(Store& tables) : UserRpcFrontend(tables)
+  TestNoForwardingFrontEnd(Store& tables) : SimpleUserRpcFrontend(tables)
   {
-    handlers.init_handlers(tables);
+    open();
 
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
@@ -250,24 +231,22 @@ namespace userapp
 
 class TestAppErrorFrontEnd : public RpcFrontend
 {
-  TestRegistry<HandlerRegistry::Read> test_registry;
+  HandlerRegistry handlers;
 
 public:
   static constexpr auto bar_msg = "Bar is broken";
 
-  TestAppErrorFrontEnd(Store& tables) :
-    RpcFrontend(tables, test_registry),
-    test_registry(tables)
+  TestAppErrorFrontEnd(Store& tables) : RpcFrontend(tables, handlers)
   {
     auto foo = [this](RequestArgs& args) {
       args.rpc_ctx.set_response_error(userapp::AppError::Foo);
     };
-    test_registry.install_public("foo", foo, HandlerRegistry::Read);
+    handlers.install("foo", foo, HandlerRegistry::Read);
 
     auto bar = [this](RequestArgs& args) {
       args.rpc_ctx.set_response_error(userapp::AppError::Bar, bar_msg);
     };
-    test_registry.install_public("bar", bar, HandlerRegistry::Read);
+    handlers.install("bar", bar, HandlerRegistry::Read);
   }
 };
 
@@ -619,7 +598,7 @@ TEST_CASE("Member caller")
   auto simple_call = create_simple_json();
   std::vector<uint8_t> serialized_call =
     jsonrpc::pack(simple_call, default_pack);
-  TestMemberFrontend frontend(network);
+  TestMemberFrontend frontend(network, stub_node);
 
   SUBCASE("valid caller")
   {

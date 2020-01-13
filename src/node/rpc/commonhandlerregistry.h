@@ -13,13 +13,11 @@ namespace ccf
    * Extends the basic HandlerRegistry with methods which should be present
    * on all frontends
    */
-  class CommonHandlerRegistry : public CertsOnlyHandlerRegistry
+  class CommonHandlerRegistry : public HandlerRegistry
   {
   private:
     metrics::Metrics metrics;
     size_t tx_count = 0;
-
-    const std::string certs_name;
 
     Nodes* nodes = nullptr;
 
@@ -27,15 +25,14 @@ namespace ccf
     Store* tables = nullptr;
 
   public:
-    CommonHandlerRegistry(const std::string& certs_name) :
-      CertsOnlyHandlerRegistry(certs_name)
-    {}
+    CommonHandlerRegistry() : HandlerRegistry() {}
 
-    void init_handlers(Store& tables_) override
+    void init_handlers(Store& t) override
     {
-      CertsOnlyHandlerRegistry::init_handlers(tables_);
+      HandlerRegistry::init_handlers(t);
 
-      tables = &tables_;
+      tables = &t;
+
       nodes = tables->get<Nodes>(Tables::NODES);
 
       auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
