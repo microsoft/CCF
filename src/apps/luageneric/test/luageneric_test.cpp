@@ -99,11 +99,11 @@ auto init_frontend(
   const auto env_script = R"xxx(
     return {
       __environment = [[
-        function env.jsucc (result)
+        function env.succ (result)
           return {result = result}
         end
 
-        function env.jerr (code, message)
+        function env.err (code, message)
           return {error = {code = code, message = message}}
         end
       ]]
@@ -189,7 +189,7 @@ TEST_CASE("simple lua apps")
   {
     constexpr auto app = R"xxx(
       tables, gov_tables, args = ...
-      return env.jsucc(args.params.verb)
+      return env.succ(args.params.verb)
     )xxx";
     set_handler(network, "echo", {app});
 
@@ -205,7 +205,7 @@ TEST_CASE("simple lua apps")
     constexpr auto store = R"xxx(
       tables, gov_tables, args = ...
       local r = tables.priv0:put(args.params.k, args.params.v)
-      return env.jsucc(r)
+      return env.succ(r)
     )xxx";
     set_handler(network, "store", {store});
 
@@ -213,9 +213,9 @@ TEST_CASE("simple lua apps")
       tables, gov_tables, args = ...
       local v = tables.priv0:get(args.params.k)
       if not v then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "key does not exist")
+        return env.err(env.error_codes.INVALID_PARAMS, "key does not exist")
       end
-      return env.jsucc(v)
+      return env.succ(v)
     )xxx";
     set_handler(network, "load", {load});
 
@@ -248,14 +248,14 @@ TEST_CASE("simple lua apps")
       gov_tables["ccf.members"]:foreach(
         function(k, v) members[tostring(k)] = v end
       )
-      return env.jsucc(members)
+      return env.succ(members)
     )xxx";
     set_handler(network, "get_members", {get_members});
 
     // Not allowed to call put() on read-only gov_tables
     constexpr auto put_member = R"xxx(
       tables, gov_tables, args = ...
-      return env.jsucc(gov_tables["ccf.members"]:put(args.params.k, args.params.v))
+      return env.succ(gov_tables["ccf.members"]:put(args.params.k, args.params.v))
     )xxx";
     set_handler(network, "put_member", {put_member});
 
@@ -297,11 +297,11 @@ TEST_CASE("simple bank")
     tables, gov_tables, args = ...
     local dst = args.params.dst
     if tables.priv0:get(dst) then
-      return env.jerr(env.error_codes.INVALID_PARAMS, "account already exists")
+      return env.err(env.error_codes.INVALID_PARAMS, "account already exists")
     end
 
     tables.priv0:put(dst, args.params.amt)
-    return env.jsucc(true)
+    return env.succ(true)
   )xxx";
   set_handler(network, create_method, {create});
 
@@ -311,11 +311,11 @@ TEST_CASE("simple bank")
     local acc = args.params.account
     local amt = tables.priv0:get(acc)
     if not amt then
-      return env.jerr(
+      return env.err(
         env.error_codes.INVALID_PARAMS, "account " .. acc .. " does not exist")
     end
 
-    return env.jsucc(amt)
+    return env.succ(amt)
   )xxx";
   set_handler(network, read_method, {read});
 
@@ -326,25 +326,25 @@ TEST_CASE("simple bank")
     local dst = args.params.dst
     local src_n = tables.priv0:get(src)
     if not src_n then
-      return env.jerr(
+      return env.err(
         env.error_codes.INVALID_PARAMS, "source account does not exist")
     end
 
     local dst_n = tables.priv0:get(dst)
     if not dst_n then
-      return env.jerr(
+      return env.err(
         env.error_codes.INVALID_PARAMS, "destination account does not exist")
     end
 
     local amt = args.params.amt
     if src_n < amt then
-      return env.jerr(env.error_codes.INVALID_PARAMS, "insufficient funds")
+      return env.err(env.error_codes.INVALID_PARAMS, "insufficient funds")
     end
 
     tables.priv0:put(src, src_n - amt)
     tables.priv0:put(dst, dst_n + amt)
 
-    return env.jsucc(true)
+    return env.succ(true)
   )xxx";
   set_handler(network, transfer_method, {transfer});
 
@@ -416,7 +416,7 @@ TEST_CASE("pre-populated environment")
     constexpr auto log_trace = R"xxx(
       LOG_TRACE("Logging trace message from Lua")
       LOG_TRACE("Concatenating ", 3, " args")
-      return env.jsucc(true)
+      return env.succ(true)
     )xxx";
     set_handler(network, log_trace_method, {log_trace});
 
@@ -430,7 +430,7 @@ TEST_CASE("pre-populated environment")
     constexpr auto log_debug = R"xxx(
       LOG_DEBUG("Logging debug message from Lua")
       LOG_DEBUG("Concatenating ", 3, " args")
-      return env.jsucc(true)
+      return env.succ(true)
     )xxx";
     set_handler(network, log_debug_method, {log_debug});
 
@@ -444,7 +444,7 @@ TEST_CASE("pre-populated environment")
     constexpr auto log_info = R"xxx(
       LOG_INFO("Logging state message from Lua")
       LOG_INFO("Concatenating ", 3, " args")
-      return env.jsucc(true)
+      return env.succ(true)
     )xxx";
     set_handler(network, log_info_method, {log_info});
 
@@ -458,7 +458,7 @@ TEST_CASE("pre-populated environment")
     constexpr auto log_fail = R"xxx(
       LOG_FAIL("Logging failures from Lua")
       LOG_FAIL("Concatenating ", 3, " args")
-      return env.jsucc(true)
+      return env.succ(true)
     )xxx";
     set_handler(network, log_fail_method, {log_fail});
 
@@ -471,7 +471,7 @@ TEST_CASE("pre-populated environment")
     constexpr auto log_fatal_method = "log_fatal";
     constexpr auto log_fatal = R"xxx(
       LOG_FATAL("Logging a fatal error, raising an error")
-      return env.jsucc(true)
+      return env.succ(true)
     )xxx";
     set_handler(network, log_fatal_method, {log_fatal});
 
@@ -508,7 +508,7 @@ TEST_CASE("pre-populated environment")
 
     constexpr auto log_no_throw_method = "log_no_throw";
     constexpr auto log_no_throw =
-      "LOG_INFO(tostring(nil), tostring(true)); return env.jsucc(true)";
+      "LOG_INFO(tostring(nil), tostring(true)); return env.succ(true)";
     set_handler(network, log_no_throw_method, {log_no_throw});
 
     {
@@ -522,7 +522,7 @@ TEST_CASE("pre-populated environment")
     // Test Lua sees the correct error codes by returning them from RPC
     constexpr auto invalid_params_method = "invalid_params";
     constexpr auto invalid_params = R"xxx(
-      return env.jsucc(
+      return env.succ(
         {
           env.error_codes.PARSE_ERROR,
           env.error_codes.INVALID_REQUEST,
