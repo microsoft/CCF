@@ -208,7 +208,11 @@ class Consortium:
         return Calls:call("rekey_ledger")
         """
         result, error = self.propose(member_id, remote_node, script)
-        self.vote_using_majority(remote_node, result["id"])
+        # TODO: For now, rekeying is effective after global commit.
+        # Wait for global commit so that it is safe to retrieve new sealed secrets
+        self.vote_using_majority(
+            remote_node, result["id"], should_wait_for_global_commit=True
+        )
 
     def add_users(self, remote_node, users):
         for u in users:
@@ -237,9 +241,6 @@ class Consortium:
         tables, sealed_secrets = ...
         return Calls:call("accept_recovery", sealed_secrets)
         """
-        with open(sealed_secrets) as s:
-            sealed_json = json.load(s)
-
         result, error = self.propose(member_id, remote_node, script, sealed_json)
         self.vote_using_majority(remote_node, result["id"])
 

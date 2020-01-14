@@ -10,36 +10,35 @@ import time
 from loguru import logger as LOG
 
 
-@reqs.supports_methods("mkSign", "LOG_record")
+@reqs.supports_methods("mkSign")
 @reqs.at_least_n_nodes(2)
 def test(network, args):
-    LOG.info("Rekey ledger after running some transactions")
-    primary, backup = network.find_primary()
+    LOG.info("Rekey ledger once")
+    primary, _ = network.find_primary()
 
-    with primary.node_client(format="json") as mc:
-        check_commit = infra.checker.Checker(mc)
-        check = infra.checker.Checker()
+    # Retrieve current index version to check for sealed secrets later
+    with primary.node_client() as nc:
+        check_commit = infra.checker.Checker(nc)
+        res = nc.rpc("mkSign", params={})
+        check_commit(res, result=True)
+        version_before_rekey = res.commit
 
-        msg = "Hello world"
-
-        LOG.info("Record transactions on primary")
-        with primary.user_client(format="json") as c:
-            for i in range(1, 2):
-                check_commit(
-                    c.rpc("LOG_record", {"id": i, "msg": f"{msg} #{i}"}), result=True
-                )
-
-        network.consortium.rekey_ledger(member_id=1, remote_node=primary)
-
-        with primary.user_client(format="json") as c:
-            for i in range(1, 2):
-                check_commit(
-                    c.rpc("LOG_record", {"id": i, "msg": f"{msg} #{i}"}), result=True
-                )
-
-        time.sleep(4)
+    network.consortium.rekey_ledger(member_id=1, remote_node=primary)
+    network.wait_for_sealed_secrets_at_version(version_before_rekey)
 
     return network
+
+
+# Run some transactions against the logging app
+def record_transactions(primary, txs_count=1):
+    with primary.node_client(format="json") as nc:
+        check_commit = infra.checker.Checker(nc)
+
+        with primary.user_client(format="json") as c:
+            for i in range(1, txs_count):
+                check_commit(
+                    c.rpc("LOG_record", {"id": i, "msg": f"entry #{i}"}), result=True
+                )
 
 
 def run(args):
@@ -49,7 +48,11 @@ def run(args):
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
     ) as network:
         network.start_and_join(args)
+        primary, _ = network.find_primary()
+
+        record_transactions(primary)
         test(network, args)
+        record_transactions(primary)
 
 
 if __name__ == "__main__":
