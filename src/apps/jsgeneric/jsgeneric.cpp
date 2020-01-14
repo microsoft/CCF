@@ -15,6 +15,32 @@ namespace ccfapp
 
   using GenericTable = ccf::Store::Map<nlohmann::json, nlohmann::json>;
 
+  static JSValue js_print(JSContext *ctx, JSValueConst this_val,
+                                int argc, JSValueConst *argv)
+  {
+      int i;
+      const char *str;
+      auto level = logger::INFO;
+      LOG_INFO_FMT("CONSOLE.LOG");
+
+      if (logger::config::ok(level))
+      {
+        auto os = logger::LogLine(level, __FILE__, __LINE__);
+        for(i = 0; i < argc; i++) {
+          if (i != 0)
+            os << ' ';    
+            str = JS_ToCString(ctx, argv[i]);
+            if (!str)
+                return JS_EXCEPTION;
+            os << str;
+            JS_FreeCString(ctx, str);
+        }
+        os << std::endl;
+        auto _ = logger::Out() == os;
+      }
+      return JS_UNDEFINED;
+  }
+
   class JS : public ccf::UserRpcFrontend
   {
   private:
@@ -60,6 +86,12 @@ namespace ccfapp
         }
         // TODO: load modules from module table here?
 
+        auto global_obj = JS_GetGlobalObject(ctx);
+        auto console = JS_NewObject(ctx);
+        auto p0 = JS_SetPropertyStr(ctx, console, "log", JS_NewCFunction(ctx, ccfapp::js_print, "log", 1));
+        auto p1 = JS_SetPropertyStr(ctx, global_obj, "console", console);
+        JS_FreeValue(ctx, global_obj);
+
         const nlohmann::json response = {};
 
         if (!handler_script.value().text.has_value())
@@ -70,11 +102,19 @@ namespace ccfapp
         // TODO: support pre-compiled byte-code
         std::string code = handler_script.value().text.value();
         LOG_INFO_FMT("About to run {}", code);
-        JSValue val = JS_Eval(ctx, code.data(), code.size(), "table_name::key", JS_EVAL_TYPE_GLOBAL);
+        JSValue val = JS_Eval(ctx, code.c_str(), code.size(), "table_name::key", JS_EVAL_TYPE_GLOBAL);
+
+        if (JS_IsException(val)) {
+          js_std_dump_error(ctx);
+        }
 
         // TODO: handle exceptions
-        if (JS_VALUE_GET_TAG(val) == JS_TAG_STRING)
-          LOG_INFO_FMT("Ran, returned a string"); // ODO: print and maybe free?
+        if (JS_IsString(val))
+        {
+          auto str = JS_ToCString(ctx, val);
+          LOG_INFO_FMT("Ran, returned a string: {}", str);
+          JS_FreeCString(ctx, str);
+        }
         else
           LOG_INFO_FMT("Ran, but returned not a string");
 

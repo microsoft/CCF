@@ -11,7 +11,7 @@ return {
   ]],
 
   LOG_record = [[
-    "LOG_record"
+    "console.log(\"Hello\");"
   ]],
 
   LOG_record_pub = [[
