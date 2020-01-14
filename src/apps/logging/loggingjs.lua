@@ -11,7 +11,7 @@ return {
   ]],
 
   LOG_record = [[
-    "console.log(\"Hello\");"
+    console.log("a" + "b")
   ]],
 
   LOG_record_pub = [[

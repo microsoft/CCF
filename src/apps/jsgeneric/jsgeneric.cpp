@@ -21,7 +21,6 @@ namespace ccfapp
       int i;
       const char *str;
       auto level = logger::INFO;
-      LOG_INFO_FMT("CONSOLE.LOG");
 
       if (logger::config::ok(level))
       {
@@ -101,11 +100,11 @@ namespace ccfapp
 
         // TODO: support pre-compiled byte-code
         std::string code = handler_script.value().text.value();
-        LOG_INFO_FMT("About to run {}", code);
         JSValue val = JS_Eval(ctx, code.c_str(), code.size(), "table_name::key", JS_EVAL_TYPE_GLOBAL);
 
         if (JS_IsException(val)) {
-          js_std_dump_error(ctx);
+          LOG_INFO_FMT("Exception");
+          //js_std_dump_error(ctx);
         }
 
         // TODO: handle exceptions
