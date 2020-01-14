@@ -52,14 +52,14 @@ namespace jsonrpc
 
   using ErrorBaseType = int;
 
-  enum class StandardErrorCodes : ErrorBaseType
+  enum StandardErrorCodes : ErrorBaseType
   {
 #define XX(Name, Value) Name = Value,
     XX_STANDARD_ERROR_CODES
 #undef XX
   };
 
-  enum class CCFErrorCodes : ErrorBaseType
+  enum CCFErrorCodes : ErrorBaseType
   {
 #define XX(Name, Value) Name = Value,
     XX_CCF_ERROR_CODES

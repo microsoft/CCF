@@ -63,7 +63,7 @@ namespace enclave
       if (prefixed_method.empty())
       {
         send(rpc_ctx.error_response(
-          (int)jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
+          jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
           "No method specified"));
         return true;
       }
@@ -82,7 +82,7 @@ namespace enclave
       if (actor == ccf::ActorsType::unknown)
       {
         send(rpc_ctx.error_response(
-          (int)jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
+          jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
           fmt::format("No such prefix: {}", actor_s)));
         return true;
       }
@@ -98,7 +98,7 @@ namespace enclave
       if (!search.value()->is_open())
       {
         send(rpc_ctx.error_response(
-          (int)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
           fmt::format("Service is not open to {}", actor_s)));
         return false;
       }

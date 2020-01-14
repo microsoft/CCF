@@ -120,7 +120,7 @@ namespace ccfapp
         if (args.method == UserScriptIds::ENV_HANDLER)
         {
           args.rpc_ctx.set_response_error(
-            (int)jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
+            jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
             fmt::format("Cannot call environment script ('{}')", args.method));
           return;
         }
@@ -132,7 +132,7 @@ namespace ccfapp
         if (!handler_script)
         {
           args.rpc_ctx.set_response_error(
-            (int)jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
+            jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
             fmt::format(
               "No handler script found for method '{}'", args.method));
           return;
@@ -166,7 +166,7 @@ namespace ccfapp
         }
         else
         {
-          int err_code = (int)jsonrpc::CCFErrorCodes::SCRIPT_ERROR;
+          int err_code = jsonrpc::CCFErrorCodes::SCRIPT_ERROR;
           std::string msg = "";
 
           if (err_it->is_object())
