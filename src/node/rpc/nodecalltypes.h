@@ -48,7 +48,7 @@ namespace ccf
     };
   };
 
-  // TODO: Refactor this with JoinNetworkNodeToNode? Yes.
+  // TODO: Refactor this with JoinNetworkNodeToNode
   struct CreateNetworkNodeToNode
   {
     struct In

@@ -392,7 +392,6 @@ function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
       ${CMAKE_CURRENT_BINARY_DIR}
       ${QUICKJS_INC}
     )
-    # target_precompile_headers(${name} PUBLIC ${CCF_DIR}/src/kv/kv.h)
     add_dependencies(${name} flatbuffers)
 
     if (PBFT)
