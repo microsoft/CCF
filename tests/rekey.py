@@ -10,7 +10,7 @@ import time
 from loguru import logger as LOG
 
 
-@reqs.supports_methods("mkSign", "LOG_record", "LOG_get")
+@reqs.supports_methods("mkSign", "LOG_record")
 @reqs.at_least_n_nodes(2)
 def test(network, args):
     LOG.info("Rekey ledger after running some transactions")
@@ -22,9 +22,9 @@ def test(network, args):
 
         msg = "Hello world"
 
-        LOG.info("Record transactions on primary on primary")
+        LOG.info("Record transactions on primary")
         with primary.user_client(format="json") as c:
-            for i in range(1, 1):
+            for i in range(1, 2):
                 check_commit(
                     c.rpc("LOG_record", {"id": i, "msg": f"{msg} #{i}"}), result=True
                 )
@@ -32,10 +32,12 @@ def test(network, args):
         network.consortium.rekey_ledger(member_id=1, remote_node=primary)
 
         with primary.user_client(format="json") as c:
-            for i in range(1, 1):
+            for i in range(1, 2):
                 check_commit(
                     c.rpc("LOG_record", {"id": i, "msg": f"{msg} #{i}"}), result=True
                 )
+
+        time.sleep(4)
 
     return network
 

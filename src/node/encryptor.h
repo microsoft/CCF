@@ -160,7 +160,7 @@ namespace ccf
 
     void update_encryption_key(LedgerSecret ls)
     {
-      LOG_FAIL_FMT("Encryptor updated");
+      LOG_FAIL_FMT("TxEncryptor updated");
       encryption_key = std::make_unique<crypto::KeyAesGcm>(ls.master);
     }
   };
@@ -213,12 +213,6 @@ namespace ccf
       {
         encryption_keys.emplace_back(std::make_pair(s.first, s.second->master));
       }
-    }
-
-    void update_encryption_key(kv::Version version, LedgerSecret ls)
-    {
-      LOG_FAIL_FMT("Encryptor updated, version {}", version);
-      encryption_keys.emplace_back(std::make_pair(version, ls.master));
     }
   };
 }

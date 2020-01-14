@@ -177,8 +177,7 @@ namespace ccf
     Timers& timers;
 
     std::shared_ptr<kv::TxHistory> history;
-    std::shared_ptr<RecoveryTxEncryptor>
-      encryptor; // TODO: Wrong encryptor type!!
+    std::shared_ptr<TxEncryptor> encryptor; // TODO: Wrong encryptor type!!
 
     //
     // join protocol
@@ -1242,32 +1241,13 @@ namespace ccf
         }
       });
 
-      network.secrets.set_local_hook([this](
-                                       kv::Version version,
-                                       const Secrets::State& s,
-                                       const Secrets::Write& w) {
-        // If in backup mode in a public network, if new secrets are written
-        // to the secrets table for our entry, decrypt these secrets and
-        // // initiate end of recovery protocol
-        // if (!consensus->is_backup()) // && is_part_of_public_network()))
-        // {
-        //   return;
-        // }
-
+      // TODO: https://github.com/microsoft/CCF/issues/687
+      // For now, set this as a global hook for now.
+      network.secrets.set_global_hook([this](
+                                        kv::Version version,
+                                        const Secrets::State& s,
+                                        const Secrets::Write& w) {
         LOG_FAIL_FMT("Hook for secrets table!");
-
-        // TODO: Here, there are 2 modes:
-        // 1. Either we are in public network and we are expected to get given
-        // historial secrets
-        // 2. Either we are in normal mode and we are expected new secrets
-        // (re-keying)
-
-        // Common:
-        // - Loop through secrets and checks which one is for us
-        // - Decrypt secret
-
-        // Difference
-        // - Version is derived from version parameter when rekeying
 
         bool has_secrets = false;
 
@@ -1303,11 +1283,11 @@ namespace ccf
 
               has_secrets = true;
 
-              kv::Version version_to_use = v;
-              if (v == kv::NoVersion)
-              {
-                version_to_use = version;
-              }
+              // If the version key is NoVersion, we are rekeying. Use the
+              // version passed to the hook instead. For recovery, the version
+              // of the past secrets is passed as the key.
+              kv::Version version_to_use = (v == kv::NoVersion) ? version : v;
+
               LOG_FAIL_FMT("Version to use is {}", version_to_use);
 
               if (!network.ledger_secrets->set_secret(
@@ -1317,16 +1297,16 @@ namespace ccf
                   "Cannot set secrets because they already exist");
               }
 
-              // TODO: Seal secrets
-
-              // TODO: Ugly but works for now. The whole structure of the code
-              // should be changed, perhaps like the history (belongs to the KV)
-              // Do we need a separate encryptor and ledger secrets?
-              // Necessary since during recovery, backups should not do this
-              if (!(consensus->is_backup() && is_part_of_public_network()))
+              if (version_to_use == version) // TODO: Change this
               {
-                encryptor->update_encryption_key(
-                  version_to_use + 1, LedgerSecret(plain_secret));
+                // Seal secrets immediately when rekeying
+                network.ledger_secrets->seal_secret(version_to_use);
+              }
+
+              // Only necessary during rekeying
+              if (!is_part_of_public_network())
+              {
+                encryptor->update_encryption_key(LedgerSecret(plain_secret));
               }
             }
           }
@@ -1443,7 +1423,7 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
         std::make_shared<NullTxEncryptor>();
 #else
-        std::make_shared<RecoveryTxEncryptor>(self, *network.ledger_secrets);
+        std::make_shared<TxEncryptor>(self, *network.ledger_secrets);
 #endif
 
       network.tables->set_encryptor(encryptor);
