@@ -69,6 +69,7 @@ TEST_CASE("Add a node to an opening service")
 
   StubNodeState node;
   NodeRpcFrontend frontend(network, node);
+  frontend.open();
 
   network.ledger_secrets = std::make_unique<LedgerSecrets>();
   network.identity = std::make_unique<NetworkIdentity>();
@@ -161,6 +162,7 @@ TEST_CASE("Add a node to an open service")
 
   StubNodeState node;
   NodeRpcFrontend frontend(network, node);
+  frontend.open();
 
   network.ledger_secrets = std::make_unique<LedgerSecrets>();
   network.identity = std::make_unique<NetworkIdentity>();

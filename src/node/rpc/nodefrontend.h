@@ -75,7 +75,7 @@ namespace ccf
         check_conflicting_node_network(tx, in.node_info_network);
       if (conflicting_node_id.has_value())
       {
-        return jsonrpc::error(
+        return make_error(
           jsonrpc::StandardErrorCodes::INVALID_PARAMS,
           fmt::format(
             "A node with the same node host {} and port {} already exists "
@@ -111,17 +111,17 @@ namespace ccf
 
       if (node_status == NodeStatus::TRUSTED)
       {
-        return jsonrpc::success<JoinNetworkNodeToNode::Out>(
+        return make_success(JoinNetworkNodeToNode::Out(
           {node_status,
            joining_node_id,
            {this->network.ledger_secrets->get_current(),
             this->network.ledger_secrets->get_current_version(),
-            *this->network.identity.get()}});
+            *this->network.identity.get()}}));
       }
       else
       {
-        return jsonrpc::success<JoinNetworkNodeToNode::Out>(
-          {node_status, joining_node_id});
+        return make_success(
+          JoinNetworkNodeToNode::Out({node_status, joining_node_id}));
       }
     }
 
@@ -145,9 +145,10 @@ namespace ccf
           !this->node.is_part_of_network() &&
           !this->node.is_part_of_public_network())
         {
-          return jsonrpc::error(
+          args.rpc_ctx.set_response_error(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             "Target node should be part of network to accept new nodes");
+          return;
         }
 
         auto [nodes_view, service_view] =
@@ -156,9 +157,10 @@ namespace ccf
         auto active_service = service_view->get(0);
         if (!active_service.has_value())
         {
-          return jsonrpc::error(
+          args.rpc_ctx.set_response_error(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             "No service is available to accept new node");
+          return;
         }
 
         // Convert caller cert from DER to PEM as PEM certificates
@@ -180,15 +182,18 @@ namespace ccf
             check_node_exists(args.tx, caller_pem_raw, joining_node_status);
           if (existing_node_id.has_value())
           {
-            return jsonrpc::success<JoinNetworkNodeToNode::Out>(
+            args.rpc_ctx.set_response_result(JoinNetworkNodeToNode::Out(
               {joining_node_status,
                existing_node_id.value(),
                {this->network.ledger_secrets->get_current(),
                 this->network.ledger_secrets->get_current_version(),
-                *this->network.identity.get()}});
+                *this->network.identity.get()}}));
+            return;
           }
 
-          return add_node(args.tx, caller_pem_raw, in, joining_node_status);
+          args.rpc_ctx.set_response(
+            add_node(args.tx, caller_pem_raw, in, joining_node_status));
+          return;
         }
 
         // If the service is open, new nodes are first added as pending and
@@ -204,23 +209,26 @@ namespace ccf
           auto node_status = nodes_view->get(existing_node_id.value())->status;
           if (node_status == NodeStatus::TRUSTED)
           {
-            return jsonrpc::success<JoinNetworkNodeToNode::Out>(
+            args.rpc_ctx.set_response_result(JoinNetworkNodeToNode::Out(
               {node_status,
                existing_node_id.value(),
                {this->network.ledger_secrets->get_current(),
                 this->network.ledger_secrets->get_current_version(),
-                *this->network.identity.get()}});
+                *this->network.identity.get()}}));
+            return;
           }
           else if (node_status == NodeStatus::PENDING)
           {
-            return jsonrpc::success<JoinNetworkNodeToNode::Out>(
-              {node_status, existing_node_id.value()});
+            args.rpc_ctx.set_response_result(JoinNetworkNodeToNode::Out(
+              {node_status, existing_node_id.value()}));
+            return;
           }
           else
           {
-            return jsonrpc::error(
+            args.rpc_ctx.set_response_error(
               jsonrpc::StandardErrorCodes::INVALID_REQUEST,
               "Joining node is not in expected state");
+            return;
           }
         }
         else
@@ -229,7 +237,9 @@ namespace ccf
 
           // TODO: We should also automatically stage a vote for members to
           // accept the new node as trusted
-          return add_node(args.tx, caller_pem_raw, in, NodeStatus::PENDING);
+          args.rpc_ctx.set_response(
+            add_node(args.tx, caller_pem_raw, in, NodeStatus::PENDING));
+          return;
         }
       };
 
@@ -253,9 +263,10 @@ namespace ccf
         }
         else
         {
-          return jsonrpc::error(
+          args.rpc_ctx.set_response_error(
             jsonrpc::StandardErrorCodes::INVALID_REQUEST,
             "Network is not in recovery mode");
+          return;
         }
 
         auto sig_view = args.tx.get_view(*signatures);
@@ -265,7 +276,8 @@ namespace ccf
         else
           result.signed_index = sig.value().index;
 
-        return jsonrpc::success(result);
+        args.rpc_ctx.set_response_result(result);
+        return;
       };
 
       // TODO: Should this be a GeneralProc?
@@ -273,7 +285,8 @@ namespace ccf
         GetQuotes::Out result;
         this->node.node_quotes(args.tx, result);
 
-        return jsonrpc::success(result);
+        args.rpc_ctx.set_response_result(result);
+        return;
       };
 
       install(NodeProcs::JOIN, accept, Write);
