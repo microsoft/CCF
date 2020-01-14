@@ -19,13 +19,17 @@ struct Checkpoint_rep : public Message_rep
   Seqno seqno;
   Digest digest;
   int id; // id of the replica that generated the message.
+#ifdef USE_PKEY_CHECKPOINTS
+  size_t sig_size;
+#endif
   int padding;
   // Followed by a variable-sized signature.
 };
 #pragma pack(pop)
 
 static_assert(
-  sizeof(Checkpoint_rep) + max_sig_size < Max_message_size, "Invalid size");
+  sizeof(Checkpoint_rep) + pbft_max_signature_size < Max_message_size,
+  "Invalid size");
 
 class Checkpoint : public Message
 {

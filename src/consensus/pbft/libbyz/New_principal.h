@@ -20,11 +20,8 @@ struct New_principal_rep : public Message_rep
   uint32_t ip_len;
   char ip[32];
 
-  uint32_t pubk_sig_len;
-  char pubk_sig[128];
-
-  uint32_t pubk_enc_len;
-  char pubk_enc[128];
+  uint32_t cert_len;
+  unsigned char cert[tls::max_pem_cert_size];
 
   uint32_t host_name_len;
   char host_name[128];
@@ -42,16 +39,14 @@ public:
     NodeId id,
     short port,
     std::string ip,
-    std::string pubk_sig,
-    std::string pubk_enc,
+    std::string cert,
     std::string host_name,
     bool is_replica);
 
   NodeId id() const;
   short port() const;
   std::string ip() const;
-  std::string pubk_sig() const;
-  std::string pubk_enc() const;
+  std::string cert() const;
   std::string host_name() const;
   bool is_replica() const;
 

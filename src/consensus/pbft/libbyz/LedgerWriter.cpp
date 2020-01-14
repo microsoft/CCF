@@ -17,18 +17,6 @@ void LedgerWriter::write_prepare(
   Prepare_ledger_header header(seqno, static_cast<uint16_t>(proof.size()));
   size_t entry_size = sizeof(Prepare_ledger_header);
 
-  static_assert(
-    sizeof(Prepared_cert::PrePrepareProof) ==
-      (sizeof(Prepared_cert::PrePrepareProof::public_key) +
-       sizeof(Prepared_cert::PrePrepareProof::signature)),
-    "The size of Prepared_cert::PrePrepareProof is wrong");
-  static_assert(
-    std::is_pod<Prepared_cert::PrePrepareProof>::value,
-    "Prepared_cert::PreprepareProof is not a pod");
-  static_assert(
-    std::is_trivial<Prepared_cert::PrePrepareProof>::value,
-    "Prepared_cert::PrePrepareProof is not a trivial");
-
   entry_size += sizeof(Prepared_cert::PrePrepareProof) * proof.size();
 
   std::vector<uint8_t> entry(entry_size);

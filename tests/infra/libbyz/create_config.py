@@ -8,7 +8,8 @@ def create_private_config(public_ip, private_key):
     config_dir = "config_private"
     os.makedirs(config_dir, exist_ok=True)
     with open(os.path.join(config_dir, public_ip), "w+") as kf:
-        kf.write(private_key)
+        pk = {"privk": private_key}
+        json.dump(pk, kf)
 
 
 def create_config_file(f, replicas, clients):

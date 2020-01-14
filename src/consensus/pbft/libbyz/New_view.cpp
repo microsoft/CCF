@@ -101,8 +101,7 @@ bool New_view::pre_verify()
     sizeof(VC_info) * pbft::GlobalState::get_node().num_of_replicas() + max() -
     min();
 
-  if (
-    Max_message_size - old_size < pbft::GlobalState::get_node().sig_size(id()))
+  if (Max_message_size - old_size < pbft_max_signature_size)
   {
     return false;
   }

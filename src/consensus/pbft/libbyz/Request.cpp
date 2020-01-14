@@ -38,9 +38,8 @@ Request* Request::clone() const
 
 char* Request::store_command(int& max_len)
 {
-  int max_auth_size = std::max(
-    pbft::GlobalState::get_node().principal()->sig_size(),
-    pbft::GlobalState::get_node().auth_size());
+  auto max_auth_size = std::max<size_t>(
+    pbft_max_signature_size, pbft::GlobalState::get_node().auth_size());
   max_len = msize() - sizeof(Request_rep) - max_auth_size;
   return contents() + sizeof(Request_rep);
 }
@@ -84,7 +83,7 @@ void Request::authenticate(int act_len, bool read_only)
   {
     rep().extra |= 2;
     auth_type = Auth_type::unknown;
-    set_size(old_size + pbft::GlobalState::get_node().principal()->sig_size());
+    set_size(old_size + pbft_max_signature_size);
   }
   else
   {
@@ -125,8 +124,8 @@ void Request::re_authenticate(bool change, Principal* p)
 void Request::sign(int act_len)
 {
   PBFT_ASSERT(
-    (unsigned)act_len <= msize() - sizeof(Request_rep) -
-        pbft::GlobalState::get_node().principal()->sig_size(),
+    (unsigned)act_len <=
+      msize() - sizeof(Request_rep) - pbft_max_signature_size,
     "Invalid request size");
 
   rep().extra |= 2;
@@ -134,7 +133,7 @@ void Request::sign(int act_len)
   comp_digest(rep().od);
 
   int old_size = sizeof(Request_rep) + act_len;
-  set_size(old_size + pbft::GlobalState::get_node().principal()->sig_size());
+  set_size(old_size + pbft_max_signature_size);
 }
 
 Request::Request(Request_rep* contents) : Message(contents) {}
@@ -164,7 +163,7 @@ bool Request::pre_verify()
     else
     {
       // Message is signed.
-      if (size() - old_size >= p->sig_size())
+      if (size() - old_size >= pbft_max_signature_size)
       {
         return true;
       }

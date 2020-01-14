@@ -57,7 +57,7 @@ struct New_view_rep : public Message_rep
 static_assert(Max_num_replicas <= UINT8_MAX, "Invalid Max_num_replicas");
 static_assert(
   sizeof(New_view_rep) + sizeof(VC_info) * Max_num_replicas +
-      sizeof(uint8_t) * max_out + max_sig_size <
+      sizeof(uint8_t) * max_out + pbft_max_signature_size <
     Max_message_size,
   "Invalid size");
 

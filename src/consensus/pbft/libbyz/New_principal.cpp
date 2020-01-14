@@ -14,8 +14,7 @@ New_principal::New_principal(
   NodeId id,
   short port,
   std::string ip,
-  std::string pubk_sig,
-  std::string pubk_enc,
+  std::string cert,
   std::string host_name,
   bool is_replica) :
   Message(New_principal_tag, sizeof(New_principal_rep))
@@ -26,11 +25,8 @@ New_principal::New_principal(
   rep().ip_len = ip.size();
   memcpy(rep().ip, ip.data(), ip.size());
 
-  rep().pubk_sig_len = pubk_sig.size();
-  memcpy(rep().pubk_sig, pubk_sig.data(), pubk_sig.size());
-
-  rep().pubk_enc_len = pubk_enc.size();
-  memcpy(rep().pubk_enc, pubk_enc.data(), pubk_enc.size());
+  rep().cert_len = cert.size();
+  memcpy(rep().cert, cert.data(), cert.size());
 
   rep().host_name_len = host_name.size();
   memcpy(rep().host_name, host_name.data(), host_name.size());
@@ -80,14 +76,9 @@ std::string New_principal::ip() const
   return std::string(rep().ip, rep().ip_len);
 }
 
-std::string New_principal::pubk_sig() const
+std::string New_principal::cert() const
 {
-  return std::string(rep().pubk_sig, rep().pubk_sig_len);
-}
-
-std::string New_principal::pubk_enc() const
-{
-  return std::string(rep().pubk_enc, rep().pubk_enc_len);
+  return std::string(rep().cert, rep().cert + rep().cert_len);
 }
 
 std::string New_principal::host_name() const
