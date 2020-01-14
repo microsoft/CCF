@@ -115,7 +115,7 @@ void Node::add_principal(const PrincipalInfo& principal_info)
   {
     LOG_INFO << "Principal with id: " << principal_info.id
              << " has already been configured" << std::endl;
-    auto principal = it->second;
+    auto& principal = it->second;
     if (principal->get_cert().empty())
     {
       principal->set_certificate(principal_info.cert);

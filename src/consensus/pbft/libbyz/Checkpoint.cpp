@@ -52,7 +52,6 @@ void Checkpoint::re_authenticate(Principal* p, bool stable)
   if (rep().extra != 1 && stable)
   {
     rep().extra = 1;
-    rep().sig_size = 0;
     rep().sig_size = pbft::GlobalState::get_node().gen_signature(
       contents(), sizeof(Checkpoint_rep), contents() + sizeof(Checkpoint_rep));
   }
