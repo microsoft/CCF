@@ -35,12 +35,6 @@ namespace ccfapp
       }
 
       auto default_handler = [this](RequestArgs& args) {
-        /*
-        if (args.method == UserScriptIds::ENV_HANDLER)
-          return jsonrpc::error(
-            jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-            "Cannot call environment script ('" + args.method + "')");
-
         const auto scripts = args.tx.get_view(this->network.app_scripts);
 
         // try find script for method
@@ -49,14 +43,14 @@ namespace ccfapp
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
             "No handler script found for method '" + args.method + "'");
-        */
 
         JSRuntime* rt = JS_NewRuntime();
         if (rt == nullptr)
         {
           throw std::runtime_error("Failed to initialise QuickJS runtime");
         }
-        //TODO: set memory limit with JS_SetMemoryLimit
+        // TODO: share runtime across handlers
+        // TODO: set memory limit with JS_SetMemoryLimit
 
         JSContext* ctx = JS_NewContext(rt);
         if (ctx == nullptr)
@@ -64,31 +58,28 @@ namespace ccfapp
           JS_FreeRuntime(rt);
           throw std::runtime_error("Failed to initialise QuickJS context");
         }
-        //TODO: load modules from module table here?
+        // TODO: load modules from module table here?
 
         const nlohmann::json response = {};
 
-        std::string code = "function add (a, b) { return a + b; }; add(4, 5); \"hello\"";
+        if (!handler_script.value().text.has_value())
+        {
+          throw std::runtime_error("Could not find script text");
+        }
+
+        // TODO: support pre-compiled byte-code
+        std::string code = handler_script.value().text.value();
+        LOG_INFO_FMT("About to run {}", code);
         JSValue val = JS_Eval(ctx, code.data(), code.size(), "table_name::key", JS_EVAL_TYPE_GLOBAL);
 
+        // TODO: handle exceptions
         if (JS_VALUE_GET_TAG(val) == JS_TAG_STRING)
-          LOG_INFO_FMT("Ran, returned a string"); //TODO: print and maybe free?
+          LOG_INFO_FMT("Ran, returned a string"); // ODO: print and maybe free?
         else
           LOG_INFO_FMT("Ran, but returned not a string");
 
         JS_FreeContext(ctx);
         JS_FreeRuntime(rt);
-        
-        /*
-        const auto response = tsr->run<nlohmann::json>(
-          args.tx,
-          {*handler_script,
-           {},
-           WlIds::USER_APP_CAN_READ_ONLY,
-           scripts->get(UserScriptIds::ENV_HANDLER)},
-          // vvv arguments to the script vvv
-          args);
-        */
 
         const auto err_it = response.find(jsonrpc::ERR);
         if (err_it == response.end())
