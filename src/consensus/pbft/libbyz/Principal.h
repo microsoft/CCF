@@ -71,6 +71,8 @@ public:
 
   void set_certificate(const std::vector<uint8_t>& cert_);
   bool has_certificate_set();
+  Index get_last_ae_sent() const;
+  void set_last_ae_sent(Index ae);
 
 private:
   int id;
@@ -84,6 +86,8 @@ private:
     kout[Key_size_u]; // session key for outgoing messages to this principal
   ULong tstamp; // last timestamp in a new-key message from this principal
   Time my_tstamp; // my time when message was accepted
+
+  Index last_ae_sent = 0; // last append entry index sent to this principal
 
   Request_id
     last_fetch; // Last request_id in a fetch message from this principal
@@ -140,4 +144,14 @@ inline Request_id Principal::last_fetch_rid() const
 inline void Principal::set_last_fetch_rid(Request_id r)
 {
   last_fetch = r;
+}
+
+inline Index Principal::get_last_ae_sent() const
+{
+  return last_ae_sent;
+}
+
+inline void Principal::set_last_ae_sent(Index ae)
+{
+  last_ae_sent = ae;
 }

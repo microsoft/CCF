@@ -62,7 +62,7 @@ public:
     INetwork* network,
     pbft::RequestsMap& pbft_requests_map_,
     pbft::PrePreparesMap& pbft_pre_prepares_map_,
-    pbft::Store& store_);
+    pbft::PbftStore& store_);
   // Requires: "mem" is vm page aligned and nbytes is a multiple of the
   // vm page size.
   // Effects: Create a new server replica using the information in
@@ -134,8 +134,8 @@ public:
   size_t f() const;
   void set_f(ccf::NodeId f);
   void emit_signature_on_next_pp(int64_t version);
-  void activate_pbft_local_hooks();
-  void deactivate_pbft_local_hooks();
+  void activate_local_hooks();
+  void activate_playback_local_hooks();
   View view() const;
   bool is_primary() const;
   int primary() const;
@@ -287,7 +287,7 @@ private:
   // Effects: Sends back replies that have been executed tentatively
   // to the client. The replies are tentative unless "committed" is true.
 
-  bool execute_tentative(Pre_prepare* pp, ByzInfo& info);
+  bool execute_tentative(Pre_prepare* pp, ByzInfo& info, bool playback = false);
   // Effects: Tentatively executes as many commands as possible. It
   // extracts requests to execute commands from a message "m"; calls
   // exec_command for each command; and sends back replies to the
@@ -391,6 +391,8 @@ private:
   static constexpr auto min_min_pre_prepare_batch_size = 1;
   static constexpr auto num_look_back_to_set_batch_size = 10;
   static constexpr auto max_pre_prepare_request_batch_wait_ms = 2;
+
+  pbft::Index append_entries_index = 0;
 
   // Logging variables used to measure average batch size
   int nbreqs; // The number of requests executed in current interval

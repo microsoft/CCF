@@ -60,6 +60,11 @@ namespace enclave
     // TODO: Avoid unnecessary copies
     std::vector<uint8_t> raw = {};
 
+    // raw pbft Request
+    // TODO see if you can get raw from pbft_raw and if raw is used in raft or
+    // not
+    std::vector<uint8_t> pbft_raw = {};
+
     nlohmann::json unpacked_rpc = {};
 
     std::optional<ccf::SignedReq> signed_request = std::nullopt;

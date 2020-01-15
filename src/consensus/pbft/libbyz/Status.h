@@ -38,6 +38,8 @@ struct Status_rep : public Message_rep
   View v; // Replica's current view
   Seqno ls; // seqno of last stable checkpoint
   Seqno le; // seqno of last request executed
+  Index to_ae_index; // index of ledger append entries
+  Index from_ae_index; // index of ledger append entries
   int id; // id of the replica that generated the message.
   short sz; // size of prepared and committed or pps
   short brsz; // size of breqs
@@ -73,7 +75,14 @@ class Status : public Message
   //  Status messages
   //
 public:
-  Status(View v, Seqno ls, Seqno le, bool hnvi, bool hnvm);
+  Status(
+    View v,
+    Seqno ls,
+    Seqno le,
+    Index from_ae_index,
+    Index to_ae_index,
+    bool hnvi,
+    bool hnvm);
   // Effects: Creates a new unauthenticated Status message.  "v"
   // should be the sending replica's current view, "ls" should be the
   // sequence number of the last stable checkpoint, "le" the sequence
@@ -137,6 +146,12 @@ public:
 
   Seqno last_executed() const;
   // Effects: Returns seqno of last request executed by principal id().
+
+  Index to_ae_index() const;
+  // Effects: Returns the index of the latest entry appended into the ledger
+
+  Index from_ae_index() const;
+  // Effects: Returns the index of the latest entry appended into the ledger
 
   //
   // Observers when has_nv_info()
@@ -339,6 +354,16 @@ inline Seqno Status::last_stable() const
 inline Seqno Status::last_executed() const
 {
   return rep().le;
+}
+
+inline Index Status::to_ae_index() const
+{
+  return rep().to_ae_index;
+}
+
+inline Index Status::from_ae_index() const
+{
+  return rep().from_ae_index;
 }
 
 inline bool Status::is_prepared(Seqno n)

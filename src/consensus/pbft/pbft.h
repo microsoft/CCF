@@ -5,6 +5,7 @@
 #include "consensus/ledgerenclave.h"
 #include "consensus/pbft/libbyz/Big_req_table.h"
 #include "consensus/pbft/libbyz/Client_proxy.h"
+#include "consensus/pbft/libbyz/Status.h"
 #include "consensus/pbft/libbyz/libbyz.h"
 #include "consensus/pbft/libbyz/network.h"
 #include "consensus/pbft/libbyz/receive_message_base.h"
@@ -73,6 +74,21 @@ namespace pbft
 
       n2n_channels->send_authenticated(
         ccf::NodeMsgType::consensus_msg, to, serialized_msg);
+      if (msg->tag() == 7)
+      {
+        Status* status;
+        Status::convert(msg, status);
+
+        AppendEntries ae = {
+          pbft_append_entries,
+          id,
+          status->to_ae_index(),
+          status->from_ae_index(),
+        };
+        n2n_channels->send_authenticated(
+          ccf::NodeMsgType::consensus_msg, to, ae);
+        return msg->size();
+      }
       return msg->size();
     }
 
@@ -106,8 +122,12 @@ namespace pbft
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
     SeqNo global_commit_seqno;
     View last_commit_view;
-    std::unique_ptr<pbft::Store> store;
+    std::unique_ptr<pbft::PbftStore> store;
     std::unique_ptr<consensus::LedgerEnclave> ledger;
+
+    // When this is set, only public domain is deserialised when receving append
+    // entries
+    bool public_only = false;
 
     struct view_change_info
     {
@@ -124,7 +144,7 @@ namespace pbft
 
     struct register_global_commit_info
     {
-      pbft::Store* store;
+      pbft::PbftStore* store;
       SeqNo* global_commit_seqno;
       View* last_commit_view;
       std::vector<view_change_info>* view_change_list;
@@ -132,7 +152,7 @@ namespace pbft
 
   public:
     Pbft(
-      std::unique_ptr<pbft::Store> store_,
+      std::unique_ptr<pbft::PbftStore> store_,
       std::shared_ptr<ChannelProxy> channels_,
       NodeId id,
       size_t sig_max_tx,
@@ -197,6 +217,9 @@ namespace pbft
         &message_receiver_base);
       LOG_INFO_FMT("PBFT setup for local_id: {}", local_id);
 
+      message_receiver_base->activate_local_hooks();
+      message_receiver_base->activate_playback_local_hooks();
+
       pbft_config->set_service_mem(mem + used_bytes);
       pbft_config->set_receiver(message_receiver_base);
       pbft_network->set_receiver(message_receiver_base);
@@ -243,7 +266,7 @@ namespace pbft
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
       pbft::Request request = {
-        args.actor, args.caller_id, args.caller_cert, args.request};
+        args.actor, args.caller_id, args.caller_cert, args.request, {}};
       auto serialized_req = request.serialise();
 
       auto rep_cb = [&](
@@ -370,11 +393,85 @@ namespace pbft
       switch (serialized::peek<PbftMsgType>(data, size))
       {
         case pbft_message:
+        {
           serialized::skip(data, size, sizeof(PbftHeader));
           message_receiver_base->receive_message(data, size);
           break;
-        default:
-        {}
+        }
+        case pbft_append_entries:
+        {
+          AppendEntries r;
+          message_receiver_base->activate_playback_local_hooks();
+
+          try
+          {
+            r =
+              channels->template recv_authenticated<AppendEntries>(data, size);
+          }
+          catch (const std::logic_error& err)
+          {
+            LOG_FAIL_FMT(err.what());
+            return;
+          }
+
+          // TODO maybe check with our AE where we are and if we want to take
+          // the message could potentially include a term history just like raft
+          // and also send the view at least skip the entries that we have?
+
+          for (Index i = r.prev_idx + 1; i <= r.idx; i++)
+          {
+            LOG_INFO_FMT(
+              "RECORDING ENTRY FOR INDEX {} FOR DATA WITH SIZE {}", i, size);
+            // if (i <= last_idx)
+            // {
+            //   // If the current entry has already been deserialised, skip the
+            //   // payload for that entry
+            //   ledger->skip_entry(data, size);
+            //   continue;
+            // }
+            Index last_idx = i;
+            auto ret = ledger->record_entry(data, size);
+
+            if (!ret.second)
+            {
+              // NB: This will currently never be triggered.
+              // This should only fail if there is malformed data. Truncate
+              // the log and reply false.
+              LOG_FAIL_FMT(
+                "Recv append entries to {} from {} but the data is malformed",
+                local_id,
+                r.from_node);
+
+              last_idx = r.prev_idx;
+              ledger->truncate(r.prev_idx);
+              return;
+            }
+
+            auto deserialise_success =
+              store->deserialise(ret.first, public_only, false);
+
+            switch (deserialise_success)
+            {
+              case kv::DeserialiseSuccess::FAILED:
+              {
+                throw std::logic_error(
+                  "Replica failed to apply log entry " + std::to_string(i));
+                break;
+              }
+              case kv::DeserialiseSuccess::PASS:
+              {
+                break;
+              }
+              case kv::DeserialiseSuccess::PASS_SIGNATURE:
+              {
+                throw std::logic_error(
+                  "Received a history signature while running with PBFT!");
+                break;
+              }
+            }
+          }
+          break;
+        }
       }
     }
 

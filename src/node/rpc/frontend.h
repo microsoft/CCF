@@ -779,7 +779,8 @@ namespace ccf
      *
      * @param ctx Context for this RPC
      */
-    ProcessPbftResp process_pbft(enclave::RPCContext& ctx) override
+    ProcessPbftResp process_pbft(
+      enclave::RPCContext& ctx, bool playback = false) override
     {
       // TODO(#PBFT): Refactor this with process_forwarded().
       Store::Tx tx;
@@ -813,13 +814,17 @@ namespace ccf
 
       history->register_on_result(cb);
 
-      auto req_view = tx.get_view(*pbft_requests_map);
-      req_view->put(
-        0,
-        {ctx.actor,
-         ctx.session.fwd.value().caller_id,
-         ctx.session.caller_cert,
-         ctx.raw});
+      if (!playback)
+      {
+        auto req_view = tx.get_view(*pbft_requests_map);
+        req_view->put(
+          0,
+          {ctx.actor,
+           ctx.session.fwd.value().caller_id,
+           ctx.session.caller_cert,
+           ctx.raw,
+           ctx.pbft_raw});
+      }
 
       auto rep = process_json(ctx, tx, ctx.session.fwd->caller_id);
 

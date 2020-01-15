@@ -661,6 +661,7 @@ void State::start_fetch(Seqno le, Seqno c, Digest* cd, bool stable)
 
 void State::send_fetch(bool change_replier)
 {
+  LOG_INFO_FMT("Sending FETCH!");
   START_CC(fetch_cycles);
 
   last_fetch_t = ITimer::current_time();

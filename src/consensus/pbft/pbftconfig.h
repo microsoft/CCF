@@ -53,8 +53,11 @@ namespace pbft
                                  int client,
                                  Request_id rid,
                                  bool ro,
+                                 uint8_t* req_start,
+                                 size_t req_size,
                                  Seqno total_requests_executed,
-                                 ByzInfo& info) {
+                                 ByzInfo& info,
+                                 bool playback) {
       pbft::Request request;
       request.deserialise({inb->contents, inb->contents + inb->size});
 
@@ -75,7 +78,9 @@ namespace pbft
       const auto n = ctx.method.find_last_of('/');
       ctx.method = ctx.method.substr(n + 1, ctx.method.size());
 
-      auto rep = frontend->process_pbft(ctx);
+      ctx.pbft_raw = {req_start, req_start + req_size};
+
+      auto rep = frontend->process_pbft(ctx, playback);
 
       static_assert(
         sizeof(info.full_state_merkle_root) == sizeof(crypto::Sha256Hash));

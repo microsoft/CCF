@@ -37,6 +37,7 @@ namespace enclave
       kv::Version version;
     };
 
-    virtual ProcessPbftResp process_pbft(RPCContext& ctx) = 0;
+    virtual ProcessPbftResp process_pbft(
+      RPCContext& ctx, bool playback = false) = 0;
   };
 }

@@ -70,7 +70,7 @@ Replica::Replica(
   INetwork* network,
   pbft::RequestsMap& pbft_requests_map_,
   pbft::PrePreparesMap& pbft_pre_prepares_map_,
-  pbft::Store& store) :
+  pbft::PbftStore& store) :
   Node(node_info),
   rqueue(),
   plog(max_out),
@@ -237,16 +237,6 @@ bool Replica::compare_execution_results(
 {
   auto& pp_root = pre_prepare->get_full_state_merkle_root();
   auto& r_pp_root = pre_prepare->get_replicated_state_merkle_root();
-  if (!std::equal(
-        std::begin(pp_root),
-        std::end(pp_root),
-        std::begin(info.full_state_merkle_root)))
-  {
-    LOG_FAIL << "Full state merkle root between execution and the pre_prepare "
-                "message does not match, seqno:"
-             << pre_prepare->seqno() << std::endl;
-    return false;
-  }
 
   if (!std::equal(
         std::begin(r_pp_root),
@@ -266,15 +256,30 @@ bool Replica::compare_execution_results(
                 "does not match, seqno:"
              << pre_prepare->seqno() << ", tx_ctx:" << tx_ctx
              << ", info.ctx:" << info.ctx << std::endl;
+    // return false;
+  }
+
+  if (!std::equal(
+        std::begin(pp_root),
+        std::end(pp_root),
+        std::begin(info.full_state_merkle_root)))
+  {
+    LOG_FAIL << "Full state merkle root between execution and the pre_prepare "
+                "message does not match, seqno:"
+             << pre_prepare->seqno() << std::endl;
     return false;
   }
+
   return true;
 }
 
 void Replica::playback_request(const pbft::Request& request)
 {
+  LOG_INFO_FMT(
+    "Playback request for request with size {}", request.pbft_raw.size());
   auto req =
-    create_message<Request>(request.raw.data(), request.raw.size()).release();
+    create_message<Request>(request.pbft_raw.data(), request.pbft_raw.size())
+      .release();
   if (!brt.add_request(req))
   {
     rqueue.append(req);
@@ -283,12 +288,13 @@ void Replica::playback_request(const pbft::Request& request)
 
 void Replica::playback_pre_prepare(const pbft::PrePrepare& pre_prepare)
 {
+  LOG_INFO_FMT("playback pre-prepare {}", pre_prepare.seqno);
   auto executable_pp = create_message<Pre_prepare>(
     pre_prepare.contents.data(), pre_prepare.contents.size());
   auto seqno = executable_pp->seqno();
 
   ByzInfo info;
-  if (execute_tentative(executable_pp.get(), info))
+  if (execute_tentative(executable_pp.get(), info, true))
   {
     if (!compare_execution_results(info, executable_pp.get()))
     {
@@ -317,6 +323,8 @@ void Replica::playback_pre_prepare(const pbft::PrePrepare& pre_prepare)
   }
   else
   {
+    LOG_INFO_FMT(
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALALALLAND");
     LOG_DEBUG << "Received entries could not be processed. Received seqno: "
               << seqno
               << ". Truncating ledger to last executed: " << last_executed
@@ -529,8 +537,10 @@ void Replica::handle(Request* m)
 
   Digest rd = m->digest();
   LOG_TRACE << "Received request with rid: " << m->request_id()
-            << " id:" << id() << " primary:" << primary()
-            << " with cid: " << m->client_id()
+            << " replier: " << m->replier() << " is_signed: " << m->is_signed()
+            << " is read only: " << m->is_read_only()
+            << " contents size: " << m->contents_size() << " id:" << id()
+            << " primary:" << primary() << " with cid: " << m->client_id()
             << " current seqno: " << next_pp_seqno
             << " last executed: " << last_executed << " digest: " << rd.hash()
             << std::endl;
@@ -1083,7 +1093,28 @@ void Replica::emit_signature_on_next_pp(int64_t version)
   signed_version = version;
 }
 
-void Replica::activate_pbft_local_hooks()
+void Replica::activate_playback_local_hooks()
+{
+  pbft_requests_map.set_deserialise_hook(
+    [this](const pbft::RequestsMap::Write& w) {
+      for (auto& [key, value] : w)
+      {
+        append_entries_index++;
+        playback_request(value.value);
+      }
+    });
+
+  pbft_pre_prepares_map.set_deserialise_hook(
+    [this](const pbft::PrePreparesMap::Write& w) {
+      for (auto& [key, value] : w)
+      {
+        append_entries_index++;
+        playback_pre_prepare(value.value);
+      }
+    });
+}
+
+void Replica::activate_local_hooks()
 {
   pbft_requests_map.set_local_hook([this](
                                      kv::Version version,
@@ -1091,7 +1122,7 @@ void Replica::activate_pbft_local_hooks()
                                      const pbft::RequestsMap::Write& w) {
     for (auto& [key, value] : w)
     {
-      playback_request(value.value);
+      append_entries_index++;
     }
   });
 
@@ -1101,15 +1132,9 @@ void Replica::activate_pbft_local_hooks()
                                          const pbft::PrePreparesMap::Write& w) {
     for (auto& [key, value] : w)
     {
-      playback_pre_prepare(value.value);
+      append_entries_index++;
     }
   });
-}
-
-void Replica::deactivate_pbft_local_hooks()
-{
-  pbft_requests_map.set_local_hook(nullptr);
-  pbft_pre_prepares_map.set_local_hook(nullptr);
 }
 
 View Replica::view() const
@@ -1169,6 +1194,35 @@ void Replica::handle(Status* m)
       return;
     }
 
+    LOG_INFO_FMT(
+      "Received status message, replica {} is at state {} ",
+      m->id(),
+      m->to_ae_index());
+    auto principal = get_principal(m->id());
+    principal->set_last_ae_sent(m->to_ae_index());
+    if (m->to_ae_index() < append_entries_index)
+    {
+      LOG_INFO_FMT(
+        "I WOULD NEED TO SEND AE HERE: mine {} theirs {}",
+        append_entries_index,
+        m->to_ae_index());
+      LOG_INFO_FMT(
+        "Sending status message with from {} to ae index {}",
+        m->to_ae_index(),
+        append_entries_index);
+      Status s(
+        v,
+        last_stable,
+        last_executed,
+        m->to_ae_index(),
+        append_entries_index,
+        has_complete_new_view(),
+        vi.has_nv_message(v));
+
+      s.authenticate();
+      send(&s, m->id());
+    }
+    return;
     // Retransmit messages that the sender is missing.
     if (last_stable > m->last_stable() + max_out)
     {
@@ -1788,8 +1842,8 @@ bool Replica::execute_read_only(Request* request)
     int request_id = request->request_id();
     std::shared_ptr<Principal> cp = get_principal(client_id);
     ByzInfo info;
-    int error =
-      exec_command(&inb, outb, 0, client_id, request_id, true, 0, info);
+    int error = exec_command(
+      &inb, outb, 0, client_id, request_id, true, nullptr, 0, 0, info, false);
     right_pad_contents(outb);
 
     if (!error)
@@ -1909,7 +1963,7 @@ void Replica::execute_prepared(bool committed)
   }
 }
 
-bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
+bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info, bool playback)
 {
   LOG_DEBUG << "in execute tentative: " << pp->seqno() << std::endl;
   if (
@@ -1970,8 +2024,11 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
         client_id,
         rid,
         false,
+        (uint8_t*)request.contents(),
+        request.contents_size(),
         replies.total_requests_processed(),
-        info);
+        info,
+        playback);
       right_pad_contents(outb);
       // Finish constructing the reply.
       LOG_DEBUG << "Executed from tentative exec: " << pp->seqno()
@@ -2429,23 +2486,27 @@ void Replica::mark_stable(Seqno n, bool have_state)
 
 void Replica::handle(Data* m)
 {
-  state.handle(m);
+  LOG_INFO_FMT("HANDLE DATA");
+  // state.handle(m);
 }
 
 void Replica::handle(Meta_data* m)
 {
-  state.handle(m);
+  LOG_INFO_FMT("HANDLE META DATA");
+  // state.handle(m);
 }
 
 void Replica::handle(Meta_data_d* m)
 {
-  state.handle(m);
+  LOG_INFO_FMT("HANDLE META DATA D");
+  // state.handle(m);
 }
 
 void Replica::handle(Fetch* m)
 {
-  int mid = m->id();
-  state.handle(m, last_stable);
+  LOG_INFO_FMT("HANDLE FETCH");
+  // int mid = m->id();
+  // state.handle(m, last_stable);
 }
 
 void Replica::send_status(bool send_now)
@@ -2479,49 +2540,70 @@ void Replica::send_status(bool send_now)
       return;
     }
 
-    Status s(
-      v,
-      last_stable,
-      last_executed,
-      has_complete_new_view(),
-      vi.has_nv_message(v));
-
-    if (has_complete_new_view())
+    LOG_INFO_FMT(
+      "Sending status message with ae index {}", append_entries_index);
+    for (auto& [id, principal] : *get_principals())
     {
-      // Set prepared and committed bitmaps correctly
-      Seqno max = last_stable + max_out;
-      Seqno min = std::max(last_executed, last_stable) + 1;
-      for (Seqno n = min; n <= max; n++)
+      if (id == node_id)
       {
-        Prepared_cert& pc = plog.fetch(n);
-        if (pc.is_complete() || state.in_check_state())
-        {
-          s.mark_prepared(n);
-          if (clog.fetch(n).is_complete() || state.in_check_state())
-          {
-            s.mark_committed(n);
-          }
-        }
-        else
-        {
-          // Ask for missing big requests
-          if (
-            !pc.is_pp_complete() && pc.pre_prepare() && pc.num_correct() >= f())
-          {
-            s.add_breqs(n, pc.missing_reqs());
-          }
-        }
+        continue;
       }
-    }
-    else
-    {
-      vi.set_received_vcs(&s);
-      vi.set_missing_pps(&s);
-    }
+      LOG_INFO_FMT(
+        "Sending to {} from {} to {}",
+        id,
+        principal->get_last_ae_sent(),
+        append_entries_index);
 
-    // Multicast status to all replicas.
-    s.authenticate();
-    send(&s, All_replicas);
+      Status s(
+        v,
+        last_stable,
+        last_executed,
+        principal->get_last_ae_sent(),
+        append_entries_index,
+        has_complete_new_view(),
+        vi.has_nv_message(v));
+
+      s.authenticate();
+      send(&s, id);
+    }
+    return;
+    //   if (has_complete_new_view())
+    //   {
+    //     // Set prepared and committed bitmaps correctly
+    //     Seqno max = last_stable + max_out;
+    //     Seqno min = std::max(last_executed, last_stable) + 1;
+    //     for (Seqno n = min; n <= max; n++)
+    //     {
+    //       Prepared_cert& pc = plog.fetch(n);
+    //       if (pc.is_complete() || state.in_check_state())
+    //       {
+    //         s.mark_prepared(n);
+    //         if (clog.fetch(n).is_complete() || state.in_check_state())
+    //         {
+    //           s.mark_committed(n);
+    //         }
+    //       }
+    //       else
+    //       {
+    //         // Ask for missing big requests
+    //         if (
+    //           !pc.is_pp_complete() && pc.pre_prepare() && pc.num_correct() >=
+    //           f())
+    //         {
+    //           s.add_breqs(n, pc.missing_reqs());
+    //         }
+    //       }
+    //     }
+    //   }
+    //   else
+    //   {
+    //     vi.set_received_vcs(&s);
+    //     vi.set_missing_pps(&s);
+    //   }
+
+    //   // Multicast status to all replicas.
+    //   s.authenticate();
+    //   send(&s, All_replicas);
   }
 }
 

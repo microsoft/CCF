@@ -7,4 +7,5 @@ namespace ccf
 {
   using ObjectId = uint64_t;
   using NodeId = ObjectId;
+  using Index = int64_t;
 }

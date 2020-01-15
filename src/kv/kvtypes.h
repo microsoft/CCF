@@ -334,6 +334,7 @@ namespace kv
     virtual DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
       bool public_only = false,
+      bool commit = true,
       Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;
     virtual void rollback(Version v) = 0;

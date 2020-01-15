@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/consensustypes.h"
+#include "consensus/pbft/pbfttypes.h"
 #include "consensus/raft/rafttypes.h"
 #include "ledger.h"
 #include "node/nodetypes.h"
@@ -207,44 +209,60 @@ namespace asynchost
           auto to = serialized::read<ccf::NodeId>(data, size);
           auto node = find(to, true);
 
+          LOG_INFO_FMT("NNNAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+
           if (!node)
             return;
 
           auto data_to_send = data;
           auto size_to_send = size;
 
-          // If the message is a raft append entries message, affix the
+          // If the message is a consensus append entries message, affix the
           // corresponding ledger entries
           if (
             serialized::read<ccf::NodeMsgType>(data, size) ==
-              ccf::NodeMsgType::consensus_msg &&
-            serialized::peek<raft::RaftMsgType>(data, size) ==
-              raft::raft_append_entries)
+                ccf::NodeMsgType::consensus_msg &&
+              serialized::peek<raft::RaftMsgType>(data, size) ==
+                raft::raft_append_entries ||
+            serialized::peek<pbft::PbftMsgType>(data, size) ==
+              pbft::pbft_append_entries)
           {
             // Parse the indices to be sent to the recipient.
             auto p = data;
             auto psize = size;
-            const auto& ae = serialized::overlay<raft::AppendEntries>(p, psize);
+
+            ccf::Index idx;
+            ccf::Index prev_idx;
+            if (
+              serialized::peek<raft::RaftMsgType>(data, size) ==
+              raft::raft_append_entries)
+            {
+              const auto& ae =
+                serialized::overlay<raft::AppendEntries>(p, psize);
+              idx = ae.idx;
+              prev_idx = ae.prev_idx;
+            }
+            else
+            {
+              const auto& ae =
+                serialized::overlay<pbft::AppendEntries>(p, psize);
+              idx = ae.idx;
+              prev_idx = ae.prev_idx;
+            }
 
             // Find the total frame size, and write it along with the header.
-            auto count = ae.idx - ae.prev_idx;
+            auto count = idx - prev_idx;
             uint32_t frame = (uint32_t)(
-              size_to_send +
-              ledger.framed_entries_size(ae.prev_idx + 1, ae.idx));
+              size_to_send + ledger.framed_entries_size(prev_idx + 1, idx));
 
             LOG_DEBUG_FMT(
-              "raft send AE to {} [{}]: {}, {}",
-              to,
-              frame,
-              ae.idx,
-              ae.prev_idx);
+              "send AE to {} [{}]: {}, {}", to, frame, idx, prev_idx);
 
             // TODO(#performance): writev
             node.value()->write(sizeof(uint32_t), (uint8_t*)&frame);
             node.value()->write(size_to_send, data_to_send);
 
-            auto framed_entries =
-              ledger.read_framed_entries(ae.prev_idx + 1, ae.idx);
+            auto framed_entries = ledger.read_framed_entries(prev_idx + 1, idx);
             frame = (uint32_t)framed_entries.size();
             node.value()->write(frame, framed_entries.data());
           }

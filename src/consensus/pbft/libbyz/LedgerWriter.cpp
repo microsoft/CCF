@@ -5,7 +5,7 @@
 #include "Request.h"
 
 LedgerWriter::LedgerWriter(
-  pbft::Store& store_, pbft::PrePreparesMap& pbft_pre_prepares_map_) :
+  pbft::PbftStore& store_, pbft::PrePreparesMap& pbft_pre_prepares_map_) :
   store(store_),
   pbft_pre_prepares_map(pbft_pre_prepares_map_)
 {}

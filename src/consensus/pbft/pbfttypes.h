@@ -13,10 +13,12 @@ namespace pbft
   using NodeId = uint64_t;
   using Node2NodeMsg = uint64_t;
   using CallerId = uint64_t;
+  using RequestId = uint64_t;
 
   enum PbftMsgType : Node2NodeMsg
   {
     pbft_message = 1000,
+    pbft_append_entries
   };
 
 #pragma pack(push, 1)
@@ -25,28 +27,53 @@ namespace pbft
     PbftMsgType msg;
     NodeId from_node;
   };
+
+  struct AppendEntries : PbftHeader
+  {
+    Index idx;
+    Index prev_idx;
+  };
+
 #pragma pack(pop)
 
+  template <typename S>
   class Store
   {
   public:
     virtual ~Store() {}
+    virtual S deserialise(
+      const std::vector<uint8_t>& data,
+      bool public_only = false,
+      bool commit = true,
+      Term* term = nullptr) = 0;
     virtual void compact(Index v) = 0;
-    virtual void rollback(Index v) = 0;
     virtual kv::Version current_version() = 0;
     virtual void commit_pre_prepare(
       const pbft::PrePrepare& pp,
       pbft::PrePreparesMap& pbft_pre_prepares_map) = 0;
   };
 
-  template <typename T>
-  class Adaptor : public pbft::Store
+  template <typename T, typename S>
+  class Adaptor : public pbft::Store<S>
   {
   private:
     std::weak_ptr<T> x;
 
   public:
     Adaptor(std::shared_ptr<T> x) : x(x) {}
+
+    S deserialise(
+      const std::vector<uint8_t>& data,
+      bool public_only = false,
+      bool commit = true,
+      Term* term = nullptr)
+    {
+      auto p = x.lock();
+      if (p)
+        return p->deserialise(data, public_only, term);
+
+      return S::FAILED;
+    }
 
     void commit_pre_prepare(
       const pbft::PrePrepare& pp, pbft::PrePreparesMap& pbft_pre_prepares_map)
@@ -84,15 +111,6 @@ namespace pbft
       }
     }
 
-    void rollback(Index v)
-    {
-      auto p = x.lock();
-      if (p)
-      {
-        p->rollback(v);
-      }
-    }
-
     kv::Version current_version()
     {
       auto p = x.lock();
@@ -103,4 +121,6 @@ namespace pbft
       return kv::NoVersion;
     }
   };
+
+  using PbftStore = pbft::Store<kv::DeserialiseSuccess>;
 }

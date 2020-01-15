@@ -80,6 +80,8 @@ namespace kv
     using Write = std::unordered_map<K, VersionV, H>;
     /// Signature for transaction commit handlers
     using CommitHook = std::function<void(Version, const State&, const Write&)>;
+    /// Signature for transaction deserialisation handlers
+    using DeserialiseHook = std::function<void(const Write&)>;
 
   private:
     using This = Map<K, V, H, S, D>;
@@ -98,6 +100,7 @@ namespace kv
     std::unique_ptr<LocalCommits> roll;
     CommitHook local_hook;
     CommitHook global_hook;
+    DeserialiseHook deserialise_hook;
     LocalCommits commit_deltas;
     SpinLock sl;
     const SecurityDomain security_domain;
@@ -109,7 +112,8 @@ namespace kv
       SecurityDomain security_domain_,
       bool replicated_,
       CommitHook local_hook_,
-      CommitHook global_hook_) :
+      CommitHook global_hook_,
+      DeserialiseHook deserialise_hook_) :
       store(store_),
       name(name_),
       roll(std::make_unique<LocalCommits>()),
@@ -117,7 +121,8 @@ namespace kv
       security_domain(security_domain_),
       replicated(replicated_),
       local_hook(local_hook_),
-      global_hook(global_hook_)
+      global_hook(global_hook_),
+      deserialise_hook(deserialise_hook_)
     {
       roll->push_back({0, State(), Write()});
     }
@@ -133,7 +138,7 @@ namespace kv
         throw std::logic_error("Failed to cast store in Map clone");
 
       return new Map(
-        store_, name, security_domain, replicated, nullptr, nullptr);
+        store_, name, security_domain, replicated, nullptr, nullptr, nullptr);
     }
 
     /** Get the name of the map
@@ -172,6 +177,16 @@ namespace kv
     {
       std::lock_guard<SpinLock> guard(sl);
       global_hook = hook;
+    }
+
+    /** Set handler to be called on map deserialisation
+     *
+     * @param hook function to be called on map deserialisation
+     */
+    void set_deserialise_hook(DeserialiseHook hook)
+    {
+      std::lock_guard<SpinLock> guard(sl);
+      deserialise_hook = hook;
     }
 
     /** Get security domain of a Map
@@ -693,6 +708,13 @@ namespace kv
         {
           auto r = d.template deserialise_remove<K>();
           writes[r] = {NoVersion, V()};
+        }
+
+        // add deserialise hook
+        if (map.deserialise_hook)
+        {
+          LOG_INFO_FMT("Calling deserialise hook!");
+          map.deserialise_hook(writes);
         }
 
         return true;
@@ -1376,10 +1398,11 @@ namespace kv
       std::string name,
       SecurityDomain security_domain = kv::SecurityDomain::PRIVATE,
       typename Map<K, V, H>::CommitHook local_hook = nullptr,
-      typename Map<K, V, H>::CommitHook global_hook = nullptr)
+      typename Map<K, V, H>::CommitHook global_hook = nullptr,
+      typename Map<K, V, H>::DeserialiseHook deserialise_hook = nullptr)
     {
       return create<Map<K, V, H>>(
-        name, security_domain, local_hook, global_hook);
+        name, security_domain, local_hook, global_hook, deserialise_hook);
     }
 
     /** Create a Map
@@ -1397,7 +1420,8 @@ namespace kv
       std::string name,
       SecurityDomain security_domain = kv::SecurityDomain::PRIVATE,
       typename M::CommitHook local_hook = nullptr,
-      typename M::CommitHook global_hook = nullptr)
+      typename M::CommitHook global_hook = nullptr,
+      typename M::DeserialiseHook deserialise_hook = nullptr)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
@@ -1417,8 +1441,14 @@ namespace kv
         }
       }
 
-      auto result =
-        new M(this, name, security_domain, replicated, local_hook, global_hook);
+      auto result = new M(
+        this,
+        name,
+        security_domain,
+        replicated,
+        local_hook,
+        global_hook,
+        deserialise_hook);
       maps[name] = std::unique_ptr<AbstractMap<S, D>>(result);
       return *result;
     }
@@ -1491,6 +1521,7 @@ namespace kv
     DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
       bool public_only = false,
+      bool commit = true,
       Term* term = nullptr) override
     {
       // This will return FAILED if the serialised transaction is being
@@ -1620,45 +1651,68 @@ namespace kv
         }
       }
 
-      auto c = Tx::commit(views, [v]() { return v; });
-      if (!c.has_value())
-      {
-        LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
-        return DeserialiseSuccess::FAILED;
-      }
-
-      {
-        std::lock_guard<SpinLock> vguard(version_lock);
-        version = v;
-        last_replicated = v;
-      }
-
       auto success = DeserialiseSuccess::PASS;
 
-      auto h = get_history();
-      if (h)
+      if (commit)
       {
-        // TODO: the reference to the entity should be in the history
-        auto search = views.find("ccf.signatures");
+        auto c = Tx::commit(views, [v]() { return v; });
+        if (!c.has_value())
+        {
+          LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
+          return DeserialiseSuccess::FAILED;
+        }
+        {
+          std::lock_guard<SpinLock> vguard(version_lock);
+          version = v;
+          last_replicated = v;
+        }
+
+        auto h = get_history();
+        if (h)
+        {
+          // TODO: the reference to the entity should be in the history
+          auto search = views.find("ccf.signatures");
+          if (search != views.end())
+          {
+            // Transactions containing a signature must only contain
+            // a signature and must be verified
+            if (views.size() > 1)
+            {
+              LOG_FAIL_FMT(
+                "Unexpected contents in signature transaction {}", v);
+              return DeserialiseSuccess::FAILED;
+            }
+
+            if (!h->verify(term))
+            {
+              LOG_FAIL_FMT("Signature in transaction {} failed to verify", v);
+              return DeserialiseSuccess::FAILED;
+            }
+            success = DeserialiseSuccess::PASS_SIGNATURE;
+          }
+          auto rep = frame::replicated(data.data());
+          h->append(rep.p, rep.n, data.data(), data.size());
+        }
+      }
+      // else
+      // {
+      //   mguard.~lock_guard();
+      //   rollback(version);
+      // }
+
+      else
+      {
+        auto search = views.find("ccf.pbft.requests");
         if (search != views.end())
         {
-          // Transactions containing a signature must only contain
-          // a signature and must be verified
-          if (views.size() > 1)
+          if (search->second.view->has_writes())
           {
-            LOG_FAIL_FMT("Unexpected contents in signature transaction {}", v);
-            return DeserialiseSuccess::FAILED;
+            // auto ws = search->second.view->get(0);
+            // search->second.view->lock();
+            // search->second.view->post_commit();
+            // search->second.map->unlock();
           }
-
-          if (!h->verify(term))
-          {
-            LOG_FAIL_FMT("Signature in transaction {} failed to verify", v);
-            return DeserialiseSuccess::FAILED;
-          }
-          success = DeserialiseSuccess::PASS_SIGNATURE;
         }
-        auto rep = frame::replicated(data.data());
-        h->append(rep.p, rep.n, data.data(), data.size());
       }
 
       return success;

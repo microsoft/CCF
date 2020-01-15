@@ -460,9 +460,9 @@ namespace ccf
       const uint8_t* all_data,
       size_t all_data_size) override
     {
-      crypto::Sha256Hash h({{all_data, all_data_size}});
-      log_hash(h, APPEND);
-      full_state_tree.append(h);
+      // crypto::Sha256Hash h({{all_data, all_data_size}});
+      // log_hash(h, APPEND);
+      // full_state_tree.append(h);
 
       if (is_replicated_tree_enabled())
       {
@@ -502,8 +502,8 @@ namespace ccf
 
     void rollback(kv::Version v) override
     {
-      full_state_tree.retract(v);
-      log_hash(full_state_tree.get_root(), ROLLBACK);
+      // full_state_tree.retract(v);
+      // log_hash(full_state_tree.get_root(), ROLLBACK);
 
       if (is_replicated_tree_enabled())
       {
@@ -514,9 +514,9 @@ namespace ccf
 
     void compact(kv::Version v) override
     {
-      if (v > MAX_HISTORY_LEN)
-        full_state_tree.flush(v - MAX_HISTORY_LEN);
-      log_hash(full_state_tree.get_root(), COMPACT);
+      // if (v > MAX_HISTORY_LEN)
+      //   full_state_tree.flush(v - MAX_HISTORY_LEN);
+      // log_hash(full_state_tree.get_root(), COMPACT);
 
       if (is_replicated_tree_enabled())
       {

@@ -18,6 +18,7 @@
 using Long = int64_t;
 using ULong = uint64_t;
 
+using Index = Long;
 using Seqno = Long;
 using View = Long;
 using Request_id = ULong;
@@ -51,4 +52,14 @@ struct ByzInfo
 };
 
 using ExecCommand = std::function<int(
-  Byz_req*, Byz_rep&, Byz_buffer*, int, Request_id, bool, Seqno, ByzInfo&)>;
+  Byz_req*,
+  Byz_rep&,
+  Byz_buffer*,
+  int,
+  Request_id,
+  bool,
+  uint8_t* req_start,
+  size_t req_size,
+  Seqno,
+  ByzInfo&,
+  bool)>;
