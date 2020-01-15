@@ -40,6 +40,32 @@ namespace ccfapp
       return JS_UNDEFINED;
   }
 
+  void js_dump_error(JSContext *ctx)
+  {
+      JSValue exception_val = JS_GetException(ctx);
+
+    JSValue val;
+    const char *stack;
+    bool is_error;
+    
+    is_error = JS_IsError(ctx, exception_val);
+    if (!is_error)
+      LOG_INFO_FMT("Throw: ");
+    js_print(ctx, JS_NULL, 1, (JSValueConst *)&exception_val);
+    if (is_error) {
+        val = JS_GetPropertyStr(ctx, exception_val, "stack");
+        if (!JS_IsUndefined(val)) {
+            stack = JS_ToCString(ctx, val);
+            LOG_INFO_FMT("{}", stack);
+
+            JS_FreeCString(ctx, stack);
+        }
+        JS_FreeValue(ctx, val);
+    }
+
+      JS_FreeValue(ctx, exception_val);
+  }
+
   class JS : public ccf::UserRpcFrontend
   {
   private:
@@ -102,11 +128,11 @@ namespace ccfapp
 
         // TODO: support pre-compiled byte-code
         std::string code = handler_script.value().text.value();
-        JSValue val = JS_Eval(ctx, code.c_str(), code.size(), "table_name::key", JS_EVAL_TYPE_GLOBAL);
+        auto path = fmt::format("app_scripts::{}", args.method);
+        JSValue val = JS_Eval(ctx, code.c_str(), code.size(), path.c_str(), JS_EVAL_TYPE_GLOBAL);
 
         if (JS_IsException(val)) {
-          LOG_INFO_FMT("Exception");
-          //js_std_dump_error(ctx);
+          js_dump_error(ctx);
         }
 
         // TODO: handle exceptions
