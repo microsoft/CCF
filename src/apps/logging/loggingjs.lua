@@ -11,7 +11,8 @@ return {
   ]],
 
   LOG_record = [[
-    console.log("a" + "b")
+    var a = JSON.parse(args);
+    console.log(a.params.id + ": " + a.params.msg)
   ]],
 
   LOG_record_pub = [[

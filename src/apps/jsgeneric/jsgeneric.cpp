@@ -62,7 +62,6 @@ namespace ccfapp
       auto default_handler = [this](RequestArgs& args) {
         const auto scripts = args.tx.get_view(this->network.app_scripts);
 
-        // try find script for method
         auto handler_script = scripts->get(args.method);
         if (!handler_script)
           return jsonrpc::error(
@@ -74,7 +73,7 @@ namespace ccfapp
         {
           throw std::runtime_error("Failed to initialise QuickJS runtime");
         }
-        // TODO: share runtime across handlers
+        // TODO: share runtime across handlers?
         // TODO: set memory limit with JS_SetMemoryLimit
 
         JSContext* ctx = JS_NewContext(rt);
@@ -87,8 +86,11 @@ namespace ccfapp
 
         auto global_obj = JS_GetGlobalObject(ctx);
         auto console = JS_NewObject(ctx);
-        auto p0 = JS_SetPropertyStr(ctx, console, "log", JS_NewCFunction(ctx, ccfapp::js_print, "log", 1));
-        auto p1 = JS_SetPropertyStr(ctx, global_obj, "console", console);
+        JS_SetPropertyStr(ctx, console, "log", JS_NewCFunction(ctx, ccfapp::js_print, "log", 1));
+        JS_SetPropertyStr(ctx, global_obj, "console", console);
+        // TODO: avoid parsing argument for JS frontend
+        auto args_str = JS_NewStringLen(ctx, (const char *) args.rpc_ctx.raw.data(), args.rpc_ctx.raw.size());
+        JS_SetPropertyStr(ctx, global_obj, "args", args_str);
         JS_FreeValue(ctx, global_obj);
 
         const nlohmann::json response = {};
@@ -115,30 +117,15 @@ namespace ccfapp
           JS_FreeCString(ctx, str);
         }
         else
+        {
           LOG_INFO_FMT("Ran, but returned not a string");
+        }
 
+        // TODO: stop leaking
         JS_FreeContext(ctx);
         JS_FreeRuntime(rt);
 
-        const auto err_it = response.find(jsonrpc::ERR);
-        if (err_it == response.end())
-        {
-          const auto result_it = response.find(jsonrpc::RESULT);
-          if (result_it == response.end())
-          {
-            // Response contains neither RESULT nor ERR. It may not even be an
-            // object. We assume the entire response is a successful result.
-            return make_pair(true, response);
-          }
-          else
-          {
-            return make_pair(true, *result_it);
-          }
-        }
-        else
-        {
-          return make_pair(false, *err_it);
-        }
+        return make_pair(true, nlohmann::json(true));
       };
 
       // TODO: https://github.com/microsoft/CCF/issues/409
