@@ -73,12 +73,7 @@ class Status : public Message
   //  Status messages
   //
 public:
-  Status(
-    View v,
-    Seqno ls,
-    Seqno le,
-    bool hnvi,
-    bool hnvm);
+  Status(View v, Seqno ls, Seqno le, bool hnvi, bool hnvm);
   // Effects: Creates a new unauthenticated Status message.  "v"
   // should be the sending replica's current view, "ls" should be the
   // sequence number of the last stable checkpoint, "le" the sequence

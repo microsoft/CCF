@@ -40,7 +40,8 @@ def run(args):
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        first_node, (backups) = network.start_and_join(args)
+        network.start_and_join(args)
+        first_node, backups = network.find_nodes()
 
         term_info = {}
         long_msg = "X" * (2 ** 14)
@@ -100,7 +101,7 @@ def run(args):
                 assert new_node
 
                 # give new_node a second to catch up
-                time.sleep(1)
+                time.sleep(5)
 
                 with new_node.user_client(format="json") as c:
                     check(

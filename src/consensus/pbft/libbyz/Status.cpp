@@ -12,12 +12,7 @@
 
 #include <string.h>
 
-Status::Status(
-  View v,
-  Seqno ls,
-  Seqno le,
-  bool hnvi,
-  bool hnvm) :
+Status::Status(View v, Seqno ls, Seqno le, bool hnvi, bool hnvm) :
   Message(Status_tag, Max_message_size)
 {
   rep().extra = (hnvi) ? 1 : 0;

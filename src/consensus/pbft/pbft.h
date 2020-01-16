@@ -74,16 +74,7 @@ namespace pbft
 
       n2n_channels->send_authenticated(
         ccf::NodeMsgType::consensus_msg, to, serialized_msg);
-      if (msg->tag() == 7)
-      {
-        Status* status;
-        Status::convert(msg, status);
 
-        AppendEntries ae = {pbft_append_entries, id, 0, 0};
-        n2n_channels->send_authenticated(
-          ccf::NodeMsgType::consensus_msg, to, ae);
-        return msg->size();
-      }
       return msg->size();
     }
 
@@ -408,10 +399,6 @@ namespace pbft
             return;
           }
 
-          // TODO maybe check with our AE where we are and if we want to take
-          // the message could potentially include a term history just like raft
-          // and also send the view at least skip the entries that we have?
-
           for (Index i = r.prev_idx + 1; i <= r.idx; i++)
           {
             LOG_INFO_FMT(
@@ -424,8 +411,8 @@ namespace pbft
             //   continue;
             // }
             Index last_idx = i;
-            // TODO DO NOT RECORD ENTRY HERE!
-            auto ret = ledger->record_entry(data, size);
+            // TODO record entry here?
+            // auto ret = ledger->record_entry(data, size);
 
             if (!ret.second)
             {
