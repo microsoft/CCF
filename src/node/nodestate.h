@@ -177,7 +177,7 @@ namespace ccf
     Timers& timers;
 
     std::shared_ptr<kv::TxHistory> history;
-    std::shared_ptr<TxEncryptor> encryptor;
+    std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
     //
     // join protocol
@@ -191,7 +191,7 @@ namespace ccf
     NodeInfoNetwork node_info_network;
     std::shared_ptr<Store> recovery_store;
     std::shared_ptr<kv::TxHistory> recovery_history;
-    std::shared_ptr<TxEncryptor> recovery_encryptor;
+    std::shared_ptr<kv::AbstractTxEncryptor> recovery_encryptor;
     kv::Version recovery_v;
     crypto::Sha256Hash recovery_root;
     std::vector<kv::Version> term_history;
@@ -1043,7 +1043,7 @@ namespace ccf
       // once the local hook on the secrets table has been triggered. The
       // corresponding new ledger secret is only sealed on global hook.
 
-      auto new_ledger_secret = LedgerSecret(); // TODO: 16?
+      auto new_ledger_secret = LedgerSecret(true);
       broadcast_ledger_secret(tx, new_ledger_secret);
 
       return true;
@@ -1463,7 +1463,7 @@ namespace ccf
         *network.tables->get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS),
         *network.tables->get<pbft::PrePreparesMap>(
           pbft::Tables::PBFT_PRE_PREPARES),
-        node_kp->private_key_pem().str(),
+        node_sign_kp->private_key_pem().str(),
         node_cert);
 
       network.tables->set_consensus(consensus);

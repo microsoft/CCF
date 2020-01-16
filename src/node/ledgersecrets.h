@@ -30,7 +30,13 @@ namespace ccf
       return master == other.master;
     }
 
-    LedgerSecret() : master(tls::create_entropy()->random(32)) {}
+    LedgerSecret(bool random = false)
+    {
+      if (random)
+      {
+        master = tls::create_entropy()->random(32);
+      }
+    }
 
     LedgerSecret(const std::vector<uint8_t>& ledger_master_) :
       master(ledger_master_)
@@ -71,7 +77,7 @@ namespace ccf
       seal(std::move(seal_))
     {
       // Generate fresh ledger encryption key
-      auto new_secret = std::make_unique<LedgerSecret>();
+      auto new_secret = std::make_unique<LedgerSecret>(true);
       add_secret(1, std::move(new_secret), force_seal);
     }
 

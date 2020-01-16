@@ -46,6 +46,10 @@ namespace ccf
       return crypto::GcmHeader<crypto::GCM_SIZE_IV>::RAW_DATA_SIZE;
     }
 
+    void update_encryption_key(
+      kv::Version version, const std::vector<uint8_t>& raw_ledger_key) override
+    {}
+
     void rollback(kv::Version version) override {}
     void compact(kv::Version version) override {}
   };
@@ -204,7 +208,7 @@ namespace ccf
     }
 
     void update_encryption_key(
-      kv::Version version, const std::vector<uint8_t>& raw_ledger_key)
+      kv::Version version, const std::vector<uint8_t>& raw_ledger_key) override
     {
       std::lock_guard<SpinLock> guard(lock);
 
