@@ -119,8 +119,6 @@ namespace ccfapp
         JS_SetPropertyStr(ctx, global_obj, "args", args_str);
         JS_FreeValue(ctx, global_obj);
 
-        const nlohmann::json response = {};
-
         if (!handler_script.value().text.has_value())
         {
           throw std::runtime_error("Could not find script text");
@@ -131,27 +129,27 @@ namespace ccfapp
         auto path = fmt::format("app_scripts::{}", args.method);
         JSValue val = JS_Eval(ctx, code.c_str(), code.size(), path.c_str(), JS_EVAL_TYPE_GLOBAL);
 
+        auto status = true;
+
         if (JS_IsException(val)) {
           js_dump_error(ctx);
+          status = false;
         }
 
-        // TODO: handle exceptions
-        if (JS_IsString(val))
-        {
-          auto str = JS_ToCString(ctx, val);
-          LOG_INFO_FMT("Ran, returned a string: {}", str);
-          JS_FreeCString(ctx, str);
-        }
-        else
-        {
-          LOG_INFO_FMT("Ran, but returned not a string");
-        }
+        if (JS_IsBool(val) && !JS_VALUE_GET_BOOL(val))
+          status = false;
 
-        // TODO: stop leaking
+        JSValue rval = JS_JSONStringify(ctx, val, JS_NULL, JS_NULL);
+        auto cstr = JS_ToCString(ctx, rval);
+        auto response = nlohmann::json::parse(cstr);
+
+        JS_FreeCString(ctx, cstr);
+        JS_FreeValue(ctx, val);
+
         JS_FreeContext(ctx);
         JS_FreeRuntime(rt);
 
-        return make_pair(true, nlohmann::json(true));
+        return make_pair(status, response);
       };
 
       // TODO: https://github.com/microsoft/CCF/issues/409

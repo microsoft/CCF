@@ -3,19 +3,30 @@
 
 return {
   LOG_get = [[
-    "LOG_get"
+    var r = {msg: "Hello world"}
+    r
   ]],
 
   LOG_get_pub = [[
-    "LOG_get_pub"
+    var r = {msg: "Hello world"}
+    r
   ]],
 
   LOG_record = [[
-    var a = JSON.parse(args);
-    console.log(a.params.id + ": " + a.params.msg)
+    function record(params)
+    {
+      console.log(params.id + ": " + params.msg)
+      return true;
+    }
+    record(JSON.parse(args).params)
   ]],
 
   LOG_record_pub = [[
-    "LOG_record_pub"
+    function record(params)
+      {
+        console.log(params.id + ": " + params.msg)
+        return true;
+      }
+      record(JSON.parse(args).params)
   ]]
 }

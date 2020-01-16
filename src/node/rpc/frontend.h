@@ -769,9 +769,14 @@ namespace ccf
           ctx.pack.value());
       }
 
-      auto rv = jsonrpc::pack(rep.value(), ctx.pack.value());
+      auto rv = rep.value();
 
-      return rv;
+      #ifdef QJS
+      {
+      }
+      #endif
+
+      return jsonrpc::pack(rv, ctx.pack.value());
 #endif
     }
 
