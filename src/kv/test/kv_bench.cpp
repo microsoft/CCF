@@ -17,7 +17,7 @@ using namespace ccf;
 std::shared_ptr<ccf::LedgerSecrets> create_ledger_secrets()
 {
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-  auto new_secret = std::make_unique<ccf::LedgerSecret>();
+  auto new_secret = std::make_unique<ccf::LedgerSecret>(true);
   secrets->get_secrets().emplace(
     0, std::move(new_secret)); // Create new secrets valid from version 0
 
