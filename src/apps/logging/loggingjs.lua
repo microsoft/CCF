@@ -3,19 +3,25 @@
 
 return {
   LOG_get = [[
-    var r = {msg: "Hello world"}
-    r
+    function get(params)
+    {
+      return {msg: tables.log.get(params.id)};
+    }
+    get(JSON.parse(args).params)
   ]],
 
   LOG_get_pub = [[
-    var r = {msg: "Hello world"}
-    r
+    function get(params)
+    {
+      return {msg: tables.log.get(params.id)};
+    }
+    get(JSON.parse(args).params)
   ]],
 
   LOG_record = [[
     function record(params)
     {
-      console.log(params.id + ": " + params.msg)
+      tables.log.put(params.id, params.msg);
       return true;
     }
     record(JSON.parse(args).params)
@@ -23,10 +29,10 @@ return {
 
   LOG_record_pub = [[
     function record(params)
-      {
-        console.log(params.id + ": " + params.msg)
-        return true;
-      }
-      record(JSON.parse(args).params)
+    {
+      tables.log.put(params.id, params.msg);
+      return true;
+    }
+    record(JSON.parse(args).params)
   ]]
 }

@@ -13,7 +13,7 @@ namespace ccfapp
   using namespace kv;
   using namespace ccf;
 
-  using GenericTable = ccf::Store::Map<nlohmann::json, nlohmann::json>;
+  using LogTable = ccf::Store::Map<int32_t, std::string>;
 
   static JSValue js_print(JSContext *ctx, JSValueConst this_val,
                                 int argc, JSValueConst *argv)
@@ -66,24 +66,47 @@ namespace ccfapp
       JS_FreeValue(ctx, exception_val);
   }
 
+  static JSValue js_get(JSContext *ctx, JSValueConst this_val,
+                        int argc, JSValueConst *argv)
+  {
+    auto log_table_view = (LogTable::TxView *) JS_GetContextOpaque(ctx);
+    if(!JS_IsInteger(argv[0]))
+      return JS_EXCEPTION;
+    int32_t i = JS_VALUE_GET_INT(argv[0]);
+    auto str = log_table_view->get(i);
+    if (str.has_value())
+      return JS_NewStringLen(ctx, str.value().data(), str.value().size());
+    else
+      return JS_EXCEPTION;
+  }
+
+  static JSValue js_put(JSContext *ctx, JSValueConst this_val,
+                        int argc, JSValueConst *argv)
+  {
+    auto log_table_view = (LogTable::TxView *) JS_GetContextOpaque(ctx);
+    if(!JS_IsInteger(argv[0]))
+      return JS_EXCEPTION;
+    int32_t i = JS_VALUE_GET_INT(argv[0]);
+    auto v = JS_ToCString(ctx, argv[1]); //TODO: error checking?
+    std::string s(v);
+    JS_FreeCString(ctx, v);
+    if (!log_table_view->put(i, s))
+      return JS_EXCEPTION;
+    return JS_NULL;
+  }
+
   class JS : public ccf::UserRpcFrontend
   {
   private:
     NetworkTables& network;
+    LogTable& log_table;
 
   public:
-    JS(NetworkTables& network, const uint16_t n_tables = 8) :
+    JS(NetworkTables& network, const uint16_t n_tables = 0) :
       UserRpcFrontend(*network.tables),
-      network(network)
+      network(network),
+      log_table(network.tables->create<LogTable>("log"))
     {
-      // create public and private app tables (2x n_tables in total)
-      std::vector<GenericTable*> app_tables(n_tables * 2);
-      for (uint16_t i = 0; i < n_tables; i++)
-      {
-        const auto suffix = std::to_string(i);
-        app_tables[i] = &tables.create<GenericTable>("priv" + suffix);
-        app_tables[i + n_tables] = &tables.create<GenericTable>("pub" + suffix);
-      }
 
       auto default_handler = [this](RequestArgs& args) {
         const auto scripts = args.tx.get_view(this->network.app_scripts);
@@ -110,11 +133,22 @@ namespace ccfapp
         }
         // TODO: load modules from module table here?
 
+        auto ltv = args.tx.get_view(log_table);
+        JS_SetContextOpaque(ctx, (void *) ltv);
+
         auto global_obj = JS_GetGlobalObject(ctx);
+
         auto console = JS_NewObject(ctx);
         JS_SetPropertyStr(ctx, console, "log", JS_NewCFunction(ctx, ccfapp::js_print, "log", 1));
         JS_SetPropertyStr(ctx, global_obj, "console", console);
-        // TODO: avoid parsing argument for JS frontend
+
+        auto log = JS_NewObject(ctx);
+        JS_SetPropertyStr(ctx, log, "get", JS_NewCFunction(ctx, ccfapp::js_get, "get", 1));
+        JS_SetPropertyStr(ctx, log, "put", JS_NewCFunction(ctx, ccfapp::js_put, "put", 2));
+        auto tables_ = JS_NewObject(ctx);
+        JS_SetPropertyStr(ctx, tables_, "log", log); 
+        JS_SetPropertyStr(ctx, global_obj, "tables", tables_);
+
         auto args_str = JS_NewStringLen(ctx, (const char *) args.rpc_ctx.raw.data(), args.rpc_ctx.raw.size());
         JS_SetPropertyStr(ctx, global_obj, "args", args_str);
         JS_FreeValue(ctx, global_obj);
