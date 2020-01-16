@@ -57,13 +57,11 @@ namespace ccf
     SpinLock lock;
 
     std::shared_ptr<LedgerSecrets> ledger_secrets;
-    kv::Version last_compacted = 0;
 
     // Encryption keys are set when TxEncryptor object is created and are used
     // to determine which key to use for encryption/decryption when
     // committing/deserialising depending on the version
 
-    // TODO: Rename this
     struct KeyInfo
     {
       kv::Version version;
@@ -73,12 +71,12 @@ namespace ccf
       std::vector<uint8_t> raw_key;
     };
 
-    struct LocalKey : KeyInfo
+    struct EncryptionKey : KeyInfo
     {
       crypto::KeyAesGcm key;
     };
     // std::vector<std::pair<kv::Version, crypto::KeyAesGcm>> encryption_keys;
-    std::list<LocalKey> encryption_keys;
+    std::list<EncryptionKey> encryption_keys;
 
     void set_iv(crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr)
     {
@@ -98,7 +96,7 @@ namespace ccf
         encryption_keys.rbegin(),
         encryption_keys.rend(),
         version,
-        [](kv::Version a, LocalKey const& b) { return b.version <= a; });
+        [](kv::Version a, EncryptionKey const& b) { return b.version <= a; });
 
       if (search == encryption_keys.rend())
       {
@@ -106,7 +104,6 @@ namespace ccf
           "TxEncryptor: encrypt version is not valid: {}", version));
       }
 
-      LOG_FAIL_FMT("Using key {}", search->version);
       return search->key;
     }
 
@@ -122,7 +119,7 @@ namespace ccf
       // Create map of existing encryption keys from the recorded ledger secrets
       for (auto const& s : ls->get_secrets())
       {
-        encryption_keys.emplace_back(LocalKey{
+        encryption_keys.emplace_back(EncryptionKey{
           s.first,
           s.second->master,
           crypto::KeyAesGcm(s.second->master),
@@ -208,15 +205,13 @@ namespace ccf
     {
       std::lock_guard<SpinLock> guard(lock);
 
-      encryption_keys.emplace_back(
-        LocalKey{version, raw_ledger_key, crypto::KeyAesGcm(raw_ledger_key)});
+      encryption_keys.emplace_back(EncryptionKey{
+        version, raw_ledger_key, crypto::KeyAesGcm(raw_ledger_key)});
     }
 
     void rollback(kv::Version version) override
     {
       std::lock_guard<SpinLock> guard(lock);
-
-      LOG_INFO_FMT("Rolling back encryptor {}", version);
 
       while (encryption_keys.size() > 1)
       {
@@ -232,27 +227,13 @@ namespace ccf
       }
     }
 
-    // TODO: Delete me
-    void print_keys()
-    {
-      LOG_FAIL_FMT("Encryption keys: ");
-      for (auto const& k : encryption_keys)
-      {
-        LOG_FAIL_FMT("{}", k.version);
-      }
-      LOG_FAIL_FMT("*****");
-    }
-
     void compact(kv::Version version) override
     {
       std::lock_guard<SpinLock> guard(lock);
-
-      LOG_INFO_FMT("Compacting encryptor {}", version);
-      LOG_INFO_FMT("last compacted: {}", last_compacted);
-      print_keys();
-
       std::list<KeyInfo> keys_to_seal;
 
+      // Remove keys that have been superseded by a newer key. News keys are
+      // sealed on compact.
       while (encryption_keys.size() > 1)
       {
         auto k = encryption_keys.begin();
@@ -271,22 +252,13 @@ namespace ccf
         }
       }
 
-      last_compacted = encryption_keys.back().version;
-      print_keys();
-
       if (!is_recovery)
       {
-        LOG_FAIL_FMT("That many to seal: {}", keys_to_seal.size());
         for (auto const& k : keys_to_seal)
         {
-          LOG_FAIL_FMT("Sealing from global hook: {}", k.version);
           ledger_secrets->set_secret(k.version, k.raw_key);
           ledger_secrets->seal_secret(k.version);
         }
-      }
-      else
-      {
-        LOG_FAIL_FMT("Recovery encryptor does not seal!");
       }
     }
   };

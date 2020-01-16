@@ -82,7 +82,6 @@ def test(network, args):
 
     ledger = primary.remote.get_ledger()
     sealed_secrets = primary.get_sealed_secrets()
-    LOG.error(sealed_secrets)
 
     recovered_network = infra.ccf.Network(
         network.hosts, args.debug_nodes, args.perf_nodes, network

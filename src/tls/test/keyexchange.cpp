@@ -62,16 +62,6 @@ TEST_CASE("Key exchange from static shares")
   auto peer1_ctx = tls::KeyExchangeContext(peer1_kp, peer2_kp);
   auto peer2_ctx = tls::KeyExchangeContext(peer2_kp, peer1_kp);
 
-  std::cout << "peer1 shared:";
-  for (auto const& c : peer1_ctx.compute_shared_secret())
-    std::cout << std::hex << (int)c;
-  std::cout << std::dec << std::endl;
-
-  std::cout << "peer2 shared:";
-  for (auto const& c : peer2_ctx.compute_shared_secret())
-    std::cout << std::hex << (int)c;
-  std::cout << std::dec << std::endl;
-
   REQUIRE(
     peer1_ctx.compute_shared_secret() == peer2_ctx.compute_shared_secret());
 }

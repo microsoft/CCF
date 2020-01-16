@@ -448,6 +448,9 @@ namespace ccf
           // Set network secrets, node id and become part of network.
           if (resp->node_status == NodeStatus::TRUSTED)
           {
+            // TODO: This logic needs to change to support late join after
+            // rekeying/recovery. https://github.com/microsoft/CCF/issues/315
+
             // If the current network secrets do not apply since the genesis,
             // the joining node can only join the public network
             bool public_only = (resp->network_info.version != 1);
@@ -1247,8 +1250,6 @@ namespace ccf
                                        kv::Version version,
                                        const Secrets::State& s,
                                        const Secrets::Write& w) {
-        LOG_FAIL_FMT("Local hook for secrets table!");
-
         bool has_secrets = false;
 
         for (auto& [v, secret_set] : w)
@@ -1257,8 +1258,6 @@ namespace ccf
           {
             if (encrypted_secret_for_node.node_id == self)
             {
-              LOG_FAIL_FMT("Secret for self!");
-
               crypto::GcmCipher gcmcipher;
               gcmcipher.deserialise(encrypted_secret_for_node.encrypted_secret);
               std::vector<uint8_t> plain_secret(gcmcipher.cipher.size());
@@ -1286,38 +1285,33 @@ namespace ccf
               // If the version key is NoVersion, we are rekeying. Use the
               // version passed to the hook instead. For recovery, the version
               // of the past secrets is passed as the key.
-              kv::Version version_to_use = (v == kv::NoVersion) ? version : v;
+              kv::Version secret_version = (v == kv::NoVersion) ? version : v;
 
-              LOG_FAIL_FMT("Version to use is {}", version_to_use);
-
-              // TODO: This is required for recovery
               if (is_part_of_public_network())
               {
+                // When recovering, set the past secret as a ledger secret to be
+                // sealed at the end of the recovery
                 if (!network.ledger_secrets->set_secret(
-                      version_to_use, plain_secret))
+                      secret_version, plain_secret))
                 {
                   throw std::logic_error(
                     "Cannot set ledger secrets because they already exist");
                 }
               }
-
-              // if (version_to_use == version) // TODO: Change this
-              // {
-              //   // Seal secrets immediately when rekeying
-              //   network.ledger_secrets->seal_secret(version_to_use);
-              // }
-
-              // Only necessary during rekeying
-              if (!is_part_of_public_network())
+              else
               {
+                // When rekeying, set the encryption key for the next version
+                // onward (for the backups to deserialise this transaction with
+                // the old key). The encryptor is in charge of updating the
+                // ledger secrets on global commit.
                 encryptor->update_encryption_key(
-                  version_to_use + 1, plain_secret);
+                  secret_version + 1, plain_secret);
               }
             }
           }
         }
 
-        // When recovering
+        // When recovering, trigger end of recovery protocol
         if (has_secrets && is_part_of_public_network())
         {
           backup_finish_recovery();

@@ -2,9 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
-#include "../encryptor.h"
-
 #include "../../kv/kvtypes.h"
+#include "../encryptor.h"
 #include "../entities.h"
 #include "../node/ledgersecrets.h"
 
@@ -114,22 +113,22 @@ TEST_CASE("Encryption/decryption with multiple ledger secrets")
     std::vector<uint8_t> decrypted_cipher;
     std::vector<uint8_t> serialised_header;
     kv::Version version = 1;
-    encryptor->encrypt(plain, {}, serialised_header, cipher, 1);
+    encryptor->encrypt(plain, {}, serialised_header, cipher, version);
 
     // Decrypting from the version which was used for encryption should succeed
-    REQUIRE(
-      encryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher, 1));
+    REQUIRE(encryptor->decrypt(
+      cipher, {}, serialised_header, decrypted_cipher, version));
     REQUIRE(plain == decrypted_cipher);
 
     // Decrypting from a version in the same version interval should also
     // succeed
-    REQUIRE(
-      encryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher, 3));
+    REQUIRE(encryptor->decrypt(
+      cipher, {}, serialised_header, decrypted_cipher, version + 1));
     REQUIRE(plain == decrypted_cipher);
 
     // Decrypting from a version encrypted with a different key should fail
-    REQUIRE_FALSE(
-      encryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher, 5));
+    REQUIRE_FALSE(encryptor->decrypt(
+      cipher, {}, serialised_header, decrypted_cipher, version + 4));
   }
 
   INFO("Encryption with key at version 4");
@@ -138,17 +137,18 @@ TEST_CASE("Encryption/decryption with multiple ledger secrets")
     std::vector<uint8_t> cipher;
     std::vector<uint8_t> decrypted_cipher;
     std::vector<uint8_t> serialised_header;
-    encryptor->encrypt(plain, {}, serialised_header, cipher, 4);
+    kv::Version version = 4;
+    encryptor->encrypt(plain, {}, serialised_header, cipher, version);
 
     // Decrypting from the version which was used for encryption should succeed
-    REQUIRE(
-      encryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher, 4));
+    REQUIRE(encryptor->decrypt(
+      cipher, {}, serialised_header, decrypted_cipher, version));
     REQUIRE(plain == decrypted_cipher);
 
     // Decrypting from a version in the same version interval should also
     // succeed
-    REQUIRE(
-      encryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher, 5));
+    REQUIRE(encryptor->decrypt(
+      cipher, {}, serialised_header, decrypted_cipher, version + 1));
     REQUIRE(plain == decrypted_cipher);
 
     // Decrypting from a version encrypted with a different key should fail
