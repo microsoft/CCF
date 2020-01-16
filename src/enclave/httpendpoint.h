@@ -82,6 +82,8 @@ namespace enclave
     std::shared_ptr<RpcHandler> handler;
     size_t session_id;
 
+    size_t request_index = 0;
+
   public:
     HTTPServerEndpoint(
       std::shared_ptr<RPCMap> rpc_map,
@@ -215,6 +217,7 @@ namespace enclave
         }
 
         JsonRpcContext rpc_ctx(session, pack.value(), json_rpc);
+        rpc_ctx.set_request_index(request_index++);
 
         // TODO: For now, set this here
         auto signed_req = http::HttpSignatureVerifier::parse(

@@ -262,17 +262,23 @@ namespace ccf
       kv::TxHistory::RequestID reqid;
 
       update_history();
-      reqid = {caller_id.value(), ctx.session.client_session_id, ctx.seq_no};
+      reqid = {caller_id.value(),
+               ctx.session.client_session_id,
+               ctx.get_request_index()};
       if (history)
       {
         if (!history->add_request(
               reqid,
-              ctx.actor,
+              (size_t)ctx.actor,
               caller_id.value(),
               ctx.session.caller_cert,
               ctx.raw))
         {
-          LOG_FAIL_FMT("Adding request {} failed", ctx.seq_no);
+          LOG_FAIL_FMT(
+            "Adding request failed: {}, {}, {}",
+            std::get<0>(reqid),
+            std::get<1>(reqid),
+            std::get<2>(reqid));
           return ctx.error_response(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             "PBFT could not process request.");

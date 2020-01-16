@@ -15,6 +15,8 @@ namespace enclave
     std::shared_ptr<RpcHandler> handler;
     size_t session_id;
 
+    size_t request_index = 0;
+
   public:
     RPCEndpoint(
       std::shared_ptr<RPCMap> rpc_map_,
@@ -57,6 +59,7 @@ namespace enclave
       LOG_TRACE_FMT("Deserialised");
 
       JsonRpcContext rpc_ctx(session, pack.value(), rpc);
+      rpc_ctx.set_request_index(request_index++);
       rpc_ctx.raw = data;
 
       auto prefixed_method = rpc_ctx.method;

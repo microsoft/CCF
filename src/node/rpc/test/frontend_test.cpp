@@ -111,7 +111,9 @@ class TestNoCertsFrontend : public RpcFrontend
   HandlerRegistry handlers;
 
 public:
-  TestNoCertsFrontend(Store& tables) : RpcFrontend(tables, handlers), handlers(tables)
+  TestNoCertsFrontend(Store& tables) :
+    RpcFrontend(tables, handlers),
+    handlers(tables)
   {
     open();
 
@@ -235,7 +237,9 @@ class TestAppErrorFrontEnd : public RpcFrontend
 public:
   static constexpr auto bar_msg = "Bar is broken";
 
-  TestAppErrorFrontEnd(Store& tables) : RpcFrontend(tables, handlers), handlers(tables)
+  TestAppErrorFrontEnd(Store& tables) :
+    RpcFrontend(tables, handlers),
+    handlers(tables)
   {
     auto foo = [this](RequestArgs& args) {
       args.rpc_ctx.set_response_error(userapp::AppError::Foo);
@@ -394,7 +398,8 @@ TEST_CASE("process_pbft")
   auto simple_call = create_simple_json();
   const auto serialized_call = jsonrpc::pack(simple_call, default_pack);
   auto actor = ActorsType::users;
-  pbft::Request request = {actor, user_id, user_caller_der, serialized_call};
+  pbft::Request request = {
+    (size_t)actor, user_id, user_caller_der, serialized_call};
 
   const enclave::SessionContext session(
     enclave::InvalidSessionId, user_id, user_caller_der);
@@ -409,7 +414,7 @@ TEST_CASE("process_pbft")
 
   pbft::Request deserialised_req = request_value.value();
 
-  REQUIRE(deserialised_req.actor == actor);
+  REQUIRE(deserialised_req.actor == (size_t)actor);
   REQUIRE(deserialised_req.caller_id == user_id);
   REQUIRE(deserialised_req.caller_cert == user_caller_der);
   auto deserialised_simple_call =
