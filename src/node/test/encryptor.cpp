@@ -2,8 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
-#include "../../kv/kvtypes.h"
 #include "../encryptor.h"
+
+#include "../../kv/kvtypes.h"
 #include "../entities.h"
 #include "../node/ledgersecrets.h"
 

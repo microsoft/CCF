@@ -1170,9 +1170,6 @@ namespace ccf
         ccf::EncryptedLedgerSecret secret_for_node;
         secret_for_node.node_id = nid;
 
-        LOG_FAIL_FMT(
-          "Writing new ledger secret to backup {} in secrets table", nid);
-
         // Encrypt secrets with a shared secret derived from backup public
         // key
         auto backup_pubk = tls::make_public_key(ni.encryption_pub_key);
@@ -1244,8 +1241,6 @@ namespace ccf
         }
       });
 
-      // TODO: Clean this code up (a lot of special cases for the recovery to
-      // work)
       network.secrets.set_local_hook([this](
                                        kv::Version version,
                                        const Secrets::State& s,

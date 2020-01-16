@@ -547,7 +547,7 @@ class CCFRemote(object):
         )
 
         exe_files = [self.BIN, lib_path] + self.DEPS
-        data_files = ([self.ledger_file] if self.ledger_file else [])
+        data_files = [self.ledger_file] if self.ledger_file else []
 
         cmd = [
             self.BIN,
