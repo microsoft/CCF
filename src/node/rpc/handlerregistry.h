@@ -207,7 +207,7 @@ namespace ccf
       return nullptr;
     }
 
-    virtual void tick(std::chrono::milliseconds elapsed) {}
+    virtual void tick(std::chrono::milliseconds elapsed, size_t tx_count) {}
 
     virtual std::optional<CallerId> valid_caller(
       Store::Tx& tx, const std::vector<uint8_t>& caller)

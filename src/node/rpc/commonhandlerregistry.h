@@ -17,7 +17,6 @@ namespace ccf
   {
   private:
     metrics::Metrics metrics;
-    size_t tx_count = 0;
 
     Nodes* nodes = nullptr;
 
@@ -275,26 +274,11 @@ namespace ccf
         GeneralProcs::VERIFY_RECEIPT, handler_adapter(verify_receipt), Read);
     }
 
-    // TODO: How does this get called?
-    // std::optional<std::vector<uint8_t>> process_command(
-    //   const enclave::RpcContext& ctx, Store::Tx& tx, CallerId caller_id)
-    // {
-    //   if (result.has_value())
-    //   {
-    //     ++tx_count;
-    //   }
-
-    //   return result;
-    // }
-
-    void tick(std::chrono::milliseconds elapsed) override
+    void tick(std::chrono::milliseconds elapsed, size_t tx_count) override
     {
       metrics.track_tx_rates(elapsed, tx_count);
 
-      // reset tx_counter for next tick interval
-      tx_count = 0;
-
-      HandlerRegistry::tick(elapsed);
+      HandlerRegistry::tick(elapsed, tx_count);
     }
   };
 }

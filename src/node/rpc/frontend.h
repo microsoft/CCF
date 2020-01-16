@@ -50,6 +50,7 @@ namespace ccf
     kv::TxHistory* history;
 
     size_t sig_max_tx = 1000;
+    size_t tx_count = 0;
     std::chrono::milliseconds sig_max_ms = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
     bool request_storing_disabled = false;
@@ -518,6 +519,8 @@ namespace ccf
       auto func = handler->func;
       auto args = RequestArgs{ctx, tx, caller_id, ctx.method, params};
 
+      tx_count++;
+
       while (true)
       {
         try
@@ -616,7 +619,10 @@ namespace ccf
       // TODO(#refactoring): move this to NodeState::tick
       update_consensus();
 
-      handlers.tick(elapsed);
+      handlers.tick(elapsed, tx_count);
+
+      // reset tx_counter for next tick interval
+      tx_count = 0;
 
       if ((consensus != nullptr) && consensus->is_primary())
       {
