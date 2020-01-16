@@ -782,8 +782,14 @@ namespace ccf
     ProcessPbftResp process_pbft(
       enclave::RPCContext& ctx, bool playback = false) override
     {
-      // TODO(#PBFT): Refactor this with process_forwarded().
       Store::Tx tx;
+      return process_pbft(ctx, tx, playback);
+    }
+
+    ProcessPbftResp process_pbft(
+      enclave::RPCContext& ctx, Store::Tx& tx, bool playback) override
+    {
+      // TODO(#PBFT): Refactor this with process_forwarded().
       crypto::Sha256Hash full_state_merkle_root;
       crypto::Sha256Hash replicated_state_merkle_root;
       kv::Version version = kv::NoVersion;

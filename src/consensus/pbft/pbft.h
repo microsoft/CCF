@@ -218,7 +218,6 @@ namespace pbft
       LOG_INFO_FMT("PBFT setup for local_id: {}", local_id);
 
       message_receiver_base->activate_local_hooks();
-      message_receiver_base->activate_playback_local_hooks();
 
       pbft_config->set_service_mem(mem + used_bytes);
       pbft_config->set_receiver(message_receiver_base);
@@ -401,7 +400,6 @@ namespace pbft
         case pbft_append_entries:
         {
           AppendEntries r;
-          message_receiver_base->activate_playback_local_hooks();
 
           try
           {
@@ -430,6 +428,7 @@ namespace pbft
             //   continue;
             // }
             Index last_idx = i;
+            // TODO DO NOT RECORD ENTRY HERE!
             auto ret = ledger->record_entry(data, size);
 
             if (!ret.second)
@@ -447,8 +446,9 @@ namespace pbft
               return;
             }
 
-            auto deserialise_success =
-              store->deserialise(ret.first, public_only, false);
+            ccf::Store::Tx tx;
+            auto deserialise_success = store->deserialise_views(
+              ret.first, public_only, false, nullptr, &tx);
 
             switch (deserialise_success)
             {
@@ -460,6 +460,7 @@ namespace pbft
               }
               case kv::DeserialiseSuccess::PASS:
               {
+                message_receiver_base->playback_transaction(tx);
                 break;
               }
               case kv::DeserialiseSuccess::PASS_SIGNATURE:

@@ -273,6 +273,32 @@ bool Replica::compare_execution_results(
   return true;
 }
 
+void Replica::playback_transaction(ccf::Store::Tx& tx)
+{
+  {
+    auto view = tx.get_view(pbft_requests_map);
+    auto req = view->get(0);
+    if (req.has_value())
+    {
+      const pbft::Request request = req.value();
+      playback_request(request);
+      return;
+    }
+  }
+  {
+    auto view = tx.get_view(pbft_pre_prepares_map);
+    auto pp = view->get(0);
+    if (pp.has_value())
+    {
+      const pbft::PrePrepare pre_prepare = pp.value();
+      playback_pre_prepare(pre_prepare);
+      return;
+    }
+  }
+  throw std::logic_error(
+    "Playback transaction doesn't contain request nor pre prepare data.");
+}
+
 void Replica::playback_request(const pbft::Request& request)
 {
   LOG_INFO_FMT(
@@ -280,10 +306,47 @@ void Replica::playback_request(const pbft::Request& request)
   auto req =
     create_message<Request>(request.pbft_raw.data(), request.pbft_raw.size())
       .release();
-  if (!brt.add_request(req))
-  {
-    rqueue.append(req);
-  }
+
+  // TODO refactor with execute tentative method
+
+  last_tentative_execute = last_tentative_execute + 1;
+  LOG_TRACE << "in execute tentative with last_tentative_execute: "
+            << last_tentative_execute << " and last_executed: " << last_executed
+            << std::endl;
+
+  int client_id = req->client_id();
+
+  // Obtain "in" and "out" buffers to call exec_command
+  Byz_req inb;
+  Byz_rep outb;
+  Byz_buffer non_det;
+  inb.contents = req->command(inb.size);
+
+  // TODO do we need this?
+  // non_det.contents = pp->choices(non_det.size);
+  Request_id rid = req->request_id();
+  // Execute command in a regular request.
+  replies.count_request();
+
+  exec_command(
+    &inb,
+    outb,
+    &non_det,
+    client_id,
+    rid,
+    false,
+    (uint8_t*)req->contents(),
+    req->contents_size(),
+    replies.total_requests_processed(),
+    playback_byz_info,
+    true);
+  right_pad_contents(outb);
+  // Finish constructing the reply.
+  LOG_DEBUG << "Executed from tentative exec: "
+            << " from client: " << client_id << " rid: " << rid
+            << " commit_id: " << playback_byz_info.ctx << std::endl;
+
+  replies.end_reply(client_id, rid, last_tentative_execute, outb.size);
 }
 
 void Replica::playback_pre_prepare(const pbft::PrePrepare& pre_prepare)
@@ -293,14 +356,8 @@ void Replica::playback_pre_prepare(const pbft::PrePrepare& pre_prepare)
     pre_prepare.contents.data(), pre_prepare.contents.size());
   auto seqno = executable_pp->seqno();
 
-  ByzInfo info;
-  if (execute_tentative(executable_pp.get(), info, true))
+  if (compare_execution_results(playback_byz_info, executable_pp.get()))
   {
-    if (!compare_execution_results(info, executable_pp.get()))
-    {
-      return;
-    }
-
     next_pp_seqno = seqno;
 
     if (seqno > last_prepared)
@@ -320,6 +377,8 @@ void Replica::playback_pre_prepare(const pbft::PrePrepare& pre_prepare)
     {
       mark_stable(last_executed, true);
     }
+
+    ledger_writer->write_pre_prepare(executable_pp.get());
   }
   else
   {
@@ -1091,27 +1150,6 @@ void Replica::emit_signature_on_next_pp(int64_t version)
 {
   sign_next = true;
   signed_version = version;
-}
-
-void Replica::activate_playback_local_hooks()
-{
-  pbft_requests_map.set_deserialise_hook(
-    [this](const pbft::RequestsMap::Write& w) {
-      for (auto& [key, value] : w)
-      {
-        append_entries_index++;
-        playback_request(value.value);
-      }
-    });
-
-  pbft_pre_prepares_map.set_deserialise_hook(
-    [this](const pbft::PrePreparesMap::Write& w) {
-      for (auto& [key, value] : w)
-      {
-        append_entries_index++;
-        playback_pre_prepare(value.value);
-      }
-    });
 }
 
 void Replica::activate_local_hooks()

@@ -1420,9 +1420,6 @@ namespace ccf
     {
       setup_n2n_channels();
 
-      network.pbft_requests_map.set_deserialise_hook(nullptr);
-      network.pbft_pre_prepares_map.set_deserialise_hook(nullptr);
-
       network.pbft_requests_map.set_local_hook(nullptr);
       network.pbft_pre_prepares_map.set_local_hook(nullptr);
 

@@ -135,7 +135,6 @@ public:
   void set_f(ccf::NodeId f);
   void emit_signature_on_next_pp(int64_t version);
   void activate_local_hooks();
-  void activate_playback_local_hooks();
   View view() const;
   bool is_primary() const;
   int primary() const;
@@ -193,11 +192,7 @@ public:
   // Compare the merkle root and batch ctx between the pre-prepare and the
   // the corresponding fields in info after execution
 
-  void playback_request(const pbft::Request& request);
-  // Effects: Requests are stored in queue
-  void playback_pre_prepare(const pbft::PrePrepare& pre_prepare);
-  // Effects: pre-prepares are executed if they
-  // are able to If not any requests are cleared from the request queues
+  void playback_transaction(ccf::Store::Tx& tx);
 
   void init_state();
   void recv_start();
@@ -244,6 +239,13 @@ private:
   static void debug_slow_timer_handler(void* owner);
 #endif
   // Effects: Handle timeouts of corresponding timers.
+
+  // Playback methods
+  void playback_request(const pbft::Request& request);
+  // Effects: Requests are executed
+  void playback_pre_prepare(const pbft::PrePrepare& pre_prepare);
+  // Effects: pre-prepare is verified, if merkle roots match
+  // we update the pre-prepare related meta-data, if not we rollback
 
   //
   // Auxiliary methods used by primary to send messages to the replica
@@ -428,6 +430,8 @@ private:
 #else
   Rep_info replies;
 #endif
+
+  ByzInfo playback_byz_info;
 
   // used to register a callback for a client proxy to collect replies sent to
   // this replica

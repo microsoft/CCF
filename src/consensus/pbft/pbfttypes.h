@@ -41,11 +41,12 @@ namespace pbft
   {
   public:
     virtual ~Store() {}
-    virtual S deserialise(
+    virtual S deserialise_views(
       const std::vector<uint8_t>& data,
       bool public_only = false,
       bool commit = true,
-      Term* term = nullptr) = 0;
+      Term* term = nullptr,
+      ccf::Store::Tx* tx = nullptr) = 0;
     virtual void compact(Index v) = 0;
     virtual kv::Version current_version() = 0;
     virtual void commit_pre_prepare(
@@ -62,15 +63,16 @@ namespace pbft
   public:
     Adaptor(std::shared_ptr<T> x) : x(x) {}
 
-    S deserialise(
+    S deserialise_views(
       const std::vector<uint8_t>& data,
       bool public_only = false,
       bool commit = true,
-      Term* term = nullptr)
+      Term* term = nullptr,
+      ccf::Store::Tx* tx = nullptr)
     {
       auto p = x.lock();
       if (p)
-        return p->deserialise(data, public_only, term);
+        return p->deserialise_views(data, public_only, commit, term, tx);
 
       return S::FAILED;
     }

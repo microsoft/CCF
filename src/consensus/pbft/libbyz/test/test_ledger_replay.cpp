@@ -208,7 +208,6 @@ TEST_CASE("Test Ledger Replay")
     create_replica(
       service_mem, *replica_store, pbft_requests_map, pbft_pre_prepares_map);
     pbft::GlobalState::get_replica().register_exec(exec_mock.exec_command);
-    pbft::GlobalState::get_replica().activate_playback_local_hooks();
     // ledgerenclave work
     std::vector<std::vector<uint8_t>> entries;
     while (true)

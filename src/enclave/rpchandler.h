@@ -39,5 +39,7 @@ namespace enclave
 
     virtual ProcessPbftResp process_pbft(
       RPCContext& ctx, bool playback = false) = 0;
+    virtual ProcessPbftResp process_pbft(
+      enclave::RPCContext& ctx, ccf::Store::Tx& tx, bool playback) = 0;
   };
 }
