@@ -45,6 +45,9 @@ namespace ccf
     {
       return crypto::GcmHeader<crypto::GCM_SIZE_IV>::RAW_DATA_SIZE;
     }
+
+    void rollback(kv::Version version) override {}
+    void compact(kv::Version version) override {}
   };
 
   class TxEncryptor : public kv::AbstractTxEncryptor

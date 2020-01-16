@@ -100,8 +100,7 @@ TEST_CASE("Encryption/decryption with multiple ledger secrets")
   // Setting 2 ledger secrets, valid from version 0 and 4
   uint64_t node_id = 0;
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-  auto new_secret =
-    std::make_unique<ccf::LedgerSecret>(std::vector<uint8_t>(16, 0x1));
+  auto new_secret = std::make_unique<ccf::LedgerSecret>();
   secrets->get_secrets().emplace(
     4, std::move(new_secret)); // Create new secrets valid from version 4
 

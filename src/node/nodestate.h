@@ -1043,9 +1043,7 @@ namespace ccf
       // once the local hook on the secrets table has been triggered. The
       // corresponding new ledger secret is only sealed on global hook.
 
-      auto new_ledger_secret =
-        LedgerSecret(tls::create_entropy()->random(16)); // TODO: 16?
-
+      auto new_ledger_secret = LedgerSecret(); // TODO: 16?
       broadcast_ledger_secret(tx, new_ledger_secret);
 
       return true;
