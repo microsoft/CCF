@@ -9,6 +9,7 @@
  * Definitions of various types.
  */
 
+#include "consensus/pbft/pbfttypes.h"
 #include "parameters.h"
 
 #include <array>
@@ -62,4 +63,5 @@ using ExecCommand = std::function<int(
   size_t req_size,
   Seqno,
   ByzInfo&,
-  bool)>;
+  bool,
+  ccf::Store::Tx*)>;

@@ -241,7 +241,7 @@ private:
   // Effects: Handle timeouts of corresponding timers.
 
   // Playback methods
-  void playback_request(const pbft::Request& request);
+  void playback_request(const pbft::Request& request, ccf::Store::Tx& tx);
   // Effects: Requests are executed
   void playback_pre_prepare(const pbft::PrePrepare& pre_prepare);
   // Effects: pre-prepare is verified, if merkle roots match
@@ -289,7 +289,7 @@ private:
   // Effects: Sends back replies that have been executed tentatively
   // to the client. The replies are tentative unless "committed" is true.
 
-  bool execute_tentative(Pre_prepare* pp, ByzInfo& info, bool playback = false);
+  bool execute_tentative(Pre_prepare* pp, ByzInfo& info);
   // Effects: Tentatively executes as many commands as possible. It
   // extracts requests to execute commands from a message "m"; calls
   // exec_command for each command; and sends back replies to the

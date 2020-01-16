@@ -281,7 +281,7 @@ void Replica::playback_transaction(ccf::Store::Tx& tx)
     if (req.has_value())
     {
       const pbft::Request request = req.value();
-      playback_request(request);
+      playback_request(request, tx);
       return;
     }
   }
@@ -290,6 +290,7 @@ void Replica::playback_transaction(ccf::Store::Tx& tx)
     auto pp = view->get(0);
     if (pp.has_value())
     {
+      // TODO what to do with pps transaction
       const pbft::PrePrepare pre_prepare = pp.value();
       playback_pre_prepare(pre_prepare);
       return;
@@ -299,13 +300,12 @@ void Replica::playback_transaction(ccf::Store::Tx& tx)
     "Playback transaction doesn't contain request nor pre prepare data.");
 }
 
-void Replica::playback_request(const pbft::Request& request)
+void Replica::playback_request(const pbft::Request& request, ccf::Store::Tx& tx)
 {
   LOG_INFO_FMT(
     "Playback request for request with size {}", request.pbft_raw.size());
   auto req =
-    create_message<Request>(request.pbft_raw.data(), request.pbft_raw.size())
-      .release();
+    create_message<Request>(request.pbft_raw.data(), request.pbft_raw.size());
 
   // TODO refactor with execute tentative method
 
@@ -339,7 +339,8 @@ void Replica::playback_request(const pbft::Request& request)
     req->contents_size(),
     replies.total_requests_processed(),
     playback_byz_info,
-    true);
+    true,
+    &tx);
   right_pad_contents(outb);
   // Finish constructing the reply.
   LOG_DEBUG << "Executed from tentative exec: "
@@ -349,6 +350,8 @@ void Replica::playback_request(const pbft::Request& request)
   replies.end_reply(client_id, rid, last_tentative_execute, outb.size);
 }
 
+// TODO have pre prepare commit it's pre prepare without creating anew
+// transaction
 void Replica::playback_pre_prepare(const pbft::PrePrepare& pre_prepare)
 {
   LOG_INFO_FMT("playback pre-prepare {}", pre_prepare.seqno);
@@ -1881,7 +1884,18 @@ bool Replica::execute_read_only(Request* request)
     std::shared_ptr<Principal> cp = get_principal(client_id);
     ByzInfo info;
     int error = exec_command(
-      &inb, outb, 0, client_id, request_id, true, nullptr, 0, 0, info, false);
+      &inb,
+      outb,
+      0,
+      client_id,
+      request_id,
+      true,
+      nullptr,
+      0,
+      0,
+      info,
+      false,
+      nullptr);
     right_pad_contents(outb);
 
     if (!error)
@@ -2001,7 +2015,7 @@ void Replica::execute_prepared(bool committed)
   }
 }
 
-bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info, bool playback)
+bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
 {
   LOG_DEBUG << "in execute tentative: " << pp->seqno() << std::endl;
   if (
@@ -2066,7 +2080,8 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info, bool playback)
         request.contents_size(),
         replies.total_requests_processed(),
         info,
-        playback);
+        false,
+        nullptr);
       right_pad_contents(outb);
       // Finish constructing the reply.
       LOG_DEBUG << "Executed from tentative exec: " << pp->seqno()

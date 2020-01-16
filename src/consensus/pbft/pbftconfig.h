@@ -57,7 +57,8 @@ namespace pbft
                                  size_t req_size,
                                  Seqno total_requests_executed,
                                  ByzInfo& info,
-                                 bool playback) {
+                                 bool playback = false,
+                                 ccf::Store::Tx* tx = nullptr) {
       pbft::Request request;
       request.deserialise({inb->contents, inb->contents + inb->size});
 
@@ -80,7 +81,15 @@ namespace pbft
 
       ctx.pbft_raw = {req_start, req_start + req_size};
 
-      auto rep = frontend->process_pbft(ctx, playback);
+      ccf::MemberRpcFrontend::ProcessPbftResp rep;
+      if (playback && tx)
+      {
+        rep = frontend->process_pbft(ctx, *tx, playback);
+      }
+      else
+      {
+        rep = frontend->process_pbft(ctx);
+      }
 
       static_assert(
         sizeof(info.full_state_merkle_root) == sizeof(crypto::Sha256Hash));

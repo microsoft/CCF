@@ -1659,32 +1659,32 @@ namespace kv
         {
           return success;
         }
-      }
-
-      auto h = get_history();
-      if (h)
-      {
-        // TODO: the reference to the entity should be in the history
-        auto search = views.find("ccf.signatures");
-        if (search != views.end())
+        auto h = get_history();
+        if (h)
         {
-          // Transactions containing a signature must only contain
-          // a signature and must be verified
-          if (views.size() > 1)
+          // TODO: the reference to the entity should be in the history
+          auto search = views.find("ccf.signatures");
+          if (search != views.end())
           {
-            LOG_FAIL_FMT("Unexpected contents in signature transaction {}", v);
-            return DeserialiseSuccess::FAILED;
-          }
+            // Transactions containing a signature must only contain
+            // a signature and must be verified
+            if (views.size() > 1)
+            {
+              LOG_FAIL_FMT(
+                "Unexpected contents in signature transaction {}", v);
+              return DeserialiseSuccess::FAILED;
+            }
 
-          if (!h->verify(term))
-          {
-            LOG_FAIL_FMT("Signature in transaction {} failed to verify", v);
-            return DeserialiseSuccess::FAILED;
+            if (!h->verify(term))
+            {
+              LOG_FAIL_FMT("Signature in transaction {} failed to verify", v);
+              return DeserialiseSuccess::FAILED;
+            }
+            success = DeserialiseSuccess::PASS_SIGNATURE;
           }
-          success = DeserialiseSuccess::PASS_SIGNATURE;
+          auto rep = frame::replicated(data.data());
+          h->append(rep.p, rep.n, data.data(), data.size());
         }
-        auto rep = frame::replicated(data.data());
-        h->append(rep.p, rep.n, data.data(), data.size());
       }
 
       if (tx)

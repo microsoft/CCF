@@ -44,7 +44,8 @@ public:
                                size_t req_size,
                                Seqno total_requests_executed,
                                ByzInfo& info,
-                               bool playback) {
+                               bool playback = false,
+                               ccf::Store::Tx* tx = nullptr) {
     // increase total number of commands executed to compare with fake_req
     command_counter++;
 
@@ -241,7 +242,14 @@ TEST_CASE("Test Ledger Replay")
     // apply all of the data in order
     for (const auto& entry : entries)
     {
-      REQUIRE(store->deserialise(entry) == kv::DeserialiseSuccess::PASS);
+      {
+        ccf::Store::Tx tx;
+        REQUIRE(
+          store->deserialise_views(entry, false, false, nullptr, &tx) ==
+          kv::DeserialiseSuccess::PASS);
+        pbft::GlobalState::get_replica().playback_transaction(tx);
+        REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+      }
       ccf::Store::Tx tx;
       if (iterations % 2)
       {

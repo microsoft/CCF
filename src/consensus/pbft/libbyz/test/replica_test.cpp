@@ -196,7 +196,8 @@ ExecCommand exec_command = [](
                              size_t req_size,
                              Seqno total_requests_executed,
                              ByzInfo& info,
-                             bool playback) {
+                             bool playback = false,
+                             ccf::Store::Tx* tx = nullptr) {
   outb.contents = message_receive_base->create_response_message(client, rid, 8);
 
   Long& counter = *(Long*)service_mem;

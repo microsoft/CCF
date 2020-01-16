@@ -779,11 +779,10 @@ namespace ccf
      *
      * @param ctx Context for this RPC
      */
-    ProcessPbftResp process_pbft(
-      enclave::RPCContext& ctx, bool playback = false) override
+    ProcessPbftResp process_pbft(enclave::RPCContext& ctx) override
     {
       Store::Tx tx;
-      return process_pbft(ctx, tx, playback);
+      return process_pbft(ctx, tx, false);
     }
 
     ProcessPbftResp process_pbft(
