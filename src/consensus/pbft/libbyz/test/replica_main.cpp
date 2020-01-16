@@ -151,13 +151,22 @@ int main(int argc, char** argv)
   }
 
   GeneralInfo general_info = files::slurp_json(config_file);
-  std::string privk = files::slurp_string(privk_file);
+  // as to not add double escapes on newline when slurping from file
+  PrivateKey privk_j = files::slurp_json(privk_file);
   NodeInfo node_info;
+  tls::KeyPairPtr kp = tls::make_key_pair(privk_j.privk);
+  auto node_cert = kp->self_sign("CN=CCF node");
+
+  for (auto& pi : general_info.principal_info)
+  {
+    pi.cert = node_cert;
+  }
+
   for (auto& pi : general_info.principal_info)
   {
     if (pi.id == id)
     {
-      node_info = {pi, privk, general_info};
+      node_info = {pi, privk_j.privk, general_info};
       break;
     }
   }

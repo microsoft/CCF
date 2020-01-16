@@ -14,6 +14,7 @@
 #include "host/ledger.h"
 #include "kv/test/stub_consensus.h"
 #include "network_mock.h"
+#include "tls/keypair.h"
 
 #include <cstdio>
 #include <doctest/doctest.h>
@@ -62,25 +63,18 @@ public:
 
 NodeInfo get_node_info()
 {
+  auto kp = tls::make_key_pair();
   std::vector<PrincipalInfo> principal_info;
 
-  PrincipalInfo pi = {
-    0,
-    (short)(3000),
-    "ip",
-    "96031a6cbe405894f1c0295881bd3946f0215f95fc40b7f1f0cc89b821c58504",
-    "8691c3438859c142a26b5f251b96f39a463799430315d34ce8a4db0d2638f751",
-    "name-1",
-    true};
+  auto node_cert = kp->self_sign("CN=CCF node");
+
+  PrincipalInfo pi = {0, (short)(3000), "ip", node_cert, "name-1", true};
   principal_info.emplace_back(pi);
 
   GeneralInfo gi = {
     2, 0, 0, "generic", 1800000, 5000, 100, 9999250000, 50, principal_info};
 
-  NodeInfo node_info = {
-    gi.principal_info[0],
-    "0045c65ec31179652c57ae97f50de77e177a939dce74e39d7db51740663afb69",
-    gi};
+  NodeInfo node_info = {gi.principal_info[0], kp->private_key_pem().str(), gi};
 
   return node_info;
 }

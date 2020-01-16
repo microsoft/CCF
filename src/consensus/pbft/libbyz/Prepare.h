@@ -7,7 +7,7 @@
 
 #include "Digest.h"
 #include "Message.h"
-#include "keypair.h"
+#include "tls/keypair.h"
 #include "types.h"
 
 class Principal;
@@ -23,9 +23,16 @@ struct Prepare_rep : public Message_rep
   Seqno seqno;
   Digest digest;
   int id; // id of the replica that generated the message.
-
 #ifdef SIGN_BATCH
-  KeyPair::Signature batch_digest_signature;
+  size_t digest_sig_size;
+  PbftSignature batch_digest_signature;
+  static constexpr size_t padding_size =
+    ALIGNED_SIZE(pbft_max_signature_size) - pbft_max_signature_size;
+  std::array<uint8_t, padding_size> digest_padding;
+#endif
+
+#ifdef USE_PKEY
+  size_t prepare_sig_size;
 #endif
 
   int padding;
@@ -34,7 +41,8 @@ struct Prepare_rep : public Message_rep
 #pragma pack(pop)
 
 static_assert(
-  sizeof(Prepare_rep) + max_sig_size < Max_message_size, "Invalid size");
+  sizeof(Prepare_rep) + pbft_max_signature_size < Max_message_size,
+  "Invalid size");
 
 class Prepare : public Message
 {
@@ -67,7 +75,7 @@ public:
   // Effects: Fetches the digest from the message.
 
 #ifdef SIGN_BATCH
-  std::array<uint8_t, signature_size>& digest_sig() const;
+  PbftSignature& digest_sig() const;
 #endif
 
   bool is_proof() const;
@@ -117,7 +125,7 @@ inline Digest& Prepare::digest() const
 }
 
 #ifdef SIGN_BATCH
-inline std::array<uint8_t, signature_size>& Prepare::digest_sig() const
+inline PbftSignature& Prepare::digest_sig() const
 {
   return rep().batch_digest_signature;
 }

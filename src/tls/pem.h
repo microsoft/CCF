@@ -19,7 +19,9 @@ namespace tls
     std::string s;
 
   public:
-    Pem(){};
+    Pem() = default;
+
+    Pem(const std::string& s_) : s(s_) {}
 
     Pem(CBuffer b)
     {

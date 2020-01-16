@@ -5,6 +5,7 @@ import os
 import socket
 import time
 import math
+import json
 import create_config
 from node import LocalNode
 from subprocess import PIPE, Popen, run
@@ -49,20 +50,16 @@ def create_nodes(args):
     clients = args.clients
     with open(args.test_config, "r") as test_config:
         lines = [line.strip() for line in test_config]
-        # remove header
-        lines.pop(0)
-
         for i, line in enumerate(lines):
             if line[0] == "#":
                 continue
 
-            values = line.split(",")
-            port = values[0].strip()
-            public_key_sig = values[1].strip()
-            public_key_enc = values[2].strip()
-            private_key = values[3].strip()
+            line_info = json.loads(line)
+            port = str(line_info["port"])
+            private_key = line_info["privk"]
+
             if i < servers:
-                node = Node(i, port, public_key_sig, public_key_enc, private_key, True)
+                node = Node(i, port, private_key, True)
                 node.set_private_ip(args.ip)
                 node.set_machine_name(
                     args.machine_name + "-" + str(i) + "-server-" + args.transport
@@ -71,7 +68,7 @@ def create_nodes(args):
 
                 nodes.append(node)
             elif i < clients + servers:
-                node = Node(i, port, public_key_sig, public_key_enc, private_key, False)
+                node = Node(i, port, private_key, False)
                 node.set_private_ip(args.ip)
                 node.set_machine_name(
                     args.machine_name + "-" + str(i) + "-client-" + args.transport
@@ -251,7 +248,7 @@ def get_extra_args(args):
 if __name__ == "__main__":
     """
     Format of test config file should be:
-    port, public_key_sig, public_key_enc, private_key
+    port, private_key
     <comma separated values for servers>
     <comma separated values for clients>
     """
