@@ -283,7 +283,7 @@ namespace ccf
 
   public:
     MemberHandlers(NetworkTables& network, AbstractNodeState& node) :
-      CommonHandlerRegistry(),
+      CommonHandlerRegistry(*network.tables, Tables::MEMBER_CERTS),
       network(network),
       node(node),
       tsr(network),
@@ -292,8 +292,6 @@ namespace ccf
 
     void init_handlers(Store& tables_) override
     {
-      restrict_to_certs(tables_, Tables::MEMBER_CERTS);
-
       CommonHandlerRegistry::init_handlers(tables_);
 
       auto read = [this](RequestArgs& args) {

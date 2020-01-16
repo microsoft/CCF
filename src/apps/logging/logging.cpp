@@ -100,7 +100,7 @@ namespace ccfapp
   using Table = Store::Map<size_t, string>;
 
   // SNIPPET: inherit_frontend
-  class LoggerHandlers : public CommonHandlerRegistry
+  class LoggerHandlers : public UserHandlerRegistry
   {
   private:
     Table& records;
@@ -135,6 +135,7 @@ namespace ccfapp
   public:
     // SNIPPET_START: constructor
     LoggerHandlers(NetworkTables& nwt, AbstractNotifier& notifier) :
+      UserHandlerRegistry(nwt),
       records(
         nwt.tables->create<Table>("records", kv::SecurityDomain::PRIVATE)),
       public_records(nwt.tables->create<Table>(

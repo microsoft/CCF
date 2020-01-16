@@ -28,7 +28,6 @@ namespace ccf
 
     void open() override
     {
-      handlers.restrict_to_certs(tables, Tables::USER_CERTS);
       RpcFrontend::open();
     }
 
@@ -63,15 +62,27 @@ namespace ccf
     }
   };
 
+  class UserHandlerRegistry : public CommonHandlerRegistry
+  {
+  public:
+    UserHandlerRegistry(Store& store) :
+      CommonHandlerRegistry(store, Tables::USER_CERTS)
+    {}
+
+    UserHandlerRegistry(NetworkTables& network) :
+      CommonHandlerRegistry(*network.tables, Tables::USER_CERTS)
+    {}
+  };
+
   class SimpleUserRpcFrontend : public UserRpcFrontend
   {
   protected:
-    CommonHandlerRegistry common_handlers;
+    UserHandlerRegistry common_handlers;
 
   public:
     SimpleUserRpcFrontend(Store& tables) :
       UserRpcFrontend(tables, common_handlers),
-      common_handlers()
+      common_handlers(tables)
     {}
   };
 }

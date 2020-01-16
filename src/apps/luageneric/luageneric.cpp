@@ -94,7 +94,7 @@ namespace ccfapp
     {}
   };
 
-  class LuaHandlers : public CommonHandlerRegistry
+  class LuaHandlers : public UserHandlerRegistry
   {
   private:
     NetworkTables& network;
@@ -102,6 +102,7 @@ namespace ccfapp
 
   public:
     LuaHandlers(NetworkTables& network, const uint16_t n_tables = 8) :
+      UserHandlerRegistry(network),
       network(network)
     {
       auto& tables = *network.tables;
@@ -197,7 +198,7 @@ namespace ccfapp
     // supported methods here
     void list_methods(ccf::Store::Tx& tx, ListMethods::Out& out) override
     {
-      CommonHandlerRegistry::list_methods(tx, out);
+      UserHandlerRegistry::list_methods(tx, out);
 
       auto scripts = tx.get_view(this->network.app_scripts);
       scripts->foreach([&out](const auto& key, const auto&) {

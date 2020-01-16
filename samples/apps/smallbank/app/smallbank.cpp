@@ -36,13 +36,14 @@ namespace ccfapp
     {}
   };
 
-  class SmallBankHandlers : public CommonHandlerRegistry
+  class SmallBankHandlers : public UserHandlerRegistry
   {
   private:
     SmallBankTables tables;
 
   public:
-    SmallBankHandlers(Store& store) : tables(store) {}
+    SmallBankHandlers(Store& store) : UserHandlerRegistry(store), tables(store)
+    {}
 
     void init_handlers(Store& store) override
     {

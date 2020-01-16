@@ -25,15 +25,16 @@ namespace ccf
     Store* tables = nullptr;
 
   public:
-    CommonHandlerRegistry() : HandlerRegistry() {}
+    CommonHandlerRegistry(
+      Store& store, const std::string& certs_table_name = "") :
+      HandlerRegistry(store, certs_table_name),
+      nodes(store.get<Nodes>(Tables::NODES)),
+      tables(&store)
+    {}
 
     void init_handlers(Store& t) override
     {
       HandlerRegistry::init_handlers(t);
-
-      tables = &t;
-
-      nodes = tables->get<Nodes>(Tables::NODES);
 
       auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
         const auto in = params.get<GetCommit::In>();
@@ -117,28 +118,28 @@ namespace ccf
         return make_success(WhoIs::Out{caller_id.value()});
       };
 
-      auto get_primary_info = [this](
-                                Store::Tx& tx, const nlohmann::json& params) {
-        if ((nodes != nullptr) && (consensus != nullptr))
-        {
-          NodeId primary_id = consensus->primary();
-
-          auto nodes_view = tx.get_view(*nodes);
-          auto info = nodes_view->get(primary_id);
-
-          if (info)
+      auto get_primary_info =
+        [this](Store::Tx& tx, const nlohmann::json& params) {
+          if ((nodes != nullptr) && (consensus != nullptr))
           {
-            GetPrimaryInfo::Out out;
-            out.primary_id = primary_id;
-            out.primary_host = info->pubhost;
-            out.primary_port = info->rpcport;
-            return make_success(out);
-          }
-        }
+            NodeId primary_id = consensus->primary();
 
-        return make_error(
-          jsonrpc::CCFErrorCodes::TX_PRIMARY_UNKNOWN, "Primary unknown.");
-      };
+            auto nodes_view = tx.get_view(*nodes);
+            auto info = nodes_view->get(primary_id);
+
+            if (info)
+            {
+              GetPrimaryInfo::Out out;
+              out.primary_id = primary_id;
+              out.primary_host = info->pubhost;
+              out.primary_port = info->rpcport;
+              return make_success(out);
+            }
+          }
+
+          return make_error(
+            jsonrpc::CCFErrorCodes::TX_PRIMARY_UNKNOWN, "Primary unknown.");
+        };
 
       auto get_network_info =
         [this](Store::Tx& tx, const nlohmann::json& params) {

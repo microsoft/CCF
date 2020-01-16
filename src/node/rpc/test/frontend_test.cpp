@@ -111,10 +111,9 @@ class TestNoCertsFrontend : public RpcFrontend
   HandlerRegistry handlers;
 
 public:
-  TestNoCertsFrontend(Store& tables) : RpcFrontend(tables, handlers)
+  TestNoCertsFrontend(Store& tables) : RpcFrontend(tables, handlers), handlers(tables)
   {
     open();
-    handlers.restrict_to_certs(nullptr);
 
     auto empty_function = [this](RequestArgs& args) {
       args.rpc_ctx.set_response_result(true);
@@ -236,7 +235,7 @@ class TestAppErrorFrontEnd : public RpcFrontend
 public:
   static constexpr auto bar_msg = "Bar is broken";
 
-  TestAppErrorFrontEnd(Store& tables) : RpcFrontend(tables, handlers)
+  TestAppErrorFrontEnd(Store& tables) : RpcFrontend(tables, handlers), handlers(tables)
   {
     auto foo = [this](RequestArgs& args) {
       args.rpc_ctx.set_response_error(userapp::AppError::Foo);

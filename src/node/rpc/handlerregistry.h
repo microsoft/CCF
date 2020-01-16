@@ -76,7 +76,13 @@ namespace ccf
     Certs* certs = nullptr;
 
   public:
-    HandlerRegistry() {}
+    HandlerRegistry(Store& tables, const std::string& certs_table_name = "")
+    {
+      if (!certs_table_name.empty())
+      {
+        certs = tables.get<Certs>(certs_table_name);
+      }
+    }
 
     virtual ~HandlerRegistry() {}
 
@@ -230,16 +236,6 @@ namespace ccf
     void set_history(kv::TxHistory* h)
     {
       history = h;
-    }
-
-    virtual void restrict_to_certs(Certs* c)
-    {
-      certs = c;
-    }
-
-    void restrict_to_certs(Store& tables, const std::string& certs_table_name)
-    {
-      restrict_to_certs(tables.get<Certs>(certs_table_name));
     }
   };
 }

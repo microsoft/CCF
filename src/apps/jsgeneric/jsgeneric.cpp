@@ -15,13 +15,14 @@ namespace ccfapp
 
   using GenericTable = ccf::Store::Map<nlohmann::json, nlohmann::json>;
 
-  class JSHandlers : public CommonHandlerRegistry
+  class JSHandlers : public UserHandlerRegistry
   {
   private:
     NetworkTables& network;
 
   public:
     JSHandlers(NetworkTables& network, const uint16_t n_tables = 8) :
+      UserHandlerRegistry(network),
       network(network)
     {
       auto& tables = *network.tables;
