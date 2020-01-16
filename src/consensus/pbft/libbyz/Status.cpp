@@ -16,8 +16,6 @@ Status::Status(
   View v,
   Seqno ls,
   Seqno le,
-  Index from_ae_index,
-  Index to_ae_index,
   bool hnvi,
   bool hnvm) :
   Message(Status_tag, Max_message_size)
@@ -27,8 +25,6 @@ Status::Status(
   rep().v = v;
   rep().ls = ls;
   rep().le = le;
-  rep().to_ae_index = to_ae_index;
-  rep().from_ae_index = from_ae_index;
   rep().id = pbft::GlobalState::get_node().id();
   rep().brsz = 0;
 

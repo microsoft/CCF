@@ -1155,29 +1155,6 @@ void Replica::emit_signature_on_next_pp(int64_t version)
   signed_version = version;
 }
 
-void Replica::activate_local_hooks()
-{
-  pbft_requests_map.set_local_hook([this](
-                                     kv::Version version,
-                                     const pbft::RequestsMap::State& s,
-                                     const pbft::RequestsMap::Write& w) {
-    for (auto& [key, value] : w)
-    {
-      append_entries_index++;
-    }
-  });
-
-  pbft_pre_prepares_map.set_local_hook([this](
-                                         kv::Version version,
-                                         const pbft::PrePreparesMap::State& s,
-                                         const pbft::PrePreparesMap::Write& w) {
-    for (auto& [key, value] : w)
-    {
-      append_entries_index++;
-    }
-  });
-}
-
 View Replica::view() const
 {
   return Node::view();
@@ -1234,36 +1211,6 @@ void Replica::handle(Status* m)
     {
       return;
     }
-
-    LOG_INFO_FMT(
-      "Received status message, replica {} is at state {} ",
-      m->id(),
-      m->to_ae_index());
-    auto principal = get_principal(m->id());
-    principal->set_last_ae_sent(m->to_ae_index());
-    if (m->to_ae_index() < append_entries_index)
-    {
-      LOG_INFO_FMT(
-        "I WOULD NEED TO SEND AE HERE: mine {} theirs {}",
-        append_entries_index,
-        m->to_ae_index());
-      LOG_INFO_FMT(
-        "Sending status message with from {} to ae index {}",
-        m->to_ae_index(),
-        append_entries_index);
-      Status s(
-        v,
-        last_stable,
-        last_executed,
-        m->to_ae_index(),
-        append_entries_index,
-        has_complete_new_view(),
-        vi.has_nv_message(v));
-
-      s.authenticate();
-      send(&s, m->id());
-    }
-    return;
     // Retransmit messages that the sender is missing.
     if (last_stable > m->last_stable() + max_out)
     {
@@ -2593,70 +2540,49 @@ void Replica::send_status(bool send_now)
       return;
     }
 
-    LOG_INFO_FMT(
-      "Sending status message with ae index {}", append_entries_index);
-    for (auto& [id, principal] : *get_principals())
+    Status s(
+      v,
+      last_stable,
+      last_executed,
+      has_complete_new_view(),
+      vi.has_nv_message(v));
+
+    if (has_complete_new_view())
     {
-      if (id == node_id)
+      // Set prepared and committed bitmaps correctly
+      Seqno max = last_stable + max_out;
+      Seqno min = std::max(last_executed, last_stable) + 1;
+      for (Seqno n = min; n <= max; n++)
       {
-        continue;
+        Prepared_cert& pc = plog.fetch(n);
+        if (pc.is_complete() || state.in_check_state())
+        {
+          s.mark_prepared(n);
+          if (clog.fetch(n).is_complete() || state.in_check_state())
+          {
+            s.mark_committed(n);
+          }
+        }
+        else
+        {
+          // Ask for missing big requests
+          if (
+            !pc.is_pp_complete() && pc.pre_prepare() && pc.num_correct() >= f())
+          {
+            s.add_breqs(n, pc.missing_reqs());
+          }
+        }
       }
-      LOG_INFO_FMT(
-        "Sending to {} from {} to {}",
-        id,
-        principal->get_last_ae_sent(),
-        append_entries_index);
-
-      Status s(
-        v,
-        last_stable,
-        last_executed,
-        principal->get_last_ae_sent(),
-        append_entries_index,
-        has_complete_new_view(),
-        vi.has_nv_message(v));
-
-      s.authenticate();
-      send(&s, id);
     }
-    return;
-    //   if (has_complete_new_view())
-    //   {
-    //     // Set prepared and committed bitmaps correctly
-    //     Seqno max = last_stable + max_out;
-    //     Seqno min = std::max(last_executed, last_stable) + 1;
-    //     for (Seqno n = min; n <= max; n++)
-    //     {
-    //       Prepared_cert& pc = plog.fetch(n);
-    //       if (pc.is_complete() || state.in_check_state())
-    //       {
-    //         s.mark_prepared(n);
-    //         if (clog.fetch(n).is_complete() || state.in_check_state())
-    //         {
-    //           s.mark_committed(n);
-    //         }
-    //       }
-    //       else
-    //       {
-    //         // Ask for missing big requests
-    //         if (
-    //           !pc.is_pp_complete() && pc.pre_prepare() && pc.num_correct() >=
-    //           f())
-    //         {
-    //           s.add_breqs(n, pc.missing_reqs());
-    //         }
-    //       }
-    //     }
-    //   }
-    //   else
-    //   {
-    //     vi.set_received_vcs(&s);
-    //     vi.set_missing_pps(&s);
-    //   }
+    else
+    {
+      vi.set_received_vcs(&s);
+      vi.set_missing_pps(&s);
+    }
 
-    //   // Multicast status to all replicas.
-    //   s.authenticate();
-    //   send(&s, All_replicas);
+    // Multicast status to all replicas.
+    s.authenticate();
+    send(&s, All_replicas);
   }
 }
 

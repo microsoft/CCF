@@ -79,12 +79,7 @@ namespace pbft
         Status* status;
         Status::convert(msg, status);
 
-        AppendEntries ae = {
-          pbft_append_entries,
-          id,
-          status->to_ae_index(),
-          status->from_ae_index(),
-        };
+        AppendEntries ae = {pbft_append_entries, id, 0, 0};
         n2n_channels->send_authenticated(
           ccf::NodeMsgType::consensus_msg, to, ae);
         return msg->size();
@@ -124,6 +119,7 @@ namespace pbft
     View last_commit_view;
     std::unique_ptr<pbft::PbftStore> store;
     std::unique_ptr<consensus::LedgerEnclave> ledger;
+    Index append_entries_index = 0;
 
     // When this is set, only public domain is deserialised when receving append
     // entries
@@ -216,8 +212,6 @@ namespace pbft
         *store,
         &message_receiver_base);
       LOG_INFO_FMT("PBFT setup for local_id: {}", local_id);
-
-      message_receiver_base->activate_local_hooks();
 
       pbft_config->set_service_mem(mem + used_bytes);
       pbft_config->set_receiver(message_receiver_base);
@@ -373,6 +367,7 @@ namespace pbft
     {
       for (auto& [index, data, globally_committable] : entries)
       {
+        append_entries_index++;
         write_to_ledger(data);
       }
       return true;
@@ -382,6 +377,7 @@ namespace pbft
     {
       for (auto& [index, data, globally_committable] : entries)
       {
+        append_entries_index++;
         write_to_ledger(data);
       }
       return true;

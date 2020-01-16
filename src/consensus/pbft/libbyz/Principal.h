@@ -87,8 +87,6 @@ private:
   ULong tstamp; // last timestamp in a new-key message from this principal
   Time my_tstamp; // my time when message was accepted
 
-  Index last_ae_sent = 0; // last append entry index sent to this principal
-
   Request_id
     last_fetch; // Last request_id in a fetch message from this principal
   bool has_received_network_open_msg;
@@ -144,14 +142,4 @@ inline Request_id Principal::last_fetch_rid() const
 inline void Principal::set_last_fetch_rid(Request_id r)
 {
   last_fetch = r;
-}
-
-inline Index Principal::get_last_ae_sent() const
-{
-  return last_ae_sent;
-}
-
-inline void Principal::set_last_ae_sent(Index ae)
-{
-  last_ae_sent = ae;
 }

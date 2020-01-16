@@ -134,7 +134,6 @@ public:
   size_t f() const;
   void set_f(ccf::NodeId f);
   void emit_signature_on_next_pp(int64_t version);
-  void activate_local_hooks();
   View view() const;
   bool is_primary() const;
   int primary() const;
@@ -393,8 +392,6 @@ private:
   static constexpr auto min_min_pre_prepare_batch_size = 1;
   static constexpr auto num_look_back_to_set_batch_size = 10;
   static constexpr auto max_pre_prepare_request_batch_wait_ms = 2;
-
-  pbft::Index append_entries_index = 0;
 
   // Logging variables used to measure average batch size
   int nbreqs; // The number of requests executed in current interval
