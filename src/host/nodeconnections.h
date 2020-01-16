@@ -209,8 +209,6 @@ namespace asynchost
           auto to = serialized::read<ccf::NodeId>(data, size);
           auto node = find(to, true);
 
-          LOG_INFO_FMT("NNNAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-
           if (!node)
             return;
 

@@ -74,7 +74,16 @@ namespace pbft
 
       n2n_channels->send_authenticated(
         ccf::NodeMsgType::consensus_msg, to, serialized_msg);
+      // if (msg->tag() == 7)
+      // {
+      //   Status* status;
+      //   Status::convert(msg, status);
 
+      //   AppendEntries ae = {pbft_append_entries, id, 0, 0};
+      //   n2n_channels->send_authenticated(
+      //     ccf::NodeMsgType::consensus_msg, to, ae);
+      //   return msg->size();
+      // }
       return msg->size();
     }
 

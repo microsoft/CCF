@@ -385,8 +385,6 @@ void Replica::playback_pre_prepare(const pbft::PrePrepare& pre_prepare)
   }
   else
   {
-    LOG_INFO_FMT(
-      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALALALLAND");
     LOG_DEBUG << "Received entries could not be processed. Received seqno: "
               << seqno
               << ". Truncating ledger to last executed: " << last_executed
@@ -2486,27 +2484,23 @@ void Replica::mark_stable(Seqno n, bool have_state)
 
 void Replica::handle(Data* m)
 {
-  LOG_INFO_FMT("HANDLE DATA");
-  // state.handle(m);
+  state.handle(m);
 }
 
 void Replica::handle(Meta_data* m)
 {
-  LOG_INFO_FMT("HANDLE META DATA");
-  // state.handle(m);
+  state.handle(m);
 }
 
 void Replica::handle(Meta_data_d* m)
 {
-  LOG_INFO_FMT("HANDLE META DATA D");
-  // state.handle(m);
+  state.handle(m);
 }
 
 void Replica::handle(Fetch* m)
 {
-  LOG_INFO_FMT("HANDLE FETCH");
-  // int mid = m->id();
-  // state.handle(m, last_stable);
+  int mid = m->id();
+  state.handle(m, last_stable);
 }
 
 void Replica::send_status(bool send_now)
