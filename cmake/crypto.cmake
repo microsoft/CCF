@@ -59,6 +59,11 @@ if("sgx" IN_LIST TARGET)
   )
   use_oe_mbedtls(ccfcrypto.enclave)
   set_property(TARGET ccfcrypto.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+  install(
+    TARGETS ccfcrypto.enclave
+    DESTINATION lib
+  )
 endif()
 
 add_library(ccfcrypto.host STATIC
@@ -69,3 +74,8 @@ target_include_directories(ccfcrypto.host PRIVATE ${EVERCRYPT_INC})
 target_link_libraries(ccfcrypto.host PRIVATE evercrypt.host)
 use_client_mbedtls(ccfcrypto.host)
 set_property(TARGET ccfcrypto.host PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+install(
+  TARGETS ccfcrypto.host
+  DESTINATION lib
+)

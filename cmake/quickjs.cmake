@@ -26,9 +26,19 @@ if("sgx" IN_LIST TARGET)
   target_include_directories(quickjs.enclave SYSTEM PRIVATE ${OE_LIBC_INCLUDE_DIR})
   set_property(TARGET quickjs.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
   target_include_directories(quickjs.enclave PRIVATE ${QUICKJS_INC})
+
+  install(
+    TARGETS quickjs.enclave
+    DESTINATION lib
+  )
 endif()
 
 add_library(quickjs.host STATIC ${QUICKJS_SRC})
 target_compile_options(quickjs.host PRIVATE -Wno-everything -DCONFIG_VERSION="${QUICKJS_VERSION}")
 set_property(TARGET quickjs.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(quickjs.host PRIVATE ${QUICKJS_INC})
+
+install(
+  TARGETS quickjs.host
+  DESTINATION lib
+)
