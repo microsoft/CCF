@@ -11,6 +11,31 @@ set(TESTS_SUFFIX $ENV{TESTS_SUFFIX})
 message(STATUS "Setting TESTS_SUFFIX on performance tests to '${TESTS_SUFFIX}'")
 set(ENV{BETTER_EXCEPTIONS} 1)
 
+find_package(Git)
+if(GIT_FOUND)
+  execute_process(
+    COMMAND ${GIT_EXECUTABLE} describe --tags
+    OUTPUT_VARIABLE CCF_VERSION
+    ERROR_QUIET
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  set(CCF_VERSION "-${CCF_VERSION}")
+else()
+  set(CCF_VERSION "")
+endif()
+
+# Set the default install prefix for CCF. Users may override this value
+# with the cmake command. For example:
+#
+#     $ cmake -DCMAKE_INSTALL_PREFIX=/opt/myplace ..
+#
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  set(CMAKE_INSTALL_PREFIX
+    "/opt/ccf/ccf${CCF_VERSION}" CACHE PATH "default install prefix" FORCE)
+endif()
+
+message(STATUS "CMAKE_INSTALL_PREFIX is '${CMAKE_INSTALL_PREFIX}'")
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
 option(BUILD_TESTS "Build tests" ON)
