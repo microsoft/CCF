@@ -163,6 +163,12 @@ foreach(UTILITY ${CCF_UTILITIES})
   configure_file(${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)
 endforeach()
 
+# Install specific utilities
+install(
+  PROGRAMS ${CCF_DIR}/tests/scurl.sh ${CCF_DIR}/tests/keygenerator.sh
+  DESTINATION bin
+)
+
 if("sgx" IN_LIST TARGET)
   # If OE was built with LINK_SGX=1, then we also need to link SGX
   execute_process(COMMAND "ldd" ${OESIGN}
@@ -523,6 +529,11 @@ if("sgx" IN_LIST TARGET)
   )
   add_dependencies(cchost flatbuffers)
   enable_quote_code(cchost)
+
+  install(
+    TARGETS cchost
+    DESTINATION bin
+  )
 endif()
 
 if("virtual" IN_LIST TARGET)
@@ -551,6 +562,11 @@ if("virtual" IN_LIST TARGET)
     CURL::libcurl
   )
   add_dependencies(cchost.virtual flatbuffers)
+
+  install(
+    TARGETS cchost.virtual
+    DESTINATION bin
+  )
 endif()
 
 # Client executable
