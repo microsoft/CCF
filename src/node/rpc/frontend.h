@@ -542,26 +542,17 @@ namespace ccf
           {
             case kv::CommitSuccess::OK:
             {
-              auto serialised = ctx.serialise_response();
-
-              // TODO: How do we inject these fields into response of unknown
-              // format?
-              const auto& json_context =
-                dynamic_cast<const enclave::JsonRpcContext&>(ctx);
-
-              nlohmann::json result =
-                jsonrpc::unpack(serialised, json_context.pack_format.value());
-
               auto cv = tx.commit_version();
               if (cv == 0)
                 cv = tx.get_read_version();
               if (cv == kv::NoVersion)
                 cv = tables.current_version();
-              result[COMMIT] = cv;
+              ctx.set_response_metafield(COMMIT, cv);
               if (consensus != nullptr)
               {
-                result[TERM] = consensus->get_view();
-                result[GLOBAL_COMMIT] = consensus->get_commit_seqno();
+                ctx.set_response_metafield(TERM, consensus->get_view());
+                ctx.set_response_metafield(
+                  GLOBAL_COMMIT, consensus->get_commit_seqno());
 
                 if (
                   history && consensus->is_primary() &&
@@ -578,7 +569,7 @@ namespace ccf
                 }
               }
 
-              return jsonrpc::pack(result, json_context.pack_format.value());
+              return ctx.serialise_response();
             }
 
             case kv::CommitSuccess::CONFLICT:

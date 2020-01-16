@@ -71,8 +71,10 @@ namespace enclave
   protected:
     size_t request_index = 0;
 
-    std::unordered_map<std::string, nlohmann::json> metafields;
-
+    // TODO: These are mutable because they're accessed from const methods, for
+    // ease of calling since RpcContext is passed by const&. This should be
+    // changed
+    mutable std::unordered_map<std::string, nlohmann::json> metafields;
     mutable RpcResponse response;
 
   public:
@@ -148,7 +150,7 @@ namespace enclave
       int error, const std::string& msg = "") const = 0;
 
     virtual void set_response_metafield(
-      const std::string& name, const nlohmann::json& value)
+      const std::string& name, const nlohmann::json& value) const
     {
       metafields[name] = value;
     }
