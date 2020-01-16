@@ -147,32 +147,25 @@ namespace ccf
       return node_id;
     }
 
-    auto get_trusted_nodes(std::optional<NodeId> self = std::nullopt)
+    auto get_trusted_nodes(std::optional<NodeId> self_to_exclude = std::nullopt)
     {
-      // Returns the list of trusted nodes. If self is set, self is not included
-      // in the list of returned nodes.
+      // Returns the list of trusted nodes. If self_to_exclude is set,
+      // self_to_exclude is not included in the list of returned nodes.
       std::map<NodeId, NodeInfo> active_nodes;
 
       auto [nodes_view, secrets_view] =
         tx.get_view(tables.nodes, tables.secrets);
 
-      LOG_FAIL_FMT("get_trusted_nodes");
-      if (self.has_value())
-      {
-        LOG_FAIL_FMT("self is {}", self.value());
-      }
-
-      nodes_view->foreach(
-        [&active_nodes, self, this](const NodeId& nid, const NodeInfo& ni) {
-          if (
-            ni.status == ccf::NodeStatus::TRUSTED &&
-            (!self.has_value() || self.value() != nid))
-          {
-            LOG_FAIL_FMT("Adding trusted node {}", nid);
-            active_nodes[nid] = ni;
-          }
-          return true;
-        });
+      nodes_view->foreach([&active_nodes, self_to_exclude, this](
+                            const NodeId& nid, const NodeInfo& ni) {
+        if (
+          ni.status == ccf::NodeStatus::TRUSTED &&
+          (!self_to_exclude.has_value() || self_to_exclude.value() != nid))
+        {
+          active_nodes[nid] = ni;
+        }
+        return true;
+      });
 
       return active_nodes;
     }

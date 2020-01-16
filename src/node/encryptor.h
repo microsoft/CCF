@@ -259,19 +259,15 @@ namespace ccf
 
         if (std::next(k)->version > version)
         {
-          // Stop here. The next compact will seal.
           break;
         }
+
+        keys_to_seal.emplace_back(
+          KeyInfo{std::next(k)->version, std::next(k)->raw_key});
 
         if (k->version < version)
         {
           encryption_keys.pop_front();
-        }
-
-        if (std::next(k)->version <= version)
-        {
-          keys_to_seal.emplace_back(
-            KeyInfo{std::next(k)->version, std::next(k)->raw_key});
         }
       }
 

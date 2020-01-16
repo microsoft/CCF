@@ -872,7 +872,7 @@ namespace ccf
 
         // Do not broadcast the ledger secrets to self since they were already
         // restored from sealed file
-        broadcast_ledger_secret(tx, secret.value(), secret_idx, false);
+        broadcast_ledger_secret(tx, secret.value(), secret_idx, true);
       }
 
       // Setup new temporary store and record current version/root
@@ -1036,15 +1036,14 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfNetwork);
 
-      LOG_FAIL_FMT("Ledger rekeying...");
+      // Effects of ledger rekey are only observed for the next transaction,
+      // once the local hook on the secrets table has been triggered. The
+      // corresponding new ledger secret is only sealed on global hook.
 
-      // Create new ledger secrets
       auto new_ledger_secret =
         LedgerSecret(tls::create_entropy()->random(16)); // TODO: 16?
 
       broadcast_ledger_secret(tx, new_ledger_secret);
-
-      LOG_FAIL_FMT("Ledger rekey done. Waiting for hook...");
 
       return true;
     }
@@ -1151,14 +1150,13 @@ namespace ccf
       Store::Tx& tx,
       const LedgerSecret& secret,
       kv::Version version = kv::NoVersion,
-      bool include_self = true)
+      bool exclude_self = false)
     {
       GenesisGenerator g(network, tx);
       auto secrets_view = tx.get_view(network.secrets);
 
-      LOG_FAIL_FMT("Includes self: {}", include_self);
       auto trusted_nodes = g.get_trusted_nodes(
-        include_self ? std::nullopt : std::make_optional(self));
+        exclude_self ? std::make_optional(self) : std::nullopt);
 
       ccf::EncryptedLedgerSecrets secret_set;
       secret_set.primary_public_encryption_key =
