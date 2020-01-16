@@ -631,7 +631,7 @@ namespace ccf
       ledger_truncate(last_index);
       LOG_INFO_FMT("Truncating ledger to last signed index: {}", last_index);
 
-      network.ledger_secrets->promote_secrets(0, last_index + 1);
+      network.ledger_secrets->promote_secrets(1, last_index + 1);
 
       g.create_service(network.identity->cert, last_index + 1);
 
@@ -827,7 +827,10 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
         std::make_shared<NullTxEncryptor>();
 #else
-        std::make_shared<TxEncryptor>(self, network.ledger_secrets);
+        // Recovery encryptor should not seal ledger secrets on compaction.
+        // Since private ledger recovery is done in a temporary store, ledger
+        // secrets are only sealed once the recovery is successful.
+        std::make_shared<TxEncryptor>(self, network.ledger_secrets, true);
 #endif
 
       recovery_store->set_history(recovery_history);
@@ -863,8 +866,7 @@ namespace ccf
         auto secret = network.ledger_secrets->get_secret(secret_idx);
         if (!secret.has_value())
         {
-          LOG_FAIL_FMT(
-            "Network secrets have not been restored: {}", secret_idx);
+          LOG_FAIL_FMT("Ledger secrets have not been restored: {}", secret_idx);
           return false;
         }
 
@@ -1291,12 +1293,15 @@ namespace ccf
               LOG_FAIL_FMT("Version to use is {}", version_to_use);
 
               // TODO: This is required for recovery
-              // if (!network.ledger_secrets->set_secret(
-              //       version_to_use, plain_secret))
-              // {
-              //   throw std::logic_error(
-              //     "Cannot set secrets because they already exist");
-              // }
+              if (is_part_of_public_network())
+              {
+                if (!network.ledger_secrets->set_secret(
+                      version_to_use, plain_secret))
+                {
+                  throw std::logic_error(
+                    "Cannot set ledger secrets because they already exist");
+                }
+              }
 
               // if (version_to_use == version) // TODO: Change this
               // {

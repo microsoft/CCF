@@ -51,6 +51,8 @@ namespace ccf
   {
   private:
     NodeId id;
+    bool is_recovery;
+
     std::atomic<SeqNo> seqNo{0};
     SpinLock lock;
 
@@ -109,9 +111,13 @@ namespace ccf
     }
 
   public:
-    TxEncryptor(NodeId id_, std::shared_ptr<LedgerSecrets> ls) :
+    TxEncryptor(
+      NodeId id_,
+      std::shared_ptr<LedgerSecrets> ls,
+      bool is_recovery_ = false) :
       id(id_),
-      ledger_secrets(ls)
+      ledger_secrets(ls),
+      is_recovery(is_recovery_)
     {
       // Create map of existing encryption keys from the recorded ledger secrets
       for (auto const& s : ls->get_secrets())
@@ -237,7 +243,6 @@ namespace ccf
       LOG_FAIL_FMT("*****");
     }
 
-    // TODO: Should this be on for the recovery encryptor? Perhaps not...
     void compact(kv::Version version) override
     {
       std::lock_guard<SpinLock> guard(lock);
@@ -273,12 +278,19 @@ namespace ccf
       last_compacted = encryption_keys.back().version;
       print_keys();
 
-      LOG_FAIL_FMT("That many to seal: {}", keys_to_seal.size());
-      for (auto const& k : keys_to_seal)
+      if (!is_recovery)
       {
-        LOG_FAIL_FMT("Sealing from global hook: {}", k.version);
-        ledger_secrets->set_secret(k.version, k.raw_key);
-        ledger_secrets->seal_secret(k.version);
+        LOG_FAIL_FMT("That many to seal: {}", keys_to_seal.size());
+        for (auto const& k : keys_to_seal)
+        {
+          LOG_FAIL_FMT("Sealing from global hook: {}", k.version);
+          ledger_secrets->set_secret(k.version, k.raw_key);
+          ledger_secrets->seal_secret(k.version);
+        }
+      }
+      else
+      {
+        LOG_FAIL_FMT("Recovery encryptor does not seal!");
       }
     }
   };

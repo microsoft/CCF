@@ -241,7 +241,8 @@ class Consortium:
         tables, sealed_secrets = ...
         return Calls:call("accept_recovery", sealed_secrets)
         """
-        result, error = self.propose(member_id, remote_node, script, sealed_json)
+        LOG.warning(sealed_secrets)
+        result, error = self.propose(member_id, remote_node, script, sealed_secrets)
         self.vote_using_majority(remote_node, result["id"])
 
     def add_new_code(self, member_id, remote_node, new_code_id):
