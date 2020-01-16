@@ -47,6 +47,8 @@ namespace ccfapp
 
     void init_handlers(Store& store) override
     {
+      UserHandlerRegistry::init_handlers(store);
+
       auto create = [this](Store::Tx& tx, const nlohmann::json& params) {
         // Create an account with a balance from thin air.
         std::string name = params["name"];
