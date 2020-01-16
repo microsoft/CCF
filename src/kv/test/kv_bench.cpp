@@ -14,12 +14,12 @@ using namespace ccfapp;
 using namespace ccf;
 
 // Helper functions to use a dummy encryption key
-ccf::LedgerSecrets create_ledger_secrets()
+std::shared_ptr<ccf::LedgerSecrets> create_ledger_secrets()
 {
-  auto secrets = ccf::LedgerSecrets();
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
   auto new_secret =
     std::make_unique<ccf::LedgerSecret>(std::vector<uint8_t>(16, 0x1));
-  secrets.get_secrets().emplace(
+  secrets->get_secrets().emplace(
     0, std::move(new_secret)); // Create new secrets valid from version 0
 
   return secrets;

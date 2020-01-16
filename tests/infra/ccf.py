@@ -426,7 +426,7 @@ class Network:
         assert [commits[0]] * len(commits) == commits, "All nodes at the same commit"
 
     # TODO: Remove when secret sharing is implemented: https://github.com/microsoft/CCF/issues/51
-    def wait_for_sealed_secrets_at_version(self, version, timeout=3):
+    def wait_for_sealed_secrets_at_version(self, version, timeout=5):
         """
         Wait for a sealed secret at a version larger than "version" to be sealed
         on all nodes.
@@ -434,7 +434,6 @@ class Network:
         for _ in range(timeout):
             rekeyed_nodes = []
             for node in self.get_joined_nodes():
-                LOG.error(f"Checking sealed secrets for {node.node_id}")
                 max_sealed_version = int(
                     max(node.get_sealed_secrets(), key=lambda x: int(x))
                 )

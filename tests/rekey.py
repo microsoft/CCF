@@ -11,7 +11,7 @@ from loguru import logger as LOG
 
 
 @reqs.supports_methods("mkSign")
-@reqs.at_least_n_nodes(2)
+@reqs.at_least_n_nodes(1)
 def test(network, args):
     LOG.info("Rekey ledger once")
     primary, _ = network.find_primary()
@@ -29,7 +29,7 @@ def test(network, args):
     return network
 
 
-# Run some transactions against the logging app
+# Run some write transactions against the logging app
 def record_transactions(primary, txs_count=1):
     with primary.node_client(format="json") as nc:
         check_commit = infra.checker.Checker(nc)

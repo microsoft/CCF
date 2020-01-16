@@ -208,8 +208,8 @@ class Consortium:
         return Calls:call("rekey_ledger")
         """
         result, error = self.propose(member_id, remote_node, script)
-        # TODO: For now, rekeying is effective after global commit.
-        # Wait for global commit so that it is safe to retrieve new sealed secrets
+        # Wait for global commit since sealed secrets are disclosed only
+        # when the rekey transaction is globally committed.
         self.vote_using_majority(
             remote_node, result["id"], should_wait_for_global_commit=True
         )
