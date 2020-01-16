@@ -93,7 +93,10 @@ namespace ccf
         tx, this->network, in.quote, caller_pem_raw);
 
       if (verify_result != QuoteVerificationResult::VERIFIED)
-        return QuoteVerifier::quote_verification_error_to_json(verify_result);
+      {
+        const auto [code, message] = QuoteVerifier::quote_verification_error(verify_result);
+        return make_error(code, message);
+      }
 #else
       LOG_INFO_FMT("Skipped joining node quote verification");
 #endif
