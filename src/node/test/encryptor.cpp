@@ -16,9 +16,9 @@ using namespace ccf;
 
 TEST_CASE("Simple encryption/decryption")
 {
-  // Setting 1 NetworkSecret, valid for version 0+
+  // Setting 1 ledger secret, valid for version 0+
   uint64_t node_id = 0;
-  auto secrets = ccf::LedgerSecrets();
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
   auto encryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -41,8 +41,7 @@ TEST_CASE("Simple encryption/decryption")
 TEST_CASE("Two ciphers from same plaintext are different")
 {
   uint64_t node_id = 0;
-  auto secrets = ccf::LedgerSecrets();
-
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
   auto encryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -65,9 +64,9 @@ TEST_CASE("Two ciphers from same plaintext are different")
 
 TEST_CASE("Additional data")
 {
-  // Setting 1 NetworkSecret, valid for version 0+
+  // Setting 1 ledger secret, valid for version 1+
   uint64_t node_id = 0;
-  auto secrets = ccf::LedgerSecrets();
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
   auto encryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -96,18 +95,17 @@ TEST_CASE("Additional data")
   REQUIRE(decrypted_cipher2.empty());
 }
 
-TEST_CASE("Encryption/decryption with multiple network secrets")
+TEST_CASE("Encryption/decryption with multiple ledger secrets")
 {
-  // Setting 2 Network Secrets, valid from version 0 and 4
+  // Setting 2 ledger secrets, valid from version 0 and 4
   uint64_t node_id = 0;
-  auto secrets =
-    ccf::LedgerSecrets(); // Create default secrets valid from version 0
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
   auto new_secret =
     std::make_unique<ccf::LedgerSecret>(std::vector<uint8_t>(16, 0x1));
-  secrets.get_secrets().emplace(
+  secrets->get_secrets().emplace(
     4, std::move(new_secret)); // Create new secrets valid from version 4
 
-  auto encryptor = std::make_shared<ccf::RecoveryTxEncryptor>(node_id, secrets);
+  auto encryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
 
   INFO("Encryption with key at version 0");
   {
@@ -115,11 +113,12 @@ TEST_CASE("Encryption/decryption with multiple network secrets")
     std::vector<uint8_t> cipher;
     std::vector<uint8_t> decrypted_cipher;
     std::vector<uint8_t> serialised_header;
-    encryptor->encrypt(plain, {}, serialised_header, cipher, 0);
+    kv::Version version = 1;
+    encryptor->encrypt(plain, {}, serialised_header, cipher, 1);
 
     // Decrypting from the version which was used for encryption should succeed
     REQUIRE(
-      encryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher, 0));
+      encryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher, 1));
     REQUIRE(plain == decrypted_cipher);
 
     // Decrypting from a version in the same version interval should also
@@ -154,6 +153,46 @@ TEST_CASE("Encryption/decryption with multiple network secrets")
 
     // Decrypting from a version encrypted with a different key should fail
     REQUIRE_FALSE(
-      encryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher, 0));
+      encryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher, 1));
+  }
+}
+
+TEST_CASE("Compaction")
+{
+  uint64_t node_id = 0;
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  auto encryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
+
+  auto decryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
+
+  std::vector<uint8_t> plain(128, 0x42);
+  std::vector<uint8_t> cipher;
+  std::vector<uint8_t> serialised_header;
+  std::vector<uint8_t> decrypted_cipher;
+
+  INFO("One rekey and compact");
+  {
+    std::vector<uint8_t> new_encryption_key(16, 0x42);
+    encryptor->update_encryption_key(10, new_encryption_key);
+    decryptor->update_encryption_key(10, new_encryption_key);
+
+    // Encrypt using new key
+    encryptor->compact(10);
+    encryptor->encrypt(plain, {}, serialised_header, cipher, 10);
+
+    decryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher, 10);
+
+    REQUIRE(plain == decrypted_cipher);
+  }
+
+  INFO("Two rekeys and compact");
+  {
+    std::vector<uint8_t> first_new_encryption_key(16, 0x42);
+    std::vector<uint8_t> second_new_encryption_key(16, 0x43);
+
+    encryptor->update_encryption_key(10, first_new_encryption_key);
+    decryptor->update_encryption_key(10, first_new_encryption_key);
+
+    encryptor->update_encryption_key(20, second_new_encryption_key);
   }
 }

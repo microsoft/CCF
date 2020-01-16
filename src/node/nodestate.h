@@ -177,7 +177,7 @@ namespace ccf
     Timers& timers;
 
     std::shared_ptr<kv::TxHistory> history;
-    std::shared_ptr<TxEncryptor> encryptor; // TODO: Wrong encryptor type!!
+    std::shared_ptr<TxEncryptor> encryptor;
 
     //
     // join protocol
@@ -191,7 +191,7 @@ namespace ccf
     NodeInfoNetwork node_info_network;
     std::shared_ptr<Store> recovery_store;
     std::shared_ptr<kv::TxHistory> recovery_history;
-    std::shared_ptr<kv::AbstractTxEncryptor> recovery_encryptor;
+    std::shared_ptr<TxEncryptor> recovery_encryptor;
     kv::Version recovery_v;
     crypto::Sha256Hash recovery_root;
     std::vector<kv::Version> term_history;
@@ -450,7 +450,7 @@ namespace ccf
           {
             // If the current network secrets do not apply since the genesis,
             // the joining node can only join the public network
-            bool public_only = (resp->network_info.version != 0);
+            bool public_only = (resp->network_info.version != 1);
 
             network.identity =
               std::make_unique<NetworkIdentity>(resp->network_info.identity);
@@ -827,7 +827,7 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
         std::make_shared<NullTxEncryptor>();
 #else
-        std::make_shared<RecoveryTxEncryptor>(self, *network.ledger_secrets);
+        std::make_shared<TxEncryptor>(self, network.ledger_secrets);
 #endif
 
       recovery_store->set_history(recovery_history);
@@ -1241,13 +1241,13 @@ namespace ccf
         }
       });
 
-      // TODO: https://github.com/microsoft/CCF/issues/687
-      // For now, set this as a global hook for now.
-      network.secrets.set_global_hook([this](
-                                        kv::Version version,
-                                        const Secrets::State& s,
-                                        const Secrets::Write& w) {
-        LOG_FAIL_FMT("Hook for secrets table!");
+      // TODO: Clean this code up (a lot of special cases for the recovery to
+      // work)
+      network.secrets.set_local_hook([this](
+                                       kv::Version version,
+                                       const Secrets::State& s,
+                                       const Secrets::Write& w) {
+        LOG_FAIL_FMT("Local hook for secrets table!");
 
         bool has_secrets = false;
 
@@ -1290,23 +1290,25 @@ namespace ccf
 
               LOG_FAIL_FMT("Version to use is {}", version_to_use);
 
-              if (!network.ledger_secrets->set_secret(
-                    version_to_use, plain_secret))
-              {
-                throw std::logic_error(
-                  "Cannot set secrets because they already exist");
-              }
+              // TODO: This is required for recovery
+              // if (!network.ledger_secrets->set_secret(
+              //       version_to_use, plain_secret))
+              // {
+              //   throw std::logic_error(
+              //     "Cannot set secrets because they already exist");
+              // }
 
-              if (version_to_use == version) // TODO: Change this
-              {
-                // Seal secrets immediately when rekeying
-                network.ledger_secrets->seal_secret(version_to_use);
-              }
+              // if (version_to_use == version) // TODO: Change this
+              // {
+              //   // Seal secrets immediately when rekeying
+              //   network.ledger_secrets->seal_secret(version_to_use);
+              // }
 
               // Only necessary during rekeying
               if (!is_part_of_public_network())
               {
-                encryptor->update_encryption_key(LedgerSecret(plain_secret));
+                encryptor->update_encryption_key(
+                  version_to_use + 1, plain_secret);
               }
             }
           }
@@ -1423,7 +1425,7 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
         std::make_shared<NullTxEncryptor>();
 #else
-        std::make_shared<TxEncryptor>(self, *network.ledger_secrets);
+        std::make_shared<TxEncryptor>(self, network.ledger_secrets);
 #endif
 
       network.tables->set_encryptor(encryptor);

@@ -8,12 +8,13 @@
 #include "node/ledgersecrets.h"
 
 #include <atomic>
+#include <list>
 
 namespace ccf
 {
   using SeqNo = uint64_t;
 
-  // Warning: NullTxEncryptor does not encrypt or decrypt
+  // NullTxEncryptor does not decrypt or verify integrity
   class NullTxEncryptor : public kv::AbstractTxEncryptor
   {
   public:
@@ -46,11 +47,36 @@ namespace ccf
     }
   };
 
-  class BaseTxEncryptor : public kv::AbstractTxEncryptor
+  class TxEncryptor : public kv::AbstractTxEncryptor
   {
   private:
     NodeId id;
     std::atomic<SeqNo> seqNo{0};
+    SpinLock lock;
+
+    std::shared_ptr<LedgerSecrets> ledger_secrets;
+    kv::Version last_compacted = 0;
+
+    // Encryption keys are set when TxEncryptor object is created and are used
+    // to determine which key to use for encryption/decryption when
+    // committing/deserialising depending on the version
+
+    // TODO: Rename this
+    struct KeyInfo
+    {
+      kv::Version version;
+
+      // This is unfortunate. Because the encryptor updates the ledger secrets
+      // on global hook, we need easy access to the raw secrets.
+      std::vector<uint8_t> raw_key;
+    };
+
+    struct LocalKey : KeyInfo
+    {
+      crypto::KeyAesGcm key;
+    };
+    // std::vector<std::pair<kv::Version, crypto::KeyAesGcm>> encryption_keys;
+    std::list<LocalKey> encryption_keys;
 
     void set_iv(crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr)
     {
@@ -58,11 +84,45 @@ namespace ccf
       gcm_hdr.set_iv_seq(seqNo.fetch_add(1));
     }
 
-    virtual const crypto::KeyAesGcm& get_encryption_key(
-      kv::Version version) = 0;
+    const crypto::KeyAesGcm& get_encryption_key(kv::Version version)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+
+      // Encryption key for a given version is the one with the highest version
+      // that is lower than the given version (e.g. if encryption_keys contains
+      // two keys for version 0 and 10 then the key associated with version 0
+      // is used for version [0..9] and version 10 for versions 10+)
+      auto search = std::upper_bound(
+        encryption_keys.rbegin(),
+        encryption_keys.rend(),
+        version,
+        [](kv::Version a, LocalKey const& b) { return b.version <= a; });
+
+      if (search == encryption_keys.rend())
+      {
+        throw std::logic_error(fmt::format(
+          "TxEncryptor: encrypt version is not valid: {}", version));
+      }
+
+      LOG_FAIL_FMT("Using key {}", search->version);
+      return search->key;
+    }
 
   public:
-    BaseTxEncryptor(NodeId id_) : id(id_) {}
+    TxEncryptor(NodeId id_, std::shared_ptr<LedgerSecrets> ls) :
+      id(id_),
+      ledger_secrets(ls)
+    {
+      // Create map of existing encryption keys from the recorded ledger secrets
+      for (auto const& s : ls->get_secrets())
+      {
+        encryption_keys.emplace_back(LocalKey{
+          s.first,
+          s.second->master,
+          crypto::KeyAesGcm(s.second->master),
+        });
+      }
+    }
 
     /**
      * Encrypt data and return serialised GCM header and cipher.
@@ -86,9 +146,9 @@ namespace ccf
       crypto::GcmHeader<crypto::GCM_SIZE_IV> gcm_hdr;
       cipher.resize(plain.size());
 
+      // Set IV
       set_iv(gcm_hdr);
 
-      LOG_FAIL_FMT("Encryption");
       get_encryption_key(version).encrypt(
         gcm_hdr.get_iv(), plain, additional_data, cipher.data(), gcm_hdr.tag);
 
@@ -118,7 +178,6 @@ namespace ccf
       gcm_hdr.deserialise(serialised_header);
       plain.resize(cipher.size());
 
-      LOG_FAIL_FMT("Decryption");
       auto ret = get_encryption_key(version).decrypt(
         gcm_hdr.get_iv(), gcm_hdr.tag, cipher, additional_data, plain.data());
 
@@ -137,81 +196,89 @@ namespace ccf
     {
       return crypto::GcmHeader<crypto::GCM_SIZE_IV>::RAW_DATA_SIZE;
     }
-  };
 
-  // The TxEncryptor is used for encrypting private transactions during normal
-  // operation.
-  class TxEncryptor : public BaseTxEncryptor
-  {
-  private:
-    std::unique_ptr<crypto::KeyAesGcm> encryption_key;
-
-    const crypto::KeyAesGcm& get_encryption_key(kv::Version version) override
+    void update_encryption_key(
+      kv::Version version, const std::vector<uint8_t>& raw_ledger_key)
     {
-      return *encryption_key.get();
+      std::lock_guard<SpinLock> guard(lock);
+
+      encryption_keys.emplace_back(
+        LocalKey{version, raw_ledger_key, crypto::KeyAesGcm(raw_ledger_key)});
     }
 
-  public:
-    TxEncryptor(NodeId id_, LedgerSecrets& ls) :
-      BaseTxEncryptor(id_),
-      encryption_key(
-        std::make_unique<crypto::KeyAesGcm>(ls.get_current().master))
-    {}
-
-    void update_encryption_key(LedgerSecret ls)
+    void rollback(kv::Version version) override
     {
-      LOG_FAIL_FMT("TxEncryptor updated");
-      encryption_key = std::make_unique<crypto::KeyAesGcm>(ls.master);
-    }
-  };
+      std::lock_guard<SpinLock> guard(lock);
 
-  // The RecoveryTxEncryptor is used during recovery to decrypt private ledger
-  // entries. It contains the collection of ledger keys since the beginning of
-  // time and uses the appropriate one based on the kv version.
-  class RecoveryTxEncryptor : public BaseTxEncryptor
-  {
-  private:
-    // Encryption keys are set when TxEncryptor object is created and are used
-    // to determine which key to use for encryption/decryption when
-    // committing/deserialising depending on the version
-    std::vector<std::pair<kv::Version, crypto::KeyAesGcm>> encryption_keys;
+      LOG_INFO_FMT("Rolling back encryptor {}", version);
 
-  protected:
-    const crypto::KeyAesGcm& get_encryption_key(kv::Version version) override
-    {
-      // Encryption key for a given version is the one with the highest version
-      // that is lower than the given version (e.g. if encryption_keys contains
-      // two keys for version 0 and 10 then the key associated with version 0
-      // is used for version [0..9] and version 10 for versions 10+)
-      auto search = std::upper_bound(
-        encryption_keys.rbegin(),
-        encryption_keys.rend(),
-        version,
-        [](kv::Version a, std::pair<kv::Version, crypto::KeyAesGcm> const& b) {
-          return b.first <= a;
-        });
-
-      LOG_FAIL_FMT("size of encryption keys: {}", encryption_keys.size());
-
-      LOG_FAIL_FMT("Using version {}, key {}", version, search->first);
-
-      if (search == encryption_keys.rend())
+      while (encryption_keys.size() > 1)
       {
-        throw std::logic_error(
-          "TxEncryptor: encrypt version is not valid: " +
-          std::to_string(version));
+        auto k = encryption_keys.end();
+        std::advance(k, -1);
+
+        if (k->version <= version)
+        {
+          break;
+        }
+
+        encryption_keys.pop_back();
+      }
+    }
+
+    // TODO: Delete me
+    void print_keys()
+    {
+      LOG_FAIL_FMT("Encryption keys: ");
+      for (auto const& k : encryption_keys)
+      {
+        LOG_FAIL_FMT("{}", k.version);
+      }
+      LOG_FAIL_FMT("*****");
+    }
+
+    // TODO: Should this be on for the recovery encryptor? Perhaps not...
+    void compact(kv::Version version) override
+    {
+      std::lock_guard<SpinLock> guard(lock);
+
+      LOG_INFO_FMT("Compacting encryptor {}", version);
+      LOG_INFO_FMT("last compacted: {}", last_compacted);
+      print_keys();
+
+      std::list<KeyInfo> keys_to_seal;
+
+      while (encryption_keys.size() > 1)
+      {
+        auto k = encryption_keys.begin();
+
+        if (std::next(k)->version > version)
+        {
+          // Stop here. The next compact will seal.
+          break;
+        }
+
+        if (k->version < version)
+        {
+          encryption_keys.pop_front();
+        }
+
+        if (std::next(k)->version <= version)
+        {
+          keys_to_seal.emplace_back(
+            KeyInfo{std::next(k)->version, std::next(k)->raw_key});
+        }
       }
 
-      return search->second;
-    }
+      last_compacted = encryption_keys.back().version;
+      print_keys();
 
-  public:
-    RecoveryTxEncryptor(NodeId id_, LedgerSecrets& ls) : BaseTxEncryptor(id_)
-    {
-      // Create map of existing encryption keys
-      for (auto const& s : ls.get_secrets())
+      LOG_FAIL_FMT("That many to seal: {}", keys_to_seal.size());
+      for (auto const& k : keys_to_seal)
       {
-        encryption_keys.emplace_back(std::make_pair(s.first, s.second->master));
+        LOG_FAIL_FMT("Sealing from global hook: {}", k.version);
+        ledger_secrets->set_secret(k.version, k.raw_key);
+        ledger_secrets->seal_secret(k.version);
       }
     }
   };

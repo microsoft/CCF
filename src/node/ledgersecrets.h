@@ -73,7 +73,7 @@ namespace ccf
       // Generate fresh ledger encryption key
       auto new_secret =
         std::make_unique<LedgerSecret>(tls::create_entropy()->random(16));
-      add_secret(0, std::move(new_secret), force_seal);
+      add_secret(1, std::move(new_secret), force_seal);
     }
 
     // Called when a node joins the network and get given the current ledger
@@ -143,7 +143,7 @@ namespace ccf
     }
 
     // Called during recovery to promote temporary secrets created at startup (v
-    // = 0) to new current secrets at the latest signed version
+    // = 1) to new current secrets at the latest signed version
     bool promote_secrets(kv::Version old_v, kv::Version new_v)
     {
       if (old_v == new_v)
