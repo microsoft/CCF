@@ -71,6 +71,8 @@ namespace enclave
   protected:
     size_t request_index = 0;
 
+    std::unordered_map<std::string, nlohmann::json> metafields;
+
     mutable RpcResponse response;
 
   public:
@@ -144,6 +146,12 @@ namespace enclave
 
     virtual std::vector<uint8_t> error_response(
       int error, const std::string& msg = "") const = 0;
+
+    virtual void set_response_metafield(
+      const std::string& name, const nlohmann::json& value)
+    {
+      metafields[name] = value;
+    }
   };
 
   class JsonRpcContext : public RpcContext
@@ -222,17 +230,37 @@ namespace enclave
 
     virtual std::vector<uint8_t> serialise_response() const override
     {
+      nlohmann::json full_response;
+
       if (response_is_error())
       {
         const auto error = get_response_error();
-        nlohmann::json error_element = jsonrpc::Error(error->code, error->msg);
-        return pack(jsonrpc::error_response(seq_no, error_element));
+        full_response = jsonrpc::error_response(
+          seq_no, jsonrpc::Error(error->code, error->msg));
       }
       else
       {
         const auto payload = get_response_result();
-        return pack(jsonrpc::result_response(seq_no, *payload));
+        full_response = jsonrpc::result_response(seq_no, *payload);
       }
+
+      for (const auto& [k, v] : metafields)
+      {
+        const auto it = full_response.find(k);
+        if (it == full_response.end())
+        {
+          full_response[k] = v;
+        }
+        else
+        {
+          LOG_DEBUG_FMT(
+            "Ignoring response metafield with key '{}' - already present in "
+            "response object",
+            k);
+        }
+      }
+
+      return pack(full_response);
     }
 
     virtual std::vector<uint8_t> result_response(
