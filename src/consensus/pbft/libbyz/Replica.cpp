@@ -256,7 +256,7 @@ bool Replica::compare_execution_results(
                 "does not match, seqno:"
              << pre_prepare->seqno() << ", tx_ctx:" << tx_ctx
              << ", info.ctx:" << info.ctx << std::endl;
-    // return false;
+    return false;
   }
 
   if (!std::equal(

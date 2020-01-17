@@ -1420,9 +1420,6 @@ namespace ccf
     {
       setup_n2n_channels();
 
-      network.pbft_requests_map.set_local_hook(nullptr);
-      network.pbft_pre_prepares_map.set_local_hook(nullptr);
-
       consensus = std::make_shared<PbftConsensusType>(
         std::make_unique<pbft::Adaptor<Store, kv::DeserialiseSuccess>>(
           network.tables),

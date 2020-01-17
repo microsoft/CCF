@@ -421,7 +421,7 @@ namespace pbft
             // }
             Index last_idx = i;
             // TODO record entry here?
-            // auto ret = ledger->record_entry(data, size);
+            auto ret = ledger->record_entry(data, size);
 
             if (!ret.second)
             {
