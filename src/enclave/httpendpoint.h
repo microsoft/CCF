@@ -216,7 +216,8 @@ namespace enclave
           return;
         }
 
-        JsonRpcContext rpc_ctx(session, pack.value(), json_rpc);
+        auto rpc_ctx =
+          std::make_shared<JsonRpcContext>(session, pack.value(), json_rpc);
         rpc_ctx->set_request_index(request_index++);
 
         // TODO: For now, set this here

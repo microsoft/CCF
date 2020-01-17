@@ -58,7 +58,8 @@ namespace enclave
       }
       LOG_TRACE_FMT("Deserialised");
 
-      JsonRpcContext rpc_ctx(session, pack.value(), rpc);
+      auto rpc_ctx =
+        std::make_shared<JsonRpcContext>(session, pack.value(), rpc);
       rpc_ctx->set_request_index(request_index++);
       rpc_ctx->raw = data;
 

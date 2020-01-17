@@ -125,7 +125,7 @@ json frontend_process(
 
   const enclave::SessionContext session(
     0, tls::make_verifier(caller)->der_cert_data());
-  const auto rpc_ctx = enclave::JsonRpcContext(session, serialized_request);
+  auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
   auto serialized_response = frontend.process(rpc_ctx);
 
   CHECK(serialized_response.has_value());
