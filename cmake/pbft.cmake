@@ -96,6 +96,7 @@ if("virtual" IN_LIST TARGET)
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/Statistics.cpp
   )
   target_compile_options(libcommontest PRIVATE -stdlib=libc++)
+  add_dependencies(libcommontest flatbuffers)
 
   target_include_directories(libcommontest PRIVATE
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz
