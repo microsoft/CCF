@@ -1,6 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+if((NOT "sgx" IN_LIST TARGET) AND (NOT "virtual" IN_LIST TARGET))
+  message(FATAL_ERROR "Variable list 'TARGET' must be defined and include a valid target")
+endif()
+
 # Sign a built enclave library with oesign
 function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
   add_custom_command(
@@ -18,6 +22,47 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
   )
 endfunction()
+
+# Util functions used by add_enclave_lib and others
+function(enable_quote_code name)
+  if (QUOTES_ENABLED)
+    target_compile_definitions(${name} PRIVATE -DGET_QUOTE)
+  endif()
+endfunction()
+
+function(add_san name)
+  if(SAN)
+    target_compile_options(${name} PRIVATE
+      -fsanitize=undefined,address -fno-omit-frame-pointer -fno-sanitize-recover=all
+      -fno-sanitize=function -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
+    )
+    target_link_libraries(${name} PRIVATE
+      -fsanitize=undefined,address -fno-omit-frame-pointer -fno-sanitize-recover=all
+      -fno-sanitize=function -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
+    )
+  endif()
+endfunction()
+
+separate_arguments(COVERAGE_FLAGS UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
+separate_arguments(COVERAGE_LINK UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
+
+function(enable_coverage name)
+  if (COVERAGE)
+    target_compile_options(${name} PRIVATE ${COVERAGE_FLAGS})
+    target_link_libraries(${name} PRIVATE ${COVERAGE_LINK})
+  endif()
+endfunction()
+
+function(use_client_mbedtls name)
+  target_include_directories(${name} PRIVATE ${CLIENT_MBEDTLS_INCLUDE_DIR})
+  target_link_libraries(${name} PRIVATE ${CLIENT_MBEDTLS_LIBRARIES})
+endfunction()
+
+function(use_oe_mbedtls name)
+  target_include_directories(${name} PRIVATE ${OE_TP_INCLUDE_DIR})
+  target_link_libraries(${name} PRIVATE ${OE_MBEDTLS_LIBRARIES})
+endfunction()
+
 
 # Enclave library wrapper
 function(add_enclave_lib name)
@@ -73,6 +118,7 @@ function(add_enclave_lib name)
       http_parser.enclave
     )
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+
     enable_quote_code(${name})
   endif()
 
@@ -84,7 +130,6 @@ function(add_enclave_lib name)
       ${PARSED_ARGS_SRCS}
       ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp
     )
-    add_san(${virt_name})
     target_compile_definitions(${virt_name} PRIVATE
       INSIDE_ENCLAVE
       VIRTUAL_ENCLAVE
@@ -120,8 +165,10 @@ function(add_enclave_lib name)
       http_parser.host
       quickjs.host
     )
+    set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+
     enable_coverage(${virt_name})
     use_client_mbedtls(${virt_name})
-    set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+    add_san(${virt_name})
   endif()
 endfunction()

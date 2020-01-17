@@ -19,16 +19,6 @@ find_package(Threads REQUIRED)
 
 set(PYTHON unbuffer python3)
 
-separate_arguments(COVERAGE_FLAGS UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
-separate_arguments(COVERAGE_LINK UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
-
-function(enable_coverage name)
-  if (COVERAGE)
-    target_compile_options(${name} PRIVATE ${COVERAGE_FLAGS})
-    target_link_libraries(${name} PRIVATE ${COVERAGE_LINK})
-  endif()
-endfunction()
-
 set(SERVICE_IDENTITY_CURVE_CHOICE "secp384r1" CACHE STRING "One of secp384r1, ed25519, secp256k1_mbedtls, secp256k1_bitcoin")
 if (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp384r1")
   add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP384R1)
@@ -157,6 +147,14 @@ add_custom_command(
     DEPENDS ${CCF_DIR}/src/edl/ccf.edl
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.cpp
     COMMENT "Generating code from EDL, and renaming to .cpp"
+)
+install(
+  FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.h
+    ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.h
+    ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.cpp
+  DESTINATION generated
 )
 
 # Copy utilities from tests directory
@@ -287,12 +285,6 @@ set(ENCLAVE_FILES
   ${CCF_DIR}/src/enclave/main.cpp
 )
 
-function(enable_quote_code name)
-  if (QUOTES_ENABLED)
-    target_compile_definitions(${name} PRIVATE -DGET_QUOTE)
-  endif()
-endfunction()
-
 function(add_enclave_library_c name files)
   add_library(${name} STATIC
     ${files})
@@ -303,30 +295,6 @@ function(add_enclave_library_c name files)
     ${OE_LIBC_INCLUDE_DIR}
     )
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
-  enable_quote_code(${name})
-endfunction()
-
-function(use_client_mbedtls name)
-  target_include_directories(${name} PRIVATE ${CLIENT_MBEDTLS_INCLUDE_DIR})
-  target_link_libraries(${name} PRIVATE ${CLIENT_MBEDTLS_LIBRARIES})
-endfunction()
-
-function(use_oe_mbedtls name)
-  target_include_directories(${name} PRIVATE ${OE_TP_INCLUDE_DIR})
-  target_link_libraries(${name} PRIVATE ${OE_MBEDTLS_LIBRARIES})
-endfunction()
-
-function(add_san name)
-  if(SAN)
-    target_compile_options(${name} PRIVATE
-      -fsanitize=undefined,address -fno-omit-frame-pointer -fno-sanitize-recover=all
-      -fno-sanitize=function -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
-    )
-    target_link_libraries(${name} PRIVATE
-      -fsanitize=undefined,address -fno-omit-frame-pointer -fno-sanitize-recover=all
-      -fno-sanitize=function -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
-    )
-  endif()
 endfunction()
 
 include(${CCF_DIR}/cmake/crypto.cmake)
