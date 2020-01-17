@@ -71,7 +71,9 @@ namespace pbft
       const enclave::SessionContext session(
         enclave::InvalidSessionId, request.caller_id, request.caller_cert);
       const auto pack = jsonrpc::detect_pack(request.raw);
-      enclave::JsonRpcContext ctx(session, pack.value(), request.raw);
+      const auto rpc = jsonrpc::unpack(request.raw, pack.value());
+      enclave::JsonRpcContext ctx(session, pack.value(), rpc);
+      ctx.raw = request.raw;
       ctx.actor = (ccf::ActorsType)request.actor;
       const auto n = ctx.method.find_last_of('/');
       ctx.method = ctx.method.substr(n + 1, ctx.method.size());
