@@ -94,7 +94,8 @@ namespace ccf
 
       if (verify_result != QuoteVerificationResult::VERIFIED)
       {
-        const auto [code, message] = QuoteVerifier::quote_verification_error(verify_result);
+        const auto [code, message] =
+          QuoteVerifier::quote_verification_error(verify_result);
         return make_error(code, message);
       }
 #else
