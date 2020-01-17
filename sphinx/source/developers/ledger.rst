@@ -5,20 +5,18 @@ The ledger is the persistent distributed append-only record of the transactions 
 
 A node writes its ledger to a file as specified by the ``--ledger-file`` command line argument.
 
-Ledger encryption
+Ledger Encryption
 -----------------
 
 Each entry in the ledger corresponds to a transaction (or delta) committed by the primary's key-value store.
 
 When a transaction is committed, each affected ``Store::Map`` is serialised in different security domains (i.e. public or private), based on the policy set when the ``Store::Map`` was created (default is private). Public ``Store::Map`` are serialised and stored in the ledger as plaintext while private ``Store::Map`` are serialised and encrypted before being stored.
 
-Note that even if a transaction only affects a private ``Store::Map``, unencrypted information such as the version number is always present in the serialised entry. More information about the ledger entry format is available in the :ref:`protocol` section.
+Ledger entries are integrity-protected and encrypted using a symmetric key (AES256-GCM) shared by all trusted nodes. This key is kept secure inside each enclave and sealed to disk for service recovery. See :ref:`members/common_member_operations:Rekeying Ledger` for details on how members can rotate the ledger encryption key.
 
-.. note:: Private ``Store::Map`` are encrypted using `GCM`_ by a key (a.k.a. network secrets) shared by all nodes in the CCF network.
+Note that even if a transaction only affects a private ``Store::Map``, unencrypted information such as the version number is always present in the serialised entry. More information about the ledger entry format is available in the :ref:`developers/kv/kv_serialisation:Serialised Format` section.
 
-.. _`GCM`: https://en.wikipedia.org/wiki/Galois/Counter_Mode
-
-Ledger replication
+Ledger Replication
 ------------------
 
 The replication process currently uses Raft as the consensus algorithm and therefore the terminology changes slightly. Instead of primary we use the term leader and instead of backup we use the term follower.
@@ -70,10 +68,10 @@ The following diagram describes how deltas committed by the leader are written t
         end
 
 
-Reading the ledger and verifying entries
-----------------------------------------
+Reading and Verifing Ledger
+---------------------------
 
-The ledger is stored as a series of a 4 byte transaction length field followed by a transaction (as described on the :ref:`protocol` section).
+The ledger is stored as a series of a 4 byte transaction length field followed by a transaction (as described on the :ref:`developers/kv/kv_serialisation:Serialised Format` section).
 
 A python implementation for parsing the ledger can be found on ledger.py.
 
