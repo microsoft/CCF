@@ -11,9 +11,11 @@ target_link_libraries(small_bank_client PRIVATE
 
 # SmallBank application
 add_enclave_lib(smallbankenc
+  SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp
+)
+sign_app_library(smallbankenc
   ${CMAKE_CURRENT_LIST_DIR}/app/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
-  SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp
 )
 
 if(BUILD_TESTS)
