@@ -67,11 +67,8 @@ namespace enclave
   protected:
     size_t request_index = 0;
 
-    // TODO: These are mutable because they're accessed from const methods, for
-    // ease of calling since RpcContext is passed by const&. This should be
-    // changed
-    mutable std::unordered_map<std::string, nlohmann::json> metafields;
-    mutable RpcResponse response;
+    std::unordered_map<std::string, nlohmann::json> metafields;
+    RpcResponse response;
 
   public:
     SessionContext session;
@@ -106,13 +103,17 @@ namespace enclave
       return request_index;
     }
 
-    // TODO: This is obviously non-const. Should pass RpcContext without const&
-    void set_response_error(int code, const std::string& msg = "") const
+    void set_response_error(int code, const std::string& msg = "")
     {
       response.result = ErrorDetails{code, msg};
     }
 
-    ErrorDetails* get_response_error() const
+    const ErrorDetails* get_response_error() const
+    {
+      return std::get_if<ErrorDetails>(&response.result);
+    }
+
+    ErrorDetails* get_response_error()
     {
       return std::get_if<ErrorDetails>(&response.result);
     }
@@ -122,17 +123,22 @@ namespace enclave
       return get_response_error() != nullptr;
     }
 
-    void set_response_result(nlohmann::json&& j) const
+    void set_response_result(nlohmann::json&& j)
     {
       response.result = std::move(j);
     }
 
-    nlohmann::json* get_response_result() const
+    const nlohmann::json* get_response_result() const
     {
       return std::get_if<nlohmann::json>(&response.result);
     }
 
-    void set_response(RpcResponse&& r) const
+    nlohmann::json* get_response_result()
+    {
+      return std::get_if<nlohmann::json>(&response.result);
+    }
+
+    void set_response(RpcResponse&& r)
     {
       response = std::move(r);
     }
@@ -146,7 +152,7 @@ namespace enclave
       int error, const std::string& msg = "") const = 0;
 
     virtual void set_response_metafield(
-      const std::string& name, const nlohmann::json& value) const
+      const std::string& name, const nlohmann::json& value)
     {
       metafields[name] = value;
     }
