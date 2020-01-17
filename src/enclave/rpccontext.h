@@ -51,10 +51,6 @@ namespace enclave
     {}
   };
 
-  enum class RpcError
-  {
-  };
-
   struct ErrorDetails
   {
     int code;
