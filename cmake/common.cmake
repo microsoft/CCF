@@ -140,21 +140,10 @@ set(OEGEN "${OE_BIN_DIR}/oeedger8r")
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf.cmake DESTINATION cmake)
 
-add_custom_command(
-    COMMAND ${OEGEN} ${CCF_DIR}/src/edl/ccf.edl --trusted --trusted-dir ${CMAKE_CURRENT_BINARY_DIR} --untrusted --untrusted-dir ${CMAKE_CURRENT_BINARY_DIR}
-    COMMAND mv ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.c ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp
-    COMMAND mv ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.c ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.cpp
-    DEPENDS ${CCF_DIR}/src/edl/ccf.edl
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.cpp
-    COMMENT "Generating code from EDL, and renaming to .cpp"
-)
+# TODO: Should really be installing generated files, not edl
 install(
-  FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.h
-    ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp
-    ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.h
-    ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.cpp
-  DESTINATION generated
+  FILES ${CCF_DIR}/edl/ccf.edl
+  DESTINATION edl
 )
 
 # Copy utilities from tests directory
