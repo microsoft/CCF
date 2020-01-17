@@ -32,24 +32,24 @@ namespace ccf
     }
 
     std::vector<uint8_t> get_cert_to_forward(
-      const enclave::RpcContext& ctx) override
+      std::shared_ptr<enclave::RpcContext> ctx) override
     {
       // Caller cert can be looked up on receiver - so don't forward it
       return {};
     }
 
     bool lookup_forwarded_caller_cert(
-      enclave::RpcContext& ctx, Store::Tx& tx) override
+      std::shared_ptr<enclave::RpcContext> ctx, Store::Tx& tx) override
     {
       // Lookup the calling user's certificate from the forwarded caller id
       auto users_view = tx.get_view(*users);
-      auto caller = users_view->get(ctx.session.fwd->caller_id);
+      auto caller = users_view->get(ctx->session.fwd->caller_id);
       if (!caller.has_value())
       {
         return false;
       }
 
-      ctx.session.caller_cert = caller.value().cert;
+      ctx->session.caller_cert = caller.value().cert;
       return true;
     }
 

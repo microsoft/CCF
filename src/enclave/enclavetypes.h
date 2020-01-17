@@ -21,7 +21,7 @@ namespace enclave
     virtual ~AbstractForwarder() {}
 
     virtual bool forward_command(
-      const enclave::RpcContext& rpc_ctx,
+      std::shared_ptr<enclave::RpcContext> rpc_ctx,
       ccf::NodeId to,
       ccf::CallerId caller_id,
       const std::vector<uint8_t>& caller_cert) = 0;

@@ -16,7 +16,7 @@ namespace ccf
    * auto foo = [](RequestArgs& args) {
    *   auto x = args.tx.get_view...;
    *   auto y = args.params[...];
-   *   args.rpc_ctx.set_response(x + y);
+   *   args.rpc_ctx->set_response(x + y);
    * };
    *
    * it is possible to write the shorter, clearer, return-based lambda:
@@ -34,7 +34,7 @@ namespace ccf
   static HandleFunction handler_adapter(const HandlerParamsOnly& f)
   {
     return [f](RequestArgs& args) {
-      args.rpc_ctx.set_response(f(args.tx, args.params));
+      args.rpc_ctx->set_response(f(args.tx, args.params));
     };
   }
 
@@ -44,7 +44,7 @@ namespace ccf
   static HandleFunction handler_adapter(const HandlerParamsAndCaller& f)
   {
     return [f](RequestArgs& args) {
-      args.rpc_ctx.set_response(f(args.tx, args.caller_id, args.params));
+      args.rpc_ctx->set_response(f(args.tx, args.caller_id, args.params));
     };
   }
 }

@@ -149,7 +149,7 @@ namespace ccf
           !this->node.is_part_of_network() &&
           !this->node.is_part_of_public_network())
         {
-          args.rpc_ctx.set_response_error(
+          args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             "Target node should be part of network to accept new nodes");
           return;
@@ -161,7 +161,7 @@ namespace ccf
         auto active_service = service_view->get(0);
         if (!active_service.has_value())
         {
-          args.rpc_ctx.set_response_error(
+          args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             "No service is available to accept new node");
           return;
@@ -171,7 +171,7 @@ namespace ccf
         // are quoted
         auto caller_pem =
           tls::make_verifier(
-            std::vector<uint8_t>(args.rpc_ctx.session.caller_cert))
+            std::vector<uint8_t>(args.rpc_ctx->session.caller_cert))
             ->cert_pem();
         std::vector<uint8_t> caller_pem_raw = {caller_pem.str().begin(),
                                                caller_pem.str().end()};
@@ -186,7 +186,7 @@ namespace ccf
             check_node_exists(args.tx, caller_pem_raw, joining_node_status);
           if (existing_node_id.has_value())
           {
-            args.rpc_ctx.set_response_result(JoinNetworkNodeToNode::Out(
+            args.rpc_ctx->set_response_result(JoinNetworkNodeToNode::Out(
               {joining_node_status,
                existing_node_id.value(),
                {this->network.ledger_secrets->get_current(),
@@ -195,7 +195,7 @@ namespace ccf
             return;
           }
 
-          args.rpc_ctx.set_response(
+          args.rpc_ctx->set_response(
             add_node(args.tx, caller_pem_raw, in, joining_node_status));
           return;
         }
@@ -213,7 +213,7 @@ namespace ccf
           auto node_status = nodes_view->get(existing_node_id.value())->status;
           if (node_status == NodeStatus::TRUSTED)
           {
-            args.rpc_ctx.set_response_result(JoinNetworkNodeToNode::Out(
+            args.rpc_ctx->set_response_result(JoinNetworkNodeToNode::Out(
               {node_status,
                existing_node_id.value(),
                {this->network.ledger_secrets->get_current(),
@@ -223,13 +223,13 @@ namespace ccf
           }
           else if (node_status == NodeStatus::PENDING)
           {
-            args.rpc_ctx.set_response_result(JoinNetworkNodeToNode::Out(
+            args.rpc_ctx->set_response_result(JoinNetworkNodeToNode::Out(
               {node_status, existing_node_id.value()}));
             return;
           }
           else
           {
-            args.rpc_ctx.set_response_error(
+            args.rpc_ctx->set_response_error(
               jsonrpc::StandardErrorCodes::INVALID_REQUEST,
               "Joining node is not in expected state");
             return;
@@ -241,7 +241,7 @@ namespace ccf
 
           // TODO: We should also automatically stage a vote for members to
           // accept the new node as trusted
-          args.rpc_ctx.set_response(
+          args.rpc_ctx->set_response(
             add_node(args.tx, caller_pem_raw, in, NodeStatus::PENDING));
           return;
         }
@@ -267,7 +267,7 @@ namespace ccf
         }
         else
         {
-          args.rpc_ctx.set_response_error(
+          args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::INVALID_REQUEST,
             "Network is not in recovery mode");
           return;
@@ -280,7 +280,7 @@ namespace ccf
         else
           result.signed_index = sig.value().index;
 
-        args.rpc_ctx.set_response_result(result);
+        args.rpc_ctx->set_response_result(result);
         return;
       };
 
@@ -289,7 +289,7 @@ namespace ccf
         GetQuotes::Out result;
         this->node.node_quotes(args.tx, result);
 
-        args.rpc_ctx.set_response_result(result);
+        args.rpc_ctx->set_response_result(result);
         return;
       };
 

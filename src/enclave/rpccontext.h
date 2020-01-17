@@ -274,4 +274,10 @@ namespace enclave
       return pack(jsonrpc::error_response(seq_no, error_element));
     }
   };
+
+  inline std::shared_ptr<RpcContext> make_rpc_context(
+    const SessionContext& s, const std::vector<uint8_t>& packed)
+  {
+    return std::make_shared<JsonRpcContext>(s, packed);
+  }
 }

@@ -59,13 +59,13 @@ namespace enclave
       LOG_TRACE_FMT("Deserialised");
 
       JsonRpcContext rpc_ctx(session, pack.value(), rpc);
-      rpc_ctx.set_request_index(request_index++);
-      rpc_ctx.raw = data;
+      rpc_ctx->set_request_index(request_index++);
+      rpc_ctx->raw = data;
 
-      auto prefixed_method = rpc_ctx.method;
+      auto prefixed_method = rpc_ctx->method;
       if (prefixed_method.empty())
       {
-        send(rpc_ctx.error_response(
+        send(rpc_ctx->error_response(
           jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
           "No method specified"));
         return true;
@@ -73,7 +73,7 @@ namespace enclave
 
       // Separate JSON-RPC method into actor and true method
       auto [actor_s, method] = split_actor_and_method(prefixed_method);
-      rpc_ctx.method = method;
+      rpc_ctx->method = method;
 
       LOG_TRACE_FMT(
         "Parsed actor {}, method {} (from {})",
@@ -84,12 +84,12 @@ namespace enclave
       auto actor = rpc_map->resolve(actor_s);
       if (actor == ccf::ActorsType::unknown)
       {
-        send(rpc_ctx.error_response(
+        send(rpc_ctx->error_response(
           jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
           fmt::format("No such prefix: {}", actor_s)));
         return true;
       }
-      rpc_ctx.actor = actor;
+      rpc_ctx->actor = actor;
 
       auto search = rpc_map->find(actor);
       if (!search.has_value())
@@ -100,7 +100,7 @@ namespace enclave
 
       if (!search.value()->is_open())
       {
-        send(rpc_ctx.error_response(
+        send(rpc_ctx->error_response(
           jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
           fmt::format("Service is not open to {}", actor_s)));
         return false;

@@ -217,33 +217,33 @@ namespace enclave
         }
 
         JsonRpcContext rpc_ctx(session, pack.value(), json_rpc);
-        rpc_ctx.set_request_index(request_index++);
+        rpc_ctx->set_request_index(request_index++);
 
         // TODO: For now, set this here
         auto signed_req = http::HttpSignatureVerifier::parse(
           std::string(http_method_str(verb)), path, query, headers, body);
         if (signed_req.has_value())
         {
-          rpc_ctx.signed_request = signed_req;
+          rpc_ctx->signed_request = signed_req;
         }
 
         // TODO: This is temporary; while we have a full RPC object inside the
         // body, it should match the dispatch details specified in the URI
         const auto expected = fmt::format("{}/{}", actor_s, method_s);
-        if (rpc_ctx.method != expected)
+        if (rpc_ctx->method != expected)
         {
           send_response(
             fmt::format(
               "RPC method must match path ('{}' != '{}').\n",
               expected,
-              rpc_ctx.method),
+              rpc_ctx->method),
             HTTP_STATUS_BAD_REQUEST);
           return;
         }
 
-        rpc_ctx.raw = body; // TODO: This is insufficient, need entire request
-        rpc_ctx.method = method_s;
-        rpc_ctx.actor = actor;
+        rpc_ctx->raw = body; // TODO: This is insufficient, need entire request
+        rpc_ctx->method = method_s;
+        rpc_ctx->actor = actor;
 
         auto response = search.value()->process(rpc_ctx);
 

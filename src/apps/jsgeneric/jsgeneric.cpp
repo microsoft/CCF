@@ -42,7 +42,7 @@ namespace ccfapp
 
         if (args.method == UserScriptIds::ENV_HANDLER)
         {
-          args.rpc_ctx.set_response_error(
+          args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
             fmt::format("Cannot call environment script ('{}')", args.method));
           return;
@@ -54,7 +54,7 @@ namespace ccfapp
         auto handler_script = scripts->get(args.method);
         if (!handler_script)
         {
-          args.rpc_ctx.set_response_error(
+          args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
             fmt::format(
               "No handler script found for method '{}'", args.method));
@@ -81,12 +81,12 @@ namespace ccfapp
           {
             // Response contains neither result nor error. It may not even be an
             // object. We assume the entire response is a successful result.
-            args.rpc_ctx.set_response_result(std::move(response));
+            args.rpc_ctx->set_response_result(std::move(response));
             return;
           }
           else
           {
-            args.rpc_ctx.set_response_result(std::move(*result_it));
+            args.rpc_ctx->set_response_result(std::move(*result_it));
             return;
           }
         }
@@ -110,7 +110,7 @@ namespace ccfapp
             }
           }
 
-          args.rpc_ctx.set_response_error(err_code, msg);
+          args.rpc_ctx->set_response_error(err_code, msg);
           return;
         }
       };

@@ -77,12 +77,13 @@ namespace ccf
     }
 
     std::optional<nlohmann::json> forward_or_redirect_json(
-      const enclave::RpcContext& ctx, HandlerRegistry::Forwardable forwardable)
+      std::shared_ptr<enclave::RpcContext> ctx,
+      HandlerRegistry::Forwardable forwardable)
     {
       if (
         cmd_forwarder &&
         forwardable == HandlerRegistry::Forwardable::CanForward &&
-        !ctx.session.fwd.has_value())
+        !ctx->session.fwd.has_value())
       {
         return std::nullopt;
       }
@@ -99,13 +100,13 @@ namespace ccf
 
           if (info)
           {
-            return ctx.error_response(
+            return ctx->error_response(
               jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
               info->pubhost + ":" + info->rpcport);
           }
         }
 
-        return ctx.error_response(
+        return ctx->error_response(
           jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
           "Not primary, primary unknown.");
       }
@@ -205,7 +206,7 @@ namespace ccf
      * to-be-executed by consensus), else the response (may contain error)
      */
     std::optional<std::vector<uint8_t>> process(
-      const enclave::RpcContext& ctx) override
+      std::shared_ptr<enclave::RpcContext> ctx) override
     {
       update_consensus();
 
@@ -213,32 +214,32 @@ namespace ccf
 
       // Retrieve id of caller
       std::optional<CallerId> caller_id;
-      if (ctx.is_create_request)
+      if (ctx->is_create_request)
       {
         caller_id = INVALID_ID;
       }
       else
       {
-        caller_id = handlers.valid_caller(tx, ctx.session.caller_cert);
+        caller_id = handlers.valid_caller(tx, ctx->session.caller_cert);
       }
 
       if (!caller_id.has_value())
       {
-        return ctx.error_response(
+        return ctx->error_response(
           jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
           invalid_caller_error_message());
       }
 
-      if (ctx.signed_request.has_value())
+      if (ctx->signed_request.has_value())
       {
         if (
-          !ctx.is_create_request &&
+          !ctx->is_create_request &&
           !verify_client_signature(
-            ctx.session.caller_cert,
+            ctx->session.caller_cert,
             caller_id.value(),
-            ctx.signed_request.value()))
+            ctx->signed_request.value()))
         {
-          return ctx.error_response(
+          return ctx->error_response(
             jsonrpc::CCFErrorCodes::INVALID_CLIENT_SIGNATURE,
             "Failed to verify client signature.");
         }
@@ -246,10 +247,10 @@ namespace ccf
         // Client signature is only recorded on the primary
         if (
           consensus == nullptr || consensus->is_primary() ||
-          ctx.is_create_request)
+          ctx->is_create_request)
         {
           record_client_signature(
-            tx, caller_id.value(), ctx.signed_request.value());
+            tx, caller_id.value(), ctx->signed_request.value());
         }
       }
 
@@ -263,23 +264,23 @@ namespace ccf
 
       update_history();
       reqid = {caller_id.value(),
-               ctx.session.client_session_id,
-               ctx.get_request_index()};
+               ctx->session.client_session_id,
+               ctx->get_request_index()};
       if (history)
       {
         if (!history->add_request(
               reqid,
-              (size_t)ctx.actor,
+              (size_t)ctx->actor,
               caller_id.value(),
-              ctx.session.caller_cert,
-              ctx.raw))
+              ctx->session.caller_cert,
+              ctx->raw))
         {
           LOG_FAIL_FMT(
             "Adding request failed: {}, {}, {}",
             std::get<0>(reqid),
             std::get<1>(reqid),
             std::get<2>(reqid));
-          return ctx.error_response(
+          return ctx->error_response(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             "PBFT could not process request.");
         }
@@ -288,7 +289,7 @@ namespace ccf
       }
       else
       {
-        return ctx.error_response(
+        return ctx->error_response(
           jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
           "PBFT is not yet ready.");
       }
@@ -313,7 +314,7 @@ namespace ccf
           }
         }
 
-        return ctx.error_response(
+        return ctx->error_response(
           jsonrpc::CCFErrorCodes::RPC_NOT_FORWARDED,
           "RPC could not be forwarded to primary.");
       }
@@ -323,16 +324,17 @@ namespace ccf
     }
 
     virtual std::vector<uint8_t> get_cert_to_forward(
-      const enclave::RpcContext& ctx)
+      std::shared_ptr<enclave::RpcContext> ctx)
     {
-      return ctx.session.caller_cert;
+      return ctx->session.caller_cert;
     }
 
     /** Process a serialised command with the associated RPC context via PBFT
      *
      * @param ctx Context for this RPC
      */
-    ProcessPbftResp process_pbft(enclave::RpcContext& ctx) override
+    ProcessPbftResp process_pbft(
+      std::shared_ptr<enclave::RpcContext> ctx) override
     {
       // TODO(#PBFT): Refactor this with process_forwarded().
       Store::Tx tx;
@@ -369,12 +371,12 @@ namespace ccf
       auto req_view = tx.get_view(*pbft_requests_map);
       req_view->put(
         0,
-        {(size_t)ctx.actor,
-         ctx.session.fwd.value().caller_id,
-         ctx.session.caller_cert,
-         ctx.raw});
+        {(size_t)ctx->actor,
+         ctx->session.fwd.value().caller_id,
+         ctx->session.caller_cert,
+         ctx->raw});
 
-      auto rep = process_command(ctx, tx, ctx.session.fwd->caller_id);
+      auto rep = process_command(ctx, tx, ctx->session.fwd->caller_id);
 
       history->clear_on_result();
 
@@ -403,9 +405,10 @@ namespace ccf
      *
      * @return Serialised reply to send back to forwarder node
      */
-    std::vector<uint8_t> process_forwarded(enclave::RpcContext& ctx) override
+    std::vector<uint8_t> process_forwarded(
+      std::shared_ptr<enclave::RpcContext> ctx) override
     {
-      if (!ctx.session.fwd.has_value())
+      if (!ctx->session.fwd.has_value())
       {
         throw std::logic_error(
           "Processing forwarded command with unitialised forwarded context");
@@ -415,20 +418,20 @@ namespace ccf
 
       if (!lookup_forwarded_caller_cert(ctx, tx))
       {
-        return ctx.error_response(
+        return ctx->error_response(
           jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
           invalid_caller_error_message());
       }
 
       // Store client signature. It is assumed that the forwarder node has
       // already verified the client signature.
-      if (ctx.signed_request.has_value())
+      if (ctx->signed_request.has_value())
       {
         record_client_signature(
-          tx, ctx.session.fwd->caller_id, ctx.signed_request.value());
+          tx, ctx->session.fwd->caller_id, ctx->signed_request.value());
       }
 
-      auto rep = process_command(ctx, tx, ctx.session.fwd->caller_id);
+      auto rep = process_command(ctx, tx, ctx->session.fwd->caller_id);
       if (!rep.has_value())
       {
         // This should never be called when process_command is called with a
@@ -440,9 +443,11 @@ namespace ccf
     }
 
     std::optional<nlohmann::json> process_if_local_node_rpc(
-      const enclave::RpcContext& ctx, Store::Tx& tx, CallerId caller_id)
+      std::shared_ptr<enclave::RpcContext> ctx,
+      Store::Tx& tx,
+      CallerId caller_id)
     {
-      auto handler = handlers.find_handler(ctx.method);
+      auto handler = handlers.find_handler(ctx->method);
       if (handler != nullptr && handler->execute_locally)
       {
         return process_command(ctx, tx, caller_id);
@@ -451,12 +456,14 @@ namespace ccf
     }
 
     std::optional<std::vector<uint8_t>> process_command(
-      const enclave::RpcContext& ctx, Store::Tx& tx, CallerId caller_id)
+      std::shared_ptr<enclave::RpcContext> ctx,
+      Store::Tx& tx,
+      CallerId caller_id)
     {
-      const auto rpc_version = ctx.unpacked_rpc.at(jsonrpc::JSON_RPC);
+      const auto rpc_version = ctx->unpacked_rpc.at(jsonrpc::JSON_RPC);
       if (rpc_version != jsonrpc::RPC_VERSION)
       {
-        return ctx.error_response(
+        return ctx->error_response(
           jsonrpc::StandardErrorCodes::INVALID_REQUEST,
           fmt::format(
             "Unexpected JSON-RPC version. Must be string \"{}\", received {}",
@@ -464,27 +471,27 @@ namespace ccf
             rpc_version.dump()));
       }
 
-      const auto params_it = ctx.unpacked_rpc.find(jsonrpc::PARAMS);
+      const auto params_it = ctx->unpacked_rpc.find(jsonrpc::PARAMS);
       if (
-        params_it != ctx.unpacked_rpc.end() &&
+        params_it != ctx->unpacked_rpc.end() &&
         (!params_it->is_array() && !params_it->is_object()))
       {
-        return ctx.error_response(
+        return ctx->error_response(
           jsonrpc::StandardErrorCodes::INVALID_REQUEST,
           fmt::format(
             "If present, parameters must be an array or object. Received: {}",
             params_it->dump()));
       }
 
-      const auto& params = params_it == ctx.unpacked_rpc.end() ?
+      const auto& params = params_it == ctx->unpacked_rpc.end() ?
         nlohmann::json(nullptr) :
         *params_it;
 
-      auto handler = handlers.find_handler(ctx.method);
+      auto handler = handlers.find_handler(ctx->method);
       if (handler == nullptr)
       {
-        return ctx.error_response(
-          jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND, ctx.method);
+        return ctx->error_response(
+          jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND, ctx->method);
       }
 
       update_history();
@@ -492,7 +499,7 @@ namespace ccf
 
 #ifndef PBFT
       bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
-        ctx.is_create_request;
+        ctx->is_create_request;
 
       if (!is_primary)
       {
@@ -511,7 +518,7 @@ namespace ccf
 
           case HandlerRegistry::MayWrite:
           {
-            bool readonly = ctx.unpacked_rpc.value(jsonrpc::READONLY, true);
+            bool readonly = ctx->unpacked_rpc.value(jsonrpc::READONLY, true);
             if (!readonly)
             {
               return forward_or_redirect_json(ctx, handler->forwardable);
@@ -523,7 +530,7 @@ namespace ccf
 #endif
 
       auto func = handler->func;
-      auto args = RequestArgs{ctx, tx, caller_id, ctx.method, params};
+      auto args = RequestArgs{ctx, tx, caller_id, ctx->method, params};
 
       tx_count++;
 
@@ -533,9 +540,9 @@ namespace ccf
         {
           func(args);
 
-          if (ctx.response_is_error())
+          if (ctx->response_is_error())
           {
-            return ctx.serialise_response();
+            return ctx->serialise_response();
           }
 
           switch (tx.commit())
@@ -547,11 +554,11 @@ namespace ccf
                 cv = tx.get_read_version();
               if (cv == kv::NoVersion)
                 cv = tables.current_version();
-              ctx.set_response_metafield(COMMIT, cv);
+              ctx->set_response_metafield(COMMIT, cv);
               if (consensus != nullptr)
               {
-                ctx.set_response_metafield(TERM, consensus->get_view());
-                ctx.set_response_metafield(
+                ctx->set_response_metafield(TERM, consensus->get_view());
+                ctx->set_response_metafield(
                   GLOBAL_COMMIT, consensus->get_commit_seqno());
 
                 if (
@@ -569,7 +576,7 @@ namespace ccf
                 }
               }
 
-              return ctx.serialise_response();
+              return ctx->serialise_response();
             }
 
             case kv::CommitSuccess::CONFLICT:
@@ -579,7 +586,7 @@ namespace ccf
 
             case kv::CommitSuccess::NO_REPLICATE:
             {
-              return ctx.error_response(
+              return ctx->error_response(
                 jsonrpc::CCFErrorCodes::TX_FAILED_TO_REPLICATE,
                 "Transaction failed to replicate.");
             }
@@ -587,13 +594,13 @@ namespace ccf
         }
         catch (const RpcException& e)
         {
-          return ctx.error_response((int)e.error_id, e.msg);
+          return ctx->error_response((int)e.error_id, e.msg);
         }
         catch (JsonParseError& e)
         {
           e.pointer_elements.push_back(jsonrpc::PARAMS);
           const auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
-          return ctx.error_response(
+          return ctx->error_response(
             jsonrpc::StandardErrorCodes::PARSE_ERROR, err);
         }
         catch (const kv::KvSerialiserException& e)
@@ -605,7 +612,7 @@ namespace ccf
         }
         catch (const std::exception& e)
         {
-          return ctx.error_response(
+          return ctx->error_response(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR, e.what());
         }
       }
@@ -648,7 +655,7 @@ namespace ccf
     // certs, but couldn't find caller. Default behaviour is that there are no
     // caller certs, so nothing is changed but we return true
     virtual bool lookup_forwarded_caller_cert(
-      enclave::RpcContext& ctx, Store::Tx& tx)
+      std::shared_ptr<enclave::RpcContext> ctx, Store::Tx& tx)
     {
       return true;
     }

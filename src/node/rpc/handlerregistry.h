@@ -14,7 +14,7 @@ namespace ccf
 {
   struct RequestArgs
   {
-    const enclave::RpcContext& rpc_ctx;
+    std::shared_ptr<enclave::RpcContext> rpc_ctx;
     Store::Tx& tx;
     CallerId caller_id;
     const std::string& method;
