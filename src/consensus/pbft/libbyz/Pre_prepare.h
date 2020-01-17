@@ -8,7 +8,7 @@
 #include "Digest.h"
 #include "Message.h"
 #include "Prepare.h"
-#include "keypair.h"
+#include "tls/keypair.h"
 #include "types.h"
 
 class Principal;
@@ -35,7 +35,11 @@ struct Pre_prepare_rep : public Message_rep
   short non_det_size; // size in bytes of non-deterministic choices
 
 #ifdef SIGN_BATCH
-  KeyPair::Signature batch_digest_signature;
+  size_t sig_size;
+  PbftSignature batch_digest_signature;
+  static constexpr size_t padding_size =
+    ALIGNED_SIZE(pbft_max_signature_size) - pbft_max_signature_size;
+  std::array<uint8_t, padding_size> padding;
 #endif
 
   // Followed by "rset_size" bytes of the request set, "n_big_reqs"
@@ -45,7 +49,7 @@ struct Pre_prepare_rep : public Message_rep
 #pragma pack(pop)
 static_assert(
   sizeof(Pre_prepare_rep) + sizeof(Digest) * Max_requests_in_batch +
-      max_sig_size <
+      pbft_max_signature_size <
     Max_message_size,
   "Invalid size");
 
@@ -138,14 +142,9 @@ public:
   friend class Requests_iter;
 
 #ifdef SIGN_BATCH
-  KeyPair::Signature& get_digest_sig() const
+  PbftSignature& get_digest_sig() const
   {
     return rep().batch_digest_signature;
-  }
-
-  static constexpr uint16_t get_digest_sig_size()
-  {
-    return sizeof(sizeof(uint8_t) * signature_size);
   }
 #endif
 

@@ -66,8 +66,16 @@ struct View_change_rep : public Message_rep
   Digest digest;
 
 #ifdef SIGN_BATCH
+  size_t digest_sig_size;
   // signature of the digest of the entire message.
-  KeyPair::Signature digest_signature;
+  PbftSignature digest_signature;
+  static constexpr size_t padding_size =
+    ALIGNED_SIZE(pbft_max_signature_size) - pbft_max_signature_size;
+  std::array<uint8_t, padding_size> padding;
+#endif
+
+#ifdef USE_PKEY_VIEW_CHANGES
+  size_t vc_sig_size;
 #endif
 
   /*
@@ -80,7 +88,8 @@ struct View_change_rep : public Message_rep
 #pragma pack(pop)
 
 static_assert(
-  sizeof(View_change_rep) + sizeof(Req_info) * max_out + max_sig_size <
+  sizeof(View_change_rep) + sizeof(Req_info) * max_out +
+      pbft_max_signature_size <
     Max_message_size,
   "Invalid size");
 
@@ -118,7 +127,7 @@ public:
   // authenticator).
 
 #ifdef SIGN_BATCH
-  KeyPair::Signature& signature();
+  PbftSignature& signature();
 #endif
 
   Seqno last_stable() const;
@@ -222,7 +231,7 @@ inline Digest& View_change::digest()
 }
 
 #ifdef SIGN_BATCH
-inline KeyPair::Signature& View_change::signature()
+inline PbftSignature& View_change::signature()
 {
   return rep().digest_signature;
 }

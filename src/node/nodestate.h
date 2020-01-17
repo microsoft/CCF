@@ -1220,10 +1220,9 @@ namespace ccf
                                         const Service::Write& w) {
         if (w.at(0).value.status == ServiceStatus::OPEN)
         {
-          this->consensus->set_f(
-            1); // TODO: we should make f come from a KV table
+          this->consensus->set_f(1);
           open_user_frontend();
-          LOG_INFO_FMT("Now accepting user transactions");
+          LOG_INFO_FMT("Network is OPEN, now accepting user transactions");
         }
       });
 
@@ -1421,7 +1420,6 @@ namespace ccf
     void setup_pbft(const CCFConfig& config)
     {
       setup_n2n_channels();
-
       consensus = std::make_shared<PbftConsensusType>(
         std::make_unique<pbft::Adaptor<Store>>(network.tables),
         n2n_channels,
@@ -1432,7 +1430,9 @@ namespace ccf
         rpcsessions,
         *network.tables->get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS),
         *network.tables->get<pbft::PrePreparesMap>(
-          pbft::Tables::PBFT_PRE_PREPARES));
+          pbft::Tables::PBFT_PRE_PREPARES),
+        node_kp->private_key_pem().str(),
+        node_cert);
 
       network.tables->set_consensus(consensus);
 
@@ -1447,10 +1447,11 @@ namespace ccf
           for (auto& [node_id, ni] : w)
           {
             add_node(node_id, ni.value.nodehost, ni.value.nodeport);
+
             consensus->add_configuration(
               version,
               configuration,
-              {node_id, ni.value.nodehost, ni.value.nodeport});
+              {node_id, ni.value.nodehost, ni.value.nodeport, ni.value.cert});
           }
         });
 

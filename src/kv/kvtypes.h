@@ -184,6 +184,7 @@ namespace kv
       NodeId node_id;
       std::string host_name;
       std::string port;
+      std::vector<uint8_t> cert;
     };
 
     Consensus(NodeId id) : local_id(id), state(Backup){};

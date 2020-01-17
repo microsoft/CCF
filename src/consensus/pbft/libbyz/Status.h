@@ -58,12 +58,12 @@ struct Status_rep : public Message_rep
 
 static_assert(
   sizeof(Status_rep) + 2 * (max_out + 7) / 8 + sizeof(BR_info) * max_out +
-      max_sig_size <
+      pbft_max_signature_size <
     Max_message_size,
   "Invalid size");
 static_assert(
   sizeof(Status_rep) + Status_rep::vcs_size + sizeof(PP_info) * max_out +
-      max_sig_size <
+      pbft_max_signature_size <
     Max_message_size,
   "Invalid size");
 

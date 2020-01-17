@@ -23,7 +23,8 @@ struct Query_stable_rep : public Message_rep
 #pragma pack(pop)
 
 static_assert(
-  sizeof(Query_stable_rep) + max_sig_size < Max_message_size, "Invalid size");
+  sizeof(Query_stable_rep) + pbft_max_signature_size < Max_message_size,
+  "Invalid size");
 
 class Query_stable : public Message
 {

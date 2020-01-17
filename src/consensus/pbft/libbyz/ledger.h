@@ -23,7 +23,7 @@ struct Pre_prepare_ledger_header
     uint16_t num_big_requests_
 #ifdef SIGN_BATCH
     ,
-    KeyPair::Signature digest_sig
+    PbftSignature digest_sig
 #endif
     ) :
     type(Ledger_header_type::Pre_prepare_ledger_header),
@@ -37,7 +37,7 @@ struct Pre_prepare_ledger_header
   size_t message_size;
   uint16_t num_big_requests;
 #ifdef SIGN_BATCH
-  KeyPair::Signature digest_sig;
+  PbftSignature digest_sig;
 #endif
 };
 #pragma pack(pop)
@@ -87,7 +87,7 @@ struct View_change_ledger_header
 #ifdef SIGN_BATCH
     ,
     Digest digest_,
-    KeyPair::Signature digest_sig_
+    PbftSignature digest_sig_
 #endif
     ) :
     type(Ledger_header_type::View_change_header),
@@ -109,7 +109,7 @@ struct View_change_ledger_header
 
 #ifdef SIGN_BATCH
   Digest digest;
-  KeyPair::Signature digest_sig;
+  PbftSignature digest_sig;
 #endif
 };
 #pragma pack(pop)

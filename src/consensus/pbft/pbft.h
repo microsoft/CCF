@@ -140,7 +140,9 @@ namespace pbft
       std::shared_ptr<enclave::RPCMap> rpc_map,
       std::shared_ptr<enclave::RPCSessions> rpcsessions_,
       pbft::RequestsMap& pbft_requests_map,
-      pbft::PrePreparesMap& pbft_pre_prepares_map) :
+      pbft::PrePreparesMap& pbft_pre_prepares_map,
+      const std::string& privk_pem,
+      const std::vector<uint8_t>& cert) :
       Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
@@ -163,25 +165,16 @@ namespace pbft
       general_info.max_requests_between_signatures =
         sig_max_tx / Max_requests_in_batch;
 
-      // TODO(#pbft): We do not need this in the long run
-      std::string privk =
-        "0045c65ec31179652c57ae97f50de77e177a939dce74e39d7db51740663afb69";
-      std::string pubk_sig =
-        "aad14ecb5d7ca8caf5ee68d2762721a3d4fdb09b1ae4a699daf74985193b7d42";
-      std::string pubk_enc =
-        "893d4101c5b225c2bdc8633bb322c0ef9861e0c899014536e11196808ffc0d17";
-
       // Adding myself
       PrincipalInfo my_info;
       my_info.id = local_id;
       my_info.port = 0;
       my_info.ip = "256.256.256.256"; // Invalid
-      my_info.pubk_sig = pubk_sig;
-      my_info.pubk_enc = pubk_enc;
+      my_info.cert = cert;
       my_info.host_name = "machineB";
       my_info.is_replica = true;
 
-      ::NodeInfo node_info = {my_info, privk, general_info};
+      ::NodeInfo node_info = {my_info, privk_pem, general_info};
 
       int mem_size = 40 * 8192;
       mem = (char*)malloc(mem_size);
@@ -318,24 +311,16 @@ namespace pbft
       std::unordered_set<kv::NodeId> config,
       const NodeConf& node_conf) override
     {
-      // TODO(#pbft): We do not need this in the long run
-      std::string privk =
-        "0045c65ec31179652c57ae97f50de77e177a939dce74e39d7db51740663afb69";
-      std::string pubk_sig =
-        "aad14ecb5d7ca8caf5ee68d2762721a3d4fdb09b1ae4a699daf74985193b7d42";
-      std::string pubk_enc =
-        "893d4101c5b225c2bdc8633bb322c0ef9861e0c899014536e11196808ffc0d17";
-
       if (node_conf.node_id == local_id)
       {
         return;
       }
+
       PrincipalInfo info;
       info.id = node_conf.node_id;
       info.port = short(atoi(node_conf.port.c_str()));
       info.ip = "256.256.256.256"; // Invalid
-      info.pubk_sig = pubk_sig;
-      info.pubk_enc = pubk_enc;
+      info.cert = node_conf.cert;
       info.host_name = node_conf.host_name;
       info.is_replica = true;
       Byz_add_principal(info);

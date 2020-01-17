@@ -364,7 +364,7 @@ namespace tls
         mbedtls_pk_verify(ctx.get(), md_type, hash, hash_size, sig, sig_size);
 
       if (rc)
-        LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
+        LOG_DEBUG_FMT("Failed to verify signature: {}", error_string(rc));
 
       return rc == 0;
     }
@@ -1162,7 +1162,7 @@ namespace tls
         &cert.pk, md_type, hash, hash_size, signature, signature_size);
 
       if (rc)
-        LOG_DEBUG_FMT("Failed to verify signature: {}", rc);
+        LOG_DEBUG_FMT("Failed to verify signature: {}", error_string(rc));
 
       return rc == 0;
     }
@@ -1184,6 +1184,14 @@ namespace tls
         hash.data(), hash.size(), signature.data(), signature.size());
     }
 
+    bool verify_hash(
+      const std::vector<uint8_t>& hash,
+      const uint8_t* sig,
+      size_t sig_size) const
+    {
+      return verify_hash(hash.data(), hash.size(), sig, sig_size);
+    }
+
     /**
      * Verify that a signature was produced on contents with the private key
      * associated with the public key contained in the certificate.
@@ -1200,10 +1208,25 @@ namespace tls
       const std::vector<uint8_t>& signature,
       mbedtls_md_type_t md_type = {}) const
     {
-      HashBytes hash;
-      do_hash(cert.pk, contents.data(), contents.size(), hash, md_type);
+      return verify(
+        contents.data(),
+        contents.size(),
+        signature.data(),
+        signature.size(),
+        md_type);
+    }
 
-      return verify_hash(hash, signature);
+    bool verify(
+      const uint8_t* contents,
+      size_t contents_size,
+      const uint8_t* sig,
+      size_t sig_size,
+      mbedtls_md_type_t md_type = {}) const
+    {
+      HashBytes hash;
+      do_hash(cert.pk, contents, contents_size, hash, md_type);
+
+      return verify_hash(hash, sig, sig_size);
     }
 
     const mbedtls_x509_crt* raw()
@@ -1275,14 +1298,14 @@ namespace tls
   };
 
   using VerifierPtr = std::shared_ptr<Verifier>;
-
+  using VerifierUniquePtr = std::unique_ptr<Verifier>;
   /**
    * Construct Verifier from a certificate in PEM format
    *
    * @param public_pem Sequence of bytes containing the certificate in PEM
    * format
    */
-  inline VerifierPtr make_verifier(
+  inline VerifierUniquePtr make_unique_verifier(
     const std::vector<uint8_t>& cert_pem,
     bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
@@ -1300,11 +1323,18 @@ namespace tls
 
     if (curve == MBEDTLS_ECP_DP_SECP256K1 && use_bitcoin_impl)
     {
-      return std::make_shared<Verifier_k1Bitcoin>(cert);
+      return std::make_unique<Verifier_k1Bitcoin>(cert);
     }
     else
     {
-      return std::make_shared<Verifier>(cert);
+      return std::make_unique<Verifier>(cert);
     }
+  }
+
+  inline VerifierPtr make_verifier(
+    const std::vector<uint8_t>& cert_pem,
+    bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
+  {
+    return make_unique_verifier(cert_pem, use_bitcoin_impl);
   }
 }

@@ -26,7 +26,7 @@ struct View_change_ack_rep : public Message_rep
 #pragma pack(pop)
 
 static_assert(
-  sizeof(View_change_ack_rep) + max_sig_size < Max_message_size,
+  sizeof(View_change_ack_rep) + pbft_max_signature_size < Max_message_size,
   "Invalid size");
 
 class View_change_ack : public Message

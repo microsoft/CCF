@@ -37,8 +37,7 @@ Pre_prepare::Pre_prepare(
     pbft::GlobalState::get_node().auth_size();
 #else
   char* max_req = next_req + msize() -
-    pbft::GlobalState::get_replica().max_nd_bytes() -
-    pbft::GlobalState::get_node().sig_size();
+    pbft::GlobalState::get_replica().max_nd_bytes() - pbft_max_signature_size;
 #endif
 
   for (Request* req = reqs.first(); req != 0; req = reqs.first())
@@ -128,16 +127,14 @@ Pre_prepare::Pre_prepare(
   auth_dst_offset = old_size;
   auth_src_offset = 0;
 #else
-  set_size(old_size + pbft::GlobalState::get_node().sig_size());
+  set_size(old_size + pbft_max_signature_size);
 #endif
 
 #ifdef SIGN_BATCH
-  std::fill(
-    std::begin(rep().batch_digest_signature),
-    std::end(rep().batch_digest_signature),
-    0);
+  rep().sig_size = 0;
+  rep().batch_digest_signature.fill(0);
+  rep().padding.fill(0);
 #endif
-
   trim();
 }
 
@@ -207,7 +204,7 @@ bool Pre_prepare::set_digest(int64_t signed_version)
     pbft::GlobalState::get_node().f() == 0)
   {
     pbft::GlobalState::get_replica().set_next_expected_sig_offset();
-    pbft::GlobalState::get_node().gen_signature(
+    rep().sig_size = pbft::GlobalState::get_node().gen_signature(
       d.digest(), d.digest_size(), rep().batch_digest_signature);
   }
 #endif
@@ -226,8 +223,7 @@ bool Pre_prepare::calculate_digest(Digest& d)
 #else
   int min_size = sizeof(Pre_prepare_rep) + rep().rset_size +
     rep().n_big_reqs * sizeof(Digest) + rep().non_det_size +
-    pbft::GlobalState::get_node().sig_size(
-      pbft::GlobalState::get_replica().primary(view()));
+    pbft_max_signature_size;
 #endif
   if (size() >= min_size)
   {
@@ -291,12 +287,23 @@ bool Pre_prepare::pre_verify()
 #ifdef SIGN_BATCH
     if (is_signed())
     {
-      if (!pbft::GlobalState::get_node()
-             .get_principal(sender)
-             ->verify_signature(
-               rep().digest.digest(),
-               rep().digest.digest_size(),
-               (const char*)get_digest_sig().data()))
+      auto sender_principal =
+        pbft::GlobalState::get_node().get_principal(sender);
+
+      if (
+        !sender_principal->has_certificate_set() &&
+        pbft::GlobalState::get_node().f() == 0)
+      {
+        // Do not verify signature of first pre-prepare since node certificate
+        // required for verification is contained in the pre-prepare requests
+        return true;
+      }
+
+      if (!sender_principal->verify_signature(
+            rep().digest.digest(),
+            rep().digest.digest_size(),
+            get_digest_sig().data(),
+            rep().sig_size))
       {
         LOG_INFO << "failed to verify signature on the digest, seqno:"
                  << rep().seqno << std::endl;

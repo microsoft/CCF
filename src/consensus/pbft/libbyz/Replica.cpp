@@ -1579,16 +1579,12 @@ void Replica::write_view_change_to_ledger()
 
 void Replica::handle(New_principal* m)
 {
-  LOG_INFO << "recevied new message to add principal, id:" << m->id()
+  LOG_INFO << "received new message to add principal, id:" << m->id()
            << std::endl;
 
-  PrincipalInfo info{m->id(),
-                     m->port(),
-                     m->ip(),
-                     m->pubk_sig(),
-                     m->pubk_enc(),
-                     m->host_name(),
-                     m->is_replica()};
+  std::vector<uint8_t> cert(m->cert().begin(), m->cert().end());
+  PrincipalInfo info{
+    m->id(), m->port(), m->ip(), cert, m->host_name(), m->is_replica()};
 
   pbft::GlobalState::get_node().add_principal(info);
 }
