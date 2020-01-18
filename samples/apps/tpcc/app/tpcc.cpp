@@ -13,6 +13,15 @@ namespace tpcc
 
   struct Procs {
     static constexpr auto TPCC_NEW_ORDER = "TPCC_new_order";
+    
+    static constexpr auto TPCC_LOAD_ITEMS = "TPCC_load_items";
+    static constexpr auto TPCC_LOAD_WAREHOUSE = "TPCC_load_warehouse";
+    static constexpr auto TPCC_LOAD_STOCKS = "TPCC_load_stocks";
+    static constexpr auto TPCC_LOAD_DISTRICT = "TPCC_load_district";
+    static constexpr auto TPCC_LOAD_CUSTOMER = "TPCC_load_customer";
+    static constexpr auto TPCC_LOAD_HISTORY = "TPCC_load_history";
+    static constexpr auto TPCC_LOAD_ORDER = "TPCC_load_order";
+    static constexpr auto TPCC_LOAD_ORDER_LINES = "TPCC_load_order_lines";
   };
 
   class Tpcc : public ccf::UserRpcFrontend
@@ -259,7 +268,56 @@ namespace tpcc
         return jsonrpc::success(true);
       };
 
+      auto loadItems = [this](Store::Tx& tx, const nlohmann::json& params) {
+        //TODD
+        
+        return jsonrpc::success(true);
+      };
+      
+      auto loadWarehouse = [this](Store::Tx& tx, const nlohmann::json& params) {
+        //TODD
+        return jsonrpc::success(true);
+      };
+
+      auto loadStocks = [this](Store::Tx& tx, const nlohmann::json& params) {
+        //TODD
+        return jsonrpc::success(true);
+      };
+
+      auto loadDistrict = [this](Store::Tx& tx, const nlohmann::json& params) {
+        //TODD
+        return jsonrpc::success(true);
+      };
+
+      auto loadCustomer = [this](Store::Tx& tx, const nlohmann::json& params) {
+        //TODD
+        return jsonrpc::success(true);
+      };
+
+      auto loadHistory = [this](Store::Tx& tx, const nlohmann::json& params) {
+        //TODD
+        return jsonrpc::success(true);
+      };
+
+      auto loadOrder = [this](Store::Tx& tx, const nlohmann::json& params) {
+        //TODD
+        return jsonrpc::success(true);
+      };
+
+      auto loadOrderLines = [this](Store::Tx& tx, const nlohmann::json& params) {
+        //TODD
+        return jsonrpc::success(true);
+      };
+
       install(Procs::TPCC_NEW_ORDER, newOrder, Write);
+      install(Procs::TPCC_LOAD_ITEMS, loadItems, Write);
+      install(Procs::TPCC_LOAD_WAREHOUSE, loadWarehouse, Write);
+      install(Procs::TPCC_LOAD_STOCKS, loadStocks, Write);
+      install(Procs::TPCC_LOAD_DISTRICT, loadDistrict, Write);
+      install(Procs::TPCC_LOAD_CUSTOMER, loadCustomer, Write);
+      install(Procs::TPCC_LOAD_HISTORY, loadHistory, Write);
+      install(Procs::TPCC_LOAD_ORDER, loadOrder, Write);
+      install(Procs::TPCC_LOAD_ORDER_LINES, loadOrderLines, Write);
     }
   };
 
