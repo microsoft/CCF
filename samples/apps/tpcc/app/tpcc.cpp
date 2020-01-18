@@ -22,6 +22,7 @@ namespace tpcc
     static constexpr auto TPCC_LOAD_HISTORY = "TPCC_load_history";
     static constexpr auto TPCC_LOAD_ORDER = "TPCC_load_order";
     static constexpr auto TPCC_LOAD_ORDER_LINES = "TPCC_load_order_lines";
+    static constexpr auto TPCC_LOAD_NEW_ORDERS = "TPCC_load_new_orders";
   };
 
   class Tpcc : public ccf::UserRpcFrontend
@@ -269,44 +270,210 @@ namespace tpcc
       };
 
       auto loadItems = [this](Store::Tx& tx, const nlohmann::json& params) {
-        //TODD
-        
-        return jsonrpc::success(true);
+        auto items_view = tx.get_view(items);
+        int load_count = 0;
+
+        for (auto& element : params) {
+          ItemId key = element["key"];
+
+          Item item;
+          item.im_id = element["value"]["im_id"];
+          item.name = element["value"]["name"];
+          item.price = element["value"]["price"];
+          item.data = element["value"]["data"];
+
+          items_view->put(key, item);
+          load_count++;
+        }
+
+        return jsonrpc::success(load_count);
       };
       
       auto loadWarehouse = [this](Store::Tx& tx, const nlohmann::json& params) {
-        //TODD
+        auto warehouses_view = tx.get_view(warehouses);
+        
+        WarehouseId key = params["key"];
+        Warehouse warehouse;
+        warehouse.name = params["value"]["name"];
+        warehouse.street_1 = params["value"]["street_1"];
+        warehouse.street_2 = params["value"]["street_2"];
+        warehouse.city = params["value"]["city"];
+        warehouse.state = params["value"]["state"];
+        warehouse.zip = params["value"]["zip"];
+        warehouse.tax = params["value"]["tax"];
+        warehouse.ytd = params["value"]["ytd"];
+
+        warehouses_view->put(key, warehouse);
         return jsonrpc::success(true);
       };
 
       auto loadStocks = [this](Store::Tx& tx, const nlohmann::json& params) {
-        //TODD
-        return jsonrpc::success(true);
+        auto stocks_view = tx.get_view(stocks);
+        int load_count = 0;
+
+        for (auto& element : params) {
+          StockId key;
+          key.w_id = element["key"]["w_id"];
+          key.i_id = element["key"]["i_id"];
+
+          Stock stock;
+          stock.quantity = element["value"]["quantity"];
+          stock.ytd = element["value"]["ytd"];
+          stock.order_cnt = element["value"]["order_cnt"];
+          stock.remote_cnt = element["value"]["remote_cnt"];
+          stock.data = element["value"]["data"];
+          
+          for (int i = 0; i < 10; i++)
+          {
+            stock.dist_xx[i] = element["value"]["dist_xx"][i];
+          }
+
+          stocks_view->put(key, stock);
+          load_count++;
+        }
+
+        return jsonrpc::success(load_count);
       };
 
       auto loadDistrict = [this](Store::Tx& tx, const nlohmann::json& params) {
-        //TODD
+        auto districts_view = tx.get_view(districts);
+
+        DistrictId key;
+        key.id = params["key"]["id"];
+        key.w_id = params["key"]["w_id"];
+
+        District district;
+        district.name = params["value"]["name"];
+        district.street_1 = params["value"]["street_1"];
+        district.street_2 = params["value"]["street_2"];
+        district.city = params["value"]["city"];
+        district.state = params["value"]["state"];
+        district.zip = params["value"]["zip"];
+        district.tax = params["value"]["tax"];
+        district.ytd = params["value"]["ytd"];
+        district.next_o_id = params["value"]["next_o_id"];
+
+        districts_view->put(key, district);
         return jsonrpc::success(true);
       };
 
       auto loadCustomer = [this](Store::Tx& tx, const nlohmann::json& params) {
-        //TODD
+        auto customers_view = tx.get_view(customers);
+
+        CustomerId key;
+        key.id = params["key"]["id"];
+        key.w_id = params["key"]["w_id"];
+        key.d_id = params["key"]["d_id"];
+
+        Customer customer;
+        customer.first = params["value"]["first"];
+        customer.middle = params["value"]["middle"];
+        customer.last = params["value"]["last"];
+        customer.street_1 = params["value"]["street_1"];
+        customer.street_2 = params["value"]["street_2"];
+        customer.city = params["value"]["city"];
+        customer.state = params["value"]["state"];
+        customer.zip = params["value"]["zip"];
+        customer.phone = params["value"]["phone"];
+        customer.since = params["value"]["since"];
+        customer.credit = params["value"]["credit"];
+        customer.credit_lim = params["value"]["credit_lim"];
+        customer.discount = params["value"]["discount"];
+        customer.balance = params["value"]["balance"];
+        customer.ytd_payment = params["value"]["ytd_payment"];
+        customer.payment_cnt = params["value"]["payment_cnt"];
+        customer.delivery_cnt = params["value"]["delivery_cnt"];
+        customer.data = params["value"]["data"];
+
+        customers_view->put(key, customer);
         return jsonrpc::success(true);
       };
 
       auto loadHistory = [this](Store::Tx& tx, const nlohmann::json& params) {
-        //TODD
+        auto histories_view = tx.get_view(histories);
+
+        HistoryId key = params["key"];
+
+        History history;
+        history.c_id = params["value"]["c_id"];
+        history.c_d_id = params["value"]["c_d_id"];
+        history.c_w_id = params["value"]["c_w_id"];
+        history.d_id = params["value"]["d_id"];
+        history.w_id = params["value"]["w_id"];
+        history.date = params["value"]["date"];
+        history.amount = params["value"]["amount"];
+        history.data = params["value"]["data"];
+
+        histories_view->put(key, history);
         return jsonrpc::success(true);
       };
 
       auto loadOrder = [this](Store::Tx& tx, const nlohmann::json& params) {
-        //TODD
+        auto orders_view = tx.get_view(orders);
+
+        OrderId key;
+        key.id = params["key"]["id"];
+        key.w_id = params["key"]["w_id"];
+        key.d_id = params["key"]["d_id"];
+        
+        Order order;
+        order.c_id = params["value"]["c_id"];
+        order.entry_d = params["value"]["entry_d"];
+        order.carrier_id = params["value"]["carrier_id"];
+        order.ol_cnt = params["value"]["ol_cnt"];
+        order.all_local = params["value"]["all_local"];
+
+        orders_view->put(key, order);
         return jsonrpc::success(true);
       };
 
       auto loadOrderLines = [this](Store::Tx& tx, const nlohmann::json& params) {
-        //TODD
-        return jsonrpc::success(true);
+        auto order_lines_view = tx.get_view(orderlines);
+        int load_count = 0;
+
+        for (auto& element : params)
+        {            
+          OrderLineId key;
+          key.o_id = element["key"]["o_id"];
+          key.w_id = element["key"]["w_id"];
+          key.d_id = element["key"]["d_id"];
+          key.number = element["key"]["number"];
+          
+          OrderLine order_line;
+          order_line.i_id = element["value"]["i_id"];
+          order_line.supply_w_id = element["value"]["supply_w_id"];
+          order_line.delivery_d = element["value"]["delivery_d"];
+          order_line.quantity = element["value"]["quantity"];
+          order_line.amount = element["value"]["amount"];
+          order_line.dist_info = element["value"]["dist_info"];
+
+          order_lines_view->put(key, order_line);
+          load_count++;
+        }
+
+        return jsonrpc::success(load_count);
+      };
+
+      auto loadNewOrders = [this](Store::Tx& tx, const nlohmann::json& params)
+      {
+        auto new_orders_view = tx.get_view(neworders);
+        int load_count = 0;
+
+        for (auto& element : params)
+        {
+          NewOrderId key;
+          key.o_id = element["key"]["o_id"];
+          key.w_id = element["key"]["w_id"];
+          key.d_id = element["key"]["d_id"];
+
+          NewOrder new_order;
+          new_order.flag = element["value"]["flag"];
+
+          new_orders_view->put(key, new_order);
+          load_count++;
+        }
+
+        return jsonrpc::success(load_count);
       };
 
       install(Procs::TPCC_NEW_ORDER, newOrder, Write);
@@ -318,6 +485,7 @@ namespace tpcc
       install(Procs::TPCC_LOAD_HISTORY, loadHistory, Write);
       install(Procs::TPCC_LOAD_ORDER, loadOrder, Write);
       install(Procs::TPCC_LOAD_ORDER_LINES, loadOrderLines, Write);
+      install(Procs::TPCC_LOAD_NEW_ORDERS, loadNewOrders, Write);
     }
   };
 

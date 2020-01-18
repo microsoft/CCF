@@ -26,6 +26,7 @@ private:
     static const uint64_t num_districts = 10;
     static const uint64_t num_customers = 3000;
     static const uint64_t num_orders = 3000;
+    static const uint64_t num_new_orders = 900;
 
     // Load the Items table
     load_items(connection);
@@ -63,6 +64,9 @@ private:
           load_order(connection, o_id, o_ol_cnt, d_id, w_id, c_id_perms[o_id]);
           load_order_lines(connection, o_id, o_ol_cnt, d_id, w_id);
         }
+
+        // Load new orders for the last 900 order Ids
+        load_new_orders(connection, num_orders - num_new_orders, num_orders, d_id, w_id);
       }
     }
   }
@@ -277,6 +281,33 @@ private:
 
     auto response = json::from_msgpack(connection->call("TPCC_load_order_lines", order_lines_array));
       //TODO: check response
+  }
+
+  void load_new_orders(const ConnPtr& connection, uint64_t start, uint64_t end, uint64_t d_id, uint64_t w_id)
+  {
+    uint64_t amount = end - start + 1;
+
+    std::vector<json> new_orders_array;
+    new_orders_array.reserve(amount);
+
+    for (size_t i = start; i <= end; i++) {
+      json key;
+      key["o_id"] = i;
+      key["d_id"] = d_id;
+      key["w_id"] = w_id;
+
+      json value;
+      value["flag"] = 0;
+
+      json new_order;
+      new_order["key"] = key;
+      new_order["value"] = value;
+
+      new_orders_array.push_back(new_order);
+    }
+
+    auto response = json::from_msgpack(connection->call("TPCC_load_new_orders", new_orders_array));
+    //TODO: check response
   }
 
   /* Individual tuple generators */
