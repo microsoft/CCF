@@ -3,7 +3,7 @@ Issuing Commands
 
 Clients communicate with CCF using framed :term:`JSON-RPC` over :term:`TLS`. The ``method`` must be prefixed with the name of the target frontend (``"users"`` or ``"members"``), separated from the intended ``method`` with a single ``/``.
 
-Users can issue business transactions to CCF using the ``client`` command-line utility built with CCF. For example, to record a message at a specific id with the :ref:`Example Application`:
+Users can issue business transactions to CCF using the ``client`` command-line utility built with CCF. For example, to record a message at a specific id with the :ref:`developers/example:Example Application`:
 
 .. code-block:: bash
 

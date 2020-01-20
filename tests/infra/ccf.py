@@ -21,6 +21,11 @@ from loguru import logger as LOG
 
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 
+# TODO: Quote verification may take a long time to execute on the leader when joining
+# https://github.com/microsoft/CCF/issues/703
+# JOIN_TIMEOUT should be greater than the worst case quote verification time (~ 25 secs)
+JOIN_TIMEOUT = 40
+
 
 class ServiceStatus(Enum):
     OPENING = 1
@@ -120,7 +125,7 @@ class Network:
         if self.status == ServiceStatus.OPENING:
             if args.consensus != "pbft":
                 try:
-                    node.wait_for_node_to_join()
+                    node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
                 except TimeoutError:
                     LOG.error(f"New node {node.node_id} failed to join the network")
                     raise
@@ -240,9 +245,7 @@ class Network:
             self.consortium.wait_for_node_to_exist_in_store(
                 primary,
                 new_node.node_id,
-                # When the service is open, it takes a joining node at least 2 join
-                # attempts to retrieve the network secrets
-                timeout=ceil(args.join_timer * 3 / 1000),
+                timeout=JOIN_TIMEOUT,
                 node_status=(
                     infra.node.NodeStatus.PENDING
                     if self.status == ServiceStatus.OPEN
@@ -275,7 +278,10 @@ class Network:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(1, primary, new_node.node_id)
             if args.consensus != "pbft":
-                new_node.wait_for_node_to_join()
+                # Here, quote verification has already been run when the node
+                # was added as pending. Only wait for the join timer for the
+                # joining node to retrieve network secrets.
+                new_node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {new_node.node_id} failed to join the network")
             new_node.stop()
