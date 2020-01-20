@@ -23,7 +23,8 @@ logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 # TODO: Quote verification may take a long time to execute on the leader when joining
 # https://github.com/microsoft/CCF/issues/703
-JOIN_TIMEOUT = 30
+# JOIN_TIMEOUT should be greater than the worst case quote verification time (~ 25 secs)
+JOIN_TIMEOUT = 40
 
 
 class ServiceStatus(Enum):
