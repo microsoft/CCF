@@ -58,10 +58,7 @@ if("sgx" IN_LIST TARGET)
   set_property(TARGET libbyz.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
   target_include_directories(libbyz.enclave PRIVATE
     ${CCF_DIR}/src/ds
-    ${OE_INCLUDE_DIR}
-    ${OE_LIBCXX_INCLUDE_DIR}
-    ${OE_LIBC_INCLUDE_DIR}
-    ${OE_TP_INCLUDE_DIR}
+    openenclave::oelibc
     ${PARSED_ARGS_INCLUDE_DIRS}
     ${EVERCRYPT_INC}
   )

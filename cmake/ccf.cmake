@@ -9,7 +9,7 @@ endif()
 function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
   add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
-    COMMAND ${OESIGN} sign
+    COMMAND openenclave::oesign sign
       -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so
       -c ${app_oe_conf_path}
       -k ${enclave_sign_key_path}
@@ -59,8 +59,10 @@ function(use_client_mbedtls name)
 endfunction()
 
 function(use_oe_mbedtls name)
-  target_include_directories(${name} PRIVATE ${OE_TP_INCLUDE_DIR})
-  target_link_libraries(${name} PRIVATE ${OE_MBEDTLS_LIBRARIES})
+  target_link_libraries(${name} PRIVATE
+    openenclave::oeenclave
+    openenclave::oelibcxx
+  )
 endfunction()
 
 if(NOT CCF_GENERATED_DIR)
@@ -91,16 +93,12 @@ function(add_enclave_lib name)
       INSIDE_ENCLAVE
       _LIBCPP_HAS_THREAD_API_PTHREAD
     )
-    # Not setting -nostdinc in order to pick up compiler specific xmmintrin.h.
     target_compile_options(${name} PRIVATE
+      -nostdinc
       -nostdinc++
       -U__linux__
     )
     target_include_directories(${name} SYSTEM PRIVATE
-      ${OE_INCLUDE_DIR}
-      ${OE_LIBCXX_INCLUDE_DIR}
-      ${OE_LIBC_INCLUDE_DIR}
-      ${OE_TP_INCLUDE_DIR}
       ${PARSED_ARGS_INCLUDE_DIRS}
       ${EVERCRYPT_INC}
       ${CMAKE_CURRENT_BINARY_DIR}
@@ -121,6 +119,8 @@ function(add_enclave_lib name)
       quickjs.enclave
       -lgcc
       ${PARSED_ARGS_LINK_LIBS}
+      openenclave::oeenclave
+      openenclave::oelibcxx
       ${ENCLAVE_LIBS}
       http_parser.enclave
     )
@@ -147,7 +147,6 @@ function(add_enclave_lib name)
       ${PARSED_ARGS_INCLUDE_DIRS}
       ${CCFCRYPTO_INC}
       ${EVERCRYPT_INC}
-      ${OE_INCLUDE_DIR}
       ${CMAKE_CURRENT_BINARY_DIR}
       ${QUICKJS_INC}
     )

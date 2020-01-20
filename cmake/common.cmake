@@ -122,27 +122,15 @@ include_directories(
 
 set(TARGET "sgx;virtual" CACHE STRING "One of sgx, virtual, or 'sgx;virtual'")
 
-set(OE_PREFIX "/opt/openenclave" CACHE PATH "Path to Open Enclave install")
-message(STATUS "Open Enclave prefix set to ${OE_PREFIX}")
-
 find_package(MbedTLS REQUIRED)
 
 set(CLIENT_MBEDTLS_INCLUDE_DIR "${MBEDTLS_INCLUDE_DIRS}")
 set(CLIENT_MBEDTLS_LIBRARIES "${MBEDTLS_LIBRARIES}")
 
-set(OE_INCLUDE_DIR "${OE_PREFIX}/include")
-set(OE_LIB_DIR "${OE_PREFIX}/lib/openenclave")
-set(OE_BIN_DIR "${OE_PREFIX}/bin")
-
-set(OE_TP_INCLUDE_DIR   "${OE_INCLUDE_DIR}/openenclave/3rdparty")
-set(OE_LIBC_INCLUDE_DIR   "${OE_INCLUDE_DIR}/openenclave/3rdparty/libc")
-set(OE_LIBCXX_INCLUDE_DIR "${OE_INCLUDE_DIR}/openenclave/3rdparty/libcxx")
-
-set(OESIGN "${OE_BIN_DIR}/oesign")
-set(OEGEN "${OE_BIN_DIR}/oeedger8r")
+find_package(OpenEnclave CONFIG REQUIRED)
 
 add_custom_command(
-    COMMAND ${OEGEN} ${CCF_DIR}/edl/ccf.edl --trusted --trusted-dir ${CCF_GENERATED_DIR} --untrusted --untrusted-dir ${CCF_GENERATED_DIR}
+    COMMAND openenclave::oeedger8r ${CCF_DIR}/edl/ccf.edl --trusted --trusted-dir ${CCF_GENERATED_DIR} --untrusted --untrusted-dir ${CCF_GENERATED_DIR}
     COMMAND mv ${CCF_GENERATED_DIR}/ccf_t.c ${CCF_GENERATED_DIR}/ccf_t.cpp
     COMMAND mv ${CCF_GENERATED_DIR}/ccf_u.c ${CCF_GENERATED_DIR}/ccf_u.cpp
     DEPENDS ${CCF_DIR}/edl/ccf.edl
@@ -174,7 +162,8 @@ install(
 
 if("sgx" IN_LIST TARGET)
   # If OE was built with LINK_SGX=1, then we also need to link SGX
-  execute_process(COMMAND "ldd" ${OESIGN}
+  # TODO: This TARGET_FILE doesn't work here
+  execute_process(COMMAND "ldd" "$<TARGET_FILE:openenclave::oesign>"
                   COMMAND "grep" "-c" "sgx"
                   OUTPUT_QUIET
                   RESULT_VARIABLE OE_NO_SGX)
@@ -247,40 +236,14 @@ set(LUA_SOURCES
 set(HTTP_PARSER_SOURCES
   ${CCF_DIR}/3rdparty/http-parser/http_parser.c)
 
-set(OE_MBEDTLS_LIBRARIES
-  "${OE_LIB_DIR}/enclave/libmbedtls.a"
-  "${OE_LIB_DIR}/enclave/libmbedx509.a"
-  "${OE_LIB_DIR}/enclave/libmbedcrypto.a"
-)
-
 find_library(CRYPTO_LIBRARY crypto)
 
-set(OE_ENCLAVE_MBEDTLS "${OE_LIB_DIR}/enclave/libmbedtls.a")
-set(OE_ENCLAVE_MBEDX509 "${OE_LIB_DIR}/enclave/libmbedx509.a")
-set(OE_ENCLAVE_MBEDCRYPTO "${OE_LIB_DIR}/enclave/libmbedcrypto.a")
-set(OE_ENCLAVE_CRYPTOMBED "${OE_LIB_DIR}/enclave/liboecryptombed.a")
-set(OE_ENCLAVE_LIBRARY "${OE_LIB_DIR}/enclave/liboeenclave.a")
-set(OE_ENCLAVE_CORE "${OE_LIB_DIR}/enclave/liboecore.a")
-set(OE_ENCLAVE_SYSCALL "${OE_LIB_DIR}/enclave/liboesyscall.a")
-set(OE_ENCLAVE_LIBC "${OE_LIB_DIR}/enclave/liboelibc.a")
-set(OE_ENCLAVE_LIBCXX "${OE_LIB_DIR}/enclave/liboelibcxx.a")
-set(OE_HOST_LIBRARY "${OE_LIB_DIR}/host/liboehost.a")
 
 # The OE libraries must be listed in a specific order. Issue #887 on github
 set(ENCLAVE_LIBS
   ccfcrypto.enclave
   evercrypt.enclave
   lua.enclave
-  ${OE_ENCLAVE_LIBRARY}
-  ${OE_ENCLAVE_CRYPTOMBED}
-  ${OE_ENCLAVE_MBEDCRYPTO}
-  ${OE_ENCLAVE_MBEDX509}
-  ${OE_ENCLAVE_MBEDTLS}
-  ${ENCLAVE_MBEDTLS_LIBRARIES}
-  ${OE_ENCLAVE_LIBCXX}
-  ${OE_ENCLAVE_LIBC}
-  ${OE_ENCLAVE_SYSCALL}
-  ${OE_ENCLAVE_CORE}
   secp256k1.enclave
 )
 
@@ -294,9 +257,9 @@ function(add_enclave_library_c name files)
   target_compile_options(${name} PRIVATE
     -nostdinc
     -U__linux__)
-  target_include_directories(${name} SYSTEM PRIVATE
-    ${OE_LIBC_INCLUDE_DIR}
-    )
+  target_link_libraries(${name} PRIVATE
+    openenclave::oelibc
+  )
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 endfunction()
 
@@ -340,21 +303,20 @@ if("sgx" IN_LIST TARGET)
   # Host Executable
   add_executable(cchost
     ${CCF_DIR}/src/host/main.cpp
-    ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.cpp)
+    ${CCF_GENERATED_DIR}/ccf_u.cpp)
   use_client_mbedtls(cchost)
   target_include_directories(cchost PRIVATE
-    ${OE_INCLUDE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}
   )
   add_san(cchost)
 
   target_link_libraries(cchost PRIVATE
     uv
-    ${OE_HOST_LIBRARY}
     ${SGX_LIBS}
     ${CRYPTO_LIBRARY}
     ${CMAKE_DL_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
+    openenclave::oehostapp
     ccfcrypto.host
     evercrypt.host
     CURL::libcurl
@@ -376,7 +338,6 @@ if("virtual" IN_LIST TARGET)
   target_compile_definitions(cchost.virtual PRIVATE -DVIRTUAL_ENCLAVE)
   target_compile_options(cchost.virtual PRIVATE -stdlib=libc++)
   target_include_directories(cchost.virtual PRIVATE
-    ${OE_INCLUDE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}
   )
   add_san(cchost.virtual)

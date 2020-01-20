@@ -333,7 +333,7 @@ if(BUILD_TESTS)
         NAME governance_tests
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
         ADDITIONAL_ARGS
-          --oesign ${OESIGN}
+          --oesign openenclave::oesign
       )
     endif()
 
@@ -404,7 +404,7 @@ if(BUILD_TESTS)
         NAME code_update_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
         ADDITIONAL_ARGS
-          --oesign ${OESIGN}
+          --oesign openenclave::oesign
           --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
           --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
           # TODO: This test spins up many nodes that go through the join protocol
