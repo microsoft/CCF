@@ -305,7 +305,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
       IS_SUITE TRUE
       ADDITIONAL_ARGS
-      --test-duration 100
+      --test-duration 150
       --enforce-reqs
     )
 
