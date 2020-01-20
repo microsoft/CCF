@@ -128,6 +128,9 @@ set(CLIENT_MBEDTLS_INCLUDE_DIR "${MBEDTLS_INCLUDE_DIRS}")
 set(CLIENT_MBEDTLS_LIBRARIES "${MBEDTLS_LIBRARIES}")
 
 find_package(OpenEnclave CONFIG REQUIRED)
+# As well as pulling in openenclave:: targets, this sets variables which can be used
+# for our edge cases (eg - for virtual libraries). These do not follow the standard
+# naming patterns, for example use OE_INCLUDEDIR rather than OpenEnclave_INCLUDE_DIRS
 
 add_custom_command(
     COMMAND openenclave::oeedger8r ${CCF_DIR}/edl/ccf.edl --trusted --trusted-dir ${CCF_GENERATED_DIR} --untrusted --untrusted-dir ${CCF_GENERATED_DIR}
@@ -339,6 +342,7 @@ if("virtual" IN_LIST TARGET)
   target_compile_options(cchost.virtual PRIVATE -stdlib=libc++)
   target_include_directories(cchost.virtual PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
+    ${OE_INCLUDEDIR} # OE includes are available, but should be used sparingly
   )
   add_san(cchost.virtual)
   enable_coverage(cchost.virtual)
@@ -394,7 +398,7 @@ set_property(TARGET lua.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 # HTTP parser
 add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
-add_enclave_library_c(http_parser.host "${HTTP_PARSER_SOURCES}")
+add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Common test args for Python scripts starting up CCF networks

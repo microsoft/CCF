@@ -149,6 +149,7 @@ function(add_enclave_lib name)
       ${EVERCRYPT_INC}
       ${CMAKE_CURRENT_BINARY_DIR}
       ${QUICKJS_INC}
+      ${OE_INCLUDEDIR} # Virtual libraries don't link against OE, but do share includes
     )
     add_dependencies(${virt_name} flatbuffers)
 
