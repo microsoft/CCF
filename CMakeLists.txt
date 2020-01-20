@@ -252,15 +252,11 @@ if(BUILD_TESTS)
       NAME voting_history_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
 
-    # TODO: Sends an ACK via C++ memberclient, which must be signed.
-    # ACK should be sent from Python, AND HTTP memberclient should sign
-    if (NOT HTTP)
-      # Member client end to end tests
-      add_e2e_test(
-        NAME member_client_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
-      )
-    endif()
+    # Member client end to end tests
+    add_e2e_test(
+      NAME member_client_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
+    )
 
     ## Logging client end to end test
     add_e2e_test(
