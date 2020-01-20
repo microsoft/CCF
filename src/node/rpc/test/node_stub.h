@@ -8,14 +8,17 @@ namespace ccf
 {
   class StubNodeState : public ccf::AbstractNodeState
   {
-    std::map<NodeId, std::vector<uint8_t>> joiners_fresh_keys;
-
     bool finish_recovery(Store::Tx& tx, const nlohmann::json& args) override
     {
       return true;
     }
 
     bool open_network(Store::Tx& tx) override
+    {
+      return true;
+    }
+
+    bool rekey_ledger(Store::Tx& tx) override
     {
       return true;
     }
@@ -46,12 +49,6 @@ namespace ccf
     }
 
     void node_quotes(Store::Tx& tx, GetQuotes::Out& result) override {}
-
-    void set_joiner_key(
-      NodeId joiner_id, const std::vector<uint8_t>& raw_key) override
-    {
-      joiners_fresh_keys.emplace(joiner_id, raw_key);
-    }
   };
 
   class StubNotifier : public ccf::AbstractNotifier
