@@ -69,6 +69,11 @@ static const string open_network_proposal(R"xxx(
       return Calls:call("open_network")
     )xxx");
 
+static const string rekey_ledger_proposal(R"xxx(
+      tables = ...
+      return Calls:call("rekey_ledger")
+    )xxx");
+
 static const string accept_code_proposal(R"xxx(
       tables, code_digest = ...
       return Calls:call("new_code", code_digest)
@@ -182,6 +187,14 @@ void submit_accept_recovery(
 void submit_open_network(RpcTlsClient& tls_connection)
 {
   const auto params = proposal_params(open_network_proposal);
+  const auto response =
+    json::from_msgpack(tls_connection.call("propose", params));
+  cout << response.dump() << std::endl;
+}
+
+void submit_rekey_ledger(RpcTlsClient& tls_connection)
+{
+  const auto params = proposal_params(rekey_ledger_proposal);
   const auto response =
     json::from_msgpack(tls_connection.call("propose", params));
   cout << response.dump() << std::endl;
@@ -374,6 +387,9 @@ int main(int argc, char** argv)
     "open_network",
     "Open the network for users to issue business transactions");
 
+  auto rekey_ledger = app.add_subcommand(
+    "rekey_ledger", "Refresh the symmetric used to encrypt the ledger");
+
   auto accept_recovery =
     app.add_subcommand("accept_recovery", "Accept to recover network");
 
@@ -500,6 +516,11 @@ int main(int argc, char** argv)
     if (*open_network)
     {
       submit_open_network(*tls_connection);
+    }
+
+    if (*rekey_ledger)
+    {
+      submit_rekey_ledger(*tls_connection);
     }
 
     if (*set_lua_app)

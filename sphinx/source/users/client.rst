@@ -32,5 +32,5 @@ Testcases will automatically switch to using the appropriate clients.
 The CCF Python infra client can be used without any modifications other than exporting the ``HTTP`` environment variable.
 By default, the Python infra uses `requests <https://realpython.com/python-requests/>`_, but exporting the ``CURL_CLIENT`` environment variable will switch to a ``curl``-based client instead.
 
-The ``start_test_network.sh`` script documented in :ref:`Quickstart` defaults to using ``curl``.
+The ``start_test_network.sh`` script documented in :ref:`quickstart/index:Quickstart` defaults to using ``curl``.
 A simple ``scurl.sh`` wrapper script is automatically generated under ``build/``, and allows sending signed requests to CCF.

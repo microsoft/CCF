@@ -1,7 +1,7 @@
 Deploying an Application
 ========================
 
-The quickest way to deploy a CCF application is to use the `start_test_network.sh <https://github.com/microsoft/CCF/blob/master/start_test_network.sh>`_ test script, specifying the :ref:`enclave image <Writing CCF Applications>` to run.
+The quickest way to deploy a CCF application is to use the `start_test_network.sh <https://github.com/microsoft/CCF/blob/master/start_test_network.sh>`_ test script, specifying the :ref:`enclave image <developers/index:Writing CCF Applications>` to run.
 
 The script creates a new test CCF network composed of 3 nodes running locally. All the governance requests required to open the network to users are automatically issued.
 
@@ -28,5 +28,5 @@ The log files (``out`` and ``err``) and ledger (``<node_id>.ledger``) for each C
 
 .. note:: The first time the command is run, a Python virtual environment will be created. This may take a few seconds. It will not be run the next time the ``start_test_network.sh`` script is started.
 
-In a different terminal, using the local IP address and port of the CCF nodes displayed by the command (e.g. ``127.177.10.108:37765`` for node ``0``), it is then possible for users to :ref:`issue business requests <Issuing Commands>`.
+In a different terminal, using the local IP address and port of the CCF nodes displayed by the command (e.g. ``127.177.10.108:37765`` for node ``0``), it is then possible for users to :ref:`issue business requests <users/issue_commands:Issuing Commands>`.
 

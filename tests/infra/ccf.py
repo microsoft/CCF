@@ -21,6 +21,11 @@ from loguru import logger as LOG
 
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 
+# TODO: Quote verification may take a long time to execute on the leader when joining
+# https://github.com/microsoft/CCF/issues/703
+# JOIN_TIMEOUT should be greater than the worst case quote verification time (~ 25 secs)
+JOIN_TIMEOUT = 40
+
 
 class ServiceStatus(Enum):
     OPENING = 1
@@ -120,7 +125,7 @@ class Network:
         if self.status == ServiceStatus.OPENING:
             if args.consensus != "pbft":
                 try:
-                    node.wait_for_node_to_join()
+                    node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
                 except TimeoutError:
                     LOG.error(f"New node {node.node_id} failed to join the network")
                     raise
@@ -240,9 +245,7 @@ class Network:
             self.consortium.wait_for_node_to_exist_in_store(
                 primary,
                 new_node.node_id,
-                # When the service is open, it takes a joining node at least 2 join
-                # attempts to retrieve the network secrets
-                timeout=ceil(args.join_timer * 3 / 1000),
+                timeout=JOIN_TIMEOUT,
                 node_status=(
                     infra.node.NodeStatus.PENDING
                     if self.status == ServiceStatus.OPEN
@@ -275,7 +278,10 @@ class Network:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(1, primary, new_node.node_id)
             if args.consensus != "pbft":
-                new_node.wait_for_node_to_join()
+                # Here, quote verification has already been run when the node
+                # was added as pending. Only wait for the join timer for the
+                # joining node to retrieve network secrets.
+                new_node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {new_node.node_id} failed to join the network")
             new_node.stop()
@@ -424,6 +430,27 @@ class Network:
                 break
             time.sleep(1)
         assert [commits[0]] * len(commits) == commits, "All nodes at the same commit"
+
+    # TODO: Remove when secret sharing is implemented: https://github.com/microsoft/CCF/issues/51
+    def wait_for_sealed_secrets_at_version(self, version, timeout=5):
+        """
+        Wait for a sealed secret at a version larger than "version" to be sealed
+        on all nodes.
+        """
+        for _ in range(timeout):
+            rekeyed_nodes = []
+            for node in self.get_joined_nodes():
+                max_sealed_version = int(
+                    max(node.get_sealed_secrets(), key=lambda x: int(x))
+                )
+                if max_sealed_version >= version:
+                    rekeyed_nodes.append(node)
+            if len(rekeyed_nodes) == len(self.get_joined_nodes()):
+                break
+            time.sleep(1)
+        assert len(rekeyed_nodes) == len(
+            self.get_joined_nodes()
+        ), f"Only {len(rekeyed_nodes)} (out of {len(self.get_joined_nodes())}) nodes have been rekeyed"
 
 
 @contextmanager

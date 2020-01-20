@@ -48,17 +48,17 @@ It is then possible to inspect the signed enclave library:
     mrenclave=3175971c02d00c1a8f9dd23ca89e64955c5caa94e24f4a3a0579dcfb2e6aebf9
     signature=...
 
-For a given application, the ``signature`` field depends on the key used to sign the enclave. See :ref:`Updating Code Version` for instructions on how members can register new application versions (``mrenclave`` field).
+For a given application, the ``signature`` field depends on the key used to sign the enclave. See :ref:`members/common_member_operations:Updating Code Version` for instructions on how members can register new application versions (``mrenclave`` field).
 
 .. note:: The `Open Enclave documentation <https://github.com/openenclave/openenclave/blob/master/docs/GettingStartedDocs/buildandsign.md#signing-the-enclave>`_. provides further details about how to sign enclave applications using ``oesign``.
 
 Running the Application
 -----------------------
 
-:ref:`Operators should start each CCF node <Starting the First Node>` with the signed enclave application as enclave file. For example, for the ``luageneric`` application:
+:ref:`Operators should start each CCF node <operators/start_network:Starting the First Node>` with the signed enclave application as enclave file. For example, for the ``luageneric`` application:
 
 .. code-block:: bash
 
     $ cchost --enclave-file libluagenericenc.signed.so [args]
 
-.. note:: When deploying the ``luageneric`` application, members should also :ref:`register the Lua application <Registering the Lua Application>` before the network is opened to users.
+.. note:: When deploying the ``luageneric`` application, members should also :ref:`register the Lua application <members/open_network:Registering the Lua Application>` before the network is opened to users.
