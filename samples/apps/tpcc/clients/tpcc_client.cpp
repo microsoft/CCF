@@ -577,7 +577,7 @@ public:
   {
     Base::setup_parser(app);
 
-    app.add_option("--num_warehouses", num_warehouses);
+    app.add_option("--warehouses", num_warehouses);
   }
 
 };
