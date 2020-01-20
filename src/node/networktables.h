@@ -70,7 +70,7 @@ namespace ccf
     //
     Service& service;
     Values& values;
-    Secrets& secrets_table;
+    Secrets& secrets;
     Signatures& signatures;
 
     //
@@ -115,7 +115,7 @@ namespace ccf
         tables->create<Service>(Tables::SERVICE, kv::SecurityDomain::PUBLIC)),
       values(
         tables->create<Values>(Tables::VALUES, kv::SecurityDomain::PUBLIC)),
-      secrets_table(
+      secrets(
         tables->create<Secrets>(Tables::SECRETS, kv::SecurityDomain::PUBLIC)),
       signatures(tables->create<Signatures>(
         Tables::SIGNATURES, kv::SecurityDomain::PUBLIC)),

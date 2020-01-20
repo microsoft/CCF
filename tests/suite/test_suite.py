@@ -4,10 +4,12 @@
 import e2e_logging
 import reconfiguration
 import recovery
+import rekey
 
 from inspect import signature, Parameter
 
-# For now, these are hardcoded.
+# TODO: For now, these are hardcoded. Indeed, late join after recovery is not yet supported.
+# https://github.com/microsoft/CCF/issues/315
 tests = [
     reconfiguration.test_add_node,
     reconfiguration.test_add_node_from_backup,
@@ -16,6 +18,8 @@ tests = [
     reconfiguration.test_retire_node,
     e2e_logging.test,
     e2e_logging.test_update_lua,
+    recovery.test,
+    rekey.test,
     recovery.test,
     reconfiguration.test_retire_node,
 ]

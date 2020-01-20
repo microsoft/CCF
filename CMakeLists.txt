@@ -130,6 +130,8 @@ if(BUILD_TESTS)
   add_unit_test(keyexchange_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/keyexchange.cpp)
   use_client_mbedtls(keyexchange_test)
+  target_link_libraries(keyexchange_test PRIVATE
+    secp256k1.host)
 
   add_unit_test(channels_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp)
@@ -303,7 +305,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
       IS_SUITE TRUE
       ADDITIONAL_ARGS
-      --test-duration 100
+      --test-duration 150
       --enforce-reqs
     )
 
@@ -317,6 +319,11 @@ if(BUILD_TESTS)
       NAME end_to_end_logging
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       CURL_CLIENT TRUE
+    )
+
+    add_e2e_test(
+      NAME rekeying
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rekey.py
     )
 
     add_e2e_test(

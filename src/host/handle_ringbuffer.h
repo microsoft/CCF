@@ -81,15 +81,6 @@ namespace asynchost
               std::to_string(getpid());
           }
 
-          if (
-            sealed_secrets_json.find(std::to_string(version)) !=
-            sealed_secrets_json.end())
-          {
-            LOG_FATAL_FMT(
-              "Could not seal secrets at version {} because they already exist",
-              version);
-          }
-
           LOG_DEBUG_FMT(
             "Writing sealed secrets for version {} to {}",
             version,
