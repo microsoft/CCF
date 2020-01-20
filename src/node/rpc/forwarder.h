@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclave/enclavetypes.h"
+#include "enclave/forwardertypes.h"
 #include "enclave/rpcmap.h"
 #include "node/nodetonode.h"
 

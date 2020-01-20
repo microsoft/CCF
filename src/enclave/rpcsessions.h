@@ -4,7 +4,7 @@
 
 #include "ds/logger.h"
 #include "ds/serialized.h"
-#include "enclavetypes.h"
+#include "forwardertypes.h"
 #include "framedtlsendpoint.h"
 #include "httpendpoint.h"
 #include "rpcclient.h"
