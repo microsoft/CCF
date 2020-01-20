@@ -104,7 +104,7 @@ TEST_CASE("Add a node to an opening service")
       response->network_info.ledger_secrets ==
       network.ledger_secrets->get_current());
     CHECK(response->network_info.identity == *network.identity.get());
-    CHECK(response->network_info.version == 0);
+    CHECK(response->network_info.version == 1);
     CHECK(response->node_status == NodeStatus::TRUSTED);
 
     Store::Tx tx;
@@ -131,7 +131,7 @@ TEST_CASE("Add a node to an opening service")
       response->network_info.ledger_secrets ==
       network.ledger_secrets->get_current());
     CHECK(response->network_info.identity == *network.identity.get());
-    CHECK(response->network_info.version == 0);
+    CHECK(response->network_info.version == 1);
     CHECK(response->node_status == NodeStatus::TRUSTED);
   }
 
@@ -185,6 +185,8 @@ TEST_CASE("Add a node to an open service")
   {
     auto response_j =
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+
+    std::cout << response_j.dump() << std::endl;
 
     CHECK(response_j[RESULT].find("network_info") == response_j[RESULT].end());
     auto response = jsonrpc::Response<JoinNetworkNodeToNode::Out>(response_j);
@@ -242,7 +244,7 @@ TEST_CASE("Add a node to an open service")
       response->network_info.ledger_secrets ==
       network.ledger_secrets->get_current());
     CHECK(response->network_info.identity == *network.identity.get());
-    CHECK(response->network_info.version == 0);
+    CHECK(response->network_info.version == 1);
     CHECK(response->node_status == NodeStatus::TRUSTED);
   }
 }

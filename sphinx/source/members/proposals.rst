@@ -12,7 +12,7 @@ For transparency and auditability, all governance operations (including votes) a
 Submitting a new proposal
 -------------------------
 
-Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using the ``memberclient`` command-line utility (see :ref:`Member RPC API` for equivalent JSON-RPC API).
+Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using the ``memberclient`` command-line utility (see :ref:`members/member_rpc_api:Member RPC API` for equivalent JSON-RPC API).
 
 For example, ``member1`` may submit a proposal to add a new member (``member4``) to the consortium:
 

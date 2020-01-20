@@ -9,31 +9,35 @@
 
 namespace ccf
 {
-  // Because past network secrets are encrypted with an ephemeral key passed by
-  // the backups to the primary as part of the join protocol, a given set of
-  // past network secrets is encrypted with different keys for each backup
-  struct SerialisedNetworkSecrets
+  struct EncryptedLedgerSecret
   {
     NodeId node_id;
-    std::vector<uint8_t> serial_ns;
 
-    MSGPACK_DEFINE(node_id, serial_ns);
+    // Encrypted secret for each backup
+    std::vector<uint8_t> encrypted_secret = {};
+
+    MSGPACK_DEFINE(node_id, encrypted_secret);
   };
 
-  DECLARE_JSON_TYPE(SerialisedNetworkSecrets)
-  DECLARE_JSON_REQUIRED_FIELDS(SerialisedNetworkSecrets, node_id, serial_ns)
+  DECLARE_JSON_TYPE(EncryptedLedgerSecret)
+  DECLARE_JSON_REQUIRED_FIELDS(EncryptedLedgerSecret, node_id, encrypted_secret)
 
-  struct PastNetworkSecrets
+  struct EncryptedLedgerSecrets
   {
-    std::vector<SerialisedNetworkSecrets> secrets;
+    // TODO: Since ECDSA does not support asymmetric encryption out of the box,
+    // pass the public key here. The receiving peer can then decrypt the secrets
+    // using its own private key and this public key.
+    std::vector<uint8_t> primary_public_encryption_key = {};
+    std::vector<EncryptedLedgerSecret> secrets = {};
 
-    MSGPACK_DEFINE(secrets);
+    MSGPACK_DEFINE(primary_public_encryption_key, secrets);
   };
 
-  DECLARE_JSON_TYPE(PastNetworkSecrets)
-  DECLARE_JSON_REQUIRED_FIELDS(PastNetworkSecrets, secrets)
+  DECLARE_JSON_TYPE(EncryptedLedgerSecrets)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    EncryptedLedgerSecrets, primary_public_encryption_key, secrets)
 
-  // This map is used to communicate past network secrets from the primary to
-  // the backups (e.g. during recovery)
-  using Secrets = Store::Map<kv::Version, PastNetworkSecrets>;
+  // This map is used to communicate encrypted network secrets from the primary
+  // to the backups during recovery (past secrets) and re-keying (new secrets)
+  using Secrets = Store::Map<kv::Version, EncryptedLedgerSecrets>;
 }

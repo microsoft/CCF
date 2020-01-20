@@ -410,6 +410,12 @@ namespace tls
       return {first, buf + buf_size};
     }
 
+    // TODO: This should be removed
+    mbedtls_pk_context* get_raw_context() const
+    {
+      return ctx.get();
+    }
+
     virtual ~PublicKey()
     {
       if (ctx)
@@ -796,13 +802,12 @@ namespace tls
       size_t* sig_size,
       uint8_t* sig) const
     {
-      int rc = 0;
       EntropyPtr entropy = create_entropy();
 
       const auto ec = get_ec_from_context(*ctx);
       const auto md_type = get_md_for_ec(ec);
 
-      rc = mbedtls_pk_sign(
+      return mbedtls_pk_sign(
         ctx.get(),
         md_type,
         hash,
@@ -811,8 +816,6 @@ namespace tls
         sig_size,
         entropy->get_rng(),
         entropy->get_data());
-
-      return rc;
     }
 
     /**
@@ -946,12 +949,6 @@ namespace tls
     {
       auto csr = create_csr(name);
       return sign_csr(csr, name, subject_alt_name, ca);
-    }
-
-    // TODO: This should be removed
-    mbedtls_pk_context* get_raw_context() const
-    {
-      return ctx.get();
     }
   };
 

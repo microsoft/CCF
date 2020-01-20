@@ -38,7 +38,7 @@ Each node will then immediately restore the public entries of its ledger (``--le
 
 .. note:: If more than one node were started in ``recover`` mode, the node with the highest signed index (as per the response to the ``getSignedIndex`` JSON-RPC) should be preferred to start the new network. Other nodes should be shutdown and be restarted with the ``join`` option.
 
-Similarly to the normal join protocol (see :ref:`Adding a New Node to the Network`), other nodes are then able to join the network.
+Similarly to the normal join protocol (see :ref:`operators/start_network:Adding a New Node to the Network`), other nodes are then able to join the network.
 
 .. mermaid::
 
@@ -65,7 +65,7 @@ Similarly to the normal join protocol (see :ref:`Adding a New Node to the Networ
 
         Note over Node 3: Part of Public Network
 
-Once operators have established a recovered public network, the existing members of the consortium :ref:`must vote to accept the recovery of the network <Accepting Recovery>`.
+Once operators have established a recovered public network, the existing members of the consortium :ref:`must vote to accept the recovery of the network <members/common_member_operations:Accepting Recovery>`.
 
 .. warning:: After recovery, the identity of the network has changed. The new network certificate ``networkcert.pem`` must be distributed to all existing and new users.
 

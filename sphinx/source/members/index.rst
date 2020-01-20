@@ -15,7 +15,7 @@ The ``CCF/tests/keygenerator.sh`` script can be used to generate the member's ce
     Certificate generated at: member1_cert.pem (to be registered in CCF)
     Private key generated at: member1_privk.pem
 
-.. note:: See :ref:`Algorithms and Curves` for the list of supported cryptographic curves.
+.. note:: See :ref:`developers/cryptography:Algorithms and Curves` for the list of supported cryptographic curves.
 
 The member's private key (e.g. ``member1_privk.pem``) should be stored on a trusted device while the certificate (e.g. ``member1_cert.pem``) should be given to operators before starting the first node of a new CCF network.
 
