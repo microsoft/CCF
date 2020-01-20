@@ -10,7 +10,8 @@
 
 // Ideally this would be _mm_pause or similar, but finding cross-platform
 // headers that expose this neatly through OE (ie - non-standard std libs) is
-// awkward. In practice any other builtin we use should do exactly this
+// awkward. Instead we resort to copying OE, and implementing this directly
+// ourselves.
 #define CCF_PAUSE() asm volatile("pause")
 
 // This file implements a Multiple-Producer Single-Consumer ringbuffer.
