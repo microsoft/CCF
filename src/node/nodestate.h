@@ -290,8 +290,8 @@ namespace ccf
         enclave::InvalidSessionId, node_cert);
       auto ctx = enclave::make_rpc_context(node_session, packed);
 
-      ctx.is_create_request = true;
-      ctx.actor = actor;
+      ctx->is_create_request = true;
+      ctx->actor = actor;
 
       frontend->process(ctx);
     }
@@ -1110,7 +1110,8 @@ namespace ccf
       auto fe = rpc_map->find(actor);
       if (!fe.has_value())
       {
-        throw std::logic_error(fmt::format("Cannot open {} frontend", actor));
+        throw std::logic_error(
+          fmt::format("Cannot open {} frontend", (int)actor));
       }
       fe.value()->open();
     }

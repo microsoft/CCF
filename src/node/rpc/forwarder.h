@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclave/enclavetypes.h"
+#include "enclave/forwardertypes.h"
 #include "enclave/rpcmap.h"
 #include "node/nodetonode.h"
 
@@ -14,7 +14,7 @@ namespace ccf
     virtual ~ForwardedRpcHandler() {}
 
     virtual std::vector<uint8_t> process_forwarded(
-      enclave::RPCContext& fwd_ctx) = 0;
+      std::shared_ptr<enclave::RpcContext> fwd_ctx) = 0;
   };
 
   template <typename ChannelProxy>
@@ -44,16 +44,16 @@ namespace ccf
     }
 
     bool forward_command(
-      const enclave::RPCContext& rpc_ctx,
+      std::shared_ptr<enclave::RpcContext> rpc_ctx,
       NodeId to,
       CallerId caller_id,
       const std::vector<uint8_t>& caller_cert)
     {
       IsCallerCertForwarded include_caller = false;
       size_t size = sizeof(caller_id) +
-        sizeof(rpc_ctx.session.client_session_id) + sizeof(rpc_ctx.actor) +
-        sizeof(rpc_ctx.method.size()) + rpc_ctx.method.size() +
-        sizeof(IsCallerCertForwarded) + rpc_ctx.raw.size();
+        sizeof(rpc_ctx->session.client_session_id) + sizeof(rpc_ctx->actor) +
+        sizeof(rpc_ctx->method.size()) + rpc_ctx->method.size() +
+        sizeof(IsCallerCertForwarded) + rpc_ctx->raw.size();
       if (!caller_cert.empty())
       {
         size += sizeof(size_t) + caller_cert.size();
@@ -64,23 +64,23 @@ namespace ccf
       auto data_ = plain.data();
       auto size_ = plain.size();
       serialized::write(data_, size_, caller_id);
-      serialized::write(data_, size_, rpc_ctx.session.client_session_id);
-      serialized::write(data_, size_, rpc_ctx.actor);
-      serialized::write(data_, size_, rpc_ctx.method);
+      serialized::write(data_, size_, rpc_ctx->session.client_session_id);
+      serialized::write(data_, size_, rpc_ctx->actor);
+      serialized::write(data_, size_, rpc_ctx->method);
       serialized::write(data_, size_, include_caller);
       if (include_caller)
       {
         serialized::write(data_, size_, caller_cert.size());
         serialized::write(data_, size_, caller_cert.data(), caller_cert.size());
       }
-      serialized::write(data_, size_, rpc_ctx.raw.data(), rpc_ctx.raw.size());
+      serialized::write(data_, size_, rpc_ctx->raw.data(), rpc_ctx->raw.size());
 
       ForwardedHeader msg = {ForwardedMsg::forwarded_cmd, self};
 
       return n2n_channels->send_encrypted(to, plain, msg);
     }
 
-    std::optional<std::tuple<enclave::RPCContext, NodeId>>
+    std::optional<std::tuple<std::shared_ptr<enclave::RpcContext>, NodeId>>
     recv_forwarded_command(const uint8_t* data, size_t size)
     {
       std::pair<ForwardedHeader, std::vector<uint8_t>> r;
@@ -115,8 +115,8 @@ namespace ccf
         client_session_id, caller_id, caller_cert);
 
       auto context = enclave::make_rpc_context(session, rpc);
-      context.actor = actor;
-      context.method = method;
+      context->actor = actor;
+      context->method = method;
 
       return std::make_tuple(context, r.first.from_node);
     }
@@ -179,14 +179,14 @@ namespace ccf
               return;
             }
 
-            auto [ctx, from_node] = r.value();
+            auto [ctx, from_node] = std::move(r.value());
 
-            auto handler = rpc_map->find(ctx.actor);
+            auto handler = rpc_map->find(ctx->actor);
             if (!handler.has_value())
             {
               LOG_FAIL_FMT(
                 "Failed to process forwarded command: no handler for actor {}",
-                ctx.actor);
+                (int)ctx->actor);
               return;
             }
 
@@ -197,12 +197,12 @@ namespace ccf
               LOG_FAIL_FMT(
                 "Failed to process forwarded command: handler is not a "
                 "ForwardedRpcHandler",
-                ctx.actor);
+                (int)ctx->actor);
               return;
             }
 
             if (!send_forwarded_response(
-                  ctx.session.fwd->client_session_id,
+                  ctx->session.fwd->client_session_id,
                   from_node,
                   fwd_handler->process_forwarded(ctx)))
             {

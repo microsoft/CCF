@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclavetypes.h"
 #include "tls/msg_types.h"
 
 namespace enclave
