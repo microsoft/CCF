@@ -242,6 +242,10 @@ class RPCFileLogger(RPCLogger):
             f.write(os.linesep)
 
 
+class CCFConnectionException(Exception):
+    pass
+
+
 class FramedTLSJSONRPCClient:
     def __init__(
         self,
@@ -261,13 +265,13 @@ class FramedTLSJSONRPCClient:
         self.format = format
 
         while connection_timeout >= 0:
+            connection_timeout -= 0.1
             try:
                 self.connect()
                 break
-            except ssl.SSLError:
+            except (ssl.SSLError, ssl.SSLCertVerificationError):
                 if connection_timeout < 0:
-                    raise
-            connection_timeout -= 0.1
+                    raise CCFConnectionException
             time.sleep(0.1)
 
     def connect(self):
@@ -291,8 +295,6 @@ class FramedTLSJSONRPCClient:
 
 # We keep this around in a limited fashion still, because
 # the resulting logs nicely illustrate manual usage in a way using requests doesn't
-class CurlClientSSLException(Exception):
-    pass
 
 
 class CurlClient:
@@ -349,7 +351,7 @@ class CurlClient:
 
             if rc.returncode != 0:
                 if rc.returncode == 60:
-                    raise CurlClientSSLException
+                    raise CCFConnectionException
                 LOG.error(rc.stderr)
                 raise RuntimeError(f"Curl failed with return code {rc.returncode}")
 
@@ -365,14 +367,15 @@ class CurlClient:
 
     def _request(self, request, is_signed=False):
         while self.connection_timeout >= 0:
+            self.connection_timeout -= 0.1
             try:
                 rid = self._just_request(request, is_signed)
                 self._request = self._just_request
                 return rid
-            except CurlClientSSLException:
+            except CCFConnectionException:
                 if self.connection_timeout < 0:
                     raise
-            self.connection_timeout -= 0.1
+            time.sleep(0.1)
 
     def request(self, request):
         return self._request(request, is_signed=False)
@@ -423,14 +426,15 @@ class RequestClient:
 
     def request(self, request):
         while self.connection_timeout >= 0:
+            self.connection_timeout -= 0.1
             try:
                 rid = self._just_request(request)
                 self.request = self._just_request
                 return rid
             except (requests.exceptions.ReadTimeout, requests.exceptions.SSLError) as e:
                 if self.connection_timeout < 0:
-                    raise
-            self.connection_timeout -= 0.1
+                    raise CCFConnectionException
+            time.sleep(0.1)
 
     def signed_request(self, request):
         with open(self.key, "rb") as k:
