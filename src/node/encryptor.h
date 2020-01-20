@@ -8,6 +8,7 @@
 #include "node/ledgersecrets.h"
 
 #include <atomic>
+#include <list>
 
 namespace ccf
 {
@@ -44,18 +45,45 @@ namespace ccf
     {
       return crypto::GcmHeader<crypto::GCM_SIZE_IV>::RAW_DATA_SIZE;
     }
+
+    void update_encryption_key(
+      kv::Version version, const std::vector<uint8_t>& raw_ledger_key) override
+    {}
+
+    void rollback(kv::Version version) override {}
+    void compact(kv::Version version) override {}
   };
 
   class TxEncryptor : public kv::AbstractTxEncryptor
   {
   private:
     NodeId id;
+    bool is_recovery;
+
     std::atomic<SeqNo> seqNo{0};
+    SpinLock lock;
+
+    std::shared_ptr<LedgerSecrets> ledger_secrets;
 
     // Encryption keys are set when TxEncryptor object is created and are used
     // to determine which key to use for encryption/decryption when
     // committing/deserialising depending on the version
-    std::vector<std::pair<kv::Version, crypto::KeyAesGcm>> encryption_keys;
+
+    struct KeyInfo
+    {
+      kv::Version version;
+
+      // This is unfortunate. Because the encryptor updates the ledger secrets
+      // on global hook, we need easy access to the raw secrets.
+      std::vector<uint8_t> raw_key;
+    };
+
+    struct EncryptionKey : KeyInfo
+    {
+      crypto::KeyAesGcm key;
+    };
+
+    std::list<EncryptionKey> encryption_keys;
 
     void set_iv(crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr)
     {
@@ -65,6 +93,8 @@ namespace ccf
 
     const crypto::KeyAesGcm& get_encryption_key(kv::Version version)
     {
+      std::lock_guard<SpinLock> guard(lock);
+
       // Encryption key for a given version is the one with the highest version
       // that is lower than the given version (e.g. if encryption_keys contains
       // two keys for version 0 and 10 then the key associated with version 0
@@ -73,26 +103,34 @@ namespace ccf
         encryption_keys.rbegin(),
         encryption_keys.rend(),
         version,
-        [](kv::Version a, std::pair<kv::Version, crypto::KeyAesGcm> const& b) {
-          return b.first <= a;
-        });
+        [](kv::Version a, EncryptionKey const& b) { return b.version <= a; });
 
       if (search == encryption_keys.rend())
-        throw std::logic_error(
-          "TxEncryptor: encrypt version is not valid: " +
-          std::to_string(version));
+      {
+        throw std::logic_error(fmt::format(
+          "TxEncryptor: encrypt version is not valid: {}", version));
+      }
 
-      return search->second;
+      return search->key;
     }
 
   public:
-    TxEncryptor(NodeId id_, LedgerSecrets& ns) : id(id_)
+    TxEncryptor(
+      NodeId id_,
+      std::shared_ptr<LedgerSecrets> ls,
+      bool is_recovery_ = false) :
+      id(id_),
+      ledger_secrets(ls),
+      is_recovery(is_recovery_)
     {
-      // Create map of existing encryption keys
-      for (auto const& ns_ : ns.get_secrets())
+      // Create map of existing encryption keys from the recorded ledger secrets
+      for (auto const& s : ls->get_secrets())
       {
-        encryption_keys.emplace_back(
-          std::make_pair(ns_.first, ns_.second->master));
+        encryption_keys.emplace_back(EncryptionKey{
+          s.first,
+          s.second->master,
+          crypto::KeyAesGcm(s.second->master),
+        });
       }
     }
 
@@ -167,6 +205,68 @@ namespace ccf
     size_t get_header_length() override
     {
       return crypto::GcmHeader<crypto::GCM_SIZE_IV>::RAW_DATA_SIZE;
+    }
+
+    void update_encryption_key(
+      kv::Version version, const std::vector<uint8_t>& raw_ledger_key) override
+    {
+      std::lock_guard<SpinLock> guard(lock);
+
+      encryption_keys.emplace_back(EncryptionKey{
+        version, raw_ledger_key, crypto::KeyAesGcm(raw_ledger_key)});
+    }
+
+    void rollback(kv::Version version) override
+    {
+      std::lock_guard<SpinLock> guard(lock);
+
+      while (encryption_keys.size() > 1)
+      {
+        auto k = encryption_keys.end();
+        std::advance(k, -1);
+
+        if (k->version <= version)
+        {
+          break;
+        }
+
+        encryption_keys.pop_back();
+      }
+    }
+
+    void compact(kv::Version version) override
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      std::list<KeyInfo> keys_to_seal;
+
+      // Remove keys that have been superseded by a newer key. News keys are
+      // sealed on compact.
+      while (encryption_keys.size() > 1)
+      {
+        auto k = encryption_keys.begin();
+
+        if (std::next(k)->version > version)
+        {
+          break;
+        }
+
+        keys_to_seal.emplace_back(
+          KeyInfo{std::next(k)->version, std::next(k)->raw_key});
+
+        if (k->version < version)
+        {
+          encryption_keys.pop_front();
+        }
+      }
+
+      if (!is_recovery)
+      {
+        for (auto const& k : keys_to_seal)
+        {
+          ledger_secrets->set_secret(k.version, k.raw_key);
+          ledger_secrets->seal_secret(k.version);
+        }
+      }
     }
   };
 }

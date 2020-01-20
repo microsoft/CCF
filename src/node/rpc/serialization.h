@@ -32,7 +32,7 @@ namespace ccf
 
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::In)
   DECLARE_JSON_REQUIRED_FIELDS(
-    JoinNetworkNodeToNode::In, raw_fresh_key, node_info_network, quote)
+    JoinNetworkNodeToNode::In, node_info_network, quote, public_encryption_key)
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status, node_id)
   DECLARE_JSON_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out, network_info)
@@ -45,6 +45,7 @@ namespace ccf
     node_cert,
     network_cert,
     quote,
+    public_encryption_key,
     code_digest,
     node_info_network)
 

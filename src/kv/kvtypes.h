@@ -80,7 +80,14 @@ namespace kv
     }
   };
 
-  class TxHistory
+  class Syncable
+  {
+  public:
+    virtual void rollback(Version v) = 0;
+    virtual void compact(Version v) = 0;
+  };
+
+  class TxHistory : public Syncable
   {
   public:
     using RequestID = std::tuple<
@@ -124,8 +131,6 @@ namespace kv
       const uint8_t* all_data,
       size_t all_data_size) = 0;
     virtual bool verify(Term* term = nullptr) = 0;
-    virtual void rollback(Version v) = 0;
-    virtual void compact(Version v) = 0;
     virtual void emit_signature() = 0;
     virtual bool add_request(
       kv::TxHistory::RequestID id,
@@ -302,7 +307,7 @@ namespace kv
     }
   };
 
-  class AbstractTxEncryptor
+  class AbstractTxEncryptor : public Syncable
   {
   public:
     virtual ~AbstractTxEncryptor() {}
@@ -319,6 +324,8 @@ namespace kv
       std::vector<uint8_t>& plain,
       kv::Version version) = 0;
     virtual size_t get_header_length() = 0;
+    virtual void update_encryption_key(
+      Version version, const std::vector<uint8_t>& raw_ledger_key) = 0;
   };
 
   class AbstractStore

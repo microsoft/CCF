@@ -8,6 +8,7 @@ import infra.net
 import infra.path
 import infra.clients
 import time
+import json
 
 from loguru import logger as LOG
 
@@ -186,7 +187,8 @@ class Node:
         raise TimeoutError(f"Node {self.node_id} failed to join the network")
 
     def get_sealed_secrets(self):
-        return self.remote.get_sealed_secrets()
+        with open(self.remote.get_sealed_secrets()) as s:
+            return json.load(s)
 
     def user_client(self, format="msgpack", user_id=1, **kwargs):
         return infra.clients.client(

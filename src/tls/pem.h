@@ -52,5 +52,10 @@ namespace tls
       // +1 for null termination
       return s.size() + 1;
     }
+
+    std::vector<uint8_t> raw()
+    {
+      return {data(), data() + size()};
+    }
   };
 }
