@@ -1,9 +1,9 @@
 Quickstart
 ==========
 
-First, you should :ref:`setup a CCF-compatible environment <Environment Setup>`. Then, you will be able to :ref:`build CCF from source and run CCF test suite <Building CCF>`. Note that for rapid prototyping, you can run a `virtual` build of CCF that does not require Intel SGX.
+First, you should :ref:`setup a CCF-compatible environment <quickstart/requirements:Environment Setup>`. Then, you will be able to :ref:`build CCF from source and run CCF test suite <quickstart/build:Building CCF>`. Note that for rapid prototyping, you can run a `virtual` build of CCF that does not require Intel SGX.
 
-Once this is done, you can quickly spin up a CCF network and start :ref:`issuing commands to the deployed application <Issuing Commands>`:
+Once this is done, you can quickly spin up a CCF network and start :ref:`issuing commands to the deployed application <users/issue_commands:Issuing Commands>`:
 
 .. code-block:: bash
 
@@ -20,13 +20,13 @@ Once this is done, you can quickly spin up a CCF network and start :ref:`issuing
     [2019-10-29 14:48:12.138] See https://microsoft.github.io/CCF/users/issue_commands.html for more information.
     [2019-10-29 14:48:12.138] Press Ctrl+C to shutdown the network.
 
-You should also get familiar with some of :ref:`CCF concepts`. You will then be able to:
+You should also get familiar with some of :ref:`concepts:CCF concepts`. You will then be able to:
 
-1. :ref:`Create a consortium and agree on the constitution <Member Governance>`
-2. :ref:`Develop a CCF application, based on the example logging application <Example Application>`
-3. :ref:`Start a new CCF network to deploy the application <Starting a New Network>`
-4. :ref:`Let the consortium configure and open the network to users <Opening a Network>`
-5. :ref:`Have users issue business transactions to the application <Using CCF Applications>`
+1. :ref:`Create a consortium and agree on the constitution <members/index:Member Governance>`
+2. :ref:`Develop a CCF application, based on the example logging application <developers/example:Example Application>`
+3. :ref:`Start a new CCF network to deploy the application <operators/start_network:Starting a New Network>`
+4. :ref:`Let the consortium configure and open the network to users <members/open_network:Opening a Network>`
+5. :ref:`Have users issue business transactions to the application <users/index:Using CCF Applications>`
 
 .. toctree::
     :maxdepth: 2

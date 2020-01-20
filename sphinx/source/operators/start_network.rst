@@ -3,8 +3,8 @@ Starting a New Network
 
 .. note:: Before creating a new network:
 
-    - The :ref:`identity of the initial members of the consortium must be created <Member Governance>`.
-    - The :ref:`constitution should have been agreed by the initial members <Constitution>`.
+    - The :ref:`identity of the initial members of the consortium must be created <members/index:Member Governance>`.
+    - The :ref:`constitution should have been agreed by the initial members <members/constitution:Constitution>`.
 
 Starting the First Node
 -----------------------
@@ -40,7 +40,7 @@ The :term:`constitution`, as defined by the initial members, should be passed vi
 
 The network is now in its opening state and any new nodes can join the network without being trusted by members.
 
-.. note:: Once a CCF network is started, :ref:`members can add other members and users via governance <Opening a Network>`.
+.. note:: Once a CCF network is started, :ref:`members can add other members and users via governance <members/open_network:Opening a Network>`.
 
 Adding a New Node to the Network
 --------------------------------
@@ -64,24 +64,24 @@ To add a new node to an existing opening network, other nodes should be started 
 
 The joining node takes the certificate of the existing network to join via ``--network-cert-file`` and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by ``--target-rpc-address``.
 
-If the network has not yet been opened by members (see :ref:`Opening the Network`), the joining node becomes part of the network immediately [#remote_attestation]_.
+If the network has not yet been opened by members (see :ref:`members/open_network:Opening the Network`), the joining node becomes part of the network immediately [#remote_attestation]_.
 
-If the network has already been opened to users, members need to trust the joining node before it can become part of the network (see :ref:`Trusting a New Node`).
+If the network has already been opened to users, members need to trust the joining node before it can become part of the network (see :ref:`members/common_member_operations:Trusting a New Node`).
 
-.. note:: When starting up the network or when joining an existing network, the network secrets required to decrypt the ledger are sealed and written to a file so that the network can later be recovered. See :ref:`Catastrophic Recovery` for more details on how to recover a crashed network.
+.. note:: When starting up the network or when joining an existing network, the network secrets required to decrypt the ledger are sealed and written to a file so that the network can later be recovered. See :ref:`operators/recovery:Catastrophic Recovery` for more details on how to recover a crashed network.
 .. note:: CCF nodes can be started by using IP Addresses (both IPv4 and IPV6 are supported) or by specifying domain names. If domain names are to be used then ``--domain=<node domain name>`` should be passed to the node at startup. Once a DNS has been setup it will then be possible to connect to the node over TLS by using the node's domain name.
 
 Opening a Network to Users
 --------------------------
 
-Once a CCF network is successfully started and an acceptable number of nodes have joined, :ref:`members should vote to open the network <Opening a Network>` to :term:`users` via governance.
+Once a CCF network is successfully started and an acceptable number of nodes have joined, :ref:`members should vote to open the network <members/open_network:Opening a Network>` to :term:`users` via governance.
 
 Summary diagram
 ---------------
 
-Once a node is part of the network (started with either the ``start`` or ``join`` option), members are authorised to issue governance transactions and eventually open the network (see :ref:`Opening a Network`). Only then are users authorised to issue JSON-RPC transactions to CCF.
+Once a node is part of the network (started with either the ``start`` or ``join`` option), members are authorised to issue governance transactions and eventually open the network (see :ref:`members/open_network:Opening a Network`). Only then are users authorised to issue JSON-RPC transactions to CCF.
 
-.. note:: After the network is open to users, members can still issue governance transactions to CCF (for example, adding new users or additional members to the consortium or updating the Lua app, when applicable). See :ref:`Member Governance` for more information about member governance.
+.. note:: After the network is open to users, members can still issue governance transactions to CCF (for example, adding new users or additional members to the consortium or updating the Lua app, when applicable). See :ref:`members/index:Member Governance` for more information about member governance.
 
 The following diagram summarises the steps required to bootstrap a CCF network:
 
