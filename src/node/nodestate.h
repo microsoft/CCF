@@ -634,7 +634,7 @@ namespace ccf
       ledger_truncate(last_index);
       LOG_INFO_FMT("Truncating ledger to last signed index: {}", last_index);
 
-      network.ledger_secrets->promote_secrets(1, last_index + 1);
+      network.ledger_secrets->promote_secret(1, last_index + 1);
 
       g.create_service(network.identity->cert, last_index + 1);
 
@@ -1039,7 +1039,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfNetwork);
 
-      // Effects of ledger rekey are only observed for the next transaction,
+      // Effects of ledger rekey are only observed from the next transaction,
       // once the local hook on the secrets table has been triggered. The
       // corresponding new ledger secret is only sealed on global hook.
 

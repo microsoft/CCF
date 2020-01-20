@@ -65,13 +65,12 @@ namespace ccf
         }
       }
 
-      // Add to secrets map
       secrets_map.emplace(v, std::move(secret));
       current_version = std::max(current_version, v);
     }
 
   public:
-    // Called on startup to generate fresh ledger secrets
+    // Called on startup to generate fresh ledger secret
     LedgerSecrets(
       std::unique_ptr<AbstractSeal> seal_ = nullptr, bool force_seal = true) :
       seal(std::move(seal_))
@@ -94,7 +93,7 @@ namespace ccf
       add_secret(v, std::move(new_secret), force_seal);
     }
 
-    // Called when a backup is given past ledger secrets via the store
+    // Called when a backup is given past ledger secret via the store
     bool set_secret(kv::Version v, const std::vector<uint8_t>& secret)
     {
       auto search = secrets_map.find(v);
@@ -124,7 +123,7 @@ namespace ccf
         if (search != secrets_map.end())
         {
           throw std::logic_error(fmt::format(
-            "Cannot restore ledger secret that already exist: ", v));
+            "Cannot restore ledger secret that already exists: ", v));
         }
 
         // Unseal each sealed secret
@@ -147,9 +146,9 @@ namespace ccf
       return restored_versions;
     }
 
-    // Called during recovery to promote temporary secrets created at startup (v
-    // = 1) to new current secrets at the latest signed version
-    bool promote_secrets(kv::Version old_v, kv::Version new_v)
+    // Called during recovery to promote temporary secret created at startup (v
+    // = 1) to new current secret at the latest signed version
+    bool promote_secret(kv::Version old_v, kv::Version new_v)
     {
       if (old_v == new_v)
       {
@@ -160,7 +159,9 @@ namespace ccf
       if (search != secrets_map.end())
       {
         LOG_FAIL_FMT(
-          "Cannot promote ledger secret {} as they already exist", new_v);
+          "Cannot promote ledger secret {} - secret at this version already "
+          "exists and would be overwritten",
+          new_v);
         return false;
       }
 
@@ -168,7 +169,9 @@ namespace ccf
       if (search == secrets_map.end())
       {
         LOG_FAIL_FMT(
-          "Cannot promote ledger secret {} as they do not exist", old_v);
+          "Cannot promote ledger secret {} - secret does not exist from the "
+          "version",
+          old_v);
         return false;
       }
 
@@ -186,7 +189,7 @@ namespace ccf
     {
       if (!seal)
       {
-        throw std::logic_error("No seal set to seal ledger secrets");
+        throw std::logic_error("No seal set to seal ledger secret");
       }
 
       auto search = secrets_map.find(v);

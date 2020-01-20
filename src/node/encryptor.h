@@ -82,7 +82,7 @@ namespace ccf
     {
       crypto::KeyAesGcm key;
     };
-    // std::vector<std::pair<kv::Version, crypto::KeyAesGcm>> encryption_keys;
+
     std::list<EncryptionKey> encryption_keys;
 
     void set_iv(crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr)
