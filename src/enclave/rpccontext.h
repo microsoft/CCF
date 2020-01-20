@@ -67,7 +67,7 @@ namespace enclave
   protected:
     size_t request_index = 0;
 
-    std::unordered_map<std::string, nlohmann::json> metafields;
+    std::unordered_map<std::string, nlohmann::json> headers;
     RpcResponse response;
 
   public:
@@ -151,10 +151,10 @@ namespace enclave
     virtual std::vector<uint8_t> error_response(
       int error, const std::string& msg = "") const = 0;
 
-    virtual void set_response_metafield(
+    virtual void set_response_headers(
       const std::string& name, const nlohmann::json& value)
     {
-      metafields[name] = value;
+      headers[name] = value;
     }
   };
 
@@ -248,7 +248,7 @@ namespace enclave
         full_response = jsonrpc::result_response(seq_no, *payload);
       }
 
-      for (const auto& [k, v] : metafields)
+      for (const auto& [k, v] : headers)
       {
         const auto it = full_response.find(k);
         if (it == full_response.end())
@@ -258,7 +258,7 @@ namespace enclave
         else
         {
           LOG_DEBUG_FMT(
-            "Ignoring response metafield with key '{}' - already present in "
+            "Ignoring response headers with key '{}' - already present in "
             "response object",
             k);
         }

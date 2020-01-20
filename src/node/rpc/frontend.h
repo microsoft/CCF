@@ -554,11 +554,11 @@ namespace ccf
                 cv = tx.get_read_version();
               if (cv == kv::NoVersion)
                 cv = tables.current_version();
-              ctx->set_response_metafield(COMMIT, cv);
+              ctx->set_response_headers(COMMIT, cv);
               if (consensus != nullptr)
               {
-                ctx->set_response_metafield(TERM, consensus->get_view());
-                ctx->set_response_metafield(
+                ctx->set_response_headers(TERM, consensus->get_view());
+                ctx->set_response_headers(
                   GLOBAL_COMMIT, consensus->get_commit_seqno());
 
                 if (
