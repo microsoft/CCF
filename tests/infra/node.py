@@ -175,16 +175,16 @@ class Node:
         This function can be used to check that a node has successfully
         joined a network and that it is part of the consensus.
         """
-        for _ in range(timeout):
-            with self.node_client() as mc:
-                try:
-                    rep = mc.do("getCommit", {})
-                    if rep.error == None and rep.result is not None:
-                        return
-                except:
-                    pass
-            time.sleep(1)
-        raise TimeoutError(f"Node {self.node_id} failed to join the network")
+        # Until the node has joined, the SSL handshake will fail as the node
+        # is not yet endorsed by the network certificate
+        try:
+            with self.node_client(connection_timeout=timeout) as nc:
+                rep = nc.do("getCommit", {})
+                assert (
+                    rep.error is None and rep.result is not None
+                ), f"An error occured after node {self.node_id} joined the network"
+        except infra.clients.CCFConnectionException as e:
+            raise TimeoutError(f"Node {self.node_id} failed to join the network")
 
     def get_sealed_secrets(self):
         with open(self.remote.get_sealed_secrets()) as s:

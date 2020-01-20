@@ -1013,25 +1013,8 @@ namespace ccf
 
     bool open_network(Store::Tx& tx) override
     {
-      auto service_view = tx.get_view(network.service);
-
-      auto active_service = service_view->get(0);
-      if (!active_service.has_value())
-      {
-        LOG_FAIL_FMT("Failed to get active service");
-        return false;
-      }
-
-      if (active_service->status != ServiceStatus::OPENING)
-      {
-        LOG_FAIL_FMT("Could not open current service: status is not OPENING");
-        return false;
-      }
-
-      active_service->status = ServiceStatus::OPEN;
-      service_view->put(0, active_service.value());
-
-      return true;
+      GenesisGenerator g(network, tx);
+      return g.open_service();
     }
 
     bool rekey_ledger(Store::Tx& tx) override

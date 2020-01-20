@@ -254,9 +254,10 @@ if(BUILD_TESTS)
       NAME voting_history_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
 
-    # TODO: Sends an ACK via C++ memberclient, which must be signed.
+
+    # TODO: Sends an ACK via C++ memberclient, which must be signed.	    # Member client end to end tests
     # ACK should be sent from Python, AND HTTP memberclient should sign
-    if (NOT HTTP)
+      if (NOT HTTP)
       # Member client end to end tests
       add_e2e_test(
         NAME member_client_test
@@ -322,11 +323,6 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME rekeying
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rekey.py
-    )
-
-    add_e2e_test(
       NAME lua_end_to_end_logging
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       ADDITIONAL_ARGS
@@ -372,7 +368,7 @@ if(BUILD_TESTS)
           # Since oe_verify_report can take quite a long time to execute (~2s)
           # and trigger Raft elections, the election timeout should stay high
           # until https://github.com/microsoft/CCF/issues/480 is fixed
-          --election-timeout 5000
+          --election-timeout 10000
       )
     endif()
 
