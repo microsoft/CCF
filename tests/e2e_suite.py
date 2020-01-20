@@ -91,6 +91,8 @@ def run(args):
 
         elapsed -= test_elapsed
 
+    network.stop_all_nodes()
+
     LOG.success(f"Ran {len(run_tests)}/{len(s.tests)} tests:")
     LOG.success(f"\n{json.dumps(run_tests, indent=4)}")
 
