@@ -5,15 +5,6 @@ if((NOT "sgx" IN_LIST TARGET) AND (NOT "virtual" IN_LIST TARGET))
   message(FATAL_ERROR "Variable list 'TARGET' must be defined and include a valid target")
 endif()
 
-add_custom_command(
-    COMMAND ${OEGEN} ${CCF_DIR}/edl/ccf.edl --trusted --trusted-dir ${CMAKE_BINARY_DIR} --untrusted --untrusted-dir ${CMAKE_BINARY_DIR}
-    COMMAND mv ${CMAKE_BINARY_DIR}/ccf_t.c ${CMAKE_BINARY_DIR}/ccf_t.cpp
-    COMMAND mv ${CMAKE_BINARY_DIR}/ccf_u.c ${CMAKE_BINARY_DIR}/ccf_u.cpp
-    DEPENDS ${CCF_DIR}/edl/ccf.edl
-    OUTPUT ${CMAKE_BINARY_DIR}/ccf_t.cpp ${CMAKE_BINARY_DIR}/ccf_u.cpp
-    COMMENT "Generating code from EDL, and renaming to .cpp"
-)
-
 # Sign a built enclave library with oesign
 function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
   add_custom_command(
@@ -31,7 +22,6 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
   )
 endfunction()
-
 
 # Util functions used by add_enclave_lib and others
 function(enable_quote_code name)
@@ -73,6 +63,13 @@ function(use_oe_mbedtls name)
   target_link_libraries(${name} PRIVATE ${OE_MBEDTLS_LIBRARIES})
 endfunction()
 
+if(NOT CCF_GENERATED_DIR)
+  set(CCF_GENERATED_DIR ${CCF_DIR}/generated)
+endif()
+
+add_custom_target(flatbuffers ALL
+  DEPENDS ${CCF_GENERATED_DIR}/frame_generated.h
+)
 
 # Enclave library wrapper
 function(add_enclave_lib name)
@@ -87,7 +84,7 @@ function(add_enclave_lib name)
     add_library(${name} SHARED
       ${ENCLAVE_FILES}
       ${PARSED_ARGS_SRCS}
-      ${CMAKE_BINARY_DIR}/ccf_t.cpp
+      ${CCF_GENERATED_DIR}/ccf_t.cpp
     )
 
     target_compile_definitions(${name} PRIVATE
@@ -138,7 +135,7 @@ function(add_enclave_lib name)
     add_library(${virt_name} SHARED
       ${ENCLAVE_FILES}
       ${PARSED_ARGS_SRCS}
-      ${CMAKE_BINARY_DIR}/ccf_t.cpp
+      ${CCF_GENERATED_DIR}/ccf_t.cpp
     )
     target_compile_definitions(${virt_name} PRIVATE
       INSIDE_ENCLAVE

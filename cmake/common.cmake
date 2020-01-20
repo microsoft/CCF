@@ -92,19 +92,24 @@ endif()
 
 enable_language(ASM)
 
+set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+
 add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/frame_generated.h
-    COMMAND flatc --cpp ${CCF_DIR}/src/kv/frame.fbs
-    COMMAND flatc --python ${CCF_DIR}/src/kv/frame.fbs
+    OUTPUT ${CCF_GENERATED_DIR}/frame_generated.h
+    COMMAND flatc -o "${CCF_GENERATED_DIR}" --cpp ${CCF_DIR}/src/kv/frame.fbs
+    COMMAND flatc -o "${CCF_GENERATED_DIR}" --python ${CCF_DIR}/src/kv/frame.fbs
     DEPENDS ${CCF_DIR}/src/kv/frame.fbs
 )
 
-add_custom_target(flatbuffers ALL
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/frame_generated.h
+install(
+  FILES
+    ${CCF_GENERATED_DIR}/frame_generated.h
+  DESTINATION generated
 )
 
 include_directories(
   ${CCF_DIR}/src
+  ${CCF_GENERATED_DIR}
 )
 
 include_directories(
@@ -113,7 +118,6 @@ include_directories(
   ${CCF_DIR}/3rdparty/hacl-star
   ${MSGPACK_INCLUDE_DIR}
   ${FLATBUFFERS_INCLUDE_DIR}
-  ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 set(TARGET "sgx;virtual" CACHE STRING "One of sgx, virtual, or 'sgx;virtual'")
@@ -137,14 +141,24 @@ set(OE_LIBCXX_INCLUDE_DIR "${OE_INCLUDE_DIR}/openenclave/3rdparty/libcxx")
 set(OESIGN "${OE_BIN_DIR}/oesign")
 set(OEGEN "${OE_BIN_DIR}/oeedger8r")
 
+add_custom_command(
+    COMMAND ${OEGEN} ${CCF_DIR}/edl/ccf.edl --trusted --trusted-dir ${CCF_GENERATED_DIR} --untrusted --untrusted-dir ${CCF_GENERATED_DIR}
+    COMMAND mv ${CCF_GENERATED_DIR}/ccf_t.c ${CCF_GENERATED_DIR}/ccf_t.cpp
+    COMMAND mv ${CCF_GENERATED_DIR}/ccf_u.c ${CCF_GENERATED_DIR}/ccf_u.cpp
+    DEPENDS ${CCF_DIR}/edl/ccf.edl
+    OUTPUT ${CCF_GENERATED_DIR}/ccf_t.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
+    COMMENT "Generating code from EDL, and renaming to .cpp"
+)
+
+install(
+  FILES
+    ${CCF_GENERATED_DIR}/ccf_t.cpp
+    ${CCF_GENERATED_DIR}/ccf_t.h
+  DESTINATION generated
+)
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf.cmake DESTINATION cmake)
-
-# TODO: Should really be installing generated files, not edl
-install(
-  FILES ${CCF_DIR}/edl/ccf.edl
-  DESTINATION edl
-)
 
 # Copy utilities from tests directory
 set(CCF_UTILITIES tests.sh keygenerator.sh cimetrics_env.sh upload_pico_metrics.py scurl.sh)
