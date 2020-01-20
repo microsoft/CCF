@@ -165,13 +165,7 @@ install(
 
 if("sgx" IN_LIST TARGET)
   # If OE was built with LINK_SGX=1, then we also need to link SGX
-  # TODO: This TARGET_FILE doesn't work here
-  execute_process(COMMAND "ldd" "$<TARGET_FILE:openenclave::oesign>"
-                  COMMAND "grep" "-c" "sgx"
-                  OUTPUT_QUIET
-                  RESULT_VARIABLE OE_NO_SGX)
-
-  if(NOT OE_NO_SGX)
+  if(OE_SGX)
     message(STATUS "Linking SGX")
     set(SGX_LIBS
       sgx_enclave_common

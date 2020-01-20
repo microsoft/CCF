@@ -92,6 +92,8 @@ create_patched_enclave_lib(loggingenc
   ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
 )
 
+set(OE_SIGN_PATH ${OE_BINDIR}/oesign)
+
 if(BUILD_TESTS)
   enable_testing()
 
@@ -333,7 +335,7 @@ if(BUILD_TESTS)
         NAME governance_tests
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
         ADDITIONAL_ARGS
-          --oesign openenclave::oesign
+          --oesign ${OE_SIGN_PATH}
       )
     endif()
 
@@ -404,7 +406,7 @@ if(BUILD_TESTS)
         NAME code_update_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
         ADDITIONAL_ARGS
-          --oesign openenclave::oesign
+          --oesign ${OE_SIGN_PATH}
           --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
           --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
           # TODO: This test spins up many nodes that go through the join protocol
