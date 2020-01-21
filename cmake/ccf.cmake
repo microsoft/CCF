@@ -7,20 +7,22 @@ endif()
 
 # Sign a built enclave library with oesign
 function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
-  add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
-    COMMAND openenclave::oesign sign
-      -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so
-      -c ${app_oe_conf_path}
-      -k ${enclave_sign_key_path}
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so
-      ${app_oe_conf_path}
-      ${enclave_sign_key_path}
-  )
+  if(TARGET ${name})
+    add_custom_command(
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
+      COMMAND openenclave::oesign sign
+        -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so
+        -c ${app_oe_conf_path}
+        -k ${enclave_sign_key_path}
+      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so
+        ${app_oe_conf_path}
+        ${enclave_sign_key_path}
+    )
 
-  add_custom_target(${name}_signed ALL
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
-  )
+    add_custom_target(${name}_signed ALL
+      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
+    )
+  endif()
 endfunction()
 
 # Util functions used by add_enclave_lib and others
