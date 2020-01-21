@@ -147,6 +147,29 @@ namespace ccf
       return node_id;
     }
 
+    auto get_trusted_nodes(std::optional<NodeId> self_to_exclude = std::nullopt)
+    {
+      // Returns the list of trusted nodes. If self_to_exclude is set,
+      // self_to_exclude is not included in the list of returned nodes.
+      std::map<NodeId, NodeInfo> active_nodes;
+
+      auto [nodes_view, secrets_view] =
+        tx.get_view(tables.nodes, tables.secrets);
+
+      nodes_view->foreach([&active_nodes, self_to_exclude, this](
+                            const NodeId& nid, const NodeInfo& ni) {
+        if (
+          ni.status == ccf::NodeStatus::TRUSTED &&
+          (!self_to_exclude.has_value() || self_to_exclude.value() != nid))
+        {
+          active_nodes[nid] = ni;
+        }
+        return true;
+      });
+
+      return active_nodes;
+    }
+
     void create_service(
       const std::vector<uint8_t>& network_cert, kv::Version version = 1)
     {
@@ -160,10 +183,6 @@ namespace ccf
       return service_view->get(0).has_value();
     }
 
-    // TODO: This function is very similar to open_network() in nodestate.h
-    // Change this as part of https://github.com/microsoft/CCF/issues/320 so
-    // that this class can either take an existing Store::Tx or create a new
-    // one
     bool open_service()
     {
       auto service_view = tx.get_view(tables.service);

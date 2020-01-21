@@ -95,27 +95,40 @@ namespace ccfapp
     return JS_NULL;
   }
 
-  class JS : public ccf::UserRpcFrontend
+  class JSHandlers : public UserHandlerRegistry
   {
   private:
     NetworkTables& network;
     LogTable& log_table;
 
   public:
-    JS(NetworkTables& network, const uint16_t n_tables = 0) :
-      UserRpcFrontend(*network.tables),
+    JSHandlers(NetworkTables& network, const uint16_t n_tables = 0) :
+      UserHandlerRegistry(network),
       network(network),
       log_table(network.tables->create<LogTable>("log"))
     {
+      auto& tables = *network.tables;
 
       auto default_handler = [this](RequestArgs& args) {
+        if (args.method == UserScriptIds::ENV_HANDLER)
+        {
+          args.rpc_ctx->set_response_error(
+            jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
+            fmt::format("Cannot call environment script ('{}')", args.method));
+          return;
+        }
+
         const auto scripts = args.tx.get_view(this->network.app_scripts);
 
         auto handler_script = scripts->get(args.method);
         if (!handler_script)
-          return jsonrpc::error(
+        {
+          args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-            "No handler script found for method '" + args.method + "'");
+            fmt::format(
+              "No handler script found for method '{}'", args.method));
+          return;
+        }
 
         JSRuntime* rt = JS_NewRuntime();
         if (rt == nullptr)
@@ -131,8 +144,8 @@ namespace ccfapp
           JS_FreeRuntime(rt);
           throw std::runtime_error("Failed to initialise QuickJS context");
         }
+       
         // TODO: load modules from module table here?
-
         auto ltv = args.tx.get_view(log_table);
         JS_SetContextOpaque(ctx, (void *) ltv);
 
@@ -149,7 +162,7 @@ namespace ccfapp
         JS_SetPropertyStr(ctx, tables_, "log", log); 
         JS_SetPropertyStr(ctx, global_obj, "tables", tables_);
 
-        auto args_str = JS_NewStringLen(ctx, (const char *) args.rpc_ctx.raw.data(), args.rpc_ctx.raw.size());
+        auto args_str = JS_NewStringLen(ctx, (const char *) args.rpc_ctx->raw.data(), args.rpc_ctx->raw.size());
         JS_SetPropertyStr(ctx, global_obj, "args", args_str);
         JS_FreeValue(ctx, global_obj);
 
@@ -167,7 +180,10 @@ namespace ccfapp
 
         if (JS_IsException(val)) {
           js_dump_error(ctx);
-          status = false;
+          int err_code = jsonrpc::CCFErrorCodes::SCRIPT_ERROR;
+          std::string msg = "";
+          args.rpc_ctx->set_response_error(err_code, msg);
+          return;
         }
 
         if (JS_IsBool(val) && !JS_VALUE_GET_BOOL(val))
@@ -183,12 +199,26 @@ namespace ccfapp
         JS_FreeContext(ctx);
         JS_FreeRuntime(rt);
 
-        return make_pair(status, response);
+        args.rpc_ctx->set_response_result(std::move(response));
+        return;
       };
+
 
       // TODO: https://github.com/microsoft/CCF/issues/409
       set_default(default_handler, Write);
     }
+  };
+
+  class JS : public ccf::UserRpcFrontend
+  {
+  private:
+    JSHandlers js_handlers;
+
+  public:
+    JS(NetworkTables& network) :
+      ccf::UserRpcFrontend(*network.tables, js_handlers),
+      js_handlers(network)
+    {}
   };
 
   std::shared_ptr<enclave::RpcHandler> get_rpc_handler(

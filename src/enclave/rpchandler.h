@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/buffer.h"
-#include "enclavetypes.h"
+#include "forwardertypes.h"
 
 #include <chrono>
 #include <limits>
@@ -26,7 +26,7 @@ namespace enclave
 
     // Used by rpcendpoint to process incoming client RPCs
     virtual std::optional<std::vector<uint8_t>> process(
-      const RPCContext& ctx) = 0;
+      std::shared_ptr<RpcContext> ctx) = 0;
 
     // Used by PBFT to execute commands
     struct ProcessPbftResp
@@ -37,6 +37,7 @@ namespace enclave
       kv::Version version;
     };
 
-    virtual ProcessPbftResp process_pbft(RPCContext& ctx) = 0;
+    virtual ProcessPbftResp process_pbft(
+      std::shared_ptr<enclave::RpcContext> ctx) = 0;
   };
 }

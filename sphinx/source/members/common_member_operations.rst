@@ -6,7 +6,7 @@ Trusting a New Node
 
 As opposed to an opening network in which nodes are trusted automatically, new nodes added to an open network must be trusted by a quorum of members before becoming part of the network.
 
-When an operator starts a new node with the ``join`` option (see :ref:`Adding a New Node to the Network`), the joining node is assigned a unique node id and is recorded in state `PENDING`. Then, members can vote to accept the new node, using the unique assigned node id:
+When an operator starts a new node with the ``join`` option (see :ref:`operators/start_network:Adding a New Node to the Network`), the joining node is assigned a unique node id and is recorded in state `PENDING`. Then, members can vote to accept the new node, using the unique assigned node id:
 
 .. code-block:: bash
 
@@ -62,7 +62,7 @@ Once the proposal has been accepted, nodes running the new code are authorised t
 Accepting Recovery
 ------------------
 
-Once the public recovered network has been established by operators (see :ref:`Establishing a Recovered Public Network`), members are allowed to vote to confirm that the configuration of the new network is suitable to complete the recovery procedure.
+Once the public recovered network has been established by operators (see :ref:`operators/recovery:Establishing a Recovered Public Network`), members are allowed to vote to confirm that the configuration of the new network is suitable to complete the recovery procedure.
 
 The first member proposes to recover the network, passing the sealed network secrets file to the new network:
 
@@ -70,11 +70,6 @@ The first member proposes to recover the network, passing the sealed network sec
 
     $ memberclient --rpc-address node2_rpc_ip:node2_rpc_port --cert member1_cert.pem --privk member1_privk.pem --ca /path/to/new/network/certificate accept_recovery --sealed-secrets /path/to/sealed/secrets/file
     {"commit":100,"global_commit":99,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
-
-
-If successful, this commands returns the proposal id (here ``1``) that can be used by other members to submit their votes:
-
-.. code-block:: bash
 
     $ memberclient --rpc-address node2_rpc_ip:node2_rpc_port --cert member2_cert.pem --privk member2_privk.pem --ca /path/to/new/network/certificate vote --accept --proposal-id 1
     {"commit":102,"global_commit":101,"id":0,"jsonrpc":"2.0","result":false,"term":2}
@@ -115,3 +110,21 @@ Once a :term:`quorum` of members have agreed to recover the network, the network
         end
 
 Once the recovery of the private ledger on all the nodes that have joined the new network is complete, the ledger is fully recovered and users are able to continue issuing business transactions.
+
+Rekeying Ledger
+---------------
+
+To limit the scope of key compromise, members of the consortium can refresh the key used to encrypt the ledger. For example, rekeying can be triggered by members when existing nodes are removed from the service.
+
+.. code-block:: bash
+
+    $ memberclient --rpc-address node2_rpc_ip:node2_rpc_port --cert member1_cert.pem --privk member1_privk.pem --ca /path/to/new/network/certificate rekey_ledger
+    {"commit":100,"global_commit":99,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
+
+    $ memberclient --rpc-address node2_rpc_ip:node2_rpc_port --cert member2_cert.pem --privk member2_privk.pem --ca /path/to/new/network/certificate vote --accept --proposal-id 1
+    {"commit":102,"global_commit":101,"id":0,"jsonrpc":"2.0","result":false,"term":2}
+
+    $ memberclient --rpc-address node2_rpc_ip:node2_rpc_port --cert member3_cert.pem --privk member3_privk.pem --ca /path/to/new/network/certificate vote --accept --proposal-id 1
+    {"commit":104,"global_commit":103,"id":0,"jsonrpc":"2.0","result":true,"term":2}
+
+Once the proposal is accepted (``"result":true``), all subsequent transactions (in this case, with a ``commit`` index greater than ``104``) will be encrypted with a fresh new ledger encryption key. This key is sealed to disk once the rekey transaction is globally committed.

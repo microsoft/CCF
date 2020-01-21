@@ -12,7 +12,6 @@
 
 namespace ccfapp
 {
-  using namespace std;
   using namespace kv;
   using namespace ccf;
   using namespace lua;
@@ -95,17 +94,19 @@ namespace ccfapp
     {}
   };
 
-  class Lua : public ccf::UserRpcFrontend
+  class LuaHandlers : public UserHandlerRegistry
   {
   private:
     NetworkTables& network;
     std::unique_ptr<AppTsr> tsr;
 
   public:
-    Lua(NetworkTables& network, const uint16_t n_tables = 8) :
-      UserRpcFrontend(*network.tables),
+    LuaHandlers(NetworkTables& network, const uint16_t n_tables = 8) :
+      UserHandlerRegistry(network),
       network(network)
     {
+      auto& tables = *network.tables;
+
       // create public and private app tables (2x n_tables in total)
       std::vector<GenericTable*> app_tables(n_tables * 2);
       for (uint16_t i = 0; i < n_tables; i++)
@@ -118,20 +119,27 @@ namespace ccfapp
 
       auto default_handler = [this](RequestArgs& args) {
         if (args.method == UserScriptIds::ENV_HANDLER)
-          return jsonrpc::error(
+        {
+          args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-            "Cannot call environment script ('" + args.method + "')");
+            fmt::format("Cannot call environment script ('{}')", args.method));
+          return;
+        }
 
         const auto scripts = args.tx.get_view(this->network.app_scripts);
 
         // try find script for method
         auto handler_script = scripts->get(args.method);
         if (!handler_script)
-          return jsonrpc::error(
+        {
+          args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-            "No handler script found for method '" + args.method + "'");
+            fmt::format(
+              "No handler script found for method '{}'", args.method));
+          return;
+        }
 
-        const auto response = tsr->run<nlohmann::json>(
+        auto response = tsr->run<nlohmann::json>(
           args.tx,
           {*handler_script,
            {},
@@ -140,24 +148,45 @@ namespace ccfapp
           // vvv arguments to the script vvv
           args);
 
-        const auto err_it = response.find(jsonrpc::ERR);
+        auto err_it = response.find("error");
         if (err_it == response.end())
         {
-          const auto result_it = response.find(jsonrpc::RESULT);
+          auto result_it = response.find("result");
           if (result_it == response.end())
           {
-            // Response contains neither RESULT nor ERR. It may not even be an
+            // Response contains neither result nor error. It may not even be an
             // object. We assume the entire response is a successful result.
-            return make_pair(true, response);
+            args.rpc_ctx->set_response_result(std::move(response));
+            return;
           }
           else
           {
-            return make_pair(true, *result_it);
+            args.rpc_ctx->set_response_result(std::move(*result_it));
+            return;
           }
         }
         else
         {
-          return make_pair(false, *err_it);
+          int err_code = jsonrpc::CCFErrorCodes::SCRIPT_ERROR;
+          std::string msg = "";
+
+          if (err_it->is_object())
+          {
+            auto err_code_it = err_it->find("code");
+            if (err_code_it != err_it->end())
+            {
+              err_code = *err_code_it;
+            }
+
+            auto err_message_it = err_it->find("message");
+            if (err_message_it != err_it->end())
+            {
+              msg = *err_message_it;
+            }
+          }
+
+          args.rpc_ctx->set_response_error(err_code, msg);
+          return;
         }
       };
 
@@ -169,7 +198,7 @@ namespace ccfapp
     // supported methods here
     void list_methods(ccf::Store::Tx& tx, ListMethods::Out& out) override
     {
-      ccf::UserRpcFrontend::list_methods(tx, out);
+      UserHandlerRegistry::list_methods(tx, out);
 
       auto scripts = tx.get_view(this->network.app_scripts);
       scripts->foreach([&out](const auto& key, const auto&) {
@@ -182,9 +211,21 @@ namespace ccfapp
     }
   };
 
+  class Lua : public ccf::UserRpcFrontend
+  {
+  private:
+    LuaHandlers lua_handlers;
+
+  public:
+    Lua(NetworkTables& network) :
+      ccf::UserRpcFrontend(*network.tables, lua_handlers),
+      lua_handlers(network)
+    {}
+  };
+
   std::shared_ptr<enclave::RpcHandler> get_rpc_handler(
     NetworkTables& network, AbstractNotifier& notifier)
   {
-    return make_shared<Lua>(network);
+    return std::make_shared<Lua>(network);
   }
 } // namespace ccfapp

@@ -39,7 +39,8 @@ struct Meta_data_rep : public Message_rep
 #pragma pack(pop)
 
 static_assert(
-  sizeof(Meta_data_rep) + sizeof(Part_info) * PChildren + max_sig_size <
+  sizeof(Meta_data_rep) + sizeof(Part_info) * PChildren +
+      pbft_max_signature_size <
     Max_message_size,
   "Invalid size");
 

@@ -30,7 +30,8 @@ struct Request_rep : public Message_rep
 };
 #pragma pack(pop)
 static_assert(
-  sizeof(Request_rep) + max_sig_size < Max_message_size, "Invalid size");
+  sizeof(Request_rep) + pbft_max_signature_size < Max_message_size,
+  "Invalid size");
 
 class Request : public Message
 {

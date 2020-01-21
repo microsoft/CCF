@@ -16,9 +16,9 @@ using namespace ccf;
 
 TEST_CASE("Simple encryption/decryption")
 {
-  // Setting 1 NetworkSecret, valid for version 0+
+  // Setting 1 ledger secret, valid for version 0+
   uint64_t node_id = 0;
-  auto secrets = ccf::LedgerSecrets();
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
   auto encryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -41,8 +41,7 @@ TEST_CASE("Simple encryption/decryption")
 TEST_CASE("Two ciphers from same plaintext are different")
 {
   uint64_t node_id = 0;
-  auto secrets = ccf::LedgerSecrets();
-
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
   auto encryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -65,9 +64,9 @@ TEST_CASE("Two ciphers from same plaintext are different")
 
 TEST_CASE("Additional data")
 {
-  // Setting 1 NetworkSecret, valid for version 0+
+  // Setting 1 ledger secret, valid for version 1+
   uint64_t node_id = 0;
-  auto secrets = ccf::LedgerSecrets();
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
   auto encryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -96,15 +95,13 @@ TEST_CASE("Additional data")
   REQUIRE(decrypted_cipher2.empty());
 }
 
-TEST_CASE("Encryption/decryption with multiple network secrets")
+TEST_CASE("Encryption/decryption with multiple ledger secrets")
 {
-  // Setting 2 Network Secrets, valid from version 0 and 4
+  // Setting 2 ledger secrets, valid from version 0 and 4
   uint64_t node_id = 0;
-  auto secrets =
-    ccf::LedgerSecrets(); // Create default secrets valid from version 0
-  auto new_secret =
-    std::make_unique<ccf::LedgerSecret>(std::vector<uint8_t>(16, 0x1));
-  secrets.get_secrets().emplace(
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  auto new_secret = std::make_unique<ccf::LedgerSecret>(true);
+  secrets->get_secrets().emplace(
     4, std::move(new_secret)); // Create new secrets valid from version 4
 
   auto encryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
@@ -115,22 +112,23 @@ TEST_CASE("Encryption/decryption with multiple network secrets")
     std::vector<uint8_t> cipher;
     std::vector<uint8_t> decrypted_cipher;
     std::vector<uint8_t> serialised_header;
-    encryptor->encrypt(plain, {}, serialised_header, cipher, 0);
+    kv::Version version = 1;
+    encryptor->encrypt(plain, {}, serialised_header, cipher, version);
 
     // Decrypting from the version which was used for encryption should succeed
-    REQUIRE(
-      encryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher, 0));
+    REQUIRE(encryptor->decrypt(
+      cipher, {}, serialised_header, decrypted_cipher, version));
     REQUIRE(plain == decrypted_cipher);
 
     // Decrypting from a version in the same version interval should also
     // succeed
-    REQUIRE(
-      encryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher, 3));
+    REQUIRE(encryptor->decrypt(
+      cipher, {}, serialised_header, decrypted_cipher, version + 1));
     REQUIRE(plain == decrypted_cipher);
 
     // Decrypting from a version encrypted with a different key should fail
-    REQUIRE_FALSE(
-      encryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher, 5));
+    REQUIRE_FALSE(encryptor->decrypt(
+      cipher, {}, serialised_header, decrypted_cipher, version + 4));
   }
 
   INFO("Encryption with key at version 4");
@@ -139,21 +137,22 @@ TEST_CASE("Encryption/decryption with multiple network secrets")
     std::vector<uint8_t> cipher;
     std::vector<uint8_t> decrypted_cipher;
     std::vector<uint8_t> serialised_header;
-    encryptor->encrypt(plain, {}, serialised_header, cipher, 4);
+    kv::Version version = 4;
+    encryptor->encrypt(plain, {}, serialised_header, cipher, version);
 
     // Decrypting from the version which was used for encryption should succeed
-    REQUIRE(
-      encryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher, 4));
+    REQUIRE(encryptor->decrypt(
+      cipher, {}, serialised_header, decrypted_cipher, version));
     REQUIRE(plain == decrypted_cipher);
 
     // Decrypting from a version in the same version interval should also
     // succeed
-    REQUIRE(
-      encryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher, 5));
+    REQUIRE(encryptor->decrypt(
+      cipher, {}, serialised_header, decrypted_cipher, version + 1));
     REQUIRE(plain == decrypted_cipher);
 
     // Decrypting from a version encrypted with a different key should fail
     REQUIRE_FALSE(
-      encryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher, 0));
+      encryptor->decrypt(cipher, {}, serialised_header, decrypted_cipher, 1));
   }
 }

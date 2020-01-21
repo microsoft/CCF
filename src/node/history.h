@@ -161,12 +161,14 @@ namespace ccf
     {
       return true;
     }
+
     void add_result(
       kv::TxHistory::RequestID id,
       kv::Version version,
       const std::vector<uint8_t>& replicated,
       const std::vector<uint8_t>& all_data) override
     {}
+
     virtual void add_result(
       RequestID id,
       kv::Version version,
@@ -175,7 +177,9 @@ namespace ccf
       const uint8_t* all_data,
       size_t all_data_size) override
     {}
+
     void add_result(RequestID id, kv::Version version) override {}
+
     void add_response(
       kv::TxHistory::RequestID id,
       const std::vector<uint8_t>& response) override

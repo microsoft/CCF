@@ -11,7 +11,7 @@ namespace ccf
   struct NetworkState : public NetworkTables
   {
     std::unique_ptr<NetworkIdentity> identity;
-    std::unique_ptr<LedgerSecrets> ledger_secrets;
+    std::shared_ptr<LedgerSecrets> ledger_secrets;
 
     NetworkState(const ConsensusType& consensus_type) :
       NetworkTables(consensus_type)

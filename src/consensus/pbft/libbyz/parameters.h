@@ -5,13 +5,9 @@
 
 #pragma once
 
+#include "tls/keypair.h"
+
 #include <cstddef>
-
-// keypair parameters
-static constexpr size_t SHA512_BYTES = 512 / 8;
-
-static constexpr size_t key_size = 32; // in bytes
-static constexpr size_t signature_size = 512 / 8; // in bytes
 
 // replica parameters
 const int Max_num_replicas = 32;
@@ -30,10 +26,11 @@ const int max_out = 512;
 
 static const size_t Max_requests_in_batch = 256;
 
-static constexpr size_t max_sig_size = 64; // in bytes
-
 static const size_t num_senders = 2;
 // number of sender threads
+
+static constexpr auto pbft_max_signature_size = MBEDTLS_ECDSA_MAX_LEN;
+using PbftSignature = std::array<uint8_t, pbft_max_signature_size>;
 
 static const size_t num_receivers_replicas = 1;
 // number of threads that handle receiving messages from replicas

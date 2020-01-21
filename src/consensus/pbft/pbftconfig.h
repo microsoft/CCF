@@ -71,9 +71,9 @@ namespace pbft
       const enclave::SessionContext session(
         enclave::InvalidSessionId, request.caller_id, request.caller_cert);
       auto ctx = enclave::make_rpc_context(session, request.raw);
-      ctx.actor = (ccf::ActorsType)request.actor;
-      const auto n = ctx.method.find_last_of('/');
-      ctx.method = ctx.method.substr(n + 1, ctx.method.size());
+      ctx->actor = (ccf::ActorsType)request.actor;
+      const auto n = ctx->method.find_last_of('/');
+      ctx->method = ctx->method.substr(n + 1, ctx->method.size());
 
       auto rep = frontend->process_pbft(ctx);
 

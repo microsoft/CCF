@@ -130,6 +130,8 @@ if(BUILD_TESTS)
   add_unit_test(keyexchange_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/keyexchange.cpp)
   use_client_mbedtls(keyexchange_test)
+  target_link_libraries(keyexchange_test PRIVATE
+    secp256k1.host)
 
   add_unit_test(channels_test
     ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp)
@@ -252,9 +254,10 @@ if(BUILD_TESTS)
       NAME voting_history_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py)
 
-    # TODO: Sends an ACK via C++ memberclient, which must be signed.
+
+    # TODO: Sends an ACK via C++ memberclient, which must be signed.	    # Member client end to end tests
     # ACK should be sent from Python, AND HTTP memberclient should sign
-    if (NOT HTTP)
+      if (NOT HTTP)
       # Member client end to end tests
       add_e2e_test(
         NAME member_client_test
@@ -303,7 +306,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
       IS_SUITE TRUE
       ADDITIONAL_ARGS
-      --test-duration 100
+      --test-duration 150
       --enforce-reqs
     )
 
@@ -373,7 +376,7 @@ if(BUILD_TESTS)
           # Since oe_verify_report can take quite a long time to execute (~2s)
           # and trigger Raft elections, the election timeout should stay high
           # until https://github.com/microsoft/CCF/issues/480 is fixed
-          --election-timeout 5000
+          --election-timeout 10000
       )
     endif()
 
