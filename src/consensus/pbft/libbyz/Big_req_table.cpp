@@ -223,6 +223,8 @@ bool Big_req_table::add_unmatched(Request* r, Request*& old_req)
     centry.requests.front()->request_id() >= r->request_id())
   {
     // client is expected to send requests in request id order
+    LOG_FAIL << "client is expected to send requests in request id order"
+             << r->client_id() << std::endl;
     return false;
   }
 

@@ -13,10 +13,13 @@
 
 // the central enclave object
 static SpinLock create_lock;
-static enclave::Enclave* e;
+static std::atomic<enclave::Enclave*> e;
 static uint8_t* reserved_memory;
 std::chrono::milliseconds logger::config::ms =
   std::chrono::milliseconds::zero();
+
+enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> enclave::ThreadMessaging::worker_thread_count = 0;
 
 extern "C"
 {
@@ -52,10 +55,10 @@ extern "C"
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];
 #endif
 
-    e = new enclave::Enclave(
+    auto enclave = new enclave::Enclave(
       ec, cc.signature_intervals, consensus_type, cc.raft_config);
 
-    return e->create_new_node(
+    bool result = enclave->create_new_node(
       start_type,
       cc,
       node_cert,
@@ -67,13 +70,30 @@ extern "C"
       network_cert,
       network_cert_size,
       network_cert_len);
+    e.store(enclave);
+    return result;
   }
 
   bool enclave_run()
   {
-    if (e != nullptr)
-      return e->run();
+    uint16_t tid = enclave::ThreadMessaging::worker_thread_count.fetch_add(1);
+    tls_thread_id = tid;
+    LOG_INFO << "Starting thread" << std::endl;
+
+    if (e.load() != nullptr)
+    {
+      if (tid == 0)
+      {
+        return e.load()->run_main();
+      }
+      else
+      {
+        return e.load()->run_worker();
+      }
+    }
     else
+    {
       return false;
+    }
   }
 }

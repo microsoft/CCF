@@ -25,6 +25,7 @@ extern "C"
 #include "Timer.h"
 #include "consensus/pbft/pbfttables.h"
 #include "ds/files.h"
+#include "ds/thread_messaging.h"
 #include "host/ledger.h"
 #include "libbyz.h"
 #include "network_impl.h"
@@ -36,6 +37,8 @@ extern "C"
 using std::cerr;
 
 static const int Simple_size = 4096;
+
+enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
 
 static Timer t;
 static ITimer* test_timer;

@@ -241,6 +241,7 @@ TEST_CASE("Writing" * doctest::test_suite("oversized"))
   }
 
   messaging::BufferProcessor bp("oversized");
+  enclave::ThreadMessaging t(1);
 
   auto read_single = [&]() {
     // When reading the padding at the end of the ringbuffer, the first call to
@@ -329,7 +330,7 @@ TEST_CASE("Writing" * doctest::test_suite("oversized"))
     std::thread reader_thread([&]() {
       oversized::FragmentReconstructor fr(bp.get_dispatcher());
 
-      bp.run(rr);
+      bp.run(rr, t);
     });
 
     REQUIRE_NOTHROW(writer.write(
@@ -390,7 +391,7 @@ TEST_CASE("Writing" * doctest::test_suite("oversized"))
     std::thread reader_thread([&]() {
       oversized::FragmentReconstructor fr(bp.get_dispatcher());
 
-      bp.run(rr);
+      bp.run(rr, t);
     });
 
     const auto ascending_prior = ascending_reads;

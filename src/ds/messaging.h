@@ -5,6 +5,7 @@
 #include "logger.h"
 #include "ringbuffer.h"
 #include "spinlock.h"
+#include "thread_messaging.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -199,32 +200,37 @@ namespace messaging
       return total_read;
     };
 
-    size_t run(ringbuffer::Reader& r)
+    size_t run(ringbuffer::Reader& r, enclave::ThreadMessaging& t)
     {
       size_t total_read = 0;
+      bool print = true;
 
       while (!finished.load())
       {
         auto num_read = read_n(-1, r);
-        if (num_read == 0)
-        {
-          // TODO(#performance): If this is ever idle (the underlying
-          // buffer has no pending messages), it will spin here. With low
-          // traffic this may even be where most execution time is spent. To
-          // avoid too many wasteful spins, we should add customisable
-          // backoff behaviour here. On the host this could simply be a sleep or
-          // a wait on a condition variable, while waiting inside the enclave is
-          // more complicated (may initially spin inside, then after some
-          // attempts OCALL to sleep outside).
-          CCF_PAUSE();
-        }
-        else
+        if (num_read != 0)
         {
           total_read += num_read;
         }
+
+        bool task_run = t.run_one(print);
+        print = false;
+
+        if (num_read == 0 && !task_run)
+        {
+          // TODO(#performance): If this is ever idle (the underlying
+          // buffer has no pending messages and there are no tasks to run), it
+          // will spin here. With low traffic this may even be where most
+          // execution time is spent. To avoid too many wasteful spins, we
+          // should add customisable backoff behaviour here. On the host this
+          // could simply be a sleep or a wait on a condition variable, while
+          // waiting inside the enclave is more complicated (may initially spin
+          // inside, then after some attempts OCALL to sleep outside).
+          _mm_pause();
+        }
       }
 
-      return total_read;
+      return total_read; 
     }
   };
 
