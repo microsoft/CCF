@@ -411,7 +411,7 @@ set(CCF_NETWORK_TEST_ARGS
   --default-curve ${DEFAULT_PARTICIPANTS_CURVE}
 )
 
-# SNIPPET: Lua generic application
+# SNIPPET_START: Lua generic application
 add_enclave_lib(luagenericenc
   SRCS ${CCF_DIR}/src/apps/luageneric/luageneric.cpp
 )
@@ -419,6 +419,7 @@ sign_app_library(luagenericenc
   ${CCF_DIR}/src/apps/luageneric/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
 )
+# SNIPPET_END: Lua generic application
 
 add_enclave_lib(jsgenericenc
   SRCS ${CCF_DIR}/src/apps/jsgeneric/jsgeneric.cpp
