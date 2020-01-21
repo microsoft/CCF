@@ -1,5 +1,7 @@
 jobs:
 - job: BuildAndTest_${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.protocol }}_${{ parameters.suffix }}
+  variables:
+    skipComponentGovernanceDetection: true
   displayName: 'Build and Test ${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.protocol }} ${{ parameters.suffix }}'
   dependsOn: ${{ parameters.depends_on }}
 
