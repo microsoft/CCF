@@ -75,16 +75,22 @@ sign_app_library(loggingenc
 
 # Create patched alternative of library, to test code version changes
 function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
-  set(patched_name ${name}.patched)
-  set(patched_lib_name lib${patched_name}.so)
-  add_custom_command(
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
-      COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
-      COMMAND PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH} python3 patch_binary.py -p ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
-      WORKING_DIRECTORY ${CCF_DIR}/tests
-      DEPENDS ${name}
-  )
-  sign_app_library(${patched_name} ${app_oe_conf_path} ${enclave_sign_key_path})
+  if(TARGET ${name})
+    set(patched_name ${name}.patched)
+    set(patched_lib_name lib${patched_name}.so)
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
+        COMMAND PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH} python3 patch_binary.py -p ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
+        WORKING_DIRECTORY ${CCF_DIR}/tests
+        DEPENDS ${name}
+    )
+
+    add_custom_target(${patched_name} ALL
+      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
+    )
+    sign_app_library(${patched_name} ${app_oe_conf_path} ${enclave_sign_key_path})
+  endif()
 endfunction()
 
 create_patched_enclave_lib(loggingenc
