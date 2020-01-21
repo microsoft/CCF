@@ -120,7 +120,6 @@ function(add_enclave_lib name)
 
     if (PBFT)
       target_link_libraries(${name} PRIVATE
-        -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
         libbyz.enclave
       )
     endif()
@@ -167,7 +166,6 @@ function(add_enclave_lib name)
 
     if (PBFT)
       target_link_libraries(${virt_name} PRIVATE
-        -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
         libbyz.host
       )
     endif()
