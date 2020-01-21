@@ -230,7 +230,7 @@ namespace messaging
         }
       }
 
-      return total_read; 
+      return total_read;
     }
   };
 
