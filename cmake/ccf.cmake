@@ -1,8 +1,18 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-if((NOT "sgx" IN_LIST TARGET) AND (NOT "virtual" IN_LIST TARGET))
-  message(FATAL_ERROR "Variable list 'TARGET' must be defined and include a valid target")
+set(ALLOWED_TARGETS "sgx;virtual")
+set(IS_VALID_TARGET "FALSE")
+foreach(REQUESTED_TARGET ${TARGET})
+  if(${REQUESTED_TARGET} IN_LIST ALLOWED_TARGETS)
+    set(IS_VALID_TARGET "TRUE")
+  else()
+    message(FATAL_ERROR "${REQUESTED_TARGET} is not a valid target. Choose from: ${ALLOWED_TARGETS}")
+  endif()
+endforeach()
+
+if((NOT ${IS_VALID_TARGET}))
+  message(FATAL_ERROR "Variable list 'TARGET' must include at least one supported target. Choose from: ${ALLOWED_TARGETS}")
 endif()
 
 # Sign a built enclave library with oesign
