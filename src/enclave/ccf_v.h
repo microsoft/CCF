@@ -3,6 +3,7 @@
 #pragma once
 
 #include <dlfcn.h>
+#include <openenclave/bits/report.h>
 #include <openenclave/bits/result.h>
 #include <stdlib.h>
 #include <string.h>

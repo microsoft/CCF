@@ -20,7 +20,7 @@ void spin_pause_handler(ringbuffer::Message m, const uint8_t*, size_t)
 {
   size_t i = 0;
   while (i++ < N)
-    _mm_pause();
+    CCF_PAUSE();
 }
 
 template <size_t N>
@@ -74,7 +74,7 @@ static void write_impl(
   {
     auto read_count = r.read(-1, H);
     reads += read_count;
-    _mm_pause();
+    CCF_PAUSE();
   }
 
   s.stop_timer();
