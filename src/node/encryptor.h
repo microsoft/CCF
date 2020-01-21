@@ -128,8 +128,8 @@ namespace ccf
       {
         encryption_keys.emplace_back(EncryptionKey{
           s.first,
-          s.second->master,
-          crypto::KeyAesGcm(s.second->master),
+          s.second.master,
+          crypto::KeyAesGcm(s.second.master),
         });
       }
     }

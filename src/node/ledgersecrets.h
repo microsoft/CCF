@@ -43,22 +43,27 @@ namespace ccf
     {}
   };
 
-  class LedgerSecrets
+  struct LedgerSecrets
   {
     // Map of secrets that are valid from a specific version to the version of
     // the next entry in the map. The last entry in the map is valid for all
     // subsequent versions.
-    std::map<kv::Version, std::unique_ptr<LedgerSecret>> secrets_map;
+    std::map<kv::Version, LedgerSecret> secrets_map;
 
+    bool operator==(const LedgerSecrets& other) const
+    {
+      return secrets_map == other.secrets_map;
+    }
+
+  private:
     std::unique_ptr<AbstractSeal> seal;
-    kv::Version current_version = 0;
+    kv::Version current_version = 0; // TODO: This should go
 
-    void add_secret(
-      kv::Version v, std::unique_ptr<LedgerSecret>&& secret, bool force_seal)
+    void add_secret(kv::Version v, LedgerSecret&& secret, bool force_seal)
     {
       if (seal && force_seal)
       {
-        if (!seal->seal(v, secret->master))
+        if (!seal->seal(v, secret.master))
         {
           throw std::logic_error(
             fmt::format("Ledger secret could not be sealed: {}", v));
@@ -76,8 +81,7 @@ namespace ccf
       seal(std::move(seal_))
     {
       // Generate fresh ledger encryption key
-      auto new_secret = std::make_unique<LedgerSecret>(true);
-      add_secret(1, std::move(new_secret), force_seal);
+      add_secret(1, LedgerSecret(true), force_seal);
     }
 
     // Called when a node joins the network and get given the current ledger
@@ -89,12 +93,11 @@ namespace ccf
       bool force_seal = true) :
       seal(std::move(seal_))
     {
-      auto new_secret = std::make_unique<LedgerSecret>(secret);
-      add_secret(v, std::move(new_secret), force_seal);
+      add_secret(v, LedgerSecret(secret), force_seal);
     }
 
     // Called when a backup is given past ledger secret via the store
-    bool set_secret(kv::Version v, const std::vector<uint8_t>& secret)
+    bool set_secret(kv::Version v, const std::vector<uint8_t>& raw_secret)
     {
       auto search = secrets_map.find(v);
       if (search != secrets_map.end())
@@ -103,8 +106,7 @@ namespace ccf
         return false;
       }
 
-      auto new_secret = std::make_unique<LedgerSecret>(secret);
-      add_secret(v, std::move(new_secret), false);
+      add_secret(v, LedgerSecret(raw_secret), false);
 
       return true;
     }
@@ -118,7 +120,6 @@ namespace ccf
       {
         kv::Version v = std::stoi(it.key());
 
-        // Make sure that the secret to store does not already exist
         auto search = secrets_map.find(v);
         if (search != secrets_map.end())
         {
@@ -126,7 +127,6 @@ namespace ccf
             "Cannot restore ledger secret that already exists: ", v));
         }
 
-        // Unseal each sealed secret
         auto s = seal->unseal(it.value());
         if (!s.has_value())
         {
@@ -137,8 +137,7 @@ namespace ccf
         LOG_DEBUG_FMT(
           "Ledger secret successfully unsealed at version {}", it.key());
 
-        auto new_secret = std::make_unique<LedgerSecret>(s.value());
-        add_secret(v, std::move(new_secret), false);
+        add_secret(v, LedgerSecret(s.value()), false);
 
         restored_versions.push_back(v);
       }
@@ -199,7 +198,7 @@ namespace ccf
           fmt::format("Ledger secret to seal does not exist: {}", v));
       }
 
-      if (!seal->seal(search->first, search->second->master))
+      if (!seal->seal(search->first, search->second.master))
       {
         throw std::logic_error(
           fmt::format("Ledger secret could not be sealed: {}", search->first));
@@ -214,9 +213,10 @@ namespace ccf
       }
     }
 
+    // TODO: This should go as only required by nodefrontend.h
     const LedgerSecret& get_current()
     {
-      return *secrets_map.at(current_version).get();
+      return secrets_map.at(current_version);
     }
 
     std::optional<LedgerSecret> get_secret(kv::Version v)
@@ -228,17 +228,25 @@ namespace ccf
         return {};
       }
 
-      return *search->second.get();
+      return search->second;
     }
 
-    std::map<kv::Version, std::unique_ptr<LedgerSecret>>& get_secrets()
+    auto& get_secrets()
     {
       return secrets_map;
     }
 
+    // TODO: This should go as only required by nodefrontend.h
     kv::Version get_current_version()
     {
       return current_version;
     }
   };
+
+  // TODO: Move to serialization.h
+  DECLARE_JSON_TYPE(LedgerSecret)
+  DECLARE_JSON_REQUIRED_FIELDS(LedgerSecret, master)
+
+  DECLARE_JSON_TYPE(LedgerSecrets)
+  DECLARE_JSON_REQUIRED_FIELDS(LedgerSecrets, secrets_map)
 }

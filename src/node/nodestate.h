@@ -448,25 +448,25 @@ namespace ccf
           // Set network secrets, node id and become part of network.
           if (resp->node_status == NodeStatus::TRUSTED)
           {
-            // TODO: This logic needs to change to support late join after
-            // rekeying/recovery. https://github.com/microsoft/CCF/issues/315
-
             // If the current network secrets do not apply since the genesis,
             // the joining node can only join the public network
-            bool public_only = (resp->network_info.version != 1);
+            bool public_only = (0 != 1); // TODO:
 
             network.identity =
               std::make_unique<NetworkIdentity>(resp->network_info.identity);
 
             LOG_INFO_FMT(
               "Joining at version {}, public_only: {}",
-              resp->network_info.version,
+              0, // TODO:
               public_only);
+
+            // TODO: Initialise LedgerSecrets with the vector of network secrets
+            // passed by primary
 
             // In a private network, seal secrets immediately.
             network.ledger_secrets = std::make_unique<LedgerSecrets>(
-              resp->network_info.version,
-              resp->network_info.ledger_secrets,
+              0, // TODO:
+              LedgerSecret(), // TODO:
               std::make_unique<Seal>(writer_factory),
               !public_only);
 

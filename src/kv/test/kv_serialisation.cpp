@@ -65,6 +65,16 @@ namespace std
 DECLARE_JSON_TYPE(CustomClass)
 DECLARE_JSON_REQUIRED_FIELDS(CustomClass, m_i)
 
+TEST_CASE("Test")
+{
+  LedgerSecrets ls;
+  ls.set_secret(5, std::vector<uint8_t>(16));
+  ls.set_secret(6, std::vector<uint8_t>(16));
+  ls.set_secret(7, std::vector<uint8_t>(16));
+
+  std::cout << nlohmann::json(ls).dump() << std::endl;
+}
+
 TEST_CASE(
   "Serialise/deserialise public map only" *
   doctest::test_suite("serialisation"))
