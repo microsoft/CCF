@@ -481,7 +481,7 @@ function(add_e2e_test)
       TEST ${PARSED_ARGS_NAME}
       APPEND
       PROPERTY
-        ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
+        ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:${CCF_GENERATED_DIR}:$ENV{PYTHONPATH}"
     )
     if (${PARSED_ARGS_IS_SUITE})
       set_property(
