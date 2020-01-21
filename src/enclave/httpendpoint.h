@@ -82,6 +82,8 @@ namespace enclave
     std::shared_ptr<RpcHandler> handler;
     size_t session_id;
 
+    size_t request_index = 0;
+
   public:
     HTTPServerEndpoint(
       std::shared_ptr<RPCMap> rpc_map,
@@ -198,15 +200,15 @@ namespace enclave
         if (!search.value()->is_open())
         {
           send_response(
-            fmt::format("Session '{}' is not open.\n", actor),
+            fmt::format("Session '{}' is not open.\n", actor_s),
             HTTP_STATUS_NOT_FOUND);
           return;
         }
 
         const SessionContext session(session_id, peer_cert());
-        RPCContext rpc_ctx(session);
+        std::optional<jsonrpc::Pack> pack;
 
-        auto [success, json_rpc] = jsonrpc::unpack_rpc(body, rpc_ctx.pack);
+        auto [success, json_rpc] = jsonrpc::unpack_rpc(body, pack);
         if (!success)
         {
           send_response(
@@ -214,34 +216,35 @@ namespace enclave
           return;
         }
 
-        parse_rpc_context(rpc_ctx, json_rpc);
+        auto rpc_ctx =
+          std::make_shared<JsonRpcContext>(session, pack.value(), json_rpc);
+        rpc_ctx->set_request_index(request_index++);
 
-        // TODO: For now, set this here as parse_rpc_context() resets
-        // rpc_ctx.signed_request for a HTTP endpoint.
+        // TODO: For now, set this here
         auto signed_req = http::HttpSignatureVerifier::parse(
           std::string(http_method_str(verb)), path, query, headers, body);
         if (signed_req.has_value())
         {
-          rpc_ctx.signed_request = signed_req;
+          rpc_ctx->signed_request = signed_req;
         }
 
         // TODO: This is temporary; while we have a full RPC object inside the
         // body, it should match the dispatch details specified in the URI
         const auto expected = fmt::format("{}/{}", actor_s, method_s);
-        if (rpc_ctx.method != expected)
+        if (rpc_ctx->method != expected)
         {
           send_response(
             fmt::format(
               "RPC method must match path ('{}' != '{}').\n",
               expected,
-              rpc_ctx.method),
+              rpc_ctx->method),
             HTTP_STATUS_BAD_REQUEST);
           return;
         }
 
-        rpc_ctx.raw = body; // TODO: This is insufficient, need entire request
-        rpc_ctx.method = method_s;
-        rpc_ctx.actor = actor;
+        rpc_ctx->raw = body; // TODO: This is insufficient, need entire request
+        rpc_ctx->method = method_s;
+        rpc_ctx->actor = actor;
 
         auto response = search.value()->process(rpc_ctx);
 

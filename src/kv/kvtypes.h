@@ -93,7 +93,7 @@ namespace kv
     using RequestID = std::tuple<
       size_t /* Caller ID */,
       size_t /* Client Session ID */,
-      size_t /* JSON-RPC sequence number */>;
+      size_t /* Request sequence number */>;
 
     struct RequestCallbackArgs
     {

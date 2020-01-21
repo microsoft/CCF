@@ -30,7 +30,7 @@ namespace ccf
     static constexpr auto NODES = "nodes";
   };
 
-  enum ActorsType : uint64_t
+  enum class ActorsType : uint64_t
   {
     members = 0,
     users,

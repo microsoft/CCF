@@ -99,11 +99,11 @@ auto init_frontend(
   const auto env_script = R"xxx(
     return {
       __environment = [[
-        function env.jsucc (result)
+        function env.succ (result)
           return {result = result}
         end
 
-        function env.jerr (code, message)
+        function env.err (code, message)
           return {error = {code = code, message = message}}
         end
       ]]
@@ -137,12 +137,12 @@ void check_store_load(F frontend, K k, V v)
 
   // store
   const auto store_packed = make_pc("store", {{"k", k}, {"v", v}});
-  const auto store_ctx = enclave::make_rpc_context(user_session, store_packed);
+  auto store_ctx = enclave::make_rpc_context(user_session, store_packed);
   check_success(frontend->process(store_ctx).value(), true);
 
   // load and check that we get the right result
   const auto load_packed = make_pc("load", {{"k", k}});
-  const auto load_ctx = enclave::make_rpc_context(user_session, load_packed);
+  auto load_ctx = enclave::make_rpc_context(user_session, load_packed);
   check_success(frontend->process(load_ctx).value(), v);
 }
 
@@ -178,7 +178,7 @@ TEST_CASE("simple lua apps")
 
     // call "missing"
     const auto packed = make_pc("missing", {});
-    const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+    auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
     const auto response = check_error(
       frontend->process(rpc_ctx).value(), CCFErrorCodes::SCRIPT_ERROR);
     const auto error_msg = response[ERR][MESSAGE].get<string>();
@@ -189,14 +189,14 @@ TEST_CASE("simple lua apps")
   {
     constexpr auto app = R"xxx(
       tables, gov_tables, args = ...
-      return env.jsucc(args.params.verb)
+      return env.succ(args.params.verb)
     )xxx";
     set_handler(network, "echo", {app});
 
     // call "echo" function with "hello"
     const string verb = "hello";
     const auto packed = make_pc("echo", {{"verb", verb}});
-    const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+    auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
     check_success(frontend->process(rpc_ctx).value(), verb);
   }
 
@@ -205,7 +205,7 @@ TEST_CASE("simple lua apps")
     constexpr auto store = R"xxx(
       tables, gov_tables, args = ...
       local r = tables.priv0:put(args.params.k, args.params.v)
-      return env.jsucc(r)
+      return env.succ(r)
     )xxx";
     set_handler(network, "store", {store});
 
@@ -213,9 +213,9 @@ TEST_CASE("simple lua apps")
       tables, gov_tables, args = ...
       local v = tables.priv0:get(args.params.k)
       if not v then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "key does not exist")
+        return env.err(env.error_codes.INVALID_PARAMS, "key does not exist")
       end
-      return env.jsucc(v)
+      return env.succ(v)
     )xxx";
     set_handler(network, "load", {load});
 
@@ -235,7 +235,7 @@ TEST_CASE("simple lua apps")
 
     // (3) attempt to read non-existing key (set of integers)
     const auto packed = make_pc("load", {{"k", set{5, 6, 7}}});
-    const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+    auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
     check_error(
       frontend->process(rpc_ctx).value(), StandardErrorCodes::INVALID_PARAMS);
   }
@@ -248,20 +248,20 @@ TEST_CASE("simple lua apps")
       gov_tables["ccf.members"]:foreach(
         function(k, v) members[tostring(k)] = v end
       )
-      return env.jsucc(members)
+      return env.succ(members)
     )xxx";
     set_handler(network, "get_members", {get_members});
 
     // Not allowed to call put() on read-only gov_tables
     constexpr auto put_member = R"xxx(
       tables, gov_tables, args = ...
-      return env.jsucc(gov_tables["ccf.members"]:put(args.params.k, args.params.v))
+      return env.succ(gov_tables["ccf.members"]:put(args.params.k, args.params.v))
     )xxx";
     set_handler(network, "put_member", {put_member});
 
     // (1) read out members table
     const auto packed = make_pc("get_members", {});
-    const auto get_ctx = enclave::make_rpc_context(user_session, packed);
+    auto get_ctx = enclave::make_rpc_context(user_session, packed);
     // expect to see 3 members in state active
     map<string, MemberInfo> expected = {{"0", {{}, MemberStatus::ACTIVE}},
                                         {"1", {{}, MemberStatus::ACTIVE}},
@@ -271,7 +271,7 @@ TEST_CASE("simple lua apps")
     // (2) try to write to members table
     const auto put_packed = make_pc(
       "put_member", {{"k", 99}, {"v", MemberInfo{{}, MemberStatus::ACTIVE}}});
-    const auto put_ctx = enclave::make_rpc_context(user_session, put_packed);
+    auto put_ctx = enclave::make_rpc_context(user_session, put_packed);
     check_error(
       frontend->process(put_ctx).value(), CCFErrorCodes::SCRIPT_ERROR);
   }
@@ -297,11 +297,11 @@ TEST_CASE("simple bank")
     tables, gov_tables, args = ...
     local dst = args.params.dst
     if tables.priv0:get(dst) then
-      return env.jerr(env.error_codes.INVALID_PARAMS, "account already exists")
+      return env.err(env.error_codes.INVALID_PARAMS, "account already exists")
     end
 
     tables.priv0:put(dst, args.params.amt)
-    return env.jsucc(true)
+    return env.succ(true)
   )xxx";
   set_handler(network, create_method, {create});
 
@@ -311,11 +311,11 @@ TEST_CASE("simple bank")
     local acc = args.params.account
     local amt = tables.priv0:get(acc)
     if not amt then
-      return env.jerr(
+      return env.err(
         env.error_codes.INVALID_PARAMS, "account " .. acc .. " does not exist")
     end
 
-    return env.jsucc(amt)
+    return env.succ(amt)
   )xxx";
   set_handler(network, read_method, {read});
 
@@ -326,55 +326,53 @@ TEST_CASE("simple bank")
     local dst = args.params.dst
     local src_n = tables.priv0:get(src)
     if not src_n then
-      return env.jerr(
+      return env.err(
         env.error_codes.INVALID_PARAMS, "source account does not exist")
     end
 
     local dst_n = tables.priv0:get(dst)
     if not dst_n then
-      return env.jerr(
+      return env.err(
         env.error_codes.INVALID_PARAMS, "destination account does not exist")
     end
 
     local amt = args.params.amt
     if src_n < amt then
-      return env.jerr(env.error_codes.INVALID_PARAMS, "insufficient funds")
+      return env.err(env.error_codes.INVALID_PARAMS, "insufficient funds")
     end
 
     tables.priv0:put(src, src_n - amt)
     tables.priv0:put(dst, dst_n + amt)
 
-    return env.jsucc(true)
+    return env.succ(true)
   )xxx";
   set_handler(network, transfer_method, {transfer});
 
   {
     const auto create_packed =
       make_pc(create_method, {{"dst", 1}, {"amt", 123}});
-    const auto create_ctx =
-      enclave::make_rpc_context(user_session, create_packed);
+    auto create_ctx = enclave::make_rpc_context(user_session, create_packed);
     check_success<bool>(frontend->process(create_ctx).value(), true);
 
     const auto read_packed = make_pc(read_method, {{"account", 1}});
-    const auto read_ctx = enclave::make_rpc_context(user_session, read_packed);
+    auto read_ctx = enclave::make_rpc_context(user_session, read_packed);
     check_success(frontend->process(read_ctx).value(), 123);
   }
 
   {
     const auto create_packed =
       make_pc(create_method, {{"dst", 2}, {"amt", 999}});
-    const auto create_ctx =
-      enclave::make_rpc_context(user_session, create_packed);
+    auto create_ctx = enclave::make_rpc_context(user_session, create_packed);
     check_success<bool>(frontend->process(create_ctx).value(), true);
 
     const auto read_packed = make_pc(read_method, {{"account", 2}});
-    const auto read_ctx = enclave::make_rpc_context(user_session, read_packed);
+    auto read_ctx = enclave::make_rpc_context(user_session, read_packed);
     check_success(frontend->process(read_ctx).value(), 999);
   }
 
   {
     const auto read_packed = make_pc(read_method, {{"account", 3}});
-    const auto read_ctx = enclave::make_rpc_context(user_session, read_packed);
+    auto read_ctx = enclave::make_rpc_context(user_session, read_packed);
     check_error(
       frontend->process(read_ctx).value(), StandardErrorCodes::INVALID_PARAMS);
   }
@@ -382,18 +380,16 @@ TEST_CASE("simple bank")
   {
     const auto transfer_packed =
       make_pc(transfer_method, {{"src", 1}, {"dst", 2}, {"amt", 5}});
-    const auto transfer_ctx =
+    auto transfer_ctx =
       enclave::make_rpc_context(user_session, transfer_packed);
     check_success<bool>(frontend->process(transfer_ctx).value(), true);
 
     const auto read1_packed = make_pc(read_method, {{"account", 1}});
-    const auto read1_ctx =
-      enclave::make_rpc_context(user_session, read1_packed);
+    auto read1_ctx = enclave::make_rpc_context(user_session, read1_packed);
     check_success(frontend->process(read1_ctx).value(), 123 - 5);
 
     const auto read2_packed = make_pc(read_method, {{"account", 2}});
-    const auto read2_ctx =
-      enclave::make_rpc_context(user_session, read2_packed);
+    auto read2_ctx = enclave::make_rpc_context(user_session, read2_packed);
     check_success(frontend->process(read2_ctx).value(), 999 + 5);
   }
 }
@@ -418,13 +414,13 @@ TEST_CASE("pre-populated environment")
     constexpr auto log_trace = R"xxx(
       LOG_TRACE("Logging trace message from Lua")
       LOG_TRACE("Concatenating ", 3, " args")
-      return env.jsucc(true)
+      return env.succ(true)
     )xxx";
     set_handler(network, log_trace_method, {log_trace});
 
     {
       const auto packed = make_pc(log_trace_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
       check_success(frontend->process(rpc_ctx).value(), true);
     }
 
@@ -432,13 +428,13 @@ TEST_CASE("pre-populated environment")
     constexpr auto log_debug = R"xxx(
       LOG_DEBUG("Logging debug message from Lua")
       LOG_DEBUG("Concatenating ", 3, " args")
-      return env.jsucc(true)
+      return env.succ(true)
     )xxx";
     set_handler(network, log_debug_method, {log_debug});
 
     {
       const auto packed = make_pc(log_debug_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
       check_success(frontend->process(rpc_ctx).value(), true);
     }
 
@@ -446,13 +442,13 @@ TEST_CASE("pre-populated environment")
     constexpr auto log_info = R"xxx(
       LOG_INFO("Logging state message from Lua")
       LOG_INFO("Concatenating ", 3, " args")
-      return env.jsucc(true)
+      return env.succ(true)
     )xxx";
     set_handler(network, log_info_method, {log_info});
 
     {
       const auto packed = make_pc(log_info_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
       check_success(frontend->process(rpc_ctx).value(), true);
     }
 
@@ -460,26 +456,26 @@ TEST_CASE("pre-populated environment")
     constexpr auto log_fail = R"xxx(
       LOG_FAIL("Logging failures from Lua")
       LOG_FAIL("Concatenating ", 3, " args")
-      return env.jsucc(true)
+      return env.succ(true)
     )xxx";
     set_handler(network, log_fail_method, {log_fail});
 
     {
       const auto packed = make_pc(log_fail_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
       check_success(frontend->process(rpc_ctx).value(), true);
     }
 
     constexpr auto log_fatal_method = "log_fatal";
     constexpr auto log_fatal = R"xxx(
       LOG_FATAL("Logging a fatal error, raising an error")
-      return env.jsucc(true)
+      return env.succ(true)
     )xxx";
     set_handler(network, log_fatal_method, {log_fatal});
 
     {
       const auto packed = make_pc(log_fatal_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
       check_error(
         frontend->process(rpc_ctx).value(),
         jsonrpc::StandardErrorCodes::INTERNAL_ERROR);
@@ -490,7 +486,7 @@ TEST_CASE("pre-populated environment")
     set_handler(network, log_throws_nil_method, {log_throws_nil});
     {
       const auto packed = make_pc(log_throws_nil_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
       check_error(
         frontend->process(rpc_ctx).value(),
         jsonrpc::StandardErrorCodes::INTERNAL_ERROR);
@@ -502,7 +498,7 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto packed = make_pc(log_throws_bool_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
       check_error(
         frontend->process(rpc_ctx).value(),
         jsonrpc::StandardErrorCodes::INTERNAL_ERROR);
@@ -510,12 +506,12 @@ TEST_CASE("pre-populated environment")
 
     constexpr auto log_no_throw_method = "log_no_throw";
     constexpr auto log_no_throw =
-      "LOG_INFO(tostring(nil), tostring(true)); return env.jsucc(true)";
+      "LOG_INFO(tostring(nil), tostring(true)); return env.succ(true)";
     set_handler(network, log_no_throw_method, {log_no_throw});
 
     {
       const auto packed = make_pc(log_no_throw_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
       check_success(frontend->process(rpc_ctx).value(), true);
     }
   }
@@ -524,7 +520,7 @@ TEST_CASE("pre-populated environment")
     // Test Lua sees the correct error codes by returning them from RPC
     constexpr auto invalid_params_method = "invalid_params";
     constexpr auto invalid_params = R"xxx(
-      return env.jsucc(
+      return env.succ(
         {
           env.error_codes.PARSE_ERROR,
           env.error_codes.INVALID_REQUEST,
@@ -555,7 +551,7 @@ TEST_CASE("pre-populated environment")
       using StdEC = jsonrpc::StandardErrorCodes;
       using CCFEC = jsonrpc::CCFErrorCodes;
       const auto packed = make_pc(invalid_params_method, {});
-      const auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
       const Response<std::vector<EBT>> r =
         json::from_msgpack(frontend->process(rpc_ctx).value());
 
