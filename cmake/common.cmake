@@ -336,7 +336,7 @@ if("virtual" IN_LIST TARGET)
   target_compile_options(cchost.virtual PRIVATE -stdlib=libc++)
   target_include_directories(cchost.virtual PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
-    ${OE_INCLUDEDIR} # OE includes are available, but should be used sparingly
+    ${OE_INCLUDEDIR}
   )
   add_san(cchost.virtual)
   enable_coverage(cchost.virtual)
