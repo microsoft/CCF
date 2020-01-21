@@ -20,24 +20,19 @@ namespace ccfapp
   {
     int i;
     const char* str;
-    auto level = logger::INFO;
+    std::stringstream ss;
 
-    if (logger::config::ok(level))
+    for (i = 0; i < argc; i++)
     {
-      auto os = logger::LogLine(level, __FILE__, __LINE__);
-      for (i = 0; i < argc; i++)
-      {
-        if (i != 0)
-          os << ' ';
-        str = JS_ToCString(ctx, argv[i]);
-        if (!str)
-          return JS_EXCEPTION;
-        os << str;
-        JS_FreeCString(ctx, str);
-      }
-      os << std::endl;
-      auto _ = logger::Out() == os;
+      if (i != 0)
+        ss << ' ';
+      str = JS_ToCString(ctx, argv[i]);
+      if (!str)
+        return JS_EXCEPTION;
+      ss << str;
+      JS_FreeCString(ctx, str);
     }
+    LOG_INFO_FMT(ss.str());
     return JS_UNDEFINED;
   }
 
@@ -105,7 +100,7 @@ namespace ccfapp
     LogTable& log_table;
 
   public:
-    JSHandlers(NetworkTables& network, const uint16_t n_tables = 0) :
+    JSHandlers(NetworkTables& network) :
       UserHandlerRegistry(network),
       network(network),
       log_table(network.tables->create<LogTable>("log"))
