@@ -226,7 +226,7 @@ namespace messaging
           // could simply be a sleep or a wait on a condition variable, while
           // waiting inside the enclave is more complicated (may initially spin
           // inside, then after some attempts OCALL to sleep outside).
-          _mm_pause();
+          CCF_PAUSE();
         }
       }
 
