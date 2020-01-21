@@ -370,7 +370,6 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       ADDITIONAL_ARGS
         --js-app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/loggingjs.lua
-      CURL_CLIENT TRUE
     )
 
     add_e2e_test(
