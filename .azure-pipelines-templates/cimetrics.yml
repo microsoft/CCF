@@ -1,3 +1,6 @@
+variables:
+  skipComponentGovernanceDetection: true
+
 jobs:
 - job: CIMetrics
   displayName: 'CI Metrics'
