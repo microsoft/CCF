@@ -5,11 +5,25 @@ cmake_minimum_required(VERSION 3.11)
 set(CCF_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 include(${CCF_DIR}/cmake/preproject.cmake)
 
-project(ccf C CXX)
+project(ccf
+  VERSION 0.6
+  LANGUAGES C CXX)
 
 set(TESTS_SUFFIX $ENV{TESTS_SUFFIX})
 message(STATUS "Setting TESTS_SUFFIX on performance tests to '${TESTS_SUFFIX}'")
 set(ENV{BETTER_EXCEPTIONS} 1)
+
+# Set the default install prefix for CCF. Users may override this value
+# with the cmake command. For example:
+#
+#     $ cmake -DCMAKE_INSTALL_PREFIX=/opt/myplace ..
+#
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  set(CMAKE_INSTALL_PREFIX
+    "/opt/ccf/ccf-${PROJECT_VERSION}" CACHE PATH "Default install prefix" FORCE)
+endif()
+
+message(STATUS "CMAKE_INSTALL_PREFIX is '${CMAKE_INSTALL_PREFIX}'")
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
@@ -39,12 +53,41 @@ target_link_libraries(logging_client PRIVATE
 )
 
 add_enclave_lib(loggingenc
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
   SRCS
     src/apps/logging/logging.cpp
     src/apps/logging/stub_for_code_signing.cpp
 )
+sign_app_library(loggingenc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+)
+
+# Create patched alternative of library, to test code version changes
+function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
+  if(TARGET ${name})
+    set(patched_name ${name}.patched)
+    set(patched_lib_name lib${patched_name}.so)
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
+        COMMAND PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH} python3 patch_binary.py -p ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
+        WORKING_DIRECTORY ${CCF_DIR}/tests
+        DEPENDS ${name}
+    )
+
+    add_custom_target(${patched_name} ALL
+      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
+    )
+    sign_app_library(${patched_name} ${app_oe_conf_path} ${enclave_sign_key_path})
+  endif()
+endfunction()
+
+create_patched_enclave_lib(loggingenc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+)
+
+set(OE_SIGN_PATH ${OE_BINDIR}/oesign)
 
 if(BUILD_TESTS)
   enable_testing()
@@ -290,7 +333,7 @@ if(BUILD_TESTS)
         NAME governance_tests
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
         ADDITIONAL_ARGS
-          --oesign ${OESIGN}
+          --oesign ${OE_SIGN_PATH}
       )
     endif()
 
@@ -361,7 +404,7 @@ if(BUILD_TESTS)
         NAME code_update_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
         ADDITIONAL_ARGS
-          --oesign ${OESIGN}
+          --oesign ${OE_SIGN_PATH}
           --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
           --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
           # TODO: This test spins up many nodes that go through the join protocol
