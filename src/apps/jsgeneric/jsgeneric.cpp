@@ -207,6 +207,19 @@ namespace ccfapp
       // TODO: https://github.com/microsoft/CCF/issues/409
       set_default(default_handler, Write);
     }
+
+    // Since we do our own dispatch within the default handler, report the
+    // supported methods here
+    void list_methods(ccf::Store::Tx& tx, ListMethods::Out& out) override
+    {
+      UserHandlerRegistry::list_methods(tx, out);
+
+      auto scripts = tx.get_view(this->network.app_scripts);
+      scripts->foreach([&out](const auto& key, const auto&) {
+          out.methods.push_back(key);
+        return true;
+      });
+    }
   };
 
   class JS : public ccf::UserRpcFrontend
