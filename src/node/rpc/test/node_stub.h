@@ -8,6 +8,10 @@ namespace ccf
 {
   class StubNodeState : public ccf::AbstractNodeState
   {
+  private:
+    bool is_public = false;
+
+  public:
     bool finish_recovery(Store::Tx& tx, const nlohmann::json& args) override
     {
       return true;
@@ -25,7 +29,7 @@ namespace ccf
 
     bool is_part_of_public_network() const override
     {
-      return true;
+      return is_public;
     }
 
     bool is_primary() const override
@@ -49,6 +53,11 @@ namespace ccf
     }
 
     void node_quotes(Store::Tx& tx, GetQuotes::Out& result) override {}
+
+    void set_is_public(bool is_public_)
+    {
+      is_public = is_public_;
+    }
   };
 
   class StubNotifier : public ccf::AbstractNotifier

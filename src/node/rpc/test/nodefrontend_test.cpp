@@ -108,6 +108,7 @@ TEST_CASE("Add a node to an opening service")
       response->network_info.ledger_secrets == *network.ledger_secrets.get());
     CHECK(response->network_info.identity == *network.identity.get());
     CHECK(response->node_status == NodeStatus::TRUSTED);
+    CHECK(response->public_only == false);
 
     Store::Tx tx;
     const NodeId node_id = response->node_id;
@@ -161,6 +162,7 @@ TEST_CASE("Add a node to an open service")
   gen.init_values();
 
   StubNodeState node;
+  node.set_is_public(true);
   NodeRpcFrontend frontend(network, node);
   frontend.open();
 
@@ -244,6 +246,7 @@ TEST_CASE("Add a node to an open service")
       response->network_info.ledger_secrets == *network.ledger_secrets.get());
     CHECK(response->network_info.identity == *network.identity.get());
     CHECK(response->node_status == NodeStatus::TRUSTED);
+    CHECK(response->public_only == true);
   }
 }
 
