@@ -58,10 +58,7 @@ if("sgx" IN_LIST TARGET)
   set_property(TARGET libbyz.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
   target_include_directories(libbyz.enclave PRIVATE
     ${CCF_DIR}/src/ds
-    ${OE_INCLUDE_DIR}
-    ${OE_LIBCXX_INCLUDE_DIR}
-    ${OE_LIBC_INCLUDE_DIR}
-    ${OE_TP_INCLUDE_DIR}
+    openenclave::oelibc
     ${PARSED_ARGS_INCLUDE_DIRS}
     ${EVERCRYPT_INC}
   )
@@ -85,6 +82,7 @@ if("virtual" IN_LIST TARGET)
   target_compile_options(libbyz.host PRIVATE -stdlib=libc++)
   set_property(TARGET libbyz.host PROPERTY POSITION_INDEPENDENT_CODE ON)
   target_include_directories(libbyz.host PRIVATE SYSTEM ${EVERCRYPT_INC})
+  target_link_libraries(libbyz.host PRIVATE secp256k1.host)
   use_client_mbedtls(libbyz.host)
   add_dependencies(libbyz.host flatbuffers)
 
@@ -167,7 +165,7 @@ if("virtual" IN_LIST TARGET)
   add_unit_test(test_ledger_replay
       ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/test_ledger_replay.cpp)
   target_include_directories(test_ledger_replay PRIVATE ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/mocks)
-  target_link_libraries(test_ledger_replay PRIVATE libcommontest.mock secp256k1.host)
+  target_link_libraries(test_ledger_replay PRIVATE libcommontest.mock)
   use_libbyz(test_ledger_replay)
   add_san(test_ledger_replay)
 
