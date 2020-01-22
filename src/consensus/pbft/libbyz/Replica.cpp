@@ -279,6 +279,7 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
   // TODO: remove this memcpy
   memcpy(m->contents(), data, size);
 
+/*
   if (enclave::ThreadMessaging::worker_thread_count != 0)
   {
     if (m->tag() == Request_tag)
@@ -293,6 +294,7 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
         (uint16_t)1, enclave::ThreadMessaging::worker_thread_count.load());
     }
   }
+  */
 
   if (f() != 0 && target_thread != 0)
   {
