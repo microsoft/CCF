@@ -75,12 +75,14 @@ namespace ccf
     struct Out
     {
       // TODO: Add a public only bool here
+      // bool public_only;
       NodeStatus node_status;
       NodeId node_id;
 
       struct NetworkInfo
       {
-        LedgerSecrets ledger_secrets;
+        // size_t ledger_secrets;
+        LedgerSecrets ledger_secrets = {};
         NetworkIdentity identity;
 
         bool operator==(const NetworkInfo& other) const
@@ -93,6 +95,8 @@ namespace ccf
         {
           return !(*this == other);
         }
+
+        NetworkInfo() = default;
       };
       NetworkInfo network_info;
     };

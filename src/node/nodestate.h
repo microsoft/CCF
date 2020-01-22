@@ -179,6 +179,8 @@ namespace ccf
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
+    std::shared_ptr<Seal> seal;
+
     //
     // join protocol
     //
@@ -215,7 +217,8 @@ namespace ccf
       network(network),
       rpcsessions(rpcsessions),
       notifier(notifier),
-      timers(timers)
+      timers(timers),
+      seal(std::make_shared<Seal>(writer_factory))
     {
       ::EverCrypt_AutoConfig2_init();
     }
@@ -331,8 +334,7 @@ namespace ccf
         {
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
-          network.ledger_secrets = std::make_unique<LedgerSecrets>(
-            std::make_unique<Seal>(writer_factory));
+          network.ledger_secrets = std::make_unique<LedgerSecrets>(seal);
 
           self = 0; // The first node id is always 0
 
@@ -381,8 +383,7 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           // Create temporary network secrets but do not seal yet
-          network.ledger_secrets = std::make_unique<LedgerSecrets>(
-            std::make_unique<Seal>(writer_factory), false);
+          network.ledger_secrets = std::make_unique<LedgerSecrets>(seal, false);
 
           setup_history();
           setup_encryptor();
@@ -463,12 +464,18 @@ namespace ccf
             // TODO: Initialise LedgerSecrets with the vector of network secrets
             // passed by primary
 
+            LOG_FAIL_FMT(
+              "Number of ledger secrets: {}",
+              resp->network_info.ledger_secrets.secrets_map.size());
+
             // In a private network, seal secrets immediately.
-            network.ledger_secrets = std::make_unique<LedgerSecrets>(
-              0, // TODO:
-              LedgerSecret(), // TODO:
-              std::make_unique<Seal>(writer_factory),
-              !public_only);
+
+            // TODO: Only seal secrets when it is not a public network
+            // network.ledger_secrets = std::make_unique<LedgerSecrets>(
+            //   0, // TODO:
+            //   LedgerSecret(), // TODO:
+            //   seal,
+            //   !public_only);
 
             self = resp->node_id;
 #ifdef PBFT
