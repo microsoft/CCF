@@ -57,7 +57,6 @@ namespace ccf
 
   private:
     std::shared_ptr<AbstractSeal> seal;
-    kv::Version current_version = 0; // TODO: This should go
 
     void add_secret(kv::Version v, LedgerSecret&& secret, bool force_seal)
     {
@@ -71,10 +70,11 @@ namespace ccf
       }
 
       secrets_map.emplace(v, std::move(secret));
-      current_version = std::max(current_version, v);
     }
 
   public:
+    LedgerSecrets() = default;
+
     // Called on startup to generate fresh ledger secret
     LedgerSecrets(std::shared_ptr<AbstractSeal> seal_, bool force_seal = true) :
       seal(seal_)
@@ -82,8 +82,6 @@ namespace ccf
       // Generate fresh ledger encryption key
       add_secret(1, LedgerSecret(true), force_seal);
     }
-
-    LedgerSecrets() = default;
 
     // Called when a node joins the network and get given the ledger secrets
     // since the beggining of time
@@ -173,8 +171,6 @@ namespace ccf
       secrets_map.emplace(new_v, std::move(search->second));
       secrets_map.erase(old_v);
 
-      current_version = new_v;
-
       LOG_TRACE_FMT(
         "Ledger secret used at {} are now valid from {}", old_v, new_v);
       return true;
@@ -209,12 +205,6 @@ namespace ccf
       }
     }
 
-    // TODO: This should go as only required by nodefrontend.h
-    const LedgerSecret& get_current()
-    {
-      return secrets_map.at(current_version);
-    }
-
     std::optional<LedgerSecret> get_secret(kv::Version v)
     {
       auto search = secrets_map.find(v);
@@ -230,12 +220,6 @@ namespace ccf
     auto& get_secrets()
     {
       return secrets_map;
-    }
-
-    // TODO: This should go as only required by nodefrontend.h
-    kv::Version get_current_version()
-    {
-      return current_version;
     }
   };
 }

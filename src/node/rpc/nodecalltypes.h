@@ -93,8 +93,6 @@ namespace ccf
         {
           return !(*this == other);
         }
-
-        NetworkInfo() = default;
       };
       NetworkInfo network_info;
     };

@@ -66,27 +66,6 @@ namespace std
 DECLARE_JSON_TYPE(CustomClass)
 DECLARE_JSON_REQUIRED_FIELDS(CustomClass, m_i)
 
-TEST_CASE("Test")
-{
-  LedgerSecrets ls;
-  ls.set_secret(5, std::vector<uint8_t>(16));
-  ls.set_secret(6, std::vector<uint8_t>(16));
-  ls.set_secret(7, std::vector<uint8_t>(16));
-
-  std::cout << nlohmann::json(ls).dump() << std::endl;
-
-  auto out = JoinNetworkNodeToNode::Out();
-  std::cout << nlohmann::json(out).dump() << std::endl;
-
-  // auto test = JoinNetworkNodeToNode::Out::NetworkInfo();
-
-  auto out2 = JoinNetworkNodeToNode::Out({ccf::NodeStatus::PENDING, 5});
-  // out2.network_info.ledger_secrets.set_secret(5, std::vector<uint8_t>(32));
-  std::cout << nlohmann::json(out2).dump() << std::endl;
-
-  auto out3 = JoinNetworkNodeToNode::Out({ccf::NodeStatus::PENDING, 5, {{}}});
-}
-
 TEST_CASE(
   "Serialise/deserialise public map only" *
   doctest::test_suite("serialisation"))
@@ -352,6 +331,7 @@ TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
     // Here, a real encryptor is needed to protect the integrity of the
     // transactions
     auto secrets = std::make_shared<ccf::LedgerSecrets>();
+    secrets->set_secret(1, std::vector<uint8_t>(16, 0x42));
     auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
 
     Store kv_store(consensus);
