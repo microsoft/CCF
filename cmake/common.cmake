@@ -398,7 +398,7 @@ set(CCF_NETWORK_TEST_ARGS
 )
 
 # SNIPPET_START: Lua generic application
-add_enclave_lib(luagenericenc
+add_ccf_app(luagenericenc
   SRCS ${CCF_DIR}/src/apps/luageneric/luageneric.cpp
 )
 sign_app_library(luagenericenc
@@ -407,7 +407,7 @@ sign_app_library(luagenericenc
 )
 # SNIPPET_END: Lua generic application
 
-add_enclave_lib(jsgenericenc
+add_ccf_app(jsgenericenc
   SRCS ${CCF_DIR}/src/apps/jsgeneric/jsgeneric.cpp
 )
 target_link_libraries(jsgenericenc PUBLIC

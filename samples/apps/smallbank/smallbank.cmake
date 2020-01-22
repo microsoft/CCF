@@ -10,7 +10,7 @@ target_link_libraries(small_bank_client PRIVATE
 )
 
 # SmallBank application
-add_enclave_lib(smallbankenc
+add_ccf_app(smallbankenc
   SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp
 )
 sign_app_library(smallbankenc

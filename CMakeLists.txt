@@ -97,7 +97,7 @@ if("sgx" IN_LIST TARGET)
   )
 endif()
 
-add_enclave_lib(loggingenc
+add_ccf_app(loggingenc
   SRCS
     src/apps/logging/logging.cpp
     src/apps/logging/stub_for_code_signing.cpp
