@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#define USE_MPSCQ
+//#define USE_MPSCQ
 
 #include "ds/logger.h"
 #ifdef USE_MPSCQ
