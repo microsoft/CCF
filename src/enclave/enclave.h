@@ -252,9 +252,9 @@ namespace enclave
 #endif
       {
         auto msg = std::make_unique<enclave::tmsg<stuff>>(&init_thread_cb);
-        msg->data.tid = tls_thread_id;
+        msg->data.tid = tls_thread_id[std::this_thread::get_id()];
         enclave::ThreadMessaging::thread_messaging.add_task<stuff>(
-          tls_thread_id, std::move(msg));
+          msg->data.tid, std::move(msg));
 
         enclave::ThreadMessaging::thread_messaging.run();
       }

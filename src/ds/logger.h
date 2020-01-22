@@ -313,7 +313,7 @@ namespace logger
       line_number(line_number),
       log_level(ll),
 #ifdef INSIDE_ENCLAVE
-      thread_id(tls_thread_id)
+      thread_id(tls_thread_id[std::this_thread::get_id()])
 #else
       thread_id(999)
 #endif
