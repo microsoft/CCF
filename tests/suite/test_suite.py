@@ -11,7 +11,6 @@ from inspect import signature, Parameter
 # TODO: For now, these are hardcoded.
 # https://github.com/microsoft/CCF/issues/712
 tests = [
-    e2e_logging.test,
     recovery.test,
     reconfiguration.test_add_node,
     rekey.test,
@@ -19,8 +18,6 @@ tests = [
     recovery.test,
     rekey.test,
     reconfiguration.test_add_node,
-    reconfiguration.test_retire_node,
-    e2e_logging.test,
 ]
 
 #
