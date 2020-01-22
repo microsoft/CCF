@@ -288,6 +288,8 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
       1;
   }
 
+  target_thread = 0;
+
   if (f() != 0 && target_thread != 0)
   {
     auto msg =
@@ -304,10 +306,10 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
     if (pre_verify(m))
     {
       recv_process_one_msg(m);
-      LOG_INFO << "did not verify - m:" << m->tag() << std::endl;
     }
     else
     {
+      LOG_INFO << "did not verify - m:" << m->tag() << std::endl;
       delete m;
     }
   }
