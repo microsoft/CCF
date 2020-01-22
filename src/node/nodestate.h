@@ -448,19 +448,8 @@ namespace ccf
           // Set network secrets, node id and become part of network.
           if (resp->node_status == NodeStatus::TRUSTED)
           {
-            // If the current network secrets do not apply since the genesis,
-            // the joining node can only join the public network
-            bool public_only = resp->public_only;
             network.identity =
               std::make_unique<NetworkIdentity>(resp->network_info.identity);
-
-            LOG_FAIL_FMT(
-              "Number of ledger secrets: {}",
-              resp->network_info.ledger_secrets.secrets_map.size());
-
-            // In a private network, seal secrets immediately. For a public
-            // network (i.e. before recovery vote), the secrets are sealed when
-            // the recovery is complete.
             network.ledger_secrets = std::make_shared<LedgerSecrets>(
               std::move(resp->network_info.ledger_secrets), seal);
 
@@ -468,7 +457,7 @@ namespace ccf
 #ifdef PBFT
             setup_pbft(args.config);
 #else
-            setup_raft(public_only);
+            setup_raft(resp->public_only);
 #endif
             setup_history();
             setup_encryptor();
@@ -477,7 +466,7 @@ namespace ccf
 
             accept_network_tls_connections(args.config);
 
-            if (public_only)
+            if (resp->public_only)
             {
               sm.advance(State::partOfPublicNetwork);
             }
@@ -491,7 +480,7 @@ namespace ccf
             LOG_INFO_FMT(
               "Node has now joined the network as node {}: {}",
               self,
-              (public_only ? "public only" : "all domains"));
+              (resp->public_only ? "public only" : "all domains"));
           }
           else if (resp->node_status == NodeStatus::PENDING)
           {
