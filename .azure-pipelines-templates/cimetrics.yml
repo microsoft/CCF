@@ -1,5 +1,7 @@
 jobs:
 - job: CIMetrics
+  variables:
+    skipComponentGovernanceDetection: true
   displayName: 'CI Metrics'
   
   ${{ insert }}: ${{ parameters.env }}

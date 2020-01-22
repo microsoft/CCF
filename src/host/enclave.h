@@ -9,26 +9,18 @@
 
 #include <dlfcn.h>
 #include <msgpack.hpp>
-#include <openenclave/bits/report.h>
-#include <openenclave/bits/result.h>
 #ifdef VIRTUAL_ENCLAVE
 #  include "enclave/ccf_v.h"
 #else
 #  include <ccf_u.h>
+#  include <openenclave/bits/report.h>
+#  include <openenclave/bits/result.h>
 #  include <openenclave/host.h>
 #endif
 
 // Marker to create virtual enclaves, should be distinct from any valid
 // OE_ENCLAVE_FLAG combinations
 #define ENCLAVE_FLAG_VIRTUAL -1
-
-#if defined(__clang__)
-// Clang UBSan doesn't like calling functions through dlsym
-// https://github.com/google/sanitizers/issues/911
-#  define NO_SANITIZE_FUNCTION __attribute__((no_sanitize("function")))
-#else
-#  define NO_SANITIZE_FUNCTION
-#endif
 
 namespace host
 {

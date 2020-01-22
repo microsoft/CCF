@@ -59,6 +59,24 @@ namespace ccf
       }
     }
 
+    void set_js_scripts(
+      Store::Tx& tx, std::map<std::string, std::string> scripts)
+    {
+      auto tx_scripts = tx.get_view(network.app_scripts);
+
+      // First, remove all existing handlers
+      tx_scripts->foreach(
+        [&tx_scripts](const std::string& name, const Script& script) {
+          tx_scripts->remove(name);
+          return true;
+        });
+
+      for (auto& rs : scripts)
+      {
+        tx_scripts->put(rs.first, {rs.second});
+      }
+    }
+
     //! Table of functions that proposal scripts can propose to invoke
     const std::unordered_map<
       std::string,
@@ -70,6 +88,13 @@ namespace ccf
            const std::string app = args;
            set_app_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
 
+           return true;
+         }},
+        // set the js application script
+        {"set_js_app",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
+           const std::string app = args;
+           set_js_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
            return true;
          }},
         // add a new member
