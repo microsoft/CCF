@@ -279,6 +279,7 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
   // TODO: remove this memcpy
   memcpy(m->contents(), data, size);
 
+
   if (
     enclave::ThreadMessaging::worker_thread_count != 0 &&
     m->tag() == Request_tag)
