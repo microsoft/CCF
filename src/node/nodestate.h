@@ -450,8 +450,7 @@ namespace ccf
           {
             // If the current network secrets do not apply since the genesis,
             // the joining node can only join the public network
-            bool public_only = false; // TODO: Add boolean to response
-
+            bool public_only = resp->public_only;
             network.identity =
               std::make_unique<NetworkIdentity>(resp->network_info.identity);
 

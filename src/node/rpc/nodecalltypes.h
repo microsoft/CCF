@@ -74,14 +74,12 @@ namespace ccf
 
     struct Out
     {
-      // TODO: Add a public only bool here
-      // bool public_only;
       NodeStatus node_status;
       NodeId node_id;
+      bool public_only;
 
       struct NetworkInfo
       {
-        // size_t ledger_secrets;
         LedgerSecrets ledger_secrets = {};
         NetworkIdentity identity;
 

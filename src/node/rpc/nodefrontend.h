@@ -120,6 +120,7 @@ namespace ccf
         return make_success(
           JoinNetworkNodeToNode::Out({node_status,
                                       joining_node_id,
+                                      node.is_part_of_public_network(),
                                       {*this->network.ledger_secrets.get(),
                                        *this->network.identity.get()}}));
       }
@@ -190,6 +191,7 @@ namespace ccf
             args.rpc_ctx->set_response_result(
               JoinNetworkNodeToNode::Out({joining_node_status,
                                           existing_node_id.value(),
+                                          node.is_part_of_public_network(),
                                           {*this->network.ledger_secrets.get(),
                                            *this->network.identity.get()}}));
             return;
@@ -216,6 +218,7 @@ namespace ccf
             args.rpc_ctx->set_response_result(
               JoinNetworkNodeToNode::Out({node_status,
                                           existing_node_id.value(),
+                                          node.is_part_of_public_network(),
                                           {*this->network.ledger_secrets.get(),
                                            *this->network.identity.get()}}));
             return;

@@ -38,7 +38,7 @@ namespace ccf
     JoinNetworkNodeToNode::Out::NetworkInfo, ledger_secrets, identity)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status, node_id)
+  DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status, node_id, public_only)
   DECLARE_JSON_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out, network_info)
 
   DECLARE_JSON_TYPE(CreateNetworkNodeToNode::In)
