@@ -178,7 +178,6 @@ namespace enclave
 
     void run()
     {
-      assert(tls_thread_id.size() <= tasks.size());
       Task& task = tasks[tls_thread_id[std::this_thread::get_id()]];
 
       bool print = true;
@@ -192,7 +191,6 @@ namespace enclave
 
     bool run_one(bool print)
     {
-      assert(tls_thread_id.size() <= tasks.size());
       Task& task = tasks[tls_thread_id[std::this_thread::get_id()]];
 
       return task.run_next_task(print);
@@ -201,7 +199,6 @@ namespace enclave
     template <typename Tpayload>
     void add_task(uint16_t tid, std::unique_ptr<tmsg<Tpayload>> msg)
     {
-      assert(tls_thread_id.size() <= tasks.size());
       Task& task = tasks[tid];
 
       task.add_task(reinterpret_cast<thread_msg*>(msg.release()));
