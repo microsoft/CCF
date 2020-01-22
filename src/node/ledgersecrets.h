@@ -43,18 +43,8 @@ namespace ccf
     {}
   };
 
-  struct LedgerSecrets
+  class LedgerSecrets
   {
-    // Map of secrets that are valid from a specific version to the version of
-    // the next entry in the map. The last entry in the map is valid for all
-    // subsequent versions.
-    std::map<kv::Version, LedgerSecret> secrets_map;
-
-    bool operator==(const LedgerSecrets& other) const
-    {
-      return secrets_map == other.secrets_map;
-    }
-
   private:
     std::shared_ptr<AbstractSeal> seal;
 
@@ -73,6 +63,11 @@ namespace ccf
     }
 
   public:
+    // Map of secrets that are valid from a specific version to the version of
+    // the next entry in the map. The last entry in the map is valid for all
+    // subsequent versions.
+    std::map<kv::Version, LedgerSecret> secrets_map;
+
     LedgerSecrets() = default;
 
     // Called on startup to generate fresh ledger secret
@@ -90,6 +85,11 @@ namespace ccf
       secrets_map(std::move(ledger_secrets_.secrets_map)),
       seal(seal_)
     {}
+
+    bool operator==(const LedgerSecrets& other) const
+    {
+      return secrets_map == other.secrets_map;
+    }
 
     // Called when a backup is given past ledger secret via the store
     bool set_secret(kv::Version v, const std::vector<uint8_t>& raw_secret)
@@ -215,11 +215,6 @@ namespace ccf
       }
 
       return search->second;
-    }
-
-    auto& get_secrets()
-    {
-      return secrets_map;
     }
   };
 }

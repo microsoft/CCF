@@ -124,7 +124,7 @@ namespace ccf
       is_recovery(is_recovery_)
     {
       // Create map of existing encryption keys from the recorded ledger secrets
-      for (auto const& s : ls->get_secrets())
+      for (auto const& s : ls->secrets_map)
       {
         encryption_keys.emplace_back(EncryptionKey{
           s.first,
