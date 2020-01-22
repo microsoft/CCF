@@ -2,6 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+
+#define USE_MPSCQ
+
 #include "ds/logger.h"
 #ifdef USE_MPSCQ
 #  include "ds/mpscq.h"
@@ -133,6 +136,7 @@ namespace enclave
     }
 
   private:
+#ifndef USE_MPSCQ
     void reverse_local_messages()
     {
       if (local_msg == NULL)
@@ -150,6 +154,7 @@ namespace enclave
       // now let the head point at the last node (prev)
       local_msg = prev;
     }
+#endif
   };
 
   class ThreadMessaging
