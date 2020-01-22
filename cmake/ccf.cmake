@@ -115,6 +115,11 @@ function(add_enclave_lib name)
 
     target_link_libraries(${name} PRIVATE
       ${PARSED_ARGS_LINK_LIBS}
+      # These oe libraries must be linked in correct order, so they are
+      # re-declared here
+      openenclave::oeenclave
+      openenclave::oecore
+      openenclave::oesyscall
       ccfcommon.enclave
     )
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)

@@ -54,7 +54,7 @@ target_link_libraries(logging_client PRIVATE
 
 # Build common library for CCF enclaves
 if("sgx" IN_LIST TARGET)
-  add_library(ccfcommon.enclave OBJECT
+  add_library(ccfcommon.enclave STATIC
     ${CCF_DIR}/src/enclave/main.cpp
     ${CCF_GENERATED_DIR}/ccf_t.cpp
   )
