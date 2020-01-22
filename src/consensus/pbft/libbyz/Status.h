@@ -38,6 +38,8 @@ struct Status_rep : public Message_rep
   View v; // Replica's current view
   Seqno ls; // seqno of last stable checkpoint
   Seqno le; // seqno of last request executed
+  bool send_ae;
+  Index ae_index;
   int id; // id of the replica that generated the message.
   short sz; // size of prepared and committed or pps
   short brsz; // size of breqs
@@ -119,6 +121,14 @@ public:
 
   int id() const;
   // Effects: Fetches the identifier of the replica from the message.
+
+  bool send_ae() const;
+
+  void set_send_ae();
+
+  void set_ae_index(Index ae);
+
+  Index get_ae_index() const;
 
   View view() const;
   // Effects: Returns the principal id()'s view in the message.
@@ -314,6 +324,26 @@ inline void Status::add_breqs(Seqno n, const BR_map& brs)
 inline int Status::id() const
 {
   return rep().id;
+}
+
+inline bool Status::send_ae() const
+{
+  return rep().send_ae;
+}
+
+inline void Status::set_send_ae()
+{
+  rep().send_ae = true;
+}
+
+inline void Status::set_ae_index(Index ae)
+{
+  rep().ae_index = ae;
+}
+
+inline Index Status::get_ae_index() const
+{
+  return rep().ae_index;
 }
 
 inline View Status::view() const

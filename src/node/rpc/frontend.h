@@ -430,6 +430,7 @@ namespace ccf
             }
           }
 
+          LOG_INFO_FMT("TX PRIMARY UNKNOWN");
           return jsonrpc::error(
             jsonrpc::CCFErrorCodes::TX_PRIMARY_UNKNOWN, "Primary unknown.");
         };

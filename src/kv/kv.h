@@ -493,12 +493,12 @@ namespace kv
         return map.is_replicated();
       }
 
-    private:
       virtual bool has_writes()
       {
         return committed_writes || !writes.empty();
       }
 
+    private:
       virtual bool has_changes()
       {
         return changes;
@@ -899,16 +899,14 @@ namespace kv
           throw std::logic_error(
             "Transaction must be over maps in the same store");
       }
-      else
+
+      if (read_version == NoVersion)
       {
-        if (read_version == NoVersion)
-        {
-          // Grab opacity version that all Maps should be queried at.
-          if (read_globally_committed)
-            read_version = m.get_store()->commit_version();
-          else
-            read_version = m.get_store()->current_version();
-        }
+        // Grab opacity version that all Maps should be queried at.
+        if (read_globally_committed)
+          read_version = m.get_store()->commit_version();
+        else
+          read_version = m.get_store()->current_version();
       }
 
       typename M::TxView* view = m.create_view(read_version);

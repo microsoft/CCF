@@ -3,9 +3,10 @@
 #pragma once
 
 #include "consensus/ledgerenclave.h"
+#include "consensus/pbft/libbyz/Append_entries.h"
 #include "consensus/pbft/libbyz/Big_req_table.h"
 #include "consensus/pbft/libbyz/Client_proxy.h"
-#include "consensus/pbft/libbyz/Status.h"
+#include "consensus/pbft/libbyz/Message_tags.h"
 #include "consensus/pbft/libbyz/libbyz.h"
 #include "consensus/pbft/libbyz/network.h"
 #include "consensus/pbft/libbyz/receive_message_base.h"
@@ -26,13 +27,28 @@
 
 namespace pbft
 {
+  struct NodeState
+  {
+    // the highest matching index that we send
+    Index match_idx;
+  };
+  using NodesMap = std::unordered_map<pbft::NodeId, NodeState>;
   class PbftEnclaveNetwork : public INetwork
   {
   public:
     PbftEnclaveNetwork(
-      pbft::NodeId id, std::shared_ptr<ccf::NodeToNode> n2n_channels) :
+      pbft::NodeId id,
+      std::shared_ptr<ccf::NodeToNode> n2n_channels,
+      NodesMap& nodes_,
+      pbft::Index& append_entries_index_,
+      pbft::Index& latest_stable_ae_index_,
+      SpinLock& lock_) :
       n2n_channels(n2n_channels),
-      id(id)
+      id(id),
+      nodes(nodes_),
+      append_entries_index(append_entries_index_),
+      latest_stable_ae_index(latest_stable_ae_index_),
+      lock(lock_)
     {}
 
     virtual ~PbftEnclaveNetwork() = default;
@@ -49,7 +65,7 @@ namespace pbft
 
     int Send(Message* msg, IPrincipal& principal) override
     {
-      NodeId to = principal.pid();
+      pbft::NodeId to = principal.pid();
       if (to == id)
       {
         // If a replica sends a message to itself (e.g. if f == 0), handle
@@ -72,19 +88,95 @@ namespace pbft
         reinterpret_cast<const uint8_t*>(msg->contents()),
         msg->size());
 
+      if (msg->tag() == Append_entries_tag)
+      {
+        // // status messages are intercepted to add the append entries info
+        // Append_entries* ae;
+        // Append_entries::convert(msg, ae);
+        // // set my append entries index to the status message
+
+        auto node = nodes.find(to);
+
+        pbft::Index match_idx = 0;
+        // match_idx = nodes.at(to).match_idx;
+        if (node != nodes.end())
+        {
+          match_idx = node->second.match_idx;
+        }
+
+        if (match_idx < append_entries_index)
+        {
+          send_append_entries(to, match_idx + 1);
+        }
+        return msg->size();
+      }
+      if (msg->tag() == Status_tag)
+      {
+        LOG_INFO_FMT("SENDING SM TO {} WITH AE {}", to, append_entries_index);
+
+        StatusMessage sm = {pbft_status_message, id, append_entries_index};
+
+        n2n_channels->send_authenticated(
+          ccf::NodeMsgType::consensus_msg, to, sm);
+      }
       n2n_channels->send_authenticated(
         ccf::NodeMsgType::consensus_msg, to, serialized_msg);
-      // if (msg->tag() == 7)
-      // {
-      //   Status* status;
-      //   Status::convert(msg, status);
-
-      //   AppendEntries ae = {pbft_append_entries, id, 0, 0};
-      //   n2n_channels->send_authenticated(
-      //     ccf::NodeMsgType::consensus_msg, to, ae);
-      //   return msg->size();
-      // }
       return msg->size();
+    }
+
+    void send_append_entries(pbft::NodeId to, pbft::Index start_idx)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      size_t entries_batch_size = 10;
+
+      pbft::Index end_idx = (append_entries_index == 0) ?
+        0 :
+        std::min(start_idx + entries_batch_size, append_entries_index);
+
+      for (pbft::Index i = end_idx; i < append_entries_index;
+           i += entries_batch_size)
+      {
+        send_append_entries_range(to, start_idx, i);
+        start_idx = std::min(i + 1, append_entries_index);
+      }
+
+      if (append_entries_index == 0 || end_idx <= append_entries_index)
+      {
+        send_append_entries_range(to, start_idx, append_entries_index);
+      }
+    }
+
+    void send_append_entries_range(
+      pbft::NodeId to, pbft::Index start_idx, pbft::Index end_idx)
+    {
+      const auto prev_idx = start_idx - 1;
+
+      LOG_INFO_FMT(
+        "Send append entried from {} to {}: {} to {}",
+        id,
+        to,
+        start_idx,
+        end_idx);
+
+      AppendEntries ae = {pbft_append_entries, id, end_idx, prev_idx};
+
+      auto node = nodes.find(to);
+      if (node != nodes.end())
+      {
+        node->second.match_idx = end_idx;
+      }
+      else
+      {
+        nodes[to] = {end_idx};
+      }
+      // auto& node = nodes.at(to);
+
+      // Record the most recent index we have sent to this node.
+      // node.match_idx = end_idx;
+
+      // The host will append log entries to this message when it is
+      // sent to the destination node.
+      n2n_channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, ae);
     }
 
     virtual Message* GetNextMessage() override
@@ -102,12 +194,18 @@ namespace pbft
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
     IMessageReceiveBase* message_receiver_base = nullptr;
     NodeId id;
+    NodesMap& nodes;
+    pbft::Index& append_entries_index;
+    pbft::Index& latest_stable_ae_index;
+    SpinLock& lock;
   };
 
   template <class LedgerProxy, class ChannelProxy>
   class Pbft : public kv::Consensus
   {
   private:
+    NodesMap nodes;
+
     std::shared_ptr<ChannelProxy> channels;
     IMessageReceiveBase* message_receiver_base = nullptr;
     char* mem;
@@ -120,6 +218,9 @@ namespace pbft
     std::unique_ptr<pbft::PbftStore> store;
     std::unique_ptr<consensus::LedgerEnclave> ledger;
     Index append_entries_index = 0;
+    Index latest_stable_ae_index = 0;
+    SpinLock lock;
+    SpinLock playback_lock;
 
     // When this is set, only public domain is deserialised when receving append
     // entries
@@ -196,7 +297,13 @@ namespace pbft
       mem = (char*)malloc(mem_size);
       bzero(mem, mem_size);
 
-      pbft_network = std::make_unique<PbftEnclaveNetwork>(local_id, channels);
+      pbft_network = std::make_unique<PbftEnclaveNetwork>(
+        local_id,
+        channels,
+        nodes,
+        append_entries_index,
+        latest_stable_ae_index,
+        lock);
       pbft_config = std::make_unique<PbftConfigCcf>(rpc_map);
 
       auto used_bytes = Byz_init_replica(
@@ -341,6 +448,10 @@ namespace pbft
       info.is_replica = true;
       Byz_add_principal(info);
       LOG_INFO_FMT("PBFT added node, id: {}", info.id);
+
+      nodes[node_conf.node_id] = {0};
+
+      // pbft_network->send_append_entries(node_conf.node_id, 1);
     }
 
     void periodic(std::chrono::milliseconds elapsed) override
@@ -367,7 +478,9 @@ namespace pbft
     {
       for (auto& [index, data, globally_committable] : entries)
       {
+        std::lock_guard<SpinLock> guard(lock);
         append_entries_index++;
+        LOG_INFO_FMT("Increasing my ae index to {}", append_entries_index);
         write_to_ledger(data);
       }
       return true;
@@ -377,7 +490,9 @@ namespace pbft
     {
       for (auto& [index, data, globally_committable] : entries)
       {
+        std::lock_guard<SpinLock> guard(lock);
         append_entries_index++;
+        LOG_INFO_FMT("Increasing my ae index to {}", append_entries_index);
         write_to_ledger(data);
       }
       return true;
@@ -393,8 +508,54 @@ namespace pbft
           message_receiver_base->receive_message(data, size);
           break;
         }
+        case pbft_status_message:
+        {
+          StatusMessage sm;
+
+          try
+          {
+            sm =
+              channels->template recv_authenticated<StatusMessage>(data, size);
+          }
+          catch (const std::logic_error& err)
+          {
+            LOG_FAIL_FMT(err.what());
+            return;
+          }
+
+          // update node's index
+          auto node = nodes.find(sm.from_node);
+          if (node != nodes.end())
+          {
+            node->second.match_idx = sm.idx;
+          }
+          else
+          {
+            nodes[sm.from_node] = {sm.idx};
+          }
+          LOG_INFO_FMT(
+            "Received message from: {} with idx {} and my ae is {}",
+            sm.from_node,
+            sm.idx,
+            append_entries_index);
+          if (sm.idx < append_entries_index)
+          {
+            LOG_INFO_FMT(
+              "Received append entries response from node {} and it is behind. "
+              "Node is at {} and I am at {}",
+              sm.from_node,
+              sm.idx,
+              append_entries_index);
+            // pbft_network->send_append_entries(sm.from_node, sm.idx + 1);
+          }
+          break;
+        }
         case pbft_append_entries:
         {
+          std::lock_guard<SpinLock> guard(playback_lock);
+          LOG_INFO_FMT(
+            "New append entries message, my ae index is {}",
+            append_entries_index);
           AppendEntries r;
 
           try
@@ -408,20 +569,44 @@ namespace pbft
             return;
           }
 
+          auto node = nodes.find(r.from_node);
+          if (node != nodes.end())
+          {
+            node->second.match_idx = r.idx;
+          }
+          else
+          {
+            nodes[r.from_node] = {r.idx};
+          }
+
+          if (r.idx <= append_entries_index)
+          {
+            LOG_INFO_FMT(
+              "Skipping INDEX {} as we are at index {}",
+              r.idx,
+              append_entries_index);
+            break;
+          }
+
           for (Index i = r.prev_idx + 1; i <= r.idx; i++)
           {
             LOG_INFO_FMT(
               "RECORDING ENTRY FOR INDEX {} FOR DATA WITH SIZE {}", i, size);
-            // if (i <= last_idx)
-            // {
-            //   // If the current entry has already been deserialised, skip the
-            //   // payload for that entry
-            //   ledger->skip_entry(data, size);
-            //   continue;
-            // }
-            Index last_idx = i;
-            // TODO record entry here?
-            auto ret = ledger->record_entry(data, size);
+            pbft::Index aei;
+            {
+              std::lock_guard<SpinLock> guard(lock);
+              aei = append_entries_index;
+            }
+            if (i <= aei)
+            {
+              // If the current entry has already been deserialised, skip the
+              // payload for that entry
+              LOG_INFO_FMT("Skipping INDEX {} as we are at index {}", i, aei);
+              ledger->skip_entry(data, size);
+              continue;
+            }
+
+            auto ret = ledger->get_entry(data, size);
 
             if (!ret.second)
             {
@@ -432,8 +617,10 @@ namespace pbft
                 "Recv append entries to {} from {} but the data is malformed",
                 local_id,
                 r.from_node);
-
-              last_idx = r.prev_idx;
+              {
+                std::lock_guard<SpinLock> guard(lock);
+                append_entries_index = r.prev_idx;
+              }
               ledger->truncate(r.prev_idx);
               return;
             }
@@ -446,8 +633,7 @@ namespace pbft
             {
               case kv::DeserialiseSuccess::FAILED:
               {
-                throw std::logic_error(
-                  "Replica failed to apply log entry " + std::to_string(i));
+                LOG_FAIL_FMT("Replica failed to apply log entry {}", i);
                 break;
               }
               case kv::DeserialiseSuccess::PASS:

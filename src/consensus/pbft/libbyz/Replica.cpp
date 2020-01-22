@@ -21,6 +21,7 @@
 #  include <unistd.h>
 #endif
 
+#include "Append_entries.h"
 #include "Checkpoint.h"
 #include "Commit.h"
 #include "Data.h"
@@ -275,25 +276,36 @@ bool Replica::compare_execution_results(
 
 void Replica::playback_transaction(ccf::Store::Tx& tx)
 {
+  if (vtimer->get_state() == ITimer::State::running)
+  {
+    vtimer->restart();
+  }
   {
     auto view = tx.get_view(pbft_requests_map);
-    auto req = view->get(0);
-    if (req.has_value())
+    if (view->has_writes())
     {
-      const pbft::Request request = req.value();
-      playback_request(request, tx);
-      return;
+      // hasn't been committed yet
+      auto req = view->get(0);
+      if (req.has_value())
+      {
+        pbft::Request request = req.value();
+        playback_request(request, tx);
+        return;
+      }
     }
   }
   {
     auto view = tx.get_view(pbft_pre_prepares_map);
-    auto pp = view->get(0);
-    if (pp.has_value())
+    if (view->has_writes())
     {
-      // TODO what to do with pps transaction
-      const pbft::PrePrepare pre_prepare = pp.value();
-      playback_pre_prepare(pre_prepare);
-      return;
+      auto pp = view->get(0);
+      if (pp.has_value())
+      {
+        // TODO what to do with pps transaction
+        pbft::PrePrepare pre_prepare = pp.value();
+        playback_pre_prepare(pre_prepare);
+        return;
+      }
     }
   }
   throw std::logic_error(
@@ -348,6 +360,14 @@ void Replica::playback_request(const pbft::Request& request, ccf::Store::Tx& tx)
             << " commit_id: " << playback_byz_info.ctx << std::endl;
 
   replies.end_reply(client_id, rid, last_tentative_execute, outb.size);
+
+  // Remove the request from rqueue if present.
+  if (rqueue.remove(client_id, req->request_id()))
+  {
+    LOG_INFO_FMT(
+      "Removed request with cid {} and rid {}", client_id, req->request_id());
+    vtimer->stop();
+  }
 }
 
 // TODO have pre prepare commit it's pre prepare without creating anew
@@ -368,6 +388,8 @@ void Replica::playback_pre_prepare(const pbft::PrePrepare& pre_prepare)
       last_prepared = seqno;
     }
 
+    ledger_writer->write_pre_prepare(executable_pp.get());
+
     if (global_commit_cb != nullptr)
     {
       global_commit_cb(
@@ -380,11 +402,10 @@ void Replica::playback_pre_prepare(const pbft::PrePrepare& pre_prepare)
     {
       mark_stable(last_executed, true);
     }
-
-    ledger_writer->write_pre_prepare(executable_pp.get());
   }
   else
   {
+    throw std::logic_error("Entries don't match playback");
     LOG_DEBUG << "Received entries could not be processed. Received seqno: "
               << seqno
               << ". Truncating ledger to last executed: " << last_executed
@@ -867,6 +888,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       // https://github.com/microsoft/CCF/issues/357
       if (!compare_execution_results(info, pp))
       {
+        throw std::logic_error("Execution results don't match send pp");
         break;
       }
 
@@ -995,6 +1017,14 @@ void Replica::handle(Checkpoint* m)
   if (ms <= last_stable)
   {
     // stale checkpoint message
+    delete m;
+    return;
+  }
+
+  if (ms > last_executed || ms > last_tentative_execute)
+  {
+    LOG_TRACE_FMT(
+      "Received Checkpoint out of order from {} with seqno {}", m->id(), ms);
     delete m;
     return;
   }
@@ -1209,12 +1239,22 @@ void Replica::handle(Status* m)
     {
       return;
     }
+
+    LOG_INFO_FMT("RECEIVED STATUS MESSAGE FROM: {}", m->id());
     // Retransmit messages that the sender is missing.
+
     if (last_stable > m->last_stable() + max_out)
     {
+      LOG_INFO_FMT("Sending append entries");
       // Node is so out-of-date that it will not accept any
       // pre-prepare/prepare/commmit messages in my log.
       // Send a stable checkpoint message for my stable checkpoint.
+      if (m->id() != id())
+      {
+        Append_entries ae;
+        send(&ae, m->id());
+      }
+
       Checkpoint* c = elog.fetch(last_stable).mine(t_sent);
       if (c != 0 && c->stable())
       {
@@ -1240,6 +1280,15 @@ void Replica::handle(Status* m)
       }
     }
 
+    LOG_INFO_FMT(
+      "my last stable {}, m->laststable {}, last executed {}, m->last_executed "
+      "{}, max_out {}",
+      last_stable,
+      m->last_stable(),
+      last_executed,
+      m->last_executed(),
+      max_out);
+
     if (m->view() < v)
     {
       // Retransmit my latest view-change message
@@ -1257,67 +1306,80 @@ void Replica::handle(Status* m)
       if (m->has_nv_info())
       {
         min = std::max(last_stable + 1, m->last_executed() + 1);
-        for (Seqno n = min; n <= max; n++)
+        LOG_INFO_FMT("Rentransmitting from min {} to max {}", min, max);
+        if (
+          last_stable > m->last_stable() &&
+          last_executed > m->last_executed() + 2)
         {
-          if (m->is_committed(n))
-          {
-            // No need for retransmission of commit or pre-prepare/prepare
-            // message.
-            continue;
-          }
-
-          Commit* c = clog.fetch(n).mine(t_sent);
-          if (c != 0)
-          {
-            retransmit(c, current, t_sent, p.get());
-          }
-
-          if (m->is_prepared(n))
-          {
-            // No need for retransmission of pre-prepare/prepare message.
-            continue;
-          }
-
-          // If I have a pre-prepare/prepare send it, provided I have sent
-          // a pre-prepare/prepare for view v.
-          if (primary() == node_id)
-          {
-            Pre_prepare* pp = plog.fetch(n).my_pre_prepare(t_sent);
-            if (pp != 0)
-            {
-              retransmit(pp, current, t_sent, p.get());
-            }
-          }
-          else
-          {
-            Prepare* pr = plog.fetch(n).my_prepare(t_sent);
-            if (pr != 0)
-            {
-              retransmit(pr, current, t_sent, p.get());
-            }
-          }
+          LOG_INFO_FMT(
+            "Sending append entries to {} since we are way off", m->id());
+          Append_entries ae;
+          send(&ae, m->id());
         }
-
-        if (id() == primary())
+        else
         {
-          // For now only primary retransmits big requests.
-          Status::BRS_iter gen(m);
-
-          int count = 0;
-          Seqno ppn;
-          BR_map mrmap;
-          while (gen.get(ppn, mrmap) && count <= max_ret_bytes)
+          for (Seqno n = min; n <= max; n++)
           {
-            if (plog.within_range(ppn))
+            if (m->is_committed(n))
             {
-              Pre_prepare_info::BRS_iter gen(
-                plog.fetch(ppn).prep_info(), mrmap);
-              Request* r;
-              while (gen.get(r))
+              // No need for retransmission of commit or pre-prepare/prepare
+              // message.
+              continue;
+            }
+
+            Commit* c = clog.fetch(n).mine(t_sent);
+            if (c != 0)
+            {
+              retransmit(c, current, t_sent, p.get());
+            }
+
+            if (m->is_prepared(n))
+            {
+              // No need for retransmission of pre-prepare/prepare message.
+              continue;
+            }
+
+            // If I have a pre-prepare/prepare send it, provided I have sent
+            // a pre-prepare/prepare for view v.
+            if (primary() == node_id)
+            {
+              Pre_prepare* pp = plog.fetch(n).my_pre_prepare(t_sent);
+              if (pp != 0)
               {
-                INCR_OP(message_counts_retransmitted[m->tag()]);
-                send(r, m->id());
-                count += r->size();
+                retransmit(pp, current, t_sent, p.get());
+              }
+            }
+            else
+            {
+              Prepare* pr = plog.fetch(n).my_prepare(t_sent);
+              if (pr != 0)
+              {
+                retransmit(pr, current, t_sent, p.get());
+              }
+            }
+          }
+
+          if (id() == primary())
+          {
+            // For now only primary retransmits big requests.
+            Status::BRS_iter gen(m);
+
+            int count = 0;
+            Seqno ppn;
+            BR_map mrmap;
+            while (gen.get(ppn, mrmap) && count <= max_ret_bytes)
+            {
+              if (plog.within_range(ppn))
+              {
+                Pre_prepare_info::BRS_iter gen(
+                  plog.fetch(ppn).prep_info(), mrmap);
+                Request* r;
+                while (gen.get(r))
+                {
+                  INCR_OP(message_counts_retransmitted[m->tag()]);
+                  send(r, m->id());
+                  count += r->size();
+                }
               }
             }
           }
@@ -1325,6 +1387,7 @@ void Replica::handle(Status* m)
       }
       else
       {
+        LOG_INFO_FMT("HAS NV INFO FALSE");
         if (!m->has_vc(node_id))
         {
           // p does not have my view-change: send it.
@@ -2101,6 +2164,12 @@ void Replica::execute_committed(bool was_f_0)
         {
           ByzInfo info;
           auto executed_ok = execute_tentative(pp, info);
+          if (!compare_execution_results(info, pp))
+          {
+            throw std::logic_error(
+              "Execution results don't match handle commit");
+          }
+          ledger_writer->write_pre_prepare(pp);
           PBFT_ASSERT(
             executed_ok,
             "tentative execution while executing committed failed");
@@ -2330,6 +2399,7 @@ void Replica::new_state(Seqno c)
     mark_stable(c, true);
   }
 
+  LOG_INFO_FMT("Calling execute committed from new state");
   // Execute any committed requests
   execute_committed();
 
@@ -2399,6 +2469,8 @@ void Replica::mark_stable(Seqno n, bool have_state)
   elog.truncate(last_stable);
   state.discard_checkpoints(last_stable, last_executed);
   brt.mark_stable(last_stable);
+
+  // mark_stable_callback()
 
   if (have_state)
   {
@@ -2540,6 +2612,14 @@ void Replica::send_status(bool send_now)
       last_executed,
       has_complete_new_view(),
       vi.has_nv_message(v));
+    LOG_INFO_FMT(
+      "Sending status message with v {}, last_stable {}, last_executed {}, "
+      "has_c_new_view {}, vi.has_nv_msg {}",
+      v,
+      last_stable,
+      last_executed,
+      has_complete_new_view(),
+      vi.has_nv_message(v));
 
     if (has_complete_new_view())
     {
@@ -2570,6 +2650,7 @@ void Replica::send_status(bool send_now)
     }
     else
     {
+      LOG_INFO_FMT("set received cvs and set missing pps");
       vi.set_received_vcs(&s);
       vi.set_missing_pps(&s);
     }

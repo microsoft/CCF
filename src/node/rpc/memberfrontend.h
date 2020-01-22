@@ -443,10 +443,13 @@ namespace ccf
         // node for the genesis transaction to initialise the service
         if (g.is_service_created())
         {
+          LOG_INFO_FMT("Service is already created");
           return jsonrpc::error(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             "Service is already created");
         }
+
+        LOG_INFO_FMT("Creating service");
 
         g.init_values();
         for (auto& cert : in.member_cert)

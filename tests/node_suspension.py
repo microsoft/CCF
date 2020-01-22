@@ -19,7 +19,7 @@ import contextlib
 from loguru import logger as LOG
 
 # 256 is the number of most recent messages that PBFT keeps in memory before needing to replay the ledger
-TOTAL_REQUESTS = 256
+TOTAL_REQUESTS = 56
 
 
 def timeout(node, suspend, election_timeout):
@@ -47,18 +47,19 @@ def run(args):
         long_msg = "X" * (2 ** 14)
 
         # first timer determines after how many seconds each node will be suspended
-        timeouts = []
-        t = random.uniform(1, 10)
-        LOG.info(f"Initial timer for node {first_node.node_id} is {t} seconds...")
-        timeouts.append((t, first_node))
-        for backup in backups:
+        if not args.skip_suspension:
+            timeouts = []
             t = random.uniform(1, 10)
-            LOG.info(f"Initial timer for node {backup.node_id} is {t} seconds...")
-            timeouts.append((t, backup))
+            LOG.info(f"Initial timer for node {first_node.node_id} is {t} seconds...")
+            timeouts.append((t, first_node))
+            for backup in backups:
+                t = random.uniform(1, 10)
+                LOG.info(f"Initial timer for node {backup.node_id} is {t} seconds...")
+                timeouts.append((t, backup))
 
-        for t, node in timeouts:
-            tm = Timer(t, timeout, args=[node, True, args.election_timeout / 1000],)
-            tm.start()
+            for t, node in timeouts:
+                tm = Timer(t, timeout, args=[node, True, args.election_timeout / 1000],)
+                tm.start()
 
         with first_node.node_client() as mc:
             check_commit = infra.checker.Checker(mc)
@@ -72,6 +73,13 @@ def run(args):
                     clients.append(es.enter_context(backup.user_client(format="json")))
                 node_id = 0
                 for id in range(1, TOTAL_REQUESTS):
+                    if id == 5:
+                        LOG.error("Adding another node after f = 0 but before any node has checkpointed")
+                        # check that a new node can catch up naturally
+                        new_node = network.create_and_trust_node(
+                            lib_name=args.package, host="localhost", args=args,
+                        )
+                        assert new_node
                     node_id += 1
                     c = clients[node_id % len(clients)]
                     try:
@@ -95,30 +103,72 @@ def run(args):
                 )
 
                 # check that a new node can catch up after all the requests
-                new_node = network.create_and_trust_node(
+                last_node = network.create_and_trust_node(
                     lib_name=args.package, host="localhost", args=args,
                 )
-                assert new_node
+                assert last_node
 
-                # give new_node a second to catch up
-                time.sleep(5)
+                # # give new_node a second to catch up
+                # time.sleep(1)
 
-                with new_node.user_client(format="json") as c:
-                    check(
-                        c.rpc("LOG_get", {"id": 1000}), result={"msg": final_msg},
-                    )
+            ## send more messages I want to check that the new node will catchup and then start processing pre prepares, etc
+            clients = []
+            with contextlib.ExitStack() as es:
+                LOG.info("Write messages to nodes using round robin")
+                clients.append(es.enter_context(first_node.user_client(format="json")))
+                for backup in backups:
+                    clients.append(es.enter_context(backup.user_client(format="json")))
+                node_id = 0
+                for id in range(1001, (1001 + TOTAL_REQUESTS)):
+                    node_id += 1
+                    c = clients[node_id % len(clients)]
+                    try:
+                        resp = c.rpc("LOG_record", {"id": id, "msg": long_msg})
+                    except Exception:
+                        LOG.info("Trying to access a suspended node")
+                    try:
+                        cur_primary, cur_term = network.find_primary()
+                        term_info[cur_term] = cur_primary.node_id
+                    except Exception:
+                        LOG.info("Trying to access a suspended node")
+                    id += 1
 
-                # assert that view changes actually did occur
-                assert len(term_info) > 1
+                ## send final final message
+                # wait for the last request to commit
+                final_msg2 = "Hello world Hello!"
+                check_commit(
+                    c.rpc("LOG_record", {"id": 2000, "msg": final_msg2}), result=True,
+                )
+                check(
+                    c.rpc("LOG_get", {"id": 2000}), result={"msg": final_msg2},
+                )
 
-                LOG.success("----------- terms and primaries recorded -----------")
-                for term, primary in term_info.items():
-                    LOG.success(f"term {term} - primary {primary}")
+            with last_node.user_client(format="json") as c:
+                check(
+                    c.rpc("LOG_get", {"id": 1000}), result={"msg": final_msg},
+                )
+            with last_node.user_client(format="json") as c:
+                check(
+                    c.rpc("LOG_get", {"id": 2000}), result={"msg": final_msg2},
+                )
+
+                if not args.skip_suspension:
+                    # assert that view changes actually did occur
+                    assert len(term_info) > 1
+
+                    LOG.success("----------- terms and primaries recorded -----------")
+                    for term, primary in term_info.items():
+                        LOG.success(f"term {term} - primary {primary}")
 
 
 if __name__ == "__main__":
-
-    args = e2e_args.cli_args()
+    def add(parser):
+        parser.add_argument(
+            "--skip-suspension",
+            help="Don't suspend any nodes (i.e. just do late join)",
+            action="store_true"
+        )
+    args = e2e_args.cli_args(add)
     args.package = args.app_script and "libluagenericenc" or "libloggingenc"
 
     notify_server_host = "localhost"
