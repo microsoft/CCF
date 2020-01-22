@@ -78,7 +78,8 @@ extern "C"
   bool enclave_run()
   {
     uint16_t tid = enclave::ThreadMessaging::worker_thread_count.fetch_add(1);
-    tls_thread_id.insert(std::pair<std::thread::id, uint16_t>(std::this_thread::get_id(), tid));
+    tls_thread_id.insert(
+      std::pair<std::thread::id, uint16_t>(std::this_thread::get_id(), tid));
     LOG_INFO << "Starting thread" << std::endl;
 
     if (e.load() != nullptr)

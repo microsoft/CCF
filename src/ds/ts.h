@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include <cstdint>
-#include <thread>
 #include <map>
+#include <thread>
 
 extern std::map<std::thread::id, uint16_t> tls_thread_id;
