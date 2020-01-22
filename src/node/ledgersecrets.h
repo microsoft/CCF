@@ -84,7 +84,7 @@ namespace ccf
     }
 
     // Called when a node joins the network and get given the ledger secrets
-    // since the beggining of time
+    // since the beginning of time
     LedgerSecrets(
       LedgerSecrets&& ledger_secrets_, std::shared_ptr<AbstractSeal> seal_) :
       secrets_map(std::move(ledger_secrets_.secrets_map)),
