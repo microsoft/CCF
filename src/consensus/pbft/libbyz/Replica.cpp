@@ -279,9 +279,7 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
   // TODO: remove this memcpy
   memcpy(m->contents(), data, size);
 
-  if (
-    enclave::ThreadMessaging::thread_count > 1 &&
-    m->tag() == Request_tag)
+  if (enclave::ThreadMessaging::thread_count > 1 && m->tag() == Request_tag)
   {
     uint32_t num_worker_thread = enclave::ThreadMessaging::thread_count - 1;
     target_thread = (((Request*)m)->client_id() % num_worker_thread) + 1;
@@ -289,8 +287,7 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
 
   if (f() != 0 && target_thread != 0)
   {
-    auto msg =
-      std::make_unique<enclave::Tmsg<PreVerifyCbMsg>>(&pre_verify_cb);
+    auto msg = std::make_unique<enclave::Tmsg<PreVerifyCbMsg>>(&pre_verify_cb);
 
     msg->data.m = m;
     msg->data.self = this;
