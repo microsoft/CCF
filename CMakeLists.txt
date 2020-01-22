@@ -52,6 +52,51 @@ target_link_libraries(logging_client PRIVATE
   http_parser.host
 )
 
+# Build common library for CCF enclaves
+if("sgx" IN_LIST TARGET)
+  add_library(ccfcommon.enclave OBJECT
+    ${CCF_DIR}/src/enclave/main.cpp
+    ${CCF_GENERATED_DIR}/ccf_t.cpp
+  )
+  target_compile_definitions(ccfcommon.enclave PUBLIC
+    INSIDE_ENCLAVE
+    _LIBCPP_HAS_THREAD_API_PTHREAD
+  )
+  target_compile_options(ccfcommon.enclave PUBLIC
+    -nostdinc
+    -nostdinc++
+    -U__linux__
+  )
+  target_include_directories(ccfcommon.enclave SYSTEM PUBLIC
+    ${EVERCRYPT_INC}
+    ${QUICKJS_INC}
+  )
+
+  add_dependencies(ccfcommon.enclave flatbuffers)
+
+  if (PBFT)
+    target_link_libraries(ccfcommon.enclave PUBLIC
+      libbyz.enclave
+    )
+  endif()
+  target_link_libraries(ccfcommon.enclave PUBLIC
+    openenclave::oeenclave
+    openenclave::oelibcxx
+    ccfcrypto.enclave
+    evercrypt.enclave
+    lua.enclave
+    secp256k1.enclave
+  )
+  set_property(TARGET ccfcommon.enclave
+    PROPERTY POSITION_INDEPENDENT_CODE ON
+  )
+
+  install(
+    TARGETS ccfcommon.enclave
+    DESTINATION lib
+  )
+endif()
+
 add_enclave_lib(loggingenc
   SRCS
     src/apps/logging/logging.cpp

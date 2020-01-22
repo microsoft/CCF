@@ -96,9 +96,7 @@ function(add_enclave_lib name)
 
   if("sgx" IN_LIST TARGET)
     add_library(${name} SHARED
-      ${ENCLAVE_FILES}
       ${PARSED_ARGS_SRCS}
-      ${CCF_GENERATED_DIR}/ccf_t.cpp
     )
 
     target_compile_definitions(${name} PRIVATE
@@ -112,28 +110,12 @@ function(add_enclave_lib name)
     )
     target_include_directories(${name} SYSTEM PRIVATE
       ${PARSED_ARGS_INCLUDE_DIRS}
-      ${EVERCRYPT_INC}
-      ${CMAKE_CURRENT_BINARY_DIR}
-      ${QUICKJS_INC}
     )
-    add_dependencies(${name} flatbuffers)
+    #add_dependencies(${name} flatbuffers)
 
-    if (PBFT)
-      target_link_libraries(${name} PRIVATE
-        libbyz.enclave
-      )
-    endif()
     target_link_libraries(${name} PRIVATE
-      -nostdlib -nodefaultlibs -nostartfiles
-      -Wl,--no-undefined
-      -Wl,-Bstatic,-Bsymbolic,--export-dynamic,-pie
-      quickjs.enclave
-      -lgcc
       ${PARSED_ARGS_LINK_LIBS}
-      openenclave::oeenclave
-      openenclave::oelibcxx
-      ${ENCLAVE_LIBS}
-      http_parser.enclave
+      ccfcommon.enclave
     )
     set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 

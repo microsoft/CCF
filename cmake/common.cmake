@@ -3,9 +3,6 @@
 
 set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
 
-set(MSGPACK_INCLUDE_DIR ${CCF_DIR}/3rdparty/msgpack-c)
-set(FLATBUFFERS_INCLUDE_DIR ${CCF_DIR}/3rdparty/flatbuffers/include)
-
 set(default_build_type "RelWithDebInfo")
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
@@ -116,6 +113,8 @@ include_directories(
   SYSTEM
   ${CCF_DIR}/3rdparty
   ${CCF_DIR}/3rdparty/hacl-star
+  ${CCF_DIR}/3rdparty/msgpack-c
+  ${CCF_DIR}/3rdparty/flatbuffers/include
   ${MSGPACK_INCLUDE_DIR}
   ${FLATBUFFERS_INCLUDE_DIR}
 )
@@ -234,19 +233,6 @@ set(HTTP_PARSER_SOURCES
   ${CCF_DIR}/3rdparty/http-parser/http_parser.c)
 
 find_library(CRYPTO_LIBRARY crypto)
-
-
-# The OE libraries must be listed in a specific order. Issue #887 on github
-set(ENCLAVE_LIBS
-  ccfcrypto.enclave
-  evercrypt.enclave
-  lua.enclave
-  secp256k1.enclave
-)
-
-set(ENCLAVE_FILES
-  ${CCF_DIR}/src/enclave/main.cpp
-)
 
 function(add_enclave_library_c name files)
   add_library(${name} STATIC
@@ -423,6 +409,10 @@ sign_app_library(luagenericenc
 
 add_enclave_lib(jsgenericenc
   SRCS ${CCF_DIR}/src/apps/jsgeneric/jsgeneric.cpp
+)
+target_link_libraries(jsgenericenc PUBLIC
+  quickjs.enclave
+  -lgcc
 )
 sign_app_library(jsgenericenc
   ${CCF_DIR}/src/apps/jsgeneric/oe_sign.conf
