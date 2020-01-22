@@ -288,8 +288,6 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
       1;
   }
 
-  target_thread = 0;
-
   if (f() != 0 && target_thread != 0)
   {
     auto msg =

@@ -401,7 +401,8 @@ int main(int argc, char** argv)
     quote,
     network_cert,
     start_type,
-    consensus_type);
+    consensus_type,
+    num_worker_threads);
 
   LOG_INFO_FMT("Created new node");
 

@@ -106,7 +106,8 @@ extern "C"
     size_t network_cert_size,
     size_t* network_cert_len,
     StartType start_type,
-    ConsensusType consensus_type)
+    ConsensusType consensus_type,
+    size_t num_worker_thread)
   {
     static create_node_func_t create_node_func =
       get_enclave_exported_function<create_node_func_t>("enclave_create_node");

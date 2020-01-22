@@ -518,7 +518,7 @@ class CCFRemote(object):
         sig_max_ms=1000,
         election_timeout=1000,
         consensus="raft",
-        worker_threads=0,
+        worker_threads=1,
         memory_reserve_startup=0,
         notify_server=None,
         gov_script=None,

@@ -18,6 +18,7 @@ static std::atomic<enclave::Enclave*> e;
 static uint8_t* reserved_memory;
 std::chrono::milliseconds logger::config::ms =
   std::chrono::milliseconds::zero();
+std::atomic<uint32_t> num_pending_threads;
 
 enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> enclave::ThreadMessaging::worker_thread_count = 0;
@@ -38,7 +39,8 @@ extern "C"
     size_t network_cert_size,
     size_t* network_cert_len,
     StartType start_type,
-    ConsensusType consensus_type)
+    ConsensusType consensus_type,
+    size_t num_worker_thread)
   {
     std::lock_guard<SpinLock> guard(create_lock);
 
@@ -55,6 +57,8 @@ extern "C"
 #ifdef DEBUG_CONFIG
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];
 #endif
+
+    num_pending_threads = (num_worker_thread + 1);
 
     auto enclave = new enclave::Enclave(
       ec, cc.signature_intervals, consensus_type, cc.raft_config);
@@ -77,10 +81,24 @@ extern "C"
 
   bool enclave_run()
   {
-    uint16_t tid = enclave::ThreadMessaging::worker_thread_count.fetch_add(1);
-    tls_thread_id.insert(
-      std::pair<std::thread::id, uint16_t>(std::this_thread::get_id(), tid));
+    uint16_t tid;
+    {
+      std::lock_guard<SpinLock> guard(create_lock);
+
+      tid = enclave::ThreadMessaging::worker_thread_count.fetch_add(1);
+      tls_thread_id.insert(
+        std::pair<std::thread::id, uint16_t>(std::this_thread::get_id(), tid));
+    }
+
     LOG_INFO << "Starting thread" << std::endl;
+
+    --num_pending_threads;
+
+    while (num_pending_threads.load() > 0)
+    {
+    }
+
+    LOG_INFO << "All threads ready!" << std::endl;
 
     if (e.load() != nullptr)
     {
