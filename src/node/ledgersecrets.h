@@ -85,24 +85,21 @@ namespace ccf
 
     LedgerSecrets() = default;
 
-    // LedgerSecrets(const LedgerSecrets& ls) : secrets_map(ls.secrets_map) {}
-
     // Called when a node joins the network and get given the ledger secrets
     // since the beggining of time
-    // LedgerSecrets(
-    //   LedgerSecrets&
-    //     ledger_secrets, // TODO: This should be a rvalue reference here so we
-    //                     // can move it on the joining node
-    //   std::shared_ptr<AbstractSeal> seal_ = nullptr,
-    //   bool force_seal = true) :
-    //   secrets_map(ledger_secrets.secrets_map),
-    //   seal(seal_)
-    // {
-    //   if (force_seal)
-    //   {
-    //     seal_all();
-    //   }
-    // }
+    LedgerSecrets(
+      LedgerSecrets&& ledger_secrets_,
+      std::shared_ptr<AbstractSeal> seal_,
+      bool force_seal = true) :
+      secrets_map(std::move(ledger_secrets_.secrets_map)),
+      seal(seal_)
+    {
+      if (force_seal)
+      {
+        seal_all();
+      }
+    }
+
 
     // Called when a backup is given past ledger secret via the store
     bool set_secret(kv::Version v, const std::vector<uint8_t>& raw_secret)

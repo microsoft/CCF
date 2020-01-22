@@ -334,7 +334,7 @@ namespace ccf
         {
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
-          network.ledger_secrets = std::make_unique<LedgerSecrets>(seal);
+          network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
 
           self = 0; // The first node id is always 0
 
@@ -383,7 +383,7 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           // Create temporary network secrets but do not seal yet
-          network.ledger_secrets = std::make_unique<LedgerSecrets>(seal, false);
+          network.ledger_secrets = std::make_shared<LedgerSecrets>(seal, false);
 
           setup_history();
           setup_encryptor();
@@ -433,7 +433,6 @@ namespace ccf
 
           auto j = jsonrpc::unpack(data, jsonrpc::Pack::Text);
 
-          // Check that the response is valid.
           jsonrpc::Response<JoinNetworkNodeToNode::Out> resp;
           try
           {
@@ -451,31 +450,20 @@ namespace ccf
           {
             // If the current network secrets do not apply since the genesis,
             // the joining node can only join the public network
-            bool public_only = (0 != 1); // TODO:
+            bool public_only = false; // TODO: Add boolean to response
 
             network.identity =
               std::make_unique<NetworkIdentity>(resp->network_info.identity);
-
-            LOG_INFO_FMT(
-              "Joining at version {}, public_only: {}",
-              0, // TODO:
-              public_only);
-
-            // TODO: Initialise LedgerSecrets with the vector of network secrets
-            // passed by primary
 
             LOG_FAIL_FMT(
               "Number of ledger secrets: {}",
               resp->network_info.ledger_secrets.secrets_map.size());
 
-            // In a private network, seal secrets immediately.
-
-            // TODO: Only seal secrets when it is not a public network
-            // network.ledger_secrets = std::make_unique<LedgerSecrets>(
-            //   0, // TODO:
-            //   LedgerSecret(), // TODO:
-            //   seal,
-            //   !public_only);
+            // In a private network, seal secrets immediately. For a public
+            // network (i.e. before recovery vote), the secrets are sealed when
+            // the recovery is complete.
+            network.ledger_secrets = std::make_shared<LedgerSecrets>(
+              std::move(resp->network_info.ledger_secrets), seal, !public_only);
 
             self = resp->node_id;
 #ifdef PBFT
