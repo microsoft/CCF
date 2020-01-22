@@ -111,7 +111,6 @@ function(add_enclave_lib name)
     target_include_directories(${name} SYSTEM PRIVATE
       ${PARSED_ARGS_INCLUDE_DIRS}
     )
-    #add_dependencies(${name} flatbuffers)
 
     target_link_libraries(${name} PRIVATE
       ${PARSED_ARGS_LINK_LIBS}

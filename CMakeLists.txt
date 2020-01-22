@@ -54,6 +54,7 @@ target_link_libraries(logging_client PRIVATE
 
 # Build common library for CCF enclaves
 if("sgx" IN_LIST TARGET)
+  # enclave version
   add_library(ccfcommon.enclave STATIC
     ${CCF_DIR}/src/enclave/main.cpp
     ${CCF_GENERATED_DIR}/ccf_t.cpp
@@ -69,7 +70,6 @@ if("sgx" IN_LIST TARGET)
   )
   target_include_directories(ccfcommon.enclave SYSTEM PUBLIC
     ${EVERCRYPT_INC}
-    ${QUICKJS_INC}
   )
 
   add_dependencies(ccfcommon.enclave flatbuffers)

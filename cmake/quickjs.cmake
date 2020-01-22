@@ -36,7 +36,7 @@ if("sgx" IN_LIST TARGET)
   set_property(TARGET quickjs.enclave
     PROPERTY POSITION_INDEPENDENT_CODE ON
   )
-  target_include_directories(quickjs.enclave PRIVATE
+  target_include_directories(quickjs.enclave PUBLIC
     ${QUICKJS_INC}
   )
 
@@ -56,7 +56,7 @@ target_compile_options(quickjs.host PRIVATE
 set_property(TARGET quickjs.host
   PROPERTY POSITION_INDEPENDENT_CODE ON
 )
-target_include_directories(quickjs.host PRIVATE
+target_include_directories(quickjs.host PUBLIC
   ${QUICKJS_INC}
 )
 
