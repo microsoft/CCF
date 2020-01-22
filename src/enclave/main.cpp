@@ -81,27 +81,27 @@ extern "C"
 
   bool enclave_run()
   {
-    uint16_t tid;
-    {
-      std::lock_guard<SpinLock> guard(create_lock);
-
-      tid = enclave::ThreadMessaging::worker_thread_count.fetch_add(1);
-      tls_thread_id.insert(
-        std::pair<std::thread::id, uint16_t>(std::this_thread::get_id(), tid));
-    }
-
-    LOG_INFO << "Starting thread" << std::endl;
-
-    --num_pending_threads;
-
-    while (num_pending_threads.load() > 0)
-    {
-    }
-
-    LOG_INFO << "All threads ready!" << std::endl;
-
     if (e.load() != nullptr)
     {
+      uint16_t tid;
+      {
+        std::lock_guard<SpinLock> guard(create_lock);
+
+        tid = enclave::ThreadMessaging::worker_thread_count.fetch_add(1);
+        tls_thread_id.insert(std::pair<std::thread::id, uint16_t>(
+          std::this_thread::get_id(), tid));
+      }
+
+      LOG_INFO << "Starting thread" << std::endl;
+
+      --num_pending_threads;
+
+      while (num_pending_threads.load() > 0)
+      {
+      }
+
+      LOG_INFO << "All threads ready!" << std::endl;
+
       if (tid == 0)
       {
         return e.load()->run_main();
