@@ -462,7 +462,7 @@ namespace ccf
             // network (i.e. before recovery vote), the secrets are sealed when
             // the recovery is complete.
             network.ledger_secrets = std::make_shared<LedgerSecrets>(
-              std::move(resp->network_info.ledger_secrets), seal, !public_only);
+              std::move(resp->network_info.ledger_secrets), seal);
 
             self = resp->node_id;
 #ifdef PBFT

@@ -88,18 +88,10 @@ namespace ccf
     // Called when a node joins the network and get given the ledger secrets
     // since the beggining of time
     LedgerSecrets(
-      LedgerSecrets&& ledger_secrets_,
-      std::shared_ptr<AbstractSeal> seal_,
-      bool force_seal = true) :
+      LedgerSecrets&& ledger_secrets_, std::shared_ptr<AbstractSeal> seal_) :
       secrets_map(std::move(ledger_secrets_.secrets_map)),
       seal(seal_)
-    {
-      if (force_seal)
-      {
-        seal_all();
-      }
-    }
-
+    {}
 
     // Called when a backup is given past ledger secret via the store
     bool set_secret(kv::Version v, const std::vector<uint8_t>& raw_secret)
@@ -107,7 +99,6 @@ namespace ccf
       auto search = secrets_map.find(v);
       if (search != secrets_map.end())
       {
-        LOG_FAIL_FMT("Ledger secret at {} already exists", v);
         return false;
       }
 
