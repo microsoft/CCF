@@ -68,7 +68,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "-p",
             "--package",
-            help="The enclave package to load (e.g., libloggingenc)",
+            help="The enclave package to load (e.g., liblogging)",
             required=True,
         )
 

@@ -10,10 +10,10 @@ target_link_libraries(small_bank_client PRIVATE
 )
 
 # SmallBank application
-add_ccf_app(smallbankenc
+add_ccf_app(smallbank
   SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp
 )
-sign_app_library(smallbankenc
+sign_app_library(smallbank
   ${CMAKE_CURRENT_LIST_DIR}/app/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
 )

@@ -170,5 +170,5 @@ checked. Note that the key for each logging message is unique (per table).
         )
 
     args = e2e_args.cli_args(add)
-    args.package = "libloggingenc"
+    args.package = "liblogging"
     run(args)

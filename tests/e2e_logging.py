@@ -11,7 +11,7 @@ from loguru import logger as LOG
 
 @reqs.lua_generic_app
 def test_update_lua(network, args):
-    if args.package == "libluagenericenc":
+    if args.package == "libluageneric":
         LOG.info("Updating Lua application")
         primary, term = network.find_primary()
 
@@ -112,7 +112,7 @@ def run(args):
         # Lua apps do not support notifications
         # https://github.com/microsoft/CCF/issues/415
         notifications_queue = (
-            notifications.get_queue() if args.package == "libloggingenc" else None
+            notifications.get_queue() if args.package == "liblogging" else None
         )
 
         with infra.ccf.network(
@@ -126,7 +126,7 @@ def run(args):
 if __name__ == "__main__":
 
     args = e2e_args.cli_args()
-    args.package = args.app_script and "libluagenericenc" or "libloggingenc"
+    args.package = args.app_script and "libluageneric" or "liblogging"
 
     notify_server_host = "localhost"
     args.notify_server = (

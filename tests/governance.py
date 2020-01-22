@@ -64,5 +64,5 @@ if __name__ == "__main__":
         LOG.error("This test can only run in real enclaves, skipping")
         sys.exit(0)
 
-    args.package = "libloggingenc"
+    args.package = "liblogging"
     run(args)

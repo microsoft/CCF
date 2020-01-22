@@ -96,7 +96,7 @@ if __name__ == "__main__":
             "-p",
             "--package",
             help="The enclave package to load (e.g., libsimplebank)",
-            default="libloggingenc",
+            default="liblogging",
         )
         parser.add_argument(
             "--oesign", help="Path to oesign binary", type=str, required=True
@@ -116,6 +116,6 @@ if __name__ == "__main__":
         LOG.warning("Skipping code update test with virtual enclave")
         sys.exit()
 
-    args.package = args.app_script and "libluagenericenc" or "libloggingenc"
+    args.package = args.app_script and "libluageneric" or "liblogging"
     args.patched_file_name = "{}.patched".format(args.package)
     run(args)

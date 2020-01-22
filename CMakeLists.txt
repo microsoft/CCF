@@ -97,12 +97,12 @@ if("sgx" IN_LIST TARGET)
   )
 endif()
 
-add_ccf_app(loggingenc
+add_ccf_app(logging
   SRCS
     src/apps/logging/logging.cpp
     src/apps/logging/stub_for_code_signing.cpp
 )
-sign_app_library(loggingenc
+sign_app_library(logging
   ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
   ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
 )
@@ -127,7 +127,7 @@ function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   endif()
 endfunction()
 
-create_patched_enclave_lib(loggingenc
+create_patched_enclave_lib(logging
   ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
   ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
 )
@@ -435,7 +435,7 @@ if(BUILD_TESTS)
       NAME schema_tests
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
       ADDITIONAL_ARGS
-      -p libloggingenc
+      -p liblogging
       --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
     )
 
@@ -487,7 +487,7 @@ if(BUILD_TESTS)
       CLIENT_BIN ./scenario_perf_client
       LABEL log_scenario
       ADDITIONAL_ARGS
-        --package libloggingenc
+        --package liblogging
         --scenario-file ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
         --max-writes-ahead 1000
         --repetitions 1000
