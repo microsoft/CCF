@@ -274,20 +274,26 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
   uint64_t alloc_size = std::max(size, (uint32_t)Max_message_size);
   Message* m = new Message(alloc_size);
 
-  uint32_t target_thread =
-    ((++verification_thread) % enclave::ThreadMessaging::worker_thread_count) +
-    1;
+  uint32_t target_thread = 0;
 
   // TODO: remove this memcpy
   memcpy(m->contents(), data, size);
 
-  if (m->tag() == Request_tag)
+  if (enclave::ThreadMessaging::worker_thread_count != 0)
   {
-    target_thread = (((Request*)m)->client_id() %
-                     enclave::ThreadMessaging::worker_thread_count) +
-      1;
+    if (m->tag() == Request_tag)
+    {
+      target_thread = (((Request*)m)->client_id() %
+                       enclave::ThreadMessaging::worker_thread_count) +
+        1;
+    }
+    else
+    {
+      target_thread = std::min(
+        (uint16_t)1, enclave::ThreadMessaging::worker_thread_count.load());
+    }
   }
-  target_thread = 0;
+  target_thread = 1;
 
   if (f() != 0 && target_thread != 0)
   {
