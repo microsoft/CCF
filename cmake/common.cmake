@@ -404,7 +404,7 @@ else()
   set(CONSENSUS_ARG "raft")
 endif()
 
-set(worker_threads 1)
+set(worker_threads 0)
 
 set(CCF_NETWORK_TEST_ARGS
   ${TEST_IGNORE_QUOTE}
