@@ -103,8 +103,7 @@ namespace host
         &network_cert_len,
         start_type,
         consensus_type,
-        num_worker_thread
-        );
+        num_worker_thread);
 
       if (err != OE_OK)
       {
