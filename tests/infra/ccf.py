@@ -212,6 +212,14 @@ class Network:
                 member_id=1, remote_node=primary, app_script=args.app_script
             )
 
+        if args.js_app_script:
+            infra.proc.ccall(
+                "cp", args.js_app_script, args.build_dir
+            ).check_returncode()
+            self.consortium.set_js_app(
+                member_id=1, remote_node=primary, app_script=args.js_app_script
+            )
+
         self.consortium.add_users(primary, self.initial_users)
         LOG.info("Initial set of users added")
 

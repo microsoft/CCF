@@ -366,6 +366,13 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
+      NAME js_end_to_end_logging
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+      ADDITIONAL_ARGS
+        --js-app-script ${CMAKE_SOURCE_DIR}/src/apps/logging/loggingjs.lua
+    )
+
+    add_e2e_test(
       NAME lua_end_to_end_logging
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       ADDITIONAL_ARGS
