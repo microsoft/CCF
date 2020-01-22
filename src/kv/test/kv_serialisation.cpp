@@ -6,7 +6,6 @@
 #include "kv/kv.h"
 #include "kv/kvserialiser.h"
 #include "node/encryptor.h"
-#include "node/rpc/serialization.h"
 #include "stub_consensus.h"
 
 #include <doctest/doctest.h>

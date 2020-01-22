@@ -80,7 +80,7 @@ namespace ccf
 
       struct NetworkInfo
       {
-        LedgerSecrets ledger_secrets = {};
+        LedgerSecrets ledger_secrets;
         NetworkIdentity identity;
 
         bool operator==(const NetworkInfo& other) const

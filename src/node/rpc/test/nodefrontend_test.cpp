@@ -11,8 +11,6 @@
 #include "node_stub.h"
 #include "tls/pem.h"
 
-// TODO: Add a test for public only
-
 using namespace ccf;
 using namespace nlohmann;
 using namespace jsonrpc;
