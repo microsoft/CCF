@@ -293,7 +293,6 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
         (uint16_t)1, enclave::ThreadMessaging::worker_thread_count.load());
     }
   }
-  target_thread = 1;
 
   if (f() != 0 && target_thread != 0)
   {
