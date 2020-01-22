@@ -86,10 +86,12 @@ namespace ccfapp
       return JS_EXCEPTION;
     int32_t i = JS_VALUE_GET_INT(argv[0]);
     auto v = JS_ToCString(ctx, argv[1]); // TODO: error checking?
-    std::string s(v);
-    JS_FreeCString(ctx, v);
-    if (!log_table_view->put(i, s))
+    if (!log_table_view->put(i, v))
+    {
+      JS_FreeCString(ctx, v);
       return JS_EXCEPTION;
+    }
+    JS_FreeCString(ctx, v);
     return JS_NULL;
   }
 
