@@ -15,52 +15,52 @@
 
 namespace enclave
 {
-  struct thread_msg
+  struct ThreadMsg
   {
-    void (*cb)(std::unique_ptr<thread_msg>);
-    std::atomic<thread_msg*> next = nullptr;
+    void (*cb)(std::unique_ptr<ThreadMsg>);
+    std::atomic<ThreadMsg*> next = nullptr;
     uint64_t padding[14];
   };
 
-  template <typename Tpayload>
-  struct tmsg
+  template <typename Payload>
+  struct Tmsg
   {
-    tmsg(void (*_cb)(std::unique_ptr<tmsg<Tpayload>>)) :
-      cb(reinterpret_cast<void (*)(std::unique_ptr<thread_msg>)>(_cb)),
+    Tmsg(void (*_cb)(std::unique_ptr<Tmsg<Payload>>)) :
+      cb(reinterpret_cast<void (*)(std::unique_ptr<ThreadMsg>)>(_cb)),
       next(nullptr)
     {
-      CheckInvariants();
+      check_invariants();
     }
 
-    void (*cb)(std::unique_ptr<thread_msg>);
-    std::atomic<thread_msg*> next;
+    void (*cb)(std::unique_ptr<ThreadMsg>);
+    std::atomic<ThreadMsg*> next;
     union
     {
-      Tpayload data;
+      Payload data;
       uint64_t padding[14];
     };
 
-    static void CheckInvariants()
+    static void check_invariants()
     {
       static_assert(
-        sizeof(thread_msg) == sizeof(tmsg<Tpayload>), "message is too large");
+        sizeof(ThreadMsg) == sizeof(Tmsg<Payload>), "message is too large");
       static_assert(
-        sizeof(Tpayload) <= sizeof(thread_msg::padding),
+        sizeof(Payload) <= sizeof(ThreadMsg::padding),
         "message payload is too large");
 
       static_assert(
-        offsetof(tmsg, cb) == offsetof(thread_msg, cb),
+        offsetof(Tmsg, cb) == offsetof(ThreadMsg, cb),
         "Expected cb at start of struct");
       static_assert(
-        offsetof(tmsg, next) == offsetof(thread_msg, next),
+        offsetof(Tmsg, next) == offsetof(ThreadMsg, next),
         "Expected next after cb in struct");
       static_assert(
-        offsetof(tmsg, data) == offsetof(thread_msg, padding),
+        offsetof(Tmsg, data) == offsetof(ThreadMsg, padding),
         "Expected payload after next in struct");
     }
   };
 
-  static void init_cb(std::unique_ptr<thread_msg> stuff)
+  static void init_cb(std::unique_ptr<ThreadMsg> stuff)
   {
     LOG_INFO << "Init was called" << std::endl;
   }
@@ -68,23 +68,23 @@ namespace enclave
   class Task
   {
 #ifdef USE_MPSCQ
-    queue::MPSCQ<thread_msg> queue;
+    queue::MPSCQ<ThreadMsg> queue;
 #else
-    std::atomic<thread_msg*> item_head = nullptr;
-    thread_msg* local_msg = nullptr;
+    std::atomic<ThreadMsg*> item_head = nullptr;
+    ThreadMsg* local_msg = nullptr;
 #endif
 
   public:
     Task()
     {
 #ifdef USE_MPSCQ
-      auto msg = new thread_msg;
+      auto msg = new ThreadMsg;
       msg->cb = &init_cb;
       queue.init(msg);
 #endif
     }
 
-    bool run_next_task(bool print)
+    bool run_next_task()
     {
 #ifdef USE_MPSCQ
       if (queue.is_empty())
@@ -92,13 +92,13 @@ namespace enclave
         return false;
       }
 
-      thread_msg* current;
+      ThreadMsg* current;
       bool result;
       std::tie(current, result) = queue.dequeue();
 
       if (result)
       {
-        current->cb(std::unique_ptr<thread_msg>(current));
+        current->cb(std::unique_ptr<ThreadMsg>(current));
       }
 #else
       if (local_msg == nullptr && item_head != nullptr)
@@ -112,20 +112,20 @@ namespace enclave
         return false;
       }
 
-      thread_msg* current = local_msg;
+      ThreadMsg* current = local_msg;
       local_msg = local_msg->next;
 
-      current->cb(std::unique_ptr<thread_msg>(current));
+      current->cb(std::unique_ptr<ThreadMsg>(current));
 #endif
       return true;
     }
 
-    void add_task(thread_msg* item)
+    void add_task(ThreadMsg* item)
     {
 #ifdef USE_MPSCQ
       queue.enqueue(item, item);
 #else
-      thread_msg* tmp_head;
+      ThreadMsg* tmp_head;
       do
       {
         tmp_head = item_head.load();
@@ -141,7 +141,7 @@ namespace enclave
       if (local_msg == NULL)
         return;
 
-      thread_msg *prev = NULL, *current = NULL, *next = NULL;
+      ThreadMsg *prev = NULL, *current = NULL, *next = NULL;
       current = local_msg;
       while (current != NULL)
       {
@@ -163,7 +163,7 @@ namespace enclave
 
   public:
     static ThreadMessaging thread_messaging;
-    static std::atomic<uint16_t> worker_thread_count;
+    static std::atomic<uint16_t> thread_count;
 
   public:
     ThreadMessaging(uint16_t num_threads = 64) :
@@ -178,30 +178,27 @@ namespace enclave
 
     void run()
     {
-      Task& task = tasks[tls_thread_id[std::this_thread::get_id()]];
-
-      bool print = true;
+      Task& task = tasks[thread_ids[std::this_thread::get_id()]];
 
       while (!is_finished())
       {
-        task.run_next_task(print);
-        print = false;
+        task.run_next_task();
       }
     }
 
-    bool run_one(bool print)
-    {
-      Task& task = tasks[tls_thread_id[std::this_thread::get_id()]];
-
-      return task.run_next_task(print);
-    }
-
-    template <typename Tpayload>
-    void add_task(uint16_t tid, std::unique_ptr<tmsg<Tpayload>> msg)
+    bool run_one(uint16_t tid)
     {
       Task& task = tasks[tid];
 
-      task.add_task(reinterpret_cast<thread_msg*>(msg.release()));
+      return task.run_next_task();
+    }
+
+    template <typename Payload>
+    void add_task(uint16_t tid, std::unique_ptr<Tmsg<Payload>> msg)
+    {
+      Task& task = tasks[tid];
+
+      task.add_task(reinterpret_cast<ThreadMsg*>(msg.release()));
     }
 
   private:

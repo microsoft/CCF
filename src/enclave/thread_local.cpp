@@ -4,4 +4,4 @@
 #include <map>
 #include <thread>
 
-std::map<std::thread::id, uint16_t> tls_thread_id;
+std::map<std::thread::id, uint16_t> thread_ids;

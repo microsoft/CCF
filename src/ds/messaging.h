@@ -213,7 +213,9 @@ namespace messaging
           total_read += num_read;
         }
 
-        bool task_run = t.run_one(print);
+        uint16_t tid = thread_ids[std::this_thread::get_id()];
+
+        bool task_run = t.run_one(tid);
         print = false;
 
         if (num_read == 0 && !task_run)

@@ -20,7 +20,7 @@
 #include <doctest/doctest.h>
 
 enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
-std::atomic<uint16_t> enclave::ThreadMessaging::worker_thread_count = 0;
+std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
 
 // power of 2 since ringbuffer circuit size depends on total_requests
 static constexpr size_t total_requests = 32;

@@ -21,7 +21,7 @@ std::chrono::milliseconds logger::config::ms =
 std::atomic<uint32_t> num_pending_threads;
 
 enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
-std::atomic<uint16_t> enclave::ThreadMessaging::worker_thread_count = 0;
+std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
 
 extern "C"
 {
@@ -87,8 +87,8 @@ extern "C"
       {
         std::lock_guard<SpinLock> guard(create_lock);
 
-        tid = enclave::ThreadMessaging::worker_thread_count.fetch_add(1);
-        tls_thread_id.insert(std::pair<std::thread::id, uint16_t>(
+        tid = enclave::ThreadMessaging::thread_count.fetch_add(1);
+        thread_ids.insert(std::pair<std::thread::id, uint16_t>(
           std::this_thread::get_id(), tid));
       }
 

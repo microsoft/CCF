@@ -213,13 +213,13 @@ void Replica::compute_non_det(Seqno s, char* b, int* b_len)
 
 Replica::~Replica() = default;
 
-struct pre_verify_cb_msg
+struct PreVerifyCbMsg
 {
   Message* m;
   Replica* self;
 };
 
-struct pre_verify_result_cb_msg
+struct PreVerifyResultCbMsg
 {
   Message* m;
   Replica* self;
@@ -227,7 +227,7 @@ struct pre_verify_result_cb_msg
 };
 
 static void pre_verify_reply_cb(
-  std::unique_ptr<enclave::tmsg<pre_verify_result_cb_msg>> req)
+  std::unique_ptr<enclave::Tmsg<PreVerifyResultCbMsg>> req)
 {
   Message* m = req->data.m;
   Replica* self = req->data.self;
@@ -244,22 +244,22 @@ static void pre_verify_reply_cb(
   }
 }
 
-static void pre_verify_cb(std::unique_ptr<enclave::tmsg<pre_verify_cb_msg>> req)
+static void pre_verify_cb(std::unique_ptr<enclave::Tmsg<PreVerifyCbMsg>> req)
 {
   Message* m = req->data.m;
   Replica* self = req->data.self;
 
-  std::unique_ptr<enclave::tmsg<pre_verify_result_cb_msg>> resp =
-    std::unique_ptr<enclave::tmsg<pre_verify_result_cb_msg>>(
-      (enclave::tmsg<pre_verify_result_cb_msg>*)req.release());
+  std::unique_ptr<enclave::Tmsg<PreVerifyResultCbMsg>> resp =
+    std::unique_ptr<enclave::Tmsg<PreVerifyResultCbMsg>>(
+      (enclave::Tmsg<PreVerifyResultCbMsg>*)req.release());
 
-  new (resp.get()) enclave::tmsg<pre_verify_result_cb_msg>(pre_verify_reply_cb);
+  new (resp.get()) enclave::Tmsg<PreVerifyResultCbMsg>(pre_verify_reply_cb);
 
   resp->data.m = m;
   resp->data.self = self;
   resp->data.result = self->pre_verify(m);
 
-  enclave::ThreadMessaging::thread_messaging.add_task<pre_verify_result_cb_msg>(
+  enclave::ThreadMessaging::thread_messaging.add_task<PreVerifyResultCbMsg>(
     0, std::move(resp));
 }
 
@@ -280,23 +280,22 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
   memcpy(m->contents(), data, size);
 
   if (
-    enclave::ThreadMessaging::worker_thread_count != 0 &&
+    enclave::ThreadMessaging::thread_count > 1 &&
     m->tag() == Request_tag)
   {
-    target_thread = (((Request*)m)->client_id() %
-                     enclave::ThreadMessaging::worker_thread_count) +
-      1;
+    uint32_t num_worker_thread = enclave::ThreadMessaging::thread_count - 1;
+    target_thread = (((Request*)m)->client_id() % num_worker_thread) + 1;
   }
 
   if (f() != 0 && target_thread != 0)
   {
     auto msg =
-      std::make_unique<enclave::tmsg<pre_verify_cb_msg>>(&pre_verify_cb);
+      std::make_unique<enclave::Tmsg<PreVerifyCbMsg>>(&pre_verify_cb);
 
     msg->data.m = m;
     msg->data.self = this;
 
-    enclave::ThreadMessaging::thread_messaging.add_task<pre_verify_cb_msg>(
+    enclave::ThreadMessaging::thread_messaging.add_task<PreVerifyCbMsg>(
       target_thread, std::move(msg));
   }
   else

@@ -30,7 +30,7 @@ extern "C"
 static const int Simple_size = 4096;
 
 enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
-std::atomic<uint16_t> enclave::ThreadMessaging::worker_thread_count = 0;
+std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
 
 enum class MeasureState : int
 {

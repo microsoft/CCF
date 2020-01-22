@@ -34,7 +34,7 @@ using std::cerr;
 static const int Simple_size = 4096;
 
 enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
-std::atomic<uint16_t> enclave::ThreadMessaging::worker_thread_count = 0;
+std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
 
 static int start_exec_count =
   20 * 1000 * 1000; // how many ops to run tests for before timing

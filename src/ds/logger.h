@@ -175,7 +175,7 @@ namespace logger
         // Padding on the right to align the rest of the message
         // with lines that contain enclave time offsets
         return fmt::format(
-          "{}        {} [{:<5}] {:<36} | {}",
+          "{}        {:<2} [{:<5}] {:<36} | {}",
           get_timestamp(host_tm, host_ts),
           thread_id,
           log_level,
@@ -313,7 +313,7 @@ namespace logger
       line_number(line_number),
       log_level(ll),
 #ifdef INSIDE_ENCLAVE
-      thread_id(tls_thread_id[std::this_thread::get_id()])
+      thread_id(thread_ids[std::this_thread::get_id()])
 #else
       thread_id(999)
 #endif

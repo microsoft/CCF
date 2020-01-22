@@ -5,4 +5,4 @@
 #include <map>
 #include <thread>
 
-extern std::map<std::thread::id, uint16_t> tls_thread_id;
+extern std::map<std::thread::id, uint16_t> thread_ids;
