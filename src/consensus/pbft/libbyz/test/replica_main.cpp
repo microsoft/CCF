@@ -22,12 +22,12 @@ extern "C"
 #include "Timer.h"
 #include "consensus/pbft/pbfttables.h"
 #include "ds/files.h"
+#include "ds/thread_messaging.h"
 #include "libbyz.h"
 #include "network_impl.h"
 #include "nodeinfo.h"
 #include "pbft_assert.h"
 #include "stacktrace_utils.h"
-#include "ds/thread_messaging.h"
 
 using std::cerr;
 

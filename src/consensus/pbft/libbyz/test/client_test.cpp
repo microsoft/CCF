@@ -19,13 +19,13 @@ extern "C"
 #include "Statistics.h"
 #include "Timer.h"
 #include "ds/files.h"
+#include "ds/thread_messaging.h"
 #include "libbyz.h"
 #include "network_impl.h"
 #include "nodeinfo.h"
 #include "pbft_assert.h"
 #include "stacktrace_utils.h"
 #include "test_message.h"
-#include "ds/thread_messaging.h"
 
 static const int Simple_size = 4096;
 
