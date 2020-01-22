@@ -97,15 +97,6 @@ if("sgx" IN_LIST TARGET)
   )
 endif()
 
-add_ccf_app(logging
-  SRCS
-    src/apps/logging/logging.cpp
-    src/apps/logging/stub_for_code_signing.cpp
-)
-sign_app_library(logging
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
-)
 
 # Create patched alternative of library, to test code version changes
 function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
@@ -127,7 +118,16 @@ function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   endif()
 endfunction()
 
-create_patched_enclave_lib(logging
+add_ccf_app(logging
+  SRCS
+    src/apps/logging/logging.cpp
+    src/apps/logging/stub_for_code_signing.cpp
+)
+sign_app_library(logging.enclave
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+)
+create_patched_enclave_lib(logging.enclave
   ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
   ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
 )

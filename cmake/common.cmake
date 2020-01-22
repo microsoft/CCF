@@ -401,7 +401,7 @@ set(CCF_NETWORK_TEST_ARGS
 add_ccf_app(luageneric
   SRCS ${CCF_DIR}/src/apps/luageneric/luageneric.cpp
 )
-sign_app_library(luageneric
+sign_app_library(luageneric.enclave
   ${CCF_DIR}/src/apps/luageneric/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
 )
@@ -410,11 +410,15 @@ sign_app_library(luageneric
 add_ccf_app(jsgeneric
   SRCS ${CCF_DIR}/src/apps/jsgeneric/jsgeneric.cpp
 )
-target_link_libraries(jsgeneric PUBLIC
+target_link_libraries(jsgeneric.enclave PUBLIC
   quickjs.enclave
   -lgcc
 )
-sign_app_library(jsgeneric
+target_link_libraries(jsgeneric.virtual PUBLIC
+  quickjs.host
+  -lgcc
+)
+sign_app_library(jsgeneric.enclave
   ${CCF_DIR}/src/apps/jsgeneric/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
 )

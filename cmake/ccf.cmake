@@ -94,25 +94,29 @@ function(add_ccf_app name)
     "SRCS;INCLUDE_DIRS;LINK_LIBS"
   )
 
+  add_custom_target(${name} ALL)
+
   if("sgx" IN_LIST TARGET)
-    add_library(${name} SHARED
+    set(enc_name ${name}.enclave)
+
+    add_library(${enc_name} SHARED
       ${PARSED_ARGS_SRCS}
     )
 
-    target_compile_definitions(${name} PRIVATE
+    target_compile_definitions(${enc_name} PRIVATE
       INSIDE_ENCLAVE
       _LIBCPP_HAS_THREAD_API_PTHREAD
     )
-    target_compile_options(${name} PRIVATE
+    target_compile_options(${enc_name} PRIVATE
       -nostdinc
       -nostdinc++
       -U__linux__
     )
-    target_include_directories(${name} SYSTEM PRIVATE
+    target_include_directories(${enc_name} SYSTEM PRIVATE
       ${PARSED_ARGS_INCLUDE_DIRS}
     )
 
-    target_link_libraries(${name} PRIVATE
+    target_link_libraries(${enc_name} PRIVATE
       ${PARSED_ARGS_LINK_LIBS}
       # These oe libraries must be linked in correct order, so they are
       # re-declared here
@@ -121,9 +125,11 @@ function(add_ccf_app name)
       openenclave::oesyscall
       ccfcommon.enclave
     )
-    set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+    set_property(TARGET ${enc_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-    enable_quote_code(${name})
+    enable_quote_code(${enc_name})
+
+    add_dependencies(${name} ${enc_name})
   endif()
 
   if("virtual" IN_LIST TARGET)
@@ -173,5 +179,7 @@ function(add_ccf_app name)
     enable_coverage(${virt_name})
     use_client_mbedtls(${virt_name})
     add_san(${virt_name})
+
+    add_dependencies(${name} ${virt_name})
   endif()
 endfunction()
