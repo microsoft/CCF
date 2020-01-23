@@ -26,7 +26,7 @@ if("sgx" IN_LIST TARGET)
     ${CCF_DIR}/3rdparty/stub/stub.c
   )
   target_compile_options(quickjs.enclave PRIVATE
-    -nostdinc -U__linux__ -Wno-everything
+    -nostdinc -Wno-everything
     -DCONFIG_VERSION="${QUICKJS_VERSION}"
     -DEMSCRIPTEN
   )

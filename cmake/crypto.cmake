@@ -18,7 +18,7 @@ file(GLOB_RECURSE EVERCRYPT_SRC "${EVERCRYPT_PREFIX}/*.[cS]")
 if("sgx" IN_LIST TARGET)
   add_library(evercrypt.enclave STATIC ${EVERCRYPT_SRC})
   target_compile_options(evercrypt.enclave PRIVATE
-    -U__linux__ -Wno-everything
+    -Wno-everything
   )
   target_compile_definitions(evercrypt.enclave PRIVATE
     INSIDE_ENCLAVE KRML_HOST_PRINTF=oe_printf
@@ -55,7 +55,7 @@ if("sgx" IN_LIST TARGET)
     INSIDE_ENCLAVE
     _LIBCPP_HAS_THREAD_API_PTHREAD
   )
-  target_compile_options(ccfcrypto.enclave PRIVATE -nostdinc++ -U__linux__)
+  target_compile_options(ccfcrypto.enclave PRIVATE -nostdinc++)
   target_include_directories(ccfcrypto.enclave PRIVATE
     ${EVERCRYPT_INC}
   )

@@ -53,7 +53,7 @@ if("sgx" IN_LIST TARGET)
   add_library(libbyz.enclave STATIC ${PBFT_SRC})
   target_compile_options(libbyz.enclave PRIVATE
     -nostdinc
-    -U__linux__)
+  )
   target_compile_definitions(libbyz.enclave PRIVATE INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD __USE_SYSTEM_ENDIAN_H__ )
   set_property(TARGET libbyz.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
   target_include_directories(libbyz.enclave PRIVATE

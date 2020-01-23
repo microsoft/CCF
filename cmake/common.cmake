@@ -232,7 +232,7 @@ function(add_enclave_library_c name files)
     ${files})
   target_compile_options(${name} PRIVATE
     -nostdinc
-    -U__linux__)
+  )
   target_link_libraries(${name} PRIVATE
     openenclave::oelibc
   )

@@ -61,7 +61,7 @@ if("sgx" IN_LIST TARGET)
     ${CCF_DIR}/src/enclave/main.cpp
     ${CCF_GENERATED_DIR}/ccf_t.cpp
   )
-  
+
   target_compile_definitions(ccfcommon.enclave PUBLIC
     INSIDE_ENCLAVE
     _LIBCPP_HAS_THREAD_API_PTHREAD
@@ -70,7 +70,6 @@ if("sgx" IN_LIST TARGET)
   target_compile_options(ccfcommon.enclave PUBLIC
     -nostdinc
     -nostdinc++
-    -U__linux__
   )
 
   target_include_directories(ccfcommon.enclave SYSTEM PUBLIC
@@ -121,7 +120,6 @@ if("virtual" IN_LIST TARGET)
   )
 
   target_compile_options(ccfcommon.virtual PUBLIC
-    -U__linux__
     -stdlib=libc++
   )
 

@@ -9,7 +9,7 @@ if("sgx" IN_LIST TARGET)
         ${CCF_DIR}/3rdparty/secp256k1
     )
     target_compile_options(secp256k1.enclave PRIVATE
-        -fvisibility=hidden -nostdinc -U__linux__ -Wno-everything
+        -fvisibility=hidden -nostdinc -Wno-everything
     )
     target_compile_definitions(secp256k1.enclave PRIVATE
         HAVE_CONFIG_H
