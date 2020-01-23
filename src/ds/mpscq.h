@@ -2,8 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#pragma once
-
 #include <utility>
 namespace queue
 {

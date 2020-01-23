@@ -218,9 +218,7 @@ namespace enclave
         {
           node.start_ledger_recovery();
         }
-        bp.run(
-          circuit->read_from_outside(),
-          enclave::ThreadMessaging::thread_messaging);
+        bp.run(circuit->read_from_outside());
         return true;
       }
 #ifndef VIRTUAL_ENCLAVE

@@ -47,6 +47,7 @@ namespace enclave
       static_assert(
         sizeof(Payload) <= sizeof(ThreadMsg::padding),
         "message payload is too large");
+      static_assert(std::is_pod<Payload>::value, "data should be a pod");
 
       static_assert(
         offsetof(Tmsg, cb) == offsetof(ThreadMsg, cb),
@@ -60,7 +61,7 @@ namespace enclave
     }
   };
 
-  static void init_cb(std::unique_ptr<ThreadMsg> stuff)
+  static void init_cb(std::unique_ptr<ThreadMsg> m)
   {
     LOG_INFO << "Init was called" << std::endl;
   }
@@ -165,8 +166,10 @@ namespace enclave
     static ThreadMessaging thread_messaging;
     static std::atomic<uint16_t> thread_count;
 
+    static const uint16_t max_num_threads = 64;
+
   public:
-    ThreadMessaging(uint16_t num_threads = 64) :
+    ThreadMessaging(uint16_t num_threads = max_num_threads) :
       finished(false),
       tasks(num_threads)
     {}

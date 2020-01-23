@@ -200,10 +200,11 @@ namespace messaging
       return total_read;
     };
 
-    size_t run(ringbuffer::Reader& r, enclave::ThreadMessaging& t)
+    size_t run(ringbuffer::Reader& r)
     {
       size_t total_read = 0;
-      bool print = true;
+
+      uint16_t tid = thread_ids[std::this_thread::get_id()];
 
       while (!finished.load())
       {
@@ -213,10 +214,7 @@ namespace messaging
           total_read += num_read;
         }
 
-        uint16_t tid = thread_ids[std::this_thread::get_id()];
-
-        bool task_run = t.run_one(tid);
-        print = false;
+        bool task_run = enclave::ThreadMessaging::thread_messaging.run_one(tid);
 
         if (num_read == 0 && !task_run)
         {

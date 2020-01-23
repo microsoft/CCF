@@ -44,10 +44,19 @@ extern "C"
   {
     std::lock_guard<SpinLock> guard(create_lock);
 
+    if (e != nullptr)
+    {
+      return false;
+    }
+
     num_pending_threads = (uint16_t)num_worker_threads + 1;
 
-    if (e != nullptr)
+    if (
+      num_pending_threads >
+      enclave::ThreadMessaging::thread_messaging.max_num_threads)
+    {
       return false;
+    }
 
     EnclaveConfig* ec = (EnclaveConfig*)enclave_config;
 
@@ -89,7 +98,7 @@ extern "C"
 
         tid = enclave::ThreadMessaging::thread_count.fetch_add(1);
         num_pending_threads.fetch_sub(1);
-        thread_ids.insert(std::pair<std::thread::id, uint16_t>(
+        thread_ids.emplace(std::pair<std::thread::id, uint16_t>(
           std::this_thread::get_id(), tid));
 
         LOG_INFO << "Starting thread:" << tid << std::endl;

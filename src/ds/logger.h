@@ -161,7 +161,7 @@ namespace logger
         // that the time inside the enclave was 130 milliseconds earlier than
         // the host timestamp printed on the line
         return fmt::format(
-          "{} -{}.{:0>3} {} [{:<5}] {:<36} | {}",
+          "{} -{}.{:0>3} {:<3} [{:<5}] {:<36} | {}",
           get_timestamp(host_tm, host_ts),
           enclave_ts.value().tv_sec,
           enclave_ts.value().tv_nsec / 1000000,
@@ -175,7 +175,7 @@ namespace logger
         // Padding on the right to align the rest of the message
         // with lines that contain enclave time offsets
         return fmt::format(
-          "{}        {:<2} [{:<5}] {:<36} | {}",
+          "{}        {:<3} [{:<5}] {:<36} | {}",
           get_timestamp(host_tm, host_ts),
           thread_id,
           log_level,
@@ -315,7 +315,7 @@ namespace logger
 #ifdef INSIDE_ENCLAVE
       thread_id(thread_ids[std::this_thread::get_id()])
 #else
-      thread_id(999)
+      thread_id(100)
 #endif
     {}
 

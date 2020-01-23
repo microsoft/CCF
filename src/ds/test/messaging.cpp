@@ -17,6 +17,8 @@
 using namespace messaging;
 using namespace ringbuffer;
 
+enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
+
 template <typename Ex, typename F>
 void require_throws_with(
   F&& f,
@@ -158,7 +160,6 @@ TEST_CASE("Basic message loop" * doctest::test_suite("messaging"))
   };
 
   BufferProcessor bp;
-  enclave::ThreadMessaging t(1);
 
   Reader loop_src(1 << 10);
   Writer test_filler(loop_src);
@@ -194,13 +195,13 @@ TEST_CASE("Basic message loop" * doctest::test_suite("messaging"))
   SUBCASE("Unhandled messages will throw")
   {
     test_filler.write(echo_out);
-    REQUIRE_THROWS_AS(bp.run(loop_src, t), messaging::no_handler);
+    REQUIRE_THROWS_AS(bp.run(loop_src), messaging::no_handler);
   }
 
   SUBCASE("Message handlers can finish the loop")
   {
     test_filler.write(finish);
-    REQUIRE(bp.run(loop_src, t) == 1);
+    REQUIRE(bp.run(loop_src) == 1);
   }
 
   SUBCASE("Message handlers can affect external state")
@@ -208,7 +209,7 @@ TEST_CASE("Basic message loop" * doctest::test_suite("messaging"))
     const uint8_t new_x = 42;
     test_filler.write(set_x, new_x);
     test_filler.write(finish);
-    REQUIRE(bp.run(loop_src, t) == 2);
+    REQUIRE(bp.run(loop_src) == 2);
     REQUIRE(x == new_x);
   }
 
@@ -217,7 +218,7 @@ TEST_CASE("Basic message loop" * doctest::test_suite("messaging"))
     const std::vector<uint8_t> actual = {0, 13, 42, 100, 100, 10, 1};
     test_filler.write(echo, actual);
     test_filler.write(finish);
-    REQUIRE(bp.run(loop_src, t) == 2);
+    REQUIRE(bp.run(loop_src) == 2);
 
     REQUIRE(
       out_reader.read(
@@ -276,7 +277,6 @@ TEST_CASE("Multiple threads" * doctest::test_suite("messaging"))
 
       auto thread_fn = [&](ThreadArgs* ta) {
         BufferProcessor bp;
-        enclave::ThreadMessaging t(1);
 
         auto finish_handler = [&bp, &ta](const uint8_t* data, size_t size) {
           // If they tell us to stop, we tell them to stop as well
@@ -323,7 +323,7 @@ TEST_CASE("Multiple threads" * doctest::test_suite("messaging"))
         };
         DISPATCHER_SET_MESSAGE_HANDLER(bp, pong, pong_handler);
 
-        ta->read_count += bp.run(ta->r, t);
+        ta->read_count += bp.run(ta->r);
       };
 
       ThreadArgs insideArgs = {
