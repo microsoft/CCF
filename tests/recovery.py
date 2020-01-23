@@ -104,7 +104,7 @@ def test(network, args):
     )
 
     for node in recovered_network.nodes:
-        network.wait_for_state(node, "partOfNetwork")
+        recovered_network.wait_for_state(node, "partOfNetwork")
 
     recovered_network.wait_for_all_nodes_to_catch_up(primary)
 

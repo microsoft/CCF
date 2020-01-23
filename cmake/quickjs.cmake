@@ -25,12 +25,12 @@ if("sgx" IN_LIST TARGET)
     ${QUICKJS_SRC}
     ${CCF_DIR}/3rdparty/stub/stub.c
   )
-  target_compile_options(quickjs.enclave PRIVATE
+  target_compile_options(quickjs.enclave PUBLIC
     -nostdinc -Wno-everything
     -DCONFIG_VERSION="${QUICKJS_VERSION}"
     -DEMSCRIPTEN
   )
-  target_link_libraries(quickjs.enclave PRIVATE
+  target_link_libraries(quickjs.enclave PUBLIC
     openenclave::oelibc
   )
   set_property(TARGET quickjs.enclave
@@ -49,7 +49,7 @@ endif()
 add_library(quickjs.host STATIC
   ${QUICKJS_SRC}
 )
-target_compile_options(quickjs.host PRIVATE
+target_compile_options(quickjs.host PUBLIC
   -Wno-everything
   -DCONFIG_VERSION="${QUICKJS_VERSION}"
 )

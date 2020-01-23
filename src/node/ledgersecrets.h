@@ -45,20 +45,14 @@ namespace ccf
 
   class LedgerSecrets
   {
-    // Map of secrets that are valid from a specific version to the version of
-    // the next entry in the map. The last entry in the map is valid for all
-    // subsequent versions.
-    std::map<kv::Version, std::unique_ptr<LedgerSecret>> secrets_map;
+  private:
+    std::shared_ptr<AbstractSeal> seal;
 
-    std::unique_ptr<AbstractSeal> seal;
-    kv::Version current_version = 0;
-
-    void add_secret(
-      kv::Version v, std::unique_ptr<LedgerSecret>&& secret, bool force_seal)
+    void add_secret(kv::Version v, LedgerSecret&& secret, bool force_seal)
     {
       if (seal && force_seal)
       {
-        if (!seal->seal(v, secret->master))
+        if (!seal->seal(v, secret.master))
         {
           throw std::logic_error(
             fmt::format("Ledger secret could not be sealed: {}", v));
@@ -66,45 +60,47 @@ namespace ccf
       }
 
       secrets_map.emplace(v, std::move(secret));
-      current_version = std::max(current_version, v);
     }
 
   public:
+    // Map of secrets that are valid from a specific version to the version of
+    // the next entry in the map. The last entry in the map is valid for all
+    // subsequent versions.
+    std::map<kv::Version, LedgerSecret> secrets_map;
+
+    LedgerSecrets() = default;
+
     // Called on startup to generate fresh ledger secret
-    LedgerSecrets(
-      std::unique_ptr<AbstractSeal> seal_ = nullptr, bool force_seal = true) :
-      seal(std::move(seal_))
+    LedgerSecrets(std::shared_ptr<AbstractSeal> seal_, bool force_seal = true) :
+      seal(seal_)
     {
       // Generate fresh ledger encryption key
-      auto new_secret = std::make_unique<LedgerSecret>(true);
-      add_secret(1, std::move(new_secret), force_seal);
+      add_secret(1, LedgerSecret(true), force_seal);
     }
 
-    // Called when a node joins the network and get given the current ledger
-    // secrets
+    // Called when a node joins the network and get given the ledger secrets
+    // since the beginning of time
     LedgerSecrets(
-      kv::Version v,
-      LedgerSecret& secret,
-      std::unique_ptr<AbstractSeal> seal_ = nullptr,
-      bool force_seal = true) :
-      seal(std::move(seal_))
+      LedgerSecrets&& ledger_secrets_, std::shared_ptr<AbstractSeal> seal_) :
+      secrets_map(std::move(ledger_secrets_.secrets_map)),
+      seal(seal_)
+    {}
+
+    bool operator==(const LedgerSecrets& other) const
     {
-      auto new_secret = std::make_unique<LedgerSecret>(secret);
-      add_secret(v, std::move(new_secret), force_seal);
+      return secrets_map == other.secrets_map;
     }
 
     // Called when a backup is given past ledger secret via the store
-    bool set_secret(kv::Version v, const std::vector<uint8_t>& secret)
+    bool set_secret(kv::Version v, const std::vector<uint8_t>& raw_secret)
     {
       auto search = secrets_map.find(v);
       if (search != secrets_map.end())
       {
-        LOG_FAIL_FMT("Ledger secret at {} already exists", v);
         return false;
       }
 
-      auto new_secret = std::make_unique<LedgerSecret>(secret);
-      add_secret(v, std::move(new_secret), false);
+      add_secret(v, LedgerSecret(raw_secret), false);
 
       return true;
     }
@@ -118,7 +114,6 @@ namespace ccf
       {
         kv::Version v = std::stoi(it.key());
 
-        // Make sure that the secret to store does not already exist
         auto search = secrets_map.find(v);
         if (search != secrets_map.end())
         {
@@ -126,7 +121,6 @@ namespace ccf
             "Cannot restore ledger secret that already exists: ", v));
         }
 
-        // Unseal each sealed secret
         auto s = seal->unseal(it.value());
         if (!s.has_value())
         {
@@ -137,8 +131,7 @@ namespace ccf
         LOG_DEBUG_FMT(
           "Ledger secret successfully unsealed at version {}", it.key());
 
-        auto new_secret = std::make_unique<LedgerSecret>(s.value());
-        add_secret(v, std::move(new_secret), false);
+        add_secret(v, LedgerSecret(s.value()), false);
 
         restored_versions.push_back(v);
       }
@@ -178,8 +171,6 @@ namespace ccf
       secrets_map.emplace(new_v, std::move(search->second));
       secrets_map.erase(old_v);
 
-      current_version = new_v;
-
       LOG_TRACE_FMT(
         "Ledger secret used at {} are now valid from {}", old_v, new_v);
       return true;
@@ -199,7 +190,7 @@ namespace ccf
           fmt::format("Ledger secret to seal does not exist: {}", v));
       }
 
-      if (!seal->seal(search->first, search->second->master))
+      if (!seal->seal(search->first, search->second.master))
       {
         throw std::logic_error(
           fmt::format("Ledger secret could not be sealed: {}", search->first));
@@ -214,11 +205,6 @@ namespace ccf
       }
     }
 
-    const LedgerSecret& get_current()
-    {
-      return *secrets_map.at(current_version).get();
-    }
-
     std::optional<LedgerSecret> get_secret(kv::Version v)
     {
       auto search = secrets_map.find(v);
@@ -228,17 +214,7 @@ namespace ccf
         return {};
       }
 
-      return *search->second.get();
-    }
-
-    std::map<kv::Version, std::unique_ptr<LedgerSecret>>& get_secrets()
-    {
-      return secrets_map;
-    }
-
-    kv::Version get_current_version()
-    {
-      return current_version;
+      return search->second;
     }
   };
 }

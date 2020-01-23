@@ -236,6 +236,16 @@ class Consortium:
         result, error = self.propose(member_id, remote_node, script, new_lua_app)
         self.vote_using_majority(remote_node, result["id"])
 
+    def set_js_app(self, member_id, remote_node, app_script):
+        script = """
+        tables, app = ...
+        return Calls:call("set_js_app", app)
+        """
+        with open(app_script) as app:
+            new_js_app = app.read()
+        result, error = self.propose(member_id, remote_node, script, new_js_app)
+        self.vote_using_majority(remote_node, result["id"])
+
     def accept_recovery(self, member_id, remote_node, sealed_secrets):
         script = """
         tables, sealed_secrets = ...

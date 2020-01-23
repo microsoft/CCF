@@ -8,20 +8,16 @@ import rekey
 
 from inspect import signature, Parameter
 
-# TODO: For now, these are hardcoded. Indeed, late join after recovery is not yet supported.
-# https://github.com/microsoft/CCF/issues/315
+# TODO: For now, these are hardcoded.
+# https://github.com/microsoft/CCF/issues/712
 tests = [
+    recovery.test,
     reconfiguration.test_add_node,
-    reconfiguration.test_add_node_from_backup,
-    reconfiguration.test_add_as_many_pending_nodes,
-    reconfiguration.test_add_node_untrusted_code,
-    reconfiguration.test_retire_node,
-    e2e_logging.test,
-    e2e_logging.test_update_lua,
+    rekey.test,
+    reconfiguration.test_add_node,
     recovery.test,
     rekey.test,
-    recovery.test,
-    reconfiguration.test_retire_node,
+    reconfiguration.test_add_node,
 ]
 
 #
