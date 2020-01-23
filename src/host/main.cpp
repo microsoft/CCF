@@ -54,7 +54,7 @@ int main(int argc, char** argv)
   app.add_set("-c,--consensus", consensus, {"raft", "pbft"}, "Consensus", true)
     ->required();
 
-  uint32_t num_worker_threads = 0;
+  size_t num_worker_threads = 0;
   app.add_option(
     "-w,--worker_threads",
     num_worker_threads,

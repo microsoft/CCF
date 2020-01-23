@@ -66,7 +66,8 @@ extern "C"
     size_t,
     size_t*,
     StartType,
-    ConsensusType);
+    ConsensusType,
+    size_t);
 
   using run_func_t = bool (*)();
 
@@ -126,7 +127,8 @@ extern "C"
       network_cert_size,
       network_cert_len,
       start_type,
-      consensus_type);
+      consensus_type,
+      num_worker_thread);
     return *_retval ? OE_OK : OE_FAILURE;
   }
 

@@ -234,14 +234,14 @@ namespace enclave
 #endif
     }
 
-    struct stuff
+    struct Msg
     {
       uint64_t tid;
     };
 
-    static void init_thread_cb(std::unique_ptr<enclave::Tmsg<stuff>> stuff)
+    static void init_thread_cb(std::unique_ptr<enclave::Tmsg<Msg>> msg)
     {
-      LOG_INFO << "First thread CB:" << stuff->data.tid << std::endl;
+      LOG_INFO << "First thread CB:" << msg->data.tid << std::endl;
     }
 
     bool run_worker()
@@ -251,9 +251,9 @@ namespace enclave
       try
 #endif
       {
-        auto msg = std::make_unique<enclave::Tmsg<stuff>>(&init_thread_cb);
+        auto msg = std::make_unique<enclave::Tmsg<Msg>>(&init_thread_cb);
         msg->data.tid = thread_ids[std::this_thread::get_id()];
-        enclave::ThreadMessaging::thread_messaging.add_task<stuff>(
+        enclave::ThreadMessaging::thread_messaging.add_task<Msg>(
           msg->data.tid, std::move(msg));
 
         enclave::ThreadMessaging::thread_messaging.run();
