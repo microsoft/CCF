@@ -249,11 +249,9 @@ static void pre_verify_cb(std::unique_ptr<enclave::Tmsg<PreVerifyCbMsg>> req)
   Message* m = req->data.m;
   Replica* self = req->data.self;
 
-  std::unique_ptr<enclave::Tmsg<PreVerifyResultCbMsg>> resp =
-    std::unique_ptr<enclave::Tmsg<PreVerifyResultCbMsg>>(
-      (enclave::Tmsg<PreVerifyResultCbMsg>*)req.release());
-
-  new (resp.get()) enclave::Tmsg<PreVerifyResultCbMsg>(pre_verify_reply_cb);
+  auto resp = enclave::ThreadMessaging::
+    ConvertMessage<PreVerifyResultCbMsg, PreVerifyCbMsg>(
+      std::move(req), pre_verify_reply_cb);
 
   resp->data.m = m;
   resp->data.self = self;

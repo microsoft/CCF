@@ -138,17 +138,6 @@ namespace enclave
 #endif
     }
 
-    template <typename RetType, typename InputType>
-    static Tmsg<RetType> ConvertMessage(
-      std::unique_ptr<Tmsg<InputType>> msg,
-      void (*cb)(std::unique_ptr<Tmsg<RetType>>))
-    {
-      auto ret = std::unique_ptr<enclave::Tmsg<RetType>>(
-        (enclave::Tmsg<RetType>*)msg.release());
-      new (ret.get()) enclave::Tmsg<RetType>(cb);
-      return ret;
-    } 
-
   private:
 #ifndef USE_MPSCQ
     void reverse_local_messages()
@@ -216,6 +205,17 @@ namespace enclave
       Task& task = tasks[tid];
 
       task.add_task(reinterpret_cast<ThreadMsg*>(msg.release()));
+    }
+
+    template <typename RetType, typename InputType>
+    static std::unique_ptr<Tmsg<RetType>> ConvertMessage(
+      std::unique_ptr<Tmsg<InputType>> msg,
+      void (*cb)(std::unique_ptr<Tmsg<RetType>>))
+    {
+      auto ret = std::unique_ptr<enclave::Tmsg<RetType>>(
+        (enclave::Tmsg<RetType>*)msg.release());
+      new (ret.get()) enclave::Tmsg<RetType>(cb);
+      return ret;
     }
 
   private:
