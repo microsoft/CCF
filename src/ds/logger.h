@@ -11,13 +11,13 @@
 #include <fmt/time.h>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
 #include <string>
 #include <thread>
-#include <map>
 
 extern std::map<std::thread::id, uint16_t> thread_ids;
 
