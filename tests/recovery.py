@@ -74,10 +74,9 @@ def check_responses(responses, result, check, check_commit):
     check_commit(responses[-1], result=result)
 
 
-@reqs.none
-def test(network, args):
-    LOG.info("Starting network recovery")
-
+@reqs.description("Recovering a network")
+@reqs.recover(number_txs=2)
+def test(network, args, txs=None):
     primary, backups = network.find_nodes()
 
     ledger = primary.remote.get_ledger()
