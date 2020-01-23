@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/ts.h"
 #include "ringbuffer.h"
 
 #include <chrono>
@@ -17,6 +16,10 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <thread>
+#include <map>
+
+extern std::map<std::thread::id, uint16_t> thread_ids;
 
 namespace logger
 {

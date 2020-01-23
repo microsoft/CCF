@@ -8,10 +8,13 @@
 #ifdef USE_MPSCQ
 #  include "ds/mpscq.h"
 #endif
-#include "ds/ts.h"
 
 #include <atomic>
 #include <cstddef>
+#include <thread>
+#include <map>
+
+extern std::map<std::thread::id, uint16_t> thread_ids;
 
 namespace enclave
 {
