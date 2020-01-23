@@ -98,6 +98,8 @@ if("sgx" IN_LIST TARGET)
     PROPERTY POSITION_INDEPENDENT_CODE ON
   )
 
+  enable_quote_code(ccfcommon.enclave)
+
   install(
     TARGETS ccfcommon.enclave
     DESTINATION lib

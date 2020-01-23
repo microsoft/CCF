@@ -38,7 +38,7 @@ endfunction()
 # Util functions used by add_ccf_app and others
 function(enable_quote_code name)
   if (QUOTES_ENABLED)
-    target_compile_definitions(${name} PRIVATE -DGET_QUOTE)
+    target_compile_definitions(${name} PUBLIC -DGET_QUOTE)
   endif()
 endfunction()
 
@@ -118,8 +118,6 @@ function(add_ccf_app name)
     )
 
     set_property(TARGET ${enc_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
-
-    enable_quote_code(${enc_name})
 
     add_dependencies(${name} ${enc_name})
   endif()
