@@ -53,6 +53,8 @@ target_link_libraries(logging_client PRIVATE
 )
 
 # Build common library for CCF enclaves
+add_custom_target(ccfcommon ALL)
+
 if("sgx" IN_LIST TARGET)
   # enclave version
   add_library(ccfcommon.enclave STATIC
@@ -70,6 +72,7 @@ if("sgx" IN_LIST TARGET)
   )
   target_include_directories(ccfcommon.enclave SYSTEM PUBLIC
     ${EVERCRYPT_INC}
+    ${CCF_GENERATED_DIR}
   )
 
   add_dependencies(ccfcommon.enclave flatbuffers)
@@ -95,6 +98,56 @@ if("sgx" IN_LIST TARGET)
     TARGETS ccfcommon.enclave
     DESTINATION lib
   )
+
+  add_dependencies(ccfcommon ccfcommon.enclave)
+endif()
+
+if("virtual" IN_LIST TARGET)
+  # virtual version
+  add_library(ccfcommon.virtual STATIC
+    ${CCF_DIR}/src/enclave/main.cpp
+    ${CCF_GENERATED_DIR}/ccf_t.cpp
+  )
+  target_compile_definitions(ccfcommon.virtual PUBLIC
+    INSIDE_ENCLAVE
+    VIRTUAL_ENCLAVE
+    _LIBCPP_HAS_THREAD_API_PTHREAD
+  )
+  target_compile_options(ccfcommon.virtual PUBLIC
+    -U__linux__
+  )
+  target_include_directories(ccfcommon.virtual SYSTEM PUBLIC
+    ${EVERCRYPT_INC}
+    ${CCF_GENERATED_DIR}
+    ${OE_INCLUDEDIR} # Virtual libraries don't link against OE, but do share includes
+  )
+
+  add_dependencies(ccfcommon.virtual flatbuffers)
+
+  if (PBFT)
+    target_link_libraries(ccfcommon.virtual PUBLIC
+      libbyz.enclave
+    )
+  endif()
+  target_link_libraries(ccfcommon.virtual PUBLIC
+    -stdlib=libc++
+    -lc++
+    -lc++abi
+    ccfcrypto.host
+    evercrypt.host
+    lua.host
+    secp256k1.host
+  )
+  set_property(TARGET ccfcommon.virtual
+    PROPERTY POSITION_INDEPENDENT_CODE ON
+  )
+
+  install(
+    TARGETS ccfcommon.virtual
+    DESTINATION lib
+  )
+
+  add_dependencies(ccfcommon ccfcommon.virtual)
 endif()
 
 

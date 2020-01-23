@@ -409,14 +409,11 @@ sign_app_library(luageneric.enclave
 
 add_ccf_app(jsgeneric
   SRCS ${CCF_DIR}/src/apps/jsgeneric/jsgeneric.cpp
-)
-target_link_libraries(jsgeneric.enclave PUBLIC
-  quickjs.enclave
-  -lgcc
-)
-target_link_libraries(jsgeneric.virtual PUBLIC
-  quickjs.host
-  -lgcc
+  LINK_LIBS_ENCLAVE
+    quickjs.enclave
+    -lgcc
+  LINK_LIBS_VIRTUAL
+    quickjs.host
 )
 sign_app_library(jsgeneric.enclave
   ${CCF_DIR}/src/apps/jsgeneric/oe_sign.conf

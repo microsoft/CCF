@@ -91,7 +91,7 @@ function(add_ccf_app name)
   cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS
     ""
     ""
-    "SRCS;INCLUDE_DIRS;LINK_LIBS"
+    "SRCS;INCLUDE_DIRS;LINK_LIBS_ENCLAVE;LINK_LIBS_VIRTUAL"
   )
 
   add_custom_target(${name} ALL)
@@ -117,7 +117,7 @@ function(add_ccf_app name)
     )
 
     target_link_libraries(${enc_name} PRIVATE
-      ${PARSED_ARGS_LINK_LIBS}
+      ${PARSED_ARGS_LINK_LIBS_ENCLAVE}
       # These oe libraries must be linked in correct order, so they are
       # re-declared here
       openenclave::oeenclave
@@ -135,24 +135,19 @@ function(add_ccf_app name)
   if("virtual" IN_LIST TARGET)
     ## Build a virtual enclave, loaded as a shared library without OE
     set(virt_name ${name}.virtual)
+
     add_library(${virt_name} SHARED
-      ${ENCLAVE_FILES}
       ${PARSED_ARGS_SRCS}
-      ${CCF_GENERATED_DIR}/ccf_t.cpp
     )
     target_compile_definitions(${virt_name} PRIVATE
       INSIDE_ENCLAVE
       VIRTUAL_ENCLAVE
     )
     target_compile_options(${virt_name} PRIVATE
-      -stdlib=libc++)
+      -stdlib=libc++
+    )
     target_include_directories(${virt_name} SYSTEM PRIVATE
       ${PARSED_ARGS_INCLUDE_DIRS}
-      ${CCFCRYPTO_INC}
-      ${EVERCRYPT_INC}
-      ${CMAKE_CURRENT_BINARY_DIR}
-      ${QUICKJS_INC}
-      ${OE_INCLUDEDIR} # Virtual libraries don't link against OE, but do share includes
     )
     add_dependencies(${virt_name} flatbuffers)
 
@@ -162,17 +157,12 @@ function(add_ccf_app name)
       )
     endif()
     target_link_libraries(${virt_name} PRIVATE
-      ${PARSED_ARGS_LINK_LIBS}
+      ${PARSED_ARGS_LINK_LIBS_VIRTUAL}
       -stdlib=libc++
       -lc++
       -lc++abi
-      ccfcrypto.host
-      evercrypt.host
-      lua.host
       ${CMAKE_THREAD_LIBS_INIT}
-      secp256k1.host
-      http_parser.host
-      quickjs.host
+      ccfcommon.virtual
     )
     set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
