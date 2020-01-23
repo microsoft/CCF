@@ -18,7 +18,7 @@
 
 extern "C"
 {
-#  include <evercrypt/MerkleTree.h>
+#include <evercrypt/MerkleTree.h>
 }
 
 namespace fmt
