@@ -103,15 +103,6 @@ function(add_ccf_app name)
       ${PARSED_ARGS_SRCS}
     )
 
-    target_compile_definitions(${enc_name} PRIVATE
-      INSIDE_ENCLAVE
-      _LIBCPP_HAS_THREAD_API_PTHREAD
-    )
-    target_compile_options(${enc_name} PRIVATE
-      -nostdinc
-      -nostdinc++
-      -U__linux__
-    )
     target_include_directories(${enc_name} SYSTEM PRIVATE
       ${PARSED_ARGS_INCLUDE_DIRS}
     )
@@ -125,6 +116,7 @@ function(add_ccf_app name)
       openenclave::oesyscall
       ccfcommon.enclave
     )
+
     set_property(TARGET ${enc_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
     enable_quote_code(${enc_name})
@@ -139,31 +131,16 @@ function(add_ccf_app name)
     add_library(${virt_name} SHARED
       ${PARSED_ARGS_SRCS}
     )
-    target_compile_definitions(${virt_name} PRIVATE
-      INSIDE_ENCLAVE
-      VIRTUAL_ENCLAVE
-    )
-    target_compile_options(${virt_name} PRIVATE
-      -stdlib=libc++
-    )
+
     target_include_directories(${virt_name} SYSTEM PRIVATE
       ${PARSED_ARGS_INCLUDE_DIRS}
     )
-    add_dependencies(${virt_name} flatbuffers)
 
-    if (PBFT)
-      target_link_libraries(${virt_name} PRIVATE
-        libbyz.host
-      )
-    endif()
     target_link_libraries(${virt_name} PRIVATE
       ${PARSED_ARGS_LINK_LIBS_VIRTUAL}
-      -stdlib=libc++
-      -lc++
-      -lc++abi
-      ${CMAKE_THREAD_LIBS_INIT}
       ccfcommon.virtual
     )
+
     set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
     enable_coverage(${virt_name})
