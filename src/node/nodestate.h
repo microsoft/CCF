@@ -179,6 +179,8 @@ namespace ccf
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
+    std::shared_ptr<Seal> seal;
+
     //
     // join protocol
     //
@@ -215,7 +217,8 @@ namespace ccf
       network(network),
       rpcsessions(rpcsessions),
       notifier(notifier),
-      timers(timers)
+      timers(timers),
+      seal(std::make_shared<Seal>(writer_factory))
     {
       ::EverCrypt_AutoConfig2_init();
     }
@@ -331,8 +334,7 @@ namespace ccf
         {
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
-          network.ledger_secrets = std::make_unique<LedgerSecrets>(
-            std::make_unique<Seal>(writer_factory));
+          network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
 
           self = 0; // The first node id is always 0
 
@@ -381,8 +383,7 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           // Create temporary network secrets but do not seal yet
-          network.ledger_secrets = std::make_unique<LedgerSecrets>(
-            std::make_unique<Seal>(writer_factory), false);
+          network.ledger_secrets = std::make_shared<LedgerSecrets>(seal, false);
 
           setup_history();
           setup_encryptor();
@@ -432,7 +433,6 @@ namespace ccf
 
           auto j = jsonrpc::unpack(data, jsonrpc::Pack::Text);
 
-          // Check that the response is valid.
           jsonrpc::Response<JoinNetworkNodeToNode::Out> resp;
           try
           {
@@ -448,33 +448,16 @@ namespace ccf
           // Set network secrets, node id and become part of network.
           if (resp->node_status == NodeStatus::TRUSTED)
           {
-            // TODO: This logic needs to change to support late join after
-            // rekeying/recovery. https://github.com/microsoft/CCF/issues/315
-
-            // If the current network secrets do not apply since the genesis,
-            // the joining node can only join the public network
-            bool public_only = (resp->network_info.version != 1);
-
             network.identity =
               std::make_unique<NetworkIdentity>(resp->network_info.identity);
-
-            LOG_INFO_FMT(
-              "Joining at version {}, public_only: {}",
-              resp->network_info.version,
-              public_only);
-
-            // In a private network, seal secrets immediately.
-            network.ledger_secrets = std::make_unique<LedgerSecrets>(
-              resp->network_info.version,
-              resp->network_info.ledger_secrets,
-              std::make_unique<Seal>(writer_factory),
-              !public_only);
+            network.ledger_secrets = std::make_shared<LedgerSecrets>(
+              std::move(resp->network_info.ledger_secrets), seal);
 
             self = resp->node_id;
 #ifdef PBFT
             setup_pbft(args.config);
 #else
-            setup_raft(public_only);
+            setup_raft(resp->public_only);
 #endif
             setup_history();
             setup_encryptor();
@@ -483,7 +466,7 @@ namespace ccf
 
             accept_network_tls_connections(args.config);
 
-            if (public_only)
+            if (resp->public_only)
             {
               sm.advance(State::partOfPublicNetwork);
             }
@@ -497,7 +480,7 @@ namespace ccf
             LOG_INFO_FMT(
               "Node has now joined the network as node {}: {}",
               self,
-              (public_only ? "public only" : "all domains"));
+              (resp->public_only ? "public only" : "all domains"));
           }
           else if (resp->node_status == NodeStatus::PENDING)
           {

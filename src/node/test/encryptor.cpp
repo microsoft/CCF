@@ -16,9 +16,10 @@ using namespace ccf;
 
 TEST_CASE("Simple encryption/decryption")
 {
-  // Setting 1 ledger secret, valid for version 0+
+  // Setting 1 ledger secret, valid for version 1+
   uint64_t node_id = 0;
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->set_secret(1, std::vector<uint8_t>(16, 0x42));
   auto encryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -42,6 +43,7 @@ TEST_CASE("Two ciphers from same plaintext are different")
 {
   uint64_t node_id = 0;
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->set_secret(1, std::vector<uint8_t>(16, 0x42));
   auto encryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -67,6 +69,7 @@ TEST_CASE("Additional data")
   // Setting 1 ledger secret, valid for version 1+
   uint64_t node_id = 0;
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->set_secret(1, std::vector<uint8_t>(16, 0x42));
   auto encryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -97,16 +100,14 @@ TEST_CASE("Additional data")
 
 TEST_CASE("Encryption/decryption with multiple ledger secrets")
 {
-  // Setting 2 ledger secrets, valid from version 0 and 4
+  // Setting 2 ledger secrets, valid from version 1 and 4
   uint64_t node_id = 0;
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-  auto new_secret = std::make_unique<ccf::LedgerSecret>(true);
-  secrets->get_secrets().emplace(
-    4, std::move(new_secret)); // Create new secrets valid from version 4
-
+  secrets->set_secret(1, std::vector<uint8_t>(16, 0x42));
+  secrets->set_secret(4, std::vector<uint8_t>(16, 0x43));
   auto encryptor = std::make_shared<ccf::TxEncryptor>(node_id, secrets);
 
-  INFO("Encryption with key at version 0");
+  INFO("Encryption with key at version 1");
   {
     std::vector<uint8_t> plain(128, 0x42);
     std::vector<uint8_t> cipher;
