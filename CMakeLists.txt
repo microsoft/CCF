@@ -165,15 +165,16 @@ endif()
 
 # Create patched alternative of library, to test code version changes
 function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
-  if(TARGET ${name})
-    set(patched_name ${name}.patched)
+  set(enc_name ${name}.enclave)
+  if(TARGET ${enc_name})
+    set(patched_name ${name}.patched.enclave)
     set(patched_lib_name lib${patched_name}.so)
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib${enc_name}.so ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
         COMMAND PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH} python3 patch_binary.py -p ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
         WORKING_DIRECTORY ${CCF_DIR}/tests
-        DEPENDS ${name}
+        DEPENDS ${enc_name}
     )
 
     add_custom_target(${patched_name} ALL
@@ -192,7 +193,7 @@ sign_app_library(logging.enclave
   ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
   ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
 )
-create_patched_enclave_lib(logging.enclave
+create_patched_enclave_lib(logging
   ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
   ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
 )
@@ -515,8 +516,6 @@ if(BUILD_TESTS)
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
         ADDITIONAL_ARGS
           --oesign ${OE_SIGN_PATH}
-          --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
-          --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
           # TODO: This test spins up many nodes that go through the join protocol
           # Since oe_verify_report can take quite a long time to execute (~2s)
           # and trigger Raft elections, the election timeout should stay high
