@@ -140,13 +140,6 @@ add_custom_command(
     COMMENT "Generating code from EDL, and renaming to .cpp"
 )
 
-install(
-  FILES
-    ${CCF_GENERATED_DIR}/ccf_t.cpp
-    ${CCF_GENERATED_DIR}/ccf_t.h
-  DESTINATION generated
-)
-
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf.cmake DESTINATION cmake)
 
