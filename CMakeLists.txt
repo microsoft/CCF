@@ -90,6 +90,7 @@ if("sgx" IN_LIST TARGET)
     openenclave::oelibcxx
     ccfcrypto.enclave
     evercrypt.enclave
+    http_parser.enclave
     lua.enclave
     secp256k1.enclave
   )
@@ -145,6 +146,7 @@ if("virtual" IN_LIST TARGET)
     -lc++abi
     ccfcrypto.host
     evercrypt.host
+    http_parser.host
     lua.host
     secp256k1.host
     ${CMAKE_THREAD_LIBS_INIT}
