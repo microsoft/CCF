@@ -117,12 +117,12 @@ namespace ccf
 
       if (node_status == NodeStatus::TRUSTED)
       {
-        return make_success(JoinNetworkNodeToNode::Out(
-          {node_status,
-           joining_node_id,
-           {this->network.ledger_secrets->get_current(),
-            this->network.ledger_secrets->get_current_version(),
-            *this->network.identity.get()}}));
+        return make_success(
+          JoinNetworkNodeToNode::Out({node_status,
+                                      joining_node_id,
+                                      node.is_part_of_public_network(),
+                                      {*this->network.ledger_secrets.get(),
+                                       *this->network.identity.get()}}));
       }
       else
       {
@@ -188,12 +188,12 @@ namespace ccf
             check_node_exists(args.tx, caller_pem_raw, joining_node_status);
           if (existing_node_id.has_value())
           {
-            args.rpc_ctx->set_response_result(JoinNetworkNodeToNode::Out(
-              {joining_node_status,
-               existing_node_id.value(),
-               {this->network.ledger_secrets->get_current(),
-                this->network.ledger_secrets->get_current_version(),
-                *this->network.identity.get()}}));
+            args.rpc_ctx->set_response_result(
+              JoinNetworkNodeToNode::Out({joining_node_status,
+                                          existing_node_id.value(),
+                                          node.is_part_of_public_network(),
+                                          {*this->network.ledger_secrets.get(),
+                                           *this->network.identity.get()}}));
             return;
           }
 
@@ -215,12 +215,12 @@ namespace ccf
           auto node_status = nodes_view->get(existing_node_id.value())->status;
           if (node_status == NodeStatus::TRUSTED)
           {
-            args.rpc_ctx->set_response_result(JoinNetworkNodeToNode::Out(
-              {node_status,
-               existing_node_id.value(),
-               {this->network.ledger_secrets->get_current(),
-                this->network.ledger_secrets->get_current_version(),
-                *this->network.identity.get()}}));
+            args.rpc_ctx->set_response_result(
+              JoinNetworkNodeToNode::Out({node_status,
+                                          existing_node_id.value(),
+                                          node.is_part_of_public_network(),
+                                          {*this->network.ledger_secrets.get(),
+                                           *this->network.identity.get()}}));
             return;
           }
           else if (node_status == NodeStatus::PENDING)
@@ -243,6 +243,7 @@ namespace ccf
 
           // TODO: We should also automatically stage a vote for members to
           // accept the new node as trusted
+          // https://github.com/microsoft/CCF/issues/397
           args.rpc_ctx->set_response(
             add_node(args.tx, caller_pem_raw, in, NodeStatus::PENDING));
           return;
