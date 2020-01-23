@@ -83,7 +83,7 @@ extern "C"
         "Current implementation is limited to a single virtual "
         "enclave per process");
     }
-    virtual_enclave_handle = dlopen(path, RTLD_LAZY);
+    virtual_enclave_handle = dlopen(path, RTLD_NOW);
     if (virtual_enclave_handle == nullptr)
     {
       LOG_FATAL_FMT("Could not load virtual enclave: {}", dlerror());

@@ -156,6 +156,10 @@ if("virtual" IN_LIST TARGET)
     PROPERTY POSITION_INDEPENDENT_CODE ON
   )
 
+  enable_coverage(ccfcommon.virtual)
+  use_client_mbedtls(ccfcommon.virtual)
+  add_san(ccfcommon.virtual)
+
   install(
     TARGETS ccfcommon.virtual
     DESTINATION lib
