@@ -19,20 +19,20 @@ The :term:`Open Enclave` configuration file (``oe_sign.conf``) should be placed 
 Standalone Signing
 ------------------
 
-It is also possible to sign an existing enclave application (e.g. ``libluageneric.so``) manually, using a personal signing key (specified by ``--key-file``):
+It is also possible to sign an existing enclave application (e.g. ``libluageneric.enclave.so``) manually, using a personal signing key (specified by ``--key-file``):
 
 .. code-block:: bash
 
-    $ /opt/openenclave/bin/oesign sign --enclave-image libluageneric.so  --config-file CCF/src/apps/luageneric/oe_sign.conf --key-file CCF/src/apps/sample_key.pem
-    Created libluageneric.so.signed
+    $ /opt/openenclave/bin/oesign sign --enclave-image libluageneric.enclave.so  --config-file CCF/src/apps/luageneric/oe_sign.conf --key-file CCF/src/apps/sample_key.pem
+    Created libluageneric.enclave.so.signed
     $ ls *.so.signed
-    libluageneric.so.signed
+    libluageneric.enclave.so.signed
 
 It is then possible to inspect the signed enclave library:
 
 .. code-block:: bash
 
-    $ /opt/openenclave/bin/oesign dump --enclave-image libluageneric.so.signed
+    $ /opt/openenclave/bin/oesign dump --enclave-image libluageneric.enclave.so.signed
     === Entry point:
     name=_start
     address=00000000008dee48
