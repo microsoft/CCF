@@ -115,8 +115,6 @@ include_directories(
   ${CCF_DIR}/3rdparty/hacl-star
   ${CCF_DIR}/3rdparty/msgpack-c
   ${CCF_DIR}/3rdparty/flatbuffers/include
-  ${MSGPACK_INCLUDE_DIR}
-  ${FLATBUFFERS_INCLUDE_DIR}
 )
 
 set(TARGET "sgx;virtual" CACHE STRING "One of sgx, virtual, or 'sgx;virtual'")
