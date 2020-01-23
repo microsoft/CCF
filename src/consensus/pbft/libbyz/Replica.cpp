@@ -239,7 +239,7 @@ static void pre_verify_reply_cb(
   }
   else
   {
-    LOG_INFO << "did not verify - m:" << m->tag() << std::endl;
+    LOG_INFO_FMT("did not verify - m:{}", m->tag());
     delete m;
   }
 }
@@ -303,7 +303,7 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
     }
     else
     {
-      LOG_INFO << "did not verify - m:" << m->tag() << std::endl;
+      LOG_INFO_FMT("did not verify - m:{}", m->tag());
       delete m;
     }
   }

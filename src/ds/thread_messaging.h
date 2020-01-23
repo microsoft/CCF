@@ -66,7 +66,7 @@ namespace enclave
 
   static void init_cb(std::unique_ptr<ThreadMsg> m)
   {
-    LOG_INFO << "Init was called" << std::endl;
+    LOG_INFO_FMT("Init was called");
   }
 
   class Task
@@ -137,6 +137,17 @@ namespace enclave
       } while (!item_head.compare_exchange_strong(tmp_head, item));
 #endif
     }
+
+    template <typename RetType, typename InputType>
+    static Tmsg<RetType> ConvertMessage(
+      std::unique_ptr<Tmsg<InputType>> msg,
+      void (*cb)(std::unique_ptr<Tmsg<RetType>>))
+    {
+      auto ret = std::unique_ptr<enclave::Tmsg<RetType>>(
+        (enclave::Tmsg<RetType>*)msg.release());
+      new (ret.get()) enclave::Tmsg<RetType>(cb);
+      return ret;
+    } 
 
   private:
 #ifndef USE_MPSCQ
