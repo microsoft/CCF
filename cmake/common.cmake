@@ -246,6 +246,7 @@ set(ENCLAVE_LIBS
 
 set(ENCLAVE_FILES
   ${CCF_DIR}/src/enclave/main.cpp
+  ${CCF_DIR}/src/enclave/thread_local.cpp
 )
 
 function(add_enclave_library_c name files)
@@ -269,6 +270,7 @@ find_package(CURL REQUIRED)
 ## Unit test wrapper
 function(add_unit_test name)
   add_executable(${name}
+    ${CCF_DIR}/src/enclave/thread_local.cpp
     ${ARGN})
     target_compile_options(${name} PRIVATE -stdlib=libc++)
   target_include_directories(${name} PRIVATE
@@ -402,12 +404,15 @@ else()
   set(CONSENSUS_ARG "raft")
 endif()
 
+set(WORKER_THREADS 0)
+
 set(CCF_NETWORK_TEST_ARGS
   ${TEST_IGNORE_QUOTE}
   ${TEST_ENCLAVE_TYPE}
   -l ${TEST_HOST_LOGGING_LEVEL}
   -g ${CCF_DIR}/src/runtime_config/gov.lua
   --consensus ${CONSENSUS_ARG}
+  --worker_threads ${WORKER_THREADS}
   --default-curve ${DEFAULT_PARTICIPANTS_CURVE}
 )
 

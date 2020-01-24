@@ -91,6 +91,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--consensus", help="Consensus", default="raft", choices=("raft", "pbft"),
     )
     parser.add_argument(
+        "--worker_threads",
+        help="number of worker threads inside the enclave",
+        type=int,
+        default=0,
+    )
+    parser.add_argument(
         "--pdb", help="Break to debugger on exception", action="store_true"
     )
     parser.add_argument(

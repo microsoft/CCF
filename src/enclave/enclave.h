@@ -127,8 +127,9 @@ namespace enclave
       return true;
     }
 
-    bool run()
+    bool run_main()
     {
+      LOG_INFO_FMT("Running main thread");
 #ifndef VIRTUAL_ENCLAVE
       try
 #endif
@@ -139,8 +140,9 @@ namespace enclave
         oversized::FragmentReconstructor fr(bp.get_dispatcher());
 
         DISPATCHER_SET_MESSAGE_HANDLER(
-          bp, AdminMessage::stop, [&bp](const uint8_t*, size_t) {
+          bp, AdminMessage::stop, [&bp, this](const uint8_t*, size_t) {
             bp.set_finished();
+            enclave::ThreadMessaging::thread_messaging.set_finished();
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
@@ -228,6 +230,42 @@ namespace enclave
         return false;
       }
 #endif
+    }
+
+    struct Msg
+    {
+      uint64_t tid;
+    };
+
+    static void init_thread_cb(std::unique_ptr<enclave::Tmsg<Msg>> msg)
+    {
+      LOG_INFO_FMT("First thread CB:{}", msg->data.tid);
+    }
+
+    bool run_worker()
+    {
+      LOG_INFO_FMT("Running worker thread");
+#ifndef VIRTUAL_ENCLAVE
+      try
+#endif
+      {
+        auto msg = std::make_unique<enclave::Tmsg<Msg>>(&init_thread_cb);
+        msg->data.tid = thread_ids[std::this_thread::get_id()];
+        enclave::ThreadMessaging::thread_messaging.add_task<Msg>(
+          msg->data.tid, std::move(msg));
+
+        enclave::ThreadMessaging::thread_messaging.run();
+      }
+#ifndef VIRTUAL_ENCLAVE
+      catch (const std::exception& e)
+      {
+        auto w = writer_factory.create_writer_to_outside();
+        RINGBUFFER_WRITE_MESSAGE(
+          AdminMessage::fatal_error_msg, w, std::string(e.what()));
+        return false;
+      }
+#endif
+      return true;
     }
   };
 }
