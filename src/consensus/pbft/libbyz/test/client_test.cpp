@@ -19,6 +19,7 @@ extern "C"
 #include "Statistics.h"
 #include "Timer.h"
 #include "ds/files.h"
+#include "ds/thread_messaging.h"
 #include "libbyz.h"
 #include "network_impl.h"
 #include "nodeinfo.h"
@@ -27,6 +28,9 @@ extern "C"
 #include "test_message.h"
 
 static const int Simple_size = 4096;
+
+enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
 
 enum class MeasureState : int
 {

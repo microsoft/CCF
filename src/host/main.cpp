@@ -54,6 +54,13 @@ int main(int argc, char** argv)
   app.add_set("-c,--consensus", consensus, {"raft", "pbft"}, "Consensus", true)
     ->required();
 
+  size_t num_worker_threads = 0;
+  app.add_option(
+    "-w,--worker_threads",
+    num_worker_threads,
+    "number of worker threads inside the enclave",
+    true);
+
   cli::ParsedAddress node_address;
   cli::add_address_option(
     app,
@@ -394,7 +401,8 @@ int main(int argc, char** argv)
     quote,
     network_cert,
     start_type,
-    consensus_type);
+    consensus_type,
+    num_worker_threads);
 
   LOG_INFO_FMT("Created new node");
 
@@ -426,8 +434,7 @@ int main(int argc, char** argv)
   files::dump(quote, quote_file);
 #endif
 
-  // Start a thread which will ECall and process messages inside the enclave
-  auto enclave_thread = std::thread([&]() {
+  auto enclave_thread_start = [&]() {
 #ifndef VIRTUAL_ENCLAVE
     try
 #endif
@@ -447,10 +454,20 @@ int main(int argc, char** argv)
       throw;
     }
 #endif
-  });
+  };
+
+  // Start threads which will ECall and process messages inside the enclave
+  std::vector<std::thread> threads;
+  for (uint32_t i = 0; i < (num_worker_threads + 1); ++i)
+  {
+    threads.emplace_back(std::thread(enclave_thread_start));
+  }
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-  enclave_thread.join();
+  for (auto& t : threads)
+  {
+    t.join();
+  }
 
   return 0;
 }

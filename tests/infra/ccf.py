@@ -59,6 +59,7 @@ class Network:
         "json_log_path",
         "gov_script",
         "join_timer",
+        "worker_threads",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups

@@ -46,6 +46,7 @@
 #include "View_change_ack.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
+#include "ds/thread_messaging.h"
 #include "ledger.h"
 #include "network.h"
 #include "pbft_assert.h"
@@ -212,6 +213,56 @@ void Replica::compute_non_det(Seqno s, char* b, int* b_len)
 
 Replica::~Replica() = default;
 
+struct PreVerifyCbMsg
+{
+  Message* m;
+  Replica* self;
+};
+
+struct PreVerifyResultCbMsg
+{
+  Message* m;
+  Replica* self;
+  bool result;
+};
+
+static void pre_verify_reply_cb(
+  std::unique_ptr<enclave::Tmsg<PreVerifyResultCbMsg>> req)
+{
+  Message* m = req->data.m;
+  Replica* self = req->data.self;
+  bool result = req->data.result;
+
+  if (result)
+  {
+    self->recv_process_one_msg(m);
+  }
+  else
+  {
+    LOG_INFO_FMT("did not verify - m:{}", m->tag());
+    delete m;
+  }
+}
+
+static void pre_verify_cb(std::unique_ptr<enclave::Tmsg<PreVerifyCbMsg>> req)
+{
+  Message* m = req->data.m;
+  Replica* self = req->data.self;
+
+  auto resp = enclave::ThreadMessaging::
+    ConvertMessage<PreVerifyResultCbMsg, PreVerifyCbMsg>(
+      std::move(req), pre_verify_reply_cb);
+
+  resp->data.m = m;
+  resp->data.self = self;
+  resp->data.result = self->pre_verify(m);
+
+  enclave::ThreadMessaging::thread_messaging.add_task<PreVerifyResultCbMsg>(
+    0, std::move(resp));
+}
+
+static uint64_t verification_thread = 0;
+
 void Replica::receive_message(const uint8_t* data, uint32_t size)
 {
   if (size > Max_message_size)
@@ -220,15 +271,39 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
   }
   uint64_t alloc_size = std::max(size, (uint32_t)Max_message_size);
   Message* m = new Message(alloc_size);
+
+  uint32_t target_thread = 0;
+
   // TODO: remove this memcpy
   memcpy(m->contents(), data, size);
-  if (pre_verify(m))
+
+  if (enclave::ThreadMessaging::thread_count > 1 && m->tag() == Request_tag)
   {
-    recv_process_one_msg(m);
+    uint32_t num_worker_thread = enclave::ThreadMessaging::thread_count - 1;
+    target_thread = (((Request*)m)->client_id() % num_worker_thread) + 1;
+  }
+
+  if (f() != 0 && target_thread != 0)
+  {
+    auto msg = std::make_unique<enclave::Tmsg<PreVerifyCbMsg>>(&pre_verify_cb);
+
+    msg->data.m = m;
+    msg->data.self = this;
+
+    enclave::ThreadMessaging::thread_messaging.add_task<PreVerifyCbMsg>(
+      target_thread, std::move(msg));
   }
   else
   {
-    delete m;
+    if (pre_verify(m))
+    {
+      recv_process_one_msg(m);
+    }
+    else
+    {
+      LOG_INFO_FMT("did not verify - m:{}", m->tag());
+      delete m;
+    }
   }
 }
 

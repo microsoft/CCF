@@ -75,7 +75,8 @@ namespace host
       std::vector<uint8_t>& quote,
       std::vector<uint8_t>& network_cert,
       StartType start_type,
-      ConsensusType consensus_type)
+      ConsensusType consensus_type,
+      size_t num_worker_thread)
     {
       bool ret;
       size_t node_cert_len = 0;
@@ -101,7 +102,8 @@ namespace host
         network_cert.size(),
         &network_cert_len,
         start_type,
-        consensus_type);
+        consensus_type,
+        num_worker_thread);
 
       if (err != OE_OK)
       {
