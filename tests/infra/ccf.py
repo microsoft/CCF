@@ -65,10 +65,13 @@ class Network:
     # Maximum delay (seconds) for updates to propagate from the primary to backups
     replication_delay = 30
 
-    def __init__(self, hosts, dbg_nodes=None, perf_nodes=None, existing_network=None):
+    def __init__(
+        self, hosts, dbg_nodes=None, perf_nodes=None, existing_network=None, txs=None
+    ):
         if existing_network is None:
             self.consortium = []
             self.node_offset = 0
+            self.txs = txs
         else:
             self.consortium = existing_network.consortium
             # When creating a new network from an existing one (e.g. for recovery),
@@ -78,6 +81,7 @@ class Network:
             self.node_offset = (
                 len(existing_network.nodes) + existing_network.node_offset
             )
+            self.txs = existing_network.txs
 
         self.nodes = []
         self.hosts = hosts
@@ -463,20 +467,20 @@ class Network:
 
 
 @contextmanager
-def network(
-    hosts, build_directory, dbg_nodes=[], perf_nodes=[], pdb=False,
-):
+def network(hosts, build_directory, dbg_nodes=[], perf_nodes=[], pdb=False, txs=None):
     """
     Context manager for Network class.
     :param hosts: a list of hostnames (localhost or remote hostnames)
     :param build_directory: the build directory
     :param dbg_nodes: default: []. List of node id's that will not start (user is prompted to start them manually)
     :param perf_nodes: default: []. List of node ids that will run under perf record
+    :param pdb: default: False. Debugger.
+    :param txs: default: None. Transactions committed on that network.
     :return: a Network instance that can be used to create/access nodes, handle the genesis state (add members, create
     node.json), and stop all the nodes that belong to the network
     """
     with infra.path.working_dir(build_directory):
-        net = Network(hosts=hosts, dbg_nodes=dbg_nodes, perf_nodes=perf_nodes)
+        net = Network(hosts=hosts, dbg_nodes=dbg_nodes, perf_nodes=perf_nodes, txs=txs)
         try:
             yield net
         except Exception:

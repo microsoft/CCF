@@ -10,10 +10,10 @@ import time
 from loguru import logger as LOG
 
 
+@reqs.description("Rekey the ledger once")
 @reqs.supports_methods("mkSign")
 @reqs.at_least_n_nodes(1)
 def test(network, args):
-    LOG.info("Rekey ledger once")
     primary, _ = network.find_primary()
 
     # Retrieve current index version to check for sealed secrets later
