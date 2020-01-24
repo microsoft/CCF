@@ -18,8 +18,7 @@ namespace pbft
   enum PbftMsgType : Node2NodeMsg
   {
     pbft_message = 1000,
-    pbft_append_entries,
-    pbft_status_message
+    pbft_append_entries
   };
 
 #pragma pack(push, 1)
@@ -33,11 +32,6 @@ namespace pbft
   {
     Index idx;
     Index prev_idx;
-  };
-
-  struct StatusMessage : PbftHeader
-  {
-    Index idx;
   };
 
 #pragma pack(pop)

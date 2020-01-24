@@ -27,12 +27,8 @@
 
 namespace pbft
 {
-  struct NodeState
-  {
-    // the highest matching index that we send
-    Index match_idx;
-  };
-  using NodesMap = std::unordered_map<pbft::NodeId, NodeState>;
+  // maps node to last sent index to that node
+  using NodesMap = std::unordered_map<pbft::NodeId, Index>;
   class PbftEnclaveNetwork : public INetwork
   {
   public:
@@ -90,18 +86,12 @@ namespace pbft
 
       if (msg->tag() == Append_entries_tag)
       {
-        // // status messages are intercepted to add the append entries info
-        // Append_entries* ae;
-        // Append_entries::convert(msg, ae);
-        // // set my append entries index to the status message
-
         auto node = nodes.find(to);
 
         pbft::Index match_idx = 0;
-        // match_idx = nodes.at(to).match_idx;
         if (node != nodes.end())
         {
-          match_idx = node->second.match_idx;
+          match_idx = node->second;
         }
 
         if (match_idx < latest_stable_ae_index)
@@ -109,15 +99,6 @@ namespace pbft
           send_append_entries(to, match_idx + 1);
         }
         return msg->size();
-      }
-      if (msg->tag() == Status_tag)
-      {
-        LOG_INFO_FMT("SENDING SM TO {} WITH AE {}", to, append_entries_index);
-
-        StatusMessage sm = {pbft_status_message, id, append_entries_index};
-
-        n2n_channels->send_authenticated(
-          ccf::NodeMsgType::consensus_msg, to, sm);
       }
       n2n_channels->send_authenticated(
         ccf::NodeMsgType::consensus_msg, to, serialized_msg);
@@ -163,16 +144,12 @@ namespace pbft
       auto node = nodes.find(to);
       if (node != nodes.end())
       {
-        node->second.match_idx = end_idx;
+        node->second = end_idx;
       }
       else
       {
-        nodes[to] = {end_idx};
+        nodes[to] = end_idx;
       }
-      // auto& node = nodes.at(to);
-
-      // Record the most recent index we have sent to this node.
-      // node.match_idx = end_idx;
 
       // The host will append log entries to this message when it is
       // sent to the destination node.
@@ -468,7 +445,7 @@ namespace pbft
       Byz_add_principal(info);
       LOG_INFO_FMT("PBFT added node, id: {}", info.id);
 
-      nodes[node_conf.node_id] = {0};
+      nodes[node_conf.node_id] = 0;
 
       // pbft_network->send_append_entries(node_conf.node_id, 1);
     }
@@ -527,48 +504,6 @@ namespace pbft
           message_receiver_base->receive_message(data, size);
           break;
         }
-        case pbft_status_message:
-        {
-          StatusMessage sm;
-
-          try
-          {
-            sm =
-              channels->template recv_authenticated<StatusMessage>(data, size);
-          }
-          catch (const std::logic_error& err)
-          {
-            LOG_FAIL_FMT(err.what());
-            return;
-          }
-
-          // update node's index
-          auto node = nodes.find(sm.from_node);
-          if (node != nodes.end())
-          {
-            node->second.match_idx = sm.idx;
-          }
-          else
-          {
-            nodes[sm.from_node] = {sm.idx};
-          }
-          LOG_INFO_FMT(
-            "Received message from: {} with idx {} and my ae is {}",
-            sm.from_node,
-            sm.idx,
-            append_entries_index);
-          if (sm.idx < append_entries_index)
-          {
-            LOG_INFO_FMT(
-              "Received append entries response from node {} and it is behind. "
-              "Node is at {} and I am at {}",
-              sm.from_node,
-              sm.idx,
-              append_entries_index);
-            // pbft_network->send_append_entries(sm.from_node, sm.idx + 1);
-          }
-          break;
-        }
         case pbft_append_entries:
         {
           std::lock_guard<SpinLock> guard(playback_lock);
@@ -593,11 +528,11 @@ namespace pbft
           auto node = nodes.find(r.from_node);
           if (node != nodes.end())
           {
-            node->second.match_idx = r.idx;
+            node->second = r.idx;
           }
           else
           {
-            nodes[r.from_node] = {r.idx};
+            nodes[r.from_node] = r.idx;
           }
 
           if (r.idx <= append_entries_index)

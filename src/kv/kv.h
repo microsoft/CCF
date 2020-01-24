@@ -942,6 +942,7 @@ namespace kv
     void set_reserved_version(Version reserved)
     {
       version = reserved;
+      read_version = reserved;
     }
 
     void set_req_id(const kv::TxHistory::RequestID& req_id_)
