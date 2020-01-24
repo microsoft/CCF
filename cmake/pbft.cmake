@@ -78,6 +78,12 @@ if (NOT HTTP)
       NAME end_to_end_pbft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging_pbft.py
   )
+
+  add_e2e_test(
+    NAME late_joiners
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/late_joiners.py
+    ADDITIONAL_ARGS --skip-suspension
+  )
 endif()
 
 if("virtual" IN_LIST TARGET)
