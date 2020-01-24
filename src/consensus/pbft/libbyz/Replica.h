@@ -296,6 +296,16 @@ private:
   // exec_command for each command; and sends back replies to the
   // client. The replies are tentative unless "committed" is true.
 
+  void execute_tentative_request(
+    Request& request,
+    ByzInfo& info,
+    int64_t& max_local_commit_value,
+    Byz_buffer& non_det,
+    char* nondet_choices = nullptr,
+    Seqno seqno = -1);
+  // Effects: called by execute_tentative or playback_request to execute the
+  // request. seqno == -1 means we are running it from playback
+
   void create_recovery_reply(
     int client_id, int last_tentative_execute, Byz_rep& outb);
   // Handle recovery requests, i.e., requests from replicas,
@@ -439,6 +449,10 @@ private:
   bool waiting_for_playback_pp = false;
   // indicates if we are in append entries playback mode and have executed a
   // request but haven't gotten the pre prepare yet
+  int64_t playback_max_local_commit_value = INT64_MIN;
+  // playback max local commit value used for when we are playing back batched
+  // requests when playback pre-prepare is called it will reset it since the
+  // batch for that pre-prepare has executed
 
   reply_handler_cb rep_cb;
   void* rep_cb_ctx;

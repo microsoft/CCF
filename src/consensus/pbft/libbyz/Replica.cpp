@@ -318,15 +318,12 @@ void Replica::playback_request(const pbft::Request& request, ccf::Store::Tx& tx)
     "Playback request for request with size {}", request.pbft_raw.size());
   auto req =
     create_message<Request>(request.pbft_raw.data(), request.pbft_raw.size());
-  // TODO refactor with execute tentative method
 
   if (!waiting_for_playback_pp)
   {
     // only increment last tentative execute once per pre-prepare (a pre-prepare
     // could have batched requests but we can't increment last_tentative_execute
     // for each one individually)
-    // TODO remove this waiting check if we refactor to use execute tentative
-    // method
     last_tentative_execute = last_tentative_execute + 1;
     LOG_TRACE_FMT(
       "in playback execute tentative with lte {}, le {}, for rid {} with cid "
@@ -338,56 +335,30 @@ void Replica::playback_request(const pbft::Request& request, ccf::Store::Tx& tx)
   }
 
   waiting_for_playback_pp = true;
-
-  int client_id = req->client_id();
-
-  // Obtain "in" and "out" buffers to call exec_command
-  Byz_req inb;
-  Byz_rep outb;
   Byz_buffer non_det;
-  inb.contents = req->command(inb.size);
-
-  // TODO do we need this?
-  // non_det.contents = pp->choices(non_det.size);
-  Request_id rid = req->request_id();
-  // Execute command in a regular request.
-  replies.count_request();
-
-  exec_command(
-    &inb,
-    outb,
-    &non_det,
-    client_id,
-    rid,
-    false,
-    (uint8_t*)req->contents(),
-    req->contents_size(),
-    replies.total_requests_processed(),
-    playback_byz_info,
-    true,
-    &tx);
-  right_pad_contents(outb);
-  // Finish constructing the reply.
-  LOG_DEBUG << "Executed from tentative exec: "
-            << " from client: " << client_id << " rid: " << rid
-            << " commit_id: " << playback_byz_info.ctx << std::endl;
-
-  replies.end_reply(client_id, rid, last_tentative_execute, outb.size);
+  execute_tentative_request(
+    *req, playback_byz_info, playback_max_local_commit_value, non_det);
 }
 
-// TODO have pre prepare commit it's pre prepare without creating anew
-// transaction
 void Replica::playback_pre_prepare(const pbft::PrePrepare& pre_prepare)
 {
-  LOG_INFO_FMT("playback pre-prepare {}", pre_prepare.seqno);
+  LOG_TRACE_FMT("playback pre-prepare {}", pre_prepare.seqno);
   auto executable_pp = create_message<Pre_prepare>(
     pre_prepare.contents.data(), pre_prepare.contents.size());
   auto seqno = executable_pp->seqno();
   playback_pp_seqno = seqno;
   waiting_for_playback_pp = false;
+  playback_max_local_commit_value = INT64_MIN;
 
   if (compare_execution_results(playback_byz_info, executable_pp.get()))
   {
+    // we are done executing the pre-prepare batch we need to check if we need
+    // to checkpoint
+    if (last_tentative_execute % checkpoint_interval == 0)
+    {
+      state.checkpoint(last_tentative_execute);
+    }
+
     next_pp_seqno = seqno;
 
     if (seqno > last_prepared)
@@ -2058,6 +2029,68 @@ void Replica::execute_prepared(bool committed)
   }
 }
 
+void Replica::execute_tentative_request(
+  Request& request,
+  ByzInfo& info,
+  int64_t& max_local_commit_value,
+  Byz_buffer& non_det,
+  char* nondet_choices,
+  Seqno seqno)
+{
+  int client_id = request.client_id();
+
+  // Obtain "in" and "out" buffers to call exec_command
+  Byz_req inb;
+  Byz_rep outb;
+  inb.contents = request.command(inb.size);
+
+  if (non_det_choices)
+  {
+    non_det.contents = nondet_choices;
+  }
+
+  Request_id rid = request.request_id();
+  // Execute command in a regular request.
+  replies.count_request();
+  LOG_TRACE_FMT(
+    "before exec command with seqno: {} rid {} cid {} rid digest {}",
+    seqno,
+    rid,
+    request.client_id(),
+    request.digest().hash());
+
+  exec_command(
+    &inb,
+    outb,
+    &non_det,
+    client_id,
+    rid,
+    false,
+    (uint8_t*)request.contents(),
+    request.contents_size(),
+    replies.total_requests_processed(),
+    info,
+    false,
+    nullptr);
+  right_pad_contents(outb);
+  // Finish constructing the reply.
+  LOG_DEBUG_FMT(
+    "Executed from tentative exec: {} from client: {} rid {} commit_id {}",
+    seqno,
+    client_id,
+    rid,
+    info.ctx);
+
+  if (info.ctx > max_local_commit_value)
+  {
+    max_local_commit_value = info.ctx;
+  }
+
+  info.ctx = max_local_commit_value;
+
+  replies.end_reply(client_id, rid, last_tentative_execute, outb.size);
+}
+
 bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
 {
   LOG_DEBUG_FMT(
@@ -2081,78 +2114,20 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
 
     while (iter.get(request))
     {
-      int client_id = request.client_id();
-
-#ifdef ENFORCE_EXACTLY_ONCE
-      if (replies.req_id(client_id) >= request.request_id())
-      {
-        // Request has already been executed and we have the reply to
-        // the request. Resend reply and don't execute request
-        // to ensure idempotence.
-        INCR_OP(message_counts_retransmitted[Reply_tag]);
-        replies.send_reply(
-          client_id, view(), id(), !replies.is_committed(client_id));
-        LOG_DEBUG << "Sending from tentative exec: " << pp->seqno()
-                  << " from client: " << client_id
-                  << " rid: " << request.request_id() << std::endl;
-        continue;
-      }
-#endif
-
-      // Obtain "in" and "out" buffers to call exec_command
-      Byz_req inb;
-      Byz_rep outb;
       Byz_buffer non_det;
-      inb.contents = request.command(inb.size);
-
-#ifdef ENFORCE_EXACTLY_ONCE
-      outb.contents = replies.new_reply(client_id);
-#endif
-      non_det.contents = pp->choices(non_det.size);
-      Request_id rid = request.request_id();
-      // Execute command in a regular request.
-      replies.count_request();
-      LOG_TRACE_FMT(
-        "before exec command with seqno: {} rid {} cid {} rid digest {}",
-        pp->seqno(),
-        rid,
-        request.client_id(),
-        request.digest().hash());
-
-      exec_command(
-        &inb,
-        outb,
-        &non_det,
-        client_id,
-        rid,
-        false,
-        (uint8_t*)request.contents(),
-        request.contents_size(),
-        replies.total_requests_processed(),
+      execute_tentative_request(
+        request,
         info,
-        false,
-        nullptr);
-      right_pad_contents(outb);
-      // Finish constructing the reply.
-      LOG_DEBUG << "Executed from tentative exec: " << pp->seqno()
-                << " from client: " << client_id << " rid: " << rid
-                << " commit_id: " << info.ctx << std::endl;
-
-      if (info.ctx > max_local_commit_value)
-      {
-        max_local_commit_value = info.ctx;
-      }
-
-      info.ctx = max_local_commit_value;
-#ifdef ENFORCE_EXACTLY_ONCE
-      replies.end_reply(client_id, rid, outb.size);
-#else
-      replies.end_reply(client_id, rid, last_tentative_execute, outb.size);
-#endif
+        max_local_commit_value,
+        non_det,
+        pp->choices(non_det.size),
+        pp->seqno());
     }
-    LOG_DEBUG << "Executed from tentative exec: " << pp->seqno()
-              << " rid: " << request.request_id() << " commit_id: " << info.ctx
-              << std::endl;
+    LOG_DEBUG_FMT(
+      "Executed from tentative exec: {} rid {} commit_id {}",
+      pp->seqno(),
+      request.request_id(),
+      info.ctx);
 
     if (last_tentative_execute % checkpoint_interval == 0)
     {
