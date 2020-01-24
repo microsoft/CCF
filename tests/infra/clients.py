@@ -308,6 +308,7 @@ class CurlClient:
         version,
         format,
         connection_timeout,
+        request_timeout,
         *args,
         **kwargs,
     ):
@@ -318,6 +319,7 @@ class CurlClient:
         self.ca = ca
         self.format = "json"
         self.connection_timeout = connection_timeout
+        self.request_timeout = request_timeout
         self.stream = Stream(version, "json")
 
     def _just_request(self, request, is_signed=False):
@@ -338,6 +340,7 @@ class CurlClient:
                 "--data-binary",
                 f"@{nf.name}",
                 "-w \\n%{http_code}",
+                f"-m {self.request_timeout}",
             ]
 
             if self.ca:
@@ -350,8 +353,10 @@ class CurlClient:
             rc = subprocess.run(cmd, capture_output=True)
 
             if rc.returncode != 0:
-                if rc.returncode == 60:
+                if rc.returncode == 60: # PEER_FAILED_VERIFICATION
                     raise CCFConnectionException
+                if rc.returncode == 28: # OPERATION_TIMEDOUT
+                    raise TimeoutError
                 LOG.error(rc.stderr)
                 raise RuntimeError(f"Curl failed with return code {rc.returncode}")
 
@@ -419,7 +424,7 @@ class RequestClient:
             json=request.to_dict(),
             cert=(self.cert, self.key),
             verify=self.ca,
-            timeout=self.request_timeout,
+            timeout=(self.connection_timeout, self.request_timeout),
         )
         self.stream.update(rep.content)
         return request.id
@@ -431,9 +436,11 @@ class RequestClient:
                 rid = self._just_request(request)
                 self.request = self._just_request
                 return rid
-            except (requests.exceptions.ReadTimeout, requests.exceptions.SSLError) as e:
+            except requests.exceptions.SSLError:
                 if self.connection_timeout < 0:
                     raise CCFConnectionException
+            except requests.exceptions.ReadTimeout:
+                raise TimeoutError
             time.sleep(0.1)
 
     def signed_request(self, request):

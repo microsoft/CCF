@@ -45,6 +45,10 @@ class ParticipantsCurve(IntEnum):
         return ParticipantsCurve((self.value + 1) % len(ParticipantsCurve))
 
 
+class PrimaryNotFound(Exception):
+    pass
+
+
 class Network:
     node_args_to_forward = [
         "enclave_type",
@@ -229,7 +233,7 @@ class Network:
         LOG.info("Initial set of users added")
 
         self.consortium.open_network(
-            member_id=1, remote_node=primary, pbft_open=args.consensus != "pbft"
+            member_id=1, remote_node=primary, pbft_open=args.consensus == "pbft"
         )
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
@@ -347,7 +351,7 @@ class Network:
     def _get_node_by_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
-    def find_primary(self, timeout=3):
+    def find_primary(self, timeout=3, request_timeout=3):
         """
         Find the identity of the primary in the network and return its identity
         and the current term.
@@ -357,37 +361,38 @@ class Network:
 
         for _ in range(timeout):
             for node in self.get_joined_nodes():
-                with node.node_client() as c:
-                    id = c.request("getPrimaryInfo", {})
-                    res = c.response(id)
-                    if res is None:
+                with node.node_client(request_timeout=request_timeout) as c:
+                    try:
+                        res = c.do("getPrimaryInfo", {})
+                        if res.error is None:
+                            primary_id = res.result["primary_id"]
+                            term = res.term
+                            break
+                        else:
+                            assert (
+                                res.error["code"]
+                                == infra.jsonrpc.ErrorCode.TX_PRIMARY_UNKNOWN
+                            ), "RPC error code is not TX_NOT_PRIMARY"
+                    except TimeoutError:
                         pass
-                    elif res.error is None:
-                        primary_id = res.result["primary_id"]
-                        term = res.term
-                        break
-                    else:
-                        assert (
-                            res.error["code"]
-                            == infra.jsonrpc.ErrorCode.TX_PRIMARY_UNKNOWN
-                        ), "RPC error code is not TX_NOT_PRIMARY"
             if primary_id is not None:
                 break
             time.sleep(1)
 
-        assert primary_id is not None, "No primary found"
+        if primary_id is None:
+            raise PrimaryNotFound
         return (self._get_node_by_id(primary_id), term)
 
     def find_backups(self, primary=None, timeout=3):
         if primary is None:
-            primary, term = self.find_primary(timeout)
+            primary, term = self.find_primary(timeout=timeout)
         return [n for n in self.get_joined_nodes() if n != primary]
 
     def find_any_backup(self, primary=None, timeout=3):
         return random.choice(self.find_backups(primary=primary, timeout=timeout))
 
     def find_nodes(self, timeout=3):
-        primary, term = self.find_primary(timeout)
+        primary, term = self.find_primary(timeout=timeout)
         backups = self.find_backups(primary=primary, timeout=timeout)
         return primary, backups
 

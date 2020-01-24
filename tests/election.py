@@ -40,11 +40,7 @@ def wait_for_index_globally_committed(index, term, nodes):
 def run(args):
     # Three nodes minimum to make sure that the raft network can still make progress
     # if one node stops
-
-    if args.consensus == "pbft":
-        hosts = ["localhost", "localhost", "localhost", "localhost"]
-    else:
-        hosts = ["localhost", "localhost", "localhost"]
+    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 3)
 
     with infra.ccf.network(
         hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -64,11 +60,14 @@ def run(args):
         for _ in range(nodes_to_stop):
             # Note that for the first iteration, the primary is known in advance anyway
             LOG.debug("Find freshly elected primary")
-            primary, current_term = network.find_primary()
+            # After a view change in pbft, finding the new primary takes longer
+            primary, current_term = network.find_primary(
+                request_timeout=(30 if args.consensus == "pbft" else 3)
+            )
 
             LOG.debug(
                 "Commit new transactions, primary:{}, current_term:{}".format(
-                    primary, current_term
+                    primary.node_id, current_term
                 )
             )
             commit_index = None
@@ -102,12 +101,10 @@ def run(args):
             )
         )
         try:
-            primary, current_term = network.find_primary()
+            primary, _ = network.find_primary()
             assert False, "Primary should not be found"
-        except TypeError:
-            assert args.consensus == "pbft", "Unexpected error"
-        except AssertionError:
-            assert args.consensus == "raft", "Unexpected error"
+        except infra.ccf.PrimaryNotFound:
+            pass
 
         LOG.info(
             "As expected, primary could not be found after election timeout. Test ended successfully."

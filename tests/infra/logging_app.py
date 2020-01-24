@@ -14,7 +14,7 @@ class LoggingTxs:
         self.next_priv_index = 0
         self.notifications_queue = notifications_queue
 
-    def issue(self, network, number_txs, on_backup=False):
+    def issue(self, network, number_txs, on_backup=False, wait_for_sync=True):
         LOG.success(f"Applying {number_txs} logging txs")
         primary, backup = network.find_primary_and_any_backup()
         remote_node = backup if on_backup else primary
@@ -41,7 +41,8 @@ class LoggingTxs:
                     self.next_priv_index += 1
                     self.next_pub_index += 1
 
-        network.wait_for_node_commit_sync()
+        if wait_for_sync:
+            network.wait_for_node_commit_sync()
 
     def verify(self, network):
         LOG.success(f"Verifying all logging txs")
