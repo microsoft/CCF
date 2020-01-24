@@ -102,6 +102,14 @@ def run(args):
                     c.rpc("LOG_get", {"id": 1000}), result={"msg": final_msg},
                 )
 
+                # check that new node has caught up ok
+                with new_node.user_client(format="json") as c:
+                    check(
+                        c.rpc("LOG_get", {"id": 1000}), result={"msg": final_msg},
+                    )
+                # add new node to backups list
+                backups.append(new_node)
+
                 # check that a new node can catch up after all the requests
                 last_node = network.create_and_trust_node(
                     lib_name=args.package, host="localhost", args=args,
@@ -151,6 +159,8 @@ def run(args):
                 check(
                     c.rpc("LOG_get", {"id": 2000}), result={"msg": final_msg2},
                 )
+            
+            # all the nodes should be caught up by now
 
                 if not args.skip_suspension:
                     # assert that view changes actually did occur

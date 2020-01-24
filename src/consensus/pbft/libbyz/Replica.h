@@ -126,6 +126,8 @@ public:
   void register_global_commit(global_commit_handler_cb cb, void* ctx);
   // Effects:: Registers a handler that is called when a batch is committed
 
+  void register_mark_stable(mark_stable_handler_cb cb, void* ctx);
+
   template <typename T>
   std::unique_ptr<T> create_message(
     const uint8_t* message_data, size_t data_size);
@@ -429,11 +431,19 @@ private:
 #endif
 
   ByzInfo playback_byz_info;
+  // Latest byz info when we are in playback mode. Used to compare the latest
+  // execution mt roots and version with the ones in the pre prepare we will get
+  // while we are at playback mode
+  Seqno playback_pp_seqno = 0;
+  // seqno of latest pre prepare executed in playback mode
+  bool waiting_for_playback_pp = false;
+  // indicates if we are in append entries playback mode and have executed a
+  // request but haven't gotten the pre prepare yet
 
-  // used to register a callback for a client proxy to collect replies sent to
-  // this replica
   reply_handler_cb rep_cb;
   void* rep_cb_ctx;
+  // used to register a callback for a client proxy to collect replies sent to
+  // this replica
 
   pbft::RequestsMap& pbft_requests_map;
   pbft::PrePreparesMap& pbft_pre_prepares_map;
@@ -441,6 +451,14 @@ private:
   // used to callback when we have committed a batch
   global_commit_handler_cb global_commit_cb;
   void* global_commit_ctx;
+
+  mark_stable_handler_cb mark_stable_cb = nullptr;
+  void* mark_stable_ctx;
+  // callback when we call mark_stable
+  // Used to not the append_entries_index of the stable seqno
+  // We don't want to send append entries further than the latest stable seqno
+  // since the replicas store enough messages in that case so that the late
+  // joiner can catch up by the usual execution route
 
   std::unique_ptr<LedgerWriter> ledger_writer;
 

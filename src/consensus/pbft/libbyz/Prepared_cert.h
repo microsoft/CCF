@@ -144,6 +144,9 @@ inline bool Prepared_cert::add(Prepare* m)
   auto principal = pbft::GlobalState::get_node().get_principal(id);
   if (!principal)
   {
+    LOG_INFO_FMT(
+      "Returning false from prepared cert, probably need to delete this");
+    delete m;
     return false;
   }
 

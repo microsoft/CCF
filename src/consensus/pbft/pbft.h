@@ -104,7 +104,7 @@ namespace pbft
           match_idx = node->second.match_idx;
         }
 
-        if (match_idx < append_entries_index)
+        if (match_idx < latest_stable_ae_index)
         {
           send_append_entries(to, match_idx + 1);
         }
@@ -129,20 +129,20 @@ namespace pbft
       std::lock_guard<SpinLock> guard(lock);
       size_t entries_batch_size = 10;
 
-      pbft::Index end_idx = (append_entries_index == 0) ?
+      pbft::Index end_idx = (latest_stable_ae_index == 0) ?
         0 :
-        std::min(start_idx + entries_batch_size, append_entries_index);
+        std::min(start_idx + entries_batch_size, latest_stable_ae_index);
 
-      for (pbft::Index i = end_idx; i < append_entries_index;
+      for (pbft::Index i = end_idx; i < latest_stable_ae_index;
            i += entries_batch_size)
       {
         send_append_entries_range(to, start_idx, i);
-        start_idx = std::min(i + 1, append_entries_index);
+        start_idx = std::min(i + 1, latest_stable_ae_index);
       }
 
-      if (append_entries_index == 0 || end_idx <= append_entries_index)
+      if (latest_stable_ae_index == 0 || end_idx <= latest_stable_ae_index)
       {
-        send_append_entries_range(to, start_idx, append_entries_index);
+        send_append_entries_range(to, start_idx, latest_stable_ae_index);
       }
     }
 
@@ -247,6 +247,12 @@ namespace pbft
       std::vector<view_change_info>* view_change_list;
     } register_global_commit_ctx;
 
+    struct register_mark_stable_info
+    {
+      pbft::Index* append_entries_idx;
+      pbft::Index* latest_stable_ae_idx;
+    } register_mark_stable_ctx;
+
   public:
     Pbft(
       std::unique_ptr<pbft::PbftStore> store_,
@@ -338,6 +344,19 @@ namespace pbft
       };
       message_receiver_base->register_reply_handler(
         reply_handler_cb, client_proxy.get());
+
+      auto mark_stable_cb = [](void* ctx) {
+        auto ms_ctx = static_cast<register_mark_stable_info*>(ctx);
+        *ms_ctx->latest_stable_ae_idx = *ms_ctx->append_entries_idx;
+        LOG_INFO_FMT(
+          "latest_stable_ae_index is set to {}", *ms_ctx->latest_stable_ae_idx);
+      };
+
+      register_mark_stable_ctx.append_entries_idx = &append_entries_index;
+      register_mark_stable_ctx.latest_stable_ae_idx = &latest_stable_ae_index;
+
+      message_receiver_base->register_mark_stable(
+        mark_stable_cb, &register_mark_stable_ctx);
 
       auto global_commit_cb = [](kv::Version version, ::View view, void* ctx) {
         auto p = static_cast<register_global_commit_info*>(ctx);
@@ -553,9 +572,6 @@ namespace pbft
         case pbft_append_entries:
         {
           std::lock_guard<SpinLock> guard(playback_lock);
-          LOG_INFO_FMT(
-            "New append entries message, my ae index is {}",
-            append_entries_index);
           AppendEntries r;
 
           try
@@ -568,6 +584,11 @@ namespace pbft
             LOG_FAIL_FMT(err.what());
             return;
           }
+
+          LOG_INFO_FMT(
+            "New append entries message from {}, my ae index is {}",
+            r.from_node,
+            append_entries_index);
 
           auto node = nodes.find(r.from_node);
           if (node != nodes.end())

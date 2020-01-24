@@ -18,8 +18,10 @@ public:
   virtual void register_reply_handler(reply_handler_cb cb, void* ctx) = 0;
   typedef void (*global_commit_handler_cb)(
     int64_t tx_ctx, View view, void* cb_ctx);
+  typedef void (*mark_stable_handler_cb)(void* bc_ctx);
   virtual void register_global_commit(
     global_commit_handler_cb cb, void* ctx) = 0;
+  virtual void register_mark_stable(mark_stable_handler_cb cb, void* ctx) = 0;
   virtual size_t num_correct_replicas() const = 0;
   virtual size_t f() const = 0;
   virtual void set_f(ccf::NodeId f) = 0;

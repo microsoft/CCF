@@ -318,13 +318,26 @@ void Replica::playback_request(const pbft::Request& request, ccf::Store::Tx& tx)
     "Playback request for request with size {}", request.pbft_raw.size());
   auto req =
     create_message<Request>(request.pbft_raw.data(), request.pbft_raw.size());
-
   // TODO refactor with execute tentative method
 
-  last_tentative_execute = last_tentative_execute + 1;
-  LOG_TRACE << "in execute tentative with last_tentative_execute: "
-            << last_tentative_execute << " and last_executed: " << last_executed
-            << std::endl;
+  if (!waiting_for_playback_pp)
+  {
+    // only increment last tentative execute once per pre-prepare (a pre-prepare
+    // could have batched requests but we can't increment last_tentative_execute
+    // for each one individually)
+    // TODO remove this waiting check if we refactor to use execute tentative
+    // method
+    last_tentative_execute = last_tentative_execute + 1;
+    LOG_TRACE_FMT(
+      "in playback execute tentative with lte {}, le {}, for rid {} with cid "
+      "{}",
+      last_tentative_execute,
+      last_executed,
+      req->request_id(),
+      req->client_id());
+  }
+
+  waiting_for_playback_pp = true;
 
   int client_id = req->client_id();
 
@@ -360,14 +373,6 @@ void Replica::playback_request(const pbft::Request& request, ccf::Store::Tx& tx)
             << " commit_id: " << playback_byz_info.ctx << std::endl;
 
   replies.end_reply(client_id, rid, last_tentative_execute, outb.size);
-
-  // Remove the request from rqueue if present.
-  if (rqueue.remove(client_id, req->request_id()))
-  {
-    LOG_INFO_FMT(
-      "Removed request with cid {} and rid {}", client_id, req->request_id());
-    vtimer->stop();
-  }
 }
 
 // TODO have pre prepare commit it's pre prepare without creating anew
@@ -378,6 +383,8 @@ void Replica::playback_pre_prepare(const pbft::PrePrepare& pre_prepare)
   auto executable_pp = create_message<Pre_prepare>(
     pre_prepare.contents.data(), pre_prepare.contents.size());
   auto seqno = executable_pp->seqno();
+  playback_pp_seqno = seqno;
+  waiting_for_playback_pp = false;
 
   if (compare_execution_results(playback_byz_info, executable_pp.get()))
   {
@@ -390,7 +397,7 @@ void Replica::playback_pre_prepare(const pbft::PrePrepare& pre_prepare)
 
     ledger_writer->write_pre_prepare(executable_pp.get());
 
-    if (global_commit_cb != nullptr)
+    if (global_commit_cb != nullptr && executable_pp->is_signed())
     {
       global_commit_cb(
         executable_pp->get_ctx(), executable_pp->view(), global_commit_ctx);
@@ -406,12 +413,6 @@ void Replica::playback_pre_prepare(const pbft::PrePrepare& pre_prepare)
   else
   {
     throw std::logic_error("Entries don't match playback");
-    LOG_DEBUG << "Received entries could not be processed. Received seqno: "
-              << seqno
-              << ". Truncating ledger to last executed: " << last_executed
-              << std::endl;
-    rqueue.clear();
-    brt.clear();
   }
 }
 
@@ -826,6 +827,13 @@ bool Replica::in_wv(T* m)
 
 void Replica::handle(Pre_prepare* m)
 {
+  if (playback_pp_seqno >= m->seqno() || waiting_for_playback_pp)
+  {
+    LOG_TRACE_FMT("Reject pre prepare with seqno {}", m->seqno());
+    delete m;
+    return;
+  }
+
   const Seqno ms = m->seqno();
   Byz_buffer b;
 
@@ -955,6 +963,13 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
 
 void Replica::handle(Prepare* m)
 {
+  if (playback_pp_seqno >= m->seqno() || waiting_for_playback_pp)
+  {
+    LOG_TRACE_FMT("Reject prepare with seqno {}", m->seqno());
+    delete m;
+    return;
+  }
+
   const Seqno ms = m->seqno();
   // Only accept prepare messages that are not sent by the primary for
   // current view.
@@ -962,7 +977,6 @@ void Replica::handle(Prepare* m)
     in_wv(m) && ms > low_bound && primary() != m->id() &&
     has_complete_new_view())
   {
-    LOG_TRACE << "handle prepare for seqno: " << ms << std::endl;
     Prepared_cert& ps = plog.fetch(ms);
     if (ps.add(m) && ps.is_complete())
     {
@@ -990,6 +1004,12 @@ void Replica::handle(Prepare* m)
 
 void Replica::handle(Commit* m)
 {
+  if (playback_pp_seqno >= m->seqno() || waiting_for_playback_pp)
+  {
+    LOG_TRACE_FMT("Reject commit with seqno {}", m->seqno());
+    delete m;
+    return;
+  }
   const Seqno ms = m->seqno();
 
   // Only accept messages with the current view.  TODO: change to
@@ -1128,6 +1148,12 @@ void Replica::register_global_commit(global_commit_handler_cb cb, void* ctx)
 {
   global_commit_cb = cb;
   global_commit_ctx = ctx;
+}
+
+void Replica::register_mark_stable(mark_stable_handler_cb cb, void* ctx)
+{
+  mark_stable_cb = cb;
+  mark_stable_ctx = ctx;
 }
 
 template <class T>
@@ -1376,6 +1402,10 @@ void Replica::handle(Status* m)
                 Request* r;
                 while (gen.get(r))
                 {
+                  LOG_TRACE_FMT(
+                    "Retransmitting request with id {} and cid {}",
+                    r->request_id(),
+                    r->client_id());
                   INCR_OP(message_counts_retransmitted[m->tag()]);
                   send(r, m->id());
                   count += r->size();
@@ -1785,21 +1815,26 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
     {
       ByzInfo info;
       pc.add_mine(pp);
-      if (ledger_writer)
+      if (execute_tentative(pp, info))
       {
-        ledger_writer->write_pre_prepare(pp);
+        if (ledger_writer)
+        {
+          ledger_writer->write_pre_prepare(pp);
+        }
       }
-      execute_tentative(pp, info);
     }
     else
     {
       ByzInfo info;
       pc.add_old(pp);
-      if (ledger_writer)
+
+      if (execute_tentative(pp, info))
       {
-        ledger_writer->write_pre_prepare(pp);
+        if (ledger_writer)
+        {
+          ledger_writer->write_pre_prepare(pp);
+        }
       }
-      execute_tentative(pp, info);
 
       Prepare* p = new Prepare(v, i, d, nullptr, pp->is_signed());
       pc.add_mine(p);
@@ -2025,7 +2060,10 @@ void Replica::execute_prepared(bool committed)
 
 bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
 {
-  LOG_DEBUG << "in execute tentative: " << pp->seqno() << std::endl;
+  LOG_DEBUG_FMT(
+    "in execute tentative for seqno {} and last_tentnative_execute {}",
+    pp->seqno(),
+    last_tentative_execute);
   if (
     pp->seqno() == last_tentative_execute + 1 && !state.in_fetch_state() &&
     !state.in_check_state() && has_complete_new_view())
@@ -2069,14 +2107,18 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
 
 #ifdef ENFORCE_EXACTLY_ONCE
       outb.contents = replies.new_reply(client_id);
-#else
 #endif
       non_det.contents = pp->choices(non_det.size);
       Request_id rid = request.request_id();
       // Execute command in a regular request.
       replies.count_request();
-      LOG_TRACE << "before exec command with seqno: " << pp->seqno()
-                << std::endl;
+      LOG_TRACE_FMT(
+        "before exec command with seqno: {} rid {} cid {} rid digest {}",
+        pp->seqno(),
+        rid,
+        request.client_id(),
+        request.digest().hash());
+
       exec_command(
         &inb,
         outb,
@@ -2470,7 +2512,10 @@ void Replica::mark_stable(Seqno n, bool have_state)
   state.discard_checkpoints(last_stable, last_executed);
   brt.mark_stable(last_stable);
 
-  // mark_stable_callback()
+  if (mark_stable_cb != nullptr)
+  {
+    mark_stable_cb(mark_stable_ctx);
+  }
 
   if (have_state)
   {
