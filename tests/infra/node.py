@@ -229,7 +229,7 @@ class Node:
 
     def suspend(self):
         self.remote.suspend()
-    
+
     def resume(self):
         self.remote.resume()
 

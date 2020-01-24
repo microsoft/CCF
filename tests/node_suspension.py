@@ -46,6 +46,11 @@ def run(args):
         term_info = {}
         long_msg = "X" * (2 ** 14)
 
+        nodes_to_kill = []
+        for b in backups:
+            nodes_to_kill.append(b)
+        nodes_to_keep = [first_node]
+
         # first timer determines after how many seconds each node will be suspended
         if not args.skip_suspension:
             timeouts = []
@@ -73,13 +78,16 @@ def run(args):
                     clients.append(es.enter_context(backup.user_client(format="json")))
                 node_id = 0
                 for id in range(1, TOTAL_REQUESTS):
-                    if id == 5:
-                        LOG.error("Adding another node after f = 0 but before any node has checkpointed")
+                    if id == 1:
+                        LOG.info(
+                            "Adding another node after f = 0 but before we need to send append entries"
+                        )
                         # check that a new node can catch up naturally
                         new_node = network.create_and_trust_node(
                             lib_name=args.package, host="localhost", args=args,
                         )
                         assert new_node
+                        nodes_to_keep.append(new_node)
                     node_id += 1
                     c = clients[node_id % len(clients)]
                     try:
@@ -94,18 +102,20 @@ def run(args):
                     id += 1
 
                 # wait for the last request to commit
-                final_msg = "Hello world!"
+                first_catchup_msg = "Hello world!"
                 check_commit(
-                    c.rpc("LOG_record", {"id": 1000, "msg": final_msg}), result=True,
+                    c.rpc("LOG_record", {"id": 1000, "msg": first_catchup_msg}),
+                    result=True,
                 )
                 check(
-                    c.rpc("LOG_get", {"id": 1000}), result={"msg": final_msg},
+                    c.rpc("LOG_get", {"id": 1000}), result={"msg": first_catchup_msg},
                 )
 
                 # check that new node has caught up ok
                 with new_node.user_client(format="json") as c:
                     check(
-                        c.rpc("LOG_get", {"id": 1000}), result={"msg": final_msg},
+                        c.rpc("LOG_get", {"id": 1000}),
+                        result={"msg": first_catchup_msg},
                     )
                 # add new node to backups list
                 backups.append(new_node)
@@ -115,9 +125,7 @@ def run(args):
                     lib_name=args.package, host="localhost", args=args,
                 )
                 assert last_node
-
-                # # give new_node a second to catch up
-                # time.sleep(1)
+                nodes_to_keep.append(last_node)
 
             ## send more messages I want to check that the new node will catchup and then start processing pre prepares, etc
             clients = []
@@ -141,26 +149,42 @@ def run(args):
                         LOG.info("Trying to access a suspended node")
                     id += 1
 
-                ## send final final message
                 # wait for the last request to commit
-                final_msg2 = "Hello world Hello!"
+                second_catchup_msg = "Hello world Hello!"
                 check_commit(
-                    c.rpc("LOG_record", {"id": 2000, "msg": final_msg2}), result=True,
+                    c.rpc("LOG_record", {"id": 2000, "msg": second_catchup_msg}),
+                    result=True,
                 )
                 check(
-                    c.rpc("LOG_get", {"id": 2000}), result={"msg": final_msg2},
+                    c.rpc("LOG_get", {"id": 2000}), result={"msg": second_catchup_msg},
                 )
 
             with last_node.user_client(format="json") as c:
                 check(
-                    c.rpc("LOG_get", {"id": 1000}), result={"msg": final_msg},
+                    c.rpc("LOG_get", {"id": 1000}), result={"msg": first_catchup_msg},
                 )
             with last_node.user_client(format="json") as c:
                 check(
-                    c.rpc("LOG_get", {"id": 2000}), result={"msg": final_msg2},
+                    c.rpc("LOG_get", {"id": 2000}), result={"msg": second_catchup_msg},
                 )
-            
-            # all the nodes should be caught up by now
+
+            # replace the 2 backups with the 2 new nodes, kill the old ones and ensure we are still making progress
+            for node in nodes_to_kill:
+                LOG.info(f"Stopping node {node.node_id}")
+                node.stop()
+
+            for i, node in enumerate(nodes_to_keep):
+                with node.user_client(format="json") as c:
+                    final_msg = "Goodby world!"
+                    check_commit(
+                        c.rpc("LOG_record", {"id": 3000 + i, "msg": final_msg}),
+                        result=True,
+                    )
+                    check(
+                        c.rpc("LOG_get", {"id": 3000 + i}), result={"msg": final_msg},
+                    )
+
+                # all the nodes should be caught up by now
 
                 if not args.skip_suspension:
                     # assert that view changes actually did occur
@@ -172,12 +196,14 @@ def run(args):
 
 
 if __name__ == "__main__":
+
     def add(parser):
         parser.add_argument(
             "--skip-suspension",
             help="Don't suspend any nodes (i.e. just do late join)",
-            action="store_true"
+            action="store_true",
         )
+
     args = e2e_args.cli_args(add)
     args.package = args.app_script and "libluagenericenc" or "libloggingenc"
 
