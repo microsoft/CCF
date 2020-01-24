@@ -8,13 +8,13 @@
 #include "ds/logger.h"
 #include "pbft_assert.h"
 
-Append_entries::Append_entries():
+Append_entries::Append_entries() :
   Message(Append_entries_tag, sizeof(Append_entries_rep))
 {}
 
 bool Append_entries::verify()
 {
-    return true;
+  return true;
 }
 
 bool Append_entries::convert(Message* m1, Append_entries*& m2)
