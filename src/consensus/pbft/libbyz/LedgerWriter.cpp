@@ -36,13 +36,20 @@ void LedgerWriter::write_prepare(
 
 void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
 {
+  ccf::Store::Tx tx;
+  write_pre_prepare(pp, tx);
+}
+
+void LedgerWriter::write_pre_prepare(Pre_prepare* pp, ccf::Store::Tx& tx)
+{
   store.commit_pre_prepare(
     {pp->seqno(),
      pp->num_big_reqs(),
      pp->get_digest_sig(),
      {(const uint8_t*)pp->contents(),
       (const uint8_t*)pp->contents() + pp->size()}},
-    pbft_pre_prepares_map);
+    pbft_pre_prepares_map,
+    tx);
 }
 
 void LedgerWriter::write_view_change(View_change* vc)

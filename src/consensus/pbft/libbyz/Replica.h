@@ -244,7 +244,8 @@ private:
   // Playback methods
   void playback_request(const pbft::Request& request, ccf::Store::Tx& tx);
   // Effects: Requests are executed
-  void playback_pre_prepare(const pbft::PrePrepare& pre_prepare);
+  void playback_pre_prepare(
+    const pbft::PrePrepare& pre_prepare, ccf::Store::Tx& tx);
   // Effects: pre-prepare is verified, if merkle roots match
   // we update the pre-prepare related meta-data, if not we rollback
 

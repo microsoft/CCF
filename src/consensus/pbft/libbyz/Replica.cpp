@@ -301,9 +301,8 @@ void Replica::playback_transaction(ccf::Store::Tx& tx)
       auto pp = view->get(0);
       if (pp.has_value())
       {
-        // TODO what to do with pps transaction
         pbft::PrePrepare pre_prepare = pp.value();
-        playback_pre_prepare(pre_prepare);
+        playback_pre_prepare(pre_prepare, tx);
         return;
       }
     }
@@ -340,7 +339,8 @@ void Replica::playback_request(const pbft::Request& request, ccf::Store::Tx& tx)
     *req, playback_byz_info, playback_max_local_commit_value, non_det);
 }
 
-void Replica::playback_pre_prepare(const pbft::PrePrepare& pre_prepare)
+void Replica::playback_pre_prepare(
+  const pbft::PrePrepare& pre_prepare, ccf::Store::Tx& tx)
 {
   LOG_TRACE_FMT("playback pre-prepare {}", pre_prepare.seqno);
   auto executable_pp = create_message<Pre_prepare>(
