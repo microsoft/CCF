@@ -607,9 +607,9 @@ namespace ccf
       size_t all_data_size) override
     {
       append(replicated, replicated_size, all_data, all_data_size);
+#ifdef PBFT
       auto root = get_full_state_root();
       LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
-#ifdef PBFT
       results[id] = {version, root};
       if (on_result.has_value())
         on_result.value()({id, version, root});
@@ -618,9 +618,9 @@ namespace ccf
 
     void add_result(kv::TxHistory::RequestID id, kv::Version version) override
     {
+#ifdef PBFT
       auto root = get_full_state_root();
       LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
-#ifdef PBFT
       results[id] = {version, root};
       if (on_result.has_value())
         on_result.value()({id, version, root});
