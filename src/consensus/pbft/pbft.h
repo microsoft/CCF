@@ -37,14 +37,12 @@ namespace pbft
       std::shared_ptr<ccf::NodeToNode> n2n_channels,
       NodesMap& nodes_,
       pbft::Index& append_entries_index_,
-      pbft::Index& latest_stable_ae_index_,
-      SpinLock& lock_) :
+      pbft::Index& latest_stable_ae_index_) :
       n2n_channels(n2n_channels),
       id(id),
       nodes(nodes_),
       append_entries_index(append_entries_index_),
-      latest_stable_ae_index(latest_stable_ae_index_),
-      lock(lock_)
+      latest_stable_ae_index(latest_stable_ae_index_)
     {}
 
     virtual ~PbftEnclaveNetwork() = default;
@@ -107,7 +105,6 @@ namespace pbft
 
     void send_append_entries(pbft::NodeId to, pbft::Index start_idx)
     {
-      std::lock_guard<SpinLock> guard(lock);
       size_t entries_batch_size = 10;
 
       pbft::Index end_idx = (latest_stable_ae_index == 0) ?
@@ -174,7 +171,6 @@ namespace pbft
     NodesMap& nodes;
     pbft::Index& append_entries_index;
     pbft::Index& latest_stable_ae_index;
-    SpinLock& lock;
   };
 
   template <class LedgerProxy, class ChannelProxy>
@@ -196,8 +192,6 @@ namespace pbft
     std::unique_ptr<consensus::LedgerEnclave> ledger;
     Index append_entries_index = 0;
     Index latest_stable_ae_index = 0;
-    SpinLock lock;
-    SpinLock playback_lock;
 
     // When this is set, only public domain is deserialised when receving append
     // entries
@@ -285,8 +279,7 @@ namespace pbft
         channels,
         nodes,
         append_entries_index,
-        latest_stable_ae_index,
-        lock);
+        latest_stable_ae_index);
       pbft_config = std::make_unique<PbftConfigCcf>(rpc_map);
 
       auto used_bytes = Byz_init_replica(
@@ -474,9 +467,8 @@ namespace pbft
     {
       for (auto& [index, data, globally_committable] : entries)
       {
-        std::lock_guard<SpinLock> guard(lock);
         append_entries_index++;
-        LOG_INFO_FMT("Increasing my ae index to {}", append_entries_index);
+        LOG_TRACE_FMT("Increasing my ae index to {}", append_entries_index);
         write_to_ledger(data);
       }
       return true;
@@ -486,9 +478,8 @@ namespace pbft
     {
       for (auto& [index, data, globally_committable] : entries)
       {
-        std::lock_guard<SpinLock> guard(lock);
         append_entries_index++;
-        LOG_INFO_FMT("Increasing my ae index to {}", append_entries_index);
+        LOG_TRACE_FMT("Increasing my ae index to {}", append_entries_index);
         write_to_ledger(data);
       }
       return true;
@@ -506,7 +497,6 @@ namespace pbft
         }
         case pbft_append_entries:
         {
-          std::lock_guard<SpinLock> guard(playback_lock);
           AppendEntries r;
 
           try
@@ -520,8 +510,8 @@ namespace pbft
             return;
           }
 
-          LOG_INFO_FMT(
-            "New append entries message from {}, my ae index is {}",
+          LOG_TRACE_FMT(
+            "Append entries message from {}, my ae index is {}",
             r.from_node,
             append_entries_index);
 
@@ -537,8 +527,8 @@ namespace pbft
 
           if (r.idx <= append_entries_index)
           {
-            LOG_INFO_FMT(
-              "Skipping INDEX {} as we are at index {}",
+            LOG_TRACE_FMT(
+              "Skipping append entries msg for index {} as we are at index {}",
               r.idx,
               append_entries_index);
             break;
@@ -546,18 +536,16 @@ namespace pbft
 
           for (Index i = r.prev_idx + 1; i <= r.idx; i++)
           {
-            LOG_INFO_FMT(
-              "RECORDING ENTRY FOR INDEX {} FOR DATA WITH SIZE {}", i, size);
+            LOG_TRACE_FMT("Recording entry for index {}", i);
             pbft::Index aei;
             {
-              std::lock_guard<SpinLock> guard(lock);
               aei = append_entries_index;
             }
             if (i <= aei)
             {
               // If the current entry has already been deserialised, skip the
               // payload for that entry
-              LOG_INFO_FMT("Skipping INDEX {} as we are at index {}", i, aei);
+              LOG_INFO_FMT("Skipping index {} as we are at index {}", i, aei);
               ledger->skip_entry(data, size);
               continue;
             }
@@ -574,7 +562,6 @@ namespace pbft
                 local_id,
                 r.from_node);
               {
-                std::lock_guard<SpinLock> guard(lock);
                 append_entries_index = r.prev_idx;
               }
               ledger->truncate(r.prev_idx);
