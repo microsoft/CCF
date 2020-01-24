@@ -467,20 +467,20 @@ class Network:
 
 
 @contextmanager
-def network(
-    hosts, build_directory, dbg_nodes=[], perf_nodes=[], pdb=False,
-):
+def network(hosts, build_directory, dbg_nodes=[], perf_nodes=[], pdb=False, txs=None):
     """
     Context manager for Network class.
     :param hosts: a list of hostnames (localhost or remote hostnames)
     :param build_directory: the build directory
     :param dbg_nodes: default: []. List of node id's that will not start (user is prompted to start them manually)
     :param perf_nodes: default: []. List of node ids that will run under perf record
+    :param pdb: default: False. Debugger.
+    :param txs: default: None. Transactions committed on that network.
     :return: a Network instance that can be used to create/access nodes, handle the genesis state (add members, create
     node.json), and stop all the nodes that belong to the network
     """
     with infra.path.working_dir(build_directory):
-        net = Network(hosts=hosts, dbg_nodes=dbg_nodes, perf_nodes=perf_nodes)
+        net = Network(hosts=hosts, dbg_nodes=dbg_nodes, perf_nodes=perf_nodes, txs=txs)
         try:
             yield net
         except Exception:

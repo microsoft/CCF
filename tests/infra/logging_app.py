@@ -41,6 +41,8 @@ class LoggingTxs:
                     self.next_priv_index += 1
                     self.next_pub_index += 1
 
+        network.wait_for_node_commit_sync()
+
     def verify(self, network):
         LOG.success(f"Verifying all logging txs")
         primary, term = network.find_primary()
