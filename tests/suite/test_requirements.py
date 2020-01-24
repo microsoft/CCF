@@ -11,12 +11,16 @@ class TestRequirementsNotMet(Exception):
     pass
 
 
-def none(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
+def description(desc):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            LOG.success(desc)
+            return func(*args, **kwargs)
 
-    return wrapper
+        return wrapper
+
+    return decorator
 
 
 def ensure_reqs(check_reqs):
@@ -79,3 +83,24 @@ def installed_package(p):
 
 def lua_generic_app(func):
     return installed_package("libluagenericenc")(func)
+
+
+# Runs some transactions before recovering the network and guarantees that all
+# transactions are successfully recovered
+def recover(number_txs=5):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            network = args[0]
+            e2e_args = vars(args[1])
+            network.txs.issue(
+                network=network,
+                number_txs=e2e_args.get("msgs_per_recovery") or number_txs,
+            )
+            new_network = func(*args, **kwargs)
+            new_network.txs.verify(network=new_network)
+            return new_network
+
+        return wrapper
+
+    return decorator
