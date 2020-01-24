@@ -8,8 +8,10 @@ namespace ccf
 {
   class StubNodeState : public ccf::AbstractNodeState
   {
-    std::map<NodeId, std::vector<uint8_t>> joiners_fresh_keys;
+  private:
+    bool is_public = false;
 
+  public:
     bool finish_recovery(Store::Tx& tx, const nlohmann::json& args) override
     {
       return true;
@@ -20,9 +22,14 @@ namespace ccf
       return true;
     }
 
-    bool is_part_of_public_network() const override
+    bool rekey_ledger(Store::Tx& tx) override
     {
       return true;
+    }
+
+    bool is_part_of_public_network() const override
+    {
+      return is_public;
     }
 
     bool is_primary() const override
@@ -47,10 +54,9 @@ namespace ccf
 
     void node_quotes(Store::Tx& tx, GetQuotes::Out& result) override {}
 
-    void set_joiner_key(
-      NodeId joiner_id, const std::vector<uint8_t>& raw_key) override
+    void set_is_public(bool is_public_)
     {
-      joiners_fresh_keys.emplace(joiner_id, raw_key);
+      is_public = is_public_;
     }
   };
 

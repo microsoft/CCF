@@ -19,16 +19,6 @@ find_package(Threads REQUIRED)
 
 set(PYTHON unbuffer python3)
 
-separate_arguments(COVERAGE_FLAGS UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
-separate_arguments(COVERAGE_LINK UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
-
-function(enable_coverage name)
-  if (COVERAGE)
-    target_compile_options(${name} PRIVATE ${COVERAGE_FLAGS})
-    target_link_libraries(${name} PRIVATE ${COVERAGE_LINK})
-  endif()
-endfunction()
-
 set(SERVICE_IDENTITY_CURVE_CHOICE "secp384r1" CACHE STRING "One of secp384r1, ed25519, secp256k1_mbedtls, secp256k1_bitcoin")
 if (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp384r1")
   add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP384R1)
@@ -102,19 +92,24 @@ endif()
 
 enable_language(ASM)
 
+set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+
 add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/frame_generated.h
-    COMMAND flatc --cpp ${CCF_DIR}/src/kv/frame.fbs
-    COMMAND flatc --python ${CCF_DIR}/src/kv/frame.fbs
+    OUTPUT ${CCF_GENERATED_DIR}/frame_generated.h
+    COMMAND flatc -o "${CCF_GENERATED_DIR}" --cpp ${CCF_DIR}/src/kv/frame.fbs
+    COMMAND flatc -o "${CCF_GENERATED_DIR}" --python ${CCF_DIR}/src/kv/frame.fbs
     DEPENDS ${CCF_DIR}/src/kv/frame.fbs
 )
 
-add_custom_target(flatbuffers ALL
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/frame_generated.h
+install(
+  FILES
+    ${CCF_GENERATED_DIR}/frame_generated.h
+  DESTINATION generated
 )
 
 include_directories(
   ${CCF_DIR}/src
+  ${CCF_GENERATED_DIR}
 )
 
 include_directories(
@@ -123,39 +118,38 @@ include_directories(
   ${CCF_DIR}/3rdparty/hacl-star
   ${MSGPACK_INCLUDE_DIR}
   ${FLATBUFFERS_INCLUDE_DIR}
-  ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 set(TARGET "sgx;virtual" CACHE STRING "One of sgx, virtual, or 'sgx;virtual'")
-
-set(OE_PREFIX "/opt/openenclave" CACHE PATH "Path to Open Enclave install")
-message(STATUS "Open Enclave prefix set to ${OE_PREFIX}")
 
 find_package(MbedTLS REQUIRED)
 
 set(CLIENT_MBEDTLS_INCLUDE_DIR "${MBEDTLS_INCLUDE_DIRS}")
 set(CLIENT_MBEDTLS_LIBRARIES "${MBEDTLS_LIBRARIES}")
 
-set(OE_INCLUDE_DIR "${OE_PREFIX}/include")
-set(OE_LIB_DIR "${OE_PREFIX}/lib/openenclave")
-set(OE_BIN_DIR "${OE_PREFIX}/bin")
-
-set(OE_TP_INCLUDE_DIR   "${OE_INCLUDE_DIR}/openenclave/3rdparty")
-set(OE_LIBC_INCLUDE_DIR   "${OE_INCLUDE_DIR}/openenclave/3rdparty/libc")
-set(OE_LIBCXX_INCLUDE_DIR "${OE_INCLUDE_DIR}/openenclave/3rdparty/libcxx")
-
-set(OESIGN "${OE_BIN_DIR}/oesign")
-set(OEGEN "${OE_BIN_DIR}/oeedger8r")
-
+find_package(OpenEnclave CONFIG REQUIRED)
+# As well as pulling in openenclave:: targets, this sets variables which can be used
+# for our edge cases (eg - for virtual libraries). These do not follow the standard
+# naming patterns, for example use OE_INCLUDEDIR rather than OpenEnclave_INCLUDE_DIRS
 
 add_custom_command(
-    COMMAND ${OEGEN} ${CCF_DIR}/src/edl/ccf.edl --trusted --trusted-dir ${CMAKE_CURRENT_BINARY_DIR} --untrusted --untrusted-dir ${CMAKE_CURRENT_BINARY_DIR}
-    COMMAND mv ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.c ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp
-    COMMAND mv ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.c ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.cpp
-    DEPENDS ${CCF_DIR}/src/edl/ccf.edl
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.cpp
+    COMMAND openenclave::oeedger8r ${CCF_DIR}/edl/ccf.edl --trusted --trusted-dir ${CCF_GENERATED_DIR} --untrusted --untrusted-dir ${CCF_GENERATED_DIR}
+    COMMAND mv ${CCF_GENERATED_DIR}/ccf_t.c ${CCF_GENERATED_DIR}/ccf_t.cpp
+    COMMAND mv ${CCF_GENERATED_DIR}/ccf_u.c ${CCF_GENERATED_DIR}/ccf_u.cpp
+    DEPENDS ${CCF_DIR}/edl/ccf.edl
+    OUTPUT ${CCF_GENERATED_DIR}/ccf_t.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
     COMMENT "Generating code from EDL, and renaming to .cpp"
 )
+
+install(
+  FILES
+    ${CCF_GENERATED_DIR}/ccf_t.cpp
+    ${CCF_GENERATED_DIR}/ccf_t.h
+  DESTINATION generated
+)
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf.cmake)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf.cmake DESTINATION cmake)
 
 # Copy utilities from tests directory
 set(CCF_UTILITIES tests.sh keygenerator.sh cimetrics_env.sh upload_pico_metrics.py scurl.sh)
@@ -163,14 +157,15 @@ foreach(UTILITY ${CCF_UTILITIES})
   configure_file(${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)
 endforeach()
 
+# Install specific utilities
+install(
+  PROGRAMS ${CCF_DIR}/tests/scurl.sh ${CCF_DIR}/tests/keygenerator.sh
+  DESTINATION bin
+)
+
 if("sgx" IN_LIST TARGET)
   # If OE was built with LINK_SGX=1, then we also need to link SGX
-  execute_process(COMMAND "ldd" ${OESIGN}
-                  COMMAND "grep" "-c" "sgx"
-                  OUTPUT_QUIET
-                  RESULT_VARIABLE OE_NO_SGX)
-
-  if(NOT OE_NO_SGX)
+  if(OE_SGX)
     message(STATUS "Linking SGX")
     set(SGX_LIBS
       sgx_enclave_common
@@ -238,40 +233,14 @@ set(LUA_SOURCES
 set(HTTP_PARSER_SOURCES
   ${CCF_DIR}/3rdparty/http-parser/http_parser.c)
 
-set(OE_MBEDTLS_LIBRARIES
-  "${OE_LIB_DIR}/enclave/libmbedtls.a"
-  "${OE_LIB_DIR}/enclave/libmbedx509.a"
-  "${OE_LIB_DIR}/enclave/libmbedcrypto.a"
-)
-
 find_library(CRYPTO_LIBRARY crypto)
 
-set(OE_ENCLAVE_MBEDTLS "${OE_LIB_DIR}/enclave/libmbedtls.a")
-set(OE_ENCLAVE_MBEDX509 "${OE_LIB_DIR}/enclave/libmbedx509.a")
-set(OE_ENCLAVE_MBEDCRYPTO "${OE_LIB_DIR}/enclave/libmbedcrypto.a")
-set(OE_ENCLAVE_CRYPTOMBED "${OE_LIB_DIR}/enclave/liboecryptombed.a")
-set(OE_ENCLAVE_LIBRARY "${OE_LIB_DIR}/enclave/liboeenclave.a")
-set(OE_ENCLAVE_CORE "${OE_LIB_DIR}/enclave/liboecore.a")
-set(OE_ENCLAVE_SYSCALL "${OE_LIB_DIR}/enclave/liboesyscall.a")
-set(OE_ENCLAVE_LIBC "${OE_LIB_DIR}/enclave/liboelibc.a")
-set(OE_ENCLAVE_LIBCXX "${OE_LIB_DIR}/enclave/liboelibcxx.a")
-set(OE_HOST_LIBRARY "${OE_LIB_DIR}/host/liboehost.a")
 
 # The OE libraries must be listed in a specific order. Issue #887 on github
 set(ENCLAVE_LIBS
   ccfcrypto.enclave
   evercrypt.enclave
   lua.enclave
-  ${OE_ENCLAVE_LIBRARY}
-  ${OE_ENCLAVE_CRYPTOMBED}
-  ${OE_ENCLAVE_MBEDCRYPTO}
-  ${OE_ENCLAVE_MBEDX509}
-  ${OE_ENCLAVE_MBEDTLS}
-  ${ENCLAVE_MBEDTLS_LIBRARIES}
-  ${OE_ENCLAVE_LIBCXX}
-  ${OE_ENCLAVE_LIBC}
-  ${OE_ENCLAVE_SYSCALL}
-  ${OE_ENCLAVE_CORE}
   secp256k1.enclave
 )
 
@@ -279,63 +248,16 @@ set(ENCLAVE_FILES
   ${CCF_DIR}/src/enclave/main.cpp
 )
 
-function(enable_quote_code name)
-  if (QUOTES_ENABLED)
-    target_compile_definitions(${name} PRIVATE -DGET_QUOTE)
-  endif()
-endfunction()
-
 function(add_enclave_library_c name files)
   add_library(${name} STATIC
     ${files})
   target_compile_options(${name} PRIVATE
     -nostdinc
     -U__linux__)
-  target_include_directories(${name} SYSTEM PRIVATE
-    ${OE_LIBC_INCLUDE_DIR}
-    )
+  target_link_libraries(${name} PRIVATE
+    openenclave::oelibc
+  )
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
-  enable_quote_code(${name})
-endfunction()
-
-function(use_client_mbedtls name)
-  target_include_directories(${name} PRIVATE ${CLIENT_MBEDTLS_INCLUDE_DIR})
-  target_link_libraries(${name} PRIVATE ${CLIENT_MBEDTLS_LIBRARIES})
-endfunction()
-
-function(use_oe_mbedtls name)
-  target_include_directories(${name} PRIVATE ${OE_TP_INCLUDE_DIR})
-  target_link_libraries(${name} PRIVATE ${OE_MBEDTLS_LIBRARIES})
-endfunction()
-
-function(add_san name)
-  if(SAN)
-    target_compile_options(${name} PRIVATE
-      -fsanitize=undefined,address -fno-omit-frame-pointer -fno-sanitize-recover=all
-      -fno-sanitize=function -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
-    )
-    target_link_libraries(${name} PRIVATE
-      -fsanitize=undefined,address -fno-omit-frame-pointer -fno-sanitize-recover=all
-      -fno-sanitize=function -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
-    )
-  endif()
-endfunction()
-
-function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
-  add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
-    COMMAND ${OESIGN} sign
-      -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so
-      -c ${app_oe_conf_path}
-      -k ${enclave_sign_key_path}
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so
-      ${app_oe_conf_path}
-      ${enclave_sign_key_path}
-  )
-
-  add_custom_target(${name}_signed ALL
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
-  )
 endfunction()
 
 include(${CCF_DIR}/cmake/crypto.cmake)
@@ -343,130 +265,6 @@ include(${CCF_DIR}/cmake/secp256k1.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
 
 find_package(CURL REQUIRED)
-
-function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
-  set(patched_name ${name}.patched)
-  set(patched_lib_name lib${patched_name}.so)
-  add_custom_command(
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
-      COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
-      COMMAND PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH} python3 patch_binary.py -p ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
-      WORKING_DIRECTORY ${CCF_DIR}/tests
-      DEPENDS ${name}
-  )
-  sign_app_library(${patched_name} ${app_oe_conf_path} ${enclave_sign_key_path})
-endfunction()
-
-## Enclave library wrapper
-function(add_enclave_lib name app_oe_conf_path enclave_sign_key_path)
-
-  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS
-    ""
-    ""
-    "SRCS;INCLUDE_DIRS;LINK_LIBS"
-  )
-
-  if("sgx" IN_LIST TARGET)
-    add_library(${name} SHARED
-      ${ENCLAVE_FILES}
-      ${PARSED_ARGS_SRCS}
-      ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp
-    )
-
-    target_compile_definitions(${name} PRIVATE
-      INSIDE_ENCLAVE
-      _LIBCPP_HAS_THREAD_API_PTHREAD
-    )
-    # Not setting -nostdinc in order to pick up compiler specific xmmintrin.h.
-    target_compile_options(${name} PRIVATE
-      -nostdinc++
-      -U__linux__
-    )
-    target_include_directories(${name} SYSTEM PRIVATE
-      ${OE_INCLUDE_DIR}
-      ${OE_LIBCXX_INCLUDE_DIR}
-      ${OE_LIBC_INCLUDE_DIR}
-      ${OE_TP_INCLUDE_DIR}
-      ${PARSED_ARGS_INCLUDE_DIRS}
-      ${EVERCRYPT_INC}
-      ${CMAKE_CURRENT_BINARY_DIR}
-      ${QUICKJS_INC}
-    )
-    add_dependencies(${name} flatbuffers)
-
-    if (PBFT)
-      target_link_libraries(${name} PRIVATE
-        -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
-        libbyz.enclave
-      )
-    endif()
-    target_link_libraries(${name} PRIVATE
-      -nostdlib -nodefaultlibs -nostartfiles
-      -Wl,--no-undefined
-      -Wl,-Bstatic,-Bsymbolic,--export-dynamic,-pie
-      quickjs.enclave
-      -lgcc
-      ${PARSED_ARGS_LINK_LIBS}
-      ${ENCLAVE_LIBS}
-      http_parser.enclave
-    )
-    set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
-    sign_app_library(${name} ${app_oe_conf_path} ${enclave_sign_key_path})
-    enable_quote_code(${name})
-    if (${name} STREQUAL "loggingenc")
-        create_patched_enclave_lib(${name} ${app_oe_conf_path} ${enclave_sign_key_path})
-    endif()
-  endif()
-
-  if("virtual" IN_LIST TARGET)
-    ## Build a virtual enclave, loaded as a shared library without OE
-    set(virt_name ${name}.virtual)
-    add_library(${virt_name} SHARED
-      ${ENCLAVE_FILES}
-      ${PARSED_ARGS_SRCS}
-      ${CMAKE_CURRENT_BINARY_DIR}/ccf_t.cpp
-    )
-    add_san(${virt_name})
-    target_compile_definitions(${virt_name} PRIVATE
-      INSIDE_ENCLAVE
-      VIRTUAL_ENCLAVE
-    )
-    target_compile_options(${virt_name} PRIVATE
-      -stdlib=libc++)
-    target_include_directories(${virt_name} SYSTEM PRIVATE
-      ${PARSED_ARGS_INCLUDE_DIRS}
-      ${CCFCRYPTO_INC}
-      ${EVERCRYPT_INC}
-      ${OE_INCLUDE_DIR}
-      ${CMAKE_CURRENT_BINARY_DIR}
-      ${QUICKJS_INC}
-    )
-    add_dependencies(${virt_name} flatbuffers)
-
-    if (PBFT)
-      target_link_libraries(${virt_name} PRIVATE
-        -Wl,--allow-multiple-definition #TODO(#important): This is unfortunate
-        libbyz.host
-      )
-    endif()
-    target_link_libraries(${virt_name} PRIVATE
-      ${PARSED_ARGS_LINK_LIBS}
-      -stdlib=libc++
-      -lc++
-      -lc++abi
-      ccfcrypto.host
-      evercrypt.host
-      lua.host
-      ${CMAKE_THREAD_LIBS_INIT}
-      secp256k1.host
-      http_parser.host
-      quickjs.host
-    )
-    enable_coverage(${virt_name})
-    use_client_mbedtls(${virt_name})
-    set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
-  endif()
-endfunction()
 
 ## Unit test wrapper
 function(add_unit_test name)
@@ -502,27 +300,31 @@ if("sgx" IN_LIST TARGET)
   # Host Executable
   add_executable(cchost
     ${CCF_DIR}/src/host/main.cpp
-    ${CMAKE_CURRENT_BINARY_DIR}/ccf_u.cpp)
+    ${CCF_GENERATED_DIR}/ccf_u.cpp)
   use_client_mbedtls(cchost)
   target_include_directories(cchost PRIVATE
-    ${OE_INCLUDE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}
   )
   add_san(cchost)
 
   target_link_libraries(cchost PRIVATE
     uv
-    ${OE_HOST_LIBRARY}
     ${SGX_LIBS}
     ${CRYPTO_LIBRARY}
     ${CMAKE_DL_LIBS}
     ${CMAKE_THREAD_LIBS_INIT}
+    openenclave::oehostapp
     ccfcrypto.host
     evercrypt.host
     CURL::libcurl
   )
   add_dependencies(cchost flatbuffers)
   enable_quote_code(cchost)
+
+  install(
+    TARGETS cchost
+    DESTINATION bin
+  )
 endif()
 
 if("virtual" IN_LIST TARGET)
@@ -533,8 +335,8 @@ if("virtual" IN_LIST TARGET)
   target_compile_definitions(cchost.virtual PRIVATE -DVIRTUAL_ENCLAVE)
   target_compile_options(cchost.virtual PRIVATE -stdlib=libc++)
   target_include_directories(cchost.virtual PRIVATE
-    ${OE_INCLUDE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}
+    ${OE_INCLUDEDIR}
   )
   add_san(cchost.virtual)
   enable_coverage(cchost.virtual)
@@ -551,6 +353,11 @@ if("virtual" IN_LIST TARGET)
     CURL::libcurl
   )
   add_dependencies(cchost.virtual flatbuffers)
+
+  install(
+    TARGETS cchost.virtual
+    DESTINATION bin
+  )
 endif()
 
 # Client executable
@@ -585,7 +392,7 @@ set_property(TARGET lua.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 # HTTP parser
 add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
-add_enclave_library_c(http_parser.host "${HTTP_PARSER_SOURCES}")
+add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Common test args for Python scripts starting up CCF networks
@@ -604,11 +411,23 @@ set(CCF_NETWORK_TEST_ARGS
   --default-curve ${DEFAULT_PARTICIPANTS_CURVE}
 )
 
-# SNIPPET: Lua generic application
-add_enclave_lib(luagenericenc ${CCF_DIR}/src/apps/luageneric/oe_sign.conf ${CCF_DIR}/src/apps/sample_key.pem SRCS ${CCF_DIR}/src/apps/luageneric/luageneric.cpp)
+# SNIPPET_START: Lua generic application
+add_enclave_lib(luagenericenc
+  SRCS ${CCF_DIR}/src/apps/luageneric/luageneric.cpp
+)
+sign_app_library(luagenericenc
+  ${CCF_DIR}/src/apps/luageneric/oe_sign.conf
+  ${CCF_DIR}/src/apps/sample_key.pem
+)
+# SNIPPET_END: Lua generic application
 
-add_enclave_lib(jsgenericenc ${CCF_DIR}/src/apps/jsgeneric/oe_sign.conf ${CCF_DIR}/src/apps/sample_key.pem SRCS ${CCF_DIR}/src/apps/jsgeneric/jsgeneric.cpp)
-
+add_enclave_lib(jsgenericenc
+  SRCS ${CCF_DIR}/src/apps/jsgeneric/jsgeneric.cpp
+)
+sign_app_library(jsgenericenc
+  ${CCF_DIR}/src/apps/jsgeneric/oe_sign.conf
+  ${CCF_DIR}/src/apps/sample_key.pem
+)
 
 # Samples
 
@@ -662,7 +481,7 @@ function(add_e2e_test)
       TEST ${PARSED_ARGS_NAME}
       APPEND
       PROPERTY
-        ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
+        ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:${CCF_GENERATED_DIR}:$ENV{PYTHONPATH}"
     )
     if (${PARSED_ARGS_IS_SUITE})
       set_property(

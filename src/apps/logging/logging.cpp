@@ -100,7 +100,7 @@ namespace ccfapp
   using Table = Store::Map<size_t, string>;
 
   // SNIPPET: inherit_frontend
-  class Logger : public ccf::UserRpcFrontend
+  class LoggerHandlers : public UserHandlerRegistry
   {
   private:
     Table& records;
@@ -134,11 +134,12 @@ namespace ccfapp
 
   public:
     // SNIPPET_START: constructor
-    Logger(NetworkTables& nwt, AbstractNotifier& notifier) :
-      UserRpcFrontend(*nwt.tables),
-      records(tables.create<Table>("records", kv::SecurityDomain::PRIVATE)),
-      public_records(
-        tables.create<Table>("public_records", kv::SecurityDomain::PUBLIC)),
+    LoggerHandlers(NetworkTables& nwt, AbstractNotifier& notifier) :
+      UserHandlerRegistry(nwt),
+      records(
+        nwt.tables->create<Table>("records", kv::SecurityDomain::PRIVATE)),
+      public_records(nwt.tables->create<Table>(
+        "public_records", kv::SecurityDomain::PUBLIC)),
       // SNIPPET_END: constructor
       record_public_params_schema(nlohmann::json::parse(j_record_public_in)),
       record_public_result_schema(nlohmann::json::parse(j_record_public_out)),
@@ -153,13 +154,13 @@ namespace ccfapp
 
         if (in.msg.empty())
         {
-          return jsonrpc::error(
+          return make_error(
             LoggerErrors::MESSAGE_EMPTY, "Cannot record an empty log message");
         }
 
         auto view = tx.get_view(records);
         view->put(in.id, in.msg);
-        return jsonrpc::success(true);
+        return make_success(true);
       };
       // SNIPPET_END: record
 
@@ -170,9 +171,9 @@ namespace ccfapp
         auto r = view->get(in.id);
 
         if (r.has_value())
-          return jsonrpc::success(LoggingGet::Out{r.value()});
+          return make_success(LoggingGet::Out{r.value()});
 
-        return jsonrpc::error(
+        return make_error(
           LoggerErrors::UNKNOWN_ID, fmt::format("No such record: {}", in.id));
       };
       // SNIPPET_END: get
@@ -185,7 +186,7 @@ namespace ccfapp
 
         if (validation_error.has_value())
         {
-          return jsonrpc::error(
+          return make_error(
             jsonrpc::StandardErrorCodes::PARSE_ERROR, *validation_error);
         }
         // SNIPPET_END: valijson_record_public
@@ -193,13 +194,13 @@ namespace ccfapp
         const auto msg = params["msg"].get<std::string>();
         if (msg.empty())
         {
-          return jsonrpc::error(
+          return make_error(
             LoggerErrors::MESSAGE_EMPTY, "Cannot record an empty log message");
         }
 
         auto view = tx.get_view(public_records);
         view->put(params["id"], msg);
-        return jsonrpc::success(true);
+        return make_success(true);
       };
       // SNIPPET_END: record_public
 
@@ -210,7 +211,7 @@ namespace ccfapp
 
         if (validation_error.has_value())
         {
-          return jsonrpc::error(
+          return make_error(
             jsonrpc::StandardErrorCodes::PARSE_ERROR, *validation_error);
         }
 
@@ -222,29 +223,30 @@ namespace ccfapp
         {
           auto result = nlohmann::json::object();
           result["msg"] = r.value();
-          return jsonrpc::success(result);
+          return make_success(result);
         }
 
-        return jsonrpc::error(
+        return make_error(
           LoggerErrors::UNKNOWN_ID,
           fmt::format("No such record: {}", id.dump()));
       };
       // SNIPPET_END: get_public
 
       install_with_auto_schema<LoggingRecord::In, bool>(
-        Procs::LOG_RECORD, record, Write);
+        Procs::LOG_RECORD, handler_adapter(record), Write);
       // SNIPPET: install_get
-      install_with_auto_schema<LoggingGet>(Procs::LOG_GET, get, Read);
+      install_with_auto_schema<LoggingGet>(
+        Procs::LOG_GET, handler_adapter(get), Read);
 
       install(
         Procs::LOG_RECORD_PUBLIC,
-        record_public,
+        handler_adapter(record_public),
         Write,
         record_public_params_schema,
         record_public_result_schema);
       install(
         Procs::LOG_GET_PUBLIC,
-        get_public,
+        handler_adapter(get_public),
         Read,
         get_public_params_schema,
         get_public_result_schema);
@@ -261,6 +263,18 @@ namespace ccfapp
         }
       });
     }
+  };
+
+  class Logger : public ccf::UserRpcFrontend
+  {
+  private:
+    LoggerHandlers logger_handlers;
+
+  public:
+    Logger(NetworkTables& network, AbstractNotifier& notifier) :
+      ccf::UserRpcFrontend(*network.tables, logger_handlers),
+      logger_handlers(network, notifier)
+    {}
   };
 
   // SNIPPET_START: rpc_handler

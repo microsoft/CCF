@@ -439,8 +439,6 @@ namespace pbft
       LOG_INFO_FMT("PBFT added node, id: {}", info.id);
 
       nodes[node_conf.node_id] = 0;
-
-      // pbft_network->send_append_entries(node_conf.node_id, 1);
     }
 
     void periodic(std::chrono::milliseconds elapsed) override

@@ -1237,20 +1237,17 @@ void Replica::handle(Status* m)
       return;
     }
 
-    LOG_INFO_FMT("RECEIVED STATUS MESSAGE FROM: {}", m->id());
     // Retransmit messages that the sender is missing.
 
     if (last_stable > m->last_stable() + max_out)
     {
-      LOG_INFO_FMT("Sending append entries");
+      LOG_TRACE_FMT("Sending append entries");
       // Node is so out-of-date that it will not accept any
       // pre-prepare/prepare/commmit messages in my log.
       // Send a stable checkpoint message for my stable checkpoint.
-      if (m->id() != id())
-      {
-        Append_entries ae;
-        send(&ae, m->id());
-      }
+
+      Append_entries ae;
+      send(&ae, m->id());
 
       Checkpoint* c = elog.fetch(last_stable).mine(t_sent);
       if (c != 0 && c->stable())
@@ -1277,7 +1274,7 @@ void Replica::handle(Status* m)
       }
     }
 
-    LOG_INFO_FMT(
+    LOG_TRACE_FMT(
       "my last stable {}, m->laststable {}, last executed {}, m->last_executed "
       "{}, max_out {}",
       last_stable,
@@ -1305,12 +1302,12 @@ void Replica::handle(Status* m)
       if (m->has_nv_info())
       {
         min = std::max(last_stable + 1, m->last_executed() + 1);
-        LOG_INFO_FMT("Rentransmitting from min {} to max {}", min, max);
+        LOG_TRACE_FMT("Rentransmitting from min {} to max {}", min, max);
         if (
           last_stable > m->last_stable() &&
           last_executed > m->last_executed() + 2)
         {
-          LOG_INFO_FMT(
+          LOG_TRACE_FMT(
             "Sending append entries to {} since we are way off", m->id());
           Append_entries ae;
           send(&ae, m->id());
@@ -2428,7 +2425,6 @@ void Replica::new_state(Seqno c)
     mark_stable(c, true);
   }
 
-  LOG_INFO_FMT("Calling execute committed from new state");
   // Execute any committed requests
   execute_committed();
 
@@ -2644,14 +2640,6 @@ void Replica::send_status(bool send_now)
       last_executed,
       has_complete_new_view(),
       vi.has_nv_message(v));
-    LOG_INFO_FMT(
-      "Sending status message with v {}, last_stable {}, last_executed {}, "
-      "has_c_new_view {}, vi.has_nv_msg {}",
-      v,
-      last_stable,
-      last_executed,
-      has_complete_new_view(),
-      vi.has_nv_message(v));
 
     if (has_complete_new_view())
     {
@@ -2682,7 +2670,6 @@ void Replica::send_status(bool send_now)
     }
     else
     {
-      LOG_INFO_FMT("set received cvs and set missing pps");
       vi.set_received_vcs(&s);
       vi.set_missing_pps(&s);
     }

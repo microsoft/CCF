@@ -21,8 +21,6 @@ Status::Status(View v, Seqno ls, Seqno le, bool hnvi, bool hnvm) :
   rep().v = v;
   rep().ls = ls;
   rep().le = le;
-  rep().send_ae = false;
-  rep().ae_index = 0;
   rep().id = pbft::GlobalState::get_node().id();
   rep().brsz = 0;
 

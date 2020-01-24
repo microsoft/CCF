@@ -1477,6 +1477,10 @@ namespace kv
         auto h = get_history();
         if (h)
           h->compact(v);
+
+        auto e = get_encryptor();
+        if (e)
+          e->compact(v);
       }
 
       for (auto& map : maps)
@@ -1514,6 +1518,9 @@ namespace kv
       auto h = get_history();
       if (h)
         h->rollback(v);
+      auto e = get_encryptor();
+      if (e)
+        e->rollback(v);
     }
 
     DeserialiseSuccess deserialise_views(

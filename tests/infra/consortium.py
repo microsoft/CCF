@@ -202,6 +202,18 @@ class Consortium:
         self.vote_using_majority(remote_node, result["id"], pbft_open)
         self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN)
 
+    def rekey_ledger(self, member_id, remote_node):
+        script = """
+        tables = ...
+        return Calls:call("rekey_ledger")
+        """
+        result, error = self.propose(member_id, remote_node, script)
+        # Wait for global commit since sealed secrets are disclosed only
+        # when the rekey transaction is globally committed.
+        self.vote_using_majority(
+            remote_node, result["id"], should_wait_for_global_commit=True
+        )
+
     def add_users(self, remote_node, users):
         for u in users:
             user_cert = []
@@ -224,15 +236,22 @@ class Consortium:
         result, error = self.propose(member_id, remote_node, script, new_lua_app)
         self.vote_using_majority(remote_node, result["id"])
 
+    def set_js_app(self, member_id, remote_node, app_script):
+        script = """
+        tables, app = ...
+        return Calls:call("set_js_app", app)
+        """
+        with open(app_script) as app:
+            new_js_app = app.read()
+        result, error = self.propose(member_id, remote_node, script, new_js_app)
+        self.vote_using_majority(remote_node, result["id"])
+
     def accept_recovery(self, member_id, remote_node, sealed_secrets):
         script = """
         tables, sealed_secrets = ...
         return Calls:call("accept_recovery", sealed_secrets)
         """
-        with open(sealed_secrets) as s:
-            sealed_json = json.load(s)
-
-        result, error = self.propose(member_id, remote_node, script, sealed_json)
+        result, error = self.propose(member_id, remote_node, script, sealed_secrets)
         self.vote_using_majority(remote_node, result["id"])
 
     def add_new_code(self, member_id, remote_node, new_code_id):

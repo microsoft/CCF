@@ -126,7 +126,12 @@ def run(args):
 if __name__ == "__main__":
 
     args = e2e_args.cli_args()
-    args.package = args.app_script and "libluagenericenc" or "libloggingenc"
+    if args.js_app_script:
+        args.package = "libjsgenericenc"
+    elif args.app_script:
+        args.package = "libluagenericenc"
+    else:
+        args.package = "libloggingenc"
 
     notify_server_host = "localhost"
     args.notify_server = (

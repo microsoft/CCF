@@ -81,7 +81,7 @@ def test(network, args):
     primary, backups = network.find_nodes()
 
     ledger = primary.remote.get_ledger()
-    sealed_secrets = primary.remote.get_sealed_secrets()
+    sealed_secrets = primary.get_sealed_secrets()
 
     recovered_network = infra.ccf.Network(
         network.hosts, args.debug_nodes, args.perf_nodes, network
@@ -104,7 +104,7 @@ def test(network, args):
     )
 
     for node in recovered_network.nodes:
-        network.wait_for_state(node, "partOfNetwork")
+        recovered_network.wait_for_state(node, "partOfNetwork")
 
     recovered_network.wait_for_all_nodes_to_catch_up(primary)
 

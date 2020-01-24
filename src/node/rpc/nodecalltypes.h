@@ -57,6 +57,7 @@ namespace ccf
       std::vector<uint8_t> node_cert;
       Cert network_cert;
       std::vector<uint8_t> quote;
+      std::vector<uint8_t> public_encryption_key;
       std::vector<uint8_t> code_digest;
       NodeInfoNetwork node_info_network;
     };
@@ -66,27 +67,26 @@ namespace ccf
   {
     struct In
     {
-      std::vector<uint8_t> raw_fresh_key;
       NodeInfoNetwork node_info_network;
       std::vector<uint8_t> quote;
+      std::vector<uint8_t> public_encryption_key;
     };
 
     struct Out
     {
       NodeStatus node_status;
       NodeId node_id;
+      bool public_only;
 
       struct NetworkInfo
       {
-        LedgerSecret ledger_secrets;
-        int64_t version; // Current version of the network secrets
-
+        LedgerSecrets ledger_secrets;
         NetworkIdentity identity;
 
         bool operator==(const NetworkInfo& other) const
         {
           return ledger_secrets == other.ledger_secrets &&
-            version == other.version && identity == other.identity;
+            identity == other.identity;
         }
 
         bool operator!=(const NetworkInfo& other) const

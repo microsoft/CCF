@@ -125,7 +125,7 @@ json frontend_process(
 
   const enclave::SessionContext session(
     0, tls::make_verifier(caller)->der_cert_data());
-  const auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
+  auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
   auto serialized_response = frontend.process(rpc_ctx);
 
   CHECK(serialized_response.has_value());
@@ -183,6 +183,7 @@ TEST_CASE("Member query/read")
   gen.init_values();
   StubNodeState node;
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
   const auto member_id = gen.add_member(member_cert, MemberStatus::ACCEPTED);
   gen.finalize();
 
@@ -295,6 +296,7 @@ TEST_CASE("Proposer ballot")
 
   StubNodeState node;
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
 
   size_t proposal_id;
 
@@ -395,6 +397,7 @@ TEST_CASE("Add new members until there are 7 then reject")
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
 
   vector<NewMember> new_members(n_new_members);
 
@@ -576,6 +579,7 @@ TEST_CASE("Accept node")
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
   auto node_id = 0;
 
   // check node exists with status pending
@@ -634,6 +638,7 @@ bool test_raw_writes(
 {
   std::vector<std::vector<uint8_t>> member_certs;
   auto frontend = init_frontend(network, gen, node, n_members, member_certs);
+  frontend.open();
 
   // check values before
   {
@@ -805,6 +810,7 @@ TEST_CASE("Remove proposal")
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
   auto proposal_id = 0;
   auto wrong_proposal_id = 1;
   ccf::Script proposal_script(R"xxx(
@@ -887,6 +893,7 @@ TEST_CASE("Complete proposal after initial rejection")
   StubNodeState node;
   std::vector<std::vector<uint8_t>> member_certs;
   auto frontend = init_frontend(network, gen, node, 3, member_certs);
+  frontend.open();
 
   {
     INFO("Propose");
@@ -949,6 +956,7 @@ TEST_CASE("Add user via proposed call")
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
 
   Script proposal(R"xxx(
     tables, user_cert = ...
@@ -1002,6 +1010,7 @@ TEST_CASE("Passing members ballot with operator")
 
   StubNodeState node;
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
 
   size_t proposal_id;
   size_t proposer_id = 1;
@@ -1110,6 +1119,7 @@ TEST_CASE("Passing operator vote")
 
   StubNodeState node;
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
 
   size_t proposal_id;
 
@@ -1195,6 +1205,7 @@ TEST_CASE("Members passing an operator vote")
 
   StubNodeState node;
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
 
   size_t proposal_id;
 
@@ -1293,6 +1304,7 @@ TEST_CASE("User data")
 
   StubNodeState node;
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
 
   const auto read_user_info =
     create_json_req(read_params(user_id, Tables::USERS), "read");

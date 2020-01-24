@@ -17,11 +17,22 @@ file(GLOB_RECURSE EVERCRYPT_SRC "${EVERCRYPT_PREFIX}/*.[cS]")
 
 if("sgx" IN_LIST TARGET)
   add_library(evercrypt.enclave STATIC ${EVERCRYPT_SRC})
-  target_compile_options(evercrypt.enclave PRIVATE -nostdinc -U__linux__ -Wno-everything)
-  target_compile_definitions(evercrypt.enclave PRIVATE INSIDE_ENCLAVE KRML_HOST_PRINTF=oe_printf KRML_HOST_EXIT=oe_abort)
-  target_include_directories(evercrypt.enclave SYSTEM PRIVATE ${OE_LIBC_INCLUDE_DIR})
-  set_property(TARGET evercrypt.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
-  target_include_directories(evercrypt.enclave PRIVATE ${EVERCRYPT_INC})
+  target_compile_options(evercrypt.enclave PRIVATE
+    -U__linux__ -Wno-everything
+  )
+  target_compile_definitions(evercrypt.enclave PRIVATE
+    INSIDE_ENCLAVE KRML_HOST_PRINTF=oe_printf
+    KRML_HOST_EXIT=oe_abort
+  )
+  target_link_libraries(evercrypt.enclave PRIVATE
+    openenclave::oelibc
+  )
+  set_property(TARGET evercrypt.enclave
+    PROPERTY POSITION_INDEPENDENT_CODE ON
+  )
+  target_include_directories(evercrypt.enclave PRIVATE
+    ${EVERCRYPT_INC}
+  )
 endif()
 
 add_library(evercrypt.host STATIC ${EVERCRYPT_SRC})
@@ -46,9 +57,6 @@ if("sgx" IN_LIST TARGET)
   )
   target_compile_options(ccfcrypto.enclave PRIVATE -nostdinc++ -U__linux__)
   target_include_directories(ccfcrypto.enclave PRIVATE
-    ${OE_LIBCXX_INCLUDE_DIR}
-    ${OE_LIBC_INCLUDE_DIR}
-    ${OE_TP_INCLUDE_DIR}
     ${EVERCRYPT_INC}
   )
   target_link_libraries(ccfcrypto.enclave PRIVATE
@@ -59,6 +67,11 @@ if("sgx" IN_LIST TARGET)
   )
   use_oe_mbedtls(ccfcrypto.enclave)
   set_property(TARGET ccfcrypto.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+  install(
+    TARGETS ccfcrypto.enclave
+    DESTINATION lib
+  )
 endif()
 
 add_library(ccfcrypto.host STATIC
@@ -69,3 +82,8 @@ target_include_directories(ccfcrypto.host PRIVATE ${EVERCRYPT_INC})
 target_link_libraries(ccfcrypto.host PRIVATE evercrypt.host)
 use_client_mbedtls(ccfcrypto.host)
 set_property(TARGET ccfcrypto.host PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+install(
+  TARGETS ccfcrypto.host
+  DESTINATION lib
+)
