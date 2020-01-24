@@ -6,7 +6,6 @@ import infra.ccf
 from loguru import logger as LOG
 
 
-
 class LoggingTxs:
     def __init__(self, notifications_queue=None):
         self.pub = {}
