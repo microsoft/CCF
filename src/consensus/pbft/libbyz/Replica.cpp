@@ -1292,6 +1292,8 @@ void Replica::handle(Status* m)
       View_change* vc = vi.my_view_change(t_sent);
       if (vc != 0)
       {
+        LOG_TRACE_FMT(
+          "Re transmitting view change with digest: {}", vc->digest().hash());
         retransmit(vc, current, t_sent, p.get());
       }
       delete m;
@@ -1388,12 +1390,13 @@ void Replica::handle(Status* m)
       }
       else
       {
-        LOG_INFO_FMT("HAS NV INFO FALSE");
         if (!m->has_vc(node_id))
         {
           // p does not have my view-change: send it.
           View_change* vc = vi.my_view_change(t_sent);
           PBFT_ASSERT(vc != 0, "Invalid state");
+          LOG_TRACE_FMT(
+            "Re transmitting view change with digest: {}", vc->digest().hash());
           retransmit(vc, current, t_sent, p.get());
         }
 
@@ -1513,8 +1516,12 @@ void Replica::handle(Status* m)
 
 void Replica::handle(View_change* m)
 {
-  LOG_INFO << "Received view change for " << m->view() << " from " << m->id()
-           << ", v:" << v << std::endl;
+  LOG_INFO_FMT(
+    "Received view change for {} from {} with digest {}, v: {}",
+    m->view(),
+    m->id(),
+    m->digest().hash(),
+    v);
 
   if (m->id() == primary() && m->view() > v)
   {
@@ -1676,6 +1683,11 @@ void Replica::write_view_change_to_ledger()
     {
       continue;
     }
+
+    LOG_TRACE_FMT(
+      "Writing view for {} with digest {} to ledger",
+      vc->view(),
+      vc->digest().hash());
 
     ledger_writer->write_view_change(vc);
   }
