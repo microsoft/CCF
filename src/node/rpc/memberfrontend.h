@@ -521,8 +521,6 @@ namespace ccf
           return;
         }
 
-        LOG_INFO_FMT("Creating service");
-
         g.init_values();
         for (auto& cert : in.member_cert)
         {

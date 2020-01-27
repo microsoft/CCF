@@ -8,7 +8,7 @@
 #include "nodeinfo.h"
 
 //
-// New principal messages have the following format:
+// Append entries messages have the following format:
 //
 #pragma pack(push)
 #pragma pack(1)

@@ -71,8 +71,6 @@ public:
 
   void set_certificate(const std::vector<uint8_t>& cert_);
   bool has_certificate_set();
-  Index get_last_ae_sent() const;
-  void set_last_ae_sent(Index ae);
 
 private:
   int id;

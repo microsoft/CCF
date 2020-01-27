@@ -28,16 +28,16 @@
 namespace pbft
 {
   // maps node to last sent index to that node
-  using NodesMap = std::unordered_map<pbft::NodeId, Index>;
+  using NodesMap = std::unordered_map<NodeId, Index>;
   class PbftEnclaveNetwork : public INetwork
   {
   public:
     PbftEnclaveNetwork(
-      pbft::NodeId id,
+      NodeId id,
       std::shared_ptr<ccf::NodeToNode> n2n_channels,
       NodesMap& nodes_,
-      pbft::Index& append_entries_index_,
-      pbft::Index& latest_stable_ae_index_) :
+      Index& append_entries_index_,
+      Index& latest_stable_ae_index_) :
       n2n_channels(n2n_channels),
       id(id),
       nodes(nodes_),
@@ -59,7 +59,7 @@ namespace pbft
 
     int Send(Message* msg, IPrincipal& principal) override
     {
-      pbft::NodeId to = principal.pid();
+      NodeId to = principal.pid();
       if (to == id)
       {
         // If a replica sends a message to itself (e.g. if f == 0), handle
@@ -86,7 +86,7 @@ namespace pbft
       {
         auto node = nodes.find(to);
 
-        pbft::Index match_idx = 0;
+        Index match_idx = 0;
         if (node != nodes.end())
         {
           match_idx = node->second;
@@ -103,15 +103,15 @@ namespace pbft
       return msg->size();
     }
 
-    void send_append_entries(pbft::NodeId to, pbft::Index start_idx)
+    void send_append_entries(NodeId to, Index start_idx)
     {
       size_t entries_batch_size = 10;
 
-      pbft::Index end_idx = (latest_stable_ae_index == 0) ?
+      Index end_idx = (latest_stable_ae_index == 0) ?
         0 :
         std::min(start_idx + entries_batch_size, latest_stable_ae_index);
 
-      for (pbft::Index i = end_idx; i < latest_stable_ae_index;
+      for (Index i = end_idx; i < latest_stable_ae_index;
            i += entries_batch_size)
       {
         send_append_entries_range(to, start_idx, i);
@@ -124,8 +124,7 @@ namespace pbft
       }
     }
 
-    void send_append_entries_range(
-      pbft::NodeId to, pbft::Index start_idx, pbft::Index end_idx)
+    void send_append_entries_range(NodeId to, Index start_idx, Index end_idx)
     {
       const auto prev_idx = start_idx - 1;
 
@@ -169,8 +168,8 @@ namespace pbft
     IMessageReceiveBase* message_receiver_base = nullptr;
     NodeId id;
     NodesMap& nodes;
-    pbft::Index& append_entries_index;
-    pbft::Index& latest_stable_ae_index;
+    Index& append_entries_index;
+    Index& latest_stable_ae_index;
   };
 
   template <class LedgerProxy, class ChannelProxy>
@@ -220,8 +219,8 @@ namespace pbft
 
     struct register_mark_stable_info
     {
-      pbft::Index* append_entries_idx;
-      pbft::Index* latest_stable_ae_idx;
+      Index* append_entries_idx;
+      Index* latest_stable_ae_idx;
     } register_mark_stable_ctx;
 
   public:
@@ -535,7 +534,7 @@ namespace pbft
           for (Index i = r.prev_idx + 1; i <= r.idx; i++)
           {
             LOG_TRACE_FMT("Recording entry for index {}", i);
-            pbft::Index aei;
+            Index aei;
             {
               aei = append_entries_index;
             }

@@ -67,12 +67,9 @@ namespace pbft
       }
       auto raw_size = serialized::read<size_t>(data_, size_);
       raw = serialized::read(data_, size_, raw_size);
-      LOG_INFO_FMT("getting pbft raw size");
       auto pbft_raw_size = serialized::read<size_t>(data_, size_);
-      LOG_INFO_FMT("pbft raw size {}", pbft_raw_size);
       if (pbft_raw_size > 0)
       {
-        LOG_INFO_FMT("hmmmm");
         pbft_raw = serialized::read(data_, size_, pbft_raw_size);
       }
       else

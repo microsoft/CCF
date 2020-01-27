@@ -313,7 +313,7 @@ void Replica::playback_transaction(ccf::Store::Tx& tx)
 
 void Replica::playback_request(const pbft::Request& request, ccf::Store::Tx& tx)
 {
-  LOG_INFO_FMT(
+  LOG_TRACE_FMT(
     "Playback request for request with size {}", request.pbft_raw.size());
   auto req =
     create_message<Request>(request.pbft_raw.data(), request.pbft_raw.size());

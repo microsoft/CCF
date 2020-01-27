@@ -118,6 +118,7 @@ if("virtual" IN_LIST TARGET)
     ${EVERCRYPT_INC}
   )
 
+  add_dependencies(libcommontest.mock flatbuffers)
   target_compile_options(libcommontest.mock PRIVATE -stdlib=libc++)
 
   function(use_libbyz name)
