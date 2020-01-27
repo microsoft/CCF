@@ -115,7 +115,7 @@ def human_readable_size(n):
 
 
 class FramedTLSClient:
-    def __init__(self, host, port, cert=None, key=None, ca=None):
+    def __init__(self, host, port, cert=None, key=None, ca=None, request_timeout=3):
         self.host = host
         self.port = port
         self.cert = cert
@@ -124,6 +124,7 @@ class FramedTLSClient:
         self.context = None
         self.sock = None
         self.conn = None
+        self.request_timeout = request_timeout
 
     def connect(self):
         if self.ca:
@@ -162,12 +163,13 @@ class FramedTLSClient:
         return data
 
     def read(self):
-        for _ in range(5000):
+        for _ in range(self.request_timeout * 100):
             r, _, _ = select.select([self.conn], [], [], 0)
             if r:
                 return self._read()
             else:
                 time.sleep(0.01)
+        raise TimeoutError
 
     def disconnect(self):
         self.conn.close()
@@ -257,10 +259,11 @@ class FramedTLSJSONRPCClient:
         version="2.0",
         format="msgpack",
         connection_timeout=3,
+        request_timeout=3,
         *args,
         **kwargs,
     ):
-        self.client = FramedTLSClient(host, int(port), cert, key, ca)
+        self.client = FramedTLSClient(host, int(port), cert, key, ca, request_timeout)
         self.stream = Stream(version, format=format)
         self.format = format
 
