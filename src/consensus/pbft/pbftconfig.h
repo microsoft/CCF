@@ -81,6 +81,11 @@ namespace pbft
       ctx->method = ctx->method.substr(n + 1, ctx->method.size());
 
       ctx->pbft_raw = {req_start, req_start + req_size};
+      // TODO: HTTP signatures are not handled by PBFT
+      // https://github.com/microsoft/CCF/issues/720
+#ifdef HTTP
+      ctx->signed_request = ccf::SignedReq();
+#endif
 
       enclave::RpcHandler::ProcessPbftResp rep;
       if (playback && tx)

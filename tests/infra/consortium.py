@@ -199,8 +199,8 @@ class Consortium:
         return Calls:call("open_network")
         """
         result, error = self.propose(member_id, remote_node, script)
-        self.vote_using_majority(remote_node, result["id"], pbft_open)
-        self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN)
+        self.vote_using_majority(remote_node, result["id"], not pbft_open)
+        self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN, pbft_open)
 
     def rekey_ledger(self, member_id, remote_node):
         script = """
@@ -263,13 +263,17 @@ class Consortium:
         result, error = self.propose(member_id, remote_node, script, code_digest)
         self.vote_using_majority(remote_node, result["id"])
 
-    def check_for_service(self, remote_node, status):
+    def check_for_service(self, remote_node, status, pbft_open=False):
         """
         Check via the member frontend of the given node that the certificate
         associated with current CCF service signing key has been recorded in
         the KV store with the appropriate status.
         """
-        with remote_node.member_client(format="json") as c:
+        # When opening the service in PBFT, the first transaction to be
+        # completed when f = 1 takes a significant amount of time
+        with remote_node.member_client(
+            format="json", request_timeout=(30 if pbft_open else 3)
+        ) as c:
             rep = c.do(
                 "query",
                 {
