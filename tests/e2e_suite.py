@@ -5,8 +5,10 @@ import e2e_args
 import infra.ccf
 import suite.test_suite as s
 import suite.test_requirements as reqs
+import infra.logging_app as app
 import time
 import json
+import sys
 from enum import Enum
 
 from loguru import logger as LOG
@@ -26,12 +28,14 @@ def run(args):
         LOG.warning("Test requirements will be ignored")
 
     hosts = ["localhost", "localhost"]
-    network = infra.ccf.Network(hosts, args.debug_nodes, args.perf_nodes)
+    txs = app.LoggingTxs()
+    network = infra.ccf.Network(hosts, args.debug_nodes, args.perf_nodes, txs=txs)
     network.start_and_join(args)
 
     LOG.info(f"Running {len(s.tests)} tests for {args.test_duration} seconds")
 
     run_tests = {}
+    success = True
     elapsed = args.test_duration
 
     for i, test in enumerate(s.tests):
@@ -87,6 +91,7 @@ def run(args):
 
         # For now, if a test fails, the entire test suite if stopped
         if status is TestStatus.failure:
+            success = False
             break
 
         elapsed -= test_elapsed
@@ -95,6 +100,9 @@ def run(args):
 
     LOG.success(f"Ran {len(run_tests)}/{len(s.tests)} tests:")
     LOG.success(f"\n{json.dumps(run_tests, indent=4)}")
+
+    if not success:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

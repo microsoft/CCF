@@ -11,73 +11,16 @@ from random import seed
 import infra.ccf
 import infra.proc
 import infra.remote
+import infra.logging_app as app
 import json
 import suite.test_requirements as reqs
 
 from loguru import logger as LOG
 
 
-class Txs:
-    def __init__(self, nb_msgs, offset=0, since_beginning=False):
-        self.pub = {}
-        self.priv = {}
-
-        # After a recovery, check that all messages since the beginning of
-        # time have been successfully recovered
-        start_i = (offset * nb_msgs) if not since_beginning else 0
-
-        for i in range(start_i, nb_msgs + offset * nb_msgs):
-            self.pub[i] = "Public msg #{}".format(i)
-            self.priv[i] = "Private msg #{}".format(i)
-
-
-def check_nodes_have_msgs(nodes, txs):
-    """
-    Read and check values for messages at an offset. This effectively
-    makes sure nodes have recovered state.
-    """
-    for node in nodes:
-        with node.user_client(format="json") as c:
-            for n, msg in txs.priv.items():
-                c.do(
-                    "LOG_get",
-                    {"id": n},
-                    readonly_hint=None,
-                    expected_result={"msg": msg},
-                )
-            for n, msg in txs.pub.items():
-                c.do(
-                    "LOG_get_pub",
-                    {"id": n},
-                    readonly_hint=None,
-                    expected_result={"msg": msg},
-                )
-
-
-def log_msgs(primary, txs):
-    """
-    Log a new series of messages
-    """
-    LOG.debug("Applying new transactions")
-    responses = []
-    with primary.user_client(format="json") as c:
-        for n, msg in txs.priv.items():
-            responses.append(c.rpc("LOG_record", {"id": n, "msg": msg}))
-        for n, msg in txs.pub.items():
-            responses.append(c.rpc("LOG_record_pub", {"id": n, "msg": msg}))
-    return responses
-
-
-def check_responses(responses, result, check, check_commit):
-    for response in responses[:-1]:
-        check(response, result=result)
-    check_commit(responses[-1], result=result)
-
-
-@reqs.none
-def test(network, args):
-    LOG.info("Starting network recovery")
-
+@reqs.description("Recovering a network")
+@reqs.recover(number_txs=2)
+def test(network, args, txs=None):
     primary, backups = network.find_nodes()
 
     ledger = primary.remote.get_ledger()
@@ -119,33 +62,18 @@ def test(network, args):
 def run(args):
     hosts = ["localhost", "localhost"]
 
+    txs = app.LoggingTxs()
+
     with infra.ccf.network(
-        hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs
     ) as network:
         network.start_and_join(args)
 
         for recovery_idx in range(args.recovery):
-            txs = Txs(args.msgs_per_recovery, recovery_idx)
-
-            primary, backups = network.find_nodes()
-
-            with primary.node_client() as mc:
-                check_commit = infra.checker.Checker(mc)
-                check = infra.checker.Checker()
-
-                rs = log_msgs(primary, txs)
-                check_responses(rs, True, check, check_commit)
-                network.wait_for_node_commit_sync()
-                check_nodes_have_msgs(backups, txs)
-
             recovered_network = test(network, args)
-
             network.stop_all_nodes()
             network = recovered_network
 
-            old_txs = Txs(args.msgs_per_recovery, recovery_idx, since_beginning=True)
-
-            check_nodes_have_msgs(recovered_network.nodes, old_txs)
             LOG.success("Recovery complete on all nodes")
 
 

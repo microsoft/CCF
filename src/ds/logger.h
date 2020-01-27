@@ -11,11 +11,15 @@
 #include <fmt/time.h>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
 #include <string>
+#include <thread>
+
+extern std::map<std::thread::id, uint16_t> thread_ids;
 
 namespace logger
 {
@@ -58,6 +62,7 @@ namespace logger
       const std::string& msg,
       const std::tm& host_tm,
       const ::timespec& host_ts,
+      uint16_t thread_id,
       const std::optional<::timespec>& enclave_ts = std::nullopt) = 0;
 
     virtual void write(const std::string& log_line) = 0;
@@ -85,6 +90,7 @@ namespace logger
       const std::string& msg,
       const std::tm& host_tm,
       const ::timespec& host_ts,
+      uint16_t thread_id,
       const std::optional<::timespec>& enclave_ts = std::nullopt) override
     {
       nlohmann::json j;
@@ -98,11 +104,13 @@ namespace logger
         ::gmtime_r(&enc_ts.tv_sec, &enclave_tm);
 
         return fmt::format(
-          "{{\"h_ts\":\"{}\",\"e_ts\":\"{}\",\"level\":\"{}\",\"file\":\"{}\","
+          "{{\"h_ts\":\"{}\",\"e_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{"
+          "}\",\"file\":\"{}\","
           "\"number\":\"{}\","
           "\"msg\":{}}}",
           get_timestamp(host_tm, host_ts),
           get_timestamp(enclave_tm, enc_ts),
+          thread_id,
           log_level,
           file_name,
           line_number,
@@ -110,9 +118,11 @@ namespace logger
       }
 
       return fmt::format(
-        "{{\"h_ts\":\"{}\",\"level\":\"{}\",\"file\":\"{}\",\"number\":\"{}\","
+        "{{\"h_ts\":\"{}\",\"thread_id\":\"{}\",\"level\":\"{}\",\"file\":\"{}"
+        "\",\"number\":\"{}\","
         "\"msg\":{}}}",
         get_timestamp(host_tm, host_ts),
+        thread_id,
         log_level,
         file_name,
         line_number,
@@ -135,6 +145,7 @@ namespace logger
       const std::string& msg,
       const std::tm& host_tm,
       const ::timespec& host_ts,
+      uint16_t thread_id,
       const std::optional<::timespec>& enclave_ts = std::nullopt) override
     {
       auto file_line = fmt::format("{}:{}", file_name, line_number);
@@ -153,10 +164,11 @@ namespace logger
         // that the time inside the enclave was 130 milliseconds earlier than
         // the host timestamp printed on the line
         return fmt::format(
-          "{} -{}.{:0>3} [{:<5}] {:<36} | {}",
+          "{} -{}.{:0>3} {:<3} [{:<5}] {:<36} | {}",
           get_timestamp(host_tm, host_ts),
           enclave_ts.value().tv_sec,
           enclave_ts.value().tv_nsec / 1000000,
+          thread_id,
           log_level,
           file_line_data,
           msg);
@@ -166,8 +178,9 @@ namespace logger
         // Padding on the right to align the rest of the message
         // with lines that contain enclave time offsets
         return fmt::format(
-          "{}        [{:<5}] {:<36} | {}",
+          "{}        {:<3} [{:<5}] {:<36} | {}",
           get_timestamp(host_tm, host_ts),
+          thread_id,
           log_level,
           file_line_data,
           msg);
@@ -295,12 +308,18 @@ namespace logger
     size_t line_number;
     std::string ll_str;
     std::string msg;
+    uint16_t thread_id;
 
   public:
     LogLine(Level ll, const char* file_name, size_t line_number) :
       file_name(file_name),
       line_number(line_number),
-      log_level(ll)
+      log_level(ll),
+#ifdef INSIDE_ENCLAVE
+      thread_id(thread_ids[std::this_thread::get_id()])
+#else
+      thread_id(100)
+#endif
     {}
 
     template <typename T>
@@ -334,6 +353,7 @@ namespace logger
         line.file_name,
         line.line_number,
         line.log_level,
+        line.thread_id,
         line.msg);
 
       return true;
@@ -345,7 +365,12 @@ namespace logger
     bool operator==(LogLine& line)
     {
       line.finalize();
-      write(line.file_name, line.line_number, line.log_level, line.msg);
+      write(
+        line.file_name,
+        line.line_number,
+        line.log_level,
+        line.thread_id,
+        line.msg);
 
       return true;
     }
@@ -354,6 +379,7 @@ namespace logger
       const std::string& file_name,
       size_t line_number,
       const Level& log_level,
+      uint16_t thread_id,
       const std::string& msg)
     {
       // When logging from host code, print local time.
@@ -365,7 +391,13 @@ namespace logger
       for (auto const& logger : config::loggers())
       {
         logger->write(logger->format(
-          file_name, line_number, config::to_string(log_level), msg, now, ts));
+          file_name,
+          line_number,
+          config::to_string(log_level),
+          msg,
+          now,
+          ts,
+          thread_id));
       }
 
       if (log_level == Level::FATAL)
@@ -377,13 +409,15 @@ namespace logger
             config::to_string(log_level),
             msg,
             now,
-            ts));
+            ts,
+            thread_id));
     }
 
     static void write(
       const std::string& file_name,
       size_t line_number,
       const Level& log_level,
+      uint16_t thread_id,
       const std::string& msg,
       size_t ms_offset_from_start)
     {
@@ -430,6 +464,7 @@ namespace logger
           msg,
           now,
           ts,
+          thread_id,
           enclave_ts));
       }
 
@@ -443,6 +478,7 @@ namespace logger
             msg,
             now,
             ts,
+            thread_id,
             enclave_ts));
     }
   };

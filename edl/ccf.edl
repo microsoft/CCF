@@ -22,7 +22,8 @@ enclave {
             size_t network_cert_size,
             [out] size_t* network_cert_len,
             StartType start_type,
-            ConsensusType consensus_type
+            ConsensusType consensus_type,
+            size_t num_worker_thread
         );
 
         public bool enclave_run();
