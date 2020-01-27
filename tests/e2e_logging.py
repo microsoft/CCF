@@ -14,8 +14,13 @@ from loguru import logger as LOG
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None, verify=True):
     txs = app.LoggingTxs(notifications_queue=notifications_queue)
-    txs.issue(network=network, number_txs=1)
-    txs.issue(network=network, number_txs=1, on_backup=True)
+    txs.issue(network=network, number_txs=1, wait_for_sync=args.consensus == "raft")
+    txs.issue(
+        network=network,
+        number_txs=1,
+        on_backup=True,
+        wait_for_sync=args.consensus == "raft",
+    )
     # TODO: Once the JS app supports both public and private tables, always verify
     if verify:
         txs.verify(network)
@@ -36,7 +41,7 @@ def test_large_messages(network, args):
 
         with primary.user_client(format="json") as c:
             id = 44
-            for p in range(14, 20):
+            for p in range(14, 20) if args.consensus == "raft" else range(10, 13):
                 long_msg = "X" * (2 ** p)
                 check_commit(
                     c.rpc("LOG_record", {"id": id, "msg": long_msg}), result=True,
@@ -111,13 +116,15 @@ def test_update_lua(network, args):
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
+    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
 
     with infra.notification.notification_server(args.notify_server) as notifications:
         # Lua apps do not support notifications
         # https://github.com/microsoft/CCF/issues/415
         notifications_queue = (
-            notifications.get_queue() if args.package == "libloggingenc" else None
+            notifications.get_queue()
+            if (args.package == "libloggingenc" and args.consensus == "raft")
+            else None
         )
 
         with infra.ccf.network(

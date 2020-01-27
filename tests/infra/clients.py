@@ -115,7 +115,7 @@ def human_readable_size(n):
 
 
 class FramedTLSClient:
-    def __init__(self, host, port, cert=None, key=None, ca=None):
+    def __init__(self, host, port, cert=None, key=None, ca=None, request_timeout=3):
         self.host = host
         self.port = port
         self.cert = cert
@@ -124,6 +124,7 @@ class FramedTLSClient:
         self.context = None
         self.sock = None
         self.conn = None
+        self.request_timeout = request_timeout
 
     def connect(self):
         if self.ca:
@@ -162,12 +163,13 @@ class FramedTLSClient:
         return data
 
     def read(self):
-        for _ in range(5000):
+        for _ in range(self.request_timeout * 100):
             r, _, _ = select.select([self.conn], [], [], 0)
             if r:
                 return self._read()
             else:
                 time.sleep(0.01)
+        raise TimeoutError
 
     def disconnect(self):
         self.conn.close()
@@ -257,10 +259,11 @@ class FramedTLSJSONRPCClient:
         version="2.0",
         format="msgpack",
         connection_timeout=3,
+        request_timeout=3,
         *args,
         **kwargs,
     ):
-        self.client = FramedTLSClient(host, int(port), cert, key, ca)
+        self.client = FramedTLSClient(host, int(port), cert, key, ca, request_timeout)
         self.stream = Stream(version, format=format)
         self.format = format
 
@@ -308,6 +311,7 @@ class CurlClient:
         version,
         format,
         connection_timeout,
+        request_timeout,
         *args,
         **kwargs,
     ):
@@ -318,6 +322,7 @@ class CurlClient:
         self.ca = ca
         self.format = "json"
         self.connection_timeout = connection_timeout
+        self.request_timeout = request_timeout
         self.stream = Stream(version, "json")
 
     def _just_request(self, request, is_signed=False):
@@ -338,6 +343,7 @@ class CurlClient:
                 "--data-binary",
                 f"@{nf.name}",
                 "-w \\n%{http_code}",
+                f"-m {self.request_timeout}",
             ]
 
             if self.ca:
@@ -350,8 +356,10 @@ class CurlClient:
             rc = subprocess.run(cmd, capture_output=True)
 
             if rc.returncode != 0:
-                if rc.returncode == 60:
+                if rc.returncode == 60:  # PEER_FAILED_VERIFICATION
                     raise CCFConnectionException
+                if rc.returncode == 28:  # OPERATION_TIMEDOUT
+                    raise TimeoutError
                 LOG.error(rc.stderr)
                 raise RuntimeError(f"Curl failed with return code {rc.returncode}")
 
@@ -419,7 +427,7 @@ class RequestClient:
             json=request.to_dict(),
             cert=(self.cert, self.key),
             verify=self.ca,
-            timeout=self.request_timeout,
+            timeout=(self.connection_timeout, self.request_timeout),
         )
         self.stream.update(rep.content)
         return request.id
@@ -431,9 +439,11 @@ class RequestClient:
                 rid = self._just_request(request)
                 self.request = self._just_request
                 return rid
-            except (requests.exceptions.ReadTimeout, requests.exceptions.SSLError) as e:
+            except requests.exceptions.SSLError:
                 if self.connection_timeout < 0:
                     raise CCFConnectionException
+            except requests.exceptions.ReadTimeout:
+                raise TimeoutError
             time.sleep(0.1)
 
     def signed_request(self, request):
