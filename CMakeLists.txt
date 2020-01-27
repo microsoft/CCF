@@ -360,12 +360,6 @@ if(BUILD_TESTS)
         --app-script ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua)
 
     add_e2e_test(
-      NAME end_to_end_logging
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-      CURL_CLIENT TRUE
-    )
-
-    add_e2e_test(
       NAME js_end_to_end_logging
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       ADDITIONAL_ARGS
@@ -431,15 +425,18 @@ if(BUILD_TESTS)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
   endif()
 
-  # TODO: Fix signed HTTP RPCs with PBFT
-  if (NOT (HTTP AND PBFT))
-    add_e2e_test(
-      NAME election_tests
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-      ADDITIONAL_ARGS
-        --election-timeout 2000
-    )
-  endif()
+  add_e2e_test(
+    NAME end_to_end_logging
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+    CURL_CLIENT TRUE
+  )
+
+  add_e2e_test(
+    NAME election_tests
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+    ADDITIONAL_ARGS
+      --election-timeout 2000
+  )
 
   if (NOT PBFT)
     # Logging scenario perf test

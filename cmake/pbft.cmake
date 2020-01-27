@@ -68,14 +68,6 @@ endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# TODO: Find out why this breaks with HTTP
-if (NOT HTTP)
-  add_e2e_test(
-      NAME end_to_end_pbft
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging_pbft.py
-  )
-endif()
-
 if("virtual" IN_LIST TARGET)
 
   add_library(libbyz.host STATIC ${PBFT_SRC})
