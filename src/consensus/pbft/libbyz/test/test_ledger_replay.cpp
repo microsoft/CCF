@@ -88,6 +88,7 @@ void create_replica(
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map)
 {
+  Log_allocator::should_use_malloc(true);
   auto node_info = get_node_info();
 
   pbft::GlobalState::set_replica(std::make_unique<Replica>(
