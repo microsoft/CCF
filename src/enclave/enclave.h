@@ -107,9 +107,25 @@ namespace enclave
         return false;
 
       // Copy node, quote and network certs out
+      if (r.first.node_cert.size() > node_cert_size)
+      {
+        LOG_FAIL_FMT(
+          "Insufficient space ({}) to copy node_cert out ({})",
+          node_cert_size,
+          r.first.node_cert.size());
+        return false;
+      }
       ::memcpy(node_cert, r.first.node_cert.data(), r.first.node_cert.size());
       *node_cert_len = r.first.node_cert.size();
 
+      if (r.first.quote.size() > quote_size)
+      {
+        LOG_FAIL_FMT(
+          "Insufficient space ({}) to copy quote out ({})",
+          quote_size,
+          r.first.quote.size());
+        return false;
+      }
       ::memcpy(quote, r.first.quote.data(), r.first.quote.size());
       *quote_len = r.first.quote.size();
 
@@ -117,6 +133,14 @@ namespace enclave
       {
         // When starting a node in start or recover modes, fresh network secrets
         // are created and the associated certificate can be passed to the host
+        if (r.first.network_cert.size() > network_cert_size)
+        {
+          LOG_FAIL_FMT(
+            "Insufficient space ({}) to copy network_cert out ({})",
+            network_cert_size,
+            r.first.network_cert.size());
+          return false;
+        }
         ::memcpy(
           network_cert,
           r.first.network_cert.data(),
