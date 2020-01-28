@@ -59,6 +59,7 @@ if("sgx" IN_LIST TARGET)
   # enclave version
   add_library(ccfcommon.enclave STATIC
     ${CCF_DIR}/src/enclave/main.cpp
+    ${CCF_DIR}/src/enclave/thread_local.cpp
     ${CCF_GENERATED_DIR}/ccf_t.cpp
   )
 
@@ -113,6 +114,7 @@ if("virtual" IN_LIST TARGET)
   # virtual version
   add_library(ccfcommon.virtual STATIC
     ${CCF_DIR}/src/enclave/main.cpp
+    ${CCF_DIR}/src/enclave/thread_local.cpp
     ${CCF_GENERATED_DIR}/ccf_t.cpp
   )
 
