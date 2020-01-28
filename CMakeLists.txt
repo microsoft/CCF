@@ -116,7 +116,6 @@ if ("virtual" IN_LIST TARGET)
   add_library(ccf.virtual STATIC
     ${CCF_DIR}/src/enclave/main.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp
-    ${CCF_GENERATED_DIR}/ccf_t.cpp
   )
 
   target_compile_definitions(ccf.virtual PUBLIC
@@ -132,7 +131,6 @@ if ("virtual" IN_LIST TARGET)
   target_include_directories(ccf.virtual SYSTEM PUBLIC
     ${EVERCRYPT_INC}
     ${CCF_GENERATED_DIR}
-    ${OE_INCLUDEDIR} # Virtual libraries don't link against OE, but do share includes
   )
 
   add_dependencies(ccf.virtual flatbuffers)
