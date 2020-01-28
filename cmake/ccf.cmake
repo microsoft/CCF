@@ -56,7 +56,7 @@ function(add_san name)
 endfunction()
 
 separate_arguments(COVERAGE_FLAGS UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
-separate_arguments(COVERAGE_LINK UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping -lgcc")
+separate_arguments(COVERAGE_LINK UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
 
 function(enable_coverage name)
   if (COVERAGE)
