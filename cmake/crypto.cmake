@@ -17,6 +17,10 @@ file(GLOB_RECURSE EVERCRYPT_SRC "${EVERCRYPT_PREFIX}/*.[cS]")
 
 if ("sgx" IN_LIST TARGET)
   add_library(evercrypt.enclave STATIC ${EVERCRYPT_SRC})
+  target_compile_options(evercrypt.enclave PRIVATE
+    -Wno-implicit-function-declaration
+    -Wno-return-type
+  )
   target_compile_definitions(evercrypt.enclave PRIVATE
     INSIDE_ENCLAVE KRML_HOST_PRINTF=oe_printf
     KRML_HOST_EXIT=oe_abort
