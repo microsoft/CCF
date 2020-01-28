@@ -411,7 +411,13 @@ void Replica::playback_request(const pbft::Request& request, ccf::Store::Tx& tx)
   waiting_for_playback_pp = true;
   Byz_buffer non_det;
   execute_tentative_request(
-    *req, playback_byz_info, playback_max_local_commit_value, non_det);
+    *req,
+    playback_byz_info,
+    playback_max_local_commit_value,
+    non_det,
+    nullptr,
+    &tx,
+    true);
 }
 
 void Replica::playback_pre_prepare(
@@ -441,7 +447,7 @@ void Replica::playback_pre_prepare(
       last_prepared = seqno;
     }
 
-    ledger_writer->write_pre_prepare(executable_pp.get());
+    ledger_writer->write_pre_prepare(executable_pp.get(), tx);
 
     if (global_commit_cb != nullptr && executable_pp->is_signed())
     {
@@ -2119,6 +2125,8 @@ void Replica::execute_tentative_request(
   int64_t& max_local_commit_value,
   Byz_buffer& non_det,
   char* nondet_choices,
+  ccf::Store::Tx* tx,
+  bool playback,
   Seqno seqno)
 {
   int client_id = request.client_id();
@@ -2154,8 +2162,8 @@ void Replica::execute_tentative_request(
     request.contents_size(),
     replies.total_requests_processed(),
     info,
-    false,
-    nullptr);
+    playback,
+    tx);
   right_pad_contents(outb);
   // Finish constructing the reply.
   LOG_DEBUG_FMT(
@@ -2205,6 +2213,8 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
         max_local_commit_value,
         non_det,
         pp->choices(non_det.size),
+        nullptr,
+        false,
         pp->seqno());
     }
     LOG_DEBUG_FMT(
