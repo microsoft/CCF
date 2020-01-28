@@ -119,7 +119,7 @@ def run_to_destruction(args):
 
 if __name__ == "__main__":
     args = e2e_args.cli_args()
-    args.package = "libluagenericenc"
+    args.package = "libluageneric"
     args.enforce_reqs = True
 
     run(args)

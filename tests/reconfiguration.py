@@ -56,7 +56,7 @@ def test_add_node_untrusted_code(network, args):
     if args.enclave_type == "debug":
         LOG.info("Adding an invalid node (unknown code id)")
         try:
-            network.create_and_trust_node("libluagenericenc", "localhost", args)
+            network.create_and_trust_node("libluageneric", "localhost", args)
             assert False, "Adding node with unknown code id should fail"
         except TimeoutError as err:
             assert "CODE_ID_NOT_FOUND" in err.message, err.message
@@ -97,9 +97,9 @@ if __name__ == "__main__":
             "-p",
             "--package",
             help="The enclave package to load (e.g., libsimplebank)",
-            default="libloggingenc",
+            default="liblogging",
         )
 
     args = e2e_args.cli_args(add)
-    args.package = args.app_script and "libluagenericenc" or "libloggingenc"
+    args.package = args.app_script and "libluageneric" or "liblogging"
     run(args)

@@ -5,7 +5,7 @@
 set -e
 
 if [ -z "$1" ]; then
-    echo "The application enclave file should be specified (e.g. libloggingenc)"
+    echo "The application enclave file should be specified (e.g. liblogging)"
     exit 1
 fi
 

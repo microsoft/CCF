@@ -3,11 +3,8 @@
 
 set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
 
-set(MSGPACK_INCLUDE_DIR ${CCF_DIR}/3rdparty/msgpack-c)
-set(FLATBUFFERS_INCLUDE_DIR ${CCF_DIR}/3rdparty/flatbuffers/include)
-
 set(default_build_type "RelWithDebInfo")
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
     set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE STRING "Choose the type of build." FORCE)
     set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
@@ -32,27 +29,27 @@ elseif (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_mbedtls")
 elseif (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_bitcoin")
   add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_BITCOIN)
   set(DEFAULT_PARTICIPANTS_CURVE "secp256k1")
-else ()
+else()
   message(FATAL_ERROR "Unsupported curve choice ${SERVICE_IDENTITY_CURVE_CHOICE}")
-endif ()
+endif()
 
 option (COLORED_OUTPUT "Always produce ANSI-colored output (Clang only)." TRUE)
 
 if (${COLORED_OUTPUT})
     if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
        add_compile_options (-fcolor-diagnostics)
-    endif ()
-endif ()
+    endif()
+endif()
 
 option(VERBOSE_LOGGING "Enable verbose logging" OFF)
 set(TEST_HOST_LOGGING_LEVEL "info")
-if(VERBOSE_LOGGING)
+if (VERBOSE_LOGGING)
   add_definitions(-DVERBOSE_LOGGING)
   set(TEST_HOST_LOGGING_LEVEL "debug")
 endif()
 
 option(NO_STRICT_TLS_CIPHERSUITES "Disable strict list of valid TLS ciphersuites" OFF)
-if(NO_STRICT_TLS_CIPHERSUITES)
+if (NO_STRICT_TLS_CIPHERSUITES)
   add_definitions(-DNO_STRICT_TLS_CIPHERSUITES)
 endif()
 
@@ -81,7 +78,7 @@ if (PBFT)
 endif()
 
 option(DEBUG_CONFIG "Enable non-production options options to aid debugging" OFF)
-if(DEBUG_CONFIG)
+if (DEBUG_CONFIG)
   add_definitions(-DDEBUG_CONFIG)
 endif()
 
@@ -116,8 +113,8 @@ include_directories(
   SYSTEM
   ${CCF_DIR}/3rdparty
   ${CCF_DIR}/3rdparty/hacl-star
-  ${MSGPACK_INCLUDE_DIR}
-  ${FLATBUFFERS_INCLUDE_DIR}
+  ${CCF_DIR}/3rdparty/msgpack-c
+  ${CCF_DIR}/3rdparty/flatbuffers/include
 )
 
 set(TARGET "sgx;virtual" CACHE STRING "One of sgx, virtual, or 'sgx;virtual'")
@@ -141,13 +138,6 @@ add_custom_command(
     COMMENT "Generating code from EDL, and renaming to .cpp"
 )
 
-install(
-  FILES
-    ${CCF_GENERATED_DIR}/ccf_t.cpp
-    ${CCF_GENERATED_DIR}/ccf_t.h
-  DESTINATION generated
-)
-
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf.cmake DESTINATION cmake)
 
@@ -163,9 +153,9 @@ install(
   DESTINATION bin
 )
 
-if("sgx" IN_LIST TARGET)
+if ("sgx" IN_LIST TARGET)
   # If OE was built with LINK_SGX=1, then we also need to link SGX
-  if(OE_SGX)
+  if (OE_SGX)
     message(STATUS "Linking SGX")
     set(SGX_LIBS
       sgx_enclave_common
@@ -235,26 +225,12 @@ set(HTTP_PARSER_SOURCES
 
 find_library(CRYPTO_LIBRARY crypto)
 
-
-# The OE libraries must be listed in a specific order. Issue #887 on github
-set(ENCLAVE_LIBS
-  ccfcrypto.enclave
-  evercrypt.enclave
-  lua.enclave
-  secp256k1.enclave
-)
-
-set(ENCLAVE_FILES
-  ${CCF_DIR}/src/enclave/main.cpp
-  ${CCF_DIR}/src/enclave/thread_local.cpp
-)
-
 function(add_enclave_library_c name files)
   add_library(${name} STATIC
     ${files})
   target_compile_options(${name} PRIVATE
     -nostdinc
-    -U__linux__)
+  )
   target_link_libraries(${name} PRIVATE
     openenclave::oelibc
   )
@@ -298,7 +274,7 @@ function(add_unit_test name)
   )
 endfunction()
 
-if("sgx" IN_LIST TARGET)
+if ("sgx" IN_LIST TARGET)
   # Host Executable
   add_executable(cchost
     ${CCF_DIR}/src/host/main.cpp
@@ -329,7 +305,7 @@ if("sgx" IN_LIST TARGET)
   )
 endif()
 
-if("virtual" IN_LIST TARGET)
+if ("virtual" IN_LIST TARGET)
   # Virtual Host Executable
   add_executable(cchost.virtual
     ${CCF_DIR}/src/host/main.cpp)
@@ -386,8 +362,10 @@ add_dependencies(scenario_perf_client flatbuffers)
 
 # Lua for host and enclave
 add_enclave_library_c(lua.enclave "${LUA_SOURCES}")
+target_compile_options(lua.enclave PRIVATE -Wno-string-plus-int)
 target_compile_definitions(lua.enclave PRIVATE NO_IO)
 add_library(lua.host STATIC ${LUA_SOURCES})
+target_compile_options(lua.host PRIVATE -Wno-string-plus-int)
 target_compile_definitions(lua.host PRIVATE NO_IO)
 set_property(TARGET lua.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
@@ -398,7 +376,7 @@ add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Common test args for Python scripts starting up CCF networks
-if(PBFT)
+if (PBFT)
   set(CONSENSUS_ARG "pbft")
 else()
   set(CONSENSUS_ARG "raft")
@@ -417,19 +395,24 @@ set(CCF_NETWORK_TEST_ARGS
 )
 
 # SNIPPET_START: Lua generic application
-add_enclave_lib(luagenericenc
+add_ccf_app(luageneric
   SRCS ${CCF_DIR}/src/apps/luageneric/luageneric.cpp
 )
-sign_app_library(luagenericenc
+sign_app_library(luageneric.enclave
   ${CCF_DIR}/src/apps/luageneric/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
 )
 # SNIPPET_END: Lua generic application
 
-add_enclave_lib(jsgenericenc
+add_ccf_app(jsgeneric
   SRCS ${CCF_DIR}/src/apps/jsgeneric/jsgeneric.cpp
+  LINK_LIBS_ENCLAVE
+    quickjs.enclave
+    -lgcc
+  LINK_LIBS_VIRTUAL
+    quickjs.host
 )
-sign_app_library(jsgenericenc
+sign_app_library(jsgeneric.enclave
   ${CCF_DIR}/src/apps/jsgeneric/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
 )
@@ -531,13 +514,13 @@ function(add_perf_test)
     "ADDITIONAL_ARGS"
   )
 
-  if(PARSED_ARGS_VERIFICATION_FILE)
+  if (PARSED_ARGS_VERIFICATION_FILE)
     set(VERIFICATION_ARG "--verify ${PARSED_ARGS_VERIFICATION_FILE}")
   else()
     unset(VERIFICATION_ARG)
   endif()
 
-  if(PARSED_ARGS_LABEL)
+  if (PARSED_ARGS_LABEL)
     set(LABEL_ARG "${PARSED_ARGS_LABEL}_${TESTS_SUFFIX}^")
   else()
     set(LABEL_ARG "${PARSED_ARGS_NAME}_${TESTS_SUFFIX}^")

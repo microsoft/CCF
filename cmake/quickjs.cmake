@@ -20,23 +20,23 @@ message(STATUS "QuickJS prefix: ${QUICKJS_PREFIX} version: ${QUICKJS_VERSION}")
 
 # We need two versions of libquickjs, because it depends on libc
 
-if("sgx" IN_LIST TARGET)
+if ("sgx" IN_LIST TARGET)
   add_library(quickjs.enclave STATIC
     ${QUICKJS_SRC}
     ${CCF_DIR}/3rdparty/stub/stub.c
   )
-  target_compile_options(quickjs.enclave PRIVATE
-    -nostdinc -U__linux__ -Wno-everything
+  target_compile_options(quickjs.enclave PUBLIC
+    -nostdinc
     -DCONFIG_VERSION="${QUICKJS_VERSION}"
     -DEMSCRIPTEN
   )
-  target_link_libraries(quickjs.enclave PRIVATE
+  target_link_libraries(quickjs.enclave PUBLIC
     openenclave::oelibc
   )
   set_property(TARGET quickjs.enclave
     PROPERTY POSITION_INDEPENDENT_CODE ON
   )
-  target_include_directories(quickjs.enclave PRIVATE
+  target_include_directories(quickjs.enclave PUBLIC
     ${QUICKJS_INC}
   )
 
@@ -49,14 +49,13 @@ endif()
 add_library(quickjs.host STATIC
   ${QUICKJS_SRC}
 )
-target_compile_options(quickjs.host PRIVATE
-  -Wno-everything
+target_compile_options(quickjs.host PUBLIC
   -DCONFIG_VERSION="${QUICKJS_VERSION}"
 )
 set_property(TARGET quickjs.host
   PROPERTY POSITION_INDEPENDENT_CODE ON
 )
-target_include_directories(quickjs.host PRIVATE
+target_include_directories(quickjs.host PUBLIC
   ${QUICKJS_INC}
 )
 

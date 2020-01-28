@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import e2e_args
 import infra.ccf
+import infra.path
 import infra.proc
 import json
 import logging
@@ -38,7 +39,7 @@ def run(args):
         new_node = network.create_and_trust_node(args.package, "localhost", args)
         assert new_node
 
-        new_code_id = get_code_id(f"{args.patched_file_name}.so.signed")
+        new_code_id = get_code_id(infra.path.build_lib_path(args.patched_file_name))
 
         LOG.info(f"Adding a node with unsupported code id {new_code_id}")
         try:
@@ -96,19 +97,10 @@ if __name__ == "__main__":
             "-p",
             "--package",
             help="The enclave package to load (e.g., libsimplebank)",
-            default="libloggingenc",
+            default="liblogging",
         )
         parser.add_argument(
             "--oesign", help="Path to oesign binary", type=str, required=True
-        )
-        parser.add_argument(
-            "--oeconfpath",
-            help="Path to oe configuration file",
-            type=str,
-            required=True,
-        )
-        parser.add_argument(
-            "--oesignkeypath", help="Path to oesign key", type=str, required=True
         )
 
     args = e2e_args.cli_args(add)
@@ -116,6 +108,6 @@ if __name__ == "__main__":
         LOG.warning("Skipping code update test with virtual enclave")
         sys.exit()
 
-    args.package = args.app_script and "libluagenericenc" or "libloggingenc"
+    args.package = args.app_script and "libluageneric" or "liblogging"
     args.patched_file_name = "{}.patched".format(args.package)
     run(args)
