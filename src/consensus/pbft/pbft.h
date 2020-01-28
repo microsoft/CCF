@@ -63,13 +63,12 @@ namespace pbft
       PbftHeader hdr = {PbftMsgType::pbft_message, id};
 
       // TODO: Encrypt msg here
-      auto msg_size = (sizeof(PbftHeader) + msg->size());
-      if (serialized_msg.size() < msg_size)
+      auto space = (sizeof(PbftHeader) + msg->size());
+      if (serialized_msg.size() < space)
       {
-        serialized_msg.resize(msg_size);
+        serialized_msg.resize(space);
       }
       auto data_ = serialized_msg.data();
-      auto space = serialized_msg.size();
       serialized::write<PbftHeader>(data_, space, hdr);
       serialized::write(
         data_,
