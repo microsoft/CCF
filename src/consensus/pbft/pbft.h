@@ -549,9 +549,6 @@ namespace pbft
                 "Recv append entries to {} from {} but the data is malformed",
                 local_id,
                 r.from_node);
-              {
-                append_entries_index = r.prev_idx;
-              }
               ledger->truncate(r.prev_idx);
               return;
             }
