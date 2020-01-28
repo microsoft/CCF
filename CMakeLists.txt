@@ -18,7 +18,7 @@ set(ENV{BETTER_EXCEPTIONS} 1)
 #
 #     $ cmake -DCMAKE_INSTALL_PREFIX=/opt/myplace ..
 #
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX
     "/opt/ccf/ccf-${PROJECT_VERSION}" CACHE PATH "Default install prefix" FORCE)
 endif()
@@ -52,27 +52,136 @@ target_link_libraries(logging_client PRIVATE
   http_parser.host
 )
 
-add_enclave_lib(loggingenc
-  SRCS
-    src/apps/logging/logging.cpp
-    src/apps/logging/stub_for_code_signing.cpp
-)
-sign_app_library(loggingenc
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
-)
+# Build common library for CCF enclaves
+add_custom_target(ccf ALL)
+
+if ("sgx" IN_LIST TARGET)
+  # enclave version
+  add_library(ccf.enclave STATIC
+    ${CCF_DIR}/src/enclave/main.cpp
+    ${CCF_DIR}/src/enclave/thread_local.cpp
+    ${CCF_GENERATED_DIR}/ccf_t.cpp
+  )
+
+  target_compile_definitions(ccf.enclave PUBLIC
+    INSIDE_ENCLAVE
+    _LIBCPP_HAS_THREAD_API_PTHREAD
+  )
+
+  target_compile_options(ccf.enclave PUBLIC
+    -nostdinc
+    -nostdinc++
+  )
+
+  target_include_directories(ccf.enclave SYSTEM PUBLIC
+    ${EVERCRYPT_INC}
+    ${CCF_GENERATED_DIR}
+  )
+
+  add_dependencies(ccf.enclave flatbuffers)
+
+  if (PBFT)
+    target_link_libraries(ccf.enclave PUBLIC
+      libbyz.enclave
+    )
+  endif()
+
+  target_link_libraries(ccf.enclave PUBLIC
+    openenclave::oeenclave
+    openenclave::oelibcxx
+    openenclave::oelibc
+    ccfcrypto.enclave
+    evercrypt.enclave
+    http_parser.enclave
+    lua.enclave
+    secp256k1.enclave
+  )
+
+  set_property(TARGET ccf.enclave
+    PROPERTY POSITION_INDEPENDENT_CODE ON
+  )
+
+  enable_quote_code(ccf.enclave)
+
+  install(
+    TARGETS ccf.enclave
+    DESTINATION lib
+  )
+
+  add_dependencies(ccf ccf.enclave)
+endif()
+
+if ("virtual" IN_LIST TARGET)
+  # virtual version
+  add_library(ccf.virtual STATIC
+    ${CCF_DIR}/src/enclave/main.cpp
+    ${CCF_DIR}/src/enclave/thread_local.cpp
+  )
+
+  target_compile_definitions(ccf.virtual PUBLIC
+    INSIDE_ENCLAVE
+    VIRTUAL_ENCLAVE
+    _LIBCPP_HAS_THREAD_API_PTHREAD
+  )
+
+  target_compile_options(ccf.virtual PUBLIC
+    -stdlib=libc++
+  )
+
+  target_include_directories(ccf.virtual SYSTEM PUBLIC
+    ${EVERCRYPT_INC}
+    ${CCF_GENERATED_DIR}
+  )
+
+  add_dependencies(ccf.virtual flatbuffers)
+
+  if (PBFT)
+    target_link_libraries(ccf.virtual PUBLIC
+      libbyz.host
+    )
+  endif()
+
+  target_link_libraries(ccf.virtual PUBLIC
+    -stdlib=libc++
+    -lc++
+    -lc++abi
+    ccfcrypto.host
+    evercrypt.host
+    http_parser.host
+    lua.host
+    secp256k1.host
+    ${CMAKE_THREAD_LIBS_INIT}
+  )
+
+  set_property(TARGET ccf.virtual
+    PROPERTY POSITION_INDEPENDENT_CODE ON
+  )
+
+  enable_coverage(ccf.virtual)
+  use_client_mbedtls(ccf.virtual)
+  add_san(ccf.virtual)
+
+  install(
+    TARGETS ccf.virtual
+    DESTINATION lib
+  )
+
+  add_dependencies(ccf ccf.virtual)
+endif()
+
 
 # Create patched alternative of library, to test code version changes
 function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
-  if(TARGET ${name})
-    set(patched_name ${name}.patched)
+  set(enc_name ${name}.enclave)
+  if (TARGET ${enc_name})
+    set(patched_name ${name}.patched.enclave)
     set(patched_lib_name lib${patched_name}.so)
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
-        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
+        COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/lib${enc_name}.so ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
         COMMAND PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH} python3 patch_binary.py -p ${CMAKE_CURRENT_BINARY_DIR}/${patched_lib_name}
         WORKING_DIRECTORY ${CCF_DIR}/tests
-        DEPENDS ${name}
+        DEPENDS ${enc_name}
     )
 
     add_custom_target(${patched_name} ALL
@@ -82,14 +191,23 @@ function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   endif()
 endfunction()
 
-create_patched_enclave_lib(loggingenc
+add_ccf_app(logging
+  SRCS
+    src/apps/logging/logging.cpp
+    src/apps/logging/stub_for_code_signing.cpp
+)
+sign_app_library(logging.enclave
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
+)
+create_patched_enclave_lib(logging
   ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
   ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
 )
 
 set(OE_SIGN_PATH ${OE_BINDIR}/oesign)
 
-if(BUILD_TESTS)
+if (BUILD_TESTS)
   enable_testing()
 
   # Unit tests
@@ -194,7 +312,7 @@ if(BUILD_TESTS)
       secp256k1.host
     )
 
-  if(NOT PBFT)
+  if (NOT PBFT)
     add_unit_test(membervoting_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/membervoting_test.cpp)
     target_link_libraries(membervoting_test PRIVATE
@@ -211,7 +329,7 @@ if(BUILD_TESTS)
       lua.host
       secp256k1.host)
 
-    if(NOT ENV{RUNTIME_CONFIG_DIR})
+    if (NOT ENV{RUNTIME_CONFIG_DIR})
       set_tests_properties(membervoting_test PROPERTIES ENVIRONMENT RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config)
     endif()
 
@@ -328,7 +446,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
     )
 
-    if(QUOTES_ENABLED)
+    if (QUOTES_ENABLED)
       add_e2e_test(
         NAME governance_tests
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
@@ -391,11 +509,11 @@ if(BUILD_TESTS)
       NAME schema_tests
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
       ADDITIONAL_ARGS
-      -p libloggingenc
+      -p liblogging
       --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
     )
 
-    if(QUOTES_ENABLED)
+    if (QUOTES_ENABLED)
       add_e2e_test(
         NAME reconfiguration_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
@@ -406,8 +524,6 @@ if(BUILD_TESTS)
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
         ADDITIONAL_ARGS
           --oesign ${OE_SIGN_PATH}
-          --oeconfpath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/logging/oe_sign.conf
-          --oesignkeypath ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/sample_key.pem
           # TODO: This test spins up many nodes that go through the join protocol
           # Since oe_verify_report can take quite a long time to execute (~2s)
           # and trigger Raft elections, the election timeout should stay high
@@ -446,7 +562,7 @@ if(BUILD_TESTS)
       CLIENT_BIN ./scenario_perf_client
       LABEL log_scenario
       ADDITIONAL_ARGS
-        --package libloggingenc
+        --package liblogging
         --scenario-file ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
         --max-writes-ahead 1000
         --repetitions 1000

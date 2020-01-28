@@ -10,15 +10,15 @@ target_link_libraries(small_bank_client PRIVATE
 )
 
 # SmallBank application
-add_enclave_lib(smallbankenc
+add_ccf_app(smallbank
   SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp
 )
-sign_app_library(smallbankenc
+sign_app_library(smallbank.enclave
   ${CMAKE_CURRENT_LIST_DIR}/app/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
 )
 
-if(BUILD_TESTS)
+if (BUILD_TESTS)
   ## Small Bank end to end and performance test
   if (PBFT)
     set(SMALL_BANK_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_50k.json)
@@ -48,15 +48,15 @@ if(BUILD_TESTS)
   elseif (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_bitcoin")
     set(SMALL_BANK_SIGNED_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_50k.json)
     set(SMALL_BANK_SIGNED_ITERATIONS 50000)
-  else ()
+  else()
     set(SMALL_BANK_SIGNED_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_2k.json)
     set(SMALL_BANK_SIGNED_ITERATIONS 2000)
-  endif ()
+  endif()
 
   # These tests require client-signed signatures:
   # - PBFT doesn't yet verify these correctly
   # - HTTP C++ perf clients don't currently sign correctly
-  if(NOT PBFT AND NOT HTTP)
+  if (NOT PBFT AND NOT HTTP)
     add_perf_test(
       NAME small_bank_sigs_client_test
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py

@@ -114,5 +114,5 @@ def run(args):
 if __name__ == "__main__":
 
     args = e2e_args.cli_args()
-    args.package = "libloggingenc"
+    args.package = "liblogging"
     run(args)

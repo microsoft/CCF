@@ -18,18 +18,7 @@
 
 extern "C"
 {
-#if defined(INSIDE_ENCLAVE) && !defined(__linux__)
-// Tricks Kremlin into including the right endian.h for the enclave.
-// MUSL doesn't provide any macros that it could be identified by,
-// so we use our own. This avoids macro redefinition warnings.
-#  define __linux__
-#  include <evercrypt/MerkleTree.h>
-
-#  undef __linux__
-#else
-#  include <evercrypt/MerkleTree.h>
-
-#endif
+#include <evercrypt/MerkleTree.h>
 }
 
 namespace fmt
@@ -607,9 +596,9 @@ namespace ccf
       size_t all_data_size) override
     {
       append(replicated, replicated_size, all_data, all_data_size);
+#ifdef PBFT
       auto root = get_full_state_root();
       LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
-#ifdef PBFT
       results[id] = {version, root};
       if (on_result.has_value())
         on_result.value()({id, version, root});
@@ -618,9 +607,9 @@ namespace ccf
 
     void add_result(kv::TxHistory::RequestID id, kv::Version version) override
     {
+#ifdef PBFT
       auto root = get_full_state_root();
       LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
-#ifdef PBFT
       results[id] = {version, root};
       if (on_result.has_value())
         on_result.value()({id, version, root});

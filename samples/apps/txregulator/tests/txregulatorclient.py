@@ -293,5 +293,5 @@ if __name__ == "__main__":
         )
 
     args = e2e_args.cli_args(add)
-    args.package = args.app_script and "libluagenericenc" or "libloggingenc"
+    args.package = args.app_script and "libluageneric" or "liblogging"
     run(args)

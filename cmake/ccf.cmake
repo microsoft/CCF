@@ -4,20 +4,20 @@
 set(ALLOWED_TARGETS "sgx;virtual")
 set(IS_VALID_TARGET "FALSE")
 foreach(REQUESTED_TARGET ${TARGET})
-  if(${REQUESTED_TARGET} IN_LIST ALLOWED_TARGETS)
+  if (${REQUESTED_TARGET} IN_LIST ALLOWED_TARGETS)
     set(IS_VALID_TARGET "TRUE")
   else()
     message(FATAL_ERROR "${REQUESTED_TARGET} is not a valid target. Choose from: ${ALLOWED_TARGETS}")
   endif()
 endforeach()
 
-if((NOT ${IS_VALID_TARGET}))
+if ((NOT ${IS_VALID_TARGET}))
   message(FATAL_ERROR "Variable list 'TARGET' must include at least one supported target. Choose from: ${ALLOWED_TARGETS}")
 endif()
 
 # Sign a built enclave library with oesign
 function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
-  if(TARGET ${name})
+  if (TARGET ${name})
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
       COMMAND openenclave::oesign sign
@@ -35,15 +35,15 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
   endif()
 endfunction()
 
-# Util functions used by add_enclave_lib and others
+# Util functions used by add_ccf_app and others
 function(enable_quote_code name)
   if (QUOTES_ENABLED)
-    target_compile_definitions(${name} PRIVATE -DGET_QUOTE)
+    target_compile_definitions(${name} PUBLIC -DGET_QUOTE)
   endif()
 endfunction()
 
 function(add_san name)
-  if(SAN)
+  if (SAN)
     target_compile_options(${name} PRIVATE
       -fsanitize=undefined,address -fno-omit-frame-pointer -fno-sanitize-recover=all
       -fno-sanitize=function -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
@@ -74,10 +74,11 @@ function(use_oe_mbedtls name)
   target_link_libraries(${name} PRIVATE
     openenclave::oeenclave
     openenclave::oelibcxx
+    openenclave::oelibc
   )
 endfunction()
 
-if(NOT CCF_GENERATED_DIR)
+if (NOT CCF_GENERATED_DIR)
   set(CCF_GENERATED_DIR ${CCF_DIR}/generated)
 endif()
 
@@ -86,106 +87,65 @@ add_custom_target(flatbuffers ALL
 )
 
 # Enclave library wrapper
-function(add_enclave_lib name)
+function(add_ccf_app name)
 
   cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS
     ""
     ""
-    "SRCS;INCLUDE_DIRS;LINK_LIBS"
+    "SRCS;INCLUDE_DIRS;LINK_LIBS_ENCLAVE;LINK_LIBS_VIRTUAL"
   )
 
-  if("sgx" IN_LIST TARGET)
-    add_library(${name} SHARED
-      ${ENCLAVE_FILES}
+  add_custom_target(${name} ALL)
+
+  if ("sgx" IN_LIST TARGET)
+    set(enc_name ${name}.enclave)
+
+    add_library(${enc_name} SHARED
       ${PARSED_ARGS_SRCS}
-      ${CCF_GENERATED_DIR}/ccf_t.cpp
     )
 
-    target_compile_definitions(${name} PRIVATE
-      INSIDE_ENCLAVE
-      _LIBCPP_HAS_THREAD_API_PTHREAD
-    )
-    target_compile_options(${name} PRIVATE
-      -nostdinc
-      -nostdinc++
-      -U__linux__
-    )
-    target_include_directories(${name} SYSTEM PRIVATE
+    target_include_directories(${enc_name} SYSTEM PRIVATE
       ${PARSED_ARGS_INCLUDE_DIRS}
-      ${EVERCRYPT_INC}
-      ${CMAKE_CURRENT_BINARY_DIR}
-      ${QUICKJS_INC}
     )
-    add_dependencies(${name} flatbuffers)
 
-    if (PBFT)
-      target_link_libraries(${name} PRIVATE
-        libbyz.enclave
-      )
-    endif()
-    target_link_libraries(${name} PRIVATE
-      -nostdlib -nodefaultlibs -nostartfiles
-      -Wl,--no-undefined
-      -Wl,-Bstatic,-Bsymbolic,--export-dynamic,-pie
-      quickjs.enclave
-      -lgcc
-      ${PARSED_ARGS_LINK_LIBS}
+    target_link_libraries(${enc_name} PRIVATE
+      ${PARSED_ARGS_LINK_LIBS_ENCLAVE}
+      # These oe libraries must be linked in correct order, so they are
+      # re-declared here
       openenclave::oeenclave
-      openenclave::oelibcxx
-      ${ENCLAVE_LIBS}
-      http_parser.enclave
+      openenclave::oecore
+      openenclave::oesyscall
+      ccf.enclave
     )
-    set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-    enable_quote_code(${name})
+    set_property(TARGET ${enc_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+    add_dependencies(${name} ${enc_name})
   endif()
 
-  if("virtual" IN_LIST TARGET)
+  if ("virtual" IN_LIST TARGET)
     ## Build a virtual enclave, loaded as a shared library without OE
     set(virt_name ${name}.virtual)
+
     add_library(${virt_name} SHARED
-      ${ENCLAVE_FILES}
       ${PARSED_ARGS_SRCS}
-      ${CCF_GENERATED_DIR}/ccf_t.cpp
     )
-    target_compile_definitions(${virt_name} PRIVATE
-      INSIDE_ENCLAVE
-      VIRTUAL_ENCLAVE
-    )
-    target_compile_options(${virt_name} PRIVATE
-      -stdlib=libc++)
+
     target_include_directories(${virt_name} SYSTEM PRIVATE
       ${PARSED_ARGS_INCLUDE_DIRS}
-      ${CCFCRYPTO_INC}
-      ${EVERCRYPT_INC}
-      ${CMAKE_CURRENT_BINARY_DIR}
-      ${QUICKJS_INC}
-      ${OE_INCLUDEDIR} # Virtual libraries don't link against OE, but do share includes
     )
-    add_dependencies(${virt_name} flatbuffers)
 
-    if (PBFT)
-      target_link_libraries(${virt_name} PRIVATE
-        libbyz.host
-      )
-    endif()
     target_link_libraries(${virt_name} PRIVATE
-      ${PARSED_ARGS_LINK_LIBS}
-      -stdlib=libc++
-      -lc++
-      -lc++abi
-      ccfcrypto.host
-      evercrypt.host
-      lua.host
-      ${CMAKE_THREAD_LIBS_INIT}
-      secp256k1.host
-      http_parser.host
-      quickjs.host
+      ${PARSED_ARGS_LINK_LIBS_VIRTUAL}
+      ccf.virtual
     )
+
     set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
     enable_coverage(${virt_name})
     use_client_mbedtls(${virt_name})
     add_san(${virt_name})
+
+    add_dependencies(${name} ${virt_name})
   endif()
 endfunction()

@@ -82,7 +82,7 @@ def installed_package(p):
 
 
 def lua_generic_app(func):
-    return installed_package("libluagenericenc")(func)
+    return installed_package("libluageneric")(func)
 
 
 # Runs some transactions before recovering the network and guarantees that all

@@ -15,10 +15,11 @@ file(GLOB_RECURSE EVERCRYPT_SRC "${EVERCRYPT_PREFIX}/*.[cS]")
 
 # We need two versions of EverCrypt, because it depends on libc
 
-if("sgx" IN_LIST TARGET)
+if ("sgx" IN_LIST TARGET)
   add_library(evercrypt.enclave STATIC ${EVERCRYPT_SRC})
   target_compile_options(evercrypt.enclave PRIVATE
-    -U__linux__ -Wno-everything
+    -Wno-implicit-function-declaration
+    -Wno-return-type
   )
   target_compile_definitions(evercrypt.enclave PRIVATE
     INSIDE_ENCLAVE KRML_HOST_PRINTF=oe_printf
@@ -36,7 +37,6 @@ if("sgx" IN_LIST TARGET)
 endif()
 
 add_library(evercrypt.host STATIC ${EVERCRYPT_SRC})
-target_compile_options(evercrypt.host PRIVATE -Wno-everything)
 set_property(TARGET evercrypt.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(evercrypt.host PRIVATE ${EVERCRYPT_INC})
 
@@ -49,13 +49,13 @@ set(CCFCRYPTO_SRC
 
 set(CCFCRYPTO_INC ${CCF_DIR}/src/crypto/ ${EVERCRYPT_INC})
 
-if("sgx" IN_LIST TARGET)
+if ("sgx" IN_LIST TARGET)
   add_library(ccfcrypto.enclave STATIC ${CCFCRYPTO_SRC})
   target_compile_definitions(ccfcrypto.enclave PRIVATE
     INSIDE_ENCLAVE
     _LIBCPP_HAS_THREAD_API_PTHREAD
   )
-  target_compile_options(ccfcrypto.enclave PRIVATE -nostdinc++ -U__linux__)
+  target_compile_options(ccfcrypto.enclave PRIVATE -nostdinc++)
   target_include_directories(ccfcrypto.enclave PRIVATE
     ${EVERCRYPT_INC}
   )
