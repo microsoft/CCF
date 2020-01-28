@@ -34,7 +34,7 @@
 #  define DEBUG_ALLOC 1
 #endif
 
-#define USE_STD_MALLOC
+//#define USE_STD_MALLOC
 
 class Log_allocator
 {
@@ -71,6 +71,10 @@ public:
 
   void debug_print();
   // Effects: Prints debug information
+
+  static void should_use_malloc(bool use_malloc);
+  // Effects: Specifies if malloc or the log allocator should be used
+  // Note: should be set before the first message object is allocated
 
 private:
   struct Chunk
@@ -138,6 +142,8 @@ private:
 
   Chunk* free_chunks; // list of free chunks
   SpinLock spin_lock;
+
+  static bool use_malloc;
 };
 
 inline char* Log_allocator::malloc(int sz)
@@ -145,9 +151,10 @@ inline char* Log_allocator::malloc(int sz)
   PBFT_ASSERT(sz > 0 && sz < chunk_size, "Invalid argument");
   PBFT_ASSERT(ALIGNED_SIZE(sz), "Invalid argument");
 
-#ifdef USE_STD_MALLOC
-  return (char*)::malloc(sz);
-#else
+  if (use_malloc)
+  {
+    return (char*)::malloc(sz);
+  }
   char* next;
   SpinLock::SpinLockRAII lock(spin_lock);
 
@@ -159,9 +166,9 @@ inline char* Log_allocator::malloc(int sz)
       // There is space in the current chunk
       cur->next = next + sz;
       cur->nb++;
-#  ifdef DEBUG_ALLOC
+#ifdef DEBUG_ALLOC
       bzero(next, sz);
-#  endif
+#endif
       return next;
     }
 
@@ -182,7 +189,6 @@ inline char* Log_allocator::malloc(int sz)
       }
     }
   }
-#endif
 }
 
 inline void Log_allocator::free_chunk(Chunk* p)
@@ -200,27 +206,28 @@ inline void Log_allocator::free(char* p, int sz)
   PBFT_ASSERT(ALIGNED_SIZE(sz), "Invalid argument");
   PBFT_ASSERT(ALIGNED(p), "Invalid argument");
 
-#ifdef USE_STD_MALLOC
-  ::free(p);
-  return;
-#else
+  if (use_malloc)
+  {
+    ::free(p);
+    return;
+  }
   SpinLock::SpinLockRAII lock(spin_lock);
   Chunk* pc = (Chunk*)((uintptr_t)p & ~((uintptr_t)chunk_size - 1));
 
-#  ifdef DEBUG_ALLOC
+#ifdef DEBUG_ALLOC
   long* pi = (long*)p;
   for (int i = 0; i < sz / sizeof(Log_allocator_magic); i++)
   {
     if (*(pi + i) == Log_allocator_magic)
     {
       LOG_FAIL << "WARNING: Storage possibly freed twice" << std::endl;
-#    ifndef INSIDE_ENCLAVE
+#  ifndef INSIDE_ENCLAVE
       logger::print_stacktrace();
-#    endif
+#  endif
     }
     *(pi + i) = Log_allocator_magic;
   }
-#  endif
+#endif
 
   if (pc == cur && p + sz == cur->next)
   {
@@ -235,14 +242,14 @@ inline void Log_allocator::free(char* p, int sz)
     PBFT_ASSERT(pc != cur, "Invalid state");
     free_chunk(pc);
   }
-#endif
 }
 
 inline bool Log_allocator::realloc(char* p, int osz, int nsz)
 {
-#ifdef USE_STD_MALLOC
-  return false;
-#else
+  if (use_malloc)
+  {
+    return false;
+  }
   SpinLock::SpinLockRAII lock(spin_lock);
   Chunk* pc = (Chunk*)((uintptr_t)p & ~((uintptr_t)chunk_size - 1));
   if (pc == cur && p + osz == cur->next)
@@ -255,5 +262,4 @@ inline bool Log_allocator::realloc(char* p, int osz, int nsz)
     }
   }
   return false;
-#endif
 }

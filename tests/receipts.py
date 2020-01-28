@@ -17,10 +17,10 @@ import e2e_args
 from loguru import logger as LOG
 
 
+@reqs.description("Running transactions against logging app")
 @reqs.supports_methods("getReceipt", "verifyReceipt", "LOG_get")
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None):
-    LOG.info("Running transactions against logging app")
     primary, backup = network.find_primary_and_any_backup()
 
     with primary.node_client() as mc:

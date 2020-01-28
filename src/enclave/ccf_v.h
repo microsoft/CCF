@@ -66,7 +66,8 @@ extern "C"
     size_t,
     size_t*,
     StartType,
-    ConsensusType);
+    ConsensusType,
+    size_t);
 
   using run_func_t = bool (*)();
 
@@ -106,7 +107,8 @@ extern "C"
     size_t network_cert_size,
     size_t* network_cert_len,
     StartType start_type,
-    ConsensusType consensus_type)
+    ConsensusType consensus_type,
+    size_t num_worker_thread)
   {
     static create_node_func_t create_node_func =
       get_enclave_exported_function<create_node_func_t>("enclave_create_node");
@@ -125,7 +127,8 @@ extern "C"
       network_cert_size,
       network_cert_len,
       start_type,
-      consensus_type);
+      consensus_type,
+      num_worker_thread);
     return *_retval ? OE_OK : OE_FAILURE;
   }
 

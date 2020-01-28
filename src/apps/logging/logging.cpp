@@ -65,7 +65,7 @@ namespace ccfapp
   enum class LoggerErrors : jsonrpc::ErrorBaseType
   {
     UNKNOWN_ID =
-      (jsonrpc::ErrorBaseType)jsonrpc::CCFErrorCodes::APP_ERROR_START,
+      (jsonrpc::ErrorBaseType)jsonrpc::CCFErrorCodes::APP_ERROR_START - 1,
     MESSAGE_EMPTY = UNKNOWN_ID - 1,
   };
 

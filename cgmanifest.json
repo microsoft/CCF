@@ -128,6 +128,15 @@
         }
       }
     },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/google/snmalloc",
+          "commitHash": "8304dedd175ac4637c77ac8e214cded2acc27502"
+        }
+      }
+    },
   ],
   "Version": 1
 }

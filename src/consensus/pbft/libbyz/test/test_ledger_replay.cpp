@@ -19,6 +19,9 @@
 #include <cstdio>
 #include <doctest/doctest.h>
 
+enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
+
 // power of 2 since ringbuffer circuit size depends on total_requests
 static constexpr size_t total_requests = 32;
 
@@ -85,6 +88,7 @@ void create_replica(
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map)
 {
+  Log_allocator::should_use_malloc(true);
   auto node_info = get_node_info();
 
   pbft::GlobalState::set_replica(std::make_unique<Replica>(

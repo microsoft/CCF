@@ -10,13 +10,18 @@
 
 #include <chrono>
 #include <msgpack.hpp>
+#include <thread>
 
 // the central enclave object
 static SpinLock create_lock;
-static enclave::Enclave* e;
+static std::atomic<enclave::Enclave*> e;
 static uint8_t* reserved_memory;
 std::chrono::milliseconds logger::config::ms =
   std::chrono::milliseconds::zero();
+std::atomic<uint16_t> num_pending_threads = 0;
+
+enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
 
 extern "C"
 {
@@ -34,12 +39,24 @@ extern "C"
     size_t network_cert_size,
     size_t* network_cert_len,
     StartType start_type,
-    ConsensusType consensus_type)
+    ConsensusType consensus_type,
+    size_t num_worker_threads)
   {
     std::lock_guard<SpinLock> guard(create_lock);
 
     if (e != nullptr)
+    {
       return false;
+    }
+
+    num_pending_threads = (uint16_t)num_worker_threads + 1;
+
+    if (
+      num_pending_threads >
+      enclave::ThreadMessaging::thread_messaging.max_num_threads)
+    {
+      return false;
+    }
 
     EnclaveConfig* ec = (EnclaveConfig*)enclave_config;
 
@@ -52,10 +69,10 @@ extern "C"
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];
 #endif
 
-    e = new enclave::Enclave(
+    auto enclave = new enclave::Enclave(
       ec, cc.signature_intervals, consensus_type, cc.raft_config);
 
-    return e->create_new_node(
+    bool result = enclave->create_new_node(
       start_type,
       cc,
       node_cert,
@@ -67,13 +84,44 @@ extern "C"
       network_cert,
       network_cert_size,
       network_cert_len);
+    e.store(enclave);
+    return result;
   }
 
   bool enclave_run()
   {
-    if (e != nullptr)
-      return e->run();
+    if (e.load() != nullptr)
+    {
+      uint16_t tid;
+      {
+        std::lock_guard<SpinLock> guard(create_lock);
+
+        tid = enclave::ThreadMessaging::thread_count.fetch_add(1);
+        num_pending_threads.fetch_sub(1);
+        thread_ids.emplace(std::pair<std::thread::id, uint16_t>(
+          std::this_thread::get_id(), tid));
+
+        LOG_INFO_FMT("Starting thread: {}", tid);
+      }
+
+      while (num_pending_threads != 0)
+      {
+      }
+
+      LOG_INFO_FMT("All threads are ready!");
+
+      if (tid == 0)
+      {
+        return e.load()->run_main();
+      }
+      else
+      {
+        return e.load()->run_worker();
+      }
+    }
     else
+    {
       return false;
+    }
   }
 }

@@ -25,6 +25,7 @@ extern "C"
 #include "Timer.h"
 #include "consensus/pbft/pbfttables.h"
 #include "ds/files.h"
+#include "ds/thread_messaging.h"
 #include "host/ledger.h"
 #include "libbyz.h"
 #include "network_impl.h"
@@ -36,6 +37,9 @@ extern "C"
 using std::cerr;
 
 static const int Simple_size = 4096;
+
+enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
 
 static Timer t;
 static ITimer* test_timer;
@@ -325,6 +329,8 @@ int main(int argc, char** argv)
   {
     logger::Init(std::to_string(port).c_str());
   }
+
+  Log_allocator::should_use_malloc(true);
 
   GeneralInfo general_info = files::slurp_json(config_file);
   // as to not add double escapes on newline when slurping from file

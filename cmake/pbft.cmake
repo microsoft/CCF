@@ -68,14 +68,6 @@ endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# TODO: Find out why this breaks with HTTP
-if (NOT HTTP)
-  add_e2e_test(
-      NAME end_to_end_pbft
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging_pbft.py
-  )
-endif()
-
 if("virtual" IN_LIST TARGET)
 
   add_library(libbyz.host STATIC ${PBFT_SRC})
@@ -143,21 +135,25 @@ if("virtual" IN_LIST TARGET)
 
   add_executable(simple-server
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/replica_main.cpp
+    ${CCF_DIR}/src/enclave/thread_local.cpp
   )
   pbft_add_executable(simple-server)
 
   add_executable(replica-test
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/replica_test.cpp
+    ${CCF_DIR}/src/enclave/thread_local.cpp
   )
   pbft_add_executable(replica-test)
 
   add_executable(test-controller
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/test_controller_main.cpp
+  ${CCF_DIR}/src/enclave/thread_local.cpp
   )
   pbft_add_executable(test-controller)
 
   add_executable(client-test
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/client_test.cpp
+  ${CCF_DIR}/src/enclave/thread_local.cpp
   )
   pbft_add_executable(client-test)
 

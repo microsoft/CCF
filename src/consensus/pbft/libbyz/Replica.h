@@ -208,6 +208,11 @@ public:
 
   void handle(Request* m);
 
+  void recv_process_one_msg(Message* m);
+  // Helper functions when receiving a message. This can be used
+  // when polling for a new message or we have a new message
+  // passed to us.
+
 private:
   friend class State;
 
@@ -358,11 +363,6 @@ private:
 
   void try_end_recovery();
   // Effects: Ends recovery if all the conditions are satisfied
-
-  void recv_process_one_msg(Message* m);
-  // Helper functions when receiving a message. This can be used
-  // when polling for a new message or we have a new message
-  // passed to us.
 
   void dump_state(std::ostream& os);
   // logs the replica state for debugging

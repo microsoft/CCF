@@ -20,17 +20,15 @@ def check_can_progress(node):
             check_commit(c.rpc("mkSign", params={}), result=True)
 
 
-@reqs.none
+@reqs.description("Adding a valid node from primary")
 def test_add_node(network, args):
-    LOG.info("Adding a valid node from primary")
     new_node = network.create_and_trust_node(args.package, "localhost", args)
     assert new_node
     return network
 
 
-@reqs.at_least_n_nodes(2)
+@reqs.description("Adding a valid node from a backup")
 def test_add_node_from_backup(network, args):
-    LOG.info("Adding a valid node from a backup")
     backup = network.find_any_backup()
     new_node = network.create_and_trust_node(
         args.package, "localhost", args, target_node=backup
@@ -39,10 +37,9 @@ def test_add_node_from_backup(network, args):
     return network
 
 
-@reqs.none
+@reqs.description("Adding as many pending nodes as current number of nodes")
 def test_add_as_many_pending_nodes(network, args):
-    # Adding as many pending nodes as current number of nodes should not
-    # change the raft consensus rules (i.e. majority)
+    # Should not change the raft consensus rules (i.e. majority)
     number_new_nodes = len(network.nodes)
     LOG.info(
         f"Adding {number_new_nodes} pending nodes - consensus rules should not change"
@@ -54,7 +51,7 @@ def test_add_as_many_pending_nodes(network, args):
     return network
 
 
-@reqs.none
+@reqs.description("Add node with untrusted code version")
 def test_add_node_untrusted_code(network, args):
     if args.enclave_type == "debug":
         LOG.info("Adding an invalid node (unknown code id)")
@@ -68,9 +65,9 @@ def test_add_node_untrusted_code(network, args):
     return network
 
 
+@reqs.description("Retiring a backup")
 @reqs.at_least_n_nodes(2)
 def test_retire_node(network, args):
-    LOG.info("Retiring a backup")
     primary, _ = network.find_primary()
     backup_to_retire = network.find_any_backup()
     network.consortium.retire_node(primary, backup_to_retire)
