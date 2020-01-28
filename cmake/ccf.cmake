@@ -114,7 +114,7 @@ function(add_ccf_app name)
       openenclave::oeenclave
       openenclave::oecore
       openenclave::oesyscall
-      ccfcommon.enclave
+      ccf.enclave
     )
 
     set_property(TARGET ${enc_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -136,7 +136,7 @@ function(add_ccf_app name)
 
     target_link_libraries(${virt_name} PRIVATE
       ${PARSED_ARGS_LINK_LIBS_VIRTUAL}
-      ccfcommon.virtual
+      ccf.virtual
     )
 
     set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)

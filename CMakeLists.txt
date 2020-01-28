@@ -53,40 +53,40 @@ target_link_libraries(logging_client PRIVATE
 )
 
 # Build common library for CCF enclaves
-add_custom_target(ccfcommon ALL)
+add_custom_target(ccf ALL)
 
 if ("sgx" IN_LIST TARGET)
   # enclave version
-  add_library(ccfcommon.enclave STATIC
+  add_library(ccf.enclave STATIC
     ${CCF_DIR}/src/enclave/main.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp
     ${CCF_GENERATED_DIR}/ccf_t.cpp
   )
 
-  target_compile_definitions(ccfcommon.enclave PUBLIC
+  target_compile_definitions(ccf.enclave PUBLIC
     INSIDE_ENCLAVE
     _LIBCPP_HAS_THREAD_API_PTHREAD
   )
 
-  target_compile_options(ccfcommon.enclave PUBLIC
+  target_compile_options(ccf.enclave PUBLIC
     -nostdinc
     -nostdinc++
   )
 
-  target_include_directories(ccfcommon.enclave SYSTEM PUBLIC
+  target_include_directories(ccf.enclave SYSTEM PUBLIC
     ${EVERCRYPT_INC}
     ${CCF_GENERATED_DIR}
   )
 
-  add_dependencies(ccfcommon.enclave flatbuffers)
+  add_dependencies(ccf.enclave flatbuffers)
 
   if (PBFT)
-    target_link_libraries(ccfcommon.enclave PUBLIC
+    target_link_libraries(ccf.enclave PUBLIC
       libbyz.enclave
     )
   endif()
 
-  target_link_libraries(ccfcommon.enclave PUBLIC
+  target_link_libraries(ccf.enclave PUBLIC
     openenclave::oeenclave
     openenclave::oelibcxx
     ccfcrypto.enclave
@@ -96,53 +96,53 @@ if ("sgx" IN_LIST TARGET)
     secp256k1.enclave
   )
 
-  set_property(TARGET ccfcommon.enclave
+  set_property(TARGET ccf.enclave
     PROPERTY POSITION_INDEPENDENT_CODE ON
   )
 
-  enable_quote_code(ccfcommon.enclave)
+  enable_quote_code(ccf.enclave)
 
   install(
-    TARGETS ccfcommon.enclave
+    TARGETS ccf.enclave
     DESTINATION lib
   )
 
-  add_dependencies(ccfcommon ccfcommon.enclave)
+  add_dependencies(ccf ccf.enclave)
 endif()
 
 if ("virtual" IN_LIST TARGET)
   # virtual version
-  add_library(ccfcommon.virtual STATIC
+  add_library(ccf.virtual STATIC
     ${CCF_DIR}/src/enclave/main.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp
     ${CCF_GENERATED_DIR}/ccf_t.cpp
   )
 
-  target_compile_definitions(ccfcommon.virtual PUBLIC
+  target_compile_definitions(ccf.virtual PUBLIC
     INSIDE_ENCLAVE
     VIRTUAL_ENCLAVE
     _LIBCPP_HAS_THREAD_API_PTHREAD
   )
 
-  target_compile_options(ccfcommon.virtual PUBLIC
+  target_compile_options(ccf.virtual PUBLIC
     -stdlib=libc++
   )
 
-  target_include_directories(ccfcommon.virtual SYSTEM PUBLIC
+  target_include_directories(ccf.virtual SYSTEM PUBLIC
     ${EVERCRYPT_INC}
     ${CCF_GENERATED_DIR}
     ${OE_INCLUDEDIR} # Virtual libraries don't link against OE, but do share includes
   )
 
-  add_dependencies(ccfcommon.virtual flatbuffers)
+  add_dependencies(ccf.virtual flatbuffers)
 
   if (PBFT)
-    target_link_libraries(ccfcommon.virtual PUBLIC
+    target_link_libraries(ccf.virtual PUBLIC
       libbyz.host
     )
   endif()
 
-  target_link_libraries(ccfcommon.virtual PUBLIC
+  target_link_libraries(ccf.virtual PUBLIC
     -stdlib=libc++
     -lc++
     -lc++abi
@@ -154,20 +154,20 @@ if ("virtual" IN_LIST TARGET)
     ${CMAKE_THREAD_LIBS_INIT}
   )
 
-  set_property(TARGET ccfcommon.virtual
+  set_property(TARGET ccf.virtual
     PROPERTY POSITION_INDEPENDENT_CODE ON
   )
 
-  enable_coverage(ccfcommon.virtual)
-  use_client_mbedtls(ccfcommon.virtual)
-  add_san(ccfcommon.virtual)
+  enable_coverage(ccf.virtual)
+  use_client_mbedtls(ccf.virtual)
+  add_san(ccf.virtual)
 
   install(
-    TARGETS ccfcommon.virtual
+    TARGETS ccf.virtual
     DESTINATION lib
   )
 
-  add_dependencies(ccfcommon ccfcommon.virtual)
+  add_dependencies(ccf ccf.virtual)
 endif()
 
 
