@@ -5,10 +5,39 @@ with section("parse"):
 
     # Specify structure for custom cmake functions
     additional_commands = {
-        "foo": {
-            "flags": ["BAR", "BAZ"],
-            "kwargs": {"DEPENDS": "*", "HEADERS": "*", "SOURCES": "*"},
-        }
+        "add_ccf_app": {
+            "kwargs": {
+                "SRCS": "*",
+                "INCLUDE_DIRS": "*",
+                "LINK_LIBS_ENCLAVE": "*",
+                "LINK_LIBS_VIRTUAL": "*",
+            },
+        },
+        "add_client_exe": {
+            "kwargs": {"SRCS": "*", "INCLUDE_DIRS": "*", "LINK_LIBS": "*"},
+        },
+        "add_e2e_test": {
+            "kwargs": {
+                "NAME": "*",
+                "PYTHON_SCRIPT": "*",
+                "IS_SUITE": "*",
+                "CURL_CLIENT": "*",
+                "ADDITIONAL_ARGS": "*",
+            },
+        },
+        "add_perf_test": {
+            "kwargs": {
+                "NAME": "*",
+                "PYTHON_SCRIPT": "*",
+                "CLIENT_BIN": "*",
+                "VERIFICATION_FILE": "*",
+                "LABEL": "*",
+                "ADDITIONAL_ARGS": "*",
+            },
+        },
+        "add_picobench": {
+            "kwargs": {"SRCS": "*", "INCLUDE_DIRS": "*", "LINK_LIBS": "*",},
+        },
     }
 
 # -----------------------------
