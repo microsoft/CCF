@@ -135,7 +135,7 @@ def run(args):
                 network,
                 args,
                 notifications_queue,
-                verify=args.package is not "libjsgenericenc",
+                verify=args.package is not "libjsgeneric",
             )
             network = test_large_messages(network, args)
             network = test_forwarding_frontends(network, args)
