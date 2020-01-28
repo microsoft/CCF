@@ -4,20 +4,20 @@
 set(ALLOWED_TARGETS "sgx;virtual")
 set(IS_VALID_TARGET "FALSE")
 foreach(REQUESTED_TARGET ${TARGET})
-  if(${REQUESTED_TARGET} IN_LIST ALLOWED_TARGETS)
+  if (${REQUESTED_TARGET} IN_LIST ALLOWED_TARGETS)
     set(IS_VALID_TARGET "TRUE")
   else()
     message(FATAL_ERROR "${REQUESTED_TARGET} is not a valid target. Choose from: ${ALLOWED_TARGETS}")
   endif()
 endforeach()
 
-if((NOT ${IS_VALID_TARGET}))
+if ((NOT ${IS_VALID_TARGET}))
   message(FATAL_ERROR "Variable list 'TARGET' must include at least one supported target. Choose from: ${ALLOWED_TARGETS}")
 endif()
 
 # Sign a built enclave library with oesign
 function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
-  if(TARGET ${name})
+  if (TARGET ${name})
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
       COMMAND openenclave::oesign sign
@@ -43,7 +43,7 @@ function(enable_quote_code name)
 endfunction()
 
 function(add_san name)
-  if(SAN)
+  if (SAN)
     target_compile_options(${name} PRIVATE
       -fsanitize=undefined,address -fno-omit-frame-pointer -fno-sanitize-recover=all
       -fno-sanitize=function -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
@@ -77,7 +77,7 @@ function(use_oe_mbedtls name)
   )
 endfunction()
 
-if(NOT CCF_GENERATED_DIR)
+if (NOT CCF_GENERATED_DIR)
   set(CCF_GENERATED_DIR ${CCF_DIR}/generated)
 endif()
 
@@ -96,7 +96,7 @@ function(add_ccf_app name)
 
   add_custom_target(${name} ALL)
 
-  if("sgx" IN_LIST TARGET)
+  if ("sgx" IN_LIST TARGET)
     set(enc_name ${name}.enclave)
 
     add_library(${enc_name} SHARED
@@ -122,7 +122,7 @@ function(add_ccf_app name)
     add_dependencies(${name} ${enc_name})
   endif()
 
-  if("virtual" IN_LIST TARGET)
+  if ("virtual" IN_LIST TARGET)
     ## Build a virtual enclave, loaded as a shared library without OE
     set(virt_name ${name}.virtual)
 

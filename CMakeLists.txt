@@ -18,7 +18,7 @@ set(ENV{BETTER_EXCEPTIONS} 1)
 #
 #     $ cmake -DCMAKE_INSTALL_PREFIX=/opt/myplace ..
 #
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX
     "/opt/ccf/ccf-${PROJECT_VERSION}" CACHE PATH "Default install prefix" FORCE)
 endif()
@@ -55,7 +55,7 @@ target_link_libraries(logging_client PRIVATE
 # Build common library for CCF enclaves
 add_custom_target(ccfcommon ALL)
 
-if("sgx" IN_LIST TARGET)
+if ("sgx" IN_LIST TARGET)
   # enclave version
   add_library(ccfcommon.enclave STATIC
     ${CCF_DIR}/src/enclave/main.cpp
@@ -110,7 +110,7 @@ if("sgx" IN_LIST TARGET)
   add_dependencies(ccfcommon ccfcommon.enclave)
 endif()
 
-if("virtual" IN_LIST TARGET)
+if ("virtual" IN_LIST TARGET)
   # virtual version
   add_library(ccfcommon.virtual STATIC
     ${CCF_DIR}/src/enclave/main.cpp
@@ -174,7 +174,7 @@ endif()
 # Create patched alternative of library, to test code version changes
 function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   set(enc_name ${name}.enclave)
-  if(TARGET ${enc_name})
+  if (TARGET ${enc_name})
     set(patched_name ${name}.patched.enclave)
     set(patched_lib_name lib${patched_name}.so)
     add_custom_command(
@@ -208,7 +208,7 @@ create_patched_enclave_lib(logging
 
 set(OE_SIGN_PATH ${OE_BINDIR}/oesign)
 
-if(BUILD_TESTS)
+if (BUILD_TESTS)
   enable_testing()
 
   # Unit tests
@@ -313,7 +313,7 @@ if(BUILD_TESTS)
       secp256k1.host
     )
 
-  if(NOT PBFT)
+  if (NOT PBFT)
     add_unit_test(membervoting_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/membervoting_test.cpp)
     target_link_libraries(membervoting_test PRIVATE
@@ -330,7 +330,7 @@ if(BUILD_TESTS)
       lua.host
       secp256k1.host)
 
-    if(NOT ENV{RUNTIME_CONFIG_DIR})
+    if (NOT ENV{RUNTIME_CONFIG_DIR})
       set_tests_properties(membervoting_test PROPERTIES ENVIRONMENT RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config)
     endif()
 
@@ -447,7 +447,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
     )
 
-    if(QUOTES_ENABLED)
+    if (QUOTES_ENABLED)
       add_e2e_test(
         NAME governance_tests
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
@@ -514,7 +514,7 @@ if(BUILD_TESTS)
       --schema-dir ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
     )
 
-    if(QUOTES_ENABLED)
+    if (QUOTES_ENABLED)
       add_e2e_test(
         NAME reconfiguration_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py

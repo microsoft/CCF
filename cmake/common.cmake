@@ -4,7 +4,7 @@
 set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
 
 set(default_build_type "RelWithDebInfo")
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
     set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE STRING "Choose the type of build." FORCE)
     set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
@@ -29,27 +29,27 @@ elseif (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_mbedtls")
 elseif (${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_bitcoin")
   add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_BITCOIN)
   set(DEFAULT_PARTICIPANTS_CURVE "secp256k1")
-else ()
+else()
   message(FATAL_ERROR "Unsupported curve choice ${SERVICE_IDENTITY_CURVE_CHOICE}")
-endif ()
+endif()
 
 option (COLORED_OUTPUT "Always produce ANSI-colored output (Clang only)." TRUE)
 
 if (${COLORED_OUTPUT})
     if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
        add_compile_options (-fcolor-diagnostics)
-    endif ()
-endif ()
+    endif()
+endif()
 
 option(VERBOSE_LOGGING "Enable verbose logging" OFF)
 set(TEST_HOST_LOGGING_LEVEL "info")
-if(VERBOSE_LOGGING)
+if (VERBOSE_LOGGING)
   add_definitions(-DVERBOSE_LOGGING)
   set(TEST_HOST_LOGGING_LEVEL "debug")
 endif()
 
 option(NO_STRICT_TLS_CIPHERSUITES "Disable strict list of valid TLS ciphersuites" OFF)
-if(NO_STRICT_TLS_CIPHERSUITES)
+if (NO_STRICT_TLS_CIPHERSUITES)
   add_definitions(-DNO_STRICT_TLS_CIPHERSUITES)
 endif()
 
@@ -78,7 +78,7 @@ if (PBFT)
 endif()
 
 option(DEBUG_CONFIG "Enable non-production options options to aid debugging" OFF)
-if(DEBUG_CONFIG)
+if (DEBUG_CONFIG)
   add_definitions(-DDEBUG_CONFIG)
 endif()
 
@@ -153,9 +153,9 @@ install(
   DESTINATION bin
 )
 
-if("sgx" IN_LIST TARGET)
+if ("sgx" IN_LIST TARGET)
   # If OE was built with LINK_SGX=1, then we also need to link SGX
-  if(OE_SGX)
+  if (OE_SGX)
     message(STATUS "Linking SGX")
     set(SGX_LIBS
       sgx_enclave_common
@@ -274,7 +274,7 @@ function(add_unit_test name)
   )
 endfunction()
 
-if("sgx" IN_LIST TARGET)
+if ("sgx" IN_LIST TARGET)
   # Host Executable
   add_executable(cchost
     ${CCF_DIR}/src/host/main.cpp
@@ -305,7 +305,7 @@ if("sgx" IN_LIST TARGET)
   )
 endif()
 
-if("virtual" IN_LIST TARGET)
+if ("virtual" IN_LIST TARGET)
   # Virtual Host Executable
   add_executable(cchost.virtual
     ${CCF_DIR}/src/host/main.cpp)
@@ -374,7 +374,7 @@ add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Common test args for Python scripts starting up CCF networks
-if(PBFT)
+if (PBFT)
   set(CONSENSUS_ARG "pbft")
 else()
   set(CONSENSUS_ARG "raft")
@@ -512,13 +512,13 @@ function(add_perf_test)
     "ADDITIONAL_ARGS"
   )
 
-  if(PARSED_ARGS_VERIFICATION_FILE)
+  if (PARSED_ARGS_VERIFICATION_FILE)
     set(VERIFICATION_ARG "--verify ${PARSED_ARGS_VERIFICATION_FILE}")
   else()
     unset(VERIFICATION_ARG)
   endif()
 
-  if(PARSED_ARGS_LABEL)
+  if (PARSED_ARGS_LABEL)
     set(LABEL_ARG "${PARSED_ARGS_LABEL}_${TESTS_SUFFIX}^")
   else()
     set(LABEL_ARG "${PARSED_ARGS_NAME}_${TESTS_SUFFIX}^")

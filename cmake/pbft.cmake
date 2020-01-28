@@ -49,7 +49,7 @@ set(PBFT_SRC
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/Network_open.cpp
 )
 
-if("sgx" IN_LIST TARGET)
+if ("sgx" IN_LIST TARGET)
   add_library(libbyz.enclave STATIC ${PBFT_SRC})
   target_compile_options(libbyz.enclave PRIVATE
     -nostdinc
@@ -68,7 +68,7 @@ endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if("virtual" IN_LIST TARGET)
+if ("virtual" IN_LIST TARGET)
 
   add_library(libbyz.host STATIC ${PBFT_SRC})
   target_compile_options(libbyz.host PRIVATE -stdlib=libc++)
