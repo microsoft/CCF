@@ -45,7 +45,7 @@ namespace pbft
     {
       message_receiver_base = receiver;
     }
-    
+
     std::vector<uint8_t> serialized_msg;
 
     int Send(Message* msg, IPrincipal& principal) override
@@ -64,7 +64,8 @@ namespace pbft
 
       // TODO: Encrypt msg here
       auto msg_size = (sizeof(PbftHeader) + msg->size());
-      if (serialized_msg.size() < msg_size) {
+      if (serialized_msg.size() < msg_size)
+      {
         serialized_msg.resize(msg_size);
       }
       auto data_ = serialized_msg.data();
