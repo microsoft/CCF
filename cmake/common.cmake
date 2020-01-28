@@ -362,8 +362,10 @@ add_dependencies(scenario_perf_client flatbuffers)
 
 # Lua for host and enclave
 add_enclave_library_c(lua.enclave "${LUA_SOURCES}")
+target_compile_options(lua.enclave PRIVATE -Wno-string-plus-int)
 target_compile_definitions(lua.enclave PRIVATE NO_IO)
 add_library(lua.host STATIC ${LUA_SOURCES})
+target_compile_options(lua.host PRIVATE -Wno-string-plus-int)
 target_compile_definitions(lua.host PRIVATE NO_IO)
 set_property(TARGET lua.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
