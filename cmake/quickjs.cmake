@@ -26,7 +26,7 @@ if ("sgx" IN_LIST TARGET)
     ${CCF_DIR}/3rdparty/stub/stub.c
   )
   target_compile_options(quickjs.enclave PUBLIC
-    -nostdinc -Wno-everything
+    -nostdinc
     -DCONFIG_VERSION="${QUICKJS_VERSION}"
     -DEMSCRIPTEN
   )
@@ -50,7 +50,6 @@ add_library(quickjs.host STATIC
   ${QUICKJS_SRC}
 )
 target_compile_options(quickjs.host PUBLIC
-  -Wno-everything
   -DCONFIG_VERSION="${QUICKJS_VERSION}"
 )
 set_property(TARGET quickjs.host
