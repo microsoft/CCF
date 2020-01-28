@@ -61,7 +61,6 @@ class LocalNode(Node):
                 self.proc.wait()
 
 
-
 class RemoteNode(Node):
     def run(self):
         self.client = paramiko.SSHClient()
