@@ -38,7 +38,7 @@ with section("format"):
 
   # If a statement is wrapped to more than one line, than dangle the closing
   # parenthesis on its own line.
-  dangle_parens = False
+  dangle_parens = True
 
   # If the trailing parenthesis must be 'dangled' on its on line, then align it
   # to this reference: `prefix`: the start of the statement,  `prefix-indent`:
