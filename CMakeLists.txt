@@ -89,6 +89,7 @@ if ("sgx" IN_LIST TARGET)
   target_link_libraries(ccf.enclave PUBLIC
     openenclave::oeenclave
     openenclave::oelibcxx
+    openenclave::oelibc
     ccfcrypto.enclave
     evercrypt.enclave
     http_parser.enclave

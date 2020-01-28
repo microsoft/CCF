@@ -74,6 +74,7 @@ function(use_oe_mbedtls name)
   target_link_libraries(${name} PRIVATE
     openenclave::oeenclave
     openenclave::oelibcxx
+    openenclave::oelibc
   )
 endfunction()
 
