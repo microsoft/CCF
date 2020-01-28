@@ -36,6 +36,24 @@ T get_enclave_exported_function(const char* func_name)
   return (T)sym;
 }
 
+// Repeat minimal required definitions for virtual build. It should not matter
+// if these do not match precisely OE's, so long as they can be used
+// consistently by the virtual build
+using oe_result_t = int;
+constexpr oe_result_t OE_OK = 0;
+constexpr oe_result_t OE_FAILURE = 1;
+
+using oe_enclave_t = void;
+
+enum oe_enclave_type_t
+{
+  OE_ENCLAVE_TYPE_SGX = 2,
+};
+
+#ifdef GET_QUOTE
+#  error Quotes cannot be retrieved in virtual build. Calls to oe_verify_report should be guarded with GET_QUOTE
+#endif
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -146,16 +164,6 @@ extern "C"
     const void* config,
     uint32_t config_size,
     oe_enclave_t** enclave)
-  {
-    // this function is not supposed to be called when using a virtual enclave
-    return OE_FAILURE;
-  }
-
-  inline oe_result_t oe_verify_report(
-    oe_enclave_t* e,
-    const uint8_t* quote_data,
-    size_t quote_size,
-    oe_report_t* parsed_quote)
   {
     // this function is not supposed to be called when using a virtual enclave
     return OE_FAILURE;
