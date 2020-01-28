@@ -36,12 +36,10 @@ namespace pbft
       NodeId id,
       std::shared_ptr<ccf::NodeToNode> n2n_channels,
       NodesMap& nodes_,
-      Index& append_entries_index_,
       Index& latest_stable_ae_index_) :
       n2n_channels(n2n_channels),
       id(id),
       nodes(nodes_),
-      append_entries_index(append_entries_index_),
       latest_stable_ae_index(latest_stable_ae_index_)
     {}
 
@@ -168,7 +166,6 @@ namespace pbft
     IMessageReceiveBase* message_receiver_base = nullptr;
     NodeId id;
     NodesMap& nodes;
-    Index& append_entries_index;
     Index& latest_stable_ae_index;
   };
 
@@ -189,7 +186,6 @@ namespace pbft
     View last_commit_view;
     std::unique_ptr<pbft::PbftStore> store;
     std::unique_ptr<consensus::LedgerEnclave> ledger;
-    Index append_entries_index = 0;
     Index latest_stable_ae_index = 0;
 
     // When this is set, only public domain is deserialised when receving append
@@ -219,7 +215,7 @@ namespace pbft
 
     struct register_mark_stable_info
     {
-      Index* append_entries_idx;
+      pbft::PbftStore* store;
       Index* latest_stable_ae_idx;
     } register_mark_stable_ctx;
 
@@ -274,11 +270,7 @@ namespace pbft
       bzero(mem, mem_size);
 
       pbft_network = std::make_unique<PbftEnclaveNetwork>(
-        local_id,
-        channels,
-        nodes,
-        append_entries_index,
-        latest_stable_ae_index);
+        local_id, channels, nodes, latest_stable_ae_index);
       pbft_config = std::make_unique<PbftConfigCcf>(rpc_map);
 
       auto used_bytes = Byz_init_replica(
@@ -316,12 +308,12 @@ namespace pbft
 
       auto mark_stable_cb = [](void* ctx) {
         auto ms_ctx = static_cast<register_mark_stable_info*>(ctx);
-        *ms_ctx->latest_stable_ae_idx = *ms_ctx->append_entries_idx;
-        LOG_INFO_FMT(
+        *ms_ctx->latest_stable_ae_idx = ms_ctx->store->current_version();
+        LOG_TRACE_FMT(
           "latest_stable_ae_index is set to {}", *ms_ctx->latest_stable_ae_idx);
       };
 
-      register_mark_stable_ctx.append_entries_idx = &append_entries_index;
+      register_mark_stable_ctx.store = store.get();
       register_mark_stable_ctx.latest_stable_ae_idx = &latest_stable_ae_index;
 
       message_receiver_base->register_mark_stable(
@@ -464,8 +456,6 @@ namespace pbft
     {
       for (auto& [index, data, globally_committable] : entries)
       {
-        append_entries_index++;
-        LOG_TRACE_FMT("Increasing my ae index to {}", append_entries_index);
         write_to_ledger(data);
       }
       return true;
@@ -475,8 +465,6 @@ namespace pbft
     {
       for (auto& [index, data, globally_committable] : entries)
       {
-        append_entries_index++;
-        LOG_TRACE_FMT("Increasing my ae index to {}", append_entries_index);
         write_to_ledger(data);
       }
       return true;
@@ -495,6 +483,8 @@ namespace pbft
         case pbft_append_entries:
         {
           AppendEntries r;
+
+          auto append_entries_index = store->current_version();
 
           try
           {
@@ -533,16 +523,17 @@ namespace pbft
 
           for (Index i = r.prev_idx + 1; i <= r.idx; i++)
           {
+            append_entries_index = store->current_version();
             LOG_TRACE_FMT("Recording entry for index {}", i);
-            Index aei;
-            {
-              aei = append_entries_index;
-            }
-            if (i <= aei)
+
+            if (i <= append_entries_index)
             {
               // If the current entry has already been deserialised, skip the
               // payload for that entry
-              LOG_INFO_FMT("Skipping index {} as we are at index {}", i, aei);
+              LOG_INFO_FMT(
+                "Skipping index {} as we are at index {}",
+                i,
+                append_entries_index);
               ledger->skip_entry(data, size);
               continue;
             }
