@@ -169,6 +169,26 @@ if ("virtual" IN_LIST TARGET)
   add_dependencies(ccf ccf.virtual)
 endif()
 
+# Install all 3rd-party library includes
+# TODO: Trim this to only the required 'external' headers
+install(
+  DIRECTORY 3rdparty
+  DESTINATION include
+  FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN "*.hpp"
+)
+
+# Install all CCF headers
+# TODO: Trim this to only the required public headers for building an app
+install(
+  DIRECTORY src/
+  DESTINATION include/ccf
+  FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN "*/test*" EXCLUDE
+)
+
 
 # Create patched alternative of library, to test code version changes
 function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
