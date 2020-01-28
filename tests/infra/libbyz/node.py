@@ -55,7 +55,10 @@ class LocalNode(Node):
         logger.info(f"IP: {self.machine_name} - terminating process")
         if self.proc:
             self.proc.terminate()
-            self.proc.wait()
+            result = self.proc.wait(5)
+            if result != 0:
+                self.proc.kill()
+                self.proc.wait()
 
 
 class RemoteNode(Node):
