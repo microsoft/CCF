@@ -9,7 +9,7 @@ import infra.proc
 import infra.notification
 import infra.net
 import suite.test_requirements as reqs
-import e2e_args
+import infra.e2e_args
 
 from loguru import logger as LOG
 
@@ -118,7 +118,7 @@ def run_to_destruction(args):
 
 
 if __name__ == "__main__":
-    args = e2e_args.cli_args()
+    args = infra.e2e_args.cli_args()
     args.package = "libluageneric"
     args.enforce_reqs = True
 

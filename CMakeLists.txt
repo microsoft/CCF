@@ -29,12 +29,17 @@ endif()
 
 message(STATUS "CMAKE_INSTALL_PREFIX is '${CMAKE_INSTALL_PREFIX}'")
 
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
+        DESTINATION cmake
+)
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
-# TODO: remove once FTCP support is disabled MemberClient executable
+# MemberClient executable
+# TODO(ftcp): remove once FTCP support is disabled.
 add_executable(memberclient src/clients/memberclient.cpp)
 use_client_mbedtls(memberclient)
 target_link_libraries(
@@ -44,7 +49,8 @@ target_link_libraries(
 
 add_dependencies(memberclient flatbuffers)
 
-# TODO: remove once FTCP support is disabled Logging Client executable
+# Logging Client executable
+# TODO(ftcp): remove once FTCP support is disabled
 add_executable(logging_client src/clients/logging_client.cpp)
 use_client_mbedtls(logging_client)
 target_link_libraries(
@@ -69,7 +75,14 @@ if("sgx" IN_LIST TARGET)
   target_compile_options(ccf.enclave PUBLIC -nostdinc -nostdinc++)
 
   target_include_directories(
-    ccf.enclave SYSTEM PUBLIC ${EVERCRYPT_INC} ${CCF_GENERATED_DIR}
+    ccf.enclave SYSTEM
+    PUBLIC
+      $<BUILD_INTERFACE:${EVERCRYPT_INC}>
+      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/generated>
   )
 
   add_dependencies(ccf.enclave flatbuffers)
@@ -94,7 +107,11 @@ if("sgx" IN_LIST TARGET)
 
   enable_quote_code(ccf.enclave)
 
-  install(TARGETS ccf.enclave DESTINATION lib)
+  install(
+    TARGETS ccf.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
 
   add_dependencies(ccf ccf.enclave)
 endif()
@@ -114,7 +131,14 @@ if("virtual" IN_LIST TARGET)
   target_compile_options(ccf.virtual PUBLIC -stdlib=libc++)
 
   target_include_directories(
-    ccf.virtual SYSTEM PUBLIC ${EVERCRYPT_INC} ${CCF_GENERATED_DIR}
+    ccf.virtual SYSTEM
+    PUBLIC
+      $<BUILD_INTERFACE:${EVERCRYPT_INC}>
+      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/generated>
   )
 
   add_dependencies(ccf.virtual flatbuffers)
@@ -142,10 +166,49 @@ if("virtual" IN_LIST TARGET)
   use_client_mbedtls(ccf.virtual)
   add_san(ccf.virtual)
 
-  install(TARGETS ccf.virtual DESTINATION lib)
+  install(
+    TARGETS ccf.virtual
+    EXPORT ccf
+    DESTINATION lib
+  )
 
   add_dependencies(ccf ccf.virtual)
 endif()
+
+install(EXPORT ccf DESTINATION cmake)
+
+# Install all 3rd-party library includes
+# TODO(install): Trim this to only the required 'external' headers
+install(
+  DIRECTORY 3rdparty
+  DESTINATION include
+  FILES_MATCHING
+  PATTERN "*.h"
+  PATTERN "*.hpp"
+)
+
+# Install all CCF headers
+# TODO(install): Trim this to only the required public headers for building an
+# app
+install(
+  DIRECTORY src/
+  DESTINATION include/ccf
+  FILES_MATCHING
+  PATTERN "*.h"
+  PATTERN "*/test*" EXCLUDE
+)
+
+# Install CCF Python infrastructure
+# TODO(install): This should be trimmed and packaged as well
+install(
+  DIRECTORY tests/infra/
+  DESTINATION lib/infra
+  FILES_MATCHING
+  PATTERN "*.py"
+  PATTERN "*/__pycache__*" EXCLUDE
+)
+
+install(FILES tests/start_network.py DESTINATION bin)
 
 # Create patched alternative of library, to test code version changes
 function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
@@ -399,7 +462,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py
     )
 
-    # TODO: Sends an ACK via C++ memberclient, which must be signed.      #
+    # TODO(signing): Sends an ACK via C++ memberclient, which must be signed.
     # Member client end to end tests ACK should be sent from Python, AND HTTP
     # memberclient should sign
     if(NOT HTTP)
@@ -507,8 +570,8 @@ if(BUILD_TESTS)
         ADDITIONAL_ARGS
           --oesign
           ${OE_SIGN_PATH}
-          # TODO: This test spins up many nodes that go through the join
-          # protocol Since oe_verify_report can take quite a long time to
+          # TODO(verify): This test spins up many nodes that go through the join
+          # protocol. Since oe_verify_report can take quite a long time to
           # execute (~2s) and trigger Raft elections, the election timeout
           # should stay high until https://github.com/microsoft/CCF/issues/480
           # is fixed

@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import e2e_args
+import infra.e2e_args
 import infra.ccf
 import infra.jsonrpc
 
@@ -292,6 +292,6 @@ if __name__ == "__main__":
             "--datafile", help="Load an existing scenario file (csv)", type=str
         )
 
-    args = e2e_args.cli_args(add)
+    args = infra.e2e_args.cli_args(add)
     args.package = args.app_script and "libluageneric" or "liblogging"
     run(args)

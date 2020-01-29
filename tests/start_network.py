@@ -1,8 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import e2e_args
+import infra.e2e_args
 import infra.ccf
-import infra.proc
 import time
 import sys
 
@@ -80,5 +79,5 @@ if __name__ == "__main__":
             default=False,
         )
 
-    args = e2e_args.cli_args(add)
+    args = infra.e2e_args.cli_args(add)
     run(args)

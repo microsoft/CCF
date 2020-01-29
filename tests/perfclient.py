@@ -4,7 +4,7 @@ import argparse
 import os
 import logging
 import infra.runner
-import e2e_args
+import infra.e2e_args
 from infra.perf import PERF_COLUMNS
 
 from loguru import logger as LOG
@@ -52,7 +52,9 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         "--config", help="Path to config for client binary", default=default_config_path
     )
 
-    return e2e_args.cli_args(add=add, parser=parser, accept_unknown=accept_unknown)
+    return infra.e2e_args.cli_args(
+        add=add, parser=parser, accept_unknown=accept_unknown
+    )
 
 
 def run(*args, **kwargs):
