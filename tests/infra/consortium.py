@@ -54,7 +54,7 @@ class Consortium:
         force_unsigned=False,
         should_wait_for_global_commit=True,
     ):
-        if os.getenv("HTTP"):
+        if not os.getenv("FTCP"):
             script = """
             tables, changes = ...
             return true

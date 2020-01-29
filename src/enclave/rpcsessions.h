@@ -20,7 +20,7 @@
 
 namespace enclave
 {
-#ifdef HTTP
+#ifndef FTCP
   using ServerEndpointImpl = HTTPServerEndpoint;
   using ClientEndpointImpl = HTTPClientEndpoint;
 #else

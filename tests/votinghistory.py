@@ -97,7 +97,7 @@ def verify_sig(raw_cert, sig, req, raw_req, md):
         )
 
         # For HTTP, also verify that the digest matches the hash of the body
-        if os.getenv("HTTP"):
+        if not os.getenv("FTCP"):
             h = hashes.Hash(digest, backend=default_backend())
             h.update(raw_req)
             raw_req_digest = h.finalize()

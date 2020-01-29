@@ -509,8 +509,8 @@ TEST_CASE("process")
     CHECK(value.sig == signed_call[jsonrpc::SIG]);
   }
 
-  // TODO: verify_client_signature
-#  ifndef HTTP
+  // TODO: verify_client_signature in HTTP
+#  ifdef FTCP
   SUBCASE("signature not verified")
   {
     const auto serialized_call = jsonrpc::pack(signed_call, default_pack);

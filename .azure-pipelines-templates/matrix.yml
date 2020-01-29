@@ -39,9 +39,9 @@ parameters:
     san:
       cmake_args: '-DSAN=ON'
     FTCP:
-      cmake_args: ''
+      cmake_args: '-DFTCP=ON'
     HTTP:
-      cmake_args: '-DHTTP=ON'
+      cmake_args: ''
 
   test:
     NoSGX:
