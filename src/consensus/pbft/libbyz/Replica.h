@@ -145,18 +145,8 @@ public:
   int my_id() const;
   char* create_response_message(int client_id, Request_id rid, uint32_t size);
 
-  Seqno signature_offset = 0;
   std::atomic<bool> sign_next = false;
   std::atomic<int64_t> signed_version = 0;
-  Seqno next_expected_sig_offset()
-  {
-    return signature_offset;
-  }
-
-  void set_next_expected_sig_offset()
-  {
-    signature_offset = (next_pp_seqno + sig_req_offset());
-  }
 
   Seqno sig_req_offset()
   {

@@ -51,6 +51,34 @@ namespace ccf
 
     size_t sig_max_tx = 1000;
     size_t tx_count = 0;
+
+    class TryLock
+    {
+    public:
+      TryLock(std::atomic<bool>& l_) : l(l_), result(l_.exchange(true)) {}
+      bool have_lock() {return !result;}
+
+      ~TryLock()
+      {
+        if (!result)
+        {
+          l.store(false);
+        }
+      }
+
+    private:
+      bool result;
+      std::atomic<bool>& l;
+    };
+
+    std::atomic<bool> sign_lock = false;
+    enum class sign_type
+    {
+      none =0,
+      tx_count,
+      tick
+    } last_sign_type = sign_type::none;
+
     std::chrono::milliseconds sig_max_ms = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
     bool request_storing_disabled = false;
@@ -539,17 +567,31 @@ namespace ccf
                 ctx->set_response_headers(
                   GLOBAL_COMMIT, consensus->get_commit_seqno());
 
-                if (
-                  history && consensus->is_primary() &&
-                  (cv % sig_max_tx == sig_max_tx / 2))
                 {
-                  if (consensus->type() == ConsensusType::Raft)
+                  TryLock l(sign_lock);
+                  if (l.have_lock())
                   {
-                    history->emit_signature();
-                  }
-                  else
-                  {
-                    consensus->emit_signature();
+                    if (
+                      history && consensus->is_primary() &&
+                      (cv % sig_max_tx == sig_max_tx / 2))
+                    {
+                      if (last_sign_type != sign_type::tick)
+                      {
+                        last_sign_type = sign_type::tx_count;
+                        if (consensus->type() == ConsensusType::Raft)
+                        {
+                          history->emit_signature();
+                        }
+                        else
+                        {
+                          consensus->emit_signature();
+                        }
+                      }
+                      else
+                      {
+                        last_sign_type = sign_type::none;
+                      }
+                    }
                   }
                 }
               }
@@ -615,15 +657,29 @@ namespace ccf
         }
 
         ms_to_sig = sig_max_ms;
-        if (history && tables.commit_gap() > 0)
         {
-          if (consensus->type() == ConsensusType::Raft)
+          TryLock l(sign_lock);
+          if (l.have_lock())
           {
-            history->emit_signature();
-          }
-          else
-          {
-            consensus->emit_signature();
+            if (history && tables.commit_gap() > 0)
+            {
+              if (last_sign_type != sign_type::tx_count)
+              {
+                last_sign_type = sign_type::tick;
+                if (consensus->type() == ConsensusType::Raft)
+                {
+                  history->emit_signature();
+                }
+                else
+                {
+                  consensus->emit_signature();
+                }
+              }
+              else
+              {
+                last_sign_type = sign_type::none;
+              }
+            }
           }
         }
       }
