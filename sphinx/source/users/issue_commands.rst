@@ -3,7 +3,7 @@ Issuing Commands
 
 Clients communicate with CCF using HTTP requests. Currently all requests must use the HTTP method ``POST``, and the body of each request is expected to be a valid JSON-RPC object. Arbitrary payload and return types will be supported in future. The ``method`` must be prefixed with the name of the target frontend (``"users"`` or ``"members"``), separated from the intended ``method`` with a single ``/``, and this ``method`` must also match the resource path in the URL.
 
-These requests be sent by standard tools. All of the tests built on CCF's Python infrastructure use `Python Requests <https://requests.readthedocs.io/en/master/>`_ by default, but can be switched to a ``curl``-based client (printing each command to stdout) by running them with environment variable ``CURL_CLIENT`` set.
+These requests can be sent by standard tools. CCF's test infrastructure uses `Python Requests <https://requests.readthedocs.io/en/master/>`_ by default, but can be switched to a ``curl``-based client (printing each command to stdout) by running with environment variable ``CURL_CLIENT`` set.
 
 For example, to record a message at a specific id with the :ref:`developers/example:Example Application`, using curl:
 
@@ -21,10 +21,7 @@ For example, to record a message at a specific id with the :ref:`developers/exam
       }
     }
 
-    $ curl https://127.116.132.53:41188/users/LOG_record -H 'Content-Type: application/json' --data-binary @request.json -w '\n' --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem | jq .
-      % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                     Dload  Upload   Total   Spent    Left  Speed
-    100   204  100    78  100   126    866   1400 --:--:-- --:--:-- --:--:--  2241
+    $ curl https://127.116.132.53:41188/users/LOG_record -H 'Content-Type: application/json' --data-binary @request.json -w '\n' --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
     {
       "commit": 23,
       "global_commit": 22,
