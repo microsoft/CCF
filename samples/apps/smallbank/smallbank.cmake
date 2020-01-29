@@ -34,9 +34,8 @@ if(BUILD_TESTS)
     CLIENT_BIN ./small_bank_client
     VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
     LABEL SB
-    ADDITIONAL_ARGS
-      --transactions ${SMALL_BANK_ITERATIONS} --max-writes-ahead 1000
-      --metrics-file small_bank_metrics.json
+    ADDITIONAL_ARGS --transactions ${SMALL_BANK_ITERATIONS} --max-writes-ahead
+                    1000 --metrics-file small_bank_metrics.json
   )
 
   if(PBFT)
