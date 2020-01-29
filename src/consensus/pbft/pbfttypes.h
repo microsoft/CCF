@@ -8,7 +8,7 @@
 
 namespace pbft
 {
-  using Index = uint64_t;
+  using Index = int64_t;
   using Term = uint64_t;
   using NodeId = uint64_t;
   using Node2NodeMsg = uint64_t;

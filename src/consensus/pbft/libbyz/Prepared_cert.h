@@ -145,7 +145,8 @@ inline bool Prepared_cert::add(Prepare* m)
   if (!principal)
   {
     LOG_INFO_FMT(
-      "Principal with id {} has not been configured yet, rejecting prepare", id);
+      "Principal with id {} has not been configured yet, rejecting prepare",
+      id);
     delete m;
     return false;
   }

@@ -103,7 +103,7 @@ namespace pbft
 
     void send_append_entries(NodeId to, Index start_idx)
     {
-      size_t entries_batch_size = 10;
+      Index entries_batch_size = 10;
 
       Index end_idx = (latest_stable_ae_index == 0) ?
         0 :

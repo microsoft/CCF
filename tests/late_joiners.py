@@ -54,26 +54,25 @@ def run(args):
         # first timer determines after how many seconds each node will be suspended
         if not args.skip_suspension:
             timeouts = []
-            t = random.uniform(1, 10)
-            LOG.info(f"Initial timer for node {first_node.node_id} is {t} seconds...")
-            timeouts.append((t, first_node))
-            for backup in backups:
+            for node in network.get_joined_nodes():
                 t = random.uniform(1, 10)
-                LOG.info(f"Initial timer for node {backup.node_id} is {t} seconds...")
-                timeouts.append((t, backup))
+                LOG.info(f"Initial timer for node {node.node_id} is {t} seconds...")
+                timeouts.append((t, node))
 
             for t, node in timeouts:
                 tm = Timer(t, timeout, args=[node, True, args.election_timeout / 1000],)
                 tm.start()
 
-        LOG.info("Adding another node after f = 0 but before we need to send append entries")
+        LOG.info(
+            "Adding another node after f = 0 but before we need to send append entries"
+        )
         # check that a new node can catch up naturally
         new_node = network.create_and_trust_node(
             lib_name=args.package, host="localhost", args=args,
         )
         assert new_node
         nodes_to_keep.append(new_node)
-        
+
         with first_node.node_client() as mc:
             check_commit = infra.checker.Checker(mc)
             check = infra.checker.Checker()
