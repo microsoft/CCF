@@ -14,7 +14,7 @@ import infra.path
 import infra.proc
 import infra.notification
 import infra.net
-import e2e_args
+import infra.e2e_args
 
 from loguru import logger as LOG
 
@@ -59,7 +59,7 @@ if __name__ == "__main__":
             "--oesign", help="Path oesign binary", type=str, required=True
         )
 
-    args = e2e_args.cli_args(add=add)
+    args = infra.e2e_args.cli_args(add=add)
 
     if args.enclave_type != "debug":
         LOG.error("This test can only run in real enclaves, skipping")

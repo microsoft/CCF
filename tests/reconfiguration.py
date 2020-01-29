@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import sys
-import e2e_args
+import infra.e2e_args
 import infra.ccf
 import infra.proc
 import suite.test_requirements as reqs
@@ -100,6 +100,6 @@ if __name__ == "__main__":
             default="liblogging",
         )
 
-    args = e2e_args.cli_args(add)
+    args = infra.e2e_args.cli_args(add)
     args.package = args.app_script and "libluageneric" or "liblogging"
     run(args)
