@@ -45,7 +45,6 @@ install(
   DESTINATION lib
 )
 
-
 # CCFCrypto, again two versions.
 
 set(CCFCRYPTO_SRC ${CCF_DIR}/src/crypto/hash.cpp
