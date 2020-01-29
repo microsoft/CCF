@@ -5,7 +5,7 @@ CPU
 ---
 
 A CCF application currently consists of two threads. A host thread manages sockets and files, and handles communication with the enclave via ringbuffers.
-And enclave thread contains the TLS termination, all cryptography, and the application and key value code. It communicates with the host via ringbuffers too.
+An enclave thread contains the TLS termination, all cryptography, and the application and key value code. It communicates with the host via ringbuffers too.
 
 In the current implementation, both threads spin on their input ringbuffer, meaning that a CCF application will generally appear to consume two full cores in normal operation.
 
