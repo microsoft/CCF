@@ -4,32 +4,37 @@
 set(ALLOWED_TARGETS "sgx;virtual")
 set(IS_VALID_TARGET "FALSE")
 foreach(REQUESTED_TARGET ${TARGET})
-  if (${REQUESTED_TARGET} IN_LIST ALLOWED_TARGETS)
+  if(${REQUESTED_TARGET} IN_LIST ALLOWED_TARGETS)
     set(IS_VALID_TARGET "TRUE")
   else()
-    message(FATAL_ERROR "${REQUESTED_TARGET} is not a valid target. Choose from: ${ALLOWED_TARGETS}")
+    message(
+      FATAL_ERROR
+        "${REQUESTED_TARGET} is not a valid target. Choose from: ${ALLOWED_TARGETS}"
+    )
   endif()
 endforeach()
 
-if ((NOT ${IS_VALID_TARGET}))
-  message(FATAL_ERROR "Variable list 'TARGET' must include at least one supported target. Choose from: ${ALLOWED_TARGETS}")
+if((NOT ${IS_VALID_TARGET}))
+  message(
+    FATAL_ERROR
+      "Variable list 'TARGET' must include at least one supported target. Choose from: ${ALLOWED_TARGETS}"
+  )
 endif()
 
 # Sign a built enclave library with oesign
 function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
-  if (TARGET ${name})
+  if(TARGET ${name})
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
-      COMMAND openenclave::oesign sign
-        -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so
-        -c ${app_oe_conf_path}
-        -k ${enclave_sign_key_path}
-      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so
-        ${app_oe_conf_path}
-        ${enclave_sign_key_path}
+      COMMAND
+        openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
+        ${app_oe_conf_path} -k ${enclave_sign_key_path}
+      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so ${app_oe_conf_path}
+              ${enclave_sign_key_path}
     )
 
-    add_custom_target(${name}_signed ALL
+    add_custom_target(
+      ${name}_signed ALL
       DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
     )
   endif()
@@ -37,29 +42,37 @@ endfunction()
 
 # Util functions used by add_ccf_app and others
 function(enable_quote_code name)
-  if (QUOTES_ENABLED)
+  if(QUOTES_ENABLED)
     target_compile_definitions(${name} PUBLIC -DGET_QUOTE)
   endif()
 endfunction()
 
 function(add_san name)
-  if (SAN)
-    target_compile_options(${name} PRIVATE
-      -fsanitize=undefined,address -fno-omit-frame-pointer -fno-sanitize-recover=all
-      -fno-sanitize=function -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
+  if(SAN)
+    target_compile_options(
+      ${name}
+      PRIVATE -fsanitize=undefined,address -fno-omit-frame-pointer
+              -fno-sanitize-recover=all -fno-sanitize=function
+              -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
     )
-    target_link_libraries(${name} PRIVATE
-      -fsanitize=undefined,address -fno-omit-frame-pointer -fno-sanitize-recover=all
-      -fno-sanitize=function -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
+    target_link_libraries(
+      ${name}
+      PRIVATE -fsanitize=undefined,address -fno-omit-frame-pointer
+              -fno-sanitize-recover=all -fno-sanitize=function
+              -fsanitize-blacklist=${CCF_DIR}/src/ubsan.blacklist
     )
   endif()
 endfunction()
 
-separate_arguments(COVERAGE_FLAGS UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
-separate_arguments(COVERAGE_LINK UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping")
+separate_arguments(
+  COVERAGE_FLAGS UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping"
+)
+separate_arguments(
+  COVERAGE_LINK UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping"
+)
 
 function(enable_coverage name)
-  if (COVERAGE)
+  if(COVERAGE)
     target_compile_options(${name} PRIVATE ${COVERAGE_FLAGS})
     target_link_libraries(${name} PRIVATE ${COVERAGE_LINK})
   endif()
@@ -71,51 +84,48 @@ function(use_client_mbedtls name)
 endfunction()
 
 function(use_oe_mbedtls name)
-  target_link_libraries(${name} PRIVATE
-    openenclave::oeenclave
-    openenclave::oelibcxx
-    openenclave::oelibc
+  target_link_libraries(
+    ${name} PRIVATE openenclave::oeenclave openenclave::oelibcxx
+                    openenclave::oelibc
   )
 endfunction()
 
-if (NOT CCF_GENERATED_DIR)
+if(NOT CCF_GENERATED_DIR)
   set(CCF_GENERATED_DIR ${CCF_DIR}/generated)
 endif()
 
-add_custom_target(flatbuffers ALL
-  DEPENDS ${CCF_GENERATED_DIR}/frame_generated.h
+add_custom_target(
+  flatbuffers ALL DEPENDS ${CCF_GENERATED_DIR}/frame_generated.h
 )
 
 # Enclave library wrapper
 function(add_ccf_app name)
 
-  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS
-    ""
-    ""
+  cmake_parse_arguments(
+    PARSE_ARGV 1 PARSED_ARGS "" ""
     "SRCS;INCLUDE_DIRS;LINK_LIBS_ENCLAVE;LINK_LIBS_VIRTUAL"
   )
 
   add_custom_target(${name} ALL)
 
-  if ("sgx" IN_LIST TARGET)
+  if("sgx" IN_LIST TARGET)
     set(enc_name ${name}.enclave)
 
-    add_library(${enc_name} SHARED
-      ${PARSED_ARGS_SRCS}
+    add_library(${enc_name} SHARED ${PARSED_ARGS_SRCS})
+
+    target_include_directories(
+      ${enc_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
     )
 
-    target_include_directories(${enc_name} SYSTEM PRIVATE
-      ${PARSED_ARGS_INCLUDE_DIRS}
-    )
-
-    target_link_libraries(${enc_name} PRIVATE
-      ${PARSED_ARGS_LINK_LIBS_ENCLAVE}
-      # These oe libraries must be linked in correct order, so they are
-      # re-declared here
-      openenclave::oeenclave
-      openenclave::oecore
-      openenclave::oesyscall
-      ccf.enclave
+    target_link_libraries(
+      ${enc_name}
+      PRIVATE ${PARSED_ARGS_LINK_LIBS_ENCLAVE}
+              # These oe libraries must be linked in correct order, so they are
+              # re-declared here
+              openenclave::oeenclave
+              openenclave::oecore
+              openenclave::oesyscall
+              ccf.enclave
     )
 
     set_property(TARGET ${enc_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -123,21 +133,18 @@ function(add_ccf_app name)
     add_dependencies(${name} ${enc_name})
   endif()
 
-  if ("virtual" IN_LIST TARGET)
-    ## Build a virtual enclave, loaded as a shared library without OE
+  if("virtual" IN_LIST TARGET)
+    # Build a virtual enclave, loaded as a shared library without OE
     set(virt_name ${name}.virtual)
 
-    add_library(${virt_name} SHARED
-      ${PARSED_ARGS_SRCS}
+    add_library(${virt_name} SHARED ${PARSED_ARGS_SRCS})
+
+    target_include_directories(
+      ${virt_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
     )
 
-    target_include_directories(${virt_name} SYSTEM PRIVATE
-      ${PARSED_ARGS_INCLUDE_DIRS}
-    )
-
-    target_link_libraries(${virt_name} PRIVATE
-      ${PARSED_ARGS_LINK_LIBS_VIRTUAL}
-      ccf.virtual
+    target_link_libraries(
+      ${virt_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_VIRTUAL} ccf.virtual
     )
 
     set_property(TARGET ${virt_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
