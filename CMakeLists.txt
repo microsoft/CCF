@@ -198,6 +198,16 @@ install(
   PATTERN "*/test*" EXCLUDE
 )
 
+# Install CCF Python infrastructure
+# TODO(install): This should be trimmed and packaged as well
+install(
+  DIRECTORY tests/infra/
+  DESTINATION lib/infra
+  FILES_MATCHING
+  PATTERN "*.py"
+  PATTERN "*/__pycache__*" EXCLUDE
+)
+
 # Create patched alternative of library, to test code version changes
 function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)
   set(enc_name ${name}.enclave)
