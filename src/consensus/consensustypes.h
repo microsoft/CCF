@@ -9,3 +9,15 @@ namespace ccf
   using NodeId = ObjectId;
   using Index = int64_t;
 }
+
+namespace consensus
+{
+#pragma pack(push, 1)
+  struct AppendEntriesIndex
+  {
+    ccf::Index idx;
+    ccf::Index prev_idx;
+  };
+
+#pragma pack(pop)
+}

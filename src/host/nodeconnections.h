@@ -229,38 +229,23 @@ namespace asynchost
             auto p = data;
             auto psize = size;
 
-            ccf::Index idx;
-            ccf::Index prev_idx;
-            if (
-              serialized::peek<raft::RaftMsgType>(data, size) ==
-              raft::raft_append_entries)
-            {
-              const auto& ae =
-                serialized::overlay<raft::AppendEntries>(p, psize);
-              idx = ae.idx;
-              prev_idx = ae.prev_idx;
-            }
-            else
-            {
-              const auto& ae =
-                serialized::overlay<pbft::AppendEntries>(p, psize);
-              idx = ae.idx;
-              prev_idx = ae.prev_idx;
-            }
-
+            const auto& ae =
+              serialized::overlay<consensus::AppendEntriesIndex>(p, psize);
             // Find the total frame size, and write it along with the header.
-            auto count = idx - prev_idx;
+            auto count = ae.idx - ae.prev_idx;
             uint32_t frame = (uint32_t)(
-              size_to_send + ledger.framed_entries_size(prev_idx + 1, idx));
+              size_to_send +
+              ledger.framed_entries_size(ae.prev_idx + 1, ae.idx));
 
             LOG_DEBUG_FMT(
-              "send AE to {} [{}]: {}, {}", to, frame, idx, prev_idx);
+              "send AE to {} [{}]: {}, {}", to, frame, ae.idx, ae.prev_idx);
 
             // TODO(#performance): writev
             node.value()->write(sizeof(uint32_t), (uint8_t*)&frame);
             node.value()->write(size_to_send, data_to_send);
 
-            auto framed_entries = ledger.read_framed_entries(prev_idx + 1, idx);
+            auto framed_entries =
+              ledger.read_framed_entries(ae.prev_idx + 1, ae.idx);
             frame = (uint32_t)framed_entries.size();
             node.value()->write(frame, framed_entries.data());
           }

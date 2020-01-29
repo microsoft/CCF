@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/consensustypes.h"
 #include "ds/ringbuffer_types.h"
 
 #include <chrono>
@@ -89,11 +90,9 @@ namespace raft
     NodeId from_node;
   };
 
-  struct AppendEntries : RaftHeader
+  struct AppendEntries : RaftHeader, consensus::AppendEntriesIndex
   {
-    Index idx;
     Term term;
-    Index prev_idx;
     Term prev_term;
     Index leader_commit_idx;
     Term term_of_idx;

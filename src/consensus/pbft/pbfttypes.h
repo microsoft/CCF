@@ -27,11 +27,8 @@ namespace pbft
     NodeId from_node;
   };
 
-  struct AppendEntries : PbftHeader
-  {
-    Index idx;
-    Index prev_idx;
-  };
+  struct AppendEntries : PbftHeader, consensus::AppendEntriesIndex
+  {};
 
 #pragma pack(pop)
 
