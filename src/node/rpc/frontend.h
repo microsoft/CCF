@@ -56,7 +56,10 @@ namespace ccf
     {
     public:
       TryLock(std::atomic<bool>& l_) : l(l_), result(l_.exchange(true)) {}
-      bool have_lock() {return !result;}
+      bool have_lock()
+      {
+        return !result;
+      }
 
       ~TryLock()
       {
@@ -74,7 +77,7 @@ namespace ccf
     std::atomic<bool> sign_lock = false;
     enum class sign_type
     {
-      none =0,
+      none = 0,
       tx_count,
       tick
     } last_sign_type = sign_type::none;
