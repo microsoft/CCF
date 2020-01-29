@@ -38,8 +38,8 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
-# TODO(ftcp): remove once FTCP support is disabled
 # MemberClient executable
+# TODO(ftcp): remove once FTCP support is disabled.
 add_executable(memberclient src/clients/memberclient.cpp)
 use_client_mbedtls(memberclient)
 target_link_libraries(
@@ -49,8 +49,8 @@ target_link_libraries(
 
 add_dependencies(memberclient flatbuffers)
 
-# TODO(ftcp): remove once FTCP support is disabled
 # Logging Client executable
+# TODO(ftcp): remove once FTCP support is disabled
 add_executable(logging_client src/clients/logging_client.cpp)
 use_client_mbedtls(logging_client)
 target_link_libraries(
@@ -177,9 +177,8 @@ endif()
 
 install(EXPORT ccf DESTINATION cmake)
 
+# Install all 3rd-party library includes
 # TODO(install): Trim this to only the required 'external' headers
-# Install all 3rd-party
-# library includes
 install(
   DIRECTORY 3rdparty
   DESTINATION include
@@ -188,8 +187,9 @@ install(
   PATTERN "*.hpp"
 )
 
-# TODO(install): Trim this to only the required public headers for building an app
 # Install all CCF headers
+# TODO(install): Trim this to only the required public headers for building an
+# app
 install(
   DIRECTORY src/
   DESTINATION include/ccf
@@ -558,7 +558,7 @@ if(BUILD_TESTS)
         ADDITIONAL_ARGS
           --oesign
           ${OE_SIGN_PATH}
-          # TODO(oe_verify_report): This test spins up many nodes that go through the join
+          # TODO(verify): This test spins up many nodes that go through the join
           # protocol. Since oe_verify_report can take quite a long time to
           # execute (~2s) and trigger Raft elections, the election timeout
           # should stay high until https://github.com/microsoft/CCF/issues/480
