@@ -135,7 +135,7 @@ public:
     // is_request_present is set to false
 
     bool has_more_requests();
-    // Effects: Returns if the time get is called a Request can be returned
+    // Effects: Returns true if the time get is called a Request can be returned
 
   private:
     Pre_prepare* msg;

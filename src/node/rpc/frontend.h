@@ -334,7 +334,8 @@ namespace ccf
      * @param ctx Context for this RPC
      */
     ProcessPbftResp process_pbft(
-      std::shared_ptr<enclave::RpcContext> ctx, bool include_merkle_roots) override
+      std::shared_ptr<enclave::RpcContext> ctx,
+      bool include_merkle_roots) override
     {
       // TODO(#PBFT): Refactor this with process_forwarded().
       Store::Tx tx;
@@ -345,7 +346,6 @@ namespace ccf
       update_consensus();
 
       bool has_updated_merkle_roots = false;
-
 
       auto req_view = tx.get_view(*pbft_requests_map);
       req_view->put(
