@@ -48,6 +48,7 @@ struct ByzInfo
   std::array<uint8_t, MERKLE_ROOT_SIZE> full_state_merkle_root;
   std::array<uint8_t, MERKLE_ROOT_SIZE> replicated_state_merkle_root;
   int64_t ctx;
+  bool include_merkle_roots;
 };
 
 using ExecCommand = std::function<int(

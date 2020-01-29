@@ -38,6 +38,6 @@ namespace enclave
     };
 
     virtual ProcessPbftResp process_pbft(
-      std::shared_ptr<enclave::RpcContext> ctx) = 0;
+      std::shared_ptr<enclave::RpcContext> ctx, bool include_merkle_roots) = 0;
   };
 }
