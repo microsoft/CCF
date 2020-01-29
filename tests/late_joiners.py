@@ -34,6 +34,29 @@ def timeout(node, suspend, election_timeout):
         node.resume()
 
 
+def find_primary(network):
+    # track if there is a new primary
+    term_info = {}
+    try:
+        cur_primary, cur_term = network.find_primary()
+        term_info[cur_term] = cur_primary.node_id
+    except TimeoutError:
+        LOG.info("Trying to access a suspended node")
+    return term_info
+
+
+def timeout(node, suspend, election_timeout):
+    if suspend:
+        # We want to suspend the nodes' process so we need to initiate a new timer to wake it up eventually
+        node.suspend()
+        next_timeout = random.uniform(2 * election_timeout, 3 * election_timeout)
+        LOG.info(f"New timer set for node {node.node_id} is {next_timeout} seconds")
+        t = Timer(next_timeout, timeout, args=[node, False, 0])
+        t.start()
+    else:
+        node.resume()
+
+
 def assert_node_up_to_date(check, node, final_msg, final_msg_id):
     with node.user_client(format="json") as c:
         check(
@@ -41,8 +64,23 @@ def assert_node_up_to_date(check, node, final_msg, final_msg_id):
         )
 
 
-def run_requests(network, nodes, total_requests, start_id, final_msg, final_msg_id):
-    term_info = {}
+def wait_for_nodes(nodes, final_msg, final_msg_id):
+    with nodes[0].node_client() as mc:
+        check_commit = infra.checker.Checker(mc)
+        check = infra.checker.Checker()
+        for i, node in enumerate(nodes):
+            with node.user_client(format="json") as c:
+                check_commit(
+                    c.rpc("LOG_record", {"id": final_msg_id + i, "msg": final_msg}),
+                    result=True,
+                )
+
+        # assert all nodes are caught up
+        for node in nodes:
+            assert_node_up_to_date(check, node, final_msg, final_msg_id)
+
+
+def run_requests(nodes, total_requests, start_id, final_msg, final_msg_id):
     with nodes[0].node_client() as mc:
         check_commit = infra.checker.Checker(mc)
         check = infra.checker.Checker()
@@ -52,30 +90,15 @@ def run_requests(network, nodes, total_requests, start_id, final_msg, final_msg_
                 clients.append(es.enter_context(node.user_client(format="json")))
             node_id = 0
             long_msg = "X" * (2 ** 14)
-            for id in range(start_id, total_requests):
+            for id in range(start_id, (start_id + total_requests)):
                 node_id += 1
                 c = clients[node_id % len(clients)]
                 try:
                     c.rpc("LOG_record", {"id": id, "msg": long_msg})
-                except Exception:
-                    LOG.info("Trying to access a suspended node")
-                # track if there is a new primary
-                try:
-                    cur_primary, cur_term = network.find_primary()
-                    term_info[cur_term] = cur_primary.node_id
-                except Exception:
+                except TimeoutError:
                     LOG.info("Trying to access a suspended node")
                 id += 1
-            with node.user_client(format="json") as c:
-                check_commit(
-                    c.rpc("LOG_record", {"id": final_msg_id, "msg": final_msg}),
-                    result=True,
-                )
-
-            # assert all nodes are caught up
-            for node in nodes:
-                assert_node_up_to_date(check, node, final_msg, final_msg_id)
-    return term_info
+        wait_for_nodes(nodes, final_msg, final_msg_id)
 
 
 def run(args):
@@ -88,7 +111,7 @@ def run(args):
         first_node, backups = network.find_nodes()
         all_nodes = network.get_joined_nodes()
 
-        term_info = {}
+        term_info = find_primary(network)
         fisrt_msg = "Hello, world!"
         second_msg = "Hello, world hello!"
         final_msg = "Goodbye, world!"
@@ -122,9 +145,8 @@ def run(args):
             check_commit = infra.checker.Checker(mc)
             check = infra.checker.Checker()
 
-        term_info.update(
-            run_requests(network, all_nodes, TOTAL_REQUESTS, 0, fisrt_msg, 1000)
-        )
+        run_requests(all_nodes, TOTAL_REQUESTS, 0, fisrt_msg, 1000)
+        term_info = find_primary(network)
 
         # check that new node has caught up ok
         assert_node_up_to_date(check, new_node, fisrt_msg, 1000)
@@ -139,12 +161,8 @@ def run(args):
         assert last_node
         nodes_to_keep.append(last_node)
 
-        term_info.update(
-            run_requests(network, all_nodes, TOTAL_REQUESTS, 1001, second_msg, 2000)
-        )
-
-        # give new joiner a few seconds to catch up
-        time.sleep(10)
+        run_requests(all_nodes, TOTAL_REQUESTS, 1001, second_msg, 2000)
+        term_info = find_primary(network)
 
         assert_node_up_to_date(check, last_node, fisrt_msg, 1000)
         assert_node_up_to_date(check, last_node, second_msg, 2000)
@@ -154,24 +172,17 @@ def run(args):
             LOG.info(f"Stopping node {node.node_id}")
             node.stop()
 
-        for i, node in enumerate(nodes_to_keep):
-            with node.user_client(format="json") as c:
-                final_msg = "Goodbye world!"
-                check_commit(
-                    c.rpc("LOG_record", {"id": 3000 + i, "msg": final_msg}),
-                    result=True,
-                )
-                assert_node_up_to_date(node, final_msg, 3000 + i)
+        wait_for_nodes(nodes_to_keep, final_msg, 4000)
 
-            # we have asserted that all nodes are caught up
+        # we have asserted that all nodes are caught up
 
-            if not args.skip_suspension:
-                # assert that view changes actually did occur
-                assert len(term_info) > 1
+        if not args.skip_suspension:
+            # assert that view changes actually did occur
+            assert len(term_info) > 1
 
-                LOG.success("----------- terms and primaries recorded -----------")
-                for term, primary in term_info.items():
-                    LOG.success(f"term {term} - primary {primary}")
+            LOG.success("----------- terms and primaries recorded -----------")
+            for term, primary in term_info.items():
+                LOG.success(f"term {term} - primary {primary}")
 
 
 if __name__ == "__main__":
