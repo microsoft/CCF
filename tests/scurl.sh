@@ -16,7 +16,7 @@ for item in "$@" ; do
         privk=$item
         next_is_privk=false
     fi
-    if [ "$item" == "-d" ] || [ "$item" == "--data-binary" ]; then
+    if [ "$item" == "-d" ] || [ "$item" == "--data" ] || [ "$item" == "--data-binary" ]; then
         next_is_data=true
     fi
     if [ "$item" == "--key" ]; then
