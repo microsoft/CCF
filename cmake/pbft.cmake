@@ -5,6 +5,11 @@
 add_definitions(-DSIGN_BATCH)
 set(SIGN_BATCH ON)
 
+if(SAN)
+  add_definitions(-DUSE_STD_MALLOC)
+  set(USE_STD_MALLOC ON)
+endif()
+
 set(PBFT_SRC
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/globalstate.cpp
   ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/Client.cpp

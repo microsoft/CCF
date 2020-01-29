@@ -46,7 +46,7 @@ def run(args):
         term_info = {}
         long_msg = "X" * (2 ** 14)
 
-        nodes_to_kill = []
+        nodes_to_kill = [backups[0]]
         for b in backups:
             nodes_to_kill.append(b)
         nodes_to_keep = [first_node]
@@ -66,6 +66,14 @@ def run(args):
                 tm = Timer(t, timeout, args=[node, True, args.election_timeout / 1000],)
                 tm.start()
 
+        LOG.info("Adding another node after f = 0 but before we need to send append entries")
+        # check that a new node can catch up naturally
+        new_node = network.create_and_trust_node(
+            lib_name=args.package, host="localhost", args=args,
+        )
+        assert new_node
+        nodes_to_keep.append(new_node)
+        
         with first_node.node_client() as mc:
             check_commit = infra.checker.Checker(mc)
             check = infra.checker.Checker()
@@ -78,16 +86,6 @@ def run(args):
                     clients.append(es.enter_context(backup.user_client(format="json")))
                 node_id = 0
                 for id in range(1, TOTAL_REQUESTS):
-                    if id == 1:
-                        LOG.info(
-                            "Adding another node after f = 0 but before we need to send append entries"
-                        )
-                        # check that a new node can catch up naturally
-                        new_node = network.create_and_trust_node(
-                            lib_name=args.package, host="localhost", args=args,
-                        )
-                        assert new_node
-                        nodes_to_keep.append(new_node)
                     node_id += 1
                     c = clients[node_id % len(clients)]
                     try:
@@ -175,7 +173,7 @@ def run(args):
 
             for i, node in enumerate(nodes_to_keep):
                 with node.user_client(format="json") as c:
-                    final_msg = "Goodby world!"
+                    final_msg = "Goodbye world!"
                     check_commit(
                         c.rpc("LOG_record", {"id": 3000 + i, "msg": final_msg}),
                         result=True,
@@ -184,7 +182,7 @@ def run(args):
                         c.rpc("LOG_get", {"id": 3000 + i}), result={"msg": final_msg},
                     )
 
-                # all the nodes should be caught up by now
+                # we have asserted that all nodes are caught up
 
                 if not args.skip_suspension:
                     # assert that view changes actually did occur
