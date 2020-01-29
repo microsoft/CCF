@@ -145,44 +145,44 @@ def run(args):
             check_commit = infra.checker.Checker(mc)
             check = infra.checker.Checker()
 
-        run_requests(all_nodes, TOTAL_REQUESTS, 0, fisrt_msg, 1000)
-        term_info = find_primary(network)
+            run_requests(all_nodes, TOTAL_REQUESTS, 0, fisrt_msg, 1000)
+            term_info = find_primary(network)
 
-        # check that new node has caught up ok
-        assert_node_up_to_date(check, new_node, fisrt_msg, 1000)
-        # add new node to backups list
-        all_nodes.append(new_node)
+            # check that new node has caught up ok
+            assert_node_up_to_date(check, new_node, fisrt_msg, 1000)
+            # add new node to backups list
+            all_nodes.append(new_node)
 
-        # check that a new node can catch up after all the requests
-        LOG.info("Adding a very late joiner")
-        last_node = network.create_and_trust_node(
-            lib_name=args.package, host="localhost", args=args,
-        )
-        assert last_node
-        nodes_to_keep.append(last_node)
+            # check that a new node can catch up after all the requests
+            LOG.info("Adding a very late joiner")
+            last_node = network.create_and_trust_node(
+                lib_name=args.package, host="localhost", args=args,
+            )
+            assert last_node
+            nodes_to_keep.append(last_node)
 
-        run_requests(all_nodes, TOTAL_REQUESTS, 1001, second_msg, 2000)
-        term_info = find_primary(network)
+            run_requests(all_nodes, TOTAL_REQUESTS, 1001, second_msg, 2000)
+            term_info = find_primary(network)
 
-        assert_node_up_to_date(check, last_node, fisrt_msg, 1000)
-        assert_node_up_to_date(check, last_node, second_msg, 2000)
+            assert_node_up_to_date(check, last_node, fisrt_msg, 1000)
+            assert_node_up_to_date(check, last_node, second_msg, 2000)
 
-        # replace the 2 backups with the 2 new nodes, kill the old ones and ensure we are still making progress
-        for node in nodes_to_kill:
-            LOG.info(f"Stopping node {node.node_id}")
-            node.stop()
+            # replace the 2 backups with the 2 new nodes, kill the old ones and ensure we are still making progress
+            for node in nodes_to_kill:
+                LOG.info(f"Stopping node {node.node_id}")
+                node.stop()
 
-        wait_for_nodes(nodes_to_keep, final_msg, 4000)
+            wait_for_nodes(nodes_to_keep, final_msg, 4000)
 
-        # we have asserted that all nodes are caught up
+            # we have asserted that all nodes are caught up
 
-        if not args.skip_suspension:
-            # assert that view changes actually did occur
-            assert len(term_info) > 1
+            if not args.skip_suspension:
+                # assert that view changes actually did occur
+                assert len(term_info) > 1
 
-            LOG.success("----------- terms and primaries recorded -----------")
-            for term, primary in term_info.items():
-                LOG.success(f"term {term} - primary {primary}")
+                LOG.success("----------- terms and primaries recorded -----------")
+                for term, primary in term_info.items():
+                    LOG.success(f"term {term} - primary {primary}")
 
 
 if __name__ == "__main__":
