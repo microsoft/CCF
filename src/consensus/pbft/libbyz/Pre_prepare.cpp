@@ -402,6 +402,21 @@ bool Pre_prepare::Requests_iter::get_big_request(
   return false;
 }
 
+bool Pre_prepare::Requests_iter::has_more_requests()
+{
+  if (next_req < msg->requests() + msg->rep().rset_size)
+  {
+    return true;
+  }
+
+  if (big_req < msg->num_big_reqs())
+  {
+    return true;
+  }
+
+  return false;
+}
+
 bool Pre_prepare::convert(Message* m1, Pre_prepare*& m2)
 {
   if (!m1->has_tag(Pre_prepare_tag, sizeof(Pre_prepare_rep)))

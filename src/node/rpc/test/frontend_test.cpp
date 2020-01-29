@@ -405,7 +405,7 @@ TEST_CASE("process_pbft")
     enclave::InvalidSessionId, user_id, user_caller_der);
   auto ctx = enclave::make_rpc_context(session, request.raw);
   ctx->actor = (ActorsType)request.actor;
-  frontend.process_pbft(ctx);
+  frontend.process_pbft(ctx, true);
 
   Store::Tx tx;
   auto pbft_requests_map = tx.get_view(pbft_network.pbft_requests_map);

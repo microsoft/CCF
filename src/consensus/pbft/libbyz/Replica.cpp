@@ -2034,6 +2034,7 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
 #endif
       non_det.contents = pp->choices(non_det.size);
       Request_id rid = request.request_id();
+      info.include_merkle_roots = !iter.has_more_requests();
       // Execute command in a regular request.
       replies.count_request();
       LOG_TRACE << "before exec command with seqno: " << pp->seqno()
