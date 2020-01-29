@@ -34,6 +34,50 @@ def timeout(node, suspend, election_timeout):
         node.resume()
 
 
+def assert_node_up_to_date(check, node, final_msg, final_msg_id):
+    with node.user_client(format="json") as c:
+        check(
+            c.rpc("LOG_get", {"id": final_msg_id}), result={"msg": final_msg},
+        )
+
+
+def run_requests(network, nodes, total_requests, start_id, final_msg, final_msg_id):
+    term_info = {}
+    with nodes[0].node_client() as mc:
+        check_commit = infra.checker.Checker(mc)
+        check = infra.checker.Checker()
+        clients = []
+        with contextlib.ExitStack() as es:
+            for node in nodes:
+                clients.append(es.enter_context(node.user_client(format="json")))
+            node_id = 0
+            long_msg = "X" * (2 ** 14)
+            for id in range(start_id, total_requests):
+                node_id += 1
+                c = clients[node_id % len(clients)]
+                try:
+                    c.rpc("LOG_record", {"id": id, "msg": long_msg})
+                except Exception:
+                    LOG.info("Trying to access a suspended node")
+                # track if there is a new primary
+                try:
+                    cur_primary, cur_term = network.find_primary()
+                    term_info[cur_term] = cur_primary.node_id
+                except Exception:
+                    LOG.info("Trying to access a suspended node")
+                id += 1
+            with node.user_client(format="json") as c:
+                check_commit(
+                    c.rpc("LOG_record", {"id": final_msg_id, "msg": final_msg}),
+                    result=True,
+                )
+
+            # assert all nodes are caught up
+            for node in nodes:
+                assert_node_up_to_date(check, node, final_msg, final_msg_id)
+    return term_info
+
+
 def run(args):
     hosts = ["localhost", "localhost", "localhost"]
 
@@ -42,19 +86,20 @@ def run(args):
     ) as network:
         network.start_and_join(args)
         first_node, backups = network.find_nodes()
+        all_nodes = network.get_joined_nodes()
 
         term_info = {}
-        long_msg = "X" * (2 ** 14)
+        fisrt_msg = "Hello, world!"
+        second_msg = "Hello, world hello!"
+        final_msg = "Goodbye, world!"
 
         nodes_to_kill = [backups[0]]
-        for b in backups:
-            nodes_to_kill.append(b)
-        nodes_to_keep = [first_node]
+        nodes_to_keep = [first_node, backups[1]]
 
         # first timer determines after how many seconds each node will be suspended
         if not args.skip_suspension:
             timeouts = []
-            for node in network.get_joined_nodes():
+            for node in all_nodes:
                 t = random.uniform(1, 10)
                 LOG.info(f"Initial timer for node {node.node_id} is {t} seconds...")
                 timeouts.append((t, node))
@@ -77,119 +122,56 @@ def run(args):
             check_commit = infra.checker.Checker(mc)
             check = infra.checker.Checker()
 
-            clients = []
-            with contextlib.ExitStack() as es:
-                LOG.info("Write messages to nodes using round robin")
-                clients.append(es.enter_context(first_node.user_client(format="json")))
-                for backup in backups:
-                    clients.append(es.enter_context(backup.user_client(format="json")))
-                node_id = 0
-                for id in range(1, TOTAL_REQUESTS):
-                    node_id += 1
-                    c = clients[node_id % len(clients)]
-                    try:
-                        resp = c.rpc("LOG_record", {"id": id, "msg": long_msg})
-                    except Exception:
-                        LOG.info("Trying to access a suspended node")
-                    try:
-                        cur_primary, cur_term = network.find_primary()
-                        term_info[cur_term] = cur_primary.node_id
-                    except Exception:
-                        LOG.info("Trying to access a suspended node")
-                    id += 1
+        term_info.update(
+            run_requests(network, all_nodes, TOTAL_REQUESTS, 0, fisrt_msg, 1000)
+        )
 
-                # wait for the last request to commit
-                first_catchup_msg = "Hello world!"
+        # check that new node has caught up ok
+        assert_node_up_to_date(check, new_node, fisrt_msg, 1000)
+        # add new node to backups list
+        all_nodes.append(new_node)
+
+        # check that a new node can catch up after all the requests
+        LOG.info("Adding a very late joiner")
+        last_node = network.create_and_trust_node(
+            lib_name=args.package, host="localhost", args=args,
+        )
+        assert last_node
+        nodes_to_keep.append(last_node)
+
+        term_info.update(
+            run_requests(network, all_nodes, TOTAL_REQUESTS, 1001, second_msg, 2000)
+        )
+
+        # give new joiner a few seconds to catch up
+        time.sleep(10)
+
+        assert_node_up_to_date(check, last_node, fisrt_msg, 1000)
+        assert_node_up_to_date(check, last_node, second_msg, 2000)
+
+        # replace the 2 backups with the 2 new nodes, kill the old ones and ensure we are still making progress
+        for node in nodes_to_kill:
+            LOG.info(f"Stopping node {node.node_id}")
+            node.stop()
+
+        for i, node in enumerate(nodes_to_keep):
+            with node.user_client(format="json") as c:
+                final_msg = "Goodbye world!"
                 check_commit(
-                    c.rpc("LOG_record", {"id": 1000, "msg": first_catchup_msg}),
+                    c.rpc("LOG_record", {"id": 3000 + i, "msg": final_msg}),
                     result=True,
                 )
-                check(
-                    c.rpc("LOG_get", {"id": 1000}), result={"msg": first_catchup_msg},
-                )
+                assert_node_up_to_date(node, final_msg, 3000 + i)
 
-                # check that new node has caught up ok
-                with new_node.user_client(format="json") as c:
-                    check(
-                        c.rpc("LOG_get", {"id": 1000}),
-                        result={"msg": first_catchup_msg},
-                    )
-                # add new node to backups list
-                backups.append(new_node)
+            # we have asserted that all nodes are caught up
 
-                # check that a new node can catch up after all the requests
-                last_node = network.create_and_trust_node(
-                    lib_name=args.package, host="localhost", args=args,
-                )
-                assert last_node
-                nodes_to_keep.append(last_node)
+            if not args.skip_suspension:
+                # assert that view changes actually did occur
+                assert len(term_info) > 1
 
-            ## send more messages I want to check that the new node will catchup and then start processing pre prepares, etc
-            clients = []
-            with contextlib.ExitStack() as es:
-                LOG.info("Write messages to nodes using round robin")
-                clients.append(es.enter_context(first_node.user_client(format="json")))
-                for backup in backups:
-                    clients.append(es.enter_context(backup.user_client(format="json")))
-                node_id = 0
-                for id in range(1001, (1001 + TOTAL_REQUESTS)):
-                    node_id += 1
-                    c = clients[node_id % len(clients)]
-                    try:
-                        resp = c.rpc("LOG_record", {"id": id, "msg": long_msg})
-                    except Exception:
-                        LOG.info("Trying to access a suspended node")
-                    try:
-                        cur_primary, cur_term = network.find_primary()
-                        term_info[cur_term] = cur_primary.node_id
-                    except Exception:
-                        LOG.info("Trying to access a suspended node")
-                    id += 1
-
-                # wait for the last request to commit
-                second_catchup_msg = "Hello world Hello!"
-                check_commit(
-                    c.rpc("LOG_record", {"id": 2000, "msg": second_catchup_msg}),
-                    result=True,
-                )
-                check(
-                    c.rpc("LOG_get", {"id": 2000}), result={"msg": second_catchup_msg},
-                )
-
-            with last_node.user_client(format="json") as c:
-                check(
-                    c.rpc("LOG_get", {"id": 1000}), result={"msg": first_catchup_msg},
-                )
-            with last_node.user_client(format="json") as c:
-                check(
-                    c.rpc("LOG_get", {"id": 2000}), result={"msg": second_catchup_msg},
-                )
-
-            # replace the 2 backups with the 2 new nodes, kill the old ones and ensure we are still making progress
-            for node in nodes_to_kill:
-                LOG.info(f"Stopping node {node.node_id}")
-                node.stop()
-
-            for i, node in enumerate(nodes_to_keep):
-                with node.user_client(format="json") as c:
-                    final_msg = "Goodbye world!"
-                    check_commit(
-                        c.rpc("LOG_record", {"id": 3000 + i, "msg": final_msg}),
-                        result=True,
-                    )
-                    check(
-                        c.rpc("LOG_get", {"id": 3000 + i}), result={"msg": final_msg},
-                    )
-
-                # we have asserted that all nodes are caught up
-
-                if not args.skip_suspension:
-                    # assert that view changes actually did occur
-                    assert len(term_info) > 1
-
-                    LOG.success("----------- terms and primaries recorded -----------")
-                    for term, primary in term_info.items():
-                        LOG.success(f"term {term} - primary {primary}")
+                LOG.success("----------- terms and primaries recorded -----------")
+                for term, primary in term_info.items():
+                    LOG.success(f"term {term} - primary {primary}")
 
 
 if __name__ == "__main__":

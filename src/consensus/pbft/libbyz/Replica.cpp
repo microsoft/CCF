@@ -351,10 +351,6 @@ bool Replica::compare_execution_results(
 
 void Replica::playback_transaction(ccf::Store::Tx& tx)
 {
-  if (vtimer->get_state() == ITimer::State::running)
-  {
-    vtimer->restart();
-  }
   {
     auto view = tx.get_view(pbft_requests_map);
     if (view->has_writes())
@@ -461,6 +457,7 @@ void Replica::playback_pre_prepare(
     {
       mark_stable(last_executed, true);
     }
+    rqueue.clear();
   }
   else
   {
