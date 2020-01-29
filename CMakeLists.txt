@@ -25,6 +25,8 @@ endif()
 
 message(STATUS "CMAKE_INSTALL_PREFIX is '${CMAKE_INSTALL_PREFIX}'")
 
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake DESTINATION cmake)
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
 option(BUILD_TESTS "Build tests" ON)
@@ -74,8 +76,12 @@ if ("sgx" IN_LIST TARGET)
   )
 
   target_include_directories(ccf.enclave SYSTEM PUBLIC
-    ${EVERCRYPT_INC}
-    ${CCF_GENERATED_DIR}
+    $<BUILD_INTERFACE:${EVERCRYPT_INC}>
+    $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/generated>
   )
 
   add_dependencies(ccf.enclave flatbuffers)
@@ -105,6 +111,7 @@ if ("sgx" IN_LIST TARGET)
 
   install(
     TARGETS ccf.enclave
+    EXPORT ccf
     DESTINATION lib
   )
 
@@ -129,8 +136,12 @@ if ("virtual" IN_LIST TARGET)
   )
 
   target_include_directories(ccf.virtual SYSTEM PUBLIC
-    ${EVERCRYPT_INC}
-    ${CCF_GENERATED_DIR}
+    $<BUILD_INTERFACE:${EVERCRYPT_INC}>
+    $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/generated>
   )
 
   add_dependencies(ccf.virtual flatbuffers)
@@ -163,11 +174,17 @@ if ("virtual" IN_LIST TARGET)
 
   install(
     TARGETS ccf.virtual
+    EXPORT ccf
     DESTINATION lib
   )
 
   add_dependencies(ccf ccf.virtual)
 endif()
+
+install(
+  EXPORT ccf
+  DESTINATION cmake
+)
 
 # Install all 3rd-party library includes
 # TODO: Trim this to only the required 'external' headers
