@@ -52,7 +52,9 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         "--config", help="Path to config for client binary", default=default_config_path
     )
 
-    return infra.e2e_args.cli_args(add=add, parser=parser, accept_unknown=accept_unknown)
+    return infra.e2e_args.cli_args(
+        add=add, parser=parser, accept_unknown=accept_unknown
+    )
 
 
 def run(*args, **kwargs):
