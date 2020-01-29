@@ -90,7 +90,8 @@ namespace raft
     NodeId from_node;
   };
 
-  struct AppendEntries : RaftHeader, consensus::AppendEntriesIndex
+  struct AppendEntries : consensus::ConsensusHeader<RaftMsgType>,
+                         consensus::AppendEntriesIndex
   {
     Term term;
     Term prev_term;

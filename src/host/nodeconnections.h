@@ -229,6 +229,9 @@ namespace asynchost
             auto p = data;
             auto psize = size;
 
+            serialized::overlay<consensus::ConsensusHeader<ccf::Node2NodeMsg>>(
+              p, psize);
+
             const auto& ae =
               serialized::overlay<consensus::AppendEntriesIndex>(p, psize);
             // Find the total frame size, and write it along with the header.

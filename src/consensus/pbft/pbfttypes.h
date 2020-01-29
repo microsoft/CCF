@@ -27,7 +27,8 @@ namespace pbft
     NodeId from_node;
   };
 
-  struct AppendEntries : PbftHeader, consensus::AppendEntriesIndex
+  struct AppendEntries : consensus::ConsensusHeader<PbftMsgType>,
+                         consensus::AppendEntriesIndex
   {};
 
 #pragma pack(pop)
