@@ -478,8 +478,8 @@ namespace raft
       AppendEntries ae = {raft_append_entries,
                           local_id,
                           end_idx,
-                          current_term,
                           prev_idx,
+                          current_term,
                           prev_term,
                           commit_idx,
                           term_of_idx};
