@@ -7,7 +7,7 @@ import time
 import math
 import infra.ccf
 import infra.proc
-import e2e_args
+import infra.e2e_args
 
 from loguru import logger as LOG
 
@@ -113,6 +113,6 @@ def run(args):
 
 if __name__ == "__main__":
 
-    args = e2e_args.cli_args()
+    args = infra.e2e_args.cli_args()
     args.package = "liblogging"
     run(args)

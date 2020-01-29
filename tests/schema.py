@@ -11,7 +11,7 @@ import shutil
 import random
 import infra.ccf
 import infra.proc
-import e2e_args
+import infra.e2e_args
 
 from loguru import logger as LOG
 
@@ -108,5 +108,5 @@ if __name__ == "__main__":
             required=True,
         )
 
-    args = e2e_args.cli_args(add=add)
+    args = infra.e2e_args.cli_args(add=add)
     run(args)

@@ -63,6 +63,11 @@ if("sgx" IN_LIST TARGET)
   )
   use_oe_mbedtls(libbyz.enclave)
   add_dependencies(libbyz.enclave flatbuffers)
+  install(
+    TARGETS libbyz.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
 endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -76,6 +81,11 @@ if("virtual" IN_LIST TARGET)
   target_link_libraries(libbyz.host PRIVATE secp256k1.host)
   use_client_mbedtls(libbyz.host)
   add_dependencies(libbyz.host flatbuffers)
+  install(
+    TARGETS libbyz.host
+    EXPORT ccf
+    DESTINATION lib
+  )
 
   add_library(
     libcommontest STATIC

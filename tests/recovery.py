@@ -6,7 +6,7 @@ import os
 import time
 import logging
 import multiprocessing
-import e2e_args
+import infra.e2e_args
 from random import seed
 import infra.ccf
 import infra.proc
@@ -97,6 +97,6 @@ checked. Note that the key for each logging message is unique (per table).
             default=5,
         )
 
-    args = e2e_args.cli_args(add)
+    args = infra.e2e_args.cli_args(add)
     args.package = "liblogging"
     run(args)

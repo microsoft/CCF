@@ -157,8 +157,8 @@ add_custom_command(
   COMMENT "Generating code from EDL, and renaming to .cpp"
 )
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf.cmake)
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf.cmake DESTINATION cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
 
 # Copy utilities from tests directory
 set(CCF_UTILITIES tests.sh keygenerator.sh cimetrics_env.sh
@@ -346,16 +346,37 @@ add_dependencies(scenario_perf_client flatbuffers)
 add_enclave_library_c(lua.enclave "${LUA_SOURCES}")
 target_compile_options(lua.enclave PRIVATE -Wno-string-plus-int)
 target_compile_definitions(lua.enclave PRIVATE NO_IO)
+install(
+  TARGETS lua.enclave
+  EXPORT ccf
+  DESTINATION lib
+)
+
 add_library(lua.host STATIC ${LUA_SOURCES})
 target_compile_options(lua.host PRIVATE -Wno-string-plus-int)
 target_compile_definitions(lua.host PRIVATE NO_IO)
 set_property(TARGET lua.host PROPERTY POSITION_INDEPENDENT_CODE ON)
+install(
+  TARGETS lua.host
+  EXPORT ccf
+  DESTINATION lib
+)
 
 # HTTP parser
 add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
+install(
+  TARGETS http_parser.enclave
+  EXPORT ccf
+  DESTINATION lib
+)
 add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
 set_property(TARGET http_parser.host PROPERTY POSITION_INDEPENDENT_CODE ON)
+install(
+  TARGETS http_parser.host
+  EXPORT ccf
+  DESTINATION lib
+)
 
 # Common test args for Python scripts starting up CCF networks
 if(PBFT)

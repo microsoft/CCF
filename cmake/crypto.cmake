@@ -29,11 +29,21 @@ if("sgx" IN_LIST TARGET)
   target_link_libraries(evercrypt.enclave PRIVATE openenclave::oelibc)
   set_property(TARGET evercrypt.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
   target_include_directories(evercrypt.enclave PRIVATE ${EVERCRYPT_INC})
+  install(
+    TARGETS evercrypt.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
 endif()
 
 add_library(evercrypt.host STATIC ${EVERCRYPT_SRC})
 set_property(TARGET evercrypt.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(evercrypt.host PRIVATE ${EVERCRYPT_INC})
+install(
+  TARGETS evercrypt.host
+  EXPORT ccf
+  DESTINATION lib
+)
 
 # CCFCrypto, again two versions.
 
@@ -58,7 +68,11 @@ if("sgx" IN_LIST TARGET)
   use_oe_mbedtls(ccfcrypto.enclave)
   set_property(TARGET ccfcrypto.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-  install(TARGETS ccfcrypto.enclave DESTINATION lib)
+  install(
+    TARGETS ccfcrypto.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
 endif()
 
 add_library(ccfcrypto.host STATIC ${CCFCRYPTO_SRC})
@@ -69,4 +83,8 @@ target_link_libraries(ccfcrypto.host PRIVATE evercrypt.host)
 use_client_mbedtls(ccfcrypto.host)
 set_property(TARGET ccfcrypto.host PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-install(TARGETS ccfcrypto.host DESTINATION lib)
+install(
+  TARGETS ccfcrypto.host
+  EXPORT ccf
+  DESTINATION lib
+)

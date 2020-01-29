@@ -41,6 +41,10 @@ namespace tls
     service_identity_curve_choice = secp256k1_mbedtls,
 #elif SERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_BITCOIN
     service_identity_curve_choice = secp256k1_bitcoin,
+#else
+#  pragma message( \
+    "No service identity curve specified - defaulting to secp384r1")
+    service_identity_curve_choice = secp384r1,
 #endif
   };
 
