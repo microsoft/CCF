@@ -38,7 +38,8 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
-# TODO: remove once FTCP support is disabled MemberClient executable
+# TODO(ftcp): remove once FTCP support is disabled
+# MemberClient executable
 add_executable(memberclient src/clients/memberclient.cpp)
 use_client_mbedtls(memberclient)
 target_link_libraries(
@@ -48,7 +49,8 @@ target_link_libraries(
 
 add_dependencies(memberclient flatbuffers)
 
-# TODO: remove once FTCP support is disabled Logging Client executable
+# TODO(ftcp): remove once FTCP support is disabled
+# Logging Client executable
 add_executable(logging_client src/clients/logging_client.cpp)
 use_client_mbedtls(logging_client)
 target_link_libraries(
@@ -175,7 +177,8 @@ endif()
 
 install(EXPORT ccf DESTINATION cmake)
 
-# TODO: Trim this to only the required 'external' headers Install all 3rd-party
+# TODO(install): Trim this to only the required 'external' headers
+# Install all 3rd-party
 # library includes
 install(
   DIRECTORY 3rdparty
@@ -185,7 +188,7 @@ install(
   PATTERN "*.hpp"
 )
 
-# TODO: Trim this to only the required public headers for building an app
+# TODO(install): Trim this to only the required public headers for building an app
 # Install all CCF headers
 install(
   DIRECTORY src/
@@ -447,7 +450,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py
     )
 
-    # TODO: Sends an ACK via C++ memberclient, which must be signed.      #
+    # TODO(signing): Sends an ACK via C++ memberclient, which must be signed.
     # Member client end to end tests ACK should be sent from Python, AND HTTP
     # memberclient should sign
     if(NOT HTTP)
@@ -555,8 +558,8 @@ if(BUILD_TESTS)
         ADDITIONAL_ARGS
           --oesign
           ${OE_SIGN_PATH}
-          # TODO: This test spins up many nodes that go through the join
-          # protocol Since oe_verify_report can take quite a long time to
+          # TODO(oe_verify_report): This test spins up many nodes that go through the join
+          # protocol. Since oe_verify_report can take quite a long time to
           # execute (~2s) and trigger Raft elections, the election timeout
           # should stay high until https://github.com/microsoft/CCF/issues/480
           # is fixed

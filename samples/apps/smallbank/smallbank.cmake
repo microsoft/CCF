@@ -27,7 +27,7 @@ if(BUILD_TESTS)
     )
     set(SMALL_BANK_ITERATIONS 200000)
   endif()
-  # TODO: Fix signed HTTP RPCs with PBFT
+  # TODO(signing): Fix signed HTTP RPCs with PBFT
   if(NOT (PBFT AND HTTP))
     add_perf_test(
       NAME small_bank_client_test
