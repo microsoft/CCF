@@ -10,7 +10,7 @@ steps:
 - script: |
     mkdir build
     cd build
-    cmake -L -GNinja -DTARGET=sgx .. ${{ parameters.cmake_args }}
+    cmake -L -GNinja .. ${{ parameters.cmake_args }}
   env:
     TESTS_SUFFIX: ${{ parameters.suite_label_suffix }}
   displayName: CMake
