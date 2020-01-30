@@ -6,18 +6,7 @@ Trusting a New Node
 
 As opposed to an opening network in which nodes are trusted automatically, new nodes added to an open network must be trusted by a quorum of members before becoming part of the network.
 
-When an operator starts a new node with the ``join`` option (see :ref:`operators/start_network:Adding a New Node to the Network`), the joining node is assigned a unique node id and is recorded in state `PENDING`. Then, members can vote to accept the new node, using the unique assigned node id:
-
-.. code-block:: bash
-
-    $ memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert trust_node --node-id new_node_id
-    {"commit":13,"global_commit":12,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":2},"term":2}
-
-    $ memberclient --cert member2_cert --privk member2_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 2 --accept
-    {"commit":15,"global_commit":14,"id":0,"jsonrpc":"2.0","result":false,"term":2}
-
-    $ memberclient --cert member3_cert --privk member3_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 2 --accept
-    {"commit":17,"global_commit":16,"id":0,"jsonrpc":"2.0","result":true,"term":2}
+When an operator starts a new node with the ``join`` option (see :ref:`operators/start_network:Adding a New Node to the Network`), the joining node is assigned a unique node id and is recorded in state `PENDING`. Then, members can vote to accept the new node, using the unique assigned node id (see :ref:`members/proposals:Proposing and Voting for a Proposal` for more detail).
 
 Once the proposal successfully completes, the new node automatically becomes part of the network.
 
@@ -28,11 +17,7 @@ Updating Code Version
 
 For new nodes to be able to join the network, the version of the code they run (as specified by the ``--enclave-file``) should be first trusted by the consortium of members.
 
-If the version of the code being executed needs to be updated (for example, to support additional endpoints), members can create a ``new_code`` proposal, specifying the new code version (e.g. ``3175971c02d00c1a8f9dd23ca89e64955c5caa94e24f4a3a0579dcfb2e6aebf9``):
-
-.. code-block:: bash
-
-    $ memberclient --cert member_cert --privk member_privk --rpc-address node_ip:node_port --ca network_cert add_code --new-code-id code_version
+If the version of the code being executed needs to be updated (for example, to support additional endpoints), members can create a ``new_code`` proposal, specifying the new code version.
 
 .. note:: For a given :term:`Open Enclave` enclave library, the version of the code (``mrenclave``) can be found by running the ``oesign`` utility:
 
@@ -68,13 +53,26 @@ The first member proposes to recover the network, passing the sealed network sec
 
 .. code-block:: bash
 
-    $ memberclient --rpc-address node2_rpc_ip:node2_rpc_port --cert member1_cert.pem --privk member1_privk.pem --ca /path/to/new/network/certificate accept_recovery --sealed-secrets /path/to/sealed/secrets/file
+    $ cat accept_recovery.json
+    {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "members/propose",
+        "params": {
+            "parameter": [<sealed secrets>],
+            "script": {
+                "text": "tables, sealed_secrets = ...; return Calls:call(\"accept_recovery\", sealed_secrets)"
+            }
+        }
+    }
+
+    $ curl https://<ccf-node-address>/members/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @accept_recovery.json
     {"commit":100,"global_commit":99,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
 
-    $ memberclient --rpc-address node2_rpc_ip:node2_rpc_port --cert member2_cert.pem --privk member2_privk.pem --ca /path/to/new/network/certificate vote --accept --proposal-id 1
+    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json
     {"commit":102,"global_commit":101,"id":0,"jsonrpc":"2.0","result":false,"term":2}
 
-    $ memberclient --rpc-address node2_rpc_ip:node2_rpc_port --cert member3_cert.pem --privk member3_privk.pem --ca /path/to/new/network/certificate vote --accept --proposal-id 1
+    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json
     {"commit":104,"global_commit":103,"id":0,"jsonrpc":"2.0","result":true,"term":2}
 
 Once a :term:`quorum` of members have agreed to recover the network, the network secrets are unsealed and each node begins recovery of the private ledger entries.
@@ -103,10 +101,10 @@ Once a :term:`quorum` of members have agreed to recover the network, the network
         Note over Node 3: Part of Network
 
         loop Business transactions
-            Users->>+Node 2: JSON-RPC Request
-            Node 2-->>Users: JSON-RPC Response
-            Users->>+Node 3: JSON-RPC Request
-            Node 3-->>Users: JSON-RPC Response
+            Users->>+Node 2: Request
+            Node 2-->>Users: Response
+            Users->>+Node 3: Request
+            Node 3-->>Users: Response
         end
 
 Once the recovery of the private ledger on all the nodes that have joined the new network is complete, the ledger is fully recovered and users are able to continue issuing business transactions.
@@ -118,13 +116,26 @@ To limit the scope of key compromise, members of the consortium can refresh the 
 
 .. code-block:: bash
 
-    $ memberclient --rpc-address node2_rpc_ip:node2_rpc_port --cert member1_cert.pem --privk member1_privk.pem --ca /path/to/new/network/certificate rekey_ledger
+    $ cat rekey_ledger.json
+    {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "members/propose",
+        "params": {
+            "parameter": [<sealed secrets>],
+            "script": {
+                "text": "return Calls:call(\"rekey_ledger\")"
+            }
+        }
+    }
+
+    $ curl https://<ccf-node-address>/members/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @rekey_ledger.json
     {"commit":100,"global_commit":99,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
 
-    $ memberclient --rpc-address node2_rpc_ip:node2_rpc_port --cert member2_cert.pem --privk member2_privk.pem --ca /path/to/new/network/certificate vote --accept --proposal-id 1
+    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json
     {"commit":102,"global_commit":101,"id":0,"jsonrpc":"2.0","result":false,"term":2}
 
-    $ memberclient --rpc-address node2_rpc_ip:node2_rpc_port --cert member3_cert.pem --privk member3_privk.pem --ca /path/to/new/network/certificate vote --accept --proposal-id 1
+    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json
     {"commit":104,"global_commit":103,"id":0,"jsonrpc":"2.0","result":true,"term":2}
 
 Once the proposal is accepted (``"result":true``), all subsequent transactions (in this case, with a ``commit`` index greater than ``104``) will be encrypted with a fresh new ledger encryption key. This key is sealed to disk once the rekey transaction is globally committed.
