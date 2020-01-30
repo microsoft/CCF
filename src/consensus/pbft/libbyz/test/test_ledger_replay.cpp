@@ -252,7 +252,11 @@ TEST_CASE("Test Ledger Replay")
           store->deserialise_views(entry, false, false, nullptr, &tx) ==
           kv::DeserialiseSuccess::PASS);
         pbft::GlobalState::get_replica().playback_transaction(tx);
-        REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+        if (!(iterations % 2))
+        {
+          // pre-prepares are committed in playback_pre_prepare
+          REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+        }
       }
       ccf::Store::Tx tx;
       if (iterations % 2)
