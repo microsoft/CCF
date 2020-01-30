@@ -14,7 +14,7 @@ namespace ccf
 namespace consensus
 {
 #pragma pack(push, 1)
-  template <typename T>
+  template <typename T = ccf::Node2NodeMsg>
   struct ConsensusHeader
   {
     T msg;

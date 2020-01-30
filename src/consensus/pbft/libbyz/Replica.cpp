@@ -465,7 +465,7 @@ void Replica::playback_pre_prepare(
   }
   else
   {
-    throw std::logic_error("Entries don't match playback");
+    PBFT_ASSERT(false, "Merkle roots don't match in playback pre-prepare");
   }
 }
 
@@ -949,7 +949,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       // https://github.com/microsoft/CCF/issues/357
       if (!compare_execution_results(info, pp))
       {
-        throw std::logic_error("Execution results don't match send pp");
+        PBFT_ASSERT(false, "Merkle roots don't match in send_prepare");
         break;
       }
 
@@ -2279,8 +2279,8 @@ void Replica::execute_committed(bool was_f_0)
           auto executed_ok = execute_tentative(pp, info);
           if (!compare_execution_results(info, pp))
           {
-            throw std::logic_error(
-              "Execution results don't match handle commit");
+            PBFT_ASSERT(false, "Merkle roots don't match execute committed");
+            return;
           }
           ledger_writer->write_pre_prepare(pp);
           PBFT_ASSERT(

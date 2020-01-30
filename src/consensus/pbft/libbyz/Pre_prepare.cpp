@@ -291,8 +291,7 @@ bool Pre_prepare::pre_verify()
         pbft::GlobalState::get_node().get_principal(sender);
       if (!sender_principal)
       {
-        LOG_TRACE_FMT(
-          "Sender principal has not been configured yet {}", sender);
+        LOG_INFO_FMT("Sender principal has not been configured yet {}", sender);
         return false;
       }
 

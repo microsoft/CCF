@@ -29,6 +29,9 @@ namespace pbft
 {
   // maps node to last sent index to that node
   using NodesMap = std::unordered_map<NodeId, Index>;
+  // TODO remove hard coded value (https://github.com/microsoft/CCF/issues/753)
+  static constexpr Index entries_batch_size = 10;
+
   class PbftEnclaveNetwork : public INetwork
   {
   public:
@@ -108,8 +111,6 @@ namespace pbft
 
     void send_append_entries(NodeId to, Index start_idx)
     {
-      Index entries_batch_size = 10;
-
       Index end_idx = (latest_stable_ae_index == 0) ?
         0 :
         std::min(start_idx + entries_batch_size, latest_stable_ae_index);

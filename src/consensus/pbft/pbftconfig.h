@@ -75,12 +75,12 @@ namespace pbft
       // TODO: Should serialise context directly, rather than reconstructing
       const enclave::SessionContext session(
         enclave::InvalidSessionId, request.caller_id, request.caller_cert);
-      auto ctx = enclave::make_rpc_context(session, request.raw);
+      auto ctx = enclave::make_rpc_context(
+        session, request.raw, {req_start, req_start + req_size});
       ctx->actor = (ccf::ActorsType)request.actor;
       const auto n = ctx->method.find_last_of('/');
       ctx->method = ctx->method.substr(n + 1, ctx->method.size());
 
-      ctx->pbft_raw = {req_start, req_start + req_size};
       // TODO: HTTP signatures are not handled by PBFT
       // https://github.com/microsoft/CCF/issues/720
 #ifdef HTTP
