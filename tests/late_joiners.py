@@ -15,6 +15,7 @@ import infra.e2e_args
 from threading import Timer
 import random
 import contextlib
+import requests
 
 from loguru import logger as LOG
 
@@ -101,7 +102,7 @@ def run_requests(nodes, total_requests, start_id, final_msg, final_msg_id):
                 c = clients[node_id % len(clients)]
                 try:
                     c.rpc("LOG_record", {"id": id, "msg": long_msg})
-                except TimeoutError:
+                except (TimeoutError, requests.exceptions.ReadTimeout,) as e:
                     LOG.info("Trying to access a suspended node")
                 id += 1
         wait_for_nodes(nodes, final_msg, final_msg_id)
