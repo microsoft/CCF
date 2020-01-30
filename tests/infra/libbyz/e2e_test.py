@@ -7,8 +7,6 @@ import time
 import math
 import json
 import create_config
-import sys
-import traceback
 from node import LocalNode
 from subprocess import PIPE, Popen, run
 import netifaces
@@ -132,7 +130,9 @@ def replica_checks(
 
     try:
         for node in replicas:
-            logger.info(f"Checking results on replica - id: {node.id} port: {node.port}")
+            logger.info(
+                f"Checking results on replica - id: {node.id} port: {node.port}"
+            )
             replica_ready = False
             syscall_stats = False
             operations_complete = False
@@ -196,12 +196,7 @@ def replica_checks(
             assert process_view_change
 
     except AssertionError:
-        _, _, tb = sys.exc_info()
-        traceback.print_tb(tb)
-        tb_info = traceback.extract_tb(tb)
-        filename, line, func, text = tb_info[-1]
-        logger.error('Assertion failed \"{}\"'.format(text))
-
+        logger.exception("Assertion failed")
         [[logger.info(l) for l in lines] for lines in node_logs]
 
     err_file = f"err{node.port}.txt"
