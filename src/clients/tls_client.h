@@ -60,52 +60,57 @@ public:
     mbedtls_entropy_init(&entropy);
     mbedtls_ctr_drbg_init(&ctr_drbg);
 
-    auto err = mbedtls_ctr_drbg_seed(
-      &ctr_drbg, mbedtls_entropy_func, &entropy, nullptr, 0);
-    if (err)
-      throw std::logic_error(tls::error_string(err));
-
-    err = mbedtls_net_connect(
-      &server_fd, host.c_str(), port.c_str(), MBEDTLS_NET_PROTO_TCP);
-    if (err)
-      throw std::logic_error(tls::error_string(err));
-
-    err = mbedtls_ssl_config_defaults(
-      &conf,
-      MBEDTLS_SSL_IS_CLIENT,
-      MBEDTLS_SSL_TRANSPORT_STREAM,
-      MBEDTLS_SSL_PRESET_DEFAULT);
-    if (err)
-      throw std::logic_error(tls::error_string(err));
-
-    if (cert != nullptr)
-      cert->use(&ssl, &conf);
-    if (node_ca != nullptr)
-      node_ca->use(&conf);
-
-    mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
-
-    mbedtls_ssl_conf_authmode(&conf, MBEDTLS_SSL_VERIFY_REQUIRED);
-
-    err = mbedtls_ssl_setup(&ssl, &conf);
-    if (err)
-      throw std::logic_error(tls::error_string(err));
-
-    if (err)
-      throw std::logic_error(tls::error_string(err));
-
-    mbedtls_ssl_set_bio(
-      &ssl, &server_fd, mbedtls_net_send, mbedtls_net_recv, nullptr);
-
-    while (true)
+    try
     {
-      err = mbedtls_ssl_handshake(&ssl);
-      if (err == 0)
-        break;
-      if (
-        (err != MBEDTLS_ERR_SSL_WANT_READ) &&
-        (err != MBEDTLS_ERR_SSL_WANT_WRITE))
+      auto err = mbedtls_ctr_drbg_seed(
+        &ctr_drbg, mbedtls_entropy_func, &entropy, nullptr, 0);
+      if (err)
         throw std::logic_error(tls::error_string(err));
+
+      err = mbedtls_net_connect(
+        &server_fd, host.c_str(), port.c_str(), MBEDTLS_NET_PROTO_TCP);
+      if (err)
+        throw std::logic_error(tls::error_string(err));
+
+      err = mbedtls_ssl_config_defaults(
+        &conf,
+        MBEDTLS_SSL_IS_CLIENT,
+        MBEDTLS_SSL_TRANSPORT_STREAM,
+        MBEDTLS_SSL_PRESET_DEFAULT);
+      if (err)
+        throw std::logic_error(tls::error_string(err));
+
+      if (cert != nullptr)
+        cert->use(&ssl, &conf);
+      if (node_ca != nullptr)
+        node_ca->use(&conf);
+
+      mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
+
+      mbedtls_ssl_conf_authmode(&conf, MBEDTLS_SSL_VERIFY_REQUIRED);
+
+      err = mbedtls_ssl_setup(&ssl, &conf);
+      if (err)
+        throw std::logic_error(tls::error_string(err));
+
+      mbedtls_ssl_set_bio(
+        &ssl, &server_fd, mbedtls_net_send, mbedtls_net_recv, nullptr);
+
+      while (true)
+      {
+        err = mbedtls_ssl_handshake(&ssl);
+        if (err == 0)
+          break;
+        if (
+          (err != MBEDTLS_ERR_SSL_WANT_READ) &&
+          (err != MBEDTLS_ERR_SSL_WANT_WRITE))
+          throw std::logic_error(tls::error_string(err));
+      }
+    }
+    catch (const std::logic_error& e)
+    {
+      disconnect();
+      throw;
     }
   }
 
