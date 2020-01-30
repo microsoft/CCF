@@ -12,18 +12,58 @@ Then, the certificates of trusted users should be registered in CCF via the memb
 
 .. code-block:: bash
 
-    $ memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert add_user --user-cert user_cert
-    {"commit":4,"global_commit":3,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":0},"term":2}
+    $ cat add_user.json
+    {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "members/propose",
+        "params": {
+            "parameter": [<cert of proposed new user>],
+            "script": {
+                "text": "tables, user_cert = ...; return Calls:call(\"new_user\", user_cert)"
+            }
+        }
+    }
 
-Other members are then allowed to vote for the proposal, using the proposal id returned to the proposer member (here ``0``, as per ``"result":{"completed":false,"id":0}``).
+    $ curl rpc_ip:rpc_port --cacert network_cert --key member0_privk --cert member0_cert --data-binary @add_user.json
+
+    {"commit":21,"global_commit":20,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":5},"term":2}
+
+Other members are then allowed to vote for the proposal, using the proposal id returned to the proposer member (here ``5``, as per ``"result":{"completed":false,"id":5}``). They may submit an unconditional approval, or their vote may query the current state and proposal. These votes `must` be signed.
 
 .. code-block:: bash
 
-    $ memberclient --cert member2_cert --privk member2_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 0 --accept
-    {"commit":6,"global_commit":4,"id":0,"jsonrpc":"2.0","result":false,"term":2}
+    $ cat vote_accept.json
+    {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "members/vote",
+        "params": {
+            "ballot": {
+                "text": "return true"
+            },
+            "id": 5
+        }
+    }
 
-    $ memberclient --cert member3_cert --privk member3_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 0 --accept
-    {"commit":7,"global_commit":4,"id":0,"jsonrpc":"2.0","result":true,"term":2}
+    $ ./scurl.sh rpc_ip:rpc_port --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json
+    {"commit":29,"global_commit":28,"id":0,"jsonrpc":"2.0","result":false,"term":2}
+
+    $ cat vote_conditional.json
+    {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "members/vote",
+        "params": {
+            "ballot": {
+                "text": "tables, calls = ...; return (#calls == 1 and calls[1].func == \"new_user\")"
+            },
+            "id": 5
+        }
+    }
+
+    $ ./scurl.sh rpc_ip:rpc_port --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json
+    {"commit":31,"global_commit":30,"id":0,"jsonrpc":"2.0","result":true,"term":2}
 
 The user is successfully added once a :term:`quorum` of members have accepted the proposal (``"result":true"``).
 
