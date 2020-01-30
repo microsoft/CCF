@@ -19,20 +19,20 @@ The :term:`Open Enclave` configuration file (``oe_sign.conf``) should be placed 
 Standalone Signing
 ------------------
 
-It is also possible to sign an existing enclave application (e.g. ``libluagenericenc.so``) manually, using a personal signing key (specified by ``--key-file``):
+It is also possible to sign an existing enclave application (e.g. ``libluageneric.enclave.so``) manually, using a personal signing key (specified by ``--key-file``):
 
 .. code-block:: bash
 
-    $ /opt/openenclave/bin/oesign sign --enclave-image libluagenericenc.so  --config-file CCF/src/apps/luageneric/oe_sign.conf --key-file CCF/src/apps/sample_key.pem
-    Created libluagenericenc.so.signed
+    $ /opt/openenclave/bin/oesign sign --enclave-image libluageneric.enclave.so  --config-file CCF/src/apps/luageneric/oe_sign.conf --key-file CCF/src/apps/sample_key.pem
+    Created libluageneric.enclave.so.signed
     $ ls *.so.signed
-    libluagenericenc.so.signed
+    libluageneric.enclave.so.signed
 
 It is then possible to inspect the signed enclave library:
 
 .. code-block:: bash
 
-    $ /opt/openenclave/bin/oesign dump --enclave-image libluagenericenc.so.signed
+    $ /opt/openenclave/bin/oesign dump --enclave-image libluageneric.enclave.so.signed
     === Entry point:
     name=_start
     address=00000000008dee48
@@ -59,6 +59,6 @@ Running the Application
 
 .. code-block:: bash
 
-    $ cchost --enclave-file libluagenericenc.signed.so [args]
+    $ cchost --enclave-file libluageneric.signed.so [args]
 
 .. note:: When deploying the ``luageneric`` application, members should also :ref:`register the Lua application <members/open_network:Registering the Lua Application>` before the network is opened to users.

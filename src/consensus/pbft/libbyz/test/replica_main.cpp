@@ -154,6 +154,8 @@ int main(int argc, char** argv)
     logger::Init(std::to_string(port).c_str());
   }
 
+  Log_allocator::should_use_malloc(true);
+
   GeneralInfo general_info = files::slurp_json(config_file);
   // as to not add double escapes on newline when slurping from file
   PrivateKey privk_j = files::slurp_json(privk_file);

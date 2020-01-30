@@ -36,10 +36,10 @@ void Rep_info::count_request()
 char* Rep_info::new_reply(
   int pid, Request_id rid, Seqno n, uint32_t message_size)
 {
+  message_size += sizeof(Reply_rep) + MAC_size;
   auto r = std::make_unique<Reply>(0, rid, n, 0, message_size);
   // TODO: fix to deal more gracefully with running out of memory
   PBFT_ASSERT(r != nullptr, "Out of memory");
-
   r->set_size(message_size);
   r->trim();
   char* ret = r->contents() + sizeof(Reply_rep);

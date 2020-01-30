@@ -4,7 +4,7 @@ import infra.ccf
 import infra.notification
 import suite.test_requirements as reqs
 import infra.logging_app as app
-import e2e_args
+import infra.e2e_args
 
 from loguru import logger as LOG
 
@@ -71,7 +71,7 @@ def test_forwarding_frontends(network, args):
 @reqs.description("Uninstalling Lua application")
 @reqs.lua_generic_app
 def test_update_lua(network, args):
-    if args.package == "libluagenericenc":
+    if args.package == "libluageneric":
         LOG.info("Updating Lua application")
         primary, term = network.find_primary()
 
@@ -123,7 +123,7 @@ def run(args):
         # https://github.com/microsoft/CCF/issues/415
         notifications_queue = (
             notifications.get_queue()
-            if (args.package == "libloggingenc" and args.consensus == "raft")
+            if (args.package == "liblogging" and args.consensus == "raft")
             else None
         )
 
@@ -135,7 +135,7 @@ def run(args):
                 network,
                 args,
                 notifications_queue,
-                verify=args.package is not "libjsgenericenc",
+                verify=args.package is not "libjsgeneric",
             )
             network = test_large_messages(network, args)
             network = test_forwarding_frontends(network, args)
@@ -144,13 +144,13 @@ def run(args):
 
 if __name__ == "__main__":
 
-    args = e2e_args.cli_args()
+    args = infra.e2e_args.cli_args()
     if args.js_app_script:
-        args.package = "libjsgenericenc"
+        args.package = "libjsgeneric"
     elif args.app_script:
-        args.package = "libluagenericenc"
+        args.package = "libluageneric"
     else:
-        args.package = "libloggingenc"
+        args.package = "liblogging"
 
     notify_server_host = "localhost"
     args.notify_server = (

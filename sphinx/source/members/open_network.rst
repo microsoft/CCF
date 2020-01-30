@@ -39,7 +39,7 @@ For each user CCF also stores arbitrary user-data in a JSON object, which can on
 Registering the Lua Application
 -------------------------------
 
-.. note:: This section only applies when deploying Lua applications (i.e. using the ``libluagenericenc.so.signed`` enclave library). For C++ applications, this step should be skipped.
+.. note:: This section only applies when deploying Lua applications (i.e. using the ``libluageneric.enclave.so.signed`` enclave library). For C++ applications, this step should be skipped.
 
 
 

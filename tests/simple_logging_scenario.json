@@ -3,7 +3,7 @@
     "localhost",
     "localhost"
   ],
-  "package": "libloggingenc",
+  "package": "liblogging",
   "connections": [
     {
       "transactions": [

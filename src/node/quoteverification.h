@@ -8,6 +8,8 @@
 #  include "entities.h"
 #  include "networktables.h"
 
+#  include <openenclave/bits/report.h>
+#  include <openenclave/bits/result.h>
 #  include <vector>
 
 namespace ccf
