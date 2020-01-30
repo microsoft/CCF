@@ -20,6 +20,9 @@ from loguru import logger as LOG
 
 # 256 is the number of most recent messages that PBFT keeps in memory before needing to replay the ledger
 TOTAL_REQUESTS = 56
+s = random.randint(1, 10)
+LOG.info(f"setting seed to {s}")
+random.seed(s)
 
 
 def timeout(node, suspend, election_timeout):
