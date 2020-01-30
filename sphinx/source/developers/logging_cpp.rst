@@ -41,7 +41,7 @@ The Logging application simply has:
 RPC Handler
 -----------
 
-The handler returned by :cpp:func:`ccfapp::getRpcHandler()` should subclass :cpp:class:`ccf::UserRpcFrontend`, providing an implementation of :cpp::func:`ccf::HandlerRegistry`:
+The handler returned by :cpp:func:`ccfapp::get_rpc_handler()` should subclass :cpp:class:`ccf::UserRpcFrontend`, providing an implementation of :cpp:class:`ccf::HandlerRegistry`:
 
 .. literalinclude:: ../../../src/apps/logging/logging.cpp
     :language: cpp
@@ -49,7 +49,7 @@ The handler returned by :cpp:func:`ccfapp::getRpcHandler()` should subclass :cpp
     :lines: 1
     :dedent: 2
 
-The logging app defines :cpp::class:`ccfapp::LoggerHandlers`, which creates and installs handler functions or lambdas for each transaction type. These take a transaction object and the request's ``params``, interact with the KV tables, and return a result:
+The logging app defines :cpp:class:`ccfapp::LoggerHandlers`, which creates and installs handler functions or lambdas for each transaction type. These take a transaction object and the request's ``params``, interact with the KV tables, and return a result:
 
 .. literalinclude:: ../../../src/apps/logging/logging.cpp
     :language: cpp

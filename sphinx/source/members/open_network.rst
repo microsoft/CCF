@@ -133,4 +133,4 @@ Once users are added to the opening network, members should decide to make a pro
 
 Other members are then able to vote for the proposal using the returned proposal id (here ``2``, as per ``"result":{"completed":false,"id":2}``).
 
-Once a quorum of members have approved the network opening (``"result":true``), the network is opened to users (see :ref:`developers/example:Example Application` for a simple business logic and :term:`JSON-RPC` transactions). It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).
+Once a quorum of members have approved the network opening (``"result":true``), the network is opened to users (see :ref:`developers/example:Example Application` for a simple business logic and transactions). It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).
