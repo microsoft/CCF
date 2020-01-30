@@ -28,8 +28,11 @@
 #  include "consensus/pbft/pbft.h"
 #endif
 
+#ifndef VIRTUAL_ENCLAVE
+#  include <ccf_t.h>
+#endif
+
 #include <atomic>
-#include <ccf_t.h>
 #include <chrono>
 #include <fmt/format_header_only.h>
 #include <nlohmann/json.hpp>

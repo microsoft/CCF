@@ -60,7 +60,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p",
         "--package",
-        help="The enclave package to patch (e.g., libloggingenc.so)",
+        help="The enclave package to patch (e.g., liblogging.enclave.so)",
         required=True,
     )
     parser.add_argument(

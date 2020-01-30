@@ -406,6 +406,10 @@ void Replica::playback_request(const pbft::Request& request, ccf::Store::Tx& tx)
 
   waiting_for_playback_pp = true;
   Byz_buffer non_det;
+  // we don't know how many requests are in the batch we are currently playing
+  // back
+  playback_byz_info.include_merkle_roots = true;
+
   execute_tentative_request(
     *req,
     playback_byz_info,
@@ -2204,6 +2208,7 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
     while (iter.get(request))
     {
       Byz_buffer non_det;
+      info.include_merkle_roots = !iter.has_more_requests();
       execute_tentative_request(
         request,
         info,

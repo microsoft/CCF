@@ -82,7 +82,7 @@ def installed_package(p):
 
 
 def lua_generic_app(func):
-    return installed_package("libluagenericenc")(func)
+    return installed_package("libluageneric")(func)
 
 
 # Runs some transactions before recovering the network and guarantees that all
@@ -92,10 +92,10 @@ def recover(number_txs=5):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             network = args[0]
-            e2e_args = vars(args[1])
+            infra.e2e_args = vars(args[1])
             network.txs.issue(
                 network=network,
-                number_txs=e2e_args.get("msgs_per_recovery") or number_txs,
+                number_txs=infra.e2e_args.get("msgs_per_recovery") or number_txs,
             )
             new_network = func(*args, **kwargs)
             new_network.txs.verify(network=new_network)

@@ -10,10 +10,11 @@ import shutil
 import subprocess
 from random import seed
 import infra.ccf
+import infra.path
 import infra.proc
 import infra.notification
 import infra.net
-import e2e_args
+import infra.e2e_args
 
 from loguru import logger as LOG
 
@@ -38,7 +39,7 @@ def run(args):
             mrenclave = primary_quote["mrenclave"]
 
             oed = subprocess.run(
-                [args.oesign, "dump", "-e", f"{args.package}.so.signed"],
+                [args.oesign, "dump", "-e", infra.path.build_lib_path(args.package)],
                 capture_output=True,
                 check=True,
             )
@@ -58,11 +59,11 @@ if __name__ == "__main__":
             "--oesign", help="Path oesign binary", type=str, required=True
         )
 
-    args = e2e_args.cli_args(add=add)
+    args = infra.e2e_args.cli_args(add=add)
 
     if args.enclave_type != "debug":
         LOG.error("This test can only run in real enclaves, skipping")
         sys.exit(0)
 
-    args.package = "libloggingenc"
+    args.package = "liblogging"
     run(args)

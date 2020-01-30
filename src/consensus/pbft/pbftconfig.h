@@ -90,11 +90,12 @@ namespace pbft
       enclave::RpcHandler::ProcessPbftResp rep;
       if (playback && tx)
       {
-        rep = frontend->process_pbft(ctx, *tx, playback);
+        rep =
+          frontend->process_pbft(ctx, *tx, playback, info.include_merkle_roots);
       }
       else
       {
-        rep = frontend->process_pbft(ctx);
+        rep = frontend->process_pbft(ctx, info.include_merkle_roots);
       }
 
       static_assert(
@@ -102,14 +103,17 @@ namespace pbft
       static_assert(
         sizeof(info.replicated_state_merkle_root) ==
         sizeof(crypto::Sha256Hash));
-      std::copy(
-        std::begin(rep.full_state_merkle_root.h),
-        std::end(rep.full_state_merkle_root.h),
-        std::begin(info.full_state_merkle_root));
-      std::copy(
-        std::begin(rep.replicated_state_merkle_root.h),
-        std::end(rep.replicated_state_merkle_root.h),
-        std::begin(info.replicated_state_merkle_root));
+      if (info.include_merkle_roots)
+      {
+        std::copy(
+          std::begin(rep.full_state_merkle_root.h),
+          std::end(rep.full_state_merkle_root.h),
+          std::begin(info.full_state_merkle_root));
+        std::copy(
+          std::begin(rep.replicated_state_merkle_root.h),
+          std::end(rep.replicated_state_merkle_root.h),
+          std::begin(info.replicated_state_merkle_root));
+      }
       info.ctx = rep.version;
 
       outb.contents = message_receive_base->create_response_message(

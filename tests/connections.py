@@ -4,7 +4,7 @@ import sys
 import os
 import infra.proc
 
-import e2e_args
+import infra.e2e_args
 import getpass
 import os
 import time
@@ -94,9 +94,9 @@ if __name__ == "__main__":
         parser.add_argument(
             "-p",
             "--package",
-            help="The enclave package to load (e.g., libloggingenc)",
-            default="libloggingenc",
+            help="The enclave package to load (e.g., liblogging)",
+            default="liblogging",
         )
 
-    args = e2e_args.cli_args(add)
+    args = infra.e2e_args.cli_args(add)
     run(args)

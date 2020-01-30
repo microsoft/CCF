@@ -57,19 +57,23 @@ set(PBFT_SRC
 
 if("sgx" IN_LIST TARGET)
   add_library(libbyz.enclave STATIC ${PBFT_SRC})
-  target_compile_options(libbyz.enclave PRIVATE
-    -nostdinc
-    -U__linux__)
-  target_compile_definitions(libbyz.enclave PRIVATE INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD __USE_SYSTEM_ENDIAN_H__ )
+  target_compile_options(libbyz.enclave PRIVATE -nostdinc)
+  target_compile_definitions(
+    libbyz.enclave PRIVATE INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
+                           __USE_SYSTEM_ENDIAN_H__
+  )
   set_property(TARGET libbyz.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
-  target_include_directories(libbyz.enclave PRIVATE
-    ${CCF_DIR}/src/ds
-    openenclave::oelibc
-    ${PARSED_ARGS_INCLUDE_DIRS}
-    ${EVERCRYPT_INC}
+  target_include_directories(
+    libbyz.enclave PRIVATE ${CCF_DIR}/src/ds openenclave::oelibc
+                           ${PARSED_ARGS_INCLUDE_DIRS} ${EVERCRYPT_INC}
   )
   use_oe_mbedtls(libbyz.enclave)
   add_dependencies(libbyz.enclave flatbuffers)
+  install(
+    TARGETS libbyz.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
 endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -89,8 +93,14 @@ if("virtual" IN_LIST TARGET)
   target_link_libraries(libbyz.host PRIVATE secp256k1.host)
   use_client_mbedtls(libbyz.host)
   add_dependencies(libbyz.host flatbuffers)
+  install(
+    TARGETS libbyz.host
+    EXPORT ccf
+    DESTINATION lib
+  )
 
-  add_library(libcommontest STATIC
+  add_library(
+    libcommontest STATIC
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/network_udp.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/network_udp_mt.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/ITimer.cpp
@@ -100,19 +110,20 @@ if("virtual" IN_LIST TARGET)
   target_compile_options(libcommontest PRIVATE -stdlib=libc++)
   add_dependencies(libcommontest flatbuffers)
 
-  target_include_directories(libcommontest PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz
-    ${CMAKE_SOURCE_DIR}/3rdparty
-    ${EVERCRYPT_INC}
+  target_include_directories(
+    libcommontest PRIVATE ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz
+                          ${CMAKE_SOURCE_DIR}/3rdparty ${EVERCRYPT_INC}
   )
   target_compile_options(libcommontest PRIVATE -stdlib=libc++)
 
-  add_library(libcommontest.mock STATIC
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/mocks/network_mock.cpp)
-  target_include_directories(libcommontest.mock PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test
-    ${EVERCRYPT_INC}
+  add_library(
+    libcommontest.mock STATIC
+    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/mocks/network_mock.cpp
+  )
+  target_include_directories(
+    libcommontest.mock
+    PRIVATE ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz
+            ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test ${EVERCRYPT_INC}
   )
 
   add_dependencies(libcommontest.mock flatbuffers)
@@ -120,81 +131,99 @@ if("virtual" IN_LIST TARGET)
 
   function(use_libbyz name)
 
-    target_include_directories(${name} PRIVATE
-      ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test
-      ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz
-      ${CMAKE_SOURCE_DIR}/src/pbft/crypto
-      ${EVERCRYPT_INC}
+    target_include_directories(
+      ${name}
+      PRIVATE ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test
+              ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz
+              ${CMAKE_SOURCE_DIR}/src/pbft/crypto ${EVERCRYPT_INC}
     )
-    target_link_libraries(${name} PRIVATE libbyz.host libcommontest evercrypt.host ${PLATFORM_SPECIFIC_TEST_LIBS})
+    target_link_libraries(
+      ${name} PRIVATE libbyz.host libcommontest evercrypt.host
+                      ${PLATFORM_SPECIFIC_TEST_LIBS}
+    )
 
   endfunction()
 
   enable_testing()
 
   function(pbft_add_executable name)
-    target_link_libraries(${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host)
+    target_link_libraries(
+      ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
+    )
     use_libbyz(${name})
     add_san(${name})
 
     target_compile_options(${name} PRIVATE -stdlib=libc++)
-    target_link_libraries(${name} PRIVATE
-        -stdlib=libc++
-        -lc++
-        -lc++abi
-        secp256k1.host)
+    target_link_libraries(
+      ${name} PRIVATE -stdlib=libc++ -lc++ -lc++abi secp256k1.host
+    )
 
   endfunction()
 
-  add_executable(simple-server
+  add_executable(
+    simple-server
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/replica_main.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp
   )
   pbft_add_executable(simple-server)
 
-  add_executable(replica-test
+  add_executable(
+    replica-test
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/replica_test.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp
   )
   pbft_add_executable(replica-test)
 
-  add_executable(test-controller
-  ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/test_controller_main.cpp
-  ${CCF_DIR}/src/enclave/thread_local.cpp
+  add_executable(
+    test-controller
+    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/test_controller_main.cpp
+    ${CCF_DIR}/src/enclave/thread_local.cpp
   )
   pbft_add_executable(test-controller)
 
-  add_executable(client-test
-  ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/client_test.cpp
-  ${CCF_DIR}/src/enclave/thread_local.cpp
+  add_executable(
+    client-test
+    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/client_test.cpp
+    ${CCF_DIR}/src/enclave/thread_local.cpp
   )
   pbft_add_executable(client-test)
 
-  ## Unit tests
-  add_unit_test(test_ledger_replay
-      ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/test_ledger_replay.cpp)
-  target_include_directories(test_ledger_replay PRIVATE ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/mocks)
+  # Unit tests
+  add_unit_test(
+    test_ledger_replay
+    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/test_ledger_replay.cpp
+  )
+  target_include_directories(
+    test_ledger_replay
+    PRIVATE ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/mocks
+  )
   target_link_libraries(test_ledger_replay PRIVATE libcommontest.mock)
   use_libbyz(test_ledger_replay)
   add_san(test_ledger_replay)
 
-  ## end to end tests
+  # end to end tests
   add_test(
     NAME test_UDP
     COMMAND
-      python3 ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/e2e_test.py --ip 127.0.0.1 --servers 4 --clients 2 --test-config ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/test_config --run-time 30
+      python3 ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/e2e_test.py --ip 127.0.0.1
+      --servers 4 --clients 2 --test-config
+      ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/test_config --run-time 30
   )
 
   add_test(
     NAME test_client_proxy
     COMMAND
-      python3 ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/e2e_test.py --ip 127.0.0.1 --servers 4 --clients 0 --test-config ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/test_config --test-client-proxy
+      python3 ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/e2e_test.py --ip 127.0.0.1
+      --servers 4 --clients 0 --test-config
+      ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/test_config --test-client-proxy
       --run-time 30
   )
 
   add_test(
     NAME test_UDP_with_delay
     COMMAND
-      python3 ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/e2e_test.py --ip 127.0.0.1 --servers 4 --clients 2 --test-config ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/test_config --with-delays
+      python3 ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/e2e_test.py --ip 127.0.0.1
+      --servers 4 --clients 2 --test-config
+      ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/test_config --with-delays
   )
 endif()

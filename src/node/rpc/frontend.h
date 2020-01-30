@@ -334,16 +334,17 @@ namespace ccf
      * @param ctx Context for this RPC
      */
     ProcessPbftResp process_pbft(
-      std::shared_ptr<enclave::RpcContext> ctx) override
+      std::shared_ptr<enclave::RpcContext> ctx,
+      bool include_merkle_roots) override
     {
       Store::Tx tx;
-      return process_pbft(ctx, tx, false);
+      return process_pbft(ctx, tx, false, include_merkle_roots);
     }
 
     ProcessPbftResp process_pbft(
       std::shared_ptr<enclave::RpcContext> ctx,
       Store::Tx& tx,
-      bool playback) override
+      bool playback, bool include_merkle_roots) override
     {
       // TODO(#PBFT): Refactor this with process_forwarded().
       crypto::Sha256Hash full_state_merkle_root;
@@ -353,28 +354,6 @@ namespace ccf
       update_consensus();
 
       bool has_updated_merkle_roots = false;
-
-      auto cb = [&full_state_merkle_root,
-                 &replicated_state_merkle_root,
-                 &version,
-                 &has_updated_merkle_roots](
-                  kv::TxHistory::ResultCallbackArgs args) -> bool {
-        full_state_merkle_root = args.full_state_merkle_root;
-        replicated_state_merkle_root = args.replicated_state_merkle_root;
-        if (args.version != kv::NoVersion)
-        {
-          version = args.version;
-        }
-        has_updated_merkle_roots = true;
-        return true;
-      };
-
-      if (history == nullptr)
-      {
-        update_history();
-      }
-
-      history->register_on_result(cb);
 
       if (!playback)
       {
@@ -390,9 +369,8 @@ namespace ccf
 
       auto rep = process_command(ctx, tx, ctx->session.fwd->caller_id);
 
-      history->clear_on_result();
-
-      if (!has_updated_merkle_roots)
+      version = tx.get_version();
+      if (include_merkle_roots)
       {
         full_state_merkle_root = history->get_full_state_root();
         replicated_state_merkle_root = history->get_replicated_state_root();
