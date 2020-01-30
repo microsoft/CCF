@@ -2,7 +2,8 @@ trigger:
   batch: true
   branches:
     include:
-      - "master"
+      - master
+      - 'refs/tags/v*'
   paths:
     exclude:
       - 'README.md'
@@ -52,5 +53,13 @@ resources:
       image: ccfciteam/ccf-ci-18.04-oe-0.8.0-rc1:latest
       options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/ccache
 
+variables:
+  ${{ if startsWith(variables['Build.SourceBranch'], 'refs/tags/v') }}:
+    perf_or_release: release
+  ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/tags/v')) }}:
+    perf_or_release: perf
+
 jobs:
 - template: .azure-pipelines-templates/matrix.yml
+  parameters:
+    perf_or_release: ${{ variables['perf_or_release'] }}
