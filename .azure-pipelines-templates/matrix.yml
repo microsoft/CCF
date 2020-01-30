@@ -13,7 +13,11 @@ parameters:
     NoSGX_SAN:
       container: nosgx
       pool: Ubuntu-1804-D16s_v3
-    MetricsAndRelease:
+    Metrics:
+      container: nosgx
+      pool: Ubuntu-1804-D8s_v3
+      dependsOn: ['BuildAndTest_SGX_CFT_FTCP_Perf', 'BuildAndTest_SGX_BFT_FTCP_Perf', 'BuildAndTest_SGX_CFT_HTTP_Perf', 'BuildAndTest_SGX_BFT_HTTP_Perf']
+    Release:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
 
@@ -114,14 +118,21 @@ jobs:
           consensus: ${{ consensus }}
           protocol: ${{ protocol }}
           env: ${{ parameters.env.SGX }}
-          push_perf_data: true
+          # push_perf_data: true # TODO: Fix here
           cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build[parameters.perf_or_release][protocol].cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
           ctest_filter: '${{ parameters.test[parameters.perf_or_release][consensus].ctest_args }}'
-          suffix: ${{ parameters.perf_or_release }}
+          suffix: ${{ parameters.perf_or_release }} # TODO: Always call this Release
           depends_on: ${{ parameters.static_check_job_name }}
 
-  - template: metrics_release.yml
+
+  - template: metrics.yml
     parameters:
-      env: ${{ parameters.env.MetricsAndRelease }}
-      perf_or_release: ${{ parameters.perf_or_release }}
-      depends_on: ['BuildAndTest_SGX_CFT_FTCP_${{ parameters.perf_or_release }}', 'BuildAndTest_SGX_CFT_HTTP_${{ parameters.perf_or_release }}', 'BuildAndTest_SGX_BFT_FTCP_${{ parameters.perf_or_release }}', 'BuildAndTest_SGX_BFT_HTTP_${{ parameters.perf_or_release }}']
+      env: ${{ parameters.env.Metrics }}
+
+  - ${{ if eq(parameters.perf_or_release, 'release') }}:
+    - template: release.yml
+      paramters:
+        env: ${{ parameters.env.Release }}
+        depends_on:
+        # perf_or_release: ${{ parameters.perf_or_release }}
+
