@@ -21,7 +21,8 @@ namespace pbft
       throw std::logic_error(
         "Trying to initialize Replica but Client is already set.");
     }
-    if (replica != nullptr){
+    if (replica != nullptr)
+    {
       delete replica;
     }
     replica = r.release();
@@ -34,7 +35,8 @@ namespace pbft
       throw std::logic_error(
         "Trying to initialize Client but Replica is already set");
     }
-    if (client != nullptr) {
+    if (client != nullptr)
+    {
       delete client;
     }
     client = c.release();
