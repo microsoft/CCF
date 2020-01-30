@@ -26,7 +26,7 @@ To initiate the first phase of the recovery protocol, one or several nodes shoul
     --enclave-file /path/to/enclave_library
     --enclave-type debug
     --node-address node_ip:node_port
-    --rpc-address rpc_ip:rpc_port
+    --rpc-address <ccf-node-address>
     --public-rpc-address public_rpc_ip:public_rpc_port
     --ledger-file /path/to/ledger/to/recover
     --node-cert-file /path/to/node_certificate

@@ -25,7 +25,7 @@ Then, the certificates of trusted users should be registered in CCF via the memb
         }
     }
 
-    $ curl https://rpc_ip:rpc_port/members/propose --cacert network_cert --key member0_privk --cert member0_cert --data-binary @add_user.json
+    $ curl https://<ccf-node-address>/members/propose --cacert network_cert --key member0_privk --cert member0_cert --data-binary @add_user.json
     {"commit":21,"global_commit":20,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":0},"term":2}
 
 Other members are then allowed to vote for the proposal, using the proposal id returned to the proposer member (here ``5``, as per ``"result":{"completed":false,"id":5}``). They may submit an unconditional approval, or their vote may query the current state and proposal. These votes `must` be signed.
@@ -45,7 +45,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         }
     }
 
-    $ ./scurl.sh https://rpc_ip:rpc_port/members/vote --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json
+    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json
     {"commit":29,"global_commit":28,"id":0,"jsonrpc":"2.0","result":false,"term":2}
 
     $ cat vote_conditional.json
@@ -61,7 +61,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         }
     }
 
-    $ ./scurl.sh https://rpc_ip:rpc_port/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json
+    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json
     {"commit":31,"global_commit":30,"id":0,"jsonrpc":"2.0","result":true,"term":2}
 
 The user is successfully added once a :term:`quorum` of members have accepted the proposal (``"result":true"``).
@@ -77,7 +77,7 @@ The user can then make user RPCs, for example ``whoAmI`` to retrieve the unique 
         "method": "users/whoAmI"
     }
 
-    $ curl https://rpc_ip:rpc_port/users/whoAmI --cacert network_cert --key new_user_privk --cert new_user_cert --data-binary @whoAmI.json
+    $ curl https://<ccf-node-address>/users/whoAmI --cacert network_cert --key new_user_privk --cert new_user_cert --data-binary @whoAmI.json
     {"commit":34,"global_commit":34,"id":0,"jsonrpc":"2.0","result":{"caller_id":4},"term":2}
 
 For each user CCF also stores arbitrary user-data in a JSON object, which can only be written to by members, subject to the standard proposal-vote governance mechanism. This lets members define initial metadata for certain users; for example to grant specific privileges, associate a human-readable name, or categorise the users. This user-data can then be read (but not written) by user-facing apps.
@@ -102,7 +102,7 @@ Registering the Lua Application
         }
     }
 
-    $ curl https://rpc_ip:rpc_port/members/propose --cacert network_cert --key member0_privk --cert member0_cert --data-binary @set_lua_app.json
+    $ curl https://<ccf-node-address>/members/propose --cacert network_cert --key member0_privk --cert member0_cert --data-binary @set_lua_app.json
     {"commit":36,"global_commit":35,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
 
 Other members are then able to vote for the proposal using the returned proposal id (here ``1``, as per ``"result":{"completed":false,"id":1}``).
@@ -128,7 +128,7 @@ Once users are added to the opening network, members should decide to make a pro
         }
     }
 
-    $ curl https://rpc_ip:rpc_port/members/propose --cacert network_cert --key member0_privk --cert member0_cert --data-binary @open_network.json
+    $ curl https://<ccf-node-address>/members/propose --cacert network_cert --key member0_privk --cert member0_cert --data-binary @open_network.json
     {"commit":15,"global_commit":14,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":2},"term":2}
 
 Other members are then able to vote for the proposal using the returned proposal id (here ``2``, as per ``"result":{"completed":false,"id":2}``).
