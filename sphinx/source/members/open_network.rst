@@ -26,7 +26,6 @@ Then, the certificates of trusted users should be registered in CCF via the memb
     }
 
     $ curl https://rpc_ip:rpc_port/members/propose --cacert network_cert --key member0_privk --cert member0_cert --data-binary @add_user.json
-
     {"commit":21,"global_commit":20,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":0},"term":2}
 
 Other members are then allowed to vote for the proposal, using the proposal id returned to the proposer member (here ``5``, as per ``"result":{"completed":false,"id":5}``). They may submit an unconditional approval, or their vote may query the current state and proposal. These votes `must` be signed.

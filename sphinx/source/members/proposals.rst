@@ -12,48 +12,68 @@ For transparency and auditability, all governance operations (including votes) a
 Submitting a new proposal
 -------------------------
 
-Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using the ``memberclient`` command-line utility (see :ref:`members/member_rpc_api:Member RPC API` for equivalent JSON-RPC API).
+Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using ``members/propose`` and vote using ``members/vote``.
 
 For example, ``member1`` may submit a proposal to add a new member (``member4``) to the consortium:
 
 .. code-block:: bash
 
-    $ memberclient --rpc-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem add_member --member-cert member4_cert.pem
+    $ cat add_member.json
+    {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "members/propose",
+        "params": {
+            "parameter": [<cert of member4>],
+            "script": {
+                "text": "tables, member_cert = ...; return Calls:call(\"new_member\", member_cert)"
+            }
+        }
+    }
+
+    $ curl https://<ccf-node-address>/members/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @add_member.json
     {"commit":100,"global_commit":99,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
 
-In this case, a new proposal with id ``1`` has successfully been created and the proposer member has automatically accepted it. Other members can then accept or reject the proposal:
+In this case, a new proposal with id ``1`` has successfully been created and the proposer member has voted to accept it (they may instead pass a voting ballot with their proposal if they wish to vote conditionally, or later). Other members can then vote to accept or reject the proposal:
 
 .. code-block:: bash
 
     // Proposal 1 is already created by member 1 (votes: 1/3)
 
     // Member 2 rejects the proposal (votes: 1/3)
-    $ memberclient --rpc-address 127.83.203.69:55526 --cert member2_cert.pem --privk member2_privk.pem --ca networkcert.pem vote --reject --proposal-id 1
+    $ curl https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json
     {"commit":104,"global_commit":103,"id":0,"jsonrpc":"2.0","result":false,"term":2}
 
     // Member 3 accepts the proposal (votes: 2/3)
-    // As a majority of members have accepted the proposal, member4 is added to the consortium
-    $ memberclient --rpc-address 127.83.203.69:55526 --cert member3_cert.pem --privk member3_privk.pem --ca networkcert.pem vote --accept --proposal-id 1
+    $ curl https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json
     {"commit":106,"global_commit":105,"id":0,"jsonrpc":"2.0","result":true,"term":2}
+
+    // As a majority of members have accepted the proposal, member4 is added to the consortium
 
 As soon as ``member3`` accepts the proposal, a majority (2 out of 3) of members has been reached and the proposal completes, successfully adding ``member4``.
 
-.. note:: Once a new member has been accepted to the consortium, the new member must acknowledge that it is active:
+.. note:: Once a new member has been accepted to the consortium, the new member must acknowledge that it is active by sending a ``members/ack`` request, signing their current nonce.
 
-    .. code-block:: bash
-
-        $ memberclient --rpc-address 127.83.203.69:55526 --cert member4_cert.pem --privk member4_privk.pem --ca networkcert.pem ack
-        {"commit":108,"global_commit":107,"id":2,"jsonrpc":"2.0","result":true,"term":2}
-
+    .. todo:: Add sample of signing ack with standard tools, not memberclient
 
 Displaying proposals
 --------------------
 
-The details of pending proposals, including the proposer member id, proposal script, parameters and votes, can be displayed with the ``proposal_display`` sub command of the ``memberclient`` utility. For example:
+The details of pending proposals, including the proposer member id, proposal script, parameters, and votes, can be queried from the service by calling ``members/query`` and reading the ``ccf.proposals`` table. For example:
 
 .. code-block:: bash
 
-    $ memberclient --rpc-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem proposal_display
+    $ cat display_proposals.json
+    {
+      "jsonrpc": "2.0",
+      "id": 0,
+      "method": "members/query",
+      "params": {
+        "text": "tables = ...; local proposals = {}; tables[\"ccf.proposals\"]:foreach( function(k, v) proposals[tostring(k)] = v; end ) return proposals;"
+      }
+    }
+
+    $ curl https://<ccf-node-address>/members/query --cacert networkcert.pem --key member0_privk.pem --cert member0_cert.pem --data-binary @display_proposals.json
     {
       "1": {
         "parameter": [...],
@@ -87,7 +107,17 @@ At any stage during the voting process and before the proposal is completed, the
 
 .. code-block:: bash
 
-    $ memberclient --rpc-address 127.83.203.69:55526 --cert member1_cert.pem --privk member1_privk.pem --ca networkcert.pem withdraw --proposal-id 0
+    $ cat withdraw_0.json
+    {
+      "jsonrpc": "2.0",
+      "id": 0,
+      "method": "members/withdraw",
+      "params": {
+        "id": 0
+      }
+    }
+
+    $ curl https://<ccf-node-address>/members/withdraw --cacert networkcert.pem --key member0_privk.pem --cert member0_cert.pem --data-binary @withdraw_0.json
     {"commit":110,"global_commit":109,"id":0,"jsonrpc":"2.0","result":true,"term":4}
 
 This means future votes will be ignored, and the proposal will never be accepted. However it will remain visible as a proposal so members can easily audit historic proposals.
