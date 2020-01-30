@@ -532,7 +532,7 @@ namespace ccf
       auto version = store.next_version();
       auto view = consensus->get_view();
       auto commit = consensus->get_commit_seqno();
-      LOG_INFO_FMT("Issuing signature at {}", version);
+      LOG_DEBUG_FMT("Issuing signature at {}", version);
       LOG_DEBUG_FMT("Signed at {} view: {} commit: {}", version, view, commit);
       store.commit(
         version,
