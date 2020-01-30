@@ -1,9 +1,11 @@
 Issuing Commands
 ================
 
-Clients communicate with CCF using framed :term:`JSON-RPC` over :term:`TLS`. The ``method`` must be prefixed with the name of the target frontend (``"users"`` or ``"members"``), separated from the intended ``method`` with a single ``/``.
+Clients communicate with CCF using HTTP requests. Currently all requests must use the HTTP method ``POST``, and the body of each request is expected to be a valid JSON-RPC object. Arbitrary payload and return types will be supported in future. The ``method`` must be prefixed with the name of the target frontend (``"users"`` or ``"members"``), separated from the intended ``method`` with a single ``/``, and this ``method`` must also match the resource path in the URL.
 
-Users can issue business transactions to CCF using the ``client`` command-line utility built with CCF. For example, to record a message at a specific id with the :ref:`developers/example:Example Application`:
+These requests can be sent by standard tools. CCF's test infrastructure uses `Python Requests <https://requests.readthedocs.io/en/master/>`_ by default, but can be switched to a ``curl``-based client (printing each command to stdout) by running with environment variable ``CURL_CLIENT`` set.
+
+For example, to record a message at a specific id with the :ref:`developers/example:Example Application`, using curl:
 
 .. code-block:: bash
 
@@ -19,25 +21,39 @@ Users can issue business transactions to CCF using the ``client`` command-line u
       }
     }
 
-    $ client --pretty-print --rpc-address node_rpc_ip:node_rpc_port --ca networkcert.pem userrpc --req @request.json --cert user_cert.pem --pk user_privk.pem
-    Sending RPC to node_rpc_ip:node_rpc_port
-    Doing user RPC:
+    $ curl https://127.116.132.53:41188/users/LOG_record -H 'Content-Type: application/json' --data-binary @request.json -w '\n' --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
     {
-      "commit": 30,
-      "global_commit": 29,
+      "commit": 23,
+      "global_commit": 22,
       "id": 0,
       "jsonrpc": "2.0",
       "result": true,
       "term": 2
     }
 
-The JSON-RPC response is written to ``stdout`` when the request has been executed:
+The HTTP response contains a JSON-RPC response object, extended with some CCF commit information:
 
-- ``"id"`` indicates that the response is for request id ``0``
-- ``"result": true`` indicates that the request was executed successfully
+- ``"id"`` indicates that the response matches the request sent with id ``0``
+- ``"result": true`` indicates that the request was executed successfully, for other RPCs this may be an arbitrary JSON object
 - ``"commit"`` is the unique version at which the request was executed
-- ``"global_commit"`` is the latest version agreed on by the network and forever committed to the ledger, at the time the request was executed
+- ``"global_commit"`` is the latest version agreed on by the network and forever committed to the ledger, at the time the request was executed, as seen by the contacted node
 - ``"term"`` indicates the consensus term at which the request was executed
+
+.. warning:: CCF originally accepted user commands as framed JSON-RPC over TCP. Support for this format will be dropped in v0.8. If you still need this in the interim then it can be enabled by passing ``-DFTCP=ON`` to cmake. The Python infra client will send messages in this framed format if run with environment variable ``FTCP`` set.
+
+Signing
+-------
+
+In some situations CCF requires signed requests, for example for member votes. The signing scheme is compatible with the `IETF HTTP Signatures draft RFC <https://tools.ietf.org/html/draft-cavage-http-signatures-12>`_. We provide a wrapper script (``scurl.sh``) around curl to submit signed requests from the command line.
+
+These commands can also be signed and transmitted by external libraries. For example, the CCF test infrastructure uses `an auth plugin <https://pypi.org/project/requests-http-signature/>`_ for `Python Requests <https://requests.readthedocs.io/en/master/>`_.
+
+Python Client
+-------------
+
+Available as part of CCF Python infra: https://github.com/microsoft/CCF/blob/master/tests/infra/clients.py.
+
+The ``Checker`` class in `ccf.py <https://github.com/microsoft/CCF/blob/master/tests/infra/ccf.py>`_ can be used as a wrapper to wait for requests to be committed.
 
 Checking for Commit
 -------------------

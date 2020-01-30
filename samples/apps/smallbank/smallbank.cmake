@@ -57,7 +57,7 @@ if(BUILD_TESTS)
 
   # These tests require client-signed signatures: - PBFT doesn't yet verify
   # these correctly - HTTP C++ perf clients don't currently sign correctly
-  if(NOT PBFT AND NOT HTTP)
+  if(NOT PBFT AND FTCP)
     add_perf_test(
       NAME small_bank_sigs_client_test
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py

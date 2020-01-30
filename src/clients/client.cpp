@@ -68,7 +68,7 @@ std::vector<uint8_t> make_rpc_raw(
   {
     auto client = RpcTlsClient(host, port, tls_ca, cert);
 
-#ifdef HTTP
+#ifndef FTCP
     const auto method = req_j[jsonrpc::METHOD];
     auto r = enclave::http::Request(HTTP_POST);
     r.set_path(method);

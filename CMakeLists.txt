@@ -465,7 +465,7 @@ if(BUILD_TESTS)
     # TODO(signing): Sends an ACK via C++ memberclient, which must be signed.
     # Member client end to end tests ACK should be sent from Python, AND HTTP
     # memberclient should sign
-    if(NOT HTTP)
+    if(FTCP)
       # Member client end to end tests
       add_e2e_test(
         NAME member_client_test
