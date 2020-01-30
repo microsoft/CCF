@@ -1,0 +1,21 @@
+steps:
+- script: |
+    mkdir install
+    ninja install
+  workingDirectory: build
+  displayName: 'Install'
+
+- task: ArchiveFiles@2
+  inputs:
+    rootFolderOrFile: $(Build.SourcesDirectory)/build/install
+    archiveType: 'tar'
+    tarCompression: 'gz'
+    archiveFile: '$(Build.ArtifactStagingDirectory)/ccf${{ parameters.install_suffix }}.tar.gz'
+    verbose: true
+  displayName: 'Create Install Tarball'
+
+- task: PublishPipelineArtifact@1
+  inputs:
+    path: $(Build.ArtifactStagingDirectory)/ccf${{ parameters.install_suffix }}.tar.gz
+    artifact: ccf${{ parameters.install_suffix }}.tar.gz
+    displayName: 'Publish CCF Install'

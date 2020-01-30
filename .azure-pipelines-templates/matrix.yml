@@ -13,10 +13,14 @@ parameters:
     NoSGX_SAN:
       container: nosgx
       pool: Ubuntu-1804-D16s_v3
-    CIMetrics:
+    Metrics:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
-      dependsOn: ['BuildAndTest_SGX_CFT_FTCP_Perf', 'BuildAndTest_SGX_BFT_FTCP_Perf', 'BuildAndTest_SGX_CFT_HTTP_Perf', 'BuildAndTest_SGX_BFT_HTTP_Perf']
+      dependsOn: ['BuildAndTest_SGX_CFT_FTCP_Release', 'BuildAndTest_SGX_BFT_FTCP_Release', 'BuildAndTest_SGX_CFT_HTTP_Release', 'BuildAndTest_SGX_BFT_HTTP_Release']
+    Release:
+      container: nosgx
+      pool: Ubuntu-1804-D8s_v3
+      dependsOn: ['BuildAndTest_NoSGX_CFT_FTCP_', 'BuildAndTest_NoSGX_CFT_HTTP_', 'BuildAndTest_SGX_CFT_FTCP_', 'BuildAndTest_SGX_CFT_HTTP_', 'BuildAndTest_NoSGX_CFT_FTCP_SAN', 'BuildAndTest_SGX_CFT_FTCP_Release', 'BuildAndTest_SGX_CFT_HTTP_Release']
 
   build:
     common:
@@ -36,6 +40,11 @@ parameters:
         cmake_args: '-DSERVICE_IDENTITY_CURVE_CHOICE=secp256k1_bitcoin'
       HTTP:
         cmake_args: ''
+    release:
+      FTCP:
+        cmake_args: '-DCMAKE_INSTALL_PREFIX=./install'
+      HTTP:
+        cmake_args: '-DCMAKE_INSTALL_PREFIX=./install'
     san:
       cmake_args: '-DSAN=ON'
     FTCP:
@@ -51,6 +60,11 @@ parameters:
     perf:
       CFT:
         ctest_args: '-L "benchmark|perf"'
+      BFT:
+        ctest_args: '-L "perf"'
+    release:
+      CFT:
+        ctest_args: ''
       BFT:
         ctest_args: '-L "perf"'
     san:
@@ -96,6 +110,7 @@ jobs:
         depends_on: ${{ parameters.static_check_job_name }}
 
   # Optimised builds, only run performance tests
+  # When building a release, run all tests and publish install tarball
   - ${{ each consensus in parameters.consensus }}:
     - ${{ each protocol in parameters.protocol }}:
       - template: common.yml
@@ -104,11 +119,18 @@ jobs:
           consensus: ${{ consensus }}
           protocol: ${{ protocol }}
           env: ${{ parameters.env.SGX }}
-          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf[protocol].cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
-          ctest_filter: '${{ parameters.test.perf[consensus].ctest_args }}'
-          suffix: 'Perf'
+          install: ${{ eq(parameters.perf_or_release, 'release') }}
+          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build[parameters.perf_or_release][protocol].cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
+          ctest_filter: '${{ parameters.test[parameters.perf_or_release][consensus].ctest_args }}'
+          suffix: 'Release'
           depends_on: ${{ parameters.static_check_job_name }}
-  
-  - template: cimetrics.yml
+
+
+  - template: metrics.yml
     parameters:
-      env: ${{ parameters.env.CIMetrics }}
+      env: ${{ parameters.env.Metrics }}
+
+  - ${{ if eq(parameters.perf_or_release, 'release') }}:
+    - template: release.yml
+      parameters:
+        env: ${{ parameters.env.Release }}
