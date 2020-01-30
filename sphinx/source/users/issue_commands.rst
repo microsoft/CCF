@@ -21,7 +21,7 @@ For example, to record a message at a specific id with the :ref:`developers/exam
       }
     }
 
-    $ curl https://127.116.132.53:41188/users/LOG_record -H 'Content-Type: application/json' --data-binary @request.json -w '\n' --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
+    $ curl https://<ccf-node-address>/users/LOG_record --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @request.json
     {
       "commit": 23,
       "global_commit": 22,
@@ -75,9 +75,7 @@ To guarantee that their request is successfully committed to the ledger, a user 
       }
    }
 
-    $ client --pretty-print --rpc-address node_rpc_ip:node_rpc_port --ca networkcert.pem userrpc --req @get_commit.json --cert user_cert.pem --pk user_privk.pem
-    Sending RPC to node_rpc_ip:node_rpc_port
-    Doing user RPC:
+    $ curl https://<ccf-node-address>/users/getCommit --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @get_commit.json
     {
       "commit": 31,
       "global_commit": 31,
@@ -112,9 +110,7 @@ To obtain a receipt, a user needs to issue a ``getReceipt`` RPC for a particular
       }
    }
 
-    $ client --pretty-print --rpc-address node_rpc_ip:node_rpc_port --ca networkcert.pem userrpc --req @get_receipt.json --cert user_cert.pem --pk user_privk.pem
-    Sending RPC to node_rpc_ip:node_rpc_port
-    Doing user RPC:
+    $ curl https://<ccf-node-address>/users/getReceipt --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @get_receipt.json
     {
       "commit": 31,
       "global_commit": 31,
@@ -130,7 +126,7 @@ Receipts can be verified with the ``verifyReceipt`` RPC:
 
 .. code-block:: bash
 
-    $ cat get_receipt.json
+    $ cat verify_receipt.json
     {
       "id": 0,
       "method": "users/verifyReceipt",
@@ -141,9 +137,7 @@ Receipts can be verified with the ``verifyReceipt`` RPC:
       }
    }
 
-    $ client --pretty-print --rpc-address node_rpc_ip:node_rpc_port --ca networkcert.pem userrpc --req @get_receipt.json --cert user_cert.pem --pk user_privk.pem
-    Sending RPC to node_rpc_ip:node_rpc_port
-    Doing user RPC:
+    $ curl https://<ccf-node-address>/users/verifyReceipt --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @verify_receipt.json
     {
       "commit": 31,
       "global_commit": 31,
