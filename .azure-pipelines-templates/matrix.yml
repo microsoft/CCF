@@ -114,6 +114,7 @@ jobs:
           consensus: ${{ consensus }}
           protocol: ${{ protocol }}
           env: ${{ parameters.env.SGX }}
+          push_perf_data: true
           cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build[parameters.perf_or_release][protocol].cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
           ctest_filter: '${{ parameters.test[parameters.perf_or_release][consensus].ctest_args }}'
           suffix: ${{ parameters.perf_or_release }}
