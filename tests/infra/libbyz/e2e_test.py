@@ -7,8 +7,6 @@ import time
 import math
 import json
 import create_config
-import sys
-import traceback
 from node import LocalNode
 from subprocess import PIPE, Popen, run
 import netifaces
@@ -133,12 +131,18 @@ def replica_checks(
     try:
         for node in replicas:
 <<<<<<< HEAD
+<<<<<<< HEAD
             logger.info(
                 f"Checking results on replica - id: {node.id} port: {node.port}"
             )
 =======
             logger.info(f"Checking results on replica - id: {node.id} port: {node.port}")
 >>>>>>> Print logs when pbft tests fail
+=======
+            logger.info(
+                f"Checking results on replica - id: {node.id} port: {node.port}"
+            )
+>>>>>>> PR
             replica_ready = False
             syscall_stats = False
             operations_complete = False
@@ -200,20 +204,8 @@ def replica_checks(
             logger.info("with_delays is set so checking for view changes")
             assert send_view_change
             assert process_view_change
-<<<<<<< HEAD
-
     except AssertionError:
         logger.exception("Assertion failed")
-=======
-
-    except AssertionError:
-        _, _, tb = sys.exc_info()
-        traceback.print_tb(tb)
-        tb_info = traceback.extract_tb(tb)
-        filename, line, func, text = tb_info[-1]
-        logger.error('Assertion failed \"{}\"'.format(text))
-
->>>>>>> Print logs when pbft tests fail
         [[logger.info(l) for l in lines] for lines in node_logs]
 
     err_file = f"err{node.port}.txt"
