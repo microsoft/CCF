@@ -130,7 +130,9 @@ def replica_checks(
 
     try:
         for node in replicas:
-            logger.info(f"Checking results on replica - id: {node.id} port: {node.port}")
+            logger.info(
+                f"Checking results on replica - id: {node.id} port: {node.port}"
+            )
             replica_ready = False
             syscall_stats = False
             operations_complete = False
