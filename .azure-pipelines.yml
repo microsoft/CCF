@@ -54,10 +54,10 @@ resources:
       options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/ccache
 
 variables:
-  ${{ if startsWith(variables['Build.SourceBranch'], 'refs/tags/v') }}:
-    perf_or_release: release
-  ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/tags/v')) }}:
-    perf_or_release: perf
+  # ${{ if startsWith(variables['Build.SourceBranch'], 'refs/tags/v') }}:
+  perf_or_release: release
+  # ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/tags/v')) }}:
+  #   perf_or_release: perf
 
 jobs:
 - template: .azure-pipelines-templates/matrix.yml
