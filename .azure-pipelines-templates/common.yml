@@ -22,7 +22,15 @@ jobs:
       - template: coverage.yml
         parameters:
           consensus: ${{ parameters.consensus }}
-    - ${{ if and(eq(parameters.suffix, 'Perf'), not(and(eq(parameters.consensus, 'BFT'), eq(parameters.protocol, 'HTTP')))) }}:
+    - ${{ if and(eq(parameters.suffix, 'Release'), not(and(eq(parameters.consensus, 'BFT'), eq(parameters.protocol, 'HTTP')))) }}:
       - template: push_perf_data.yml
         parameters:
           consensus: ${{ parameters.consensus }}
+    # For now, only CFT builds are released
+    - ${{ if and(eq(parameters.install, True), eq(parameters.consensus, 'CFT'))}}:
+      - template: install.yml
+        parameters:
+          protocol: ${{ parameters.protocol }}
+          # HTTP is default install
+          ${{ if ne(parameters.protocol, 'HTTP') }}:
+            install_suffix: '_${{ parameters.protocol }}'
