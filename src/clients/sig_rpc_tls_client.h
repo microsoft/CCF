@@ -109,7 +109,7 @@ public:
   }
 };
 
-#ifdef HTTP
+#ifndef FTCP
 using SigRpcTlsClient = SigHttpRpcTlsClient;
 #else
 using SigRpcTlsClient = SigJsonRpcTlsClient;
