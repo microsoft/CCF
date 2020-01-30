@@ -77,9 +77,9 @@ if(USE_NULL_ENCRYPTOR)
   add_definitions(-DUSE_NULL_ENCRYPTOR)
 endif()
 
-option(HTTP "Enable HTTP Support" OFF)
-if(HTTP)
-  add_definitions(-DHTTP)
+option(FTCP "Enable framed-TCP communication (rather than HTTP)" OFF)
+if(FTCP)
+  add_definitions(-DFTCP)
 endif()
 
 option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
@@ -470,15 +470,15 @@ function(add_e2e_test)
     else()
       set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS end_to_end)
     endif()
-    if(HTTP)
+
+    if(FTCP)
       set_property(
-        TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "HTTP=ON"
+        TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "FTCP=ON"
       )
-      if(${PARSED_ARGS_CURL_CLIENT})
-        set_property(
-          TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
-        )
-      endif()
+    elseif(${PARSED_ARGS_CURL_CLIENT})
+      set_property(
+        TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
+      )
     endif()
   endif()
 endfunction()
@@ -519,8 +519,8 @@ function(add_perf_test)
       "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
   )
   set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS perf)
-  if(HTTP)
-    set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "HTTP=ON")
+  if(FTCP)
+    set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "FTCP=ON")
   endif()
 endfunction()
 

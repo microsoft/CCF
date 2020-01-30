@@ -21,5 +21,4 @@ Before issuing business transactions to CCF, the certificates of trusted users n
 
     deploy_app
     issue_commands
-    client
     rpc_api

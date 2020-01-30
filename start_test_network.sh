@@ -9,6 +9,9 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
+PACKAGE="$1"
+shift
+
 echo "Setting up Python environment..."
 if [ ! -f "env/bin/activate" ]
     then
@@ -18,4 +21,4 @@ source env/bin/activate
 pip install -q -U -r ../tests/requirements.txt
 echo "Python environment successfully setup"
 
-CURL_CLIENT=ON python ../tests/start_network.py --package "$1" --label test_network
+CURL_CLIENT=ON python ../tests/start_network.py --package "${PACKAGE}" --label test_network "$@"
