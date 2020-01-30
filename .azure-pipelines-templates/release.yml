@@ -3,12 +3,10 @@ jobs:
   variables:
     skipComponentGovernanceDetection: true
   displayName: 'GitHub Release'
-  dependsOn: ${{ parameters.depends_on }}
 
   ${{ insert }}: ${{ parameters.env }}
 
   steps:
-    # - ${{ if eq(parameters.perf_or_release, 'release') }}:
     - task: DownloadPipelineArtifact@2
       inputs:
         source: current
