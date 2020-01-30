@@ -3,12 +3,13 @@ jobs:
   variables:
     skipComponentGovernanceDetection: true
   displayName: 'CI Metrics'
-  
+
   ${{ insert }}: ${{ parameters.env }}
 
   steps:
     - checkout: self
       clean: true
+      condition: eq(variables['Build.Reason'], 'PullRequest')
 
     - script: ./cimetrics_env.sh python -m cimetrics.plot
       env:
