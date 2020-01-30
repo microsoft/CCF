@@ -77,7 +77,7 @@ namespace pbft
 
       // TODO: HTTP signatures are not handled by PBFT
       // https://github.com/microsoft/CCF/issues/720
-#ifdef HTTP
+#ifndef FTCP
       ctx->signed_request = ccf::SignedReq();
 #endif
 
