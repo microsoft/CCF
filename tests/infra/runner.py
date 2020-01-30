@@ -141,7 +141,9 @@ def run(build_directory, get_command, args):
                         if stop_waiting:
                             break
                         if time.time() > start_time + hard_stop_timeout:
-                            raise TimeoutError(f"Client still running after {hard_stop_timeout}s")
+                            raise TimeoutError(
+                                f"Client still running after {hard_stop_timeout}s"
+                            )
 
                         time.sleep(1)
 
