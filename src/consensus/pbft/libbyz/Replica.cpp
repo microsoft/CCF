@@ -1387,7 +1387,7 @@ void Replica::handle(Status* m)
         LOG_TRACE_FMT("Rentransmitting from min {} to max {}", min, max);
         if (
           last_stable > m->last_stable() &&
-          last_executed > m->last_executed() + 2)
+          last_executed > m->last_executed() + 1)
         {
           LOG_TRACE_FMT(
             "Sending append entries to {} since we are way off", m->id());

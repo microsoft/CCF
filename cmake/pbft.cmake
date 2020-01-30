@@ -78,12 +78,6 @@ endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_e2e_test(
-    NAME late_joiners
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/late_joiners.py
-    ADDITIONAL_ARGS --skip-suspension
-)
-
 if("virtual" IN_LIST TARGET)
 
   add_library(libbyz.host STATIC ${PBFT_SRC})

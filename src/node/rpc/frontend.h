@@ -344,7 +344,8 @@ namespace ccf
     ProcessPbftResp process_pbft(
       std::shared_ptr<enclave::RpcContext> ctx,
       Store::Tx& tx,
-      bool playback, bool include_merkle_roots) override
+      bool playback,
+      bool include_merkle_roots) override
     {
       // TODO(#PBFT): Refactor this with process_forwarded().
       crypto::Sha256Hash full_state_merkle_root;

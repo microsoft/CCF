@@ -11,7 +11,7 @@ import infra.ccf
 import infra.proc
 import infra.notification
 import infra.net
-import e2e_args
+import infra.e2e_args
 from threading import Timer
 import random
 import contextlib
@@ -59,9 +59,12 @@ def timeout(node, suspend, election_timeout):
 
 def assert_node_up_to_date(check, node, final_msg, final_msg_id):
     with node.user_client(format="json") as c:
-        check(
-            c.rpc("LOG_get", {"id": final_msg_id}), result={"msg": final_msg},
-        )
+        try:
+            check(
+                c.rpc("LOG_get", {"id": final_msg_id}), result={"msg": final_msg},
+            )
+        except TimeoutError:
+            LOG.error(f"Timeout error for LOG_get on node {node.node_id}")
 
 
 def wait_for_nodes(nodes, final_msg, final_msg_id):
@@ -146,7 +149,7 @@ def run(args):
             check = infra.checker.Checker()
 
             run_requests(all_nodes, TOTAL_REQUESTS, 0, fisrt_msg, 1000)
-            term_info = find_primary(network)
+            term_info.update(find_primary(network))
 
             # check that new node has caught up ok
             assert_node_up_to_date(check, new_node, fisrt_msg, 1000)
@@ -162,7 +165,7 @@ def run(args):
             nodes_to_keep.append(last_node)
 
             run_requests(all_nodes, TOTAL_REQUESTS, 1001, second_msg, 2000)
-            term_info = find_primary(network)
+            term_info.update(find_primary(network))
 
             assert_node_up_to_date(check, last_node, fisrt_msg, 1000)
             assert_node_up_to_date(check, last_node, second_msg, 2000)
@@ -194,8 +197,13 @@ if __name__ == "__main__":
             action="store_true",
         )
 
-    args = e2e_args.cli_args(add)
-    args.package = args.app_script and "libluagenericenc" or "libloggingenc"
+    args = infra.e2e_args.cli_args(add)
+    if args.js_app_script:
+        args.package = "libjsgeneric"
+    elif args.app_script:
+        args.package = "libluageneric"
+    else:
+        args.package = "liblogging"
 
     notify_server_host = "localhost"
     args.notify_server = (
