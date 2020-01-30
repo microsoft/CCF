@@ -90,8 +90,21 @@ Registering the Lua Application
 
 .. code-block:: bash
 
-    $ memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert set_lua_app --lua-app-file /path/to/lua/app_script
-    {"commit":9,"global_commit":8,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
+    $ cat set_lua_app.json
+    {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "members/propose",
+        "params": {
+            "parameter": "<proposed lua app>",
+            "script": {
+                "text": "tables, app = ...; return Calls:call(\"set_lua_app\", app)"
+            }
+        }
+    }
+
+    $ curl https://rpc_ip:rpc_port/members/propose --cacert network_cert --key member0_privk --cert member0_cert --data-binary @set_lua_app.json
+    {"commit":36,"global_commit":35,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
 
 Other members are then able to vote for the proposal using the returned proposal id (here ``1``, as per ``"result":{"completed":false,"id":1}``).
 
@@ -104,7 +117,19 @@ Once users are added to the opening network, members should decide to make a pro
 
 .. code-block:: bash
 
-    $ memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert open_network
+    $ cat open_network.json
+    {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "members/propose",
+        "params": {
+            "script": {
+                "text": "return Calls:call(\"open_network\")"
+            }
+        }
+    }
+
+    $ curl https://rpc_ip:rpc_port/members/propose --cacert network_cert --key member0_privk --cert member0_cert --data-binary @open_network.json
     {"commit":15,"global_commit":14,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":2},"term":2}
 
 Other members are then able to vote for the proposal using the returned proposal id (here ``2``, as per ``"result":{"completed":false,"id":2}``).
