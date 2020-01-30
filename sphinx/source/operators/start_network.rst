@@ -17,7 +17,7 @@ To create a new CCF network, the first node of the network should be started wit
     --enclave-file /path/to/enclave_library
     --enclave-type debug
     --node-address node_ip:node_port
-    --rpc-address rpc_ip:rpc_port
+    --rpc-address <ccf-node-address>
     --public-rpc-address public_rpc_ip:public_rpc_port
     --ledger-file /path/to/ledger
     --node-cert-file /path/to/node_certificate
@@ -32,7 +32,7 @@ To create a new CCF network, the first node of the network should be started wit
 
 When starting up, the node generates its own key pair and outputs the certificate associated with its public key at the location specified by ``--node-cert-file``. A quote file, required for remote attestation, is also output at the location specified by ``--quote-file``. The certificate of the freshly-created CCF network is also output at the location specified by ``--network-cert-file``.
 
-.. note:: The network certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. For the ``client`` and ``memberclient`` utilities, ``--ca /path/to/network_certificate`` should always be specified.
+.. note:: The network certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using curl, this is passed as the ``--cacert`` argument.
 
 The certificates of initial members of the consortium are specified via ``--member-cert``. For example, if 3 members (``member1_cert.pem``, ``member2_cert.pem`` and ``member3_cert.pem``) should be added to CCF, operators should specify ``--member-cert member1_cert.pem --member-cert member2_cert.pem --member-cert member3_cert.pem``.
 
@@ -53,7 +53,7 @@ To add a new node to an existing opening network, other nodes should be started 
     --enclave-file /path/to/enclave_library
     --enclave-type debug
     --node-address node_ip:node_port
-    --rpc-address rpc_ip:rpc_port
+    --rpc-address <ccf-node-address>
     --public-rpc-address public_rpc_ip:public_rpc_port
     --ledger-file /path/to/ledger
     --node-cert-file /path/to/node_certificate
@@ -79,7 +79,7 @@ Once a CCF network is successfully started and an acceptable number of nodes hav
 Summary diagram
 ---------------
 
-Once a node is part of the network (started with either the ``start`` or ``join`` option), members are authorised to issue governance transactions and eventually open the network (see :ref:`members/open_network:Opening a Network`). Only then are users authorised to issue JSON-RPC transactions to CCF.
+Once a node is part of the network (started with either the ``start`` or ``join`` option), members are authorised to issue governance transactions and eventually open the network (see :ref:`members/open_network:Opening a Network`). Only then are users authorised to issue commands to CCF.
 
 .. note:: After the network is open to users, members can still issue governance transactions to CCF (for example, adding new users or additional members to the consortium or updating the Lua app, when applicable). See :ref:`members/index:Member Governance` for more information about member governance.
 

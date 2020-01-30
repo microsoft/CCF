@@ -10,6 +10,12 @@ Application Entry Point
 Application Handler
 -------------------
 
-.. doxygenclass:: ccf::RpcFrontend
+.. doxygenclass:: ccf::UserRpcFrontend
    :project: CCF
    :members:
+   :undoc-members:
+
+.. doxygenclass:: ccf::HandlerRegistry
+   :project: CCF
+   :members:
+   :undoc-members:
