@@ -131,7 +131,7 @@ jobs:
 
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
     - template: release.yml
-      paramters:
+      parameters:
         env: ${{ parameters.env.Release }}
         depends_on:
         # perf_or_release: ${{ parameters.perf_or_release }}
