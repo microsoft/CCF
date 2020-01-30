@@ -25,9 +25,9 @@ Then, the certificates of trusted users should be registered in CCF via the memb
         }
     }
 
-    $ curl rpc_ip:rpc_port --cacert network_cert --key member0_privk --cert member0_cert --data-binary @add_user.json
+    $ curl https://rpc_ip:rpc_port/members/propose --cacert network_cert --key member0_privk --cert member0_cert --data-binary @add_user.json
 
-    {"commit":21,"global_commit":20,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":5},"term":2}
+    {"commit":21,"global_commit":20,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":0},"term":2}
 
 Other members are then allowed to vote for the proposal, using the proposal id returned to the proposer member (here ``5``, as per ``"result":{"completed":false,"id":5}``). They may submit an unconditional approval, or their vote may query the current state and proposal. These votes `must` be signed.
 
@@ -42,11 +42,11 @@ Other members are then allowed to vote for the proposal, using the proposal id r
             "ballot": {
                 "text": "return true"
             },
-            "id": 5
+            "id": 0
         }
     }
 
-    $ ./scurl.sh rpc_ip:rpc_port --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json
+    $ ./scurl.sh https://rpc_ip:rpc_port/members/vote --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json
     {"commit":29,"global_commit":28,"id":0,"jsonrpc":"2.0","result":false,"term":2}
 
     $ cat vote_conditional.json
@@ -58,21 +58,28 @@ Other members are then allowed to vote for the proposal, using the proposal id r
             "ballot": {
                 "text": "tables, calls = ...; return (#calls == 1 and calls[1].func == \"new_user\")"
             },
-            "id": 5
+            "id": 0
         }
     }
 
-    $ ./scurl.sh rpc_ip:rpc_port --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json
+    $ ./scurl.sh https://rpc_ip:rpc_port/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json
     {"commit":31,"global_commit":30,"id":0,"jsonrpc":"2.0","result":true,"term":2}
 
 The user is successfully added once a :term:`quorum` of members have accepted the proposal (``"result":true"``).
 
-The user can then make RPCs, for example ``whoAmI`` to retrieve the unique caller ID assigned to them by CCF:
+The user can then make user RPCs, for example ``whoAmI`` to retrieve the unique caller ID assigned to them by CCF:
 
 .. code-block:: bash
 
-    ./client --rpc-address rpc_ip:rpc_port --ca network_cert --cert new_user_cert --pk new_user_privk --req '{"jsonrpc": "2.0", "id": 0, "method": "users/whoAmI"}'
-    {"commit":26,"global_commit":26,"id":0,"jsonrpc":"2.0","result":{"caller_id":3},"term":2}
+    $ cat whoAmI.json
+    {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "users/whoAmI"
+    }
+
+    $ curl https://rpc_ip:rpc_port/users/whoAmI --cacert network_cert --key new_user_privk --cert new_user_cert --data-binary @whoAmI.json
+    {"commit":34,"global_commit":34,"id":0,"jsonrpc":"2.0","result":{"caller_id":4},"term":2}
 
 For each user CCF also stores arbitrary user-data in a JSON object, which can only be written to by members, subject to the standard proposal-vote governance mechanism. This lets members define initial metadata for certain users; for example to grant specific privileges, associate a human-readable name, or categorise the users. This user-data can then be read (but not written) by user-facing apps.
 
@@ -81,24 +88,14 @@ Registering the Lua Application
 
 .. note:: This section only applies when deploying Lua applications (i.e. using the ``libluageneric.enclave.so.signed`` enclave library). For C++ applications, this step should be skipped.
 
-
-
 .. code-block:: bash
 
     $ memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert set_lua_app --lua-app-file /path/to/lua/app_script
     {"commit":9,"global_commit":8,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
 
-Other members are then allowed to vote for the proposal, using the proposal id returned to the proposer member (here ``1``, as per ``"result":{"completed":false,"id":1}``).
+Other members are then able to vote for the proposal using the returned proposal id (here ``1``, as per ``"result":{"completed":false,"id":1}``).
 
-.. code-block:: bash
-
-    $ memberclient --cert member2_cert --privk member2_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 1 --accept
-    {"commit":11,"global_commit":10,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
-
-    $ memberclient --cert member3_cert --privk member3_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 1 --accept
-    {"commit":13,"global_commit":12,"id":0,"jsonrpc":"2.0","result":{"completed":true,"id":1},"term":2}
-
-The Lua application is successfully registered once a :term:`quorum` of members have accepted the proposal (``"result":true"``).
+The Lua application is successfully registered once a :term:`quorum` of members have accepted the proposal.
 
 Opening the Network
 -------------------
@@ -110,14 +107,6 @@ Once users are added to the opening network, members should decide to make a pro
     $ memberclient --cert member1_cert --privk member1_privk --rpc-address rpc_ip:rpc_port --ca network_cert open_network
     {"commit":15,"global_commit":14,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":2},"term":2}
 
-Other members are then allowed to vote for the proposal, using the proposal id returned to the proposer member (here ``2``, as per ``"result":{"completed":false,"id":2}``).
-
-.. code-block:: bash
-
-    $ memberclient --cert member2_cert --privk member2_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 2 --accept
-    {"commit":17,"global_commit":16,"id":0,"jsonrpc":"2.0","result":false,"term":2}
-
-    $ memberclient --cert member3_cert --privk member3_privk --rpc-address rpc_ip:rpc_port --ca network_cert vote --proposal-id 2 --accept
-    {"commit":19,"global_commit":18,"id":0,"jsonrpc":"2.0","result":true,"term":2}
+Other members are then able to vote for the proposal using the returned proposal id (here ``2``, as per ``"result":{"completed":false,"id":2}``).
 
 Once a quorum of members have approved the network opening (``"result":true``), the network is opened to users (see :ref:`developers/example:Example Application` for a simple business logic and :term:`JSON-RPC` transactions). It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).
