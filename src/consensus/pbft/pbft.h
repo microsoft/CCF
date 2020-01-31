@@ -32,8 +32,7 @@ namespace pbft
 
   struct ViewChangeInfo
   {
-    ViewChangeInfo(
-      View view_, SeqNo min_global_commit_) :
+    ViewChangeInfo(View view_, SeqNo min_global_commit_) :
       min_global_commit(min_global_commit_),
       view(view_)
     {}
