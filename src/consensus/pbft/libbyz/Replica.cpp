@@ -454,7 +454,7 @@ void Replica::playback_pre_prepare(
     if (global_commit_cb != nullptr && executable_pp->is_signed())
     {
       global_commit_cb(
-        executable_pp->get_ctx(), executable_pp->view(), global_commit_ctx);
+        executable_pp->get_ctx(), executable_pp->view(), global_commit_info);
     }
 
     last_executed++;
@@ -1199,16 +1199,18 @@ void Replica::register_reply_handler(reply_handler_cb cb, void* ctx)
   rep_cb_ctx = ctx;
 }
 
-void Replica::register_global_commit(global_commit_handler_cb cb, void* ctx)
+void Replica::register_global_commit(
+  global_commit_handler_cb cb, pbft::GlobalCommitInfo* gb_info)
 {
   global_commit_cb = cb;
-  global_commit_ctx = ctx;
+  global_commit_info = gb_info;
 }
 
-void Replica::register_mark_stable(mark_stable_handler_cb cb, void* ctx)
+void Replica::register_mark_stable(
+  mark_stable_handler_cb cb, pbft::MarkStableInfo* ms_info)
 {
   mark_stable_cb = cb;
-  mark_stable_ctx = ctx;
+  mark_stable_info = ms_info;
 }
 
 template <class T>
@@ -2100,12 +2102,9 @@ void Replica::execute_prepared(bool committed)
 
     if (global_commit_cb != nullptr && pp->is_signed())
     {
-      LOG_TRACE_FMT(
-        "Global_commit: {}, signed_version: {}",
-        pp->get_ctx(),
-        global_commit_ctx);
+      LOG_TRACE_FMT("Global_commit: {}", pp->get_ctx());
 
-      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_ctx);
+      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
       signed_version = 0;
     }
   }
@@ -2572,7 +2571,7 @@ void Replica::mark_stable(Seqno n, bool have_state)
 
   if (mark_stable_cb != nullptr)
   {
-    mark_stable_cb(mark_stable_ctx);
+    mark_stable_cb(mark_stable_info);
   }
 
   if (have_state)

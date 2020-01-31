@@ -27,6 +27,35 @@
 
 namespace pbft
 {
+  using SeqNo = kv::Consensus::SeqNo;
+  using View = kv::Consensus::View;
+
+  struct ViewChangeInfo
+  {
+    ViewChangeInfo(
+      View view_, SeqNo min_global_commit_) :
+      min_global_commit(min_global_commit_),
+      view(view_)
+    {}
+
+    SeqNo min_global_commit;
+    View view;
+  };
+
+  struct MarkStableInfo
+  {
+    pbft::PbftStore* store;
+    Index* latest_stable_ae_idx;
+  } register_mark_stable_ctx;
+
+  struct GlobalCommitInfo
+  {
+    pbft::PbftStore* store;
+    SeqNo* global_commit_seqno;
+    View* last_commit_view;
+    std::vector<ViewChangeInfo>* view_change_list;
+  } register_global_commit_ctx;
+
   // maps node to last sent index to that node
   using NodesMap = std::unordered_map<NodeId, Index>;
   // TODO remove hard coded value (https://github.com/microsoft/CCF/issues/753)
@@ -194,33 +223,7 @@ namespace pbft
     // When this is set, only public domain is deserialised when receving append
     // entries
     bool public_only = false;
-
-    struct view_change_info
-    {
-      view_change_info(View view_, SeqNo min_global_commit_) :
-        min_global_commit(min_global_commit_),
-        view(view_)
-      {}
-
-      SeqNo min_global_commit;
-      View view;
-    };
-
-    std::vector<view_change_info> view_change_list;
-
-    struct register_global_commit_info
-    {
-      pbft::PbftStore* store;
-      SeqNo* global_commit_seqno;
-      View* last_commit_view;
-      std::vector<view_change_info>* view_change_list;
-    } register_global_commit_ctx;
-
-    struct register_mark_stable_info
-    {
-      pbft::PbftStore* store;
-      Index* latest_stable_ae_idx;
-    } register_mark_stable_ctx;
+    std::vector<ViewChangeInfo> view_change_list;
 
   public:
     Pbft(
@@ -242,7 +245,7 @@ namespace pbft
       global_commit_seqno(1),
       last_commit_view(0),
       store(std::move(store_)),
-      view_change_list(1, view_change_info(0, 0))
+      view_change_list(1, ViewChangeInfo(0, 0))
     {
       // configure replica
       GeneralInfo general_info;
@@ -309,11 +312,11 @@ namespace pbft
       message_receiver_base->register_reply_handler(
         reply_handler_cb, client_proxy.get());
 
-      auto mark_stable_cb = [](void* ctx) {
-        auto ms_ctx = static_cast<register_mark_stable_info*>(ctx);
-        *ms_ctx->latest_stable_ae_idx = ms_ctx->store->current_version();
+      auto mark_stable_cb = [](MarkStableInfo* ms_info) {
+        *ms_info->latest_stable_ae_idx = ms_info->store->current_version();
         LOG_TRACE_FMT(
-          "latest_stable_ae_index is set to {}", *ms_ctx->latest_stable_ae_idx);
+          "latest_stable_ae_index is set to {}",
+          *ms_info->latest_stable_ae_idx);
       };
 
       register_mark_stable_ctx.store = store.get();
@@ -322,19 +325,21 @@ namespace pbft
       message_receiver_base->register_mark_stable(
         mark_stable_cb, &register_mark_stable_ctx);
 
-      auto global_commit_cb = [](kv::Version version, ::View view, void* ctx) {
-        auto p = static_cast<register_global_commit_info*>(ctx);
-        if (version == kv::NoVersion || version < *p->global_commit_seqno)
+      auto global_commit_cb = [](
+                                kv::Version version,
+                                ::View view,
+                                GlobalCommitInfo* gb_info) {
+        if (version == kv::NoVersion || version < *gb_info->global_commit_seqno)
         {
           return;
         }
-        *p->global_commit_seqno = version;
+        *gb_info->global_commit_seqno = version;
 
-        if (*p->last_commit_view < view)
+        if (*gb_info->last_commit_view < view)
         {
-          p->view_change_list->emplace_back(view, version);
+          gb_info->view_change_list->emplace_back(view, version);
         }
-        p->store->compact(version);
+        gb_info->store->compact(version);
       };
 
       register_global_commit_ctx.store = store.get();
@@ -383,7 +388,7 @@ namespace pbft
       for (auto rit = view_change_list.rbegin(); rit != view_change_list.rend();
            ++rit)
       {
-        view_change_info& info = *rit;
+        ViewChangeInfo& info = *rit;
         if (info.min_global_commit <= seqno)
         {
           return info.view + 2;

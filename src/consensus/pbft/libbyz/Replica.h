@@ -123,10 +123,12 @@ public:
   void register_reply_handler(reply_handler_cb cb, void* ctx);
   // Effects: Registers a handler that takes reply messages
 
-  void register_global_commit(global_commit_handler_cb cb, void* ctx);
+  void register_global_commit(
+    global_commit_handler_cb cb, pbft::GlobalCommitInfo* ctx);
   // Effects:: Registers a handler that is called when a batch is committed
 
-  void register_mark_stable(mark_stable_handler_cb cb, void* ctx);
+  void register_mark_stable(
+    mark_stable_handler_cb cb, pbft::MarkStableInfo* ctx);
 
   template <typename T>
   std::unique_ptr<T> create_message(
@@ -466,10 +468,10 @@ private:
 
   // used to callback when we have committed a batch
   global_commit_handler_cb global_commit_cb;
-  void* global_commit_ctx;
+  pbft::GlobalCommitInfo* global_commit_info;
 
   mark_stable_handler_cb mark_stable_cb = nullptr;
-  void* mark_stable_ctx;
+  pbft::MarkStableInfo* mark_stable_info;
   // callback when we call mark_stable
   // Used to not the append_entries_index of the stable seqno
   // We don't want to send append entries further than the latest stable seqno
