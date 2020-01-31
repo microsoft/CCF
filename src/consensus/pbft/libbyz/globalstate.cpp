@@ -11,8 +11,8 @@
 
 namespace pbft
 {
-  std::unique_ptr<Replica> GlobalState::replica = nullptr;
-  std::unique_ptr<Client> GlobalState::client = nullptr;
+  Replica* GlobalState::replica = nullptr;
+  Client* GlobalState::client = nullptr;
 
   void GlobalState::set_replica(std::unique_ptr<Replica> r)
   {
@@ -21,7 +21,11 @@ namespace pbft
       throw std::logic_error(
         "Trying to initialize Replica but Client is already set.");
     }
-    replica = std::move(r);
+    if (replica != nullptr)
+    {
+      delete replica;
+    }
+    replica = r.release();
   }
 
   void GlobalState::set_client(std::unique_ptr<Client> c)
@@ -31,30 +35,34 @@ namespace pbft
       throw std::logic_error(
         "Trying to initialize Client but Replica is already set");
     }
-    client = std::move(c);
+    if (client != nullptr)
+    {
+      delete client;
+    }
+    client = c.release();
   }
 
   Replica& GlobalState::get_replica()
   {
     assert(replica != nullptr);
-    return *replica.get();
+    return *replica;
   }
 
   Client& GlobalState::get_client()
   {
     assert(client != nullptr);
-    return *client.get();
+    return *client;
   }
 
   Node& GlobalState::get_node()
   {
     if (replica)
     {
-      return *(Node*)replica.get();
+      return *(Node*)replica;
     }
     else if (client)
     {
-      return *(Node*)client.get();
+      return *(Node*)client;
     }
     throw std::logic_error("Neither Replica nor Client have been initialized.");
   }

@@ -16,8 +16,8 @@ namespace pbft
   {
   private:
     // Pointer to global replica object.
-    static std::unique_ptr<Replica> replica;
-    static std::unique_ptr<Client> client;
+    static Replica* replica;
+    static Client* client;
 
   public:
     static void set_replica(std::unique_ptr<Replica> r);
