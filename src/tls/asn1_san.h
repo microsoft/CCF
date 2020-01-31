@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <arpa/inet.h> // For inet_addr()
+#include "ds/net.h"
+
 #include <fmt/format_header_only.h>
 #include <mbedtls/asn1write.h>
 #include <mbedtls/oid.h>
@@ -75,26 +76,21 @@ namespace tls
       // curl).
       case san_type::ip_address:
       {
-        char addr_buf[16]; // Large enough buffer to hold IPv6
-        size_t addr_size = 4;
-        if (inet_pton(AF_INET, name, addr_buf) != 1)
+        auto addr = ds::ip_to_binary(name);
+        if (!addr.has_value())
         {
-          addr_size = 16;
-          if (inet_pton(AF_INET6, name, addr_buf) != 1)
-          {
-            throw std ::logic_error(fmt::format(
-              "Subject Alternative Name {} is not a valid IPv4 or "
-              "IPv6 address",
-              name));
-          }
+          throw std ::logic_error(fmt::format(
+            "Subject Alternative Name {} is not a valid IPv4 or "
+            "IPv6 address",
+            name));
         }
 
         MBEDTLS_ASN1_CHK_ADD(
           len,
           mbedtls_asn1_write_raw_buffer(
-            &pc, san_buf, (const unsigned char*)&addr_buf, addr_size));
+            &pc, san_buf, (const unsigned char*)&addr->buf, addr->size));
         MBEDTLS_ASN1_CHK_ADD(
-          len, mbedtls_asn1_write_len(&pc, san_buf, addr_size));
+          len, mbedtls_asn1_write_len(&pc, san_buf, addr->size));
 
         break;
       }
@@ -124,5 +120,4 @@ namespace tls
       san_buf + max_san_length - len,
       len);
   }
-
 }

@@ -317,7 +317,16 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::initialized);
 
-      create_node_cert(args.config);
+      try
+      {
+        create_node_cert(args.config);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FATAL_FMT(
+          "Could not create self-signed node certificate {}", err.what());
+      }
+
       open_node_frontend();
 
       // Generate quote over node certificate
