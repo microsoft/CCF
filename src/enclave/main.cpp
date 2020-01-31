@@ -46,7 +46,6 @@ extern "C"
   {
     std::lock_guard<SpinLock> guard(create_lock);
 
-
     if (e != nullptr)
     {
       return OE_FAILURE;
