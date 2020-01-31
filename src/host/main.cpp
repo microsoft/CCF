@@ -278,7 +278,7 @@ int main(int argc, char** argv)
   if (domain.empty() && !ds::is_valid_ip(rpc_address.hostname.c_str()))
   {
     throw std::logic_error(fmt::format(
-      "--rpc-address ({}) does not appear to be a valid IP address. "
+      "--rpc-address ({}) does not appear to specify valid IP address. "
       "Please specify a domain name via the --domain option.",
       rpc_address.hostname));
   }
