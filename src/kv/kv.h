@@ -1520,10 +1520,13 @@ namespace kv
     DeserialiseSuccess deserialise_views(
       const std::vector<uint8_t>& data,
       bool public_only = false,
-      bool commit = true,
       Term* term = nullptr,
       Tx* tx = nullptr)
     {
+      // if we pass in a transaction we don't want to commit, just deserialise
+      // and put the views into that transaction
+      bool commit = (tx == nullptr);
+
       // This will return FAILED if the serialised transaction is being
       // applied out of order.
       // Processing transactions locally and also deserialising to the
@@ -1705,7 +1708,7 @@ namespace kv
       bool public_only = false,
       Term* term = nullptr) override
     {
-      return deserialise_views(data, public_only, true, term);
+      return deserialise_views(data, public_only, term);
     }
 
     bool operator==(const Store<S, D>& that) const

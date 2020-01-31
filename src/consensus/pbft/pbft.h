@@ -558,7 +558,7 @@ namespace pbft
 
             ccf::Store::Tx tx;
             auto deserialise_success = store->deserialise_views(
-              ret.first, public_only, false, nullptr, &tx);
+              ret.first, public_only, nullptr, &tx);
 
             switch (deserialise_success)
             {

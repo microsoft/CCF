@@ -249,7 +249,7 @@ TEST_CASE("Test Ledger Replay")
       {
         ccf::Store::Tx tx;
         REQUIRE(
-          store->deserialise_views(entry, false, false, nullptr, &tx) ==
+          store->deserialise_views(entry, false, nullptr, &tx) ==
           kv::DeserialiseSuccess::PASS);
         pbft::GlobalState::get_replica().playback_transaction(tx);
         if (!(iterations % 2))
