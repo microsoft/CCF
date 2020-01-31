@@ -34,13 +34,12 @@ void LedgerWriter::write_prepare(
   }
 }
 
-void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
+void LedgerWriter::write_pre_prepare(ccf::Store::Tx& tx)
 {
-  ccf::Store::Tx tx;
-  write_pre_prepare(pp, tx);
+  store.commit_tx(tx);
 }
 
-void LedgerWriter::write_pre_prepare(Pre_prepare* pp, ccf::Store::Tx& tx)
+void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
 {
   store.commit_pre_prepare(
     {pp->seqno(),
@@ -48,8 +47,7 @@ void LedgerWriter::write_pre_prepare(Pre_prepare* pp, ccf::Store::Tx& tx)
      pp->get_digest_sig(),
      {(const uint8_t*)pp->contents(),
       (const uint8_t*)pp->contents() + pp->size()}},
-    pbft_pre_prepares_map,
-    tx);
+    pbft_pre_prepares_map);
 }
 
 void LedgerWriter::write_view_change(View_change* vc)

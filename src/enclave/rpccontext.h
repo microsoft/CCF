@@ -98,7 +98,7 @@ namespace enclave
     RpcContext(
       const SessionContext& s,
       const std::vector<uint8_t>& raw_,
-      const std::vector<uint8_t> pbft_raw_) :
+      const std::vector<uint8_t>& pbft_raw_) :
       session(s),
       raw(raw_),
       pbft_raw(pbft_raw_)

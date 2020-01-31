@@ -447,7 +447,9 @@ void Replica::playback_pre_prepare(
       last_prepared = seqno;
     }
 
-    ledger_writer->write_pre_prepare(executable_pp.get(), tx);
+    LOG_TRACE_FMT("Storing pre prepare at seqno {}", seqno);
+
+    ledger_writer->write_pre_prepare(tx);
 
     if (global_commit_cb != nullptr && executable_pp->is_signed())
     {

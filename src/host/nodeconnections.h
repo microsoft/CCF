@@ -217,9 +217,9 @@ namespace asynchost
 
           // If the message is a consensus append entries message, affix the
           // corresponding ledger entries
+          auto msg_type = serialized::read<ccf::NodeMsgType>(data, size);
           if (
-            serialized::read<ccf::NodeMsgType>(data, size) ==
-                ccf::NodeMsgType::consensus_msg &&
+            msg_type == ccf::NodeMsgType::consensus_msg &&
               serialized::peek<raft::RaftMsgType>(data, size) ==
                 raft::raft_append_entries ||
             serialized::peek<pbft::PbftMsgType>(data, size) ==

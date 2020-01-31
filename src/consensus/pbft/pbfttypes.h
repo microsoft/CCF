@@ -48,8 +48,8 @@ namespace pbft
     virtual kv::Version current_version() = 0;
     virtual void commit_pre_prepare(
       const pbft::PrePrepare& pp,
-      pbft::PrePreparesMap& pbft_pre_prepares_map,
-      ccf::Store::Tx& tx) = 0;
+      pbft::PrePreparesMap& pbft_pre_prepares_map) = 0;
+    virtual void commit_tx(ccf::Store::Tx& tx) = 0;
   };
 
   template <typename T, typename S>
@@ -76,9 +76,7 @@ namespace pbft
     }
 
     void commit_pre_prepare(
-      const pbft::PrePrepare& pp,
-      pbft::PrePreparesMap& pbft_pre_prepares_map,
-      ccf::Store::Tx& tx)
+      const pbft::PrePrepare& pp, pbft::PrePreparesMap& pbft_pre_prepares_map)
     {
       while (true)
       {
@@ -90,12 +88,28 @@ namespace pbft
           auto success = p->commit(
             version,
             [&]() {
-              tx.set_reserved_version(version);
+              ccf::Store::Tx tx(version);
               auto pp_view = tx.get_view(pbft_pre_prepares_map);
               pp_view->put(0, pp);
               return tx.commit_reserved();
             },
             false);
+          if (success == kv::CommitSuccess::OK)
+          {
+            break;
+          }
+        }
+      }
+    }
+
+    void commit_tx(ccf::Store::Tx& tx)
+    {
+      while (true)
+      {
+        auto p = x.lock();
+        if (p)
+        {
+          auto success = tx.commit();
           if (success == kv::CommitSuccess::OK)
           {
             break;

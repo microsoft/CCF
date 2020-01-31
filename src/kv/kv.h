@@ -939,12 +939,6 @@ namespace kv
       view_list.merge(view_list_);
     }
 
-    void set_reserved_version(Version reserved)
-    {
-      version = reserved;
-      read_version = reserved;
-    }
-
     void set_req_id(const kv::TxHistory::RequestID& req_id_)
     {
       req_id = req_id_;

@@ -23,6 +23,6 @@ public:
   virtual ~LedgerWriter() = default;
   void write_prepare(const Prepared_cert& prepared_cert, Seqno seqno);
   void write_pre_prepare(Pre_prepare* pp);
-  void write_pre_prepare(Pre_prepare* pp, ccf::Store::Tx& tx);
+  void write_pre_prepare(ccf::Store::Tx& tx);
   void write_view_change(View_change* vc);
 };

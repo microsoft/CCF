@@ -57,12 +57,17 @@ using ExecCommand = std::function<int(
   Byz_req*,
   Byz_rep&,
   Byz_buffer*,
+  // client id
   int,
   Request_id,
+  // read only
   bool,
+  // start of the pbft Request contents
   uint8_t* req_start,
+  // pbft Request contents size
   size_t req_size,
   Seqno,
   ByzInfo&,
+  // indicates if we are playing back or not
   bool,
   ccf::Store::Tx*)>;
