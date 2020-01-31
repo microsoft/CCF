@@ -6,3 +6,4 @@ bottle
 sphinx-autobuild
 sphinxcontrib-mermaid
 sphinx-jsonschema
+sphinxcontrib-versioning

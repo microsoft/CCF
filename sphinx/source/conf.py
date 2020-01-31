@@ -30,6 +30,8 @@ version = u""
 # The full version, including alpha/beta/rc tags
 release = u""
 
+svc_root_ret = "gh-pages"
+
 
 # -- General configuration ---------------------------------------------------
 
