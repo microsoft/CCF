@@ -140,7 +140,7 @@ namespace enclave
       const http::HeaderMap& headers,
       const std::vector<uint8_t>& body) override
     {
-      LOG_INFO_FMT(
+      LOG_TRACE_FMT(
         "Processing msg({}, {}, {}, [{} bytes])",
         http_method_str(verb),
         path,

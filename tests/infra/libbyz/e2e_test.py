@@ -194,7 +194,6 @@ def replica_checks(
             logger.info("with_delays is set so checking for view changes")
             assert send_view_change
             assert process_view_change
-
     except AssertionError:
         logger.exception("Assertion failed")
         [[logger.info(l) for l in lines] for lines in node_logs]
