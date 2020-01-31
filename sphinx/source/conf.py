@@ -30,8 +30,6 @@ version = u""
 # The full version, including alpha/beta/rc tags
 release = u""
 
-svc_root_ret = "gh-pages"
-
 
 # -- General configuration ---------------------------------------------------
 
@@ -52,6 +50,7 @@ extensions = [
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.githubpages",
     "sphinx-jsonschema",
+    "sphinxcontrib.versioning.sphinx_",
 ]
 
 autosectionlabel_prefix_document = True
