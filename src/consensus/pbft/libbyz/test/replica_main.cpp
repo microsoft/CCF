@@ -70,7 +70,6 @@ ExecCommand exec_command = [](
                              size_t req_size,
                              Seqno n,
                              ByzInfo& info,
-                             bool playback = false,
                              ccf::Store::Tx* tx = nullptr) {
   outb.contents = message_receiver->create_response_message(client, rid, 8);
 

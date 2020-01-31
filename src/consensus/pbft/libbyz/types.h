@@ -68,6 +68,6 @@ using ExecCommand = std::function<int(
   size_t req_size,
   Seqno,
   ByzInfo&,
-  // indicates if we are playing back or not
-  bool,
+  // if tx is nullptr we are in normal execution, otherwise we are in playback
+  // mode
   ccf::Store::Tx*)>;

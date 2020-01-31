@@ -1525,7 +1525,7 @@ namespace kv
     {
       // if we pass in a transaction we don't want to commit, just deserialise
       // and put the views into that transaction
-      bool commit = (tx == nullptr);
+      auto commit = (tx == nullptr);
 
       // This will return FAILED if the serialised transaction is being
       // applied out of order.

@@ -309,7 +309,6 @@ private:
     Byz_buffer& non_det,
     char* nondet_choices = nullptr,
     ccf::Store::Tx* tx = nullptr,
-    bool playback = false,
     Seqno seqno = -1);
   // Effects: called by execute_tentative or playback_request to execute the
   // request. seqno == -1 means we are running it from playback

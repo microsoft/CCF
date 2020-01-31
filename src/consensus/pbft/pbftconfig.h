@@ -58,7 +58,6 @@ namespace pbft
                                  size_t req_size,
                                  Seqno total_requests_executed,
                                  ByzInfo& info,
-                                 bool playback = false,
                                  ccf::Store::Tx* tx = nullptr) {
       pbft::Request request;
       request.deserialise({inb->contents, inb->contents + inb->size});
@@ -88,10 +87,9 @@ namespace pbft
 #endif
 
       enclave::RpcHandler::ProcessPbftResp rep;
-      if (playback && tx)
+      if (tx != nullptr)
       {
-        rep =
-          frontend->process_pbft(ctx, *tx, playback, info.include_merkle_roots);
+        rep = frontend->process_pbft(ctx, *tx, true, info.include_merkle_roots);
       }
       else
       {

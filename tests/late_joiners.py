@@ -20,7 +20,10 @@ import requests
 from loguru import logger as LOG
 
 # 256 is the number of most recent messages that PBFT keeps in memory before needing to replay the ledger
-TOTAL_REQUESTS = 56
+# the rpc requests that are issued for spinning up the network and checking that all nodes have joined,
+# along with TOTAL_REQUESTS, are enough to exceed this limit
+TOTAL_REQUESTS = 60
+
 s = random.randint(1, 10)
 LOG.info(f"setting seed to {s}")
 random.seed(s)
@@ -119,7 +122,7 @@ def run(args):
         all_nodes = network.get_joined_nodes()
 
         term_info = find_primary(network)
-        fisrt_msg = "Hello, world!"
+        first_msg = "Hello, world!"
         second_msg = "Hello, world hello!"
         final_msg = "Goodbye, world!"
 
@@ -152,11 +155,11 @@ def run(args):
             check_commit = infra.checker.Checker(mc)
             check = infra.checker.Checker()
 
-            run_requests(all_nodes, TOTAL_REQUESTS, 0, fisrt_msg, 1000)
+            run_requests(all_nodes, TOTAL_REQUESTS, 0, first_msg, 1000)
             term_info.update(find_primary(network))
 
             # check that new node has caught up ok
-            assert_node_up_to_date(check, new_node, fisrt_msg, 1000)
+            assert_node_up_to_date(check, new_node, first_msg, 1000)
             # add new node to backups list
             all_nodes.append(new_node)
 
@@ -171,7 +174,7 @@ def run(args):
             run_requests(all_nodes, TOTAL_REQUESTS, 1001, second_msg, 2000)
             term_info.update(find_primary(network))
 
-            assert_node_up_to_date(check, last_node, fisrt_msg, 1000)
+            assert_node_up_to_date(check, last_node, first_msg, 1000)
             assert_node_up_to_date(check, last_node, second_msg, 2000)
 
             # replace the 2 backups with the 2 new nodes, kill the old ones and ensure we are still making progress

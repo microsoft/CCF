@@ -21,7 +21,9 @@ Log_allocator::Log_allocator(int csz, int nc)
   num_chunks = nc;
   free_chunks = 0;
   chunks = 0;
+#ifndef USE_STD_MALLOC
   cur = alloc_chunk();
+#endif
 }
 
 void Log_allocator::should_use_malloc(bool _use_malloc)
@@ -39,7 +41,9 @@ bool Log_allocator::use_malloc =
 
 Log_allocator::~Log_allocator()
 {
+#ifndef USE_STD_MALLOC
   ::free(chunks);
+#endif
 }
 
 Log_allocator::Chunk* Log_allocator::alloc_chunk()

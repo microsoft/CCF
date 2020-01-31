@@ -1991,18 +1991,7 @@ bool Replica::execute_read_only(Request* request)
     std::shared_ptr<Principal> cp = get_principal(client_id);
     ByzInfo info;
     int error = exec_command(
-      &inb,
-      outb,
-      0,
-      client_id,
-      request_id,
-      true,
-      nullptr,
-      0,
-      0,
-      info,
-      false,
-      nullptr);
+      &inb, outb, 0, client_id, request_id, true, nullptr, 0, 0, info, nullptr);
     right_pad_contents(outb);
 
     if (!error)
@@ -2129,7 +2118,6 @@ void Replica::execute_tentative_request(
   Byz_buffer& non_det,
   char* nondet_choices,
   ccf::Store::Tx* tx,
-  bool playback,
   Seqno seqno)
 {
   int client_id = request.client_id();
@@ -2165,7 +2153,6 @@ void Replica::execute_tentative_request(
     request.contents_size(),
     replies.total_requests_processed(),
     info,
-    playback,
     tx);
   right_pad_contents(outb);
   // Finish constructing the reply.
@@ -2218,7 +2205,6 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
         non_det,
         pp->choices(non_det.size),
         nullptr,
-        false,
         pp->seqno());
     }
     LOG_DEBUG_FMT(

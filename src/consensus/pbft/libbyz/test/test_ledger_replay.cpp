@@ -47,7 +47,6 @@ public:
                                size_t req_size,
                                Seqno total_requests_executed,
                                ByzInfo& info,
-                               bool playback = false,
                                ccf::Store::Tx* tx = nullptr) {
     // increase total number of commands executed to compare with fake_req
     command_counter++;
