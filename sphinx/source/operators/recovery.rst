@@ -11,7 +11,7 @@ However, one of the previous ledgers can be recovered and the execution of new b
 - The sealed network secret file (``sealed_secrets.<date>.<pid>``) associated with that CPU is available to a :term:`quorum` of members.
 - One of the ledgers (preferably the ledger of the previous primary as it is likely to be the longest) is available.
 
-The recovery protocol consists of two phases. First, the public transactions of the previous network are restored and the new network established. Then, after the members have agreed that the configuration of the new network is suitable, the sealed network secrets can be restored by a new set of trusted nodes and the previous private transactions recovered.
+The recovery protocol consists of two phases. First, the public transactions of the previous network are restored and the new network established. Then, after the members have agreed that the configuration of the new network is suitable, the sealed ledger secrets can be restored by a new set of trusted nodes and the previous private transactions recovered.
 
 .. note:: Before attempting to recover a network, it is recommended to make a copy of all available ledgers and sealed secrets files.
 
@@ -27,7 +27,8 @@ To initiate the first phase of the recovery protocol, one or several nodes shoul
     --enclave-type debug
     --node-address node_ip:node_port
     --rpc-address <ccf-node-address>
-    --public-rpc-address public_rpc_ip:public_rpc_port
+    --public-rpc-address <ccf-node-public-address>
+    [--domain domain]
     --ledger-file /path/to/ledger/to/recover
     --node-cert-file /path/to/node_certificate
     --quote-file /path/to/quote

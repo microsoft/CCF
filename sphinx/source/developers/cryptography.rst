@@ -19,7 +19,7 @@ Each CCF node is identified by a fresh public-key certificate endorsed by a quot
 This certificate is used to authenticate the node when it joins the
 network, and to sign entries committed by the node to the ledger during its time as primary.
 
-Node keys are also used during recovery, to share recovered network secrets between nodes.
+Node keys are also used during recovery, to share recovered ledger secrets between nodes.
 
 User
 ~~~~

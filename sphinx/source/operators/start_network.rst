@@ -18,7 +18,8 @@ To create a new CCF network, the first node of the network should be started wit
     --enclave-type debug
     --node-address node_ip:node_port
     --rpc-address <ccf-node-address>
-    --public-rpc-address public_rpc_ip:public_rpc_port
+    --public-rpc-address <ccf-node-public-address>
+    [--domain domain]
     --ledger-file /path/to/ledger
     --node-cert-file /path/to/node_certificate
     --quote-file /path/to/quote
@@ -27,6 +28,8 @@ To create a new CCF network, the first node of the network should be started wit
     --member-cert /path/to/member1_cert
     [--member-cert /path/to/member2_cert ...]
     --gov-script /path/to/lua/governance_script
+
+CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported) or by specifying domain names. If domain names are to be used then ``--domain`` should be passed to the node at startup. Once a DNS has been setup it will be possible to connect to the node over TLS by using the node's domain name.
 
 .. note:: To start a CCF node in `virtual` mode, operators should run ``$ cchost.virtual --enclave-file /path/to/virtual_enclave_library ...``
 
@@ -54,13 +57,13 @@ To add a new node to an existing opening network, other nodes should be started 
     --enclave-type debug
     --node-address node_ip:node_port
     --rpc-address <ccf-node-address>
-    --public-rpc-address public_rpc_ip:public_rpc_port
+    --public-rpc-address <ccf-node-public-address>
     --ledger-file /path/to/ledger
     --node-cert-file /path/to/node_certificate
     --quote-file /path/to/quote
     join
     --network-cert-file /path/to/existing/network_certificate
-    --target-rpc-address target_rpc_ip:target_rpc_port
+    --target-rpc-address <another-ccf-node-address>
 
 The joining node takes the certificate of the existing network to join via ``--network-cert-file`` and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by ``--target-rpc-address``.
 
@@ -68,8 +71,7 @@ If the network has not yet been opened by members (see :ref:`members/open_networ
 
 If the network has already been opened to users, members need to trust the joining node before it can become part of the network (see :ref:`members/common_member_operations:Trusting a New Node`).
 
-.. note:: When starting up the network or when joining an existing network, the network secrets required to decrypt the ledger are sealed and written to a file so that the network can later be recovered. See :ref:`operators/recovery:Catastrophic Recovery` for more details on how to recover a crashed network.
-.. note:: CCF nodes can be started by using IP Addresses (both IPv4 and IPV6 are supported) or by specifying domain names. If domain names are to be used then ``--domain=<node domain name>`` should be passed to the node at startup. Once a DNS has been setup it will then be possible to connect to the node over TLS by using the node's domain name.
+.. note:: When starting up the network or when joining an existing network, the secrets required to decrypt the ledger are sealed and written to a file so that the network can later be recovered. See :ref:`operators/recovery:Catastrophic Recovery` for more details on how to recover a crashed network.
 
 Opening a Network to Users
 --------------------------
