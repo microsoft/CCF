@@ -85,6 +85,7 @@ extern "C"
       network_cert_size,
       network_cert_len);
     e.store(enclave);
+
     return result;
   }
 
