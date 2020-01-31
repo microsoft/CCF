@@ -49,7 +49,7 @@ Accepting Recovery
 
 Once the public recovered network has been established by operators (see :ref:`operators/recovery:Establishing a Recovered Public Network`), members are allowed to vote to confirm that the configuration of the new network is suitable to complete the recovery procedure.
 
-The first member proposes to recover the network, passing the sealed network secrets file to the new network:
+The first member proposes to recover the network, passing the sealed ledger secrets file to the new network:
 
 .. code-block:: bash
 
@@ -75,7 +75,7 @@ The first member proposes to recover the network, passing the sealed network sec
     $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json
     {"commit":104,"global_commit":103,"id":0,"jsonrpc":"2.0","result":true,"term":2}
 
-Once a :term:`quorum` of members have agreed to recover the network, the network secrets are unsealed and each node begins recovery of the private ledger entries.
+Once a :term:`quorum` of members have agreed to recover the network, the ledger secrets are unsealed and each node begins recovery of the private ledger entries.
 
 .. note:: While all nodes are recovering the private ledger, no new transaction can be executed by the network.
 
@@ -87,7 +87,7 @@ Once a :term:`quorum` of members have agreed to recover the network, the network
         participant Node 2
         participant Node 3
 
-        Members->>+Node 2: Propose recovery + sealed network secrets
+        Members->>+Node 2: Propose recovery + sealed ledger secrets
         Node 2-->>Members: Proposal ID
         loop Wait until quorum
             Members->>+Node 2: Vote(s) for Proposal ID

@@ -13,7 +13,6 @@
 #  include "enclave/ccf_v.h"
 #else
 #  include <ccf_u.h>
-#  include <openenclave/bits/report.h>
 #  include <openenclave/bits/result.h>
 #  include <openenclave/host.h>
 #endif
@@ -109,6 +108,11 @@ namespace host
       {
         LOG_FATAL_FMT(
           "Failed to call in enclave_create_node: {}", oe_result_str(err));
+      }
+
+      if (!ret)
+      {
+        LOG_FATAL_FMT("An error occurred when creating CCF node");
       }
 
       node_cert.resize(node_cert_len);
