@@ -77,7 +77,7 @@ namespace host
       ConsensusType consensus_type,
       size_t num_worker_thread)
     {
-      oe_result_t ret;
+      bool ret;
       size_t node_cert_len = 0;
       size_t quote_len = 0;
       size_t network_cert_len = 0;
@@ -110,10 +110,9 @@ namespace host
           "Failed to call in enclave_create_node: {}", oe_result_str(err));
       }
 
-      if (ret != OE_OK)
+      if (!ret)
       {
-        LOG_FATAL_FMT(
-          "An error occurred when creating node {}", oe_result_str(ret));
+        LOG_FATAL_FMT("An error occurred when creating CCF node");
       }
 
       node_cert.resize(node_cert_len);

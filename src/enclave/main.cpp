@@ -4,8 +4,6 @@
 #include "../ds/spinlock.h"
 #include "enclave.h"
 
-#include <openenclave/bits/result.h>
-
 #ifdef PBFT
 #  include "../src/consensus/pbft/pbftglobals.h"
 #endif
@@ -27,7 +25,7 @@ std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
 
 extern "C"
 {
-  oe_result_t enclave_create_node(
+  bool enclave_create_node(
     void* enclave_config,
     char* ccf_config,
     size_t ccf_config_size,
@@ -48,7 +46,7 @@ extern "C"
 
     if (e != nullptr)
     {
-      return OE_FAILURE;
+      return false;
     }
 
     num_pending_threads = (uint16_t)num_worker_threads + 1;
@@ -57,7 +55,7 @@ extern "C"
       num_pending_threads >
       enclave::ThreadMessaging::thread_messaging.max_num_threads)
     {
-      return OE_FAILURE;
+      return false;
     }
 
     EnclaveConfig* ec = (EnclaveConfig*)enclave_config;
@@ -88,7 +86,7 @@ extern "C"
       network_cert_len);
 
     e.store(enclave);
-    return result ? OE_OK : OE_FAILURE;
+    return result;
   }
 
   bool enclave_run()
