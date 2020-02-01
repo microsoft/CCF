@@ -8,6 +8,7 @@
 #include "endpoint.h"
 #include "tls/context.h"
 #include "tls/msg_types.h"
+#include <exception> 
 
 namespace enclave
 {
@@ -16,6 +17,7 @@ namespace enclave
   protected:
     ringbuffer::WriterPtr to_host;
     size_t session_id;
+    size_t execution_thread;
 
     enum Status
     {
@@ -62,6 +64,14 @@ namespace enclave
       ctx(move(ctx_)),
       status(handshake)
     {
+      if (enclave::ThreadMessaging::thread_count > 1) {
+        execution_thread =
+          (session_id_ % (enclave::ThreadMessaging::thread_count - 1)) + 1;
+      } 
+      else
+      {
+        execution_thread = 0;
+      }
       ctx->set_bio(this, send_callback, recv_callback, dbg_callback);
     }
 
@@ -130,6 +140,9 @@ namespace enclave
           return data;
       }
 
+      if (ctx== nullptr) {
+        throw std::exception();
+      }
       auto r = ctx->read(data.data() + offset, up_to - offset);
       LOG_TRACE_FMT("ctx->read returned: {}", r);
 
@@ -195,12 +208,46 @@ namespace enclave
 
     void recv_buffered(const uint8_t* data, size_t size)
     {
+      if (thread_ids[std::this_thread::get_id()] != execution_thread) {
+        throw std::exception();
+      }
       pending_read.insert(pending_read.end(), data, data + size);
       do_handshake();
     }
 
-    void send_raw(const std::vector<uint8_t>& data)
+    struct send_raw_msg
     {
+      uint8_t* data;
+      size_t size;
+      TLSEndpoint* self;
+    };
+
+    static void send_raw_cb(std::unique_ptr<enclave::Tmsg<send_raw_msg>> msg)
+    {
+      msg->data.self->send_raw_thread(msg->data.data, msg->data.size);
+      free(msg->data.data);
+    }
+
+    void send_raw(const std::vector<uint8_t>& data){
+      auto msg = std::make_unique<enclave::Tmsg<send_raw_msg>>(&send_raw_cb);  
+      msg->data.self = this;
+      msg->data.size = data.size();
+      msg->data.data = (uint8_t*)malloc(data.size());
+      std::copy_n(data.data(), data.size(), msg->data.data);
+
+      enclave::ThreadMessaging::thread_messaging.add_task<send_raw_msg>(
+        execution_thread, std::move(msg));
+    }
+
+
+    void send_raw_thread(const uint8_t* array, size_t size)
+    {
+      std::vector<uint8_t> data(size);
+      std::copy_n(array, size, data.data());
+
+      if (thread_ids[std::this_thread::get_id()] != execution_thread) {
+        throw std::exception();
+      }
       // Writes as much of the data as possible. If the data cannot all
       // be written now, we store the remainder. We
       // will try to send pending writes again whenever write() is called.
@@ -222,11 +269,19 @@ namespace enclave
 
     void send_buffered(const std::vector<uint8_t>& data)
     {
+      if (thread_ids[std::this_thread::get_id()] != execution_thread) {
+        throw std::exception();
+      }
+
       pending_write.insert(pending_write.end(), data.begin(), data.end());
     }
 
     void flush()
     {
+      if (thread_ids[std::this_thread::get_id()] != execution_thread) {
+        throw std::exception();
+      }
+
       do_handshake();
 
       if (status != ready)
@@ -444,6 +499,9 @@ namespace enclave
 
     int handle_recv(uint8_t* buf, size_t len)
     {
+      if (thread_ids[std::this_thread::get_id()] != execution_thread) {
+        throw std::exception();
+      }
       if (pending_read.size() > 0)
       {
         // Use the pending data vector. This is populated when the host

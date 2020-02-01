@@ -100,8 +100,8 @@ namespace enclave
     void remove_session(size_t id)
     {
       std::lock_guard<SpinLock> guard(lock);
-      LOG_DEBUG_FMT("Closing a session inside the enclave: {}", id);
-      sessions.erase(id);
+      LOG_INFO_FMT("Closing a session inside the enclave: {}", id);
+      //sessions.erase(id);
     }
 
     std::shared_ptr<ClientEndpoint> create_client(
