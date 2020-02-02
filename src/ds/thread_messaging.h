@@ -11,7 +11,6 @@
 
 #include <atomic>
 #include <cstddef>
-#include <exception>
 #include <map>
 #include <thread>
 
@@ -64,17 +63,8 @@ namespace enclave
 
     static void dtor_fn(ThreadMsg* p)
     {
-      if (p->magic != magic_const)
-      {
-        throw std::exception();
-      }
-
-      auto self = (Tmsg<Payload>*)p;
-      if (self->magic != magic_const)
-      {
-        throw std::exception();
-      }
-
+      assert (p->magic == magic_const);
+      auto self = reinterpret_cast<Tmsg<Payload>*>(p);
       self->data.~Payload();
     }
 
