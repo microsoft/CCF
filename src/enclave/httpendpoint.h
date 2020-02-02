@@ -179,14 +179,14 @@ namespace enclave
     struct HandleProcessCbMsg
     {
       std::shared_ptr<Endpoint> self;
-      JsonRpcContext* rpc_ctx;
-      RpcHandler* search;
+      std::shared_ptr<JsonRpcContext> rpc_ctx;
+      std::shared_ptr<RpcHandler> search;
     };
 
     static void handle_process(std::unique_ptr<enclave::Tmsg<HandleProcessCbMsg>> msg)
     {
       reinterpret_cast<HTTPServerEndpoint*>(msg->data.self.get())->handle_message_main_thread(
-        std::shared_ptr<JsonRpcContext>(msg->data.rpc_ctx), msg->data.search);
+        msg->data.rpc_ctx, msg->data.search);
     }
 
   struct SendResponseVectCbMsg
@@ -211,7 +211,7 @@ namespace enclave
 
     void handle_message_main_thread(
       std::shared_ptr<JsonRpcContext> rpc_ctx,
-      RpcHandler* search)
+      std::shared_ptr<RpcHandler> search)
     {
       try
       {
@@ -345,7 +345,7 @@ namespace enclave
         }
 
         auto rpc_ctx =
-          std::make_unique<JsonRpcContext>(session, pack.value(), json_rpc);
+          std::make_shared<JsonRpcContext>(session, pack.value(), json_rpc);
         rpc_ctx->set_request_index(request_index++);
 
         // TODO: For now, set this here
@@ -377,8 +377,8 @@ namespace enclave
         auto msg =
           std::make_unique<enclave::Tmsg<HandleProcessCbMsg>>(&handle_process);
         msg->data.self = this->shared_from_this();
-        msg->data.rpc_ctx = rpc_ctx.release();
-        msg->data.search = search.value().get();
+        msg->data.rpc_ctx = rpc_ctx;
+        msg->data.search = search.value();
         enclave::ThreadMessaging::thread_messaging
           .add_task<HandleProcessCbMsg>(
             enclave::ThreadMessaging::main_thread, std::move(msg));
