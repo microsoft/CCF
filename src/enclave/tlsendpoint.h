@@ -222,18 +222,19 @@ namespace enclave
     struct send_raw_msg
     {
       std::vector<uint8_t> data;
-      TLSEndpoint* self;
+      std::shared_ptr<Endpoint> self;
     };
 
     static void send_raw_cb(std::unique_ptr<enclave::Tmsg<send_raw_msg>> msg)
     {
-      msg->data.self->send_raw_thread(msg->data.data);
+      reinterpret_cast<TLSEndpoint*>(msg->data.self.get())
+        ->send_raw_thread(msg->data.data);
     }
 
     void send_raw(const std::vector<uint8_t>& data)
     {
       auto msg = std::make_unique<enclave::Tmsg<send_raw_msg>>(&send_raw_cb);
-      msg->data.self = this;
+      msg->data.self = this->shared_from_this();
       msg->data.data = data;
 
       enclave::ThreadMessaging::thread_messaging.add_task<send_raw_msg>(

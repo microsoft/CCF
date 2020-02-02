@@ -63,7 +63,7 @@ namespace enclave
 
     static void dtor_fn(ThreadMsg* p)
     {
-      assert (p->magic == magic_const);
+      assert(p->magic == magic_const);
       auto self = reinterpret_cast<Tmsg<Payload>*>(p);
       self->data.~Payload();
     }
@@ -75,7 +75,6 @@ namespace enclave
       static_assert(
         sizeof(Payload) <= sizeof(ThreadMsg::padding),
         "message payload is too large");
-      // static_assert(std::is_pod<Payload>::value, "data should be a pod");
 
       static_assert(
         offsetof(Tmsg, cb) == offsetof(ThreadMsg, cb),
