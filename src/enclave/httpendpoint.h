@@ -211,8 +211,9 @@ namespace enclave
 
   struct msg_response_vect
   {
-    uint8_t* data;
-    size_t size;
+    //uint8_t* data;
+    //size_t size;
+    std::vector<uint8_t> d = {};
     http_status status;
     HTTPServerEndpoint* self;
     std::shared_ptr<Endpoint> ptr;
@@ -221,12 +222,12 @@ namespace enclave
   static void send_response_vect(
     std::unique_ptr<enclave::Tmsg<msg_response_vect>> msg)
   {
-    if (msg->data.size != 0)
+    if (msg->data.d.size() != 0)
     {
-      std::vector<uint8_t> resp(msg->data.size);
-      std::copy_n(msg->data.data, msg->data.size, resp.data());
-      msg->data.self->send_response(resp);
-      free(msg->data.data);
+      //std::vector<uint8_t> resp(msg->data.size);
+      //std::copy_n(msg->data.data, msg->data.size, resp.data());
+      msg->data.self->send_response(msg->data.d);
+      //free(msg->data.data);
     }
     else
     {
@@ -262,15 +263,17 @@ namespace enclave
             msg->data.ptr = this->shared_from_this();
           if (response.has_value())
           {
-            msg->data.data = (uint8_t*)malloc(response.value().size());
-            msg->data.size = response.value().size();
-            std::copy_n(
-              response.value().data(), response.value().size(), msg->data.data);
+            //msg->data.data = (uint8_t*)malloc(response.value().size());
+            //msg->data.size = response.value().size();
+            //std::copy_n(
+            //  response.value().data(), response.value().size(), msg->data.data);
+            msg->data.d = response.value();
           }
-          else{
-
-            msg->data.data = nullptr;
-            msg->data.size = 0;
+          else
+          {
+            //msg->data.data = nullptr;
+            //msg->data.size = 0;
+            msg->data.d.resize(0);
           }
           enclave::ThreadMessaging::thread_messaging
             .add_task<msg_response_vect>(execution_thread, std::move(msg));
@@ -286,9 +289,10 @@ namespace enclave
 
         std::string err_msg = fmt::format("Exception:\n{}\n", e.what());
 
-        msg->data.data = (uint8_t*)malloc(err_msg.size() + 1);
-        msg->data.size = err_msg.size() + 1;
-        std::copy_n(err_msg.data(), err_msg.size() + 1, msg->data.data);
+        //msg->data.data = (uint8_t*)malloc(err_msg.size() + 1);
+        //msg->data.size = err_msg.size() + 1;
+        //std::copy_n(err_msg.data(), err_msg.size() + 1, msg->data.data);
+        msg->data.d.assign(err_msg.begin(), err_msg.end());
 
         enclave::ThreadMessaging::thread_messaging.add_task<msg_response_vect>(
           execution_thread, std::move(msg));
