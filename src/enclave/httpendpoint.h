@@ -27,32 +27,26 @@ namespace enclave
       p(parser_type, *this)
     {}
 
-    struct recv_CbMsg
+    struct RecvCbMsg
     {
-      //uint8_t* data;
-      //size_t size;
       std::vector<uint8_t> d = {};
       std::shared_ptr<Endpoint> ptr;
       HTTPEndpoint *self;
     };
 
-    static void recv_cb(std::unique_ptr<enclave::Tmsg<recv_CbMsg>> msg)
+    static void recv_cb(std::unique_ptr<enclave::Tmsg<RecvCbMsg>> msg)
     {
       msg->data.self->recv_(msg->data.d.data(), msg->data.d.size());
-      //free((void *)msg->data.data);
     }
-
 
     void recv(const uint8_t* data, size_t size) override
     {
-      auto msg = std::make_unique<enclave::Tmsg<recv_CbMsg>>(&recv_cb);
+      auto msg = std::make_unique<enclave::Tmsg<RecvCbMsg>>(&recv_cb);
       msg->data.self = this;
       msg->data.ptr = this->shared_from_this();
-      msg->data.d.resize(size);
-      //msg->data.data = (uint8_t*)malloc(size);
-      std::copy_n(data, size, msg->data.d.data());
+      msg->data.d.assign(data, data + size);
 
-      enclave::ThreadMessaging::thread_messaging.add_task<recv_CbMsg>(
+      enclave::ThreadMessaging::thread_messaging.add_task<RecvCbMsg>(
         execution_thread, std::move(msg));
     }
 
@@ -125,35 +119,26 @@ namespace enclave
       session_id(session_id)
     {}
 
-    struct send_CbMsg
+    struct SendCbMsg
     {
-      //uint8_t* data;
-      //size_t size;
-      std::vector<uint8_t> d;
+      std::vector<uint8_t> d = {};
       std::shared_ptr<Endpoint> ptr;
       HTTPServerEndpoint *self;
     };
 
-    static void send_cb(std::unique_ptr<enclave::Tmsg<send_CbMsg>> msg)
+    static void send_cb(std::unique_ptr<enclave::Tmsg<SendCbMsg>> msg)
     {
-      //std::vector<uint8_t> data(msg->data.size);
-      //std::copy_n(msg->data.data, msg->data.size, data.data());
-
       msg->data.self->send_(msg->data.d);
-      //free((void *)msg->data.data);
     }
 
     void send(const std::vector<uint8_t>& data) override
     {
-      auto msg = std::make_unique<enclave::Tmsg<send_CbMsg>>(&send_cb);
+      auto msg = std::make_unique<enclave::Tmsg<SendCbMsg>>(&send_cb);
       msg->data.self = this;
       msg->data.ptr = this->shared_from_this();
       msg->data.d = data;
-      //msg->data.size = data.size();
-      //msg->data.data = (uint8_t*)malloc(data.size());
-      //std::copy_n(data.data(), data.size(), msg->data.data);
 
-      enclave::ThreadMessaging::thread_messaging.add_task<send_CbMsg>(
+      enclave::ThreadMessaging::thread_messaging.add_task<SendCbMsg>(
         execution_thread, std::move(msg));
     }
 
@@ -195,7 +180,7 @@ namespace enclave
       flush();
     }
 
-    struct handle_message_cbMsg
+    struct HandleProcessCbMsg
     {
       HTTPServerEndpoint* self;
       std::shared_ptr<Endpoint> ptr;
@@ -203,16 +188,14 @@ namespace enclave
       RpcHandler* search;
     };
 
-    static void handle_process(std::unique_ptr<enclave::Tmsg<handle_message_cbMsg>> msg)
+    static void handle_process(std::unique_ptr<enclave::Tmsg<HandleProcessCbMsg>> msg)
     {
       msg->data.self->handle_message_main_thread(
         std::shared_ptr<JsonRpcContext>(msg->data.rpc_ctx), msg->data.search);
     }
 
-  struct msg_response_vect
+  struct SendResponseVectCbMsg
   {
-    //uint8_t* data;
-    //size_t size;
     std::vector<uint8_t> d = {};
     http_status status;
     HTTPServerEndpoint* self;
@@ -220,14 +203,11 @@ namespace enclave
   };
 
   static void send_response_vect(
-    std::unique_ptr<enclave::Tmsg<msg_response_vect>> msg)
+    std::unique_ptr<enclave::Tmsg<SendResponseVectCbMsg>> msg)
   {
     if (msg->data.d.size() != 0)
     {
-      //std::vector<uint8_t> resp(msg->data.size);
-      //std::copy_n(msg->data.data, msg->data.size, resp.data());
       msg->data.self->send_response(msg->data.d);
-      //free(msg->data.data);
     }
     else
     {
@@ -256,32 +236,26 @@ namespace enclave
           LOG_TRACE_FMT("Responding");
           //send_response(response.value());
           // send back here;
-          auto msg = std::make_unique<enclave::Tmsg<msg_response_vect>>(
+          auto msg = std::make_unique<enclave::Tmsg<SendResponseVectCbMsg>>(
             &send_response_vect);
             msg->data.status = HTTP_STATUS_OK;
             msg->data.self = this;
             msg->data.ptr = this->shared_from_this();
           if (response.has_value())
           {
-            //msg->data.data = (uint8_t*)malloc(response.value().size());
-            //msg->data.size = response.value().size();
-            //std::copy_n(
-            //  response.value().data(), response.value().size(), msg->data.data);
             msg->data.d = response.value();
           }
           else
           {
-            //msg->data.data = nullptr;
-            //msg->data.size = 0;
             msg->data.d.resize(0);
           }
           enclave::ThreadMessaging::thread_messaging
-            .add_task<msg_response_vect>(execution_thread, std::move(msg));
+            .add_task<SendResponseVectCbMsg>(execution_thread, std::move(msg));
         }
       }
       catch (const std::exception& e)
       {
-        auto msg = std::make_unique<enclave::Tmsg<msg_response_vect>>(
+        auto msg = std::make_unique<enclave::Tmsg<SendResponseVectCbMsg>>(
           &send_response_vect);
         msg->data.status = HTTP_STATUS_INTERNAL_SERVER_ERROR;
         msg->data.self = this;
@@ -294,7 +268,7 @@ namespace enclave
         //std::copy_n(err_msg.data(), err_msg.size() + 1, msg->data.data);
         msg->data.d.assign(err_msg.begin(), err_msg.end());
 
-        enclave::ThreadMessaging::thread_messaging.add_task<msg_response_vect>(
+        enclave::ThreadMessaging::thread_messaging.add_task<SendResponseVectCbMsg>(
           execution_thread, std::move(msg));
       }
     }
@@ -413,13 +387,13 @@ namespace enclave
         rpc_ctx->actor = actor;
 
         auto msg =
-          std::make_unique<enclave::Tmsg<handle_message_cbMsg>>(&handle_process);
+          std::make_unique<enclave::Tmsg<HandleProcessCbMsg>>(&handle_process);
         msg->data.self = this;
         msg->data.ptr = this->shared_from_this();
         msg->data.rpc_ctx = rpc_ctx.release();
         msg->data.search = search.value().get();
         enclave::ThreadMessaging::thread_messaging
-          .add_task<handle_message_cbMsg>(
+          .add_task<HandleProcessCbMsg>(
             enclave::ThreadMessaging::main_thread, std::move(msg));
       }
       catch (const std::exception& e)
