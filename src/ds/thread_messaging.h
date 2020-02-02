@@ -11,9 +11,9 @@
 
 #include <atomic>
 #include <cstddef>
+#include <exception>
 #include <map>
 #include <thread>
-#include <exception>
 
 extern std::map<std::thread::id, uint16_t> thread_ids;
 
@@ -24,12 +24,13 @@ namespace enclave
     void (*cb)(std::unique_ptr<ThreadMsg>);
     std::atomic<ThreadMsg*> next = nullptr;
     uint64_t things = 0;
-    void (*dtor_cb)(ThreadMsg *);
+    void (*dtor_cb)(ThreadMsg*);
     uint64_t padding[12];
 
     ~ThreadMsg()
     {
-      if (things != 0) {
+      if (things != 0)
+      {
         throw std::exception();
       }
       dtor_cb(this);
@@ -51,7 +52,7 @@ namespace enclave
     void (*cb)(std::unique_ptr<ThreadMsg>);
     std::atomic<ThreadMsg*> next;
     uint64_t things = 0;
-    void (*dtor_cb)(ThreadMsg *);
+    void (*dtor_cb)(ThreadMsg*);
     union
     {
       Payload data;
@@ -63,19 +64,21 @@ namespace enclave
       data.~Payload();
     }
 
-    static void dtor_fn(ThreadMsg *p)
+    static void dtor_fn(ThreadMsg* p)
     {
-      if (p->things != 0) {
+      if (p->things != 0)
+      {
         throw std::exception();
       }
 
       auto self = (Tmsg<Payload>*)p;
-      if (self->things != 0) {
+      if (self->things != 0)
+      {
         throw std::exception();
       }
 
       self->data.~Payload();
-        //throw std::exception();
+      // throw std::exception();
     }
 
     static void check_invariants()
@@ -85,7 +88,7 @@ namespace enclave
       static_assert(
         sizeof(Payload) <= sizeof(ThreadMsg::padding),
         "message payload is too large");
-      //static_assert(std::is_pod<Payload>::value, "data should be a pod");
+      // static_assert(std::is_pod<Payload>::value, "data should be a pod");
 
       static_assert(
         offsetof(Tmsg, cb) == offsetof(ThreadMsg, cb),

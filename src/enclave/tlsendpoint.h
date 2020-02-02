@@ -8,7 +8,8 @@
 #include "endpoint.h"
 #include "tls/context.h"
 #include "tls/msg_types.h"
-#include <exception> 
+
+#include <exception>
 
 namespace enclave
 {
@@ -64,10 +65,11 @@ namespace enclave
       ctx(move(ctx_)),
       status(handshake)
     {
-      if (enclave::ThreadMessaging::thread_count > 1) {
+      if (enclave::ThreadMessaging::thread_count > 1)
+      {
         execution_thread =
           (session_id_ % (enclave::ThreadMessaging::thread_count - 1)) + 1;
-      } 
+      }
       else
       {
         execution_thread = 0;
@@ -140,7 +142,8 @@ namespace enclave
           return data;
       }
 
-      if (ctx== nullptr) {
+      if (ctx == nullptr)
+      {
         throw std::exception();
       }
       auto r = ctx->read(data.data() + offset, up_to - offset);
@@ -208,7 +211,8 @@ namespace enclave
 
     void recv_buffered(const uint8_t* data, size_t size)
     {
-      if (thread_ids[std::this_thread::get_id()] != execution_thread) {
+      if (thread_ids[std::this_thread::get_id()] != execution_thread)
+      {
         throw std::exception();
       }
       pending_read.insert(pending_read.end(), data, data + size);
@@ -226,8 +230,9 @@ namespace enclave
       msg->data.self->send_raw_thread(msg->data.data);
     }
 
-    void send_raw(const std::vector<uint8_t>& data){
-      auto msg = std::make_unique<enclave::Tmsg<send_raw_msg>>(&send_raw_cb);  
+    void send_raw(const std::vector<uint8_t>& data)
+    {
+      auto msg = std::make_unique<enclave::Tmsg<send_raw_msg>>(&send_raw_cb);
       msg->data.self = this;
       msg->data.data = data;
 
@@ -235,10 +240,10 @@ namespace enclave
         execution_thread, std::move(msg));
     }
 
-
     void send_raw_thread(std::vector<uint8_t>& data)
     {
-      if (thread_ids[std::this_thread::get_id()] != execution_thread) {
+      if (thread_ids[std::this_thread::get_id()] != execution_thread)
+      {
         throw std::exception();
       }
       // Writes as much of the data as possible. If the data cannot all
@@ -262,7 +267,8 @@ namespace enclave
 
     void send_buffered(const std::vector<uint8_t>& data)
     {
-      if (thread_ids[std::this_thread::get_id()] != execution_thread) {
+      if (thread_ids[std::this_thread::get_id()] != execution_thread)
+      {
         throw std::exception();
       }
 
@@ -271,7 +277,8 @@ namespace enclave
 
     void flush()
     {
-      if (thread_ids[std::this_thread::get_id()] != execution_thread) {
+      if (thread_ids[std::this_thread::get_id()] != execution_thread)
+      {
         throw std::exception();
       }
 
@@ -492,7 +499,8 @@ namespace enclave
 
     int handle_recv(uint8_t* buf, size_t len)
     {
-      if (thread_ids[std::this_thread::get_id()] != execution_thread) {
+      if (thread_ids[std::this_thread::get_id()] != execution_thread)
+      {
         throw std::exception();
       }
       if (pending_read.size() > 0)
