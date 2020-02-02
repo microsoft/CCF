@@ -31,6 +31,7 @@ namespace enclave
     {
       uint8_t* data;
       size_t size;
+      std::shared_ptr<Endpoint> ptr;
       HTTPEndpoint *self;
     };
 
@@ -45,6 +46,7 @@ namespace enclave
     {
       auto msg = std::make_unique<enclave::Tmsg<recv_CbMsg>>(&recv_cb);
       msg->data.self = this;
+      msg->data.ptr = this->shared_from_this();
       msg->data.size = size;
       msg->data.data = (uint8_t*)malloc(size);
       std::copy_n(data, size, msg->data.data);
@@ -126,6 +128,7 @@ namespace enclave
     {
       uint8_t* data;
       size_t size;
+      std::shared_ptr<Endpoint> ptr;
       HTTPServerEndpoint *self;
     };
 
@@ -142,6 +145,7 @@ namespace enclave
     {
       auto msg = std::make_unique<enclave::Tmsg<send_CbMsg>>(&send_cb);
       msg->data.self = this;
+      msg->data.ptr = this->shared_from_this();
       msg->data.size = data.size();
       msg->data.data = (uint8_t*)malloc(data.size());
       std::copy_n(data.data(), data.size(), msg->data.data);
@@ -191,6 +195,7 @@ namespace enclave
     struct handle_message_cbMsg
     {
       HTTPServerEndpoint* self;
+      std::shared_ptr<Endpoint> ptr;
       JsonRpcContext* rpc_ctx;
       RpcHandler* search;
     };
@@ -207,6 +212,7 @@ namespace enclave
     size_t size;
     http_status status;
     HTTPServerEndpoint* self;
+    std::shared_ptr<Endpoint> ptr;
   };
 
   static void send_response_vect(
@@ -250,6 +256,7 @@ namespace enclave
             &send_response_vect);
             msg->data.status = HTTP_STATUS_OK;
             msg->data.self = this;
+            msg->data.ptr = this->shared_from_this();
           if (response.has_value())
           {
             msg->data.data = (uint8_t*)malloc(response.value().size());
@@ -272,6 +279,7 @@ namespace enclave
           &send_response_vect);
         msg->data.status = HTTP_STATUS_INTERNAL_SERVER_ERROR;
         msg->data.self = this;
+        msg->data.ptr = this->shared_from_this();
 
         std::string err_msg = fmt::format("Exception:\n{}\n", e.what());
 
@@ -400,6 +408,7 @@ namespace enclave
         auto msg =
           std::make_unique<enclave::Tmsg<handle_message_cbMsg>>(&handle_process);
         msg->data.self = this;
+        msg->data.ptr = this->shared_from_this();
         msg->data.rpc_ctx = rpc_ctx.release();
         msg->data.search = search.value().get();
         enclave::ThreadMessaging::thread_messaging

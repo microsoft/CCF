@@ -32,6 +32,7 @@ namespace enclave
       cb(reinterpret_cast<void (*)(std::unique_ptr<ThreadMsg>)>(_cb)),
       next(nullptr)
     {
+      new (&data) Payload();
       check_invariants();
     }
 
@@ -43,6 +44,8 @@ namespace enclave
       uint64_t padding[14];
     };
 
+    ~Tmsg(){}
+
     static void check_invariants()
     {
       static_assert(
@@ -50,7 +53,7 @@ namespace enclave
       static_assert(
         sizeof(Payload) <= sizeof(ThreadMsg::padding),
         "message payload is too large");
-      static_assert(std::is_pod<Payload>::value, "data should be a pod");
+      //static_assert(std::is_pod<Payload>::value, "data should be a pod");
 
       static_assert(
         offsetof(Tmsg, cb) == offsetof(ThreadMsg, cb),

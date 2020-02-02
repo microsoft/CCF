@@ -101,7 +101,7 @@ namespace enclave
     {
       std::lock_guard<SpinLock> guard(lock);
       LOG_INFO_FMT("Closing a session inside the enclave: {}", id);
-      //sessions.erase(id);
+      sessions.erase(id);
     }
 
     std::shared_ptr<ClientEndpoint> create_client(
