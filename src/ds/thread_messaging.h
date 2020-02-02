@@ -32,6 +32,7 @@ namespace enclave
       if (things != 0) {
         throw std::exception();
       }
+      dtor_cb(this);
     }
   };
 
@@ -43,6 +44,7 @@ namespace enclave
       next(nullptr)
     {
       new (&data) Payload();
+      dtor_cb = Tmsg<Payload>::dtor_fn;
       check_invariants();
     }
 
@@ -61,6 +63,21 @@ namespace enclave
       data.~Payload();
     }
 
+    static void dtor_fn(ThreadMsg *p)
+    {
+      if (p->things != 0) {
+        throw std::exception();
+      }
+
+      auto self = (Tmsg<Payload>*)p;
+      if (self->things != 0) {
+        throw std::exception();
+      }
+
+      self->data.~Payload();
+        //throw std::exception();
+    }
+
     static void check_invariants()
     {
       static_assert(
@@ -72,6 +89,9 @@ namespace enclave
 
       static_assert(
         offsetof(Tmsg, cb) == offsetof(ThreadMsg, cb),
+        "Expected cb at start of struct");
+      static_assert(
+        offsetof(Tmsg, dtor_cb) == offsetof(ThreadMsg, dtor_cb),
         "Expected cb at start of struct");
       static_assert(
         offsetof(Tmsg, next) == offsetof(ThreadMsg, next),
