@@ -229,7 +229,6 @@ namespace enclave
           // Otherwise, reply to the client synchronously.
           LOG_TRACE_FMT("Responding");
           //send_response(response.value());
-          // send back here;
           auto msg = std::make_unique<enclave::Tmsg<SendResponseVectCbMsg>>(
             &send_response_vect);
             msg->data.status = HTTP_STATUS_OK;

@@ -217,34 +217,27 @@ namespace enclave
 
     struct send_raw_msg
     {
-      uint8_t* data;
-      size_t size;
+      std::vector<uint8_t> data;
       TLSEndpoint* self;
     };
 
     static void send_raw_cb(std::unique_ptr<enclave::Tmsg<send_raw_msg>> msg)
     {
-      msg->data.self->send_raw_thread(msg->data.data, msg->data.size);
-      free(msg->data.data);
+      msg->data.self->send_raw_thread(msg->data.data);
     }
 
     void send_raw(const std::vector<uint8_t>& data){
       auto msg = std::make_unique<enclave::Tmsg<send_raw_msg>>(&send_raw_cb);  
       msg->data.self = this;
-      msg->data.size = data.size();
-      msg->data.data = (uint8_t*)malloc(data.size());
-      std::copy_n(data.data(), data.size(), msg->data.data);
+      msg->data.data = data;
 
       enclave::ThreadMessaging::thread_messaging.add_task<send_raw_msg>(
         execution_thread, std::move(msg));
     }
 
 
-    void send_raw_thread(const uint8_t* array, size_t size)
+    void send_raw_thread(std::vector<uint8_t>& data)
     {
-      std::vector<uint8_t> data(size);
-      std::copy_n(array, size, data.data());
-
       if (thread_ids[std::this_thread::get_id()] != execution_thread) {
         throw std::exception();
       }
