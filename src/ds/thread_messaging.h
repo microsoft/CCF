@@ -94,6 +94,9 @@ namespace enclave
         offsetof(Tmsg, dtor_cb) == offsetof(ThreadMsg, dtor_cb),
         "Expected cb at start of struct");
       static_assert(
+        offsetof(Tmsg, things) == offsetof(ThreadMsg, things),
+        "Expected next after cb in struct");
+      static_assert(
         offsetof(Tmsg, next) == offsetof(ThreadMsg, next),
         "Expected next after cb in struct");
       static_assert(
