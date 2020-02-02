@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <map>
 #include <thread>
+#include <exception>
 
 extern std::map<std::thread::id, uint16_t> thread_ids;
 
@@ -22,7 +23,16 @@ namespace enclave
   {
     void (*cb)(std::unique_ptr<ThreadMsg>);
     std::atomic<ThreadMsg*> next = nullptr;
-    uint64_t padding[14];
+    uint64_t things = 0;
+    void (*dtor_cb)(ThreadMsg *);
+    uint64_t padding[12];
+
+    ~ThreadMsg()
+    {
+      if (things != 0) {
+        throw std::exception();
+      }
+    }
   };
 
   template <typename Payload>
@@ -38,13 +48,18 @@ namespace enclave
 
     void (*cb)(std::unique_ptr<ThreadMsg>);
     std::atomic<ThreadMsg*> next;
+    uint64_t things = 0;
+    void (*dtor_cb)(ThreadMsg *);
     union
     {
       Payload data;
-      uint64_t padding[14];
+      uint64_t padding[12];
     };
 
-    ~Tmsg(){}
+    ~Tmsg()
+    {
+      data.~Payload();
+    }
 
     static void check_invariants()
     {
