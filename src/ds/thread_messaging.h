@@ -19,17 +19,18 @@ extern std::map<std::thread::id, uint16_t> thread_ids;
 
 namespace enclave
 {
+  const uint64_t magic_const = 0xba55ball;
   struct ThreadMsg
   {
     void (*cb)(std::unique_ptr<ThreadMsg>);
     std::atomic<ThreadMsg*> next = nullptr;
-    uint64_t things = 0;
+    uint64_t magic = magic_const;
     void (*dtor_cb)(ThreadMsg*);
     uint64_t padding[12];
 
     ~ThreadMsg()
     {
-      if (things != 0)
+      if (magic != magic_const)
       {
         throw std::exception();
       }
@@ -51,7 +52,7 @@ namespace enclave
 
     void (*cb)(std::unique_ptr<ThreadMsg>);
     std::atomic<ThreadMsg*> next;
-    uint64_t things = 0;
+    uint64_t magic = magic_const;
     void (*dtor_cb)(ThreadMsg*);
     union
     {
@@ -66,13 +67,13 @@ namespace enclave
 
     static void dtor_fn(ThreadMsg* p)
     {
-      if (p->things != 0)
+      if (p->magic != magic_const)
       {
         throw std::exception();
       }
 
       auto self = (Tmsg<Payload>*)p;
-      if (self->things != 0)
+      if (self->magic != magic_const)
       {
         throw std::exception();
       }
@@ -97,7 +98,7 @@ namespace enclave
         offsetof(Tmsg, dtor_cb) == offsetof(ThreadMsg, dtor_cb),
         "Expected cb at start of struct");
       static_assert(
-        offsetof(Tmsg, things) == offsetof(ThreadMsg, things),
+        offsetof(Tmsg, magic) == offsetof(ThreadMsg, magic),
         "Expected next after cb in struct");
       static_assert(
         offsetof(Tmsg, next) == offsetof(ThreadMsg, next),
