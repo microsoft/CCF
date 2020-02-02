@@ -29,16 +29,17 @@ namespace enclave
 
     struct recv_CbMsg
     {
-      uint8_t* data;
-      size_t size;
+      //uint8_t* data;
+      //size_t size;
+      std::vector<uint8_t> d = {};
       std::shared_ptr<Endpoint> ptr;
       HTTPEndpoint *self;
     };
 
     static void recv_cb(std::unique_ptr<enclave::Tmsg<recv_CbMsg>> msg)
     {
-      msg->data.self->recv_(msg->data.data, msg->data.size);
-      free((void *)msg->data.data);
+      msg->data.self->recv_(msg->data.d.data(), msg->data.d.size());
+      //free((void *)msg->data.data);
     }
 
 
@@ -47,9 +48,9 @@ namespace enclave
       auto msg = std::make_unique<enclave::Tmsg<recv_CbMsg>>(&recv_cb);
       msg->data.self = this;
       msg->data.ptr = this->shared_from_this();
-      msg->data.size = size;
-      msg->data.data = (uint8_t*)malloc(size);
-      std::copy_n(data, size, msg->data.data);
+      msg->data.d.resize(size);
+      //msg->data.data = (uint8_t*)malloc(size);
+      std::copy_n(data, size, msg->data.d.data());
 
       enclave::ThreadMessaging::thread_messaging.add_task<recv_CbMsg>(
         execution_thread, std::move(msg));
@@ -126,19 +127,20 @@ namespace enclave
 
     struct send_CbMsg
     {
-      uint8_t* data;
-      size_t size;
+      //uint8_t* data;
+      //size_t size;
+      std::vector<uint8_t> d;
       std::shared_ptr<Endpoint> ptr;
       HTTPServerEndpoint *self;
     };
 
     static void send_cb(std::unique_ptr<enclave::Tmsg<send_CbMsg>> msg)
     {
-      std::vector<uint8_t> data(msg->data.size);
-      std::copy_n(msg->data.data, msg->data.size, data.data());
+      //std::vector<uint8_t> data(msg->data.size);
+      //std::copy_n(msg->data.data, msg->data.size, data.data());
 
-      msg->data.self->send_(data);
-      free((void *)msg->data.data);
+      msg->data.self->send_(msg->data.d);
+      //free((void *)msg->data.data);
     }
 
     void send(const std::vector<uint8_t>& data) override
@@ -146,9 +148,10 @@ namespace enclave
       auto msg = std::make_unique<enclave::Tmsg<send_CbMsg>>(&send_cb);
       msg->data.self = this;
       msg->data.ptr = this->shared_from_this();
-      msg->data.size = data.size();
-      msg->data.data = (uint8_t*)malloc(data.size());
-      std::copy_n(data.data(), data.size(), msg->data.data);
+      msg->data.d = data;
+      //msg->data.size = data.size();
+      //msg->data.data = (uint8_t*)malloc(data.size());
+      //std::copy_n(data.data(), data.size(), msg->data.data);
 
       enclave::ThreadMessaging::thread_messaging.add_task<send_CbMsg>(
         execution_thread, std::move(msg));
