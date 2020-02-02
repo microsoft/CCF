@@ -30,10 +30,7 @@ namespace enclave
 
     ~ThreadMsg()
     {
-      if (magic != magic_const)
-      {
-        throw std::exception();
-      }
+      assert(magic == magic_const);
       dtor_cb(this);
     }
   };
@@ -79,7 +76,6 @@ namespace enclave
       }
 
       self->data.~Payload();
-      // throw std::exception();
     }
 
     static void check_invariants()
