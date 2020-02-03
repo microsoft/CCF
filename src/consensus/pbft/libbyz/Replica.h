@@ -62,7 +62,7 @@ public:
     INetwork* network,
     pbft::RequestsMap& pbft_requests_map_,
     pbft::PrePreparesMap& pbft_pre_prepares_map_,
-    pbft::Store& store_);
+    pbft::PbftStore& store_);
   // Requires: "mem" is vm page aligned and nbytes is a multiple of the
   // vm page size.
   // Effects: Create a new server replica using the information in
@@ -123,8 +123,12 @@ public:
   void register_reply_handler(reply_handler_cb cb, void* ctx);
   // Effects: Registers a handler that takes reply messages
 
-  void register_global_commit(global_commit_handler_cb cb, void* ctx);
+  void register_global_commit(
+    global_commit_handler_cb cb, pbft::GlobalCommitInfo* ctx);
   // Effects:: Registers a handler that is called when a batch is committed
+
+  void register_mark_stable(
+    mark_stable_handler_cb cb, pbft::MarkStableInfo* ctx);
 
   template <typename T>
   std::unique_ptr<T> create_message(
@@ -134,8 +138,6 @@ public:
   size_t f() const;
   void set_f(ccf::NodeId f);
   void emit_signature_on_next_pp(int64_t version);
-  void activate_pbft_local_hooks();
-  void deactivate_pbft_local_hooks();
   View view() const;
   bool is_primary() const;
   int primary() const;
@@ -193,11 +195,7 @@ public:
   // Compare the merkle root and batch ctx between the pre-prepare and the
   // the corresponding fields in info after execution
 
-  void playback_request(const pbft::Request& request);
-  // Effects: Requests are stored in queue
-  void playback_pre_prepare(const pbft::PrePrepare& pre_prepare);
-  // Effects: pre-prepares are executed if they
-  // are able to If not any requests are cleared from the request queues
+  void playback_transaction(ccf::Store::Tx& tx);
 
   void init_state();
   void recv_start();
@@ -250,6 +248,14 @@ private:
 #endif
   // Effects: Handle timeouts of corresponding timers.
 
+  // Playback methods
+  void playback_request(const pbft::Request& request, ccf::Store::Tx& tx);
+  // Effects: Requests are executed
+  void playback_pre_prepare(
+    const pbft::PrePrepare& pre_prepare, ccf::Store::Tx& tx);
+  // Effects: pre-prepare is verified, if merkle roots match
+  // we update the pre-prepare related meta-data, if not we rollback
+
   //
   // Auxiliary methods used by primary to send messages to the replica
   // group:
@@ -297,6 +303,17 @@ private:
   // extracts requests to execute commands from a message "m"; calls
   // exec_command for each command; and sends back replies to the
   // client. The replies are tentative unless "committed" is true.
+
+  void execute_tentative_request(
+    Request& request,
+    ByzInfo& info,
+    int64_t& max_local_commit_value,
+    Byz_buffer& non_det,
+    char* nondet_choices = nullptr,
+    ccf::Store::Tx* tx = nullptr,
+    Seqno seqno = -1);
+  // Effects: called by execute_tentative or playback_request to execute the
+  // request. seqno == -1 means we are running it from playback
 
   void create_recovery_reply(
     int client_id, int last_tentative_execute, Byz_rep& outb);
@@ -427,17 +444,39 @@ private:
   Rep_info replies;
 #endif
 
-  // used to register a callback for a client proxy to collect replies sent to
-  // this replica
+  ByzInfo playback_byz_info;
+  // Latest byz info when we are in playback mode. Used to compare the latest
+  // execution mt roots and version with the ones in the pre prepare we will get
+  // while we are at playback mode
+  Seqno playback_pp_seqno = 0;
+  // seqno of latest pre prepare executed in playback mode
+  bool waiting_for_playback_pp = false;
+  // indicates if we are in append entries playback mode and have executed a
+  // request but haven't gotten the pre prepare yet
+  int64_t playback_max_local_commit_value = INT64_MIN;
+  // playback max local commit value used for when we are playing back batched
+  // requests when playback pre-prepare is called it will reset it since the
+  // batch for that pre-prepare has executed
+
   reply_handler_cb rep_cb;
   void* rep_cb_ctx;
+  // used to register a callback for a client proxy to collect replies sent to
+  // this replica
 
   pbft::RequestsMap& pbft_requests_map;
   pbft::PrePreparesMap& pbft_pre_prepares_map;
 
   // used to callback when we have committed a batch
   global_commit_handler_cb global_commit_cb;
-  void* global_commit_ctx;
+  pbft::GlobalCommitInfo* global_commit_info;
+
+  mark_stable_handler_cb mark_stable_cb = nullptr;
+  pbft::MarkStableInfo* mark_stable_info;
+  // callback when we call mark_stable
+  // Used to not the append_entries_index of the stable seqno
+  // We don't want to send append entries further than the latest stable seqno
+  // since the replicas store enough messages in that case so that the late
+  // joiner can catch up by the usual execution route
 
   std::unique_ptr<LedgerWriter> ledger_writer;
 

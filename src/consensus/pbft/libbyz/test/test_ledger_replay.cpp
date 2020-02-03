@@ -43,8 +43,11 @@ public:
                                int client,
                                Request_id rid,
                                bool ro,
+                               uint8_t* req_start,
+                               size_t req_size,
                                Seqno total_requests_executed,
-                               ByzInfo& info) {
+                               ByzInfo& info,
+                               ccf::Store::Tx* tx = nullptr) {
     // increase total number of commands executed to compare with fake_req
     command_counter++;
 
@@ -84,7 +87,7 @@ NodeInfo get_node_info()
 
 void create_replica(
   std::vector<char>& service_mem,
-  pbft::Store& store,
+  pbft::PbftStore& store,
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map)
 {
@@ -129,7 +132,8 @@ TEST_CASE("Test Ledger Replay")
       "derived_map", kv::SecurityDomain::PUBLIC);
 
     auto write_pbft_store =
-      std::make_unique<pbft::Adaptor<ccf::Store>>(write_store);
+      std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(
+        write_store);
 
     int mem_size = 400 * 8192;
     std::vector<char> service_mem(mem_size, 0);
@@ -159,11 +163,16 @@ TEST_CASE("Test Ledger Replay")
 
       ccf::Store::Tx tx;
       auto req_view = tx.get_view(write_pbft_requests_map);
+
+      int command_size;
+      auto command_start = request->command(command_size);
+
       req_view->put(
         0,
         {0,
          0,
          {},
+         {command_start, command_start + command_size},
          {(const uint8_t*)request->contents(),
           (const uint8_t*)request->contents() + request->size()}});
 
@@ -191,7 +200,10 @@ TEST_CASE("Test Ledger Replay")
       pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
     auto& derived_map = store->create<std::string, std::string>(
       "derived_map", kv::SecurityDomain::PUBLIC);
-    auto replica_store = std::make_unique<pbft::Adaptor<ccf::Store>>(store);
+
+    auto replica_store =
+      std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(
+        store);
 
     int mem_size = 400 * 8192;
     std::vector<char> service_mem(mem_size, 0);
@@ -200,7 +212,6 @@ TEST_CASE("Test Ledger Replay")
     create_replica(
       service_mem, *replica_store, pbft_requests_map, pbft_pre_prepares_map);
     pbft::GlobalState::get_replica().register_exec(exec_mock.exec_command);
-    pbft::GlobalState::get_replica().activate_pbft_local_hooks();
     // ledgerenclave work
     std::vector<std::vector<uint8_t>> entries;
     while (true)
@@ -234,7 +245,18 @@ TEST_CASE("Test Ledger Replay")
     // apply all of the data in order
     for (const auto& entry : entries)
     {
-      REQUIRE(store->deserialise(entry) == kv::DeserialiseSuccess::PASS);
+      {
+        ccf::Store::Tx tx;
+        REQUIRE(
+          store->deserialise_views(entry, false, nullptr, &tx) ==
+          kv::DeserialiseSuccess::PASS);
+        pbft::GlobalState::get_replica().playback_transaction(tx);
+        if (!(iterations % 2))
+        {
+          // pre-prepares are committed in playback_pre_prepare
+          REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+        }
+      }
       ccf::Store::Tx tx;
       if (iterations % 2)
       {
