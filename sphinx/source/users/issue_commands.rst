@@ -39,8 +39,6 @@ The HTTP response contains a JSON-RPC response object, extended with some CCF co
 - ``"global_commit"`` is the latest version agreed on by the network and forever committed to the ledger, at the time the request was executed, as seen by the contacted node
 - ``"term"`` indicates the consensus term at which the request was executed
 
-.. warning:: CCF originally accepted user commands as framed JSON-RPC over TCP. Support for this format will be dropped in v0.8. If you still need this in the interim then it can be enabled by passing ``-DFTCP=ON`` to cmake. The Python infra client will send messages in this framed format if run with environment variable ``FTCP`` set.
-
 Signing
 -------
 
