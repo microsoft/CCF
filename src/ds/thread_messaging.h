@@ -19,7 +19,7 @@ extern std::map<std::thread::id, uint16_t> thread_ids;
 namespace enclave
 {
   const uint64_t magic_const = 0xba5eball;
-  struct ThreadMsg
+  struct alignas(8) ThreadMsg
   {
     void (*cb)(std::unique_ptr<ThreadMsg>);
     std::atomic<ThreadMsg*> next = nullptr;
@@ -34,7 +34,7 @@ namespace enclave
   };
 
   template <typename Payload>
-  struct Tmsg : public ThreadMsg
+  struct alignas(8) Tmsg : public ThreadMsg
   {
     Payload data;
 
