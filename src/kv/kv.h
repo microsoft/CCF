@@ -1709,6 +1709,16 @@ namespace kv
         {
           success = DeserialiseSuccess::PASS_PRE_PREPARE;
         }
+        else
+        {
+          auto search = views.find("ccf.pbft.requests");
+          if (search == views.end())
+          {
+            // we have deserialised an entry that didn't belong to the pbft
+            // requests nor the pbft pre prepares table
+            return DeserialiseSuccess::FAILED;
+          }
+        }
       }
 
       if (tx)
