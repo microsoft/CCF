@@ -493,12 +493,12 @@ namespace kv
         return map.is_replicated();
       }
 
+    private:
       virtual bool has_writes()
       {
         return committed_writes || !writes.empty();
       }
 
-    private:
       virtual bool has_changes()
       {
         return changes;
@@ -1692,6 +1692,22 @@ namespace kv
           }
           auto rep = frame::replicated(data.data());
           h->append(rep.p, rep.n, data.data(), data.size());
+        }
+      }
+      else
+      {
+        // Transactions containing a pre prepare or a pbft request should not
+        // contain anything else
+        if (views.size() > 1)
+        {
+          LOG_FAIL_FMT("Unexpected contents in pbft transaction {}", v);
+          return DeserialiseSuccess::FAILED;
+        }
+
+        auto search = views.find("ccf.pbft.preprepares");
+        if (search != views.end())
+        {
+          success = DeserialiseSuccess::PASS_PRE_PREPARE;
         }
       }
 

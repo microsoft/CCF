@@ -573,7 +573,12 @@ namespace pbft
               }
               case kv::DeserialiseSuccess::PASS:
               {
-                message_receiver_base->playback_transaction(tx);
+                message_receiver_base->playback_request(tx);
+                break;
+              }
+              case kv::DeserialiseSuccess::PASS_PRE_PREPARE:
+              {
+                message_receiver_base->playback_pre_prepare(tx);
                 break;
               }
               case kv::DeserialiseSuccess::PASS_SIGNATURE:
