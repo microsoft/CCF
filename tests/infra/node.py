@@ -229,6 +229,12 @@ class Node:
             **kwargs,
         )
 
+    def suspend(self):
+        self.remote.suspend()
+
+    def resume(self):
+        self.remote.resume()
+
 
 @contextmanager
 def node(node_id, host, build_directory, debug=False, perf=False, pdb=False):

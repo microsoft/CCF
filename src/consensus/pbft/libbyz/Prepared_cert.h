@@ -140,8 +140,18 @@ private:
 
 inline bool Prepared_cert::add(Prepare* m)
 {
-#ifdef SIGN_BATCH
   int id = m->id();
+  auto principal = pbft::GlobalState::get_node().get_principal(id);
+  if (!principal)
+  {
+    LOG_INFO_FMT(
+      "Principal with id {} has not been configured yet, rejecting prepare",
+      id);
+    delete m;
+    return false;
+  }
+
+#ifdef SIGN_BATCH
   PbftSignature& digest_sig = m->digest_sig();
   PrePrepareProof proof;
   std::copy(
@@ -153,7 +163,7 @@ inline bool Prepared_cert::add(Prepare* m)
 #ifdef SIGN_BATCH
   if (result)
   {
-    proof.cert = pbft::GlobalState::get_node().get_principal(id)->get_cert();
+    proof.cert = principal->get_cert();
     pre_prepare_proof.insert({id, proof});
   }
 #endif
