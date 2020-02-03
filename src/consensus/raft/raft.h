@@ -661,7 +661,7 @@ namespace raft
             break;
 
           case kv::DeserialiseSuccess::PASS_SIGNATURE:
-            LOG_INFO_FMT("Deserialising signature at {}", i);
+            LOG_DEBUG_FMT("Deserialising signature at {}", i);
             committable_indices.push_back(i);
             if (sig_term)
               term_history.update(commit_idx + 1, sig_term);
