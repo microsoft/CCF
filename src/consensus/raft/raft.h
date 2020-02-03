@@ -672,7 +672,7 @@ namespace raft
 
           case kv::DeserialiseSuccess::PASS_PRE_PREPARE:
             throw std::logic_error(
-              "Received a pbft pre prepare while running with Raft!"););
+              "Received a pbft pre prepare while running with Raft!");
             break;
         }
       }
