@@ -289,6 +289,11 @@ bool Pre_prepare::pre_verify()
     {
       auto sender_principal =
         pbft::GlobalState::get_node().get_principal(sender);
+      if (!sender_principal)
+      {
+        LOG_INFO_FMT("Sender principal has not been configured yet {}", sender);
+        return false;
+      }
 
       if (
         !sender_principal->has_certificate_set() &&

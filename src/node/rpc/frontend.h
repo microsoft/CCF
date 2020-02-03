@@ -337,8 +337,17 @@ namespace ccf
       std::shared_ptr<enclave::RpcContext> ctx,
       bool include_merkle_roots) override
     {
-      // TODO(#PBFT): Refactor this with process_forwarded().
       Store::Tx tx;
+      return process_pbft(ctx, tx, false, include_merkle_roots);
+    }
+
+    ProcessPbftResp process_pbft(
+      std::shared_ptr<enclave::RpcContext> ctx,
+      Store::Tx& tx,
+      bool playback,
+      bool include_merkle_roots) override
+    {
+      // TODO(#PBFT): Refactor this with process_forwarded().
       crypto::Sha256Hash full_state_merkle_root;
       crypto::Sha256Hash replicated_state_merkle_root;
       kv::Version version = kv::NoVersion;
@@ -347,13 +356,17 @@ namespace ccf
 
       bool has_updated_merkle_roots = false;
 
-      auto req_view = tx.get_view(*pbft_requests_map);
-      req_view->put(
-        0,
-        {(size_t)ctx->actor,
-         ctx->session.fwd.value().caller_id,
-         ctx->session.caller_cert,
-         ctx->raw});
+      if (!playback)
+      {
+        auto req_view = tx.get_view(*pbft_requests_map);
+        req_view->put(
+          0,
+          {(size_t)ctx->actor,
+           ctx->session.fwd.value().caller_id,
+           ctx->session.caller_cert,
+           ctx->raw,
+           ctx->pbft_raw});
+      }
 
       auto rep = process_command(ctx, tx, ctx->session.fwd->caller_id);
 

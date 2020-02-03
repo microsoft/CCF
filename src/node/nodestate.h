@@ -1422,8 +1422,10 @@ namespace ccf
     void setup_pbft(const CCFConfig& config)
     {
       setup_n2n_channels();
+
       consensus = std::make_shared<PbftConsensusType>(
-        std::make_unique<pbft::Adaptor<Store>>(network.tables),
+        std::make_unique<pbft::Adaptor<Store, kv::DeserialiseSuccess>>(
+          network.tables),
         n2n_channels,
         self,
         config.signature_intervals.sig_max_tx,

@@ -347,6 +347,16 @@ void Certificate<T>::reset_f()
 template <class T>
 bool Certificate<T>::add(T* m)
 {
+  auto principal = pbft::GlobalState::get_node().get_principal(m->id());
+  if (!principal)
+  {
+    LOG_INFO_FMT(
+      "Principal with id {} has not been configured yet, rejecting the message",
+      m->id());
+    delete m;
+    return false;
+  }
+
   if (bmap.none() && f != pbft::GlobalState::get_node().f())
   {
     reset_f();

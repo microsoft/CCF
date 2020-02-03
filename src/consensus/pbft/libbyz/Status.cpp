@@ -5,6 +5,7 @@
 
 #include "Status.h"
 
+#include "Append_entries.h"
 #include "Message_tags.h"
 #include "Node.h"
 #include "Principal.h"

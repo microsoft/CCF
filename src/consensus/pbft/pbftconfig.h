@@ -3,6 +3,7 @@
 #pragma once
 #include "consensus/pbft/libbyz/libbyz.h"
 #include "consensus/pbft/libbyz/pbft_assert.h"
+#include "enclave/rpchandler.h"
 #include "enclave/rpcmap.h"
 #include "pbftdeps.h"
 
@@ -53,8 +54,11 @@ namespace pbft
                                  int client,
                                  Request_id rid,
                                  bool ro,
+                                 uint8_t* req_start,
+                                 size_t req_size,
                                  Seqno total_requests_executed,
-                                 ByzInfo& info) {
+                                 ByzInfo& info,
+                                 ccf::Store::Tx* tx = nullptr) {
       pbft::Request request;
       request.deserialise({inb->contents, inb->contents + inb->size});
 
@@ -70,7 +74,8 @@ namespace pbft
       // TODO: Should serialise context directly, rather than reconstructing
       const enclave::SessionContext session(
         enclave::InvalidSessionId, request.caller_id, request.caller_cert);
-      auto ctx = enclave::make_rpc_context(session, request.raw);
+      auto ctx = enclave::make_rpc_context(
+        session, request.raw, {req_start, req_start + req_size});
       ctx->actor = (ccf::ActorsType)request.actor;
       const auto n = ctx->method.find_last_of('/');
       ctx->method = ctx->method.substr(n + 1, ctx->method.size());
@@ -81,7 +86,15 @@ namespace pbft
       ctx->signed_request = ccf::SignedReq();
 #endif
 
-      auto rep = frontend->process_pbft(ctx, info.include_merkle_roots);
+      enclave::RpcHandler::ProcessPbftResp rep;
+      if (tx != nullptr)
+      {
+        rep = frontend->process_pbft(ctx, *tx, true, info.include_merkle_roots);
+      }
+      else
+      {
+        rep = frontend->process_pbft(ctx, info.include_merkle_roots);
+      }
 
       static_assert(
         sizeof(info.full_state_merkle_root) == sizeof(crypto::Sha256Hash));

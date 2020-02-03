@@ -76,6 +76,9 @@ namespace enclave
     // TODO: Avoid unnecessary copies
     std::vector<uint8_t> raw = {};
 
+    // raw pbft Request
+    std::vector<uint8_t> pbft_raw = {};
+
     nlohmann::json unpacked_rpc = {};
 
     std::optional<ccf::SignedReq> signed_request = std::nullopt;
@@ -91,6 +94,16 @@ namespace enclave
     bool is_create_request = false;
 
     RpcContext(const SessionContext& s) : session(s) {}
+
+    RpcContext(
+      const SessionContext& s,
+      const std::vector<uint8_t>& raw_,
+      const std::vector<uint8_t>& pbft_raw_) :
+      session(s),
+      raw(raw_),
+      pbft_raw(pbft_raw_)
+    {}
+
     virtual ~RpcContext() {}
 
     void set_request_index(size_t ri)
@@ -210,8 +223,10 @@ namespace enclave
     std::optional<jsonrpc::Pack> pack_format = std::nullopt;
 
     JsonRpcContext(
-      const SessionContext& s, const std::vector<uint8_t>& packed) :
-      RpcContext(s)
+      const SessionContext& s,
+      const std::vector<uint8_t>& packed,
+      const std::vector<uint8_t>& pbft_raw = {}) :
+      RpcContext(s, packed, pbft_raw)
     {
       std::optional<jsonrpc::Pack> p;
 
@@ -222,7 +237,6 @@ namespace enclave
       }
 
       init(p.value(), rpc);
-      raw = packed;
     }
 
     JsonRpcContext(
@@ -282,8 +296,10 @@ namespace enclave
   };
 
   inline std::shared_ptr<RpcContext> make_rpc_context(
-    const SessionContext& s, const std::vector<uint8_t>& packed)
+    const SessionContext& s,
+    const std::vector<uint8_t>& packed,
+    const std::vector<uint8_t>& raw_pbft = {})
   {
-    return std::make_shared<JsonRpcContext>(s, packed);
+    return std::make_shared<JsonRpcContext>(s, packed, raw_pbft);
   }
 }

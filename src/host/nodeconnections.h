@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/consensustypes.h"
+#include "consensus/pbft/pbfttypes.h"
 #include "consensus/raft/rafttypes.h"
 #include "ledger.h"
 #include "node/nodetypes.h"
@@ -213,19 +215,25 @@ namespace asynchost
           auto data_to_send = data;
           auto size_to_send = size;
 
-          // If the message is a raft append entries message, affix the
+          // If the message is a consensus append entries message, affix the
           // corresponding ledger entries
+          auto msg_type = serialized::read<ccf::NodeMsgType>(data, size);
           if (
-            serialized::read<ccf::NodeMsgType>(data, size) ==
-              ccf::NodeMsgType::consensus_msg &&
-            serialized::peek<raft::RaftMsgType>(data, size) ==
-              raft::raft_append_entries)
+            msg_type == ccf::NodeMsgType::consensus_msg &&
+              serialized::peek<raft::RaftMsgType>(data, size) ==
+                raft::raft_append_entries ||
+            serialized::peek<pbft::PbftMsgType>(data, size) ==
+              pbft::pbft_append_entries)
           {
             // Parse the indices to be sent to the recipient.
             auto p = data;
             auto psize = size;
-            const auto& ae = serialized::overlay<raft::AppendEntries>(p, psize);
 
+            serialized::overlay<consensus::ConsensusHeader<ccf::Node2NodeMsg>>(
+              p, psize);
+
+            const auto& ae =
+              serialized::overlay<consensus::AppendEntriesIndex>(p, psize);
             // Find the total frame size, and write it along with the header.
             auto count = ae.idx - ae.prev_idx;
             uint32_t frame = (uint32_t)(
@@ -233,11 +241,7 @@ namespace asynchost
               ledger.framed_entries_size(ae.prev_idx + 1, ae.idx));
 
             LOG_DEBUG_FMT(
-              "raft send AE to {} [{}]: {}, {}",
-              to,
-              frame,
-              ae.idx,
-              ae.prev_idx);
+              "send AE to {} [{}]: {}, {}", to, frame, ae.idx, ae.prev_idx);
 
             // TODO(#performance): writev
             node.value()->write(sizeof(uint32_t), (uint8_t*)&frame);

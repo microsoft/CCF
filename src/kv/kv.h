@@ -493,12 +493,12 @@ namespace kv
         return map.is_replicated();
       }
 
-    private:
       virtual bool has_writes()
       {
         return committed_writes || !writes.empty();
       }
 
+    private:
       virtual bool has_changes()
       {
         return changes;
@@ -899,16 +899,14 @@ namespace kv
           throw std::logic_error(
             "Transaction must be over maps in the same store");
       }
-      else
+
+      if (read_version == NoVersion)
       {
-        if (read_version == NoVersion)
-        {
-          // Grab opacity version that all Maps should be queried at.
-          if (read_globally_committed)
-            read_version = m.get_store()->commit_version();
-          else
-            read_version = m.get_store()->current_version();
-        }
+        // Grab opacity version that all Maps should be queried at.
+        if (read_globally_committed)
+          read_version = m.get_store()->commit_version();
+        else
+          read_version = m.get_store()->current_version();
       }
 
       typename M::TxView* view = m.create_view(read_version);
@@ -933,6 +931,13 @@ namespace kv
     {}
 
     Tx(const Tx& that) = delete;
+
+    void set_view_list(OrderedViews<S, D>& view_list_)
+    {
+      // if view list is not empty then any coinciding keys will not be
+      // overwritten
+      view_list.merge(view_list_);
+    }
 
     void set_req_id(const kv::TxHistory::RequestID& req_id_)
     {
@@ -1271,6 +1276,23 @@ namespace kv
       return grouped_maps;
     }
 
+    DeserialiseSuccess commit_deserialised(
+      OrderedViews<S, D>& views, Version& v)
+    {
+      auto c = Tx::commit(views, [v]() { return v; });
+      if (!c.has_value())
+      {
+        LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
+        return DeserialiseSuccess::FAILED;
+      }
+      {
+        std::lock_guard<SpinLock> vguard(version_lock);
+        version = v;
+        last_replicated = version;
+      }
+      return DeserialiseSuccess::PASS;
+    }
+
   public:
     // TODO(#api): This (along with other parts of the API) should be
     // hidden
@@ -1495,11 +1517,16 @@ namespace kv
         e->rollback(v);
     }
 
-    DeserialiseSuccess deserialise(
+    DeserialiseSuccess deserialise_views(
       const std::vector<uint8_t>& data,
       bool public_only = false,
-      Term* term = nullptr) override
+      Term* term = nullptr,
+      Tx* tx = nullptr)
     {
+      // if we pass in a transaction we don't want to commit, just deserialise
+      // and put the views into that transaction
+      auto commit = (tx == nullptr);
+
       // This will return FAILED if the serialised transaction is being
       // applied out of order.
       // Processing transactions locally and also deserialising to the
@@ -1606,12 +1633,16 @@ namespace kv
             }
 
             auto view = search->second->create_view(v);
-            if (!view->deserialise(*d, v))
+            // if we are not committing now then use NoVersion to deserialise
+            // otherwise the view will be considered as having a committed
+            // version
+            auto deserialise_version = (commit ? v : NoVersion);
+            if (!view->deserialise(*d, deserialise_version))
             {
               LOG_FAIL_FMT(
                 "Could not deserialise Tx for map {} at version {}",
                 map_name,
-                v);
+                deserialise_version);
               return DeserialiseSuccess::FAILED;
             }
 
@@ -1627,48 +1658,57 @@ namespace kv
         }
       }
 
-      auto c = Tx::commit(views, [v]() { return v; });
-      if (!c.has_value())
-      {
-        LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
-        return DeserialiseSuccess::FAILED;
-      }
-
-      {
-        std::lock_guard<SpinLock> vguard(version_lock);
-        version = v;
-        last_replicated = v;
-      }
-
       auto success = DeserialiseSuccess::PASS;
 
-      auto h = get_history();
-      if (h)
+      if (commit)
       {
-        // TODO: the reference to the entity should be in the history
-        auto search = views.find("ccf.signatures");
-        if (search != views.end())
+        success = commit_deserialised(views, v);
+        if (success == DeserialiseSuccess::FAILED)
         {
-          // Transactions containing a signature must only contain
-          // a signature and must be verified
-          if (views.size() > 1)
-          {
-            LOG_FAIL_FMT("Unexpected contents in signature transaction {}", v);
-            return DeserialiseSuccess::FAILED;
-          }
-
-          if (!h->verify(term))
-          {
-            LOG_FAIL_FMT("Signature in transaction {} failed to verify", v);
-            return DeserialiseSuccess::FAILED;
-          }
-          success = DeserialiseSuccess::PASS_SIGNATURE;
+          return success;
         }
-        auto rep = frame::replicated(data.data());
-        h->append(rep.p, rep.n, data.data(), data.size());
+        auto h = get_history();
+        if (h)
+        {
+          // TODO: the reference to the entity should be in the history
+          auto search = views.find("ccf.signatures");
+          if (search != views.end())
+          {
+            // Transactions containing a signature must only contain
+            // a signature and must be verified
+            if (views.size() > 1)
+            {
+              LOG_FAIL_FMT(
+                "Unexpected contents in signature transaction {}", v);
+              return DeserialiseSuccess::FAILED;
+            }
+
+            if (!h->verify(term))
+            {
+              LOG_FAIL_FMT("Signature in transaction {} failed to verify", v);
+              return DeserialiseSuccess::FAILED;
+            }
+            success = DeserialiseSuccess::PASS_SIGNATURE;
+          }
+          auto rep = frame::replicated(data.data());
+          h->append(rep.p, rep.n, data.data(), data.size());
+        }
+      }
+
+      if (tx)
+      {
+        tx->set_view_list(views);
       }
 
       return success;
+    }
+
+    DeserialiseSuccess deserialise(
+      const std::vector<uint8_t>& data,
+      bool public_only = false,
+      Term* term = nullptr) override
+    {
+      return deserialise_views(data, public_only, term);
     }
 
     bool operator==(const Store<S, D>& that) const
