@@ -3,12 +3,16 @@ debs:
   - apt-transport-https
   - ninja-build
   - libuv1-dev
-  - libc++-9-dev
-  - libc++abi-9-dev
   - python3.7-dev
   - python3.7-venv
+  - libc++-9-dev
+  - libc++abi-9-dev
   - llvm-9
   - clang-9
+  - libc++-8-dev
+  - libc++abi-8-dev
+  - llvm-8
+  - clang-8
   - expect
   - xsltproc
   - git
