@@ -601,12 +601,6 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS --election-timeout 2000
   )
 
-  add_e2e_test(
-    NAME late_joiners
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/late_joiners.py
-    ADDITIONAL_ARGS --skip-suspension
-  )
-
   if(NOT PBFT)
     # Logging scenario perf test
     add_perf_test(
