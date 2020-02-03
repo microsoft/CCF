@@ -18,80 +18,32 @@ extern std::map<std::thread::id, uint16_t> thread_ids;
 
 namespace enclave
 {
-  const uint64_t magic_const = 0xba55ball;
+  const uint64_t magic_const = 0xba5eball;
   struct ThreadMsg
   {
     void (*cb)(std::unique_ptr<ThreadMsg>);
     std::atomic<ThreadMsg*> next = nullptr;
     uint64_t magic = magic_const;
-    void (*dtor_cb)(ThreadMsg*);
-    uint64_t padding[12];
 
-    ~ThreadMsg()
+    ThreadMsg(void (*_cb)(std::unique_ptr<ThreadMsg>)) : cb(_cb) {}
+
+    virtual ~ThreadMsg()
     {
       assert(magic == magic_const);
-      dtor_cb(this);
     }
   };
 
   template <typename Payload>
-  struct Tmsg
+  struct Tmsg : public ThreadMsg
   {
+    Payload data;
+
     Tmsg(void (*_cb)(std::unique_ptr<Tmsg<Payload>>)) :
-      cb(reinterpret_cast<void (*)(std::unique_ptr<ThreadMsg>)>(_cb)),
-      next(nullptr)
-    {
-      new (&data) Payload();
-      dtor_cb = Tmsg<Payload>::dtor_fn;
-      check_invariants();
-    }
+      ThreadMsg(reinterpret_cast<void (*)(std::unique_ptr<ThreadMsg>)>(_cb))
 
-    void (*cb)(std::unique_ptr<ThreadMsg>);
-    std::atomic<ThreadMsg*> next;
-    uint64_t magic = magic_const;
-    void (*dtor_cb)(ThreadMsg*);
-    union
-    {
-      Payload data;
-      uint64_t padding[12];
-    };
+    {}
 
-    ~Tmsg()
-    {
-      data.~Payload();
-    }
-
-    static void dtor_fn(ThreadMsg* p)
-    {
-      assert(p->magic == magic_const);
-      auto self = reinterpret_cast<Tmsg<Payload>*>(p);
-      self->data.~Payload();
-    }
-
-    static void check_invariants()
-    {
-      static_assert(
-        sizeof(ThreadMsg) == sizeof(Tmsg<Payload>), "message is too large");
-      static_assert(
-        sizeof(Payload) <= sizeof(ThreadMsg::padding),
-        "message payload is too large");
-
-      static_assert(
-        offsetof(Tmsg, cb) == offsetof(ThreadMsg, cb),
-        "Expected cb at start of struct");
-      static_assert(
-        offsetof(Tmsg, dtor_cb) == offsetof(ThreadMsg, dtor_cb),
-        "Expected cb at start of struct");
-      static_assert(
-        offsetof(Tmsg, magic) == offsetof(ThreadMsg, magic),
-        "Expected next after cb in struct");
-      static_assert(
-        offsetof(Tmsg, next) == offsetof(ThreadMsg, next),
-        "Expected next after cb in struct");
-      static_assert(
-        offsetof(Tmsg, data) == offsetof(ThreadMsg, padding),
-        "Expected payload after next in struct");
-    }
+    virtual ~Tmsg() = default;
   };
 
   static void init_cb(std::unique_ptr<ThreadMsg> m)

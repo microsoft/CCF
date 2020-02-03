@@ -142,10 +142,6 @@ namespace enclave
           return data;
       }
 
-      if (ctx == nullptr)
-      {
-        throw std::exception();
-      }
       auto r = ctx->read(data.data() + offset, up_to - offset);
       LOG_TRACE_FMT("ctx->read returned: {}", r);
 
@@ -219,13 +215,13 @@ namespace enclave
       do_handshake();
     }
 
-    struct send_raw_msg
+    struct SendRecvMsg
     {
       std::vector<uint8_t> data;
       std::shared_ptr<Endpoint> self;
     };
 
-    static void send_raw_cb(std::unique_ptr<enclave::Tmsg<send_raw_msg>> msg)
+    static void send_raw_cb(std::unique_ptr<enclave::Tmsg<SendRecvMsg>> msg)
     {
       reinterpret_cast<TLSEndpoint*>(msg->data.self.get())
         ->send_raw_thread(msg->data.data);
@@ -233,11 +229,11 @@ namespace enclave
 
     void send_raw(const std::vector<uint8_t>& data)
     {
-      auto msg = std::make_unique<enclave::Tmsg<send_raw_msg>>(&send_raw_cb);
+      auto msg = std::make_unique<enclave::Tmsg<SendRecvMsg>>(&send_raw_cb);
       msg->data.self = this->shared_from_this();
       msg->data.data = data;
 
-      enclave::ThreadMessaging::thread_messaging.add_task<send_raw_msg>(
+      enclave::ThreadMessaging::thread_messaging.add_task<SendRecvMsg>(
         execution_thread, std::move(msg));
     }
 
@@ -245,7 +241,7 @@ namespace enclave
     {
       if (thread_ids[std::this_thread::get_id()] != execution_thread)
       {
-        throw std::exception();
+        throw std::runtime_error("running from incorrect thread");
       }
       // Writes as much of the data as possible. If the data cannot all
       // be written now, we store the remainder. We
@@ -270,7 +266,7 @@ namespace enclave
     {
       if (thread_ids[std::this_thread::get_id()] != execution_thread)
       {
-        throw std::exception();
+        throw std::runtime_error("running from incorrect thread");
       }
 
       pending_write.insert(pending_write.end(), data.begin(), data.end());
@@ -280,7 +276,7 @@ namespace enclave
     {
       if (thread_ids[std::this_thread::get_id()] != execution_thread)
       {
-        throw std::exception();
+        throw std::runtime_error("running from incorrect thread");
       }
 
       do_handshake();
@@ -502,7 +498,7 @@ namespace enclave
     {
       if (thread_ids[std::this_thread::get_id()] != execution_thread)
       {
-        throw std::exception();
+        throw std::runtime_error("running from incorrect thread");
       }
       if (pending_read.size() > 0)
       {
