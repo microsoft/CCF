@@ -1,7 +1,7 @@
 parameters:
   consensus: ['CFT', 'BFT']
   target: ['NoSGX', 'SGX']
-  protocol: [HTTP']
+  protocol: ['HTTP']
 
   env:
     NoSGX:
