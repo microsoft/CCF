@@ -14,7 +14,7 @@
 
 - name: Add LLVM repository
   apt_repository:
-    repo: "deb http://apt.llvm.org/{{ ansible_distribution_release }} llvm-toolchain-{{ ansible_distribution_release }}-8 main"
+    repo: "deb http://apt.llvm.org/{{ ansible_distribution_release }} llvm-toolchain-{{ ansible_distribution_release }}-9 main"
     state: present
     update_cache: yes
   become: yes
