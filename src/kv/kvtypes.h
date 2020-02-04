@@ -56,7 +56,8 @@ namespace kv
   {
     FAILED = 0,
     PASS = 1,
-    PASS_SIGNATURE = 2
+    PASS_SIGNATURE = 2,
+    PASS_PRE_PREPARE = 3
   };
 
   enum ReplicateType

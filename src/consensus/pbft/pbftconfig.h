@@ -79,9 +79,7 @@ namespace pbft
       const auto n = ctx->method.find_last_of('/');
       ctx->method = ctx->method.substr(n + 1, ctx->method.size());
 
-#ifndef FTCP
       ctx->signed_request = ccf::SignedReq();
-#endif
 
       enclave::RpcHandler::ProcessPbftResp rep;
       if (tx != nullptr)

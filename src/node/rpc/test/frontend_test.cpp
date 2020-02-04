@@ -508,6 +508,7 @@ TEST_CASE("process")
     CHECK(value.req.empty());
     CHECK(value.sig == signed_call[jsonrpc::SIG]);
   }
+<<<<<<< HEAD
 
 #  ifdef FTCP
   SUBCASE("signature not verified")
@@ -527,6 +528,8 @@ TEST_CASE("process")
     CHECK(!signed_resp.has_value());
   }
 #  endif
+=======
+>>>>>>> master
 }
 
 TEST_CASE("MinimalHandleFunction")

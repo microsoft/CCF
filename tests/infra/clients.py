@@ -530,7 +530,6 @@ class CCFClient:
         else:
             self.client_impl = RequestClient(*args, **kwargs)
 
-
     def disconnect(self):
         self.client_impl.disconnect()
 

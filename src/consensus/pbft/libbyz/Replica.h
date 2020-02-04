@@ -195,8 +195,6 @@ public:
   // Compare the merkle root and batch ctx between the pre-prepare and the
   // the corresponding fields in info after execution
 
-  void playback_transaction(ccf::Store::Tx& tx);
-
   void init_state();
   void recv_start();
 
@@ -210,6 +208,13 @@ public:
   // Helper functions when receiving a message. This can be used
   // when polling for a new message or we have a new message
   // passed to us.
+
+  // Playback methods
+  void playback_request(ccf::Store::Tx& tx);
+  // Effects: Requests are executed
+  void playback_pre_prepare(ccf::Store::Tx& tx);
+  // Effects: pre-prepare is verified, if merkle roots match
+  // we update the pre-prepare related meta-data, if not we rollback
 
 private:
   friend class State;
@@ -247,14 +252,6 @@ private:
   static void debug_slow_timer_handler(void* owner);
 #endif
   // Effects: Handle timeouts of corresponding timers.
-
-  // Playback methods
-  void playback_request(const pbft::Request& request, ccf::Store::Tx& tx);
-  // Effects: Requests are executed
-  void playback_pre_prepare(
-    const pbft::PrePrepare& pre_prepare, ccf::Store::Tx& tx);
-  // Effects: pre-prepare is verified, if merkle roots match
-  // we update the pre-prepare related meta-data, if not we rollback
 
   //
   // Auxiliary methods used by primary to send messages to the replica

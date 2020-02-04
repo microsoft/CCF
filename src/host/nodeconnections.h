@@ -220,10 +220,10 @@ namespace asynchost
           auto msg_type = serialized::read<ccf::NodeMsgType>(data, size);
           if (
             msg_type == ccf::NodeMsgType::consensus_msg &&
-              serialized::peek<raft::RaftMsgType>(data, size) ==
-                raft::raft_append_entries ||
-            serialized::peek<pbft::PbftMsgType>(data, size) ==
-              pbft::pbft_append_entries)
+            (serialized::peek<raft::RaftMsgType>(data, size) ==
+               raft::raft_append_entries ||
+             serialized::peek<pbft::PbftMsgType>(data, size) ==
+               pbft::pbft_append_entries))
           {
             // Parse the indices to be sent to the recipient.
             auto p = data;
