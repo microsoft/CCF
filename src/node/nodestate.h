@@ -6,7 +6,6 @@
 #include "consensus/ledgerenclave.h"
 #include "consensus/raft/raftconsensus.h"
 #include "ds/logger.h"
-#include "enclave/rpcclient.h"
 #include "enclave/rpcsessions.h"
 #include "encryptor.h"
 #include "entities.h"

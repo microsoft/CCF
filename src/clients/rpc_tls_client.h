@@ -192,8 +192,4 @@ public:
   }
 };
 
-#ifndef FTCP
 using RpcTlsClient = HttpRpcTlsClient;
-#else
-using RpcTlsClient = JsonRpcTlsClient;
-#endif

@@ -14,7 +14,6 @@
 #include "node/rpc/forwarder.h"
 #include "node/rpc/nodefrontend.h"
 #include "node/timer.h"
-#include "rpcclient.h"
 #include "rpcmap.h"
 #include "rpcsessions.h"
 
