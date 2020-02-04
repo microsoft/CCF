@@ -5,7 +5,7 @@
 #include "httpparser.h"
 #include "node/clientsignatures.h"
 #include "tls/base64.h"
-#include "tls/keypair.h" // TODO: Only used for hashing
+#include "tls/keypair.h"
 
 #include <fmt/format_header_only.h>
 #include <optional>
@@ -105,7 +105,7 @@ namespace enclave
     //
     // Tested with RequestClient in tests/infra/clients.py
     //
-    // TODO:
+    // Notes:
     //    - Only supports public key crytography (i.e. no HMAC)
     //    - Only supports SHA-256 as digest algorithm
     //    - Only supports ecdsa-sha256 as signature algorithm
