@@ -98,8 +98,8 @@ class Consortium:
             return c.do("withdraw", {"id": proposal_id})
 
     def ack(self, member_id, remote_node):
-        # TODO: Produce signed ack here
-        return self._member_client_rpc_as_json(member_id, remote_node, "ack")
+        # TODO: query member id, look up nonce, sign nonce and send it back
+        pass
 
     def get_proposals(self, member_id, remote_node):
         script = """
