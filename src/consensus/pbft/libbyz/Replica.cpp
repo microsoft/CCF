@@ -349,41 +349,15 @@ bool Replica::compare_execution_results(
   return true;
 }
 
-void Replica::playback_transaction(ccf::Store::Tx& tx)
+void Replica::playback_request(ccf::Store::Tx& tx)
 {
-  {
-    auto view = tx.get_view(pbft_requests_map);
-    if (view->has_writes())
-    {
-      // hasn't been committed yet
-      auto req = view->get(0);
-      if (req.has_value())
-      {
-        pbft::Request request = req.value();
-        playback_request(request, tx);
-        return;
-      }
-    }
-  }
-  {
-    auto view = tx.get_view(pbft_pre_prepares_map);
-    if (view->has_writes())
-    {
-      auto pp = view->get(0);
-      if (pp.has_value())
-      {
-        pbft::PrePrepare pre_prepare = pp.value();
-        playback_pre_prepare(pre_prepare, tx);
-        return;
-      }
-    }
-  }
-  throw std::logic_error(
-    "Playback transaction doesn't contain request nor pre prepare data.");
-}
+  auto view = tx.get_view(pbft_requests_map);
+  auto req_v = view->get(0);
+  PBFT_ASSERT(
+    req_v.has_value(),
+    "Deserialised request but it was not found in the requests map");
+  auto request = req_v.value();
 
-void Replica::playback_request(const pbft::Request& request, ccf::Store::Tx& tx)
-{
   LOG_TRACE_FMT(
     "Playback request for request with size {}", request.pbft_raw.size());
   auto req =
@@ -420,9 +394,15 @@ void Replica::playback_request(const pbft::Request& request, ccf::Store::Tx& tx)
     true);
 }
 
-void Replica::playback_pre_prepare(
-  const pbft::PrePrepare& pre_prepare, ccf::Store::Tx& tx)
+void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
 {
+  auto view = tx.get_view(pbft_pre_prepares_map);
+  auto pp = view->get(0);
+  PBFT_ASSERT(
+    pp.has_value(),
+    "Deserialised pre prepare but it was not found in the pre prepares map");
+  auto pre_prepare = pp.value();
+
   LOG_TRACE_FMT("playback pre-prepare {}", pre_prepare.seqno);
   auto executable_pp = create_message<Pre_prepare>(
     pre_prepare.contents.data(), pre_prepare.contents.size());

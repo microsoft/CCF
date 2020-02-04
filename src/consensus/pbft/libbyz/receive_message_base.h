@@ -40,7 +40,8 @@ public:
   virtual Seqno get_last_executed() const = 0;
   virtual int my_id() const = 0;
   virtual void emit_signature_on_next_pp(int64_t version) = 0;
-  virtual void playback_transaction(ccf::Store::Tx& tx) = 0;
+  virtual void playback_pre_prepare(ccf::Store::Tx& tx) = 0;
+  virtual void playback_request(ccf::Store::Tx& tx) = 0;
   virtual char* create_response_message(
     int client_id, Request_id rid, uint32_t size) = 0;
 };
