@@ -493,12 +493,12 @@ namespace kv
         return map.is_replicated();
       }
 
+    private:
       virtual bool has_writes()
       {
         return committed_writes || !writes.empty();
       }
 
-    private:
       virtual bool has_changes()
       {
         return changes;
@@ -1523,8 +1523,11 @@ namespace kv
       Term* term = nullptr,
       Tx* tx = nullptr)
     {
-      // if we pass in a transaction we don't want to commit, just deserialise
-      // and put the views into that transaction
+      // If we pass in a transaction we don't want to commit, just deserialise
+      // and put the views into that transaction.
+      // Tread carefully here: at the moment passing in a transaction assumes we
+      // are using pbft as the consensus and that we are deserialising for
+      // playback purposes
       auto commit = (tx == nullptr);
 
       // This will return FAILED if the serialised transaction is being
@@ -1692,6 +1695,32 @@ namespace kv
           }
           auto rep = frame::replicated(data.data());
           h->append(rep.p, rep.n, data.data(), data.size());
+        }
+      }
+      else
+      {
+        // Transactions containing a pre prepare or a pbft request should not
+        // contain anything else
+        if (views.size() > 1)
+        {
+          LOG_FAIL_FMT("Unexpected contents in pbft transaction {}", v);
+          return DeserialiseSuccess::FAILED;
+        }
+
+        auto search = views.find("ccf.pbft.preprepares");
+        if (search != views.end())
+        {
+          success = DeserialiseSuccess::PASS_PRE_PREPARE;
+        }
+        else
+        {
+          auto search = views.find("ccf.pbft.requests");
+          if (search == views.end())
+          {
+            // we have deserialised an entry that didn't belong to the pbft
+            // requests nor the pbft pre prepares table
+            return DeserialiseSuccess::FAILED;
+          }
         }
       }
 

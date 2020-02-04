@@ -669,6 +669,9 @@ namespace raft
 
           case kv::DeserialiseSuccess::PASS:
             break;
+
+          default:
+            throw std::logic_error("Unknown DeserialiseSuccess value");
         }
       }
 
