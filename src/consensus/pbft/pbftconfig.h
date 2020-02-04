@@ -80,11 +80,7 @@ namespace pbft
       const auto n = ctx->method.find_last_of('/');
       ctx->method = ctx->method.substr(n + 1, ctx->method.size());
 
-      // TODO: HTTP signatures are not handled by PBFT
-      // https://github.com/microsoft/CCF/issues/720
-#ifndef FTCP
       ctx->signed_request = ccf::SignedReq();
-#endif
 
       enclave::RpcHandler::ProcessPbftResp rep;
       if (tx != nullptr)

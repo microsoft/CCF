@@ -508,26 +508,6 @@ TEST_CASE("process")
     CHECK(value.req.empty());
     CHECK(value.sig == signed_call[jsonrpc::SIG]);
   }
-
-  // TODO: verify_client_signature in HTTP
-#  ifdef FTCP
-  SUBCASE("signature not verified")
-  {
-    const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
-    auto invalid_rpc_ctx =
-      enclave::make_rpc_context(invalid_session, serialized_call);
-
-    const auto serialized_response = frontend.process(invalid_rpc_ctx).value();
-    const auto response = jsonrpc::unpack(serialized_response, default_pack);
-    CHECK(
-      response[jsonrpc::ERR][jsonrpc::CODE] ==
-      static_cast<jsonrpc::ErrorBaseType>(
-        jsonrpc::CCFErrorCodes::INVALID_CLIENT_SIGNATURE));
-
-    const auto signed_resp = get_signed_req(invalid_user_id);
-    CHECK(!signed_resp.has_value());
-  }
-#  endif
 }
 
 TEST_CASE("MinimalHandleFunction")
