@@ -77,11 +77,6 @@ if(USE_NULL_ENCRYPTOR)
   add_definitions(-DUSE_NULL_ENCRYPTOR)
 endif()
 
-option(FTCP "Enable framed-TCP communication (rather than HTTP)" OFF)
-if(FTCP)
-  add_definitions(-DFTCP)
-endif()
-
 option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
 option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
@@ -323,14 +318,6 @@ if("virtual" IN_LIST TARGET)
   install(TARGETS cchost.virtual DESTINATION bin)
 endif()
 
-# Client executable
-add_executable(client ${CCF_DIR}/src/clients/client.cpp)
-use_client_mbedtls(client)
-target_link_libraries(
-  client PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host http_parser.host
-)
-add_dependencies(client flatbuffers)
-
 # Perf scenario executable
 add_executable(
   scenario_perf_client ${CCF_DIR}/samples/perf_client/scenario_perf_client.cpp
@@ -471,11 +458,7 @@ function(add_e2e_test)
       set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS end_to_end)
     endif()
 
-    if(FTCP)
-      set_property(
-        TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "FTCP=ON"
-      )
-    elseif(${PARSED_ARGS_CURL_CLIENT})
+    if(${PARSED_ARGS_CURL_CLIENT})
       set_property(
         TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
       )
@@ -519,9 +502,6 @@ function(add_perf_test)
       "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
   )
   set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS perf)
-  if(FTCP)
-    set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "FTCP=ON")
-  endif()
 endfunction()
 
 # Picobench wrapper

@@ -523,15 +523,12 @@ class CCFClient:
         self.rpc_loggers = (RPCLogger(),)
         self.name = "[{}:{}]".format(kwargs.get("host"), kwargs.get("port"))
 
-        if not os.getenv("FTCP"):
-            if os.getenv("CURL_CLIENT"):
-                self.client_impl = CurlClient(*args, **kwargs)
-            elif os.getenv("WEBSOCKETS_CLIENT"):
-                self.client_impl = WSClient(*args, **kwargs)
-            else:
-                self.client_impl = RequestClient(*args, **kwargs)
+        if os.getenv("CURL_CLIENT"):
+            self.client_impl = CurlClient(*args, **kwargs)
+        elif os.getenv("WEBSOCKETS_CLIENT"):
+            self.client_impl = WSClient(*args, **kwargs)
         else:
-            self.client_impl = FramedTLSJSONRPCClient(*args, **kwargs)
+            self.client_impl = RequestClient(*args, **kwargs)
 
     def disconnect(self):
         self.client_impl.disconnect()
@@ -599,7 +596,7 @@ def client(
     key=None,
     ca=None,
     version="2.0",
-    format="json" if not os.getenv("FTCP") else "msgpack",
+    format="json",
     description=None,
     log_file=None,
     prefix="users",
