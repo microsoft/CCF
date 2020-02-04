@@ -510,8 +510,7 @@ TEST_CASE("process")
   }
 <<<<<<< HEAD
 
-#  ifdef FTCP
-  SUBCASE("signature not verified")
+#  ifdef FTCP SUBCASE("signature not verified")
   {
     const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
     auto invalid_rpc_ctx =
