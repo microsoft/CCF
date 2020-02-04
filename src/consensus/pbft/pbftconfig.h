@@ -71,7 +71,6 @@ namespace pbft
 
       auto frontend = handler.value();
 
-      // TODO: Should serialise context directly, rather than reconstructing
       const enclave::SessionContext session(
         enclave::InvalidSessionId, request.caller_id, request.caller_cert);
       auto ctx = enclave::make_rpc_context(
@@ -80,8 +79,6 @@ namespace pbft
       const auto n = ctx->method.find_last_of('/');
       ctx->method = ctx->method.substr(n + 1, ctx->method.size());
 
-      // TODO: HTTP signatures are not handled by PBFT
-      // https://github.com/microsoft/CCF/issues/720
 #ifndef FTCP
       ctx->signed_request = ccf::SignedReq();
 #endif

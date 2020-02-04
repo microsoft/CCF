@@ -39,8 +39,6 @@ namespace ccf
       return *s;
     }
 
-    // TODO: This function is very similar to set_app_scripts() in genesisgen.h
-    // Change this as part of https://github.com/microsoft/CCF/issues/320
     void set_app_scripts(
       Store::Tx& tx, std::map<std::string, std::string> scripts)
     {
@@ -172,13 +170,8 @@ namespace ccf
            code_ids->put(id, CodeStatus::ACCEPTED);
            return true;
          }},
-        // initiate end of recovery
-        // TODO(#important): for now, recovery assumes that no primary
-        // change can happen between the time the public CFTR is established and
-        // this function is called.
         {"accept_recovery",
          [this](Store::Tx& tx, const nlohmann::json& args) {
-           // TODO: Check type of args here
            if (node.is_part_of_public_network())
              return node.finish_recovery(tx, args);
            else
@@ -527,8 +520,6 @@ namespace ccf
           g.add_member(cert);
         }
 
-        // Generate quote over node certificate
-        // TODO: https://github.com/microsoft/CCF/issues/59
         size_t self = g.add_node({in.node_info_network,
                                   in.node_cert,
                                   in.quote,
@@ -586,8 +577,6 @@ namespace ccf
 
       //! A member acknowledges state
       auto ack = [this](RequestArgs& args) {
-        // TODO(#feature): sign and verify Merkle tree roots instead of
-        // nonce as is done in the paper.
         auto mas = args.tx.get_view(this->network.member_acks);
         const auto last_ma = mas->get(args.caller_id);
         if (!last_ma)
