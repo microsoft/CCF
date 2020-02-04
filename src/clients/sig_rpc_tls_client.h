@@ -65,10 +65,6 @@ public:
     auto r = enclave::http::Request(HTTP_POST);
     r.set_path(body_j["method"]);
 
-    // TODO: This currently fails to verify - investigate why
-    // NB: This is not a particularly interesting signature, just a minimal PoC.
-    // Expect most HTTP authorization signing to be done by existing
-    // libraries/clients
     tls::HashBytes body_digest;
     tls::do_hash(body_v.data(), body_v.size(), body_digest, MBEDTLS_MD_SHA256);
     const auto digest_value = fmt::format(

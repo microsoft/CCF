@@ -81,8 +81,6 @@ namespace enclave
       }
       else
       {
-        // TODO: For now, close the connection if it has been upgraded to
-        // websocket
         LOG_FAIL_FMT(
           "Receiving data after endpoint has been upgraded to websocket.");
         LOG_FAIL_FMT("Closing connection.");
@@ -322,7 +320,6 @@ namespace enclave
           std::make_shared<JsonRpcContext>(session, pack.value(), json_rpc);
         rpc_ctx->set_request_index(request_index++);
 
-        // TODO: For now, set this here
         auto signed_req = http::HttpSignatureVerifier::parse(
           std::string(http_method_str(verb)), path, query, headers, body);
         if (signed_req.has_value())
@@ -330,8 +327,6 @@ namespace enclave
           rpc_ctx->signed_request = signed_req;
         }
 
-        // TODO: This is temporary; while we have a full RPC object inside the
-        // body, it should match the dispatch details specified in the URI
         const auto expected = fmt::format("{}/{}", actor_s, method_s);
         if (rpc_ctx->method != expected)
         {
@@ -344,7 +339,7 @@ namespace enclave
           return;
         }
 
-        rpc_ctx->raw = body; // TODO: This is insufficient, need entire request
+        rpc_ctx->raw = body;
         rpc_ctx->method = method_s;
         rpc_ctx->actor = actor;
 

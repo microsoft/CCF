@@ -75,8 +75,6 @@ namespace ccfapp
       TxScriptRunner::setup_environment(li, env_script);
     }
 
-    // TODO: once the kv store allows for dynamic table creation, we can
-    // derive this list dynamically based on an apps requirements.
     const std::vector<GenericTable*> app_tables;
     void add_custom_tables(
       lua::Interpreter& li,
@@ -190,7 +188,6 @@ namespace ccfapp
         }
       };
 
-      // TODO: https://github.com/microsoft/CCF/issues/409
       set_default(default_handler, Write);
     }
 

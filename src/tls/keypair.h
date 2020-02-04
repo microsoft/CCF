@@ -414,7 +414,6 @@ namespace tls
       return {first, buf + buf_size};
     }
 
-    // TODO: This should be removed
     mbedtls_pk_context* get_raw_context() const
     {
       return ctx.get();
@@ -896,9 +895,8 @@ namespace tls
       if (mbedtls_x509write_crt_set_serial(&sign.crt, &sign.serial) != 0)
         return {};
 
-      // TODO: macOS certificates require 825-day maximum validity
-      // (https://support.apple.com/en-us/HT210176)
-      // &sign.crt, "20010101000000", "21001231235959") != 0)
+      // Note: 825-day validity range
+      // https://support.apple.com/en-us/HT210176
       if (
         mbedtls_x509write_crt_set_validity(
           &sign.crt, "20191101000000", "20211231235959") != 0)

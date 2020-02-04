@@ -37,7 +37,6 @@ namespace ccf
     }
 
   private:
-    // TODO: replace with an lru map
     std::map<CallerId, tls::VerifierPtr> verifiers;
     SpinLock lock;
     bool is_open_ = false;
@@ -611,7 +610,6 @@ namespace ccf
 
     void tick(std::chrono::milliseconds elapsed) override
     {
-      // TODO(#refactoring): move this to NodeState::tick
       update_consensus();
 
       handlers.tick(elapsed, tx_count);
