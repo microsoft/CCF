@@ -96,15 +96,14 @@ def verify_sig(raw_cert, sig, req, raw_req, md):
             else cert.signature_hash_algorithm
         )
 
-        # For HTTP, also verify that the digest matches the hash of the body
-        if not os.getenv("FTCP"):
-            h = hashes.Hash(digest, backend=default_backend())
-            h.update(raw_req)
-            raw_req_digest = h.finalize()
-            header_digest = base64.b64decode(req.decode().split("SHA-256=")[1])
-            assert (
-                header_digest == raw_req_digest
-            ), "Digest header does not match request body"
+        # verify that the digest matches the hash of the body
+        h = hashes.Hash(digest, backend=default_backend())
+        h.update(raw_req)
+        raw_req_digest = h.finalize()
+        header_digest = base64.b64decode(req.decode().split("SHA-256=")[1])
+        assert (
+            header_digest == raw_req_digest
+        ), "Digest header does not match request body"
 
         pub_key = cert.public_key()
         hash_alg = ec.ECDSA(digest)
