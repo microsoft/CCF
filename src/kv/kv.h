@@ -1523,8 +1523,11 @@ namespace kv
       Term* term = nullptr,
       Tx* tx = nullptr)
     {
-      // if we pass in a transaction we don't want to commit, just deserialise
-      // and put the views into that transaction
+      // If we pass in a transaction we don't want to commit, just deserialise
+      // and put the views into that transaction.
+      // Tread carefully here: at the moment passing in a transaction assumes we
+      // are using pbft as the consensus and that we are deserialising for
+      // playback purposes
       auto commit = (tx == nullptr);
 
       // This will return FAILED if the serialised transaction is being

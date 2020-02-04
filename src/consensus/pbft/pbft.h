@@ -581,12 +581,8 @@ namespace pbft
                 message_receiver_base->playback_pre_prepare(tx);
                 break;
               }
-              case kv::DeserialiseSuccess::PASS_SIGNATURE:
-              {
-                throw std::logic_error(
-                  "Received a history signature while running with PBFT!");
-                break;
-              }
+              default:
+                throw std::logic_error("Unknown DeserialiseSuccess value");
             }
           }
           break;
