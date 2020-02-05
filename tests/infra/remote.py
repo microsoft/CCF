@@ -608,7 +608,7 @@ class CCFRemote(object):
             for mc in members_certs:
                 cmd += [f"--member-cert={mc}"]
             data_files.extend(members_certs)
-            data_files += [os.path.basename(gov_script)]
+            data_files += [gov_script]
         elif start_type == StartType.join:
             cmd += [
                 "join",

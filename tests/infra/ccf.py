@@ -205,10 +205,6 @@ class Network:
         self.initial_users = [0, 1, 2]
         self.create_users(self.initial_users, args.default_curve)
 
-        if args.gov_script:
-            infra.proc.ccall("cp", args.gov_script, args.build_dir).check_returncode()
-        LOG.info("Lua scripts copied")
-
         primary = self._start_all_nodes(args)
 
         if args.consensus != "pbft":
@@ -314,7 +310,7 @@ class Network:
         users = ["user{}".format(u) for u in users]
         for u in users:
             infra.proc.ccall(
-                "./keygenerator.sh", f"{u}", curve.name, log_output=False
+                "keygenerator.sh", f"{u}", curve.name, log_output=False
             ).check_returncode()
 
     def get_members(self):

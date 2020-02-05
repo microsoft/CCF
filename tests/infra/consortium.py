@@ -20,7 +20,7 @@ class Consortium:
         members = [f"member{m}" for m in members]
         for m in members:
             infra.proc.ccall(
-                "./keygenerator.sh", f"{m}", curve.name, log_output=False
+                "keygenerator.sh", f"{m}", curve.name, log_output=False
             ).check_returncode()
         self.status = infra.ccf.ServiceStatus.OPEN
 

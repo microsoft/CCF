@@ -130,7 +130,7 @@ def run(args):
 
         LOG.debug("Propose to add a new member (with a different curve)")
         infra.proc.ccall(
-            "./keygenerator.sh", "member4", infra.ccf.ParticipantsCurve.secp256k1.name
+            "keygenerator.sh", "member4", infra.ccf.ParticipantsCurve.secp256k1.name
         )
         result, error = network.consortium.propose_add_member(
             1, primary, "member4_cert.pem"
