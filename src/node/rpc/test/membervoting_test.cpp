@@ -625,6 +625,70 @@ TEST_CASE("Accept node")
       frontend_process(frontend, read_values_j, member_0_cert);
     CHECK(r.result.status == NodeStatus::TRUSTED);
   }
+
+  // m0 proposes retire node
+  {
+    Script proposal(R"xxx(
+      local tables, node_id = ...
+      return Calls:call("retire_node", node_id)
+    )xxx");
+    json proposej = create_json_req(Propose::In{proposal, node_id}, "propose");
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, member_0_cert);
+
+    CHECK(!r.result.completed);
+    CHECK(r.result.id == 1);
+  }
+
+  // m1 votes for retiring node
+  {
+    const Script vote_ballot("return true");
+    json votej = create_json_req_signed(Vote{1, vote_ballot}, "vote", kp);
+    check_success(frontend_process(frontend, votej, member_1_cert));
+  }
+
+  // check that node exists with status retired
+  {
+    auto read_values_j =
+      create_json_req(read_params<int>(node_id, Tables::NODES), "read");
+    Response<NodeInfo> r =
+      frontend_process(frontend, read_values_j, member_0_cert);
+    CHECK(r.result.status == NodeStatus::RETIRED);
+  }
+
+  // check that retired node cannot be trusted
+  {
+    Script proposal(R"xxx(
+      local tables, node_id = ...
+      return Calls:call("trust_node", node_id)
+    )xxx");
+    json proposej = create_json_req(Propose::In{proposal, node_id}, "propose");
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, member_0_cert);
+
+    const Script vote_ballot("return true");
+    json votej = create_json_req_signed(Vote{2, vote_ballot}, "vote", kp);
+    check_error(
+      frontend_process(frontend, votej, member_1_cert),
+      StandardErrorCodes::INTERNAL_ERROR);
+  }
+
+  // check that retired node cannot be retired again
+  {
+    Script proposal(R"xxx(
+      local tables, node_id = ...
+      return Calls:call("retire_node", node_id)
+    )xxx");
+    json proposej = create_json_req(Propose::In{proposal, node_id}, "propose");
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, member_0_cert);
+
+    const Script vote_ballot("return true");
+    json votej = create_json_req_signed(Vote{3, vote_ballot}, "vote", kp);
+    check_error(
+      frontend_process(frontend, votej, member_1_cert),
+      StandardErrorCodes::INTERNAL_ERROR);
+  }
 }
 
 bool test_raw_writes(
