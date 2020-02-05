@@ -162,7 +162,6 @@ inline bool Bitmap::encode(FILE* o)
 
 inline bool Bitmap::decode(FILE* i)
 {
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
 #ifndef INSIDE_ENCLAVE
   size_t sz = fread(&num, sizeof(size_t), 1, i);
   sz += fread(&nc, sizeof(size_t), 1, i);

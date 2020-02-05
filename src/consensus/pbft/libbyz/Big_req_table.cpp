@@ -62,15 +62,6 @@ Big_req_table::~Big_req_table()
 
 inline void Big_req_table::remove_unmatched(BR_entry* bre)
 {
-  // TODO: eventually garbage collect client entries
-  // and bound number of entries for different clients.
-  // One approach would be to make log allocators have bounded
-  // capacity on threads processing incoming messages
-  // and spin waiting for space before taking the message
-  // out of the channel (ring-buffer or socket) if not more
-  // memory. We would want to separate channels ideally with
-  // one per-principal but at least with separate channels for
-  // replicas and clients
   if (bre->maxn < 0)
   {
     PBFT_ASSERT(bre->r != 0, "Invalid state");

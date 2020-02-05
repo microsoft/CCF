@@ -10,8 +10,6 @@
 
 #include <stdlib.h>
 
-// TODO(#pbft) this enforces a shared allocator for each potential thread
-// when running inside the enclave
 #ifdef INSIDE_ENCLAVE
 std::unique_ptr<Log_allocator> thread_allocator = nullptr;
 #else
@@ -148,7 +146,6 @@ bool Message::decode(FILE* i)
 {
   delete msg;
 
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
 #ifndef INSIDE_ENCLAVE
   size_t sz = fread(&max_size, sizeof(int), 1, i);
   msg = (Message_rep*)allocator->malloc(max_size);

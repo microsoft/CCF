@@ -60,7 +60,7 @@ NV_info::NV_info() :
   vc_target(0),
   vc_cur(0),
   vcs(
-    64) // TODO: this is not great - https://github.com/microsoft/CCF/issues/385
+    64)
 {
   chosen_ckpt = -1;
   max = -1;
@@ -572,10 +572,7 @@ Seqno NV_info::known_stable()
     maxs,
     pbft::GlobalState::get_node().num_of_replicas(),
     Seqno_max);
-  // TODO: should compute min differently so that I pick the
-  // checkpoint (regardless of whether it is claimed stable) with
-  // highest sequence number that has enough proofs. This would ensure:
-  // max_stable2 <= min
+
   if (max_stable2 > min)
   {
     max_stable2 = min;
