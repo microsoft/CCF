@@ -377,8 +377,8 @@ class LocalRemote(CmdMixin):
         assert self._rc("rm -rf {}".format(self.root)) == 0
         assert self._rc("mkdir -p {}".format(self.root)) == 0
         for path in self.exe_files:
-            dst_path = os.path.join(self.root, os.path.basename(path))
-            src_path = os.path.join(os.getcwd(), path)
+            dst_path = os.path.normpath(os.path.join(self.root, os.path.basename(path)))
+            src_path = os.path.normpath(os.path.join(os.getcwd(), path))
             assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:
             dst_path = self.root
@@ -549,7 +549,7 @@ class CCFRemote(object):
 
         cmd = [
             self.BIN,
-            f"--enclave-file=./{os.path.basename(lib_path)}",
+            f"--enclave-file={lib_path}",
             f"--enclave-type={enclave_type}",
             f"--node-address={host}:{node_port}",
             f"--rpc-address={host}:{rpc_port}",
