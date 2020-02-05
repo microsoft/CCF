@@ -5,9 +5,12 @@
 
 #include <stddef.h>
 
+// TODO: Rename this function
+extern int ccf_randombytes(void* buf, size_t n);
+
 inline int randombytes(void *buf, size_t n)
 {
-  // printf("Hello");
+  ccf_randombytes(buf, n);
   return 0;
 }
 
