@@ -141,7 +141,14 @@ namespace ccf
            auto nodes = tx.get_view(this->network.nodes);
            auto info = nodes->get(id);
            if (!info)
+           {
              throw std::logic_error(fmt::format("Node {} does not exist", id));
+           }
+           if (info->status == NodeStatus::RETIRED)
+           {
+             throw std::logic_error(
+               fmt::format("Node {} is already retired", id));
+           }
            info->status = NodeStatus::TRUSTED;
            nodes->put(id, *info);
            LOG_INFO_FMT("Node {} is now {}", id, info->status);
@@ -154,9 +161,17 @@ namespace ccf
            auto nodes = tx.get_view(this->network.nodes);
            auto info = nodes->get(id);
            if (!info)
+           {
              throw std::logic_error(fmt::format("Node {} does not exist", id));
+           }
+           if (info->status == NodeStatus::RETIRED)
+           {
+             throw std::logic_error(
+               fmt::format("Node {} is already retired", id));
+           }
            info->status = NodeStatus::RETIRED;
            nodes->put(id, *info);
+           LOG_INFO_FMT("Node {} is now {}", id, info->status);
            return true;
          }},
         // accept new code
