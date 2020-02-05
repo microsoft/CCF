@@ -471,7 +471,6 @@ void Replica::recv_start()
   rec_ready = true;
   LOG_INFO << "Replica ready" << std::endl;
 
-
   if (state.in_check_state())
   {
     state.check_state();

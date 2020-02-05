@@ -54,13 +54,7 @@ NV_info::Req_sum::~Req_sum()
 // NV_info methods:
 //
 
-NV_info::NV_info() :
-  v(0),
-  nv(0),
-  vc_target(0),
-  vc_cur(0),
-  vcs(
-    64)
+NV_info::NV_info() : v(0), nv(0), vc_target(0), vc_cur(0), vcs(64)
 {
   chosen_ckpt = -1;
   max = -1;
