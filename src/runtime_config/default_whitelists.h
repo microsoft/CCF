@@ -32,7 +32,6 @@ namespace ccf
       Tables::MEMBER_CERTS,
       Tables::USERS,
       Tables::USER_CERTS,
-      Tables::NODES,
       Tables::VALUES,
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,
