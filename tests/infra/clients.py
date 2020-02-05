@@ -332,7 +332,7 @@ class CurlClient:
             nf.write(msg)
             nf.flush()
             if is_signed:
-                cmd = ["./scurl.sh"]
+                cmd = ["scurl.sh"]
             else:
                 cmd = ["curl"]
 
