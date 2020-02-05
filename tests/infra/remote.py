@@ -385,8 +385,6 @@ class LocalRemote(CmdMixin):
             src_path = os.path.join(os.getcwd(), path)
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
 
-        self.cmd[0] = os.path.join(".", os.path.normpath(self.cmd[0]))
-
     def get(self, filename, timeout=60, targetname=None):
         path = os.path.join(self.root, filename)
         for _ in range(timeout):
@@ -625,6 +623,8 @@ class CCFRemote(object):
 
         # Necessary for the az-dcap-client >=1.1 (https://github.com/microsoft/Azure-DCAP-Client/issues/84)
         env = {"HOME": os.environ["HOME"]}
+        # Retain parent's PATH
+        env["PATH"] = os.environ["PATH"]
         self.profraw = None
         if enclave_type == "virtual":
             env["UBSAN_OPTIONS"] = "print_stacktrace=1"
