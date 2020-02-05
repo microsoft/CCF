@@ -385,7 +385,6 @@ class LocalRemote(CmdMixin):
             src_path = os.path.join(os.getcwd(), path)
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
 
-        # Make sure relative paths include current directory. Absolute paths will be unaffected
         self.cmd[0] = os.path.join(".", os.path.normpath(self.cmd[0]))
 
     def get(self, filename, timeout=60, targetname=None):

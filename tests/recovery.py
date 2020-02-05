@@ -65,7 +65,7 @@ def run(args):
     txs = app.LoggingTxs()
 
     with infra.ccf.network(
-        hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs
+        hosts, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs
     ) as network:
         network.start_and_join(args)
 

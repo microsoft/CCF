@@ -212,15 +212,11 @@ class Network:
         LOG.success("All nodes joined network")
 
         if args.app_script:
-            infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
             self.consortium.set_lua_app(
                 member_id=1, remote_node=primary, app_script=args.app_script
             )
 
         if args.js_app_script:
-            infra.proc.ccall(
-                "cp", args.js_app_script, args.build_dir
-            ).check_returncode()
             self.consortium.set_js_app(
                 member_id=1, remote_node=primary, app_script=args.js_app_script
             )
@@ -468,11 +464,10 @@ class Network:
 
 
 @contextmanager
-def network(hosts, build_directory, dbg_nodes=[], perf_nodes=[], pdb=False, txs=None):
+def network(hosts, dbg_nodes=[], perf_nodes=[], pdb=False, txs=None):
     """
     Context manager for Network class.
     :param hosts: a list of hostnames (localhost or remote hostnames)
-    :param build_directory: the build directory
     :param dbg_nodes: default: []. List of node id's that will not start (user is prompted to start them manually)
     :param perf_nodes: default: []. List of node ids that will run under perf record
     :param pdb: default: False. Debugger.
@@ -480,16 +475,15 @@ def network(hosts, build_directory, dbg_nodes=[], perf_nodes=[], pdb=False, txs=
     :return: a Network instance that can be used to create/access nodes, handle the genesis state (add members, create
     node.json), and stop all the nodes that belong to the network
     """
-    with infra.path.working_dir(build_directory):
-        net = Network(hosts=hosts, dbg_nodes=dbg_nodes, perf_nodes=perf_nodes, txs=txs)
-        try:
-            yield net
-        except Exception:
-            if pdb:
-                import pdb
+    net = Network(hosts=hosts, dbg_nodes=dbg_nodes, perf_nodes=perf_nodes, txs=txs)
+    try:
+        yield net
+    except Exception:
+        if pdb:
+            import pdb
 
-                pdb.set_trace()
-            else:
-                raise
-        finally:
-            net.stop_all_nodes()
+            pdb.set_trace()
+        else:
+            raise
+    finally:
+        net.stop_all_nodes()

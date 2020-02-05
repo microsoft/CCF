@@ -237,26 +237,24 @@ class Node:
 
 
 @contextmanager
-def node(node_id, host, build_directory, debug=False, perf=False, pdb=False):
+def node(node_id, host, debug=False, perf=False, pdb=False):
     """
     Context manager for Node class.
     :param node_id: unique ID of node
-    :param build_directory: the build directory
     :param host: node's hostname
     :param debug: default: False. If set, node will not start (user is prompted to start them manually)
     :param perf: default: False. If set, node will run under perf record
     :return: a Node instance that can be used to build a CCF network
     """
-    with infra.path.working_dir(build_directory):
-        node = Node(node_id=node_id, host=host, debug=debug, perf=perf)
-        try:
-            yield node
-        except Exception:
-            if pdb:
-                import pdb
+    node = Node(node_id=node_id, host=host, debug=debug, perf=perf)
+    try:
+        yield node
+    except Exception:
+        if pdb:
+            import pdb
 
-                pdb.set_trace()
-            else:
-                raise
-        finally:
-            node.stop()
+            pdb.set_trace()
+        else:
+            raise
+    finally:
+        node.stop()
