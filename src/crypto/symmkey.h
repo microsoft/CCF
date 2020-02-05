@@ -110,7 +110,7 @@ namespace crypto
   class KeyAesGcm
   {
   private:
-    mutable void* ctx;
+    mutable std::vector<void*> ctxs;
 
   public:
     KeyAesGcm(CBuffer rawKey);

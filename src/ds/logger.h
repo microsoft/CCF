@@ -220,14 +220,14 @@ namespace logger
       return {};
     }
 
-    static inline std::vector<std::unique_ptr<AbstractLogger>>& loggers()
+    static inline std::vector<std::shared_ptr<AbstractLogger>>& loggers()
     {
-      static std::vector<std::unique_ptr<AbstractLogger>> the_loggers;
+      static std::vector<std::shared_ptr<AbstractLogger>> the_loggers;
       static bool initialized = false;
       if (!initialized)
       {
         initialized = true;
-        the_loggers.emplace_back(std::make_unique<ConsoleLogger>());
+        the_loggers.emplace_back(std::make_shared<ConsoleLogger>());
       }
       return the_loggers;
     }
@@ -260,11 +260,11 @@ namespace logger
 
     // Count of milliseconds elapsed since enclave started, used to produce
     // offsets to host time when logging from inside the enclave
-    static std::chrono::milliseconds ms;
+    static std::atomic<std::chrono::milliseconds> ms;
 
     static void tick(std::chrono::milliseconds ms_)
     {
-      ms += ms_;
+      ms.exchange(ms.load() + ms_);
     }
 
     static std::chrono::milliseconds elapsed_ms()
