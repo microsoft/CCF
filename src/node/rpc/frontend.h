@@ -342,7 +342,6 @@ namespace ccf
       bool playback,
       bool include_merkle_roots) override
     {
-      // TODO(#PBFT): Refactor this with process_forwarded().
       crypto::Sha256Hash full_state_merkle_root;
       crypto::Sha256Hash replicated_state_merkle_root;
       kv::Version version = kv::NoVersion;
@@ -371,10 +370,6 @@ namespace ccf
         full_state_merkle_root = history->get_full_state_root();
         replicated_state_merkle_root = history->get_replicated_state_root();
       }
-
-      // TODO(#PBFT): Add RPC response to history based on Request ID
-      // if (history)
-      //   history->add_response(reqid, rv);
 
       return {rep.value(),
               full_state_merkle_root,

@@ -24,9 +24,6 @@ namespace ccf
 
   struct EncryptedLedgerSecrets
   {
-    // TODO: Since ECDSA does not support asymmetric encryption out of the box,
-    // pass the public key here. The receiving peer can then decrypt the secrets
-    // using its own private key and this public key.
     std::vector<uint8_t> primary_public_encryption_key = {};
     std::vector<EncryptedLedgerSecret> secrets = {};
 

@@ -540,8 +540,6 @@ namespace ccf
         g.trust_code_id(node_code_id);
 #endif
 
-        // set access whitelists
-        // TODO(#feature): this should be configurable
         for (const auto& wl : default_whitelists)
         {
           g.set_whitelist(wl.first, wl.second);
