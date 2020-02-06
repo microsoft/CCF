@@ -148,11 +148,10 @@ jobs:
         python3.7 -m venv env
         source env/bin/activate
         python -m pip install -U -r ../../tests/requirements.txt
-        timeout --signal=SIGINT --kill-after=60s --preserve-status 30s \
+        timeout --signal=SIGINT --kill-after=60s --preserve-status 60s \
           python /tmp/ccf-install/bin/start_network.py \
           -p ../liblogging \
           -b /tmp/ccf-install/bin \
           -g ../../src/runtime_config/gov.lua
-          -v
       displayName: Build, install, and test
 
