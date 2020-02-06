@@ -66,6 +66,7 @@ namespace crypto
       if (ctx != nullptr)
       {
         mbedtls_gcm_free(ctx);
+        delete ctx;
       }
     }
   }
