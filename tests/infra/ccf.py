@@ -50,6 +50,7 @@ class PrimaryNotFound(Exception):
 
 
 class Network:
+    KEY_GEN = "keygenerator.sh"
     node_args_to_forward = [
         "enclave_type",
         "host_log_level",
@@ -70,7 +71,13 @@ class Network:
     replication_delay = 30
 
     def __init__(
-        self, hosts, dbg_nodes=None, perf_nodes=None, existing_network=None, txs=None
+        self,
+        hosts,
+        binary_dir=".",
+        dbg_nodes=None,
+        perf_nodes=None,
+        existing_network=None,
+        txs=None,
     ):
         if existing_network is None:
             self.consortium = []
@@ -90,6 +97,12 @@ class Network:
         self.nodes = []
         self.hosts = hosts
         self.status = ServiceStatus.CLOSED
+        self.binary_dir = binary_dir
+        self.key_generator = os.path.join(binary_dir, self.KEY_GEN)
+        if not os.path.isfile(self.key_generator):
+            raise FileNotFoundError(
+                f"Could not find key generator script at '{self.key_generator}' - is binary directory set correctly?"
+            )
         self.dbg_nodes = dbg_nodes
         self.perf_nodes = perf_nodes
 
@@ -109,7 +122,7 @@ class Network:
         perf = (
             (str(node_id) in self.perf_nodes) if self.perf_nodes is not None else False
         )
-        node = infra.node.Node(node_id, host, debug, perf)
+        node = infra.node.Node(node_id, host, self.binary_dir, debug, perf)
         self.nodes.append(node)
         return node
 
@@ -201,13 +214,11 @@ class Network:
         cmd = ["rm", "-f"] + glob("member*.pem")
         infra.proc.ccall(*cmd)
 
-        self.consortium = infra.consortium.Consortium([0, 1, 2], args.default_curve)
+        self.consortium = infra.consortium.Consortium(
+            [0, 1, 2], args.default_curve, self.key_generator
+        )
         self.initial_users = [0, 1, 2]
         self.create_users(self.initial_users, args.default_curve)
-
-        if args.gov_script:
-            infra.proc.ccall("cp", args.gov_script, args.build_dir).check_returncode()
-        LOG.info("Lua scripts copied")
 
         primary = self._start_all_nodes(args)
 
@@ -216,14 +227,14 @@ class Network:
         LOG.success("All nodes joined network")
 
         if args.app_script:
-            infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
+            infra.proc.ccall("cp", args.app_script, args.binary_dir).check_returncode()
             self.consortium.set_lua_app(
                 member_id=1, remote_node=primary, app_script=args.app_script
             )
 
         if args.js_app_script:
             infra.proc.ccall(
-                "cp", args.js_app_script, args.build_dir
+                "cp", args.js_app_script, args.binary_dir
             ).check_returncode()
             self.consortium.set_js_app(
                 member_id=1, remote_node=primary, app_script=args.js_app_script
@@ -314,7 +325,7 @@ class Network:
         users = ["user{}".format(u) for u in users]
         for u in users:
             infra.proc.ccall(
-                "./keygenerator.sh", f"{u}", curve.name, log_output=False
+                self.key_generator, f"{u}", curve.name, log_output=False
             ).check_returncode()
 
     def get_members(self):
@@ -472,11 +483,13 @@ class Network:
 
 
 @contextmanager
-def network(hosts, build_directory, dbg_nodes=[], perf_nodes=[], pdb=False, txs=None):
+def network(
+    hosts, binary_directory=".", dbg_nodes=[], perf_nodes=[], pdb=False, txs=None
+):
     """
     Context manager for Network class.
     :param hosts: a list of hostnames (localhost or remote hostnames)
-    :param build_directory: the build directory
+    :param binary_directory: the directory where CCF's binaries are located
     :param dbg_nodes: default: []. List of node id's that will not start (user is prompted to start them manually)
     :param perf_nodes: default: []. List of node ids that will run under perf record
     :param pdb: default: False. Debugger.
@@ -484,16 +497,21 @@ def network(hosts, build_directory, dbg_nodes=[], perf_nodes=[], pdb=False, txs=
     :return: a Network instance that can be used to create/access nodes, handle the genesis state (add members, create
     node.json), and stop all the nodes that belong to the network
     """
-    with infra.path.working_dir(build_directory):
-        net = Network(hosts=hosts, dbg_nodes=dbg_nodes, perf_nodes=perf_nodes, txs=txs)
-        try:
-            yield net
-        except Exception:
-            if pdb:
-                import pdb
+    net = Network(
+        hosts=hosts,
+        binary_dir=binary_directory,
+        dbg_nodes=dbg_nodes,
+        perf_nodes=perf_nodes,
+        txs=txs,
+    )
+    try:
+        yield net
+    except Exception:
+        if pdb:
+            import pdb
 
-                pdb.set_trace()
-            else:
-                raise
-        finally:
-            net.stop_all_nodes()
+            pdb.set_trace()
+        else:
+            raise
+    finally:
+        net.stop_all_nodes()

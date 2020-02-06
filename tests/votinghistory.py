@@ -123,14 +123,14 @@ def run(args):
     ledger_filename = None
 
     with infra.ccf.network(
-        hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         primary, term = network.find_primary()
 
         LOG.debug("Propose to add a new member (with a different curve)")
         infra.proc.ccall(
-            "./keygenerator.sh", "member4", infra.ccf.ParticipantsCurve.secp256k1.name
+            network.key_generator, "member4", infra.ccf.ParticipantsCurve.secp256k1.name
         )
         result, error = network.consortium.propose_add_member(
             1, primary, "member4_cert.pem"

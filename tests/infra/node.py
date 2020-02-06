@@ -26,8 +26,9 @@ class NodeStatus(Enum):
 
 
 class Node:
-    def __init__(self, node_id, host, debug=False, perf=False):
+    def __init__(self, node_id, host, binary_dir=".", debug=False, perf=False):
         self.node_id = node_id
+        self.binary_dir = binary_dir
         self.debug = debug
         self.perf = perf
         self.remote = None
@@ -135,6 +136,7 @@ class Node:
             label,
             target_rpc_address,
             members_certs,
+            binary_dir=self.binary_dir,
             **kwargs,
         )
         self.remote.setup()
@@ -200,6 +202,7 @@ class Node:
             description="node {} (user)".format(self.node_id),
             format=format,
             prefix="users",
+            binary_dir=self.binary_dir,
             **kwargs,
         )
 
@@ -213,6 +216,7 @@ class Node:
             description="node {} (node)".format(self.node_id),
             format=format,
             prefix="nodes",
+            binary_dir=self.binary_dir,
             **kwargs,
         )
 
@@ -226,6 +230,7 @@ class Node:
             description="node {} (member)".format(self.node_id),
             format=format,
             prefix="members",
+            binary_dir=self.binary_dir,
             **kwargs,
         )
 
@@ -237,26 +242,27 @@ class Node:
 
 
 @contextmanager
-def node(node_id, host, build_directory, debug=False, perf=False, pdb=False):
+def node(node_id, host, binary_directory, debug=False, perf=False, pdb=False):
     """
     Context manager for Node class.
     :param node_id: unique ID of node
-    :param build_directory: the build directory
+    :param binary_directory: the directory where CCF's binaries are located
     :param host: node's hostname
     :param debug: default: False. If set, node will not start (user is prompted to start them manually)
     :param perf: default: False. If set, node will run under perf record
     :return: a Node instance that can be used to build a CCF network
     """
-    with infra.path.working_dir(build_directory):
-        node = Node(node_id=node_id, host=host, debug=debug, perf=perf)
-        try:
-            yield node
-        except Exception:
-            if pdb:
-                import pdb
+    node = Node(
+        node_id=node_id, host=host, binary_dir=binary_directory, debug=debug, perf=perf
+    )
+    try:
+        yield node
+    except Exception:
+        if pdb:
+            import pdb
 
-                pdb.set_trace()
-            else:
-                raise
-        finally:
-            node.stop()
+            pdb.set_trace()
+        else:
+            raise
+    finally:
+        node.stop()

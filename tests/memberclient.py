@@ -23,7 +23,7 @@ def run(args):
     hosts = ["localhost", "localhost"]
 
     with infra.ccf.network(
-        hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         primary, term = network.find_primary()
@@ -50,7 +50,7 @@ def run(args):
 
         LOG.info("Proposal to add a new member (with different curve)")
         infra.proc.ccall(
-            "./keygenerator.sh",
+            network.key_generator,
             "member3",
             infra.ccf.ParticipantsCurve(args.default_curve).next().name,
         )

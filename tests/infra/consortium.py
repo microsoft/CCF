@@ -15,12 +15,12 @@ from loguru import logger as LOG
 
 
 class Consortium:
-    def __init__(self, members, curve):
+    def __init__(self, members, curve, key_generator):
         self.members = members
         members = [f"member{m}" for m in members]
         for m in members:
             infra.proc.ccall(
-                "./keygenerator.sh", f"{m}", curve.name, log_output=False
+                key_generator, f"{m}", curve.name, log_output=False
             ).check_returncode()
         self.status = infra.ccf.ServiceStatus.OPEN
 
