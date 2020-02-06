@@ -37,7 +37,6 @@ namespace ccf
     }
 
   private:
-    // TODO: replace with an lru map
     std::map<CallerId, tls::VerifierPtr> verifiers;
     SpinLock lock;
     bool is_open_ = false;
@@ -68,10 +67,6 @@ namespace ccf
 
     void update_history()
     {
-      // TODO: removed for now because frontend needs access to history
-      // during recovery, on RPC, when not primary. Can be changed back once
-      // frontend calls into Consensus.
-      // if (history == nullptr)
       history = tables.get_history().get();
       handlers.set_history(history);
     }
@@ -347,7 +342,6 @@ namespace ccf
       bool playback,
       bool include_merkle_roots) override
     {
-      // TODO(#PBFT): Refactor this with process_forwarded().
       crypto::Sha256Hash full_state_merkle_root;
       crypto::Sha256Hash replicated_state_merkle_root;
       kv::Version version = kv::NoVersion;
@@ -376,10 +370,6 @@ namespace ccf
         full_state_merkle_root = history->get_full_state_root();
         replicated_state_merkle_root = history->get_replicated_state_root();
       }
-
-      // TODO(#PBFT): Add RPC response to history based on Request ID
-      // if (history)
-      //   history->add_response(reqid, rv);
 
       return {rep.value(),
               full_state_merkle_root,
@@ -611,7 +601,6 @@ namespace ccf
 
     void tick(std::chrono::milliseconds elapsed) override
     {
-      // TODO(#refactoring): move this to NodeState::tick
       update_consensus();
 
       handlers.tick(elapsed, tx_count);

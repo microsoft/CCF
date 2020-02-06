@@ -21,8 +21,6 @@ namespace serialized
     return *(T*)data;
   }
 
-  // TODO(#sanitizers): Need to make sure this function performs aligned
-  // access to data
   template <class T>
   __attribute__((no_sanitize("undefined"))) T read(
     const uint8_t*& data, size_t& size)
@@ -62,9 +60,6 @@ namespace serialized
     return v;
   }
 
-  // TODO(#sanitizers): Need to make sure this function performs aligned
-  // access to data (if we cannot control the calling code, perhaps memcpy is
-  // inevitable)
   template <class T>
   __attribute__((no_sanitize("undefined"))) void write(
     uint8_t*& data, size_t& size, T v)
