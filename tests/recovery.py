@@ -27,7 +27,7 @@ def test(network, args, txs=None):
     sealed_secrets = primary.get_sealed_secrets()
 
     recovered_network = infra.ccf.Network(
-        network.hosts, args.debug_nodes, args.perf_nodes, network
+        network.hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
     recovered_network.start_in_recovery(args, ledger, sealed_secrets)
 
