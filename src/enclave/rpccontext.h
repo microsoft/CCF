@@ -73,7 +73,6 @@ namespace enclave
   public:
     SessionContext session;
 
-    // TODO: Avoid unnecessary copies
     std::vector<uint8_t> raw = {};
 
     // raw pbft Request

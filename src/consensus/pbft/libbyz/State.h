@@ -92,7 +92,6 @@ public:
   class Iter
   {
   public:
-    // TODO figure out how this is done properly
     Iter(Checkpoint_rec* r) : it(r->parts.begin()), end(r->parts.end()) {}
     // Effects: Return an iterator for the partitions in r.
 
