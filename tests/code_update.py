@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
-import infra.ccf
+import infra.network
 import infra.path
 import infra.proc
 import json
@@ -29,7 +29,7 @@ def get_code_id(lib_path):
 def run(args):
     hosts = ["localhost", "localhost"]
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)

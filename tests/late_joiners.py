@@ -7,7 +7,7 @@ import logging
 import multiprocessing
 import shutil
 from random import seed
-import infra.ccf
+import infra.network
 import infra.proc
 import infra.notification
 import infra.net
@@ -114,7 +114,7 @@ def run_requests(nodes, total_requests, start_id, final_msg, final_msg_id):
 def run(args):
     hosts = ["localhost", "localhost", "localhost"]
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)

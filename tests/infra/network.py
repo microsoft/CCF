@@ -128,7 +128,8 @@ class Network:
 
     def _add_node(self, node, lib_name, args, target_node=None):
         forwarded_args = {
-            arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
+            arg: getattr(args, arg)
+            for arg in infra.network.Network.node_args_to_forward
         }
 
         # Contact primary if no target node is set
@@ -165,7 +166,8 @@ class Network:
         LOG.info("Opening CCF service on {}".format(hosts))
 
         forwarded_args = {
-            arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
+            arg: getattr(args, arg)
+            for arg in infra.network.Network.node_args_to_forward
         }
 
         for i, node in enumerate(self.nodes):

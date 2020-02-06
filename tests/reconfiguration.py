@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import sys
 import infra.e2e_args
-import infra.ccf
+import infra.network
 import infra.proc
 import suite.test_requirements as reqs
 import json
@@ -78,7 +78,7 @@ def test_retire_node(network, args):
 def run(args):
     hosts = ["localhost", "localhost"]
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)

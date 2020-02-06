@@ -9,7 +9,7 @@ import logging
 import multiprocessing
 import shutil
 import random
-import infra.ccf
+import infra.network
 import infra.proc
 import infra.e2e_args
 
@@ -61,7 +61,7 @@ def run(args):
             else:
                 methods_without_schema.add(method)
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes
     ) as network:
         network.start_and_join(args)

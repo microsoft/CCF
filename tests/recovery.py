@@ -8,7 +8,7 @@ import logging
 import multiprocessing
 import infra.e2e_args
 from random import seed
-import infra.ccf
+import infra.network
 import infra.proc
 import infra.remote
 import infra.logging_app as app
@@ -26,7 +26,7 @@ def test(network, args, txs=None):
     ledger = primary.remote.get_ledger()
     sealed_secrets = primary.get_sealed_secrets()
 
-    recovered_network = infra.ccf.Network(
+    recovered_network = infra.network.Network(
         network.hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
     recovered_network.start_in_recovery(args, ledger, sealed_secrets)
@@ -52,7 +52,7 @@ def test(network, args, txs=None):
     recovered_network.wait_for_all_nodes_to_catch_up(primary)
 
     recovered_network.consortium.check_for_service(
-        primary, infra.ccf.ServiceStatus.OPEN
+        primary, infra.network.ServiceStatus.OPEN
     )
     LOG.success("Network successfully recovered")
 
@@ -64,7 +64,7 @@ def run(args):
 
     txs = app.LoggingTxs()
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs
     ) as network:
         network.start_and_join(args)

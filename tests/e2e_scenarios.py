@@ -8,7 +8,7 @@ import logging
 import multiprocessing
 import shutil
 import random
-import infra.ccf
+import infra.network
 import infra.proc
 import infra.jsonrpc
 import infra.e2e_args
@@ -28,7 +28,7 @@ def run(args):
     scenario_dir = os.path.dirname(args.scenario)
 
     # SNIPPET_START: create_network
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes
     ) as network:
         network.start_and_join(args)
