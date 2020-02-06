@@ -407,7 +407,10 @@ if(BUILD_TESTS)
     LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
     INCLUDE_DIRS ${EVERCRYPT_INC}
   )
-  add_picobench(kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmkey.cpp)
+  add_picobench(
+    kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmkey.cpp
+                  src/enclave/thread_local.cpp
+  )
 
   # Merkle Tree memory test
   add_executable(merkle_mem src/node/test/merkle_mem.cpp)
