@@ -50,6 +50,7 @@ class PrimaryNotFound(Exception):
 
 
 class Network:
+    KEY_GEN = "keygenerator.sh"
     node_args_to_forward = [
         "enclave_type",
         "host_log_level",
@@ -97,7 +98,11 @@ class Network:
         self.hosts = hosts
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
-        self.key_generator = os.path.join(binary_dir, "keygenerator.sh")
+        self.key_generator = os.path.join(binary_dir, self.KEY_GEN)
+        if not os.path.isfile(self.key_generator):
+            raise FileNotFoundError(
+                f"Could not find key generator script at '{self.key_generator}' - is binary directory set correctly?"
+            )
         self.dbg_nodes = dbg_nodes
         self.perf_nodes = perf_nodes
 
@@ -209,7 +214,9 @@ class Network:
         cmd = ["rm", "-f"] + glob("member*.pem")
         infra.proc.ccall(*cmd)
 
-        self.consortium = infra.consortium.Consortium([0, 1, 2], args.default_curve, self.key_generator)
+        self.consortium = infra.consortium.Consortium(
+            [0, 1, 2], args.default_curve, self.key_generator
+        )
         self.initial_users = [0, 1, 2]
         self.create_users(self.initial_users, args.default_curve)
 
@@ -476,7 +483,9 @@ class Network:
 
 
 @contextmanager
-def network(hosts, binary_directory, dbg_nodes=[], perf_nodes=[], pdb=False, txs=None):
+def network(
+    hosts, binary_directory=".", dbg_nodes=[], perf_nodes=[], pdb=False, txs=None
+):
     """
     Context manager for Network class.
     :param hosts: a list of hostnames (localhost or remote hostnames)
