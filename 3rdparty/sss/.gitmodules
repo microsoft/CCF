@@ -1,3 +1,0 @@
-[submodule "randombytes"]
-	path = randombytes
-	url = https://github.com/dsprenkels/randombytes.git
