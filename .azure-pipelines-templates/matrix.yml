@@ -134,6 +134,8 @@ jobs:
 
   - job: Install_And_Test
     displayName: 'Test installed CCF'
+    container: sgx
+    pool: Ubuntu-1804-DC4s
     steps:
     - script: |
         mkdir build
