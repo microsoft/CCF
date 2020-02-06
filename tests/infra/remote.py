@@ -522,6 +522,7 @@ class CCFRemote(object):
         ledger_file=None,
         sealed_secrets=None,
         json_log_path=None,
+        binary_dir=".",
     ):
         """
         Run a ccf binary on a remote host.
@@ -538,7 +539,9 @@ class CCFRemote(object):
         # not been explictly ignored
         if enclave_type != "virtual" and not ignore_quote:
             self.quote = f"quote{local_node_id}.bin"
-        self.BIN = infra.path.build_bin_path(self.BIN, enclave_type)
+        self.BIN = infra.path.build_bin_path(
+            self.BIN, enclave_type, binary_dir=binary_dir
+        )
         self.ledger_file = ledger_file
         self.ledger_file_name = (
             os.path.basename(ledger_file) if ledger_file else f"{local_node_id}.ledger"
@@ -623,8 +626,6 @@ class CCFRemote(object):
 
         # Necessary for the az-dcap-client >=1.1 (https://github.com/microsoft/Azure-DCAP-Client/issues/84)
         env = {"HOME": os.environ["HOME"]}
-        # Retain parent's PATH
-        env["PATH"] = os.environ["PATH"]
         self.profraw = None
         if enclave_type == "virtual":
             env["UBSAN_OPTIONS"] = "print_stacktrace=1"

@@ -89,7 +89,7 @@ def run_client(args, primary, command_args):
         time.sleep(60)
 
 
-def run(build_directory, get_command, args):
+def run(get_command, args):
     if args.fixed_seed:
         seed(getpass.getuser())
 
@@ -100,7 +100,7 @@ def run(build_directory, get_command, args):
     LOG.info("Starting nodes on {}".format(hosts))
 
     with infra.ccf.network(
-        hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         primary, backups = network.find_nodes()

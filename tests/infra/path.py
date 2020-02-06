@@ -34,11 +34,11 @@ def build_lib_path(lib_name, enclave_type="debug"):
         return os.path.join(".", os.path.normpath(f"{lib_name}{ext}"))
 
 
-def build_bin_path(bin_name, enclave_type=""):
+def build_bin_path(bin_name, enclave_type=None, binary_dir="."):
     if enclave_type == "virtual":
-        return "./{}.virtual".format(bin_name)
-    else:
-        return bin_name
+        bin_name = f"{bin_name}.virtual"
+
+    return os.path.join(binary_dir, bin_name)
 
 
 def default_workspace():
