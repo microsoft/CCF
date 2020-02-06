@@ -40,9 +40,11 @@ parameters:
         cmake_args: ''
     release:
       FTCP:
-        cmake_args: '-DCMAKE_INSTALL_PREFIX=./install'
+        install_prefix: '/tmp/ccf-install/ftcp'
+        cmake_args: '-DCMAKE_INSTALL_PREFIX=/tmp/ccf-install/ftcp'
       HTTP:
-        cmake_args: '-DCMAKE_INSTALL_PREFIX=./install'
+        install_prefix: '/tmp/ccf-install/http'
+        cmake_args: '-DCMAKE_INSTALL_PREFIX=/tmp/ccf-install/http'
     san:
       cmake_args: '-DSAN=ON'
     HTTP:
@@ -116,7 +118,8 @@ jobs:
           consensus: ${{ consensus }}
           protocol: ${{ protocol }}
           env: ${{ parameters.env.SGX }}
-          install: ${{ eq(parameters.perf_or_release, 'release') }}
+          install: true
+          install_prefix: '${{ parameters.build[parameters.perf_or_release][protocol].install_prefix }}'
           cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build[parameters.perf_or_release][protocol].cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
           ctest_filter: '${{ parameters.test[parameters.perf_or_release][consensus].ctest_args }}'
           suffix: 'Release'
@@ -131,27 +134,4 @@ jobs:
     - template: release.yml
       parameters:
         env: ${{ parameters.env.Release }}
-
-  - job: Install_And_Test
-    displayName: 'Test installed CCF'
-    container: sgx
-    pool: Ubuntu-1804-DC4s
-    steps:
-    - script: |
-        mkdir build
-        cd build
-        cmake .. -GNinja -DCMAKE_INSTALL_PREFIX=/tmp/ccf-install
-        ninja
-        ninja install
-        mkdir run
-        cd run
-        python3.7 -m venv env
-        source env/bin/activate
-        python -m pip install -U -r ../../tests/requirements.txt
-        timeout --signal=SIGINT --kill-after=60s --preserve-status 60s \
-          python /tmp/ccf-install/bin/start_network.py \
-          -p ../liblogging \
-          -b /tmp/ccf-install/bin \
-          -g ../../src/runtime_config/gov.lua
-      displayName: Build, install, and test
 

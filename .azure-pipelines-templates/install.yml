@@ -1,9 +1,21 @@
 steps:
 - script: |
-    mkdir install
     ninja install
   workingDirectory: build
   displayName: 'Install'
+
+- script: |
+    mkdir -p nested/run
+    cd nested/run
+    python3.7 -m venv env
+    source env/bin/activate
+    python -m pip install -U -r ../../tests/requirements.txt
+    timeout --signal=SIGINT --kill-after=60s --preserve-status 60s \
+      python ${{ parameters.install_prefix }}/bin/start_network.py \
+      -p ../../build/liblogging \
+      -b ${{ parameters.install_prefix }}/bin \
+      -g ../../src/runtime_config/gov.lua
+  displayName: Test installed CCF
 
 - task: ArchiveFiles@2
   inputs:
