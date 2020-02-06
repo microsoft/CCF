@@ -183,7 +183,7 @@ install(
 # TODO(install): This should be trimmed and packaged as well
 install(
   DIRECTORY tests/infra/
-  DESTINATION lib/infra
+  DESTINATION bin/infra
   FILES_MATCHING
   PATTERN "*.py"
   PATTERN "*/__pycache__*" EXCLUDE
