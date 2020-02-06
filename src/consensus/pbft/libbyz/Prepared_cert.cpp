@@ -93,7 +93,6 @@ bool Prepared_cert::encode(FILE* o)
 
 bool Prepared_cert::decode(FILE* i)
 {
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
 #ifndef INSIDE_ENCLAVE
   PBFT_ASSERT(pp_info.pre_prepare() == 0, "Invalid state");
 

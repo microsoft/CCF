@@ -52,7 +52,6 @@ Pre_prepare::Pre_prepare(
 #pragma GCC diagnostic push
         memcpy(next_req, req->contents(), req->size());
 #pragma GCC diagnostic pop
-        // TODO: this is wasteful because we are padding for every digest
         next_req += req->size();
         requests_in_batch++;
         PBFT_ASSERT(ALIGNED(next_req), "Improperly aligned pointer");
@@ -289,6 +288,11 @@ bool Pre_prepare::pre_verify()
     {
       auto sender_principal =
         pbft::GlobalState::get_node().get_principal(sender);
+      if (!sender_principal)
+      {
+        LOG_INFO_FMT("Sender principal has not been configured yet {}", sender);
+        return false;
+      }
 
       if (
         !sender_principal->has_certificate_set() &&
@@ -341,12 +345,6 @@ bool Pre_prepare::verify(int mode)
     for (char* next = requests(); next < max_req; next += req.size())
     {
       Request::convert(next, max_req - next, req);
-
-      // TODO: If we batch requests from different clients inline. We need to
-      // change this a bit. Otherwise, a good client could be denied
-      // service just because its request was batched with the request
-      // of another client.  A way to do this would be to include a
-      // bitmap with a bit set for each request that verified.
     }
   }
 

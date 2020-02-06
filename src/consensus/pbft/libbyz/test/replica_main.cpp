@@ -66,8 +66,11 @@ ExecCommand exec_command = [](
                              int client,
                              Request_id rid,
                              bool ro,
+                             uint8_t* req_start,
+                             size_t req_size,
                              Seqno n,
-                             ByzInfo& info) {
+                             ByzInfo& info,
+                             ccf::Store::Tx* tx = nullptr) {
   outb.contents = message_receiver->create_response_message(client, rid, 8);
 
   Long& counter = *(Long*)service_mem;
@@ -224,7 +227,8 @@ int main(int argc, char** argv)
     pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
   auto& pbft_pre_prepares_map = store->create<pbft::PrePreparesMap>(
     pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
-  auto replica_store = std::make_unique<pbft::Adaptor<ccf::Store>>(store);
+  auto replica_store =
+    std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(store);
 
   int used_bytes = Byz_init_replica(
     node_info,

@@ -18,50 +18,32 @@ extern std::map<std::thread::id, uint16_t> thread_ids;
 
 namespace enclave
 {
-  struct ThreadMsg
+  const uint64_t magic_const = 0xba5eball;
+  struct alignas(8) ThreadMsg
   {
     void (*cb)(std::unique_ptr<ThreadMsg>);
     std::atomic<ThreadMsg*> next = nullptr;
-    uint64_t padding[14];
+    uint64_t magic = magic_const;
+
+    ThreadMsg(void (*_cb)(std::unique_ptr<ThreadMsg>)) : cb(_cb) {}
+
+    virtual ~ThreadMsg()
+    {
+      assert(magic == magic_const);
+    }
   };
 
   template <typename Payload>
-  struct Tmsg
+  struct alignas(8) Tmsg : public ThreadMsg
   {
+    Payload data;
+
     Tmsg(void (*_cb)(std::unique_ptr<Tmsg<Payload>>)) :
-      cb(reinterpret_cast<void (*)(std::unique_ptr<ThreadMsg>)>(_cb)),
-      next(nullptr)
-    {
-      check_invariants();
-    }
+      ThreadMsg(reinterpret_cast<void (*)(std::unique_ptr<ThreadMsg>)>(_cb))
 
-    void (*cb)(std::unique_ptr<ThreadMsg>);
-    std::atomic<ThreadMsg*> next;
-    union
-    {
-      Payload data;
-      uint64_t padding[14];
-    };
+    {}
 
-    static void check_invariants()
-    {
-      static_assert(
-        sizeof(ThreadMsg) == sizeof(Tmsg<Payload>), "message is too large");
-      static_assert(
-        sizeof(Payload) <= sizeof(ThreadMsg::padding),
-        "message payload is too large");
-      static_assert(std::is_pod<Payload>::value, "data should be a pod");
-
-      static_assert(
-        offsetof(Tmsg, cb) == offsetof(ThreadMsg, cb),
-        "Expected cb at start of struct");
-      static_assert(
-        offsetof(Tmsg, next) == offsetof(ThreadMsg, next),
-        "Expected next after cb in struct");
-      static_assert(
-        offsetof(Tmsg, data) == offsetof(ThreadMsg, padding),
-        "Expected payload after next in struct");
-    }
+    virtual ~Tmsg() = default;
   };
 
   static void init_cb(std::unique_ptr<ThreadMsg> m)
@@ -168,6 +150,7 @@ namespace enclave
   public:
     static ThreadMessaging thread_messaging;
     static std::atomic<uint16_t> thread_count;
+    static const uint16_t main_thread = 0;
 
     static const uint16_t max_num_threads = 64;
 

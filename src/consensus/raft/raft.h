@@ -478,8 +478,8 @@ namespace raft
       AppendEntries ae = {raft_append_entries,
                           local_id,
                           end_idx,
-                          current_term,
                           prev_idx,
+                          current_term,
                           prev_term,
                           commit_idx,
                           term_of_idx};
@@ -669,6 +669,9 @@ namespace raft
 
           case kv::DeserialiseSuccess::PASS:
             break;
+
+          default:
+            throw std::logic_error("Unknown DeserialiseSuccess value");
         }
       }
 
@@ -1232,7 +1235,6 @@ namespace raft
       if (active_nodes.find(local_id) == active_nodes.end())
       {
         LOG_INFO_FMT("Removed self {}", local_id);
-        // TODO(#feature): shut down this node
       }
     }
   };

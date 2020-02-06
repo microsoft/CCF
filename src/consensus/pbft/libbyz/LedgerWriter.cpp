@@ -5,7 +5,7 @@
 #include "Request.h"
 
 LedgerWriter::LedgerWriter(
-  pbft::Store& store_, pbft::PrePreparesMap& pbft_pre_prepares_map_) :
+  pbft::PbftStore& store_, pbft::PrePreparesMap& pbft_pre_prepares_map_) :
   store(store_),
   pbft_pre_prepares_map(pbft_pre_prepares_map_)
 {}
@@ -32,6 +32,11 @@ void LedgerWriter::write_prepare(
       (uint8_t*)&(p.second),
       sizeof(Prepared_cert::PrePrepareProof));
   }
+}
+
+void LedgerWriter::write_pre_prepare(ccf::Store::Tx& tx)
+{
+  store.commit_tx(tx);
 }
 
 void LedgerWriter::write_pre_prepare(Pre_prepare* pp)

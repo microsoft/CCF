@@ -27,7 +27,23 @@ namespace enclave
       p(parser_type, *this)
     {}
 
+    static void recv_cb(std::unique_ptr<enclave::Tmsg<SendRecvMsg>> msg)
+    {
+      reinterpret_cast<HTTPEndpoint*>(msg->data.self.get())
+        ->recv_(msg->data.data.data(), msg->data.data.size());
+    }
+
     void recv(const uint8_t* data, size_t size) override
+    {
+      auto msg = std::make_unique<enclave::Tmsg<SendRecvMsg>>(&recv_cb);
+      msg->data.self = this->shared_from_this();
+      msg->data.data.assign(data, data + size);
+
+      enclave::ThreadMessaging::thread_messaging.add_task<SendRecvMsg>(
+        execution_thread, std::move(msg));
+    }
+
+    void recv_(const uint8_t* data, size_t size)
     {
       recv_buffered(data, size);
 
@@ -65,8 +81,6 @@ namespace enclave
       }
       else
       {
-        // TODO: For now, close the connection if it has been upgraded to
-        // websocket
         LOG_FAIL_FMT(
           "Receiving data after endpoint has been upgraded to websocket.");
         LOG_FAIL_FMT("Closing connection.");
@@ -95,7 +109,23 @@ namespace enclave
       session_id(session_id)
     {}
 
+    static void send_cb(std::unique_ptr<enclave::Tmsg<SendRecvMsg>> msg)
+    {
+      reinterpret_cast<HTTPServerEndpoint*>(msg->data.self.get())
+        ->send_(msg->data.data);
+    }
+
     void send(const std::vector<uint8_t>& data) override
+    {
+      auto msg = std::make_unique<enclave::Tmsg<SendRecvMsg>>(&send_cb);
+      msg->data.self = this->shared_from_this();
+      msg->data.data = data;
+
+      enclave::ThreadMessaging::thread_messaging.add_task<SendRecvMsg>(
+        execution_thread, std::move(msg));
+    }
+
+    void send_(const std::vector<uint8_t>& data)
     {
       // This should be called with raw body of response - we will wrap it with
       // header then transmit
@@ -131,6 +161,33 @@ namespace enclave
         data.size(), content_type));
       send_buffered(data);
       flush();
+    }
+
+    void handle_message_main_thread(
+      std::shared_ptr<JsonRpcContext>& rpc_ctx,
+      std::shared_ptr<RpcHandler>& search)
+    {
+      try
+      {
+        auto response = search->process(rpc_ctx);
+
+        if (!response.has_value())
+        {
+          // If the RPC is pending, hold the connection.
+          LOG_TRACE_FMT("Pending");
+          return;
+        }
+        else
+        {
+          // Otherwise, reply to the client synchronously.
+          send_response(response.value());
+        }
+      }
+      catch (const std::exception& e)
+      {
+        std::string err_msg = fmt::format("Exception:\n{}\n", e.what());
+        send_response(err_msg, HTTP_STATUS_INTERNAL_SERVER_ERROR);
+      }
     }
 
     void handle_message(
@@ -220,7 +277,6 @@ namespace enclave
           std::make_shared<JsonRpcContext>(session, pack.value(), json_rpc);
         rpc_ctx->set_request_index(request_index++);
 
-        // TODO: For now, set this here
         auto signed_req = http::HttpSignatureVerifier::parse(
           std::string(http_method_str(verb)), path, query, headers, body);
         if (signed_req.has_value())
@@ -228,8 +284,6 @@ namespace enclave
           rpc_ctx->signed_request = signed_req;
         }
 
-        // TODO: This is temporary; while we have a full RPC object inside the
-        // body, it should match the dispatch details specified in the URI
         const auto expected = fmt::format("{}/{}", actor_s, method_s);
         if (rpc_ctx->method != expected)
         {
@@ -242,7 +296,7 @@ namespace enclave
           return;
         }
 
-        rpc_ctx->raw = body; // TODO: This is insufficient, need entire request
+        rpc_ctx->raw = body;
         rpc_ctx->method = method_s;
         rpc_ctx->actor = actor;
 
@@ -256,8 +310,6 @@ namespace enclave
         }
         else
         {
-          // Otherwise, reply to the client synchronously.
-          LOG_TRACE_FMT("Responding");
           send_response(response.value());
         }
       }

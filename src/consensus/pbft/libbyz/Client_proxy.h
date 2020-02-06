@@ -38,7 +38,7 @@ class ClientProxy
 {
   // Client proxy used to aggregate requests from clients, submit them to
   // the state machine, collect replies (and receipts), and send them back to
-  // the clients. TODO: add support for sending receipts to clients.
+  // the clients.
 public:
   ClientProxy(
     IMessageReceiveBase& my_replica,
@@ -304,7 +304,6 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
             << " client id: " << reply->id() << " seqno: " << reply->seqno()
             << " view " << reply->view() << std::endl;
 
-  // TODO: Should the return value of this function be checked here?
   ctx->cb(ctx->owner, ctx->caller_rid, 0, (uint8_t*)reply_buffer, reply_len);
 
   if (ctx->prev == nullptr)

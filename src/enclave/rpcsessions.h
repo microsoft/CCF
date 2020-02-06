@@ -5,10 +5,7 @@
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "forwardertypes.h"
-#include "framedtlsendpoint.h"
 #include "httpendpoint.h"
-#include "rpcclient.h"
-#include "rpcendpoint.h"
 #include "rpchandler.h"
 #include "tls/cert.h"
 #include "tls/client.h"
@@ -20,13 +17,8 @@
 
 namespace enclave
 {
-#ifndef FTCP
   using ServerEndpointImpl = HTTPServerEndpoint;
   using ClientEndpointImpl = HTTPClientEndpoint;
-#else
-  using ServerEndpointImpl = RPCEndpoint;
-  using ClientEndpointImpl = RPCClient;
-#endif
 
   class RPCSessions : public AbstractRPCResponder
   {

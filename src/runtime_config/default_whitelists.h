@@ -7,8 +7,6 @@
 
 namespace ccf
 {
-  // TODO: read from json/lua file during genesis creation
-  // https://github.com/microsoft/CCF/issues/355
   static const std::map<WlIds, Whitelist> default_whitelists = {
     {MEMBER_CAN_READ,
      {Tables::MEMBERS,
@@ -32,7 +30,6 @@ namespace ccf
       Tables::MEMBER_CERTS,
       Tables::USERS,
       Tables::USER_CERTS,
-      Tables::NODES,
       Tables::VALUES,
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,

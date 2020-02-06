@@ -16,7 +16,6 @@ Query_stable::Query_stable() :
     sizeof(Query_stable_rep) + pbft::GlobalState::get_node().auth_size())
 {
   rep().id = pbft::GlobalState::get_node().id();
-  // TODO(#PBFT): Get a better random function for nonce
   rep().nonce = (uint64_t)this;
   auth_type = Auth_type::out;
   auth_len = sizeof(Query_stable_rep);

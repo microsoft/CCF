@@ -154,9 +154,7 @@ Reply* Client::recv_reply()
       t_reps.clear();
       c_reps.clear();
 
-      // Choose view in returned rep. TODO: could make performance
-      // more robust to attacks by picking the median view in the
-      // certificate.
+      // Choose view in returned rep
       v = rep->view();
       cur_primary = v % num_replicas;
 

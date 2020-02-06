@@ -12,7 +12,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         parser = argparse.ArgumentParser(
             formatter_class=argparse.ArgumentDefaultsHelpFormatter
         )
-    parser.add_argument("-b", "--build-dir", help="Build directory", default=".")
+    parser.add_argument(
+        "-b",
+        "--binary-dir",
+        help="Path to CCF binaries (cchost, scurl, keygenerator)",
+        default=".",
+    )
     parser.add_argument(
         "-d",
         "--debug-nodes",

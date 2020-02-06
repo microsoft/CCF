@@ -626,8 +626,6 @@ void State::start_fetch(Seqno le, Seqno c, Digest* cd, bool stable)
     INCR_OP(num_fetches);
 
     fetching = true;
-    // TODO: check if we can remove the code to keep
-    // old checkpointa
     keep_ckpts = false;
     lreplier = rand() % pbft::GlobalState::get_replica().num_of_replicas();
 
@@ -1344,7 +1342,6 @@ void State::check_state()
       else
       {
         corrupt = true;
-        // TODO: put these blocks in a queue and fetch them at the end.
         PBFT_FAIL("Replica's state is corrupt. Should not happen yet");
       }
     }
@@ -1383,8 +1380,6 @@ bool State::shutdown(FILE* o, Seqno ls)
   wb += fwrite(&lc, sizeof(Seqno), 1, o);
   ab++;
 
-  // TODO: what if I shutdown while I am fetching.
-  // recovery should always start s fetch for digests.
   if (!fetching || keep_ckpts)
   {
     for (Seqno i = ls; i <= ls + max_out; i++)

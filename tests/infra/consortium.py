@@ -15,30 +15,18 @@ from loguru import logger as LOG
 
 
 class Consortium:
-    def __init__(self, members, curve):
+    def __init__(self, members, curve, key_generator):
         self.members = members
         members = [f"member{m}" for m in members]
         for m in members:
             infra.proc.ccall(
-                "./keygenerator.sh", f"{m}", curve.name, log_output=False
+                key_generator, f"{m}", curve.name, log_output=False
             ).check_returncode()
         self.status = infra.ccf.ServiceStatus.OPEN
 
     def get_members_certs(self):
         members_certs = [f"member{m}_cert.pem" for m in self.members]
         return members_certs
-
-    def _member_client_rpc_as_json(self, member_id, remote_node, *args):
-        result = infra.proc.ccall(
-            "./memberclient",
-            f"--cert=member{member_id}_cert.pem",
-            f"--privk=member{member_id}_privk.pem",
-            f"--rpc-address={remote_node.host}:{remote_node.rpc_port}",
-            "--ca=networkcert.pem",
-            *args,
-        )
-        j_result = json.loads(result.stdout)
-        return j_result
 
     def propose(self, member_id, remote_node, script=None, params=None):
         with remote_node.member_client(format="json", member_id=member_id) as mc:
@@ -54,28 +42,17 @@ class Consortium:
         force_unsigned=False,
         should_wait_for_global_commit=True,
     ):
-        if not os.getenv("FTCP"):
-            script = """
-            tables, changes = ...
-            return true
-            """
-            with remote_node.member_client(format="json", member_id=member_id) as mc:
-                res = mc.rpc(
-                    "vote",
-                    {"ballot": {"text": script}, "id": proposal_id},
-                    signed=not force_unsigned,
-                )
-                j_result = res.to_dict()
-
-        else:
-            j_result = self._member_client_rpc_as_json(
-                member_id,
-                remote_node,
+        script = """
+        tables, changes = ...
+        return true
+        """
+        with remote_node.member_client(format="json", member_id=member_id) as mc:
+            res = mc.rpc(
                 "vote",
-                f"--proposal-id={proposal_id}",
-                "--accept" if accept else "--reject",
-                "--force-unsigned" if force_unsigned else "",
+                {"ballot": {"text": script}, "id": proposal_id},
+                signed=not force_unsigned,
             )
+            j_result = res.to_dict()
 
         if "error" in j_result:
             return (False, j_result["error"])
@@ -121,8 +98,8 @@ class Consortium:
             return c.do("withdraw", {"id": proposal_id})
 
     def ack(self, member_id, remote_node):
-        # TODO: Produce signed ack here
-        return self._member_client_rpc_as_json(member_id, remote_node, "ack")
+        # TODO: query member id, look up nonce, sign nonce and send it back
+        pass
 
     def get_proposals(self, member_id, remote_node):
         script = """

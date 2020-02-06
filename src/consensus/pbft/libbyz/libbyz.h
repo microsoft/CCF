@@ -104,7 +104,7 @@ int Byz_init_replica(
   INetwork* network,
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map,
-  pbft::Store& store_,
+  pbft::PbftStore& store_,
   IMessageReceiveBase** message_receiver = nullptr);
 /* Requires: "mem" is vm page aligned and "size" is a multiple of the vm page
    size.

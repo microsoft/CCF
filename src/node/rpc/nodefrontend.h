@@ -86,9 +86,6 @@ namespace ccf
       }
 
 #ifdef GET_QUOTE
-      // TODO: https://github.com/microsoft/CCF/issues/480
-      // Verifying the joining node's quote takes a significant amount of time
-      // as of OE v0.7.0 (about 2 secs).
       QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
         tx, this->network, in.quote, caller_pem_raw);
 
@@ -240,10 +237,6 @@ namespace ccf
         else
         {
           // If the node does not exist, add it to the KV in state pending
-
-          // TODO: We should also automatically stage a vote for members to
-          // accept the new node as trusted
-          // https://github.com/microsoft/CCF/issues/397
           args.rpc_ctx->set_response(
             add_node(args.tx, caller_pem_raw, in, NodeStatus::PENDING));
           return;
@@ -287,7 +280,6 @@ namespace ccf
         return;
       };
 
-      // TODO: Should this be a GeneralProc?
       auto get_quotes = [this](RequestArgs& args) {
         GetQuotes::Out result;
         this->node.node_quotes(args.tx, result);

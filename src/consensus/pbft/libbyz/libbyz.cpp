@@ -115,7 +115,7 @@ int Byz_init_replica(
   INetwork* network,
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map,
-  pbft::Store& store,
+  pbft::PbftStore& store,
   IMessageReceiveBase** message_receiver)
 {
   // Initialize random number generator

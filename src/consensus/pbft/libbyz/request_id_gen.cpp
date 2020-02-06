@@ -23,10 +23,8 @@ Request_id RequestIdGenerator::next_rid()
   return ++cur_rid;
 }
 
-// TODO: validate that this is correct
 void RequestIdGenerator::new_tstamp()
 {
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
 #ifndef INSIDE_ENCLAVE
   const uint64_t time_epoch = 6626313936981458945;
 

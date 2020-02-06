@@ -16,14 +16,15 @@ namespace pbft
     uint64_t caller_id;
     std::vector<uint8_t> caller_cert;
     std::vector<uint8_t> raw;
+    std::vector<uint8_t> pbft_raw;
 
-    MSGPACK_DEFINE(actor, caller_id, caller_cert, raw);
+    MSGPACK_DEFINE(actor, caller_id, caller_cert, raw, pbft_raw);
 
     std::vector<uint8_t> serialise()
     {
       bool include_caller = false;
-      size_t size =
-        sizeof(actor) + sizeof(caller_id) + sizeof(bool) + raw.size();
+      size_t size = sizeof(actor) + sizeof(caller_id) + sizeof(bool) +
+        sizeof(size_t) + raw.size() + sizeof(size_t) + pbft_raw.size();
       if (!caller_cert.empty())
       {
         size += sizeof(size_t) + caller_cert.size();
@@ -41,8 +42,13 @@ namespace pbft
         serialized::write(data_, size_, caller_cert.size());
         serialized::write(data_, size_, caller_cert.data(), caller_cert.size());
       }
+      serialized::write(data_, size_, raw.size());
       serialized::write(data_, size_, raw.data(), raw.size());
-
+      serialized::write(data_, size_, pbft_raw.size());
+      if (!pbft_raw.empty())
+      {
+        serialized::write(data_, size_, pbft_raw.data(), pbft_raw.size());
+      }
       return serialized_req;
     }
 
@@ -59,12 +65,23 @@ namespace pbft
         auto caller_size = serialized::read<size_t>(data_, size_);
         caller_cert = serialized::read(data_, size_, caller_size);
       }
-      raw = serialized::read(data_, size_, size_);
+      auto raw_size = serialized::read<size_t>(data_, size_);
+      raw = serialized::read(data_, size_, raw_size);
+      auto pbft_raw_size = serialized::read<size_t>(data_, size_);
+      if (pbft_raw_size > 0)
+      {
+        pbft_raw = serialized::read(data_, size_, pbft_raw_size);
+      }
+      else
+      {
+        pbft_raw = {};
+      }
     }
   };
 
   DECLARE_JSON_TYPE(Request);
-  DECLARE_JSON_REQUIRED_FIELDS(Request, actor, caller_id, caller_cert, raw);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    Request, actor, caller_id, caller_cert, raw, pbft_raw);
 
   // size_t is used as the key of the table. This key will always be 0 since we
   // don't want to store the requests in the kv over time, we just want to get

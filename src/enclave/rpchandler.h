@@ -39,5 +39,10 @@ namespace enclave
 
     virtual ProcessPbftResp process_pbft(
       std::shared_ptr<enclave::RpcContext> ctx, bool include_merkle_roots) = 0;
+    virtual ProcessPbftResp process_pbft(
+      std::shared_ptr<enclave::RpcContext>,
+      ccf::Store::Tx& tx,
+      bool playback,
+      bool include_merkle_roots) = 0;
   };
 }

@@ -56,7 +56,8 @@ namespace kv
   {
     FAILED = 0,
     PASS = 1,
-    PASS_SIGNATURE = 2
+    PASS_SIGNATURE = 2,
+    PASS_PRE_PREPARE = 3
   };
 
   enum ReplicateType
@@ -344,7 +345,6 @@ namespace kv
       Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;
     virtual void rollback(Version v) = 0;
-    // TODO (#api): split out?
     virtual CommitSuccess commit(
       Version v, PendingTx pt, bool globally_committable) = 0;
     virtual size_t commit_gap() = 0;

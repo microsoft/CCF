@@ -7,7 +7,7 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 
 project(
   ccf
-  VERSION 0.6
+  VERSION 0.7
   LANGUAGES C CXX
 )
 
@@ -37,25 +37,6 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
-
-# MemberClient executable
-# TODO(ftcp): remove once FTCP support is disabled.
-add_executable(memberclient src/clients/memberclient.cpp)
-use_client_mbedtls(memberclient)
-target_link_libraries(
-  memberclient PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto.host secp256k1.host
-                       http_parser.host
-)
-
-add_dependencies(memberclient flatbuffers)
-
-# Logging Client executable
-# TODO(ftcp): remove once FTCP support is disabled
-add_executable(logging_client src/clients/logging_client.cpp)
-use_client_mbedtls(logging_client)
-target_link_libraries(
-  logging_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
-)
 
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
@@ -428,7 +409,10 @@ if(BUILD_TESTS)
     LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
     INCLUDE_DIRS ${EVERCRYPT_INC}
   )
-  add_picobench(kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmkey.cpp)
+  add_picobench(
+    kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmkey.cpp
+                  src/enclave/thread_local.cpp
+  )
 
   # Merkle Tree memory test
   add_executable(merkle_mem src/node/test/merkle_mem.cpp)
@@ -464,21 +448,10 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py
     )
 
-    # TODO(signing): Sends an ACK via C++ memberclient, which must be signed.
-    # Member client end to end tests ACK should be sent from Python, AND HTTP
-    # memberclient should sign
-    if(FTCP)
-      # Member client end to end tests
-      add_e2e_test(
-        NAME member_client_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
-      )
-    endif()
-
-    # Logging client end to end test
+    # Member client end to end tests
     add_e2e_test(
-      NAME logging_client_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/loggingclient.py
+      NAME member_client_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
     )
 
     # Lua sample app (tx regulator) end to end test

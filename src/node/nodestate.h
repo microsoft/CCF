@@ -6,7 +6,6 @@
 #include "consensus/ledgerenclave.h"
 #include "consensus/raft/raftconsensus.h"
 #include "ds/logger.h"
-#include "enclave/rpcclient.h"
 #include "enclave/rpcsessions.h"
 #include "encryptor.h"
 #include "entities.h"
@@ -327,8 +326,6 @@ namespace ccf
       create_node_cert(args.config);
       open_node_frontend();
 
-      // Generate quote over node certificate
-      // TODO: https://github.com/microsoft/CCF/issues/59
       std::vector<uint8_t> quote{1};
 
 #ifdef GET_QUOTE
@@ -512,9 +509,6 @@ namespace ccf
       join_rpc.params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
 
-      // TODO: For now, regenerate the quote from when the node started. This
-      // is OK since the quote generation will change as part of
-      // https://github.com/microsoft/CCF/issues/59
       std::vector<uint8_t> quote{1};
 
 #ifdef GET_QUOTE
@@ -965,8 +959,6 @@ namespace ccf
       uint8_t* report;
       size_t report_len = 0;
 
-      // TODO(#important,#TR): The "alpha" parameters, including the unique
-      // service identifier, should also be included in the quote.
       oe_result_t res = oe_get_report(
         OE_REPORT_FLAGS_REMOTE_ATTESTATION,
         h.h,
@@ -1429,8 +1421,10 @@ namespace ccf
     void setup_pbft(const CCFConfig& config)
     {
       setup_n2n_channels();
+
       consensus = std::make_shared<PbftConsensusType>(
-        std::make_unique<pbft::Adaptor<Store>>(network.tables),
+        std::make_unique<pbft::Adaptor<Store, kv::DeserialiseSuccess>>(
+          network.tables),
         n2n_channels,
         self,
         config.signature_intervals.sig_max_tx,

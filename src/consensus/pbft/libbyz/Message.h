@@ -74,8 +74,6 @@ public:
 
   char* contents();
   // Effects: Return a byte string with the message contents.
-  // TODO: should be protected here because of request iterator in
-  // Pre_prepare.cc
 
   template <typename T>
   T* contents()

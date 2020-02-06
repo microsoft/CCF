@@ -600,9 +600,10 @@ namespace ccf
       if (on_result.has_value())
       {
         auto root = get_full_state_root();
+        auto replicated_root = get_replicated_state_root();
         LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
         results[id] = {version, root};
-        on_result.value()({id, version, root});
+        on_result.value()({id, version, root, replicated_root});
       }
 #endif
     }
@@ -613,9 +614,10 @@ namespace ccf
       if (on_result.has_value())
       {
         auto root = get_full_state_root();
+        auto replicated_root = get_replicated_state_root();
         LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
         results[id] = {version, root};
-        on_result.value()({id, version, root});
+        on_result.value()({id, version, root, replicated_root});
       }
 #endif
     }

@@ -9,6 +9,7 @@
  * Definitions of various types.
  */
 
+#include "consensus/pbft/pbfttypes.h"
 #include "parameters.h"
 
 #include <array>
@@ -18,6 +19,7 @@
 using Long = int64_t;
 using ULong = uint64_t;
 
+using Index = Long;
 using Seqno = Long;
 using View = Long;
 using Request_id = ULong;
@@ -52,4 +54,20 @@ struct ByzInfo
 };
 
 using ExecCommand = std::function<int(
-  Byz_req*, Byz_rep&, Byz_buffer*, int, Request_id, bool, Seqno, ByzInfo&)>;
+  Byz_req*,
+  Byz_rep&,
+  Byz_buffer*,
+  // client id
+  int,
+  Request_id,
+  // read only
+  bool,
+  // start of the pbft Request contents
+  uint8_t* req_start,
+  // pbft Request contents size
+  size_t req_size,
+  Seqno,
+  ByzInfo&,
+  // if tx is nullptr we are in normal execution, otherwise we are in playback
+  // mode
+  ccf::Store::Tx*)>;
