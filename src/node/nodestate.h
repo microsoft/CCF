@@ -40,7 +40,7 @@
 extern "C"
 {
 #include <sss/sss.h> // TODO: Delete
-#include "tls/randombytes_ccf.h"
+#include "tls/randombytes.h"
 }
 
 #include <stdexcept>

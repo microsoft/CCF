@@ -5,12 +5,13 @@
 
 #include <stddef.h>
 
-// TODO: Rename this function
-extern int ccf_randombytes(void* buf, size_t n);
+#include "entropy.h"
 
-static inline int randombytes(void *buf, size_t n)
+void randombytes(void *buf, size_t n)
 {
-  ccf_randombytes(buf, n);
-  return 0;
+  printf("Calling randombytes!\n");
+
+  auto entropy = tls::create_entropy();
+  entropy->random((unsigned char*)buf, n);
 }
 
