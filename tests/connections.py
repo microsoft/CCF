@@ -11,7 +11,7 @@ import time
 import logging
 import multiprocessing
 from random import seed
-import infra.network
+import infra.ccf
 import infra.proc
 import json
 import contextlib
@@ -25,7 +25,7 @@ from loguru import logger as LOG
 def run(args):
     hosts = ["localhost"]
 
-    with infra.network.network(
+    with infra.ccf.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         check = infra.checker.Checker()

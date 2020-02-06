@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.import test_suite
 
 import infra.e2e_args
-import infra.network
+import infra.ccf
 import suite.test_suite as s
 import suite.test_requirements as reqs
 import infra.logging_app as app
@@ -29,7 +29,7 @@ def run(args):
 
     hosts = ["localhost", "localhost"]
     txs = app.LoggingTxs()
-    network = infra.network.Network(
+    network = infra.ccf.Network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, txs=txs
     )
     network.start_and_join(args)

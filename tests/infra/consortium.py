@@ -6,7 +6,7 @@ import os
 import json
 import time
 from enum import Enum
-import infra.network
+import infra.ccf
 import infra.proc
 import infra.checker
 import infra.node
@@ -22,7 +22,7 @@ class Consortium:
             infra.proc.ccall(
                 key_generator, f"{m}", curve.name, log_output=False
             ).check_returncode()
-        self.status = infra.network.ServiceStatus.OPEN
+        self.status = infra.ccf.ServiceStatus.OPEN
 
     def get_members_certs(self):
         members_certs = [f"member{m}_cert.pem" for m in self.members]
@@ -177,7 +177,7 @@ class Consortium:
         """
         result, error = self.propose(member_id, remote_node, script)
         self.vote_using_majority(remote_node, result["id"], not pbft_open)
-        self.check_for_service(remote_node, infra.network.ServiceStatus.OPEN, pbft_open)
+        self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN, pbft_open)
 
     def rekey_ledger(self, member_id, remote_node):
         script = """

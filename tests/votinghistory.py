@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
-import infra.network
+import infra.ccf
 import infra.proc
 import infra.remote
 import json
@@ -122,7 +122,7 @@ def run(args):
 
     ledger_filename = None
 
-    with infra.network.network(
+    with infra.ccf.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
@@ -132,7 +132,7 @@ def run(args):
         infra.proc.ccall(
             network.key_generator,
             "member4",
-            infra.network.ParticipantsCurve.secp256k1.name,
+            infra.ccf.ParticipantsCurve.secp256k1.name,
         )
         result, error = network.consortium.propose_add_member(
             1, primary, "member4_cert.pem"

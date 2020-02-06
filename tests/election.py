@@ -5,7 +5,7 @@ import getpass
 import logging
 import time
 import math
-import infra.network
+import infra.ccf
 import infra.proc
 import infra.e2e_args
 
@@ -21,7 +21,7 @@ def wait_for_index_globally_committed(index, term, nodes):
     """
     Wait for a specific version at a specific term to be committed on all nodes.
     """
-    for _ in range(infra.network.Network.replication_delay):
+    for _ in range(infra.ccf.Network.replication_delay):
         up_to_date_f = []
         for f in nodes:
             with f.node_client() as c:
@@ -42,7 +42,7 @@ def run(args):
     # if one node stops
     hosts = ["localhost"] * (4 if args.consensus == "pbft" else 3)
 
-    with infra.network.network(
+    with infra.ccf.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
 
@@ -103,7 +103,7 @@ def run(args):
         try:
             primary, _ = network.find_primary()
             assert False, "Primary should not be found"
-        except infra.network.PrimaryNotFound:
+        except infra.ccf.PrimaryNotFound:
             pass
 
         LOG.info(

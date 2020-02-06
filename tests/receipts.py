@@ -7,7 +7,7 @@ import logging
 import multiprocessing
 import shutil
 from random import seed
-import infra.network
+import infra.ccf
 import infra.proc
 import infra.notification
 import infra.net
@@ -52,7 +52,7 @@ def run(args):
     with infra.notification.notification_server(args.notify_server) as notifications:
         notifications_queue = notifications.get_queue()
 
-        with infra.network.network(
+        with infra.ccf.network(
             hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
         ) as network:
             network.start_and_join(args)

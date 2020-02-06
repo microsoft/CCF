@@ -3,7 +3,7 @@
 import argparse
 import os
 import infra.path
-import infra.network
+import infra.ccf
 import sys
 
 
@@ -131,9 +131,9 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument(
         "--default-curve",
         help="Curve to use for member and user identities",
-        default=infra.network.ParticipantsCurve.secp384r1.name,
-        type=lambda curve: infra.network.ParticipantsCurve[curve],
-        choices=list(infra.network.ParticipantsCurve),
+        default=infra.ccf.ParticipantsCurve.secp384r1.name,
+        type=lambda curve: infra.ccf.ParticipantsCurve[curve],
+        choices=list(infra.ccf.ParticipantsCurve),
     )
     parser.add_argument(
         "--join-timer",

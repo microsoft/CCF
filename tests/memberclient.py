@@ -11,7 +11,7 @@ import time
 import logging
 import multiprocessing
 from random import seed
-import infra.network
+import infra.ccf
 import infra.proc
 import infra.jsonrpc
 import json
@@ -22,7 +22,7 @@ from loguru import logger as LOG
 def run(args):
     hosts = ["localhost", "localhost"]
 
-    with infra.network.network(
+    with infra.ccf.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
@@ -52,7 +52,7 @@ def run(args):
         infra.proc.ccall(
             network.key_generator,
             "member3",
-            infra.network.ParticipantsCurve(args.default_curve).next().name,
+            infra.ccf.ParticipantsCurve(args.default_curve).next().name,
         )
 
         script = """
