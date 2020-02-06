@@ -4,12 +4,12 @@
 
 set -u
 
-if [ "$#" -ne 1 ]; then
-  echo "check-todo.sh takes a single file or directory"
+if [ "$#" -eq 0 ]; then
+  echo "check-todo.sh takes at least one file or directory"
   exit 1
 fi
 
-TODOS=$(grep -r TODO $1)
+TODOS=$(grep -r TODO "$@")
 
 if [ "$TODOS" == "" ]; then
   echo "No TODOs found"
