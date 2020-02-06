@@ -220,14 +220,14 @@ namespace logger
       return {};
     }
 
-    static inline std::vector<std::shared_ptr<AbstractLogger>>& loggers()
+    static inline std::vector<std::unique_ptr<AbstractLogger>>& loggers()
     {
-      static std::vector<std::shared_ptr<AbstractLogger>> the_loggers;
+      static std::vector<std::unique_ptr<AbstractLogger>> the_loggers;
       static bool initialized = false;
       if (!initialized)
       {
         initialized = true;
-        the_loggers.emplace_back(std::make_shared<ConsoleLogger>());
+        the_loggers.emplace_back(std::make_unique<ConsoleLogger>());
       }
       return the_loggers;
     }
