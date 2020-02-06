@@ -213,7 +213,6 @@ inline int Node::primary() const
   return cur_primary;
 }
 
-// TODO: check this is correct
 inline size_t Node::auth_size(int id) const
 {
   if (id < 0)

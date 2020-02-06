@@ -31,8 +31,6 @@ struct PP_info
   BR_map breqs; // Bitmap with missing big reqs
 };
 
-// TODO: these messages should have some kind of sequence number
-// to prevent replays to be used to cause denial of service.
 struct Status_rep : public Message_rep
 {
   View v; // Replica's current view

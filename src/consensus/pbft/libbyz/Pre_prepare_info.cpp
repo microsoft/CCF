@@ -64,7 +64,6 @@ bool Pre_prepare_info::encode(FILE* o)
 
 bool Pre_prepare_info::decode(FILE* i)
 {
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
 #ifndef INSIDE_ENCLAVE
   bool hpp;
   size_t sz = fread(&hpp, sizeof(bool), 1, i);

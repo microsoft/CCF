@@ -18,7 +18,6 @@ Digest::Digest(char* s, unsigned n)
   START_CC(digest_cycles);
 
   // creates a digest for string "s" with length "n"
-  // TODO: switch to using SHA-512/256
   EverCrypt_Hash_hash(
     Spec_Hash_Definitions_SHA2_256, (uint8_t*)d, (uint8_t*)s, (uint32_t)n);
 

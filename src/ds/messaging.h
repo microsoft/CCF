@@ -218,14 +218,6 @@ namespace messaging
 
         if (num_read == 0 && !task_run)
         {
-          // TODO(#performance): If this is ever idle (the underlying
-          // buffer has no pending messages and there are no tasks to run), it
-          // will spin here. With low traffic this may even be where most
-          // execution time is spent. To avoid too many wasteful spins, we
-          // should add customisable backoff behaviour here. On the host this
-          // could simply be a sleep or a wait on a condition variable, while
-          // waiting inside the enclave is more complicated (may initially spin
-          // inside, then after some attempts OCALL to sleep outside).
           CCF_PAUSE();
         }
       }

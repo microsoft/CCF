@@ -7,7 +7,6 @@
 
 namespace ccfapp
 {
-  // TODO(#api): This should return a ccf::UserRpcFrontend
   // SNIPPET_START: rpc_handler
   /** To be implemented by the CCF application
    *

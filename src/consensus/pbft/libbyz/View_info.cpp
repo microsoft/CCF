@@ -686,7 +686,6 @@ bool View_info::shutdown(FILE* o)
 
 bool View_info::restart(FILE* in, View rv, Seqno ls, bool corrupt)
 {
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
 #ifndef INSIDE_ENCLAVE
   v = rv;
   last_stable = ls;
