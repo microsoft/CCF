@@ -159,7 +159,6 @@ void Node::configure_principals()
   }
 }
 
-// TODO: add to node.h and where ever node is being created
 void Node::init_network(std::unique_ptr<INetwork>&& network_)
 {
   auto principals = get_principals();

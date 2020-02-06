@@ -81,8 +81,6 @@ namespace enclave
       }
       else
       {
-        // TODO: For now, close the connection if it has been upgraded to
-        // websocket
         LOG_FAIL_FMT(
           "Receiving data after endpoint has been upgraded to websocket.");
         LOG_FAIL_FMT("Closing connection.");
@@ -165,34 +163,6 @@ namespace enclave
       flush();
     }
 
-    struct HandleProcessCbMsg
-    {
-      std::shared_ptr<Endpoint> self;
-      std::shared_ptr<JsonRpcContext> rpc_ctx;
-      std::shared_ptr<RpcHandler> frontend;
-    };
-
-    static void handle_process(
-      std::unique_ptr<enclave::Tmsg<HandleProcessCbMsg>> msg)
-    {
-      reinterpret_cast<HTTPServerEndpoint*>(msg->data.self.get())
-        ->handle_message_main_thread(msg->data.rpc_ctx, msg->data.frontend);
-    }
-
-    struct SendResponseVectCbMsg
-    {
-      std::vector<uint8_t> d = {};
-      http_status status;
-      std::shared_ptr<Endpoint> self;
-    };
-
-    static void send_response_vect(
-      std::unique_ptr<enclave::Tmsg<SendResponseVectCbMsg>> msg)
-    {
-      reinterpret_cast<HTTPServerEndpoint*>(msg->data.self.get())
-        ->send_response(msg->data.d);
-    }
-
     void handle_message_main_thread(
       std::shared_ptr<JsonRpcContext>& rpc_ctx,
       std::shared_ptr<RpcHandler>& search)
@@ -210,28 +180,13 @@ namespace enclave
         else
         {
           // Otherwise, reply to the client synchronously.
-          LOG_TRACE_FMT("Responding");
-          auto msg = std::make_unique<enclave::Tmsg<SendResponseVectCbMsg>>(
-            &send_response_vect);
-          msg->data.status = HTTP_STATUS_OK;
-          msg->data.self = this->shared_from_this();
-          msg->data.d = response.value();
-          enclave::ThreadMessaging::thread_messaging
-            .add_task<SendResponseVectCbMsg>(execution_thread, std::move(msg));
+          send_response(response.value());
         }
       }
       catch (const std::exception& e)
       {
-        auto msg = std::make_unique<enclave::Tmsg<SendResponseVectCbMsg>>(
-          &send_response_vect);
-        msg->data.status = HTTP_STATUS_INTERNAL_SERVER_ERROR;
-        msg->data.self = this->shared_from_this();
-
         std::string err_msg = fmt::format("Exception:\n{}\n", e.what());
-        msg->data.d.assign(err_msg.begin(), err_msg.end());
-
-        enclave::ThreadMessaging::thread_messaging
-          .add_task<SendResponseVectCbMsg>(execution_thread, std::move(msg));
+        send_response(err_msg, HTTP_STATUS_INTERNAL_SERVER_ERROR);
       }
     }
 
@@ -322,7 +277,6 @@ namespace enclave
           std::make_shared<JsonRpcContext>(session, pack.value(), json_rpc);
         rpc_ctx->set_request_index(request_index++);
 
-        // TODO: For now, set this here
         auto signed_req = http::HttpSignatureVerifier::parse(
           std::string(http_method_str(verb)), path, query, headers, body);
         if (signed_req.has_value())
@@ -330,8 +284,6 @@ namespace enclave
           rpc_ctx->signed_request = signed_req;
         }
 
-        // TODO: This is temporary; while we have a full RPC object inside the
-        // body, it should match the dispatch details specified in the URI
         const auto expected = fmt::format("{}/{}", actor_s, method_s);
         if (rpc_ctx->method != expected)
         {
@@ -344,17 +296,22 @@ namespace enclave
           return;
         }
 
-        rpc_ctx->raw = body; // TODO: This is insufficient, need entire request
+        rpc_ctx->raw = body;
         rpc_ctx->method = method_s;
         rpc_ctx->actor = actor;
 
-        auto msg =
-          std::make_unique<enclave::Tmsg<HandleProcessCbMsg>>(&handle_process);
-        msg->data.self = this->shared_from_this();
-        msg->data.rpc_ctx = rpc_ctx;
-        msg->data.frontend = search.value();
-        enclave::ThreadMessaging::thread_messaging.add_task<HandleProcessCbMsg>(
-          enclave::ThreadMessaging::main_thread, std::move(msg));
+        auto response = search.value()->process(rpc_ctx);
+
+        if (!response.has_value())
+        {
+          // If the RPC is pending, hold the connection.
+          LOG_TRACE_FMT("Pending");
+          return;
+        }
+        else
+        {
+          send_response(response.value());
+        }
       }
       catch (const std::exception& e)
       {

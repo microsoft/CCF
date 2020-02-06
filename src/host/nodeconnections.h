@@ -243,7 +243,6 @@ namespace asynchost
             LOG_DEBUG_FMT(
               "send AE to {} [{}]: {}, {}", to, frame, ae.idx, ae.prev_idx);
 
-            // TODO(#performance): writev
             node.value()->write(sizeof(uint32_t), (uint8_t*)&frame);
             node.value()->write(size_to_send, data_to_send);
 

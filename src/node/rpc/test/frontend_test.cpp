@@ -85,8 +85,6 @@ public:
       "get_caller",
       handler_adapter(get_caller_function),
       HandlerRegistry::Read);
-
-    // TODO: Test error returned from Minimal handler lambda
   }
 };
 

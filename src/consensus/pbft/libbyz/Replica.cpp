@@ -275,7 +275,6 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
 
   uint32_t target_thread = 0;
 
-  // TODO: remove this memcpy
   memcpy(m->contents(), data, size);
 
   if (enclave::ThreadMessaging::thread_count > 1 && m->tag() == Request_tag)
@@ -470,12 +469,7 @@ void Replica::recv_start()
 
   // Allow recoveries
   rec_ready = true;
-
   LOG_INFO << "Replica ready" << std::endl;
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
-#ifndef INSIDE_ENCLAVE
-  std::cout << "Replica ready" << std::endl;
-#endif
 
   if (state.in_check_state())
   {
@@ -763,9 +757,6 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       new Pre_prepare(view(), next_pp_seqno, rqueue, requests_in_batch);
     if (execute_tentative(pp, info))
     {
-      // TODO: should make code match my proof with request removed
-      // only when executed rather than removing them from rqueue when the
-      // pre-prepare is constructed.
       LOG_DEBUG << "adding to plog from pre prepare: " << next_pp_seqno
                 << std::endl;
       pp->set_merkle_roots_and_ctx(
@@ -927,8 +918,6 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
         }
       }
 
-      // TODO: fix this check
-      // https://github.com/microsoft/CCF/issues/357
       if (!compare_execution_results(info, pp))
       {
         PBFT_ASSERT(false, "Merkle roots don't match in send_prepare");
@@ -1047,8 +1036,7 @@ void Replica::handle(Commit* m)
   }
   const Seqno ms = m->seqno();
 
-  // Only accept messages with the current view.  TODO: change to
-  // accept commits from older views as in proof.
+  // Only accept messages with the current view.
   if (in_wv(m) && ms > low_bound)
   {
     LOG_TRACE << "handle commit for seqno: " << m->seqno() << ", id:" << m->id()
@@ -1491,11 +1479,6 @@ void Replica::handle(Status* m)
                 }
               }
             }
-#else
-            // TODO: Send any view-change messages that p may be missing
-            // that are referred to by the new-view message.  This may
-            // be important if the sender of the original message is
-            // faulty.
 #endif
           }
 #ifndef USE_PKEY_VIEW_CHANGES
@@ -1594,8 +1577,6 @@ void Replica::handle(View_change* m)
   }
   vi.add(std::unique_ptr<View_change>(m));
 
-  // TODO: memoize maxv and avoid this computation if it cannot change i.e.
-  // m->view() <= last maxv. This also holds for the next check.
   View maxv = vi.max_view();
   if (maxv > v)
   {
@@ -1714,7 +1695,6 @@ void Replica::send_view_change()
 
     pc.clear();
     cc.clear();
-    // TODO: Could remember info about committed requests for efficiency.
   }
 
   // Create and send view-change message.
@@ -1933,10 +1913,6 @@ Pre_prepare* Replica::prepared_pre_prepare(Seqno n)
 
 Pre_prepare* Replica::committed(Seqno s, bool was_f_0)
 {
-  // TODO: This is correct but too conservative: fix to handle case
-  // where commit and prepare are not in same view; and to allow
-  // commits without prepared requests, i.e., only with the
-  // pre-prepare.
   Pre_prepare* pp = prepared_pre_prepare(s);
   if (clog.fetch(s).is_complete() || was_f_0)
   {
@@ -2755,7 +2731,6 @@ bool Replica::shutdown()
     send_view_change();
   }
 
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
 #ifndef INSIDE_ENCLAVE
   char ckpt_name[1024];
   sprintf(ckpt_name, "/tmp/%s_%d", service_name.c_str(), id());
@@ -2795,7 +2770,6 @@ bool Replica::shutdown()
 #endif
   STOP_CC(shutdown_time);
 
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
 #ifndef INSIDE_ENCLAVE
   return ret & (sz == 9);
 #else
@@ -2808,7 +2782,6 @@ bool Replica::restart(FILE* in)
   LOG_INFO << "Replica restart" << std::endl;
   START_CC(restart_time);
 
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
 #ifndef INSIDE_ENCLAVE
   bool ret = true;
   size_t sz = fread(&v, sizeof(View), 1, in);
@@ -2865,7 +2838,6 @@ bool Replica::restart(FILE* in)
 
   STOP_CC(restart_time);
 
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
 #ifndef INSIDE_ENCLAVE
   return ret & (sz == 9);
 #else
@@ -2876,7 +2848,6 @@ bool Replica::restart(FILE* in)
 void Replica::recover()
 {
   LOG_INFO << "Replica recovery" << std::endl;
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
 #ifndef INSIDE_ENCLAVE
   corrupt = false;
 
@@ -2931,7 +2902,6 @@ void Replica::handle(Query_stable* m)
     std::shared_ptr<Principal> p = get_principal(m->id());
     Reply_stable rs(lc, last_prepared, m->nonce(), p.get());
 
-    // TODO: should put a bound on the rate at which I send these messages.
     send(&rs, m->id());
   }
 
@@ -3077,9 +3047,6 @@ void Replica::send_null()
     }
   }
   ntimer->restart();
-
-  // TODO: backups should force view change if primary does not send null
-  // requests to allow recoveries to complete.
 }
 
 bool Replica::delay_vc()

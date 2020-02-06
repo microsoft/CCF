@@ -3,6 +3,9 @@
 #pragma once
 #include "../ds/buffer.h"
 #include "../ds/serialized.h"
+#include "ds/thread_messaging.h"
+
+struct mbedtls_gcm_context;
 
 namespace crypto
 {
@@ -110,7 +113,9 @@ namespace crypto
   class KeyAesGcm
   {
   private:
-    mutable void* ctx;
+    mutable std::
+      array<mbedtls_gcm_context*, enclave::ThreadMessaging::max_num_threads>
+        ctxs;
 
   public:
     KeyAesGcm(CBuffer rawKey);

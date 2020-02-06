@@ -1012,7 +1012,7 @@ namespace kv
 
       if (!success)
       {
-        LOG_FAIL_FMT("Could not commit transaction due to conflict");
+        LOG_TRACE_FMT("Could not commit transaction due to conflict");
         return CommitSuccess::CONFLICT;
       }
       else
@@ -1294,8 +1294,6 @@ namespace kv
     }
 
   public:
-    // TODO(#api): This (along with other parts of the API) should be
-    // hidden
     void clone_schema(Store& target)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
@@ -1673,7 +1671,6 @@ namespace kv
         auto h = get_history();
         if (h)
         {
-          // TODO: the reference to the entity should be in the history
           auto search = views.find("ccf.signatures");
           if (search != views.end())
           {

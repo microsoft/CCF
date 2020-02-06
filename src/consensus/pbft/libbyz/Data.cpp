@@ -14,7 +14,6 @@ Data::Data(size_t i, Seqno lm, char* data) : Message(Data_tag, sizeof(Data_rep))
 {
   rep().index = i;
   rep().lm = lm;
-  // TODO: Avoid this copy using sendmsg with iovecs.
   memcpy(rep().data, data, Block_size);
 }
 

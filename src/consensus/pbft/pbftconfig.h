@@ -71,7 +71,6 @@ namespace pbft
 
       auto frontend = handler.value();
 
-      // TODO: Should serialise context directly, rather than reconstructing
       const enclave::SessionContext session(
         enclave::InvalidSessionId, request.caller_id, request.caller_cert);
       auto ctx = enclave::make_rpc_context(

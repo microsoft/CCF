@@ -1235,7 +1235,6 @@ namespace raft
       if (active_nodes.find(local_id) == active_nodes.end())
       {
         LOG_INFO_FMT("Removed self {}", local_id);
-        // TODO(#feature): shut down this node
       }
     }
   };

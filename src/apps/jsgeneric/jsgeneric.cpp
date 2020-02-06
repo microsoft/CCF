@@ -85,7 +85,7 @@ namespace ccfapp
     if (!JS_IsInteger(argv[0]))
       return JS_EXCEPTION;
     int32_t i = JS_VALUE_GET_INT(argv[0]);
-    auto v = JS_ToCString(ctx, argv[1]); // TODO: error checking?
+    auto v = JS_ToCString(ctx, argv[1]);
     if (!log_table_view->put(i, v))
     {
       JS_FreeCString(ctx, v);
@@ -135,8 +135,6 @@ namespace ccfapp
         {
           throw std::runtime_error("Failed to initialise QuickJS runtime");
         }
-        // TODO: share runtime across handlers?
-        // TODO: set memory limit with JS_SetMemoryLimit
 
         JSContext* ctx = JS_NewContext(rt);
         if (ctx == nullptr)
@@ -145,7 +143,6 @@ namespace ccfapp
           throw std::runtime_error("Failed to initialise QuickJS context");
         }
 
-        // TODO: load modules from module table here?
         auto ltv = args.tx.get_view(log_table);
         JS_SetContextOpaque(ctx, (void*)ltv);
 
@@ -178,7 +175,6 @@ namespace ccfapp
           throw std::runtime_error("Could not find script text");
         }
 
-        // TODO: support pre-compiled byte-code
         std::string code = handler_script.value().text.value();
         auto path = fmt::format("app_scripts::{}", args.method);
         JSValue val = JS_Eval(
@@ -212,7 +208,6 @@ namespace ccfapp
         return;
       };
 
-      // TODO: https://github.com/microsoft/CCF/issues/409
       set_default(default_handler, Write);
     }
 
