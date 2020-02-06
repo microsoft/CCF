@@ -123,7 +123,7 @@ def run(args):
     ledger_filename = None
 
     with infra.ccf.network(
-        hosts, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         primary, term = network.find_primary()

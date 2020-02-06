@@ -81,4 +81,4 @@ if __name__ == "__main__":
     def get_command(*args):
         return [*args] + unknown_args
 
-    infra.runner.run(get_command, args)
+    infra.runner.run(args.build_dir, get_command, args)
