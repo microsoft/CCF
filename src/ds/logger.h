@@ -260,11 +260,11 @@ namespace logger
 
     // Count of milliseconds elapsed since enclave started, used to produce
     // offsets to host time when logging from inside the enclave
-    static std::chrono::milliseconds ms;
+    static std::atomic<std::chrono::milliseconds> ms;
 
     static void tick(std::chrono::milliseconds ms_)
     {
-      ms += ms_;
+      ms.exchange(ms.load() + ms_);
     }
 
     static std::chrono::milliseconds elapsed_ms()

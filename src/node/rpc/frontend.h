@@ -49,7 +49,7 @@ namespace ccf
     kv::TxHistory* history;
 
     size_t sig_max_tx = 1000;
-    size_t tx_count = 0;
+    std::atomic<size_t> tx_count = 0;
     std::chrono::milliseconds sig_max_ms = std::chrono::milliseconds(1000);
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
     bool request_storing_disabled = false;
