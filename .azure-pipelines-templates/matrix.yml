@@ -143,10 +143,13 @@ jobs:
         ninja install
         mkdir run
         cd run
-        PYTHONPATH=/tmp/ccf-install/python \
-          timeout --signal=SIGINT --kill-after=60s --preserve-status 30s \
-          ../../start_test_network.sh ../liblogging \
-          -b /tmp/ccf-install \
+        python3.7 -m venv env
+        source env/bin/activate
+        python -m pip install -U -r ../../tests/requirements.txt
+        timeout --signal=SIGINT --kill-after=60s --preserve-status 30s \
+          python /tmp/ccf-install/bin/start_network.py \
+          -p ../liblogging \
+          -b /tmp/ccf-install/bin \
           -g ../../src/runtime_config/gov.lua
           -v
       displayName: Build, install, and test
