@@ -131,3 +131,23 @@ jobs:
     - template: release.yml
       parameters:
         env: ${{ parameters.env.Release }}
+
+  - job: Install_And_Test
+    displayName: 'Test installed CCF'
+    steps:
+    - script: |
+        mkdir build
+        cd build
+        cmake .. -GNinja -DCMAKE_INSTALL_PREFIX=/tmp/ccf-install
+        ninja
+        ninja install
+        mkdir run
+        cd run
+        PYTHONPATH=/tmp/ccf-install/python \
+          timeout --signal=SIGINT --kill-after=60s --preserve-status 30s \
+          ../../start_test_network.sh ../liblogging \
+          -b /tmp/ccf-install \
+          -g ../../src/runtime_config/gov.lua
+          -v
+      displayName: Build, install, and test
+
