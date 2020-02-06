@@ -8,7 +8,7 @@
 // TODO: Rename this function
 extern int ccf_randombytes(void* buf, size_t n);
 
-inline int randombytes(void *buf, size_t n)
+static inline int randombytes(void *buf, size_t n)
 {
   ccf_randombytes(buf, n);
   return 0;

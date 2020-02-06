@@ -101,7 +101,7 @@ if("sgx" IN_LIST TARGET)
            http_parser.enclave
            lua.enclave
            secp256k1.enclave
-           sss.enclave
+          #  sss.enclave
   )
 
   set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)

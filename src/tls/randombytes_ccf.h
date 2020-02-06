@@ -5,8 +5,10 @@
 
 #include "entropy.h"
 
-inline int ccf_randombytes(void* buf, size_t n)
+int ccf_randombytes(void* buf, size_t n)
 {
   auto entropy = tls::create_entropy();
   entropy->random((unsigned char*)buf, n);
+
+  return 0;
 }
