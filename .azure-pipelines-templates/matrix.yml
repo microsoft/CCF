@@ -49,9 +49,10 @@ parameters:
     san:
       cmake_args: '-DSAN=ON'
     HTTP:
-      cmake_args: '-DPERF=ON'
+      cmake_args: ''
     perf:
-
+      cmake_args: '-PERF=ON'
+      
 
   test:
     NoSGX:
