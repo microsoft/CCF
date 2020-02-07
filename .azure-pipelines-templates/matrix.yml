@@ -51,7 +51,7 @@ parameters:
     HTTP:
       cmake_args: ''
     perf:
-      cmake_args: '-PERF=ON'
+      cmake_args: '-DPERF=ON'
       
 
   test:
