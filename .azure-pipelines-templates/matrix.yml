@@ -21,6 +21,8 @@ parameters:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
       dependsOn: ['BuildAndTest_NoSGX_CFT_HTTP_', 'BuildAndTest_SGX_CFT_HTTP_', 'BuildAndTest_NoSGX_CFT_HTTP_SAN', 'BuildAndTest_SGX_CFT_HTTP_Release']
+    Perf:
+      pool: CCF-Perf
 
   build:
     common:
@@ -120,6 +122,21 @@ jobs:
           cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build[parameters.perf_or_release][protocol].cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
           ctest_filter: '${{ parameters.test[parameters.perf_or_release][consensus].ctest_args }}'
           suffix: 'Release'
+          depends_on: ${{ parameters.static_check_job_name }}
+
+  # Optimised builds, only run performance tests
+  # When building a release, run all tests and publish install tarball
+  - ${{ each consensus in parameters.consensus }}:
+    - ${{ each protocol in parameters.protocol }}:
+      - template: common.yml
+        parameters:
+          target: SGX
+          consensus: ${{ consensus }}
+          protocol: ${{ protocol }}
+          env: ${{ parameters.env.Perf }}
+          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build[parameters.perf_or_release][protocol].cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
+          ctest_filter: '-L "perf"'
+          suffix: 'Perf'
           depends_on: ${{ parameters.static_check_job_name }}
 
 
