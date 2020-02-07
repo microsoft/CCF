@@ -22,7 +22,7 @@ parameters:
       pool: Ubuntu-1804-D8s_v3
       dependsOn: ['BuildAndTest_NoSGX_CFT_HTTP_', 'BuildAndTest_SGX_CFT_HTTP_', 'BuildAndTest_NoSGX_CFT_HTTP_SAN', 'BuildAndTest_SGX_CFT_HTTP_Release']
     Perf:
-      container: sgx
+      container: perfsgx
       pool: CCF-Perf
 
   build:
