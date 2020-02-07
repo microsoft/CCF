@@ -281,7 +281,6 @@ std::vector<uint8_t> sign_json(nlohmann::json j)
 auto create_simple_json()
 {
   nlohmann::json j;
-  j[jsonrpc::JSON_RPC] = jsonrpc::RPC_VERSION;
   j[jsonrpc::ID] = 1;
   j[jsonrpc::METHOD] = "empty_function";
   j[jsonrpc::PARAMS] = nlohmann::json::object();

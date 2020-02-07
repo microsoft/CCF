@@ -23,7 +23,6 @@ extern "C"
 json create_json_req(const json& params, const std::string& method_name)
 {
   json j;
-  j[JSON_RPC] = RPC_VERSION;
   j[ID] = 1;
   j[METHOD] = method_name;
   if (!params.is_null())

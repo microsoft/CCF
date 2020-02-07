@@ -441,17 +441,6 @@ namespace ccf
       Store::Tx& tx,
       CallerId caller_id)
     {
-      const auto rpc_version = ctx->unpacked_rpc.at(jsonrpc::JSON_RPC);
-      if (rpc_version != jsonrpc::RPC_VERSION)
-      {
-        return ctx->error_response(
-          jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-          fmt::format(
-            "Unexpected JSON-RPC version. Must be string \"{}\", received {}",
-            jsonrpc::RPC_VERSION,
-            rpc_version.dump()));
-      }
-
       const auto params_it = ctx->unpacked_rpc.find(jsonrpc::PARAMS);
       if (
         params_it != ctx->unpacked_rpc.end() &&

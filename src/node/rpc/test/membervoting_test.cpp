@@ -79,7 +79,6 @@ std::vector<uint8_t> sign_json(nlohmann::json j, tls::KeyPairPtr& kp_)
 json create_json_req(const json& params, const string& method_name)
 {
   json j;
-  j[JSON_RPC] = RPC_VERSION;
   j[ID] = 1;
   j[METHOD] = method_name;
   if (!params.is_null())
