@@ -88,9 +88,11 @@ namespace enclave
     // Method indicates specific handler for this request
     std::string method = {};
 
-    nlohmann::json params = {};
+    std::optional<nlohmann::json> params = std::nullopt;
 
     bool is_create_request = false;
+
+    bool read_only_hint = true;
 
     RpcContext(const SessionContext& s) : session(s) {}
 
@@ -210,6 +212,8 @@ namespace enclave
       {
         params = *params_it;
       }
+
+      read_only_hint = unpacked_rpc.value(jsonrpc::READONLY, true);
     }
 
     std::vector<uint8_t> pack(const nlohmann::json& j) const

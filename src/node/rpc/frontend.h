@@ -441,21 +441,18 @@ namespace ccf
       Store::Tx& tx,
       CallerId caller_id)
     {
-      const auto params_it = ctx->unpacked_rpc.find(jsonrpc::PARAMS);
       if (
-        params_it != ctx->unpacked_rpc.end() &&
-        (!params_it->is_array() && !params_it->is_object()))
+        ctx->params.has_value() &&
+        (!ctx->params->is_array() && !ctx->params->is_object()))
       {
         return ctx->error_response(
           jsonrpc::StandardErrorCodes::INVALID_REQUEST,
           fmt::format(
             "If present, parameters must be an array or object. Received: {}",
-            params_it->dump()));
+            ctx->params->dump()));
       }
 
-      const auto& params = params_it == ctx->unpacked_rpc.end() ?
-        nlohmann::json(nullptr) :
-        *params_it;
+      const auto& params = ctx->params.value_or(nlohmann::json(nullptr));
 
       auto handler = handlers.find_handler(ctx->method);
       if (handler == nullptr)
@@ -488,8 +485,7 @@ namespace ccf
 
           case HandlerRegistry::MayWrite:
           {
-            bool readonly = ctx->unpacked_rpc.value(jsonrpc::READONLY, true);
-            if (!readonly)
+            if (!ctx->read_only_hint)
             {
               return forward_or_redirect_json(ctx, handler->forwardable);
             }
