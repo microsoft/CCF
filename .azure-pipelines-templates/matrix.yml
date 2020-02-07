@@ -35,10 +35,7 @@ parameters:
       cmake_args: ''
     debug:
       cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DBUILD_SMALLBANK=OFF'
-    perf:
-      HTTP:
-        cmake_args: ''
-    release:
+    install:
       FTCP:
         install_prefix: '/tmp/ccf-install/ftcp'
         cmake_args: '-DCMAKE_INSTALL_PREFIX=/tmp/ccf-install/ftcp'
@@ -119,8 +116,8 @@ jobs:
           protocol: ${{ protocol }}
           env: ${{ parameters.env.SGX }}
           install: true
-          install_prefix: '${{ parameters.build[parameters.perf_or_release][protocol].install_prefix }}'
-          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build[parameters.perf_or_release][protocol].cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
+          install_prefix: '${{ parameters.build.install[protocol].install_prefix }}'
+          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install[protocol].cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
           ctest_filter: '${{ parameters.test[parameters.perf_or_release][consensus].ctest_args }}'
           suffix: 'Release'
           depends_on: ${{ parameters.static_check_job_name }}
