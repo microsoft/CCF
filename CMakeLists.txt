@@ -82,6 +82,7 @@ if("sgx" IN_LIST TARGET)
            http_parser.enclave
            lua.enclave
            secp256k1.enclave
+           sss.enclave
   )
 
   set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -138,6 +139,7 @@ if("virtual" IN_LIST TARGET)
            http_parser.host
            lua.host
            secp256k1.host
+           sss.host
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
