@@ -536,11 +536,7 @@ if(BUILD_TESTS)
       add_e2e_test(
         NAME code_update_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-        ADDITIONAL_ARGS
-          --oesign
-          ${OE_SIGN_PATH}
-          --election-timeout
-          10000
+        ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --election-timeout 10000
       )
     endif()
 
