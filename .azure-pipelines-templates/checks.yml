@@ -12,6 +12,9 @@ jobs:
     - script: find . -type f -regex ".*\.sh$" | egrep -v "^./3rdparty/" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091
       displayName: 'Shell Check'
 
+    - script: ./check-todo.sh src
+      displayName: 'Check for TODOs'
+
     - script: ./check-format.sh src samples
       displayName: 'Check C++ code format'
 

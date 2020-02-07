@@ -23,7 +23,9 @@ def run(args):
     if args.enclave_type == "virtual":
         LOG.warning("Virtual mode enabled")
 
-    with infra.ccf.network(hosts, args.build_dir, args.debug_nodes) as network:
+    with infra.ccf.network(
+        hosts=hosts, binary_directory=args.binary_dir, dbg_nodes=args.debug_nodes
+    ) as network:
         network.start_and_join(args)
         primary, backups = network.find_nodes()
 

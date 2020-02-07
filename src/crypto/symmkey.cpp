@@ -3,6 +3,7 @@
 #include "symmkey.h"
 
 #include "ds/logger.h"
+#include "ds/thread_messaging.h"
 #include "error.h"
 #include "tls/error_string.h"
 
@@ -14,53 +15,59 @@ namespace crypto
 {
   KeyAesGcm::KeyAesGcm(CBuffer rawKey)
   {
-    ctx = new mbedtls_gcm_context;
-    mbedtls_gcm_init(reinterpret_cast<mbedtls_gcm_context*>(ctx));
+    for (uint32_t i = 0; i < ctxs.size(); ++i)
+    {
+      ctxs[i] = new mbedtls_gcm_context;
+      mbedtls_gcm_init(ctxs[i]);
 
-    size_t n_bits;
-    const auto n = static_cast<unsigned int>(rawKey.rawSize() * 8);
-    if (n >= 256)
-    {
-      n_bits = 256;
-    }
-    else if (n >= 192)
-    {
-      n_bits = 192;
-    }
-    else if (n >= 128)
-    {
-      n_bits = 128;
-    }
-    else
-    {
-      LOG_FATAL_FMT("Need at least {} bits, only have {}", 128, n);
-    }
+      size_t n_bits;
+      const auto n = static_cast<unsigned int>(rawKey.rawSize() * 8);
+      if (n >= 256)
+      {
+        n_bits = 256;
+      }
+      else if (n >= 192)
+      {
+        n_bits = 192;
+      }
+      else if (n >= 128)
+      {
+        n_bits = 128;
+      }
+      else
+      {
+        LOG_FATAL_FMT("Need at least {} bits, only have {}", 128, n);
+      }
 
-    int rc = mbedtls_gcm_setkey(
-      reinterpret_cast<mbedtls_gcm_context*>(ctx),
-      MBEDTLS_CIPHER_ID_AES,
-      rawKey.p,
-      n_bits);
+      int rc =
+        mbedtls_gcm_setkey(ctxs[i], MBEDTLS_CIPHER_ID_AES, rawKey.p, n_bits);
 
-    if (rc != 0)
-    {
-      LOG_FATAL_FMT(tls::error_string(rc));
+      if (rc != 0)
+      {
+        LOG_FATAL_FMT(tls::error_string(rc));
+      }
     }
   }
 
   KeyAesGcm::KeyAesGcm(KeyAesGcm&& that)
   {
-    ctx = that.ctx;
-    that.ctx = nullptr;
+    ctxs = that.ctxs;
+
+    for (uint32_t i = 0; i < that.ctxs.size(); ++i)
+    {
+      that.ctxs[i] = nullptr;
+    }
   }
 
   KeyAesGcm::~KeyAesGcm()
   {
-    if (ctx)
+    for (auto ctx : ctxs)
     {
-      auto ctx_ = reinterpret_cast<mbedtls_gcm_context*>(ctx);
-      mbedtls_gcm_free(ctx_);
-      delete ctx_;
+      if (ctx != nullptr)
+      {
+        mbedtls_gcm_free(ctx);
+        delete ctx;
+      }
     }
   }
 
@@ -71,8 +78,9 @@ namespace crypto
     uint8_t* cipher,
     uint8_t tag[GCM_SIZE_TAG]) const
   {
+    auto ctx = ctxs[thread_ids[std::this_thread::get_id()]];
     int rc = mbedtls_gcm_crypt_and_tag(
-      reinterpret_cast<mbedtls_gcm_context*>(ctx),
+      ctx,
       MBEDTLS_GCM_ENCRYPT,
       plain.n,
       iv.p,
@@ -97,8 +105,9 @@ namespace crypto
     CBuffer aad,
     uint8_t* plain) const
   {
+    auto ctx = ctxs[thread_ids[std::this_thread::get_id()]];
     return !mbedtls_gcm_auth_decrypt(
-      reinterpret_cast<mbedtls_gcm_context*>(ctx),
+      ctx,
       cipher.n,
       iv.p,
       iv.n,

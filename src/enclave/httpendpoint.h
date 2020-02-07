@@ -163,34 +163,6 @@ namespace enclave
       flush();
     }
 
-    struct HandleProcessCbMsg
-    {
-      std::shared_ptr<Endpoint> self;
-      std::shared_ptr<JsonRpcContext> rpc_ctx;
-      std::shared_ptr<RpcHandler> frontend;
-    };
-
-    static void handle_process(
-      std::unique_ptr<enclave::Tmsg<HandleProcessCbMsg>> msg)
-    {
-      reinterpret_cast<HTTPServerEndpoint*>(msg->data.self.get())
-        ->handle_message_main_thread(msg->data.rpc_ctx, msg->data.frontend);
-    }
-
-    struct SendResponseVectCbMsg
-    {
-      std::vector<uint8_t> d = {};
-      http_status status;
-      std::shared_ptr<Endpoint> self;
-    };
-
-    static void send_response_vect(
-      std::unique_ptr<enclave::Tmsg<SendResponseVectCbMsg>> msg)
-    {
-      reinterpret_cast<HTTPServerEndpoint*>(msg->data.self.get())
-        ->send_response(msg->data.d);
-    }
-
     void handle_message_main_thread(
       std::shared_ptr<JsonRpcContext>& rpc_ctx,
       std::shared_ptr<RpcHandler>& search)
@@ -208,28 +180,13 @@ namespace enclave
         else
         {
           // Otherwise, reply to the client synchronously.
-          LOG_TRACE_FMT("Responding");
-          auto msg = std::make_unique<enclave::Tmsg<SendResponseVectCbMsg>>(
-            &send_response_vect);
-          msg->data.status = HTTP_STATUS_OK;
-          msg->data.self = this->shared_from_this();
-          msg->data.d = response.value();
-          enclave::ThreadMessaging::thread_messaging
-            .add_task<SendResponseVectCbMsg>(execution_thread, std::move(msg));
+          send_response(response.value());
         }
       }
       catch (const std::exception& e)
       {
-        auto msg = std::make_unique<enclave::Tmsg<SendResponseVectCbMsg>>(
-          &send_response_vect);
-        msg->data.status = HTTP_STATUS_INTERNAL_SERVER_ERROR;
-        msg->data.self = this->shared_from_this();
-
         std::string err_msg = fmt::format("Exception:\n{}\n", e.what());
-        msg->data.d.assign(err_msg.begin(), err_msg.end());
-
-        enclave::ThreadMessaging::thread_messaging
-          .add_task<SendResponseVectCbMsg>(execution_thread, std::move(msg));
+        send_response(err_msg, HTTP_STATUS_INTERNAL_SERVER_ERROR);
       }
     }
 
@@ -343,13 +300,18 @@ namespace enclave
         rpc_ctx->method = method_s;
         rpc_ctx->actor = actor;
 
-        auto msg =
-          std::make_unique<enclave::Tmsg<HandleProcessCbMsg>>(&handle_process);
-        msg->data.self = this->shared_from_this();
-        msg->data.rpc_ctx = rpc_ctx;
-        msg->data.frontend = search.value();
-        enclave::ThreadMessaging::thread_messaging.add_task<HandleProcessCbMsg>(
-          enclave::ThreadMessaging::main_thread, std::move(msg));
+        auto response = search.value()->process(rpc_ctx);
+
+        if (!response.has_value())
+        {
+          // If the RPC is pending, hold the connection.
+          LOG_TRACE_FMT("Pending");
+          return;
+        }
+        else
+        {
+          send_response(response.value());
+        }
       }
       catch (const std::exception& e)
       {

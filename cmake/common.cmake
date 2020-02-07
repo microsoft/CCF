@@ -242,6 +242,7 @@ endfunction()
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/secp256k1.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
+include(${CCF_DIR}/cmake/sss.cmake)
 
 find_package(CURL REQUIRED)
 
