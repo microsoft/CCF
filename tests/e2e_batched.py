@@ -61,7 +61,7 @@ def run(args):
     hosts = ["localhost", "localhost", "localhost"]
 
     with infra.ccf.network(
-        hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
 
@@ -95,7 +95,7 @@ def run_to_destruction(args):
     hosts = ["localhost", "localhost", "localhost"]
 
     with infra.ccf.network(
-        hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
 

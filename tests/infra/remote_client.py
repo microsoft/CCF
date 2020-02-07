@@ -15,7 +15,6 @@ DBG = os.getenv("DBG", "cgdb")
 
 
 class CCFRemoteClient(object):
-    BIN = "cchost"
     DEPS = []
     LINES_RESULT_FROM_END = 6
 

@@ -58,8 +58,7 @@ def cli_args(add=lambda x: None, accept_unknown=False):
 
 
 def run(*args, **kwargs):
-    with infra.path.working_dir(args[0]):
-        infra.path.mk_new("perf_summary.csv", PERF_COLUMNS)
+    infra.path.mk_new("perf_summary.csv", PERF_COLUMNS)
 
     infra.runner.run(*args, **kwargs)
 
@@ -81,4 +80,4 @@ if __name__ == "__main__":
     def get_command(*args):
         return [*args] + unknown_args
 
-    infra.runner.run(args.build_dir, get_command, args)
+    infra.runner.run(get_command, args)
