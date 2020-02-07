@@ -200,7 +200,6 @@ namespace timing
       return start_time;
     }
 
-    // TODO: Make this handle calls from multiple concurrent threads
     void record_send(
       const std::string& method, size_t rpc_id, bool expects_commit)
     {
@@ -249,10 +248,6 @@ namespace timing
       std::optional<size_t> highest_local_commit,
       size_t desired_rounds = 1)
     {
-      // TODO: Add a GroupBy functor so caller can determine 'rounds', rather
-      // than fixed sizes? Allows splitting by method, by time, by
-      // global_commit, etc
-
       TimeDelta end_time_delta = Clock::now() - start_time;
 
       const auto rounds = min(max(sends.size(), 1ul), desired_rounds);
@@ -409,10 +404,6 @@ namespace timing
 
           complete_pending(receives[i]);
         }
-
-        // TODO?
-        // vector<TimeDelta> local_commit_gaps;
-        // vector<TimeDelta> global_commit_gaps;
 
         all_local_commits.insert(
           all_local_commits.end(),

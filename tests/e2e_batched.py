@@ -80,11 +80,11 @@ def run(args):
             write_size_multiplier=10,
         )
 
-        # TODO: CI already takes ~25s for batch of 10k, so avoid large batches for now
+        # CI already takes ~25s for batch of 10k, so avoid large batches for now
         # bs = 10000
         # step_size = 10000
 
-        # # TODO: This tests fails with larger batch sizes, and with any transaction
+        # This tests fails with larger batch sizes, and with any transaction
         # # larger than ~2MB. Investigate why, then expand this test
         # while bs <= 30000:
         #     network = test(network, args, batch_size=bs)

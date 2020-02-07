@@ -21,7 +21,6 @@ def test(network, args, notifications_queue=None, verify=True):
         on_backup=True,
         wait_for_sync=args.consensus == "raft",
     )
-    # TODO: Once the JS app supports both public and private tables, always verify
     if verify:
         txs.verify(network)
     else:
@@ -78,7 +77,6 @@ def test_update_lua(network, args):
         check = infra.checker.Checker()
 
         # Create a new lua application file (minimal app)
-        # TODO: Writing to file will not be required when memberclient is deprecated
         new_app_file = "new_lua_app.lua"
         with open(new_app_file, "w") as qfile:
             qfile.write(

@@ -159,7 +159,6 @@ endif()
 install(EXPORT ccf DESTINATION cmake)
 
 # Install all 3rd-party library includes
-# TODO(install): Trim this to only the required 'external' headers
 install(
   DIRECTORY 3rdparty
   DESTINATION include
@@ -169,8 +168,6 @@ install(
 )
 
 # Install all CCF headers
-# TODO(install): Trim this to only the required public headers for building an
-# app
 install(
   DIRECTORY src/
   DESTINATION include/ccf
@@ -180,7 +177,6 @@ install(
 )
 
 # Install CCF Python infrastructure
-# TODO(install): This should be trimmed and packaged as well
 install(
   DIRECTORY tests/infra/
   DESTINATION lib/infra
@@ -543,11 +539,6 @@ if(BUILD_TESTS)
         ADDITIONAL_ARGS
           --oesign
           ${OE_SIGN_PATH}
-          # TODO(verify): This test spins up many nodes that go through the join
-          # protocol. Since oe_verify_report can take quite a long time to
-          # execute (~2s) and trigger Raft elections, the election timeout
-          # should stay high until https://github.com/microsoft/CCF/issues/480
-          # is fixed
           --election-timeout
           10000
       )
