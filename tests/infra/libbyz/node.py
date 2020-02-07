@@ -65,7 +65,13 @@ class RemoteNode(Node):
     def run(self):
         self.client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.client.connect(self.public_ip)
+        def user():
+            u = os.getenv('USER')
+            if u.startswith('ci_'):
+                return 'ci'
+            else:
+                return u
+        self.client.connect(self.public_ip, username=user())
         cmd = " ".join(self.cmd)
         logger.info(cmd)
         cmd = f"./{cmd}"
