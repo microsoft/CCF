@@ -44,7 +44,9 @@ TEST_CASE("Client/Server key exchange")
     ccf::GcmHdr hdr;
 
     channel1.tag(hdr, msg);
-    REQUIRE(*reinterpret_cast<const uint64_t*>(hdr.get_iv().p) == iv_seq1++);
+    NonceUnion u;
+    u.val = *reinterpret_cast<const uint64_t*>(hdr.get_iv().p);
+    REQUIRE(u.nonce.nonce == iv_seq1++);
     REQUIRE(channel2.verify(hdr, msg));
   }
 
@@ -63,7 +65,9 @@ TEST_CASE("Client/Server key exchange")
     ccf::GcmHdr hdr;
 
     channel1.tag(hdr, msg);
-    REQUIRE(*reinterpret_cast<const uint64_t*>(hdr.get_iv().p) == iv_seq1++);
+    NonceUnion u;
+    u.val = *reinterpret_cast<const uint64_t*>(hdr.get_iv().p);
+    REQUIRE(u.nonce.nonce == iv_seq1++);
     msg[50] = 0xFF;
     REQUIRE_FALSE(channel2.verify(hdr, msg));
   }
@@ -74,7 +78,9 @@ TEST_CASE("Client/Server key exchange")
     ccf::GcmHdr hdr;
 
     channel1.tag(hdr, msg);
-    REQUIRE(*reinterpret_cast<const uint64_t*>(hdr.get_iv().p) == iv_seq1++);
+    NonceUnion u;
+    u.val = *reinterpret_cast<const uint64_t*>(hdr.get_iv().p);
+    REQUIRE(u.nonce.nonce == iv_seq1++);
     hdr.iv[4] = hdr.iv[4] + 1;
     REQUIRE_FALSE(channel2.verify(hdr, msg));
   }
@@ -87,7 +93,9 @@ TEST_CASE("Client/Server key exchange")
     ccf::GcmHdr hdr;
 
     channel1.encrypt(hdr, {}, plain, cipher);
-    REQUIRE(*reinterpret_cast<const uint64_t*>(hdr.get_iv().p) == iv_seq1++);
+    NonceUnion u;
+    u.val = *reinterpret_cast<const uint64_t*>(hdr.get_iv().p);
+    REQUIRE(u.nonce.nonce == iv_seq1++);
     REQUIRE(channel2.decrypt(hdr, {}, cipher, decrypted));
     REQUIRE(plain == decrypted);
   }
