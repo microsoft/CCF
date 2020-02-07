@@ -53,10 +53,6 @@ resources:
       image: ccfciteam/ccf-ci-18.04-oe-0.8.0:latest
       options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/ccache
 
-    - container: perfsgx
-      image: ccfciteam/ccf-ci-18.04-oe-0.8.0:latest
-      options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/ccache -v /home/ci_azpcontainer/.ssh:/home/ci_azpcontainer/.ssh:ro
-
 variables:
   ${{ if startsWith(variables['Build.SourceBranch'], 'refs/tags/v') }}:
     perf_or_release: release
