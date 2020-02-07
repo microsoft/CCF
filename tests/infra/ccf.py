@@ -21,8 +21,6 @@ from loguru import logger as LOG
 
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 
-# TODO: Quote verification may take a long time to execute on the leader when joining
-# https://github.com/microsoft/CCF/issues/703
 # JOIN_TIMEOUT should be greater than the worst case quote verification time (~ 25 secs)
 JOIN_TIMEOUT = 40
 
@@ -210,7 +208,6 @@ class Network:
         :param args: command line arguments to configure the CCF nodes.
         :param open_network: If false, only the nodes are started.
         """
-        # TODO: The node that starts should not necessarily be node 0
         cmd = ["rm", "-f"] + glob("member*.pem")
         infra.proc.ccall(*cmd)
 
@@ -460,7 +457,6 @@ class Network:
             time.sleep(1)
         assert [commits[0]] * len(commits) == commits, "All nodes at the same commit"
 
-    # TODO: Remove when secret sharing is implemented: https://github.com/microsoft/CCF/issues/51
     def wait_for_sealed_secrets_at_version(self, version, timeout=5):
         """
         Wait for a sealed secret at a version larger than "version" to be sealed

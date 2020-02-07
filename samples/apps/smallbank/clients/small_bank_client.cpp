@@ -131,7 +131,6 @@ private:
 
   bool check_response(const json& j) override
   {
-    // TODO: Add custom error code for this, rather than string matching?
     const auto error_it = j.find("error");
     if (error_it != j.end())
     {

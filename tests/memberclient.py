@@ -126,7 +126,6 @@ def run(args):
         result, error = network.consortium.propose(3, primary, script, 0)
         assert error["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
-        # TODO: enable rest of the test once ack works over HTTP
         return
 
         LOG.debug("New member ACK")

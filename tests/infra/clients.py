@@ -505,11 +505,6 @@ class WSClient:
             f"wss://{self.host}:{self.port}",
             sslopt={"certfile": self.cert, "keyfile": self.key, "ca_certs": self.ca},
         )
-        # TODO: Support sending data over websocket
-        # ws.send(request.to_json())
-        # res = ws.recv()
-        # ws.close()
-        # self.stream.update(rep.content)
         return request.id
 
     def signed_request(self, request):
