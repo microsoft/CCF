@@ -14,12 +14,13 @@ steps:
       python ${{ parameters.install_prefix }}/bin/start_network.py \
       -p ../../build/liblogging \
       -b ${{ parameters.install_prefix }}/bin \
-      -g ../../src/runtime_config/gov.lua
+      -g ../../src/runtime_config/gov.lua \
+      -v
   displayName: Test installed CCF
 
 - task: ArchiveFiles@2
   inputs:
-    rootFolderOrFile: $(Build.SourcesDirectory)/build/install
+    rootFolderOrFile: ${{ parameters.install_prefix }}
     archiveType: 'tar'
     tarCompression: 'gz'
     archiveFile: '$(Build.ArtifactStagingDirectory)/ccf${{ parameters.install_suffix }}.tar.gz'
