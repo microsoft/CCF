@@ -29,7 +29,9 @@ def run(args):
 
     hosts = ["localhost", "localhost"]
     txs = app.LoggingTxs()
-    network = infra.ccf.Network(hosts, args.debug_nodes, args.perf_nodes, txs=txs)
+    network = infra.ccf.Network(
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, txs=txs
+    )
     network.start_and_join(args)
 
     LOG.info(f"Running {len(s.tests)} tests for {args.test_duration} seconds")

@@ -19,4 +19,4 @@ if __name__ == "__main__":
         return [*common_args, "--accounts", str(args.accounts)] + unknown_args
 
     args.package = "libsmallbank"
-    perfclient.run(args.build_dir, get_command, args)
+    perfclient.run(get_command, args)

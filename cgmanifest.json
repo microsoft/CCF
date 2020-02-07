@@ -137,6 +137,15 @@
         }
       }
     },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/dsprenkels/sss",
+          "commitHash": "dc8c3a9a1089e962b32ecdcc940ae11bd2b69e4b"
+        }
+      }
+    },
   ],
   "Version": 1
 }

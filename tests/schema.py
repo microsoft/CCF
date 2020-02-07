@@ -62,7 +62,7 @@ def run(args):
                 methods_without_schema.add(method)
 
     with infra.ccf.network(
-        hosts, args.build_dir, args.debug_nodes, args.perf_nodes
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes
     ) as network:
         network.start_and_join(args)
         primary, term = network.find_primary()

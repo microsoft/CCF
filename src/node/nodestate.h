@@ -35,6 +35,13 @@
 #include <chrono>
 #include <fmt/format_header_only.h>
 #include <nlohmann/json.hpp>
+extern "C"
+{
+#include "tls/randombytes.h"
+
+#include <sss/sss.h>
+}
+
 #include <stdexcept>
 #include <unordered_set>
 #include <vector>

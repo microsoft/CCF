@@ -35,14 +35,9 @@ parameters:
       cmake_args: ''
     debug:
       cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DBUILD_SMALLBANK=OFF'
-    perf:
-      HTTP:
-        cmake_args: ''
-    release:
-      FTCP:
-        cmake_args: '-DCMAKE_INSTALL_PREFIX=./install'
-      HTTP:
-        cmake_args: '-DCMAKE_INSTALL_PREFIX=./install'
+    install:
+      install_prefix: '/tmp/ccf-install'
+      cmake_args: '-DCMAKE_INSTALL_PREFIX=/tmp/ccf-install'
     san:
       cmake_args: '-DSAN=ON'
     HTTP:
@@ -116,8 +111,9 @@ jobs:
           consensus: ${{ consensus }}
           protocol: ${{ protocol }}
           env: ${{ parameters.env.SGX }}
-          install: ${{ eq(parameters.perf_or_release, 'release') }}
-          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build[parameters.perf_or_release][protocol].cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
+          install: true
+          install_prefix: '${{ parameters.build.install.install_prefix }}'
+          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
           ctest_filter: '${{ parameters.test[parameters.perf_or_release][consensus].ctest_args }}'
           suffix: 'Release'
           depends_on: ${{ parameters.static_check_job_name }}
@@ -131,3 +127,4 @@ jobs:
     - template: release.yml
       parameters:
         env: ${{ parameters.env.Release }}
+

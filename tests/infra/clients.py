@@ -310,6 +310,7 @@ class CurlClient:
         ca,
         version,
         format,
+        binary_dir,
         connection_timeout,
         request_timeout,
         *args,
@@ -321,6 +322,7 @@ class CurlClient:
         self.key = key
         self.ca = ca
         self.format = "json"
+        self.binary_dir = binary_dir
         self.connection_timeout = connection_timeout
         self.request_timeout = request_timeout
         self.stream = Stream(version, "json")
@@ -332,7 +334,7 @@ class CurlClient:
             nf.write(msg)
             nf.flush()
             if is_signed:
-                cmd = ["./scurl.sh"]
+                cmd = [os.path.join(self.binary_dir, "scurl.sh")]
             else:
                 cmd = ["curl"]
 
@@ -410,6 +412,8 @@ class RequestClient:
         format,
         connection_timeout,
         request_timeout,
+        *args,
+        **kwargs,
     ):
         self.host = host
         self.port = port
@@ -484,6 +488,8 @@ class WSClient:
         format,
         connection_timeout,
         request_timeout,
+        *args,
+        **kwargs,
     ):
         self.host = host
         self.port = port
@@ -499,11 +505,6 @@ class WSClient:
             f"wss://{self.host}:{self.port}",
             sslopt={"certfile": self.cert, "keyfile": self.key, "ca_certs": self.ca},
         )
-        # TODO: Support sending data over websocket
-        # ws.send(request.to_json())
-        # res = ws.recv()
-        # ws.close()
-        # self.stream.update(rep.content)
         return request.id
 
     def signed_request(self, request):
@@ -600,6 +601,7 @@ def client(
     description=None,
     log_file=None,
     prefix="users",
+    binary_dir=".",
     connection_timeout=3,
     request_timeout=3,
 ):
@@ -613,6 +615,7 @@ def client(
         format=format,
         description=description,
         prefix=prefix,
+        binary_dir=binary_dir,
         connection_timeout=connection_timeout,
         request_timeout=request_timeout,
     )

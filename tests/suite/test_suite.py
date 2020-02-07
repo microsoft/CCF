@@ -8,8 +8,6 @@ import rekey
 
 from inspect import signature, Parameter
 
-# TODO: For now, these are hardcoded.
-# https://github.com/microsoft/CCF/issues/712
 tests = [
     recovery.test,
     reconfiguration.test_add_node,
