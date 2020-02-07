@@ -43,7 +43,7 @@ namespace ccf
       push_raw(l, args.method);
       lua_setfield(l, -2, "method");
 
-      push_raw(l, args.params);
+      push_raw(l, args.rpc_ctx->get_params());
       lua_setfield(l, -2, "params");
 
       // Overwrite __index metamethod for this table

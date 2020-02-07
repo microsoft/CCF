@@ -441,19 +441,6 @@ namespace ccf
       Store::Tx& tx,
       CallerId caller_id)
     {
-      if (
-        ctx->params.has_value() &&
-        (!ctx->params->is_array() && !ctx->params->is_object()))
-      {
-        return ctx->error_response(
-          jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-          fmt::format(
-            "If present, parameters must be an array or object. Received: {}",
-            ctx->params->dump()));
-      }
-
-      const auto& params = ctx->params.value_or(nlohmann::json(nullptr));
-
       auto handler = handlers.find_handler(ctx->method);
       if (handler == nullptr)
       {
@@ -496,7 +483,7 @@ namespace ccf
 #endif
 
       auto func = handler->func;
-      auto args = RequestArgs{ctx, tx, caller_id, ctx->method, params};
+      auto args = RequestArgs{ctx, tx, caller_id, ctx->method};
 
       tx_count++;
 

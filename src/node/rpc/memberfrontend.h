@@ -342,7 +342,7 @@ namespace ccf
           return;
         }
 
-        const auto in = args.params.get<KVRead::In>();
+        const auto in = args.rpc_ctx->get_params().get<KVRead::In>();
 
         const ccf::Script read_script(R"xxx(
         local tables, table_name, key = ...
@@ -376,7 +376,7 @@ namespace ccf
           return;
         }
 
-        const auto script = args.params.get<ccf::Script>();
+        const auto script = args.rpc_ctx->get_params().get<ccf::Script>();
         args.rpc_ctx->set_response_result(tsr.run<nlohmann::json>(
           args.tx, {script, {}, WlIds::MEMBER_CAN_READ, {}}));
         return;
@@ -392,7 +392,7 @@ namespace ccf
           return;
         }
 
-        const auto in = args.params.get<Propose::In>();
+        const auto in = args.rpc_ctx->get_params().get<Propose::In>();
         const auto proposal_id = get_next_id(
           args.tx.get_view(this->network.values), ValueIds::NEXT_PROPOSAL_ID);
         Proposal proposal(in.script, in.parameter, args.caller_id);
@@ -415,7 +415,8 @@ namespace ccf
           return;
         }
 
-        const auto proposal_action = args.params.get<ProposalAction>();
+        const auto proposal_action =
+          args.rpc_ctx->get_params().get<ProposalAction>();
         const auto proposal_id = proposal_action.id;
         auto proposals = args.tx.get_view(this->network.proposals);
         auto proposal = proposals->get(proposal_id);
@@ -477,7 +478,7 @@ namespace ccf
           return;
         }
 
-        const auto vote = args.params.get<Vote>();
+        const auto vote = args.rpc_ctx->get_params().get<Vote>();
         auto proposals = args.tx.get_view(this->network.proposals);
         auto proposal = proposals->get(vote.id);
         if (!proposal)
@@ -515,7 +516,8 @@ namespace ccf
       install_with_auto_schema<Vote, bool>(MemberProcs::VOTE, vote, Write);
 
       auto create = [this](RequestArgs& args) {
-        const auto in = args.params.get<CreateNetworkNodeToNode::In>();
+        const auto in =
+          args.rpc_ctx->get_params().get<CreateNetworkNodeToNode::In>();
 
         GenesisGenerator g(this->network, args.tx);
 
@@ -578,7 +580,8 @@ namespace ccf
           return;
         }
 
-        const auto proposal_action = args.params.get<ProposalAction>();
+        const auto proposal_action =
+          args.rpc_ctx->get_params().get<ProposalAction>();
         const auto proposal_id = proposal_action.id;
 
         args.rpc_ctx->set_response_result(
@@ -602,7 +605,7 @@ namespace ccf
 
         auto verifier = tls::make_verifier(
           std::vector<uint8_t>(args.rpc_ctx->session.caller_cert));
-        const auto rs = args.params.get<RawSignature>();
+        const auto rs = args.rpc_ctx->get_params().get<RawSignature>();
         if (!verifier->verify(last_ma->next_nonce, rs.sig))
         {
           args.rpc_ctx->set_response_error(

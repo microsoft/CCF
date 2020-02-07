@@ -18,7 +18,6 @@ namespace ccf
     Store::Tx& tx;
     CallerId caller_id;
     const std::string& method;
-    const nlohmann::json& params;
   };
 
   using HandleFunction = std::function<void(RequestArgs& args)>;

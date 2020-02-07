@@ -86,8 +86,6 @@ namespace enclave
     // Method indicates specific handler for this request
     std::string method = {};
 
-    std::optional<nlohmann::json> params = std::nullopt;
-
     bool is_create_request = false;
 
     bool read_only_hint = true;
@@ -105,6 +103,7 @@ namespace enclave
 
     virtual ~RpcContext() {}
 
+    /// Request details
     void set_request_index(size_t ri)
     {
       request_index = ri;
@@ -115,6 +114,9 @@ namespace enclave
       return request_index;
     }
 
+    virtual const nlohmann::json& get_params() const = 0;
+
+    /// Response details
     void set_response_error(int code, const std::string& msg = "")
     {
       response.result = ErrorDetails{code, msg};
@@ -173,6 +175,7 @@ namespace enclave
   class JsonRpcContext : public RpcContext
   {
     uint64_t seq_no = {};
+    nlohmann::json params = nlohmann::json::object();
 
     void init(jsonrpc::Pack p, const nlohmann::json& rpc)
     {
@@ -205,6 +208,12 @@ namespace enclave
       if (params_it != unpacked_rpc->end())
       {
         params = *params_it;
+        if (!params.is_array() && !params.is_object())
+        {
+          throw std::logic_error(fmt::format(
+            "If present, parameters must be an array or object. Received: {}",
+            params.dump()));
+        }
       }
 
       read_only_hint = unpacked_rpc->value(jsonrpc::READONLY, true);
@@ -241,6 +250,11 @@ namespace enclave
       RpcContext(s)
     {
       init(p, rpc);
+    }
+
+    virtual const nlohmann::json& get_params() const override
+    {
+      return params;
     }
 
     virtual std::vector<uint8_t> serialise_response() const override
