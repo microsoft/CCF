@@ -107,8 +107,8 @@ jobs:
 
   # Optimised builds, only run performance tests
   # When building a release, run all tests and publish install tarball
-  - ${{ each consensus in ['CFT'] }}:
-    - ${{ each protocol in ['HTTP'] }}:
+  - ${{ each consensus in parameters.consensus }}:
+    - ${{ each protocol in parameters.protocol }}:
       - template: common.yml
         parameters:
           target: SGX
