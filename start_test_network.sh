@@ -18,7 +18,10 @@ if [ ! -f "env/bin/activate" ]
         python3.7 -m venv env
 fi
 source env/bin/activate
-pip install -q -U -r ../tests/requirements.txt
+
+PATH_HERE=$(dirname "$(realpath -s "$0")")
+
+pip install -q -U -r "${PATH_HERE}"/tests/requirements.txt
 echo "Python environment successfully setup"
 
-CURL_CLIENT=ON python ../tests/start_network.py --package "${PACKAGE}" --label test_network "$@"
+CURL_CLIENT=ON python "${PATH_HERE}"/tests/start_network.py --package "${PACKAGE}" --label test_network "$@"

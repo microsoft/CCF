@@ -181,13 +181,14 @@ install(
 # Install CCF Python infrastructure
 install(
   DIRECTORY tests/infra/
-  DESTINATION lib/infra
+  DESTINATION bin/infra
   FILES_MATCHING
   PATTERN "*.py"
   PATTERN "*/__pycache__*" EXCLUDE
 )
 
 install(FILES tests/start_network.py DESTINATION bin)
+install(FILES tests/requirements.txt DESTINATION bin)
 
 # Create patched alternative of library, to test code version changes
 function(create_patched_enclave_lib name app_oe_conf_path enclave_sign_key_path)

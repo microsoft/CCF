@@ -27,10 +27,11 @@ jobs:
         parameters:
           consensus: ${{ parameters.consensus }}
     # For now, only CFT builds are released
-    - ${{ if and(eq(parameters.install, True), eq(parameters.consensus, 'CFT'))}}:
+    - ${{ if and(eq(parameters.install, true), eq(parameters.consensus, 'CFT'))}}:
       - template: install.yml
         parameters:
           protocol: ${{ parameters.protocol }}
+          install_prefix: ${{ parameters.install_prefix }}
           # HTTP is default install
           ${{ if ne(parameters.protocol, 'HTTP') }}:
             install_suffix: '_${{ parameters.protocol }}'
