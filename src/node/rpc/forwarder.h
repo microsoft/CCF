@@ -50,10 +50,10 @@ namespace ccf
       const std::vector<uint8_t>& caller_cert)
     {
       IsCallerCertForwarded include_caller = false;
+      const auto method = rpc_ctx->get_whole_method();
       size_t size = sizeof(caller_id) +
-        sizeof(rpc_ctx->session.client_session_id) + sizeof(rpc_ctx->actor) +
-        sizeof(rpc_ctx->method.size()) + rpc_ctx->method.size() +
-        sizeof(IsCallerCertForwarded) + rpc_ctx->raw.size();
+        sizeof(rpc_ctx->session.client_session_id) + sizeof(method.size()) +
+        method.size() + sizeof(IsCallerCertForwarded) + rpc_ctx->raw.size();
       if (!caller_cert.empty())
       {
         size += sizeof(size_t) + caller_cert.size();
@@ -65,8 +65,7 @@ namespace ccf
       auto size_ = plain.size();
       serialized::write(data_, size_, caller_id);
       serialized::write(data_, size_, rpc_ctx->session.client_session_id);
-      serialized::write(data_, size_, rpc_ctx->actor);
-      serialized::write(data_, size_, rpc_ctx->method);
+      serialized::write(data_, size_, method);
       serialized::write(data_, size_, include_caller);
       if (include_caller)
       {
@@ -115,8 +114,7 @@ namespace ccf
         client_session_id, caller_id, caller_cert);
 
       auto context = enclave::make_rpc_context(session, rpc);
-      context->actor = actor;
-      context->method = method;
+      // TODO: context->method = method;
 
       return std::make_tuple(context, r.first.from_node);
     }

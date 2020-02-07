@@ -80,12 +80,6 @@ namespace enclave
 
     std::optional<ccf::SignedReq> signed_request = std::nullopt;
 
-    // Actor type to dispatch to appropriate frontend
-    ccf::ActorsType actor = ccf::ActorsType::unknown;
-
-    // Method indicates specific handler for this request
-    std::string method = {};
-
     bool is_create_request = false;
 
     bool read_only_hint = true;
@@ -115,6 +109,12 @@ namespace enclave
     }
 
     virtual const nlohmann::json& get_params() const = 0;
+
+    // Non-const as the caller is allowed to modify this (advancing past the
+    // part they have parsed)
+    virtual std::string_view& get_method() = 0;
+
+    virtual std::string get_whole_method() const = 0;
 
     /// Response details
     void set_response_error(int code, const std::string& msg = "")
@@ -176,6 +176,8 @@ namespace enclave
   {
     uint64_t seq_no = {};
     nlohmann::json params = nlohmann::json::object();
+    std::string entire_method = {};
+    std::string_view remaining_method = {};
 
     void init(jsonrpc::Pack p, const nlohmann::json& rpc)
     {
@@ -195,7 +197,8 @@ namespace enclave
       const auto method_it = unpacked_rpc->find(jsonrpc::METHOD);
       if (method_it != unpacked_rpc->end())
       {
-        method = method_it->get<std::string>();
+        entire_method = method_it->get<std::string>();
+        remaining_method = entire_method;
       }
 
       const auto seq_it = unpacked_rpc->find(jsonrpc::ID);
@@ -257,6 +260,16 @@ namespace enclave
       return params;
     }
 
+    virtual std::string_view& get_method() override
+    {
+      return remaining_method;
+    }
+
+    virtual std::string get_whole_method() const override
+    {
+      return entire_method;
+    }
+
     virtual std::vector<uint8_t> serialise_response() const override
     {
       nlohmann::json full_response;
@@ -306,11 +319,8 @@ namespace enclave
     }
   };
 
-  inline std::shared_ptr<RpcContext> make_rpc_context(
+  std::shared_ptr<RpcContext> make_rpc_context(
     const SessionContext& s,
     const std::vector<uint8_t>& packed,
-    const std::vector<uint8_t>& raw_pbft = {})
-  {
-    return std::make_shared<JsonRpcContext>(s, packed, raw_pbft);
-  }
+    const std::vector<uint8_t>& raw_pbft = {});
 }

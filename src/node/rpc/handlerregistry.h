@@ -67,7 +67,7 @@ namespace ccf
 
   protected:
     std::optional<Handler> default_handler;
-    std::unordered_map<std::string, Handler> handlers;
+    std::map<std::string, Handler, std::less<>> handlers;
 
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
@@ -191,7 +191,7 @@ namespace ccf
 
     virtual void init_handlers(Store& tables) {}
 
-    virtual Handler* find_handler(const std::string& method)
+    virtual Handler* find_handler(const std::string_view& method)
     {
       auto search = handlers.find(method);
       if (search != handlers.end())

@@ -355,8 +355,7 @@ namespace ccf
         auto req_view = tx.get_view(*pbft_requests_map);
         req_view->put(
           0,
-          {(size_t)ctx->actor,
-           ctx->session.fwd.value().caller_id,
+          {ctx->session.fwd.value().caller_id,
            ctx->session.caller_cert,
            ctx->raw,
            ctx->pbft_raw});
@@ -428,7 +427,7 @@ namespace ccf
       Store::Tx& tx,
       CallerId caller_id)
     {
-      auto handler = handlers.find_handler(ctx->method);
+      auto handler = handlers.find_handler(ctx->get_method());
       if (handler != nullptr && handler->execute_locally)
       {
         return process_command(ctx, tx, caller_id);
@@ -441,11 +440,12 @@ namespace ccf
       Store::Tx& tx,
       CallerId caller_id)
     {
-      auto handler = handlers.find_handler(ctx->method);
+      auto handler = handlers.find_handler(ctx->get_method());
       if (handler == nullptr)
       {
         return ctx->error_response(
-          jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND, ctx->method);
+          jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
+          ctx->get_whole_method());
       }
 
       update_history();

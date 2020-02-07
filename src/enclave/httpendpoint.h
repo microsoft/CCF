@@ -11,6 +11,138 @@
 
 namespace enclave
 {
+  class HttpRpcContext : public RpcContext
+  {
+  private:
+    uint64_t seq_no = {};
+    nlohmann::json params = nlohmann::json::object();
+    std::string entire_path = {};
+    std::string_view remaining_path = {};
+
+  public:
+    HttpRpcContext(
+      const SessionContext& s,
+      http_method verb,
+      const std::string& path,
+      const std::string& query,
+      const http::HeaderMap& headers,
+      const std::vector<uint8_t>& body) :
+      RpcContext(s),
+      entire_path(path)
+    {
+      remaining_path = entire_path;
+
+      auto signed_req = http::HttpSignatureVerifier::parse(
+        std::string(http_method_str(verb)), path, query, headers, body);
+      if (signed_req.has_value())
+      {
+        signed_request = signed_req;
+      }
+
+      if (verb == HTTP_POST)
+      {
+        std::optional<jsonrpc::Pack> pack;
+
+        auto [success, contents] = jsonrpc::unpack_rpc(body, pack);
+        if (!success)
+        {
+          throw std::logic_error("Unable to unpack body.");
+        }
+
+        // Currently contents must either be a naked json payload, or a JSON-RPC
+        // object. We don't check this object for validity, we just extract its
+        // params field
+        const auto params_it = contents.find(jsonrpc::PARAMS);
+        if (params_it != contents.end())
+        {
+          params = *params_it;
+        }
+        else
+        {
+          params = contents;
+        }
+      }
+      else if (verb == HTTP_GET)
+      {
+        // TODO: Construct params by parsing query
+      }
+    }
+
+    virtual const nlohmann::json& get_params() const override
+    {
+      return params;
+    }
+
+    virtual std::string_view& get_method() override
+    {
+      return remaining_path;
+    }
+
+    virtual std::string get_whole_method() const override
+    {
+      return entire_path;
+    }
+
+    // TODO: These are still returning a JSON-RPC response body
+    virtual std::vector<uint8_t> serialise_response() const override
+    {
+      nlohmann::json full_response;
+
+      if (response_is_error())
+      {
+        const auto error = get_response_error();
+        full_response = jsonrpc::error_response(
+          seq_no, jsonrpc::Error(error->code, error->msg));
+      }
+      else
+      {
+        const auto payload = get_response_result();
+        full_response = jsonrpc::result_response(seq_no, *payload);
+      }
+
+      for (const auto& [k, v] : headers)
+      {
+        const auto it = full_response.find(k);
+        if (it == full_response.end())
+        {
+          full_response[k] = v;
+        }
+        else
+        {
+          LOG_DEBUG_FMT(
+            "Ignoring response headers with key '{}' - already present in "
+            "response object",
+            k);
+        }
+      }
+
+      return jsonrpc::pack(full_response, jsonrpc::Pack::Text);
+    }
+
+    virtual std::vector<uint8_t> result_response(
+      const nlohmann::json& result) const override
+    {
+      return jsonrpc::pack(
+        jsonrpc::result_response(seq_no, result), jsonrpc::Pack::Text);
+    }
+
+    std::vector<uint8_t> error_response(
+      int error, const std::string& msg) const override
+    {
+      nlohmann::json error_element = jsonrpc::Error(error, msg);
+      return jsonrpc::pack(
+        jsonrpc::error_response(seq_no, error_element), jsonrpc::Pack::Text);
+    }
+  };
+
+  std::shared_ptr<RpcContext> make_rpc_context(
+    const SessionContext& s,
+    const std::vector<uint8_t>& packed,
+    const std::vector<uint8_t>& raw_pbft = {})
+  {
+    return std::make_shared<HttpRpcContext>(s, packed, raw_pbft);
+  }
+
   class HTTPEndpoint : public TLSEndpoint, public http::MsgProcessor
   {
   protected:
@@ -218,33 +350,53 @@ namespace enclave
           return;
         }
 
-        const auto first_slash = path.find_first_of('/');
-        const auto second_slash = path.find_first_of('/', first_slash + 1);
+        const SessionContext session(session_id, peer_cert());
 
-        constexpr auto path_parse_error =
-          "Request path must contain '/[actor]/[method]'. Unable to parse "
-          "'{}'.\n";
-
-        if (
-          first_slash != 0 || first_slash == std::string::npos ||
-          second_slash == std::string::npos)
+        std::shared_ptr<HttpRpcContext> rpc_ctx = nullptr;
+        try
         {
-          send_response(
-            fmt::format(path_parse_error, path), HTTP_STATUS_BAD_REQUEST);
-          return;
+          rpc_ctx = std::make_shared<HttpRpcContext>(
+            session, verb, path, query, headers, body);
+        }
+        catch (std::exception& e)
+        {
+          send_response(e.what(), HTTP_STATUS_BAD_REQUEST);
         }
 
-        const auto actor_s = path.substr(first_slash + 1, second_slash - 1);
-        const auto method_s = path.substr(second_slash + 1);
+        rpc_ctx->set_request_index(request_index++);
 
-        if (actor_s.empty() || method_s.empty())
+        std::string_view actor_s = {};
+        auto& method = rpc_ctx->get_method();
+
         {
-          send_response(
-            fmt::format(path_parse_error, path), HTTP_STATUS_BAD_REQUEST);
-          return;
+          const auto first_slash = path.find_first_of('/');
+          const auto second_slash = path.find_first_of('/', first_slash + 1);
+
+          constexpr auto path_parse_error =
+            "Request path must contain '/[actor]/[method]'. Unable to parse "
+            "'{}'.\n";
+
+          if (
+            first_slash != 0 || first_slash == std::string::npos ||
+            second_slash == std::string::npos)
+          {
+            send_response(
+              fmt::format(path_parse_error, path), HTTP_STATUS_BAD_REQUEST);
+            return;
+          }
+
+          actor_s = method.substr(first_slash + 1, second_slash - 1);
+          method.remove_prefix(second_slash + 1);
+
+          if (actor_s.empty() || method.empty())
+          {
+            send_response(
+              fmt::format(path_parse_error, path), HTTP_STATUS_BAD_REQUEST);
+            return;
+          }
         }
 
-        auto actor = rpc_map->resolve(actor_s);
+        auto actor = rpc_map->resolve(std::string(actor_s));
         auto search = rpc_map->find(actor);
         if (actor == ccf::ActorsType::unknown || !search.has_value())
         {
@@ -262,43 +414,7 @@ namespace enclave
           return;
         }
 
-        const SessionContext session(session_id, peer_cert());
-        std::optional<jsonrpc::Pack> pack;
-
-        auto [success, json_rpc] = jsonrpc::unpack_rpc(body, pack);
-        if (!success)
-        {
-          send_response(
-            fmt::format("Unable to unpack body.\n"), HTTP_STATUS_BAD_REQUEST);
-          return;
-        }
-
-        auto rpc_ctx =
-          std::make_shared<JsonRpcContext>(session, pack.value(), json_rpc);
-        rpc_ctx->set_request_index(request_index++);
-
-        auto signed_req = http::HttpSignatureVerifier::parse(
-          std::string(http_method_str(verb)), path, query, headers, body);
-        if (signed_req.has_value())
-        {
-          rpc_ctx->signed_request = signed_req;
-        }
-
-        const auto expected = fmt::format("{}/{}", actor_s, method_s);
-        if (rpc_ctx->method != expected)
-        {
-          send_response(
-            fmt::format(
-              "RPC method must match path ('{}' != '{}').\n",
-              expected,
-              rpc_ctx->method),
-            HTTP_STATUS_BAD_REQUEST);
-          return;
-        }
-
         rpc_ctx->raw = body;
-        rpc_ctx->method = method_s;
-        rpc_ctx->actor = actor;
 
         auto response = search.value()->process(rpc_ctx);
 
