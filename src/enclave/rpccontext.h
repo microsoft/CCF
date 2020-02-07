@@ -78,8 +78,6 @@ namespace enclave
     // raw pbft Request
     std::vector<uint8_t> pbft_raw = {};
 
-    nlohmann::json unpacked_rpc = {};
-
     std::optional<ccf::SignedReq> signed_request = std::nullopt;
 
     // Actor type to dispatch to appropriate frontend
@@ -181,39 +179,35 @@ namespace enclave
       pack_format = p;
 
       const auto sig_it = rpc.find(jsonrpc::SIG);
+      const nlohmann::json* unpacked_rpc = &rpc;
       if (sig_it != rpc.end())
       {
-        unpacked_rpc = rpc.at(jsonrpc::REQ);
+        unpacked_rpc = &rpc.at(jsonrpc::REQ);
         ccf::SignedReq signed_req;
         signed_req.sig = sig_it->get<decltype(signed_req.sig)>();
-        signed_req.req = nlohmann::json::to_msgpack(unpacked_rpc);
+        signed_req.req = nlohmann::json::to_msgpack(rpc);
         signed_request = signed_req;
       }
-      else
-      {
-        unpacked_rpc = rpc;
-        signed_request = std::nullopt;
-      }
 
-      const auto method_it = unpacked_rpc.find(jsonrpc::METHOD);
-      if (method_it != unpacked_rpc.end())
+      const auto method_it = unpacked_rpc->find(jsonrpc::METHOD);
+      if (method_it != unpacked_rpc->end())
       {
         method = method_it->get<std::string>();
       }
 
-      const auto seq_it = unpacked_rpc.find(jsonrpc::ID);
-      if (seq_it != unpacked_rpc.end())
+      const auto seq_it = unpacked_rpc->find(jsonrpc::ID);
+      if (seq_it != unpacked_rpc->end())
       {
         seq_no = seq_it->get<uint64_t>();
       }
 
-      const auto params_it = unpacked_rpc.find(jsonrpc::PARAMS);
-      if (params_it != unpacked_rpc.end())
+      const auto params_it = unpacked_rpc->find(jsonrpc::PARAMS);
+      if (params_it != unpacked_rpc->end())
       {
         params = *params_it;
       }
 
-      read_only_hint = unpacked_rpc.value(jsonrpc::READONLY, true);
+      read_only_hint = unpacked_rpc->value(jsonrpc::READONLY, true);
     }
 
     std::vector<uint8_t> pack(const nlohmann::json& j) const
