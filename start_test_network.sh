@@ -19,9 +19,9 @@ if [ ! -f "env/bin/activate" ]
 fi
 source env/bin/activate
 
-PATH_HERE=$(dirname $(realpath -s $0))
+PATH_HERE=$(dirname "$(realpath -s "$0")")
 
-pip install -q -U -r ${PATH_HERE}/tests/requirements.txt
+pip install -q -U -r "${PATH_HERE}"/tests/requirements.txt
 echo "Python environment successfully setup"
 
-CURL_CLIENT=ON python ${PATH_HERE}/tests/start_network.py --package "${PACKAGE}" --label test_network "$@"
+CURL_CLIENT=ON python "${PATH_HERE}"/tests/start_network.py --package "${PACKAGE}" --label test_network "$@"
