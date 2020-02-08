@@ -4,6 +4,7 @@
 // Licensed under the MIT license.
 
 #include "Log_allocator.h"
+
 #include "ds/logger.h"
 
 #ifndef MAP_VARIABLE

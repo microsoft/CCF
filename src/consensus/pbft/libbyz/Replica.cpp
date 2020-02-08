@@ -3,6 +3,7 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
+#include "Replica.h"
 
 #include "Append_entries.h"
 #include "Checkpoint.h"
@@ -20,7 +21,6 @@
 #include "Prepared_cert.h"
 #include "Principal.h"
 #include "Query_stable.h"
-#include "Replica.h"
 #include "Reply.h"
 #include "Reply_stable.h"
 #include "Request.h"

@@ -655,7 +655,6 @@ void View_info::clear()
   vc_sent = zero_time();
 }
 
-
 bool View_info::enforce_bound(Seqno b, Seqno ks, bool corrupt)
 {
   if (corrupt || last_stable > b - max_out)

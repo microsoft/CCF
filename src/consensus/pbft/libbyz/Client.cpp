@@ -4,6 +4,7 @@
 // Licensed under the MIT license.
 
 #include "Client.h"
+
 #include "ITimer.h"
 #include "Message.h"
 #include "Reply.h"
