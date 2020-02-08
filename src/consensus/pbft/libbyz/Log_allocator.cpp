@@ -3,10 +3,6 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#ifndef INSIDE_ENCLAVE
-#  include <sys/mman.h>
-#endif
-
 #include "Log_allocator.h"
 #include "ds/logger.h"
 

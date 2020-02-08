@@ -3,23 +3,6 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#ifndef INSIDE_ENCLAVE
-#  include <stdio.h>
-#  include <string.h>
-#endif
-
-#include <limits.h>
-
-#ifndef INSIDE_ENCLAVE
-#  include <arpa/inet.h>
-#  include <netdb.h>
-#  include <netinet/in.h>
-#  include <stdlib.h>
-#  include <sys/socket.h>
-#  include <sys/time.h>
-#  include <sys/types.h>
-#  include <unistd.h>
-#endif
 
 #include "Append_entries.h"
 #include "Checkpoint.h"
