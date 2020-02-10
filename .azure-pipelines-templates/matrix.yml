@@ -19,14 +19,18 @@ parameters:
       container: nosgx
       pool: Ubuntu-1804-D16s_v3
       dependsOn: ['Formatting_and_License_Checks']
+    Release:
+      container: sgx
+      pool: Ubuntu-1804-DC4s
+      dependsOn: ['BuildAndTest_NoSGX_CFT_HTTP_Debug', 'BuildAndTest_SGX_CFT_HTTP_Debug', 'BuildAndTest_NoSGX_CFT_HTTP_SAN', 'BuildAndTest_NoSGX_BFT_HTTP_Debug', 'BuildAndTest_SGX_BFT_HTTP_Debug', 'BuildAndTest_NoSGX_BFT_HTTP_SAN',]
     Metrics:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
       dependsOn: ['BuildAndTest_SGX_CFT_HTTP_Perf', 'BuildAndTest_SGX_BFT_HTTP_Perf']
-    Release:
+    Publish:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
-      dependsOn: ['BuildAndTest_NoSGX_CFT_HTTP_', 'BuildAndTest_SGX_CFT_HTTP_', 'BuildAndTest_NoSGX_CFT_HTTP_SAN', 'BuildAndTest_SGX_CFT_HTTP_Release']
+      dependsOn: ['BuildAndTest_SGX_CFT_HTTP_Release', 'BuildAndTest_SGX_BFT_HTTP_Release']
     Perf:
       pool: CCF-Perf
       dependsOn: ['BuildAndTest_SGX_CFT_HTTP_Release', 'BuildAndTest_SGX_BFT_HTTP_Release']
@@ -60,21 +64,19 @@ parameters:
       ctest_args: '-LE "benchmark|perf|suite"'
     SGX:
       ctest_args: '-LE "benchmark|perf"'
+    SGX_Release:
+      ctest_args: '-LE "benchmark|perf"'
     perf:
       CFT:
         ctest_args: '-L "benchmark|perf"'
       BFT:
         ctest_args: '-L "perf"'
-    release:
-      CFT:
-        ctest_args: '-LE "benchmark|perf"'
-      BFT:
-        ctest_args: '-LE "benchmark|perf"'
     san:
       ctest_args: '-LE "benchmark|perf|suite"'
 
   static_checck_job_name: 'Formatting_and_License_Checks'
   san_target: 'NoSGX'
+  release_target: 'SGX_Release'
 
 jobs:
   - template: checks.yml
@@ -82,57 +84,48 @@ jobs:
       env: ${{ parameters.env.Checks }}
       job_name: ${{ parameters.static_check_job_name }}
 
-  # Debug builds with code coverage, run all tests except performance
+  # Debug builds with code coverage
   - ${{ each target in parameters.target }}:
     - ${{ each consensus in parameters.consensus }}:
-      - ${{ each protocol in parameters.protocol }}:
-        - template: common.yml
-          parameters:
-            target: ${{ target }}
-            consensus: ${{ consensus }}
-            protocol: ${{ protocol }}
-            env: ${{ parameters.env[target] }}
-            cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
-            ctest_filter: '${{ parameters.test[target].ctest_args }}'
-            suffix: ''
-
-  # SAN builds (ASAN & UBSAN), run all tests except performance
-  - ${{ each consensus in parameters.consensus }}:
-    - ${{ each protocol in parameters.protocol }}:
       - template: common.yml
         parameters:
-          target: ${{ parameters.san_target }}
+          target: ${{ target }}
           consensus: ${{ consensus }}
-          protocol: ${{ protocol }}
-          env: '${{ parameters.env.NoSGX_SAN }}'
-          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build[parameters.san_target].cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
-          ctest_filter: '${{ parameters.test.san.ctest_args }}'
-          suffix: 'SAN'
+          env: ${{ parameters.env[target] }}
+          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
+          ctest_filter: '${{ parameters.test[target].ctest_args }}'
+          suffix: 'Debug'
 
-  # Optimised build
-  # When building a release, run all tests except performance and publish install tarball
+  # SAN builds (ASAN & UBSAN)
   - ${{ each consensus in parameters.consensus }}:
-    - ${{ each protocol in parameters.protocol }}:
-      - template: common.yml
-        parameters:
-          target: SGX
-          consensus: ${{ consensus }}
-          protocol: ${{ protocol }}
-          env: ${{ parameters.env.SGX }}
-          install: true
-          install_prefix: '${{ parameters.build.install.install_prefix }}'
-          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
-          ctest_filter: '${{ parameters.test.release[consensus].ctest_args }}'
-          suffix: 'Release'
+    - template: common.yml
+      parameters:
+        target: ${{ parameters.san_target }}
+        consensus: ${{ consensus }}
+        env: '${{ parameters.env.NoSGX_SAN }}'
+        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build[parameters.san_target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
+        ctest_filter: '${{ parameters.test.san.ctest_args }}'
+        suffix: 'SAN'
+
+  # Release builds
+  - ${{ each consensus in parameters.consensus }}:
+    - template: common.yml
+      parameters:
+        target: ${{ parameters.release_target }}
+        consensus: ${{ consensus }}
+        env: ${{ parameters.env[parameters.release_target] }}
+        install: true
+        install_prefix: '${{ parameters.build.install.install_prefix }}'
+        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
+        ctest_filter: '${{ parameters.test[parameters.release_target].ctest_args }}'
+        suffix: 'Release'
 
   # Install release and run performance tests
   - ${{ each consensus in parameters.consensus }}:
-    - ${{ each protocol in parameters.protocol }}:
       - template: common.yml
         parameters:
           target: SGX
           consensus: ${{ consensus }}
-          protocol: ${{ protocol }}
           env: ${{ parameters.env.Perf }}
           cmake_args: '${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }} ${{ parameters.build.perf.cmake_args }}'
           ctest_filter: '${{ parameters.test.perf[consensus].ctest_args }}'
@@ -145,5 +138,5 @@ jobs:
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
     - template: release.yml
       parameters:
-        env: ${{ parameters.env.Release }}
+        env: ${{ parameters.env.Publish }}
 
