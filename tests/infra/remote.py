@@ -550,9 +550,14 @@ class CCFRemote(object):
         exe_files = [self.BIN, lib_path] + self.DEPS
         data_files = [self.ledger_file] if self.ledger_file else []
 
+        # lib_path may be relative or absolute. The remote implementation should
+        # copy (or symlink) to the target workspace, and then node will be able
+        # to reference the destination file locally in the target workspace.
+        enclave_path = os.path.join(".", os.path.basename(lib_path))
+
         cmd = [
             self.BIN,
-            f"--enclave-file={lib_path}",
+            f"--enclave-file={enclave_path}",
             f"--enclave-type={enclave_type}",
             f"--node-address={host}:{node_port}",
             f"--rpc-address={host}:{rpc_port}",

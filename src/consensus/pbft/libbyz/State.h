@@ -196,12 +196,6 @@ public:
   void check_state();
   // Effects: checks if state is correct.
 
-  bool shutdown(FILE* o, Seqno ls);
-  // Effects: Shuts down state writing value to "o"
-
-  bool restart(FILE* i, Replica* rep, Seqno ls, Seqno le, bool corrupt);
-  // Effects: Restarts the state object from value in "i"
-
   bool enforce_bound(Seqno b, Seqno ks, bool corrupt);
   // Effects: Enforces that there is no information above bound
   // "b". "ks" is the maximum sequence number that I know is stable.
@@ -217,9 +211,6 @@ public:
 
   void mark_stale();
   // Effects: Discards incomplete certificate.
-
-  void simulate_reboot();
-  // Effects: Simulates a reboot by invalidating state
 
   bool retrans_fetch(Time cur) const;
   // Effects: Returns true iff fetch should be retransmitted
