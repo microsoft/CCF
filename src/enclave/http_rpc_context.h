@@ -25,8 +25,10 @@ namespace enclave
       const std::string& path,
       const std::string& query,
       const http::HeaderMap& headers,
-      const std::vector<uint8_t>& body) :
-      RpcContext(s),
+      const std::vector<uint8_t>& body,
+      const std::vector<uint8_t>& raw = {},
+      const std::vector<uint8_t>& raw_pbft = {}) :
+      RpcContext(s, raw, raw_pbft),
       entire_path(path)
     {
       remaining_path = entire_path;
@@ -115,22 +117,71 @@ namespace enclave
         }
       }
 
-      return jsonrpc::pack(full_response, jsonrpc::Pack::Text);
+      const auto body = jsonrpc::pack(full_response, jsonrpc::Pack::Text);
+
+      // We return status 200 regardless of whether the body contains a JSON-RPC
+      // success or a JSON-RPC error
+      auto http_response = http::Response(HTTP_STATUS_OK);
+      return http_response.build_response(body);
     }
 
     virtual std::vector<uint8_t> result_response(
       const nlohmann::json& result) const override
     {
-      return jsonrpc::pack(
-        jsonrpc::result_response(seq_no, result), jsonrpc::Pack::Text);
+      auto http_response = http::Response(HTTP_STATUS_OK);
+      return http_response.build_response(jsonrpc::pack(
+        jsonrpc::result_response(seq_no, result), jsonrpc::Pack::Text));
     }
 
     std::vector<uint8_t> error_response(
       int error, const std::string& msg) const override
     {
       nlohmann::json error_element = jsonrpc::Error(error, msg);
-      return jsonrpc::pack(
-        jsonrpc::error_response(seq_no, error_element), jsonrpc::Pack::Text);
+      auto http_response = http::Response(HTTP_STATUS_OK);
+      return http_response.build_response(jsonrpc::pack(
+        jsonrpc::error_response(seq_no, error_element), jsonrpc::Pack::Text));
     }
   };
+
+  inline std::shared_ptr<RpcContext> make_rpc_context(
+    const SessionContext& s,
+    const std::vector<uint8_t>& packed,
+    const std::vector<uint8_t>& raw_pbft = {})
+  {
+    http::SimpleMsgProcessor processor;
+    http::Parser parser(HTTP_REQUEST, processor);
+
+    const auto parsed_count = parser.execute(packed.data(), packed.size());
+    if (parsed_count != packed.size())
+    {
+      const auto err_no = (http_errno)parser.get_raw_parser()->http_errno;
+      throw std::logic_error(fmt::format(
+        "Failed to fully parse HTTP request. Parsed only {} bytes. Error code "
+        "{} ({}: {})",
+        parsed_count,
+        err_no,
+        http_errno_name(err_no),
+        http_errno_description(err_no)));
+    }
+
+    if (processor.received.size() != 1)
+    {
+      throw std::logic_error(fmt::format(
+        "Expected packed to contain a single complete HTTP message. Actually "
+        "parsed {} messages",
+        processor.received.size()));
+    }
+
+    const auto& msg = processor.received.front();
+
+    return std::make_shared<HttpRpcContext>(
+      s,
+      msg.method,
+      msg.path,
+      msg.query,
+      msg.headers,
+      msg.body,
+      packed,
+      raw_pbft);
+  }
 }

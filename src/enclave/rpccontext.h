@@ -172,14 +172,4 @@ namespace enclave
       headers[name] = value;
     }
   };
-
-  inline std::shared_ptr<RpcContext> make_rpc_context(
-    const SessionContext& s,
-    const std::vector<uint8_t>& packed,
-    const std::vector<uint8_t>& raw_pbft = {})
-  {
-    // TODO: Major TODO
-    // return std::make_shared<HttpRpcContext>(s, packed, raw_pbft);
-    return nullptr;
-  }
 }

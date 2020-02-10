@@ -10,31 +10,6 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
-class StubProc : public enclave::http::MsgProcessor
-{
-public:
-  struct Msg
-  {
-    http_method method;
-    std::string path;
-    std::string query;
-    enclave::http::HeaderMap headers;
-    std::vector<uint8_t> body;
-  };
-
-  std::queue<Msg> received;
-
-  virtual void handle_message(
-    http_method method,
-    const std::string& path,
-    const std::string& query,
-    const enclave::http::HeaderMap& headers,
-    const std::vector<uint8_t>& body) override
-  {
-    received.emplace(Msg{method, path, query, headers, body});
-  }
-};
-
 constexpr auto request_0 = "{\"a_json_key\": \"a_json_value\"}";
 constexpr auto request_1 = "{\"another_json_key\": \"another_json_value\"}";
 
@@ -58,7 +33,7 @@ TEST_CASE("Complete request")
 {
   std::vector<uint8_t> r;
 
-  StubProc sp;
+  enclave::http::SimpleMsgProcessor sp;
   enclave::http::Parser p(HTTP_REQUEST, sp);
 
   auto req = build_post_request(r);
@@ -74,7 +49,7 @@ TEST_CASE("Parsing error")
 {
   std::vector<uint8_t> r;
 
-  StubProc sp;
+  enclave::http::SimpleMsgProcessor sp;
   enclave::http::Parser p(HTTP_REQUEST, sp);
 
   auto req = build_post_request(r);
@@ -89,7 +64,7 @@ TEST_CASE("Parsing error")
 
 TEST_CASE("Partial request")
 {
-  StubProc sp;
+  enclave::http::SimpleMsgProcessor sp;
   enclave::http::Parser p(HTTP_REQUEST, sp);
 
   const auto r0 = s_to_v(request_0);
@@ -109,7 +84,7 @@ TEST_CASE("Partial request")
 
 TEST_CASE("Partial body")
 {
-  StubProc sp;
+  enclave::http::SimpleMsgProcessor sp;
   enclave::http::Parser p(HTTP_REQUEST, sp);
 
   const auto r0 = s_to_v(request_0);
@@ -129,7 +104,7 @@ TEST_CASE("Partial body")
 
 TEST_CASE("Multiple requests")
 {
-  StubProc sp;
+  enclave::http::SimpleMsgProcessor sp;
   enclave::http::Parser p(HTTP_REQUEST, sp);
 
   const auto r0 = s_to_v(request_0);
@@ -160,7 +135,7 @@ TEST_CASE("Multiple requests")
 
 TEST_CASE("Method parsing")
 {
-  StubProc sp;
+  enclave::http::SimpleMsgProcessor sp;
   enclave::http::Parser p(HTTP_REQUEST, sp);
 
   bool choice = false;
@@ -182,7 +157,7 @@ TEST_CASE("Method parsing")
 
 TEST_CASE("URL parsing")
 {
-  StubProc sp;
+  enclave::http::SimpleMsgProcessor sp;
   enclave::http::Parser p(HTTP_REQUEST, sp);
 
   const auto path = "/foo/123";
@@ -213,7 +188,7 @@ TEST_CASE("Pessimal transport")
   const enclave::http::HeaderMap h = {{"foo", "bar"}, {"baz", "42"}};
   for (const auto& headers : {enclave::http::default_headers(), {}, h})
   {
-    StubProc sp;
+    enclave::http::SimpleMsgProcessor sp;
     enclave::http::Parser p(HTTP_REQUEST, sp);
 
     auto builder = enclave::http::Request(HTTP_POST);

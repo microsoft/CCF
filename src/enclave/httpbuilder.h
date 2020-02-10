@@ -146,37 +146,30 @@ namespace enclave
     public:
       Response(http_status s = HTTP_STATUS_OK) : status(s) {}
 
-      std::vector<uint8_t> build_response_header(
-        size_t content_length = 0,
+      std::vector<uint8_t> build_response(
+        const std::vector<uint8_t>& body = {},
+        bool header_only = false,
         const std::string& content_type = "application/json")
       {
-        std::string rep = "";
-        if (content_length > 0)
-        {
-          rep = fmt::format(
-            "HTTP/1.1 {} {}\r\n"
-            "{}"
-            "Content-Length: {}\r\n"
-            "Content-Type: {}\r\n"
-            "\r\n",
-            status,
-            http_status_str(status),
-            get_header_string(),
-            content_length,
-            content_type);
-        }
-        else
-        {
-          rep = fmt::format(
-            "HTTP/1.1 {} {}\r\n"
-            "{}"
-            "\r\n",
-            status,
-            http_status_str(status),
-            get_header_string());
-        }
+        const auto body_view = header_only ?
+          std::string_view() :
+          std::string_view((char const*)body.data(), body.size());
 
-        return std::vector<uint8_t>(rep.begin(), rep.end());
+        const auto response = fmt::format(
+          "HTTP/1.1 {} {}\r\n"
+          "{}"
+          "Content-Length: {}\r\n"
+          "Content-Type: {}\r\n"
+          "\r\n"
+          "{}",
+          status,
+          http_status_str(status),
+          get_header_string(),
+          body.size(),
+          content_type,
+          body_view);
+
+        return std::vector<uint8_t>(response.begin(), response.end());
       }
     };
 

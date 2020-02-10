@@ -9,6 +9,7 @@
 #include <cctype>
 #include <http-parser/http_parser.h>
 #include <map>
+#include <queue>
 #include <string>
 
 namespace enclave
@@ -24,6 +25,31 @@ namespace enclave
         const std::string& query,
         const HeaderMap& headers,
         const std::vector<uint8_t>& body) = 0;
+    };
+
+    struct SimpleMsgProcessor : public enclave::http::MsgProcessor
+    {
+    public:
+      struct Msg
+      {
+        http_method method;
+        std::string path;
+        std::string query;
+        enclave::http::HeaderMap headers;
+        std::vector<uint8_t> body;
+      };
+
+      std::queue<Msg> received;
+
+      virtual void handle_message(
+        http_method method,
+        const std::string& path,
+        const std::string& query,
+        const enclave::http::HeaderMap& headers,
+        const std::vector<uint8_t>& body) override
+      {
+        received.emplace(Msg{method, path, query, headers, body});
+      }
     };
 
     enum State
@@ -42,7 +68,7 @@ namespace enclave
     static int on_req(http_parser* parser, const char* at, size_t length);
     static int on_msg_end(http_parser* parser);
 
-    std::string extract_url_field(
+    inline std::string extract_url_field(
       const http_parser_url& url, http_parser_url_fields field, char const* raw)
     {
       if ((1 << field) & url.field_set)
@@ -90,6 +116,11 @@ namespace enclave
 
         http_parser_init(&parser, type);
         parser.data = this;
+      }
+
+      http_parser* get_raw_parser()
+      {
+        return &parser;
       }
 
       size_t execute(const uint8_t* data, size_t size)

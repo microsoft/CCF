@@ -373,7 +373,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/luageneric.cpp
     )
     target_include_directories(luageneric_test PRIVATE ${LUA_DIR})
-    target_link_libraries(luageneric_test PRIVATE lua.host secp256k1.host)
+    target_link_libraries(luageneric_test PRIVATE lua.host secp256k1.host http_parser.host)
   endif()
 
   add_unit_test(

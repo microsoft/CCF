@@ -3,6 +3,7 @@
 #pragma once
 
 #include "enclave/forwardertypes.h"
+#include "enclave/http_rpc_context.h"
 #include "enclave/rpcmap.h"
 #include "node/nodetonode.h"
 

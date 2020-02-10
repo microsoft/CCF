@@ -77,7 +77,7 @@ namespace enclave
           r.set_header(HTTP_HEADER_CONNECTION, CONNECTION_HEADER_UPGRADE);
           r.set_header(HTTP_HEADER_WEBSOCKET_ACCEPT, accept_string.value());
 
-          return r.build_response_header();
+          return r.build_response();
         }
         else
         {

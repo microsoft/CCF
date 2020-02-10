@@ -153,12 +153,12 @@ namespace enclave
 
       if (status == HTTP_STATUS_NO_CONTENT)
       {
-        send_raw(http::Response(status).build_response_header());
+        send_raw(http::Response(status).build_response({}, true));
         return;
       }
 
-      send_buffered(http::Response(status).build_response_header(
-        data.size(), content_type));
+      send_buffered(
+        http::Response(status).build_response(data, true, content_type));
       send_buffered(data);
       flush();
     }

@@ -33,7 +33,7 @@ namespace enclave
     static constexpr auto SIGN_PARAMS_DELIMITER = ",";
     static constexpr auto SIGN_PARAMS_HEADERS_DELIMITER = " ";
 
-    std::optional<std::vector<uint8_t>> construct_raw_signed_string(
+    inline std::optional<std::vector<uint8_t>> construct_raw_signed_string(
       std::string verb,
       const std::string& path,
       const std::string& query,
