@@ -16,13 +16,14 @@ parameters:
     Metrics:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
-      dependsOn: ['BuildAndTest_SGX_CFT_HTTP_Release', 'BuildAndTest_SGX_BFT_HTTP_Release']
+      dependsOn: ['BuildAndTest_SGX_CFT_HTTP_Perf', 'BuildAndTest_SGX_BFT_HTTP_Perf']
     Release:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
       dependsOn: ['BuildAndTest_NoSGX_CFT_HTTP_', 'BuildAndTest_SGX_CFT_HTTP_', 'BuildAndTest_NoSGX_CFT_HTTP_SAN', 'BuildAndTest_SGX_CFT_HTTP_Release']
     Perf:
       pool: CCF-Perf
+      dependsOn: ['BuildAndTest_SGX_CFT_HTTP_Release', 'BuildAndTest_SGX_BFT_HTTP_Release']
 
   build:
     common:
@@ -106,8 +107,8 @@ jobs:
           suffix: 'SAN'
           depends_on: ${{ parameters.static_check_job_name }}
 
-  # Optimised builds, only run performance tests
-  # When building a release, run all tests and publish install tarball
+  # Optimised build
+  # When building a release, run all tests except performance and publish install tarball
   - ${{ each consensus in parameters.consensus }}:
     - ${{ each protocol in parameters.protocol }}:
       - template: common.yml
@@ -123,7 +124,7 @@ jobs:
           suffix: 'Release'
           depends_on: ${{ parameters.static_check_job_name }}
 
-  # Optimised builds, only run performance tests
+  # Install release and run performance tests
   - ${{ each consensus in parameters.consensus }}:
     - ${{ each protocol in parameters.protocol }}:
       - template: common.yml
@@ -132,11 +133,10 @@ jobs:
           consensus: ${{ consensus }}
           protocol: ${{ protocol }}
           env: ${{ parameters.env.Perf }}
-          cmake_args: '${{ parameters.build[parameters.perf_or_release][protocol].cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }} ${{ parameters.build.perf.cmake_args }}'
-          ctest_filter: '-L "perf"'
+          cmake_args: '${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }} ${{ parameters.build.perf.cmake_args }}'
+          ctest_filter: '${{ parameters.test.perf[consensus].ctest_args }}'
           suffix: 'Perf'
           depends_on: ${{ parameters.static_check_job_name }}
-
 
   - template: metrics.yml
     parameters:

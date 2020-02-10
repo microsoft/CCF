@@ -22,7 +22,7 @@ jobs:
       - template: coverage.yml
         parameters:
           consensus: ${{ parameters.consensus }}
-    - ${{ if and(eq(parameters.suffix, 'Release'), not(and(eq(parameters.consensus, 'BFT'), eq(parameters.protocol, 'HTTP')))) }}:
+    - ${{ if eq(parameters.suffix, 'Perf') }}:
       - template: push_perf_data.yml
         parameters:
           consensus: ${{ parameters.consensus }}
