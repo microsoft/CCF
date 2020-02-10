@@ -1,8 +1,8 @@
 jobs:
-- job: BuildAndTest_${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.protocol }}_${{ parameters.suffix }}
+- job: BuildAndTest_${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.suffix }}
   variables:
     skipComponentGovernanceDetection: true
-  displayName: 'Build and Test ${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.protocol }} ${{ parameters.suffix }}'
+  displayName: 'Build and Test ${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }}'
 
   ${{ insert }}: ${{ parameters.env }}
 
@@ -12,14 +12,14 @@ jobs:
     - template: cmake.yml
       parameters:
         cmake_args: '${{ parameters.cmake_args }}'
-        suite_label_suffix: '${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.protocol }}'
+        suite_label_suffix: '${{ parameters.target }}_${{ parameters.consensus }}'
     - template: ninja.yml
       parameters:
         cmake_args: '${{ parameters.cmake_args }}'
     - template: test.yml
       parameters:
         ctest_filter: ${{ parameters.ctest_filter }}
-        suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.protocol }} ${{ parameters.suffix }} tests'
+        suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }} tests'
     - ${{ if and(eq(parameters.target, 'NoSGX'), eq(parameters.suffix, '')) }}:
       - template: coverage.yml
         parameters:
@@ -31,5 +31,4 @@ jobs:
     - ${{ if eq(parameters.suffix, 'Release') }}:
       - template: install.yml
         parameters:
-          protocol: ${{ parameters.protocol }}
           install_prefix: ${{ parameters.install_prefix }}
