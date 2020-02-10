@@ -28,7 +28,7 @@ jobs:
       - template: push_perf_data.yml
         parameters:
           consensus: ${{ parameters.consensus }}
-    - ${{ if eq(parameters.suffix, 'Release') }}:
+    - ${{ if and(ne(parameters.consensus, 'BFT'), eq(parameters.suffix, 'Release')) }}:
       - template: install.yml
         parameters:
           install_prefix: ${{ parameters.install_prefix }}
