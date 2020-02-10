@@ -483,7 +483,7 @@ namespace ccf
 #endif
 
       auto func = handler->func;
-      auto args = RequestArgs{ctx, tx, caller_id, ctx->method};
+      auto args = RequestArgs{ctx, tx, caller_id};
 
       tx_count++;
 

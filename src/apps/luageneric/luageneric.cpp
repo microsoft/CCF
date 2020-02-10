@@ -116,24 +116,27 @@ namespace ccfapp
       tsr = std::make_unique<AppTsr>(network, app_tables);
 
       auto default_handler = [this](RequestArgs& args) {
-        if (args.method == UserScriptIds::ENV_HANDLER)
+        if (args.rpc_ctx->get_method() == UserScriptIds::ENV_HANDLER)
         {
           args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-            fmt::format("Cannot call environment script ('{}')", args.method));
+            fmt::format(
+              "Cannot call environment script ('{}')",
+              args.rpc_ctx->get_method()));
           return;
         }
 
         const auto scripts = args.tx.get_view(this->network.app_scripts);
 
         // try find script for method
-        auto handler_script = scripts->get(args.method);
+        auto handler_script = scripts->get(args.rpc_ctx->get_method());
         if (!handler_script)
         {
           args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
             fmt::format(
-              "No handler script found for method '{}'", args.method));
+              "No handler script found for method '{}'",
+              args.rpc_ctx->get_method()));
           return;
         }
 

@@ -17,9 +17,11 @@ namespace enclave
     uint64_t seq_no = {};
     nlohmann::json params = nlohmann::json::object();
     std::string entire_path = {};
-    std::string_view remaining_path = {};
 
   public:
+    // TODO: This is a temporary bodge. Shouldn't be public?
+    std::string_view remaining_path = {};
+
     HttpRpcContext(
       const SessionContext& s,
       http_method verb,
@@ -73,9 +75,9 @@ namespace enclave
       return params;
     }
 
-    virtual std::string_view& get_method() override
+    virtual std::string get_method() const override
     {
-      return remaining_path;
+      return std::string(remaining_path);
     }
 
     virtual std::string get_whole_method() const override
@@ -134,14 +136,6 @@ namespace enclave
         jsonrpc::error_response(seq_no, error_element), jsonrpc::Pack::Text);
     }
   };
-
-  std::shared_ptr<RpcContext> make_rpc_context(
-    const SessionContext& s,
-    const std::vector<uint8_t>& packed,
-    const std::vector<uint8_t>& raw_pbft = {})
-  {
-    return std::make_shared<HttpRpcContext>(s, packed, raw_pbft);
-  }
 
   class HTTPEndpoint : public TLSEndpoint, public http::MsgProcessor
   {
@@ -366,7 +360,7 @@ namespace enclave
         rpc_ctx->set_request_index(request_index++);
 
         std::string_view actor_s = {};
-        auto& method = rpc_ctx->get_method();
+        auto& method = rpc_ctx->remaining_path;
 
         {
           const auto first_slash = path.find_first_of('/');
@@ -397,6 +391,7 @@ namespace enclave
         }
 
         auto actor = rpc_map->resolve(std::string(actor_s));
+        rpc_ctx->actor = actor;
         auto search = rpc_map->find(actor);
         if (actor == ccf::ActorsType::unknown || !search.has_value())
         {

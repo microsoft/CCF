@@ -80,6 +80,9 @@ namespace enclave
 
     std::optional<ccf::SignedReq> signed_request = std::nullopt;
 
+    // TODO: I think this should be removed?
+    ccf::ActorsType actor = {};
+
     bool is_create_request = false;
 
     bool read_only_hint = true;
@@ -110,9 +113,7 @@ namespace enclave
 
     virtual const nlohmann::json& get_params() const = 0;
 
-    // Non-const as the caller is allowed to modify this (advancing past the
-    // part they have parsed)
-    virtual std::string_view& get_method() = 0;
+    virtual std::string get_method() const = 0;
 
     virtual std::string get_whole_method() const = 0;
 
@@ -260,9 +261,9 @@ namespace enclave
       return params;
     }
 
-    virtual std::string_view& get_method() override
+    virtual std::string get_method() const override
     {
-      return remaining_method;
+      return std::string(remaining_method);
     }
 
     virtual std::string get_whole_method() const override
@@ -319,8 +320,13 @@ namespace enclave
     }
   };
 
-  std::shared_ptr<RpcContext> make_rpc_context(
+  inline std::shared_ptr<RpcContext> make_rpc_context(
     const SessionContext& s,
     const std::vector<uint8_t>& packed,
-    const std::vector<uint8_t>& raw_pbft = {});
+    const std::vector<uint8_t>& raw_pbft = {})
+  {
+    // TODO: Major TODO
+    // return std::make_shared<HttpRpcContext>(s, packed, raw_pbft);
+    return nullptr;
+  }
 }
