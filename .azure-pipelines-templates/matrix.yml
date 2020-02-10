@@ -63,7 +63,7 @@ parameters:
       ctest_args: '-LE "benchmark|perf|suite"'
     SGX:
       ctest_args: '-LE "benchmark|perf"'
-    SGX_Release:
+    Release:
       ctest_args: '-LE "benchmark|perf"'
     perf:
       CFT:
@@ -75,7 +75,6 @@ parameters:
 
   static_checck_job_name: 'Formatting_and_License_Checks'
   san_target: 'NoSGX'
-  release_target: 'SGX_Release'
 
 jobs:
   - template: checks.yml
@@ -110,13 +109,13 @@ jobs:
   - ${{ each consensus in parameters.consensus }}:
     - template: common.yml
       parameters:
-        target: ${{ parameters.release_target }}
+        target: Release
         consensus: ${{ consensus }}
-        env: ${{ parameters.env[parameters.release_target] }}
+        env: ${{ parameters.env[Release] }}
         install: true
         install_prefix: '${{ parameters.build.install.install_prefix }}'
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-        ctest_filter: '${{ parameters.test[parameters.release_target].ctest_args }}'
+        ctest_filter: '${{ parameters.test[Release].ctest_args }}'
         suffix: 'Release'
 
   # Install release and run performance tests
