@@ -111,11 +111,11 @@ jobs:
       parameters:
         target: Release
         consensus: ${{ consensus }}
-        env: ${{ parameters.env[Release] }}
+        env: ${{ parameters.env.Release }}
         install: true
         install_prefix: '${{ parameters.build.install.install_prefix }}'
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-        ctest_filter: '${{ parameters.test[Release].ctest_args }}'
+        ctest_filter: '${{ parameters.test.Release.ctest_args }}'
         suffix: 'Release'
 
   # Install release and run performance tests
