@@ -122,7 +122,6 @@ jobs:
           cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
           ctest_filter: '${{ parameters.test.release[consensus].ctest_args }}'
           suffix: 'Release'
-          depends_on: ${{ parameters.static_check_job_name }}
 
   # Install release and run performance tests
   - ${{ each consensus in parameters.consensus }}:
@@ -136,7 +135,6 @@ jobs:
           cmake_args: '${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }} ${{ parameters.build.perf.cmake_args }}'
           ctest_filter: '${{ parameters.test.perf[consensus].ctest_args }}'
           suffix: 'Perf'
-          depends_on: ${{ parameters.static_check_job_name }}
 
   - template: metrics.yml
     parameters:
