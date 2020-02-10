@@ -19,8 +19,8 @@ namespace ccf
 
   struct RecvNonce
   {
-    uint8_t tid : 8;
-    uint64_t nonce : 56;
+    uint8_t tid;
+    uint64_t nonce : (sizeof(uint64_t) - sizeof(uint8_t)) * CHAR_BIT;
 
     RecvNonce(uint64_t nonce_, uint8_t tid_) : nonce(nonce_), tid(tid_) {}
     RecvNonce(const uint64_t header)
