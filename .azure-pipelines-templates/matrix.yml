@@ -4,6 +4,9 @@ parameters:
   protocol: ['HTTP']
 
   env:
+    Checks:
+      container: nosgx
+      pool: Ubuntu-1804-D8s_v3
     NoSGX:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
@@ -71,14 +74,12 @@ parameters:
       ctest_args: '-LE "benchmark|perf|suite"'
 
   static_checck_job_name: 'Formatting_and_License_Checks'
-
   san_target: 'NoSGX'
-  checks_target: 'NoSGX'
 
 jobs:
   - template: checks.yml
     parameters:
-      env: ${{ parameters.env[parameters.checks_target] }}
+      env: ${{ parameters.env.Checks }}
       job_name: ${{ parameters.static_check_job_name }}
 
   # Debug builds with code coverage, run all tests except performance
