@@ -1814,6 +1814,7 @@ void Replica::send_view_change()
   for (Seqno i = last_stable + 1; i <= last_stable + max_out; i++)
   {
     Prepared_cert& pc = plog.fetch(i);
+    pc.update();
     Certificate<Commit>& cc = clog.fetch(i);
 
     if (pc.is_complete())

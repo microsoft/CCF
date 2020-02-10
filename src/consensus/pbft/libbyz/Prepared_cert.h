@@ -63,6 +63,9 @@ public:
   // reference to a big request is d, records that d is cached and may
   // make the certificate complete.
 
+  void update();
+  // Update f if needed
+
   Prepare* my_prepare();
   Prepare* my_prepare(Time& t);
   Pre_prepare* my_pre_prepare();
@@ -132,6 +135,11 @@ private:
   Time t_sent; // time at which pp was sent (if I am primary)
   bool primary; // true iff pp was added with add_mine
 };
+
+inline void Prepared_cert::update()
+{
+  prepare_cert.update();
+}
 
 inline bool Prepared_cert::add(Prepare* m)
 {
