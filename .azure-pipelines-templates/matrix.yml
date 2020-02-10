@@ -32,7 +32,7 @@ parameters:
       dependsOn: ['BuildAndTest_SGX_CFT_Release', 'BuildAndTest_SGX_BFT_Release']
     Perf:
       pool: CCF-Perf
-      dependsOn: ['BuildAndTest_SGX_CFT_Release', 'BuildAndTest_SGX_BFT_Release']
+      dependsOn:  ['Formatting_and_License_Checks']
 
   build:
     common:
