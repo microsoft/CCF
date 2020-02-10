@@ -16,42 +16,61 @@ namespace ccf
     ACCEPTED = 0,
     ACTIVE = 1
   };
+  DECLARE_JSON_ENUM(
+    MemberStatus,
+    {{MemberStatus::ACCEPTED, "ACCEPTED"}, {MemberStatus::ACTIVE, "ACTIVE"}});
 }
 
 MSGPACK_ADD_ENUM(ccf::MemberStatus);
 
 namespace ccf
 {
-  struct MemberInfo
+  struct NewMember
   {
     std::vector<uint8_t> cert;
-    MemberStatus status;
-    std::vector<uint8_t> keyshare;
+    std::vector<uint8_t> keyshare_encryption_key;
 
-    MSGPACK_DEFINE(cert, status, keyshare);
+    NewMember() {}
+
+    NewMember(
+      const std::vector<uint8_t>& cert_,
+      const std::vector<uint8_t>& keyshare_encryption_key_) :
+      cert(cert_),
+      keyshare_encryption_key(keyshare_encryption_key_)
+    {}
+
+    NewMember(
+      std::vector<uint8_t>&& cert_,
+      std::vector<uint8_t>&& keyshare_encryption_key_) :
+      cert(std::move(cert_)),
+      keyshare_encryption_key(std::move(keyshare_encryption_key_))
+    {}
+
+    MSGPACK_DEFINE(cert, keyshare_encryption_key);
   };
+
+  DECLARE_JSON_TYPE(NewMember)
+  DECLARE_JSON_REQUIRED_FIELDS(NewMember, cert, keyshare_encryption_key)
+
+  struct MemberInfo : NewMember
+  {
+    MemberStatus status;
+
+    MemberInfo() {}
+
+    MemberInfo(
+      const std::vector<uint8_t>& cert_,
+      const std::vector<uint8_t>& keyshare_encryption_key_,
+      MemberStatus status_) :
+      NewMember(cert_, keyshare_encryption_key_),
+      status(status_)
+    {}
+
+    MSGPACK_DEFINE(MSGPACK_BASE(NewMember), keyshare_encryption_key);
+  };
+  DECLARE_JSON_TYPE_WITH_BASE(MemberInfo, NewMember)
+  DECLARE_JSON_REQUIRED_FIELDS(MemberInfo, status)
   using Members = Store::Map<MemberId, MemberInfo>;
-
-  inline void to_json(nlohmann::json& j, const MemberInfo& mi)
-  {
-    j["cert"] = mi.cert;
-    j["status"] = mi.status;
-    if (!mi.keyshare.empty())
-    {
-      j["keyshare"] = nlohmann::json::from_msgpack(mi.keyshare);
-    }
-  }
-
-  inline void from_json(const nlohmann::json& j, MemberInfo& mi)
-  {
-    assign_j(mi.cert, j["cert"]);
-    mi.status = j["status"];
-    auto keyshare = j.find("keyshare");
-    if (keyshare != j.end())
-    {
-      assign_j(mi.keyshare, nlohmann::json::to_msgpack(keyshare.value()));
-    }
-  }
 
   /** Records a signature for the last nonce and gives the next nonce to sign.
    */

@@ -260,9 +260,9 @@ namespace ccf
       create_rpc.id = 0;
       create_rpc.method = ccf::MemberProcs::CREATE;
 
-      for (auto& cert : args.config.genesis.member_certs)
+      for (auto& m_info : args.config.genesis.members_info)
       {
-        create_rpc.params.member_cert.push_back(cert);
+        create_rpc.params.members_info.push_back(m_info);
       }
 
       create_rpc.params.gov_script = args.config.genesis.gov_script;

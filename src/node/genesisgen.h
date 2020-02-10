@@ -83,6 +83,7 @@ namespace ccf
 
     auto add_member(
       const std::vector<uint8_t>& member_cert_pem,
+      const std::vector<uint8_t>& member_keyshare_encryption_key,
       MemberStatus member_status = MemberStatus::ACTIVE)
     {
       auto [m, mc, v] =
@@ -104,7 +105,10 @@ namespace ccf
       }
 
       const auto id = get_next_id(v, ValueIds::NEXT_MEMBER_ID);
-      m->put(id, {member_cert_der, member_status});
+      m->put(
+        id,
+        MemberInfo(
+          member_cert_der, member_keyshare_encryption_key, member_status));
       mc->put(member_cert_der, id);
       return id;
     }
