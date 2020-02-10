@@ -182,6 +182,7 @@ inline bool Prepared_cert::add_mine(Pre_prepare* m)
       pbft::GlobalState::get_node().primary(m->view()),
     "Invalid Argument");
   PBFT_ASSERT(!pp_info.pre_prepare(), "Invalid state");
+  prepare_cert.update();
   pp_info.add_complete(m);
   primary = true;
   t_sent = ITimer::current_time();

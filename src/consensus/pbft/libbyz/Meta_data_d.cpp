@@ -32,7 +32,6 @@ Meta_data_d::Meta_data_d(Request_id r, int l, size_t i, Seqno ls) :
 
 void Meta_data_d::add_digest(Seqno n, Digest& digest)
 {
-  PBFT_ASSERT(n % checkpoint_interval == 0, "Invalid argument");
   PBFT_ASSERT(
     (last_stable() <= n) && (n <= last_stable() + max_out), "Invalid argument");
 
@@ -47,7 +46,7 @@ void Meta_data_d::add_digest(Seqno n, Digest& digest)
 
 bool Meta_data_d::digest(Seqno n, Digest& d)
 {
-  if (n % checkpoint_interval != 0 || last_stable() > n)
+  if (last_stable() > n)
   {
     return false;
   }

@@ -19,7 +19,7 @@ New_view::New_view(View v) : Message(New_view_tag, Max_message_size)
   rep().max = -1;
 
   // Initialize vc_info
-  for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
+  for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas() + 1; i++)
   {
     vc_info()[i].d.zero();
   }
@@ -59,7 +59,7 @@ void New_view::pick(int id, Seqno n)
 
 bool New_view::view_change(int id, Digest& d)
 {
-  if (id < 0 || id >= pbft::GlobalState::get_node().num_of_replicas())
+  if (id < 0 || id >= pbft::GlobalState::get_node().num_of_replicas() + 1)
   {
     return false;
   }
@@ -98,8 +98,8 @@ bool New_view::pre_verify()
   }
 
   int old_size = sizeof(New_view_rep) +
-    sizeof(VC_info) * pbft::GlobalState::get_node().num_of_replicas() + max() -
-    min();
+    sizeof(VC_info) * pbft::GlobalState::get_node().num_of_replicas() + 1 +
+    max() - min();
 
   if (Max_message_size - old_size < pbft_max_signature_size)
   {

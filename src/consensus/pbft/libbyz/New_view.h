@@ -158,7 +158,7 @@ inline uint8_t* New_view::picked()
 {
   // Effects: Returns a pointer to the picked array.
   return (
-    uint8_t*)(vc_info() + pbft::GlobalState::get_node().num_of_replicas());
+    uint8_t*)(vc_info() + pbft::GlobalState::get_node().num_of_replicas() + 1);
 }
 
 inline View New_view::view() const
