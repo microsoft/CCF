@@ -110,11 +110,6 @@ public:
   const char* stag();
   // Effects: Returns a string with tag name
 
-  bool encode(FILE* o);
-  bool decode(FILE* i);
-  // Effects: Encodes and decodes object state from stream. Return
-  // true if successful and false otherwise.
-
 protected:
   Message(int t, unsigned sz);
   // Effects: Creates a message with tag "t" that can hold up to "sz"

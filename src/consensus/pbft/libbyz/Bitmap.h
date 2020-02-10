@@ -65,11 +65,6 @@ public:
     size_t index; // Index of next boolean to be tested
   };
 
-  bool encode(FILE* o);
-  bool decode(FILE* i);
-  // Effects: Encodes and decodes object state from stream. Return
-  // true if successful and false otherwise.
-
 private:
   friend class Iter;
 
@@ -149,32 +144,6 @@ inline bool Bitmap::Iter::get(size_t& ind)
     index++;
   }
   return false;
-}
-
-inline bool Bitmap::encode(FILE* o)
-{
-  size_t sz = fwrite(&num, sizeof(size_t), 1, o);
-  sz += fwrite(&nc, sizeof(size_t), 1, o);
-  sz += fwrite(chunks, sizeof(Chunk), nc, o);
-
-  return sz == 2 + nc;
-}
-
-inline bool Bitmap::decode(FILE* i)
-{
-#ifndef INSIDE_ENCLAVE
-  size_t sz = fread(&num, sizeof(size_t), 1, i);
-  sz += fread(&nc, sizeof(size_t), 1, i);
-
-  delete[] chunks;
-  chunks = new Chunk[nc];
-
-  sz += fread(chunks, sizeof(Chunk), nc, i);
-
-  return ((sz == 2 + nc) && (num <= nc * ChunkBits));
-#else
-  return true;
-#endif
 }
 
 //
