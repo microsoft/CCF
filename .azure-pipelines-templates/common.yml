@@ -3,7 +3,6 @@ jobs:
   variables:
     skipComponentGovernanceDetection: true
   displayName: 'Build and Test ${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.protocol }} ${{ parameters.suffix }}'
-  dependsOn: ${{ parameters.depends_on }}
 
   ${{ insert }}: ${{ parameters.env }}
 
