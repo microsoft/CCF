@@ -3,19 +3,8 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#ifndef INSIDE_ENCLAVE
-#  include <stdio.h>
-#  include <stdlib.h>
-#  include <string.h>
-#endif
-
-#ifndef INSIDE_ENCLAVE
-#  include <sys/time.h>
-#  include <sys/types.h>
-#  include <unistd.h>
-#endif
-
 #include "Client.h"
+
 #include "ITimer.h"
 #include "Message.h"
 #include "Reply.h"

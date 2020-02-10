@@ -70,11 +70,6 @@ public:
   };
   friend class BRS_iter;
 
-  bool encode(FILE* o);
-  bool decode(FILE* i);
-  // Effects: Encodes and decodes object state from stream. Return
-  // true if successful and false otherwise.
-
   void dump_state(std::ostream& os);
   // Effects: logs state for debugging
 
