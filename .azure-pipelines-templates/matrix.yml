@@ -21,18 +21,18 @@ parameters:
     Release:
       container: sgx
       pool: Ubuntu-1804-DC4s
-      dependsOn: ['BuildAndTest_NoSGX_CFT_HTTP_Debug', 'BuildAndTest_SGX_CFT_HTTP_Debug', 'BuildAndTest_NoSGX_CFT_HTTP_SAN', 'BuildAndTest_NoSGX_BFT_HTTP_Debug', 'BuildAndTest_SGX_BFT_HTTP_Debug', 'BuildAndTest_NoSGX_BFT_HTTP_SAN',]
+      dependsOn: ['BuildAndTest_NoSGX_CFT_Debug', 'BuildAndTest_SGX_CFT_Debug', 'BuildAndTest_NoSGX_CFT_SAN', 'BuildAndTest_NoSGX_BFT_Debug', 'BuildAndTest_SGX_BFT_Debug', 'BuildAndTest_NoSGX_BFT_SAN']
     Metrics:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
-      dependsOn: ['BuildAndTest_SGX_CFT_HTTP_Perf', 'BuildAndTest_SGX_BFT_HTTP_Perf']
+      dependsOn: ['BuildAndTest_SGX_CFT_Perf', 'BuildAndTest_SGX_BFT_Perf']
     Publish:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
-      dependsOn: ['BuildAndTest_SGX_CFT_HTTP_Release', 'BuildAndTest_SGX_BFT_HTTP_Release']
+      dependsOn: ['BuildAndTest_SGX_CFT_Release', 'BuildAndTest_SGX_BFT_Release']
     Perf:
       pool: CCF-Perf
-      dependsOn: ['BuildAndTest_SGX_CFT_HTTP_Release', 'BuildAndTest_SGX_BFT_HTTP_Release']
+      dependsOn: ['BuildAndTest_SGX_CFT_Release', 'BuildAndTest_SGX_BFT_Release']
 
   build:
     common:
@@ -52,8 +52,6 @@ parameters:
       cmake_args: '-DCMAKE_INSTALL_PREFIX=/tmp/ccf-install'
     san:
       cmake_args: '-DSAN=ON'
-    HTTP:
-      cmake_args: ''
     perf:
       cmake_args: '-DPERF=ON'
       
