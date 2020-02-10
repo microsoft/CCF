@@ -28,12 +28,8 @@ jobs:
       - template: push_perf_data.yml
         parameters:
           consensus: ${{ parameters.consensus }}
-    # For now, only CFT builds are released
-    - ${{ if and(eq(parameters.install, true), eq(parameters.consensus, 'CFT'))}}:
+    - ${{ if eq(parameters.suffix, 'Release') }}:
       - template: install.yml
         parameters:
           protocol: ${{ parameters.protocol }}
           install_prefix: ${{ parameters.install_prefix }}
-          # HTTP is default install
-          ${{ if ne(parameters.protocol, 'HTTP') }}:
-            install_suffix: '_${{ parameters.protocol }}'
