@@ -13,14 +13,15 @@ jobs:
       parameters:
         cmake_args: '${{ parameters.cmake_args }}'
         suite_label_suffix: '${{ parameters.target }}_${{ parameters.consensus }}'
-    - template: ninja.yml
-      parameters:
-        cmake_args: '${{ parameters.cmake_args }}'
+    - ${{ if eq(parameters.suffix, 'Perf') }}:  
+      - template: ninja.yml
+        parameters:
+          cmake_args: '${{ parameters.cmake_args }}'
     - template: test.yml
       parameters:
         ctest_filter: ${{ parameters.ctest_filter }}
         suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }} tests'
-    - ${{ if and(eq(parameters.target, 'NoSGX'), eq(parameters.suffix, 'Debug')) }}:
+    - ${{ if eq(parameters.suffix, 'Debug') }}:
       - template: coverage.yml
         parameters:
           consensus: ${{ parameters.consensus }}
