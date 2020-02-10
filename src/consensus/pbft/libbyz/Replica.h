@@ -152,9 +152,7 @@ public:
 
   // variables used to keep track of versions so that we can tell the kv to
   // rollback
-  kv::Version last_executed_version = 0;
   kv::Version last_te_version = 0;
-  kv::Version last_stable_version = 0;
   kv::Version last_gb_version = 0;
   Seqno last_gb_seqno = 0;
 

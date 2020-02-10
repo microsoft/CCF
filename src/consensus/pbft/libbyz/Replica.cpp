@@ -501,7 +501,6 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
     ledger_writer->write_pre_prepare(tx, last_te_version);
 
     last_executed++;
-    last_executed_version = last_te_version;
 
     if (global_commit_cb != nullptr && executable_pp->is_signed())
     {
@@ -822,12 +821,6 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
   // If rqueue is empty there are no requests for which to send
   // pre_prepare and a pre-prepare cannot be sent if the seqno exceeds
   // the maximum window or the replica does not have the new view.
-  LOG_TRACE_FMT(
-    "rqueue size {}, next_pp_seqno {}, last_executed {}, last_stable {}",
-    rqueue.size(),
-    next_pp_seqno,
-    last_executed,
-    last_stable);
   if (
     (rqueue.size() >= min_pre_prepare_batch_size ||
      (do_not_wait_for_batch_size && rqueue.size() > 0)) &&
@@ -1263,7 +1256,7 @@ void Replica::fetch_state_outside_view_change()
     LOG_INFO_FMT("Rolled back using to seqno {} with version {}", rc, rv);
 
     last_tentative_execute = last_executed = last_stable;
-    last_te_version = last_executed_version = last_stable_version = rv;
+    last_te_version = rv;
     LOG_INFO_FMT(
       "Rolled back done, last tentative execute and last executed are {} {}",
       last_tentative_execute,
@@ -1791,18 +1784,17 @@ void Replica::send_view_change()
     Seqno rc = state.rollback(last_gb_seqno);
     LOG_INFO_FMT(
       "Rolled back in view change to seqno {}, to version {}, last_executed "
-      "was {}, last_tentative_execute was {}, last executed version was {}, "
+      "was {}, last_tentative_execute was {}, "
       "last gb seqno {}, last gb version was {}",
       rc,
       rv,
       last_executed,
       last_tentative_execute,
-      last_stable_version,
       last_gb_seqno,
       last_gb_version);
 
     last_tentative_execute = last_executed = rc;
-    last_te_version = last_executed_version = last_stable_version = rv;
+    last_te_version = rv;
     LOG_INFO_FMT(
       "Rolled back done, last tentative execute and last executed are {} {}",
       last_tentative_execute,
@@ -2214,15 +2206,12 @@ void Replica::execute_prepared(bool committed)
     {
       LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
 
-      LOG_INFO_FMT("Checkpointing for seqno {}", pp->seqno());
+      LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
       state.checkpoint(pp->seqno());
 
       last_gb_version = pp->get_ctx();
       last_gb_seqno = pp->seqno();
-      LOG_INFO_FMT(
-        "Set last gb version to {} for seqno {}",
-        last_gb_version,
-        last_gb_seqno);
+
       global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
       signed_version = 0;
     }
@@ -2410,7 +2399,6 @@ void Replica::execute_committed(bool was_f_0)
 
         execute_prepared(true);
         last_executed = last_executed + 1;
-        last_executed_version = last_te_version;
         stats.last_executed = last_executed;
         PBFT_ASSERT(pp->seqno() == last_executed, "Invalid execution");
 
@@ -2570,7 +2558,6 @@ void Replica::new_state(Seqno c)
   if (c > last_executed)
   {
     last_executed = last_tentative_execute = c;
-    last_executed_version = last_te_version;
     stats.last_executed = last_executed;
 
 #ifdef ENFORCE_EXACTLY_ONCE
@@ -2676,8 +2663,6 @@ void Replica::mark_stable(Seqno n, bool have_state)
               << std::endl;
     PBFT_ASSERT(last_tentative_execute < last_stable, "Invalid state");
     last_executed = last_tentative_execute = last_stable;
-    last_executed_version = last_stable_version;
-    last_te_version = last_stable_version;
     stats.last_executed = last_executed;
 
 #ifdef ENFORCE_EXACTLY_ONCE
@@ -2701,9 +2686,6 @@ void Replica::mark_stable(Seqno n, bool have_state)
   elog.truncate(last_stable);
   state.discard_checkpoints(last_stable, last_executed);
   brt.mark_stable(last_stable);
-
-  LOG_TRACE_FMT("Setting last stable version to {}", last_executed_version);
-  last_stable_version = last_executed_version;
 
   if (mark_stable_cb != nullptr)
   {
