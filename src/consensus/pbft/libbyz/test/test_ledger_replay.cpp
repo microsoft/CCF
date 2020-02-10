@@ -330,8 +330,6 @@ TEST_CASE("Test Ledger Replay")
         {
           break;
         }
-        // TODO: when deserialise will be called by pbft, in that place pbft
-        // will have to also append the write set to the ledger
         entries.emplace_back(ret.first);
       }
 
