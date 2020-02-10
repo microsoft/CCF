@@ -389,6 +389,8 @@ bool Replica::compare_execution_results(
   auto& pp_root = pre_prepare->get_full_state_merkle_root();
   auto& r_pp_root = pre_prepare->get_replicated_state_merkle_root();
 
+  auto execution_match = true;
+
   if (!std::equal(
         std::begin(r_pp_root),
         std::end(r_pp_root),
@@ -397,7 +399,7 @@ bool Replica::compare_execution_results(
     LOG_FAIL << "Replicated state merkle root between execution and the "
                 "pre_prepare message does not match, seqno:"
              << pre_prepare->seqno() << std::endl;
-    return false;
+    execution_match = false;
   }
 
   auto tx_ctx = pre_prepare->get_ctx();
@@ -407,7 +409,7 @@ bool Replica::compare_execution_results(
                 "does not match, seqno:"
              << pre_prepare->seqno() << ", tx_ctx:" << tx_ctx
              << ", info.ctx:" << info.ctx << std::endl;
-    return false;
+    execution_match = false;
   }
 
   if (!std::equal(
@@ -418,10 +420,20 @@ bool Replica::compare_execution_results(
     LOG_FAIL << "Full state merkle root between execution and the pre_prepare "
                 "message does not match, seqno:"
              << pre_prepare->seqno() << std::endl;
+    execution_match = false;
+  }
+
+  if (!execution_match)
+  {
+    if (rollback_cb != nullptr)
+    {
+      rollback_cb(last_te_version, rollback_info);
+    }
     return false;
   }
 
   last_te_version = info.ctx;
+
   return true;
 }
 
@@ -529,10 +541,6 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
     LOG_INFO_FMT(
       "Merkle roots don't match in playback pre-prepare for seqno {}",
       executable_pp->seqno());
-    if (rollback_cb != nullptr)
-    {
-      rollback_cb(last_te_version, rollback_info);
-    }
   }
 }
 
@@ -1008,10 +1016,6 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       {
         LOG_INFO_FMT(
           "Merkle roots don't match in send prepare for seqno {}", seqno);
-        if (rollback_cb != nullptr)
-        {
-          rollback_cb(last_te_version, rollback_info);
-        }
         break;
       }
 
@@ -1044,7 +1048,6 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
 void Replica::send_commit(Seqno s, bool send_only_to_self)
 {
-  LOG_TRACE_FMT("Send commit for seqno s {}", s);
   size_t before_f = f();
   // Executing request before sending commit improves performance
   // for null requests. May not be true in general.
@@ -1253,12 +1256,12 @@ void Replica::fetch_state_outside_view_change()
 
     Seqno rc = state.rollback(last_gb_seqno);
 
-    LOG_INFO_FMT("Rolled back using to seqno {} with version {}", rc, rv);
-
     last_tentative_execute = last_executed = last_stable;
     last_te_version = rv;
     LOG_INFO_FMT(
-      "Rolled back done, last tentative execute and last executed are {} {}",
+      "Roll back done, rolled back to seqno {}, last tentative execute and "
+      "last executed are {} {}",
+      rc,
       last_tentative_execute,
       last_executed);
   }
@@ -1796,7 +1799,7 @@ void Replica::send_view_change()
     last_tentative_execute = last_executed = rc;
     last_te_version = rv;
     LOG_INFO_FMT(
-      "Rolled back done, last tentative execute and last executed are {} {}",
+      "Roll back done, last tentative execute and last executed are {} {}",
       last_tentative_execute,
       last_executed);
   }
@@ -2377,10 +2380,6 @@ void Replica::execute_committed(bool was_f_0)
             LOG_INFO_FMT(
               "Merkle roots don't match in execute committed for seqno {}",
               pp->seqno());
-            if (rollback_cb != nullptr)
-            {
-              rollback_cb(last_te_version, rollback_info);
-            }
             return;
           }
           ledger_writer->write_pre_prepare(pp, last_te_version);
