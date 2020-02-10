@@ -25,6 +25,15 @@ std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
 // power of 2 since ringbuffer circuit size depends on total_requests
 static constexpr size_t total_requests = 32;
 
+namespace pbft
+{
+  struct RollbackInfo
+  {
+    pbft::PbftStore* store;
+    size_t* called;
+  } register_rollback_ctx;
+}
+
 class ExecutionMock
 {
 public:
@@ -298,23 +307,17 @@ TEST_CASE("Test Ledger Replay")
     size_t call_rollback = 0;
     kv::Version rb_version;
 
-    struct register_rollback_info
-    {
-      pbft::PbftStore* store;
-      size_t* called;
-    } register_rollback_ctx;
+    auto rollback_cb =
+      [](kv::Version version, pbft::RollbackInfo* rollback_info) {
+        (*rollback_info->called)++;
+        rollback_info->store->rollback(version);
+      };
 
-    auto rollback_cb = [](kv::Version version, void* ctx) {
-      auto p = static_cast<register_rollback_info*>(ctx);
-      (*p->called)++;
-      p->store->rollback(version);
-    };
-
-    register_rollback_ctx.called = &call_rollback;
-    register_rollback_ctx.store = replica_store.get();
+    pbft::register_rollback_ctx.called = &call_rollback;
+    pbft::register_rollback_ctx.store = replica_store.get();
 
     pbft::GlobalState::get_replica().register_rollback_cb(
-      rollback_cb, &register_rollback_ctx);
+      rollback_cb, &pbft::register_rollback_ctx);
 
     // ledgerenclave work
     std::vector<std::vector<uint8_t>> entries;

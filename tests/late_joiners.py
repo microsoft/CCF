@@ -95,7 +95,6 @@ def run_requests(nodes, total_requests, start_id, final_msg, final_msg_id):
         check_commit = infra.checker.Checker(mc)
         check = infra.checker.Checker()
         clients = []
-        missed_trnsactions = []
         with contextlib.ExitStack() as es:
             for node in nodes:
                 clients.append(es.enter_context(node.user_client(format="json")))
@@ -110,14 +109,16 @@ def run_requests(nodes, total_requests, start_id, final_msg, final_msg_id):
                     )
                 except (TimeoutError, requests.exceptions.ReadTimeout,) as e:
                     LOG.info("Trying to access a suspended network")
-                    missed_trnsactions.append(id)
                 id += 1
 
         wait_for_nodes(nodes, final_msg, final_msg_id)
 
 
 def run(args):
-    hosts = ["localhost", "localhost", "localhost", "localhost"]
+    if args.skip_suspension:
+        hosts = ["localhost", "localhost", "localhost"]
+    else:
+        hosts = ["localhost", "localhost", "localhost", "localhost"]
 
     with infra.ccf.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -128,21 +129,19 @@ def run(args):
         term_info = find_primary(network)
         first_msg = "Hello, world!"
         second_msg = "Hello, world hello!"
+        catchup_msg = "Hey world!"
         final_msg = "Goodbye, world!"
 
-        nodes_to_kill = []
-        nodes_to_kill.append(backups[0])
-        nodes_to_keep = [first_node, backups[1], backups[2]]
-
-        # LOG.info(
-        #     "Adding another node after f = 0 but before we need to send append entries"
-        # )
-        # # check that a new node can catch up naturally
-        # new_node = network.create_and_trust_node(
-        #     lib_name=args.package, host="localhost", args=args,
-        # )
-        # assert new_node
-        # nodes_to_keep.append(new_node)
+        if args.skip_suspension:
+            LOG.info(
+                "Adding another node after f = 0 but before we need to send append entries"
+            )
+            # check that a new node can catch up naturally
+            new_node = network.create_and_trust_node(
+                lib_name=args.package, host="localhost", args=args,
+            )
+            assert new_node
+            all_nodes.append(new_node)
 
         with first_node.node_client() as mc:
             check_commit = infra.checker.Checker(mc)
@@ -151,41 +150,46 @@ def run(args):
             run_requests(all_nodes, TOTAL_REQUESTS, 0, first_msg, 1000)
             term_info.update(find_primary(network))
 
-            # # check that new node has caught up ok
-            # assert_node_up_to_date(check, new_node, fisrt_msg, 1000)
-            # # add new node to backups list
-            # all_nodes.append(new_node)
+            if args.skip_suspension:
+                # check that new node has caught up ok
+                assert_node_up_to_date(check, new_node, fisrt_msg, 1000)
+                # add new node to backups list
+                all_nodes.append(new_node)
 
-            # check that a new node can catch up after all the requests
-            LOG.info("Adding a very late joiner")
-            last_node = network.create_and_trust_node(
-                lib_name=args.package, host="localhost", args=args,
-            )
-            assert last_node
-            nodes_to_keep.append(last_node)
+            else:
+                nodes_to_kill = []
+                nodes_to_kill.append(backups[0])
+                nodes_to_keep = [first_node, backups[1], backups[2]]
 
-            run_requests(all_nodes, int(TOTAL_REQUESTS / 4), 1001, second_msg, 2000)
-            term_info.update(find_primary(network))
+                # check that a new node can catch up after all the requests
+                LOG.info("Adding a very late joiner")
+                last_joiner_node = network.create_and_trust_node(
+                    lib_name=args.package, host="localhost", args=args,
+                )
+                assert last_joiner_node
+                nodes_to_keep.append(last_joiner_node)
 
-            assert_node_up_to_date(check, last_node, first_msg, 1000)
-            assert_node_up_to_date(check, last_node, second_msg, 2000)
+                run_requests(all_nodes, int(TOTAL_REQUESTS / 4), 1001, second_msg, 2000)
+                term_info.update(find_primary(network))
 
-            # replace the 2 backups with the 2 new nodes, kill the old ones and ensure we are still making progress
-            for node in nodes_to_kill:
-                LOG.info(f"Stopping node {node.node_id}")
-                node.stop()
+                assert_node_up_to_date(check, last_joiner_node, first_msg, 1000)
+                assert_node_up_to_date(check, last_joiner_node, second_msg, 2000)
 
-            wait_for_nodes(nodes_to_keep, final_msg, 3000)
+                # replace the 2 backups with the 2 new nodes, kill the old ones and ensure we are still making progress
+                for node in nodes_to_kill:
+                    LOG.info(f"Stopping node {node.node_id}")
+                    node.stop()
 
-            # first timer determines after how many seconds each node will be suspended
-            if not args.skip_suspension:
+                wait_for_nodes(nodes_to_keep, catchup_msg, 3000)
+
+                # first timer determines after how many seconds each node will be suspended
                 timeouts = []
                 suspended_nodes = []
                 for i, node in enumerate(nodes_to_keep):
                     # if pbft suspend half of them including the primary
                     if i % 2 != 0 and args.consensus == "pbft":
                         continue
-                    LOG.success(f"i {i} and node id {node.node_id}")
+                    LOG.success(f"Will suspend node with id {node.node_id}")
                     t = random.uniform(1, 10)
                     LOG.info(f"Initial timer for node {node.node_id} is {t} seconds...")
                     timeouts.append((t, node))
@@ -207,14 +211,12 @@ def run(args):
                 wait_for_nodes(nodes_to_keep, final_msg, 5000)
 
             # we have asserted that all nodes are caught up
+            # assert that view changes actually did occur
+            assert len(term_info) > 1
 
-            if not args.skip_suspension:
-                # assert that view changes actually did occur
-                assert len(term_info) > 1
-
-                LOG.success("----------- terms and primaries recorded -----------")
-                for term, primary in term_info.items():
-                    LOG.success(f"term {term} - primary {primary}")
+            LOG.success("----------- terms and primaries recorded -----------")
+            for term, primary in term_info.items():
+                LOG.success(f"term {term} - primary {primary}")
 
 
 if __name__ == "__main__":

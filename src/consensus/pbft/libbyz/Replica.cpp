@@ -527,11 +527,13 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
   }
   else
   {
-    PBFT_ASSERT(false, "Merkle roots don't match in playback pre-prepare");
-    // if (rollback_cb != nullptr)
-    // {
-    //   rollback_cb(last_te_version, rollback_info);
-    // }
+    LOG_INFO_FMT(
+      "Merkle roots don't match in playback pre-prepare for seqno {}",
+      executable_pp->seqno());
+    if (rollback_cb != nullptr)
+    {
+      rollback_cb(last_te_version, rollback_info);
+    }
   }
 }
 
@@ -1011,7 +1013,12 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
       if (!compare_execution_results(info, pp))
       {
-        PBFT_ASSERT(false, "Merkle roots don't match in send_prepare");
+        LOG_INFO_FMT(
+          "Merkle roots don't match in send prepare for seqno {}", seqno);
+        if (rollback_cb != nullptr)
+        {
+          rollback_cb(last_te_version, rollback_info);
+        }
         break;
       }
 
@@ -2377,7 +2384,13 @@ void Replica::execute_committed(bool was_f_0)
           auto executed_ok = execute_tentative(pp, info);
           if (!compare_execution_results(info, pp))
           {
-            PBFT_ASSERT(false, "Merkle roots don't match execute committed");
+            LOG_INFO_FMT(
+              "Merkle roots don't match in execute committed for seqno {}",
+              pp->seqno());
+            if (rollback_cb != nullptr)
+            {
+              rollback_cb(last_te_version, rollback_info);
+            }
             return;
           }
           ledger_writer->write_pre_prepare(pp, last_te_version);
