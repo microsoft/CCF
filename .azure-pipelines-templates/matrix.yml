@@ -14,7 +14,7 @@ parameters:
       container: sgx
       pool: Ubuntu-1804-DC4s
       dependsOn: ['Formatting_and_License_Checks']
-    NoSGX_SAN:
+    SAN:
       container: nosgx
       pool: Ubuntu-1804-D16s_v3
       dependsOn: ['Formatting_and_License_Checks']
@@ -73,14 +73,11 @@ parameters:
     san:
       ctest_args: '-LE "benchmark|perf|suite"'
 
-  static_checck_job_name: 'Formatting_and_License_Checks'
-  san_target: 'NoSGX'
-
 jobs:
   - template: checks.yml
     parameters:
       env: ${{ parameters.env.Checks }}
-      job_name: ${{ parameters.static_check_job_name }}
+      job_name: 'Formatting_and_License_Checks'
 
   # Debug builds with code coverage
   - ${{ each target in parameters.target }}:
@@ -98,10 +95,10 @@ jobs:
   - ${{ each consensus in parameters.consensus }}:
     - template: common.yml
       parameters:
-        target: ${{ parameters.san_target }}
+        target: NoSGX
         consensus: ${{ consensus }}
-        env: ${{ parameters.env.NoSGX_SAN }}
-        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build[parameters.san_target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
+        env: ${{ parameters.env.SAN }}
+        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
         ctest_filter: '${{ parameters.test.san.ctest_args }}'
         suffix: 'SAN'
 
@@ -109,7 +106,7 @@ jobs:
   - ${{ each consensus in parameters.consensus }}:
     - template: common.yml
       parameters:
-        target: Release
+        target: SGX
         consensus: ${{ consensus }}
         env: ${{ parameters.env.Release }}
         install: true
@@ -118,7 +115,7 @@ jobs:
         ctest_filter: '${{ parameters.test.Release.ctest_args }}'
         suffix: 'Release'
 
-  # Install release and run performance tests
+  # Performance tests
   - ${{ each consensus in parameters.consensus }}:
       - template: common.yml
         parameters:
@@ -129,10 +126,12 @@ jobs:
           ctest_filter: '${{ parameters.test.perf[consensus].ctest_args }}'
           suffix: 'Perf'
 
+  # Collect and Plot metrics
   - template: metrics.yml
     parameters:
       env: ${{ parameters.env.Metrics }}
 
+  # Publish release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
     - template: release.yml
       parameters:
