@@ -4,9 +4,6 @@ parameters:
 
 steps:
 - script: |
-    whoami
-    env
-    ls -al /home/*
     ./tests.sh -VV --timeout 240 --no-compress-output -T Test ${{ parameters.ctest_filter }}
   env:
     METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
