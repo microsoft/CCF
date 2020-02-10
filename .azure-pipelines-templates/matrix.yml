@@ -1,7 +1,6 @@
 parameters:
   consensus: ['CFT', 'BFT']
   target: ['NoSGX', 'SGX']
-  protocol: ['HTTP']
 
   env:
     Checks:
@@ -116,7 +115,7 @@ jobs:
         env: ${{ parameters.env[parameters.release_target] }}
         install: true
         install_prefix: '${{ parameters.build.install.install_prefix }}'
-        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }}'
+        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
         ctest_filter: '${{ parameters.test[parameters.release_target].ctest_args }}'
         suffix: 'Release'
 
@@ -127,7 +126,7 @@ jobs:
           target: SGX
           consensus: ${{ consensus }}
           env: ${{ parameters.env.Perf }}
-          cmake_args: '${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build[protocol].cmake_args }} ${{ parameters.build.perf.cmake_args }}'
+          cmake_args: '${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build.perf.cmake_args }}'
           ctest_filter: '${{ parameters.test.perf[consensus].ctest_args }}'
           suffix: 'Perf'
 
