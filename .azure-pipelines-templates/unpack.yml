@@ -1,0 +1,11 @@
+steps:
+
+- task: DownloadPipelineArtifact@2
+  inputs:
+    source: current
+    patterns: '**/ccf*.tar.gz'
+    path: $(Build.ArtifactStagingDirectory)
+
+- script: tar xf ccf.tar.gz
+  displayName: Unpack release
+  workingDirectory: $(Build.ArtifactStagingDirectory)
