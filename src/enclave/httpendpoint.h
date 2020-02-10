@@ -289,33 +289,6 @@ namespace enclave
       flush();
     }
 
-    void handle_message_main_thread(
-      std::shared_ptr<JsonRpcContext>& rpc_ctx,
-      std::shared_ptr<RpcHandler>& search)
-    {
-      try
-      {
-        auto response = search->process(rpc_ctx);
-
-        if (!response.has_value())
-        {
-          // If the RPC is pending, hold the connection.
-          LOG_TRACE_FMT("Pending");
-          return;
-        }
-        else
-        {
-          // Otherwise, reply to the client synchronously.
-          send_response(response.value());
-        }
-      }
-      catch (const std::exception& e)
-      {
-        std::string err_msg = fmt::format("Exception:\n{}\n", e.what());
-        send_response(err_msg, HTTP_STATUS_INTERNAL_SERVER_ERROR);
-      }
-    }
-
     void handle_message(
       http_method verb,
       const std::string& path,
