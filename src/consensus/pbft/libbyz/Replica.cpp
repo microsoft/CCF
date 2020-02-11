@@ -1239,13 +1239,6 @@ void Replica::fetch_state_outside_view_change()
   {
     // Rollback to last checkpoint
     PBFT_ASSERT(!state.in_fetch_state(), "Invalid state");
-    LOG_INFO_FMT(
-      "Rolling back with last_tentative_execute: {}, last_executed: {}, last "
-      "global seqno {} last global version {}",
-      last_tentative_execute,
-      last_executed,
-      last_gb_seqno,
-      last_gb_version);
 
     auto rv = last_gb_version + 1;
 
@@ -1256,12 +1249,21 @@ void Replica::fetch_state_outside_view_change()
 
     Seqno rc = state.rollback(last_gb_seqno);
 
+    LOG_INFO_FMT(
+      "Rolled back in view change to seqno {}, to version {}, last_executed "
+      "was {}, last_tentative_execute was {}, "
+      "last gb seqno {}, last gb version was {}",
+      rc,
+      rv,
+      last_executed,
+      last_tentative_execute,
+      last_gb_seqno,
+      last_gb_version);
+
     last_tentative_execute = last_executed = last_stable;
     last_te_version = rv;
     LOG_INFO_FMT(
-      "Roll back done, rolled back to seqno {}, last tentative execute and "
-      "last executed are {} {}",
-      rc,
+      "Roll back done, last tentative execute and last executed are {} {}",
       last_tentative_execute,
       last_executed);
   }

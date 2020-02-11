@@ -189,12 +189,7 @@ def run(args):
                 tm.start()
 
             run_requests(
-                nodes_to_keep,
-                int(TOTAL_REQUESTS / 2),
-                2001,
-                final_msg,
-                4000,
-                cant_fail=False,
+                nodes_to_keep, TOTAL_REQUESTS, 2001, final_msg, 4000, cant_fail=False,
             )
 
             term_info.update(find_primary(network))
