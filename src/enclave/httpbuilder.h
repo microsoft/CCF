@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "tls/base64.h"
+
 #include <fmt/format_header_only.h>
 #include <http-parser/http_parser.h>
 #include <map>
@@ -19,6 +21,45 @@ namespace enclave
       HeaderMap headers;
       headers["content-type"] = "application/json";
       return headers;
+    }
+
+    static void add_auto_headers(
+      HeaderMap& headers, const std::vector<uint8_t>& body)
+    {
+      {
+        constexpr auto content_length_header_name = "content-length";
+        const auto it = headers.find(content_length_header_name);
+        if (it == headers.end())
+        {
+          headers[content_length_header_name] = fmt::format("{}", body.size());
+        }
+      }
+
+      {
+        constexpr auto digest_header_name = "digest";
+        const auto it = headers.find(digest_header_name);
+        if (it == headers.end())
+        {
+          tls::HashBytes body_digest;
+          tls::do_hash(
+            body.data(), body.size(), body_digest, MBEDTLS_MD_SHA256);
+          headers[digest_header_name] = fmt::format(
+            "{}={}",
+            "SHA-256",
+            tls::b64_from_raw(body_digest.data(), body_digest.size()));
+        }
+      }
+    }
+
+    static std::string get_header_string(const HeaderMap& headers)
+    {
+      std::string header_string;
+      for (const auto& [k, v] : headers)
+      {
+        header_string += fmt::format("{}: {}\r\n", k, v);
+      }
+
+      return header_string;
     }
 
     static http_method http_method_from_str(const char* s)
@@ -43,25 +84,18 @@ namespace enclave
       Message() = default;
       Message(const HeaderMap& headers_) : headers(headers_) {}
 
-      std::string get_header_string()
-      {
-        std::string header_string;
-        for (const auto& it : headers)
-        {
-          header_string += fmt::format("{}: {}\r\n", it.first, it.second);
-        }
-
-        return header_string;
-      }
-
     public:
       HeaderMap get_headers() const
       {
         return headers;
       }
 
-      void set_header(const std::string& k, const std::string& v)
+      void set_header(std::string k, const std::string& v)
       {
+        // Store all headers lower-cased to simplify case-insensitive lookup
+        std::transform(k.begin(), k.end(), k.begin(), [](unsigned char c) {
+          return std::tolower(c);
+        });
         headers[k] = v;
       }
 
@@ -79,12 +113,18 @@ namespace enclave
       std::map<std::string, std::string> query_params = {};
 
     public:
-      Request(http_method m = HTTP_POST) : method(m), Message(default_headers())
+      Request(http_method m = HTTP_POST) : Message(default_headers()), method(m)
       {}
+
       Request(const char* s) :
-        method(http_method_from_str(s)),
-        Message(default_headers())
+        Message(default_headers()),
+        method(http_method_from_str(s))
       {}
+
+      http_method get_method() const
+      {
+        return method;
+      }
 
       void set_path(const std::string& p)
       {
@@ -98,43 +138,55 @@ namespace enclave
         }
       }
 
+      std::string get_path() const
+      {
+        return path;
+      }
+
       void set_query_param(const std::string& k, const std::string& v)
       {
         query_params[k] = v;
       }
 
-      std::vector<uint8_t> build_request(
-        const std::vector<uint8_t>& body, bool header_only = false)
+      std::string get_formatted_query() const
       {
-        auto uri = path;
-        if (!query_params.empty())
+        std::string formatted_query;
+        bool first = true;
+        for (const auto& it : query_params)
         {
-          bool first = true;
-          for (const auto& it : query_params)
-          {
-            uri +=
-              fmt::format("{}{}={}", (first ? '?' : '&'), it.first, it.second);
-            first = false;
-          }
+          formatted_query +=
+            fmt::format("{}{}={}", (first ? '?' : '&'), it.first, it.second);
+          first = false;
         }
+        return formatted_query;
+      }
+
+      std::vector<uint8_t> build_request(
+        const std::vector<uint8_t>& body = {}, bool header_only = false) const
+      {
+        const auto uri = fmt::format("{}{}", path, get_formatted_query());
 
         const auto body_view = header_only ?
           std::string_view() :
           std::string_view((char const*)body.data(), body.size());
 
-        const auto h = fmt::format(
+        auto full_headers = get_headers();
+        add_auto_headers(full_headers, body);
+
+        const auto request_string = fmt::format(
           "{} {} HTTP/1.1\r\n"
           "{}"
-          "content-length: {}\r\n"
           "\r\n"
           "{}",
           http_method_str(method),
           uri,
-          get_header_string(),
-          body.size(),
+          get_header_string(full_headers),
           body_view);
 
-        return std::vector<uint8_t>(h.begin(), h.end());
+        std::cout << "Made a HTTP request: \n" << request_string << std::endl;
+
+        return std::vector<uint8_t>(
+          request_string.begin(), request_string.end());
       }
     };
 
@@ -147,29 +199,29 @@ namespace enclave
       Response(http_status s = HTTP_STATUS_OK) : status(s) {}
 
       std::vector<uint8_t> build_response(
-        const std::vector<uint8_t>& body = {},
-        bool header_only = false,
-        const std::string& content_type = "application/json")
+        const std::vector<uint8_t>& body = {}, bool header_only = false) const
       {
         const auto body_view = header_only ?
           std::string_view() :
           std::string_view((char const*)body.data(), body.size());
 
-        const auto response = fmt::format(
+        auto full_headers = get_headers();
+        add_auto_headers(full_headers, body);
+
+        const auto response_string = fmt::format(
           "HTTP/1.1 {} {}\r\n"
           "{}"
-          "Content-Length: {}\r\n"
-          "Content-Type: {}\r\n"
           "\r\n"
           "{}",
           status,
           http_status_str(status),
-          get_header_string(),
-          body.size(),
-          content_type,
+          get_header_string(full_headers),
           body_view);
 
-        return std::vector<uint8_t>(response.begin(), response.end());
+        std::cout << "Made a HTTP response: \n" << response_string << std::endl;
+
+        return std::vector<uint8_t>(
+          response_string.begin(), response_string.end());
       }
     };
 
