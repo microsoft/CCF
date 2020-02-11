@@ -192,6 +192,7 @@ private:
 template <class T>
 inline T* Certificate<T>::mine(Time& t)
 {
+  update();
   if (mym)
   {
     t = t_sent;
@@ -202,6 +203,7 @@ inline T* Certificate<T>::mine(Time& t)
 template <class T>
 inline T* Certificate<T>::mine()
 {
+  update();
   return mym;
 }
 
