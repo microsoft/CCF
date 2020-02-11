@@ -2,15 +2,15 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../consensus/pbft/pbfttypes.h"
-#include "../crypto/hash.h"
-#include "../ds/logger.h"
-#include "../kv/kvtypes.h"
-#include "../tls/keypair.h"
-#include "../tls/tls.h"
+#include "consensus/pbft/pbfttypes.h"
+#include "crypto/hash.h"
+#include "ds/logger.h"
 #include "entities.h"
+#include "kv/kvtypes.h"
 #include "nodes.h"
 #include "signatures.h"
+#include "tls/tls.h"
+#include "tls/verifier.h"
 
 #include <array>
 #include <deque>

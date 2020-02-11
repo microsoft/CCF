@@ -12,6 +12,7 @@
 #include "node/nodes.h"
 #include "nodeinterface.h"
 #include "rpcexception.h"
+#include "tls/verifier.h"
 
 #include <fmt/format_header_only.h>
 #include <mutex>

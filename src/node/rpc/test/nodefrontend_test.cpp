@@ -10,6 +10,7 @@
 #include "node/rpc/nodefrontend.h"
 #include "node_stub.h"
 #include "tls/pem.h"
+#include "tls/verifier.h"
 
 using namespace ccf;
 using namespace nlohmann;

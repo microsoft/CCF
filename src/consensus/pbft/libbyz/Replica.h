@@ -172,12 +172,6 @@ public:
     return val;
   }
 
-  bool shutdown();
-  // Effects: Shuts down replica writing a checkpoint to disk.
-
-  bool restart(FILE* i);
-  // Effects: Restarts the replica from the checkpoint in "i"
-
   bool delay_vc();
   // Effects: Returns true iff view change should be delayed.
 
@@ -331,9 +325,6 @@ private:
   void new_state(Seqno seqno);
   // Effects: Updates this to reflect that the checkpoint with
   // sequence number "seqno" was fetch.
-
-  void recover();
-  // Effects: Recover replica.
 
   Pre_prepare* prepared_pre_prepare(Seqno s);
   // Effects: Returns non-zero iff there is a pre-prepare pp that prepared for

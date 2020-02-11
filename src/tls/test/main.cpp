@@ -3,6 +3,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "../base64.h"
 #include "../keypair.h"
+#include "../verifier.h"
 
 #include <chrono>
 #include <doctest/doctest.h>

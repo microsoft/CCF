@@ -4,18 +4,6 @@
 // Licensed under the MIT license.
 #pragma once
 
-#ifndef INSIDE_ENCLAVE
-#  include <stdio.h>
-#  include <stdlib.h>
-#  include <string.h>
-#endif
-
-#ifndef INSIDE_ENCLAVE
-#  include <sys/time.h>
-#  include <sys/types.h>
-#  include <unistd.h>
-#endif
-
 #include "Certificate.h"
 #include "ITimer.h"
 #include "Message.h"

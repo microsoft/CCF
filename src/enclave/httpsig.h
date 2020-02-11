@@ -5,7 +5,7 @@
 #include "httpparser.h"
 #include "node/clientsignatures.h"
 #include "tls/base64.h"
-#include "tls/keypair.h"
+#include "tls/hash.h"
 
 #include <fmt/format_header_only.h>
 #include <optional>

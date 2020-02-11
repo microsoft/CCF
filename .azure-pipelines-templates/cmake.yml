@@ -14,9 +14,3 @@ steps:
   env:
     TESTS_SUFFIX: ${{ parameters.suite_label_suffix }}
   displayName: CMake
-
-- script: ninja
-  displayName: Ninja
-  workingDirectory: build
-  env:
-    CCACHE_DIR: /ccache
