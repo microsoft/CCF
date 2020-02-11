@@ -229,8 +229,7 @@ int main(int argc, char** argv)
     *start,
     members_info,
     "--member-info",
-    "Initial consortium members information (public identity and encryption "
-    "public key)")
+    "Initial consortium members information (public identity,public key share")
     ->required();
 
   auto join = app.add_subcommand("join", "Join existing network");

@@ -80,7 +80,7 @@ void set_lua_logger()
 
 auto user_caller = kp -> self_sign("CN=name");
 auto user_caller_der = tls::make_verifier(user_caller) -> der_cert_data();
-auto dummy_encryption_key = std::vector<uint8_t>(32);
+auto dummy_key_share = std::vector<uint8_t>(32);
 
 auto init_frontend(
   NetworkTables& network,
@@ -93,7 +93,7 @@ auto init_frontend(
     gen.add_user(user_caller);
 
   for (uint8_t i = 0; i < n_members; i++)
-    gen.add_member(kp->self_sign("CN=name_member"), dummy_encryption_key);
+    gen.add_member(kp->self_sign("CN=name_member"), dummy_key_share);
 
   set_whitelists(gen);
 
@@ -266,9 +266,9 @@ TEST_CASE("simple lua apps")
     auto get_ctx = enclave::make_rpc_context(user_session, packed);
     // expect to see 3 members in state active
     map<string, MemberInfo> expected = {
-      {"0", {{}, dummy_encryption_key, MemberStatus::ACTIVE}},
-      {"1", {{}, dummy_encryption_key, MemberStatus::ACTIVE}},
-      {"2", {{}, dummy_encryption_key, MemberStatus::ACTIVE}}};
+      {"0", {{}, dummy_key_share, MemberStatus::ACTIVE}},
+      {"1", {{}, dummy_key_share, MemberStatus::ACTIVE}},
+      {"2", {{}, dummy_key_share, MemberStatus::ACTIVE}}};
     check_success(frontend->process(get_ctx).value(), expected);
 
     // (2) try to write to members table

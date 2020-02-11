@@ -34,7 +34,7 @@ auto member_cert = kp -> self_sign("CN=name_member");
 auto verifier_mem = tls::make_verifier(member_cert);
 auto member_caller = verifier_mem -> der_cert_data();
 auto user_cert = kp -> self_sign("CN=name_user");
-auto dummy_encryption_key = std::vector<uint8_t>(32);
+auto dummy_key_share = std::vector<uint8_t>(32);
 
 auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
 
@@ -316,7 +316,7 @@ TEST_CASE("Proposer ballot")
       return Calls:call("new_member", member_info)
     )xxx");
     proposal.parameter["cert"] = proposed_member;
-    proposal.parameter["keyshare"] = dummy_encryption_key;
+    proposal.parameter["keyshare"] = dummy_key_share;
     proposal.ballot = vote_against;
     const auto proposej = create_json_req(proposal, "propose");
     Response<Propose::Out> r =
@@ -416,7 +416,7 @@ TEST_CASE("Add new members until there are 7 then reject")
     // new member certificate
     auto cert_pem =
       new_member.kp->self_sign(fmt::format("CN=new member{}", new_member.id));
-    auto keyshare = dummy_encryption_key;
+    auto keyshare = dummy_key_share;
     auto v = tls::make_verifier(cert_pem);
     const auto _cert = v->raw();
     new_member.cert = {_cert->raw.p, _cert->raw.p + _cert->raw.len};
@@ -786,7 +786,7 @@ TEST_CASE("Propose raw writes")
       const Cert member_cert = {1, 2, 3};
       nlohmann::json params;
       params["cert"] = member_cert;
-      params["keyshare"] = dummy_encryption_key;
+      params["keyshare"] = dummy_key_share;
       CHECK(
         test_raw_writes(
           network,
@@ -1106,7 +1106,7 @@ TEST_CASE("Passing members ballot with operator")
       return Calls:call("new_member", member_info)
     )xxx");
     proposal.parameter["cert"] = proposed_member;
-    proposal.parameter["keyshare"] = dummy_encryption_key;
+    proposal.parameter["keyshare"] = dummy_key_share;
     proposal.ballot = vote_for;
 
     const auto proposej = create_json_req(proposal, "propose");
