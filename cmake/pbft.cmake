@@ -194,24 +194,6 @@ if("virtual" IN_LIST TARGET)
   use_libbyz(test_ledger_replay)
   add_san(test_ledger_replay)
 
-  # end to end tests
-  add_test(
-    NAME test_UDP
-    COMMAND
-      python3 ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/e2e_test.py --ip 127.0.0.1
-      --servers 4 --clients 2 --test-config
-      ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/test_config --run-time 30
-  )
-
-  add_test(
-    NAME test_client_proxy
-    COMMAND
-      python3 ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/e2e_test.py --ip 127.0.0.1
-      --servers 4 --clients 0 --test-config
-      ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/test_config --test-client-proxy
-      --run-time 30
-  )
-
   add_test(
     NAME test_UDP_with_delay
     COMMAND
