@@ -44,23 +44,30 @@ namespace enclave
       {
         std::optional<jsonrpc::Pack> pack;
 
-        auto [success, contents] = jsonrpc::unpack_rpc(body, pack);
-        if (!success)
+        if (body.empty())
         {
-          throw std::logic_error("Unable to unpack body.");
-        }
-
-        // Currently contents must either be a naked json payload, or a JSON-RPC
-        // object. We don't check this object for validity, we just extract its
-        // params field
-        const auto params_it = contents.find(jsonrpc::PARAMS);
-        if (params_it != contents.end())
-        {
-          params = *params_it;
+          params = nullptr;
         }
         else
         {
-          params = contents;
+          auto [success, contents] = jsonrpc::unpack_rpc(body, pack);
+          if (!success)
+          {
+            throw std::logic_error("Unable to unpack body.");
+          }
+
+          // Currently contents must either be a naked json payload, or a
+          // JSON-RPC object. We don't check the latter object for validity, we
+          // just extract its params field
+          const auto params_it = contents.find(jsonrpc::PARAMS);
+          if (params_it != contents.end())
+          {
+            params = *params_it;
+          }
+          else
+          {
+            params = contents;
+          }
         }
       }
       else if (verb == HTTP_GET)
@@ -77,7 +84,8 @@ namespace enclave
     virtual std::string get_method() const override
     {
       // Strip any leading /s
-      return std::string(remaining_path.substr(remaining_path.find_first_not_of('/')));
+      return std::string(
+        remaining_path.substr(remaining_path.find_first_not_of('/')));
     }
 
     virtual std::string get_whole_method() const override
