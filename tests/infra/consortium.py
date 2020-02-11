@@ -162,8 +162,8 @@ class Consortium:
 
     def propose_add_member(self, member_id, remote_node, new_member_cert, new_keyshare):
         script = """
-        tables, params = ...
-        return Calls:call("new_member", {cert = params.cert, keyshare_encryption_key = params.keyshare_encryption_key})
+        tables, member_info = ...
+        return Calls:call("new_member", member_info)
         """
         with open(new_member_cert) as cert:
             new_member_cert_pem = [ord(c) for c in cert.read()]

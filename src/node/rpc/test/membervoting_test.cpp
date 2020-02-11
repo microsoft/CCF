@@ -312,8 +312,8 @@ TEST_CASE("Proposer ballot")
 
     Propose::In proposal;
     proposal.script = std::string(R"xxx(
-      tables, param = ...
-      return Calls:call("new_member", {cert=param.cert, keyshare_encryption_key={}})
+      tables, member_info = ...
+      return Calls:call("new_member", member_info)
     )xxx");
     proposal.parameter["cert"] = proposed_member;
     proposal.parameter["keyshare_encryption_key"] = dummy_encryption_key;
@@ -430,8 +430,8 @@ TEST_CASE("Add new members until there are 7 then reject")
     // propose new member, as proposer
     Propose::In proposal;
     proposal.script = std::string(R"xxx(
-      tables, param = ...
-      return Calls:call("new_member", {cert=param.cert, keyshare_encryption_key={}})
+      tables, member_info = ...
+      return Calls:call("new_member", member_info)
     )xxx");
     proposal.parameter["cert"] = cert_pem;
     proposal.parameter["keyshare_encryption_key"] = keyshare_encryption_key;
@@ -1102,8 +1102,8 @@ TEST_CASE("Passing members ballot with operator")
 
     Propose::In proposal;
     proposal.script = std::string(R"xxx(
-      tables, param = ...
-      return Calls:call("new_member", {cert=param.cert, keyshare_encryption_key={}})
+      tables, member_info = ...
+      return Calls:call("new_member", member_info)
     )xxx");
     proposal.parameter["cert"] = proposed_member;
     proposal.parameter["keyshare_encryption_key"] = dummy_encryption_key;
