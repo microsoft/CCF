@@ -12,7 +12,7 @@
 #include "rpc/consts.h"
 #include "rpc/jsonrpc.h"
 #include "runtime_config/default_whitelists.h"
-#include "tls/keypair.h"
+#include "tls/verifier.h"
 #include "values.h"
 
 #include <algorithm>
