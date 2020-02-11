@@ -6,9 +6,11 @@
 #include "cert.h"
 #include "crypto/hash.h"
 #include "csr.h"
+#include "curve.h"
 #include "ds/logger.h"
 #include "entropy.h"
 #include "error_string.h"
+#include "hash.h"
 #include "secp256k1/include/secp256k1.h"
 #include "secp256k1/include/secp256k1_recovery.h"
 
@@ -24,38 +26,6 @@
 
 namespace tls
 {
-  enum class CurveImpl
-  {
-    secp384r1 = 1,
-#ifdef MOD_MBEDTLS
-    ed25519 = 2,
-#endif
-    secp256k1_mbedtls = 3,
-    secp256k1_bitcoin = 4,
-
-#if SERVICE_IDENTITY_CURVE_CHOICE_SECP384R1
-    service_identity_curve_choice = secp384r1,
-#elif SERVICE_IDENTITY_CURVE_CHOICE_ED25519
-    service_identity_curve_choice = ed25519,
-#elif SERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_MBEDTLS
-    service_identity_curve_choice = secp256k1_mbedtls,
-#elif SERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_BITCOIN
-    service_identity_curve_choice = secp256k1_bitcoin,
-#else
-#  pragma message( \
-    "No service identity curve specified - defaulting to secp384r1")
-    service_identity_curve_choice = secp384r1,
-#endif
-  };
-
-  using HashBytes = std::vector<uint8_t>;
-
-  // 2 implementations of secp256k1 are available - mbedtls and bitcoin. Either
-  // can be asked for explicitly via the CurveImpl enum. For cases where we
-  // receive a raw 256k1 key/signature/cert only, this flag determines which
-  // implementation is used
-  static constexpr bool prefer_bitcoin_secp256k1 = true;
-
   static constexpr size_t ecp_num_size = 100;
 
   static constexpr size_t max_pem_key_size = 2048;
@@ -66,122 +36,6 @@ namespace tls
   static constexpr auto PEM_CERTIFICATE_HEADER =
     "-----BEGIN CERTIFICATE-----\n";
   static constexpr auto PEM_CERTIFICATE_FOOTER = "-----END CERTIFICATE-----\n";
-
-  // Helper to access elliptic curve id from context
-  inline mbedtls_ecp_group_id get_ec_from_context(const mbedtls_pk_context& ctx)
-  {
-    return mbedtls_pk_ec(ctx)->grp.id;
-  }
-
-  // Get mbedtls elliptic curve for given CCF curve implementation
-  inline mbedtls_ecp_group_id get_ec_for_curve_impl(CurveImpl curve)
-  {
-    switch (curve)
-    {
-      case CurveImpl::secp384r1:
-      {
-        return MBEDTLS_ECP_DP_SECP384R1;
-      }
-#ifdef MOD_MBEDTLS
-      case CurveImpl::ed25519:
-      {
-        return MBEDTLS_ECP_DP_CURVE25519;
-      }
-#endif
-      case CurveImpl::secp256k1_mbedtls:
-      case CurveImpl::secp256k1_bitcoin:
-      {
-        return MBEDTLS_ECP_DP_SECP256K1;
-      }
-      default:
-      {
-        throw std::logic_error(
-          "Unhandled curve type: " +
-          std::to_string(static_cast<size_t>(curve)));
-      }
-    }
-  }
-
-  // Get message digest algorithm to use for given elliptic curve
-  inline mbedtls_md_type_t get_md_for_ec(mbedtls_ecp_group_id ec)
-  {
-    switch (ec)
-    {
-      case MBEDTLS_ECP_DP_SECP384R1:
-      {
-        return MBEDTLS_MD_SHA384;
-      }
-#ifdef MOD_MBEDTLS
-      case MBEDTLS_ECP_DP_CURVE25519:
-      {
-        return MBEDTLS_MD_SHA512;
-      }
-#endif
-      case MBEDTLS_ECP_DP_SECP256K1:
-      {
-        return MBEDTLS_MD_SHA256;
-      }
-      default:
-      {
-        throw std::logic_error(
-          std::string("Unhandled ecp group id: ") +
-          mbedtls_ecp_curve_info_from_grp_id(ec)->name);
-      }
-    }
-  }
-
-  /**
-   * Hash the given data, with the specified digest algorithm
-   *
-   * @return 0 on success
-   */
-  inline int do_hash(
-    const uint8_t* data_ptr,
-    size_t data_size,
-    HashBytes& o_hash,
-    mbedtls_md_type_t md_type)
-  {
-    const auto md_info = mbedtls_md_info_from_type(md_type);
-    const auto hash_size = mbedtls_md_get_size(md_info);
-
-    if (o_hash.size() < hash_size)
-    {
-      o_hash.resize(hash_size);
-    }
-
-    return mbedtls_md(md_info, data_ptr, data_size, o_hash.data());
-  }
-
-  /**
-   * Hash the given data, with an algorithm chosen by key type
-   *
-   * @return 0 on success
-   */
-  inline int do_hash(
-    const mbedtls_pk_context& ctx,
-    const uint8_t* data_ptr,
-    size_t data_size,
-    HashBytes& o_hash,
-    mbedtls_md_type_t md_type_ = MBEDTLS_MD_NONE)
-  {
-    const auto ec = get_ec_from_context(ctx);
-    mbedtls_md_type_t md_type;
-    if (md_type_ != MBEDTLS_MD_NONE)
-    {
-      md_type = md_type_;
-    }
-    else
-    {
-      md_type = get_md_for_ec(ec);
-    }
-    const auto md_info = mbedtls_md_info_from_type(md_type);
-    const auto hash_size = mbedtls_md_get_size(md_info);
-
-    if (o_hash.size() < hash_size)
-      o_hash.resize(hash_size);
-
-    return mbedtls_md(md_info, data_ptr, data_size, o_hash.data());
-  }
 
   inline bool verify_secp256k_bc(
     secp256k1_context* ctx,
