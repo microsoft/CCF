@@ -53,7 +53,7 @@ parameters:
     san:
       cmake_args: '-DSAN=ON'
     perf:
-      cmake_args: '-DPERF=ON'
+      cmake_args: '-DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
       
 
   test:
@@ -100,19 +100,6 @@ jobs:
         ctest_filter: '${{ parameters.test.san.ctest_args }}'
         suffix: 'SAN'
 
-  # Release builds
-  - ${{ each consensus in parameters.consensus }}:
-    - template: common.yml
-      parameters:
-        target: SGX
-        consensus: ${{ consensus }}
-        env: ${{ parameters.env.Release }}
-        install: true
-        install_prefix: '${{ parameters.build.install.install_prefix }}'
-        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-        ctest_filter: '${{ parameters.test.Release.ctest_args }}'
-        suffix: 'Release'
-
   # Performance tests
   - ${{ each consensus in parameters.consensus }}:
       - template: common.yml
@@ -131,6 +118,19 @@ jobs:
 
   # Publish release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
+    # Release builds
+    - ${{ each consensus in parameters.consensus }}:
+      - template: common.yml
+        parameters:
+          target: SGX
+          consensus: ${{ consensus }}
+          env: ${{ parameters.env.Release }}
+          install: true
+          install_prefix: '${{ parameters.build.install.install_prefix }}'
+          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
+          ctest_filter: '${{ parameters.test.Release.ctest_args }}'
+          suffix: 'Release'
+
     - template: release.yml
       parameters:
         env: ${{ parameters.env.Publish }}
