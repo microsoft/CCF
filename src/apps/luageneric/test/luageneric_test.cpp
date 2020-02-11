@@ -30,7 +30,8 @@ namespace ccf
 {
   bool operator==(const MemberInfo& mi0, const MemberInfo& mi1)
   {
-    return mi0.status == mi1.status && mi0.keyshare == mi1.keyshare;
+    return mi0.status == mi1.status &&
+      mi0.keyshare_encryption_key == mi1.keyshare_encryption_key;
   }
 }
 
@@ -80,6 +81,7 @@ void set_lua_logger()
 
 auto user_caller = kp -> self_sign("CN=name");
 auto user_caller_der = tls::make_verifier(user_caller) -> der_cert_data();
+auto dummy_encryption_key = std::vector<uint8_t>(32);
 
 auto init_frontend(
   NetworkTables& network,
@@ -92,7 +94,7 @@ auto init_frontend(
     gen.add_user(user_caller);
 
   for (uint8_t i = 0; i < n_members; i++)
-    gen.add_member(kp->self_sign("CN=name_member"));
+    gen.add_member(kp->self_sign("CN=name_member"), dummy_encryption_key);
 
   set_whitelists(gen);
 
@@ -255,7 +257,8 @@ TEST_CASE("simple lua apps")
     // Not allowed to call put() on read-only gov_tables
     constexpr auto put_member = R"xxx(
       tables, gov_tables, args = ...
-      return env.succ(gov_tables["ccf.members"]:put(args.params.k, args.params.v))
+      return env.succ(gov_tables["ccf.members"]:put(args.params.k,
+      args.params.v))
     )xxx";
     set_handler(network, "put_member", {put_member});
 
@@ -263,14 +266,16 @@ TEST_CASE("simple lua apps")
     const auto packed = make_pc("get_members", {});
     auto get_ctx = enclave::make_rpc_context(user_session, packed);
     // expect to see 3 members in state active
-    map<string, MemberInfo> expected = {{"0", {{}, MemberStatus::ACTIVE}},
-                                        {"1", {{}, MemberStatus::ACTIVE}},
-                                        {"2", {{}, MemberStatus::ACTIVE}}};
+    map<string, MemberInfo> expected = {
+      {"0", {{}, dummy_encryption_key, MemberStatus::ACTIVE}},
+      {"1", {{}, dummy_encryption_key, MemberStatus::ACTIVE}},
+      {"2", {{}, dummy_encryption_key, MemberStatus::ACTIVE}}};
     check_success(frontend->process(get_ctx).value(), expected);
 
     // (2) try to write to members table
     const auto put_packed = make_pc(
-      "put_member", {{"k", 99}, {"v", MemberInfo{{}, MemberStatus::ACTIVE}}});
+      "put_member",
+      {{"k", 99}, {"v", MemberInfo{{}, {}, MemberStatus::ACTIVE}}});
     auto put_ctx = enclave::make_rpc_context(user_session, put_packed);
     check_error(
       frontend->process(put_ctx).value(), CCFErrorCodes::SCRIPT_ERROR);
