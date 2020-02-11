@@ -36,7 +36,7 @@ namespace ccf
 }
 
 // TODO: HTTP should support msgpack'd body
-constexpr auto PACK_FORMAT = jsonrpc::Pack::Text;
+constexpr auto default_format = jsonrpc::Pack::Text;
 
 nlohmann::json parse_response(const vector<uint8_t>& v)
 {
@@ -47,7 +47,7 @@ nlohmann::json parse_response(const vector<uint8_t>& v)
   REQUIRE(parsed_count == v.size());
   REQUIRE(processor.received.size() == 1);
 
-  return jsonrpc::unpack(processor.received.front().body, PACK_FORMAT);
+  return jsonrpc::unpack(processor.received.front().body, default_format);
 }
 
 template <typename E>
@@ -144,7 +144,7 @@ std::vector<uint8_t> make_pc(const string& method, const Params& params)
 {
   auto request = enclave::http::Request();
   request.set_path(method);
-  return request.build_request(jsonrpc::pack(params, PACK_FORMAT));
+  return request.build_request(jsonrpc::pack(params, default_format));
 }
 
 template <typename F, typename K, typename V>
