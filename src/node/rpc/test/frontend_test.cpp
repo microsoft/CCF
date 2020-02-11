@@ -285,7 +285,7 @@ auto create_simple_request(const std::string& method = "empty_function")
   return request;
 }
 
-auto create_signed_request(
+std::pair<enclave::http::Request, ccf::SignedReq> create_signed_request(
   const enclave::http::Request& r, const std::vector<uint8_t>& body = {})
 {
   enclave::http::Request s(r);
@@ -314,7 +314,9 @@ auto create_signed_request(
 
   s.set_header("authorization", auth_value);
 
-  return s;
+  ccf::SignedReq signed_req{
+    signature, to_sign.value(), body, MBEDTLS_MD_SHA256};
+  return {s, signed_req};
 }
 
 nlohmann::json parse_response(const vector<uint8_t>& v, jsonrpc::Pack pack)
@@ -509,7 +511,7 @@ TEST_CASE("process")
   prepare_callers();
   TestUserFrontend frontend(*network.tables);
   const auto simple_call = create_simple_request();
-  const auto signed_call = create_signed_request(simple_call);
+  const auto [signed_call, signed_req] = create_signed_request(simple_call);
 
   SUBCASE("without signature")
   {
@@ -536,9 +538,7 @@ TEST_CASE("process")
     auto signed_resp = get_signed_req(user_id);
     REQUIRE(signed_resp.has_value());
     auto value = signed_resp.value();
-    // SignedReq signed_req(signed_call);
-    // CHECK(value.req == signed_req.req);
-    // CHECK(value.sig == signed_req.sig);
+    CHECK(value == signed_req);
   }
 
   SUBCASE("request with signature but do not store")
@@ -548,14 +548,14 @@ TEST_CASE("process")
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
 
     const auto serialized_response = frontend_nostore.process(rpc_ctx).value();
-    const auto response = jsonrpc::unpack(serialized_response, default_pack);
+    const auto response = parse_response(serialized_response, default_pack);
     CHECK(response[jsonrpc::RESULT] == true);
 
     auto signed_resp = get_signed_req(user_id);
     REQUIRE(signed_resp.has_value());
     auto value = signed_resp.value();
-    // CHECK(value.req.empty());
-    // CHECK(value.sig == signed_call[jsonrpc::SIG]);
+    CHECK(value.req.empty());
+    CHECK(value.sig == signed_req.sig);
   }
 }
 
@@ -569,7 +569,8 @@ TEST_CASE("MinimalHandleFunction")
                                    {"other", "Another string"}};
     const auto serialized_body = jsonrpc::pack(j_body, default_pack);
 
-    const auto signed_call = create_signed_request(echo_call, serialized_body);
+    const auto [signed_call, signed_req] =
+      create_signed_request(echo_call, serialized_body);
     const auto serialized_call = signed_call.build_request(serialized_body);
 
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
@@ -581,7 +582,7 @@ TEST_CASE("MinimalHandleFunction")
   {
     auto get_caller = create_simple_request("get_caller");
 
-    const auto signed_call = create_signed_request(get_caller);
+    const auto [signed_call, signed_req] = create_signed_request(get_caller);
     const auto serialized_call = signed_call.build_request();
 
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
