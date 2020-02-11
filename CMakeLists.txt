@@ -337,7 +337,7 @@ if(BUILD_TESTS)
   )
   target_link_libraries(
     frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host
-                          secp256k1.host
+                          secp256k1.host http_parser.host
   )
 
   if(NOT PBFT)
@@ -347,7 +347,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       membervoting_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host
-                                lua.host secp256k1.host
+                                lua.host secp256k1.host http_parser.host
     )
 
     add_unit_test(
@@ -356,7 +356,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       nodefrontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host
-                                lua.host secp256k1.host
+                                lua.host secp256k1.host http_parser.host
     )
 
     if(NOT ENV{RUNTIME_CONFIG_DIR})

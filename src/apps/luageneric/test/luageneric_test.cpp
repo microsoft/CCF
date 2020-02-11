@@ -35,6 +35,7 @@ namespace ccf
   }
 }
 
+// TODO: HTTP should support msgpack'd body
 constexpr auto PACK_FORMAT = jsonrpc::Pack::Text;
 
 nlohmann::json parse_response(const vector<uint8_t>& v)
@@ -46,8 +47,7 @@ nlohmann::json parse_response(const vector<uint8_t>& v)
   REQUIRE(parsed_count == v.size());
   REQUIRE(processor.received.size() == 1);
 
-  return
-    jsonrpc::unpack(processor.received.front().body, PACK_FORMAT);
+  return jsonrpc::unpack(processor.received.front().body, PACK_FORMAT);
 }
 
 template <typename E>
