@@ -48,6 +48,19 @@ else()
   )
 endif()
 
+set(DISTRIBUTE_PERF_TESTS
+    ""
+    CACHE
+      STRING
+      "Hosts to which performance tests should be distributed, for example -n x.x.x.x -n x.x.x.x -n x.x.x.x"
+)
+
+if(DISTRIBUTE_PERF_TESTS)
+  separate_arguments(NODES UNIX_COMMAND ${DISTRIBUTE_PERF_TESTS})
+else()
+  unset(NODES)
+endif()
+
 option(COLORED_OUTPUT "Always produce ANSI-colored output (Clang only)." TRUE)
 
 if(${COLORED_OUTPUT})
@@ -485,12 +498,6 @@ function(add_perf_test)
     set(LABEL_ARG "${PARSED_ARGS_LABEL}_${TESTS_SUFFIX}^")
   else()
     set(LABEL_ARG "${PARSED_ARGS_NAME}_${TESTS_SUFFIX}^")
-  endif()
-
-  if(PERF)
-    set(NODES -n 10.0.0.5 -n 10.0.0.8 -n 10.0.0.11)
-  else()
-    unset(NODES)
   endif()
 
   add_test(
