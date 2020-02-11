@@ -1,37 +1,34 @@
 jobs:
-- job: BuildAndTest_${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.protocol }}_${{ parameters.suffix }}
+- job: BuildAndTest_${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.suffix }}
   variables:
     skipComponentGovernanceDetection: true
-  displayName: 'Build and Test ${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.protocol }} ${{ parameters.suffix }}'
-  dependsOn: ${{ parameters.depends_on }}
+  displayName: 'Build and Test ${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }}'
 
   ${{ insert }}: ${{ parameters.env }}
 
   steps:
     - checkout: self
       clean: true
-    - template: build.yml
+    - template: cmake.yml
       parameters:
         cmake_args: '${{ parameters.cmake_args }}'
-        suite_label_suffix: '${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.protocol }}'
+        suite_label_suffix: '${{ parameters.target }}_${{ parameters.consensus }}'
+    - template: ninja.yml
+      parameters:
+        cmake_args: '${{ parameters.cmake_args }}'
     - template: test.yml
       parameters:
         ctest_filter: ${{ parameters.ctest_filter }}
-        suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.protocol }} ${{ parameters.suffix }} tests'
-    - ${{ if and(eq(parameters.target, 'NoSGX'), eq(parameters.suffix, '')) }}:
+        suite_name_suffix: '${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }} tests'
+    - ${{ if and(eq(parameters.target, 'NoSGX'), eq(parameters.suffix, 'Debug')) }}:
       - template: coverage.yml
         parameters:
           consensus: ${{ parameters.consensus }}
-    - ${{ if and(eq(parameters.suffix, 'Release'), not(and(eq(parameters.consensus, 'BFT'), eq(parameters.protocol, 'HTTP')))) }}:
+    - ${{ if eq(parameters.suffix, 'Perf') }}:
       - template: push_perf_data.yml
         parameters:
           consensus: ${{ parameters.consensus }}
-    # For now, only CFT builds are released
-    - ${{ if and(eq(parameters.install, true), eq(parameters.consensus, 'CFT'))}}:
+    - ${{ if and(ne(parameters.consensus, 'BFT'), eq(parameters.suffix, 'Release')) }}:
       - template: install.yml
         parameters:
-          protocol: ${{ parameters.protocol }}
           install_prefix: ${{ parameters.install_prefix }}
-          # HTTP is default install
-          ${{ if ne(parameters.protocol, 'HTTP') }}:
-            install_suffix: '_${{ parameters.protocol }}'
