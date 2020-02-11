@@ -20,13 +20,18 @@ class Consortium:
         members = [f"member{m}" for m in members]
         for m in members:
             infra.proc.ccall(
-                key_generator, f"{m}", curve.name, log_output=False
+                key_generator,
+                f"--name={m}",
+                f"--curve={curve.name}",
+                "--gen-encryption-key",
+                log_output=False,
             ).check_returncode()
         self.status = infra.ccf.ServiceStatus.OPEN
 
-    def get_members_certs(self):
+    def get_members_info(self):
         members_certs = [f"member{m}_cert.pem" for m in self.members]
-        return members_certs
+        members_enc_pubk = [f"member{m}_enc_pubk.pem" for m in self.members]
+        return list(zip(members_certs, members_enc_pubk))
 
     def propose(self, member_id, remote_node, script=None, params=None):
         with remote_node.member_client(format="json", member_id=member_id) as mc:

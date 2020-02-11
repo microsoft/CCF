@@ -178,7 +178,7 @@ class Network:
                             lib_name=args.package,
                             workspace=args.workspace,
                             label=args.label,
-                            members_certs=self.consortium.get_members_certs(),
+                            members_info=self.consortium.get_members_info(),
                             **forwarded_args,
                         )
                     else:
@@ -322,7 +322,10 @@ class Network:
         users = ["user{}".format(u) for u in users]
         for u in users:
             infra.proc.ccall(
-                self.key_generator, f"{u}", curve.name, log_output=False
+                self.key_generator,
+                f"--name={u}",
+                f"--curve={curve.name}",
+                log_output=False,
             ).check_returncode()
 
     def get_members(self):

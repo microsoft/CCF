@@ -54,7 +54,7 @@ namespace ccf
 
   struct MemberInfo : NewMember
   {
-    MemberStatus status;
+    MemberStatus status = MemberStatus::ACCEPTED;
 
     MemberInfo() {}
 
@@ -66,7 +66,7 @@ namespace ccf
       status(status_)
     {}
 
-    MSGPACK_DEFINE(MSGPACK_BASE(NewMember), keyshare_encryption_key);
+    MSGPACK_DEFINE(MSGPACK_BASE(NewMember), status);
   };
   DECLARE_JSON_TYPE_WITH_BASE(MemberInfo, NewMember)
   DECLARE_JSON_REQUIRED_FIELDS(MemberInfo, status)

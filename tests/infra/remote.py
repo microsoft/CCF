@@ -507,7 +507,7 @@ class CCFRemote(object):
         workspace,
         label,
         target_rpc_address=None,
-        members_certs=None,
+        members_info=None,
         join_timer=None,
         host_log_level="info",
         ignore_quote=False,
@@ -606,13 +606,14 @@ class CCFRemote(object):
                 "--network-cert-file=networkcert.pem",
                 f"--gov-script={os.path.basename(gov_script)}",
             ]
-            if members_certs is None:
+            if members_info is None:
                 raise ValueError(
-                    "Starting node should be given at least one member certificate"
+                    "Starting node should be given at least one pair member certificate, member public encryption key"
                 )
-            for mc in members_certs:
-                cmd += [f"--member-cert={mc}"]
-            data_files.extend(members_certs)
+            for mc, mk in members_info:
+                cmd += [f"--member-info={mc},{mk}"]
+                data_files.append(mc)
+                data_files.append(mk)
             data_files += [gov_script]
         elif start_type == StartType.join:
             cmd += [

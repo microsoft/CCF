@@ -13,21 +13,48 @@ DIGEST_SHA384="sha384"
 DIGEST_SHA256="sha256"
 DIGEST_SHA512="sha512"
 
-if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
-  echo "Generates private key and self-signed certificates for CCF participants."
-  echo "Usage:"""
-  echo "  $0 participant [curve=$DEFAULT_CURVE]"
-  echo ""
-  echo "Supported curves are: $SUPPORTED_CURVES"
-  exit 0
-fi
+curve=$DEFAULT_CURVE
+name=""
+generate_encryption_key=false
 
-if [ -z "$1" ]; then
+function usage()
+{
+    echo "Generates identity private key and self-signed certificates for CCF participants."
+    echo "Optionally generates a ed25519 key pair for encryption (required for consortium members)."
+    echo "Usage:"""
+    echo "  $0 --name=participant_name [--curve=$DEFAULT_CURVE] [--gen-encryption-key]"
+    echo ""
+    echo "Supported curves are: $SUPPORTED_CURVES"
+}
+
+while [ "$1" != "" ]; do
+    PARAM=${1%=*}
+    VALUE=${1#*=}
+    case $PARAM in
+        -h|-\?|--help)
+            usage
+            exit 0
+            ;;
+        -n|--name)
+            name="$VALUE"
+            ;;
+        -c|--curve)
+            curve="$VALUE"
+            ;;
+        -g|--gen-encryption-key)
+            generate_encryption_key=true
+            ;;
+        *)
+            break
+    esac
+    shift
+done
+
+# Validate parameters
+if [ -z "$name" ]; then
     echo "The name of the participant should be specified (e.g. member0 or user1)"
     exit 1
 fi
-
-curve=${2:-$DEFAULT_CURVE}
 
 if ! [[ "$curve" =~ ^($SUPPORTED_CURVES)$ ]]; then
     echo "$curve curve is not in $SUPPORTED_CURVES"
@@ -42,11 +69,11 @@ else
     digest="$DIGEST_SHA256"
 fi
 
-cert="$1"_cert.pem
-privk="$1"_privk.pem
+cert="$name"_cert.pem
+privk="$name"_privk.pem
 
-echo "Curve: $curve"
-echo "Generating private key and certificate for participant \"$1\"..."
+echo "-- Generating identity private key and certificate for participant \"$name\"..."
+echo "Identity curve: $curve"
 
 # Because openssl CLI interface for ec key differs from Ed, detect which
 # interface to use based on first letters of the specified curve
@@ -56,7 +83,20 @@ else
     openssl genpkey -out "$privk" -algorithm "$curve"
 fi
 
-openssl req -new -key "$privk" -x509 -nodes -days 365 -out "$cert" -"$digest" -subj=/CN="$1"
+openssl req -new -key "$privk" -x509 -nodes -days 365 -out "$cert" -"$digest" -subj=/CN="$name"
 
-echo "Certificate generated at: $cert (to be registered in CCF)"
-echo "Private key generated at: $privk"
+echo "Identity certificate generated at:    $cert (to be registered in CCF)"
+echo "Identity private key generated at:    $privk"
+
+if "$generate_encryption_key"; then
+    echo "-- Generating encryption key pair for participant \"$name\"..."
+
+    enc_priv_key="$name"_enc_privk.pem
+    enc_pub_key="$name"_enc_pubk.pem
+
+    openssl genpkey -out "$enc_priv_key" -algorithm "$EDWARDS_CURVE"
+    openssl pkey -in "$enc_priv_key" -pubout -out "$enc_pub_key"
+
+    echo "Encryption public key generated at:   $enc_pub_key (to be registered in CCF)"
+    echo "Encryption private key generated at:  $enc_priv_key"
+fi
