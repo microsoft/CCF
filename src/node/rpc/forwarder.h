@@ -100,7 +100,6 @@ namespace ccf
       auto size_ = plain_.size();
       auto caller_id = serialized::read<CallerId>(data_, size_);
       auto client_session_id = serialized::read<size_t>(data_, size_);
-      auto actor = serialized::read<ActorsType>(data_, size_);
       auto method = serialized::read<std::string>(data_, size_);
       auto includes_caller =
         serialized::read<IsCallerCertForwarded>(data_, size_);
