@@ -50,14 +50,13 @@ endif()
 
 set(DISTRIBUTE_PERF_TESTS
     ""
-    CACHE STRING
-          "Hosts to which performance tests should be distributed, for example -n x.x.x.x -n x.x.x.x -n x.x.x.x"
+    CACHE
+      STRING
+      "Hosts to which performance tests should be distributed, for example -n x.x.x.x -n x.x.x.x -n x.x.x.x"
 )
 
 if(DISTRIBUTE_PERF_TESTS)
-  separate_arguments(
-    NODES UNIX_COMMAND ${DISTRIBUTE_PERF_TESTS}
-  )
+  separate_arguments(NODES UNIX_COMMAND ${DISTRIBUTE_PERF_TESTS})
 else()
   unset(NODES)
 endif()
