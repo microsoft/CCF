@@ -3,7 +3,7 @@
 #pragma once
 
 #include "tls/base64.h"
-#include "tls/keypair.h"
+#include "tls/hash.h"
 
 #include <fmt/format_header_only.h>
 #include <http-parser/http_parser.h>
