@@ -46,12 +46,10 @@ namespace pbft
     virtual void compact(Index v) = 0;
     virtual void rollback(Index v) = 0;
     virtual kv::Version current_version() = 0;
-    virtual void commit_pre_prepare(
+    virtual kv::Version commit_pre_prepare(
       const pbft::PrePrepare& pp,
-      pbft::PrePreparesMap& pbft_pre_prepares_map,
-      kv::Version& last_te_version) = 0;
-    virtual void commit_tx(
-      ccf::Store::Tx& tx, kv::Version& last_te_version) = 0;
+      pbft::PrePreparesMap& pbft_pre_prepares_map) = 0;
+    virtual kv::Version commit_tx(ccf::Store::Tx& tx) = 0;
   };
 
   template <typename T, typename S>
@@ -76,10 +74,8 @@ namespace pbft
       return S::FAILED;
     }
 
-    void commit_pre_prepare(
-      const pbft::PrePrepare& pp,
-      pbft::PrePreparesMap& pbft_pre_prepares_map,
-      kv::Version& last_te_version)
+    kv::Version commit_pre_prepare(
+      const pbft::PrePrepare& pp, pbft::PrePreparesMap& pbft_pre_prepares_map)
     {
       while (true)
       {
@@ -87,7 +83,6 @@ namespace pbft
         if (p)
         {
           auto version = p->next_version();
-          last_te_version = version;
           LOG_TRACE_FMT("Storing pre prepare at seqno {}", pp.seqno);
           auto success = p->commit(
             version,
@@ -100,13 +95,13 @@ namespace pbft
             false);
           if (success == kv::CommitSuccess::OK)
           {
-            break;
+            return version;
           }
         }
       }
     }
 
-    void commit_tx(ccf::Store::Tx& tx, kv::Version& last_te_version)
+    kv::Version commit_tx(ccf::Store::Tx& tx)
     {
       while (true)
       {
@@ -116,8 +111,7 @@ namespace pbft
           auto success = tx.commit();
           if (success == kv::CommitSuccess::OK)
           {
-            last_te_version = tx.get_version();
-            break;
+            return tx.get_version();
           }
         }
       }

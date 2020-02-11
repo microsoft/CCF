@@ -510,7 +510,7 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
 
     LOG_TRACE_FMT("Storing pre prepare at seqno {}", seqno);
 
-    ledger_writer->write_pre_prepare(tx, last_te_version);
+    last_te_version = ledger_writer->write_pre_prepare(tx);
 
     last_executed++;
 
@@ -865,7 +865,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
 
       if (ledger_writer)
       {
-        ledger_writer->write_pre_prepare(pp, last_te_version);
+        last_te_version = ledger_writer->write_pre_prepare(pp);
       }
 
       if (pbft::GlobalState::get_node().f() > 0)
@@ -1022,7 +1022,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
       if (ledger_writer && !is_primary())
       {
-        ledger_writer->write_pre_prepare(pp, last_te_version);
+        last_te_version = ledger_writer->write_pre_prepare(pp);
       }
 
       Prepare* p =
@@ -1998,7 +1998,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       {
         if (ledger_writer && req_in_pp > 0)
         {
-          ledger_writer->write_pre_prepare(pp, last_te_version);
+          last_te_version = ledger_writer->write_pre_prepare(pp);
         }
       }
     }
@@ -2011,7 +2011,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       {
         if (ledger_writer && req_in_pp > 0)
         {
-          ledger_writer->write_pre_prepare(pp, last_te_version);
+          last_te_version = ledger_writer->write_pre_prepare(pp);
         }
       }
 
@@ -2384,7 +2384,7 @@ void Replica::execute_committed(bool was_f_0)
               pp->seqno());
             return;
           }
-          ledger_writer->write_pre_prepare(pp, last_te_version);
+          last_te_version = ledger_writer->write_pre_prepare(pp);
           PBFT_ASSERT(
             executed_ok,
             "tentative execution while executing committed failed");

@@ -34,14 +34,12 @@ void LedgerWriter::write_prepare(
   }
 }
 
-void LedgerWriter::write_pre_prepare(
-  ccf::Store::Tx& tx, kv::Version& last_te_version)
+kv::Version LedgerWriter::write_pre_prepare(ccf::Store::Tx& tx)
 {
-  store.commit_tx(tx, last_te_version);
+  return store.commit_tx(tx);
 }
 
-void LedgerWriter::write_pre_prepare(
-  Pre_prepare* pp, kv::Version& last_te_version)
+kv::Version LedgerWriter::write_pre_prepare(Pre_prepare* pp)
 {
   LOG_TRACE_FMT(
     "Writing pre prepare with seqno {}, num big reqs {}, view {}",
@@ -49,14 +47,13 @@ void LedgerWriter::write_pre_prepare(
     pp->num_big_reqs(),
     pp->view());
 
-  store.commit_pre_prepare(
+  return store.commit_pre_prepare(
     {pp->seqno(),
      pp->num_big_reqs(),
      pp->get_digest_sig(),
      {(const uint8_t*)pp->contents(),
       (const uint8_t*)pp->contents() + pp->size()}},
-    pbft_pre_prepares_map,
-    last_te_version);
+    pbft_pre_prepares_map);
 }
 
 void LedgerWriter::write_view_change(View_change* vc)
