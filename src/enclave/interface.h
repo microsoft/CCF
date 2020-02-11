@@ -48,7 +48,7 @@ struct CCFConfig
 
   struct Genesis
   {
-    std::vector<ccf::NewMember> members_info;
+    std::vector<ccf::MemberPubInfo> members_info;
     std::string gov_script;
     MSGPACK_DEFINE(members_info, gov_script);
   };

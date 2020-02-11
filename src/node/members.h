@@ -25,21 +25,21 @@ MSGPACK_ADD_ENUM(ccf::MemberStatus);
 
 namespace ccf
 {
-  struct NewMember
+  struct MemberPubInfo
   {
     std::vector<uint8_t> cert;
     std::vector<uint8_t> keyshare_encryption_key;
 
-    NewMember() {}
+    MemberPubInfo() {}
 
-    NewMember(
+    MemberPubInfo(
       const std::vector<uint8_t>& cert_,
       const std::vector<uint8_t>& keyshare_encryption_key_) :
       cert(cert_),
       keyshare_encryption_key(keyshare_encryption_key_)
     {}
 
-    NewMember(
+    MemberPubInfo(
       std::vector<uint8_t>&& cert_,
       std::vector<uint8_t>&& keyshare_encryption_key_) :
       cert(std::move(cert_)),
@@ -49,10 +49,10 @@ namespace ccf
     MSGPACK_DEFINE(cert, keyshare_encryption_key);
   };
 
-  DECLARE_JSON_TYPE(NewMember)
-  DECLARE_JSON_REQUIRED_FIELDS(NewMember, cert, keyshare_encryption_key)
+  DECLARE_JSON_TYPE(MemberPubInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert, keyshare_encryption_key)
 
-  struct MemberInfo : NewMember
+  struct MemberInfo : MemberPubInfo
   {
     MemberStatus status = MemberStatus::ACCEPTED;
 
@@ -62,13 +62,13 @@ namespace ccf
       const std::vector<uint8_t>& cert_,
       const std::vector<uint8_t>& keyshare_encryption_key_,
       MemberStatus status_) :
-      NewMember(cert_, keyshare_encryption_key_),
+      MemberPubInfo(cert_, keyshare_encryption_key_),
       status(status_)
     {}
 
-    MSGPACK_DEFINE(MSGPACK_BASE(NewMember), status);
+    MSGPACK_DEFINE(MSGPACK_BASE(MemberPubInfo), status);
   };
-  DECLARE_JSON_TYPE_WITH_BASE(MemberInfo, NewMember)
+  DECLARE_JSON_TYPE_WITH_BASE(MemberInfo, MemberPubInfo)
   DECLARE_JSON_REQUIRED_FIELDS(MemberInfo, status)
   using Members = Store::Map<MemberId, MemberInfo>;
 

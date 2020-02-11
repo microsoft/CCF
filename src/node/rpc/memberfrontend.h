@@ -99,7 +99,8 @@ namespace ccf
         // add a new member
         {"new_member",
          [this](Store::Tx& tx, const nlohmann::json& args) {
-           const auto parsed = args.get<NewMember>();
+           LOG_INFO_FMT("str:  {}", args.dump());
+           const auto parsed = args.get<MemberPubInfo>();
            GenesisGenerator g(this->network, tx);
            auto new_member_id = g.add_member(
              parsed.cert,

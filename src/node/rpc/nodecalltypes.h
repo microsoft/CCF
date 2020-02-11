@@ -53,7 +53,7 @@ namespace ccf
   {
     struct In
     {
-      std::vector<NewMember> members_info;
+      std::vector<MemberPubInfo> members_info;
       std::string gov_script;
       std::vector<uint8_t> node_cert;
       Cert network_cert;
