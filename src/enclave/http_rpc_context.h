@@ -76,7 +76,8 @@ namespace enclave
 
     virtual std::string get_method() const override
     {
-      return std::string(remaining_path);
+      // Strip any leading /s
+      return std::string(remaining_path.substr(remaining_path.find_first_not_of('/')));
     }
 
     virtual std::string get_whole_method() const override
