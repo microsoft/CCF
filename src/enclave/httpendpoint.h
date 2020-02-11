@@ -321,6 +321,7 @@ namespace enclave
 
         // On any exception, close the connection.
         close();
+        throw;
       }
     }
   };
