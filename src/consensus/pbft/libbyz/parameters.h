@@ -6,6 +6,7 @@
 #pragma once
 
 #include "tls/keypair.h"
+#include "tls/verifier.h"
 
 #include <cstddef>
 
