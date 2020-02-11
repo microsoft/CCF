@@ -157,8 +157,10 @@ namespace enclave
         return;
       }
 
-      send_buffered(
-        http::Response(status).build_response(data, true, content_type));
+      auto response = http::Response(status);
+      response.set_header("content-type", content_type);
+
+      send_buffered(response.build_response(data, true));
       send_buffered(data);
       flush();
     }
