@@ -113,11 +113,6 @@ public:
   bool is_empty() const;
   // Effects: Returns true iff the certificate is empty
 
-  bool encode(FILE* o);
-  bool decode(FILE* i);
-  // Effects: Encodes and decodes object state from stream. Return
-  // true if successful and false otherwise.
-
   void dump_state(std::ostream& os);
   // Effects: dumps state for debugging
 

@@ -48,6 +48,19 @@ else()
   )
 endif()
 
+set(DISTRIBUTE_PERF_TESTS
+    ""
+    CACHE
+      STRING
+      "Hosts to which performance tests should be distributed, for example -n x.x.x.x -n x.x.x.x -n x.x.x.x"
+)
+
+if(DISTRIBUTE_PERF_TESTS)
+  separate_arguments(NODES UNIX_COMMAND ${DISTRIBUTE_PERF_TESTS})
+else()
+  unset(NODES)
+endif()
+
 option(COLORED_OUTPUT "Always produce ANSI-colored output (Clang only)." TRUE)
 
 if(${COLORED_OUTPUT})
@@ -373,7 +386,12 @@ else()
   set(CONSENSUS_ARG "raft")
 endif()
 
-set(WORKER_THREADS 0)
+if((NOT CMAKE_BUILD_TYPE STREQUAL "Debug") AND NOT PBFT)
+  set(WORKER_THREADS 2)
+else()
+  set(WORKER_THREADS 0)
+endif()
+message(STATUS "Setting default WORKER_THREADS to '${WORKER_THREADS}'")
 
 set(CCF_NETWORK_TEST_ARGS
     ${TEST_IGNORE_QUOTE}
@@ -493,6 +511,7 @@ function(add_perf_test)
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
       ${CCF_NETWORK_TEST_ARGS} --write-tx-times ${VERIFICATION_ARG} --label
       ${LABEL_ARG} ${PARSED_ARGS_ADDITIONAL_ARGS} ${RELAX_COMMIT_TARGET}
+      ${NODES}
   )
 
   # Make python test client framework importable

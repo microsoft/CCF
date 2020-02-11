@@ -37,11 +37,6 @@ class Certificate
   //
   // bool full();
   // // Effects: Returns true iff the message is full
-  //
-  // bool encode(FILE* o);
-  // bool decode(FILE* i);
-  // Effects: Encodes and decodes object state from stream. Return
-  // true if successful and false otherwise.
 
 public:
   Certificate(std::function<int()> complete = nullptr);
@@ -136,11 +131,6 @@ public:
     int next;
   };
   friend class Val_iter;
-
-  bool encode(FILE* o);
-  bool decode(FILE* i);
-  // Effects: Encodes and decodes object state from stream. Return
-  // true if successful and false otherwise.
 
   void dump_state(std::ostream& os);
   // Effects: logs state for debugging
@@ -559,96 +549,6 @@ T* Certificate<T>::cvalue_clear()
   clear();
 
   return ret;
-}
-
-template <class T>
-bool Certificate<T>::encode(FILE* o)
-{
-  bool ret = (fwrite((void*)&bmap, sizeof(bmap), 1, o) == sizeof(bmap));
-
-  size_t sz = fwrite(&max_size, sizeof(int), 1, o);
-  sz += fwrite(&cur_size, sizeof(int), 1, o);
-  for (int i = 0; i < cur_size; i++)
-  {
-    int vcount = vals[i].count;
-    sz += fwrite(&vcount, sizeof(int), 1, o);
-    if (vcount)
-    {
-      ret &= vals[i].m->encode(o);
-    }
-  }
-
-  sz += fwrite(&complete, sizeof(int), 1, o);
-
-  int cindex = (c != 0) ? c - vals : -1;
-  sz += fwrite(&cindex, sizeof(int), 1, o);
-
-  bool hmym = mym != 0;
-  sz += fwrite(&hmym, sizeof(bool), 1, o);
-
-  return ret & (sz == 5U + cur_size);
-}
-
-template <class T>
-bool Certificate<T>::decode(FILE* in)
-{
-  bool ret = (fread((void*)&bmap, sizeof(bmap), 1, in) == sizeof(bmap));
-
-#ifndef INSIDE_ENCLAVE
-  size_t sz = fread(&max_size, sizeof(int), 1, in);
-  delete[] vals;
-
-  vals = new Message_val[max_size];
-
-  sz += fread(&cur_size, sizeof(int), 1, in);
-  if (cur_size < 0 || cur_size >= max_size)
-    return false;
-
-  for (int i = 0; i < cur_size; i++)
-  {
-    sz += fread(&vals[i].count, sizeof(int), 1, in);
-    if (
-      vals[i].count < 0 ||
-      vals[i].count > pbft::GlobalState::get_node().num_of_replicas())
-      return false;
-
-    if (vals[i].count)
-    {
-      vals[i].m = (T*)new Message;
-      ret &= vals[i].m->decode(in);
-    }
-  }
-
-  sz += fread(&complete, sizeof(int), 1, in);
-  correct = f + 1;
-
-  int cindex;
-  sz += fread(&cindex, sizeof(int), 1, in);
-
-  bool hmym;
-  sz += fread(&hmym, sizeof(bool), 1, in);
-
-  if (cindex == -1)
-  {
-    c = 0;
-    mym = 0;
-  }
-  else
-  {
-    if (cindex < 0 || cindex > cur_size)
-      return false;
-    c = vals + cindex;
-
-    if (hmym)
-      mym = c->m;
-  }
-
-  t_sent = zero_time();
-
-  return ret & (sz == 5U + cur_size);
-#else
-  return true;
-#endif
 }
 
 template <class T>
