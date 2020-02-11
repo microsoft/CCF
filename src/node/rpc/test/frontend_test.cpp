@@ -303,7 +303,7 @@ auto create_signed_request(
 
   REQUIRE(to_sign.has_value());
 
-  const auto signature = kp->sign(to_sign.value());
+  const auto signature = kp->sign(to_sign.value(), MBEDTLS_MD_SHA256);
 
   auto auth_value = fmt::format(
     "Signature "
@@ -564,30 +564,29 @@ TEST_CASE("MinimalHandleFunction")
   prepare_callers();
   TestMinimalHandleFunction frontend(*network.tables);
   {
-    auto echo_call = create_simple_json();
-    echo_call[jsonrpc::METHOD] = "echo_function";
-    echo_call[jsonrpc::PARAMS] = {{"data", {"nested", "Some string"}},
-                                  {"other", "Another string"}};
+    auto echo_call = create_simple_request("echo_function");
+    const nlohmann::json j_body = {{"data", {"nested", "Some string"}},
+                                   {"other", "Another string"}};
+    const auto serialized_body = jsonrpc::pack(j_body, default_pack);
 
-    const auto signed_call = create_signed_json(echo_call);
-    const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
+    const auto signed_call = create_signed_request(echo_call, serialized_body);
+    const auto serialized_call = signed_call.build_request(serialized_body);
 
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
     auto response =
-      jsonrpc::unpack(frontend.process(rpc_ctx).value(), default_pack);
-    CHECK(response[jsonrpc::RESULT] == echo_call[jsonrpc::PARAMS]);
+      parse_response(frontend.process(rpc_ctx).value(), default_pack);
+    CHECK(response[jsonrpc::RESULT] == j_body);
   }
 
   {
-    auto get_caller = create_simple_json();
-    get_caller[jsonrpc::METHOD] = "get_caller";
+    auto get_caller = create_simple_request("get_caller");
 
-    const auto signed_call = create_signed_json(get_caller);
-    const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
+    const auto signed_call = create_signed_request(get_caller);
+    const auto serialized_call = signed_call.build_request();
 
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
     auto response =
-      jsonrpc::unpack(frontend.process(rpc_ctx).value(), default_pack);
+      parse_response(frontend.process(rpc_ctx).value(), default_pack);
     CHECK(response[jsonrpc::RESULT] == user_id);
   }
 }

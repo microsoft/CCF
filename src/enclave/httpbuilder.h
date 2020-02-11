@@ -183,8 +183,6 @@ namespace enclave
           get_header_string(full_headers),
           body_view);
 
-        std::cout << "Made a HTTP request: \n" << request_string << std::endl;
-
         return std::vector<uint8_t>(
           request_string.begin(), request_string.end());
       }
@@ -217,8 +215,6 @@ namespace enclave
           http_status_str(status),
           get_header_string(full_headers),
           body_view);
-
-        std::cout << "Made a HTTP response: \n" << response_string << std::endl;
 
         return std::vector<uint8_t>(
           response_string.begin(), response_string.end());

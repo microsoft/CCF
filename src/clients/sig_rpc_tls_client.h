@@ -90,7 +90,8 @@ public:
       throw std::logic_error(fmt::format("Error constructing signed string"));
     }
 
-    const auto sig_raw = key_pair->sign(signing_string.value());
+    const auto sig_raw =
+      key_pair->sign(signing_string.value(), MBEDTLS_MD_SHA256);
 
     auto auth_value = fmt::format(
       "Signature "
