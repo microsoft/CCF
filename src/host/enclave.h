@@ -62,7 +62,8 @@ namespace host
 
         if (err != OE_OK)
         {
-          LOG_FATAL_FMT("Could not create enclave: {}", oe_result_str(err));
+          throw std::logic_error(
+            fmt::format("Could not create enclave: {}", oe_result_str(err)));
         }
       }
     }
@@ -106,13 +107,13 @@ namespace host
 
       if (err != OE_OK)
       {
-        LOG_FATAL_FMT(
-          "Failed to call in enclave_create_node: {}", oe_result_str(err));
+        throw std::logic_error(fmt::format(
+          "Failed to call in enclave_create_node: {}", oe_result_str(err)));
       }
 
       if (!ret)
       {
-        LOG_FATAL_FMT("An error occurred when creating CCF node");
+        throw std::logic_error("An error occurred when creating CCF node");
       }
 
       node_cert.resize(node_cert_len);
@@ -131,7 +132,8 @@ namespace host
 
       if (err != OE_OK)
       {
-        LOG_FATAL_FMT("Failed to call in enclave_run: {}", oe_result_str(err));
+        throw std::logic_error(
+          fmt::format("Failed to call in enclave_run: {}", oe_result_str(err)));
       }
 
       return ret;
