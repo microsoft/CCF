@@ -138,7 +138,7 @@ def run(args):
             check_commit = infra.checker.Checker(mc)
             check = infra.checker.Checker()
 
-            run_requests(all_nodes, TOTAL_REQUESTS, 0, first_msg, 1000)
+            run_requests(all_nodes, int(TOTAL_REQUESTS / 2), 0, first_msg, 1000)
             term_info.update(find_primary(network))
 
             nodes_to_kill = []
