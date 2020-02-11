@@ -160,14 +160,24 @@ class Consortium:
         ):
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
-    def propose_add_member(self, member_id, remote_node, new_member_cert):
+    def propose_add_member(self, member_id, remote_node, new_member_cert, new_keyshare):
         script = """
-        tables, member_cert = ...
-        return Calls:call("new_member", member_cert)
+        tables, params = ...
+        return Calls:call("new_member", {cert = params.cert, keyshare_encryption_key = params.keyshare_encryption_key})
         """
         with open(new_member_cert) as cert:
             new_member_cert_pem = [ord(c) for c in cert.read()]
-        return self.propose(member_id, remote_node, script, new_member_cert_pem)
+        with open(new_keyshare) as keyshare:
+            new_member_keyshare = [ord(k) for k in keyshare.read()]
+        return self.propose(
+            member_id,
+            remote_node,
+            script,
+            {
+                "cert": new_member_cert_pem,
+                "keyshare_encryption_key": new_member_keyshare,
+            },
+        )
 
     def open_network(self, member_id, remote_node, pbft_open=False):
         """
