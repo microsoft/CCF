@@ -516,13 +516,15 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
 
     if (global_commit_cb != nullptr && executable_pp->is_signed())
     {
-      last_gb_version = executable_pp->get_ctx();
-      last_gb_seqno = executable_pp->seqno();
-
       LOG_TRACE_FMT(
         "Global_commit: {} {}",
         executable_pp->get_ctx(),
         executable_pp->seqno());
+      LOG_TRACE_FMT("Checkpointing for seqno {}", last_executed);
+
+      state.checkpoint(last_executed);
+      last_gb_version = executable_pp->get_ctx();
+      last_gb_seqno = executable_pp->seqno();
 
       global_commit_cb(
         executable_pp->get_ctx(), executable_pp->view(), global_commit_info);
@@ -530,7 +532,6 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
 
     if (executable_pp->is_signed() && f() > 0)
     {
-      state.checkpoint(last_executed);
       mark_stable(last_executed, true);
     }
 
@@ -2210,10 +2211,9 @@ void Replica::execute_prepared(bool committed)
     if (global_commit_cb != nullptr && pp->is_signed())
     {
       LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
-
       LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
-      state.checkpoint(pp->seqno());
 
+      state.checkpoint(pp->seqno());
       last_gb_version = pp->get_ctx();
       last_gb_seqno = pp->seqno();
 
