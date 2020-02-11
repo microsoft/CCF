@@ -5,9 +5,6 @@
 
 #pragma once
 
-#ifndef INSIDE_ENCLAVE
-#  include <sys/time.h>
-#endif
 #include "Time.h"
 #include "types.h"
 

@@ -17,6 +17,25 @@ namespace ccf
   using SeqNo = uint64_t;
   using GcmHdr = crypto::GcmHeader<sizeof(SeqNo)>;
 
+  struct RecvNonce
+  {
+    uint8_t tid;
+    uint64_t nonce : (sizeof(uint64_t) - sizeof(uint8_t)) * CHAR_BIT;
+
+    RecvNonce(uint64_t nonce_, uint8_t tid_) : nonce(nonce_), tid(tid_) {}
+    RecvNonce(const uint64_t header)
+    {
+      *this = *reinterpret_cast<const RecvNonce*>(&header);
+    }
+
+    uint64_t get_val() const
+    {
+      return *reinterpret_cast<const uint64_t*>(this);
+    }
+  };
+  static_assert(
+    sizeof(RecvNonce) == sizeof(SeqNo), "RecvNonce is the wrong size");
+
   enum ChannelStatus
   {
     INITIATED = 0,
@@ -38,7 +57,8 @@ namespace ccf
 
     // Used to prevent replayed messages.
     // Set to the latest successfully received nonce.
-    std::atomic<SeqNo> local_recv_nonce{0};
+    std::array<std::atomic<SeqNo>, enclave::ThreadMessaging::max_num_threads>
+      local_recv_nonce = {0};
 
     bool verify_or_decrypt(
       const GcmHdr& header,
@@ -51,12 +71,17 @@ namespace ccf
         throw std::logic_error("Channel is not established for verifying");
       }
 
-      auto local_nonce = local_recv_nonce.load();
-      auto recv_nonce = header.get_iv_int();
+      RecvNonce recv_nonce(header.get_iv_int());
+      auto tid = recv_nonce.tid;
+      auto local_nonce = local_recv_nonce[tid].load();
 
-      if (recv_nonce <= local_nonce)
+      if (recv_nonce.nonce <= local_nonce)
       {
         // If the nonce received has already been processed, return
+        LOG_FAIL_FMT(
+          "Invalid nonce, possible replay attack, received:{}, last_seen:{}",
+          recv_nonce.nonce,
+          local_nonce);
         return false;
       }
 
@@ -66,7 +91,7 @@ namespace ccf
       {
         // Set local recv nonce to received nonce only if verification is
         // successful
-        local_recv_nonce.store(recv_nonce);
+        local_recv_nonce[tid].exchange(recv_nonce.nonce);
       }
 
       return ret;
@@ -130,8 +155,10 @@ namespace ccf
       {
         throw std::logic_error("Channel is not established for tagging");
       }
+      RecvNonce nonce(
+        send_nonce.fetch_add(1), thread_ids[std::this_thread::get_id()]);
 
-      header.set_iv_seq(send_nonce.fetch_add(1));
+      header.set_iv_seq(nonce.get_val());
       key->encrypt(header.get_iv(), nullb, aad, nullptr, header.tag);
     }
 
@@ -147,7 +174,10 @@ namespace ccf
         throw std::logic_error("Channel is not established for encrypting");
       }
 
-      header.set_iv_seq(send_nonce.fetch_add(1));
+      RecvNonce nonce(
+        send_nonce.fetch_add(1), thread_ids[std::this_thread::get_id()]);
+
+      header.set_iv_seq(nonce.get_val());
       key->encrypt(header.get_iv(), plain, aad, cipher.p, header.tag);
     }
 

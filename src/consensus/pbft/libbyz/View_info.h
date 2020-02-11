@@ -178,12 +178,6 @@ public:
   // Effects: Sends prepare messages for any logged digests for sequence
   // number "n" sent in a view greater than or equal to "v" to dest.
 
-  bool shutdown(FILE* o);
-  // Effects: Shuts down this writing value to "o"
-
-  bool restart(FILE* i, View rv, Seqno ls, bool corrupt);
-  // Effects: Restarts this from value in "i"
-
   bool enforce_bound(Seqno b, Seqno ks, bool corrupt);
   // Effects: Enforces that there is no information above bound
   // "b". "ks" is the maximum sequence number that I know is stable.
