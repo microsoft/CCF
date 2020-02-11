@@ -28,29 +28,28 @@ namespace ccf
   struct MemberPubInfo
   {
     std::vector<uint8_t> cert;
-    std::vector<uint8_t> keyshare_encryption_key;
+    std::vector<uint8_t> keyshare;
 
     MemberPubInfo() {}
 
     MemberPubInfo(
       const std::vector<uint8_t>& cert_,
-      const std::vector<uint8_t>& keyshare_encryption_key_) :
+      const std::vector<uint8_t>& keyshare_) :
       cert(cert_),
-      keyshare_encryption_key(keyshare_encryption_key_)
+      keyshare(keyshare_)
     {}
 
     MemberPubInfo(
-      std::vector<uint8_t>&& cert_,
-      std::vector<uint8_t>&& keyshare_encryption_key_) :
+      std::vector<uint8_t>&& cert_, std::vector<uint8_t>&& keyshare_) :
       cert(std::move(cert_)),
-      keyshare_encryption_key(std::move(keyshare_encryption_key_))
+      keyshare(std::move(keyshare_))
     {}
 
-    MSGPACK_DEFINE(cert, keyshare_encryption_key);
+    MSGPACK_DEFINE(cert, keyshare);
   };
 
   DECLARE_JSON_TYPE(MemberPubInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert, keyshare_encryption_key)
+  DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert, keyshare)
 
   struct MemberInfo : MemberPubInfo
   {
@@ -60,9 +59,9 @@ namespace ccf
 
     MemberInfo(
       const std::vector<uint8_t>& cert_,
-      const std::vector<uint8_t>& keyshare_encryption_key_,
+      const std::vector<uint8_t>& keyshare_,
       MemberStatus status_) :
-      MemberPubInfo(cert_, keyshare_encryption_key_),
+      MemberPubInfo(cert_, keyshare_),
       status(status_)
     {}
 

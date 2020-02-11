@@ -30,8 +30,7 @@ namespace ccf
 {
   bool operator==(const MemberInfo& mi0, const MemberInfo& mi1)
   {
-    return mi0.status == mi1.status &&
-      mi0.keyshare_encryption_key == mi1.keyshare_encryption_key;
+    return mi0.status == mi1.status && mi0.keyshare == mi1.keyshare;
   }
 }
 

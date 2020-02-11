@@ -101,10 +101,8 @@ namespace ccf
          [this](Store::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<MemberPubInfo>();
            GenesisGenerator g(this->network, tx);
-           auto new_member_id = g.add_member(
-             parsed.cert,
-             parsed.keyshare_encryption_key,
-             MemberStatus::ACCEPTED);
+           auto new_member_id =
+             g.add_member(parsed.cert, parsed.keyshare, MemberStatus::ACCEPTED);
 
            auto ack = tx.get_view(this->network.member_acks);
            ack->put(new_member_id, {rng->random(SIZE_NONCE)});

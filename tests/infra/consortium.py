@@ -23,15 +23,15 @@ class Consortium:
                 key_generator,
                 f"--name={m}",
                 f"--curve={curve.name}",
-                "--gen-encryption-key",
+                "--gen-key-share",
                 log_output=False,
             ).check_returncode()
         self.status = infra.ccf.ServiceStatus.OPEN
 
     def get_members_info(self):
         members_certs = [f"member{m}_cert.pem" for m in self.members]
-        members_enc_pubk = [f"member{m}_enc_pubk.pem" for m in self.members]
-        return list(zip(members_certs, members_enc_pubk))
+        members_kshare_pub = [f"member{m}_kshare_pub.pem" for m in self.members]
+        return list(zip(members_certs, members_kshare_pub))
 
     def propose(self, member_id, remote_node, script=None, params=None):
         with remote_node.member_client(format="json", member_id=member_id) as mc:
@@ -173,10 +173,7 @@ class Consortium:
             member_id,
             remote_node,
             script,
-            {
-                "cert": new_member_cert_pem,
-                "keyshare_encryption_key": new_member_keyshare,
-            },
+            {"cert": new_member_cert_pem, "keyshare": new_member_keyshare,},
         )
 
     def open_network(self, member_id, remote_node, pbft_open=False):

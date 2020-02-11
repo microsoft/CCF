@@ -7,9 +7,8 @@ To generate the certificate and private key of trusted users should be generated
 
     $ CCF/tests/keygenerator.sh --name=user1
     -- Generating identity private key and certificate for participant "user1"...
-    Identity curve: secp384r1
-    Identity certificate generated at:    user1_cert.pem (to be registered in CCF)
-    Identity private key generated at:    user1_privk.pem
+    Identity certificate generated at:   user1_cert.pem (to be registered in CCF)
+    Identity private key generated at:   user1_privk.pem
 
 .. note:: See :ref:`developers/cryptography:Algorithms and Curves` for the list of supported cryptographic curves.
 

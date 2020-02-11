@@ -42,7 +42,7 @@ def run(args):
         query = """local tables, param = ...
         local member_id = param
         local STATE_ACCEPTED = "ACCEPTED"
-        local member_info = {cert = {}, keyshare_encryption_key = {}, status = STATE_ACCEPTED}
+        local member_info = {cert = {}, keyshare = {}, status = STATE_ACCEPTED}
         local p = Puts:new()
         p:put("ccf.members", member_id, member_info)
         return Calls:call("raw_puts", p)
@@ -52,12 +52,12 @@ def run(args):
         infra.proc.ccall(
             network.key_generator,
             f"--name=member3",
-            "--gen-encryption-key",
+            "--gen-key-share",
             infra.ccf.ParticipantsCurve(args.default_curve).next().name,
         )
 
         result, _ = network.consortium.propose_add_member(
-            0, primary, "member3_cert.pem", "member3_enc_pubk.pem"
+            0, primary, "member3_cert.pem", "member3_kshare_pub.pem"
         )
 
         # When proposal is added the proposal id and the result of running complete proposal are returned

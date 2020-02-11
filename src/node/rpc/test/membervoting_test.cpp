@@ -316,7 +316,7 @@ TEST_CASE("Proposer ballot")
       return Calls:call("new_member", member_info)
     )xxx");
     proposal.parameter["cert"] = proposed_member;
-    proposal.parameter["keyshare_encryption_key"] = dummy_encryption_key;
+    proposal.parameter["keyshare"] = dummy_encryption_key;
     proposal.ballot = vote_against;
     const auto proposej = create_json_req(proposal, "propose");
     Response<Propose::Out> r =
@@ -416,7 +416,7 @@ TEST_CASE("Add new members until there are 7 then reject")
     // new member certificate
     auto cert_pem =
       new_member.kp->self_sign(fmt::format("CN=new member{}", new_member.id));
-    auto keyshare_encryption_key = dummy_encryption_key;
+    auto keyshare = dummy_encryption_key;
     auto v = tls::make_verifier(cert_pem);
     const auto _cert = v->raw();
     new_member.cert = {_cert->raw.p, _cert->raw.p + _cert->raw.len};
@@ -434,7 +434,7 @@ TEST_CASE("Add new members until there are 7 then reject")
       return Calls:call("new_member", member_info)
     )xxx");
     proposal.parameter["cert"] = cert_pem;
-    proposal.parameter["keyshare_encryption_key"] = keyshare_encryption_key;
+    proposal.parameter["keyshare"] = keyshare;
 
     const auto proposej = create_json_req(proposal, "propose");
 
@@ -786,7 +786,7 @@ TEST_CASE("Propose raw writes")
       const Cert member_cert = {1, 2, 3};
       nlohmann::json params;
       params["cert"] = member_cert;
-      params["keyshare_encryption_key"] = dummy_encryption_key;
+      params["keyshare"] = dummy_encryption_key;
       CHECK(
         test_raw_writes(
           network,
@@ -802,7 +802,7 @@ TEST_CASE("Propose raw writes")
         -- increment id
         p:put("ccf.values", NEXT_MEMBER_ID_VALUE, member_id + 1)
         -- write member info and status
-        p:put("ccf.members", member_id, {cert = param.cert, keyshare_encryption_key = param.keyshare_encryption_key, status = STATE_ACTIVE})
+        p:put("ccf.members", member_id, {cert = param.cert, keyshare = param.keyshare, status = STATE_ACTIVE})
         p:put("ccf.member_certs", param.cert, member_id)
         return Calls:call("raw_puts", p)
       )xxx"s,
@@ -1106,7 +1106,7 @@ TEST_CASE("Passing members ballot with operator")
       return Calls:call("new_member", member_info)
     )xxx");
     proposal.parameter["cert"] = proposed_member;
-    proposal.parameter["keyshare_encryption_key"] = dummy_encryption_key;
+    proposal.parameter["keyshare"] = dummy_encryption_key;
     proposal.ballot = vote_for;
 
     const auto proposej = create_json_req(proposal, "propose");

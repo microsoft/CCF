@@ -132,11 +132,11 @@ def run(args):
         infra.proc.ccall(
             network.key_generator,
             f"--name=member4",
-            "--gen-encryption-key",
+            "--gen-key-share",
             infra.ccf.ParticipantsCurve.secp256k1.name,
         )
         result, error = network.consortium.propose_add_member(
-            1, primary, "member4_cert.pem", "member4_enc_pubk.pem"
+            1, primary, "member4_cert.pem", "member4_kshare_pub.pem"
         )
 
         # When proposal is added the proposal id and the result of running

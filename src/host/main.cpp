@@ -224,17 +224,6 @@ int main(int argc, char** argv)
     ->check(CLI::ExistingFile)
     ->required();
 
-  // TODO: Keep this for now under a flag?
-  // std::vector<std::string> member_cert_files;
-  // start
-  //   ->add_option(
-  //     "--member-cert",
-  //     member_cert_files,
-  //     "Certificate files of the initial consortium members",
-  //     true)
-  //   ->check(CLI::ExistingFile)
-  //   ->required();
-
   std::vector<cli::ParsedMemberInfo> members_info;
   cli::add_member_info_option(
     *start,
@@ -388,8 +377,7 @@ int main(int argc, char** argv)
     for (auto const& m_info : members_info)
     {
       ccf_config.genesis.members_info.emplace_back(
-        files::slurp(m_info.cert_file),
-        files::slurp(m_info.keyshare_encryption_key_file));
+        files::slurp(m_info.cert_file), files::slurp(m_info.keyshare_pub_file));
     }
     ccf_config.genesis.gov_script = files::slurp_string(gov_script);
     LOG_INFO_FMT(
