@@ -224,14 +224,12 @@ int main(int argc, char** argv)
     ->check(CLI::ExistingFile)
     ->required();
 
-  std::vector<std::string> member_cert_files;
-  start
-    ->add_option(
-      "--member-cert",
-      member_cert_files,
-      "Certificate files of the initial consortium members",
-      true)
-    ->check(CLI::ExistingFile)
+  std::vector<cli::ParsedMemberInfo> members_info;
+  cli::add_member_info_option(
+    *start,
+    members_info,
+    "--member-info",
+    "Initial consortium members information (public identity,public key share)")
     ->required();
 
   auto join = app.add_subcommand("join", "Join existing network");
@@ -375,14 +373,15 @@ int main(int argc, char** argv)
   {
     start_type = StartType::New;
 
-    for (auto const& cert_file : member_cert_files)
+    for (auto const& m_info : members_info)
     {
-      ccf_config.genesis.member_certs.emplace_back(files::slurp(cert_file));
+      ccf_config.genesis.members_info.emplace_back(
+        files::slurp(m_info.cert_file), files::slurp(m_info.keyshare_pub_file));
     }
     ccf_config.genesis.gov_script = files::slurp_string(gov_script);
     LOG_INFO_FMT(
       "Creating new node: new network (with {} initial member(s))",
-      ccf_config.genesis.member_certs.size());
+      ccf_config.genesis.members_info.size());
   }
   else if (*join)
   {

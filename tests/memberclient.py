@@ -41,8 +41,8 @@ def run(args):
         # Create a lua query file to change a member state to accepted
         query = """local tables, param = ...
         local member_id = param
-        local STATE_ACCEPTED = 0
-        local member_info = {cert = {}, status = STATE_ACCEPTED}
+        local STATE_ACCEPTED = "ACCEPTED"
+        local member_info = {cert = {}, keyshare = {}, status = STATE_ACCEPTED}
         local p = Puts:new()
         p:put("ccf.members", member_id, member_info)
         return Calls:call("raw_puts", p)
@@ -51,16 +51,13 @@ def run(args):
         LOG.info("Proposal to add a new member (with different curve)")
         infra.proc.ccall(
             network.key_generator,
-            "member3",
-            infra.ccf.ParticipantsCurve(args.default_curve).next().name,
+            f"--name=member3",
+            "--gen-key-share",
+            f"--curve={infra.ccf.ParticipantsCurve(args.default_curve).next().name}",
         )
 
-        script = """
-        tables, member_cert = ...
-        return Calls:call("new_member", member_cert)
-        """
         result, _ = network.consortium.propose_add_member(
-            0, primary, "member3_cert.pem"
+            0, primary, "member3_cert.pem", "member3_kshare_pub.pem"
         )
 
         # When proposal is added the proposal id and the result of running complete proposal are returned

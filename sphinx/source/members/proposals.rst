@@ -24,9 +24,9 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
         "id": 0,
         "method": "members/propose",
         "params": {
-            "parameter": [<cert of member4>],
+            "parameter": {"cert": [<cert of member4>], "keyshare": [<public keyshare of member4>]},
             "script": {
-                "text": "tables, member_cert = ...; return Calls:call(\"new_member\", member_cert)"
+                "text": "tables, member_info = ...; return Calls:call(\"new_member\", member_info)"
             }
         }
     }

@@ -11,6 +11,7 @@
 #include "ds/oversized.h"
 #include "ds/ringbuffer_types.h"
 #include "kv/kvtypes.h"
+#include "node/members.h"
 #include "node/nodeinfonetwork.h"
 #include "start_type.h"
 #include "tls/tls.h"
@@ -47,9 +48,9 @@ struct CCFConfig
 
   struct Genesis
   {
-    std::vector<std::vector<uint8_t>> member_certs;
+    std::vector<ccf::MemberPubInfo> members_info;
     std::string gov_script;
-    MSGPACK_DEFINE(member_certs, gov_script);
+    MSGPACK_DEFINE(members_info, gov_script);
   };
   Genesis genesis = {};
 

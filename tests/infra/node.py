@@ -62,7 +62,7 @@ class Node:
         else:
             self.node_port = probably_free_function(self.host)
 
-    def start(self, lib_name, enclave_type, workspace, label, members_certs, **kwargs):
+    def start(self, lib_name, enclave_type, workspace, label, members_info, **kwargs):
         self._start(
             infra.remote.StartType.new,
             lib_name,
@@ -70,7 +70,7 @@ class Node:
             workspace,
             label,
             None,
-            members_certs,
+            members_info,
             **kwargs,
         )
         self.network_state = NodeNetworkState.joined
@@ -107,7 +107,7 @@ class Node:
         workspace,
         label,
         target_rpc_address=None,
-        members_certs=None,
+        members_info=None,
         **kwargs,
     ):
         """
@@ -135,7 +135,7 @@ class Node:
             workspace,
             label,
             target_rpc_address,
-            members_certs,
+            members_info,
             binary_dir=self.binary_dir,
             **kwargs,
         )
