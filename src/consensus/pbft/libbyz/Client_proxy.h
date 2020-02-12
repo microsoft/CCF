@@ -245,8 +245,8 @@ bool ClientProxy<T, C>::send_request(
 
   if (enclave::ThreadMessaging::thread_count > 1)
   {
-  enclave::ThreadMessaging::thread_messaging.add_task<ExecuteRequestMsg>(
-    enclave::ThreadMessaging::main_thread, std::move(msg));
+    enclave::ThreadMessaging::thread_messaging.add_task<ExecuteRequestMsg>(
+      enclave::ThreadMessaging::main_thread, std::move(msg));
   }
   else
   {
