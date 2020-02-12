@@ -36,7 +36,8 @@ namespace crypto
       }
       else
       {
-        LOG_FATAL_FMT("Need at least {} bits, only have {}", 128, n);
+        throw std::logic_error(
+          fmt::format("Need at least {} bits, only have {}", 128, n));
       }
 
       int rc =
@@ -44,7 +45,7 @@ namespace crypto
 
       if (rc != 0)
       {
-        LOG_FATAL_FMT(tls::error_string(rc));
+        throw std::logic_error(tls::error_string(rc));
       }
     }
   }
@@ -94,7 +95,7 @@ namespace crypto
 
     if (rc != 0)
     {
-      LOG_FATAL_FMT(tls::error_string(rc));
+      throw std::logic_error(tls::error_string(rc));
     }
   }
 
