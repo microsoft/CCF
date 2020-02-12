@@ -16,6 +16,7 @@
 #include "scripts.h"
 #include "secrets.h"
 #include "service.h"
+#include "shares.h"
 #include "signatures.h"
 #include "users.h"
 #include "values.h"
@@ -45,6 +46,7 @@ namespace ccf
     MemberAcks& member_acks;
     VotingHistoryTable& voting_history;
     ClientSignatures& member_client_signatures;
+    Shares& shares;
 
     //
     // User tables
@@ -104,6 +106,8 @@ namespace ccf
         Tables::VOTING_HISTORY, kv::SecurityDomain::PUBLIC)),
       member_client_signatures(
         tables->create<ClientSignatures>(Tables::MEMBER_CLIENT_SIGNATURES)),
+      shares(
+        tables->create<Shares>(Tables::SHARES, kv::SecurityDomain::PUBLIC)),
       users(tables->create<Users>(Tables::USERS)),
       user_certs(tables->create<Certs>(Tables::USER_CERTS)),
       user_client_signatures(

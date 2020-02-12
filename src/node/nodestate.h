@@ -343,6 +343,44 @@ namespace ccf
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
 
+          auto share_wrapping_key_raw =
+            tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
+          auto share_wrapping_key = crypto::KeyAesGcm(share_wrapping_key_raw);
+
+          // TODO: Move this to a function, possibly in ledger secrets?
+          crypto::GcmCipher encrypted_ls(
+            network.ledger_secrets->get_secret(1)->master.size());
+
+          auto iv = std::vector<uint8_t>(16, 0x42);
+
+          // TODO: Can iv be null here? Do we never re-use the same key?
+          share_wrapping_key.encrypt(
+            iv,
+            network.ledger_secrets->get_secret(1)->master,
+            nullb,
+            encrypted_ls.cipher.data(),
+            encrypted_ls.hdr.tag);
+
+          // TODO: This can go
+          auto decrypted = std::vector<uint8_t>(encrypted_ls.cipher.size());
+          if (
+            share_wrapping_key.decrypt(
+              iv,
+              encrypted_ls.hdr.tag,
+              encrypted_ls.cipher,
+              nullb,
+              decrypted.data()) == false)
+          {
+            throw std::logic_error("Hahaha");
+          }
+
+          assert(decrypted == network.ledger_secrets->get_secret(1)->master);
+
+          // TODO: Now, split k_z into shares
+          // - Write C++ API for keyshare
+          // - Split k_z
+          // - Record into ccf.shares, along with encrypted_ls
+
           self = 0; // The first node id is always 0
 
 #ifdef PBFT
@@ -1138,7 +1176,7 @@ namespace ccf
 
       for (auto [nid, ni] : trusted_nodes)
       {
-        ccf::EncryptedLedgerSecret secret_for_node;
+        ccf::NodeEncryptedLedgerSecret secret_for_node;
         secret_for_node.node_id = nid;
 
         // Encrypt secrets with a shared secret derived from backup public
