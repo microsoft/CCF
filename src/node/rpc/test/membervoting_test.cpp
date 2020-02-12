@@ -81,19 +81,46 @@ std::vector<uint8_t> create_request(
 {
   enclave::http::Request r;
   r.set_path(method_name);
-  return r.build_request(jsonrpc::pack(params, default_pack));
+  const auto body = params.is_null() ? std::vector<uint8_t>() :
+                                       jsonrpc::pack(params, default_pack);
+  return r.build_request(body);
 }
 
-json create_json_req_signed(
+std::vector<uint8_t> create_signed_request(
   const json& params, const string& method_name, tls::KeyPairPtr& kp_)
 {
-  //   auto j = create_json_req(params, method_name);
-  //   nlohmann::json sj;
-  //   sj["req"] = j;
-  //   auto sig = sign_json(j, kp_);
-  //   sj["sig"] = sig;
-  //  return sj;
-  return {};
+  enclave::http::Request r;
+  r.set_path(method_name);
+
+  const auto body = params.is_null() ? std::vector<uint8_t>() :
+                                       jsonrpc::pack(params, default_pack);
+
+  auto headers = r.get_headers();
+  enclave::http::add_auto_headers(headers, body);
+  std::vector<std::string_view> headers_to_sign;
+  headers_to_sign.emplace_back(enclave::http::HTTP_HEADER_DIGEST);
+
+  const auto to_sign = enclave::http::construct_raw_signed_string(
+    http_method_str(r.get_method()),
+    r.get_path(),
+    r.get_formatted_query(),
+    headers,
+    headers_to_sign);
+
+  REQUIRE(to_sign.has_value());
+
+  const auto signature = kp_->sign(to_sign.value(), MBEDTLS_MD_SHA256);
+
+  auto auth_value = fmt::format(
+    "Signature "
+    "keyId=\"ignored\",algorithm=\"ecdsa-sha256\",headers=\"{}\",signature="
+    "\"{}\"",
+    fmt::format("{}", fmt::join(headers_to_sign, " ")),
+    tls::b64_from_raw(signature.data(), signature.size()));
+
+  r.set_header("authorization", auth_value);
+
+  return r.build_request(body);
 }
 
 template <typename T>
@@ -330,9 +357,9 @@ TEST_CASE("Proposer ballot")
   {
     INFO("Second member votes for proposal");
 
-    const auto votej =
-      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
-    Response<bool> r = frontend_process(frontend, votej, voter_cert);
+    const auto vote =
+      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
+    Response<bool> r = frontend_process(frontend, vote, voter_cert);
 
     // The vote should not yet succeed
     CHECK(r.result == false);
@@ -341,7 +368,7 @@ TEST_CASE("Proposer ballot")
   {
     INFO("Read current votes");
 
-    const auto readj = create_json_req_signed(
+    const auto read = create_signed_request(
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
     const Response<Proposal> proposal =
       get_proposal(frontend, proposal_id, proposer_cert);
@@ -361,9 +388,9 @@ TEST_CASE("Proposer ballot")
   {
     INFO("Proposer votes for");
 
-    const auto votej =
-      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
-    Response<bool> r = frontend_process(frontend, votej, proposer_cert);
+    const auto vote =
+      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
+    Response<bool> r = frontend_process(frontend, vote, proposer_cert);
 
     // The vote should now succeed
     CHECK(r.result == true);
@@ -464,11 +491,11 @@ TEST_CASE("Add new members until there are 7 then reject")
       )xxx",
       max_members));
 
-    json votej =
-      create_json_req_signed(Vote{proposal_id, vote_ballot}, "vote", kp);
+    const auto vote =
+      create_signed_request(Vote{proposal_id, vote_ballot}, "vote", kp);
 
     {
-      Response<bool> r = frontend_process(frontend, votej, voter_a_cert);
+      Response<bool> r = frontend_process(frontend, vote, voter_a_cert);
 
       if (new_member.id < max_members)
       {
@@ -618,17 +645,17 @@ TEST_CASE("Accept node")
         local tables, calls = ...
         return #calls == 1 and calls[1].func == "trust_node"
        )xxx");
-    json votej = create_json_req_signed(Vote{0, vote_ballot}, "vote", kp);
+    const auto vote = create_signed_request(Vote{0, vote_ballot}, "vote", kp);
 
-    check_success(frontend_process(frontend, votej, member_1_cert));
+    check_success(frontend_process(frontend, vote, member_1_cert));
   }
 
   // check node exists with status pending
   {
-    const auto read_values_j =
+    const auto read_values =
       create_request(read_params<int>(node_id, Tables::NODES), "read");
     Response<NodeInfo> r =
-      frontend_process(frontend, read_values_j, member_0_cert);
+      frontend_process(frontend, read_values, member_0_cert);
     CHECK(r.result.status == NodeStatus::TRUSTED);
   }
 
@@ -650,8 +677,8 @@ TEST_CASE("Accept node")
   // m1 votes for retiring node
   {
     const Script vote_ballot("return true");
-    json votej = create_json_req_signed(Vote{1, vote_ballot}, "vote", kp);
-    check_success(frontend_process(frontend, votej, member_1_cert));
+    const auto vote = create_signed_request(Vote{1, vote_ballot}, "vote", kp);
+    check_success(frontend_process(frontend, vote, member_1_cert));
   }
 
   // check that node exists with status retired
@@ -675,9 +702,9 @@ TEST_CASE("Accept node")
       frontend_process(frontend, propose, member_0_cert);
 
     const Script vote_ballot("return true");
-    json votej = create_json_req_signed(Vote{2, vote_ballot}, "vote", kp);
+    const auto vote = create_signed_request(Vote{2, vote_ballot}, "vote", kp);
     check_error(
-      frontend_process(frontend, votej, member_1_cert),
+      frontend_process(frontend, vote, member_1_cert),
       StandardErrorCodes::INTERNAL_ERROR);
   }
 
@@ -693,9 +720,9 @@ TEST_CASE("Accept node")
       frontend_process(frontend, propose, member_0_cert);
 
     const Script vote_ballot("return true");
-    json votej = create_json_req_signed(Vote{3, vote_ballot}, "vote", kp);
+    const auto vote = create_signed_request(Vote{3, vote_ballot}, "vote", kp);
     check_error(
-      frontend_process(frontend, votej, member_1_cert),
+      frontend_process(frontend, vote, member_1_cert),
       StandardErrorCodes::INTERNAL_ERROR);
   }
 }
@@ -740,9 +767,11 @@ bool test_raw_writes(
   for (int i = n_members - 1; i >= pro_votes; i--)
   {
     const Script vote("return false");
-    json votej = create_json_req_signed(Vote{proposal_id, vote}, "vote", kp);
+    const auto vote_serialized =
+      create_signed_request(Vote{proposal_id, vote}, "vote", kp);
 
-    check_success(frontend_process(frontend, votej, member_certs[i]), false);
+    check_success(
+      frontend_process(frontend, vote_serialized, member_certs[i]), false);
   }
 
   // pro votes (proposer also votes)
@@ -750,18 +779,19 @@ bool test_raw_writes(
   for (uint8_t i = explicit_proposer_vote ? 0 : 1; i < pro_votes; i++)
   {
     const Script vote("return true");
-    json votej = create_json_req_signed(Vote{proposal_id, vote}, "vote", kp);
+    const auto vote_serialized =
+      create_signed_request(Vote{proposal_id, vote}, "vote", kp);
     if (!completed)
     {
-      completed =
-        Response<bool>(frontend_process(frontend, votej, member_certs[i]))
-          .result;
+      completed = Response<bool>(frontend_process(
+                                   frontend, vote_serialized, member_certs[i]))
+                    .result;
     }
     else
     {
       // proposal has been accepted - additional votes return an error
       check_error(
-        frontend_process(frontend, votej, member_certs[i]),
+        frontend_process(frontend, vote_serialized, member_certs[i]),
         StandardErrorCodes::INVALID_PARAMS);
     }
   }
@@ -986,9 +1016,11 @@ TEST_CASE("Complete proposal after initial rejection")
     local tables = ...
     return tables["ccf.values"]:get(123) == 123
     )xxx");
-    const auto votej = create_json_req_signed(Vote{0, vote}, "vote", kp);
+    const auto vote_serialized =
+      create_signed_request(Vote{0, vote}, "vote", kp);
 
-    check_success(frontend_process(frontend, votej, member_certs[1]), false);
+    check_success(
+      frontend_process(frontend, vote_serialized, member_certs[1]), false);
   }
 
   {
@@ -1113,9 +1145,9 @@ TEST_CASE("Passing members ballot with operator")
   {
     INFO("Operator votes, but without effect");
 
-    const auto votej =
-      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
-    Response<bool> r = frontend_process(frontend, votej, operator_cert);
+    const auto vote =
+      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
+    Response<bool> r = frontend_process(frontend, vote, operator_cert);
 
     CHECK(r.result == false);
   }
@@ -1123,9 +1155,9 @@ TEST_CASE("Passing members ballot with operator")
   {
     INFO("Second member votes for proposal, which passes");
 
-    const auto votej =
-      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
-    Response<bool> r = frontend_process(frontend, votej, members[voter_id]);
+    const auto vote =
+      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
+    Response<bool> r = frontend_process(frontend, vote, members[voter_id]);
 
     CHECK(r.result == true);
   }
@@ -1133,7 +1165,7 @@ TEST_CASE("Passing members ballot with operator")
   {
     INFO("Validate vote tally");
 
-    const auto readj = create_json_req_signed(
+    const auto readj = create_signed_request(
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
 
     const Response<Proposal> proposal =
@@ -1227,7 +1259,7 @@ TEST_CASE("Passing operator vote")
   {
     INFO("Validate vote tally");
 
-    const auto readj = create_json_req_signed(
+    const auto readj = create_signed_request(
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
 
     const Response<Proposal> proposal =
@@ -1315,10 +1347,10 @@ TEST_CASE("Members passing an operator vote")
   {
     INFO("First member votes for proposal");
 
-    const auto votej =
-      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+    const auto vote =
+      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
     Response<bool> r =
-      frontend_process(frontend, votej, members[first_voter_id]);
+      frontend_process(frontend, vote, members[first_voter_id]);
 
     CHECK(r.result == false);
   }
@@ -1326,10 +1358,10 @@ TEST_CASE("Members passing an operator vote")
   {
     INFO("Second member votes for proposal");
 
-    const auto votej =
-      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+    const auto vote =
+      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
     Response<bool> r =
-      frontend_process(frontend, votej, members[second_voter_id]);
+      frontend_process(frontend, vote, members[second_voter_id]);
 
     CHECK(r.result == true);
   }
@@ -1337,7 +1369,7 @@ TEST_CASE("Members passing an operator vote")
   {
     INFO("Validate vote tally");
 
-    const auto readj = create_json_req_signed(
+    const auto readj = create_signed_request(
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
 
     const Response<Proposal> proposal =
