@@ -21,8 +21,8 @@ namespace enclave
     public:
       virtual void handle_message(
         http_method method,
-        const std::string& path,
-        const std::string& query,
+        const std::string_view& path,
+        const std::string_view& query,
         const HeaderMap& headers,
         const std::vector<uint8_t>& body) = 0;
     };
@@ -43,12 +43,13 @@ namespace enclave
 
       virtual void handle_message(
         http_method method,
-        const std::string& path,
-        const std::string& query,
+        const std::string_view& path,
+        const std::string_view& query,
         const enclave::http::HeaderMap& headers,
         const std::vector<uint8_t>& body) override
       {
-        received.emplace(Msg{method, path, query, headers, body});
+        received.emplace(
+          Msg{method, std::string(path), std::string(query), headers, body});
       }
     };
 
@@ -68,13 +69,16 @@ namespace enclave
     static int on_req(http_parser* parser, const char* at, size_t length);
     static int on_msg_end(http_parser* parser);
 
-    inline std::string extract_url_field(
-      const http_parser_url& url, http_parser_url_fields field, char const* raw)
+    inline std::string_view extract_url_field(
+      const http_parser_url& parser_url,
+      http_parser_url_fields field,
+      const std::string& url)
     {
-      if ((1 << field) & url.field_set)
+      if ((1 << field) & parser_url.field_set)
       {
-        const auto& data = url.field_data[field];
-        return std::string(raw + data.off, raw + data.off + data.len);
+        const auto& data = parser_url.field_data[field];
+        const auto start = url.data();
+        return std::string_view(start + data.off, data.len);
       }
 
       return {};
@@ -88,8 +92,9 @@ namespace enclave
       MsgProcessor& proc;
       State state = DONE;
       std::vector<uint8_t> buf;
-      std::string path = "";
-      std::string query = "";
+      std::string url = "";
+      std::string_view path = {};
+      std::string_view query = {};
       HeaderMap headers;
 
       std::pair<std::string, std::string> partial_parsed_header = {};
@@ -161,6 +166,9 @@ namespace enclave
         {
           LOG_TRACE_FMT("Entering new message");
           state = IN_MESSAGE;
+          url.clear();
+          path = {};
+          query = {};
           buf.clear();
         }
         else
@@ -185,23 +193,27 @@ namespace enclave
         }
       }
 
-      void parse_url(const char* at, size_t length)
+      void append_url(const char* at, size_t length)
       {
-        LOG_TRACE_FMT(
-          "Received url to parse: {}", std::string_view(at, length));
+        url.append(at, length);
+      }
 
-        http_parser_url url;
-        http_parser_url_init(&url);
+      void parse_url()
+      {
+        LOG_TRACE_FMT("Received url to parse: {}", std::string_view(url));
 
-        const auto err = http_parser_parse_url(at, length, 0, &url);
+        http_parser_url parser_url;
+        http_parser_url_init(&parser_url);
+
+        const auto err =
+          http_parser_parse_url(url.data(), url.size(), 0, &parser_url);
         if (err != 0)
         {
           throw std::runtime_error(fmt::format("Error parsing url: {}", err));
         }
 
-        path = extract_url_field(url, UF_PATH, at);
-
-        query = extract_url_field(url, UF_QUERY, at);
+        path = extract_url_field(parser_url, UF_PATH, url);
+        query = extract_url_field(parser_url, UF_QUERY, url);
       }
 
       void header_field(const char* at, size_t length)
@@ -228,6 +240,7 @@ namespace enclave
       void headers_complete()
       {
         complete_header();
+        parse_url();
       }
     };
 
@@ -241,7 +254,7 @@ namespace enclave
     static int on_url(http_parser* parser, const char* at, size_t length)
     {
       Parser* p = reinterpret_cast<Parser*>(parser->data);
-      p->parse_url(at, length);
+      p->append_url(at, length);
       return 0;
     }
 
