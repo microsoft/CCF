@@ -23,7 +23,7 @@ The ``CCF/tests/keygenerator.sh`` script can be used to generate the member's ce
 The member's private key (e.g. ``member1_privk.pem``) should be stored on a trusted device while the certificate (e.g. ``member1_cert.pem``) and public key share (e.g. ``member1_kshare_pub.pem``) should be given to operators before starting the first node of a new CCF network.
 
 
-.. toctree::d
+.. toctree::
     :maxdepth: 2
     :caption: Contents:
 
