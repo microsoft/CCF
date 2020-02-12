@@ -20,17 +20,6 @@ extern "C"
 {
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
-
-json create_json_req(const json& params, const std::string& method_name)
-{
-  json j;
-  j[ID] = 1;
-  j[METHOD] = method_name;
-  if (!params.is_null())
-    j[PARAMS] = params;
-  return j;
-}
-
 template <typename E>
 void check_error(const nlohmann::json& j, const E expected)
 {
@@ -50,14 +39,28 @@ const json frontend_process(
   const std::string& method,
   const Cert& caller)
 {
-  auto req = create_json_req(json_params, method);
-  auto serialise_request = pack(req, Pack::Text);
+  enclave::http::Request r;
+  r.set_path(method);
+  const auto body = json_params.is_null() ?
+    std::vector<uint8_t>() :
+    jsonrpc::pack(json_params, Pack::Text);
+  auto serialise_request = r.build_request(body);
 
   const enclave::SessionContext session(0, caller);
   auto rpc_ctx = enclave::make_rpc_context(session, serialise_request);
   auto serialised_response = frontend.process(rpc_ctx);
 
-  return unpack(serialised_response.value(), Pack::Text);
+  CHECK(serialised_response.has_value());
+
+  enclave::http::SimpleMsgProcessor processor;
+  enclave::http::Parser parser(HTTP_RESPONSE, processor);
+
+  const auto parsed_count =
+    parser.execute(serialised_response->data(), serialised_response->size());
+  REQUIRE(parsed_count == serialised_response->size());
+  REQUIRE(processor.received.size() == 1);
+
+  return jsonrpc::unpack(processor.received.front().body, Pack::Text);
 }
 
 TEST_CASE("Add a node to an opening service")
