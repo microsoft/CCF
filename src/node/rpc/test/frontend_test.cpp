@@ -321,7 +321,7 @@ auto kp_other = tls::make_key_pair();
 auto invalid_caller = kp_other -> self_sign("CN=name");
 auto invalid_caller_der = tls::make_verifier(invalid_caller) -> der_cert_data();
 
-auto dummy_key_share = std::vector<uint8_t>(32);
+std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
 const enclave::SessionContext user_session(
   enclave::InvalidSessionId, user_caller_der);

@@ -80,7 +80,7 @@ void set_lua_logger()
 
 auto user_caller = kp -> self_sign("CN=name");
 auto user_caller_der = tls::make_verifier(user_caller) -> der_cert_data();
-auto dummy_key_share = std::vector<uint8_t>(32);
+std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
 auto init_frontend(
   NetworkTables& network,
