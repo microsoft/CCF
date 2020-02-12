@@ -514,7 +514,9 @@ namespace ccf
 #ifdef GET_QUOTE
       auto quote_opt = get_quote();
       if (!quote_opt.has_value())
-        LOG_FATAL_FMT("Quote could not be retrieved");
+      {
+        throw std::logic_error("Quote could not be retrieved");
+      }
       quote = quote_opt.value();
 #endif
       join_rpc.params.quote = quote;
@@ -633,7 +635,9 @@ namespace ccf
 #ifdef GET_QUOTE
       auto quote_opt = get_quote();
       if (!quote_opt.has_value())
-        LOG_FATAL_FMT("Quote could not be retrieved");
+      {
+        throw std::logic_error("Quote could not be retrieved");
+      }
       quote = quote_opt.value();
 #endif
 
@@ -732,7 +736,7 @@ namespace ccf
       auto h = dynamic_cast<MerkleTxHistory*>(recovery_history.get());
       if (h->get_full_state_root() != recovery_root)
       {
-        LOG_FATAL_FMT(
+        throw std::logic_error(
           "Root of public store does not match root of private store");
       }
 
