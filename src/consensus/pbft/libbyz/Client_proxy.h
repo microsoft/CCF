@@ -11,13 +11,13 @@
 #include "Reply.h"
 #include "Request.h"
 #include "ds/logger.h"
+#include "ds/spinlock.h"
+#include "ds/thread_messaging.h"
 #include "libbyz.h"
 #include "pbft_assert.h"
 #include "receive_message_base.h"
 #include "request_id_gen.h"
 #include "types.h"
-#include "ds/spinlock.h"
-#include "ds/thread_messaging.h"
 
 class Reply;
 class Request;
@@ -51,14 +51,16 @@ public:
   // callback cb with owner, caller_rid, and the reply to the command.
   // Otherwise, returns false.
 
-  struct ExecuteRequestMsg{
-    std::unique_ptr<Request> request;  
-    ClientProxy<T,C>* self;
+  struct ExecuteRequestMsg
+  {
+    std::unique_ptr<Request> request;
+    ClientProxy<T, C>* self;
   };
-  static void execute_request_cb(std::unique_ptr<enclave::Tmsg<ExecuteRequestMsg>> msg);
+  static void execute_request_cb(
+    std::unique_ptr<enclave::Tmsg<ExecuteRequestMsg>> msg);
   void execute_request(Request* request);
 
-    void recv_reply(Reply* r);
+  void recv_reply(Reply* r);
   // Effects: Passes a reply received by the replica to this.
 
 private:
@@ -93,17 +95,16 @@ private:
   static const int Max_outstanding = 1000;
   SpinLock lock;
 
-    struct ReplyCbMsg
-    {
-      C* owner;
-      T caller_rid;
-      std::vector<uint8_t> data;
-      ReplyCallback cb;
-      ClientProxy<T, C>* self;
+  struct ReplyCbMsg
+  {
+    C* owner;
+    T caller_rid;
+    std::vector<uint8_t> data;
+    ReplyCallback cb;
+    ClientProxy<T, C>* self;
   };
   static void send_reply_cb(std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg);
   void send_reply(std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg);
-
 
   // list of outstanding requests used for retransmissions
   // (we only retransmit the request at the head of the queue)
@@ -240,7 +241,8 @@ bool ClientProxy<T, C>::send_request(
     out_reqs.insert({rid, std::move(ctx)});
   }
 
-  auto msg = std::make_unique<enclave::Tmsg<ExecuteRequestMsg>>(execute_request_cb);
+  auto msg =
+    std::make_unique<enclave::Tmsg<ExecuteRequestMsg>>(execute_request_cb);
   msg->data.self = this;
   msg->data.request.reset(std::move(req_clone));
   enclave::ThreadMessaging::thread_messaging.add_task<ExecuteRequestMsg>(
@@ -250,7 +252,8 @@ bool ClientProxy<T, C>::send_request(
 }
 
 template <class T, class C>
-void ClientProxy<T, C>::execute_request_cb(std::unique_ptr<enclave::Tmsg<ExecuteRequestMsg>> msg)
+void ClientProxy<T, C>::execute_request_cb(
+  std::unique_ptr<enclave::Tmsg<ExecuteRequestMsg>> msg)
 {
   auto self = msg->data.self;
   self->execute_request(msg->data.request.release());
@@ -259,7 +262,10 @@ void ClientProxy<T, C>::execute_request_cb(std::unique_ptr<enclave::Tmsg<Execute
 template <class T, class C>
 void ClientProxy<T, C>::execute_request(Request* request)
 {
-  if (thread_ids[std::this_thread::get_id()] != enclave::ThreadMessaging::main_thread) {
+  if (
+    thread_ids[std::this_thread::get_id()] !=
+    enclave::ThreadMessaging::main_thread)
+  {
     throw std::logic_error("Execution on incorrect thread");
   }
   if (my_replica.f() == 0)
@@ -280,19 +286,22 @@ void ClientProxy<T, C>::execute_request(Request* request)
 }
 
 template <class T, class C>
-void ClientProxy<T, C>::send_reply_cb(std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg)
+void ClientProxy<T, C>::send_reply_cb(
+  std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg)
 {
   msg->data.self->send_reply(std::move(msg));
 }
 
 template <class T, class C>
-void ClientProxy<T, C>::send_reply(std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg) {
-    msg->data.cb(
-      msg->data.owner,
-      msg->data.caller_rid,
-      0,
-      msg->data.data.data(),
-      msg->data.data.size());
+void ClientProxy<T, C>::send_reply(
+  std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg)
+{
+  msg->data.cb(
+    msg->data.owner,
+    msg->data.caller_rid,
+    0,
+    msg->data.data.data(),
+    msg->data.data.size());
 }
 
 template <class T, class C>
@@ -367,7 +376,7 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
   msg->data.owner = ctx->owner;
   msg->data.caller_rid = ctx->caller_rid;
   msg->data.cb = ctx->cb;
-  msg->data.data.assign(reply_buffer, reply_buffer+reply_len);
+  msg->data.data.assign(reply_buffer, reply_buffer + reply_len);
   msg->data.self = this;
 
   enclave::ThreadMessaging::thread_messaging.add_task<ReplyCbMsg>(
