@@ -192,6 +192,7 @@ TEST_CASE("Pessimal transport")
     enclave::http::Parser p(HTTP_REQUEST, sp);
 
     auto builder = enclave::http::Request(HTTP_POST);
+    builder.set_path("/path/which/will/be/spliced/during/transport");
     builder.clear_headers();
     for (const auto& it : headers)
     {
@@ -204,8 +205,8 @@ TEST_CASE("Pessimal transport")
     size_t done = 0;
     while (done < req.size())
     {
-      // Simulate dreadful transport - send between 1 and 8 bytes at a time
-      size_t next = (rand() % 8) + 1;
+      // Simulate dreadful transport - send 1 byte at a time
+      size_t next = 1;
       next = std::min(next, req.size() - done);
       auto parsed = p.execute(req.data() + done, next);
       CHECK(parsed == next);

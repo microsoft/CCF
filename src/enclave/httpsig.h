@@ -35,8 +35,8 @@ namespace enclave
 
     inline std::optional<std::vector<uint8_t>> construct_raw_signed_string(
       std::string verb,
-      const std::string& path,
-      const std::string& query,
+      const std::string_view& path,
+      const std::string_view& query,
       const http::HeaderMap& headers,
       const std::vector<std::string_view>& headers_to_sign)
     {
@@ -282,8 +282,8 @@ namespace enclave
 
       static std::optional<ccf::SignedReq> parse(
         const std::string& verb,
-        const std::string& path,
-        const std::string& query,
+        const std::string_view& path,
+        const std::string_view& query,
         const http::HeaderMap& headers,
         const std::vector<uint8_t>& body)
       {

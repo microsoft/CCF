@@ -167,8 +167,8 @@ namespace enclave
 
     void handle_message(
       http_method verb,
-      const std::string& path,
-      const std::string& query,
+      const std::string_view& path,
+      const std::string_view& query,
       const http::HeaderMap& headers,
       const std::vector<uint8_t>& body) override
     {
@@ -311,8 +311,8 @@ namespace enclave
 
     void handle_message(
       http_method method,
-      const std::string& path,
-      const std::string& query,
+      const std::string_view& path,
+      const std::string_view& query,
       const http::HeaderMap& headers,
       const std::vector<uint8_t>& body) override
     {

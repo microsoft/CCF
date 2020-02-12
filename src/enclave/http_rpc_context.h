@@ -22,8 +22,8 @@ namespace enclave
     HttpRpcContext(
       const SessionContext& s,
       http_method verb,
-      const std::string& path,
-      const std::string& query,
+      const std::string_view& path,
+      const std::string_view& query,
       const http::HeaderMap& headers,
       const std::vector<uint8_t>& body,
       const std::vector<uint8_t>& raw = {},
