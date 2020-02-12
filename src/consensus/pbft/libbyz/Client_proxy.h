@@ -241,6 +241,7 @@ bool ClientProxy<T, C>::send_request(
 
   auto msg =
     std::make_unique<enclave::Tmsg<ExecuteRequestMsg>>(execute_request_cb);
+  msg->data.self = this;
   msg->data.request.reset(std::move(req_clone));
 
   if (enclave::ThreadMessaging::thread_count > 1)
