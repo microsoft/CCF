@@ -248,54 +248,6 @@ class CCFConnectionException(Exception):
     pass
 
 
-class FramedTLSJSONRPCClient:
-    def __init__(
-        self,
-        host,
-        port,
-        cert=None,
-        key=None,
-        ca=None,
-        version="2.0",
-        format="msgpack",
-        connection_timeout=3,
-        request_timeout=3,
-        *args,
-        **kwargs,
-    ):
-        self.client = FramedTLSClient(host, int(port), cert, key, ca, request_timeout)
-        self.stream = Stream(version, format=format)
-        self.format = format
-
-        while connection_timeout >= 0:
-            connection_timeout -= 0.1
-            try:
-                self.connect()
-                break
-            except (ssl.SSLError, ssl.SSLCertVerificationError):
-                if connection_timeout < 0:
-                    raise CCFConnectionException
-            time.sleep(0.1)
-
-    def connect(self):
-        return self.client.connect()
-
-    def disconnect(self):
-        return self.client.disconnect()
-
-    def request(self, request):
-        self.client.send(getattr(request, f"to_{self.format}")())
-        return request.id
-
-    def tick(self):
-        msg = self.client.read()
-        self.stream.update(msg)
-
-    def response(self, id):
-        self.tick()
-        return self.stream.response(id)
-
-
 # We keep this around in a limited fashion still, because
 # the resulting logs nicely illustrate manual usage in a way using requests doesn't
 
