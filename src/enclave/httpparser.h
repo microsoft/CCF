@@ -84,6 +84,25 @@ namespace enclave
       return {};
     }
 
+    inline auto parse_url(const std::string& url)
+    {
+      LOG_TRACE_FMT("Received url to parse: {}", std::string_view(url));
+
+      http_parser_url parser_url;
+      http_parser_url_init(&parser_url);
+
+      const auto err =
+        http_parser_parse_url(url.data(), url.size(), 0, &parser_url);
+      if (err != 0)
+      {
+        throw std::runtime_error(fmt::format("Error parsing url: {}", err));
+      }
+
+      return std::make_pair(
+        extract_url_field(parser_url, UF_PATH, url),
+        extract_url_field(parser_url, UF_QUERY, url));
+    }
+
     class Parser
     {
     private:
@@ -93,8 +112,6 @@ namespace enclave
       State state = DONE;
       std::vector<uint8_t> buf;
       std::string url = "";
-      std::string_view path = {};
-      std::string_view query = {};
       HeaderMap headers;
 
       std::pair<std::string, std::string> partial_parsed_header = {};
@@ -167,8 +184,6 @@ namespace enclave
           LOG_TRACE_FMT("Entering new message");
           state = IN_MESSAGE;
           url.clear();
-          path = {};
-          query = {};
           buf.clear();
         }
         else
@@ -183,8 +198,17 @@ namespace enclave
         if (state == IN_MESSAGE)
         {
           LOG_TRACE_FMT("Done with message");
-          proc.handle_message(
-            http_method(parser.method), path, query, headers, buf);
+          if (url.empty())
+          {
+            proc.handle_message(
+              http_method(parser.method), {}, {}, headers, buf);
+          }
+          else
+          {
+            const auto [path, query] = parse_url(url);
+            proc.handle_message(
+              http_method(parser.method), path, query, headers, buf);
+          }
           state = DONE;
         }
         else
@@ -196,24 +220,6 @@ namespace enclave
       void append_url(const char* at, size_t length)
       {
         url.append(at, length);
-      }
-
-      void parse_url()
-      {
-        LOG_TRACE_FMT("Received url to parse: {}", std::string_view(url));
-
-        http_parser_url parser_url;
-        http_parser_url_init(&parser_url);
-
-        const auto err =
-          http_parser_parse_url(url.data(), url.size(), 0, &parser_url);
-        if (err != 0)
-        {
-          throw std::runtime_error(fmt::format("Error parsing url: {}", err));
-        }
-
-        path = extract_url_field(parser_url, UF_PATH, url);
-        query = extract_url_field(parser_url, UF_QUERY, url);
       }
 
       void header_field(const char* at, size_t length)
@@ -240,7 +246,6 @@ namespace enclave
       void headers_complete()
       {
         complete_header();
-        parse_url();
       }
     };
 
