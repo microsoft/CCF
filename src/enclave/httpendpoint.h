@@ -270,7 +270,8 @@ namespace enclave
         }
         else
         {
-          send_response(response.value());
+          send_buffered(response.value());
+          flush();
         }
       }
       catch (const std::exception& e)
