@@ -290,33 +290,12 @@ std::pair<enclave::http::Request, ccf::SignedReq> create_signed_request(
   const std::vector<uint8_t>& body = {})
 {
   enclave::http::Request s(r);
-  auto headers = s.get_headers();
-  enclave::http::add_auto_headers(headers, body);
-  std::vector<std::string_view> headers_to_sign;
-  headers_to_sign.emplace_back(enclave::http::HTTP_HEADER_DIGEST);
 
-  const auto to_sign = enclave::http::construct_raw_signed_string(
-    http_method_str(s.get_method()),
-    s.get_path(),
-    s.get_formatted_query(),
-    headers,
-    headers_to_sign);
-
-  REQUIRE(to_sign.has_value());
-
-  const auto signature = kp->sign(to_sign.value(), MBEDTLS_MD_SHA256);
-
-  auto auth_value = fmt::format(
-    "Signature "
-    "keyId=\"ignored\",algorithm=\"ecdsa-sha256\",headers=\"{}\",signature="
-    "\"{}\"",
-    fmt::format("{}", fmt::join(headers_to_sign, " ")),
-    tls::b64_from_raw(signature.data(), signature.size()));
-
-  s.set_header("authorization", auth_value);
+  enclave::http::SigningDetails details;
+  enclave::http::sign_request(s, body, kp, &details);
 
   ccf::SignedReq signed_req{
-    signature, to_sign.value(), body, MBEDTLS_MD_SHA256};
+    details.signature, details.to_sign, body, MBEDTLS_MD_SHA256};
   return {s, signed_req};
 }
 

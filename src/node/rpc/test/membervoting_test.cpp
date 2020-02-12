@@ -95,30 +95,7 @@ std::vector<uint8_t> create_signed_request(
   const auto body = params.is_null() ? std::vector<uint8_t>() :
                                        jsonrpc::pack(params, default_pack);
 
-  auto headers = r.get_headers();
-  enclave::http::add_auto_headers(headers, body);
-  std::vector<std::string_view> headers_to_sign;
-  headers_to_sign.emplace_back(enclave::http::HTTP_HEADER_DIGEST);
-
-  const auto to_sign = enclave::http::construct_raw_signed_string(
-    http_method_str(r.get_method()),
-    r.get_path(),
-    r.get_formatted_query(),
-    headers,
-    headers_to_sign);
-
-  REQUIRE(to_sign.has_value());
-
-  const auto signature = kp_->sign(to_sign.value(), MBEDTLS_MD_SHA256);
-
-  auto auth_value = fmt::format(
-    "Signature "
-    "keyId=\"ignored\",algorithm=\"ecdsa-sha256\",headers=\"{}\",signature="
-    "\"{}\"",
-    fmt::format("{}", fmt::join(headers_to_sign, " ")),
-    tls::b64_from_raw(signature.data(), signature.size()));
-
-  r.set_header("authorization", auth_value);
+  enclave::http::sign_request(r, body, kp_);
 
   return r.build_request(body);
 }

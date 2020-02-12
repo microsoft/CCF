@@ -6,6 +6,7 @@
 #include "node/clientsignatures.h"
 #include "tls/base64.h"
 #include "tls/hash.h"
+#include "tls/keypair.h"
 
 #include <fmt/format_header_only.h>
 #include <optional>
@@ -98,6 +99,54 @@ namespace enclave
       auto ret =
         std::vector<uint8_t>({signed_string.begin(), signed_string.end()});
       return ret;
+    }
+
+    struct SigningDetails
+    {
+      std::vector<uint8_t> to_sign;
+      std::vector<uint8_t> signature;
+    };
+
+    inline void sign_request(
+      http::Request& request,
+      const std::vector<uint8_t>& body,
+      tls::KeyPairPtr& kp,
+      SigningDetails* details = nullptr)
+    {
+      auto headers = request.get_headers();
+      add_auto_headers(headers, body);
+      std::vector<std::string_view> headers_to_sign;
+      headers_to_sign.emplace_back(SIGN_HEADER_REQUEST_TARGET);
+      headers_to_sign.emplace_back(HTTP_HEADER_DIGEST);
+
+      const auto to_sign = construct_raw_signed_string(
+        http_method_str(request.get_method()),
+        request.get_path(),
+        request.get_formatted_query(),
+        headers,
+        headers_to_sign);
+
+      if (!to_sign.has_value())
+      {
+        throw std::logic_error("Unable to sign HTTP request");
+      }
+
+      const auto signature = kp->sign(to_sign.value(), MBEDTLS_MD_SHA256);
+
+      auto auth_value = fmt::format(
+        "Signature "
+        "keyId=\"ignored\",algorithm=\"ecdsa-sha256\",headers=\"{}\",signature="
+        "\"{}\"",
+        fmt::format("{}", fmt::join(headers_to_sign, " ")),
+        tls::b64_from_raw(signature.data(), signature.size()));
+
+      request.set_header(HTTP_HEADER_AUTHORIZATION, auth_value);
+
+      if (details != nullptr)
+      {
+        details->to_sign = to_sign.value();
+        details->signature = signature;
+      }
     }
 
     // Implements verification of "Signature" scheme from
