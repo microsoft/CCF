@@ -24,7 +24,7 @@ struct Request_rep : public Message_rep
                  // (if negative, it means all replicas).
   short command_size;
   int cid; // unique id of client who sends the request
-  int uid; // a way for a client_proxy to group requests from different users
+  uint64_t uid; // a way for a client_proxy to group requests from different users
   Request_id rid; // unique request identifier
   // Followed a command which is "command_size" bytes long and an
   // authenticator.
