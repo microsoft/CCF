@@ -152,7 +152,15 @@ public:
 
   // variables used to keep track of versions so that we can tell the kv to
   // rollback
+
+  // Keeps track of the kv version after a request has been tentatively executed
+  // and after its pre prepare has been stored to the ledger. If there
+  // is a merkle root mismatch after request execution we can rollback to the
+  // latest successful execution
   kv::Version last_te_version = 0;
+
+  // these variables keep track of the kv version and sequence number on global
+  // commit so that when there is a view change we know how far to roll back to
   kv::Version last_gb_version = 0;
   Seqno last_gb_seqno = 0;
 
@@ -445,6 +453,7 @@ private:
 #endif
 
   ByzInfo playback_byz_info;
+  size_t playback_before_f = 0;
   // Latest byz info when we are in playback mode. Used to compare the latest
   // execution mt roots and version with the ones in the pre prepare we will get
   // while we are at playback mode

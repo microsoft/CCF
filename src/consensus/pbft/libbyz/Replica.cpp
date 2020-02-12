@@ -464,6 +464,9 @@ void Replica::playback_request(ccf::Store::Tx& tx)
       last_executed,
       req->request_id(),
       req->client_id());
+    // keep f before this request batch executes
+    // to check on playback pre prepare if we should open the network
+    playback_before_f = f();
   }
 
   waiting_for_playback_pp = true;
@@ -478,8 +481,7 @@ void Replica::playback_request(ccf::Store::Tx& tx)
     playback_max_local_commit_value,
     non_det,
     nullptr,
-    &tx,
-    true);
+    &tx);
 }
 
 void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
@@ -533,6 +535,12 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
     if (executable_pp->is_signed() && f() > 0)
     {
       mark_stable(last_executed, true);
+    }
+
+    if (playback_before_f == 0 && f() != 0)
+    {
+      Network_open no(Node::id());
+      send(&no, primary());
     }
 
     rqueue.clear();
@@ -1236,7 +1244,7 @@ void Replica::handle(Checkpoint* m)
 
 void Replica::fetch_state_outside_view_change()
 {
-  if (last_tentative_execute > last_executed)
+  if (last_tentative_execute > last_gb_seqno)
   {
     // Rollback to last checkpoint
     PBFT_ASSERT(!state.in_fetch_state(), "Invalid state");
@@ -1261,7 +1269,7 @@ void Replica::fetch_state_outside_view_change()
       last_gb_seqno,
       last_gb_version);
 
-    last_tentative_execute = last_executed = last_stable;
+    last_tentative_execute = last_executed = rc;
     last_te_version = rv;
     LOG_INFO_FMT(
       "Roll back done, last tentative execute and last executed are {} {}",

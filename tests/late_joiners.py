@@ -19,11 +19,10 @@ import requests
 
 from loguru import logger as LOG
 
-# 256 is the number of most recent messages that PBFT keeps in memory before needing to replay the ledger
-# the rpc requests that are issued for spinning up the network and checking that all nodes have joined,
-# along with TOTAL_REQUESTS, are enough to exceed this limit (read requests such as get_commit are processed
-# as write requests in pbft)
-TOTAL_REQUESTS = 60
+# pbft will store up to 64 of each message type (pre-prepare/prepare/commit) and retransmit these messages to replicas that are behind, enabling catch up.
+# If a replica is too far behind then we need to send entries from the ledger, which is one of the things we want to test here.
+# By sending TOTAL_REQUESTS RPC requests (and a getCommit for each one of them) we are sure that we will have to go via the ledger to help late joiners catch up.
+TOTAL_REQUESTS = 30
 
 s = random.randint(1, 10)
 LOG.info(f"setting seed to {s}")
@@ -138,12 +137,11 @@ def run(args):
             check_commit = infra.checker.Checker(mc)
             check = infra.checker.Checker()
 
-            run_requests(all_nodes, int(TOTAL_REQUESTS / 2), 0, first_msg, 1000)
+            run_requests(all_nodes, TOTAL_REQUESTS, 0, first_msg, 1000)
             term_info.update(find_primary(network))
 
-            nodes_to_kill = []
-            nodes_to_kill.append(backups[0])
-            nodes_to_keep = [first_node, backups[1], backups[2]]
+            nodes_to_kill = [network.find_any_backup()]
+            nodes_to_keep = [n for n in all_nodes if n not in nodes_to_kill]
 
             # check that a new node can catch up after all the requests
             LOG.info("Adding a very late joiner")
@@ -153,8 +151,9 @@ def run(args):
             assert last_joiner_node
             nodes_to_keep.append(last_joiner_node)
 
-            # some requests to be processed simultaneously with the late joiner catching up
-            run_requests(all_nodes, int(TOTAL_REQUESTS / 4), 1001, second_msg, 2000)
+            # some requests to be processed while the late joiner catches up
+            # (no strict checking that these requests are actually being processed simultaneously with the node catchup)
+            run_requests(all_nodes, int(TOTAL_REQUESTS / 2), 1001, second_msg, 2000)
             term_info.update(find_primary(network))
 
             assert_node_up_to_date(check, last_joiner_node, first_msg, 1000)
@@ -166,6 +165,9 @@ def run(args):
                 node.stop()
 
             wait_for_nodes(nodes_to_keep, catchup_msg, 3000)
+
+            cur_primary, _ = network.find_primary()
+            cur_primary_id = cur_primary.node_id
 
             # first timer determines after how many seconds each node will be suspended
             timeouts = []
@@ -183,13 +185,18 @@ def run(args):
             for t, node in timeouts:
                 et = args.election_timeout / 1000
                 # if pbft suspend the primary more than the other suspended nodes
-                if node.node_id == 0 and args.consensus == "pbft":
+                if node.node_id == cur_primary_id and args.consensus == "pbft":
                     et += 4
                 tm = Timer(t, timeout, args=[node, True, et])
                 tm.start()
 
             run_requests(
-                nodes_to_keep, TOTAL_REQUESTS, 2001, final_msg, 4000, cant_fail=False,
+                nodes_to_keep,
+                2 * TOTAL_REQUESTS,
+                2001,
+                final_msg,
+                4000,
+                cant_fail=False,
             )
 
             term_info.update(find_primary(network))
@@ -213,11 +220,4 @@ if __name__ == "__main__":
         args.package = "libluageneric"
     else:
         args.package = "liblogging"
-
-    notify_server_host = "localhost"
-    args.notify_server = (
-        notify_server_host
-        + ":"
-        + str(infra.net.probably_free_local_port(notify_server_host))
-    )
     run(args)
