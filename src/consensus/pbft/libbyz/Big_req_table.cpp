@@ -209,20 +209,10 @@ bool Big_req_table::add_unmatched(Request* r, Request*& old_req)
   auto& centry = unmatched[r->client_id()];
   old_req = 0;
 
-  if (
-    !centry.requests.empty() &&
-    centry.requests.front()->request_id() >= r->request_id())
-  {
-    // client is expected to send requests in request id order
-    LOG_FAIL << "client is expected to send requests in request id order"
-             << r->client_id() << std::endl;
-    return false;
-  }
-
   if (centry.num_requests >= Max_unmatched_requests_per_client)
   {
     LOG_FAIL_FMT(
-      "Requests are not in request id order from client: {}", r->client_id());
+      "Too many Requests pending from client: {}", r->client_id());
     old_req = centry.requests.back();
     centry.requests.pop_back();
   }
