@@ -12,6 +12,7 @@
 #include "node/nodes.h"
 #include "nodeinterface.h"
 #include "rpcexception.h"
+#include "tls/verifier.h"
 
 #include <fmt/format_header_only.h>
 #include <mutex>
@@ -589,7 +590,8 @@ namespace ccf
           // If serialising the committed transaction fails, there is no way to
           // recover safely (https://github.com/microsoft/CCF/issues/338).
           // Better to abort.
-          LOG_FATAL_FMT(e.what());
+          LOG_FATAL_FMT("Failed to serialise: {}", e.what());
+          abort();
         }
         catch (const std::exception& e)
         {

@@ -321,6 +321,7 @@ namespace enclave
 
         // On any exception, close the connection.
         close();
+        throw;
       }
     }
   };
@@ -346,7 +347,8 @@ namespace enclave
 
     void send(const std::vector<uint8_t>& data) override
     {
-      LOG_FATAL_FMT("send() should not be called directly on HTTPClient");
+      throw std::logic_error(
+        "send() should not be called directly on HTTPClient");
     }
 
     void handle_message(

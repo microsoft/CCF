@@ -7,7 +7,7 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 
 project(
   ccf
-  VERSION 0.7
+  VERSION 0.7.1
   LANGUAGES C CXX
 )
 
@@ -37,7 +37,6 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
-option(PERF "" OFF)
 
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
