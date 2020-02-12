@@ -115,8 +115,7 @@ namespace cli
     };
 
     auto* option = app.add_option(option_name, fun, option_desc, true);
-    option->type_name("member_cert.pem,member_kshare_pub.pem.pem")
-      ->type_size(-1);
+    option->type_name("member_cert.pem,member_kshare_pub.pem")->type_size(-1);
 
     return option;
   }
