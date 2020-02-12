@@ -255,36 +255,31 @@ namespace ccf
     std::vector<uint8_t> serialize_create_request(
       const CreateNew::In& args, const std::vector<uint8_t>& quote)
     {
-      jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> create_rpc;
-
-      create_rpc.id = 0;
-      create_rpc.method = ccf::MemberProcs::CREATE;
+      CreateNetworkNodeToNode::In create_params;
 
       for (auto& cert : args.config.genesis.member_certs)
       {
-        create_rpc.params.member_cert.push_back(cert);
+        create_params.member_cert.push_back(cert);
       }
 
-      create_rpc.params.gov_script = args.config.genesis.gov_script;
-      create_rpc.params.node_cert = node_cert;
-      create_rpc.params.network_cert = network.identity->cert;
-      create_rpc.params.quote = quote;
-      create_rpc.params.public_encryption_key =
+      create_params.gov_script = args.config.genesis.gov_script;
+      create_params.node_cert = node_cert;
+      create_params.network_cert = network.identity->cert;
+      create_params.quote = quote;
+      create_params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
-      create_rpc.params.code_digest =
+      create_params.code_digest =
         std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
-      create_rpc.params.node_info_network = args.config.node_info_network;
+      create_params.node_info_network = args.config.node_info_network;
 
-      nlohmann::json j = create_rpc;
-      auto contents = nlohmann::json::to_msgpack(j);
+      const auto body = jsonrpc::pack(create_params, jsonrpc::Pack::Text);
 
-      auto sig_contents = node_sign_kp->sign(contents);
+      enclave::http::Request request;
+      request.set_path(ccf::MemberProcs::CREATE);
 
-      nlohmann::json sj;
-      sj["req"] = j;
-      sj["sig"] = sig_contents;
+      enclave::http::sign_request(request, body, node_sign_kp);
 
-      return jsonrpc::pack(sj, jsonrpc::Pack::Text);
+      return request.build_request(body);
     }
 
     void send_create_request(const std::vector<uint8_t>& packed)
@@ -500,13 +495,10 @@ namespace ccf
         });
 
       // Send RPC request to remote node to join the network.
-      jsonrpc::ProcedureCall<JoinNetworkNodeToNode::In> join_rpc;
-      join_rpc.id = join_seq_no++;
-      std::stringstream ss;
-      ss << "nodes/" << ccf::NodeProcs::JOIN;
-      join_rpc.method = ss.str();
-      join_rpc.params.node_info_network = args.config.node_info_network;
-      join_rpc.params.public_encryption_key =
+      JoinNetworkNodeToNode::In join_params;
+
+      join_params.node_info_network = args.config.node_info_network;
+      join_params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
 
       std::vector<uint8_t> quote{1};
@@ -517,15 +509,17 @@ namespace ccf
         LOG_FATAL_FMT("Quote could not be retrieved");
       quote = quote_opt.value();
 #endif
-      join_rpc.params.quote = quote;
+      join_params.quote = quote;
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
         args.config.joining.target_host,
         args.config.joining.target_port);
 
+      const auto body = jsonrpc::pack(join_params, jsonrpc::Pack::Text);
+
       join_client->send_request(
-        join_rpc.method, jsonrpc::pack(join_rpc, jsonrpc::Pack::Text));
+        fmt::format("/{}/{}", ccf::Actors::NODES, ccf::NodeProcs::JOIN), body);
     }
 
     void join(const Join::In& args)
