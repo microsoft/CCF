@@ -206,7 +206,7 @@ namespace enclave
           send_response(e.what(), HTTP_STATUS_BAD_REQUEST);
         }
 
-        rpc_ctx->set_request_index(request_index++);
+        //rpc_ctx->set_request_index(request_index++);
 
         std::string_view actor_s = {};
         auto& method = rpc_ctx->remaining_path;

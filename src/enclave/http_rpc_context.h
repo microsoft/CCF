@@ -11,7 +11,6 @@ namespace enclave
   class HttpRpcContext : public RpcContext
   {
   private:
-    uint64_t seq_no = {};
     nlohmann::json params = nlohmann::json::object();
     std::string entire_path = {};
 
@@ -68,6 +67,12 @@ namespace enclave
           {
             params = contents;
           }
+
+          const auto id_it = contents.find(jsonrpc::ID);
+          if (id_it != contents.end())
+          {
+            request_index = *id_it;
+          }
         }
       }
       else if (verb == HTTP_GET)
@@ -102,12 +107,12 @@ namespace enclave
       {
         const auto error = get_response_error();
         full_response = jsonrpc::error_response(
-          seq_no, jsonrpc::Error(error->code, error->msg));
+          get_request_index(), jsonrpc::Error(error->code, error->msg));
       }
       else
       {
         const auto payload = get_response_result();
-        full_response = jsonrpc::result_response(seq_no, *payload);
+        full_response = jsonrpc::result_response(get_request_index(), *payload);
       }
 
       for (const auto& [k, v] : headers)
@@ -139,7 +144,8 @@ namespace enclave
     {
       auto http_response = http::Response(HTTP_STATUS_OK);
       return http_response.build_response(jsonrpc::pack(
-        jsonrpc::result_response(seq_no, result), jsonrpc::Pack::Text));
+        jsonrpc::result_response(get_request_index(), result),
+        jsonrpc::Pack::Text));
     }
 
     std::vector<uint8_t> error_response(
@@ -148,7 +154,8 @@ namespace enclave
       nlohmann::json error_element = jsonrpc::Error(error, msg);
       auto http_response = http::Response(HTTP_STATUS_OK);
       return http_response.build_response(jsonrpc::pack(
-        jsonrpc::error_response(seq_no, error_element), jsonrpc::Pack::Text));
+        jsonrpc::error_response(get_request_index(), error_element),
+        jsonrpc::Pack::Text));
     }
   };
 
