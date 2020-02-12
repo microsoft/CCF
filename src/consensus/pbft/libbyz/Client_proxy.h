@@ -101,10 +101,8 @@ private:
     T caller_rid;
     std::vector<uint8_t> data;
     ReplyCallback cb;
-    ClientProxy<T, C>* self;
   };
-  static void send_reply_cb(std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg);
-  void send_reply(std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg);
+  static void send_reply(std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg);
 
   // list of outstanding requests used for retransmissions
   // (we only retransmit the request at the head of the queue)
@@ -243,10 +241,17 @@ bool ClientProxy<T, C>::send_request(
 
   auto msg =
     std::make_unique<enclave::Tmsg<ExecuteRequestMsg>>(execute_request_cb);
-  msg->data.self = this;
   msg->data.request.reset(std::move(req_clone));
+
+  if (enclave::ThreadMessaging::thread_count > 1)
+  {
   enclave::ThreadMessaging::thread_messaging.add_task<ExecuteRequestMsg>(
     enclave::ThreadMessaging::main_thread, std::move(msg));
+  }
+  else
+  {
+    execute_request_cb(std::move(msg));
+  }
 
   return true;
 }
@@ -283,13 +288,6 @@ void ClientProxy<T, C>::execute_request(Request* request)
   }
 
   my_replica.handle(request);
-}
-
-template <class T, class C>
-void ClientProxy<T, C>::send_reply_cb(
-  std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg)
-{
-  msg->data.self->send_reply(std::move(msg));
 }
 
 template <class T, class C>
@@ -372,15 +370,21 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
             << " client id: " << reply->id() << " seqno: " << reply->seqno()
             << " view " << reply->view() << std::endl;
 
-  auto msg = std::make_unique<enclave::Tmsg<ReplyCbMsg>>(&send_reply_cb);
+  auto msg = std::make_unique<enclave::Tmsg<ReplyCbMsg>>(&send_reply);
   msg->data.owner = ctx->owner;
   msg->data.caller_rid = ctx->caller_rid;
   msg->data.cb = ctx->cb;
   msg->data.data.assign(reply_buffer, reply_buffer + reply_len);
-  msg->data.self = this;
 
-  enclave::ThreadMessaging::thread_messaging.add_task<ReplyCbMsg>(
-    ctx->reply_thread, std::move(msg));
+  if (enclave::ThreadMessaging::thread_count > 1)
+  {
+    enclave::ThreadMessaging::thread_messaging.add_task<ReplyCbMsg>(
+      ctx->reply_thread, std::move(msg));
+  }
+  else
+  {
+    send_reply(std::move(msg));
+  }
 
   {
     std::lock_guard<SpinLock> mguard(lock);
