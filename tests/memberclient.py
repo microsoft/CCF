@@ -53,7 +53,7 @@ def run(args):
             network.key_generator,
             f"--name=member3",
             "--gen-key-share",
-            infra.ccf.ParticipantsCurve(args.default_curve).next().name,
+            f"--curve={infra.ccf.ParticipantsCurve(args.default_curve).next().name}",
         )
 
         result, _ = network.consortium.propose_add_member(

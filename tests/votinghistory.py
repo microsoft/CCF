@@ -133,7 +133,7 @@ def run(args):
             network.key_generator,
             f"--name=member4",
             "--gen-key-share",
-            infra.ccf.ParticipantsCurve.secp256k1.name,
+            f"--curve={infra.ccf.ParticipantsCurve.secp256k1.name}",
         )
         result, error = network.consortium.propose_add_member(
             1, primary, "member4_cert.pem", "member4_kshare_pub.pem"
