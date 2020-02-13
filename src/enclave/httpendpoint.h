@@ -306,8 +306,7 @@ namespace enclave
     void send_request(
       const std::string& path, const std::vector<uint8_t>& data) override
     {
-      http::Request r(HTTP_POST);
-      r.set_path(path);
+      http::Request r(path, HTTP_POST);
       send_raw(r.build_request(data));
     }
 

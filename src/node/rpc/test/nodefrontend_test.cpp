@@ -39,8 +39,7 @@ const json frontend_process(
   const std::string& method,
   const Cert& caller)
 {
-  enclave::http::Request r;
-  r.set_path(method);
+  enclave::http::Request r(method);
   const auto body = json_params.is_null() ?
     std::vector<uint8_t>() :
     jsonrpc::pack(json_params, Pack::Text);

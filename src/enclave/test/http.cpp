@@ -169,8 +169,7 @@ TEST_CASE("URL parsing")
 
   const auto path = "/foo/123";
 
-  Request r;
-  r.set_path(path);
+  Request r(path);
   r.set_query_param("balance", "42");
   r.set_query_param("id", "100");
 
@@ -192,15 +191,17 @@ TEST_CASE("URL parsing")
 
 TEST_CASE("Pessimal transport")
 {
-  const enclave::http::HeaderMap h = {{"foo", "bar"}, {"baz", "42"}};
-  for (const auto& headers : {enclave::http::default_headers(), {}, h})
+  const enclave::http::HeaderMap h1 = {{"foo", "bar"}, {"baz", "42"}};
+  const enclave::http::HeaderMap h2 = {{"content-type", "application/json"},
+                                       {"x-custom-header", "custom user data"},
+                                       {"x-MixedCASE", "DontCARE"}};
+  for (const auto& headers : {{}, h1, h2})
   {
     enclave::http::SimpleMsgProcessor sp;
     enclave::http::Parser p(HTTP_REQUEST, sp);
 
-    auto builder = enclave::http::Request(HTTP_POST);
-    builder.set_path("/path/which/will/be/spliced/during/transport");
-    builder.clear_headers();
+    auto builder = enclave::http::Request(
+      "/path/which/will/be/spliced/during/transport", HTTP_POST);
     for (const auto& it : headers)
     {
       builder.set_header(it.first, it.second);

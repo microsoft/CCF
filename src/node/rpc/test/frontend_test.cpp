@@ -280,8 +280,7 @@ std::vector<uint8_t> sign_json(nlohmann::json j)
 
 auto create_simple_request(const std::string& method = "empty_function")
 {
-  enclave::http::Request request;
-  request.set_path(method);
+  enclave::http::Request request(method);
   return request;
 }
 

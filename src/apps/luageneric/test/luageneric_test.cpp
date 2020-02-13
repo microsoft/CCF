@@ -142,8 +142,7 @@ using Params = map<string, json>;
 
 std::vector<uint8_t> make_pc(const string& method, const Params& params)
 {
-  auto request = enclave::http::Request();
-  request.set_path(method);
+  auto request = enclave::http::Request(method);
   return request.build_request(jsonrpc::pack(params, default_format));
 }
 

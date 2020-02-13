@@ -17,13 +17,6 @@ namespace enclave
   {
     using HeaderMap = std::map<std::string, std::string, std::less<>>;
 
-    static HeaderMap default_headers()
-    {
-      HeaderMap headers;
-      headers["content-type"] = "application/json";
-      return headers;
-    }
-
     static void add_auto_headers(
       HeaderMap& headers, const std::vector<uint8_t>& body)
     {
@@ -83,7 +76,6 @@ namespace enclave
 
     protected:
       Message() = default;
-      Message(const HeaderMap& headers_) : headers(headers_) {}
 
     public:
       HeaderMap get_headers() const
@@ -114,13 +106,12 @@ namespace enclave
       std::map<std::string, std::string> query_params = {};
 
     public:
-      Request(http_method m = HTTP_POST) : Message(default_headers()), method(m)
-      {}
-
-      Request(const char* s) :
-        Message(default_headers()),
-        method(http_method_from_str(s))
-      {}
+      Request(const std::string_view& p = "/", http_method m = HTTP_POST) :
+        Message(),
+        method(m)
+      {
+        set_path(p);
+      }
 
       http_method get_method() const
       {
@@ -226,13 +217,13 @@ namespace enclave
     static std::vector<uint8_t> build_header(
       http_method method, const std::vector<uint8_t>& body)
     {
-      return Request(method).build_request(body, true);
+      return Request("/", method).build_request(body, true);
     }
 
     static std::vector<uint8_t> build_request(
       http_method method, const std::vector<uint8_t>& body)
     {
-      return Request(method).build_request(body, false);
+      return Request("/", method).build_request(body, false);
     }
 
     // HTTP_DELETE

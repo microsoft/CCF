@@ -161,8 +161,7 @@ public:
   {
     const auto body_j = json_rpc(method, params);
     const auto body_v = jsonrpc::pack(body_j, jsonrpc::Pack::Text);
-    auto r = enclave::http::Request(HTTP_POST);
-    r.set_path(std::string(body_j["method"]));
+    auto r = enclave::http::Request(std::string(body_j["method"]));
     const auto request = r.build_request(body_v);
     return {request, body_j["id"]};
   }
