@@ -103,7 +103,7 @@ public:
   // complete.
 
   void update();
-  // resets f if needed
+  // Effects: reset f if needed
 
   void mark_stale();
   // Effects: Discards all messages in certificate except mine.
