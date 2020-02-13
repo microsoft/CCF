@@ -19,7 +19,7 @@ extern "C"
 
 namespace ccf
 {
-  class KeySharing
+  class KeySharingContext
   {
     // Notes: it is up to the caller to pad the data to split TODO: Elaborate
   public:
@@ -34,7 +34,7 @@ namespace ccf
     std::vector<Share> shares;
 
   public:
-    KeySharing(size_t n) : shares(n)
+    KeySharingContext(size_t n) : shares(n)
     {
       if (n == 0 || n > MAX_NUMBER_SHARE)
       {
@@ -57,7 +57,6 @@ namespace ccf
       return shares;
     }
 
-    // TODO: Should this be static or something? No need for context here!
     Data combine(const std::vector<Share>& shares_, size_t k)
     {
       Data restored;

@@ -10,13 +10,11 @@
 namespace ccf
 {
   using KeyShareIndex = ObjectId;
-  using EncryptedLedgerSecret = std::vector<uint8_t>;
-  using EncryptedShare = std::vector<uint8_t>;
 
   struct KeyShareInfo
   {
-    EncryptedLedgerSecret encrypted_ledger_secret;
-    std::vector<EncryptedShare> encrypted_shares;
+    std::vector<uint8_t> encrypted_ledger_secret;
+    std::vector<std::vector<uint8_t>> encrypted_shares;
 
     MSGPACK_DEFINE(encrypted_ledger_secret, encrypted_shares);
   };

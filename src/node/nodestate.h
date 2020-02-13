@@ -320,8 +320,6 @@ namespace ccf
       create_node_cert(args.config);
       open_node_frontend();
 
-      KeySharing::split(std::vector<uint8_t>(32), 5, 5);
-
       std::vector<uint8_t> quote{1};
 
 #ifdef GET_QUOTE
@@ -372,10 +370,48 @@ namespace ccf
           assert(decrypted == network.ledger_secrets->get_secret(1)->master);
           /////////
 
-          // TODO: Now, split k_z into shares
-          // - Write C++ API for keyshare
-          // - Split k_z
-          // - Record into ccf.shares, along with encrypted_ls
+          // TODO: All of this probably needs to move to a new class to be used
+          // elsewhere (i.e. re-keying)
+          // TODO: Split k_z
+          // TODO: Move to genesisgen.h
+          Store::Tx tx;
+          GenesisGenerator g(network, tx);
+
+          // auto active_members = g.get_active_members();
+          auto active_members = std::vector<MemberId>(
+            {1, 2, 3}); // TODO: Members are not written to the kv until later
+          auto ctx = KeySharingContext(active_members.size());
+          size_t k =
+            2; // For now, k = 2 (3 members in most of our test, k is majority)
+
+          // TODO: Copy share_wrapping_key_raw to std::array of the right size
+          // (pad with 0?)
+          KeySharingContext::Data data_to_split;
+          auto shares = ctx.split(data_to_split, k);
+
+          std::cout << "Shares ";
+          for (auto const& s : shares)
+          {
+            for (auto const& d : s)
+            {
+              std::cout << std::hex << std::setfill('0') << std::setw(2)
+                        << (int)d;
+            }
+            std::cout << std::endl;
+          }
+          std::cout << std::dec << std::endl;
+
+          // For now, shares are recorded in plain text
+          std::vector<std::vector<uint8_t>> encrypted_shares;
+          for (auto const& s : shares)
+          {
+            encrypted_shares.emplace_back(s.begin(), s.end());
+          }
+          LOG_FAIL_FMT(
+            "Number of encrypted shares: {}", encrypted_shares.size());
+
+          g.set_new_shares(encrypted_ls.serialise(), encrypted_shares);
+          g.finalize(); // TODO: Check error code
 
           self = 0; // The first node id is always 0
 

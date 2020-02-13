@@ -9,8 +9,8 @@ struct mbedtls_gcm_context;
 
 namespace crypto
 {
+  constexpr size_t GCM_SIZE_KEY = 32;
   constexpr size_t GCM_SIZE_TAG = 16;
-  constexpr size_t GCM_SIZE_KEY = 16;
   constexpr size_t GCM_SIZE_IV = 12;
 
   template <size_t SIZE_IV = GCM_SIZE_IV>

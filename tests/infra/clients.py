@@ -335,6 +335,7 @@ class CurlClient:
             nf.flush()
             if is_signed:
                 cmd = [os.path.join(self.binary_dir, "scurl.sh")]
+                input("")
             else:
                 cmd = ["curl"]
 

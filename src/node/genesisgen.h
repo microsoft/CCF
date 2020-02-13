@@ -251,5 +251,36 @@ namespace ccf
       auto codeid_view = tx.get_view(tables.code_ids);
       codeid_view->put(node_code_id, CodeStatus::ACCEPTED);
     }
+
+    // TODO: This should also return the public encryption key
+    std::vector<MemberId> get_active_members()
+    {
+      auto members_view = tx.get_view(tables.members);
+      std::vector<MemberId> active_members_id;
+
+      members_view->foreach(
+        [&active_members_id](const MemberId& mid, const MemberInfo& mi) {
+          if (mi.status != MemberStatus::ACTIVE)
+          {
+            active_members_id.emplace_back(mid);
+          }
+          return true;
+        });
+      LOG_FAIL_FMT("There are {} active members", active_members_id.size());
+      return active_members_id;
+    }
+
+    void set_new_shares(
+      const std::vector<uint8_t>& encrypted_ledger_secrets,
+      const std::vector<std::vector<uint8_t>>& encrypted_shares)
+    {
+      auto [shares_view, values_view] =
+        tx.get_view(tables.shares, tables.values);
+      // auto keyshare_id = get_next_id(values_view, ValueIds::NEXT_KEYSHARE_ID);
+      size_t keyshare_id = 1; // TODO: This is called too early to have a keyshare
+
+      shares_view->put(
+        keyshare_id, {encrypted_ledger_secrets, encrypted_shares});
+    }
   };
 }
