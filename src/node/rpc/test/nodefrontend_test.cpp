@@ -39,7 +39,7 @@ const json frontend_process(
   const std::string& method,
   const Cert& caller)
 {
-  enclave::http::Request r(method);
+  http::Request r(method);
   const auto body = json_params.is_null() ?
     std::vector<uint8_t>() :
     jsonrpc::pack(json_params, Pack::Text);
@@ -51,8 +51,8 @@ const json frontend_process(
 
   CHECK(serialised_response.has_value());
 
-  enclave::http::SimpleMsgProcessor processor;
-  enclave::http::Parser parser(HTTP_RESPONSE, processor);
+  http::SimpleMsgProcessor processor;
+  http::Parser parser(HTTP_RESPONSE, processor);
 
   const auto parsed_count =
     parser.execute(serialised_response->data(), serialised_response->size());

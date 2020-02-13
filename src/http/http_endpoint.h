@@ -2,16 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "clientendpoint.h"
 #include "ds/logger.h"
+#include "enclave/clientendpoint.h"
+#include "enclave/rpcmap.h"
+#include "http_parser.h"
 #include "http_rpc_context.h"
-#include "httpparser.h"
-#include "rpcmap.h"
-#include "wsupgrade.h"
+#include "ws_upgrade.h"
 
-namespace enclave
+namespace http
 {
-  class HTTPEndpoint : public TLSEndpoint, public http::MsgProcessor
+  class HTTPEndpoint : public enclave::TLSEndpoint, public http::MsgProcessor
   {
   protected:
     http::Parser p;
@@ -120,15 +120,15 @@ namespace enclave
   class HTTPServerEndpoint : public HTTPEndpoint
   {
   private:
-    std::shared_ptr<RPCMap> rpc_map;
-    std::shared_ptr<RpcHandler> handler;
+    std::shared_ptr<enclave::RPCMap> rpc_map;
+    std::shared_ptr<enclave::RpcHandler> handler;
     size_t session_id;
 
     size_t request_index = 0;
 
   public:
     HTTPServerEndpoint(
-      std::shared_ptr<RPCMap> rpc_map,
+      std::shared_ptr<enclave::RPCMap> rpc_map,
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
@@ -202,7 +202,7 @@ namespace enclave
           return;
         }
 
-        const SessionContext session(session_id, peer_cert());
+        const enclave::SessionContext session(session_id, peer_cert());
 
         std::shared_ptr<HttpRpcContext> rpc_ctx = nullptr;
         try
@@ -292,7 +292,7 @@ namespace enclave
     }
   };
 
-  class HTTPClientEndpoint : public HTTPEndpoint, public ClientEndpoint
+  class HTTPClientEndpoint : public HTTPEndpoint, public enclave::ClientEndpoint
   {
   public:
     HTTPClientEndpoint(

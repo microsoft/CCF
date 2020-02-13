@@ -280,18 +280,18 @@ std::vector<uint8_t> sign_json(nlohmann::json j)
 
 auto create_simple_request(const std::string& method = "empty_function")
 {
-  enclave::http::Request request(method);
+  http::Request request(method);
   return request;
 }
 
-std::pair<enclave::http::Request, ccf::SignedReq> create_signed_request(
-  const enclave::http::Request& r = create_simple_request(),
+std::pair<http::Request, ccf::SignedReq> create_signed_request(
+  const http::Request& r = create_simple_request(),
   const std::vector<uint8_t>& body = {})
 {
-  enclave::http::Request s(r);
+  http::Request s(r);
 
-  enclave::http::SigningDetails details;
-  enclave::http::sign_request(s, body, kp, &details);
+  http::SigningDetails details;
+  http::sign_request(s, body, kp, &details);
 
   ccf::SignedReq signed_req{
     details.signature, details.to_sign, body, MBEDTLS_MD_SHA256};
@@ -300,8 +300,8 @@ std::pair<enclave::http::Request, ccf::SignedReq> create_signed_request(
 
 nlohmann::json parse_response(const vector<uint8_t>& v, jsonrpc::Pack pack)
 {
-  enclave::http::SimpleMsgProcessor processor;
-  enclave::http::Parser parser(HTTP_RESPONSE, processor);
+  http::SimpleMsgProcessor processor;
+  http::Parser parser(HTTP_RESPONSE, processor);
 
   const auto parsed_count = parser.execute(v.data(), v.size());
   REQUIRE(parsed_count == v.size());

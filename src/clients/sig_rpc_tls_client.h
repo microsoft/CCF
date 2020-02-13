@@ -4,7 +4,7 @@
 
 #include "rpc_tls_client.h"
 
-#include <enclave/httpsig.h>
+#include <http/http_sig.h>
 #include <nlohmann/json.hpp>
 #include <tls/base64.h>
 #include <tls/keypair.h>
@@ -62,7 +62,7 @@ public:
   {
     const auto body_j = json_rpc(method, params);
     const auto body_v = nlohmann::json::to_msgpack(body_j);
-    auto r = enclave::http::Request(std::string(body_j["method"]));
+    auto r = http::Request(std::string(body_j["method"]));
 
     tls::HashBytes body_digest;
     tls::do_hash(body_v.data(), body_v.size(), body_digest, MBEDTLS_MD_SHA256);
@@ -82,7 +82,7 @@ public:
     }
 
     std::string query = "";
-    const auto signing_string = enclave::http::construct_raw_signed_string(
+    const auto signing_string = http::construct_raw_signed_string(
       http_method_str(HTTP_POST), method, query, headers, headers_to_sign);
     if (!signing_string.has_value())
     {

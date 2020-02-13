@@ -3,7 +3,7 @@
 #pragma once
 
 #include "enclave/forwardertypes.h"
-#include "enclave/http_rpc_context.h"
+#include "http/http_rpc_context.h"
 #include "enclave/rpcmap.h"
 #include "node/nodetonode.h"
 
@@ -180,7 +180,7 @@ namespace ccf
             // TODO: This is duplicating the logic in httpendpoint.h - that
             // should be moved to RpcMap
             std::string_view actor_s = {};
-            auto http_ctx = dynamic_cast<enclave::HttpRpcContext*>(ctx.get());
+            auto http_ctx = dynamic_cast<http::HttpRpcContext*>(ctx.get());
             auto& method = http_ctx->remaining_path;
 
             {

@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "../httpbuilder.h"
-#include "../httpparser.h"
+#include "../http_builder.h"
+#include "../http_parser.h"
 
 #include <doctest/doctest.h>
 #include <queue>
@@ -27,16 +27,14 @@ std::string to_lowercase(std::string s)
   return s;
 }
 
-using namespace enclave::http;
-
 TEST_CASE("Complete request")
 {
   std::vector<uint8_t> r;
 
-  enclave::http::SimpleMsgProcessor sp;
-  enclave::http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleMsgProcessor sp;
+  http::Parser p(HTTP_REQUEST, sp);
 
-  auto req = build_post_request(r);
+  auto req = http::build_post_request(r);
   auto parsed = p.execute(req.data(), req.size());
 
   CHECK(!sp.received.empty());
@@ -49,10 +47,10 @@ TEST_CASE("Parsing error")
 {
   std::vector<uint8_t> r;
 
-  enclave::http::SimpleMsgProcessor sp;
-  enclave::http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleMsgProcessor sp;
+  http::Parser p(HTTP_REQUEST, sp);
 
-  auto req = build_post_request(r);
+  auto req = http::build_post_request(r);
   req[6] = '\n';
 
   bool threw_with = false;
@@ -71,11 +69,11 @@ TEST_CASE("Parsing error")
 
 TEST_CASE("Partial request")
 {
-  enclave::http::SimpleMsgProcessor sp;
-  enclave::http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleMsgProcessor sp;
+  http::Parser p(HTTP_REQUEST, sp);
 
   const auto r0 = s_to_v(request_0);
-  auto req = build_post_request(r0);
+  auto req = http::build_post_request(r0);
   size_t offset = 10;
 
   auto parsed = p.execute(req.data(), req.size() - offset);
@@ -91,12 +89,12 @@ TEST_CASE("Partial request")
 
 TEST_CASE("Partial body")
 {
-  enclave::http::SimpleMsgProcessor sp;
-  enclave::http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleMsgProcessor sp;
+  http::Parser p(HTTP_REQUEST, sp);
 
   const auto r0 = s_to_v(request_0);
-  auto req = build_post_request(r0);
-  size_t offset = build_post_header(r0).size() + 4;
+  auto req = http::build_post_request(r0);
+  size_t offset = http::build_post_header(r0).size() + 4;
 
   auto parsed = p.execute(req.data(), req.size() - offset);
   CHECK(parsed == req.size() - offset);
@@ -111,13 +109,13 @@ TEST_CASE("Partial body")
 
 TEST_CASE("Multiple requests")
 {
-  enclave::http::SimpleMsgProcessor sp;
-  enclave::http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleMsgProcessor sp;
+  http::Parser p(HTTP_REQUEST, sp);
 
   const auto r0 = s_to_v(request_0);
-  auto req = build_post_request(r0);
+  auto req = http::build_post_request(r0);
   const auto r1 = s_to_v(request_1);
-  auto req1 = build_post_request(r1);
+  auto req1 = http::build_post_request(r1);
   std::copy(req1.begin(), req1.end(), std::back_inserter(req));
 
   auto parsed = p.execute(req.data(), req.size());
@@ -142,14 +140,14 @@ TEST_CASE("Multiple requests")
 
 TEST_CASE("Method parsing")
 {
-  enclave::http::SimpleMsgProcessor sp;
-  enclave::http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleMsgProcessor sp;
+  http::Parser p(HTTP_REQUEST, sp);
 
   bool choice = false;
   for (const auto method : {HTTP_DELETE, HTTP_GET, HTTP_POST, HTTP_PUT})
   {
     const auto r = s_to_v(choice ? request_0 : request_1);
-    auto req = build_request(method, r);
+    auto req = http::build_request(method, r);
     auto parsed = p.execute(req.data(), req.size());
 
     CHECK(!sp.received.empty());
@@ -164,12 +162,12 @@ TEST_CASE("Method parsing")
 
 TEST_CASE("URL parsing")
 {
-  enclave::http::SimpleMsgProcessor sp;
-  enclave::http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleMsgProcessor sp;
+  http::Parser p(HTTP_REQUEST, sp);
 
   const auto path = "/foo/123";
 
-  Request r(path);
+  http::Request r(path);
   r.set_query_param("balance", "42");
   r.set_query_param("id", "100");
 
@@ -191,17 +189,17 @@ TEST_CASE("URL parsing")
 
 TEST_CASE("Pessimal transport")
 {
-  const enclave::http::HeaderMap h1 = {{"foo", "bar"}, {"baz", "42"}};
-  const enclave::http::HeaderMap h2 = {{"content-type", "application/json"},
-                                       {"x-custom-header", "custom user data"},
-                                       {"x-MixedCASE", "DontCARE"}};
+  const http::HeaderMap h1 = {{"foo", "bar"}, {"baz", "42"}};
+  const http::HeaderMap h2 = {{"content-type", "application/json"},
+                              {"x-custom-header", "custom user data"},
+                              {"x-MixedCASE", "DontCARE"}};
   for (const auto& headers : {{}, h1, h2})
   {
-    enclave::http::SimpleMsgProcessor sp;
-    enclave::http::Parser p(HTTP_REQUEST, sp);
+    http::SimpleMsgProcessor sp;
+    http::Parser p(HTTP_REQUEST, sp);
 
-    auto builder = enclave::http::Request(
-      "/path/which/will/be/spliced/during/transport", HTTP_POST);
+    auto builder =
+      http::Request("/path/which/will/be/spliced/during/transport", HTTP_POST);
     for (const auto& it : headers)
     {
       builder.set_header(it.first, it.second);

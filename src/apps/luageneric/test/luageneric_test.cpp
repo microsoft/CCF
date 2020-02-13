@@ -5,7 +5,7 @@
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
-#include "enclave/http_rpc_context.h"
+#include "http/http_rpc_context.h"
 #include "luainterp/luainterp.h"
 #include "node/encryptor.h"
 #include "node/genesisgen.h"
@@ -40,8 +40,8 @@ constexpr auto default_format = jsonrpc::Pack::Text;
 
 nlohmann::json parse_response(const vector<uint8_t>& v)
 {
-  enclave::http::SimpleMsgProcessor processor;
-  enclave::http::Parser parser(HTTP_RESPONSE, processor);
+  http::SimpleMsgProcessor processor;
+  http::Parser parser(HTTP_RESPONSE, processor);
 
   const auto parsed_count = parser.execute(v.data(), v.size());
   REQUIRE(parsed_count == v.size());
@@ -142,7 +142,7 @@ using Params = map<string, json>;
 
 std::vector<uint8_t> make_pc(const string& method, const Params& params)
 {
-  auto request = enclave::http::Request(method);
+  auto request = http::Request(method);
   return request.build_request(jsonrpc::pack(params, default_format));
 }
 

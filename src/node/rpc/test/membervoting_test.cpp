@@ -79,7 +79,7 @@ std::vector<uint8_t> sign_json(nlohmann::json j, tls::KeyPairPtr& kp_)
 std::vector<uint8_t> create_request(
   const json& params, const string& method_name)
 {
-  enclave::http::Request r(method_name);
+  http::Request r(method_name);
   const auto body = params.is_null() ? std::vector<uint8_t>() :
                                        jsonrpc::pack(params, default_pack);
   return r.build_request(body);
@@ -88,12 +88,12 @@ std::vector<uint8_t> create_request(
 std::vector<uint8_t> create_signed_request(
   const json& params, const string& method_name, tls::KeyPairPtr& kp_)
 {
-  enclave::http::Request r(method_name);
+  http::Request r(method_name);
 
   const auto body = params.is_null() ? std::vector<uint8_t>() :
                                        jsonrpc::pack(params, default_pack);
 
-  enclave::http::sign_request(r, body, kp_);
+  http::sign_request(r, body, kp_);
 
   return r.build_request(body);
 }
@@ -130,8 +130,8 @@ json frontend_process(
 
   CHECK(serialized_response.has_value());
 
-  enclave::http::SimpleMsgProcessor processor;
-  enclave::http::Parser parser(HTTP_RESPONSE, processor);
+  http::SimpleMsgProcessor processor;
+  http::Parser parser(HTTP_RESPONSE, processor);
 
   const auto parsed_count =
     parser.execute(serialized_response->data(), serialized_response->size());

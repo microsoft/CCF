@@ -2,13 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "httpparser.h"
-#include "httpsig.h"
-#include "rpccontext.h"
+#include "enclave/rpccontext.h"
+#include "http_parser.h"
+#include "http_sig.h"
 
-namespace enclave
+namespace http
 {
-  class HttpRpcContext : public RpcContext
+  class HttpRpcContext : public enclave::RpcContext
   {
   private:
     http_method verb;
@@ -22,7 +22,7 @@ namespace enclave
     std::string_view remaining_path = {};
 
     HttpRpcContext(
-      const SessionContext& s,
+      const enclave::SessionContext& s,
       http_method verb_,
       const std::string_view& path_,
       const std::string_view& query_,
@@ -100,7 +100,7 @@ namespace enclave
         "\r\n",
         http_method_str(verb),
         fmt::format("{}{}", path_, query_),
-        enclave::http::get_header_string(request_headers));
+        http::get_header_string(request_headers));
 
       raw_request.resize(canonical_request_header.size() + request_body.size());
       ::memcpy(
@@ -249,7 +249,11 @@ namespace enclave
         jsonrpc::Pack::Text));
     }
   };
+}
 
+// TODO: This is very ugly. Should make an rpc:: folder+namespace?
+namespace enclave
+{
   inline std::shared_ptr<RpcContext> make_rpc_context(
     const SessionContext& s,
     const std::vector<uint8_t>& packed,
@@ -281,7 +285,7 @@ namespace enclave
 
     const auto& msg = processor.received.front();
 
-    return std::make_shared<HttpRpcContext>(
+    return std::make_shared<http::HttpRpcContext>(
       s,
       msg.method,
       msg.path,

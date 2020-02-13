@@ -274,9 +274,9 @@ namespace ccf
 
       const auto body = jsonrpc::pack(create_params, jsonrpc::Pack::Text);
 
-      enclave::http::Request request(ccf::MemberProcs::CREATE);
+      http::Request request(ccf::MemberProcs::CREATE);
 
-      enclave::http::sign_request(request, body, node_sign_kp);
+      http::sign_request(request, body, node_sign_kp);
 
       return request.build_request(body);
     }

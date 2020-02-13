@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclave/httpbuilder.h"
-#include "enclave/httpparser.h"
+#include "http/http_builder.h"
+#include "http/http_parser.h"
 #include "node/rpc/jsonrpc.h"
 #include "tls_client.h"
 
@@ -139,10 +139,9 @@ public:
   }
 };
 
-class HttpRpcTlsClient : public JsonRpcTlsClient,
-                         public enclave::http::MsgProcessor
+class HttpRpcTlsClient : public JsonRpcTlsClient, public http::MsgProcessor
 {
-  enclave::http::Parser parser;
+  http::Parser parser;
   std::vector<uint8_t> message_body;
 
 public:
@@ -161,7 +160,7 @@ public:
   {
     const auto body_j = json_rpc(method, params);
     const auto body_v = jsonrpc::pack(body_j, jsonrpc::Pack::Text);
-    auto r = enclave::http::Request(std::string(body_j["method"]));
+    auto r = http::Request(std::string(body_j["method"]));
     const auto request = r.build_request(body_v);
     return {request, body_j["id"]};
   }
@@ -183,7 +182,7 @@ public:
     http_method method,
     const std::string_view& path,
     const std::string_view& query,
-    const enclave::http::HeaderMap& headers,
+    const http::HeaderMap& headers,
     const std::vector<uint8_t>& body) override
   {
     message_body = body;

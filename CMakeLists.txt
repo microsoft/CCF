@@ -329,7 +329,7 @@ if(BUILD_TESTS)
   use_client_mbedtls(channels_test)
   target_link_libraries(channels_test PRIVATE secp256k1.host)
 
-  add_unit_test(http_test ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/test/http.cpp)
+  add_unit_test(http_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/http_test.cpp)
   target_link_libraries(http_test PRIVATE http_parser.host)
 
   add_unit_test(
