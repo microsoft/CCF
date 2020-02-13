@@ -551,7 +551,11 @@ namespace tls
      * @return 0 if successful, error code of mbedtls_pk_sign otherwise,
      *         or 0xf if the signature_size exceeds that of a uint8_t.
      */
-    int sign(CBuffer d, size_t* sig_size, uint8_t* sig, mbedtls_md_type_t md_type = {}) const
+    int sign(
+      CBuffer d,
+      size_t* sig_size,
+      uint8_t* sig,
+      mbedtls_md_type_t md_type = {}) const
     {
       HashBytes hash;
       do_hash(*ctx, d.p, d.rawSize(), hash, md_type);

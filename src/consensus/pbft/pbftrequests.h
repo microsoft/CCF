@@ -22,8 +22,8 @@ namespace pbft
     std::vector<uint8_t> serialise()
     {
       bool include_caller = false;
-      size_t size = sizeof(caller_id) + sizeof(bool) +
-        sizeof(size_t) + raw.size() + sizeof(size_t) + pbft_raw.size();
+      size_t size = sizeof(caller_id) + sizeof(bool) + sizeof(size_t) +
+        raw.size() + sizeof(size_t) + pbft_raw.size();
       if (!caller_cert.empty())
       {
         size += sizeof(size_t) + caller_cert.size();
@@ -77,8 +77,7 @@ namespace pbft
   };
 
   DECLARE_JSON_TYPE(Request);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    Request, caller_id, caller_cert, raw, pbft_raw);
+  DECLARE_JSON_REQUIRED_FIELDS(Request, caller_id, caller_cert, raw, pbft_raw);
 
   // size_t is used as the key of the table. This key will always be 0 since we
   // don't want to store the requests in the kv over time, we just want to get
