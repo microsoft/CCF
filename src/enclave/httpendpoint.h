@@ -51,25 +51,53 @@ namespace enclave
 
       if (!is_websocket)
       {
+        auto buf = read(4096, false);
+        auto data = buf.data();
+        auto size = buf.size();
+
         while (true)
         {
-          auto buf = read(4096, false);
-          if (buf.size() == 0)
+          if (size == 0)
           {
             return;
           }
 
           LOG_TRACE_FMT(
             "Going to parse {} bytes: \n[{}]",
-            buf.size(),
-            std::string(buf.begin(), buf.end()));
+            size,
+            std::string((char const*)data, size));
 
           try
           {
-            if (p.execute(buf.data(), buf.size()) == 0)
+            const auto used = p.execute(data, size);
+            if (used == 0)
             {
+              // Parsing error
               LOG_FAIL_FMT("Failed to parse request");
               return;
+            }
+            else if (used > size)
+            {
+              // Something has gone very wrong
+              LOG_FAIL_FMT(
+                "Unexpected return result - tried to parse {} bytes, actually "
+                "parsed {}",
+                size,
+                used);
+              return;
+            }
+            else if (used == size)
+            {
+              // Used all provided bytes - check if more are available
+              buf = read(4096, false);
+              data = buf.data();
+              size = buf.size();
+            }
+            else
+            {
+              // Used some bytes - pass over these and retry with remainder
+              data += used;
+              size -= used;
             }
           }
           catch (const std::exception& e)
@@ -109,27 +137,9 @@ namespace enclave
       session_id(session_id)
     {}
 
-    static void send_cb(std::unique_ptr<enclave::Tmsg<SendRecvMsg>> msg)
-    {
-      reinterpret_cast<HTTPServerEndpoint*>(msg->data.self.get())
-        ->send_(msg->data.data);
-    }
-
     void send(const std::vector<uint8_t>& data) override
     {
-      auto msg = std::make_unique<enclave::Tmsg<SendRecvMsg>>(&send_cb);
-      msg->data.self = this->shared_from_this();
-      msg->data.data = data;
-
-      enclave::ThreadMessaging::thread_messaging.add_task<SendRecvMsg>(
-        execution_thread, std::move(msg));
-    }
-
-    void send_(const std::vector<uint8_t>& data)
-    {
-      // This should be called with raw body of response - we will wrap it with
-      // header then transmit
-      send_response(data);
+      send_raw(data);
     }
 
     void send_response(
@@ -160,9 +170,8 @@ namespace enclave
       auto response = http::Response(status);
       response.set_header("content-type", content_type);
 
-      send_buffered(response.build_response(data, true));
-      send_buffered(data);
-      flush();
+      send_raw(response.build_response(data, true));
+      send_raw(data);
     }
 
     void handle_message(
@@ -206,7 +215,7 @@ namespace enclave
           send_response(e.what(), HTTP_STATUS_BAD_REQUEST);
         }
 
-        //rpc_ctx->set_request_index(request_index++);
+        // rpc_ctx->set_request_index(request_index++);
 
         std::string_view actor_s = {};
         auto& method = rpc_ctx->remaining_path;
@@ -257,8 +266,6 @@ namespace enclave
             HTTP_STATUS_NOT_FOUND);
           return;
         }
-
-        rpc_ctx->raw = body;
 
         auto response = search.value()->process(rpc_ctx);
 
