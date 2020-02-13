@@ -32,7 +32,7 @@ namespace ringbuffer
 
       PendingMessage(Message m_, std::vector<uint8_t>&& buffer_) :
         m(m_),
-        buffer(std::move(buffer_)),
+        buffer(buffer_),
         marker(0),
         finished(false)
       {}
