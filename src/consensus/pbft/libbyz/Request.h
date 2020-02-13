@@ -24,6 +24,8 @@ struct Request_rep : public Message_rep
                  // (if negative, it means all replicas).
   short command_size;
   int cid; // unique id of client who sends the request
+  uint64_t
+    uid; // a way for a client_proxy to group requests from different users
   Request_id rid; // unique request identifier
   // Followed a command which is "command_size" bytes long and an
   // authenticator.
@@ -89,6 +91,10 @@ public:
 
   int client_id() const;
   // Effects: Fetches the identifier of the client from the message.
+
+  int user_id() const;
+  // effects: fetches the identifier of the user from the message. Each id is
+  // only unique per client.
 
   Request_id& request_id();
   // Effects: Fetches the request identifier from the message.
@@ -158,6 +164,11 @@ inline Request_rep& Request::rep() const
 inline int Request::client_id() const
 {
   return rep().cid;
+}
+
+inline int Request::user_id() const
+{
+  return rep().uid;
 }
 
 inline Request_id& Request::request_id()

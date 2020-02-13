@@ -11,6 +11,8 @@
 #include "Reply.h"
 #include "Request.h"
 #include "ds/logger.h"
+#include "ds/spinlock.h"
+#include "ds/thread_messaging.h"
 #include "libbyz.h"
 #include "pbft_assert.h"
 #include "receive_message_base.h"
@@ -49,6 +51,13 @@ public:
   // callback cb with owner, caller_rid, and the reply to the command.
   // Otherwise, returns false.
 
+  struct ExecuteRequestMsg
+  {
+    std::unique_ptr<Request> request;
+    ClientProxy<T, C>* self;
+  };
+  static void execute_request_cb(
+    std::unique_ptr<enclave::Tmsg<ExecuteRequestMsg>> msg);
   void execute_request(Request* request);
 
   void recv_reply(Reply* r);
@@ -65,12 +74,14 @@ private:
       T caller_rid,
       ReplyCallback cb,
       C* owner,
+      uint16_t reply_thread,
       std::unique_ptr<Request> req);
 
     T caller_rid;
     size_t f;
     ReplyCallback cb;
     C* owner;
+    uint16_t reply_thread;
 
     Certificate<Reply> t_reps; // Certificate with tentative replies (size 2f+1)
     Certificate<Reply> c_reps; // Certificate with committed replies (size f+1)
@@ -80,7 +91,18 @@ private:
     RequestContext* prev;
   };
   std::unordered_map<Request_id, std::unique_ptr<RequestContext>> out_reqs;
-  static const int Max_outstanding = 1000 * 100;
+  std::atomic<uint64_t> current_outstanding = 0;
+  static const int Max_outstanding = 1000;
+  SpinLock lock;
+
+  struct ReplyCbMsg
+  {
+    C* owner;
+    T caller_rid;
+    std::vector<uint8_t> data;
+    ReplyCallback cb;
+  };
+  static void send_reply(std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg);
 
   // list of outstanding requests used for retransmissions
   // (we only retransmit the request at the head of the queue)
@@ -136,9 +158,11 @@ ClientProxy<T, C>::RequestContext::RequestContext(
   T caller_rid,
   ReplyCallback cb,
   C* owner,
+  uint16_t reply_thread,
   std::unique_ptr<Request> req) :
   caller_rid(caller_rid),
   f(replica.f()),
+  reply_thread(reply_thread),
   cb(cb),
   owner(owner),
   t_reps([this]() { return 2 * f + 1; }),
@@ -157,8 +181,9 @@ bool ClientProxy<T, C>::send_request(
   C* owner,
   bool is_read_only)
 {
-  if (out_reqs.size() >= Max_outstanding)
+  if (current_outstanding.fetch_add(1) >= Max_outstanding)
   {
+    current_outstanding.fetch_sub(1);
     LOG_FAIL << "Too many outstanding requests, rejecting!" << std::endl;
     return false;
   }
@@ -167,6 +192,7 @@ bool ClientProxy<T, C>::send_request(
   auto req = std::make_unique<Request>(rid);
   if (req == nullptr)
   {
+    current_outstanding.fetch_sub(1);
     return false;
   }
 
@@ -174,6 +200,7 @@ bool ClientProxy<T, C>::send_request(
   char* command_buffer = req->store_command(max_len);
   if (max_len < len)
   {
+    current_outstanding.fetch_sub(1);
     return false;
   }
 
@@ -185,32 +212,68 @@ bool ClientProxy<T, C>::send_request(
   auto req_clone = req->clone();
 
   auto ctx = std::make_unique<RequestContext>(
-    my_replica, caller_rid, cb, owner, std::move(req));
+    my_replica,
+    caller_rid,
+    cb,
+    owner,
+    thread_ids[std::this_thread::get_id()],
+    std::move(req));
 
-  if (head == nullptr)
   {
-    head = tail = ctx.get();
-    ctx->prev = ctx->next = nullptr;
-    n_retrans = 0;
-    rtimer->start();
+    std::lock_guard<SpinLock> mguard(lock);
+    if (head == nullptr)
+    {
+      head = tail = ctx.get();
+      ctx->prev = ctx->next = nullptr;
+      n_retrans = 0;
+      rtimer->start();
+    }
+    else
+    {
+      tail->next = ctx.get();
+      ctx->prev = tail;
+      ctx->next = nullptr;
+      tail = ctx.get();
+    }
+
+    out_reqs.insert({rid, std::move(ctx)});
+  }
+
+  auto msg =
+    std::make_unique<enclave::Tmsg<ExecuteRequestMsg>>(execute_request_cb);
+  msg->data.self = this;
+  msg->data.request.reset(std::move(req_clone));
+
+  if (enclave::ThreadMessaging::thread_count > 1)
+  {
+    enclave::ThreadMessaging::thread_messaging.add_task<ExecuteRequestMsg>(
+      enclave::ThreadMessaging::main_thread, std::move(msg));
   }
   else
   {
-    tail->next = ctx.get();
-    ctx->prev = tail;
-    ctx->next = nullptr;
-    tail = ctx.get();
+    execute_request_cb(std::move(msg));
   }
 
-  out_reqs.insert({rid, std::move(ctx)});
-
-  execute_request(req_clone);
   return true;
+}
+
+template <class T, class C>
+void ClientProxy<T, C>::execute_request_cb(
+  std::unique_ptr<enclave::Tmsg<ExecuteRequestMsg>> msg)
+{
+  auto self = msg->data.self;
+  self->execute_request(msg->data.request.release());
 }
 
 template <class T, class C>
 void ClientProxy<T, C>::execute_request(Request* request)
 {
+  if (
+    thread_ids[std::this_thread::get_id()] !=
+    enclave::ThreadMessaging::main_thread)
+  {
+    throw std::logic_error("Execution on incorrect thread");
+  }
   if (my_replica.f() == 0)
   {
     if (!my_replica.is_primary())
@@ -229,17 +292,33 @@ void ClientProxy<T, C>::execute_request(Request* request)
 }
 
 template <class T, class C>
+void ClientProxy<T, C>::send_reply(
+  std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg)
+{
+  msg->data.cb(
+    msg->data.owner,
+    msg->data.caller_rid,
+    0,
+    msg->data.data.data(),
+    msg->data.data.size());
+}
+
+template <class T, class C>
 void ClientProxy<T, C>::recv_reply(Reply* reply)
 {
-  auto it = out_reqs.find(reply->request_id());
-  if (it == out_reqs.end())
+  RequestContext* ctx;
   {
-    // No request waiting for reply
-    delete reply;
-    return;
-  }
+    std::lock_guard<SpinLock> mguard(lock);
+    auto it = out_reqs.find(reply->request_id());
+    if (it == out_reqs.end())
+    {
+      // No request waiting for reply
+      delete reply;
+      return;
+    }
 
-  auto ctx = it->second.get();
+    ctx = it->second.get();
+  }
 
   LOG_TRACE << "Received reply msg, request_id:" << reply->request_id()
             << " seqno: " << reply->seqno() << " view " << reply->view()
@@ -286,43 +365,63 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
   rtimer->stop();
 
   int reply_len;
-  char* reply_buffer = reply->reply(reply_len);
+  uint8_t* reply_buffer = (uint8_t*)reply->reply(reply_len);
 
   LOG_DEBUG << "Received complete reply request_id:" << reply->request_id()
             << " client id: " << reply->id() << " seqno: " << reply->seqno()
             << " view " << reply->view() << std::endl;
 
-  ctx->cb(ctx->owner, ctx->caller_rid, 0, (uint8_t*)reply_buffer, reply_len);
+  auto msg = std::make_unique<enclave::Tmsg<ReplyCbMsg>>(&send_reply);
+  msg->data.owner = ctx->owner;
+  msg->data.caller_rid = ctx->caller_rid;
+  msg->data.cb = ctx->cb;
+  msg->data.data.assign(reply_buffer, reply_buffer + reply_len);
 
-  if (ctx->prev == nullptr)
+  if (enclave::ThreadMessaging::thread_count > 1)
   {
-    PBFT_ASSERT(head == ctx, "Invalid state");
-    head = ctx->next;
+    enclave::ThreadMessaging::thread_messaging.add_task<ReplyCbMsg>(
+      ctx->reply_thread, std::move(msg));
   }
   else
   {
-    ctx->prev->next = ctx->next;
+    send_reply(std::move(msg));
   }
 
-  if (ctx->next == nullptr)
   {
-    PBFT_ASSERT(tail == ctx, "Invalid state");
-    tail = ctx->prev;
-  }
-  else
-  {
-    ctx->next->prev = ctx->prev;
-  }
+    std::lock_guard<SpinLock> mguard(lock);
+    auto it = out_reqs.find(reply->request_id());
 
-  out_reqs.erase(it);
-  delete reply;
-  decrease_retransmission_timeout();
+    if (ctx->prev == nullptr)
+    {
+      PBFT_ASSERT(head == ctx, "Invalid state");
+      head = ctx->next;
+    }
+    else
+    {
+      ctx->prev->next = ctx->next;
+    }
 
-  n_retrans = 0;
+    if (ctx->next == nullptr)
+    {
+      PBFT_ASSERT(tail == ctx, "Invalid state");
+      tail = ctx->prev;
+    }
+    else
+    {
+      ctx->next->prev = ctx->prev;
+    }
 
-  if (head != nullptr)
-  {
-    rtimer->start();
+    out_reqs.erase(it);
+    current_outstanding.fetch_sub(1);
+    delete reply;
+    decrease_retransmission_timeout();
+
+    n_retrans = 0;
+
+    if (head != nullptr)
+    {
+      rtimer->start();
+    }
   }
 }
 

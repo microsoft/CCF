@@ -24,6 +24,7 @@ Request::Request(Request_id r, short rr) :
 {
   rep().cid = pbft::GlobalState::get_node().id();
   rep().rid = r;
+  rep().uid = thread_ids[std::this_thread::get_id()];
   rep().replier = rr;
   rep().command_size = 0;
   set_size(sizeof(Request_rep));
@@ -50,7 +51,8 @@ inline void Request::comp_digest(Digest& d)
   START_CC(digest_cycles);
 
   d = Digest(
-    (char*)&(rep().cid), sizeof(int) + sizeof(Request_id) + rep().command_size);
+    (char*)&(rep().cid),
+    sizeof(int) + sizeof(uint64_t) + sizeof(Request_id) + rep().command_size);
 
   STOP_CC(digest_cycles);
 }
