@@ -269,7 +269,7 @@ namespace ccf
               (size_t)ctx->actor,
               caller_id.value(),
               ctx->session.caller_cert,
-              ctx->raw))
+              ctx->raw_request))
         {
           LOG_FAIL_FMT(
             "Adding request failed: {}, {}, {}",
@@ -358,7 +358,7 @@ namespace ccf
           0,
           {ctx->session.fwd.value().caller_id,
            ctx->session.caller_cert,
-           ctx->raw,
+           ctx->raw_request,
            ctx->pbft_raw});
       }
 

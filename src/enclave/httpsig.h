@@ -161,7 +161,7 @@ namespace enclave
     //    - keyId is ignored
     class HttpSignatureVerifier
     {
-    private:
+    public:
       struct SignatureParams
       {
         std::string_view signature = {};
@@ -325,9 +325,6 @@ namespace enclave
 
         return sig_params;
       }
-
-    public:
-      HttpSignatureVerifier() {}
 
       static std::optional<ccf::SignedReq> parse(
         const std::string& verb,

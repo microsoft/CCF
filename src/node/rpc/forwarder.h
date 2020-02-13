@@ -53,8 +53,8 @@ namespace ccf
       IsCallerCertForwarded include_caller = false;
       const auto method = rpc_ctx->get_whole_method();
       size_t size = sizeof(caller_id) +
-        sizeof(rpc_ctx->session.client_session_id) + sizeof(method.size()) +
-        method.size() + sizeof(IsCallerCertForwarded) + rpc_ctx->raw.size();
+        sizeof(rpc_ctx->session.client_session_id) +
+        sizeof(IsCallerCertForwarded) + rpc_ctx->raw_request.size();
       if (!caller_cert.empty())
       {
         size += sizeof(size_t) + caller_cert.size();
@@ -66,14 +66,14 @@ namespace ccf
       auto size_ = plain.size();
       serialized::write(data_, size_, caller_id);
       serialized::write(data_, size_, rpc_ctx->session.client_session_id);
-      serialized::write(data_, size_, method);
       serialized::write(data_, size_, include_caller);
       if (include_caller)
       {
         serialized::write(data_, size_, caller_cert.size());
         serialized::write(data_, size_, caller_cert.data(), caller_cert.size());
       }
-      serialized::write(data_, size_, rpc_ctx->raw.data(), rpc_ctx->raw.size());
+      serialized::write(
+        data_, size_, rpc_ctx->raw_request.data(), rpc_ctx->raw_request.size());
 
       ForwardedHeader msg = {ForwardedMsg::forwarded_cmd, self};
 
@@ -100,7 +100,6 @@ namespace ccf
       auto size_ = plain_.size();
       auto caller_id = serialized::read<CallerId>(data_, size_);
       auto client_session_id = serialized::read<size_t>(data_, size_);
-      auto method = serialized::read<std::string>(data_, size_);
       auto includes_caller =
         serialized::read<IsCallerCertForwarded>(data_, size_);
       if (includes_caller)
@@ -108,18 +107,12 @@ namespace ccf
         auto caller_size = serialized::read<size_t>(data_, size_);
         caller_cert = serialized::read(data_, size_, caller_size);
       }
-      std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
+      std::vector<uint8_t> raw_request = serialized::read(data_, size_, size_);
 
       const enclave::SessionContext session(
         client_session_id, caller_id, caller_cert);
 
-      auto context = std::make_shared<enclave::HttpRpcContext>(
-        session,
-        HTTP_POST,
-        method,
-        std::string_view{},
-        enclave::http::HeaderMap{},
-        rpc);
+      auto context = enclave::make_rpc_context(session, raw_request);
 
       return std::make_tuple(context, r.first.from_node);
     }

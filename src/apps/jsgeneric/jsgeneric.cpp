@@ -168,8 +168,11 @@ namespace ccfapp
         JS_SetPropertyStr(ctx, tables_, "log", log);
         JS_SetPropertyStr(ctx, global_obj, "tables", tables_);
 
+        // TODO: These want the raw body!
         auto args_str = JS_NewStringLen(
-          ctx, (const char*)args.rpc_ctx->raw.data(), args.rpc_ctx->raw.size());
+          ctx,
+          (const char*)args.rpc_ctx->raw_request.data(),
+          args.rpc_ctx->raw_request.size());
         JS_SetPropertyStr(ctx, global_obj, "args", args_str);
         JS_FreeValue(ctx, global_obj);
 

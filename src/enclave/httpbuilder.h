@@ -127,7 +127,7 @@ namespace enclave
         return method;
       }
 
-      void set_path(const std::string& p)
+      void set_path(const std::string_view& p)
       {
         if (p.size() > 0 && p[0] == '/')
         {

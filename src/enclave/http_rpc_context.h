@@ -25,12 +25,70 @@ namespace enclave
       const std::string_view& query,
       const http::HeaderMap& headers,
       const std::vector<uint8_t>& body,
-      const std::vector<uint8_t>& raw = {},
+      const std::vector<uint8_t>& raw_request_ = {},
       const std::vector<uint8_t>& raw_pbft = {}) :
-      RpcContext(s, raw, raw_pbft),
+      RpcContext(s, raw_request_, raw_pbft),
       entire_path(path)
     {
       remaining_path = entire_path;
+
+      // Build a canonical serialization of this request. If the request is
+      // signed, then all unsigned content must be removed
+      auto canonical_headers = headers;
+      const auto auth_it =
+        canonical_headers.find(http::HTTP_HEADER_AUTHORIZATION);
+      if (auth_it != canonical_headers.end())
+      {
+        std::string_view authz_header = auth_it->second;
+
+        auto parsed_sign_params =
+          http::HttpSignatureVerifier::parse_signature_params(authz_header);
+
+        if (!parsed_sign_params.has_value())
+        {
+          throw std::logic_error(fmt::format(
+            "Unable to parse signature params from: {}", authz_header));
+        }
+
+        // Keep all signed headers, and the auth header containing the signature
+        // itself
+        auto& signed_headers = parsed_sign_params->signed_headers;
+        signed_headers.emplace_back(http::HTTP_HEADER_AUTHORIZATION);
+
+        auto it = canonical_headers.begin();
+        while (it != canonical_headers.end())
+        {
+          if (
+            std::find(
+              signed_headers.begin(), signed_headers.end(), it->first) ==
+            signed_headers.end())
+          {
+            it = canonical_headers.erase(it);
+          }
+          else
+          {
+            ++it;
+          }
+        }
+      }
+
+      const auto canonical_request_header = fmt::format(
+        "{} {} HTTP/1.1\r\n"
+        "{}"
+        "\r\n",
+        http_method_str(verb),
+        fmt::format("{}{}", path, query),
+        enclave::http::get_header_string(canonical_headers));
+
+      raw_request.resize(canonical_request_header.size() + body.size());
+      ::memcpy(
+        raw_request.data(),
+        canonical_request_header.data(),
+        canonical_request_header.size());
+      ::memcpy(
+        raw_request.data() + canonical_request_header.size(),
+        body.data(),
+        body.size());
 
       auto signed_req = http::HttpSignatureVerifier::parse(
         std::string(http_method_str(verb)), path, query, headers, body);

@@ -73,7 +73,7 @@ namespace enclave
   public:
     SessionContext session;
 
-    std::vector<uint8_t> raw = {};
+    std::vector<uint8_t> raw_request = {};
 
     // raw pbft Request
     std::vector<uint8_t> pbft_raw = {};
@@ -88,10 +88,10 @@ namespace enclave
 
     RpcContext(
       const SessionContext& s,
-      const std::vector<uint8_t>& raw_,
+      const std::vector<uint8_t>& raw_request_,
       const std::vector<uint8_t>& pbft_raw_) :
       session(s),
-      raw(raw_),
+      raw_request(raw_request_),
       pbft_raw(pbft_raw_)
     {}
 
