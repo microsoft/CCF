@@ -21,8 +21,9 @@ from loguru import logger as LOG
 
 # pbft will store up to 64 of each message type (pre-prepare/prepare/commit) and retransmit these messages to replicas that are behind, enabling catch up.
 # If a replica is too far behind then we need to send entries from the ledger, which is one of the things we want to test here.
-# By sending TOTAL_REQUESTS RPC requests (and a getCommit for each one of them) we are sure that we will have to go via the ledger to help late joiners catch up.
-TOTAL_REQUESTS = 30
+# By sending 33 RPC requests and a getCommit for each of them (what raft consideres as a read pbft will process as a write),
+# we are sure that we will have to go via the ledger to help late joiners catch up (total 66 reqs > 64)
+TOTAL_REQUESTS = 33
 
 s = random.randint(1, 10)
 LOG.info(f"setting seed to {s}")
@@ -159,61 +160,70 @@ def run(args):
             assert_node_up_to_date(check, last_joiner_node, first_msg, 1000)
             assert_node_up_to_date(check, last_joiner_node, second_msg, 2000)
 
-            # kill the old node(s) and ensure we are still making progress with the new one(s)
-            for node in nodes_to_kill:
-                LOG.info(f"Stopping node {node.node_id}")
-                node.stop()
+            if not args.skip_suspension:
+                # kill the old node(s) and ensure we are still making progress with the new one(s)
+                for node in nodes_to_kill:
+                    LOG.info(f"Stopping node {node.node_id}")
+                    node.stop()
 
-            wait_for_nodes(nodes_to_keep, catchup_msg, 3000)
+                wait_for_nodes(nodes_to_keep, catchup_msg, 3000)
 
-            cur_primary, _ = network.find_primary()
-            cur_primary_id = cur_primary.node_id
+                cur_primary, _ = network.find_primary()
+                cur_primary_id = cur_primary.node_id
 
-            # first timer determines after how many seconds each node will be suspended
-            timeouts = []
-            suspended_nodes = []
-            for i, node in enumerate(nodes_to_keep):
-                # if pbft suspend half of them including the primary
-                if i % 2 != 0 and args.consensus == "pbft":
-                    continue
-                LOG.success(f"Will suspend node with id {node.node_id}")
-                t = random.uniform(1, 10)
-                LOG.info(f"Initial timer for node {node.node_id} is {t} seconds...")
-                timeouts.append((t, node))
-                suspended_nodes.append(node.node_id)
+                # first timer determines after how many seconds each node will be suspended
+                timeouts = []
+                suspended_nodes = []
+                for i, node in enumerate(nodes_to_keep):
+                    # if pbft suspend half of them including the primary
+                    if i % 2 != 0 and args.consensus == "pbft":
+                        continue
+                    LOG.success(f"Will suspend node with id {node.node_id}")
+                    t = random.uniform(1, 10)
+                    LOG.info(f"Initial timer for node {node.node_id} is {t} seconds...")
+                    timeouts.append((t, node))
+                    suspended_nodes.append(node.node_id)
 
-            for t, node in timeouts:
-                et = args.election_timeout / 1000
-                # if pbft suspend the primary more than the other suspended nodes
-                if node.node_id == cur_primary_id and args.consensus == "pbft":
-                    et += 4
-                tm = Timer(t, timeout, args=[node, True, et])
-                tm.start()
+                for t, node in timeouts:
+                    et = args.election_timeout / 1000
+                    # if pbft suspend the primary more than the other suspended nodes
+                    if node.node_id == cur_primary_id and args.consensus == "pbft":
+                        et += 4
+                    tm = Timer(t, timeout, args=[node, True, et])
+                    tm.start()
 
-            run_requests(
-                nodes_to_keep,
-                2 * TOTAL_REQUESTS,
-                2001,
-                final_msg,
-                4000,
-                cant_fail=False,
-            )
+                run_requests(
+                    nodes_to_keep,
+                    2 * TOTAL_REQUESTS,
+                    2001,
+                    final_msg,
+                    4000,
+                    cant_fail=False,
+                )
 
-            term_info.update(find_primary(network))
+                term_info.update(find_primary(network))
 
-            wait_for_nodes(nodes_to_keep, final_msg, 5000)
+                wait_for_nodes(nodes_to_keep, final_msg, 5000)
 
-            # we have asserted that all nodes are caught up
-            # assert that view changes actually did occur
-            assert len(term_info) > 1
+                # we have asserted that all nodes are caught up
+                # assert that view changes actually did occur
+                assert len(term_info) > 1
 
-            LOG.success("----------- terms and primaries recorded -----------")
-            for term, primary in term_info.items():
-                LOG.success(f"term {term} - primary {primary}")
+                LOG.success("----------- terms and primaries recorded -----------")
+                for term, primary in term_info.items():
+                    LOG.success(f"term {term} - primary {primary}")
 
 
 if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
+
+    def add(parser):
+        parser.add_argument(
+            "--skip-suspension",
+            help="Don't suspend any nodes (i.e. just do late join)",
+            action="store_true",
+        )
+
+    args = infra.e2e_args.cli_args(add)
     if args.js_app_script:
         args.package = "libjsgeneric"
     elif args.app_script:
