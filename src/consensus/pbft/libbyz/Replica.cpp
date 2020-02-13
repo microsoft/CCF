@@ -433,6 +433,7 @@ bool Replica::compare_execution_results(
   }
 
   last_te_version = info.ctx;
+  last_tentative_execute--;
 
   return true;
 }
