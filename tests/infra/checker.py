@@ -53,6 +53,7 @@ class Checker:
             if callable(result):
                 assert result(rpc_result.result), rpc_result.result
             else:
+                LOG.error(f"Checking rpc_result: {rpc_result}")
                 assert rpc_result.result == result, "Expected {}, got {}".format(
                     result, rpc_result.result
                 )

@@ -11,8 +11,11 @@ namespace enclave
   class HttpRpcContext : public RpcContext
   {
   private:
-    nlohmann::json params = nlohmann::json::object();
+    http_method verb;
+    std::vector<uint8_t> request_body;
     std::string entire_path = {};
+
+    http::HeaderMap request_headers;
 
   public:
     // TODO: This is a temporary bodge. Shouldn't be public?
@@ -20,24 +23,29 @@ namespace enclave
 
     HttpRpcContext(
       const SessionContext& s,
-      http_method verb,
-      const std::string_view& path,
-      const std::string_view& query,
-      const http::HeaderMap& headers,
-      const std::vector<uint8_t>& body,
+      http_method verb_,
+      const std::string_view& path_,
+      const std::string_view& query_,
+      const http::HeaderMap& headers_,
+      const std::vector<uint8_t>& body_,
       const std::vector<uint8_t>& raw_request_ = {},
-      const std::vector<uint8_t>& raw_pbft = {}) :
-      RpcContext(s, raw_request_, raw_pbft),
-      entire_path(path)
+      const std::vector<uint8_t>& raw_pbft_ = {}) :
+      RpcContext(s, raw_request_, raw_pbft_),
+      verb(verb_),
+      entire_path(path_),
+      request_body(body_)
     {
       remaining_path = entire_path;
 
+      // TODO: YUCK! This sets request_index, so we need to call it!
+      get_params();
+
       // Build a canonical serialization of this request. If the request is
-      // signed, then all unsigned content must be removed
-      auto canonical_headers = headers;
+      // signed, then all unsigned headers must be removed
+      request_headers = headers_;
       const auto auth_it =
-        canonical_headers.find(http::HTTP_HEADER_AUTHORIZATION);
-      if (auth_it != canonical_headers.end())
+        request_headers.find(http::HTTP_HEADER_AUTHORIZATION);
+      if (auth_it != request_headers.end())
       {
         std::string_view authz_header = auth_it->second;
 
@@ -55,15 +63,29 @@ namespace enclave
         auto& signed_headers = parsed_sign_params->signed_headers;
         signed_headers.emplace_back(http::HTTP_HEADER_AUTHORIZATION);
 
-        auto it = canonical_headers.begin();
-        while (it != canonical_headers.end())
+        for (const auto& required_header :
+             {http::HTTP_HEADER_DIGEST, http::SIGN_HEADER_REQUEST_TARGET})
+        {
+          if (
+            std::find(
+              signed_headers.begin(), signed_headers.end(), required_header) ==
+            signed_headers.end())
+          {
+            throw std::logic_error(fmt::format(
+              "HTTP authorization header must sign header '{}'",
+              required_header));
+          }
+        }
+
+        auto it = request_headers.begin();
+        while (it != request_headers.end())
         {
           if (
             std::find(
               signed_headers.begin(), signed_headers.end(), it->first) ==
             signed_headers.end())
           {
-            it = canonical_headers.erase(it);
+            it = request_headers.erase(it);
           }
           else
           {
@@ -77,37 +99,51 @@ namespace enclave
         "{}"
         "\r\n",
         http_method_str(verb),
-        fmt::format("{}{}", path, query),
-        enclave::http::get_header_string(canonical_headers));
+        fmt::format("{}{}", path_, query_),
+        enclave::http::get_header_string(request_headers));
 
-      raw_request.resize(canonical_request_header.size() + body.size());
+      raw_request.resize(canonical_request_header.size() + request_body.size());
       ::memcpy(
         raw_request.data(),
         canonical_request_header.data(),
         canonical_request_header.size());
       ::memcpy(
         raw_request.data() + canonical_request_header.size(),
-        body.data(),
-        body.size());
+        request_body.data(),
+        request_body.size());
 
       auto signed_req = http::HttpSignatureVerifier::parse(
-        std::string(http_method_str(verb)), path, query, headers, body);
+        std::string(http_method_str(verb)),
+        path_,
+        query_,
+        headers_,
+        request_body);
       if (signed_req.has_value())
       {
         signed_request = signed_req;
       }
+    }
+
+    virtual const std::vector<uint8_t>& get_request_body() const override
+    {
+      return request_body;
+    }
+
+    virtual nlohmann::json get_params() const override
+    {
+      nlohmann::json params;
 
       if (verb == HTTP_POST)
       {
         std::optional<jsonrpc::Pack> pack;
 
-        if (body.empty())
+        if (request_body.empty())
         {
           params = nullptr;
         }
         else
         {
-          auto [success, contents] = jsonrpc::unpack_rpc(body, pack);
+          auto [success, contents] = jsonrpc::unpack_rpc(request_body, pack);
           if (!success)
           {
             throw std::logic_error("Unable to unpack body.");
@@ -137,10 +173,7 @@ namespace enclave
       {
         // TODO: Construct params by parsing query
       }
-    }
 
-    virtual const nlohmann::json& get_params() const override
-    {
       return params;
     }
 
@@ -173,7 +206,7 @@ namespace enclave
         full_response = jsonrpc::result_response(get_request_index(), *payload);
       }
 
-      for (const auto& [k, v] : headers)
+      for (const auto& [k, v] : response_headers)
       {
         const auto it = full_response.find(k);
         if (it == full_response.end())

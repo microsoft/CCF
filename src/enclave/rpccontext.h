@@ -65,9 +65,9 @@ namespace enclave
   class RpcContext
   {
   protected:
-    size_t request_index = 0;
+    mutable size_t request_index = 0;
 
-    std::unordered_map<std::string, nlohmann::json> headers;
+    std::unordered_map<std::string, nlohmann::json> response_headers;
     RpcResponse response;
 
   public:
@@ -108,7 +108,8 @@ namespace enclave
       return request_index;
     }
 
-    virtual const nlohmann::json& get_params() const = 0;
+    virtual const std::vector<uint8_t>& get_request_body() const = 0;
+    virtual nlohmann::json get_params() const = 0;
 
     virtual std::string get_method() const = 0;
 
@@ -166,7 +167,7 @@ namespace enclave
     virtual void set_response_headers(
       const std::string& name, const nlohmann::json& value)
     {
-      headers[name] = value;
+      response_headers[name] = value;
     }
   };
 }
