@@ -306,6 +306,14 @@ private:
   // Effects: Sets the min_pre_prepare_batch_size based on
   // historical information.
 
+  void rollback_to_globally_comitted();
+  // Effects: initiates roll back to last globally committed seqno and kv
+  // version
+
+  void global_commit(Pre_prepare* pp);
+  // Effects: calls global commit callback, state checkpoints at seqno and
+  // latest_gb_version and latest_gb_seqno are updated
+
   void execute_prepared(bool committed = false);
   // Effects: Sends back replies that have been executed tentatively
   // to the client. The replies are tentative unless "committed" is true.

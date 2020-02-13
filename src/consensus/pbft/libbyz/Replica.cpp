@@ -516,21 +516,12 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
 
     last_executed++;
 
-    if (global_commit_cb != nullptr && executable_pp->is_signed())
-    {
-      LOG_TRACE_FMT(
-        "Global_commit: {} {}",
-        executable_pp->get_ctx(),
-        executable_pp->seqno());
-      LOG_TRACE_FMT("Checkpointing for seqno {}", last_executed);
+    PBFT_ASSERT(
+      last_executed == executable_pp->seqno(),
+      "last_executed and pre prepares seqno don't match in playback pre "
+      "prepare");
 
-      state.checkpoint(last_executed);
-      last_gb_version = executable_pp->get_ctx();
-      last_gb_seqno = executable_pp->seqno();
-
-      global_commit_cb(
-        executable_pp->get_ctx(), executable_pp->view(), global_commit_info);
-    }
+    global_commit(executable_pp.get());
 
     if (executable_pp->is_signed() && f() > 0)
     {
@@ -1244,38 +1235,7 @@ void Replica::handle(Checkpoint* m)
 
 void Replica::fetch_state_outside_view_change()
 {
-  if (last_tentative_execute > last_gb_seqno)
-  {
-    // Rollback to last checkpoint
-    PBFT_ASSERT(!state.in_fetch_state(), "Invalid state");
-
-    auto rv = last_gb_version + 1;
-
-    if (rollback_cb != nullptr)
-    {
-      rollback_cb(rv, rollback_info);
-    }
-
-    Seqno rc = state.rollback(last_gb_seqno);
-
-    LOG_INFO_FMT(
-      "Rolled back in view change to seqno {}, to version {}, last_executed "
-      "was {}, last_tentative_execute was {}, "
-      "last gb seqno {}, last gb version was {}",
-      rc,
-      rv,
-      last_executed,
-      last_tentative_execute,
-      last_gb_seqno,
-      last_gb_version);
-
-    last_tentative_execute = last_executed = rc;
-    last_te_version = rv;
-    LOG_INFO_FMT(
-      "Roll back done, last tentative execute and last executed are {} {}",
-      last_tentative_execute,
-      last_executed);
-  }
+  rollback_to_globally_comitted();
 
   // Stop view change timer while fetching state. It is restarted
   // in new state when the fetch ends.
@@ -1784,36 +1744,7 @@ void Replica::send_view_change()
   replies.clear();
 #endif
 
-  if (last_tentative_execute > last_gb_seqno)
-  {
-    // Rollback to last checkpoint
-    PBFT_ASSERT(!state.in_fetch_state(), "Invalid state");
-    auto rv = last_gb_version + 1;
-
-    if (rollback_cb != nullptr)
-    {
-      rollback_cb(rv, rollback_info);
-    }
-
-    Seqno rc = state.rollback(last_gb_seqno);
-    LOG_INFO_FMT(
-      "Rolled back in view change to seqno {}, to version {}, last_executed "
-      "was {}, last_tentative_execute was {}, "
-      "last gb seqno {}, last gb version was {}",
-      rc,
-      rv,
-      last_executed,
-      last_tentative_execute,
-      last_gb_seqno,
-      last_gb_version);
-
-    last_tentative_execute = last_executed = rc;
-    last_te_version = rv;
-    LOG_INFO_FMT(
-      "Roll back done, last tentative execute and last executed are {} {}",
-      last_tentative_execute,
-      last_executed);
-  }
+  rollback_to_globally_comitted();
 
   last_prepared = last_executed;
 
@@ -1962,12 +1893,9 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 
   next_pp_seqno = max - 1;
 
-  if (ms > last_stable)
-  {
-    // Call mark_stable to ensure there is space for the pre-prepares
-    // and prepares that are inserted in the log below.
-    mark_stable(ms, last_executed >= ms);
-  }
+  // Call mark_stable to ensure there is space for the pre-prepares
+  // and prepares that are inserted in the log below.
+  mark_stable(last_executed, last_executed >= ms);
 
   if (last_stable > min)
   {
@@ -2147,6 +2075,58 @@ bool Replica::execute_read_only(Request* request)
   }
 }
 
+void Replica::rollback_to_globally_comitted()
+{
+  if (last_tentative_execute > last_gb_seqno)
+  {
+    // Rollback to last checkpoint
+    PBFT_ASSERT(!state.in_fetch_state(), "Invalid state");
+
+    auto rv = last_gb_version + 1;
+
+    if (rollback_cb != nullptr)
+    {
+      rollback_cb(rv, rollback_info);
+    }
+
+    Seqno rc = state.rollback(last_gb_seqno);
+
+    LOG_INFO_FMT(
+      "Rolled back in view change to seqno {}, to version {}, last_executed "
+      "was {}, last_tentative_execute was {}, "
+      "last gb seqno {}, last gb version was {}",
+      rc,
+      rv,
+      last_executed,
+      last_tentative_execute,
+      last_gb_seqno,
+      last_gb_version);
+
+    last_tentative_execute = last_executed = rc;
+    last_te_version = rv;
+    LOG_INFO_FMT(
+      "Roll back done, last tentative execute and last executed are {} {}",
+      last_tentative_execute,
+      last_executed);
+  }
+}
+
+void Replica::global_commit(Pre_prepare* pp)
+{
+  if (global_commit_cb != nullptr && pp->is_signed())
+  {
+    LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
+    LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
+
+    state.checkpoint(pp->seqno());
+    last_gb_version = pp->get_ctx();
+    last_gb_seqno = pp->seqno();
+
+    global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
+    signed_version = 0;
+  }
+}
+
 void Replica::execute_prepared(bool committed)
 {
 #ifndef ENFORCE_EXACTLY_ONCE
@@ -2215,19 +2195,7 @@ void Replica::execute_prepared(bool committed)
         }
       }
     }
-
-    if (global_commit_cb != nullptr && pp->is_signed())
-    {
-      LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
-      LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
-
-      state.checkpoint(pp->seqno());
-      last_gb_version = pp->get_ctx();
-      last_gb_seqno = pp->seqno();
-
-      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
-      signed_version = 0;
-    }
+    global_commit(pp);
   }
 }
 
