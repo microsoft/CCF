@@ -429,11 +429,11 @@ bool Replica::compare_execution_results(
     {
       rollback_cb(last_te_version, rollback_info);
     }
+    last_tentative_execute--;
     return false;
   }
 
   last_te_version = info.ctx;
-  last_tentative_execute--;
 
   return true;
 }
