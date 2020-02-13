@@ -116,7 +116,7 @@ private:
     std::list<Request*> requests;
     int num_requests;
     std::array<uint64_t, enclave::ThreadMessaging::max_num_threads>
-      last_value_seen;
+      last_value_seen = {0};
   };
 
   // Map from client id to lists of requests that have no waiting pre-prepares

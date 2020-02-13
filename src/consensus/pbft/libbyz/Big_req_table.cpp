@@ -211,8 +211,7 @@ bool Big_req_table::add_unmatched(Request* r, Request*& old_req)
 
   if (
     !centry.requests.empty() &&
-    centry.last_value_seen[centry.requests.front()->user_id()] >=
-      r->request_id())
+    centry.last_value_seen[r->user_id()] >= r->request_id())
   {
     // client is expected to send requests in request id order
     LOG_FAIL << "client is expected to send requests in request id order"
@@ -231,7 +230,7 @@ bool Big_req_table::add_unmatched(Request* r, Request*& old_req)
     centry.num_requests++;
   }
 
-  centry.last_value_seen[centry.requests.front()->user_id()] = r->request_id();
+  centry.last_value_seen[r->user_id()] = r->request_id();
   centry.requests.push_front(r);
   return true;
 }
