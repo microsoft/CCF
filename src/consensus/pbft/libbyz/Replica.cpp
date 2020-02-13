@@ -2103,7 +2103,8 @@ void Replica::rollback_to_globally_comitted()
       last_gb_seqno,
       last_gb_version);
 
-    last_tentative_execute = last_executed = rc;
+    last_tentative_execute = rc;
+    last_executed = rc;
     last_te_version = rv;
     LOG_INFO_FMT(
       "Roll back done, last tentative execute and last executed are {} {}",
