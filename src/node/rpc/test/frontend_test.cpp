@@ -34,6 +34,9 @@ using namespace ccfapp;
 using namespace ccf;
 using namespace std;
 
+// TODO: HTTP should support msgpack'd body
+static constexpr auto default_pack = jsonrpc::Pack::MsgPack;
+
 class TestUserFrontend : public SimpleUserRpcFrontend
 {
 public:
@@ -281,6 +284,12 @@ std::vector<uint8_t> sign_json(nlohmann::json j)
 auto create_simple_request(const std::string& method = "empty_function")
 {
   http::Request request(method);
+  request.set_header(
+    http::HTTP_HEADER_CONTENT_TYPE,
+    default_pack == jsonrpc::Pack::Text ?
+      http::CONTENT_TYPE_JSON :
+      (default_pack == jsonrpc::Pack::MsgPack ? http::CONTENT_TYPE_MSGPACK :
+                                                "unknown"));
   return request;
 }
 
@@ -347,9 +356,6 @@ UserId nos_id = INVALID_ID;
 
 MemberId member_id = INVALID_ID;
 MemberId invalid_member_id = INVALID_ID;
-
-// TODO: HTTP should support msgpack'd body
-static constexpr auto default_pack = jsonrpc::Pack::Text;
 
 void prepare_callers()
 {

@@ -17,6 +17,7 @@ namespace http
   // All HTTP headers are expected to be lowercase
   static constexpr auto HTTP_HEADER_AUTHORIZATION = "authorization";
   static constexpr auto HTTP_HEADER_DIGEST = "digest";
+  static constexpr auto HTTP_HEADER_CONTENT_TYPE = "content-type";
 
   static constexpr auto DIGEST_SHA256 = "SHA-256";
 
@@ -116,6 +117,10 @@ namespace http
     std::vector<std::string_view> headers_to_sign;
     headers_to_sign.emplace_back(SIGN_HEADER_REQUEST_TARGET);
     headers_to_sign.emplace_back(HTTP_HEADER_DIGEST);
+    if (headers.find(HTTP_HEADER_CONTENT_TYPE) != headers.end())
+    {
+      headers_to_sign.emplace_back(HTTP_HEADER_CONTENT_TYPE);
+    }
 
     const auto to_sign = construct_raw_signed_string(
       http_method_str(request.get_method()),

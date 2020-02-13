@@ -8,6 +8,9 @@
 
 namespace http
 {
+  static constexpr auto CONTENT_TYPE_JSON = "application/json";
+  static constexpr auto CONTENT_TYPE_MSGPACK = "application/msgpack";
+
   class HttpRpcContext : public enclave::RpcContext
   {
   private:
@@ -16,6 +19,8 @@ namespace http
     std::string entire_path = {};
 
     http::HeaderMap request_headers;
+
+    mutable jsonrpc::Pack body_packing = jsonrpc::Pack::Text;
 
   public:
     // TODO: This is a temporary bodge. Shouldn't be public?
@@ -36,9 +41,6 @@ namespace http
       request_body(body_)
     {
       remaining_path = entire_path;
-
-      // TODO: YUCK! This sets request_index, so we need to call it!
-      get_params();
 
       // Build a canonical serialization of this request. If the request is
       // signed, then all unsigned headers must be removed
@@ -122,6 +124,9 @@ namespace http
       {
         signed_request = signed_req;
       }
+
+      // TODO: YUCK! This sets request_index, so we need to call it!
+      get_params();
     }
 
     virtual const std::vector<uint8_t>& get_request_body() const override
@@ -135,7 +140,34 @@ namespace http
 
       if (verb == HTTP_POST)
       {
-        std::optional<jsonrpc::Pack> pack;
+        const auto content_type_it =
+          request_headers.find(HTTP_HEADER_CONTENT_TYPE);
+        if (content_type_it != request_headers.end())
+        {
+          const auto& content_type = content_type_it->second;
+          if (content_type == CONTENT_TYPE_JSON)
+          {
+            body_packing = jsonrpc::Pack::Text;
+          }
+          else if (content_type == CONTENT_TYPE_MSGPACK)
+          {
+            body_packing = jsonrpc::Pack::MsgPack;
+          }
+          else
+          {
+            throw std::logic_error(fmt::format(
+              "Unsupported content type {}. Only {} and {} are currently "
+              "supported",
+              content_type,
+              CONTENT_TYPE_JSON,
+              CONTENT_TYPE_MSGPACK));
+          }
+        }
+        else
+        {
+          throw std::logic_error(fmt::format(
+            "No content type specified - don't know how to unpack body"));
+        }
 
         if (request_body.empty())
         {
@@ -143,11 +175,7 @@ namespace http
         }
         else
         {
-          auto [success, contents] = jsonrpc::unpack_rpc(request_body, pack);
-          if (!success)
-          {
-            throw std::logic_error("Unable to unpack body.");
-          }
+          const auto contents = jsonrpc::unpack(request_body, body_packing);
 
           // Currently contents must either be a naked json payload, or a
           // JSON-RPC object. We don't check the latter object for validity, we
@@ -169,9 +197,10 @@ namespace http
           }
         }
       }
-      else if (verb == HTTP_GET)
+      else
       {
-        // TODO: Construct params by parsing query
+        throw std::logic_error(
+          "The only HTTP verb currently supported is POST");
       }
 
       return params;
@@ -222,7 +251,7 @@ namespace http
         }
       }
 
-      const auto body = jsonrpc::pack(full_response, jsonrpc::Pack::Text);
+      const auto body = jsonrpc::pack(full_response, body_packing);
 
       // We return status 200 regardless of whether the body contains a JSON-RPC
       // success or a JSON-RPC error
@@ -235,8 +264,7 @@ namespace http
     {
       auto http_response = http::Response(HTTP_STATUS_OK);
       return http_response.build_response(jsonrpc::pack(
-        jsonrpc::result_response(get_request_index(), result),
-        jsonrpc::Pack::Text));
+        jsonrpc::result_response(get_request_index(), result), body_packing));
     }
 
     std::vector<uint8_t> error_response(
@@ -246,7 +274,7 @@ namespace http
       auto http_response = http::Response(HTTP_STATUS_OK);
       return http_response.build_response(jsonrpc::pack(
         jsonrpc::error_response(get_request_index(), error_element),
-        jsonrpc::Pack::Text));
+        body_packing));
     }
   };
 }
