@@ -518,7 +518,7 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
     last_executed++;
 
     PBFT_ASSERT(
-      last_executed == executable_pp->seqno(),
+      last_executed <= executable_pp->seqno(),
       "last_executed and pre prepares seqno don't match in playback pre "
       "prepare");
 
