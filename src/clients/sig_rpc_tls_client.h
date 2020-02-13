@@ -63,7 +63,7 @@ public:
     const auto body_j = json_rpc(method, params);
     const auto body_v = nlohmann::json::to_msgpack(body_j);
     auto r = enclave::http::Request(HTTP_POST);
-    r.set_path(body_j["method"]);
+    r.set_path(std::string(body_j["method"]));
 
     tls::HashBytes body_digest;
     tls::do_hash(body_v.data(), body_v.size(), body_digest, MBEDTLS_MD_SHA256);
