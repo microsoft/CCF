@@ -301,6 +301,11 @@ if(BUILD_TESTS)
   )
 
   add_unit_test(
+    keyshare_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/keyshare.cpp
+  )
+  target_link_libraries(keyshare_test PRIVATE sss.host)
+
+  add_unit_test(
     encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmkey.cpp
   )

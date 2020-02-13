@@ -11,6 +11,7 @@
 #include "entities.h"
 #include "genesisgen.h"
 #include "history.h"
+#include "keyshare.h"
 #include "networkstate.h"
 #include "nodetonode.h"
 #include "notifier.h"
@@ -35,13 +36,6 @@
 #include <chrono>
 #include <fmt/format_header_only.h>
 #include <nlohmann/json.hpp>
-extern "C"
-{
-#include "tls/randombytes.h"
-
-#include <sss/sss.h>
-}
-
 #include <stdexcept>
 #include <unordered_set>
 #include <vector>
@@ -326,6 +320,8 @@ namespace ccf
       create_node_cert(args.config);
       open_node_frontend();
 
+      KeySharing::split(std::vector<uint8_t>(32), 5, 5);
+
       std::vector<uint8_t> quote{1};
 
 #ifdef GET_QUOTE
@@ -373,8 +369,8 @@ namespace ccf
           {
             throw std::logic_error("Hahaha");
           }
-
           assert(decrypted == network.ledger_secrets->get_secret(1)->master);
+          /////////
 
           // TODO: Now, split k_z into shares
           // - Write C++ API for keyshare
