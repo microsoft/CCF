@@ -1865,7 +1865,10 @@ void Replica::handle(Network_open* m)
     LOG_INFO << "Finished waiting for machines to network open. "
              << "starting to process requests" << std::endl;
     wait_for_network_to_open = false;
-    send_pre_prepare();
+    if (primary() == id())
+    {
+      send_pre_prepare();
+    }
   }
 
   delete m;
