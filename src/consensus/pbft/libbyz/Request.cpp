@@ -52,7 +52,7 @@ inline void Request::comp_digest(Digest& d)
 
   d = Digest(
     (char*)&(rep().cid),
-    sizeof(int) + sizeof(int) + sizeof(Request_id) + rep().command_size);
+    sizeof(int) + sizeof(uint64_t) + sizeof(Request_id) + rep().command_size);
 
   STOP_CC(digest_cycles);
 }
