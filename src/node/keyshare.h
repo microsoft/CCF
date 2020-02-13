@@ -57,6 +57,7 @@ namespace ccf
       return shares;
     }
 
+    // TODO: This sucks
     Data combine(const std::vector<Share>& shares_, size_t k)
     {
       Data restored;

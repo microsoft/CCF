@@ -381,13 +381,22 @@ namespace ccf
           auto active_members = std::vector<MemberId>(
             {1, 2, 3}); // TODO: Members are not written to the kv until later
           auto ctx = KeySharingContext(active_members.size());
-          size_t k =
-            2; // For now, k = 2 (3 members in most of our test, k is majority)
 
+          KeySharingContext::Data data_to_split;
           // TODO: Copy share_wrapping_key_raw to std::array of the right size
           // (pad with 0?)
-          KeySharingContext::Data data_to_split;
+          std::copy_n(
+            share_wrapping_key_raw.begin(),
+            share_wrapping_key_raw.size(),
+            data_to_split.data());
+
+          size_t k =
+            2; // For now, k = 2 (3 members in most of our test, k is majority)
           auto shares = ctx.split(data_to_split, k);
+
+          auto ctx2 = KeySharingContext(66);
+          assert(ctx2.combine(shares, k) == data_to_split);
+
 
           std::cout << "Shares ";
           for (auto const& s : shares)
