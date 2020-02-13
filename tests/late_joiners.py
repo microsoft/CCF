@@ -188,7 +188,7 @@ def run(args):
                     et = args.election_timeout / 1000
                     # if pbft suspend the primary more than the other suspended nodes
                     if node.node_id == cur_primary_id and args.consensus == "pbft":
-                        et += 4
+                        et += et * 0.5
                     tm = Timer(t, timeout, args=[node, True, et])
                     tm.start()
 
