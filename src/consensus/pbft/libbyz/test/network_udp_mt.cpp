@@ -455,10 +455,12 @@ Message* ReceiverThread::dequeue()
 
 void ReceiverThread::Work()
 {
-  std::unique_ptr<uint8_t[]> buffer = std::make_unique<uint8_t[]>(Max_message_size);
+  std::unique_ptr<uint8_t[]> buffer =
+    std::make_unique<uint8_t[]>(Max_message_size);
   while (true)
   {
-    int ret = recvfrom(sock, buffer.get(), Message::get_size(buffer.get()), 0, 0, 0);
+    int ret =
+      recvfrom(sock, buffer.get(), Message::get_size(buffer.get()), 0, 0, 0);
 
     if (ret < sizeof(Message_rep))
     {

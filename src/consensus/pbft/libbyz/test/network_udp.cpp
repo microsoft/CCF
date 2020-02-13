@@ -108,7 +108,8 @@ public:
     return error;
   }
 
-  std::unique_ptr<uint8_t[]> buffer = std::make_unique<uint8_t[]>(Max_message_size);
+  std::unique_ptr<uint8_t[]> buffer =
+    std::make_unique<uint8_t[]>(Max_message_size);
 
   virtual Message* GetNextMessage()
   {
@@ -123,7 +124,8 @@ public:
       {
         continue;
       }
-      Message* m = Replica::create_message(buffer.get(), Message::get_size(buffer.get()));
+      Message* m =
+        Replica::create_message(buffer.get(), Message::get_size(buffer.get()));
       if (
         ret >= (int)sizeof(Message_rep) && ret >= (int)m->size() &&
         Replica::pre_verify(m))

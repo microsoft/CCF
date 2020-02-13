@@ -45,7 +45,7 @@ class Request : public Message
   // memory the user expects to be able to use.)
   //
 public:
-  //Request() : Message() {}
+  // Request() : Message() {}
   Request(uint32_t msg_size = 0) : Message(msg_size) {}
 
   Request(Request_id r, short rr);

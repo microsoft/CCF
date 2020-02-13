@@ -348,7 +348,6 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
   Message* m = create_message(data, size);
   uint32_t target_thread = 0;
 
-
   if (enclave::ThreadMessaging::thread_count > 1 && m->tag() == Request_tag)
   {
     uint32_t num_worker_thread = enclave::ThreadMessaging::thread_count - 1;

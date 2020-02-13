@@ -66,7 +66,6 @@ protected:
   // to "sz" bytes and holds zero bytes. Useful to create message
   // buffers to receive messages from the network.
 
-
 public:
   virtual ~Message();
   // Effects: Deallocates all storage associated with this message.
