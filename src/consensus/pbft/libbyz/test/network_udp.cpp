@@ -108,6 +108,9 @@ public:
     return error;
   }
 
+  std::unique_ptr<uint8_t[]> buffer =
+    std::make_unique<uint8_t[]>(Max_message_size);
+
   virtual Message* GetNextMessage()
   {
     while (1)
@@ -116,10 +119,13 @@ public:
       {
         ;
       }
-      Message* m = new Message(Max_message_size);
-
-      int ret = recvfrom(sock, m->contents(), m->msize(), 0, 0, 0);
-
+      int ret = recvfrom(sock, buffer.get(), Max_message_size, 0, 0, 0);
+      if (ret < sizeof(Message_rep))
+      {
+        continue;
+      }
+      Message* m =
+        Replica::create_message(buffer.get(), Message::get_size(buffer.get()));
       if (
         ret >= (int)sizeof(Message_rep) && ret >= (int)m->size() &&
         Replica::pre_verify(m))

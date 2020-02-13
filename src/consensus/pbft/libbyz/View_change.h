@@ -99,6 +99,8 @@ class View_change : public Message
   //  View_change messages
   //
 public:
+  View_change(uint32_t msg_size = 0) : Message(msg_size) {}
+
   View_change(View v, Seqno ls, int id);
   // Effects: Creates a new (unauthenticated) View_change message for
   // replica "id" in view "v". The message states that "ls" is the

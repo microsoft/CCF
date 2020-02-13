@@ -21,6 +21,8 @@ struct Network_open_rep : public Message_rep
 class Network_open : public Message
 {
 public:
+  Network_open(uint32_t msg_size = 0) : Message(msg_size) {}
+
   Network_open(int id);
 
   int id() const;

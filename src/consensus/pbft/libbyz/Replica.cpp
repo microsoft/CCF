@@ -247,18 +247,106 @@ static void pre_verify_cb(std::unique_ptr<enclave::Tmsg<PreVerifyCbMsg>> req)
 
 static uint64_t verification_thread = 0;
 
+Message* Replica::create_message(const uint8_t* data, uint32_t size)
+{
+  uint64_t alloc_size = std::max(size, (uint32_t)Max_message_size);
+
+  Message* m;
+
+  switch (Message::get_tag(data))
+  {
+    case Request_tag:
+      m = new Request(alloc_size);
+      break;
+
+    case Reply_tag:
+      m = new Reply(alloc_size);
+      break;
+
+    case Pre_prepare_tag:
+      m = new Pre_prepare(alloc_size);
+      break;
+
+    case Prepare_tag:
+      m = new Prepare(alloc_size);
+      break;
+
+    case Commit_tag:
+      m = new Commit(alloc_size);
+      break;
+
+    case Checkpoint_tag:
+      m = new Checkpoint(alloc_size);
+      break;
+
+#ifndef USE_PKEY_VIEW_CHANGES
+    case View_change_ack_tag:
+      m = new View_change_ack(alloc_size);
+      break;
+#endif
+
+    case Status_tag:
+      m = new Status(alloc_size);
+      break;
+
+    case Fetch_tag:
+      m = new Fetch(alloc_size);
+      break;
+
+    case Query_stable_tag:
+      m = new Query_stable(alloc_size);
+      break;
+
+    case Reply_stable_tag:
+      m = new Reply_stable(alloc_size);
+      break;
+
+    case Meta_data_tag:
+      m = new Meta_data(alloc_size);
+      break;
+
+    case Meta_data_d_tag:
+      m = new Meta_data_d(alloc_size);
+      break;
+
+    case Data_tag:
+      m = new Data(alloc_size);
+      break;
+
+    case View_change_tag:
+      m = new View_change(alloc_size);
+      break;
+
+    case New_view_tag:
+      m = new New_view((uint32_t)alloc_size);
+      break;
+
+    case New_principal_tag:
+      m = new New_principal(alloc_size);
+      break;
+
+    case Network_open_tag:
+      m = new Network_open((uint32_t)alloc_size);
+      break;
+
+    default:
+      // Unknown message type.
+      delete m;
+  }
+
+  memcpy(m->contents(), data, size);
+
+  return m;
+}
+
 void Replica::receive_message(const uint8_t* data, uint32_t size)
 {
   if (size > Max_message_size)
   {
     LOG_FAIL << "Received message size exceeds message: " << size << std::endl;
   }
-  uint64_t alloc_size = std::max(size, (uint32_t)Max_message_size);
-  Message* m = new Message(alloc_size);
-
+  Message* m = create_message(data, size);
   uint32_t target_thread = 0;
-
-  memcpy(m->contents(), data, size);
 
   if (enclave::ThreadMessaging::thread_count > 1 && m->tag() == Request_tag)
   {
@@ -1168,8 +1256,7 @@ template <class T>
 std::unique_ptr<T> Replica::create_message(
   const uint8_t* message_data, size_t data_size)
 {
-  Message* m = new Message(data_size);
-  std::copy(message_data, message_data + data_size, m->contents());
+  Message* m = create_message(message_data, data_size);
   T* msg_type;
   T::convert(m, msg_type);
   return std::unique_ptr<T>(msg_type);
@@ -2776,7 +2863,7 @@ void Replica::handle(Reply_stable* m)
       LOG_INFO << "sending recovery request" << std::endl;
       // Send recovery request.
       START_CC(rr_time);
-      rr = new Request(new_rid());
+      rr = new Request(new_rid(), -1);
 
       int len;
       char* buf = rr->store_command(len);

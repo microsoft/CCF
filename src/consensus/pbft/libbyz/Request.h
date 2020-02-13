@@ -45,9 +45,10 @@ class Request : public Message
   // memory the user expects to be able to use.)
   //
 public:
-  Request() : Message() {}
+  // Request() : Message() {}
+  Request(uint32_t msg_size = 0) : Message(msg_size) {}
 
-  Request(Request_id r, short rr = -1);
+  Request(Request_id r, short rr);
   // Effects: Creates a new signed Request message with an empty
   // command and no authentication. The methods store_command and
   // authenticate should be used to finish message construction.

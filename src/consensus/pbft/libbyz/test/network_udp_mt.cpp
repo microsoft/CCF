@@ -455,29 +455,32 @@ Message* ReceiverThread::dequeue()
 
 void ReceiverThread::Work()
 {
+  std::unique_ptr<uint8_t[]> buffer =
+    std::make_unique<uint8_t[]>(Max_message_size);
   while (true)
   {
-    Message* m = new Message(Max_message_size);
-    if (m != nullptr)
+    int ret =
+      recvfrom(sock, buffer.get(), Message::get_size(buffer.get()), 0, 0, 0);
+
+    if (ret < sizeof(Message_rep))
     {
-      if (m->contents() != nullptr)
-      {
-        int ret = recvfrom(sock, m->contents(), m->msize(), 0, 0, 0);
-
-        LOG_TRACE << " Received tag: " << m->tag()
-                  << " at thread index: " << index << std::endl;
-
-        if (
-          ret >= (int)sizeof(Message_rep) && ret >= (int)m->size() &&
-          Replica::pre_verify(m))
-        {
-          queue(m);
-          continue;
-        }
-      }
-
-      delete m;
+      continue;
     }
+    Message* m =
+      Replica::create_message(buffer.get(), Message::get_size(buffer.get()));
+
+    LOG_TRACE << " Received tag: " << m->tag() << " at thread index: " << index
+              << std::endl;
+
+    if (
+      ret >= (int)sizeof(Message_rep) && ret >= (int)m->size() &&
+      Replica::pre_verify(m))
+    {
+      queue(m);
+      continue;
+    }
+
+    delete m;
   }
 }
 

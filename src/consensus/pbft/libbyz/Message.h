@@ -60,13 +60,14 @@ class Message
   //
   // Generic messages
   //
-public:
+protected:
   Message(unsigned sz = 0);
   // Effects: Creates an untagged Message object that can hold up
   // to "sz" bytes and holds zero bytes. Useful to create message
   // buffers to receive messages from the network.
 
-  ~Message();
+public:
+  virtual ~Message();
   // Effects: Deallocates all storage associated with this message.
 
   void trim();
@@ -91,6 +92,18 @@ public:
   int tag() const;
   // Effects: Fetches the message tag.
 
+  static int get_tag(const uint8_t* data)
+  {
+    Message_rep* m = (Message_rep*)data;
+    return m->tag;
+  }
+
+  static int get_size(const uint8_t* data)
+  {
+    Message_rep* m = (Message_rep*)data;
+    return m->size;
+  }
+
   bool has_tag(int t, int sz) const;
   // Effects: If message has tag "t", its size is greater than "sz",
   // its size less than or equal to "max_size", and its size is a
@@ -102,10 +115,6 @@ public:
   bool full() const;
   // Effects: Messages may be full or empty. Empty messages are just
   // digests of full messages.
-
-  // Message-specific heap management operators.
-  void* operator new(size_t s);
-  void operator delete(void* x, size_t s);
 
   const char* stag();
   // Effects: Returns a string with tag name
@@ -184,21 +193,6 @@ inline View Message::view() const
 inline bool Message::full() const
 {
   return true;
-}
-
-inline void* Message::operator new(size_t s)
-{
-  void* ret = malloc(s);
-  PBFT_ASSERT(ret != 0, "Ran out of memory\n");
-  return ret;
-}
-
-inline void Message::operator delete(void* x, size_t s)
-{
-  if (x != 0)
-  {
-    free(x);
-  }
 }
 
 inline int Message::msize() const

@@ -61,6 +61,8 @@ class Pre_prepare : public Message
   // Pre_prepare messages
   //
 public:
+  Pre_prepare(uint32_t msg_size = 0) : Message(msg_size) {}
+
   Pre_prepare(View v, Seqno s, Req_queue& reqs, size_t& requests_in_batch);
   // Effects: Creates a new signed Pre_prepare message with view
   // number "v", sequence number "s", the requests in "reqs" (up to a

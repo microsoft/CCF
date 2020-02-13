@@ -37,6 +37,8 @@ class Checkpoint : public Message
   //  Checkpoint messages
   //
 public:
+  Checkpoint(uint32_t msg_size = 0) : Message(msg_size) {}
+
   Checkpoint(Seqno s, Digest& d, bool stable = false);
   // Effects: Creates a new signed Checkpoint message with sequence
   // number "s" and digest "d". "stable" should be true iff the checkpoint
