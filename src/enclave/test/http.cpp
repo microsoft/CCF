@@ -54,11 +54,18 @@ TEST_CASE("Parsing error")
 
   auto req = build_post_request(r);
   req[6] = '\n';
-  CHECK_THROWS_WITH(
-    p.execute(req.data(), req.size()),
-    "HTTP parsing failed: HPE_INVALID_HEADER_TOKEN: invalid character in "
-    "header");
 
+  bool threw_with = false;
+  try
+  {
+    p.execute(req.data(), req.size());
+  }
+  catch (std::exception& e)
+  {
+    threw_with = strstr(e.what(), "HPE_INVALID_HEADER_TOKEN") != nullptr;
+  }
+
+  CHECK(threw_with);
   CHECK(sp.received.empty());
 }
 

@@ -156,9 +156,10 @@ namespace enclave
         if (err)
         {
           throw std::runtime_error(fmt::format(
-            "HTTP parsing failed: {}: {}",
+            "HTTP parsing failed: '{}: {}' while parsing fragment '{}'",
             http_errno_name(err),
-            http_errno_description(err)));
+            http_errno_description(err),
+            std::string((char const*)data, size)));
         }
 
         return parsed;
