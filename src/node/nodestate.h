@@ -298,7 +298,6 @@ namespace ccf
       auto ctx = enclave::make_rpc_context(node_session, packed);
 
       ctx->is_create_request = true;
-      ctx->actor = actor;
 
       frontend->process(ctx);
     }

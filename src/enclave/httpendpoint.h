@@ -215,14 +215,16 @@ namespace enclave
           send_response(e.what(), HTTP_STATUS_BAD_REQUEST);
         }
 
+        rpc_ctx->raw = body;
+
         // rpc_ctx->set_request_index(request_index++);
 
         std::string_view actor_s = {};
         auto& method = rpc_ctx->remaining_path;
 
         {
-          const auto first_slash = path.find_first_of('/');
-          const auto second_slash = path.find_first_of('/', first_slash + 1);
+          const auto first_slash = method.find_first_of('/');
+          const auto second_slash = method.find_first_of('/', first_slash + 1);
 
           constexpr auto path_parse_error =
             "Request path must contain '/[actor]/[method]'. Unable to parse "
@@ -249,7 +251,6 @@ namespace enclave
         }
 
         auto actor = rpc_map->resolve(std::string(actor_s));
-        rpc_ctx->actor = actor;
         auto search = rpc_map->find(actor);
         if (actor == ccf::ActorsType::unknown || !search.has_value())
         {

@@ -80,9 +80,6 @@ namespace enclave
 
     std::optional<ccf::SignedReq> signed_request = std::nullopt;
 
-    // TODO: I think this should be removed?
-    ccf::ActorsType actor = {};
-
     bool is_create_request = false;
 
     bool read_only_hint = true;

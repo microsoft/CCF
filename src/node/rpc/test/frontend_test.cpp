@@ -417,7 +417,6 @@ TEST_CASE("process_pbft")
   const enclave::SessionContext session(
     enclave::InvalidSessionId, user_id, user_caller_der);
   auto ctx = enclave::make_rpc_context(session, request.raw);
-  ctx->actor = (ActorsType)request.actor;
   frontend.process_pbft(ctx, true);
 
   Store::Tx tx;

@@ -113,8 +113,13 @@ namespace ccf
       const enclave::SessionContext session(
         client_session_id, caller_id, caller_cert);
 
-      auto context = enclave::make_rpc_context(session, rpc);
-      // TODO: context->method = method;
+      auto context = std::make_shared<enclave::HttpRpcContext>(
+        session,
+        HTTP_POST,
+        method,
+        std::string_view{},
+        enclave::http::HeaderMap{},
+        rpc);
 
       return std::make_tuple(context, r.first.from_node);
     }
@@ -179,12 +184,47 @@ namespace ccf
 
             auto [ctx, from_node] = std::move(r.value());
 
-            auto handler = rpc_map->find(ctx->actor);
-            if (!handler.has_value())
+            // TODO: This is duplicating the logic in httpendpoint.h - that
+            // should be moved to RpcMap
+            std::string_view actor_s = {};
+            auto http_ctx = dynamic_cast<enclave::HttpRpcContext*>(ctx.get());
+            auto& method = http_ctx->remaining_path;
+
+            {
+              const auto first_slash = method.find_first_of('/');
+              const auto second_slash =
+                method.find_first_of('/', first_slash + 1);
+
+              constexpr auto path_parse_error =
+                "Request path must contain '/[actor]/[method]'. Unable to "
+                "parse "
+                "'{}'.\n";
+
+              if (
+                first_slash != 0 || first_slash == std::string::npos ||
+                second_slash == std::string::npos)
+              {
+                LOG_FAIL_FMT(path_parse_error, ctx->get_whole_method());
+                return;
+              }
+
+              actor_s = method.substr(first_slash + 1, second_slash - 1);
+              method.remove_prefix(second_slash + 1);
+
+              if (actor_s.empty() || method.empty())
+              {
+                LOG_FAIL_FMT(path_parse_error, ctx->get_whole_method());
+                return;
+              }
+            }
+
+            auto actor = rpc_map->resolve(std::string(actor_s));
+            auto handler = rpc_map->find(actor);
+            if (actor == ccf::ActorsType::unknown || !handler.has_value())
             {
               LOG_FAIL_FMT(
-                "Failed to process forwarded command: no handler for actor {}",
-                (int)ctx->actor);
+                "Failed to process forwarded command: unknown actor {}",
+                actor_s);
               return;
             }
 
@@ -194,8 +234,7 @@ namespace ccf
             {
               LOG_FAIL_FMT(
                 "Failed to process forwarded command: handler is not a "
-                "ForwardedRpcHandler",
-                (int)ctx->actor);
+                "ForwardedRpcHandler");
               return;
             }
 
