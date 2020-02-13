@@ -31,6 +31,8 @@ class Data : public Message
   // Data messages
   //
 public:
+  Data(uint32_t msg_size = 0) : Message(msg_size) {}
+
   Data(size_t i, Seqno lm, char* data);
   // Effects: Creates a new Data message.  i is the index of he data block, lm
   // is the last sequence number when it was modified, and data is a pointer to

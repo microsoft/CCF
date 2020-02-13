@@ -24,8 +24,7 @@ public:
 
   virtual Message* GetNextMessage()
   {
-    Message* m = new Message(Max_message_size);
-    return m;
+    throw std::logic_error("Should never be called");
   }
 
   virtual bool has_messages(long to)

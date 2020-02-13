@@ -189,7 +189,7 @@ bool ClientProxy<T, C>::send_request(
   }
 
   Request_id rid = request_id_generator.next_rid();
-  auto req = std::make_unique<Request>(rid);
+  auto req = std::make_unique<Request>(rid, -1);
   if (req == nullptr)
   {
     current_outstanding.fetch_sub(1);

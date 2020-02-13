@@ -50,6 +50,8 @@ class Prepare : public Message
   // Prepare messages
   //
 public:
+  Prepare(uint32_t msg_size = 0) : Message(msg_size) {}
+
   Prepare(
     View v, Seqno s, Digest& d, Principal* dst = 0, bool is_signed = false);
   // Effects: Creates a new signed Prepare message with view number

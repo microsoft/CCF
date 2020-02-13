@@ -67,6 +67,8 @@ class New_view : public Message
   //  New_view messages
   //
 public:
+  New_view(uint32_t msg_size = 0) : Message(msg_size) {}
+
   New_view(View v);
   // Effects: Creates a new (unsigned) New_view message with an empty
   // set of view change messages.
