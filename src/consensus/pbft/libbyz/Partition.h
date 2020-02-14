@@ -12,7 +12,7 @@
 //
 
 const size_t PChildren = 128; // Number of children for non-leaf partitions.
-const size_t PLevels = 4; // Number of levels in partition tree.
+const size_t PLevels = 1; // Number of levels in partition tree.
 
 // Number of siblings at each level.
 const size_t PSize[] = {1, PChildren, PChildren, PChildren};
