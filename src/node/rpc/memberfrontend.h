@@ -4,6 +4,7 @@
 #include "frontend.h"
 #include "luainterp/txscriptrunner.h"
 #include "node/genesisgen.h"
+#include "node/members.h"
 #include "node/nodes.h"
 #include "node/quoteverification.h"
 #include "tls/entropy.h"
@@ -98,9 +99,10 @@ namespace ccf
         // add a new member
         {"new_member",
          [this](Store::Tx& tx, const nlohmann::json& args) {
-           const Cert pem_cert = args;
+           const auto parsed = args.get<MemberPubInfo>();
            GenesisGenerator g(this->network, tx);
-           auto new_member_id = g.add_member(pem_cert, MemberStatus::ACCEPTED);
+           auto new_member_id =
+             g.add_member(parsed.cert, parsed.keyshare, MemberStatus::ACCEPTED);
 
            auto ack = tx.get_view(this->network.member_acks);
            ack->put(new_member_id, {rng->random(SIZE_NONCE)});
@@ -530,9 +532,9 @@ namespace ccf
         }
 
         g.init_values();
-        for (auto& cert : in.member_cert)
+        for (auto& [cert, k_encryption_key] : in.members_info)
         {
-          g.add_member(cert);
+          g.add_member(cert, k_encryption_key);
         }
 
         size_t self = g.add_node({in.node_info_network,

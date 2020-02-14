@@ -185,6 +185,9 @@ public:
   // Effects: Use when messages are passed to Replica rather than replica
   // polling
 
+  static Message* create_message(const uint8_t* data, uint32_t size);
+  // Effects: Creates a new message from a buffer
+
   bool compare_execution_results(const ByzInfo& info, Pre_prepare* pre_prepare);
   // Compare the merkle root and batch ctx between the pre-prepare and the
   // the corresponding fields in info after execution

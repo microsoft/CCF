@@ -16,42 +16,60 @@ namespace ccf
     ACCEPTED = 0,
     ACTIVE = 1
   };
+  DECLARE_JSON_ENUM(
+    MemberStatus,
+    {{MemberStatus::ACCEPTED, "ACCEPTED"}, {MemberStatus::ACTIVE, "ACTIVE"}});
 }
 
 MSGPACK_ADD_ENUM(ccf::MemberStatus);
 
 namespace ccf
 {
-  struct MemberInfo
+  struct MemberPubInfo
   {
     std::vector<uint8_t> cert;
-    MemberStatus status;
     std::vector<uint8_t> keyshare;
 
-    MSGPACK_DEFINE(cert, status, keyshare);
+    MemberPubInfo() {}
+
+    MemberPubInfo(
+      const std::vector<uint8_t>& cert_,
+      const std::vector<uint8_t>& keyshare_) :
+      cert(cert_),
+      keyshare(keyshare_)
+    {}
+
+    MemberPubInfo(
+      std::vector<uint8_t>&& cert_, std::vector<uint8_t>&& keyshare_) :
+      cert(std::move(cert_)),
+      keyshare(std::move(keyshare_))
+    {}
+
+    MSGPACK_DEFINE(cert, keyshare);
   };
+
+  DECLARE_JSON_TYPE(MemberPubInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert, keyshare)
+
+  struct MemberInfo : MemberPubInfo
+  {
+    MemberStatus status = MemberStatus::ACCEPTED;
+
+    MemberInfo() {}
+
+    MemberInfo(
+      const std::vector<uint8_t>& cert_,
+      const std::vector<uint8_t>& keyshare_,
+      MemberStatus status_) :
+      MemberPubInfo(cert_, keyshare_),
+      status(status_)
+    {}
+
+    MSGPACK_DEFINE(MSGPACK_BASE(MemberPubInfo), status);
+  };
+  DECLARE_JSON_TYPE_WITH_BASE(MemberInfo, MemberPubInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(MemberInfo, status)
   using Members = Store::Map<MemberId, MemberInfo>;
-
-  inline void to_json(nlohmann::json& j, const MemberInfo& mi)
-  {
-    j["cert"] = mi.cert;
-    j["status"] = mi.status;
-    if (!mi.keyshare.empty())
-    {
-      j["keyshare"] = nlohmann::json::from_msgpack(mi.keyshare);
-    }
-  }
-
-  inline void from_json(const nlohmann::json& j, MemberInfo& mi)
-  {
-    assign_j(mi.cert, j["cert"]);
-    mi.status = j["status"];
-    auto keyshare = j.find("keyshare");
-    if (keyshare != j.end())
-    {
-      assign_j(mi.keyshare, nlohmann::json::to_msgpack(keyshare.value()));
-    }
-  }
 
   /** Records a signature for the last nonce and gives the next nonce to sign.
    */

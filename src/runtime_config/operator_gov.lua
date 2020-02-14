@@ -33,7 +33,7 @@ return {
 
   -- count active members, excluding operators
   members_active = 0
-  STATE_ACTIVE = 1
+  STATE_ACTIVE = "ACTIVE"
 
   tables["ccf.members"]:foreach(function(member, details)
     if details["status"] == STATE_ACTIVE and not is_operator(tostring(member)) then

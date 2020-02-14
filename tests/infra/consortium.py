@@ -20,13 +20,18 @@ class Consortium:
         members = [f"member{m}" for m in members]
         for m in members:
             infra.proc.ccall(
-                key_generator, f"{m}", curve.name, log_output=False
+                key_generator,
+                f"--name={m}",
+                f"--curve={curve.name}",
+                "--gen-key-share",
+                log_output=False,
             ).check_returncode()
         self.status = infra.ccf.ServiceStatus.OPEN
 
-    def get_members_certs(self):
+    def get_members_info(self):
         members_certs = [f"member{m}_cert.pem" for m in self.members]
-        return members_certs
+        members_kshare_pub = [f"member{m}_kshare_pub.pem" for m in self.members]
+        return list(zip(members_certs, members_kshare_pub))
 
     def propose(self, member_id, remote_node, script=None, params=None):
         with remote_node.member_client(format="json", member_id=member_id) as mc:
@@ -155,14 +160,21 @@ class Consortium:
         ):
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
-    def propose_add_member(self, member_id, remote_node, new_member_cert):
+    def propose_add_member(self, member_id, remote_node, new_member_cert, new_keyshare):
         script = """
-        tables, member_cert = ...
-        return Calls:call("new_member", member_cert)
+        tables, member_info = ...
+        return Calls:call("new_member", member_info)
         """
         with open(new_member_cert) as cert:
             new_member_cert_pem = [ord(c) for c in cert.read()]
-        return self.propose(member_id, remote_node, script, new_member_cert_pem)
+        with open(new_keyshare) as keyshare:
+            new_member_keyshare = [ord(k) for k in keyshare.read()]
+        return self.propose(
+            member_id,
+            remote_node,
+            script,
+            {"cert": new_member_cert_pem, "keyshare": new_member_keyshare,},
+        )
 
     def open_network(self, member_id, remote_node, pbft_open=False):
         """

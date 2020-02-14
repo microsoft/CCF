@@ -16,7 +16,7 @@ return {
 
   -- count active members
   members_active = 0
-  STATE_ACTIVE = 1
+  STATE_ACTIVE = "ACTIVE"
 
   tables["ccf.members"]:foreach(function(member, details)
     if details["status"] == STATE_ACTIVE then

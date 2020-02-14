@@ -386,7 +386,7 @@ else()
   set(CONSENSUS_ARG "raft")
 endif()
 
-if((NOT CMAKE_BUILD_TYPE STREQUAL "Debug") AND NOT PBFT)
+if((NOT CMAKE_BUILD_TYPE STREQUAL "Debug") AND NOT SAN)
   set(WORKER_THREADS 2)
 else()
   set(WORKER_THREADS 0)
