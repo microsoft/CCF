@@ -11,6 +11,33 @@ namespace http
   static constexpr auto CONTENT_TYPE_JSON = "application/json";
   static constexpr auto CONTENT_TYPE_MSGPACK = "application/msgpack";
 
+  static std::optional<std::string> extract_actor(
+    enclave::RpcContext& ctx)
+  {
+    const auto path = ctx.get_method();
+
+    const auto first_slash = path.find_first_of('/');
+    const auto second_slash = path.find_first_of('/', first_slash + 1);
+
+    if (
+      first_slash != 0 || first_slash == std::string::npos ||
+      second_slash == std::string::npos)
+    {
+      return std::nullopt;
+    }
+
+    const auto actor = path.substr(first_slash + 1, second_slash - 1);
+    const auto remaining_path = path.substr(second_slash + 1);
+
+    if (actor.empty() || remaining_path.empty())
+    {
+      return std::nullopt;
+    }
+
+    ctx.set_method(remaining_path);
+    return actor;
+  }
+
   class HttpRpcContext : public enclave::RpcContext
   {
   private:

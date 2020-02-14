@@ -177,43 +177,17 @@ namespace ccf
 
             auto [ctx, from_node] = std::move(r.value());
 
-            // TODO: This is duplicating the logic in httpendpoint.h - that
-            // should be moved to RpcMap
-            std::string_view actor_s = {};
-
+            const auto actor_opt = http::extract_actor(*ctx);
+            if (!actor_opt.has_value())
             {
-              const auto path = ctx->get_method();
-
-              const auto first_slash = path.find_first_of('/');
-              const auto second_slash =
-                path.find_first_of('/', first_slash + 1);
-
-              constexpr auto path_parse_error =
-                "Request path must contain '/[actor]/[method]'. Unable to "
-                "parse "
-                "'{}'.\n";
-
-              if (
-                first_slash != 0 || first_slash == std::string::npos ||
-                second_slash == std::string::npos)
-              {
-                LOG_FAIL_FMT(path_parse_error, path);
-                return;
-              }
-
-              actor_s = path.substr(first_slash + 1, second_slash - 1);
-              const auto remaining_path = path.substr(second_slash + 1);
-
-              if (actor_s.empty() || remaining_path.empty())
-              {
-                LOG_FAIL_FMT(path_parse_error, path);
-                return;
-              }
-
-              ctx->set_method(remaining_path);
+              LOG_FAIL_FMT(
+                "Failed to extract actor from forwarded context. Method is "
+                "'{}'",
+                ctx->get_method());
             }
 
-            auto actor = rpc_map->resolve(std::string(actor_s));
+            const auto& actor_s = actor_opt.value();
+            auto actor = rpc_map->resolve(actor_s);
             auto handler = rpc_map->find(actor);
             if (actor == ccf::ActorsType::unknown || !handler.has_value())
             {

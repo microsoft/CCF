@@ -217,41 +217,18 @@ namespace http
 
         // rpc_ctx->set_request_index(request_index++);
 
-        std::string_view actor_s = {};
-
+        const auto actor_opt = http::extract_actor(*rpc_ctx);
+        if (!actor_opt.has_value())
         {
-          const auto path = rpc_ctx->get_method();
-          
-          const auto first_slash = path.find_first_of('/');
-          const auto second_slash = path.find_first_of('/', first_slash + 1);
-
-          constexpr auto path_parse_error =
+          send_response(fmt::format(
             "Request path must contain '/[actor]/[method]'. Unable to parse "
-            "'{}'.\n";
-
-          if (
-            first_slash != 0 || first_slash == std::string::npos ||
-            second_slash == std::string::npos)
-          {
-            send_response(
-              fmt::format(path_parse_error, path), HTTP_STATUS_BAD_REQUEST);
-            return;
-          }
-
-          actor_s = path.substr(first_slash + 1, second_slash - 1);
-          const auto remaining_path = path.substr(second_slash + 1);
-
-          if (actor_s.empty() || remaining_path.empty())
-          {
-            send_response(
-              fmt::format(path_parse_error, path), HTTP_STATUS_BAD_REQUEST);
-            return;
-          }
-
-          rpc_ctx->set_method(remaining_path);
+            "'{}'.\n",
+            rpc_ctx->get_method()));
+          return;
         }
 
-        auto actor = rpc_map->resolve(std::string(actor_s));
+        const auto& actor_s = actor_opt.value();
+        auto actor = rpc_map->resolve(actor_s);
         auto search = rpc_map->find(actor);
         if (actor == ccf::ActorsType::unknown || !search.has_value())
         {
