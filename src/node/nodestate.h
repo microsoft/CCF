@@ -11,7 +11,6 @@
 #include "entities.h"
 #include "genesisgen.h"
 #include "history.h"
-#include "keyshare.h"
 #include "networkstate.h"
 #include "nodetonode.h"
 #include "notifier.h"
@@ -20,6 +19,7 @@
 #include "rpc/memberfrontend.h"
 #include "rpc/serialization.h"
 #include "seal.h"
+#include "secretshare.h"
 #include "timer.h"
 #include "tls/client.h"
 #include "tls/entropy.h"
@@ -380,9 +380,8 @@ namespace ccf
           // auto active_members = g.get_active_members();
           auto active_members = std::vector<MemberId>(
             {1, 2, 3}); // TODO: Members are not written to the kv until later
-          auto ctx = KeySharingContext(active_members.size());
 
-          KeySharingContext::Data data_to_split;
+          SecretSharing::SecretToShare data_to_split;
           // TODO: Copy share_wrapping_key_raw to std::array of the right size
           // (pad with 0?)
           std::copy_n(
@@ -392,11 +391,10 @@ namespace ccf
 
           size_t k =
             2; // For now, k = 2 (3 members in most of our test, k is majority)
-          auto shares = ctx.split(data_to_split, k);
+          auto shares =
+            SecretSharing::split(data_to_split, active_members.size(), k);
 
-          auto ctx2 = KeySharingContext(66);
-          assert(ctx2.combine(shares, k) == data_to_split);
-
+          assert(SecretSharing::combine(shares, k) == data_to_split);
 
           std::cout << "Shares ";
           for (auto const& s : shares)
