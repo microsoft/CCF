@@ -11,8 +11,7 @@ namespace http
   static constexpr auto CONTENT_TYPE_JSON = "application/json";
   static constexpr auto CONTENT_TYPE_MSGPACK = "application/msgpack";
 
-  static std::optional<std::string> extract_actor(
-    enclave::RpcContext& ctx)
+  static std::optional<std::string> extract_actor(enclave::RpcContext& ctx)
   {
     const auto path = ctx.get_method();
 
@@ -147,7 +146,9 @@ namespace http
         signed_request = signed_req;
       }
 
-      // TODO: YUCK! This sets request_index, so we need to call it!
+      // As an artifact of https://github.com/microsoft/CCF/issues/845 we need
+      // to call this to ensure request_index is set for every request we parse.
+      // This should be removed soon.
       get_params();
     }
 
@@ -216,6 +217,8 @@ namespace http
             params = contents;
           }
 
+          // When https://github.com/microsoft/CCF/issues/845 is resolved, this
+          // can be removed
           const auto id_it = contents.find(jsonrpc::ID);
           if (id_it != contents.end())
           {
@@ -242,7 +245,7 @@ namespace http
       path = p;
     }
 
-    // TODO: These are still returning a JSON-RPC response body
+    // https://github.com/microsoft/CCF/issues/843
     virtual std::vector<uint8_t> serialise_response() const override
     {
       nlohmann::json full_response;
@@ -303,7 +306,7 @@ namespace http
   };
 }
 
-// TODO: This is very ugly. Should make an rpc:: folder+namespace?
+// https://github.com/microsoft/CCF/issues/844
 namespace enclave
 {
   inline std::shared_ptr<RpcContext> make_rpc_context(
