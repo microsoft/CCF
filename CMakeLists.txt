@@ -301,7 +301,8 @@ if(BUILD_TESTS)
   )
 
   add_unit_test(
-    secretsharing_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/secretshare.cpp
+    secretsharing_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/secretshare.cpp
   )
   target_link_libraries(secretsharing_test PRIVATE sss.host)
 
