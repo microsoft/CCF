@@ -27,25 +27,8 @@ TEST_CASE("Simple test")
   {
     auto shares = ccf::SecretSharing::split(data_to_split, n, k);
     REQUIRE(shares.size() == n);
-
-    for (auto const& s : shares)
-    {
-      for (auto const& c : s)
-      {
-        std::cout << std::hex << std::setfill('0') << std::setw(2) << (int)c;
-      }
-      std::cout << std::dec << std::endl;
-    }
-
     auto restored = ccf::SecretSharing::combine(shares, k);
     REQUIRE(data_to_split == restored);
-
-    std::cout << "Restored ";
-    for (auto const& d : data_to_split)
-    {
-      std::cout << std::hex << std::setfill('0') << std::setw(2) << (int)d;
-    }
-    std::cout << std::dec << std::endl;
   }
 }
 
