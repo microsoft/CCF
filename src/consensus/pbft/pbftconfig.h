@@ -63,7 +63,6 @@ namespace pbft
       request.deserialise({inb->contents, inb->contents + inb->size});
       const enclave::SessionContext session(
         enclave::InvalidSessionId, request.caller_id, request.caller_cert);
-      LOG_FAIL_FMT("About to make RPC context");
       auto ctx = enclave::make_rpc_context(
         session, request.raw, {req_start, req_start + req_size});
 
