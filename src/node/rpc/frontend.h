@@ -427,7 +427,9 @@ namespace ccf
       Store::Tx& tx,
       CallerId caller_id)
     {
-      auto handler = handlers.find_handler(ctx->get_method());
+      const auto method = ctx->get_method();
+      const auto local_method = method.substr(method.find_first_not_of('/'));
+      auto handler = handlers.find_handler(local_method);
       if (handler != nullptr && handler->execute_locally)
       {
         return process_command(ctx, tx, caller_id);
