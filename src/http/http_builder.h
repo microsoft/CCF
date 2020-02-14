@@ -15,33 +15,6 @@ namespace http
 {
   using HeaderMap = std::map<std::string, std::string, std::less<>>;
 
-  static void add_auto_headers(
-    HeaderMap& headers, const std::vector<uint8_t>& body)
-  {
-    {
-      constexpr auto content_length_header_name = "content-length";
-      const auto it = headers.find(content_length_header_name);
-      if (it == headers.end())
-      {
-        headers[content_length_header_name] = fmt::format("{}", body.size());
-      }
-    }
-
-    {
-      constexpr auto digest_header_name = "digest";
-      const auto it = headers.find(digest_header_name);
-      if (it == headers.end())
-      {
-        tls::HashBytes body_digest;
-        tls::do_hash(body.data(), body.size(), body_digest, MBEDTLS_MD_SHA256);
-        headers[digest_header_name] = fmt::format(
-          "{}={}",
-          "SHA-256",
-          tls::b64_from_raw(body_digest.data(), body_digest.size()));
-      }
-    }
-  }
-
   static std::string get_header_string(const HeaderMap& headers)
   {
     std::string header_string;
@@ -68,10 +41,9 @@ namespace http
 
   class Message
   {
-  private:
-    HeaderMap headers;
-
   protected:
+    mutable HeaderMap headers;
+
     Message() = default;
 
   public:
@@ -92,6 +64,21 @@ namespace http
     void clear_headers()
     {
       headers.clear();
+    }
+
+    void set_body(const std::vector<uint8_t>& body) const // TODO: WRONG
+    {
+      constexpr auto content_length_header_name = "content-length";
+      constexpr auto digest_header_name = "digest";
+
+      headers[content_length_header_name] = fmt::format("{}", body.size());
+
+      tls::HashBytes body_digest;
+      tls::do_hash(body.data(), body.size(), body_digest, MBEDTLS_MD_SHA256);
+      headers[digest_header_name] = fmt::format(
+        "{}={}",
+        "SHA-256",
+        tls::b64_from_raw(body_digest.data(), body_digest.size()));
     }
   };
 
@@ -159,8 +146,7 @@ namespace http
         std::string_view() :
         std::string_view((char const*)body.data(), body.size());
 
-      auto full_headers = get_headers();
-      add_auto_headers(full_headers, body);
+      set_body(body);
 
       const auto request_string = fmt::format(
         "{} {} HTTP/1.1\r\n"
@@ -169,7 +155,7 @@ namespace http
         "{}",
         http_method_str(method),
         uri,
-        get_header_string(full_headers),
+        get_header_string(headers),
         body_view);
 
       return std::vector<uint8_t>(request_string.begin(), request_string.end());
@@ -191,8 +177,7 @@ namespace http
         std::string_view() :
         std::string_view((char const*)body.data(), body.size());
 
-      auto full_headers = get_headers();
-      add_auto_headers(full_headers, body);
+      set_body(body);
 
       const auto response_string = fmt::format(
         "HTTP/1.1 {} {}\r\n"
@@ -201,7 +186,7 @@ namespace http
         "{}",
         status,
         http_status_str(status),
-        get_header_string(full_headers),
+        get_header_string(headers),
         body_view);
 
       return std::vector<uint8_t>(

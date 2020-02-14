@@ -66,6 +66,7 @@ namespace http
       // Build a canonical serialization of this request. If the request is
       // signed, then all unsigned headers must be removed
       request_headers = headers_;
+
       const auto auth_it =
         request_headers.find(http::HTTP_HEADER_AUTHORIZATION);
       if (auth_it != request_headers.end())
@@ -139,7 +140,7 @@ namespace http
         std::string(http_method_str(verb)),
         path_,
         query_,
-        headers_,
+        request_headers,
         request_body);
       if (signed_req.has_value())
       {

@@ -190,14 +190,18 @@ TEST_CASE("URL parsing")
 TEST_CASE("Pessimal transport")
 {
   const http::HeaderMap h1 = {{"foo", "bar"}, {"baz", "42"}};
-  const http::HeaderMap h2 = {{"content-type", "application/json"},
+  const http::HeaderMap h2 = {{"foo", "barbar"},
+                              {"content-type", "application/json"},
                               {"x-custom-header", "custom user data"},
                               {"x-MixedCASE", "DontCARE"}};
-  for (const auto& headers : {{}, h1, h2})
-  {
-    http::SimpleMsgProcessor sp;
-    http::Parser p(HTTP_REQUEST, sp);
 
+  http::SimpleMsgProcessor sp;
+  http::Parser p(HTTP_REQUEST, sp);
+
+  // Use the same processor and test repeatedly to make sure headers are for
+  // only the current request
+  for (const auto& headers : {{}, h1, h2, h1, h2, h2, h1})
+  {
     auto builder =
       http::Request("/path/which/will/be/spliced/during/transport", HTTP_POST);
     for (const auto& it : headers)

@@ -108,6 +108,7 @@ namespace http
     http_parser_settings settings;
     MsgProcessor& proc;
     State state = DONE;
+
     std::vector<uint8_t> buf;
     std::string url = "";
     HeaderMap headers;
@@ -184,6 +185,7 @@ namespace http
         state = IN_MESSAGE;
         url.clear();
         buf.clear();
+        headers.clear();
       }
       else
       {

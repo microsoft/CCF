@@ -69,7 +69,7 @@ public:
     auto method_ = method;
     if (prefix.has_value())
     {
-      method_ = fmt::format("{}/{}", prefix.value(), method);
+      method_ = fmt::format("/{}/{}", prefix.value(), method);
     }
 
     nlohmann::json j;
@@ -160,7 +160,8 @@ public:
   {
     const auto body_j = json_rpc(method, params);
     const auto body_v = jsonrpc::pack(body_j, jsonrpc::Pack::Text);
-    auto r = http::Request(std::string(body_j["method"]));
+    auto r = http::Request(body_j["method"].get<std::string>());
+    r.set_header("content-type", "application/json");
     const auto request = r.build_request(body_v);
     return {request, body_j["id"]};
   }

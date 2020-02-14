@@ -113,8 +113,8 @@ namespace http
     tls::KeyPairPtr& kp,
     SigningDetails* details = nullptr)
   {
-    auto headers = request.get_headers();
-    add_auto_headers(headers, body);
+    request.set_body(body);
+    const auto headers = request.get_headers();
     std::vector<std::string_view> headers_to_sign;
     headers_to_sign.emplace_back(SIGN_HEADER_REQUEST_TARGET);
     headers_to_sign.emplace_back(HTTP_HEADER_DIGEST);
