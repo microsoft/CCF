@@ -16,16 +16,13 @@ namespace http
   private:
     http_method verb;
     std::vector<uint8_t> request_body;
-    std::string entire_path = {};
+    std::string path = {};
 
     http::HeaderMap request_headers;
 
     mutable jsonrpc::Pack body_packing = jsonrpc::Pack::Text;
 
   public:
-    // TODO: This is a temporary bodge. Shouldn't be public?
-    std::string_view remaining_path = {};
-
     HttpRpcContext(
       const enclave::SessionContext& s,
       http_method verb_,
@@ -37,11 +34,9 @@ namespace http
       const std::vector<uint8_t>& raw_pbft_ = {}) :
       RpcContext(s, raw_request_, raw_pbft_),
       verb(verb_),
-      entire_path(path_),
+      path(path_),
       request_body(body_)
     {
-      remaining_path = entire_path;
-
       // Build a canonical serialization of this request. If the request is
       // signed, then all unsigned headers must be removed
       request_headers = headers_;
@@ -165,8 +160,12 @@ namespace http
         }
         else
         {
-          throw std::logic_error(fmt::format(
-            "No content type specified - don't know how to unpack body"));
+          const auto pack = jsonrpc::detect_pack(request_body);
+
+          if (pack.has_value())
+          {
+            body_packing = pack.value();
+          }
         }
 
         if (request_body.empty())
@@ -208,14 +207,12 @@ namespace http
 
     virtual std::string get_method() const override
     {
-      // Strip any leading /s
-      return std::string(
-        remaining_path.substr(remaining_path.find_first_not_of('/')));
+      return path;
     }
 
-    virtual std::string get_whole_method() const override
+    virtual void set_method(const std::string_view& p) override
     {
-      return entire_path;
+      path = p;
     }
 
     // TODO: These are still returning a JSON-RPC response body

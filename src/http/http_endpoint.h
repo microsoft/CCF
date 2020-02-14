@@ -218,11 +218,12 @@ namespace http
         // rpc_ctx->set_request_index(request_index++);
 
         std::string_view actor_s = {};
-        auto& method = rpc_ctx->remaining_path;
 
         {
-          const auto first_slash = method.find_first_of('/');
-          const auto second_slash = method.find_first_of('/', first_slash + 1);
+          const auto path = rpc_ctx->get_method();
+          
+          const auto first_slash = path.find_first_of('/');
+          const auto second_slash = path.find_first_of('/', first_slash + 1);
 
           constexpr auto path_parse_error =
             "Request path must contain '/[actor]/[method]'. Unable to parse "
@@ -237,15 +238,17 @@ namespace http
             return;
           }
 
-          actor_s = method.substr(first_slash + 1, second_slash - 1);
-          method.remove_prefix(second_slash + 1);
+          actor_s = path.substr(first_slash + 1, second_slash - 1);
+          const auto remaining_path = path.substr(second_slash + 1);
 
-          if (actor_s.empty() || method.empty())
+          if (actor_s.empty() || remaining_path.empty())
           {
             send_response(
               fmt::format(path_parse_error, path), HTTP_STATUS_BAD_REQUEST);
             return;
           }
+
+          rpc_ctx->set_method(remaining_path);
         }
 
         auto actor = rpc_map->resolve(std::string(actor_s));

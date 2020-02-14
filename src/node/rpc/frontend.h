@@ -441,12 +441,13 @@ namespace ccf
       Store::Tx& tx,
       CallerId caller_id)
     {
-      auto handler = handlers.find_handler(ctx->get_method());
+      const auto method = ctx->get_method();
+      const auto local_method = method.substr(method.find_first_not_of('/'));
+      auto handler = handlers.find_handler(local_method);
       if (handler == nullptr)
       {
         return ctx->error_response(
-          jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-          ctx->get_whole_method());
+          jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND, method);
       }
 
       update_history();

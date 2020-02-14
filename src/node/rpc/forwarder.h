@@ -3,8 +3,8 @@
 #pragma once
 
 #include "enclave/forwardertypes.h"
-#include "http/http_rpc_context.h"
 #include "enclave/rpcmap.h"
+#include "http/http_rpc_context.h"
 #include "node/nodetonode.h"
 
 namespace ccf
@@ -51,7 +51,7 @@ namespace ccf
       const std::vector<uint8_t>& caller_cert)
     {
       IsCallerCertForwarded include_caller = false;
-      const auto method = rpc_ctx->get_whole_method();
+      const auto method = rpc_ctx->get_method();
       size_t size = sizeof(caller_id) +
         sizeof(rpc_ctx->session.client_session_id) +
         sizeof(IsCallerCertForwarded) + rpc_ctx->raw_request.size();
@@ -180,13 +180,13 @@ namespace ccf
             // TODO: This is duplicating the logic in httpendpoint.h - that
             // should be moved to RpcMap
             std::string_view actor_s = {};
-            auto http_ctx = dynamic_cast<http::HttpRpcContext*>(ctx.get());
-            auto& method = http_ctx->remaining_path;
 
             {
-              const auto first_slash = method.find_first_of('/');
+              const auto path = ctx->get_method();
+
+              const auto first_slash = path.find_first_of('/');
               const auto second_slash =
-                method.find_first_of('/', first_slash + 1);
+                path.find_first_of('/', first_slash + 1);
 
               constexpr auto path_parse_error =
                 "Request path must contain '/[actor]/[method]'. Unable to "
@@ -197,18 +197,20 @@ namespace ccf
                 first_slash != 0 || first_slash == std::string::npos ||
                 second_slash == std::string::npos)
               {
-                LOG_FAIL_FMT(path_parse_error, ctx->get_whole_method());
+                LOG_FAIL_FMT(path_parse_error, path);
                 return;
               }
 
-              actor_s = method.substr(first_slash + 1, second_slash - 1);
-              method.remove_prefix(second_slash + 1);
+              actor_s = path.substr(first_slash + 1, second_slash - 1);
+              const auto remaining_path = path.substr(second_slash + 1);
 
-              if (actor_s.empty() || method.empty())
+              if (actor_s.empty() || remaining_path.empty())
               {
-                LOG_FAIL_FMT(path_parse_error, ctx->get_whole_method());
+                LOG_FAIL_FMT(path_parse_error, path);
                 return;
               }
+
+              ctx->set_method(remaining_path);
             }
 
             auto actor = rpc_map->resolve(std::string(actor_s));

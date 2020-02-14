@@ -112,8 +112,7 @@ namespace enclave
     virtual nlohmann::json get_params() const = 0;
 
     virtual std::string get_method() const = 0;
-
-    virtual std::string get_whole_method() const = 0;
+    virtual void set_method(const std::string_view& method) = 0;
 
     /// Response details
     void set_response_error(int code, const std::string& msg = "")
