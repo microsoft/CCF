@@ -61,23 +61,30 @@ namespace pbft
                                  ccf::Store::Tx* tx = nullptr) {
       pbft::Request request;
       request.deserialise({inb->contents, inb->contents + inb->size});
+      const enclave::SessionContext session(
+        enclave::InvalidSessionId, request.caller_id, request.caller_cert);
+      LOG_FAIL_FMT("About to make RPC context");
+      auto ctx = enclave::make_rpc_context(
+        session, request.raw, {req_start, req_start + req_size});
 
-      LOG_DEBUG_FMT("PBFT exec_command() for frontend {}", request.actor);
+      const auto actor_opt = http::extract_actor(*ctx);
+      if (!actor_opt.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to extract actor from PBFT request. Method is '{}'",
+          ctx->get_method()));
+      }
 
-      auto handler = this->rpc_map->find(ccf::ActorsType(request.actor));
+      const auto& actor_s = actor_opt.value();
+      const auto actor = this->rpc_map->resolve(actor_s);
+      auto handler = this->rpc_map->find(actor);
       if (!handler.has_value())
         throw std::logic_error(
-          "No frontend associated with actor " + std::to_string(request.actor));
+          fmt::format("No frontend associated with actor {}", actor_s));
 
       auto frontend = handler.value();
 
-      const enclave::SessionContext session(
-        enclave::InvalidSessionId, request.caller_id, request.caller_cert);
-      auto ctx = enclave::make_rpc_context(
-        session, request.raw, {req_start, req_start + req_size});
-      ctx->actor = (ccf::ActorsType)request.actor;
-      const auto n = ctx->method.find_last_of('/');
-      ctx->method = ctx->method.substr(n + 1, ctx->method.size());
+      LOG_DEBUG_FMT("PBFT exec_command() for frontend {}", actor_s);
 
       ctx->signed_request = ccf::SignedReq();
 

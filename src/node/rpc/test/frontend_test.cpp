@@ -416,10 +416,12 @@ TEST_CASE("process_pbft")
   add_callers_pbft_store();
   TestUserFrontend frontend(*pbft_network.tables);
   auto simple_call = create_simple_request();
-  const auto serialized_call = simple_call.build_request();
-  auto actor = ActorsType::users;
-  pbft::Request request = {
-    (size_t)actor, user_id, user_caller_der, serialized_call};
+
+  const nlohmann::json call_body = {{"foo", "bar"}, {"baz", 42}};
+  const auto serialized_body = jsonrpc::pack(call_body, default_pack);
+
+  const auto serialized_call = simple_call.build_request(serialized_body);
+  pbft::Request request = {user_id, user_caller_der, serialized_call};
 
   const enclave::SessionContext session(
     enclave::InvalidSessionId, user_id, user_caller_der);
@@ -433,12 +435,9 @@ TEST_CASE("process_pbft")
 
   pbft::Request deserialised_req = request_value.value();
 
-  REQUIRE(deserialised_req.actor == (size_t)actor);
   REQUIRE(deserialised_req.caller_id == user_id);
   REQUIRE(deserialised_req.caller_cert == user_caller_der);
-  auto deserialised_simple_call = jsonrpc::unpack(deserialised_req.raw);
-  REQUIRE(
-    deserialised_simple_call[jsonrpc::METHOD] == simple_call[jsonrpc::METHOD]);
+  REQUIRE(deserialised_req.raw == serialized_call);
 }
 #else
 

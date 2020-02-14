@@ -170,7 +170,6 @@ TEST_CASE("Test Ledger Replay")
       req_view->put(
         0,
         {0,
-         0,
          {},
          {command_start, command_start + command_size},
          {(const uint8_t*)request->contents(),

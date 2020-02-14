@@ -266,7 +266,6 @@ namespace ccf
       {
         if (!history->add_request(
               reqid,
-              (size_t)ctx->actor,
               caller_id.value(),
               ctx->session.caller_cert,
               ctx->raw_request))

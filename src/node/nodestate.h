@@ -274,7 +274,8 @@ namespace ccf
 
       const auto body = jsonrpc::pack(create_params, jsonrpc::Pack::Text);
 
-      http::Request request(ccf::MemberProcs::CREATE);
+      http::Request request(
+        fmt::format("/{}/{}", ccf::Actors::MEMBERS, ccf::MemberProcs::CREATE));
 
       http::sign_request(request, body, node_sign_kp);
 

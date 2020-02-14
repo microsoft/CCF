@@ -43,10 +43,7 @@ namespace pbft
       serialized::write(data_, size_, raw.size());
       serialized::write(data_, size_, raw.data(), raw.size());
       serialized::write(data_, size_, pbft_raw.size());
-      if (!pbft_raw.empty())
-      {
-        serialized::write(data_, size_, pbft_raw.data(), pbft_raw.size());
-      }
+      serialized::write(data_, size_, pbft_raw.data(), pbft_raw.size());
       return serialized_req;
     }
 
@@ -65,14 +62,7 @@ namespace pbft
       auto raw_size = serialized::read<size_t>(data_, size_);
       raw = serialized::read(data_, size_, raw_size);
       auto pbft_raw_size = serialized::read<size_t>(data_, size_);
-      if (pbft_raw_size > 0)
-      {
-        pbft_raw = serialized::read(data_, size_, pbft_raw_size);
-      }
-      else
-      {
-        pbft_raw = {};
-      }
+      pbft_raw = serialized::read(data_, size_, pbft_raw_size);
     }
   };
 

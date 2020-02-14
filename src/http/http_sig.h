@@ -18,6 +18,7 @@ namespace http
   static constexpr auto HTTP_HEADER_AUTHORIZATION = "authorization";
   static constexpr auto HTTP_HEADER_DIGEST = "digest";
   static constexpr auto HTTP_HEADER_CONTENT_TYPE = "content-type";
+  static constexpr auto HTTP_HEADER_CONTENT_LENGTH = "content-length";
 
   static constexpr auto DIGEST_SHA256 = "SHA-256";
 
@@ -120,6 +121,10 @@ namespace http
     if (headers.find(HTTP_HEADER_CONTENT_TYPE) != headers.end())
     {
       headers_to_sign.emplace_back(HTTP_HEADER_CONTENT_TYPE);
+    }
+    if (headers.find(HTTP_HEADER_CONTENT_LENGTH) != headers.end())
+    {
+      headers_to_sign.emplace_back(HTTP_HEADER_CONTENT_LENGTH);
     }
 
     const auto to_sign = construct_raw_signed_string(
