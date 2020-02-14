@@ -516,6 +516,7 @@ namespace ccf
       install_with_auto_schema<Vote, bool>(MemberProcs::VOTE, vote, Write);
 
       auto create = [this](RequestArgs& args) {
+        LOG_INFO_FMT("Processing create RPC");
         const auto in =
           args.rpc_ctx->get_params().get<CreateNetworkNodeToNode::In>();
 
@@ -543,6 +544,7 @@ namespace ccf
                                   in.public_encryption_key,
                                   NodeStatus::TRUSTED});
 
+        LOG_INFO_FMT("Got self = {}", self);
         if (self != 0)
         {
           throw std::logic_error(fmt::format("My node was set to {}", self));
@@ -568,6 +570,7 @@ namespace ccf
         g.create_service(in.network_cert);
 
         args.rpc_ctx->set_response_result(true);
+        LOG_INFO_FMT("Created service");
         return;
       };
       install(MemberProcs::CREATE, create, Write);

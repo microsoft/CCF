@@ -276,16 +276,63 @@ namespace ccf
 
       http::Request request(
         fmt::format("/{}/{}", ccf::Actors::MEMBERS, ccf::MemberProcs::CREATE));
+      request.set_header("content-type", "application/json");
 
       http::sign_request(request, body, node_sign_kp);
 
       return request.build_request(body);
     }
 
-    void send_create_request(const std::vector<uint8_t>& packed)
+    bool parse_create_response(const std::vector<uint8_t>& response)
     {
-      constexpr auto actor = ccf::ActorsType::members;
+      http::SimpleMsgProcessor processor;
+      http::Parser parser(HTTP_RESPONSE, processor);
 
+      const auto parsed_count =
+        parser.execute(response.data(), response.size());
+      if (parsed_count != response.size())
+      {
+        LOG_FAIL_FMT(
+          "Tried to parse {} response bytes, actually parsed {}",
+          response.size(),
+          parsed_count);
+        return false;
+      }
+
+      if (processor.received.size() != 1)
+      {
+        LOG_FAIL_FMT(
+          "Expected single message, found {}", processor.received.size());
+        return false;
+      }
+
+      const auto body =
+        jsonrpc::unpack(processor.received.front().body, jsonrpc::Pack::Text);
+      const auto result_it = body.find(jsonrpc::RESULT);
+      if (result_it == body.end())
+      {
+        LOG_FAIL_FMT("Create response is error: {}", body.dump());
+        return false;
+      }
+
+      return *result_it;
+    }
+
+    bool send_create_request(const std::vector<uint8_t>& packed)
+    {
+      const enclave::SessionContext node_session(
+        enclave::InvalidSessionId, node_cert);
+      auto ctx = enclave::make_rpc_context(node_session, packed);
+
+      ctx->is_create_request = true;
+
+      const auto actor_opt = http::extract_actor(*ctx);
+      if (!actor_opt.has_value())
+      {
+        throw std::logic_error("Unable to get actor for create request");
+      }
+
+      const auto actor = rpc_map->resolve(actor_opt.value());
       auto handler = this->rpc_map->find(actor);
       if (!handler.has_value())
       {
@@ -293,20 +340,20 @@ namespace ccf
       }
       auto frontend = handler.value();
 
-      const enclave::SessionContext node_session(
-        enclave::InvalidSessionId, node_cert);
-      auto ctx = enclave::make_rpc_context(node_session, packed);
+      const auto response = frontend->process(ctx);
+      if (!response.has_value())
+      {
+        LOG_FAIL_FMT("No response received from processing create request");
+        return false;
+      }
 
-      ctx->is_create_request = true;
-
-      frontend->process(ctx);
+      return parse_create_response(response.value());
     }
 
     bool create_and_send_request(
       const CreateNew::In& args, const std::vector<uint8_t>& quote)
     {
-      send_create_request(serialize_create_request(args, quote));
-      return true;
+      return send_create_request(serialize_create_request(args, quote));
     }
 
     //
@@ -517,8 +564,11 @@ namespace ccf
 
       const auto body = jsonrpc::pack(join_params, jsonrpc::Pack::Text);
 
-      join_client->send_request(
-        fmt::format("/{}/{}", ccf::Actors::NODES, ccf::NodeProcs::JOIN), body);
+      http::Request r(
+        fmt::format("/{}/{}", ccf::Actors::NODES, ccf::NodeProcs::JOIN));
+      r.set_header("content-type", "application/json");
+
+      join_client->send_request(r.build_request(body));
     }
 
     void join(const Join::In& args)

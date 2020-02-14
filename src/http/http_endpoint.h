@@ -286,11 +286,9 @@ namespace http
       ClientEndpoint(session_id, writer_factory)
     {}
 
-    void send_request(
-      const std::string& path, const std::vector<uint8_t>& data) override
+    void send_request(const std::vector<uint8_t>& data) override
     {
-      http::Request r(path, HTTP_POST);
-      send_raw(r.build_request(data));
+      send_raw(data);
     }
 
     void send(const std::vector<uint8_t>& data) override
