@@ -204,7 +204,7 @@ TEST_CASE("Test Ledger Replay")
       std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(
         write_store);
 
-    int mem_size = 64;
+    int mem_size = 256;
     std::vector<char> service_mem(mem_size, 0);
     ExecutionMock exec_mock(0);
 
@@ -242,7 +242,7 @@ TEST_CASE("Test Ledger Replay")
       std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(
         corrupt_store);
 
-    int mem_size = 400 * 8192;
+    int mem_size = 256;
     std::vector<char> service_mem(mem_size, 0);
     ExecutionMock exec_mock(0);
     exec_mock.command_counter++;
@@ -302,7 +302,7 @@ TEST_CASE("Test Ledger Replay")
       std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(
         store);
 
-    int mem_size = 64;
+    int mem_size = 256;
     std::vector<char> service_mem(mem_size, 0);
     ExecutionMock exec_mock(0);
 
