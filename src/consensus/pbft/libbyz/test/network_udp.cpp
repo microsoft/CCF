@@ -127,7 +127,7 @@ public:
       Message* m =
         Replica::create_message(buffer.get(), Message::get_size(buffer.get()));
       if (
-        ret >= (int)sizeof(Message_rep) && ret >= (int)m->size() &&
+        m != nullptr && ret >= (int)sizeof(Message_rep) && ret >= (int)m->size() &&
         Replica::pre_verify(m))
       {
         return m;
