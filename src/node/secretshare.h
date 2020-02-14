@@ -20,11 +20,11 @@ extern "C"
 namespace ccf
 {
   // The SecretSharing class provides static functions to split a secret into
-  // shares and (re-)combine shares into the original secret.
+  // shares and (re-)combine those shares into the original secret.
   // The size of the secret to share is fixed (SECRET_TO_SHARE_LENGTH, 64
   // bytes). It is up to the caller to either shrink the secret if it is too
-  // long. If less than SECRET_TO_SHARE_LENGTH bytes are split, the caller
-  // should pad it when splitting it and extract it after share combination.
+  // long. If the secret to split is shorter than SECRET_TO_SHARE_LENGTH bytes,
+  // the caller should ignore the extra bytes.
   class SecretSharing
   {
   public:

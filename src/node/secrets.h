@@ -9,7 +9,7 @@
 
 namespace ccf
 {
-  struct NodeEncryptedLedgerSecret
+  struct EncryptedLedgerSecret
   {
     NodeId node_id;
 
@@ -19,14 +19,13 @@ namespace ccf
     MSGPACK_DEFINE(node_id, encrypted_secret);
   };
 
-  DECLARE_JSON_TYPE(NodeEncryptedLedgerSecret)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    NodeEncryptedLedgerSecret, node_id, encrypted_secret)
+  DECLARE_JSON_TYPE(EncryptedLedgerSecret)
+  DECLARE_JSON_REQUIRED_FIELDS(EncryptedLedgerSecret, node_id, encrypted_secret)
 
   struct EncryptedLedgerSecrets
   {
     std::vector<uint8_t> primary_public_encryption_key = {};
-    std::vector<NodeEncryptedLedgerSecret> secrets = {};
+    std::vector<EncryptedLedgerSecret> secrets = {};
 
     MSGPACK_DEFINE(primary_public_encryption_key, secrets);
   };

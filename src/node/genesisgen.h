@@ -252,22 +252,20 @@ namespace ccf
       codeid_view->put(node_code_id, CodeStatus::ACCEPTED);
     }
 
-    // TODO: This should also return the public encryption key
-    std::vector<MemberId> get_active_members()
+    auto get_active_members_keyshare()
     {
       auto members_view = tx.get_view(tables.members);
-      std::vector<MemberId> active_members_id;
+      std::map<MemberId, std::vector<uint8_t>> active_members_info;
 
       members_view->foreach(
-        [&active_members_id](const MemberId& mid, const MemberInfo& mi) {
+        [&active_members_info](const MemberId& mid, const MemberInfo& mi) {
           if (mi.status != MemberStatus::ACTIVE)
           {
-            active_members_id.emplace_back(mid);
+            active_members_info[mid] = mi.keyshare;
           }
           return true;
         });
-      LOG_FAIL_FMT("There are {} active members", active_members_id.size());
-      return active_members_id;
+      return active_members_info;
     }
 
     void add_key_share_info(const KeyShareInfo& key_share_info)

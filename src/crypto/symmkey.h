@@ -16,7 +16,7 @@ namespace crypto
   template <size_t SIZE_IV = GCM_SIZE_IV>
   struct GcmHeader
   {
-    uint8_t tag[GCM_SIZE_TAG]{};
+    uint8_t tag[GCM_SIZE_TAG] = {};
     uint8_t iv[SIZE_IV] = {};
 
     // 12 bytes IV with 8 LSB are unique sequence number

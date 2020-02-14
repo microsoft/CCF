@@ -1072,7 +1072,7 @@ namespace ccf
 
       for (auto [nid, ni] : trusted_nodes)
       {
-        ccf::NodeEncryptedLedgerSecret secret_for_node;
+        ccf::EncryptedLedgerSecret secret_for_node;
         secret_for_node.node_id = nid;
 
         // Encrypt secrets with a shared secret derived from backup public
