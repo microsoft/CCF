@@ -11,7 +11,7 @@ TEST_CASE("Simple test")
 {
   size_t n = 5;
   size_t k = 3;
-  ccf::SecretSharing::SecretToShare data_to_split;
+  ccf::SecretSharing::SecretToSplit data_to_split;
 
   INFO("Data to split must be have fixed length");
   {
@@ -53,7 +53,7 @@ TEST_CASE("Edge cases")
 {
   size_t n = 3;
   size_t k = 2;
-  ccf::SecretSharing::SecretToShare data_to_split;
+  ccf::SecretSharing::SecretToSplit data_to_split;
 
   INFO("n = 0 and n too large");
   {

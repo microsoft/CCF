@@ -270,17 +270,13 @@ namespace ccf
       return active_members_id;
     }
 
-    void set_new_shares(
-      const std::vector<uint8_t>& encrypted_ledger_secrets,
-      const std::vector<std::vector<uint8_t>>& encrypted_shares)
+    void add_key_share_info(const KeyShareInfo& key_share_info)
     {
       auto [shares_view, values_view] =
         tx.get_view(tables.shares, tables.values);
-      // auto keyshare_id = get_next_id(values_view, ValueIds::NEXT_KEYSHARE_ID);
-      size_t keyshare_id = 1; // TODO: This is called too early to have a keyshare
+      auto keyshare_id = get_next_id(values_view, ValueIds::NEXT_KEYSHARE_ID);
 
-      shares_view->put(
-        keyshare_id, {encrypted_ledger_secrets, encrypted_shares});
+      shares_view->put(keyshare_id, key_share_info);
     }
   };
 }

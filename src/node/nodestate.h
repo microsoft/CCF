@@ -246,69 +246,6 @@ namespace ccf
       sm.advance(State::initialized);
     }
 
-    std::vector<uint8_t> serialize_create_request(
-      const CreateNew::In& args, const std::vector<uint8_t>& quote)
-    {
-      jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> create_rpc;
-
-      create_rpc.id = 0;
-      create_rpc.method = ccf::MemberProcs::CREATE;
-
-      for (auto& m_info : args.config.genesis.members_info)
-      {
-        create_rpc.params.members_info.push_back(m_info);
-      }
-
-      create_rpc.params.gov_script = args.config.genesis.gov_script;
-      create_rpc.params.node_cert = node_cert;
-      create_rpc.params.network_cert = network.identity->cert;
-      create_rpc.params.quote = quote;
-      create_rpc.params.public_encryption_key =
-        node_encrypt_kp->public_key_pem().raw();
-      create_rpc.params.code_digest =
-        std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
-      create_rpc.params.node_info_network = args.config.node_info_network;
-
-      nlohmann::json j = create_rpc;
-      auto contents = nlohmann::json::to_msgpack(j);
-
-      auto sig_contents = node_sign_kp->sign(contents);
-
-      nlohmann::json sj;
-      sj["req"] = j;
-      sj["sig"] = sig_contents;
-
-      return jsonrpc::pack(sj, jsonrpc::Pack::Text);
-    }
-
-    void send_create_request(const std::vector<uint8_t>& packed)
-    {
-      constexpr auto actor = ccf::ActorsType::members;
-
-      auto handler = this->rpc_map->find(actor);
-      if (!handler.has_value())
-      {
-        throw std::logic_error("Handler has no value");
-      }
-      auto frontend = handler.value();
-
-      const enclave::SessionContext node_session(
-        enclave::InvalidSessionId, node_cert);
-      auto ctx = enclave::make_rpc_context(node_session, packed);
-
-      ctx->is_create_request = true;
-      ctx->actor = actor;
-
-      frontend->process(ctx);
-    }
-
-    bool create_and_send_request(
-      const CreateNew::In& args, const std::vector<uint8_t>& quote)
-    {
-      send_create_request(serialize_create_request(args, quote));
-      return true;
-    }
-
     //
     // funcs in state "initialized"
     //
@@ -337,88 +274,8 @@ namespace ccf
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
 
-          auto share_wrapping_key_raw =
-            tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
-          auto share_wrapping_key = crypto::KeyAesGcm(share_wrapping_key_raw);
-
-          // TODO: Move this to a function, possibly in ledger secrets?
-          crypto::GcmCipher encrypted_ls(
-            network.ledger_secrets->get_secret(1)->master.size());
-
-          auto iv = std::vector<uint8_t>(16, 0x42);
-
-          // TODO: Can iv be null here? Do we never re-use the same key?
-          share_wrapping_key.encrypt(
-            iv,
-            network.ledger_secrets->get_secret(1)->master,
-            nullb,
-            encrypted_ls.cipher.data(),
-            encrypted_ls.hdr.tag);
-
-          // TODO: This can go
-          auto decrypted = std::vector<uint8_t>(encrypted_ls.cipher.size());
-          if (
-            share_wrapping_key.decrypt(
-              iv,
-              encrypted_ls.hdr.tag,
-              encrypted_ls.cipher,
-              nullb,
-              decrypted.data()) == false)
-          {
-            throw std::logic_error("Hahaha");
-          }
-          assert(decrypted == network.ledger_secrets->get_secret(1)->master);
-          /////////
-
-          // TODO: All of this probably needs to move to a new class to be used
-          // elsewhere (i.e. re-keying)
-          // TODO: Split k_z
-          // TODO: Move to genesisgen.h
-          Store::Tx tx;
-          GenesisGenerator g(network, tx);
-
-          // auto active_members = g.get_active_members();
-          auto active_members = std::vector<MemberId>(
-            {1, 2, 3}); // TODO: Members are not written to the kv until later
-
-          SecretSharing::SecretToShare data_to_split;
-          // TODO: Copy share_wrapping_key_raw to std::array of the right size
-          // (pad with 0?)
-          std::copy_n(
-            share_wrapping_key_raw.begin(),
-            share_wrapping_key_raw.size(),
-            data_to_split.data());
-
-          size_t k =
-            2; // For now, k = 2 (3 members in most of our test, k is majority)
-          auto shares =
-            SecretSharing::split(data_to_split, active_members.size(), k);
-
-          assert(SecretSharing::combine(shares, k) == data_to_split);
-
-          std::cout << "Shares ";
-          for (auto const& s : shares)
-          {
-            for (auto const& d : s)
-            {
-              std::cout << std::hex << std::setfill('0') << std::setw(2)
-                        << (int)d;
-            }
-            std::cout << std::endl;
-          }
-          std::cout << std::dec << std::endl;
-
-          // For now, shares are recorded in plain text
-          std::vector<std::vector<uint8_t>> encrypted_shares;
-          for (auto const& s : shares)
-          {
-            encrypted_shares.emplace_back(s.begin(), s.end());
-          }
-          LOG_FAIL_FMT(
-            "Number of encrypted shares: {}", encrypted_shares.size());
-
-          g.set_new_shares(encrypted_ls.serialise(), encrypted_shares);
-          g.finalize(); // TODO: Check error code
+          auto key_share_info =
+            generate_key_share_info(args.config.genesis.members_info);
 
           self = 0; // The first node id is always 0
 
@@ -437,7 +294,7 @@ namespace ccf
           // network
           open_member_frontend();
 
-          if (!create_and_send_request(args, quote))
+          if (!create_and_send_request(args, quote, key_share_info))
           {
             return Fail<CreateNew::Out>(
               "Genesis transaction could not be committed");
@@ -1237,6 +1094,121 @@ namespace ccf
       }
 
       secrets_view->put(version, secret_set);
+    }
+
+    KeyShareInfo generate_key_share_info(
+      const std::vector<ccf::MemberPubInfo>& members_info)
+    {
+      auto share_wrapping_key_raw =
+        tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
+      auto share_wrapping_key = crypto::KeyAesGcm(share_wrapping_key_raw);
+
+      // Encrypt initial ledger secrets with k_z
+      // Once sealing is completely removed, this can be called to the
+      // LedgerSecrets class directly
+      crypto::GcmCipher encrypted_ls(
+        network.ledger_secrets->get_secret(1)->master.size());
+
+      share_wrapping_key.encrypt(
+        encrypted_ls.hdr.get_iv(), // iv is always 0 here as the share wrapping
+                                   // key is never re-used for encryption
+        network.ledger_secrets->get_secret(1)->master,
+        nullb,
+        encrypted_ls.cipher.data(),
+        encrypted_ls.hdr.tag);
+
+      auto active_members = members_info.size();
+
+      // For now, the secret sharing threashold is set to the number of initial
+      // members
+      size_t k = active_members;
+
+      // For now, since members key shares are not yet encrypted, create
+      // share of dummy empty secret
+      SecretSharing::SecretToSplit secret_to_split = {};
+
+      auto shares = SecretSharing::split(secret_to_split, active_members, k);
+
+      assert(SecretSharing::combine(shares, k) == secret_to_split);
+
+      // For now, shares are recorded in plain text. Instead, they should be
+      // encrypted with each member's public encryption key
+      std::vector<std::vector<uint8_t>> encrypted_shares;
+      for (auto const& s : shares)
+      {
+        encrypted_shares.emplace_back(s.begin(), s.end());
+      }
+
+      return {encrypted_ls.serialise(), encrypted_shares};
+    }
+
+    std::vector<uint8_t> serialize_create_request(
+      const CreateNew::In& args,
+      const std::vector<uint8_t>& quote,
+      const KeyShareInfo& genesis_key_share_info)
+    {
+      jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> create_rpc;
+
+      create_rpc.id = 0;
+      create_rpc.method = ccf::MemberProcs::CREATE;
+
+      for (auto& m_info : args.config.genesis.members_info)
+      {
+        create_rpc.params.members_info.push_back(m_info);
+      }
+
+      create_rpc.params.gov_script = args.config.genesis.gov_script;
+      create_rpc.params.node_cert = node_cert;
+      create_rpc.params.network_cert = network.identity->cert;
+      create_rpc.params.quote = quote;
+      create_rpc.params.public_encryption_key =
+        node_encrypt_kp->public_key_pem().raw();
+      create_rpc.params.code_digest =
+        std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
+      create_rpc.params.node_info_network = args.config.node_info_network;
+      create_rpc.params.genesis_key_share_info = genesis_key_share_info;
+
+      nlohmann::json j = create_rpc;
+      auto contents = nlohmann::json::to_msgpack(j);
+
+      auto sig_contents = node_sign_kp->sign(contents);
+
+      nlohmann::json sj;
+      sj["req"] = j;
+      sj["sig"] = sig_contents;
+
+      return jsonrpc::pack(sj, jsonrpc::Pack::Text);
+    }
+
+    void send_create_request(const std::vector<uint8_t>& packed)
+    {
+      constexpr auto actor = ccf::ActorsType::members;
+
+      auto handler = this->rpc_map->find(actor);
+      if (!handler.has_value())
+      {
+        throw std::logic_error("Handler has no value");
+      }
+      auto frontend = handler.value();
+
+      const enclave::SessionContext node_session(
+        enclave::InvalidSessionId, node_cert);
+      auto ctx = enclave::make_rpc_context(node_session, packed);
+
+      ctx->is_create_request = true;
+      ctx->actor = actor;
+
+      frontend->process(ctx);
+    }
+
+    bool create_and_send_request(
+      const CreateNew::In& args,
+      const std::vector<uint8_t>& quote,
+      const KeyShareInfo& genesis_key_share_info)
+    {
+      send_create_request(
+        serialize_create_request(args, quote, genesis_key_share_info));
+      return true;
     }
 
     void backup_finish_recovery()

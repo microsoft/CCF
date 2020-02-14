@@ -19,5 +19,9 @@ namespace ccf
     MSGPACK_DEFINE(encrypted_ledger_secret, encrypted_shares);
   };
 
+  DECLARE_JSON_TYPE(KeyShareInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    KeyShareInfo, encrypted_ledger_secret, encrypted_shares)
+
   using Shares = Store::Map<KeyShareIndex, KeyShareInfo>;
 }
