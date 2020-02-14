@@ -12,6 +12,7 @@ namespace pbft
 {
   struct MarkStableInfo;
   struct GlobalCommitInfo;
+  struct RollbackInfo;
 }
 
 class IMessageReceiveBase
@@ -29,6 +30,10 @@ public:
     global_commit_handler_cb cb, pbft::GlobalCommitInfo* gb_info) = 0;
   virtual void register_mark_stable(
     mark_stable_handler_cb cb, pbft::MarkStableInfo* ms_info) = 0;
+  typedef void (*rollback_handler_cb)(
+    int64_t version, pbft::RollbackInfo* rollback_info);
+  virtual void register_rollback_cb(
+    rollback_handler_cb cb, pbft::RollbackInfo* ctx) = 0;
   virtual size_t num_correct_replicas() const = 0;
   virtual size_t f() const = 0;
   virtual void set_f(ccf::NodeId f) = 0;

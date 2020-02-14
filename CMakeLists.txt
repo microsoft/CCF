@@ -546,6 +546,13 @@ if(BUILD_TESTS)
   else()
     message(STATUS "Using PBFT as consensus")
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
+
+    add_e2e_test(
+      NAME late_joiners
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/late_joiners.py
+      ADDITIONAL_ARGS --skip-suspension
+    )
+
   endif()
 
   if(BUILD_SMALLBANK)

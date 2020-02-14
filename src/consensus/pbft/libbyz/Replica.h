@@ -130,6 +130,9 @@ public:
   void register_mark_stable(
     mark_stable_handler_cb cb, pbft::MarkStableInfo* ctx);
 
+  void register_rollback_cb(rollback_handler_cb cb, pbft::RollbackInfo* ctx);
+  // Effects: Registers a handler that is called when we rollback
+
   template <typename T>
   std::unique_ptr<T> create_message(
     const uint8_t* message_data, size_t data_size);
@@ -147,9 +150,24 @@ public:
   int my_id() const;
   char* create_response_message(int client_id, Request_id rid, uint32_t size);
 
+  // variables used to keep track of versions so that we can tell the kv to
+  // rollback
+
+  // Keeps track of the kv version after a request has been tentatively executed
+  // and after its pre prepare has been stored to the ledger. If there
+  // is a merkle root mismatch after request execution we can rollback to the
+  // latest successful execution
+  kv::Version last_te_version = 0;
+
+  // these variables keep track of the kv version and sequence number on global
+  // commit so that when there is a view change we know how far to roll back to
+  kv::Version last_gb_version = 0;
+  Seqno last_gb_seqno = 0;
+
   Seqno signature_offset = 0;
   std::atomic<bool> sign_next = false;
-  std::atomic<int64_t> signed_version = 0;
+  std::atomic<kv::Version> signed_version = 0;
+
   Seqno next_expected_sig_offset()
   {
     return signature_offset;
@@ -287,6 +305,14 @@ private:
   void set_min_pre_prepare_batch_size();
   // Effects: Sets the min_pre_prepare_batch_size based on
   // historical information.
+
+  void rollback_to_globally_comitted();
+  // Effects: initiates roll back to last globally committed seqno and kv
+  // version
+
+  void global_commit(Pre_prepare* pp);
+  // Effects: calls global commit callback, state checkpoints at seqno and
+  // latest_gb_version and latest_gb_seqno are updated
 
   void execute_prepared(bool committed = false);
   // Effects: Sends back replies that have been executed tentatively
@@ -435,6 +461,7 @@ private:
 #endif
 
   ByzInfo playback_byz_info;
+  size_t playback_before_f = 0;
   // Latest byz info when we are in playback mode. Used to compare the latest
   // execution mt roots and version with the ones in the pre prepare we will get
   // while we are at playback mode
@@ -463,10 +490,15 @@ private:
   mark_stable_handler_cb mark_stable_cb = nullptr;
   pbft::MarkStableInfo* mark_stable_info;
   // callback when we call mark_stable
-  // Used to not the append_entries_index of the stable seqno
+  // Used to note the append_entries_index of the stable seqno
   // We don't want to send append entries further than the latest stable seqno
   // since the replicas store enough messages in that case so that the late
   // joiner can catch up by the usual execution route
+
+  rollback_handler_cb rollback_cb = nullptr;
+  pbft::RollbackInfo* rollback_info;
+  // call back when we are rolling back
+  // Used to rollback the kv to the right version and truncate the ledger
 
   std::unique_ptr<LedgerWriter> ledger_writer;
 
