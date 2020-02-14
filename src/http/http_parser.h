@@ -167,7 +167,7 @@ namespace http
     {
       if (state == IN_MESSAGE)
       {
-        LOG_TRACE_FMT("Appending chunk [{}]", std::string_view(at, length));
+        LOG_TRACE_FMT("Appending chunk [{} bytes]", length);
         std::copy(at, at + length, std::back_inserter(buf));
       }
       else
