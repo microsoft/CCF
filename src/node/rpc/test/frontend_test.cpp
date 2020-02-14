@@ -34,7 +34,6 @@ using namespace ccfapp;
 using namespace ccf;
 using namespace std;
 
-// TODO: HTTP should support msgpack'd body
 static constexpr auto default_pack = jsonrpc::Pack::MsgPack;
 
 class TestUserFrontend : public SimpleUserRpcFrontend
@@ -281,15 +280,17 @@ std::vector<uint8_t> sign_json(nlohmann::json j)
   return kp->sign(contents);
 }
 
-auto create_simple_request(const std::string& method = "empty_function")
+auto create_simple_request(
+  const std::string& method = "empty_function",
+  jsonrpc::Pack pack = default_pack)
 {
   http::Request request(method);
   request.set_header(
     http::HTTP_HEADER_CONTENT_TYPE,
-    default_pack == jsonrpc::Pack::Text ?
+    pack == jsonrpc::Pack::Text ?
       http::CONTENT_TYPE_JSON :
-      (default_pack == jsonrpc::Pack::MsgPack ? http::CONTENT_TYPE_MSGPACK :
-                                                "unknown"));
+      (pack == jsonrpc::Pack::MsgPack ? http::CONTENT_TYPE_MSGPACK :
+                                        "unknown"));
   return request;
 }
 
@@ -529,32 +530,35 @@ TEST_CASE("MinimalHandleFunction")
 {
   prepare_callers();
   TestMinimalHandleFunction frontend(*network.tables);
+  for (const auto pack_type : {jsonrpc::Pack::Text, jsonrpc::Pack::MsgPack})
   {
-    auto echo_call = create_simple_request("echo_function");
-    const nlohmann::json j_body = {{"data", {"nested", "Some string"}},
-                                   {"other", "Another string"}};
-    const auto serialized_body = jsonrpc::pack(j_body, default_pack);
+    {
+      auto echo_call = create_simple_request("echo_function", pack_type);
+      const nlohmann::json j_body = {{"data", {"nested", "Some string"}},
+                                     {"other", "Another string"}};
+      const auto serialized_body = jsonrpc::pack(j_body, pack_type);
 
-    const auto [signed_call, signed_req] =
-      create_signed_request(echo_call, serialized_body);
-    const auto serialized_call = signed_call.build_request(serialized_body);
+      const auto [signed_call, signed_req] =
+        create_signed_request(echo_call, serialized_body);
+      const auto serialized_call = signed_call.build_request(serialized_body);
 
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-    auto response =
-      parse_response(frontend.process(rpc_ctx).value(), default_pack);
-    CHECK(response[jsonrpc::RESULT] == j_body);
-  }
+      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+      auto response =
+        parse_response(frontend.process(rpc_ctx).value(), pack_type);
+      CHECK(response[jsonrpc::RESULT] == j_body);
+    }
 
-  {
-    auto get_caller = create_simple_request("get_caller");
+    {
+      auto get_caller = create_simple_request("get_caller", pack_type);
 
-    const auto [signed_call, signed_req] = create_signed_request(get_caller);
-    const auto serialized_call = signed_call.build_request();
+      const auto [signed_call, signed_req] = create_signed_request(get_caller);
+      const auto serialized_call = signed_call.build_request();
 
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-    auto response =
-      parse_response(frontend.process(rpc_ctx).value(), default_pack);
-    CHECK(response[jsonrpc::RESULT] == user_id);
+      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+      auto response =
+        parse_response(frontend.process(rpc_ctx).value(), pack_type);
+      CHECK(response[jsonrpc::RESULT] == user_id);
+    }
   }
 }
 

@@ -35,8 +35,11 @@ namespace ccf
   }
 }
 
-// TODO: HTTP should support msgpack'd body
-constexpr auto default_format = jsonrpc::Pack::Text;
+constexpr auto default_format = jsonrpc::Pack::MsgPack;
+constexpr auto content_type = default_format == jsonrpc::Pack::Text ?
+  http::CONTENT_TYPE_JSON :
+  (default_format == jsonrpc::Pack::MsgPack ? http::CONTENT_TYPE_MSGPACK :
+                                              "unknown");
 
 nlohmann::json parse_response(const vector<uint8_t>& v)
 {
@@ -143,6 +146,7 @@ using Params = map<string, json>;
 std::vector<uint8_t> make_pc(const string& method, const Params& params)
 {
   auto request = http::Request(method);
+  request.set_header(http::HTTP_HEADER_CONTENT_TYPE, content_type);
   return request.build_request(jsonrpc::pack(params, default_format));
 }
 
