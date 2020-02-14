@@ -12,6 +12,10 @@ Append_entries::Append_entries() :
   Message(Append_entries_tag, sizeof(Append_entries_rep))
 {}
 
+Append_entries::Append_entries(uint32_t msg_size) :
+  Message(Append_entries_tag, msg_size)
+{}
+
 bool Append_entries::verify()
 {
   return true;

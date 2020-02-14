@@ -473,8 +473,8 @@ void ReceiverThread::Work()
               << std::endl;
 
     if (
-      ret >= (int)sizeof(Message_rep) && ret >= (int)m->size() &&
-      Replica::pre_verify(m))
+      m != nullptr && ret >= (int)sizeof(Message_rep) &&
+      ret >= (int)m->size() && Replica::pre_verify(m))
     {
       queue(m);
       continue;

@@ -249,7 +249,7 @@ static uint64_t verification_thread = 0;
 
 Message* Replica::create_message(const uint8_t* data, uint32_t size)
 {
-  uint64_t alloc_size = std::max(size, (uint32_t)Max_message_size);
+  uint64_t alloc_size = size;
 
   Message* m;
 
@@ -329,9 +329,14 @@ Message* Replica::create_message(const uint8_t* data, uint32_t size)
       m = new Network_open((uint32_t)alloc_size);
       break;
 
+    case Append_entries_tag:
+      m = new Append_entries((uint32_t)alloc_size);
+      break;
+
     default:
       // Unknown message type.
       delete m;
+      return nullptr;
   }
 
   memcpy(m->contents(), data, size);

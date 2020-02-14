@@ -20,6 +20,7 @@ class Append_entries : public Message
 {
 public:
   Append_entries();
+  Append_entries(uint32_t msg_size);
 
   bool verify();
 
