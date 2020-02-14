@@ -5,7 +5,7 @@ This section describes how a consortium of trusted :term:`members` governs an ex
 
 Before creating a new CCF network, the identity of the initial member(s) of the consortium must be generated.
 
-The ``CCF/tests/keygenerator.sh`` script can be used to generate the member's certificate and associated private key. For example, to generate the first member's certificate and private key:
+The ``CCF/tests/keygenerator.sh`` script can be used to generate the member's certificate and associated private key as well as their key share public and private keys. For example, to generate the first member's information:
 
 .. code-block:: bash
 
@@ -15,8 +15,8 @@ The ``CCF/tests/keygenerator.sh`` script can be used to generate the member's ce
     Identity certificate generated at:   member1_cert.pem (to be registered in CCF)
     Identity private key generated at:   member1_privk.pem
     -- Generating key share pair for participant "member1"...
-    Key share public key generated at:   member1_kshare_priv.pem (to be registered in CCF)
-    Key share private key generated at:  member1_kshare_pub.pem
+    Key share public key generated at:   member1_kshare_pub.pem (to be registered in CCF)
+    Key share private key generated at:  member1_kshare_priv.pem
 
 .. note:: See :ref:`developers/cryptography:Algorithms and Curves` for the list of supported cryptographic curves.
 

@@ -268,7 +268,7 @@ namespace pbft
 
       ::NodeInfo node_info = {my_info, privk_pem, general_info};
 
-      int mem_size = 40 * 8192;
+      int mem_size = 64;
       mem = (char*)malloc(mem_size);
       bzero(mem, mem_size);
 

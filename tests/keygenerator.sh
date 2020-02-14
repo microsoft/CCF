@@ -97,6 +97,6 @@ if "$generate_encryption_key"; then
     openssl genpkey -out "$keyshare_priv" -algorithm "$EDWARDS_CURVE"
     openssl pkey -in "$keyshare_priv" -pubout -out "$keyshare_pub"
 
-    echo "Key share public key generated at:   $keyshare_priv (to be registered in CCF)"
-    echo "Key share private key generated at:  $keyshare_pub"
+    echo "Key share public key generated at:   $keyshare_pub (to be registered in CCF)"
+    echo "Key share private key generated at:  $keyshare_priv"
 fi

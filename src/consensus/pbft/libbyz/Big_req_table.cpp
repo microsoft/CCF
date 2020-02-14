@@ -211,7 +211,7 @@ bool Big_req_table::add_unmatched(Request* r, Request*& old_req)
 
   if (
     !centry.requests.empty() &&
-    centry.requests.front()->request_id() >= r->request_id())
+    centry.last_value_seen[r->user_id()] >= r->request_id())
   {
     // client is expected to send requests in request id order
     LOG_FAIL << "client is expected to send requests in request id order"
@@ -221,8 +221,7 @@ bool Big_req_table::add_unmatched(Request* r, Request*& old_req)
 
   if (centry.num_requests >= Max_unmatched_requests_per_client)
   {
-    LOG_FAIL_FMT(
-      "Requests are not in request id order from client: {}", r->client_id());
+    LOG_FAIL_FMT("Too many Requests pending from client: {}", r->client_id());
     old_req = centry.requests.back();
     centry.requests.pop_back();
   }
@@ -231,6 +230,7 @@ bool Big_req_table::add_unmatched(Request* r, Request*& old_req)
     centry.num_requests++;
   }
 
+  centry.last_value_seen[r->user_id()] = r->request_id();
   centry.requests.push_front(r);
   return true;
 }

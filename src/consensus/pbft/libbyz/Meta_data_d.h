@@ -46,6 +46,8 @@ class Meta_data_d : public Message
   //  Meta_data_d messages
   //
 public:
+  Meta_data_d(uint32_t msg_size = 0) : Message(msg_size) {}
+
   Meta_data_d(Request_id r, int l, size_t i, Seqno ls);
   // Effects: Creates a new un-authenticated Meta_data_d message with no
   // partition digests.

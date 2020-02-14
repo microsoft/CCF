@@ -200,7 +200,7 @@ int main(int argc, char** argv)
   sigaction(SIGINT, &act, NULL);
   sigaction(SIGTERM, &act, NULL);
 
-  int mem_size = 550 * 8192;
+  int mem_size = 256;
   char* mem = (char*)valloc(mem_size);
   bzero(mem, mem_size);
 

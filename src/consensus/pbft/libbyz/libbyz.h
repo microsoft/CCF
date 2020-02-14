@@ -14,7 +14,7 @@
 #include <stdio.h>
 
 /* Should be a power of 2 less than or equal to the vm page size */
-static const int Block_size = 128;
+static const int Block_size = 64;
 
 #include "types.h"
 

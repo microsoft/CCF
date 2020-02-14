@@ -40,6 +40,8 @@ class Fetch : public Message
   // Fetch messages
   //
 public:
+  Fetch(uint32_t msg_size = 0) : Message(msg_size) {}
+
   Fetch(
     Request_id rid,
     Seqno lu,
