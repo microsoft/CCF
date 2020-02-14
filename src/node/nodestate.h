@@ -343,7 +343,7 @@ namespace ccf
       const auto response = frontend->process(ctx);
       if (!response.has_value())
       {
-        LOG_FAIL_FMT("No response received from processing create request");
+        LOG_INFO_FMT("No response received from processing create request");
         return false;
       }
 
@@ -353,7 +353,14 @@ namespace ccf
     bool create_and_send_request(
       const CreateNew::In& args, const std::vector<uint8_t>& quote)
     {
-      return send_create_request(serialize_create_request(args, quote));
+      const auto create_success =
+        send_create_request(serialize_create_request(args, quote));
+
+#ifdef PBFT
+      return true;
+#else
+      return create_success;
+#endif
     }
 
     //
