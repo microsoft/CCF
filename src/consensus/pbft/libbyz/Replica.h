@@ -288,13 +288,6 @@ private:
   //
   // Miscellaneous:
   //
-  bool execute_read_only(Request* m);
-  // Effects: If some request that was tentatively executed did not
-  // commit yet (i.e. last_tentative_execute < last_executed), returns
-  // false.  Otherwise, returns true, executes the command in request
-  // "m" (provided it is really read-only and does not require
-  // non-deterministic choices), and sends a reply to the client
-
   void execute_committed(bool was_f_0 = false);
   // Effects: Executes as many commands as possible by calling
   // execute_prepared; sends Checkpoint messages when needed and
