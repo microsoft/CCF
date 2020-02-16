@@ -56,7 +56,6 @@ struct ByzInfo
 using ExecCommand = std::function<int(
   Byz_req*,
   Byz_rep&,
-  Byz_buffer*,
   // client id
   int,
   Request_id,

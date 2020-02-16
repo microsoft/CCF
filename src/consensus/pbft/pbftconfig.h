@@ -50,7 +50,6 @@ namespace pbft
     ExecCommand exec_command = [this](
                                  Byz_req* inb,
                                  Byz_rep& outb,
-                                 _Byz_buffer* non_det,
                                  int client,
                                  Request_id rid,
                                  bool ro,

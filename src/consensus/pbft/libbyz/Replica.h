@@ -80,19 +80,6 @@ public:
   void register_exec(ExecCommand e);
   // Effects: Registers "e" as the exec_command function.
 
-  void register_nondet_choices(void (*n)(Seqno, Byz_buffer*), int max_len);
-  // Effects: Registers "n" as the non_det_choices function.
-
-  void compute_non_det(Seqno n, char* b, int* b_len);
-  // Requires: "b" points to "*b_len" bytes.
-  // Effects: Computes non-deterministic choices for sequence number
-  // "n", places them in the array pointed to by "b" and returns their
-  // size in "*b_len".
-
-  int max_nd_bytes() const;
-  // Effects: Returns the maximum length in bytes of the choices
-  // computed by compute_non_det
-
   int used_state_bytes() const;
   // Effects: Returns the number of bytes used up to store protocol
   // information.
@@ -321,8 +308,6 @@ private:
     Request& request,
     ByzInfo& info,
     int64_t& max_local_commit_value,
-    Byz_buffer& non_det,
-    char* nondet_choices = nullptr,
     ccf::Store::Tx* tx = nullptr,
     Seqno seqno = -1);
   // Effects: called by execute_tentative or playback_request to execute the
@@ -555,20 +540,12 @@ private:
   //
   ExecCommand exec_command;
 
-  void (*non_det_choices)(Seqno, Byz_buffer*);
-  int max_nondet_choice_len;
-
   //
   // Statistics to set pre_prepare batch info
   //
   std::unordered_map<Seqno, uint64_t> requests_per_batch;
   std::list<uint64_t> max_pending_reqs;
 };
-
-inline int Replica::max_nd_bytes() const
-{
-  return max_nondet_choice_len;
-}
 
 inline int Replica::used_state_bytes() const
 {

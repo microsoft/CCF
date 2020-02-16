@@ -192,7 +192,6 @@ static IMessageReceiveBase* message_receive_base;
 ExecCommand exec_command = [](
                              Byz_req* inb,
                              Byz_rep& outb,
-                             _Byz_buffer* non_det,
                              int client,
                              Request_id rid,
                              bool ro,
@@ -413,8 +412,6 @@ int main(int argc, char** argv)
     mem,
     mem_size,
     exec_command,
-    0,
-    0,
     network,
     pbft_requests_map,
     pbft_pre_prepares_map,

@@ -164,7 +164,6 @@ Replica::Replica(
   max_rec_n = 0;
 
   exec_command = nullptr;
-  non_det_choices = 0;
 
   ledger_writer = std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map);
 }
@@ -172,27 +171,6 @@ Replica::Replica(
 void Replica::register_exec(ExecCommand e)
 {
   exec_command = e;
-}
-
-void Replica::register_nondet_choices(
-  void (*n)(Seqno, Byz_buffer*), int max_len)
-{
-  non_det_choices = n;
-  max_nondet_choice_len = max_len;
-}
-
-void Replica::compute_non_det(Seqno s, char* b, int* b_len)
-{
-  if (non_det_choices == 0)
-  {
-    *b_len = 0;
-    return;
-  }
-  Byz_buffer buf;
-  buf.contents = b;
-  buf.size = *b_len;
-  non_det_choices(s, &buf);
-  *b_len = buf.size;
 }
 
 Replica::~Replica() = default;
@@ -471,7 +449,6 @@ void Replica::playback_request(ccf::Store::Tx& tx)
   }
 
   waiting_for_playback_pp = true;
-  Byz_buffer non_det;
   // we don't know how many requests are in the batch we are currently playing
   // back
   playback_byz_info.include_merkle_roots = true;
@@ -480,9 +457,8 @@ void Replica::playback_request(ccf::Store::Tx& tx)
     *req,
     playback_byz_info,
     playback_max_local_commit_value,
-    non_det,
-    nullptr,
-    &tx);
+    &tx,
+    true);
 }
 
 void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
@@ -956,9 +932,6 @@ void Replica::handle(Pre_prepare* m)
   }
 
   const Seqno ms = m->seqno();
-  Byz_buffer b;
-
-  b.contents = m->choices(b.size);
 
   LOG_TRACE << "Received pre prepare with seqno: " << ms
             << ", in_wv:" << (in_wv(m) ? "true" : "false")
@@ -2142,8 +2115,6 @@ void Replica::execute_tentative_request(
   Request& request,
   ByzInfo& info,
   int64_t& max_local_commit_value,
-  Byz_buffer& non_det,
-  char* nondet_choices,
   ccf::Store::Tx* tx,
   Seqno seqno)
 {
@@ -2155,11 +2126,6 @@ void Replica::execute_tentative_request(
   Byz_req inb;
   Byz_rep outb;
   inb.contents = request.command(inb.size);
-
-  if (non_det_choices)
-  {
-    non_det.contents = nondet_choices;
-  }
 
   Request_id rid = request.request_id();
   // Execute command in a regular request.
@@ -2174,7 +2140,6 @@ void Replica::execute_tentative_request(
   exec_command(
     &inb,
     outb,
-    &non_det,
     client_id,
     rid,
     false,
@@ -2228,14 +2193,11 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
 
     while (iter.get(request))
     {
-      Byz_buffer non_det;
       info.include_merkle_roots = !iter.has_more_requests();
       execute_tentative_request(
         request,
         info,
         max_local_commit_value,
-        non_det,
-        pp->choices(non_det.size),
         nullptr,
         pp->seqno());
       LOG_DEBUG_FMT(
