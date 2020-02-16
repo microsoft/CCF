@@ -2120,44 +2120,37 @@ void Replica::execute_tentative_request(
 {
   auto stash_replier = request.replier();
   request.set_replier(-1);
+  replies.count_request();
   int client_id = request.client_id();
 
-  // Obtain "in" and "out" buffers to call exec_command
-  Byz_req inb;
-  Byz_rep outb;
-  inb.contents = request.command(inb.size);
-
-  Request_id rid = request.request_id();
-  // Execute command in a regular request.
-  replies.count_request();
-  LOG_TRACE_FMT(
-    "before exec command with seqno: {} rid {} cid {} rid digest {}",
-    seqno,
-    rid,
-    request.client_id(),
-    request.digest().hash());
-
-  exec_command(
-    &inb,
-    outb,
+  auto cmd = std::make_unique<ExecCommandMsg>(
     client_id,
-    rid,
-    false,
+    request.request_id(),
     (uint8_t*)request.contents(),
     request.contents_size(),
     replies.total_requests_processed(),
-    info,
     tx);
-  right_pad_contents(outb);
 
-  // restore replier
+  // Obtain "in" and "out" buffers to call exec_command
+  cmd->inb.contents = request.command(cmd->inb.size);
+
+  LOG_TRACE_FMT(
+    "before exec command with seqno: {} rid {} cid {} rid digest {}",
+    seqno,
+    cmd->rid,
+    request.client_id(),
+    request.digest().hash());
+
+  exec_command(*cmd.get(), info);
+
+  right_pad_contents(cmd->outb);
   request.set_replier(stash_replier);
   // Finish constructing the reply.
   LOG_DEBUG_FMT(
     "Executed from tentative exec: {} from client: {} rid {} commit_id {}",
     seqno,
     client_id,
-    rid,
+    cmd->rid,
     info.ctx);
 
   if (info.ctx > max_local_commit_value)
@@ -2167,7 +2160,7 @@ void Replica::execute_tentative_request(
 
   info.ctx = max_local_commit_value;
 
-  replies.end_reply(client_id, rid, last_tentative_execute, outb.size);
+  replies.end_reply(client_id, cmd->rid, last_tentative_execute, cmd->outb.size);
 }
 
 bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)

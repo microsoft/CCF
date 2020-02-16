@@ -47,17 +47,16 @@ namespace pbft
 
     IMessageReceiveBase* message_receive_base;
 
-    ExecCommand exec_command = [this](
-                                 Byz_req* inb,
-                                 Byz_rep& outb,
-                                 int client,
-                                 Request_id rid,
-                                 bool ro,
-                                 uint8_t* req_start,
-                                 size_t req_size,
-                                 Seqno total_requests_executed,
-                                 ByzInfo& info,
-                                 ccf::Store::Tx* tx = nullptr) {
+    ExecCommand exec_command = [this](ExecCommandMsg& msg, ByzInfo& info) {
+      Byz_req* inb = &msg.inb;
+      Byz_rep& outb = msg.outb;
+      int client = msg.client;
+      Request_id rid = msg.rid;
+      uint8_t* req_start = msg.req_start;
+      size_t req_size = msg.req_size;
+      Seqno total_requests_executed = msg.total_requests_executed;
+      ccf::Store::Tx* tx = msg.tx;
+
       pbft::Request request;
       request.deserialise({inb->contents, inb->contents + inb->size});
 

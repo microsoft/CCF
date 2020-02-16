@@ -188,18 +188,18 @@ void setup_client_proxy()
 static char* service_mem = 0;
 static IMessageReceiveBase* message_receive_base;
 
-// Service specific functions.
 ExecCommand exec_command = [](
-                             Byz_req* inb,
-                             Byz_rep& outb,
-                             int client,
-                             Request_id rid,
-                             bool ro,
-                             uint8_t* req_start,
-                             size_t req_size,
-                             Seqno total_requests_executed,
-                             ByzInfo& info,
-                             ccf::Store::Tx* tx = nullptr) {
+                             ExecCommandMsg& msg,
+                             ByzInfo& info) {
+  Byz_req* inb = &msg.inb;
+  Byz_rep& outb = msg.outb;
+  int client = msg.client;
+  Request_id rid = msg.rid;
+  uint8_t* req_start = msg.req_start;
+  size_t req_size = msg.req_size;
+  Seqno total_requests_executed = msg.total_requests_executed;
+  ccf::Store::Tx* tx = msg.tx;
+
   outb.contents = message_receive_base->create_response_message(client, rid, 8);
 
   Long& counter = *(Long*)service_mem;

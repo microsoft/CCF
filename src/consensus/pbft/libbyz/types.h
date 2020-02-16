@@ -53,20 +53,34 @@ struct ByzInfo
   bool include_merkle_roots;
 };
 
-using ExecCommand = std::function<int(
-  Byz_req*,
-  Byz_rep&,
-  // client id
-  int,
-  Request_id,
-  // read only
-  bool,
-  // start of the pbft Request contents
-  uint8_t* req_start,
-  // pbft Request contents size
-  size_t req_size,
-  Seqno,
-  ByzInfo&,
-  // if tx is nullptr we are in normal execution, otherwise we are in playback
-  // mode
-  ccf::Store::Tx*)>;
+struct ExecCommandMsg
+{
+  ExecCommandMsg(
+    int client_,
+    Request_id rid_,
+    uint8_t* req_start_,
+    size_t req_size_,
+    Seqno total_requests_executed_,
+    // if tx is nullptr we are in normal execution, otherwise we are in playback
+    // mode
+    ccf::Store::Tx* tx_ = nullptr) :
+    client(client_),
+    rid(rid_),
+    req_start(req_start_),
+    req_size(req_size_),
+    total_requests_executed(total_requests_executed_),
+    tx(tx_)
+  {}
+
+  Byz_req inb;
+  Byz_rep outb;
+  int client;
+  Request_id rid;
+  uint8_t* req_start;
+  size_t req_size;
+  Seqno total_requests_executed;
+  ccf::Store::Tx* tx;
+};
+
+using ExecCommand =
+  std::function<int(ExecCommandMsg& msg, ByzInfo&)>;
