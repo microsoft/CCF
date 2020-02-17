@@ -2129,6 +2129,11 @@ void Replica::execute_tentative_request(
     (uint8_t*)request.contents(),
     request.contents_size(),
     replies.total_requests_processed(),
+    last_tentative_execute,
+    max_local_commit_value,
+    stash_replier,
+    request,
+    &Replica::execute_tentative_request_end,
     tx);
 
   // Obtain "in" and "out" buffers to call exec_command
@@ -2143,24 +2148,23 @@ void Replica::execute_tentative_request(
 
   exec_command(*cmd.get(), info);
 
-  right_pad_contents(cmd->outb);
-  request.set_replier(stash_replier);
-  // Finish constructing the reply.
-  LOG_DEBUG_FMT(
-    "Executed from tentative exec: {} from client: {} rid {} commit_id {}",
-    seqno,
-    client_id,
-    cmd->rid,
-    info.ctx);
+}
 
-  if (info.ctx > max_local_commit_value)
+void Replica::execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info) {
+
+  right_pad_contents(msg.outb);
+  msg.request.set_replier(msg.replier);
+  // Finish constructing the reply.
+
+  if (info.ctx > msg.max_local_commit_value)
   {
-    max_local_commit_value = info.ctx;
+    msg.max_local_commit_value = info.ctx;
   }
 
-  info.ctx = max_local_commit_value;
+  info.ctx = msg.max_local_commit_value;
 
-  replies.end_reply(client_id, cmd->rid, last_tentative_execute, cmd->outb.size);
+  pbft::GlobalState::get_replica().replies.end_reply(
+    msg.client, msg.rid, msg.last_tentative_execute, msg.outb.size);
 }
 
 bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)

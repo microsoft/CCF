@@ -313,12 +313,14 @@ private:
   // Effects: called by execute_tentative or playback_request to execute the
   // request. seqno == -1 means we are running it from playback
 
+  static void execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info);
+
   void create_recovery_reply(
     int client_id, int last_tentative_execute, Byz_rep& outb);
   // Handle recovery requests, i.e., requests from replicas,
   // differently.
 
-  void right_pad_contents(Byz_rep& outb);
+  static void right_pad_contents(Byz_rep& outb);
 
   void mark_stable(Seqno seqno, bool have_state);
   // Requires: Checkpoint with sequence number "seqno" is stable.

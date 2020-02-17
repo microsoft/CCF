@@ -282,6 +282,7 @@ ExecCommand exec_command = [](
   Byz_modify(outb.contents, 8);
   *((long long*)(outb.contents)) = 0;
   outb.size = 8;
+  msg.cb(msg, info);
   return 0;
 };
 

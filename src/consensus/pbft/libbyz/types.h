@@ -53,6 +53,10 @@ struct ByzInfo
   bool include_merkle_roots;
 };
 
+class Request;
+struct ExecCommandMsg;
+struct ByzInfo;
+
 struct ExecCommandMsg
 {
   ExecCommandMsg(
@@ -61,6 +65,11 @@ struct ExecCommandMsg
     uint8_t* req_start_,
     size_t req_size_,
     Seqno total_requests_executed_,
+    Seqno last_tentative_execute_,
+    int64_t& max_local_commit_value_,
+    int replier_,
+    Request& request_,
+    void(*cb_)(ExecCommandMsg& msg, ByzInfo& info),
     // if tx is nullptr we are in normal execution, otherwise we are in playback
     // mode
     ccf::Store::Tx* tx_ = nullptr) :
@@ -69,6 +78,11 @@ struct ExecCommandMsg
     req_start(req_start_),
     req_size(req_size_),
     total_requests_executed(total_requests_executed_),
+    last_tentative_execute(last_tentative_execute_),
+    max_local_commit_value(max_local_commit_value_),
+    replier(replier_),
+    request(request_),
+    cb(cb_),
     tx(tx_)
   {}
 
@@ -80,6 +94,13 @@ struct ExecCommandMsg
   size_t req_size;
   Seqno total_requests_executed;
   ccf::Store::Tx* tx;
+
+  // Required for the callback
+  Seqno last_tentative_execute;
+  int64_t& max_local_commit_value;
+  int replier;
+  Request& request;
+  void(*cb)(ExecCommandMsg& msg, ByzInfo& info);
 };
 
 using ExecCommand =

@@ -117,6 +117,7 @@ namespace pbft
       serialized::write(
         outb_ptr, outb_size, rep.result.data(), rep.result.size());
 
+      msg.cb(msg, info);
       return 0;
     };
   };
