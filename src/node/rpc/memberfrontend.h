@@ -254,9 +254,10 @@ namespace ccf
         proposed_calls,
         votes);
 
-      switch(pass)
+      switch (pass)
       {
-        case CompletionResult::PASSED:        {
+        case CompletionResult::PASSED:
+        {
           // vote passed, go on to update the state
           break;
         }
@@ -274,7 +275,8 @@ namespace ccf
         }
         default:
         {
-          throw std::logic_error(fmt::format("Invalid completion result: {}", pass));
+          throw std::logic_error(
+            fmt::format("Invalid completion result: {}", pass));
         }
       };
 
