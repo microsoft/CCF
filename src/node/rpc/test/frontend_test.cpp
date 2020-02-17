@@ -296,16 +296,22 @@ auto create_simple_request(
 
 std::pair<http::Request, ccf::SignedReq> create_signed_request(
   const http::Request& r = create_simple_request(),
-  const std::vector<uint8_t>& body = {})
+  const std::vector<uint8_t>* body = nullptr)
 {
   http::Request s(r);
-  s.set_body(&body);
+
+  if (body != nullptr)
+  {
+    s.set_body(body);
+  }
 
   http::SigningDetails details;
   http::sign_request(s, kp, &details);
 
-  ccf::SignedReq signed_req{
-    details.signature, details.to_sign, body, MBEDTLS_MD_SHA256};
+  ccf::SignedReq signed_req{details.signature,
+                            details.to_sign,
+                            body == nullptr ? std::vector<uint8_t>() : *body,
+                            MBEDTLS_MD_SHA256};
   return {s, signed_req};
 }
 
@@ -558,7 +564,7 @@ TEST_CASE("MinimalHandleFunction")
       const auto serialized_body = jsonrpc::pack(j_body, pack_type);
 
       auto [signed_call, signed_req] =
-        create_signed_request(echo_call, serialized_body);
+        create_signed_request(echo_call, &serialized_body);
       signed_call.set_body(&serialized_body);
       const auto serialized_call = signed_call.build_request();
 

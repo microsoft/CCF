@@ -127,10 +127,13 @@ namespace http
         raw_request.data(),
         canonical_request_header.data(),
         canonical_request_header.size());
-      ::memcpy(
-        raw_request.data() + canonical_request_header.size(),
-        request_body.data(),
-        request_body.size());
+      if (!request_body.empty())
+      {
+        ::memcpy(
+          raw_request.data() + canonical_request_header.size(),
+          request_body.data(),
+          request_body.size());
+      }
 
       auto signed_req = http::HttpSignatureVerifier::parse(
         std::string(http_method_str(verb)),
