@@ -25,8 +25,8 @@ To create a new CCF network, the first node of the network should be started wit
     --quote-file /path/to/quote
     start
     --network-cert-file /path/to/network_certificate
-    --member-cert /path/to/member1_cert
-    [--member-cert /path/to/member2_cert ...]
+    --member-info /path/to/member1_cert,/path/to/member1_kshare_pub
+    [--member-info /path/to/member2_cert,/path/to/member2_kshare_pub ...]
     --gov-script /path/to/lua/governance_script
 
 CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported) or by specifying domain names. If domain names are to be used then ``--domain`` should be passed to the node at startup. Once a DNS has been setup it will be possible to connect to the node over TLS by using the node's domain name.
@@ -37,7 +37,7 @@ When starting up, the node generates its own key pair and outputs the certificat
 
 .. note:: The network certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using curl, this is passed as the ``--cacert`` argument.
 
-The certificates of initial members of the consortium are specified via ``--member-cert``. For example, if 3 members (``member1_cert.pem``, ``member2_cert.pem`` and ``member3_cert.pem``) should be added to CCF, operators should specify ``--member-cert member1_cert.pem --member-cert member2_cert.pem --member-cert member3_cert.pem``.
+The certificates and key-share public keys of initial members of the consortium are specified via ``--member-info``. For example, if 3 members should be added to CCF, operators should specify ``--member-info member1_cert.pem,member1_kshare_pub.pem``, ``--member-info member2_cert.pem,member2_kshare_pub.pem``, ``--member-info member3_cert.pem,member3_kshare_pub.pem``.
 
 The :term:`constitution`, as defined by the initial members, should be passed via the ``--gov-script`` option.
 

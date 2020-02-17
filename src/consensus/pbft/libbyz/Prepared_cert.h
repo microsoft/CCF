@@ -63,6 +63,9 @@ public:
   // reference to a big request is d, records that d is cached and may
   // make the certificate complete.
 
+  void update();
+  // Update f if needed
+
   Prepare* my_prepare();
   Prepare* my_prepare(Time& t);
   Pre_prepare* my_pre_prepare();
@@ -133,6 +136,11 @@ private:
   bool primary; // true iff pp was added with add_mine
 };
 
+inline void Prepared_cert::update()
+{
+  prepare_cert.update();
+}
+
 inline bool Prepared_cert::add(Prepare* m)
 {
   int id = m->id();
@@ -182,6 +190,7 @@ inline bool Prepared_cert::add_mine(Pre_prepare* m)
       pbft::GlobalState::get_node().primary(m->view()),
     "Invalid Argument");
   PBFT_ASSERT(!pp_info.pre_prepare(), "Invalid state");
+  prepare_cert.update();
   pp_info.add_complete(m);
   primary = true;
   t_sent = ITimer::current_time();

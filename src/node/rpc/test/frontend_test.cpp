@@ -346,6 +346,8 @@ auto kp_other = tls::make_key_pair();
 auto invalid_caller = kp_other -> self_sign("CN=name");
 auto invalid_caller_der = tls::make_verifier(invalid_caller) -> der_cert_data();
 
+std::vector<uint8_t> dummy_key_share = {1, 2, 3};
+
 const enclave::SessionContext user_session(
   enclave::InvalidSessionId, user_caller_der);
 const enclave::SessionContext invalid_session(
@@ -381,8 +383,8 @@ void prepare_callers()
   user_id = g.add_user(user_caller);
   invalid_user_id = g.add_user(invalid_caller);
   nos_id = g.add_user(nos_caller);
-  member_id = g.add_member(member_caller);
-  invalid_member_id = g.add_member(invalid_caller);
+  member_id = g.add_member(member_caller, dummy_key_share);
+  invalid_member_id = g.add_member(invalid_caller, dummy_key_share);
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 
@@ -393,7 +395,7 @@ void add_callers_primary_store()
   GenesisGenerator g(network2, gen_tx);
   g.init_values();
   user_id = g.add_user(user_caller);
-  member_id = g.add_member(member_caller);
+  member_id = g.add_member(member_caller, dummy_key_share);
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 

@@ -257,9 +257,9 @@ namespace ccf
     {
       CreateNetworkNodeToNode::In create_params;
 
-      for (auto& cert : args.config.genesis.member_certs)
+      for (auto& m_info : args.config.genesis.members_info)
       {
-        create_params.member_cert.push_back(cert);
+        create_params.members_info.push_back(m_info);
       }
 
       create_params.gov_script = args.config.genesis.gov_script;
@@ -561,7 +561,9 @@ namespace ccf
 #ifdef GET_QUOTE
       auto quote_opt = get_quote();
       if (!quote_opt.has_value())
-        LOG_FATAL_FMT("Quote could not be retrieved");
+      {
+        throw std::logic_error("Quote could not be retrieved");
+      }
       quote = quote_opt.value();
 #endif
       join_params.quote = quote;
@@ -687,7 +689,9 @@ namespace ccf
 #ifdef GET_QUOTE
       auto quote_opt = get_quote();
       if (!quote_opt.has_value())
-        LOG_FATAL_FMT("Quote could not be retrieved");
+      {
+        throw std::logic_error("Quote could not be retrieved");
+      }
       quote = quote_opt.value();
 #endif
 
@@ -786,7 +790,7 @@ namespace ccf
       auto h = dynamic_cast<MerkleTxHistory*>(recovery_history.get());
       if (h->get_full_state_root() != recovery_root)
       {
-        LOG_FATAL_FMT(
+        throw std::logic_error(
           "Root of public store does not match root of private store");
       }
 

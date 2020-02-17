@@ -33,7 +33,7 @@ void Byz_reset_client()
 
 int Byz_alloc_request(Byz_req* req, int size)
 {
-  Request* request = new Request((Request_id)0);
+  Request* request = new Request((Request_id)0, -1);
   if (request == 0)
   {
     return -1;
@@ -110,8 +110,6 @@ int Byz_init_replica(
   char* mem,
   unsigned int size,
   ExecCommand exec,
-  void (*comp_ndet)(Seqno, Byz_buffer*),
-  int ndet_max_len,
   INetwork* network,
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map,
@@ -135,8 +133,6 @@ int Byz_init_replica(
 
   // Register service-specific functions.
   pbft::GlobalState::get_replica().register_exec(exec);
-  pbft::GlobalState::get_replica().register_nondet_choices(
-    comp_ndet, ndet_max_len);
 
   auto used_bytes = pbft::GlobalState::get_replica().used_state_bytes();
   stats.zero_stats();

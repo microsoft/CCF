@@ -14,7 +14,7 @@
 #include <stdio.h>
 
 /* Should be a power of 2 less than or equal to the vm page size */
-static const int Block_size = 128;
+static const int Block_size = 64;
 
 #include "types.h"
 
@@ -99,8 +99,6 @@ int Byz_init_replica(
   char* mem,
   unsigned int size,
   ExecCommand exec,
-  void (*comp_ndet)(Seqno, Byz_buffer*),
-  int ndet_max_len,
   INetwork* network,
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map,

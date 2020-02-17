@@ -274,6 +274,7 @@ namespace http
         // On any exception, close the connection.
         LOG_TRACE_FMT("Closing connection due to exception: {}", e.what());
         close();
+        throw;
       }
     }
   };
@@ -296,7 +297,8 @@ namespace http
 
     void send(const std::vector<uint8_t>& data) override
     {
-      LOG_FATAL_FMT("send() should not be called directly on HTTPClient");
+      throw std::logic_error(
+        "send() should not be called directly on HTTPClient");
     }
 
     void handle_message(

@@ -35,6 +35,8 @@ class Reply_stable : public Message
   //  Reply_stable messages
   //
 public:
+  Reply_stable(uint32_t msg_size = 0) : Message(msg_size) {}
+
   Reply_stable(Seqno lc, Seqno lp, int n, Principal* p);
   // Effects: Creates a new authenticated Reply_stable message with
   // last checkpoint "lc", last prepared request "lp", for a

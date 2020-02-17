@@ -33,6 +33,8 @@ class Commit : public Message
   // Commit messages
   //
 public:
+  Commit(uint32_t msg_size = 0) : Message(msg_size) {}
+
   Commit(View v, Seqno s);
   // Effects: Creates a new Commit message with view number "v"
   // and sequence number "s".

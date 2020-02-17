@@ -44,11 +44,12 @@ namespace pbft
       Term* term = nullptr,
       ccf::Store::Tx* tx = nullptr) = 0;
     virtual void compact(Index v) = 0;
+    virtual void rollback(Index v) = 0;
     virtual kv::Version current_version() = 0;
-    virtual void commit_pre_prepare(
+    virtual kv::Version commit_pre_prepare(
       const pbft::PrePrepare& pp,
       pbft::PrePreparesMap& pbft_pre_prepares_map) = 0;
-    virtual void commit_tx(ccf::Store::Tx& tx) = 0;
+    virtual kv::Version commit_tx(ccf::Store::Tx& tx) = 0;
   };
 
   template <typename T, typename S>
@@ -73,7 +74,7 @@ namespace pbft
       return S::FAILED;
     }
 
-    void commit_pre_prepare(
+    kv::Version commit_pre_prepare(
       const pbft::PrePrepare& pp, pbft::PrePreparesMap& pbft_pre_prepares_map)
     {
       while (true)
@@ -94,13 +95,13 @@ namespace pbft
             false);
           if (success == kv::CommitSuccess::OK)
           {
-            break;
+            return version;
           }
         }
       }
     }
 
-    void commit_tx(ccf::Store::Tx& tx)
+    kv::Version commit_tx(ccf::Store::Tx& tx)
     {
       while (true)
       {
@@ -110,7 +111,7 @@ namespace pbft
           auto success = tx.commit();
           if (success == kv::CommitSuccess::OK)
           {
-            break;
+            return tx.get_version();
           }
         }
       }
@@ -122,6 +123,19 @@ namespace pbft
       if (p)
       {
         p->compact(v);
+      }
+    }
+
+    void rollback(Index v)
+    {
+      while (true)
+      {
+        auto p = x.lock();
+        if (p)
+        {
+          p->rollback(v);
+          break;
+        }
       }
     }
 

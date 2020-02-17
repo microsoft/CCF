@@ -200,7 +200,7 @@ namespace ccf
 
       static int lua_log_fatal(lua_State* l)
       {
-        LOG_FATAL_FMT(get_var_string_from_args(l));
+        throw std::logic_error(get_var_string_from_args(l));
         return 0;
       }
 

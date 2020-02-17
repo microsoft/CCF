@@ -399,18 +399,6 @@ namespace logger
           ts,
           thread_id));
       }
-
-      if (log_level == Level::FATAL)
-        throw std::logic_error(
-          "Fatal: " +
-          config::loggers().front()->format(
-            file_name,
-            line_number,
-            config::to_string(log_level),
-            msg,
-            now,
-            ts,
-            thread_id));
     }
 
     static void write(

@@ -152,7 +152,7 @@ namespace enclave
 
     bool run_main()
     {
-      LOG_INFO_FMT("Running main thread");
+      LOG_DEBUG_FMT("Running main thread");
 #ifndef VIRTUAL_ENCLAVE
       try
 #endif
@@ -262,12 +262,12 @@ namespace enclave
 
     static void init_thread_cb(std::unique_ptr<enclave::Tmsg<Msg>> msg)
     {
-      LOG_INFO_FMT("First thread CB:{}", msg->data.tid);
+      LOG_DEBUG_FMT("First thread CB:{}", msg->data.tid);
     }
 
     bool run_worker()
     {
-      LOG_INFO_FMT("Running worker thread");
+      LOG_DEBUG_FMT("Running worker thread");
 #ifndef VIRTUAL_ENCLAVE
       try
 #endif

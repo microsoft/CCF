@@ -80,19 +80,6 @@ public:
   void register_exec(ExecCommand e);
   // Effects: Registers "e" as the exec_command function.
 
-  void register_nondet_choices(void (*n)(Seqno, Byz_buffer*), int max_len);
-  // Effects: Registers "n" as the non_det_choices function.
-
-  void compute_non_det(Seqno n, char* b, int* b_len);
-  // Requires: "b" points to "*b_len" bytes.
-  // Effects: Computes non-deterministic choices for sequence number
-  // "n", places them in the array pointed to by "b" and returns their
-  // size in "*b_len".
-
-  int max_nd_bytes() const;
-  // Effects: Returns the maximum length in bytes of the choices
-  // computed by compute_non_det
-
   int used_state_bytes() const;
   // Effects: Returns the number of bytes used up to store protocol
   // information.
@@ -130,6 +117,9 @@ public:
   void register_mark_stable(
     mark_stable_handler_cb cb, pbft::MarkStableInfo* ctx);
 
+  void register_rollback_cb(rollback_handler_cb cb, pbft::RollbackInfo* ctx);
+  // Effects: Registers a handler that is called when we rollback
+
   template <typename T>
   std::unique_ptr<T> create_message(
     const uint8_t* message_data, size_t data_size);
@@ -147,9 +137,24 @@ public:
   int my_id() const;
   char* create_response_message(int client_id, Request_id rid, uint32_t size);
 
+  // variables used to keep track of versions so that we can tell the kv to
+  // rollback
+
+  // Keeps track of the kv version after a request has been tentatively executed
+  // and after its pre prepare has been stored to the ledger. If there
+  // is a merkle root mismatch after request execution we can rollback to the
+  // latest successful execution
+  kv::Version last_te_version = 0;
+
+  // these variables keep track of the kv version and sequence number on global
+  // commit so that when there is a view change we know how far to roll back to
+  kv::Version last_gb_version = 0;
+  Seqno last_gb_seqno = 0;
+
   Seqno signature_offset = 0;
   std::atomic<bool> sign_next = false;
-  std::atomic<int64_t> signed_version = 0;
+  std::atomic<kv::Version> signed_version = 0;
+
   Seqno next_expected_sig_offset()
   {
     return signature_offset;
@@ -184,6 +189,9 @@ public:
   void receive_message(const uint8_t* data, uint32_t size);
   // Effects: Use when messages are passed to Replica rather than replica
   // polling
+
+  static Message* create_message(const uint8_t* data, uint32_t size);
+  // Effects: Creates a new message from a buffer
 
   bool compare_execution_results(const ByzInfo& info, Pre_prepare* pre_prepare);
   // Compare the merkle root and batch ctx between the pre-prepare and the
@@ -267,13 +275,6 @@ private:
   //
   // Miscellaneous:
   //
-  bool execute_read_only(Request* m);
-  // Effects: If some request that was tentatively executed did not
-  // commit yet (i.e. last_tentative_execute < last_executed), returns
-  // false.  Otherwise, returns true, executes the command in request
-  // "m" (provided it is really read-only and does not require
-  // non-deterministic choices), and sends a reply to the client
-
   void execute_committed(bool was_f_0 = false);
   // Effects: Executes as many commands as possible by calling
   // execute_prepared; sends Checkpoint messages when needed and
@@ -285,6 +286,14 @@ private:
   // Effects: Sets the min_pre_prepare_batch_size based on
   // historical information.
 
+  void rollback_to_globally_comitted();
+  // Effects: initiates roll back to last globally committed seqno and kv
+  // version
+
+  void global_commit(Pre_prepare* pp);
+  // Effects: calls global commit callback, state checkpoints at seqno and
+  // latest_gb_version and latest_gb_seqno are updated
+
   void execute_prepared(bool committed = false);
   // Effects: Sends back replies that have been executed tentatively
   // to the client. The replies are tentative unless "committed" is true.
@@ -295,23 +304,24 @@ private:
   // exec_command for each command; and sends back replies to the
   // client. The replies are tentative unless "committed" is true.
 
-  void execute_tentative_request(
+  std::unique_ptr<ExecCommandMsg> execute_tentative_request(
     Request& request,
     ByzInfo& info,
     int64_t& max_local_commit_value,
-    Byz_buffer& non_det,
-    char* nondet_choices = nullptr,
+    bool include_markle_roots,
     ccf::Store::Tx* tx = nullptr,
     Seqno seqno = -1);
   // Effects: called by execute_tentative or playback_request to execute the
   // request. seqno == -1 means we are running it from playback
+
+  static void execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info);
 
   void create_recovery_reply(
     int client_id, int last_tentative_execute, Byz_rep& outb);
   // Handle recovery requests, i.e., requests from replicas,
   // differently.
 
-  void right_pad_contents(Byz_rep& outb);
+  static void right_pad_contents(Byz_rep& outb);
 
   void mark_stable(Seqno seqno, bool have_state);
   // Requires: Checkpoint with sequence number "seqno" is stable.
@@ -432,6 +442,7 @@ private:
 #endif
 
   ByzInfo playback_byz_info;
+  size_t playback_before_f = 0;
   // Latest byz info when we are in playback mode. Used to compare the latest
   // execution mt roots and version with the ones in the pre prepare we will get
   // while we are at playback mode
@@ -460,10 +471,15 @@ private:
   mark_stable_handler_cb mark_stable_cb = nullptr;
   pbft::MarkStableInfo* mark_stable_info;
   // callback when we call mark_stable
-  // Used to not the append_entries_index of the stable seqno
+  // Used to note the append_entries_index of the stable seqno
   // We don't want to send append entries further than the latest stable seqno
   // since the replicas store enough messages in that case so that the late
   // joiner can catch up by the usual execution route
+
+  rollback_handler_cb rollback_cb = nullptr;
+  pbft::RollbackInfo* rollback_info;
+  // call back when we are rolling back
+  // Used to rollback the kv to the right version and truncate the ledger
 
   std::unique_ptr<LedgerWriter> ledger_writer;
 
@@ -527,20 +543,12 @@ private:
   //
   ExecCommand exec_command;
 
-  void (*non_det_choices)(Seqno, Byz_buffer*);
-  int max_nondet_choice_len;
-
   //
   // Statistics to set pre_prepare batch info
   //
   std::unordered_map<Seqno, uint64_t> requests_per_batch;
   std::list<uint64_t> max_pending_reqs;
 };
-
-inline int Replica::max_nd_bytes() const
-{
-  return max_nondet_choice_len;
-}
 
 inline int Replica::used_state_bytes() const
 {

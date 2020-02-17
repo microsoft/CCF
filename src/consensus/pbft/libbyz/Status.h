@@ -71,6 +71,8 @@ class Status : public Message
   //  Status messages
   //
 public:
+  Status(uint32_t msg_size = 0) : Message(msg_size) {}
+
   Status(View v, Seqno ls, Seqno le, bool hnvi, bool hnvm);
   // Effects: Creates a new unauthenticated Status message.  "v"
   // should be the sending replica's current view, "ls" should be the

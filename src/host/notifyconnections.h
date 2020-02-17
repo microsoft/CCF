@@ -48,9 +48,9 @@ namespace asynchost
       auto init_res = curl_global_init(CURL_GLOBAL_ALL);
       if (init_res != 0)
       {
-        LOG_FATAL_FMT(
+        throw std::logic_error(fmt::format(
           "libcurl global initialisation failed: {}",
-          curl_easy_strerror(init_res));
+          curl_easy_strerror(init_res)));
       }
 
       if (!host.empty())

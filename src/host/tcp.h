@@ -126,8 +126,8 @@ namespace asynchost
 
         default:
         {
-          LOG_FATAL_FMT("Unexpected status during reconnect: {}", status);
-          abort();
+          throw std::logic_error(
+            fmt::format("Unexpected status during reconnect: {}", status));
         }
       }
 
@@ -170,8 +170,8 @@ namespace asynchost
 
         default:
         {
-          LOG_FATAL_FMT("Unexpected status during write: {}", status);
-          abort();
+          throw std::logic_error(
+            fmt::format("Unexpected status during write: {}", status));
         }
       }
 
@@ -285,12 +285,11 @@ namespace asynchost
     {
       if (status != from)
       {
-        LOG_FATAL_FMT(
+        throw std::logic_error(fmt::format(
           "Trying to transition from {} to {} but current status is {}",
           from,
           to,
-          status);
-        abort();
+          status));
       }
 
       status = to;
@@ -363,8 +362,8 @@ namespace asynchost
 
           default:
           {
-            LOG_FATAL_FMT("Unexpected status during on_resolved: {}", status);
-            abort();
+            throw std::logic_error(
+              fmt::format("Unexpected status during on_resolved: {}", status));
           }
         }
       }
