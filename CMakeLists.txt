@@ -329,7 +329,9 @@ if(BUILD_TESTS)
   use_client_mbedtls(channels_test)
   target_link_libraries(channels_test PRIVATE secp256k1.host)
 
-  add_unit_test(http_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/http_test.cpp)
+  add_unit_test(
+    http_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/http_test.cpp
+  )
   target_link_libraries(http_test PRIVATE http_parser.host)
 
   add_unit_test(
@@ -374,7 +376,9 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/luageneric.cpp
     )
     target_include_directories(luageneric_test PRIVATE ${LUA_DIR})
-    target_link_libraries(luageneric_test PRIVATE lua.host secp256k1.host http_parser.host)
+    target_link_libraries(
+      luageneric_test PRIVATE lua.host secp256k1.host http_parser.host
+    )
   endif()
 
   add_unit_test(
