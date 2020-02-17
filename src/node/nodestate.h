@@ -577,7 +577,7 @@ namespace ccf
         fmt::format("/{}/{}", ccf::Actors::NODES, ccf::NodeProcs::JOIN));
       r.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-        r.set_body(&body);
+      r.set_body(&body);
 
       join_client->send_request(r.build_request());
     }
