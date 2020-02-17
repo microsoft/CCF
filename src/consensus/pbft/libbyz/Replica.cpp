@@ -2151,10 +2151,10 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
 
 void Replica::execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info)
 {
+  // Finish constructing the reply.
   right_pad_contents(msg.outb);
   Request r((Request_rep*)msg.req_start);
   r.set_replier(msg.replier);
-  // Finish constructing the reply.
 
   if (info.ctx > msg.max_local_commit_value)
   {
