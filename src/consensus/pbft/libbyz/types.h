@@ -105,4 +105,4 @@ struct ExecCommandMsg
 };
 
 using ExecCommand =
-  std::function<int(ExecCommandMsg& msg, ByzInfo&)>;
+  std::function<int(std::vector<std::unique_ptr<ExecCommandMsg>>& msgs, ByzInfo&)>;

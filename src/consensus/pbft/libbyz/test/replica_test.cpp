@@ -188,103 +188,109 @@ void setup_client_proxy()
 static char* service_mem = 0;
 static IMessageReceiveBase* message_receive_base;
 
-ExecCommand exec_command = [](
-                             ExecCommandMsg& msg,
-                             ByzInfo& info) {
-  Byz_req* inb = &msg.inb;
-  Byz_rep& outb = msg.outb;
-  int client = msg.client;
-  Request_id rid = msg.rid;
-  uint8_t* req_start = msg.req_start;
-  size_t req_size = msg.req_size;
-  Seqno total_requests_executed = msg.total_requests_executed;
-  ccf::Store::Tx* tx = msg.tx;
-
-  outb.contents = message_receive_base->create_response_message(client, rid, 8);
-
-  Long& counter = *(Long*)service_mem;
-  Long* client_counter_arrays = (Long*)service_mem + sizeof(Long);
-  auto client_counter = client_counter_arrays[client];
-
-  Byz_modify(&counter, sizeof(counter));
-  counter++;
-  have_executed_request = true;
-
-  info.full_state_merkle_root.fill(0);
-  ((Long*)(info.full_state_merkle_root.data()))[0] = counter;
-  info.replicated_state_merkle_root.fill(0);
-  ((Long*)(info.replicated_state_merkle_root.data()))[0] = counter;
-  info.ctx = counter;
-
-  if (total_requests_executed != counter)
-  {
-    LOG_FATAL << "total requests executed: " << total_requests_executed
-              << " not equal to exec command counter: " << counter << "\n";
-    throw std::logic_error(
-      "Total requests executed not equal to exec command counter");
-  }
-
-  if (total_requests_executed % 100 == 0)
-  {
-    LOG_INFO << "total requests executed " << total_requests_executed << "\n";
-  }
-
-  auto request = new (inb->contents) test_req;
-
-  for (size_t j = 0; j < request->get_array_size(inb->size); j++)
-  {
-    uint64_t request_array_counter;
-    memcpy(
-      &request_array_counter,
-      &request->get_counter_array()[j],
-      sizeof(uint64_t));
-
-    if (client_counter != request_array_counter && !broken_requests[client])
+ExecCommand exec_command =
+  [](std::vector<std::unique_ptr<ExecCommandMsg>>& msgs, ByzInfo& info) {
+    for (auto& msg : msgs)
     {
-      broken_requests[client] = 1;
-      LOG_INFO << "client: " << client
-               << " broken state: " << broken_requests[client] << std::endl;
-      LOG_INFO << "client: " << client << std::endl;
-      LOG_INFO << "client counter: " << client_counter
-               << " is smaller than request counter: " << request_array_counter
-               << "\n";
-      // throw std::logic_error("client counter not equal to request counter");
-    }
-    else if (client_counter == request_array_counter && broken_requests[client])
-    {
-      LOG_INFO << "client: " << client << std::endl;
-      broken_requests[client] = 0;
-      LOG_INFO << "client: " << client
-               << " broken state: " << broken_requests[client] << std::endl;
-      LOG_INFO << "Fixed c counter: " << client_counter
-               << " is NOT smaller than request counter: "
-               << request_array_counter << "\n";
-    }
-  }
+      Byz_req* inb = &msg->inb;
+      Byz_rep& outb = msg->outb;
+      int client = msg->client;
+      Request_id rid = msg->rid;
+      uint8_t* req_start = msg->req_start;
+      size_t req_size = msg->req_size;
+      Seqno total_requests_executed = msg->total_requests_executed;
+      ccf::Store::Tx* tx = msg->tx;
 
-  Byz_modify(&client_counter_arrays[client], sizeof(Long));
-  client_counter_arrays[client] = ++client_counter;
+      outb.contents =
+        message_receive_base->create_response_message(client, rid, 8);
 
-  // A simple service.
-  if (request->option == 1)
-  {
-    PBFT_ASSERT(inb->size == 8, "Invalid request");
-    Byz_modify(outb.contents, Simple_size);
-    bzero(outb.contents, Simple_size);
-    outb.size = Simple_size;
+      Long& counter = *(Long*)service_mem;
+      Long* client_counter_arrays = (Long*)service_mem + sizeof(Long);
+      auto client_counter = client_counter_arrays[client];
+
+      Byz_modify(&counter, sizeof(counter));
+      counter++;
+      have_executed_request = true;
+
+      info.full_state_merkle_root.fill(0);
+      ((Long*)(info.full_state_merkle_root.data()))[0] = counter;
+      info.replicated_state_merkle_root.fill(0);
+      ((Long*)(info.replicated_state_merkle_root.data()))[0] = counter;
+      info.ctx = counter;
+
+      if (total_requests_executed != counter)
+      {
+        LOG_FATAL << "total requests executed: " << total_requests_executed
+                  << " not equal to exec command counter: " << counter << "\n";
+        throw std::logic_error(
+          "Total requests executed not equal to exec command counter");
+      }
+
+      if (total_requests_executed % 100 == 0)
+      {
+        LOG_INFO << "total requests executed " << total_requests_executed
+                 << "\n";
+      }
+
+      auto request = new (inb->contents) test_req;
+
+      for (size_t j = 0; j < request->get_array_size(inb->size); j++)
+      {
+        uint64_t request_array_counter;
+        memcpy(
+          &request_array_counter,
+          &request->get_counter_array()[j],
+          sizeof(uint64_t));
+
+        if (client_counter != request_array_counter && !broken_requests[client])
+        {
+          broken_requests[client] = 1;
+          LOG_INFO << "client: " << client
+                   << " broken state: " << broken_requests[client] << std::endl;
+          LOG_INFO << "client: " << client << std::endl;
+          LOG_INFO << "client counter: " << client_counter
+                   << " is smaller than request counter: "
+                   << request_array_counter << "\n";
+          // throw std::logic_error("client counter not equal to request
+          // counter");
+        }
+        else if (
+          client_counter == request_array_counter && broken_requests[client])
+        {
+          LOG_INFO << "client: " << client << std::endl;
+          broken_requests[client] = 0;
+          LOG_INFO << "client: " << client
+                   << " broken state: " << broken_requests[client] << std::endl;
+          LOG_INFO << "Fixed c counter: " << client_counter
+                   << " is NOT smaller than request counter: "
+                   << request_array_counter << "\n";
+        }
+      }
+
+      Byz_modify(&client_counter_arrays[client], sizeof(Long));
+      client_counter_arrays[client] = ++client_counter;
+
+      // A simple service.
+      if (request->option == 1)
+      {
+        PBFT_ASSERT(inb->size == 8, "Invalid request");
+        Byz_modify(outb.contents, Simple_size);
+        bzero(outb.contents, Simple_size);
+        outb.size = Simple_size;
+        return 0;
+      }
+
+      PBFT_ASSERT(
+        (request->option == 2 && inb->size == Simple_size) ||
+          (request->option == 0 && inb->size == 8),
+        "Invalid request");
+      Byz_modify(outb.contents, 8);
+      *((long long*)(outb.contents)) = 0;
+      outb.size = 8;
+      msg->cb(*msg.get(), info);
+    }
     return 0;
-  }
-
-  PBFT_ASSERT(
-    (request->option == 2 && inb->size == Simple_size) ||
-      (request->option == 0 && inb->size == 8),
-    "Invalid request");
-  Byz_modify(outb.contents, 8);
-  *((long long*)(outb.contents)) = 0;
-  outb.size = 8;
-  msg.cb(msg, info);
-  return 0;
-};
+  };
 
 int main(int argc, char** argv)
 {

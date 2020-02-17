@@ -457,8 +457,11 @@ void Replica::playback_request(ccf::Store::Tx& tx)
     true,
     &tx,
     true);
+  
+  std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
+  cmds.push_back(std::move(cmd));
 
-  exec_command(*cmd.get(), playback_byz_info);
+  exec_command(cmds, playback_byz_info);
 }
 
 void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
@@ -2148,7 +2151,6 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
     request.client_id(),
     request.digest().hash());
 
-  //exec_command(*cmd.get(), info);
   return cmd;
 }
 
@@ -2205,9 +2207,7 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
       cmds.push_back(std::move(cmd));
     }
 
-    for (auto& c : cmds) {
-      exec_command(*c.get(), info);
-    }
+    exec_command(cmds, info);
     return true;
   }
   return false;
