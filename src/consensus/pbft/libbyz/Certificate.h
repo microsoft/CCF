@@ -102,6 +102,9 @@ public:
   // Effects: If cvalue() is not null, makes the certificate
   // complete.
 
+  void update();
+  // Effects: reset f if needed
+
   void mark_stale();
   // Effects: Discards all messages in certificate except mine.
 
@@ -161,6 +164,7 @@ private:
       clear();
     }
   };
+
   Message_val* vals; // vector with all distinct message values in this
   int max_size; // maximum number of elements in vals, f+1
   int cur_size; // current number of elements in vals
@@ -188,6 +192,7 @@ private:
 template <class T>
 inline T* Certificate<T>::mine(Time& t)
 {
+  update();
   if (mym)
   {
     t = t_sent;
@@ -198,6 +203,7 @@ inline T* Certificate<T>::mine(Time& t)
 template <class T>
 inline T* Certificate<T>::mine()
 {
+  update();
   return mym;
 }
 
@@ -217,6 +223,15 @@ template <class T>
 inline int Certificate<T>::num_complete() const
 {
   return complete;
+}
+
+template <class T>
+inline void Certificate<T>::update()
+{
+  if (bmap.none() && f != pbft::GlobalState::get_node().f())
+  {
+    reset_f();
+  }
 }
 
 template <class T>

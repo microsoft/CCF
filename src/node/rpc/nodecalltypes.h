@@ -4,6 +4,7 @@
 #include "ds/json_schema.h"
 #include "node/identity.h"
 #include "node/ledgersecrets.h"
+#include "node/members.h"
 #include "node/nodeinfonetwork.h"
 
 #include <nlohmann/json.hpp>
@@ -52,7 +53,7 @@ namespace ccf
   {
     struct In
     {
-      std::vector<std::vector<uint8_t>> member_cert;
+      std::vector<MemberPubInfo> members_info;
       std::string gov_script;
       std::vector<uint8_t> node_cert;
       Cert network_cert;

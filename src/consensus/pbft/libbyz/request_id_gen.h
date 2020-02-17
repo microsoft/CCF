@@ -20,6 +20,5 @@ public:
   // produced by the node in the past (even accross) reboots (assuming
   // clock as returned by gettimeofday retains value after a crash.)
 private:
-  Request_id cur_rid; // state for unique identifier generator.
-  void new_tstamp(); // Effects: Computes a new timestamp for rid.
+  std::atomic<Request_id> cur_rid; // state for unique identifier generator.
 };

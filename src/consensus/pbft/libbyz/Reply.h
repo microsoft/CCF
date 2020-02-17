@@ -44,6 +44,8 @@ class Reply : public Message
 public:
   Reply() : Message() {}
 
+  Reply(uint32_t msg_size) : Message(msg_size) {}
+
   Reply(Reply_rep* r);
 
   Reply(View view, Request_id req, Seqno n, int replica, uint32_t reply_size);

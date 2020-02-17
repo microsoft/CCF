@@ -44,7 +44,7 @@ namespace ccf
   DECLARE_JSON_TYPE(CreateNetworkNodeToNode::In)
   DECLARE_JSON_REQUIRED_FIELDS(
     CreateNetworkNodeToNode::In,
-    member_cert,
+    members_info,
     gov_script,
     node_cert,
     network_cert,

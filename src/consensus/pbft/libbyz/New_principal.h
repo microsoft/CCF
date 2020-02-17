@@ -35,6 +35,8 @@ struct New_principal_rep : public Message_rep
 class New_principal : public Message
 {
 public:
+  New_principal(uint32_t msg_size = 0) : Message(msg_size) {}
+
   New_principal(
     NodeId id,
     short port,
