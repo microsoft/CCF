@@ -50,7 +50,6 @@ struct ByzInfo
   std::array<uint8_t, MERKLE_ROOT_SIZE> full_state_merkle_root;
   std::array<uint8_t, MERKLE_ROOT_SIZE> replicated_state_merkle_root;
   int64_t ctx;
-  bool include_merkle_roots;
 };
 
 class Request;
@@ -59,24 +58,25 @@ struct ByzInfo;
 
 struct ExecCommandMsg
 {
-  ExecCommandMsg(
-    int client_,
-    Request_id rid_,
-    uint8_t* req_start_,
-    size_t req_size_,
-    Seqno total_requests_executed_,
-    Seqno last_tentative_execute_,
-    int64_t& max_local_commit_value_,
-    int replier_,
-    Request& request_,
-    void(*cb_)(ExecCommandMsg& msg, ByzInfo& info),
-    // if tx is nullptr we are in normal execution, otherwise we are in playback
-    // mode
-    ccf::Store::Tx* tx_ = nullptr) :
+  ExecCommandMsg(int client_,
+                 Request_id rid_,
+                 uint8_t* req_start_,
+                 size_t req_size_,
+                 bool include_merkle_roots_,
+                 Seqno total_requests_executed_,
+                 Seqno last_tentative_execute_,
+                 int64_t& max_local_commit_value_,
+                 int replier_,
+                 Request& request_,
+                 void (*cb_)(ExecCommandMsg& msg, ByzInfo& info),
+                 // if tx is nullptr we are in normal execution, otherwise we
+                 // are in playback mode
+                 ccf::Store::Tx* tx_ = nullptr) :
     client(client_),
     rid(rid_),
     req_start(req_start_),
     req_size(req_size_),
+    include_merkle_roots(include_merkle_roots_),
     total_requests_executed(total_requests_executed_),
     last_tentative_execute(last_tentative_execute_),
     max_local_commit_value(max_local_commit_value_),
@@ -92,6 +92,7 @@ struct ExecCommandMsg
   Request_id rid;
   uint8_t* req_start;
   size_t req_size;
+  bool include_merkle_roots;
   Seqno total_requests_executed;
   ccf::Store::Tx* tx;
 

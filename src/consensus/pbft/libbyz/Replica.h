@@ -304,10 +304,11 @@ private:
   // exec_command for each command; and sends back replies to the
   // client. The replies are tentative unless "committed" is true.
 
-  void execute_tentative_request(
+  std::unique_ptr<ExecCommandMsg> execute_tentative_request(
     Request& request,
     ByzInfo& info,
     int64_t& max_local_commit_value,
+    bool include_markle_roots,
     ccf::Store::Tx* tx = nullptr,
     Seqno seqno = -1);
   // Effects: called by execute_tentative or playback_request to execute the

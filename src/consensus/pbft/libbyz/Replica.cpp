@@ -449,16 +449,16 @@ void Replica::playback_request(ccf::Store::Tx& tx)
   }
 
   waiting_for_playback_pp = true;
-  // we don't know how many requests are in the batch we are currently playing
-  // back
-  playback_byz_info.include_merkle_roots = true;
 
-  execute_tentative_request(
+  auto cmd = execute_tentative_request(
     *req,
     playback_byz_info,
     playback_max_local_commit_value,
+    true,
     &tx,
     true);
+
+  exec_command(*cmd.get(), playback_byz_info);
 }
 
 void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
@@ -2111,10 +2111,11 @@ void Replica::execute_prepared(bool committed)
   }
 }
 
-void Replica::execute_tentative_request(
+std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
   Request& request,
   ByzInfo& info,
   int64_t& max_local_commit_value,
+  bool include_markle_roots,
   ccf::Store::Tx* tx,
   Seqno seqno)
 {
@@ -2128,6 +2129,7 @@ void Replica::execute_tentative_request(
     request.request_id(),
     (uint8_t*)request.contents(),
     request.contents_size(),
+    include_markle_roots,
     replies.total_requests_processed(),
     last_tentative_execute,
     max_local_commit_value,
@@ -2146,14 +2148,15 @@ void Replica::execute_tentative_request(
     request.client_id(),
     request.digest().hash());
 
-  exec_command(*cmd.get(), info);
-
+  //exec_command(*cmd.get(), info);
+  return cmd;
 }
 
 void Replica::execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info) {
 
   right_pad_contents(msg.outb);
-  msg.request.set_replier(msg.replier);
+  // TODO: fix this
+  //msg.request.set_replier(msg.replier);
   // Finish constructing the reply.
 
   if (info.ctx > msg.max_local_commit_value)
@@ -2188,20 +2191,22 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
     Request request;
     int64_t max_local_commit_value = INT64_MIN;
 
+    std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
+
     while (iter.get(request))
     {
-      info.include_merkle_roots = !iter.has_more_requests();
-      execute_tentative_request(
+      auto cmd = execute_tentative_request(
         request,
         info,
         max_local_commit_value,
+        !iter.has_more_requests(),
         nullptr,
         pp->seqno());
-      LOG_DEBUG_FMT(
-        "Executed from tentative exec: {} rid {} commit_id {}",
-        pp->seqno(),
-        request.request_id(),
-        info.ctx);
+      cmds.push_back(std::move(cmd));
+    }
+
+    for (auto& c : cmds) {
+      exec_command(*c.get(), info);
     }
     return true;
   }

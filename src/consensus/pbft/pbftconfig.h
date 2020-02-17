@@ -82,11 +82,11 @@ namespace pbft
       enclave::RpcHandler::ProcessPbftResp rep;
       if (tx != nullptr)
       {
-        rep = frontend->process_pbft(ctx, *tx, true, info.include_merkle_roots);
+        rep = frontend->process_pbft(ctx, *tx, true, msg.include_merkle_roots);
       }
       else
       {
-        rep = frontend->process_pbft(ctx, info.include_merkle_roots);
+        rep = frontend->process_pbft(ctx, msg.include_merkle_roots);
       }
 
       static_assert(
@@ -94,7 +94,7 @@ namespace pbft
       static_assert(
         sizeof(info.replicated_state_merkle_root) ==
         sizeof(crypto::Sha256Hash));
-      if (info.include_merkle_roots)
+      if (msg.include_merkle_roots)
       {
         std::copy(
           std::begin(rep.full_state_merkle_root.h),
