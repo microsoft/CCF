@@ -34,14 +34,20 @@ void LedgerWriter::write_prepare(
   }
 }
 
-void LedgerWriter::write_pre_prepare(ccf::Store::Tx& tx)
+kv::Version LedgerWriter::write_pre_prepare(ccf::Store::Tx& tx)
 {
-  store.commit_tx(tx);
+  return store.commit_tx(tx);
 }
 
-void LedgerWriter::write_pre_prepare(Pre_prepare* pp)
+kv::Version LedgerWriter::write_pre_prepare(Pre_prepare* pp)
 {
-  store.commit_pre_prepare(
+  LOG_TRACE_FMT(
+    "Writing pre prepare with seqno {}, num big reqs {}, view {}",
+    pp->seqno(),
+    pp->num_big_reqs(),
+    pp->view());
+
+  return store.commit_pre_prepare(
     {pp->seqno(),
      pp->num_big_reqs(),
      pp->get_digest_sig(),

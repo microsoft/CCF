@@ -55,6 +55,12 @@ namespace pbft
     std::vector<ViewChangeInfo>* view_change_list;
   } register_global_commit_ctx;
 
+  struct RollbackInfo
+  {
+    pbft::PbftStore* store;
+    consensus::LedgerEnclave* ledger;
+  } register_rollback_ctx;
+
   // maps node to last sent index to that node
   using NodesMap = std::unordered_map<NodeId, Index>;
   static constexpr Index entries_batch_size = 10;
@@ -346,6 +352,19 @@ namespace pbft
 
       message_receiver_base->register_global_commit(
         global_commit_cb, &register_global_commit_ctx);
+
+      auto rollback_cb = [](kv::Version version, RollbackInfo* rollback_info) {
+        LOG_TRACE_FMT(
+          "Rolling back to version {} and truncating ledger", version);
+        rollback_info->store->rollback(version);
+        rollback_info->ledger->truncate(version);
+      };
+
+      register_rollback_ctx.store = store.get();
+      register_rollback_ctx.ledger = ledger.get();
+
+      message_receiver_base->register_rollback_cb(
+        rollback_cb, &register_rollback_ctx);
     }
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
@@ -542,6 +561,7 @@ namespace pbft
               ledger->skip_entry(data, size);
               continue;
             }
+            LOG_TRACE_FMT("Applying append entry for index {}", i);
 
             auto ret = ledger->get_entry(data, size);
 

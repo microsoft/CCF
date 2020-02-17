@@ -389,6 +389,8 @@ bool Replica::compare_execution_results(
   auto& pp_root = pre_prepare->get_full_state_merkle_root();
   auto& r_pp_root = pre_prepare->get_replicated_state_merkle_root();
 
+  auto execution_match = true;
+
   if (!std::equal(
         std::begin(r_pp_root),
         std::end(r_pp_root),
@@ -397,7 +399,7 @@ bool Replica::compare_execution_results(
     LOG_FAIL << "Replicated state merkle root between execution and the "
                 "pre_prepare message does not match, seqno:"
              << pre_prepare->seqno() << std::endl;
-    return false;
+    execution_match = false;
   }
 
   auto tx_ctx = pre_prepare->get_ctx();
@@ -407,7 +409,7 @@ bool Replica::compare_execution_results(
                 "does not match, seqno:"
              << pre_prepare->seqno() << ", tx_ctx:" << tx_ctx
              << ", info.ctx:" << info.ctx << std::endl;
-    return false;
+    execution_match = false;
   }
 
   if (!std::equal(
@@ -418,8 +420,20 @@ bool Replica::compare_execution_results(
     LOG_FAIL << "Full state merkle root between execution and the pre_prepare "
                 "message does not match, seqno:"
              << pre_prepare->seqno() << std::endl;
+    execution_match = false;
+  }
+
+  if (!execution_match)
+  {
+    if (rollback_cb != nullptr)
+    {
+      rollback_cb(last_te_version, rollback_info);
+    }
+    last_tentative_execute--;
     return false;
   }
+
+  last_te_version = info.ctx;
 
   return true;
 }
@@ -451,6 +465,9 @@ void Replica::playback_request(ccf::Store::Tx& tx)
       last_executed,
       req->request_id(),
       req->client_id());
+    // keep f before this request batch executes
+    // to check on playback pre prepare if we should open the network
+    playback_before_f = f();
   }
 
   waiting_for_playback_pp = true;
@@ -465,8 +482,7 @@ void Replica::playback_request(ccf::Store::Tx& tx)
     playback_max_local_commit_value,
     non_det,
     nullptr,
-    &tx,
-    true);
+    &tx);
 }
 
 void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
@@ -488,13 +504,6 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
 
   if (compare_execution_results(playback_byz_info, executable_pp.get()))
   {
-    // we are done executing the pre-prepare batch we need to check if we need
-    // to checkpoint
-    if (last_tentative_execute % checkpoint_interval == 0)
-    {
-      state.checkpoint(last_tentative_execute);
-    }
-
     next_pp_seqno = seqno;
 
     if (seqno > last_prepared)
@@ -504,25 +513,35 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
 
     LOG_TRACE_FMT("Storing pre prepare at seqno {}", seqno);
 
-    ledger_writer->write_pre_prepare(tx);
-
-    if (global_commit_cb != nullptr && executable_pp->is_signed())
-    {
-      global_commit_cb(
-        executable_pp->get_ctx(), executable_pp->view(), global_commit_info);
-    }
+    last_te_version = ledger_writer->write_pre_prepare(tx);
 
     last_executed++;
 
-    if (last_executed % checkpoint_interval == 0)
+    PBFT_ASSERT(
+      last_executed <= executable_pp->seqno(),
+      "last_executed and pre prepares seqno don't match in playback pre "
+      "prepare");
+
+    global_commit(executable_pp.get());
+
+    if (executable_pp->is_signed() && f() > 0)
     {
       mark_stable(last_executed, true);
     }
+
+    if (playback_before_f == 0 && f() != 0)
+    {
+      Network_open no(Node::id());
+      send(&no, primary());
+    }
+
     rqueue.clear();
   }
   else
   {
-    PBFT_ASSERT(false, "Merkle roots don't match in playback pre-prepare");
+    LOG_INFO_FMT(
+      "Merkle roots don't match in playback pre-prepare for seqno {}",
+      executable_pp->seqno());
   }
 }
 
@@ -846,7 +865,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
 
       if (ledger_writer)
       {
-        ledger_writer->write_pre_prepare(pp);
+        last_te_version = ledger_writer->write_pre_prepare(pp);
       }
 
       if (pbft::GlobalState::get_node().f() > 0)
@@ -996,13 +1015,14 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
       if (!compare_execution_results(info, pp))
       {
-        PBFT_ASSERT(false, "Merkle roots don't match in send_prepare");
+        LOG_INFO_FMT(
+          "Merkle roots don't match in send prepare for seqno {}", seqno);
         break;
       }
 
       if (ledger_writer && !is_primary())
       {
-        ledger_writer->write_pre_prepare(pp);
+        last_te_version = ledger_writer->write_pre_prepare(pp);
       }
 
       Prepare* p =
@@ -1216,17 +1236,7 @@ void Replica::handle(Checkpoint* m)
 
 void Replica::fetch_state_outside_view_change()
 {
-  if (last_tentative_execute > last_executed)
-  {
-    // Rollback to last checkpoint
-    PBFT_ASSERT(!state.in_fetch_state(), "Invalid state");
-    LOG_INFO << "Rolling back before start_fetch last_tentative_execute: "
-             << last_tentative_execute << " last_executed: " << last_executed
-             << std::endl;
-    Seqno rc = state.rollback(last_executed);
-    LOG_INFO << " rolled back to :" << rc << std::endl;
-    last_tentative_execute = last_executed = rc;
-  }
+  rollback_to_globally_comitted();
 
   // Stop view change timer while fetching state. It is restarted
   // in new state when the fetch ends.
@@ -1255,6 +1265,13 @@ void Replica::register_mark_stable(
 {
   mark_stable_cb = cb;
   mark_stable_info = ms_info;
+}
+
+void Replica::register_rollback_cb(
+  rollback_handler_cb cb, pbft::RollbackInfo* rb_info)
+{
+  rollback_cb = cb;
+  rollback_info = rb_info;
 }
 
 template <class T>
@@ -1728,23 +1745,14 @@ void Replica::send_view_change()
   replies.clear();
 #endif
 
-  if (last_tentative_execute > last_executed)
-  {
-    // Rollback to last checkpoint
-    PBFT_ASSERT(!state.in_fetch_state(), "Invalid state");
-    Seqno rc = state.rollback(last_executed);
-    LOG_INFO << "Rolled back in view change to seqno " << rc
-             << " last_executed was " << last_executed
-             << " last_tentative_execute was " << last_tentative_execute
-             << std::endl;
-    last_tentative_execute = last_executed = rc;
-  }
+  rollback_to_globally_comitted();
 
   last_prepared = last_executed;
 
   for (Seqno i = last_stable + 1; i <= last_stable + max_out; i++)
   {
     Prepared_cert& pc = plog.fetch(i);
+    pc.update();
     Certificate<Commit>& cc = clog.fetch(i);
 
     if (pc.is_complete())
@@ -1857,7 +1865,10 @@ void Replica::handle(Network_open* m)
     LOG_INFO << "Finished waiting for machines to network open. "
              << "starting to process requests" << std::endl;
     wait_for_network_to_open = false;
-    send_pre_prepare();
+    if (primary() == id())
+    {
+      send_pre_prepare();
+    }
   }
 
   delete m;
@@ -1886,12 +1897,9 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 
   next_pp_seqno = max - 1;
 
-  if (ms > last_stable)
-  {
-    // Call mark_stable to ensure there is space for the pre-prepares
-    // and prepares that are inserted in the log below.
-    mark_stable(ms, last_executed >= ms);
-  }
+  // Call mark_stable to ensure there is space for the pre-prepares
+  // and prepares that are inserted in the log below.
+  mark_stable(last_executed, last_executed >= ms);
 
   if (last_stable > min)
   {
@@ -1912,15 +1920,25 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
     Prepared_cert& pc = plog.fetch(i);
     PBFT_ASSERT(pp != 0 && pp->digest() == d, "Invalid state");
 
+    Pre_prepare::Requests_iter iter(pp);
+    Request request;
+
+    size_t req_in_pp = 0;
+
+    while (iter.get(request))
+    {
+      req_in_pp++;
+    }
+
     if (primary() == id())
     {
       ByzInfo info;
       pc.add_mine(pp);
       if (execute_tentative(pp, info))
       {
-        if (ledger_writer)
+        if (ledger_writer && req_in_pp > 0)
         {
-          ledger_writer->write_pre_prepare(pp);
+          last_te_version = ledger_writer->write_pre_prepare(pp);
         }
       }
     }
@@ -1931,9 +1949,9 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 
       if (execute_tentative(pp, info))
       {
-        if (ledger_writer)
+        if (ledger_writer && req_in_pp > 0)
         {
-          ledger_writer->write_pre_prepare(pp);
+          last_te_version = ledger_writer->write_pre_prepare(pp);
         }
       }
 
@@ -1961,8 +1979,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 #ifdef DEBUG_SLOW
     debug_slow_timer->stop();
 #endif
-    LOG_INFO << "fetching state in process new view v: " << v << std::endl;
-    state.start_fetch(last_executed, min, &d, min <= ms);
+    send_status();
   }
   else
   {
@@ -2062,6 +2079,59 @@ bool Replica::execute_read_only(Request* request)
   }
 }
 
+void Replica::rollback_to_globally_comitted()
+{
+  if (last_tentative_execute > last_gb_seqno)
+  {
+    // Rollback to last checkpoint
+    PBFT_ASSERT(!state.in_fetch_state(), "Invalid state");
+
+    auto rv = last_gb_version + 1;
+
+    if (rollback_cb != nullptr)
+    {
+      rollback_cb(rv, rollback_info);
+    }
+
+    Seqno rc = state.rollback(last_gb_seqno);
+
+    LOG_INFO_FMT(
+      "Rolled back in view change to seqno {}, to version {}, last_executed "
+      "was {}, last_tentative_execute was {}, "
+      "last gb seqno {}, last gb version was {}",
+      rc,
+      rv,
+      last_executed,
+      last_tentative_execute,
+      last_gb_seqno,
+      last_gb_version);
+
+    last_tentative_execute = rc;
+    last_executed = rc;
+    last_te_version = rv;
+    LOG_INFO_FMT(
+      "Roll back done, last tentative execute and last executed are {} {}",
+      last_tentative_execute,
+      last_executed);
+  }
+}
+
+void Replica::global_commit(Pre_prepare* pp)
+{
+  if (global_commit_cb != nullptr && pp->is_signed())
+  {
+    LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
+    LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
+
+    state.checkpoint(pp->seqno());
+    last_gb_version = pp->get_ctx();
+    last_gb_seqno = pp->seqno();
+
+    global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
+    signed_version = 0;
+  }
+}
+
 void Replica::execute_prepared(bool committed)
 {
 #ifndef ENFORCE_EXACTLY_ONCE
@@ -2130,14 +2200,7 @@ void Replica::execute_prepared(bool committed)
         }
       }
     }
-
-    if (global_commit_cb != nullptr && pp->is_signed())
-    {
-      LOG_TRACE_FMT("Global_commit: {}", pp->get_ctx());
-
-      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
-      signed_version = 0;
-    }
+    global_commit(pp);
   }
 }
 
@@ -2150,6 +2213,8 @@ void Replica::execute_tentative_request(
   ccf::Store::Tx* tx,
   Seqno seqno)
 {
+  auto stash_replier = request.replier();
+  request.set_replier(-1);
   int client_id = request.client_id();
 
   // Obtain "in" and "out" buffers to call exec_command
@@ -2185,6 +2250,9 @@ void Replica::execute_tentative_request(
     info,
     tx);
   right_pad_contents(outb);
+
+  // restore replier
+  request.set_replier(stash_replier);
   // Finish constructing the reply.
   LOG_DEBUG_FMT(
     "Executed from tentative exec: {} from client: {} rid {} commit_id {}",
@@ -2236,16 +2304,11 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
         pp->choices(non_det.size),
         nullptr,
         pp->seqno());
-    }
-    LOG_DEBUG_FMT(
-      "Executed from tentative exec: {} rid {} commit_id {}",
-      pp->seqno(),
-      request.request_id(),
-      info.ctx);
-
-    if (last_tentative_execute % checkpoint_interval == 0)
-    {
-      state.checkpoint(last_tentative_execute);
+      LOG_DEBUG_FMT(
+        "Executed from tentative exec: {} rid {} commit_id {}",
+        pp->seqno(),
+        request.request_id(),
+        info.ctx);
     }
     return true;
   }
@@ -2297,10 +2360,12 @@ void Replica::execute_committed(bool was_f_0)
           auto executed_ok = execute_tentative(pp, info);
           if (!compare_execution_results(info, pp))
           {
-            PBFT_ASSERT(false, "Merkle roots don't match execute committed");
+            LOG_INFO_FMT(
+              "Merkle roots don't match in execute committed for seqno {}",
+              pp->seqno());
             return;
           }
-          ledger_writer->write_pre_prepare(pp);
+          last_te_version = ledger_writer->write_pre_prepare(pp);
           PBFT_ASSERT(
             executed_ok,
             "tentative execution while executing committed failed");
@@ -2342,12 +2407,16 @@ void Replica::execute_committed(bool was_f_0)
           // Remove the request from rqueue if present.
           if (rqueue.remove(client_id, request.request_id()))
           {
+            LOG_TRACE_FMT(
+              "Removed request with cid rid {} {}",
+              client_id,
+              request.request_id());
             vtimer->stop();
           }
         }
 
-        // Send and log Checkpoint message for the new state if needed.
-        if (last_executed % checkpoint_interval == 0)
+        // Send and log Checkpoint message for the new state if needed
+        if (pp->is_signed() && f() > 0)
         {
           Digest d_state;
           state.digest(last_executed, d_state);

@@ -108,6 +108,8 @@ public:
   // Effects: Returns the digest of the string obtained by
   // concatenating the client_id, the request_id, and the command.
 
+  void set_replier(int r);
+
   int replier() const;
   // Effects: Returns the identifier of the replica from which
   // the client expects a full reply. If negative, client expects
@@ -181,6 +183,11 @@ inline char* Request::command(int& len)
 {
   len = rep().command_size;
   return contents() + sizeof(Request_rep);
+}
+
+inline void Request::set_replier(int r)
+{
+  rep().replier = r;
 }
 
 inline int Request::replier() const
