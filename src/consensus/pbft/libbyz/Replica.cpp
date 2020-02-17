@@ -2152,7 +2152,6 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
 void Replica::execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info)
 {
   right_pad_contents(msg.outb);
-  // TODO: fix this
   // msg.request.set_replier(msg.replier);
   // Finish constructing the reply.
 
