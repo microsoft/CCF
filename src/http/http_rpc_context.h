@@ -84,9 +84,7 @@ namespace http
         signed_headers.emplace_back(http::headers::AUTHORIZATION);
 
         for (const auto& required_header :
-             {http::auth::SIGN_HEADER_REQUEST_TARGET,
-              http::headers::DIGEST,
-              http::headers::CONTENT_LENGTH})
+             {http::headers::DIGEST, http::headers::CONTENT_LENGTH})
         {
           if (
             std::find(
