@@ -32,8 +32,8 @@ Pre_prepare::Pre_prepare(
   int n_big_reqs = 0;
   char* next_req = requests();
 #ifndef USE_PKEY
-  char* max_req = next_req + msize() -
-    pbft::GlobalState::get_node().auth_size();
+  char* max_req =
+    next_req + msize() - pbft::GlobalState::get_node().auth_size();
 #else
   char* max_req = next_req + msize() -
     pbft::GlobalState::get_replica().max_nd_bytes() - pbft_max_signature_size;
@@ -204,8 +204,7 @@ bool Pre_prepare::calculate_digest(Digest& d)
       pbft::GlobalState::get_replica().primary(view()));
 #else
   int min_size = sizeof(Pre_prepare_rep) + rep().rset_size +
-    rep().n_big_reqs * sizeof(Digest) +
-    pbft_max_signature_size;
+    rep().n_big_reqs * sizeof(Digest) + pbft_max_signature_size;
 #endif
   if (size() >= min_size)
   {
@@ -244,9 +243,7 @@ bool Pre_prepare::calculate_digest(Digest& d)
 
     // Finalize digest of requests and non-det-choices.
     d.update_last(
-      context,
-      (char*)big_reqs(),
-      rep().n_big_reqs * sizeof(Digest));
+      context, (char*)big_reqs(), rep().n_big_reqs * sizeof(Digest));
     d.finalize(context);
 
     STOP_CC(pp_digest_cycles);
@@ -299,8 +296,7 @@ bool Pre_prepare::pre_verify()
     }
 #endif
 
-    int sz =
-      rep().rset_size + rep().n_big_reqs * sizeof(Digest);
+    int sz = rep().rset_size + rep().n_big_reqs * sizeof(Digest);
 #ifndef USE_PKEY
     return true;
 #else

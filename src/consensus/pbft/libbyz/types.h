@@ -58,20 +58,21 @@ struct ByzInfo;
 
 struct ExecCommandMsg
 {
-  ExecCommandMsg(int client_,
-                 Request_id rid_,
-                 uint8_t* req_start_,
-                 size_t req_size_,
-                 bool include_merkle_roots_,
-                 Seqno total_requests_executed_,
-                 Seqno last_tentative_execute_,
-                 int64_t& max_local_commit_value_,
-                 int replier_,
-                 Request& request_,
-                 void (*cb_)(ExecCommandMsg& msg, ByzInfo& info),
-                 // if tx is nullptr we are in normal execution, otherwise we
-                 // are in playback mode
-                 ccf::Store::Tx* tx_ = nullptr) :
+  ExecCommandMsg(
+    int client_,
+    Request_id rid_,
+    uint8_t* req_start_,
+    size_t req_size_,
+    bool include_merkle_roots_,
+    Seqno total_requests_executed_,
+    Seqno last_tentative_execute_,
+    int64_t& max_local_commit_value_,
+    int replier_,
+    Request& request_,
+    void (*cb_)(ExecCommandMsg& msg, ByzInfo& info),
+    // if tx is nullptr we are in normal execution, otherwise we
+    // are in playback mode
+    ccf::Store::Tx* tx_ = nullptr) :
     client(client_),
     rid(rid_),
     req_start(req_start_),
@@ -101,8 +102,8 @@ struct ExecCommandMsg
   int64_t& max_local_commit_value;
   int replier;
   Request& request;
-  void(*cb)(ExecCommandMsg& msg, ByzInfo& info);
+  void (*cb)(ExecCommandMsg& msg, ByzInfo& info);
 };
 
-using ExecCommand =
-  std::function<int(std::vector<std::unique_ptr<ExecCommandMsg>>& msgs, ByzInfo&)>;
+using ExecCommand = std::function<int(
+  std::vector<std::unique_ptr<ExecCommandMsg>>& msgs, ByzInfo&)>;

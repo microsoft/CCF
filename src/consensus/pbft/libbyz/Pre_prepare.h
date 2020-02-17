@@ -199,7 +199,6 @@ private:
   Digest* big_reqs();
   // Effects: Returns a pointer to the first digest of a big request
   // in this.
-
 };
 
 inline Pre_prepare_rep& Pre_prepare::rep() const
