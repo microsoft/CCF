@@ -3,6 +3,7 @@
 #pragma once
 
 #include "http/http_builder.h"
+#include "http/http_consts.h"
 #include "http/http_parser.h"
 #include "node/rpc/jsonrpc.h"
 #include "tls_client.h"
@@ -161,7 +162,8 @@ public:
     const auto body_j = json_rpc(method, params);
     const auto body_v = jsonrpc::pack(body_j, jsonrpc::Pack::Text);
     auto r = http::Request(body_j["method"].get<std::string>());
-    r.set_header("content-type", "application/json");
+    r.set_header(
+      http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
     const auto request = r.build_request(body_v);
     return {request, body_j["id"]};
   }

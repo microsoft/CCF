@@ -8,9 +8,6 @@
 
 namespace http
 {
-  static constexpr auto CONTENT_TYPE_JSON = "application/json";
-  static constexpr auto CONTENT_TYPE_MSGPACK = "application/msgpack";
-
   static std::optional<std::string> extract_actor(enclave::RpcContext& ctx)
   {
     const auto path = ctx.get_method();
@@ -67,8 +64,7 @@ namespace http
       // signed, then all unsigned headers must be removed
       request_headers = headers_;
 
-      const auto auth_it =
-        request_headers.find(http::HTTP_HEADER_AUTHORIZATION);
+      const auto auth_it = request_headers.find(http::headers::AUTHORIZATION);
       if (auth_it != request_headers.end())
       {
         std::string_view authz_header = auth_it->second;
@@ -85,11 +81,12 @@ namespace http
         // Keep all signed headers, and the auth header containing the signature
         // itself
         auto& signed_headers = parsed_sign_params->signed_headers;
-        signed_headers.emplace_back(http::HTTP_HEADER_AUTHORIZATION);
+        signed_headers.emplace_back(http::headers::AUTHORIZATION);
 
-        for (const auto& required_header : {http::SIGN_HEADER_REQUEST_TARGET,
-                                            http::HTTP_HEADER_DIGEST,
-                                            "content-length"})
+        for (const auto& required_header :
+             {http::auth::SIGN_HEADER_REQUEST_TARGET,
+              http::headers::DIGEST,
+              http::headers::CONTENT_LENGTH})
         {
           if (
             std::find(
@@ -166,15 +163,15 @@ namespace http
       if (verb == HTTP_POST)
       {
         const auto content_type_it =
-          request_headers.find(HTTP_HEADER_CONTENT_TYPE);
+          request_headers.find(http::headers::CONTENT_TYPE);
         if (content_type_it != request_headers.end())
         {
           const auto& content_type = content_type_it->second;
-          if (content_type == CONTENT_TYPE_JSON)
+          if (content_type == http::headervalues::contenttype::JSON)
           {
             body_packing = jsonrpc::Pack::Text;
           }
-          else if (content_type == CONTENT_TYPE_MSGPACK)
+          else if (content_type == http::headervalues::contenttype::MSGPACK)
           {
             body_packing = jsonrpc::Pack::MsgPack;
           }
@@ -184,8 +181,8 @@ namespace http
               "Unsupported content type {}. Only {} and {} are currently "
               "supported",
               content_type,
-              CONTENT_TYPE_JSON,
-              CONTENT_TYPE_MSGPACK));
+              http::headervalues::contenttype::JSON,
+              http::headervalues::contenttype::MSGPACK));
           }
         }
         else

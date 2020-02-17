@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "http_consts.h"
 #include "http_parser.h"
 #include "node/clientsignatures.h"
 #include "tls/base64.h"
@@ -14,26 +15,6 @@
 
 namespace http
 {
-  // All HTTP headers are expected to be lowercase
-  static constexpr auto HTTP_HEADER_AUTHORIZATION = "authorization";
-  static constexpr auto HTTP_HEADER_DIGEST = "digest";
-  static constexpr auto HTTP_HEADER_CONTENT_TYPE = "content-type";
-  static constexpr auto HTTP_HEADER_CONTENT_LENGTH = "content-length";
-
-  static constexpr auto DIGEST_SHA256 = "SHA-256";
-
-  static constexpr auto AUTH_SCHEME = "Signature";
-  static constexpr auto SIGN_PARAMS_KEYID = "keyId";
-  static constexpr auto SIGN_PARAMS_SIGNATURE = "signature";
-  static constexpr auto SIGN_PARAMS_ALGORITHM = "algorithm";
-  static constexpr auto SIGN_PARAMS_HEADERS = "headers";
-  static constexpr auto SIGN_ALGORITHM = "ecdsa-sha256";
-
-  static constexpr auto SIGN_HEADER_REQUEST_TARGET = "(request-target)";
-
-  static constexpr auto SIGN_PARAMS_DELIMITER = ",";
-  static constexpr auto SIGN_PARAMS_HEADERS_DELIMITER = " ";
-
   inline std::optional<std::vector<uint8_t>> construct_raw_signed_string(
     std::string verb,
     const std::string_view& path,
@@ -48,7 +29,7 @@ namespace http
 
     for (const auto f : headers_to_sign)
     {
-      if (f == SIGN_HEADER_REQUEST_TARGET)
+      if (f == auth::SIGN_HEADER_REQUEST_TARGET)
       {
         // Store verb as lowercase
         std::transform(
@@ -73,7 +54,7 @@ namespace http
         value = h->second;
 
         // Digest field should be signed.
-        if (f == HTTP_HEADER_DIGEST)
+        if (f == headers::DIGEST)
         {
           has_digest = true;
         }
@@ -92,7 +73,7 @@ namespace http
 
     if (!has_digest)
     {
-      LOG_FAIL_FMT("{} is not signed", HTTP_HEADER_DIGEST);
+      LOG_FAIL_FMT("{} is not signed", headers::DIGEST);
       return {};
     }
 
@@ -116,15 +97,15 @@ namespace http
     request.set_body(body);
     const auto headers = request.get_headers();
     std::vector<std::string_view> headers_to_sign;
-    headers_to_sign.emplace_back(SIGN_HEADER_REQUEST_TARGET);
-    headers_to_sign.emplace_back(HTTP_HEADER_DIGEST);
-    if (headers.find(HTTP_HEADER_CONTENT_TYPE) != headers.end())
+    headers_to_sign.emplace_back(auth::SIGN_HEADER_REQUEST_TARGET);
+    headers_to_sign.emplace_back(headers::DIGEST);
+    if (headers.find(headers::CONTENT_TYPE) != headers.end())
     {
-      headers_to_sign.emplace_back(HTTP_HEADER_CONTENT_TYPE);
+      headers_to_sign.emplace_back(headers::CONTENT_TYPE);
     }
-    if (headers.find(HTTP_HEADER_CONTENT_LENGTH) != headers.end())
+    if (headers.find(headers::CONTENT_LENGTH) != headers.end())
     {
-      headers_to_sign.emplace_back(HTTP_HEADER_CONTENT_LENGTH);
+      headers_to_sign.emplace_back(headers::CONTENT_LENGTH);
     }
 
     const auto to_sign = construct_raw_signed_string(
@@ -148,7 +129,7 @@ namespace http
       fmt::format("{}", fmt::join(headers_to_sign, " ")),
       tls::b64_from_raw(signature.data(), signature.size()));
 
-    request.set_header(HTTP_HEADER_AUTHORIZATION, auth_value);
+    request.set_header(headers::AUTHORIZATION, auth_value);
 
     if (details != nullptr)
     {
@@ -186,9 +167,9 @@ namespace http
         return false;
       }
       auto auth_scheme = auth_header_value.substr(0, next_space);
-      if (auth_scheme != AUTH_SCHEME)
+      if (auth_scheme != auth::AUTH_SCHEME)
       {
-        LOG_FAIL_FMT("{} is the only supported scheme", AUTH_SCHEME);
+        LOG_FAIL_FMT("{} is the only supported scheme", auth::AUTH_SCHEME);
         return false;
       }
       auth_header_value = auth_header_value.substr(next_space + 1);
@@ -199,25 +180,24 @@ namespace http
       const http::HeaderMap& headers, const std::vector<uint8_t>& body)
     {
       // First, retrieve digest from header
-      auto digest = headers.find(HTTP_HEADER_DIGEST);
+      auto digest = headers.find(headers::DIGEST);
       if (digest == headers.end())
       {
-        LOG_FAIL_FMT("HTTP header does not contain {}", HTTP_HEADER_DIGEST);
+        LOG_FAIL_FMT("HTTP header does not contain {}", headers::DIGEST);
         return false;
       }
 
       auto equal_pos = digest->second.find("=");
       if (equal_pos == std::string::npos)
       {
-        LOG_FAIL_FMT(
-          "{} header does not contain key=value", HTTP_HEADER_DIGEST);
+        LOG_FAIL_FMT("{} header does not contain key=value", headers::DIGEST);
         return false;
       }
 
       auto sha_key = digest->second.substr(0, equal_pos);
-      if (sha_key != DIGEST_SHA256)
+      if (sha_key != auth::DIGEST_SHA256)
       {
-        LOG_FAIL_FMT("Only {} digest is supported", DIGEST_SHA256);
+        LOG_FAIL_FMT("Only {} digest is supported", auth::DIGEST_SHA256);
         return false;
       }
 
@@ -229,8 +209,7 @@ namespace http
 
       if (raw_digest != body_digest)
       {
-        LOG_FAIL_FMT(
-          "Request body does not match {} header", HTTP_HEADER_DIGEST);
+        LOG_FAIL_FMT("Request body does not match {} header", headers::DIGEST);
         return false;
       }
 
@@ -273,7 +252,7 @@ namespace http
       SignatureParams sig_params = {};
 
       auto parsed_params =
-        parse_delimited_string(auth_header_value, SIGN_PARAMS_DELIMITER);
+        parse_delimited_string(auth_header_value, auth::SIGN_PARAMS_DELIMITER);
 
       for (auto& p : parsed_params)
       {
@@ -287,32 +266,32 @@ namespace http
           v.remove_prefix(v.find_first_of("\"") + 1);
           v.remove_suffix(v.size() - v.find_last_of("\""));
 
-          if (k == SIGN_PARAMS_KEYID)
+          if (k == auth::SIGN_PARAMS_KEYID)
           {
             // keyId is ignored
           }
-          else if (k == SIGN_PARAMS_ALGORITHM)
+          else if (k == auth::SIGN_PARAMS_ALGORITHM)
           {
             sig_params.signature_algorithm = v;
-            if (v != SIGN_ALGORITHM)
+            if (v != auth::SIGN_ALGORITHM)
             {
               LOG_FAIL_FMT("Signature algorithm {} is not supported", v);
               return {};
             }
           }
-          else if (k == SIGN_PARAMS_SIGNATURE)
+          else if (k == auth::SIGN_PARAMS_SIGNATURE)
           {
             sig_params.signature = v;
           }
-          else if (k == SIGN_PARAMS_HEADERS)
+          else if (k == auth::SIGN_PARAMS_HEADERS)
           {
             auto parsed_signed_headers =
-              parse_delimited_string(v, SIGN_PARAMS_HEADERS_DELIMITER);
+              parse_delimited_string(v, auth::SIGN_PARAMS_HEADERS_DELIMITER);
 
             if (parsed_signed_headers.size() == 0)
             {
               LOG_FAIL_FMT(
-                "No headers specified in {} field", SIGN_PARAMS_HEADERS);
+                "No headers specified in {} field", auth::SIGN_PARAMS_HEADERS);
               return {};
             }
 
@@ -339,7 +318,7 @@ namespace http
       const http::HeaderMap& headers,
       const std::vector<uint8_t>& body)
     {
-      auto auth = headers.find(HTTP_HEADER_AUTHORIZATION);
+      auto auth = headers.find(headers::AUTHORIZATION);
       if (auth != headers.end())
       {
         std::string_view authz_header = auth->second;
@@ -348,21 +327,21 @@ namespace http
         {
           throw std::logic_error(fmt::format(
             "Error parsing {} scheme. Only {} is supported",
-            HTTP_HEADER_AUTHORIZATION,
-            AUTH_SCHEME));
+            headers::AUTHORIZATION,
+            auth::AUTH_SCHEME));
         }
 
         if (!verify_digest(headers, body))
         {
           throw std::logic_error(
-            fmt::format("Error verifying HTTP {} header", HTTP_HEADER_DIGEST));
+            fmt::format("Error verifying HTTP {} header", headers::DIGEST));
         }
 
         auto parsed_sign_params = parse_signature_params(authz_header);
         if (!parsed_sign_params.has_value())
         {
           throw std::logic_error(
-            fmt::format("Error parsing {} fields", HTTP_HEADER_AUTHORIZATION));
+            fmt::format("Error parsing {} fields", headers::AUTHORIZATION));
         }
 
         auto signed_raw = construct_raw_signed_string(

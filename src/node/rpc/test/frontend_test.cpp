@@ -286,11 +286,11 @@ auto create_simple_request(
 {
   http::Request request(method);
   request.set_header(
-    http::HTTP_HEADER_CONTENT_TYPE,
-    pack == jsonrpc::Pack::Text ?
-      http::CONTENT_TYPE_JSON :
-      (pack == jsonrpc::Pack::MsgPack ? http::CONTENT_TYPE_MSGPACK :
-                                        "unknown"));
+    http::headers::CONTENT_TYPE,
+    pack == jsonrpc::Pack::Text ? http::headervalues::contenttype::JSON :
+                                  (pack == jsonrpc::Pack::MsgPack ?
+                                     http::headervalues::contenttype::MSGPACK :
+                                     "unknown"));
   return request;
 }
 

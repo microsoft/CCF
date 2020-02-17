@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "http_consts.h"
 #include "tls/base64.h"
 #include "tls/hash.h"
 
@@ -68,14 +69,13 @@ namespace http
 
     void set_body(const std::vector<uint8_t>& body) const // TODO: WRONG
     {
-      constexpr auto content_length_header_name = "content-length";
-      constexpr auto digest_header_name = "digest";
+      using namespace http::headers;
 
-      headers[content_length_header_name] = fmt::format("{}", body.size());
+      headers[CONTENT_LENGTH] = fmt::format("{}", body.size());
 
       tls::HashBytes body_digest;
       tls::do_hash(body.data(), body.size(), body_digest, MBEDTLS_MD_SHA256);
-      headers[digest_header_name] = fmt::format(
+      headers[DIGEST] = fmt::format(
         "{}={}",
         "SHA-256",
         tls::b64_from_raw(body_digest.data(), body_digest.size()));

@@ -276,7 +276,8 @@ namespace ccf
 
       http::Request request(
         fmt::format("/{}/{}", ccf::Actors::MEMBERS, ccf::MemberProcs::CREATE));
-      request.set_header("content-type", "application/json");
+      request.set_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
       http::sign_request(request, body, node_sign_kp);
 
@@ -573,7 +574,8 @@ namespace ccf
 
       http::Request r(
         fmt::format("/{}/{}", ccf::Actors::NODES, ccf::NodeProcs::JOIN));
-      r.set_header("content-type", "application/json");
+      r.set_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
       join_client->send_request(r.build_request(body));
     }

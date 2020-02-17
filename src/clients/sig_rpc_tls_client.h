@@ -28,7 +28,8 @@ public:
     const auto body_v = jsonrpc::pack(body_j, jsonrpc::Pack::Text);
 
     auto r = http::Request(body_j[jsonrpc::METHOD].get<std::string>());
-    r.set_header("content-type", "application/json");
+    r.set_header(
+      http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
     http::sign_request(r, body_v, key_pair);
 
     const auto request = r.build_request(body_v);
