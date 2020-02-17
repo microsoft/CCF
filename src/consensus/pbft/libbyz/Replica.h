@@ -80,19 +80,6 @@ public:
   void register_exec(ExecCommand e);
   // Effects: Registers "e" as the exec_command function.
 
-  void register_nondet_choices(void (*n)(Seqno, Byz_buffer*), int max_len);
-  // Effects: Registers "n" as the non_det_choices function.
-
-  void compute_non_det(Seqno n, char* b, int* b_len);
-  // Requires: "b" points to "*b_len" bytes.
-  // Effects: Computes non-deterministic choices for sequence number
-  // "n", places them in the array pointed to by "b" and returns their
-  // size in "*b_len".
-
-  int max_nd_bytes() const;
-  // Effects: Returns the maximum length in bytes of the choices
-  // computed by compute_non_det
-
   int used_state_bytes() const;
   // Effects: Returns the number of bytes used up to store protocol
   // information.
@@ -288,13 +275,6 @@ private:
   //
   // Miscellaneous:
   //
-  bool execute_read_only(Request* m);
-  // Effects: If some request that was tentatively executed did not
-  // commit yet (i.e. last_tentative_execute < last_executed), returns
-  // false.  Otherwise, returns true, executes the command in request
-  // "m" (provided it is really read-only and does not require
-  // non-deterministic choices), and sends a reply to the client
-
   void execute_committed(bool was_f_0 = false);
   // Effects: Executes as many commands as possible by calling
   // execute_prepared; sends Checkpoint messages when needed and
@@ -324,23 +304,24 @@ private:
   // exec_command for each command; and sends back replies to the
   // client. The replies are tentative unless "committed" is true.
 
-  void execute_tentative_request(
+  std::unique_ptr<ExecCommandMsg> execute_tentative_request(
     Request& request,
     ByzInfo& info,
     int64_t& max_local_commit_value,
-    Byz_buffer& non_det,
-    char* nondet_choices = nullptr,
+    bool include_markle_roots,
     ccf::Store::Tx* tx = nullptr,
     Seqno seqno = -1);
   // Effects: called by execute_tentative or playback_request to execute the
   // request. seqno == -1 means we are running it from playback
+
+  static void execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info);
 
   void create_recovery_reply(
     int client_id, int last_tentative_execute, Byz_rep& outb);
   // Handle recovery requests, i.e., requests from replicas,
   // differently.
 
-  void right_pad_contents(Byz_rep& outb);
+  static void right_pad_contents(Byz_rep& outb);
 
   void mark_stable(Seqno seqno, bool have_state);
   // Requires: Checkpoint with sequence number "seqno" is stable.
@@ -562,20 +543,12 @@ private:
   //
   ExecCommand exec_command;
 
-  void (*non_det_choices)(Seqno, Byz_buffer*);
-  int max_nondet_choice_len;
-
   //
   // Statistics to set pre_prepare batch info
   //
   std::unordered_map<Seqno, uint64_t> requests_per_batch;
   std::list<uint64_t> max_pending_reqs;
 };
-
-inline int Replica::max_nd_bytes() const
-{
-  return max_nondet_choice_len;
-}
 
 inline int Replica::used_state_bytes() const
 {

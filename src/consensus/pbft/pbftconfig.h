@@ -47,79 +47,85 @@ namespace pbft
 
     IMessageReceiveBase* message_receive_base;
 
-    ExecCommand exec_command = [this](
-                                 Byz_req* inb,
-                                 Byz_rep& outb,
-                                 _Byz_buffer* non_det,
-                                 int client,
-                                 Request_id rid,
-                                 bool ro,
-                                 uint8_t* req_start,
-                                 size_t req_size,
-                                 Seqno total_requests_executed,
-                                 ByzInfo& info,
-                                 ccf::Store::Tx* tx = nullptr) {
-      pbft::Request request;
-      request.deserialise({inb->contents, inb->contents + inb->size});
+    ExecCommand exec_command =
+      [this](
+        std::vector<std::unique_ptr<ExecCommandMsg>>& msgs, ByzInfo& info) {
+        for (auto& msg : msgs)
+        {
+          Byz_req* inb = &msg->inb;
+          Byz_rep& outb = msg->outb;
+          int client = msg->client;
+          Request_id rid = msg->rid;
+          uint8_t* req_start = msg->req_start;
+          size_t req_size = msg->req_size;
+          Seqno total_requests_executed = msg->total_requests_executed;
+          ccf::Store::Tx* tx = msg->tx;
 
-      LOG_DEBUG_FMT("PBFT exec_command() for frontend {}", request.actor);
+          pbft::Request request;
+          request.deserialise({inb->contents, inb->contents + inb->size});
 
-      auto handler = this->rpc_map->find(ccf::ActorsType(request.actor));
-      if (!handler.has_value())
-        throw std::logic_error(
-          "No frontend associated with actor " + std::to_string(request.actor));
+          LOG_DEBUG_FMT("PBFT exec_command() for frontend {}", request.actor);
 
-      auto frontend = handler.value();
+          auto handler = this->rpc_map->find(ccf::ActorsType(request.actor));
+          if (!handler.has_value())
+            throw std::logic_error(
+              "No frontend associated with actor " +
+              std::to_string(request.actor));
 
-      const enclave::SessionContext session(
-        enclave::InvalidSessionId, request.caller_id, request.caller_cert);
-      auto ctx = enclave::make_rpc_context(
-        session, request.raw, {req_start, req_start + req_size});
-      ctx->actor = (ccf::ActorsType)request.actor;
-      const auto n = ctx->method.find_last_of('/');
-      ctx->method = ctx->method.substr(n + 1, ctx->method.size());
+          auto frontend = handler.value();
 
-      ctx->signed_request = ccf::SignedReq();
+          const enclave::SessionContext session(
+            enclave::InvalidSessionId, request.caller_id, request.caller_cert);
+          auto ctx = enclave::make_rpc_context(
+            session, request.raw, {req_start, req_start + req_size});
+          ctx->actor = (ccf::ActorsType)request.actor;
+          const auto n = ctx->method.find_last_of('/');
+          ctx->method = ctx->method.substr(n + 1, ctx->method.size());
 
-      enclave::RpcHandler::ProcessPbftResp rep;
-      if (tx != nullptr)
-      {
-        rep = frontend->process_pbft(ctx, *tx, true, info.include_merkle_roots);
-      }
-      else
-      {
-        rep = frontend->process_pbft(ctx, info.include_merkle_roots);
-      }
+          ctx->signed_request = ccf::SignedReq();
 
-      static_assert(
-        sizeof(info.full_state_merkle_root) == sizeof(crypto::Sha256Hash));
-      static_assert(
-        sizeof(info.replicated_state_merkle_root) ==
-        sizeof(crypto::Sha256Hash));
-      if (info.include_merkle_roots)
-      {
-        std::copy(
-          std::begin(rep.full_state_merkle_root.h),
-          std::end(rep.full_state_merkle_root.h),
-          std::begin(info.full_state_merkle_root));
-        std::copy(
-          std::begin(rep.replicated_state_merkle_root.h),
-          std::end(rep.replicated_state_merkle_root.h),
-          std::begin(info.replicated_state_merkle_root));
-      }
-      info.ctx = rep.version;
+          enclave::RpcHandler::ProcessPbftResp rep;
+          if (tx != nullptr)
+          {
+            rep =
+              frontend->process_pbft(ctx, *tx, true, msg->include_merkle_roots);
+          }
+          else
+          {
+            rep = frontend->process_pbft(ctx, msg->include_merkle_roots);
+          }
 
-      outb.contents = message_receive_base->create_response_message(
-        client, rid, rep.result.size());
+          static_assert(
+            sizeof(info.full_state_merkle_root) == sizeof(crypto::Sha256Hash));
+          static_assert(
+            sizeof(info.replicated_state_merkle_root) ==
+            sizeof(crypto::Sha256Hash));
+          if (msg->include_merkle_roots)
+          {
+            std::copy(
+              std::begin(rep.full_state_merkle_root.h),
+              std::end(rep.full_state_merkle_root.h),
+              std::begin(info.full_state_merkle_root));
+            std::copy(
+              std::begin(rep.replicated_state_merkle_root.h),
+              std::end(rep.replicated_state_merkle_root.h),
+              std::begin(info.replicated_state_merkle_root));
+          }
+          info.ctx = rep.version;
 
-      outb.size = rep.result.size();
-      auto outb_ptr = (uint8_t*)outb.contents;
-      size_t outb_size = (size_t)outb.size;
+          outb.contents = message_receive_base->create_response_message(
+            client, rid, rep.result.size());
 
-      serialized::write(
-        outb_ptr, outb_size, rep.result.data(), rep.result.size());
+          outb.size = rep.result.size();
+          auto outb_ptr = (uint8_t*)outb.contents;
+          size_t outb_size = (size_t)outb.size;
 
-      return 0;
-    };
+          serialized::write(
+            outb_ptr, outb_size, rep.result.data(), rep.result.size());
+
+          msg->cb(*msg.get(), info);
+        }
+        return 0;
+      };
   };
 }

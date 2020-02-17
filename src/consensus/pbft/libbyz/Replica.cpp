@@ -164,7 +164,6 @@ Replica::Replica(
   max_rec_n = 0;
 
   exec_command = nullptr;
-  non_det_choices = 0;
 
   ledger_writer = std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map);
 }
@@ -172,27 +171,6 @@ Replica::Replica(
 void Replica::register_exec(ExecCommand e)
 {
   exec_command = e;
-}
-
-void Replica::register_nondet_choices(
-  void (*n)(Seqno, Byz_buffer*), int max_len)
-{
-  non_det_choices = n;
-  max_nondet_choice_len = max_len;
-}
-
-void Replica::compute_non_det(Seqno s, char* b, int* b_len)
-{
-  if (non_det_choices == 0)
-  {
-    *b_len = 0;
-    return;
-  }
-  Byz_buffer buf;
-  buf.contents = b;
-  buf.size = *b_len;
-  non_det_choices(s, &buf);
-  *b_len = buf.size;
 }
 
 Replica::~Replica() = default;
@@ -471,18 +449,12 @@ void Replica::playback_request(ccf::Store::Tx& tx)
   }
 
   waiting_for_playback_pp = true;
-  Byz_buffer non_det;
-  // we don't know how many requests are in the batch we are currently playing
-  // back
-  playback_byz_info.include_merkle_roots = true;
 
-  execute_tentative_request(
-    *req,
-    playback_byz_info,
-    playback_max_local_commit_value,
-    non_det,
-    nullptr,
-    &tx);
+  std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
+  cmds.emplace_back(execute_tentative_request(
+    *req, playback_byz_info, playback_max_local_commit_value, true, &tx, true));
+
+  exec_command(cmds, playback_byz_info);
 }
 
 void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
@@ -956,9 +928,6 @@ void Replica::handle(Pre_prepare* m)
   }
 
   const Seqno ms = m->seqno();
-  Byz_buffer b;
-
-  b.contents = m->choices(b.size);
 
   LOG_TRACE << "Received pre prepare with seqno: " << ms
             << ", in_wv:" << (in_wv(m) ? "true" : "false")
@@ -2013,72 +1982,6 @@ Pre_prepare* Replica::committed(Seqno s, bool was_f_0)
   return 0;
 }
 
-bool Replica::execute_read_only(Request* request)
-{
-  // JC: won't execute read-only if there's a current tentative execution
-  // this probably isn't necessary if clients wait for 2f+1 RO responses
-  if (
-    last_tentative_execute == last_executed && !state.in_fetch_state() &&
-    !state.in_check_state())
-  {
-    // Create a new Reply message. Replies to read-only requests always
-    // indicate that they were executed at sequence number zero because
-    // they may execute at different sequence numbers provided the client
-    // gets enough matching replies and the sequence numbers must match.
-    Reply* rep =
-      new Reply(view(), request->request_id(), 0, node_id, Max_message_size);
-
-    // Obtain "in" and "out" buffers to call exec_command
-    Byz_req inb;
-    Byz_rep outb;
-
-    inb.contents = request->command(inb.size);
-    outb.contents = rep->store_reply(outb.size);
-
-    // Execute command.
-    int client_id = request->client_id();
-    int request_id = request->request_id();
-    std::shared_ptr<Principal> cp = get_principal(client_id);
-    ByzInfo info;
-    int error = exec_command(
-      &inb, outb, 0, client_id, request_id, true, nullptr, 0, 0, info, nullptr);
-    right_pad_contents(outb);
-
-    if (!error)
-    {
-      // Finish constructing the reply and send it.
-      rep->authenticate(cp.get(), outb.size, true);
-      if (
-        outb.size < SMALL_REPLY_THRESHOLD || request->replier() == node_id ||
-        request->replier() < 0)
-      {
-        // Send full reply.
-        send(rep, client_id);
-      }
-      else
-      {
-        // Send empty reply.
-        Reply empty(
-          view(),
-          request->request_id(),
-          0,
-          node_id,
-          rep->digest(),
-          cp.get(),
-          true);
-        send(&empty, client_id);
-      }
-    }
-
-    delete rep;
-    return true;
-  }
-  else
-  {
-    return false;
-  }
-}
-
 void Replica::rollback_to_globally_comitted()
 {
   if (last_tentative_execute > last_gb_seqno)
@@ -2204,71 +2107,62 @@ void Replica::execute_prepared(bool committed)
   }
 }
 
-void Replica::execute_tentative_request(
+std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
   Request& request,
   ByzInfo& info,
   int64_t& max_local_commit_value,
-  Byz_buffer& non_det,
-  char* nondet_choices,
+  bool include_markle_roots,
   ccf::Store::Tx* tx,
   Seqno seqno)
 {
   auto stash_replier = request.replier();
   request.set_replier(-1);
+  replies.count_request();
   int client_id = request.client_id();
 
+  auto cmd = std::make_unique<ExecCommandMsg>(
+    client_id,
+    request.request_id(),
+    reinterpret_cast<uint8_t*>(request.contents()),
+    request.contents_size(),
+    include_markle_roots,
+    replies.total_requests_processed(),
+    last_tentative_execute,
+    max_local_commit_value,
+    stash_replier,
+    request,
+    &Replica::execute_tentative_request_end,
+    tx);
+
   // Obtain "in" and "out" buffers to call exec_command
-  Byz_req inb;
-  Byz_rep outb;
-  inb.contents = request.command(inb.size);
+  cmd->inb.contents = request.command(cmd->inb.size);
 
-  if (non_det_choices)
-  {
-    non_det.contents = nondet_choices;
-  }
-
-  Request_id rid = request.request_id();
-  // Execute command in a regular request.
-  replies.count_request();
   LOG_TRACE_FMT(
     "before exec command with seqno: {} rid {} cid {} rid digest {}",
     seqno,
-    rid,
+    cmd->rid,
     request.client_id(),
     request.digest().hash());
 
-  exec_command(
-    &inb,
-    outb,
-    &non_det,
-    client_id,
-    rid,
-    false,
-    (uint8_t*)request.contents(),
-    request.contents_size(),
-    replies.total_requests_processed(),
-    info,
-    tx);
-  right_pad_contents(outb);
+  return cmd;
+}
 
-  // restore replier
-  request.set_replier(stash_replier);
+void Replica::execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info)
+{
   // Finish constructing the reply.
-  LOG_DEBUG_FMT(
-    "Executed from tentative exec: {} from client: {} rid {} commit_id {}",
-    seqno,
-    client_id,
-    rid,
-    info.ctx);
+  right_pad_contents(msg.outb);
+  Request r(reinterpret_cast<Request_rep*>(msg.req_start));
+  r.set_replier(msg.replier);
 
-  if (info.ctx > max_local_commit_value)
+  if (info.ctx > msg.max_local_commit_value)
   {
-    max_local_commit_value = info.ctx;
+    msg.max_local_commit_value = info.ctx;
   }
 
-  info.ctx = max_local_commit_value;
+  info.ctx = msg.max_local_commit_value;
 
-  replies.end_reply(client_id, rid, last_tentative_execute, outb.size);
+  pbft::GlobalState::get_replica().replies.end_reply(
+    msg.client, msg.rid, msg.last_tentative_execute, msg.outb.size);
 }
 
 bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
@@ -2292,24 +2186,21 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
     Request request;
     int64_t max_local_commit_value = INT64_MIN;
 
+    std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
+
     while (iter.get(request))
     {
-      Byz_buffer non_det;
-      info.include_merkle_roots = !iter.has_more_requests();
-      execute_tentative_request(
+      auto cmd = execute_tentative_request(
         request,
         info,
         max_local_commit_value,
-        non_det,
-        pp->choices(non_det.size),
+        !iter.has_more_requests(),
         nullptr,
         pp->seqno());
-      LOG_DEBUG_FMT(
-        "Executed from tentative exec: {} rid {} commit_id {}",
-        pp->seqno(),
-        request.request_id(),
-        info.ctx);
+      cmds.push_back(std::move(cmd));
     }
+
+    exec_command(cmds, info);
     return true;
   }
   return false;

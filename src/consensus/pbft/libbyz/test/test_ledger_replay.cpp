@@ -36,34 +36,38 @@ public:
     int64_t ctx;
   };
 
-  ExecCommand exec_command = [this](
-                               Byz_req* inb,
-                               Byz_rep& outb,
-                               _Byz_buffer* non_det,
-                               int client,
-                               Request_id rid,
-                               bool ro,
-                               uint8_t* req_start,
-                               size_t req_size,
-                               Seqno total_requests_executed,
-                               ByzInfo& info,
-                               ccf::Store::Tx* tx = nullptr) {
-    // increase total number of commands executed to compare with fake_req
-    command_counter++;
+  ExecCommand exec_command =
+    [this](std::vector<std::unique_ptr<ExecCommandMsg>>& msgs, ByzInfo& info) {
+      for (auto& msg : msgs)
+      {
+        Byz_req* inb = &msg->inb;
+        Byz_rep& outb = msg->outb;
+        int client = msg->client;
+        Request_id rid = msg->rid;
+        uint8_t* req_start = msg->req_start;
+        size_t req_size = msg->req_size;
+        Seqno total_requests_executed = msg->total_requests_executed;
+        ccf::Store::Tx* tx = msg->tx;
 
-    outb.contents =
-      pbft::GlobalState::get_replica().create_response_message(client, rid, 0);
-    outb.size = 0;
-    auto request = reinterpret_cast<fake_req*>(inb->contents);
-    info.ctx = request->ctx;
-    info.full_state_merkle_root.fill(0);
-    info.replicated_state_merkle_root.fill(0);
-    info.full_state_merkle_root.data()[0] = request->rt;
-    info.replicated_state_merkle_root.data()[0] = request->rt;
+        // increase total number of commands executed to compare with fake_req
+        command_counter++;
 
-    REQUIRE(request->rt == command_counter);
-    return 0;
-  };
+        outb.contents =
+          pbft::GlobalState::get_replica().create_response_message(
+            client, rid, 0);
+        outb.size = 0;
+        auto request = reinterpret_cast<fake_req*>(inb->contents);
+        info.ctx = request->ctx;
+        info.full_state_merkle_root.fill(0);
+        info.replicated_state_merkle_root.fill(0);
+        info.full_state_merkle_root.data()[0] = request->rt;
+        info.replicated_state_merkle_root.data()[0] = request->rt;
+
+        REQUIRE(request->rt == command_counter);
+        msg->cb(*msg.get(), info);
+      }
+      return 0;
+    };
 };
 
 namespace pbft
