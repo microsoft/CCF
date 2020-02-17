@@ -450,11 +450,9 @@ void Replica::playback_request(ccf::Store::Tx& tx)
 
   waiting_for_playback_pp = true;
 
-  auto cmd = execute_tentative_request(
-    *req, playback_byz_info, playback_max_local_commit_value, true, &tx, true);
-
   std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
-  cmds.push_back(std::move(cmd));
+  cmds.emplace_back(execute_tentative_request(
+    *req, playback_byz_info, playback_max_local_commit_value, true, &tx, true));
 
   exec_command(cmds, playback_byz_info);
 }
@@ -2125,7 +2123,7 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
   auto cmd = std::make_unique<ExecCommandMsg>(
     client_id,
     request.request_id(),
-    (uint8_t*)request.contents(),
+    reinterpret_cast<uint8_t*>(request.contents()),
     request.contents_size(),
     include_markle_roots,
     replies.total_requests_processed(),
@@ -2153,7 +2151,7 @@ void Replica::execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info)
 {
   // Finish constructing the reply.
   right_pad_contents(msg.outb);
-  Request r((Request_rep*)msg.req_start);
+  Request r(reinterpret_cast<Request_rep*>(msg.req_start));
   r.set_replier(msg.replier);
 
   if (info.ctx > msg.max_local_commit_value)
