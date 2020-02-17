@@ -145,7 +145,7 @@ namespace http
     void send_response(
       const std::string& data,
       http_status status = HTTP_STATUS_OK,
-      const std::string& content_type = "text/plain")
+      const std::string& content_type = http::headervalues::contenttype::TEXT)
     {
       send_response(
         std::vector<uint8_t>(data.begin(), data.end()), status, content_type);
@@ -154,20 +154,21 @@ namespace http
     void send_response(
       const std::vector<uint8_t>& data,
       http_status status = HTTP_STATUS_OK,
-      const std::string& content_type = "application/json")
+      const std::string& content_type = http::headervalues::contenttype::JSON)
     {
       if (data.empty() && status == HTTP_STATUS_OK)
       {
         status = HTTP_STATUS_NO_CONTENT;
       }
 
+      auto response = http::Response(status);
+
       if (status == HTTP_STATUS_NO_CONTENT)
       {
-        send_raw(http::Response(status).build_response({}, true));
+        send_raw(response.build_response(true));
         return;
       }
 
-      auto response = http::Response(status);
       response.set_header(http::headers::CONTENT_TYPE, content_type);
       response.set_body(&data);
 

@@ -555,9 +555,9 @@ TEST_CASE("MinimalHandleFunction")
                                      {"other", "Another string"}};
       const auto serialized_body = jsonrpc::pack(j_body, pack_type);
 
-      const auto [signed_call, signed_req] =
+      auto [signed_call, signed_req] =
         create_signed_request(echo_call, serialized_body);
-  signed_call.set_body(&serialized_body);
+      signed_call.set_body(&serialized_body);
       const auto serialized_call = signed_call.build_request();
 
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
