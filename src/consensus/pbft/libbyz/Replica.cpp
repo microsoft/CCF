@@ -814,9 +814,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     {
       LOG_DEBUG << "adding to plog from pre prepare: " << next_pp_seqno
                 << std::endl;
-      pp->set_merkle_roots_and_ctx(
-        info.replicated_state_merkle_root,
-        info.ctx);
+      pp->set_merkle_roots_and_ctx(info.replicated_state_merkle_root, info.ctx);
       pp->set_digest(signed_version.load());
       plog.fetch(next_pp_seqno).add_mine(pp);
 

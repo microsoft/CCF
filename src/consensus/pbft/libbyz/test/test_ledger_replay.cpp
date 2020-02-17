@@ -272,9 +272,7 @@ TEST_CASE("Test Ledger Replay")
       // mess up merkle roots
       info.replicated_state_merkle_root.data()[0] = i + 1;
 
-      pp->set_merkle_roots_and_ctx(
-        info.replicated_state_merkle_root,
-        info.ctx);
+      pp->set_merkle_roots_and_ctx(info.replicated_state_merkle_root, info.ctx);
 
       ledger_writer.write_pre_prepare(pp.get());
     }

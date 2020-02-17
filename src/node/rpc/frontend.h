@@ -370,9 +370,7 @@ namespace ccf
         replicated_state_merkle_root = history->get_replicated_state_root();
       }
 
-      return {rep.value(),
-              replicated_state_merkle_root,
-              version};
+      return {rep.value(), replicated_state_merkle_root, version};
     }
 
     /** Process a serialised input forwarded from another node
