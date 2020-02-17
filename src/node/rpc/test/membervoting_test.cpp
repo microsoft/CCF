@@ -82,7 +82,8 @@ std::vector<uint8_t> create_request(
   http::Request r(method_name);
   const auto body = params.is_null() ? std::vector<uint8_t>() :
                                        jsonrpc::pack(params, default_pack);
-  return r.build_request(body);
+  r.set_body(&body);
+  return r.build_request();
 }
 
 std::vector<uint8_t> create_signed_request(
@@ -93,9 +94,10 @@ std::vector<uint8_t> create_signed_request(
   const auto body = params.is_null() ? std::vector<uint8_t>() :
                                        jsonrpc::pack(params, default_pack);
 
-  http::sign_request(r, body, kp_);
+  r.set_body(&body);
+  http::sign_request(r, kp_);
 
-  return r.build_request(body);
+  return r.build_request();
 }
 
 template <typename T>

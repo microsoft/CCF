@@ -43,7 +43,8 @@ namespace http
   class Message
   {
   protected:
-    mutable HeaderMap headers;
+    HeaderMap headers;
+    const std::vector<uint8_t>* body = nullptr;
 
     Message() = default;
 
@@ -67,14 +68,16 @@ namespace http
       headers.clear();
     }
 
-    void set_body(const std::vector<uint8_t>& body) const // TODO: WRONG
+    void set_body(const std::vector<uint8_t>* b)
     {
       using namespace http::headers;
 
-      headers[CONTENT_LENGTH] = fmt::format("{}", body.size());
+      body = b;
+
+      headers[CONTENT_LENGTH] = fmt::format("{}", body->size());
 
       tls::HashBytes body_digest;
-      tls::do_hash(body.data(), body.size(), body_digest, MBEDTLS_MD_SHA256);
+      tls::do_hash(body->data(), body->size(), body_digest, MBEDTLS_MD_SHA256);
       headers[DIGEST] = fmt::format(
         "{}={}",
         "SHA-256",
@@ -137,16 +140,13 @@ namespace http
       return formatted_query;
     }
 
-    std::vector<uint8_t> build_request(
-      const std::vector<uint8_t>& body = {}, bool header_only = false) const
+    std::vector<uint8_t> build_request(bool header_only = false) const
     {
       const auto uri = fmt::format("{}{}", path, get_formatted_query());
 
-      const auto body_view = header_only ?
+      const auto body_view = (header_only || body == nullptr) ?
         std::string_view() :
-        std::string_view((char const*)body.data(), body.size());
-
-      set_body(body);
+        std::string_view((char const*)body->data(), body->size());
 
       const auto request_string = fmt::format(
         "{} {} HTTP/1.1\r\n"
@@ -170,14 +170,11 @@ namespace http
   public:
     Response(http_status s = HTTP_STATUS_OK) : status(s) {}
 
-    std::vector<uint8_t> build_response(
-      const std::vector<uint8_t>& body = {}, bool header_only = false) const
+    std::vector<uint8_t> build_response(bool header_only = false) const
     {
-      const auto body_view = header_only ?
+      const auto body_view = (header_only || body == nullptr) ?
         std::string_view() :
-        std::string_view((char const*)body.data(), body.size());
-
-      set_body(body);
+        std::string_view((char const*)body->data(), body->size());
 
       const auto response_string = fmt::format(
         "HTTP/1.1 {} {}\r\n"
@@ -198,13 +195,17 @@ namespace http
   static std::vector<uint8_t> build_header(
     http_method method, const std::vector<uint8_t>& body)
   {
-    return Request("/", method).build_request(body, true);
+    Request r("/", method);
+    r.set_body(&body);
+    return r.build_request(true);
   }
 
   static std::vector<uint8_t> build_request(
     http_method method, const std::vector<uint8_t>& body)
   {
-    return Request("/", method).build_request(body, false);
+    Request r("/", method);
+    r.set_body(&body);
+    return r.build_request(false);
   }
 
   // HTTP_DELETE

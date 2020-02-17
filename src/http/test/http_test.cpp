@@ -172,7 +172,8 @@ TEST_CASE("URL parsing")
   r.set_query_param("id", "100");
 
   const auto body = s_to_v(request_0);
-  auto req = r.build_request(body);
+  r.set_body(&body);
+  auto req = r.build_request();
 
   auto parsed = p.execute(req.data(), req.size());
   CHECK(parsed == req.size());
@@ -210,7 +211,8 @@ TEST_CASE("Pessimal transport")
     }
 
     const auto r0 = s_to_v(request_0);
-    auto req = builder.build_request(r0);
+    builder.set_body(&r0);
+    auto req = builder.build_request();
 
     size_t done = 0;
     while (done < req.size())
@@ -236,5 +238,7 @@ TEST_CASE("Pessimal transport")
       CHECK(found != m.headers.end());
       CHECK(found->second == it.second);
     }
+
+    sp.received.pop();
   }
 }

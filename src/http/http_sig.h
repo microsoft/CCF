@@ -90,11 +90,9 @@ namespace http
 
   inline void sign_request(
     http::Request& request,
-    const std::vector<uint8_t>& body,
     tls::KeyPairPtr& kp,
     SigningDetails* details = nullptr)
   {
-    request.set_body(body);
     const auto headers = request.get_headers();
     std::vector<std::string_view> headers_to_sign;
     headers_to_sign.emplace_back(auth::SIGN_HEADER_REQUEST_TARGET);

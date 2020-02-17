@@ -43,7 +43,8 @@ const json frontend_process(
   const auto body = json_params.is_null() ?
     std::vector<uint8_t>() :
     jsonrpc::pack(json_params, Pack::Text);
-  auto serialise_request = r.build_request(body);
+  r.set_body(&body);
+  auto serialise_request = r.build_request();
 
   const enclave::SessionContext session(0, caller);
   auto rpc_ctx = enclave::make_rpc_context(session, serialise_request);

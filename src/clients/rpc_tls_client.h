@@ -164,7 +164,10 @@ public:
     auto r = http::Request(body_j["method"].get<std::string>());
     r.set_header(
       http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-    const auto request = r.build_request(body_v);
+
+  r.set_body(&body_v);
+  
+    const auto request = r.build_request();
     return {request, body_j["id"]};
   }
 

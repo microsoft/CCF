@@ -299,9 +299,10 @@ std::pair<http::Request, ccf::SignedReq> create_signed_request(
   const std::vector<uint8_t>& body = {})
 {
   http::Request s(r);
+  s.set_body(&body);
 
   http::SigningDetails details;
-  http::sign_request(s, body, kp, &details);
+  http::sign_request(s, kp, &details);
 
   ccf::SignedReq signed_req{
     details.signature, details.to_sign, body, MBEDTLS_MD_SHA256};
@@ -419,8 +420,9 @@ TEST_CASE("process_pbft")
 
   const nlohmann::json call_body = {{"foo", "bar"}, {"baz", 42}};
   const auto serialized_body = jsonrpc::pack(call_body, default_pack);
+  simple_call.set_body(&serialized_body);
 
-  const auto serialized_call = simple_call.build_request(serialized_body);
+  const auto serialized_call = simple_call.build_request();
   pbft::Request request = {user_id, user_caller_der, serialized_call};
 
   const enclave::SessionContext session(
@@ -555,7 +557,8 @@ TEST_CASE("MinimalHandleFunction")
 
       const auto [signed_call, signed_req] =
         create_signed_request(echo_call, serialized_body);
-      const auto serialized_call = signed_call.build_request(serialized_body);
+  signed_call.set_body(&serialized_body);
+      const auto serialized_call = signed_call.build_request();
 
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
       auto response =

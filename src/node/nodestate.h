@@ -279,9 +279,10 @@ namespace ccf
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
-      http::sign_request(request, body, node_sign_kp);
+      request.set_body(&body);
+      http::sign_request(request, node_sign_kp);
 
-      return request.build_request(body);
+      return request.build_request();
     }
 
     bool parse_create_response(const std::vector<uint8_t>& response)
@@ -576,8 +577,9 @@ namespace ccf
         fmt::format("/{}/{}", ccf::Actors::NODES, ccf::NodeProcs::JOIN));
       r.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        r.set_body(&body);
 
-      join_client->send_request(r.build_request(body));
+      join_client->send_request(r.build_request());
     }
 
     void join(const Join::In& args)

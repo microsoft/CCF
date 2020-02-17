@@ -30,9 +30,11 @@ public:
     auto r = http::Request(body_j[jsonrpc::METHOD].get<std::string>());
     r.set_header(
       http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-    http::sign_request(r, body_v, key_pair);
 
-    const auto request = r.build_request(body_v);
+    r.set_body(&body_v);
+    http::sign_request(r, key_pair);
+
+    const auto request = r.build_request();
 
     return {request, body_j["id"]};
   }
