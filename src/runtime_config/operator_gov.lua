@@ -6,6 +6,18 @@ return {
   pass = [[
   tables, calls, votes = ...
 
+  function accept()
+    return 1
+  end
+
+  function reject()
+    return -1
+  end
+
+  function wait()
+    return 0
+  end
+
   -- defines which of the members are operators
   function is_operator(member)
     return member == "0"
@@ -48,7 +60,11 @@ return {
       for _, sensitive_table in pairs(SENSITIVE_TABLES) do
         if call.args[sensitive_table] then
           -- require unanimity of non-operating members
-          return member_votes == members_active
+          if member_votes == members_active then
+            return accept()
+          else
+            return wait()
+          end
         end
       end
     end
@@ -65,15 +81,15 @@ return {
 
   -- a majority of members can always pass votes
   if member_votes > math.floor(members_active / 2) then
-    return true
+    return accept()
   end
 
   -- a single operator can pass an operator vote
-  if operator_vote then
-    return operator_votes > 0
+  if operator_vote and operator_votes > 0 then
+    return accept()
   end
 
-  return false]],
+  return wait()]],
 
   environment_proposal = [[
   __Puts = {}
