@@ -282,15 +282,18 @@ namespace http
       // We return status 200 regardless of whether the body contains a JSON-RPC
       // success or a JSON-RPC error
       auto http_response = http::Response(HTTP_STATUS_OK);
-      return http_response.build_response(body);
+      http_response.set_body(&body);
+      return http_response.build_response();
     }
 
     virtual std::vector<uint8_t> result_response(
       const nlohmann::json& result) const override
     {
       auto http_response = http::Response(HTTP_STATUS_OK);
-      return http_response.build_response(jsonrpc::pack(
-        jsonrpc::result_response(get_request_index(), result), body_packing));
+      const auto body = jsonrpc::pack(
+        jsonrpc::result_response(get_request_index(), result), body_packing);
+      http_response.set_body(&body);
+      return http_response.build_response();
     }
 
     std::vector<uint8_t> error_response(
@@ -298,9 +301,11 @@ namespace http
     {
       nlohmann::json error_element = jsonrpc::Error(error, msg);
       auto http_response = http::Response(HTTP_STATUS_OK);
-      return http_response.build_response(jsonrpc::pack(
+      const auto body = jsonrpc::pack(
         jsonrpc::error_response(get_request_index(), error_element),
-        body_packing));
+        body_packing);
+      http_response.set_body(&body);
+      return http_response.build_response();
     }
   };
 }

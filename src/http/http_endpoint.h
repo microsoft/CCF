@@ -169,8 +169,9 @@ namespace http
 
       auto response = http::Response(status);
       response.set_header(http::headers::CONTENT_TYPE, content_type);
+      response.set_body(&data);
 
-      send_raw(response.build_response(data, true));
+      send_raw(response.build_response(true));
       send_raw(data);
     }
 

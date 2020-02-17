@@ -110,26 +110,25 @@ namespace ccfapp
       auto& tables = *network.tables;
 
       auto default_handler = [this](RequestArgs& args) {
-        if (args.rpc_ctx->get_method() == UserScriptIds::ENV_HANDLER)
+        const auto method = args.rpc_ctx->get_method();
+        const auto local_method = method.substr(method.find_first_not_of('/'));
+        if (local_method == UserScriptIds::ENV_HANDLER)
         {
           args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-            fmt::format(
-              "Cannot call environment script ('{}')",
-              args.rpc_ctx->get_method()));
+            fmt::format("Cannot call environment script ('{}')", local_method));
           return;
         }
 
         const auto scripts = args.tx.get_view(this->network.app_scripts);
 
-        auto handler_script = scripts->get(args.rpc_ctx->get_method());
+        auto handler_script = scripts->get(local_method);
         if (!handler_script)
         {
           args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
             fmt::format(
-              "No handler script found for method '{}'",
-              args.rpc_ctx->get_method()));
+              "No handler script found for method '{}'", local_method));
           return;
         }
 
@@ -180,7 +179,7 @@ namespace ccfapp
         }
 
         std::string code = handler_script.value().text.value();
-        auto path = fmt::format("app_scripts::{}", args.rpc_ctx->get_method());
+        auto path = fmt::format("app_scripts::{}", local_method);
         JSValue val = JS_Eval(
           ctx, code.c_str(), code.size(), path.c_str(), JS_EVAL_TYPE_GLOBAL);
 
