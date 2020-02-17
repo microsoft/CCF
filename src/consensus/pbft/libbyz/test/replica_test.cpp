@@ -251,8 +251,6 @@ ExecCommand exec_command =
           LOG_INFO << "client counter: " << client_counter
                    << " is smaller than request counter: "
                    << request_array_counter << "\n";
-          // throw std::logic_error("client counter not equal to request
-          // counter");
         }
         else if (
           client_counter == request_array_counter && broken_requests[client])
