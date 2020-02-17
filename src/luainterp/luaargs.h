@@ -40,7 +40,7 @@ namespace ccf
       push_raw(l, args.caller_id);
       lua_setfield(l, -2, "caller_id");
 
-      push_raw(l, args.rpc_ctx->get_params());
+      push_raw(l, args.rpc_ctx->get_method());
       lua_setfield(l, -2, "method");
 
       push_raw(l, args.rpc_ctx->get_params());
