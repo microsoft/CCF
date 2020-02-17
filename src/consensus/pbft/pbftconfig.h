@@ -94,11 +94,11 @@ namespace pbft
           if (tx != nullptr)
           {
             rep =
-              frontend->process_pbft(ctx, *tx, true, info.include_merkle_roots);
+              frontend->process_pbft(ctx, *tx, true, msg->include_merkle_roots);
           }
           else
           {
-            rep = frontend->process_pbft(ctx, info.include_merkle_roots);
+            rep = frontend->process_pbft(ctx, msg->include_merkle_roots);
           }
 
           static_assert(
