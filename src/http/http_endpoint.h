@@ -270,6 +270,7 @@ namespace http
           HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
         // On any exception, close the connection.
+        LOG_TRACE_FMT("Closing connection due to exception: {}", e.what());
         close();
       }
     }
@@ -305,6 +306,7 @@ namespace http
     {
       handle_data_cb(body);
 
+      LOG_TRACE_FMT("Closing connection, message handled");
       close();
     }
   };

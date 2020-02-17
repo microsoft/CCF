@@ -415,7 +415,12 @@ class RequestClient:
                     algorithm="ecdsa-sha256",
                     key=k.read(),
                     key_id="tls",
-                    headers=["(request-target)", "Date"],
+                    headers=[
+                        "(request-target)",
+                        "Date",
+                        "Content-Length",
+                        "Content-Type",
+                    ],
                 ),
             )
             self.stream.update(rep.content)
