@@ -24,7 +24,6 @@ struct Pre_prepare_rep : public Message_rep
 {
   View view;
   Seqno seqno;
-  std::array<uint8_t, MERKLE_ROOT_SIZE> full_state_merkle_root;
   std::array<uint8_t, MERKLE_ROOT_SIZE> replicated_state_merkle_root;
   int64_t ctx; // a context provided when a the batch is executed
                // the contents are opaque
@@ -96,12 +95,9 @@ public:
   // Effects: Fetches the digest from the message.
 
   void set_merkle_roots_and_ctx(
-    const std::array<uint8_t, MERKLE_ROOT_SIZE>& full_state_merkle_root,
     const std::array<uint8_t, MERKLE_ROOT_SIZE>& replicated_state_merkle_root,
     int64_t ctx);
 
-  const std::array<uint8_t, MERKLE_ROOT_SIZE>& get_full_state_merkle_root()
-    const;
   const std::array<uint8_t, MERKLE_ROOT_SIZE>&
   get_replicated_state_merkle_root() const;
 

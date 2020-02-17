@@ -96,16 +96,10 @@ namespace pbft
           }
 
           static_assert(
-            sizeof(info.full_state_merkle_root) == sizeof(crypto::Sha256Hash));
-          static_assert(
             sizeof(info.replicated_state_merkle_root) ==
             sizeof(crypto::Sha256Hash));
           if (msg->include_merkle_roots)
           {
-            std::copy(
-              std::begin(rep.full_state_merkle_root.h),
-              std::end(rep.full_state_merkle_root.h),
-              std::begin(info.full_state_merkle_root));
             std::copy(
               std::begin(rep.replicated_state_merkle_root.h),
               std::end(rep.replicated_state_merkle_root.h),

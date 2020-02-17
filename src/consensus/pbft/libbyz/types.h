@@ -47,7 +47,6 @@ typedef struct _Byz_buffer Byz_rep;
 static const uint32_t MERKLE_ROOT_SIZE = 32;
 struct ByzInfo
 {
-  std::array<uint8_t, MERKLE_ROOT_SIZE> full_state_merkle_root;
   std::array<uint8_t, MERKLE_ROOT_SIZE> replicated_state_merkle_root;
   int64_t ctx;
 };

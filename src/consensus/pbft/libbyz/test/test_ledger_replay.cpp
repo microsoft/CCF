@@ -58,9 +58,7 @@ public:
         outb.size = 0;
         auto request = reinterpret_cast<fake_req*>(inb->contents);
         info.ctx = request->ctx;
-        info.full_state_merkle_root.fill(0);
         info.replicated_state_merkle_root.fill(0);
-        info.full_state_merkle_root.data()[0] = request->rt;
         info.replicated_state_merkle_root.data()[0] = request->rt;
 
         REQUIRE(request->rt == command_counter);
@@ -270,16 +268,11 @@ TEST_CASE("Test Ledger Replay")
       // imitate exec command
       ByzInfo info;
       info.ctx = i;
-      info.full_state_merkle_root.fill(0);
       info.replicated_state_merkle_root.fill(0);
       // mess up merkle roots
-      info.full_state_merkle_root.data()[0] = i + 1;
       info.replicated_state_merkle_root.data()[0] = i + 1;
 
-      pp->set_merkle_roots_and_ctx(
-        info.full_state_merkle_root,
-        info.replicated_state_merkle_root,
-        info.ctx);
+      pp->set_merkle_roots_and_ctx(info.replicated_state_merkle_root, info.ctx);
 
       ledger_writer.write_pre_prepare(pp.get());
     }

@@ -212,8 +212,6 @@ ExecCommand exec_command =
       counter++;
       have_executed_request = true;
 
-      info.full_state_merkle_root.fill(0);
-      ((Long*)(info.full_state_merkle_root.data()))[0] = counter;
       info.replicated_state_merkle_root.fill(0);
       ((Long*)(info.replicated_state_merkle_root.data()))[0] = counter;
       info.ctx = counter;
