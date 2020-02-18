@@ -114,6 +114,67 @@ def human_readable_size(n):
     return f"{n:,.2f} {suffixes[i]}"
 
 
+class FramedTLSClient:
+    def __init__(self, host, port, cert=None, key=None, ca=None, request_timeout=3):
+        self.host = host
+        self.port = port
+        self.cert = cert
+        self.key = key
+        self.ca = ca
+        self.context = None
+        self.sock = None
+        self.conn = None
+        self.request_timeout = request_timeout
+
+    def connect(self):
+        if self.ca:
+            self.context = ssl.create_default_context(cafile=self.ca)
+
+            # Auto detect EC curve to use based on server CA
+            ca_bytes = open(self.ca, "rb").read()
+            ca_curve = (
+                x509.load_pem_x509_certificate(ca_bytes, default_backend())
+                .public_key()
+                .curve
+            )
+            if isinstance(ca_curve, asymmetric.ec.SECP256K1):
+                self.context.set_ecdh_curve("secp256k1")
+        else:
+            self.context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        if self.cert and self.key:
+            self.context.load_cert_chain(certfile=self.cert, keyfile=self.key)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.conn = self.context.wrap_socket(
+            self.sock, server_side=False, server_hostname=self.host
+        )
+        self.conn.connect((self.host, self.port))
+
+    def send(self, msg):
+        LOG.trace(f"Sending {human_readable_size(len(msg))} message")
+        frame = struct.pack("<I", len(msg)) + msg
+        self.conn.sendall(frame)
+
+    def _read(self):
+        (size,) = struct.unpack("<I", self.conn.recv(4))
+        LOG.trace(f"Reading {human_readable_size(size)} response")
+        data = self.conn.recv(size)
+        while len(data) < size:
+            data += self.conn.recv(size - len(data))
+        return data
+
+    def read(self):
+        for _ in range(self.request_timeout * 100):
+            r, _, _ = select.select([self.conn], [], [], 0)
+            if r:
+                return self._read()
+            else:
+                time.sleep(0.01)
+        raise TimeoutError
+
+    def disconnect(self):
+        self.conn.close()
+
+
 class Stream:
     def __init__(self, jsonrpc="2.0", format="msgpack"):
         self.jsonrpc = jsonrpc
@@ -218,7 +279,7 @@ class CurlClient:
         self.request_timeout = request_timeout
         self.stream = Stream(version, "json")
 
-    def _request(self, request, is_signed=False):
+    def _just_request(self, request, is_signed=False):
         with tempfile.NamedTemporaryFile() as nf:
             msg = getattr(request, f"to_{self.format}")()
             LOG.debug(f"Going to send {msg}")
@@ -266,6 +327,18 @@ class CurlClient:
             self.stream.update(rep.encode())
         return request.id
 
+    def _request(self, request, is_signed=False):
+        while self.connection_timeout >= 0:
+            self.connection_timeout -= 0.1
+            try:
+                rid = self._just_request(request, is_signed)
+                self._request = self._just_request
+                return rid
+            except CCFConnectionException:
+                if self.connection_timeout < 0:
+                    raise
+            time.sleep(0.1)
+
     def request(self, request):
         return self._request(request, is_signed=False)
 
@@ -304,43 +377,54 @@ class RequestClient:
         self.request_timeout = request_timeout
         self.connection_timeout = connection_timeout
 
-    def _request(self, request, is_signed):
-        try:
+    def _just_request(self, request):
+        rep = requests.post(
+            f"https://{self.host}:{self.port}/{request.method}",
+            json=request.to_dict(),
+            cert=(self.cert, self.key),
+            verify=self.ca,
+            timeout=(self.connection_timeout, self.request_timeout),
+        )
+        self.stream.update(rep.content)
+        return request.id
+
+    def request(self, request):
+        while self.connection_timeout >= 0:
+            self.connection_timeout -= 0.1
+            try:
+                rid = self._just_request(request)
+                self.request = self._just_request
+                return rid
+            except requests.exceptions.SSLError:
+                if self.connection_timeout < 0:
+                    raise CCFConnectionException
+            except requests.exceptions.ReadTimeout:
+                raise TimeoutError
+            time.sleep(0.1)
+
+    def signed_request(self, request):
+        with open(self.key, "rb") as k:
             rep = requests.post(
                 f"https://{self.host}:{self.port}/{request.method}",
                 json=request.to_dict(),
                 cert=(self.cert, self.key),
                 verify=self.ca,
-                timeout=(self.connection_timeout, self.request_timeout),
+                timeout=self.request_timeout,
                 # key_id needs to be specified but is unused
-                auth=(
-                    HTTPSignatureAuth(
-                        algorithm="ecdsa-sha256",
-                        key=open(self.key, "rb").read(),
-                        key_id="tls",
-                        headers=[
-                            "(request-target)",
-                            "Date",
-                            "Content-Length",
-                            "Content-Type",
-                        ],
-                    )
-                    if is_signed
-                    else None
+                auth=HTTPSignatureAuth(
+                    algorithm="ecdsa-sha256",
+                    key=k.read(),
+                    key_id="tls",
+                    headers=[
+                        "(request-target)",
+                        "Date",
+                        "Content-Length",
+                        "Content-Type",
+                    ],
                 ),
             )
             self.stream.update(rep.content)
-            return request.id
-        except requests.exceptions.SSLError:
-            raise CCFConnectionException
-        except requests.exceptions.ReadTimeout:
-            raise TimeoutError
-
-    def request(self, request):
-        return self._request(request, False)
-
-    def signed_request(self, request):
-        return self._request(request, True)
+        return request.id
 
     def response(self, id):
         return self.stream.response(id)
