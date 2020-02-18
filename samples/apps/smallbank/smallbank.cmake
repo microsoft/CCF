@@ -95,12 +95,6 @@ if(BUILD_TESTS)
         1000
         --metrics-file
         small_bank_fwd_metrics.json
-        -n
-        localhost
-        -n
-        localhost
-        -cn
-        localhost
         --send-tx-to
         backups
         --sign
