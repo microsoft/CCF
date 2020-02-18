@@ -329,12 +329,12 @@ class CurlClient:
 
     def _request(self, request, is_signed=False):
         while self.connection_timeout >= 0:
-            self.connection_timeout -= 0.1
             try:
                 rid = self._just_request(request, is_signed)
                 self._request = self._just_request
                 return rid
             except CCFConnectionException:
+                self.connection_timeout -= 0.1
                 if self.connection_timeout < 0:
                     raise
             time.sleep(0.1)
@@ -390,12 +390,12 @@ class RequestClient:
 
     def request(self, request):
         while self.connection_timeout >= 0:
-            self.connection_timeout -= 0.1
             try:
                 rid = self._just_request(request)
                 self.request = self._just_request
                 return rid
             except requests.exceptions.SSLError:
+                self.connection_timeout -= 0.1
                 if self.connection_timeout < 0:
                     raise CCFConnectionException
             except requests.exceptions.ReadTimeout:
